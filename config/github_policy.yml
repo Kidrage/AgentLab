@@ -1,0 +1,54 @@
+version: 1
+
+defaults:
+  visibility: private
+  backup_branch: main
+  create_remote_for_new_projects: false
+  sync_mode: local_first_manual_push
+
+auth:
+  preferred: github_app
+  local_development: fine_grained_pat
+  token_env: GITHUB_TOKEN
+  app_id_env: GITHUB_APP_ID
+  app_private_key_env: GITHUB_APP_PRIVATE_KEY
+  installation_id_env: GITHUB_APP_INSTALLATION_ID
+
+permissions:
+  backup_agentlab_state:
+    metadata: read
+    contents: write
+  create_private_repository:
+    metadata: read
+    administration: write
+    contents: write
+  modify_source_repository:
+    metadata: read
+    contents: write
+    pull_requests: write
+  trigger_cloud_run:
+    metadata: read
+    actions: write
+
+storage_contract:
+  include:
+    - project_config.yml
+    - agent_docs/**
+    - runs/**
+  exclude:
+    - agent_runtime/.env
+    - .env
+    - .venv/**
+    - node_modules/**
+    - __pycache__/**
+  sync_ledger: agent_docs/10_SYNC_LEDGER.yml
+
+cloud_execution:
+  enabled_by_default: false
+  preferred_runner: github_actions_workflow_dispatch
+  required_repository_state: clean_or_task_branch
+  result_collection:
+    - workflow_run_url
+    - logs_summary
+    - artifacts
+    - validation_status

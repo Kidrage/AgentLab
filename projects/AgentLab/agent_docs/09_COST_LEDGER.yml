@@ -436,3 +436,75 @@ entries:
   estimated_cost: null
   cost_currency: null
   notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T12:26:04.828103+00:00'
+  project: AgentLab
+  task_id: task_0009
+  agent: Coder
+  provider: codex_plus_manual
+  model: Codex Plus
+  status: manual_logged
+  input_tokens: null
+  output_tokens: null
+  total_tokens: null
+  exact_cost_available: false
+  estimated_cost: null
+  cost_currency: null
+  notes: Unified project/task/subtask UI state with backend APIs and added GitHub
+    private backup planning skeleton
+- timestamp: '2026-05-30T12:38:27.579114+00:00'
+  project: AgentLab
+  task_id: task_0009
+  agent: Coder
+  provider: codex_plus_manual
+  model: Codex Plus
+  status: manual_logged
+  input_tokens: null
+  output_tokens: null
+  total_tokens: null
+  exact_cost_available: false
+  estimated_cost: null
+  cost_currency: null
+  notes: Clarified new project mode as workspace-level project creation and new task
+    mode as project-local task creation
+- timestamp: '2026-05-30T12:47:02.322782+00:00'
+  project: AgentLab
+  task_id: task_0011
+  agent: Supervisor
+  provider: deepseek
+  model: deepseek-v4-pro
+  status: completed
+  input_tokens: 11241
+  output_tokens: 1800
+  total_tokens: 13041
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T12:47:21.148132+00:00'
+  project: AgentLab
+  task_id: task_0011
+  agent: RepoScout
+  provider: deepseek
+  model: deepseek-v4-flash
+  status: completed
+  input_tokens: 9300
+  output_tokens: 1200
+  total_tokens: 10500
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T12:49:16.411958+00:00'
+  project: AgentLab
+  task_id: task_0011
+  agent: Supervisor
+  provider: deepseek
+  model: deepseek-v4-pro
+  status: completed
+  input_tokens: 11690
+  output_tokens: 1800
+  total_tokens: 13490
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.

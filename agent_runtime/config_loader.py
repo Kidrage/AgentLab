@@ -12,6 +12,7 @@ CONFIG_FILES = {
     "agent_registry": "agent_registry.yml",
     "brain_governance": "brain_governance.yml",
     "execution_policy": "execution_policy.yml",
+    "github_policy": "github_policy.yml",
     "model_providers": "model_providers.yml",
     "model_profiles": "model_profiles.yml",
     "routing_rules": "routing_rules.yml",

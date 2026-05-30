@@ -7,6 +7,22 @@ paths:
   docs: agent_docs
   runs: runs
 
+github:
+  backup:
+    enabled: false
+    owner: Kidrage
+    repo: AgentLab
+    visibility: private
+    branch: main
+    last_sync_commit:
+  source:
+    owner: Kidrage
+    repo: AgentLab
+    default_branch: main
+  cloud:
+    enabled: false
+    runner: github_actions_workflow_dispatch
+
 global_config:
   agent_registry: ../../config/agent_registry.yml
   model_profiles: ../../config/model_profiles.yml
@@ -14,6 +30,7 @@ global_config:
   budget_profiles: ../../config/budget_profiles.yml
   validation_gates: ../../config/validation_gates.yml
   memory_policy: ../../config/memory_policy.yml
+  github_policy: ../../config/github_policy.yml
 
 agent_routing:
   default_strategy: smallest_safe_route

@@ -2,10 +2,12 @@ version: 1
 
 storage:
   mode: local_first
+  workspace_root: projects
   project_root: projects/<ProjectName>
   authoritative_task_state: runs/task_xxxx
   authoritative_project_memory: agent_docs
   server_sync: optional_future_phase
+  github_private_backup: planned_local_first_manual_sync
 
 records:
   task_state:
@@ -32,6 +34,7 @@ records:
     - 07_DEVELOPMENT_LOG.md
     - 08_CODEX_DIALOGUE_LOG.md
     - 09_COST_LEDGER.yml
+    - 10_SYNC_LEDGER.yml
 
 drift_controls:
   - Start every task from project memory and active task state, not chat history alone.

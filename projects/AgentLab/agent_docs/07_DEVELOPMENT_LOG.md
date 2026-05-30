@@ -37,3 +37,25 @@ Files changed: projects/AgentLab/runs/task_0007/research_notes.md
 
 Commands run: none recorded
 
+
+### 2026-05-30T12:26:04.827144+00:00 - task_0009 - Coder
+
+Module: Web UI / Project Sync
+
+Summary: Unified project/task/subtask UI state with backend APIs and added GitHub private backup planning skeleton
+
+Files changed: web_ui/server.py,web_ui/app.js,web_ui/index.html,web_ui/styles.css,config/github_policy.yml,agent_runtime/github_client.py,projects/AgentLab/project_config.yml,config/memory_policy.yml,README.md
+
+Commands run: python3 -B -m py_compile web_ui/server.py agent_runtime/github_client.py agent_runtime/config_loader.py,curl -s /api/projects,curl -s /api/config
+
+
+### 2026-05-30T12:38:27.578485+00:00 - task_0009 - Coder
+
+Module: Web UI / Project Hierarchy
+
+Summary: Clarified new project mode as workspace-level project creation and new task mode as project-local task creation
+
+Files changed: web_ui/app.js,web_ui/styles.css,web_ui/server.py,README.md,config/memory_policy.yml
+
+Commands run: python3 -B -m py_compile web_ui/server.py agent_runtime/github_client.py agent_runtime/config_loader.py,curl -s /api/projects,curl -s /api/status
+

@@ -29,3 +29,21 @@ Not recorded.
 ### Codex Response / Action Summary
 竞品研究完成，分析 8 个产品，提取 10 个优化方向 P0-P3
 
+
+## 2026-05-30T12:26:04.827144+00:00 - task_0009 - Coder
+
+### User Message / Request
+Not recorded.
+
+### Codex Response / Action Summary
+Unified project/task/subtask UI state with backend APIs and added GitHub private backup planning skeleton
+
+
+## 2026-05-30T12:38:27.578485+00:00 - task_0009 - Coder
+
+### User Message / Request
+Not recorded.
+
+### Codex Response / Action Summary
+Clarified new project mode as workspace-level project creation and new task mode as project-local task creation
+

@@ -194,6 +194,40 @@ Shows agent state, route, provider, ownership, edit rights, token budget, and re
 
 ---
 
+## Project / Task Hierarchy
+
+AgentLab treats projects, tasks, and subtasks as separate scopes:
+
+- **Project**: long-lived workspace, source repo binding, project memory, GitHub backup, and future cloud runner configuration.
+- **Task**: one auditable AgentLab run with `workflow_plan.yml`, reports, cost ledger, decisions, and state.
+- **Subtask**: checklist item inside a task ledger entry. It does not create a full run unless promoted to a task.
+
+Projects are always top-level siblings under `projects/<ProjectName>/`. Creating a
+new project never nests it inside the currently selected project or task. Work
+created inside the selected project is a new task.
+
+The Web UI uses the backend filesystem as the source of truth: project/task navigation reads `/api/projects` and `/api/tasks`; creation flows write real project folders, task runs, or ledger subtasks.
+
+---
+
+## GitHub Private Backup Plan
+
+New AgentLab projects include a GitHub backup placeholder in `project_config.yml`. Global policy lives in:
+
+```text
+config/github_policy.yml
+```
+
+Defaults are local-first and private. AgentLab records sync history in:
+
+```text
+agent_docs/10_SYNC_LEDGER.yml
+```
+
+Remote mutations are planned before execution. `agent_runtime/github_client.py` builds auditable GitHub request plans for private repository creation, file sync through the Contents API, and future GitHub Actions workflow dispatch.
+
+---
+
 ## Version Control / 版本控制
 
 This repo is version-controlled on GitHub / 本仓库在 GitHub 上进行版本控制：
