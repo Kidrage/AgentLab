@@ -127,6 +127,126 @@ def evaluate_token_status(plan: WorkflowPlan, agentlab_root: Path) -> dict[str, 
     return statuses
 
 
+def _age_days(path: Path) -> float | None:
+    if not path.exists():
+        return None
+    return (utc_now_dt().timestamp() - path.stat().st_mtime) / 86400
+
+
+def utc_now_dt():
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc)
+
+
+def _is_placeholder(path: Path) -> bool:
+    if not path.exists() or not path.is_file():
+        return False
+    text = path.read_text(encoding="utf-8")
+    return "TBD" in text or "Placeholder" in text
+
+
+def _line_count(path: Path) -> int:
+    if not path.exists() or not path.is_file():
+        return 0
+    return len(path.read_text(encoding="utf-8").splitlines())
+
+
+def evaluate_harness_status(plan: WorkflowPlan, agentlab_root: Path) -> dict[str, Any]:
+    """Check whether the repo-local harness is healthy enough for brain work."""
+    configs = load_agentlab_configs(agentlab_root)
+    policy = configs.get("harness_policy", {})
+    map_rules = policy.get("map_governance", {})
+    freshness_rules = policy.get("freshness", {}).get("warn_after_days", {})
+    feedback_rules = policy.get("feedback_loop", {})
+
+    project_root = Path(plan.project_root)
+    run_dir = Path(plan.run_dir)
+    checks: list[dict[str, Any]] = []
+    recommendations: list[str] = []
+
+    def add_check(scope: str, rel: str, path: Path, missing_state: str = "warn") -> None:
+        if path.exists():
+            state = "pending" if _is_placeholder(path) else "ok"
+            reason = "placeholder" if state == "pending" else "present"
+        else:
+            state = missing_state
+            reason = "missing"
+        checks.append({"scope": scope, "path": rel, "state": state, "reason": reason})
+        if state in {"warn", "ask_user"}:
+            recommendations.append(f"Create or refresh {rel}.")
+
+    for rel in map_rules.get("required_root_maps", []):
+        add_check("workspace", rel, agentlab_root / rel)
+
+    root_map = map_rules.get("root_map", "AGENTS.md")
+    max_lines = int(map_rules.get("max_root_map_lines", 120))
+    root_map_path = agentlab_root / root_map
+    if root_map_path.exists():
+        lines = _line_count(root_map_path)
+        if lines > max_lines:
+            checks.append({
+                "scope": "workspace",
+                "path": root_map,
+                "state": "warn",
+                "reason": f"map too long: {lines} lines > {max_lines}",
+            })
+            recommendations.append(f"Shorten {root_map} so it stays a map, not a manual.")
+
+    for rel in map_rules.get("required_project_maps", []):
+        add_check("project", rel, project_root / rel)
+
+    for rel, max_age in freshness_rules.items():
+        path = project_root / rel
+        age = _age_days(path)
+        if age is not None and age > float(max_age):
+            checks.append({
+                "scope": "project",
+                "path": rel,
+                "state": "warn",
+                "reason": f"stale: {age:.1f} days > {max_age}",
+            })
+            recommendations.append(f"Review stale project memory: {rel}.")
+
+    for rel in feedback_rules.get("required_task_artifacts", []):
+        add_check("task", rel, run_dir / rel, missing_state="pending")
+
+    user_decision_path = run_dir / "USER_DECISION_REQUIRED.md"
+    if user_decision_path.exists():
+        checks.append({
+            "scope": "task",
+            "path": "USER_DECISION_REQUIRED.md",
+            "state": "ask_user",
+            "reason": "brain layer is waiting for user decision",
+        })
+        recommendations.append("Resolve USER_DECISION_REQUIRED.md before continuing automated brain work.")
+
+    decisions = load_yaml(run_dir / "brain_decisions.yml").get("decisions", [])
+    run_cost_entries = load_yaml(run_dir / "cost_ledger.yml").get("entries", [])
+    project_cost_entries = load_yaml(project_root / "agent_docs" / "09_COST_LEDGER.yml").get("entries", [])
+
+    rank = {"ok": 0, "pending": 1, "warn": 2, "ask_user": 3}
+    overall = "ok"
+    for check in checks:
+        if rank.get(check["state"], 0) > rank.get(overall, 0):
+            overall = check["state"]
+
+    counts = Counter(check["state"] for check in checks)
+    return {
+        "state": overall,
+        "counts": dict(counts),
+        "checks": checks,
+        "recommendations": sorted(set(recommendations)),
+        "metrics": {
+            "brain_decision_count": len(decisions),
+            "run_cost_entry_count": len(run_cost_entries),
+            "project_cost_entry_count": len(project_cost_entries),
+            "task_artifact_count": len(feedback_rules.get("required_task_artifacts", [])),
+        },
+        "policy_source": "config/harness_policy.yml" if policy else "missing",
+    }
+
+
 def detect_loop_risk(run_dir: Path, agent_name: str) -> tuple[str, str]:
     decisions = load_yaml(run_dir / "brain_decisions.yml").get("decisions", [])
     recent = [d for d in decisions if d.get("agent_name") == agent_name][-5:]

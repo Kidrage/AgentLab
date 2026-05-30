@@ -1,0 +1,141 @@
+# AgentLab Backup Policy
+# Controls automated and manual backup of project memory, code, and task state
+# to GitHub (private repos) and TrueNAS (SMB/NFS mounted storage).
+
+version: 1
+
+# ─── Backup targets ───
+targets:
+  github:
+    enabled: true
+    description: "Private GitHub repo for off-site backup and version history"
+    visibility: private
+    default_owner: ""                # Set in project_config.yml per-project
+    default_repo: ""                 # Set in project_config.yml per-project
+    default_branch: main
+    backup_branch_prefix: agentlab/   # e.g. agentlab/task-0014-backup-rules
+    auth:
+      token_env: GITHUB_TOKEN
+      protocol: https
+    sync_mode: manual_trigger        # manual_trigger | on_archive | on_task_complete
+    sync_items:
+      - path: agent_docs/            # Project memory files
+        glob: "**/*.{md,yml,yaml}"
+        exclude: [".git", ".DS_Store"]
+      - path: config/                # Global policy files
+        glob: "**/*.{md,yml,yaml}"
+      - path: agent_templates/       # Agent prompt templates
+        glob: "**/*.md"
+      - path: runs/                  # Task run artifacts (reports, plans, decisions)
+        glob: "**/*.{md,yml}"
+        exclude: ["cost_ledger.yml", "*.diff"]
+    commit_message_template: "[AgentLab] {project} — {task_id} — {description}"
+    max_commits_per_session: 10
+
+  truenas:
+    enabled: true
+    description: "TrueNAS SMB mount — silent background merge backup (never overwrites, never deletes)"
+    mount_path: "/Volumes/ao/AgentLab"        # SMB mount point
+    # ─── Core behavior ───
+    mode: silent_background_merge       # silent_background_merge | live_symlink | periodic_sync
+    # "silent_background_merge" means:
+    #   - rsync runs with --ignore-existing (never overwrite remote files)
+    #   - rsync runs with --no-delete (never delete remote files)
+    #   - All sync is silent (no user-facing prompts, errors go to log only)
+    #   - Triggered automatically on file change events in watched directories
+    sync_strategy:
+      # macOS ships rsync v2.6.9 (2006) which lacks --no-delete.
+      # We use cp -R -n (recursive, no-clobber) instead:
+      #   -n = --no-clobber: never overwrite existing files (pure merge)
+      #   -R = recursive
+      # This guarantees merge-only behavior on all macOS versions.
+      tool: cp
+      flags:
+        - "-R"                        # recursive — copy directory trees
+        - "-n"                        # no-clobber — NEVER overwrite existing files (merge-only)
+        - "-p"                        # preserve timestamps, permissions, ownership
+      fallback_tool: rsync
+      fallback_flags:
+        - "--archive"
+        - "--ignore-existing"
+        - "--update"
+        - "--quiet"
+      note: >
+        rsync on macOS < v3 lacks --no-delete; cp -n provides the same
+        no-overwrite guarantee without needing brew-installed rsync.
+      merge_policy:                    # What happens when remote already has the file
+        existing_remote: keep_remote   # keep_remote | update_if_newer | ask — we KEEP remote
+        new_local: push_to_remote      # push_to_remote | skip — we push new files
+        deleted_local: keep_remote     # keep_remote | delete_remote — we NEVER delete
+    sync_items:
+      - local_path: projects/          # All project data (agent_docs, repo, runs)
+        remote_path: projects/
+        direction: push_only_merge     # push new/updated → TrueNAS, never pull, never delete
+      - local_path: config/            # Global policy files
+        remote_path: config/
+        direction: push_only_merge
+      - local_path: agent_templates/   # Agent prompt templates
+        remote_path: agent_templates/
+        direction: push_only_merge
+    background_trigger:
+      schedule: on_file_write           # on_file_write | every_5min | every_30min | manual
+      watch_paths:                      # Which directories to monitor for changes
+        - projects/AgentLab/agent_docs/
+        - projects/AgentLab/repo/
+        - config/
+        - agent_templates/
+      debounce_seconds: 10              # Wait 10s after last write before triggering rsync
+      max_sync_per_hour: 60             # Rate limit
+    integrity_check:
+      schedule: daily
+      checksum_algorithm: sha256
+      report_path: agent_docs/10_SYNC_LEDGER.yml
+
+# ─── Backup triggers ───
+triggers:
+  on_archivist_complete:
+    description: "After Archivist writes archive_update.md, sync GitHub target only"
+    targets: [github]
+    auto_push: false                    # Require manual confirmation before git push
+    require_validation: true
+
+  on_file_change:
+    description: "Silent background rsync to TrueNAS on any file write (merge-only, no overwrite, no delete)"
+    targets: [truenas]
+    silent: true                        # No user-facing output, errors → log only
+    log_errors_to: agent_docs/10_SYNC_LEDGER.yml
+
+  on_codex_log_event:
+    description: "After each Codex log-event, trigger silent TrueNAS sync"
+    targets: [truenas]
+    silent: true
+    auto_push: true
+
+  on_manual_force_sync:
+    description: "User-triggered full sync (still merge-only for safety)"
+    cli_command: "./agentlab.sh truenas-sync"
+    web_ui_endpoint: "/api/backup/truenas-sync"
+    flags: "--ignore-existing --no-delete --update"
+
+# ─── Retention rules ───
+retention:
+  github:
+    branch_retention: keep_all         # keep_all | last_n_per_task
+    max_branches: 0                    # 0 = unlimited
+  truenas:
+    snapshot_retention_days: 90
+    keep_last_n_snapshots: 7
+
+# ─── Recovery procedure ───
+recovery:
+  from_github:
+    description: "Clone private repo and restore agent_docs/ + config/"
+    steps:
+      - "git clone https://github.com/<owner>/<repo>.git /tmp/agentlab-recovery"
+      - "cp -a /tmp/agentlab-recovery/agent_docs/ <project>/agent_docs/"
+      - "cp -a /tmp/agentlab-recovery/config/ <project>/../config/"
+  from_truenas:
+    description: "Restore from SMB mount — already live if symlinks are intact"
+    steps:
+      - "Verify mount: ls /Volumes/ao/AgentLab/"
+      - "Recreate symlinks if missing: ln -s /Volumes/ao/AgentLab/projects/<project>/agent_docs"

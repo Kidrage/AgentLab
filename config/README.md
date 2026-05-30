@@ -11,6 +11,7 @@ Edit these files first when you want to change how agents behave:
 - `budget_profiles.yml`: token budgets, warning thresholds, and stop rules.
 - `brain_governance.yml`: token governance, traversal approvals, loop detection, and yes/no decision rules.
 - `execution_policy.yml`: hard split between DeepSeek brain work and Codex coding work.
+- `harness_policy.yml`: repo-local maps, feedback loops, mechanical gates, observability, and guidance garbage collection.
 - `validation_gates.yml`: required evidence before a task can be accepted.
 - `memory_policy.yml`: local-first storage, task records, project memory, and drift controls.
 

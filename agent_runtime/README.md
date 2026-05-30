@@ -27,6 +27,7 @@ Global workflow config lives in `../config/`:
 - `routing_rules.yml`: smallest-safe-route task routing.
 - `budget_profiles.yml`: token budget estimates and stop thresholds.
 - `execution_policy.yml`: DeepSeek brain requirement and Codex Coder quota decisions.
+- `harness_policy.yml`: repo-local maps, feedback loops, mechanical gates, and guidance cleanup.
 - `validation_gates.yml`: evidence required before acceptance.
 - `memory_policy.yml`: local-first task state and project memory rules.
 
@@ -79,6 +80,7 @@ python run_task.py prepare --project ExampleProject --task-id task_0001 --write-
 - `status`: show state, route, missing inputs, and report files.
 - `models`: show provider/profile configuration without secrets.
 - `policy-status`: show the hard DeepSeek brain and Codex Coder policy.
+- `harness-status`: show whether the local harness map, project memory, and task feedback artifacts are healthy.
 - `request-coder-quota`: ask the user to pause or explicitly delegate coding when Codex quota is insufficient.
 - `run-agent`: dry-run or execute a single agent model call.
 

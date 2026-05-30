@@ -26,4 +26,4 @@ agent_runtime/.env
 # Project runs (may contain user documents)
 # Keep folder structure but exclude large transient data
 projects/*/runs/*/cost_ledger.yml
-projects/*/runs/*/state.yml
+projects/*/runs/*/state.yml.local.bak/

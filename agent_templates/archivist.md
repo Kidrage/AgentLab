@@ -8,6 +8,7 @@ Maintain project memory and run records so future agents can understand context 
 - Record decisions, risks, changed interfaces, and validation outcomes.
 - Keep archival notes factual and concise.
 - Preserve historical records.
+- Apply validated harness updates only after they are supported by Supervisor or Tester/Auditor reports. Keep `AGENTS.md` short and move detailed policy into `config/*.yml` or project memory.
 - **Task Ledger Maintenance**: After each task completes (or changes status), update `agent_docs/02_TASK_LEDGER.yml` with the following structured fields:
   - `status`: Set to `complete` when all phases finish; `blocked` when a USER_DECISION is needed; `active` while agents are running.
   - `priority`: Apply the priority assigned by Supervisor (P0/P1/P2/P3). Default to P2 if unspecified.
@@ -30,10 +31,12 @@ Maintain project memory and run records so future agents can understand context 
 - Implementation report.
 - Validation and audit reports.
 - Current agent_docs files.
+- AGENTS.md and config/harness_policy.yml when a harness update was proposed.
 
 ## Required Outputs
 - runs/task_xxxx/archive_update.md.
 - Updates proposed for decision log, changelog, risk register, interface registry, and **task ledger** (`02_TASK_LEDGER.yml`).
+- Validated harness updates, if any, with stale or duplicated guidance removed instead of copied forward.
 - A concise future-context summary.
 
 ## Report Format

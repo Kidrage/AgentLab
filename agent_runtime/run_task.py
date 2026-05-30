@@ -25,10 +25,21 @@ from agent_runner import (
     resolve_agent_settings,
     run_agent_model,
 )
-from brain_governor import evaluate_token_status, request_coder_quota_decision, request_traversal_decision
+from brain_governor import (
+    evaluate_harness_status,
+    evaluate_token_status,
+    request_coder_quota_decision,
+    request_traversal_decision,
+)
 from config_loader import load_agentlab_configs
 from cost_tracker import append_cost_ledgers, usage_entry
-from policies import assert_path_allowed, ensure_safe_task_id, resolve_agentlab_root
+from policies import (
+    assert_path_allowed,
+    ensure_safe_task_id,
+    generate_slug_from_request,
+    resolve_agentlab_root,
+    task_number,
+)
 from schemas import TaskRunRequest
 from state_store import load_state, mark_agent_completed, mark_planned, save_state, utc_now
 from workflow_plan import build_workflow_plan
@@ -99,12 +110,26 @@ def load_or_build_plan(
 
 @app.command("init-task")
 def init_task(
-    task_id: str = typer.Option("task_0001", help="Task run id, such as task_0001."),
+    task_id: str = typer.Option("task_0001", help="Task run id, such as task_0001 or task_0001_slug-name."),
     project: Optional[str] = typer.Option(None, help="Project name. Defaults to DEFAULT_PROJECT."),
     request_text: str = typer.Option("", help="Optional user request text to seed user_request.md."),
     request_file: Optional[Path] = typer.Option(None, help="Optional file to copy into user_request.md."),
+    auto_slug: bool = typer.Option(True, help="Auto-append a human-readable slug derived from request_text."),
 ) -> None:
-    """Create a task folder and safe placeholder files without overwriting."""
+    """Create a task folder and safe placeholder files without overwriting.
+
+    Task IDs now support a smart naming scheme: task_NNNN_slug-name.
+    When --auto-slug is True (default), init-task will generate a
+    readable slug from the request text and append it to the task ID.
+    Example: task_0042_cloud-deploy-v2
+    """
+    # Auto-append slug if task_id is numeric-only and request_text has content
+    if auto_slug and "_" not in task_id[5:] and request_text:
+        slug = generate_slug_from_request(request_text)
+        if slug and len(slug) >= 2:
+            task_id = f"{task_id}_{slug}"
+            console.print(f"[dim]Auto-slug → {task_id}[/dim]")
+
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
     project_root = assert_path_allowed(agentlab_root / "projects" / project_name, agentlab_root)
@@ -313,6 +338,52 @@ def brain_status(
             "user_decision_required": str(user_decision_path) if user_decision_path.exists() else None,
         }
     )
+
+    harness = evaluate_harness_status(plan, agentlab_root)
+    console.print("[bold]Harness status[/bold]")
+    console.print({
+        "state": harness.get("state"),
+        "counts": harness.get("counts"),
+        "policy_source": harness.get("policy_source"),
+    })
+
+
+@app.command("harness-status")
+def harness_status(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Show repo-local harness map, feedback, and project memory health."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    plan = load_or_build_plan(agentlab_root, project_name, task_id, "codex")
+    harness = evaluate_harness_status(plan, agentlab_root)
+
+    console.print("[bold]AgentLab harness status[/bold]")
+    console.print({
+        "project": project_name,
+        "task_id": task_id,
+        "state": harness.get("state"),
+        "counts": harness.get("counts"),
+        "metrics": harness.get("metrics"),
+        "policy_source": harness.get("policy_source"),
+    })
+
+    table = Table("Scope", "Path", "State", "Reason")
+    for check in harness.get("checks", []):
+        table.add_row(
+            check.get("scope", ""),
+            check.get("path", ""),
+            check.get("state", ""),
+            check.get("reason", ""),
+        )
+    console.print(table)
+
+    recommendations = harness.get("recommendations") or []
+    if recommendations:
+        console.print("[bold yellow]Recommendations[/bold yellow]")
+        for item in recommendations:
+            console.print(f"- {item}")
 
 
 @app.command("policy-status")

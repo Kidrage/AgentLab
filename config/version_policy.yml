@@ -1,0 +1,105 @@
+# AgentLab Version & Rollback Policy
+# Defines version tracking, changelog rules, and rollback procedures
+# for AgentLab-managed projects. Every file change is traceable.
+
+version: 1
+
+# ─── Version numbering ───
+versioning:
+  scheme: semver                          # semver (major.minor.patch)
+  major:
+    description: "Breaking changes to AgentLab core architecture or protocol"
+    examples: ["agent_registry protocol changed", "storage backend interface redesign"]
+  minor:
+    description: "New features, new agents, new config files"
+    examples: ["added backup_policy.yml", "new WebDAVBackend class", "task slug naming"]
+  patch:
+    description: "Bug fixes, policy clarifications, documentation updates"
+    examples: ["fixed supervisor_plan.md format", "updated AGENTS.md"]
+
+  # Where version is recorded
+  records:
+    - path: agent_docs/05_CHANGELOG_AGENT.md   # Per-project changelog
+    - path: VERSION                             # Root version file (optional)
+    - path: config/version_policy.yml           # This file's own version
+
+# ─── Changelog rules ───
+changelog:
+  format: |
+    ## [{version}] - {date}
+    ### Changed
+    - {description} (by {agent}, task {task_id})
+  auto_append: true                       # Archivist auto-appends on task completion
+  entry_requirements:
+    - version bump type (major/minor/patch)
+    - task_id reference
+    - agent name that produced the change
+    - list of changed files
+    - validation status (validated / not validated)
+  rolling_window_entries: 50             # Keep last 50 entries, archive older to archive/
+
+# ─── Rollback rules ───
+rollback:
+  # What constitutes a version checkpoint
+  checkpoint_triggers:
+    - on_task_start                        # Snapshot agent_docs/ before task execution
+    - on_coder_complete                    # Snapshot after Coder writes implementation_report
+    - on_validator_pass                    # Snapshot after TesterAuditor passes validation
+    - on_manual                            # User-triggered: ./agentlab.sh checkpoint
+
+  # Where checkpoints are stored
+  checkpoint_storage:
+    local_path: .agentlab_checkpoints/     # Local git-ignored directory
+    truenas_path: /Volumes/ao/AgentLab/checkpoints/  # TrueNAS SMB mirror
+    retention:
+      keep_all_checkpoints: false
+      keep_last_n: 20
+      keep_milestones:                     # Always keep checkpoints tagged as milestones
+        - "v1.0.0"
+        - pattern: "v*.0.0"               # Major version releases
+      auto_prune: true                     # Auto-delete oldest checkpoints beyond keep_last_n
+
+  # How to rollback
+  rollback_procedure:
+    list_checkpoints: "./agentlab.sh rollback --list"
+    preview: "./agentlab.sh rollback --preview <checkpoint_id>"
+    execute: "./agentlab.sh rollback --checkpoint <checkpoint_id> --confirm"
+    safety_gates:
+      - "TesterAuditor validates rollback target before execution"
+      - "Current state is checkpointed before rollback (one extra snapshot)"
+      - "Rollback is logged to agent_docs/03_DECISION_LOG.md"
+      - "User confirmation required (--confirm flag)"
+
+  # What gets rolled back
+  rollback_scopes:
+    agent_docs_only:
+      description: "Roll back only project memory files (agent_docs/)"
+      files: ["agent_docs/*"]
+      safe: true                           # No code changes, always safe
+    config_only:
+      description: "Roll back only config/ policy files"
+      files: ["config/*"]
+      safe: true
+    full_project:
+      description: "Roll back entire project (agent_docs/ + repo/ + runs/)"
+      files: ["agent_docs/*", "repo/*"]
+      warning: "May discard uncommitted code changes — confirm with user"
+
+# ─── Git integration for version tracking ───
+git:
+  auto_tag_on_milestone: true
+  tag_format: "v{major}.{minor}.{patch}-{project}"
+  example: "v1.2.0-AgentLab"
+  annotated_tags: true
+  tag_message_template: "[AgentLab] {version} — {description}"
+  push_tags_auto: false                   # Manual push only (safety)
+  branch_naming:
+    task_branch: "agentlab/task-{task_number}-{slug}"
+    rollback_branch: "agentlab/rollback-{checkpoint_id}"
+
+# ─── Example changelog entry ───
+# ## [1.2.0] - 2026-05-30
+# ### Changed
+# - Added backup_policy.yml and version_policy.yml (Codex, task_0014_backup-version-rules)
+# - Upgraded task naming to support human-readable slugs (Codex, task_0014_backup-version-rules)
+# - Added TrueNAS SMB symlink integration (Codex, task_0013_truenas-integration)

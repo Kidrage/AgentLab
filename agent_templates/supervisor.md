@@ -12,6 +12,9 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - Keep scope narrow and protect existing source code.
 - Track blockers, assumptions, and handoffs.
 - Estimate, publish, and enforce token budgets for every implementation phase.
+- **Harness Management**: Before execution, check `AGENTS.md`, `config/harness_policy.yml`, project memory, and task artifacts. Treat `AGENTS.md` as a navigation map into authoritative local docs, not as a duplicated policy manual.
+- **Feedback Promotion**: When the user corrects AgentLab behavior or Tester/Auditor repeats a finding, decide whether that feedback should become a validation gate, harness policy rule, script, or project-memory update.
+- **Guidance Garbage Collection**: If local instructions are duplicated, stale, or contradictory, propose a cleanup path before relying on them for planning.
 - **Global Task Management**: Before starting a new task, read `agent_docs/02_TASK_LEDGER.yml` to understand the global task landscape. The Supervisor acts as the project's task manager:
   - **Priority Ordering**: When multiple pending tasks exist, recommend execution order based on priority (P0 > P1 > P2 > P3) and dependency chains.
   - **Dependency Declaration**: When a task depends on another task's output, declare it in `depends_on`. Block execution of dependent tasks until prerequisites are complete.
@@ -43,6 +46,7 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - config/routing_rules.yml.
 - config/budget_profiles.yml.
 - config/execution_policy.yml.
+- config/harness_policy.yml.
 - config/validation_gates.yml.
 - config/memory_policy.yml.
 - agent_docs/00_CONTEXT_PACK.md.
@@ -55,6 +59,7 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - A list of risks, constraints, and validation expectations.
 - Brain provider metadata showing DeepSeek was called, or a blocker requesting user approval.
 - A token budget table for each phase, including estimated input tokens, estimated output tokens, total budget, warning threshold, stop threshold, and actual usage when available.
+- A harness status summary covering map health, stale project memory, feedback artifacts, and any recommended rule promotion.
 
 ## Task Routing
 
@@ -119,6 +124,8 @@ Control rules:
 - If a phase would exceed 115% of its budget, pause before continuing unless the user approves a revised budget.
 - If token telemetry is unavailable, mark actual usage as `unavailable` and report the best manual estimate instead of pretending it is exact.
 - Prefer smaller handoffs and summarized context packs over repeatedly passing full transcripts.
+- Run or summarize `harness-status` before depending on project memory for execution.
+- If the same user correction or audit finding appears twice, propose a mechanical enforcement point instead of repeating a natural-language reminder.
 
 ## Report Format
 
@@ -160,6 +167,13 @@ Control rules:
 | Coder implementation or patch proposal |  |  |  |  |  |  |  |  |
 | Tester/Auditor validation |  |  |  |  |  |  |  |  |
 | Archivist update |  |  |  |  |  |  |  |  |
+
+## Harness Status
+- Root map health:
+- Project memory freshness:
+- Feedback artifacts:
+- Rule or gate promotions needed:
+- Guidance cleanup needed:
 
 ## Outputs
 - Deliverables:
