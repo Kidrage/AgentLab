@@ -20,6 +20,7 @@ DEFAULT_REPORT_BY_AGENT = {
     "Coder": "implementation_report.md",
     "CodexPromptGenerator": "codex_prompt.md",
     "TesterAuditor": "audit_report.md",
+    "Verifier": "verification_report.md",
     "Archivist": "archive_update.md",
 }
 

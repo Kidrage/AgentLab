@@ -84,6 +84,9 @@ def generate_text(
     if settings.provider_type == "manual_codex":
         return _codex_handoff(settings, messages, "Provider is configured as manual Codex Plus.")
 
+    if settings.provider_type == "external_ide_ai":
+        return _external_ide_handoff(settings, messages, "Provider is configured as External IDE AI. AgentLab brain handles planning; external AI executes.")
+
     if settings.provider_type != "openai_compatible":
         raise ValueError(f"Unsupported provider type: {settings.provider_type}")
 
@@ -205,6 +208,81 @@ Codex must not silently take over this brain stage. Ask the user whether to:
             raw_usage={"blocked": True, "reason": reason},
         )
     raise RuntimeError(f"{settings.provider} failed without fallback: {reason}. {error}")
+
+
+def _external_ide_handoff(
+    settings: LLMSettings,
+    messages: list[dict[str, str]],
+    reason: str,
+) -> LLMCallResult:
+    """Generate a handoff prompt for external IDE AI (Codex, Claude, etc.) to execute the Coder phase.
+    
+    The key value: external AI receives a complete, structured prompt with all context baked in.
+    External AI does NOT need to plan, analyze architecture, or determine scope — AgentLab brain
+    (DeepSeek) has already done all of that. External AI only needs to execute what's specified.
+    """
+    system = messages[0].get("content", "") if messages else ""
+    user = messages[1].get("content", "") if len(messages) > 1 else ""
+
+    content = f"""# AgentLab External IDE AI Handoff
+
+## Your Role: Thin Executor
+You are an external AI (IDE assistant) receiving a pre-planned task from AgentLab.
+AgentLab's brain (DeepSeek) has already done ALL planning, scoping, routing, research,
+and architectural decisions. Your ONLY job is to execute the Coder phase.
+
+### What You DO:
+- Read the context below and execute exactly what's specified
+- Edit files listed in the Supervisor-approved scope
+- Write the implementation_report.md back to the task run folder
+- Log your actions via `agentlab.sh log-event`
+
+### What You DO NOT Do:
+- Do NOT plan, scope, or reroute the task (already done by Supervisor)
+- Do NOT analyze the codebase architecture (already done by RepoScout/InterfaceMapper)
+- Do NOT evaluate whether the approach is correct (Supervisor approved it)
+- Do NOT add features outside the specified scope
+
+### Why This Saves You Tokens:
+All reasoning/planning/scoping work is already complete. You receive a flat
+execution-only context, eliminating the need to read and analyze the full
+project. Protocol version: 1.1.
+
+---
+
+## System Context (AgentLab Configuration)
+
+{system}
+
+---
+
+## User Task Context (What To Execute)
+
+{user}
+
+---
+
+## Execution Protocol
+
+1. Read the sections above to understand the task scope.
+2. Execute the Coder phase (edit files, run commands).
+3. Write implementation_report.md to the task run folder.
+4. Log events:
+   ```bash
+   ./agentlab.sh log-event --project <Project> --task-id <task> --agent Coder \
+     --summary "brief summary" --files-changed "file1.ts,file2.js" --commands-run "cmd1,cmd2"
+   ```
+5. After your execution is complete, AgentLab will continue with TesterAuditor → Verifier → Archivist.
+6. Do NOT continue with TesterAuditor yourself — AgentLab will handle that.
+"""
+    return LLMCallResult(
+        provider=settings.provider,
+        model=settings.model,
+        content=content,
+        status="fallback_handoff",
+        error=reason,
+        raw_usage={"external_ide_ai": True, "context_length": len(system) + len(user)},
+    )
 
 
 def _codex_handoff(

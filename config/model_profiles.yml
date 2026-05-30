@@ -113,3 +113,10 @@ profiles:
     model: env:QWEN_CODER_MODEL:qwen-plus
     temperature: 0.15
     max_output_tokens: 3200
+
+  external_ide_coder:
+    description: External IDE AI (Codex, Claude, etc.) as Coder executor. Brain planning done by DeepSeek; external AI receives handoff prompt and executes.
+    provider: external_ide_ai
+    model: External AI
+    temperature: 0.0
+    max_output_tokens: 0

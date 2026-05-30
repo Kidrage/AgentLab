@@ -13,6 +13,7 @@ AgentName = Literal[
     "CodexPromptGenerator",
     "TesterAuditor",
     "Archivist",
+    "Verifier",
 ]
 
 
