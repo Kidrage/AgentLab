@@ -593,6 +593,7 @@ def run_agent(
     execute: bool = typer.Option(False, help="Actually call the configured model API. Default is dry-run."),
     overwrite_report: bool = typer.Option(False, help="Overwrite an existing non-placeholder report."),
     force: bool = typer.Option(False, help="Allow running an agent not present in the selected route."),
+    no_apply_patches: bool = typer.Option(False, help="Skip applying structured edit blocks from the LLM output."),
 ) -> None:
     """Dry-run or execute a single agent and write its report."""
     ensure_safe_task_id(task_id)
@@ -616,6 +617,7 @@ def run_agent(
             "api_key_configured": settings.api_key_configured,
             "output": str(output_path),
             "execute": execute,
+            "apply_patches": not no_apply_patches,
         }
     )
 
@@ -628,7 +630,7 @@ def run_agent(
     if output_path.exists() and not overwrite_report and not is_placeholder_report(output_path):
         raise typer.BadParameter(f"Report exists and is not a placeholder: {output_path}")
 
-    result = run_agent_model(agentlab_root, plan, agent_name, output_path, provider, model)
+    result = run_agent_model(agentlab_root, plan, agent_name, output_path, provider, model, apply_patches=not no_apply_patches)
     if result.status == "blocked_user_decision":
         blocked_path = Path(plan.run_dir) / f"blocked_{agent_name}.md"
         blocked_path.write_text(result.content, encoding="utf-8")
@@ -711,6 +713,19 @@ def run_agent(
             "API usage recorded from provider telemetry when available.",
         ),
     )
+
+    # Show patch application results if any
+    raw_usage = result.raw_usage or {}
+    if "patch_applied" in raw_usage:
+        applied = raw_usage.get("patch_applied", 0)
+        failed = raw_usage.get("patch_failed", 0)
+        if applied > 0:
+            console.print(f"[green]Patch applied:[/green] {applied} file edit(s) written to filesystem")
+        if failed > 0:
+            console.print(f"[yellow]Patch failures:[/yellow] {failed} edit(s) could not be applied")
+        if applied == 0 and failed == 0:
+            console.print("[dim]No structured edit blocks found in LLM output[/dim]")
+
     console.print("[green]Agent report written[/green]")
     console.print({"output": str(output_path), "usage": result.model_dump(exclude={"content"})})
 

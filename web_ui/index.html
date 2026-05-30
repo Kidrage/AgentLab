@@ -98,32 +98,12 @@
   <header class="topbar">
     <div class="topbar-left">
       <div class="brand">
-        <span class="brand-icon">⬡</span>
+        <span class="brand-icon">A</span>
         <h1>AgentLab</h1>
         <span class="version-badge">v1.0</span>
       </div>
-      <div class="topbar-controls">
-        <!-- 项目选择器 -->
-        <div class="select-group">
-          <label>项目</label>
-          <select id="projectSelector">
-            <option value="AgentLab">AgentLab</option>
-            <option value="ExampleProject">ExampleProject</option>
-          </select>
-        </div>
-        <!-- 任务选择器 -->
-        <div class="select-group">
-          <label>任务</label>
-          <select id="taskSelector">
-            <option value="task_0001">task_0001</option>
-            <option value="task_0002">task_0002</option>
-            <option value="task_0003">task_0003</option>
-            <option value="task_0004">task_0004</option>
-          </select>
-        </div>
-        <!-- 刷新 -->
+      <div class="topbar-quick">
         <button class="icon-btn" title="刷新数据 (Ctrl+R)" onclick="AgentLab.refresh()" id="refreshBtn">⟳</button>
-        <!-- 新建任务 -->
         <button class="icon-btn" title="新建任务 (Ctrl+N)" onclick="AgentLab.openNewTask()" id="newTaskBtn">+</button>
       </div>
     </div>
@@ -138,8 +118,8 @@
         <span class="theme-icon-light">☀️</span>
         <span class="theme-icon-dark">🌙</span>
       </button>
-      <!-- 快捷键 -->
-      <button class="icon-btn" title="快捷键 (?)" onclick="AgentLab.showShortcuts()">⌨</button>
+      <!-- 设置 -->
+      <button class="icon-btn" title="项目 & 模型设置" onclick="AgentLab.toggleSettings()" id="settingsBtn">⚙</button>
       <!-- 状态 -->
       <div class="status-indicator" id="connectionStatus" title="连接状态">
         <span class="dot"></span>
@@ -147,6 +127,81 @@
       </div>
     </div>
   </header>
+
+  <!-- ====== 侧拉设置面板 ====== -->
+  <div class="settings-backdrop" id="settingsBackdrop" hidden onclick="AgentLab.toggleSettings()"></div>
+  <aside class="settings-panel" id="settingsPanel" hidden>
+    <div class="settings-header">
+      <h3>项目 & 模型配置</h3>
+      <button class="btn btn-ghost btn-sm" onclick="AgentLab.toggleSettings()">✕</button>
+    </div>
+    <div class="settings-body">
+      <!-- 项目 & 任务 -->
+      <div class="settings-section">
+        <h4>📁 项目 & 任务</h4>
+        <div class="select-group">
+          <label>项目</label>
+          <select id="projectSelector">
+            <option value="AgentLab">AgentLab</option>
+            <option value="ExampleProject">ExampleProject</option>
+          </select>
+        </div>
+        <div class="select-group">
+          <label>任务</label>
+          <select id="taskSelector">
+            <option value="task_0001">task_0001</option>
+            <option value="task_0002">task_0002</option>
+            <option value="task_0003">task_0003</option>
+            <option value="task_0004">task_0004</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 大脑层 -->
+      <div class="settings-section">
+        <h4>🧠 大脑层 (规划/审查)</h4>
+        <p class="settings-hint">Supervisor 使用 v4-pro，其余 Agent 使用 v4-flash 节约成本</p>
+        <div class="select-group">
+          <label>Provider & 模型</label>
+          <select id="brainModelSelector" onchange="AgentLab.switchBrainModel(this.value)">
+            <option value="default">默认 (DeepSeek pro+flash)</option>
+            <option value="deepseek-v4-pro">全 DeepSeek V4 Pro</option>
+            <option value="qwen">全 Qwen</option>
+          </select>
+        </div>
+        <details class="settings-api-key">
+          <summary>🔑 API Key</summary>
+          <div class="select-group">
+            <label>DeepSeek API Key</label>
+            <input type="password" id="brainApiKey" placeholder="sk-..." onchange="AgentLab.setBrainApiKey(this.value)">
+          </div>
+        </details>
+      </div>
+
+      <!-- 执行层 -->
+      <div class="settings-section">
+        <h4>⚡ 执行层 (Coder)</h4>
+        <p class="settings-hint">实际编辑文件的模型，支持 Codex Plus / Qwen / DeepSeek</p>
+        <div class="select-group">
+          <label>Provider & 模型</label>
+          <select id="execModelSelector" onchange="AgentLab.switchExecModel(this.value)">
+            <option value="codex-plus">Codex Plus (IDE 内置)</option>
+            <option value="qwen-plus">Qwen Plus (API)</option>
+            <option value="qwen-max">Qwen Max (API)</option>
+            <option value="deepseek-v4-pro">DeepSeek V4 Pro (API)</option>
+          </select>
+        </div>
+        <details class="settings-api-key">
+          <summary>🔑 API Key</summary>
+          <div class="select-group" id="execApiKeyGroup" style="display:none">
+            <label id="execApiKeyLabel">API Key</label>
+            <input type="password" id="execApiKey" placeholder="sk-..." onchange="AgentLab.setExecApiKey(this.value)">
+          </div>
+          <p id="execApiKeyNote" class="settings-hint">Codex Plus 使用 IDE 内置 AI，无需 API Key</p>
+        </details>
+      </div>
+    </div>
+  </aside>
 
   <!-- ====== 通知面板 ====== -->
   <div class="notif-panel" id="notifPanel" hidden>
@@ -159,29 +214,48 @@
 
   <!-- ====== 任务详情面板 ====== -->
   <div class="task-detail-panel" id="taskDetailPanel">
+    <!-- 面包屑: 项目 → 任务 -->
+    <div class="hierarchy-breadcrumb" id="hierarchyBreadcrumb">
+      <span class="breadcrumb-project" id="breadcrumbProject">AgentLab</span>
+      <span class="breadcrumb-sep">›</span>
+      <span class="breadcrumb-task" id="breadcrumbTask">Web UI 完善</span>
+    </div>
     <div class="task-detail-header">
-      <span class="task-detail-id" id="taskDetailId">task_0008</span>
+      <span class="task-detail-id" id="taskDetailId">task_0009</span>
       <span class="status-badge" id="taskDetailStatus">🔄 active</span>
     </div>
     <div class="task-detail-title-row">
-      <h2 id="taskDetailTitle">全局任务管理系统</h2>
+      <h2 id="taskDetailTitle">Web UI 完善 & 视觉重构</h2>
       <div class="task-detail-meta">
         <span>优先级: <strong id="taskDetailPriority">P0</strong></span>
-        <span>分类: <strong id="taskDetailCategory">infra</strong></span>
-        <span>依赖: <strong id="taskDetailDepends">task_0007</strong></span>
+        <span>分类: <strong id="taskDetailCategory">feature</strong></span>
+        <span>子任务: <strong id="taskDetailSubtaskCount">6</strong></span>
       </div>
     </div>
-    <div class="task-detail-desc" id="taskDetailDescription">
-      暂无描述
+    <div class="task-detail-desc" id="taskDetailDescription">完善 AgentLab Web UI 并完成桌面 App 封装</div>
+    <!-- 子任务列表 -->
+    <div class="subtask-section" id="subtaskSection">
+      <h4>📋 子任务</h4>
+      <div class="subtask-list" id="subtaskList"></div>
     </div>
   </div>
 
   <!-- ====== 自然语言任务下达栏 ====== -->
   <div class="nl-task-bar" id="nlTaskBar">
+    <div class="nl-context-row" id="nlContextRow">
+      <span class="nl-context-label">发送到：</span>
+      <span class="nl-context-target" id="nlContextTarget">AgentLab › Web UI 完善</span>
+      <span class="nl-context-type" id="nlContextType">追加子任务</span>
+      <div class="nl-mode-switch">
+        <button class="nl-mode-btn is-active" data-mode="subtask" onclick="AgentLab.setChatMode('subtask')">子任务</button>
+        <button class="nl-mode-btn" data-mode="task" onclick="AgentLab.setChatMode('task')">新任务</button>
+        <button class="nl-mode-btn" data-mode="project" onclick="AgentLab.setChatMode('project')">新项目</button>
+      </div>
+    </div>
     <div class="nl-task-inner">
       <span class="nl-icon">💬</span>
-      <input type="text" id="nlTaskInput" class="nl-input" placeholder="用自然语言描述你的任务，例如：修改 Web UI 使其支持深色主题…" autocomplete="off">
-      <button class="btn btn-primary" id="nlSubmitBtn" onclick="AgentLab.submitNaturalTask()">下达任务</button>
+      <input type="text" id="nlTaskInput" class="nl-input" placeholder="用自然语言描述你的需求…" autocomplete="off">
+      <button class="btn btn-primary" id="nlSubmitBtn" onclick="AgentLab.submitNaturalTask()">下达</button>
       <div class="nl-status" id="nlStatus"></div>
     </div>
   </div>
@@ -202,6 +276,9 @@
     </button>
     <button class="tab-btn" data-tab="config">
       <span class="tab-icon">⚙</span> 配置
+    </button>
+    <button class="tab-btn" data-tab="about">
+      <span class="tab-icon">ℹ</span> 关于
     </button>
   </nav>
 
@@ -365,6 +442,12 @@
 
   <!-- ====== Tab: 配置 ====== -->
   <section class="tab-content" id="tab-config" hidden>
+    <div class="config-toolbar">
+      <button class="btn btn-sm" onclick="AgentLab.editConfig()">✏ 编辑配置</button>
+      <button class="btn btn-sm btn-primary" onclick="AgentLab.saveConfig()" id="configSaveBtn" hidden>💾 保存配置</button>
+      <button class="btn btn-sm btn-ghost" onclick="AgentLab.cancelEditConfig()" id="configCancelBtn" hidden>取消</button>
+      <span class="config-status" id="configStatus"></span>
+    </div>
     <div class="config-grid">
       <div class="dash-card">
         <h3>执行策略</h3>
@@ -382,6 +465,75 @@
         <h3>环境变量</h3>
         <div id="configEnv" class="config-yaml">
           <p class="text-muted">注意：密钥已脱敏显示</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== Tab: 关于 / 帮助 ====== -->
+  <section class="tab-content" id="tab-about" hidden>
+    <div class="about-grid">
+      <div class="dash-card">
+        <h3>关于 AgentLab</h3>
+        <div class="about-content">
+          <p class="about-version">版本 1.0</p>
+          <p>AgentLab 是一个本地优先、半托管的个人 Agentic 软件开发工作流平台。采用双脑架构 (DeepSeek 大脑 + Codex/Qwen 执行)，将规划、路由、预算、执行、验证、审计和归档分离为独立的 Agent 阶段。</p>
+          <ul class="about-features">
+            <li>8 个 Agent 协作，按需路由</li>
+            <li>Token 预算治理和循环检测</li>
+            <li>完整审计追踪 (每条任务 14+ 个文件)</li>
+            <li>零依赖纯静态 Web UI</li>
+            <li>跨平台桌面 App (macOS / Linux / Windows)</li>
+            <li>结构化编辑块 — 任何 LLM API 可直接编辑文件</li>
+          </ul>
+        </div>
+      </div>
+      <div class="dash-card">
+        <h3>快速入门</h3>
+        <div class="about-content">
+          <ol class="about-steps">
+            <li><strong>下达任务</strong> — 在顶部输入框用自然语言描述你的需求</li>
+            <li><strong>Supervisor 规划</strong> — AgentLab 大脑自动分配路由和预算</li>
+            <li><strong>Agent 执行</strong> — 各 Agent 按序协作完成分析和编码</li>
+            <li><strong>Coder 编辑</strong> — 结构化编辑块自动应用到文件系统</li>
+            <li><strong>审计归档</strong> — TesterAuditor 验证，Archivist 更新项目记忆</li>
+          </ol>
+        </div>
+      </div>
+      <div class="dash-card">
+        <h3>CLI 常用命令</h3>
+        <div class="about-content">
+          <pre class="about-code"># 初始化新任务
+./agentlab.sh init-task --project AgentLab --task-id task_0010
+
+# 生成工作流计划
+./agentlab.sh prepare --project AgentLab --task-id task_0010 --write-plan
+
+# 执行 Agent (大脑层)
+./agentlab.sh run-agent Supervisor --project AgentLab --task-id task_0010 --execute
+
+# 查看状态
+./agentlab.sh status --project AgentLab --task-id task_0010
+
+# 启动 Web UI
+python3 web_ui/server.py
+
+# 启动桌面 App
+python3 agentlab_app.py</pre>
+        </div>
+      </div>
+      <div class="dash-card">
+        <h3>键盘快捷键</h3>
+        <div class="about-content">
+          <div class="shortcuts-grid about-shortcuts">
+            <div><kbd>Ctrl</kbd>+<kbd>K</kbd></div><span>命令面板</span>
+            <div><kbd>Ctrl</kbd>+<kbd>1-6</kbd></div><span>切换 Tab</span>
+            <div><kbd>Ctrl</kbd>+<kbd>T</kbd></div><span>切换主题</span>
+            <div><kbd>Ctrl</kbd>+<kbd>N</kbd></div><span>新建任务</span>
+            <div><kbd>Ctrl</kbd>+<kbd>F</kbd></div><span>搜索</span>
+            <div><kbd>Escape</kbd></div><span>关闭弹窗</span>
+            <div><kbd>?</kbd></div><span>显示快捷键</span>
+          </div>
         </div>
       </div>
     </div>

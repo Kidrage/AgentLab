@@ -152,6 +152,7 @@ const AgentLab = {
 
   /* ======================== 渲染 ======================== */
   renderAll() {
+    this.renderTaskDetail();
     this.renderDashboard();
     this.renderAgentGrid();
     this.renderLogs();
@@ -471,11 +472,189 @@ const AgentLab = {
   },
 
   /* ========== 配置面板 ========== */
-  renderConfig() {
-    this.$("configPolicy","<pre>brain_policy:\n  required_provider: deepseek\n  deepseek_required_for_all_agentlab_tasks: true\n  codex_may_simulate_brain: false\n\ncoder_policy:\n  primary_executor: codex_plus_manual\n  api_fallback_executor: qwen\n  deepseek_coding_allowed: true\n  no_automatic_deepseek_coding: false</pre>");
-    this.$("configProviders",`<table><tr><th>Provider</th><th>Type</th><th>模型</th><th>API Key</th></tr><tr><td>deepseek</td><td>openai_compatible</td><td>deepseek-v4-pro</td><td class="text-green">已配置 ✓</td></tr><tr><td>qwen</td><td>openai_compatible</td><td>qwen-plus</td><td class="text-green">已配置 ✓</td></tr><tr><td>openai</td><td>openai_compatible</td><td>--</td><td class="text-muted">未配置</td></tr><tr><td>codex_plus_manual</td><td>manual_codex</td><td>Codex Plus</td><td>N/A</td></tr></table>`);
-    this.$("configProfiles",`<table><tr><th>Profile</th><th>Provider</th><th>Model</th></tr><tr><td>coordinator</td><td>deepseek</td><td>deepseek-v4-pro</td></tr><tr><td>scout</td><td>deepseek</td><td>deepseek-v4-pro</td></tr><tr><td>coder</td><td>codex_plus_manual</td><td>Codex Plus</td></tr><tr><td>deepseek_coder</td><td>deepseek</td><td>deepseek-v4-pro</td></tr><tr><td>qwen_coder_aux</td><td>qwen</td><td>qwen-plus</td></tr></table>`);
-    this.$("configEnv",`<div><pre>AGENTLAB_ROOT=/Users/saintpeter/AgentLab\nDEFAULT_PROJECT=AgentLab\nLLM_PROVIDER=deepseek\nDEEPSEEK_MODEL=deepseek-v4-pro\nDEEPSEEK_API_KEY=sk-65f6... (已脱敏)\nQWEN_API_KEY=sk-92d4... (已脱敏)</pre></div>`);
+  async renderConfig() {
+    // Try fetching real config from backend
+    try {
+      const configData = await this.apiGet("/api/config");
+      if (configData && !configData.error) {
+        this._configData = configData;
+      }
+    } catch (_) {
+      this._configData = null;
+    }
+
+    const policyYaml = this._configData?.execution_policy
+      ? JSON.stringify(this._configData.execution_policy, null, 2)
+      : "brain_policy:\n  required_provider: deepseek\n  deepseek_required_for_all_agentlab_tasks: true\n  codex_may_simulate_brain: false\n\ncoder_policy:\n  primary_executor: codex_plus_manual\n  api_fallback_executor: qwen\n  deepseek_coding_allowed: true\n  no_automatic_deepseek_coding: false";
+
+    this.$("configPolicy", `<pre id="configPolicyPre">${this.esc(policyYaml)}</pre>`);
+
+    const providers = this._configData?.model_providers?.providers || {};
+    const provRows = Object.entries(providers).map(([name, cfg]) => {
+      const keyStatus = cfg.api_key ? "text-green" : "text-muted";
+      const keyLabel = cfg.api_key ? "已配置" : "未配置";
+      return `<tr><td>${name}</td><td>${cfg.type||""}</td><td>${cfg.default_model||""}</td><td class="${keyStatus}">${keyLabel}</td></tr>`;
+    }).join("") || '<tr><td colspan="4" class="text-muted">未加载</td></tr>';
+    this.$("configProviders", `<table><tr><th>Provider</th><th>Type</th><th>Model</th><th>API Key</th></tr>${provRows}</table>`);
+
+    const profiles = this._configData?.model_profiles?.profiles || {};
+    const profRows = Object.entries(profiles).map(([name, cfg]) =>
+      `<tr><td>${name}</td><td>${cfg.provider||""}</td><td>${cfg.model||""}</td></tr>`
+    ).join("") || '<tr><td colspan="3" class="text-muted">未加载</td></tr>';
+    this.$("configProfiles", `<table><tr><th>Profile</th><th>Provider</th><th>Model</th></tr>${profRows}</table>`);
+
+    this.$("configEnv", `<div><pre id="configEnvPre">AGENTLAB_ROOT=/Users/saintpeter/AgentLab\nDEFAULT_PROJECT=AgentLab\nLLM_PROVIDER=deepseek\nDEEPSEEK_MODEL=deepseek-v4-pro\nDEEPSEEK_API_KEY=sk-65f6... (已脱敏)\nQWEN_API_KEY=sk-92d4... (已脱敏)</pre></div>`);
+  },
+
+  editConfig() {
+    // Make config panes editable
+    const policyPre = document.getElementById("configPolicyPre");
+    const envPre = document.getElementById("configEnvPre");
+    if (policyPre) policyPre.contentEditable = "true";
+    if (envPre) envPre.contentEditable = "true";
+    // Toggle buttons
+    const saveBtn = document.getElementById("configSaveBtn");
+    const cancelBtn = document.getElementById("configCancelBtn");
+    if (saveBtn) saveBtn.hidden = false;
+    if (cancelBtn) cancelBtn.hidden = false;
+    const editBtn = document.querySelector(".config-toolbar .btn:first-child");
+    if (editBtn) editBtn.hidden = true;
+    this.showToast("配置面板已进入编辑模式 — 修改后请保存", "info");
+  },
+
+  cancelEditConfig() {
+    const policyPre = document.getElementById("configPolicyPre");
+    const envPre = document.getElementById("configEnvPre");
+    if (policyPre) policyPre.contentEditable = "false";
+    if (envPre) envPre.contentEditable = "false";
+    const saveBtn = document.getElementById("configSaveBtn");
+    const cancelBtn = document.getElementById("configCancelBtn");
+    if (saveBtn) saveBtn.hidden = true;
+    if (cancelBtn) cancelBtn.hidden = true;
+    const editBtn = document.querySelector(".config-toolbar .btn:first-child");
+    if (editBtn) editBtn.hidden = false;
+    this.renderConfig();
+    this.showToast("已取消编辑", "info");
+  },
+
+  async saveConfig() {
+    const policyPre = document.getElementById("configPolicyPre");
+    const envPre = document.getElementById("configEnvPre");
+    const statusEl = document.getElementById("configStatus");
+
+    // Build config payload from editable pre elements
+    const policyText = policyPre?.textContent || "";
+    const envText = envPre?.textContent || "";
+
+    const result = await this.apiPost("/api/config/save", {
+      project: state.project,
+      policyYaml: policyText,
+      envText: envText,
+    });
+
+    if (result && result.success) {
+      if (statusEl) { statusEl.textContent = "✓ 配置已保存"; statusEl.className = "config-status text-green"; }
+      this.showToast("配置已保存", "success");
+      // Exit edit mode
+      this.cancelEditConfig();
+    } else {
+      const msg = result?.error || "保存失败 — 后端未连接，配置仅在前端可用";
+      if (statusEl) { statusEl.textContent = "✗ " + msg; statusEl.className = "config-status text-coral"; }
+      this.showToast(msg, "warn");
+      // Still exit edit mode on frontend
+      const policyPre2 = document.getElementById("configPolicyPre");
+      const envPre2 = document.getElementById("configEnvPre");
+      if (policyPre2) policyPre2.contentEditable = "false";
+      if (envPre2) envPre2.contentEditable = "false";
+      document.getElementById("configSaveBtn").hidden = true;
+      document.getElementById("configCancelBtn").hidden = true;
+      const editBtn = document.querySelector(".config-toolbar .btn:first-child");
+      if (editBtn) editBtn.hidden = false;
+    }
+    setTimeout(() => { if (statusEl) statusEl.textContent = ""; }, 5000);
+  },
+
+  /* ========== 任务详情面板 ========== */
+  renderTaskDetail() {
+    const snap = state.snapshot;
+    const idEl = this.$("taskDetailId");
+    const statusEl = this.$("taskDetailStatus");
+    const titleEl = this.$("taskDetailTitle");
+    const descEl = this.$("taskDetailDescription");
+    const prioEl = this.$("taskDetailPriority");
+    const catEl = this.$("taskDetailCategory");
+    const depEl = this.$("taskDetailSubtaskCount");
+    const breadcrumbProj = this.$("breadcrumbProject");
+    const breadcrumbTask = this.$("breadcrumbTask");
+
+    // Breadcrumb: project → task
+    const ledger = state._ledgerEntry || {};
+    if (breadcrumbProj) breadcrumbProj.textContent = snap.project || state.project || "AgentLab";
+    if (breadcrumbTask) breadcrumbTask.textContent = ledger.title || snap.stage || snap.taskId || "未知任务";
+
+    // Task ID and status
+    if (idEl) idEl.textContent = snap.taskId || state.taskId || "task_????";
+    if (statusEl) {
+      const ts = snap.taskStatus || ledger.status || "new";
+      const statusText = statusLabels[ts] || ts;
+      let icon = "❓";
+      if (ts === "running" || ts === "active") icon = "🔄";
+      else if (ts === "complete" || ts === "completed") icon = "✅";
+      else if (ts === "blocked") icon = "🚫";
+      else if (ts === "new") icon = "🆕";
+      statusEl.textContent = `${icon} ${statusText}`;
+      statusEl.setAttribute("data-status", ts);
+    }
+
+    // Title
+    if (titleEl) titleEl.textContent = ledger.title || snap.stage || snap.taskStatus || "AgentLab 任务";
+
+    // Description
+    if (descEl) {
+      const desc = ledger.description || snap.userRequest || snap.stage || "暂无描述";
+      descEl.textContent = desc;
+      descEl.title = desc;
+    }
+
+    // Meta
+    if (prioEl) prioEl.textContent = ledger.priority || snap.priority || "--";
+    if (catEl) catEl.textContent = ledger.category || snap.category || "--";
+
+    // Subtask count
+    const subtasks = ledger.subtasks || [];
+    if (depEl) depEl.textContent = subtasks.length || "--";
+
+    // Render subtask list
+    this._renderSubtasks(subtasks);
+  },
+
+  _renderSubtasks(subtasks) {
+    const listEl = this.$("subtaskList");
+    const sectionEl = this.$("subtaskSection");
+    if (!sectionEl) return;
+    if (!subtasks || subtasks.length === 0) {
+      sectionEl.style.display = "none";
+      return;
+    }
+    sectionEl.style.display = "block";
+    if (!listEl) return;
+    const labels = { complete: "已完成", active: "进行中", pending: "待处理" };
+    listEl.innerHTML = subtasks.map(s => `
+      <div class="subtask-item" data-status="${s.status}">
+        <span class="subtask-id">${s.id}</span>
+        <span>${this.esc(s.description || "")}</span>
+        <span class="subtask-status" data-status="${s.status}">${labels[s.status] || s.status}</span>
+      </div>
+    `).join("");
+
+    // Update chat context target
+    const target = this.$("nlContextTarget");
+    if (target) {
+      const ledger = state._ledgerEntry || {};
+      const proj = state.snapshot.project || state.project || "AgentLab";
+      const task = ledger.title || state.snapshot.taskId || state.taskId;
+      target.textContent = `${proj} › ${task}`;
+    }
   },
 
   /* ========== 通知面板 ========== */
@@ -585,7 +764,6 @@ const AgentLab = {
   },
   updateTaskSelector() {
     const sel = this.$("taskSelector");
-    const descEl = this.$("taskDescription");
     if (!sel) return;
     const tasks = state._taskData || PROJECT_TASKS[state.project]?.map(id => ({ task_id: id, title: id, description: "" })) || [];
     sel.innerHTML = tasks.map(t => {
@@ -593,15 +771,10 @@ const AgentLab = {
       return `<option value="${t.task_id}" ${t.task_id===state.taskId?'selected':''}>${label}</option>`;
     }).join("");
 
-    // Update task description display
-    if (descEl) {
-      const current = tasks.find(t => t.task_id === state.taskId);
-      if (current?.description) {
-        descEl.textContent = current.description;
-        descEl.title = current.description;
-      } else {
-        descEl.textContent = "暂无描述";
-      }
+    // Cache ledger entry for the current task to drive renderTaskDetail
+    const current = tasks.find(t => t.task_id === state.taskId);
+    if (current) {
+      state._ledgerEntry = current;
     }
   },
   async switchProject(project) {
@@ -693,6 +866,96 @@ const AgentLab = {
     this.renderDashboard(); this.renderAgentGrid();
     this.$("newTaskModal").hidden = true;
     this.showToast(`任务 ${id} 已创建`, "success");
+  },
+
+  /* ========== 模型切换 ========== */
+  switchBrainModel(mode) {
+    state.brainMode = mode;
+    const labels = { "default": "默认 (Supervisor: v4-pro + 其余: v4-flash)", "deepseek-v4-pro": "全 DeepSeek V4 Pro", "qwen": "全 Qwen" };
+    state.snapshot.brainProvider = mode === "qwen" ? "Qwen" : "DeepSeek";
+    this.addEvent("User", "info", `大脑层模式切换至: ${labels[mode] || mode}`);
+    this.showToast(`🧠 大脑层: ${labels[mode] || mode}`, "success");
+    if (state.activeTab === "agents") this.renderAgentGrid();
+  },
+  switchExecModel(modelId) {
+    state.execModel = modelId;
+    if (modelId === "codex-plus") {
+      state.coderProvider = "codex-plus";
+    } else if (modelId.startsWith("qwen")) {
+      state.coderProvider = "qwen";
+      state.qwenSelectedModel = modelId;
+    } else {
+      state.coderProvider = "deepseek";
+    }
+    this.addEvent("User", "info", `执行层模型切换至: ${modelId}`);
+    this.showToast(`⚡ 执行层已切换至 ${modelId}`, "success");
+    // Show/hide API key input based on selection
+    this._updateExecApiKeyUI(modelId);
+    if (state.activeTab === "agents") this.renderAgentGrid();
+  },
+  _updateExecApiKeyUI(modelId) {
+    const group = document.getElementById("execApiKeyGroup");
+    const note = document.getElementById("execApiKeyNote");
+    const label = document.getElementById("execApiKeyLabel");
+    if (!group) return;
+    if (modelId === "codex-plus") {
+      group.style.display = "none";
+      if (note) note.style.display = "block";
+    } else {
+      group.style.display = "grid";
+      if (note) note.style.display = "none";
+      if (label) {
+        if (modelId.startsWith("qwen")) label.textContent = "Qwen API Key";
+        else label.textContent = "DeepSeek API Key";
+      }
+    }
+  },
+
+  /* ========== 聊天模式 ========== */
+  chatMode: "subtask", // subtask | task | project
+  setChatMode(mode) {
+    this.chatMode = mode;
+    document.querySelectorAll(".nl-mode-btn").forEach(b => b.classList.toggle("is-active", b.dataset.mode === mode));
+    const typeEl = document.getElementById("nlContextType");
+    const input = document.getElementById("nlTaskInput");
+    const labels = { subtask: "追加子任务", task: "创建新任务", project: "创建新项目" };
+    const placeholders = {
+      subtask: `为 ${state._ledgerEntry?.title || "当前任务"} 追加子任务…`,
+      task: "描述新任务…",
+      project: "描述新项目…",
+    };
+    if (typeEl) typeEl.textContent = labels[mode] || mode;
+    if (input) input.placeholder = placeholders[mode] || "描述你的需求…";
+    this.showToast(`聊天模式: ${labels[mode]}`, "info");
+  },
+
+  /* ========== 设置面板 ========== */
+  toggleSettings() {
+    const panel = document.getElementById("settingsPanel");
+    const backdrop = document.getElementById("settingsBackdrop");
+    if (!panel) return;
+    const isOpen = !panel.hidden;
+    if (isOpen) {
+      panel.hidden = true;
+      if (backdrop) backdrop.hidden = true;
+    } else {
+      panel.hidden = false;
+      if (backdrop) backdrop.hidden = false;
+      // Sync current exec model UI
+      this._updateExecApiKeyUI(state.execModel || state.coderProvider || "codex-plus");
+    }
+  },
+  setBrainApiKey(value) {
+    if (value) {
+      state._brainApiKey = value;
+      this.showToast("🧠 大脑层 API Key 已设置（本地存储，不会上传）", "success");
+    }
+  },
+  setExecApiKey(value) {
+    if (value) {
+      state._execApiKey = value;
+      this.showToast("⚡ 执行层 API Key 已设置（本地存储，不会上传）", "success");
+    }
   },
 
   /* ========== 主题切换 ========== */
@@ -852,7 +1115,7 @@ function bindEvents() {
     if (ctrl && e.key === "t") { e.preventDefault(); AgentLab.toggleTheme(); }
     if (ctrl && e.key === "n") { e.preventDefault(); AgentLab.openNewTask(); }
     if (ctrl && e.key === "f") { e.preventDefault(); document.getElementById("logSearch")?.focus(); }
-    if (ctrl && e.key >= "1" && e.key <= "5") { e.preventDefault(); const tabs = ["dashboard","agents","logs","cost","config"]; AgentLab.switchTab(tabs[parseInt(e.key)-1]); }
+    if (ctrl && e.key >= "1" && e.key <= "6") { e.preventDefault(); const tabs = ["dashboard","agents","logs","cost","config","about"]; AgentLab.switchTab(tabs[parseInt(e.key)-1]); }
     if (e.key === "?") { e.preventDefault(); AgentLab.showShortcuts(); }
     if (e.key === "Escape") {
       document.getElementById("commandPalette").hidden = true;
