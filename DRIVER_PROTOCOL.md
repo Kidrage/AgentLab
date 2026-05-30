@@ -21,6 +21,35 @@
 
 ---
 
+## Coder 模式切换规则
+
+Coder 有两个执行模式，由外部 IDE AI 自动检测切换：
+
+| 模式 | 触发条件 | 行为 |
+|------|---------|------|
+| **IDE 接管模式（默认）** | 用户在 IDE 中直接用自然语言让你审查/编写/修改 AgentLab 源码或配置 | 你全权接管 Coder 阶段，读 supervisor_plan → 编辑文件 → 写 implementation_report → log-event。Qwen 被动待命。 |
+| **Qwen API Fallback** | 用户显式说"用 Qwen 编码"或你 Codex 配额不足且用户选择 API fallback | Qwen API 生成 patch proposal，你或用户审批后应用。 |
+
+### IDE 接管模式自动信号
+
+当你（外部 IDE AI）在对话中检测到以下任一信号时，**自动识别为 Coder IDE 接管模式**，无需用户显式说"用 AgentLab Coder"：
+
+| 信号 | 示例 | 自动行为 |
+|------|------|---------|
+| 用户让你审查 AgentLab 内部规则/代码 | "看看 AgentLab 的 Coder 配置对不对" | 读取相关文件 → 分析 → 编辑 → 写报告 |
+| 用户让你修改 AgentLab 源码 | "把 Coder profile 改成 external_ide_coder" | 等价于接管 Coder 阶段 |
+| 用户讨论 AgentLab 架构改动 | "我想让 Coder 支持这种切换逻辑" | 触发完整 AgentLab 工作流，你自动承担 Coder |
+| 用户提及 `DRIVER_PROTOCOL.md` / `agent_registry.yml` 等 AgentLab 内部文件 | 任何引用 AgentLab 配置文件的对话 | 自动进入 IDE 接管模式 |
+| 用户说"帮我改 AgentLab" | 直接触发 | 等同 `run-agent Coder --execute` 但由你手动执行 |
+
+**不触发 IDE 接管**：用户在 AgentLab 任务中讨论业务代码（非 AgentLab 自身）、问答 AgentLab 用法、查看状态。
+
+**切换回 Qwen**：仅当用户明确说"用 Qwen API 编码"或"恢复 API 编码模式"时。
+
+**CLI 安全护栏**：`./agentlab.sh run-agent Coder --execute` 已加入阻断逻辑——当 Coder profile 为 `external_ide_coder`（provider=external_ide_ai）时，CLI 会阻止自动执行并提示手动接管。显式指定 `--provider qwen` 或 `--provider deepseek` 可绕过阻断使用 API fallback。
+
+---
+
 ## 标准流程（7 步）
 
 ### 步骤 0：识别触发
@@ -34,6 +63,7 @@
 | 需要分工协作 | "帮我规划然后实现..." |
 | 附带文档/规格书 | 用户粘贴长文档或需求说明 |
 | 明确说 task | "帮我做一个任务..." |
+| IDE 接管信号（见上节） | 审查/修改 AgentLab 自身源码或配置 |
 
 **不触发**：单文件小修改、问答、解释代码、简单的"帮我写个函数"。
 
@@ -140,7 +170,7 @@ Supervisor → RepoScout → Researcher(如有) → InterfaceMapper(如有) → 
 
 ### 步骤 5：Coder 阶段——你出手
 
-当轮到 Coder 时，**不要**执行 `run-agent Coder --execute`（Coder 的 provider 是 `codex_plus_manual`，不会调 API）。
+当轮到 Coder 时，**不要**执行 `run-agent Coder --execute`（Coder 的默认 profile 是 `external_ide_coder`，CLI 会自动阻断）。
 
 **你来充当 Coder**，按以下约束工作：
 
@@ -290,5 +320,6 @@ Coder 完成后，继续执行剩余的大脑层 agent：
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.2 | 2026-05-30 | 新增 Coder 模式切换规则（IDE 接管 / Qwen Fallback）；新增 IDE 自动信号检测；CLI 增加 Coder handoff 阻断护栏 |
 | 1.1 | 2026-05-30 | 新增竞品研究关键词触发 Researcher；新增交互式需求澄清规则；新增 Tester→Coder 自动修复循环（最多3轮）；Researcher 模板支持竞品分析 |
 | 1.0 | 2026-05-30 | 初始协议，覆盖标准 7 步流程 + 特殊情况处理 |

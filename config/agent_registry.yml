@@ -62,7 +62,7 @@ agents:
   Coder:
     template_path: agent_templates/coder.md
     role: Codex Plus execution lane for real code edits, file changes, and project commands.
-    model_profile: coder
+    model_profile: external_ide_coder
     can_edit_source: true
     can_run_shell: true
     can_write_agent_docs: false
