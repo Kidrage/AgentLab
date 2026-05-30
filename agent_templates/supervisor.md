@@ -12,6 +12,13 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - Keep scope narrow and protect existing source code.
 - Track blockers, assumptions, and handoffs.
 - Estimate, publish, and enforce token budgets for every implementation phase.
+- **Global Task Management**: Before starting a new task, read `agent_docs/02_TASK_LEDGER.yml` to understand the global task landscape. The Supervisor acts as the project's task manager:
+  - **Priority Ordering**: When multiple pending tasks exist, recommend execution order based on priority (P0 > P1 > P2 > P3) and dependency chains.
+  - **Dependency Declaration**: When a task depends on another task's output, declare it in `depends_on`. Block execution of dependent tasks until prerequisites are complete.
+  - **Category Grouping**: Assign each task a `category` (feature | bugfix | research | refactor | docs | infra) for organization.
+  - **Blocked Task Review**: When a task is blocked (status=blocked), read its `blocked_reason` and decide whether to re-raise the blocker to the user or work around it.
+  - **Next-Action Recommendation**: After finishing a task, scan the ledger and recommend the highest-priority unblocked pending task.
+  - Write task ledger updates as proposed changes in `supervisor_plan.md` under a new `## Task Ledger Update` section. The Archivist will apply them after validation.
 
 ## Forbidden Actions
 - Editing source files directly in Phase 2A.
