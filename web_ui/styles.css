@@ -597,7 +597,9 @@ a { color: var(--blue); }
 .form-group textarea { resize: vertical; }
 
 .decision-recs { display: grid; gap: 8px; margin-bottom: 12px; }
-.rec-item { padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); font-size: 0.88rem; }
+.rec-item { padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); font-size: 0.88rem; cursor: pointer; transition: all var(--transition); }
+.rec-item:hover { border-color: var(--blue); background: rgba(37,99,235,0.04); }
+.rec-selected { border-color: var(--blue); background: rgba(37,99,235,0.12); box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
 .rec-default { border-color: var(--blue); background: rgba(37,99,235,0.06); }
 
 /* ───── 按钮 ───── */
