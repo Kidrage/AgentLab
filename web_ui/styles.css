@@ -780,6 +780,58 @@ a { color: var(--blue); }
 [data-theme="dark"] .theme-icon-light { display: none; }
 [data-theme="light"] .theme-icon-dark { display: none; }
 
+/* ───── 任务详情面板 ───── */
+.task-detail-panel {
+  margin-bottom: 18px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.task-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.task-detail-id {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--muted);
+  font-family: monospace;
+}
+.task-detail-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.task-detail-title-row h2 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 0;
+}
+.task-detail-meta {
+  display: flex;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+}
+.task-detail-meta strong {
+  color: var(--ink);
+}
+.task-detail-desc {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
 /* ───── 自然语言任务下达栏 ───── */
 .nl-task-bar {
   margin-bottom: 18px;
