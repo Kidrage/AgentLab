@@ -1,18 +1,19 @@
 # AgentLab 外部 AI 驱动协议
 
-> **适用对象**：Codex Plus、Claude、或其他 IDE 内置 AI
+> **适用对象**：Codex Plus（有额度的订阅用户）
 > **你的角色**：轻量中继——收取自然语言任务 → 交给 AgentLab 大脑分发 → 必要时执行 Coder 阶段
 > **目标**：每步消耗尽可能少的 token，不替代 AgentLab 的大脑层
+> **注意**：cline、DeepSeek、Claude 等其他外部 AI **不在 Coder 阶段接管范围内**。你必须是 Codex Plus 订阅用户才可执行 Coder 阶段。其他外部 AI 仅可运行大脑层 Agent（Supervisor 等）。
 
 ---
 
 ## 核心原则
 
 ```
-你（外部AI）      AgentLab 大脑（DeepSeek）      AgentLab 执行（Codex Plus / Qwen API）
-───────────      ─────────────────────────      ─────────────────────────────────
-收任务、写文件    规划、路由、分派、审查            实际写代码、编辑文件、跑命令
-薄薄一层          所有思考工作                    只在你接管 Coder 阶段时介入
+你（Codex Plus）   AgentLab 大脑（DeepSeek）      AgentLab 执行（Codex Plus 手动 / Qwen API）
+─────────────     ─────────────────────────      ──────────────────────────────────────────
+收任务、写文件     规划、路由、分派、审查            实际写代码、编辑文件、跑命令
+薄薄一层           所有思考工作                    只在你接管 Coder 阶段时介入
 ```
 
 - 你 **不做** 任务规划、架构分析、范围评估——那些是 Supervisor 的活
@@ -23,28 +24,30 @@
 
 ## Coder 模式切换规则
 
-Coder 有两个执行模式，由外部 IDE AI 自动检测切换：
+Coder 有两个执行模式，仅 Codex Plus 可自动检测切换。cline/DeepSeek/Claude 等不参与 Coder 阶段。
 
 | 模式 | 触发条件 | 行为 |
 |------|---------|------|
-| **IDE 接管模式（默认）** | 用户在 IDE 中直接用自然语言让你审查/编写/修改 AgentLab 源码或配置 | 你全权接管 Coder 阶段，读 supervisor_plan → 编辑文件 → 写 implementation_report → log-event。Qwen 被动待命。 |
-| **Qwen API Fallback** | 用户显式说"用 Qwen 编码"或你 Codex 配额不足且用户选择 API fallback | Qwen API 生成 patch proposal，你或用户审批后应用。 |
+| **Codex Plus 接管模式（默认）** | 用户在 IDE 中用自然语言让 Codex Plus 审查/编写/修改 AgentLab 源码或配置 | Codex Plus 全权接管 Coder 阶段，读 supervisor_plan → 编辑文件 → 写 implementation_report → log-event。Qwen 被动待命。 |
+| **Qwen API Fallback** | Codex Plus 配额不足 + 用户选择 API fallback，或用户显式说"用 Qwen 编码" | Qwen API 生成 patch proposal，用户审批后应用。 |
 
-### IDE 接管模式自动信号
+### Codex Plus 接管模式自动信号
 
-当你（外部 IDE AI）在对话中检测到以下任一信号时，**自动识别为 Coder IDE 接管模式**，无需用户显式说"用 AgentLab Coder"：
+当你（Codex Plus）在对话中检测到以下任一信号时，**自动识别为 Codex Plus 接管 Coder 模式**，无需用户显式说"用 AgentLab Coder"：
 
 | 信号 | 示例 | 自动行为 |
 |------|------|---------|
 | 用户让你审查 AgentLab 内部规则/代码 | "看看 AgentLab 的 Coder 配置对不对" | 读取相关文件 → 分析 → 编辑 → 写报告 |
 | 用户让你修改 AgentLab 源码 | "把 Coder profile 改成 external_ide_coder" | 等价于接管 Coder 阶段 |
-| 用户讨论 AgentLab 架构改动 | "我想让 Coder 支持这种切换逻辑" | 触发完整 AgentLab 工作流，你自动承担 Coder |
-| 用户提及 `DRIVER_PROTOCOL.md` / `agent_registry.yml` 等 AgentLab 内部文件 | 任何引用 AgentLab 配置文件的对话 | 自动进入 IDE 接管模式 |
-| 用户说"帮我改 AgentLab" | 直接触发 | 等同 `run-agent Coder --execute` 但由你手动执行 |
+| 用户讨论 AgentLab 架构改动 | "我想让 Coder 支持这种切换逻辑" | 触发完整 AgentLab 工作流，自动承担 Coder |
+| 用户提及 `DRIVER_PROTOCOL.md` / `agent_registry.yml` 等 AgentLab 内部文件 | 任何引用 AgentLab 配置文件的对话 | 自动进入 Codex Plus Coder 接管模式 |
+| 用户说"帮我改 AgentLab" | 直接触发 | 等同 `run-agent Coder --execute` 但由 Codex Plus 手动执行 |
 
-**不触发 IDE 接管**：用户在 AgentLab 任务中讨论业务代码（非 AgentLab 自身）、问答 AgentLab 用法、查看状态。
+**不触发 Codex Plus 接管**：用户在 AgentLab 任务中讨论业务代码（非 AgentLab 自身）、问答 AgentLab 用法、查看状态。
 
-**切换回 Qwen**：仅当用户明确说"用 Qwen API 编码"或"恢复 API 编码模式"时。
+**切换回 Qwen**：仅当 Codex Plus 配额不足且用户选择 fallback，或用户明确说"用 Qwen API 编码"时。
+
+**非 Codex Plus 环境**：如果你不是 Codex Plus（如 cline/DeepSeek Chat/Claude 等），Coder 阶段跳过。仅可执行大脑层 Agent（Supervisor、TesterAuditor 等），不可编辑文件。
 
 **CLI 安全护栏**：`./agentlab.sh run-agent Coder --execute` 已加入阻断逻辑——当 Coder profile 为 `external_ide_coder`（provider=external_ide_ai）时，CLI 会阻止自动执行并提示手动接管。显式指定 `--provider qwen` 或 `--provider deepseek` 可绕过阻断使用 API fallback。
 
@@ -63,7 +66,7 @@ Coder 有两个执行模式，由外部 IDE AI 自动检测切换：
 | 需要分工协作 | "帮我规划然后实现..." |
 | 附带文档/规格书 | 用户粘贴长文档或需求说明 |
 | 明确说 task | "帮我做一个任务..." |
-| IDE 接管信号（见上节） | 审查/修改 AgentLab 自身源码或配置 |
+| Codex Plus 接管信号（见上节） | 审查/修改 AgentLab 自身源码或配置 |
 
 **不触发**：单文件小修改、问答、解释代码、简单的"帮我写个函数"。
 
@@ -168,11 +171,13 @@ Supervisor → RepoScout → Researcher(如有) → InterfaceMapper(如有) → 
 
 ---
 
-### 步骤 5：Coder 阶段——你出手
+### 步骤 5：Coder 阶段——Codex Plus 出手
 
 当轮到 Coder 时，**不要**执行 `run-agent Coder --execute`（Coder 的默认 profile 是 `external_ide_coder`，CLI 会自动阻断）。
 
-**你来充当 Coder**，按以下约束工作：
+**只有 Codex Plus 可执行此阶段。** 如果你不是 Codex Plus，跳过此步骤，用 `--provider qwen` 调 API。
+
+**Codex Plus 充当 Coder**，按以下约束工作：
 
 1. **读取上下文**（只读需要的文件）：
    - `supervisor_plan.md` → 确认可编辑文件列表和验收标准
@@ -313,6 +318,7 @@ Coder 完成后，继续执行剩余的大脑层 agent：
 - ❌ 将 AgentLab 报告全文复制到对话中（除非用户要求）
 - ❌ 伪造 token 消耗数据
 - ❌ 把你自己（外部 AI）的推理过程写入 AgentLab 报告
+- ❌ 非 Codex Plus 环境（cline/DeepSeek/Claude）执行 Coder 阶段的文件编辑
 
 ---
 
@@ -320,6 +326,7 @@ Coder 完成后，继续执行剩余的大脑层 agent：
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| 1.2 | 2026-05-30 | 新增 Coder 模式切换规则（IDE 接管 / Qwen Fallback）；新增 IDE 自动信号检测；CLI 增加 Coder handoff 阻断护栏 |
+| 1.3 | 2026-05-30 | 收紧 Coder 接管范围：仅限 Codex Plus（有额度），排除 cline/DeepSeek/Claude 等 |
+| 1.2 | 2026-05-30 | 新增 Coder 模式切换规则（Codex Plus 接管 / Qwen Fallback）；新增 IDE 自动信号检测；CLI 增加 Coder handoff 阻断护栏 |
 | 1.1 | 2026-05-30 | 新增竞品研究关键词触发 Researcher；新增交互式需求澄清规则；新增 Tester→Coder 自动修复循环（最多3轮）；Researcher 模板支持竞品分析 |
 | 1.0 | 2026-05-30 | 初始协议，覆盖标准 7 步流程 + 特殊情况处理 |
