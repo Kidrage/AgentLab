@@ -32,8 +32,8 @@ profiles:
 
   coder:
     description: Real code edits, file changes, project commands, and implementation are handled by Codex Plus.
-    provider: codex_plus_manual
-    model: Codex Plus
+    provider: qwen
+    model: env:QWEN_CODER_MODEL:qwen-plus
     temperature: 0.15
     max_output_tokens: 3200
 
