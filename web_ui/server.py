@@ -18,6 +18,11 @@ from urllib.parse import urlparse, parse_qs
 
 # AgentLab root — resolve from this file's location
 AGENTLAB_ROOT = Path(os.getenv("AGENTLAB_ROOT", Path(__file__).resolve().parents[1]))
+if str(AGENTLAB_ROOT) not in sys.path:
+    sys.path.insert(0, str(AGENTLAB_ROOT))
+AGENTLAB_RUNTIME = AGENTLAB_ROOT / "agent_runtime"
+if str(AGENTLAB_RUNTIME) not in sys.path:
+    sys.path.insert(0, str(AGENTLAB_RUNTIME))
 
 
 # ────────── helpers ──────────
@@ -32,6 +37,17 @@ def load_yaml_safe(path: Path) -> dict:
     except Exception:
         pass
     return {}
+
+
+def write_yaml_safe(path: Path, data: dict) -> bool:
+    """Write YAML, returning False on error."""
+    try:
+        import yaml
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        return True
+    except Exception:
+        return False
 
 
 def read_text(path: Path) -> str:
@@ -50,8 +66,88 @@ def list_dirs(path: Path) -> list[str]:
         return []
 
 
+def safe_project_name(name: str) -> str:
+    """Restrict project names to local folder-safe identifiers."""
+    name = (name or "").strip()
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+    if not name or any(ch not in allowed for ch in name):
+        raise ValueError("Project name may only contain letters, numbers, underscore, and hyphen")
+    return name
+
+
+def first_line_title(text: str, fallback: str) -> str:
+    for line in (text or "").splitlines():
+        clean = line.strip().lstrip("#").strip()
+        if clean:
+            return clean[:80]
+    return fallback
+
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def today_date() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def ensure_project_memory_files(project_root: Path, project_name: str, description: str = "") -> None:
+    """Create the minimal AgentLab project memory files if missing."""
+    docs = project_root / "agent_docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    defaults = {
+        "00_CONTEXT_PACK.md": f"# {project_name} Context Pack\n\n{description or 'Project context will be maintained here.'}\n",
+        "01_REPO_MAP.md": f"# {project_name} Repo Map\n\nTBD\n",
+        "02_TASK_LEDGER.yml": {
+            "version": 1,
+            "project": project_name,
+            "description": description,
+            "tasks": [],
+        },
+        "03_DECISION_LOG.md": "# Decision Log\n\n",
+        "04_INTERFACE_REGISTRY.md": "# Interface Registry\n\n",
+        "05_CHANGELOG_AGENT.md": "# Agent Changelog\n\n",
+        "06_RISK_REGISTER.md": "# Risk Register\n\n",
+        "07_DEVELOPMENT_LOG.md": "# Development Log\n\n",
+        "08_CODEX_DIALOGUE_LOG.md": "# Codex Dialogue Log\n\n",
+        "09_COST_LEDGER.yml": {"entries": []},
+        "10_SYNC_LEDGER.yml": {"version": 1, "project": project_name, "entries": []},
+    }
+    for filename, content in defaults.items():
+        path = docs / filename
+        if path.exists():
+            continue
+        if isinstance(content, dict):
+            write_yaml_safe(path, content)
+        else:
+            path.write_text(content, encoding="utf-8")
+
+
+def upsert_task_ledger_entry(project: str, task_id: str, request_text: str, status: str = "planned") -> None:
+    """Keep the project task ledger aligned with real run folders."""
+    project = safe_project_name(project)
+    ledger_path = AGENTLAB_ROOT / "projects" / project / "agent_docs" / "02_TASK_LEDGER.yml"
+    ledger = load_yaml_safe(ledger_path) or {"version": 1, "project": project, "tasks": []}
+    tasks = ledger.setdefault("tasks", [])
+    existing = next((t for t in tasks if t.get("task_id") == task_id), None)
+    title = first_line_title(request_text, task_id)
+    if existing:
+        existing.setdefault("title", title)
+        existing.setdefault("description", request_text[:240])
+        existing["status"] = existing.get("status") or status
+    else:
+        tasks.append({
+            "task_id": task_id,
+            "title": title,
+            "description": request_text[:500],
+            "status": status,
+            "priority": "P2",
+            "category": "feature",
+            "depends_on": [],
+            "subtasks": [],
+            "created_at": today_date(),
+        })
+    write_yaml_safe(ledger_path, ledger)
 
 
 # ────────── API handlers ──────────
@@ -61,15 +157,29 @@ def handle_get_projects():
     projects_dir = AGENTLAB_ROOT / "projects"
     if not projects_dir.exists():
         return {"projects": []}
-    projects = sorted([
-        d.name for d in projects_dir.iterdir()
-        if d.is_dir() and not d.name.startswith(".") and d.name != ".DS_Store"
-    ])
+    projects = []
+    for d in sorted(projects_dir.iterdir(), key=lambda p: p.name):
+        if not d.is_dir() or d.name.startswith(".") or d.name == ".DS_Store":
+            continue
+        cfg = load_yaml_safe(d / "project_config.yml")
+        ledger = load_yaml_safe(d / "agent_docs" / "02_TASK_LEDGER.yml")
+        github = cfg.get("github", {})
+        projects.append({
+            "name": d.name,
+            "type": (cfg.get("project") or {}).get("type", ""),
+            "description": ledger.get("description", ""),
+            "taskCount": len(ledger.get("tasks", [])),
+            "github": github,
+            "backupEnabled": bool((github.get("backup") or {}).get("enabled", False)),
+            "backupRepo": (github.get("backup") or {}).get("repo", ""),
+            "backupVisibility": (github.get("backup") or {}).get("visibility", "private"),
+        })
     return {"projects": projects}
 
 
 def handle_get_tasks(project: str):
     """List all tasks for a project with titles and descriptions from ledger."""
+    project = safe_project_name(project)
     run_dir = AGENTLAB_ROOT / "projects" / project / "runs"
     ledger_path = AGENTLAB_ROOT / "projects" / project / "agent_docs" / "02_TASK_LEDGER.yml"
 
@@ -109,11 +219,44 @@ def handle_get_tasks(project: str):
 
 def handle_get_status(project: str, task_id: str):
     """Get full status snapshot for a task."""
+    project = safe_project_name(project)
     run_dir = AGENTLAB_ROOT / "projects" / project / "runs" / task_id
     project_root = AGENTLAB_ROOT / "projects" / project
 
-    if not run_dir.exists():
-        return {"error": f"Task {project}/{task_id} not found"}
+    if not task_id or not run_dir.exists():
+        project_config = load_yaml_safe(project_root / "project_config.yml")
+        github_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "github_policy.yml")
+        github_config = project_config.get("github", {})
+        backup_config = github_config.get("backup", {})
+        return {
+            "generatedAt": utc_now_iso(),
+            "project": project,
+            "taskId": "",
+            "taskStatus": "no_task",
+            "stage": "Project overview",
+            "userRequest": "",
+            "coderProvider": "codex-plus",
+            "brainProvider": "deepseek",
+            "projectConfig": project_config,
+            "githubPolicy": github_policy,
+            "githubBackup": {
+                "enabled": bool(backup_config.get("enabled", False)),
+                "owner": backup_config.get("owner", ""),
+                "repo": backup_config.get("repo", ""),
+                "visibility": backup_config.get("visibility", github_policy.get("defaults", {}).get("visibility", "private")),
+                "branch": backup_config.get("branch", github_policy.get("defaults", {}).get("backup_branch", "main")),
+                "lastSyncCommit": backup_config.get("last_sync_commit"),
+                "mode": github_policy.get("defaults", {}).get("sync_mode", "local_first_manual_push"),
+                "tokenConfigured": bool(os.getenv(github_policy.get("auth", {}).get("token_env", "GITHUB_TOKEN"))),
+            },
+            "route": [],
+            "agents": [],
+            "events": [{"time": "--", "level": "info", "agent": "Project", "text": "项目已创建，尚未创建任务"}],
+            "costLedger": [],
+            "decisions": [],
+            "hasUserDecision": False,
+            "userDecisionText": "",
+        }
 
     # Load state
     state = load_yaml_safe(run_dir / "state.yml")
@@ -233,8 +376,12 @@ def handle_get_status(project: str, task_id: str):
 
     # Config summary
     exec_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "execution_policy.yml")
+    project_config = load_yaml_safe(project_root / "project_config.yml")
+    github_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "github_policy.yml")
     brain_policy = exec_policy.get("brain_policy", {})
     coder_policy = exec_policy.get("coder_policy", {})
+    github_config = project_config.get("github", {})
+    backup_config = github_config.get("backup", {})
 
     return {
         "generatedAt": utc_now_iso(),
@@ -247,6 +394,18 @@ def handle_get_status(project: str, task_id: str):
         "coderQuotaRemaining": coder_policy.get("codex_quota_remaining", 0),
         "coderQuotaWarningThreshold": 2000,
         "brainProvider": brain_policy.get("required_provider", "deepseek"),
+        "projectConfig": project_config,
+        "githubPolicy": github_policy,
+        "githubBackup": {
+            "enabled": bool(backup_config.get("enabled", False)),
+            "owner": backup_config.get("owner", ""),
+            "repo": backup_config.get("repo", ""),
+            "visibility": backup_config.get("visibility", github_policy.get("defaults", {}).get("visibility", "private")),
+            "branch": backup_config.get("branch", github_policy.get("defaults", {}).get("backup_branch", "main")),
+            "lastSyncCommit": backup_config.get("last_sync_commit"),
+            "mode": github_policy.get("defaults", {}).get("sync_mode", "local_first_manual_push"),
+            "tokenConfigured": bool(os.getenv(github_policy.get("auth", {}).get("token_env", "GITHUB_TOKEN"))),
+        },
         "qwenFallback": {
             "provider": "Qwen",
             "enabled": bool(os.getenv("QWEN_API_KEY")),
@@ -278,9 +437,11 @@ def handle_get_status(project: str, task_id: str):
 
 def handle_post_decision(data: dict):
     """Handle user decision submission."""
-    project = data.get("project", "AgentLab")
-    task_id = data.get("taskId", "task_0004")
+    project = safe_project_name(data.get("project", "AgentLab"))
+    task_id = data.get("taskId", "")
     action = data.get("action", "yes")  # yes / no / later
+    if not task_id:
+        return {"error": "taskId is required", "success": False}
 
     run_dir = AGENTLAB_ROOT / "projects" / project / "runs" / task_id
 
@@ -366,10 +527,12 @@ def handle_post_decision(data: dict):
 
 def handle_run_agent(data: dict):
     """Handle running a specific agent."""
-    project = data.get("project", "AgentLab")
-    task_id = data.get("taskId", "task_0004")
+    project = safe_project_name(data.get("project", "AgentLab"))
+    task_id = data.get("taskId", "")
     agent_name = data.get("agentName", "")
     action = data.get("action", "run")  # run, pause, stop, execute
+    if not task_id:
+        return {"success": False, "agentName": agent_name, "error": "taskId is required"}
 
     if action == "execute":
         # Actual API execution via CLI
@@ -431,10 +594,12 @@ def handle_run_agent(data: dict):
 
 def handle_create_task(data: dict):
     """Create a new task via CLI."""
-    project = data.get("project", "AgentLab")
+    project = safe_project_name(data.get("project", "AgentLab"))
     task_id = data.get("taskId", "")
     request_text = data.get("requestText", "")
     backend = data.get("backend", "codex")  # codex or qwen
+    if not task_id:
+        return {"success": False, "error": "taskId is required"}
 
     try:
         result = subprocess.run(
@@ -448,6 +613,7 @@ def handle_create_task(data: dict):
             cwd=str(AGENTLAB_ROOT),
         )
         if result.returncode == 0:
+            upsert_task_ledger_entry(project, task_id, request_text, "planned")
             # Also prepare
             subprocess.run(
                 [
@@ -462,6 +628,7 @@ def handle_create_task(data: dict):
         return {
             "success": result.returncode == 0,
             "taskId": task_id,
+            "project": project,
             "message": result.stdout[:500],
         }
     except Exception as e:
@@ -470,7 +637,7 @@ def handle_create_task(data: dict):
 
 def handle_natural_language_task(data: dict):
     """Create a task from natural language description and optionally start execution."""
-    project = data.get("project", "AgentLab")
+    project = safe_project_name(data.get("project", "AgentLab"))
     request_text = data.get("text", "").strip()
     auto_execute = data.get("autoExecute", True)
 
@@ -503,6 +670,7 @@ def handle_natural_language_task(data: dict):
         )
         if result.returncode != 0:
             return {"success": False, "taskId": task_id, "error": f"init-task failed: {result.stderr[:300]}"}
+        upsert_task_ledger_entry(project, task_id, request_text, "active" if auto_execute else "planned")
     except Exception as e:
         return {"success": False, "taskId": task_id, "error": f"init-task exception: {str(e)}"}
 
@@ -565,7 +733,7 @@ def handle_natural_language_task(data: dict):
 
 def handle_run_next_agents(data: dict):
     """Run all waiting agents in sequence for a task (RepoScout, InterfaceMapper, etc.)."""
-    project = data.get("project", "AgentLab")
+    project = safe_project_name(data.get("project", "AgentLab"))
     task_id = data.get("taskId", "")
 
     run_dir = AGENTLAB_ROOT / "projects" / project / "runs" / task_id
@@ -615,6 +783,125 @@ def handle_run_next_agents(data: dict):
             results.append({"agent": agent_name, "success": False, "output": str(e)})
 
     return {"success": True, "stage": "all_done", "results": results}
+
+
+def handle_create_subtask(data: dict):
+    """Append a subtask to the selected task ledger entry."""
+    project = safe_project_name(data.get("project", "AgentLab"))
+    task_id = data.get("taskId", "")
+    text = data.get("text", "").strip()
+    if not task_id:
+        return {"success": False, "error": "taskId is required"}
+    if not text:
+        return {"success": False, "error": "子任务描述不能为空"}
+
+    ledger_path = AGENTLAB_ROOT / "projects" / project / "agent_docs" / "02_TASK_LEDGER.yml"
+    ledger = load_yaml_safe(ledger_path)
+    tasks = ledger.get("tasks", [])
+    task = next((t for t in tasks if t.get("task_id") == task_id), None)
+    if not task:
+        return {"success": False, "error": f"Task {task_id} not found in ledger"}
+
+    subtasks = task.setdefault("subtasks", [])
+    max_num = 0
+    for item in subtasks:
+        raw = str(item.get("id", "")).replace("sub_", "")
+        try:
+            max_num = max(max_num, int(raw))
+        except ValueError:
+            pass
+    subtask_id = f"sub_{max_num + 1:03d}"
+    subtasks.append({
+        "id": subtask_id,
+        "description": text,
+        "status": "pending",
+        "created_at": today_date(),
+    })
+    task["status"] = task.get("status") or "active"
+    ok = write_yaml_safe(ledger_path, ledger)
+    return {
+        "success": ok,
+        "project": project,
+        "taskId": task_id,
+        "subtaskId": subtask_id,
+        "message": f"子任务 {subtask_id} 已追加到 {task_id}",
+    }
+
+
+def handle_create_project(data: dict):
+    """Create a local AgentLab project shell with GitHub backup placeholders."""
+    raw_name = data.get("projectName") or data.get("name") or ""
+    try:
+        project = safe_project_name(raw_name)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
+    description = data.get("description", "").strip()
+    github_owner = data.get("githubOwner", "").strip()
+    github_repo = data.get("githubRepo", "").strip() or project
+
+    project_root = AGENTLAB_ROOT / "projects" / project
+    if project_root.exists():
+        return {"success": False, "project": project, "error": "Project already exists"}
+
+    try:
+        (project_root / "runs").mkdir(parents=True, exist_ok=True)
+        (project_root / "repo").mkdir(parents=True, exist_ok=True)
+        ensure_project_memory_files(project_root, project, description)
+        config = {
+            "project": {
+                "name": project,
+                "type": "local_agent_workflow",
+            },
+            "paths": {
+                "repo": "repo",
+                "docs": "agent_docs",
+                "runs": "runs",
+            },
+            "global_config": {
+                "agent_registry": "../../config/agent_registry.yml",
+                "model_profiles": "../../config/model_profiles.yml",
+                "routing_rules": "../../config/routing_rules.yml",
+                "budget_profiles": "../../config/budget_profiles.yml",
+                "validation_gates": "../../config/validation_gates.yml",
+                "memory_policy": "../../config/memory_policy.yml",
+                "github_policy": "../../config/github_policy.yml",
+            },
+            "github": {
+                "backup": {
+                    "enabled": False,
+                    "owner": github_owner,
+                    "repo": github_repo,
+                    "visibility": "private",
+                    "branch": "main",
+                    "last_sync_commit": None,
+                },
+                "source": {
+                    "owner": github_owner,
+                    "repo": github_repo,
+                    "default_branch": "main",
+                },
+                "cloud": {
+                    "enabled": False,
+                    "runner": "github_actions_workflow_dispatch",
+                },
+            },
+            "safety_rules": [
+                "Keep AgentLab local-first and transparent.",
+                "Default GitHub backups must be private.",
+                "Do not create or expose real secrets.",
+            ],
+        }
+        write_yaml_safe(project_root / "project_config.yml", config)
+    except Exception as exc:
+        return {"success": False, "project": project, "error": str(exc)}
+
+    return {
+        "success": True,
+        "scope": "workspace",
+        "project": project,
+        "projectPath": str(project_root),
+        "message": f"项目 {project} 已创建，GitHub 私有备份占位已写入 project_config.yml",
+    }
 
 
 # ────────── HTTP server ──────────
@@ -689,7 +976,7 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
 
         if path == "/api/status":
             project = params.get("project", ["AgentLab"])[0]
-            task_id = params.get("task", ["task_0004"])[0]
+            task_id = params.get("task", [""])[0]
             return self._json_response(handle_get_status(project, task_id))
 
         if path == "/api/config":
@@ -732,6 +1019,12 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
 
         if path == "/api/task/nl":
             return self._json_response(handle_natural_language_task(data))
+
+        if path == "/api/subtask/create":
+            return self._json_response(handle_create_subtask(data))
+
+        if path == "/api/project/create":
+            return self._json_response(handle_create_project(data))
 
         if path == "/api/task/run-next":
             return self._json_response(handle_run_next_agents(data))

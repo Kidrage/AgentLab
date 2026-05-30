@@ -168,6 +168,12 @@ h1, h2, h3 { font-weight: 700; letter-spacing: -0.01em; }
 
 /* ───── Topbar controls ───── */
 .topbar-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hierarchy-nav {
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sheet);
+}
 .select-group { display: grid; gap: 3px; }
 .select-group label {
   color: var(--ink-muted); font-size: 0.62rem; font-weight: 700;
@@ -592,6 +598,25 @@ h1, h2, h3 { font-weight: 700; letter-spacing: -0.01em; }
 .breadcrumb-sep { color: var(--ink-muted); font-weight: 400; }
 .breadcrumb-task { color: var(--accent); }
 
+/* ───── Project Panel ───── */
+.project-panel {
+  margin-bottom: 14px; padding: 16px 20px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-sheet);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 18px; flex-wrap: wrap;
+}
+.project-panel-kicker {
+  color: var(--ink-muted); font-size: 0.68rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.project-panel h2 { font-size: 1.05rem; font-weight: 850; margin-top: 2px; }
+.project-panel-meta {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  color: var(--ink-muted); font-size: 0.76rem;
+}
+.project-panel-meta strong { color: var(--ink); }
+
 /* ───── Subtask Section ───── */
 .subtask-section {
   margin-top: 14px; padding-top: 14px;
@@ -630,6 +655,12 @@ h1, h2, h3 { font-weight: 700; letter-spacing: -0.01em; }
   padding: 2px 8px; border-radius: 999px;
   background: var(--accent-soft); color: var(--accent);
   font-size: 0.66rem; font-weight: 800;
+}
+.nl-task-bar[data-mode="project"] .nl-context-type {
+  background: var(--purple-bg); color: var(--purple);
+}
+.nl-task-bar[data-mode="task"] .nl-context-type {
+  background: var(--green-bg); color: var(--green);
 }
 .nl-mode-switch {
   display: inline-flex; gap: 2px; padding: 2px;

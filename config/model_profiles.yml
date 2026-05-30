@@ -14,7 +14,7 @@ profiles:
     provider: env:LLM_PROVIDER:deepseek
     model: env:DEFAULT_MODEL:deepseek-v4-pro
     temperature: 0.2
-    max_output_tokens: 1800
+    max_output_tokens: 4000
 
   scout:
     description: Repository reading and concise mapping. Uses flash model for cost efficiency.
@@ -60,7 +60,7 @@ profiles:
     provider: env:LLM_PROVIDER:deepseek
     model: env:DEEPSEEK_FLASH_MODEL:deepseek-v4-flash
     temperature: 0.1
-    max_output_tokens: 1200
+    max_output_tokens: 2000
 
   archivist:
     description: Project memory compression and continuity updates. Uses flash model for cost efficiency.

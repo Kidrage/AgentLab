@@ -13,7 +13,7 @@
     <h2>键盘快捷键</h2>
     <div class="shortcuts-grid">
       <div><kbd>Ctrl</kbd>+<kbd>K</kbd></div><span>命令面板</span>
-      <div><kbd>Ctrl</kbd>+<kbd>1-5</kbd></div><span>切换 Tab</span>
+      <div><kbd>Ctrl</kbd>+<kbd>1-6</kbd></div><span>切换 Tab</span>
       <div><kbd>Ctrl</kbd>+<kbd>T</kbd></div><span>切换主题</span>
       <div><kbd>Ctrl</kbd>+<kbd>N</kbd></div><span>新建任务</span>
       <div><kbd>Ctrl</kbd>+<kbd>F</kbd></div><span>搜索</span>
@@ -53,10 +53,7 @@
     <form id="newTaskForm" onsubmit="AgentLab.createTask(event)">
       <div class="form-group">
         <label>项目</label>
-        <select id="newTaskProject">
-          <option value="AgentLab">AgentLab</option>
-          <option value="ExampleProject">ExampleProject</option>
-        </select>
+        <select id="newTaskProject"></select>
       </div>
       <div class="form-group">
         <label>任务 ID</label>
@@ -106,6 +103,16 @@
         <button class="icon-btn" title="刷新数据 (Ctrl+R)" onclick="AgentLab.refresh()" id="refreshBtn">⟳</button>
         <button class="icon-btn" title="新建任务 (Ctrl+N)" onclick="AgentLab.openNewTask()" id="newTaskBtn">+</button>
       </div>
+      <div class="topbar-controls hierarchy-nav">
+        <div class="select-group">
+          <label>项目</label>
+          <select id="projectSelector"></select>
+        </div>
+        <div class="select-group">
+          <label>任务</label>
+          <select id="taskSelector"></select>
+        </div>
+      </div>
     </div>
     <div class="topbar-right">
       <!-- 通知铃铛 -->
@@ -119,7 +126,7 @@
         <span class="theme-icon-dark">🌙</span>
       </button>
       <!-- 设置 -->
-      <button class="icon-btn" title="项目 & 模型设置" onclick="AgentLab.toggleSettings()" id="settingsBtn">⚙</button>
+      <button class="icon-btn" title="模型与执行设置" onclick="AgentLab.toggleSettings()" id="settingsBtn">⚙</button>
       <!-- 状态 -->
       <div class="status-indicator" id="connectionStatus" title="连接状态">
         <span class="dot"></span>
@@ -132,29 +139,14 @@
   <div class="settings-backdrop" id="settingsBackdrop" hidden onclick="AgentLab.toggleSettings()"></div>
   <aside class="settings-panel" id="settingsPanel" hidden>
     <div class="settings-header">
-      <h3>项目 & 模型配置</h3>
+      <h3>模型与执行配置</h3>
       <button class="btn btn-ghost btn-sm" onclick="AgentLab.toggleSettings()">✕</button>
     </div>
     <div class="settings-body">
       <!-- 项目 & 任务 -->
       <div class="settings-section">
-        <h4>📁 项目 & 任务</h4>
-        <div class="select-group">
-          <label>项目</label>
-          <select id="projectSelector">
-            <option value="AgentLab">AgentLab</option>
-            <option value="ExampleProject">ExampleProject</option>
-          </select>
-        </div>
-        <div class="select-group">
-          <label>任务</label>
-          <select id="taskSelector">
-            <option value="task_0001">task_0001</option>
-            <option value="task_0002">task_0002</option>
-            <option value="task_0003">task_0003</option>
-            <option value="task_0004">task_0004</option>
-          </select>
-        </div>
+        <h4>📁 工作区边界</h4>
+        <p class="settings-hint">项目和任务切换已固定在顶栏；此处只保留模型、密钥与执行策略设置，避免导航和配置混在一起。</p>
       </div>
 
       <!-- 大脑层 -->
@@ -210,6 +202,20 @@
       <button class="btn-ghost-sm" onclick="AgentLab.clearNotifications()">全部清除</button>
     </div>
     <div class="notif-list" id="notifList"></div>
+  </div>
+
+  <!-- ====== 项目概览面板 ====== -->
+  <div class="project-panel" id="projectPanel">
+    <div>
+      <div class="project-panel-kicker">当前项目</div>
+      <h2 id="projectPanelName">AgentLab</h2>
+    </div>
+    <div class="project-panel-meta">
+      <span>类型 <strong id="projectPanelType">local_agent_workflow</strong></span>
+      <span>任务 <strong id="projectPanelTaskCount">--</strong></span>
+      <span>GitHub 备份 <strong id="projectPanelGithub">未启用 · private</strong></span>
+      <span>最近同步 <strong id="projectPanelSync">未同步</strong></span>
+    </div>
   </div>
 
   <!-- ====== 任务详情面板 ====== -->
@@ -460,6 +466,10 @@
       <div class="dash-card">
         <h3>模型 Profiles</h3>
         <div id="configProfiles" class="config-table"></div>
+      </div>
+      <div class="dash-card">
+        <h3>GitHub 私有备份策略</h3>
+        <div id="configGithub" class="config-yaml"></div>
       </div>
       <div class="dash-card">
         <h3>环境变量</h3>

@@ -43,11 +43,10 @@ const DEFAULT_SNAPSHOT = {
   ]
 };
 
-/* ───── 备用任务数据集 ───── */
-const PROJECT_TASKS = {
-  "AgentLab": ["task_0001","task_0002","task_0003","task_0004"],
-  "ExampleProject": ["task_0001"]
-};
+/* ───── 后端不可用时的最小演示数据 ───── */
+const DEMO_PROJECTS = [
+  { name: "AgentLab", type: "local_agent_workflow", taskCount: 1, backupEnabled: false, backupVisibility: "private" }
+];
 
 const statusLabels = {
   active: "进行中", complete: "已完成", waiting: "等待中", skipped: "已跳过", blocked: "已阻塞"
@@ -71,6 +70,9 @@ const state = {
   ],
   darkMode: false,
   collapsedLogs: new Set(),
+  _projects: DEMO_PROJECTS.slice(),
+  _taskData: [],
+  _ledgerEntry: null,
 };
 
 /* ───── API 后端配置 ───── */
@@ -152,6 +154,7 @@ const AgentLab = {
 
   /* ======================== 渲染 ======================== */
   renderAll() {
+    this.renderProjectPanel();
     this.renderTaskDetail();
     this.renderDashboard();
     this.renderAgentGrid();
@@ -159,7 +162,23 @@ const AgentLab = {
     this.renderCost();
     this.renderConfig();
     this.renderNotifications();
+    this.updateProjectSelector();
     this.updateTaskSelector();
+  },
+
+  renderProjectPanel() {
+    const project = state._projects.find(p => p.name === state.project) || {};
+    const backup = state.snapshot.githubBackup || {};
+    const name = state.snapshot.project || state.project || project.name || "AgentLab";
+    this.$("projectPanelName", name);
+    this.$("projectPanelType", project.type || state.snapshot.projectConfig?.project?.type || "local_agent_workflow");
+    this.$("projectPanelTaskCount", String(state._taskData?.length || project.taskCount || 0));
+    const backupText = backup.enabled
+      ? `${backup.visibility || "private"} · ${backup.owner || "-"} / ${backup.repo || "-"}`
+      : `未启用 · 默认 ${backup.visibility || project.backupVisibility || "private"}`;
+    this.$("projectPanelGithub", backupText);
+    const sync = backup.lastSyncCommit ? String(backup.lastSyncCommit).slice(0, 10) : "未同步";
+    this.$("projectPanelSync", sync);
   },
 
   /* ========== 总览面板 ========== */
@@ -503,6 +522,9 @@ const AgentLab = {
     ).join("") || '<tr><td colspan="3" class="text-muted">未加载</td></tr>';
     this.$("configProfiles", `<table><tr><th>Profile</th><th>Provider</th><th>Model</th></tr>${profRows}</table>`);
 
+    const githubPolicy = this._configData?.github_policy || {};
+    this.$("configGithub", `<pre>${this.esc(JSON.stringify(githubPolicy, null, 2))}</pre>`);
+
     this.$("configEnv", `<div><pre id="configEnvPre">AGENTLAB_ROOT=/Users/saintpeter/AgentLab\nDEFAULT_PROJECT=AgentLab\nLLM_PROVIDER=deepseek\nDEEPSEEK_MODEL=deepseek-v4-pro\nDEEPSEEK_API_KEY=sk-65f6... (已脱敏)\nQWEN_API_KEY=sk-92d4... (已脱敏)</pre></div>`);
   },
 
@@ -590,10 +612,11 @@ const AgentLab = {
     // Breadcrumb: project → task
     const ledger = state._ledgerEntry || {};
     if (breadcrumbProj) breadcrumbProj.textContent = snap.project || state.project || "AgentLab";
-    if (breadcrumbTask) breadcrumbTask.textContent = ledger.title || snap.stage || snap.taskId || "未知任务";
+    const hasTask = Boolean(snap.taskId || state.taskId);
+    if (breadcrumbTask) breadcrumbTask.textContent = hasTask ? (ledger.title || snap.stage || snap.taskId || "未知任务") : "项目概览";
 
     // Task ID and status
-    if (idEl) idEl.textContent = snap.taskId || state.taskId || "task_????";
+    if (idEl) idEl.textContent = snap.taskId || state.taskId || "未选择任务";
     if (statusEl) {
       const ts = snap.taskStatus || ledger.status || "new";
       const statusText = statusLabels[ts] || ts;
@@ -607,11 +630,13 @@ const AgentLab = {
     }
 
     // Title
-    if (titleEl) titleEl.textContent = ledger.title || snap.stage || snap.taskStatus || "AgentLab 任务";
+    if (titleEl) titleEl.textContent = hasTask ? (ledger.title || snap.stage || snap.taskStatus || "AgentLab 任务") : "项目任务队列";
 
     // Description
     if (descEl) {
-      const desc = ledger.description || snap.userRequest || snap.stage || "暂无描述";
+      const desc = hasTask
+        ? (ledger.description || snap.userRequest || snap.stage || "暂无描述")
+        : "当前项目还没有选中的任务。可以用下方命令栏创建新任务，或创建子任务前先选择一个任务。";
       descEl.textContent = desc;
       descEl.title = desc;
     }
@@ -624,8 +649,9 @@ const AgentLab = {
     const subtasks = ledger.subtasks || [];
     if (depEl) depEl.textContent = subtasks.length || "--";
 
-    // Render subtask list
+    // Render subtask list and command context
     this._renderSubtasks(subtasks);
+    this.renderCommandContext();
   },
 
   _renderSubtasks(subtasks) {
@@ -646,15 +672,39 @@ const AgentLab = {
         <span class="subtask-status" data-status="${s.status}">${labels[s.status] || s.status}</span>
       </div>
     `).join("");
+  },
 
-    // Update chat context target
+  renderCommandContext() {
+    const mode = this.chatMode || "subtask";
     const target = this.$("nlContextTarget");
-    if (target) {
-      const ledger = state._ledgerEntry || {};
-      const proj = state.snapshot.project || state.project || "AgentLab";
-      const task = ledger.title || state.snapshot.taskId || state.taskId;
-      target.textContent = `${proj} › ${task}`;
-    }
+    const type = this.$("nlContextType");
+    const input = this.$("nlTaskInput");
+    const bar = this.$("nlTaskBar");
+    const project = state.project || state.snapshot.project || "AgentLab";
+    const task = state._ledgerEntry?.title || state.snapshot.taskId || state.taskId || "未选择任务";
+
+    const context = {
+      subtask: {
+        target: `${project} › ${task}`,
+        type: "追加子任务",
+        placeholder: `为 ${task} 追加子任务...`,
+      },
+      task: {
+        target: project,
+        type: "创建项目内新任务",
+        placeholder: `在 ${project} 中创建新任务...`,
+      },
+      project: {
+        target: "AgentLab 工作区",
+        type: "创建同级项目",
+        placeholder: "项目名: MyProject；描述这个项目...",
+      },
+    }[mode] || {};
+
+    if (target) target.textContent = context.target || project;
+    if (type) type.textContent = context.type || "";
+    if (input) input.placeholder = context.placeholder || "描述你的需求...";
+    if (bar) bar.dataset.mode = mode;
   },
 
   /* ========== 通知面板 ========== */
@@ -750,37 +800,73 @@ const AgentLab = {
   },
 
   /* ========== 任务管理 ========== */
+  async fetchProjects() {
+    const data = await this.apiGet("/api/projects");
+    if (data && Array.isArray(data.projects) && data.projects.length > 0) {
+      state._projects = data.projects.map(p => typeof p === "string" ? { name: p } : p);
+      if (!state._projects.find(p => p.name === state.project)) {
+        state.project = state._projects[0].name;
+      }
+      return state._projects;
+    }
+    state._projects = DEMO_PROJECTS.slice();
+    return state._projects;
+  },
+
+  updateProjectSelector() {
+    const projects = state._projects || DEMO_PROJECTS;
+    ["projectSelector", "newTaskProject"].forEach(id => {
+      const sel = this.$(id);
+      if (!sel) return;
+      sel.innerHTML = projects.map(p => {
+        const name = p.name || p;
+        return `<option value="${this.esc(name)}" ${name===state.project?'selected':''}>${this.esc(name)}</option>`;
+      }).join("");
+    });
+  },
+
   async fetchTasks() {
     const data = await this.apiGet("/api/tasks", { project: state.project });
-    if (data && data.tasks && data.tasks.length > 0) {
+    if (data && Array.isArray(data.tasks)) {
       state._taskData = data.tasks;
-      return data.tasks;
+      if (!state._taskData.find(t => t.task_id === state.taskId)) {
+        state.taskId = state._taskData[0]?.task_id || "";
+      }
+      return state._taskData;
     }
-    // Fallback: build from PROJECT_TASKS when backend is unavailable
-    const ids = PROJECT_TASKS[state.project] || [];
-    const fallback = ids.map(id => ({ task_id: id, title: id, description: "", status: "", priority: "", category: "" }));
+    // Fallback when backend is unavailable: keep the current snapshot visible only.
+    const fallbackId = state.snapshot.taskId || state.taskId || "";
+    if (!fallbackId) {
+      state._taskData = [];
+      state._ledgerEntry = null;
+      return [];
+    }
+    const fallback = [{ task_id: fallbackId, title: fallbackId, description: "", status: "", priority: "", category: "" }];
     state._taskData = fallback;
     return fallback;
   },
   updateTaskSelector() {
     const sel = this.$("taskSelector");
     if (!sel) return;
-    const tasks = state._taskData || PROJECT_TASKS[state.project]?.map(id => ({ task_id: id, title: id, description: "" })) || [];
+    const tasks = state._taskData || [];
     sel.innerHTML = tasks.map(t => {
       const label = t.title || t.task_id;
-      return `<option value="${t.task_id}" ${t.task_id===state.taskId?'selected':''}>${label}</option>`;
+      return `<option value="${this.esc(t.task_id)}" ${t.task_id===state.taskId?'selected':''}>${this.esc(label)}</option>`;
     }).join("");
 
     // Cache ledger entry for the current task to drive renderTaskDetail
     const current = tasks.find(t => t.task_id === state.taskId);
     if (current) {
       state._ledgerEntry = current;
+    } else {
+      state._ledgerEntry = null;
     }
   },
   async switchProject(project) {
     state.project = project;
     state._taskData = await this.fetchTasks();
-    state.taskId = (state._taskData[0]?.task_id || "task_0001");
+    state.taskId = (state._taskData[0]?.task_id || "");
+    this.updateProjectSelector();
     this.updateTaskSelector();
     this.refresh();
   },
@@ -790,8 +876,22 @@ const AgentLab = {
     this.refresh();
   },
   openNewTask() {
+    this.updateProjectSelector();
+    const next = this.nextTaskId();
+    const input = this.$("newTaskId");
+    if (input && !input.value) input.value = next;
     const modal = this.$("newTaskModal");
     if (modal) modal.hidden = false;
+  },
+
+  nextTaskId() {
+    const nums = (state._taskData || []).map(t => {
+      const raw = String(t.task_id || "").replace("task_", "");
+      const n = parseInt(raw, 10);
+      return Number.isFinite(n) ? n : 0;
+    });
+    const next = Math.max(0, ...nums) + 1;
+    return `task_${String(next).padStart(4, "0")}`;
   },
 
   /* ========== 自然语言任务下达 ========== */
@@ -806,33 +906,69 @@ const AgentLab = {
 
     // 禁用按钮，显示进度
     if (btn) { btn.disabled = true; btn.textContent = "执行中…"; }
-    if (status) { status.innerHTML = '<span class="nl-progress">⏳ 正在创建任务并调用 DeepSeek…</span>'; status.style.display = "block"; }
+    const mode = this.chatMode || "subtask";
+    const progressText = mode === "project"
+      ? "正在创建项目壳和备份配置…"
+      : mode === "subtask"
+      ? "正在追加子任务…"
+      : "正在创建任务并调用 DeepSeek…";
+    if (status) { status.innerHTML = `<span class="nl-progress">${this.esc(progressText)}</span>`; status.style.display = "block"; }
 
     // 清空输入
     if (input) input.value = "";
 
-    this.showToast("正在下达任务到 AgentLab…", "info");
+    this.showToast("正在下达到 AgentLab…", "info");
 
-    const result = await this.apiPost("/api/task/nl", {
-      project: state.project,
-      text: text,
-      autoExecute: true,
-    });
+    let result;
+    if (mode === "project") {
+      const projectName = this.deriveProjectName(text);
+      result = await this.apiPost("/api/project/create", {
+        projectName,
+        description: text,
+      });
+    } else if (mode === "subtask") {
+      if (!state.taskId) {
+        if (btn) { btn.disabled = false; btn.textContent = "下达任务"; }
+        if (status) { status.innerHTML = '<span class="nl-error">请先创建或选择一个任务</span>'; }
+        this.showToast("当前项目还没有任务，请先创建新任务", "warn");
+        return;
+      }
+      result = await this.apiPost("/api/subtask/create", {
+        project: state.project,
+        taskId: state.taskId,
+        text,
+      });
+    } else {
+      result = await this.apiPost("/api/task/nl", {
+        project: state.project,
+        text: text,
+        autoExecute: true,
+      });
+    }
 
     if (btn) { btn.disabled = false; btn.textContent = "下达任务"; }
 
     if (result && result.success) {
-      if (status) { status.innerHTML = `<span class="nl-success">✅ 任务 ${result.taskId} 已创建${result.stage === 'awaiting_decision' ? '，需要用户决策' : ''}</span>`; }
-      this.showToast(`任务 ${result.taskId} 已下达`, "success");
-
-      // 添加到任务列表
-      if (!PROJECT_TASKS[state.project]) PROJECT_TASKS[state.project] = [];
-      if (!PROJECT_TASKS[state.project].includes(result.taskId)) {
-        PROJECT_TASKS[state.project].push(result.taskId);
+      if (mode === "project") {
+        state.project = result.project;
+        state._projects = await this.fetchProjects();
+        state._taskData = await this.fetchTasks();
+        state.taskId = state._taskData[0]?.task_id || "";
+        this.setChatMode("task", true);
+        if (status) { status.innerHTML = `<span class="nl-success">项目 ${this.esc(result.project)} 已创建</span>`; }
+        this.showToast(`项目 ${result.project} 已创建`, "success");
+      } else if (mode === "subtask") {
+        state._taskData = await this.fetchTasks();
+        if (status) { status.innerHTML = `<span class="nl-success">子任务 ${this.esc(result.subtaskId)} 已追加</span>`; }
+        this.showToast(`子任务 ${result.subtaskId} 已追加`, "success");
+      } else {
+        if (status) { status.innerHTML = `<span class="nl-success">任务 ${result.taskId} 已创建${result.stage === 'awaiting_decision' ? '，需要用户决策' : ''}</span>`; }
+        this.showToast(`任务 ${result.taskId} 已下达`, "success");
+        state.taskId = result.taskId;
+        state._taskData = await this.fetchTasks();
       }
 
-      // 切换到新任务
-      state.taskId = result.taskId;
+      this.updateProjectSelector();
       this.updateTaskSelector();
 
       // 如果等待决策，显示决策弹窗
@@ -846,26 +982,55 @@ const AgentLab = {
       // 清除状态消息
       setTimeout(() => { if (status) { status.style.display = "none"; } }, 8000);
     } else {
-      const errMsg = result?.error || "任务下达失败，请检查后端服务";
+      const errMsg = result?.error || "下达失败，请检查后端服务";
       if (status) { status.innerHTML = `<span class="nl-error">❌ ${this.esc(errMsg)}</span>`; }
       this.showToast(errMsg, "error");
     }
   },
-  createTask(event) {
+
+  deriveProjectName(text) {
+    const explicit = text.match(/(?:项目名|project|name)\s*[:：]\s*([A-Za-z][A-Za-z0-9_-]{1,63})/i);
+    if (explicit) return explicit[1];
+    const token = text
+      .split(/\s+/)
+      .map(part => part.replace(/[^A-Za-z0-9_-]/g, ""))
+      .find(part => /^[A-Za-z][A-Za-z0-9_-]{1,63}$/.test(part));
+    if (token) return token;
+    const now = new Date();
+    const stamp = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+      String(now.getHours()).padStart(2, "0"),
+      String(now.getMinutes()).padStart(2, "0"),
+    ].join("");
+    return `Project_${stamp}`;
+  },
+  async createTask(event) {
     event.preventDefault();
     const project = this.$("newTaskProject")?.value || "AgentLab";
-    const id = this.$("newTaskId")?.value || `task_${String((PROJECT_TASKS[project]||[]).length+1).padStart(4,'0')}`;
+    const id = this.$("newTaskId")?.value || this.nextTaskId();
     const request = this.$("newTaskRequest")?.value || "";
     const backend = this.$("newTaskBackend")?.value || "codex";
-    if (!PROJECT_TASKS[project]) PROJECT_TASKS[project] = [];
-    if (!PROJECT_TASKS[project].includes(id)) PROJECT_TASKS[project].push(id);
-    state.snapshot.taskId = id; state.snapshot.project = project; state.snapshot.taskStatus = "新建";
-    state.taskId = id; state.project = project;
-    this.addEvent("System", "info", `新任务 ${id} 已创建 (项目: ${project}, 后端: ${backend})${request ? '，请求已记录' : ''}`);
-    this.updateTaskSelector();
-    this.renderDashboard(); this.renderAgentGrid();
-    this.$("newTaskModal").hidden = true;
-    this.showToast(`任务 ${id} 已创建`, "success");
+    const result = await this.apiPost("/api/task/create", {
+      project,
+      taskId: id,
+      requestText: request || `# User Request\n\n${id}`,
+      backend,
+    });
+    if (result && result.success) {
+      state.project = project;
+      state.taskId = id;
+      state._taskData = await this.fetchTasks();
+      this.updateProjectSelector();
+      this.updateTaskSelector();
+      await this.refresh();
+      const modal = this.$("newTaskModal");
+      if (modal) modal.hidden = true;
+      this.showToast(`任务 ${id} 已创建`, "success");
+      return;
+    }
+    this.showToast(result?.error || "任务创建失败，请检查后端服务", "error");
   },
 
   /* ========== 模型切换 ========== */
@@ -913,20 +1078,12 @@ const AgentLab = {
 
   /* ========== 聊天模式 ========== */
   chatMode: "subtask", // subtask | task | project
-  setChatMode(mode) {
+  setChatMode(mode, silent = false) {
     this.chatMode = mode;
     document.querySelectorAll(".nl-mode-btn").forEach(b => b.classList.toggle("is-active", b.dataset.mode === mode));
-    const typeEl = document.getElementById("nlContextType");
-    const input = document.getElementById("nlTaskInput");
-    const labels = { subtask: "追加子任务", task: "创建新任务", project: "创建新项目" };
-    const placeholders = {
-      subtask: `为 ${state._ledgerEntry?.title || "当前任务"} 追加子任务…`,
-      task: "描述新任务…",
-      project: "描述新项目…",
-    };
-    if (typeEl) typeEl.textContent = labels[mode] || mode;
-    if (input) input.placeholder = placeholders[mode] || "描述你的需求…";
-    this.showToast(`聊天模式: ${labels[mode]}`, "info");
+    this.renderCommandContext();
+    const labels = { subtask: "追加子任务", task: "创建项目内新任务", project: "创建同级项目" };
+    if (!silent) this.showToast(`聊天模式: ${labels[mode]}`, "info");
   },
 
   /* ========== 设置面板 ========== */
@@ -1019,7 +1176,10 @@ const AgentLab = {
   /* ========== 工具方法 ========== */
   $(id, value) {
     const el = document.getElementById(id);
-    if (el && value !== undefined) el.textContent = value;
+    if (el && value !== undefined) {
+      if (typeof value === "string" && value.includes("<")) el.innerHTML = value;
+      else el.textContent = value;
+    }
     return el;
   },
   fmt(num) { return new Intl.NumberFormat("zh-CN").format(num); },
@@ -1041,6 +1201,9 @@ const AgentLab = {
 
 /* ======================== 初始化 ======================== */
 async function init() {
+  // 加载项目列表
+  state._projects = await AgentLab.fetchProjects();
+  state._taskData = await AgentLab.fetchTasks();
   // 加载数据
   state.snapshot = await AgentLab.loadSnapshot();
   // 合并缺失数据
@@ -1049,7 +1212,7 @@ async function init() {
   if (!state.snapshot.decisions) state.snapshot.decisions = DEFAULT_SNAPSHOT.decisions;
   state.coderProvider = state.snapshot.coderProvider || "codex-plus";
 
-  // 加载任务列表并渲染
+  // 同步任务列表并渲染
   state._taskData = await AgentLab.fetchTasks();
   AgentLab.renderAll();
 
@@ -1097,9 +1260,11 @@ function bindEvents() {
   // 命令面板输入
   document.getElementById("commandInput")?.addEventListener("input", e => {
     const q = e.target.value.toLowerCase();
+    const projectCmds = (state._projects || []).map(p => `切换项目: ${p.name || p}`);
+    const taskCmds = (state._taskData || []).map(t => `切换任务: ${t.task_id}`);
     const cmds = [
-      "切换项目: AgentLab", "切换项目: ExampleProject",
-      "切换任务: task_0001", "切换任务: task_0002", "切换任务: task_0003", "切换任务: task_0004",
+      ...projectCmds,
+      ...taskCmds,
       "Tab: 总览", "Tab: Agent 面板", "Tab: 任务日志", "Tab: 成本分析", "Tab: 配置",
       "刷新数据", "新建任务", "切换主题", "导出日志", "显示快捷键"
     ].filter(c => c.toLowerCase().includes(q));
