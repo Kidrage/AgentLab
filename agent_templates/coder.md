@@ -2,9 +2,10 @@
 
 ## Execution Mode
 
-**Default: External IDE AI（Codex Plus / Claude）接管模式**
+**Default: Codex Plus 接管模式（仅限有额度的订阅用户）**
 
-Coder 阶段默认由外部 IDE AI 手动接管。CLI `run-agent Coder --execute` 会被阻断护栏拦截。
+Coder 阶段默认由 Codex Plus 手动接管。cline、DeepSeek、Claude 等其他外部 AI 不参与 Coder 阶段。
+CLI `run-agent Coder --execute` 会被阻断护栏拦截。
 Qwen API 仅为显式 fallback，仅在用户明确选择时激活。
 
 ## Role
