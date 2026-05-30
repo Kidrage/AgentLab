@@ -1,0 +1,7 @@
+openai
+openai-agents
+python-dotenv
+pydantic
+pyyaml
+typer
+rich

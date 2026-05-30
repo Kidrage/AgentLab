@@ -1,0 +1,59 @@
+project:
+  name: AgentLab
+  type: local_agent_workflow
+
+paths:
+  repo: ../../
+  docs: agent_docs
+  runs: runs
+
+global_config:
+  agent_registry: ../../config/agent_registry.yml
+  model_profiles: ../../config/model_profiles.yml
+  routing_rules: ../../config/routing_rules.yml
+  budget_profiles: ../../config/budget_profiles.yml
+  validation_gates: ../../config/validation_gates.yml
+  memory_policy: ../../config/memory_policy.yml
+
+agent_routing:
+  default_strategy: smallest_safe_route
+  small_task:
+    - Supervisor
+    - Coder
+    - TesterAuditor
+  interface_sensitive_task:
+    - Supervisor
+    - RepoScout
+    - InterfaceMapper
+    - Coder
+    - TesterAuditor
+    - Archivist
+
+safety_rules:
+  - Keep AgentLab local-first and transparent.
+  - Use DeepSeek-style management only for planning and review.
+  - Use Codex Plus for real file edits and local command execution.
+  - Do not install dependencies unless the user explicitly approves.
+  - Do not create or expose real secrets.
+  - Keep UI, runtime, configuration, and project memory concerns separated.
+
+forbidden_actions:
+  - Run destructive git commands.
+  - Claim tests or validation passed unless commands were actually run.
+  - Modify unrelated project repositories.
+  - Use DeepSeek API for actual source edits.
+
+default_deliverables:
+  - supervisor_plan.md
+  - reposcout_report.md
+  - interface_map.md
+  - implementation_report.md
+  - validation_report.md
+  - audit_report.md
+  - archive_update.md
+
+validation_requirements:
+  - Record every command that was run.
+  - Record files created or changed.
+  - Verify static UI can render without a build step.
+  - Keep future API/service integration points explicit.

@@ -1,0 +1,115 @@
+version: 1
+
+defaults:
+  provider: env:LLM_PROVIDER:deepseek
+  model: env:DEFAULT_MODEL:deepseek-v4-pro
+  base_url: env:DEEPSEEK_BASE_URL:https://api.deepseek.com
+  api_key: env:DEEPSEEK_API_KEY
+  temperature: 0.2
+  top_p: 1.0
+
+profiles:
+  coordinator:
+    description: Planning, routing, budget control, and synthesis.
+    provider: env:LLM_PROVIDER:deepseek
+    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    temperature: 0.2
+    max_output_tokens: 1800
+
+  scout:
+    description: Repository reading and concise mapping.
+    provider: env:LLM_PROVIDER:deepseek
+    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    temperature: 0.1
+    max_output_tokens: 2200
+
+  architect:
+    description: Interfaces, contracts, boundaries, and architecture-sensitive review.
+    provider: env:LLM_PROVIDER:deepseek
+    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    temperature: 0.15
+    max_output_tokens: 2200
+
+  coder:
+    description: Real code edits, file changes, project commands, and implementation are handled by Codex Plus.
+    provider: codex_plus_manual
+    model: Codex Plus
+    temperature: 0.15
+    max_output_tokens: 3200
+
+  deepseek_coder:
+    description: DeepSeek API coding profile for patch proposals and direct code edits when Codex Plus is unavailable.
+    provider: env:LLM_PROVIDER:deepseek
+    model: env:DEEPSEEK_MODEL:deepseek-v4-pro
+    temperature: 0.15
+    max_output_tokens: 3200
+
+  codex_prompt:
+    description: DeepSeek-generated prompt handoff for Codex Plus implementation.
+    provider: env:LLM_PROVIDER:deepseek
+    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    temperature: 0.2
+    max_output_tokens: 2200
+
+  auditor:
+    description: Diff review, validation interpretation, and risk finding.
+    provider: env:LLM_PROVIDER:deepseek
+    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    temperature: 0.1
+    max_output_tokens: 2200
+
+  archivist:
+    description: Project memory compression and continuity updates.
+    provider: env:LLM_PROVIDER:deepseek
+    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    temperature: 0.1
+    max_output_tokens: 1600
+
+  research:
+    description: External source gathering and citation-oriented summaries.
+    provider: env:LLM_PROVIDER:deepseek
+    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    temperature: 0.2
+    max_output_tokens: 2200
+
+  qwen_general:
+    description: Optional Qwen profile for general agent reasoning when explicitly selected.
+    provider: qwen
+    model: env:QWEN_MODEL:qwen-plus
+    temperature: 0.2
+    max_output_tokens: 2200
+
+  qwen_scout:
+    description: Optional Qwen profile for repository reading and concise summaries.
+    provider: qwen
+    model: env:QWEN_SCOUT_MODEL:qwen-plus
+    temperature: 0.1
+    max_output_tokens: 2600
+
+  qwen_architect:
+    description: Optional Qwen profile for interface and architecture analysis.
+    provider: qwen
+    model: env:QWEN_ARCHITECT_MODEL:qwen-plus
+    temperature: 0.15
+    max_output_tokens: 2600
+
+  qwen_research:
+    description: Optional Qwen profile for research-style summaries when explicitly selected.
+    provider: qwen
+    model: env:QWEN_RESEARCH_MODEL:qwen-plus
+    temperature: 0.2
+    max_output_tokens: 2600
+
+  qwen_auditor:
+    description: Optional Qwen profile for validation analysis and code review.
+    provider: qwen
+    model: env:QWEN_AUDITOR_MODEL:qwen-plus
+    temperature: 0.1
+    max_output_tokens: 2600
+
+  qwen_coder_aux:
+    description: Optional Qwen coding assistant profile; only use for coding after explicit user approval.
+    provider: qwen
+    model: env:QWEN_CODER_MODEL:qwen-plus
+    temperature: 0.15
+    max_output_tokens: 3200

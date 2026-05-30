@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# AgentLab runtime
+agent_runtime/.venv/
+agent_runtime/__pycache__/
+agent_runtime/.env
+
+# Project runs (may contain user documents)
+# Keep folder structure but exclude large transient data
+projects/*/runs/*/cost_ledger.yml
+projects/*/runs/*/state.yml

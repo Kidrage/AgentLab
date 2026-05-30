@@ -1,0 +1,69 @@
+version: 1
+
+brain_policy:
+  required_provider: deepseek
+  deepseek_required_for_all_agentlab_tasks: true
+  applies_to:
+    - simulation
+    - small_task
+    - medium_task
+    - interface_sensitive_task
+    - research_sensitive_task
+    - large_or_risky_task
+    - formal_engineering_task
+  brain_agents:
+    - Supervisor
+    - RepoScout
+    - Researcher
+    - InterfaceMapper
+    - CodexPromptGenerator
+    - TesterAuditor
+    - Archivist
+  codex_may_simulate_brain: false
+  codex_brain_override_requires_user_config_change: true
+  on_deepseek_missing_key: ask_user
+  on_deepseek_quota_exceeded: ask_user
+  on_deepseek_rate_limited: ask_user
+  on_deepseek_provider_error: ask_user
+  user_decision_file: USER_DECISION_REQUIRED.md
+  required_report_metadata:
+    - brain_provider
+    - model
+    - api_called
+    - token_usage
+    - fallback_or_block_reason
+
+coder_policy:
+  primary_executor: codex_plus_manual
+  coding_agent: Coder
+  api_fallback_executor: qwen
+  api_fallback_model_profile: qwen_coder_aux
+  api_fallback_stack:
+    brain_provider: deepseek
+    coder_provider: qwen
+    mode: deepseek_brain_qwen_coder_api
+  codex_quota_exact_usage_source: unavailable_manual
+  quota_check_required_before_large_edits: true
+  if_codex_quota_insufficient: ask_user
+  no_automatic_deepseek_coding: false
+  no_automatic_qwen_coding: false
+  qwen_coding_requires_explicit_user_approval: true
+  deepseek_coding_allowed: true
+  api_coder_outputs:
+    - implementation_report.md
+    - patch_proposal.diff
+    - files_to_change.yml
+    - validation_instructions.md
+  api_coder_application_policy: patch_proposal_first
+  automatic_patch_application: false
+  user_choices_when_quota_insufficient:
+    - pause_until_codex_refresh
+    - switch_to_deepseek_brain_qwen_coder_api
+    - switch_to_deepseek_api_coder
+  decision_prompt: "Codex quota may be insufficient. Should AgentLab pause until Codex quota refreshes, switch to DeepSeek brain + Qwen Coder API, or switch to DeepSeek full-stack API coding?"
+
+logging_policy:
+  record_brain_api_calls: true
+  record_codex_manual_execution: true
+  record_simulation_as_deepseek_required: true
+  mark_codex_brain_simulation_as_policy_violation_unless_user_approved: true

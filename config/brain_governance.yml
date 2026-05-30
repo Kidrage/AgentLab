@@ -1,0 +1,58 @@
+version: 1
+
+owner: Supervisor
+provider: deepseek
+
+trigger_rules:
+  agentlab_only_when_user_explicitly_requests: true
+  deepseek_required_for_all_brain_planning: true
+  codex_may_not_silently_simulate_brain: true
+  full_directory_traversal_requires_brain_request: true
+  ambiguous_decision_requires_user_yes_no: true
+
+token_governance:
+  warning_ratio: 0.9
+  stop_ratio: 1.15
+  sustained_growth_window: 3
+  sustained_growth_ratio: 1.35
+  default_decision_on_warning: continue_with_warning
+  default_decision_on_stop: ask_user
+  codex_plus_exact_cost: unavailable_manual
+  coder_quota_insufficient_action: ask_user
+  coder_quota_choices:
+    - pause_until_codex_refresh
+    - switch_to_deepseek_brain_qwen_coder_api
+
+traversal_governance:
+  default_scope: targeted
+  full_repo_requires_reason: true
+  max_full_repo_traversals_per_agent: 1
+  max_estimated_files_without_user: 200
+  max_estimated_tokens_without_user: 8000
+  allowed_decisions:
+    - approve
+    - narrow_scope
+    - ask_user
+    - stop_replan
+
+loop_detection:
+  repeated_action_window: 5
+  max_repeated_action_count: 3
+  max_replans_before_user: 2
+  immediate_stop_signals:
+    - same_action_repeated_without_new_information
+    - token_usage_rising_without_new_outputs
+    - behavior_drifting_from_task_goal
+    - full_repo_scan_repeated_without_justification
+
+user_decision_protocol:
+  output_file: USER_DECISION_REQUIRED.md
+  choices:
+    - yes_continue
+    - no_stop_replan
+  required_fields:
+    - question
+    - default_recommendation
+    - risk_if_yes
+    - risk_if_no
+    - token_impact

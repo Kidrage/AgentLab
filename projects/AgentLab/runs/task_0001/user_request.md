@@ -1,0 +1,1 @@
+# User Request\n\n模拟 AgentLab 做一次任务：做一个简单网页 UI 框架，要求能看到所有 agents 的状态。\n\nExecution split:\n- Supervisor/brain planning: DeepSeek-style management simulation.\n- Coder execution: Codex Plus in this chat.\n- No dependency installation.\n- Keep implementation static and local-first.\n

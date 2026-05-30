@@ -1,0 +1,67 @@
+version: 1
+
+defaults:
+  provider: env:LLM_PROVIDER:deepseek
+  fallback_provider:
+
+providers:
+  deepseek:
+    type: openai_compatible
+    display_name: DeepSeek
+    api_key: env:DEEPSEEK_API_KEY
+    base_url: env:DEEPSEEK_BASE_URL:https://api.deepseek.com
+    default_model: env:DEEPSEEK_MODEL:deepseek-v4-pro
+    fallback_provider:
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_api_key
+      - quota_exceeded
+      - rate_limited
+      - provider_error
+    notes:
+      - Primary low-cost auxiliary reasoning provider for personal AgentLab CLI work.
+      - Model name is intentionally configurable because account-specific model IDs may differ.
+      - Brain stages require DeepSeek for every AgentLab task, including simulations and small tasks.
+      - If unavailable, AgentLab blocks and asks the user instead of silently falling back to Codex.
+
+  openai:
+    type: openai_compatible
+    display_name: OpenAI
+    api_key: env:OPENAI_API_KEY
+    base_url: env:OPENAI_BASE_URL:https://api.openai.com/v1
+    default_model: env:OPENAI_MODEL
+    notes:
+      - Reserved as a second provider path.
+      - Keep API key in private .env only.
+
+  qwen:
+    type: openai_compatible
+    display_name: Qwen / Alibaba Cloud Model Studio
+    api_key: env:QWEN_API_KEY
+    base_url: env:QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1
+    default_model: env:QWEN_MODEL:qwen-plus
+    fallback_provider:
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_api_key
+      - quota_exceeded
+      - rate_limited
+      - provider_error
+    notes:
+      - Qwen is available through Alibaba Cloud Model Studio / DashScope OpenAI-compatible mode.
+      - Use https://dashscope.aliyuncs.com/compatible-mode/v1 for China Beijing region keys.
+      - Use https://dashscope-intl.aliyuncs.com/compatible-mode/v1 for international/Singapore keys.
+      - Keep the actual API key in agent_runtime/.env only.
+      - Optional provider for agent profiles; DeepSeek remains the required default brain provider unless execution_policy.yml is changed.
+
+  codex_plus_manual:
+    type: manual_codex
+    display_name: Codex Plus
+    default_model: Codex Plus
+    notes:
+      - Manual execution provider for the current Codex Plus session.
+      - AgentLab cannot call Codex Plus through a normal API.
+      - Runtime writes a Codex handoff only for execution stages that explicitly use the Coder lane.
+      - Codex must not silently replace required DeepSeek brain stages.

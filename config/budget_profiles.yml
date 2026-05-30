@@ -1,0 +1,88 @@
+version: 1
+
+defaults:
+  warning_ratio: 0.9
+  stop_ratio: 1.15
+  actual_usage_policy: provider_telemetry_if_available_else_manual_estimate
+  over_budget_policy: pause_and_request_revised_budget
+
+profiles:
+  small:
+    total_cap_tokens: 12000
+    phases:
+      - phase: Intake and routing
+        agent: Supervisor
+        estimated_input_tokens: 1800
+        estimated_output_tokens: 900
+      - phase: Coder implementation or patch proposal
+        agent: Coder
+        estimated_input_tokens: 3200
+        estimated_output_tokens: 2200
+      - phase: Tester/Auditor validation
+        agent: TesterAuditor
+        estimated_input_tokens: 2200
+        estimated_output_tokens: 1400
+
+  medium:
+    total_cap_tokens: 28000
+    phases:
+      - phase: Intake and routing
+        agent: Supervisor
+        estimated_input_tokens: 2500
+        estimated_output_tokens: 1200
+      - phase: RepoScout repository scan
+        agent: RepoScout
+        estimated_input_tokens: 5200
+        estimated_output_tokens: 2600
+      - phase: Research, if needed
+        agent: Researcher
+        estimated_input_tokens: 3600
+        estimated_output_tokens: 2200
+      - phase: Interface mapping, if needed
+        agent: InterfaceMapper
+        estimated_input_tokens: 4200
+        estimated_output_tokens: 2200
+      - phase: Coder implementation or patch proposal
+        agent: Coder
+        estimated_input_tokens: 6200
+        estimated_output_tokens: 3600
+      - phase: Tester/Auditor validation
+        agent: TesterAuditor
+        estimated_input_tokens: 4200
+        estimated_output_tokens: 2600
+      - phase: Archivist update
+        agent: Archivist
+        estimated_input_tokens: 2600
+        estimated_output_tokens: 1200
+
+  large:
+    total_cap_tokens: 60000
+    phases:
+      - phase: Intake and routing
+        agent: Supervisor
+        estimated_input_tokens: 4000
+        estimated_output_tokens: 1800
+      - phase: RepoScout repository scan
+        agent: RepoScout
+        estimated_input_tokens: 10000
+        estimated_output_tokens: 4000
+      - phase: Research, if needed
+        agent: Researcher
+        estimated_input_tokens: 7000
+        estimated_output_tokens: 3500
+      - phase: Interface mapping, if needed
+        agent: InterfaceMapper
+        estimated_input_tokens: 8000
+        estimated_output_tokens: 3500
+      - phase: Coder implementation or patch proposal
+        agent: Coder
+        estimated_input_tokens: 12000
+        estimated_output_tokens: 6500
+      - phase: Tester/Auditor validation
+        agent: TesterAuditor
+        estimated_input_tokens: 8000
+        estimated_output_tokens: 4000
+      - phase: Archivist update
+        agent: Archivist
+        estimated_input_tokens: 4000
+        estimated_output_tokens: 1800

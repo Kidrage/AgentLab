@@ -1,0 +1,14 @@
+tasks:
+  - task_id: task_0001
+    title: Simple agent status web UI framework
+    status: complete
+    route:
+      - Supervisor
+      - RepoScout
+      - InterfaceMapper
+      - Coder
+      - TesterAuditor
+      - Archivist
+    started_at: "2026-05-29T04:22:00Z"
+    completed_at: "2026-05-29T04:36:00Z"
+    summary: Created a dependency-free static status board showing all AgentLab agents and a future-compatible status snapshot shape.

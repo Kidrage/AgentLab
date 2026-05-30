@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentLab — AI Agent 任务流管理平台</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<!-- 快捷键提示遮罩 -->
+<div class="shortcuts-overlay" id="shortcutsOverlay" hidden>
+  <div class="shortcuts-panel">
+    <h2>键盘快捷键</h2>
+    <div class="shortcuts-grid">
+      <div><kbd>Ctrl</kbd>+<kbd>K</kbd></div><span>命令面板</span>
+      <div><kbd>Ctrl</kbd>+<kbd>1-5</kbd></div><span>切换 Tab</span>
+      <div><kbd>Ctrl</kbd>+<kbd>T</kbd></div><span>切换主题</span>
+      <div><kbd>Ctrl</kbd>+<kbd>N</kbd></div><span>新建任务</span>
+      <div><kbd>Ctrl</kbd>+<kbd>F</kbd></div><span>搜索</span>
+      <div><kbd>Escape</kbd></div><span>关闭弹窗</span>
+      <div><kbd>?</kbd></div><span>显示快捷键</span>
+    </div>
+    <button class="btn btn-secondary" onclick="document.getElementById('shortcutsOverlay').hidden=true">关闭</button>
+  </div>
+</div>
+
+<!-- 命令面板 -->
+<div class="modal-overlay" id="commandPalette" hidden>
+  <div class="command-palette">
+    <input type="text" id="commandInput" class="cmd-input" placeholder="输入命令… (切换项目、任务、Agent…)" autofocus>
+    <div class="cmd-results" id="cmdResults"></div>
+  </div>
+</div>
+
+<!-- 用户决策弹窗 -->
+<div class="modal-overlay" id="decisionModal" hidden>
+  <div class="modal-card">
+    <h2 id="decisionTitle">用户决策</h2>
+    <p id="decisionQuestion"></p>
+    <div class="decision-recs" id="decisionRecs"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="AgentLab.resolveDecision('yes')">批准</button>
+      <button class="btn btn-secondary" onclick="AgentLab.resolveDecision('no')">拒绝 / 重规划</button>
+      <button class="btn btn-ghost" onclick="AgentLab.resolveDecision('later')">稍后处理</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新任务创建弹窗 -->
+<div class="modal-overlay" id="newTaskModal" hidden>
+  <div class="modal-card">
+    <h2>创建新任务</h2>
+    <form id="newTaskForm" onsubmit="AgentLab.createTask(event)">
+      <div class="form-group">
+        <label>项目</label>
+        <select id="newTaskProject">
+          <option value="AgentLab">AgentLab</option>
+          <option value="ExampleProject">ExampleProject</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>任务 ID</label>
+        <input type="text" id="newTaskId" placeholder="task_0004" pattern="task_\d{4}" required>
+      </div>
+      <div class="form-group">
+        <label>用户请求</label>
+        <textarea id="newTaskRequest" rows="4" placeholder="描述你的任务…"></textarea>
+      </div>
+      <div class="form-group">
+        <label>执行后端</label>
+        <select id="newTaskBackend">
+          <option value="codex">Codex Plus</option>
+          <option value="qwen">Qwen API</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary">创建任务</button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('newTaskModal').hidden=true">取消</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Agent 操作确认弹窗 -->
+<div class="modal-overlay" id="agentActionModal" hidden>
+  <div class="modal-card">
+    <h2 id="agentActionTitle">操作 Agent</h2>
+    <p id="agentActionDesc"></p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="agentActionConfirm">确认</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('agentActionModal').hidden=true">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="app-shell">
+  <!-- ====== 顶栏 ====== -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <span class="brand-icon">⬡</span>
+        <h1>AgentLab</h1>
+        <span class="version-badge">v1.0</span>
+      </div>
+      <div class="topbar-controls">
+        <!-- 项目选择器 -->
+        <div class="select-group">
+          <label>项目</label>
+          <select id="projectSelector">
+            <option value="AgentLab">AgentLab</option>
+            <option value="ExampleProject">ExampleProject</option>
+          </select>
+        </div>
+        <!-- 任务选择器 -->
+        <div class="select-group">
+          <label>任务</label>
+          <select id="taskSelector">
+            <option value="task_0001">task_0001</option>
+            <option value="task_0002">task_0002</option>
+            <option value="task_0003">task_0003</option>
+            <option value="task_0004">task_0004</option>
+          </select>
+        </div>
+        <!-- 刷新 -->
+        <button class="icon-btn" title="刷新数据 (Ctrl+R)" onclick="AgentLab.refresh()" id="refreshBtn">⟳</button>
+        <!-- 新建任务 -->
+        <button class="icon-btn" title="新建任务 (Ctrl+N)" onclick="AgentLab.openNewTask()" id="newTaskBtn">+</button>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <!-- 通知铃铛 -->
+      <button class="icon-btn has-badge" title="通知" onclick="AgentLab.toggleNotifications()" id="notifBtn">
+        <span>🔔</span>
+        <span class="badge" id="notifBadge">3</span>
+      </button>
+      <!-- 主题切换 -->
+      <button class="icon-btn" title="切换主题 (Ctrl+T)" onclick="AgentLab.toggleTheme()" id="themeBtn">
+        <span class="theme-icon-light">☀️</span>
+        <span class="theme-icon-dark">🌙</span>
+      </button>
+      <!-- 快捷键 -->
+      <button class="icon-btn" title="快捷键 (?)" onclick="AgentLab.showShortcuts()">⌨</button>
+      <!-- 状态 -->
+      <div class="status-indicator" id="connectionStatus" title="连接状态">
+        <span class="dot"></span>
+        <span>在线</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====== 通知面板 ====== -->
+  <div class="notif-panel" id="notifPanel" hidden>
+    <div class="notif-header">
+      <strong>通知</strong>
+      <button class="btn-ghost-sm" onclick="AgentLab.clearNotifications()">全部清除</button>
+    </div>
+    <div class="notif-list" id="notifList"></div>
+  </div>
+
+  <!-- ====== 自然语言任务下达栏 ====== -->
+  <div class="nl-task-bar" id="nlTaskBar">
+    <div class="nl-task-inner">
+      <span class="nl-icon">💬</span>
+      <input type="text" id="nlTaskInput" class="nl-input" placeholder="用自然语言描述你的任务，例如：修改 Web UI 使其支持深色主题…" autocomplete="off">
+      <button class="btn btn-primary" id="nlSubmitBtn" onclick="AgentLab.submitNaturalTask()">下达任务</button>
+      <div class="nl-status" id="nlStatus"></div>
+    </div>
+  </div>
+
+  <!-- ====== Tab 导航 ====== -->
+  <nav class="tab-nav">
+    <button class="tab-btn is-active" data-tab="dashboard">
+      <span class="tab-icon">◫</span> 总览
+    </button>
+    <button class="tab-btn" data-tab="agents">
+      <span class="tab-icon">▤</span> Agent 面板
+    </button>
+    <button class="tab-btn" data-tab="logs">
+      <span class="tab-icon">☰</span> 任务日志
+    </button>
+    <button class="tab-btn" data-tab="cost">
+      <span class="tab-icon">◎</span> 成本分析
+    </button>
+    <button class="tab-btn" data-tab="config">
+      <span class="tab-icon">⚙</span> 配置
+    </button>
+  </nav>
+
+  <!-- ====== Tab: 总览 (Dashboard) ====== -->
+  <section class="tab-content" id="tab-dashboard">
+    <!-- 摘要指标行 -->
+    <div class="metric-row">
+      <div class="metric-card" id="metricAgents">
+        <span class="metric-icon">▤</span>
+        <div>
+          <span class="metric-label">Agent 总数</span>
+          <strong id="dashAgentCount">--</strong>
+        </div>
+      </div>
+      <div class="metric-card" id="metricActive">
+        <span class="metric-icon accent-blue">⬡</span>
+        <div>
+          <span class="metric-label">进行中</span>
+          <strong id="dashActiveCount">--</strong>
+        </div>
+      </div>
+      <div class="metric-card" id="metricComplete">
+        <span class="metric-icon accent-green">✓</span>
+        <div>
+          <span class="metric-label">已完成</span>
+          <strong id="dashCompleteCount">--</strong>
+        </div>
+      </div>
+      <div class="metric-card" id="metricBudget">
+        <span class="metric-icon accent-amber">◎</span>
+        <div>
+          <span class="metric-label">Token 已用</span>
+          <strong id="dashTokenUsed">--</strong>
+        </div>
+      </div>
+      <div class="metric-card" id="metricHealth">
+        <span class="metric-icon accent-violet">⚡</span>
+        <div>
+          <span class="metric-label">系统健康</span>
+          <strong id="dashHealth" class="text-green">正常</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- 进度环 + Agent 状态分布 -->
+    <div class="dash-grid">
+      <div class="dash-card">
+        <h3>任务执行进度</h3>
+        <div class="donut-chart" id="donutChart"></div>
+      </div>
+      <div class="dash-card">
+        <h3>Agent 状态分布</h3>
+        <div class="bar-chart" id="barChart"></div>
+      </div>
+      <div class="dash-card span-2">
+        <h3>Token 用量趋势</h3>
+        <div class="token-trend" id="tokenTrend">
+          <canvas id="tokenCanvas" width="600" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- 最近事件 -->
+    <div class="dash-card">
+      <h3>最近事件</h3>
+      <ol class="event-list compact" id="dashEvents"></ol>
+    </div>
+  </section>
+
+  <!-- ====== Tab: Agent 面板 ====== -->
+  <section class="tab-content" id="tab-agents" hidden>
+    <div class="panel-toolbar">
+      <div class="segmented" id="agentFilter">
+        <button class="segment is-selected" data-filter="all">全部</button>
+        <button class="segment" data-filter="active">进行中</button>
+        <button class="segment" data-filter="complete">已完成</button>
+        <button class="segment" data-filter="waiting">等待中</button>
+        <button class="segment" data-filter="blocked">已阻塞</button>
+        <button class="segment" data-filter="skipped">已跳过</button>
+      </div>
+      <div class="search">
+        <label>搜索 Agent</label>
+        <input id="agentSearch" type="search" placeholder="按名称或角色搜索…">
+      </div>
+      <div class="agent-bulk-actions">
+        <button class="btn btn-sm" onclick="AgentLab.runAllAgents()">▶ 全部运行</button>
+        <button class="btn btn-sm btn-warning" onclick="AgentLab.pauseAllAgents()">⏸ 全部暂停</button>
+        <button class="btn btn-sm btn-danger" onclick="AgentLab.stopAllAgents()">⏹ 全部停止</button>
+      </div>
+    </div>
+    <div class="agent-grid" id="agentGrid"></div>
+  </section>
+
+  <!-- ====== Tab: 任务日志 ====== -->
+  <section class="tab-content" id="tab-logs" hidden>
+    <div class="panel-toolbar">
+      <div class="log-filters">
+        <input id="logSearch" type="search" placeholder="搜索日志…" class="log-search">
+        <select id="logLevelFilter">
+          <option value="all">所有级别</option>
+          <option value="info">Info</option>
+          <option value="warn">Warning</option>
+          <option value="error">Error</option>
+          <option value="decision">用户决策</option>
+        </select>
+        <select id="logAgentFilter">
+          <option value="all">所有 Agent</option>
+        </select>
+        <input id="logDateFrom" type="datetime-local" title="开始时间">
+        <input id="logDateTo" type="datetime-local" title="结束时间">
+      </div>
+      <div class="log-actions">
+        <button class="btn btn-sm" onclick="AgentLab.expandAllLogs()">展开全部</button>
+        <button class="btn btn-sm" onclick="AgentLab.collapseAllLogs()">折叠全部</button>
+        <button class="btn btn-sm" onclick="AgentLab.exportLogs()">导出 JSON</button>
+      </div>
+    </div>
+    <div class="log-list" id="logList"></div>
+  </section>
+
+  <!-- ====== Tab: 成本分析 ====== -->
+  <section class="tab-content" id="tab-cost" hidden>
+    <div class="cost-summary-row">
+      <div class="metric-card">
+        <span class="metric-label">总 Token 预算</span>
+        <strong id="costTotalBudget">--</strong>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">已使用 Token</span>
+        <strong id="costTotalUsed">--</strong>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">剩余 Token</span>
+        <strong id="costRemaining">--</strong>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">预估成本 (USD)</span>
+        <strong id="costEstimate">--</strong>
+      </div>
+    </div>
+    <div class="cost-charts">
+      <div class="dash-card span-2">
+        <h3>各 Agent Token 用量</h3>
+        <div class="bar-chart-h" id="costBarChart"></div>
+      </div>
+      <div class="dash-card">
+        <h3>成本摘要</h3>
+        <div class="cost-breakdown" id="costBreakdown"></div>
+      </div>
+    </div>
+    <div class="dash-card">
+      <h3>用量日志</h3>
+      <table class="cost-table" id="costTable">
+        <thead>
+          <tr><th>时间</th><th>Agent</th><th>Provider</th><th>Model</th><th>输入</th><th>输出</th><th>总计</th><th>状态</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ====== Tab: 配置 ====== -->
+  <section class="tab-content" id="tab-config" hidden>
+    <div class="config-grid">
+      <div class="dash-card">
+        <h3>执行策略</h3>
+        <div id="configPolicy" class="config-yaml"></div>
+      </div>
+      <div class="dash-card">
+        <h3>Model Providers</h3>
+        <div id="configProviders" class="config-table"></div>
+      </div>
+      <div class="dash-card">
+        <h3>模型 Profiles</h3>
+        <div id="configProfiles" class="config-table"></div>
+      </div>
+      <div class="dash-card">
+        <h3>环境变量</h3>
+        <div id="configEnv" class="config-yaml">
+          <p class="text-muted">注意：密钥已脱敏显示</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Toast 提示 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
