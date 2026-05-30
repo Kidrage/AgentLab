@@ -65,3 +65,13 @@ providers:
       - AgentLab cannot call Codex Plus through a normal API.
       - Runtime writes a Codex handoff only for execution stages that explicitly use the Coder lane.
       - Codex must not silently replace required DeepSeek brain stages.
+
+  external_ide_ai:
+    type: external_ide_ai
+    display_name: External IDE AI
+    default_model: External AI
+    notes:
+      - Execution provider for external IDE AI (Codex, Claude, etc.) to act as Coder.
+      - AgentLab brain (DeepSeek) does all planning; external AI only executes Coder phase.
+      - AgentLab generates a handoff prompt with complete context, external AI executes and writes reports back.
+      - Saves token cost for external AI by eliminating planning/reasoning overhead.

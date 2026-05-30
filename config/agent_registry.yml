@@ -123,3 +123,20 @@ agents:
     source_write_policy: never
     required_outputs:
       - runs/task_xxxx/archive_update.md
+
+  Verifier:
+    template_path: agent_templates/verifier.md
+    role: Verifies task output matches Supervisor expectations. Checks behavioral completeness and agent handoff gaps.
+    model_profile: auditor
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_inputs:
+      - runs/task_xxxx/supervisor_plan.md
+      - runs/task_xxxx/implementation_report.md
+      - runs/task_xxxx/audit_report.md
+      - runs/task_xxxx/interface_map.md
+    required_outputs:
+      - runs/task_xxxx/verification_report.md

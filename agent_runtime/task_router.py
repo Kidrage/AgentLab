@@ -1,3 +1,4 @@
+
 """Lightweight task routing for AgentLab Phase 2A.
 
 This module only recommends which agent roles should participate. It does not
@@ -94,10 +95,10 @@ def recommend_route(
     looks_large = any(hint in text for hint in large_hints) or len(text) > large_chars
     looks_medium = len(text) > medium_chars
 
-    fallback_small = ["Supervisor", "Coder", "TesterAuditor"]
-    fallback_medium = ["Supervisor", "RepoScout", "Coder", "TesterAuditor", "Archivist"]
-    fallback_interface = ["Supervisor", "RepoScout", "InterfaceMapper", "Coder", "TesterAuditor", "Archivist"]
-    fallback_research = ["Supervisor", "Researcher", "Coder", "TesterAuditor"]
+    fallback_small = ["Supervisor", "Coder", "TesterAuditor", "Verifier"]
+    fallback_medium = ["Supervisor", "RepoScout", "Coder", "TesterAuditor", "Verifier", "Archivist"]
+    fallback_interface = ["Supervisor", "RepoScout", "InterfaceMapper", "Coder", "TesterAuditor", "Verifier", "Archivist"]
+    fallback_research = ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier"]
     fallback_large = [
         "Supervisor",
         "RepoScout",
@@ -105,6 +106,7 @@ def recommend_route(
         "InterfaceMapper",
         "Coder",
         "TesterAuditor",
+        "Verifier",
         "Archivist",
     ]
 

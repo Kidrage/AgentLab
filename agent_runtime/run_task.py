@@ -127,6 +127,7 @@ def init_task(
         "implementation_report.md": "# Implementation Report\n\nTBD\n",
         "validation_report.md": "# Validation Report\n\nTBD\n",
         "audit_report.md": "# Audit Report\n\nTBD\n",
+        "verification_report.md": "# Verification Report\n\nTBD\n",
         "archive_update.md": "# Archive Update\n\nTBD\n",
         "cost_ledger.yml": "entries: []\n",
         "brain_decisions.yml": "decisions: []\n",
