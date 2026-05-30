@@ -564,7 +564,8 @@ const AgentLab = {
       }
       setTimeout(() => this.refresh(), 1000);
     } else {
-      this.showToast(`已${actionLabel}（本地），后端未连接`, "warn");
+      this.showToast(`⚠ 后端未连接 — 决策仅在前端生效，未通知 AgentLab 引擎。请运行: cd web_ui && python3 server.py`, "error");
+      this.addNotification("error", "后端服务未运行，决策未生效。启动方法: python3 web_ui/server.py");
     }
     setTimeout(() => this.checkDecisions(), 1000);
   },
