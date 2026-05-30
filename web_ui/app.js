@@ -511,9 +511,25 @@ const AgentLab = {
     if (!modal) return;
     if (title) title.textContent = decision.title || "用户决策";
     if (question) question.textContent = decision.question || "";
-    if (recs) recs.innerHTML = (decision.recommendations||[]).map((r,i) => `<div class="rec-item ${i===0?'rec-default':''}">${r}</div>`).join("");
+
+    // 存储当前决策数据
+    state._activeDecision = decision;
+
+    if (recs) {
+      recs.innerHTML = (decision.recommendations||[]).map((r,i) => {
+        const isDefault = decision.default === r || i === 0;
+        return `<div class="rec-item ${isDefault?'rec-selected':''}" data-rec-idx="${i}" onclick="AgentLab.selectRecOption(${i})">${r}</div>`;
+      }).join("");
+    }
     modal.hidden = false;
     this.addNotification("decision", `${decision.title}: ${decision.question}`);
+  },
+  selectRecOption(idx) {
+    // 选中推荐选项
+    document.querySelectorAll("#decisionRecs .rec-item").forEach(el => el.classList.remove("rec-selected"));
+    const target = document.querySelector(`#decisionRecs .rec-item[data-rec-idx="${idx}"]`);
+    if (target) target.classList.add("rec-selected");
+    state._selectedRecIdx = idx;
   },
   async resolveDecision(action) {
     const modal = this.$("decisionModal");
@@ -522,24 +538,30 @@ const AgentLab = {
     const pending = decisions.find(d => d.status === "pending");
     if (pending) pending.status = action === "yes" ? "approved" : action === "no" ? "rejected" : "deferred";
 
+    // 获取选中的推荐选项文本
+    const recs = state._activeDecision?.recommendations || [];
+    const chosen = recs[state._selectedRecIdx || 0] || "";
+    state._selectedRecIdx = undefined;
+    state._activeDecision = undefined;
+
     const actionLabel = action === "yes" ? "批准" : action === "no" ? "拒绝" : "推迟";
     this.showToast(`已${actionLabel}，正在通知 AgentLab…`, "info");
 
-    // 通过 API 发送决策到后端
+    // 通过 API 发送决策到后端（附带选择的推荐选项）
     const result = await this.apiPost("/api/decision", {
       project: state.project,
       taskId: state.taskId,
       action: action,
+      chosenRecommendation: chosen,
     });
 
-    this.addEvent("User", "decision", `用户${actionLabel}了决策: ${pending?.title||''}`);
+    this.addEvent("User", "decision", `用户${actionLabel}了决策: ${pending?.title||''} → ${chosen}`);
 
     if (result && result.success) {
       this.showToast(`已${actionLabel}，AgentLab 已收到反馈`, "success");
       if (result.actionResult) {
         this.addEvent("System", "info", `后端响应: ${result.actionResult}`);
       }
-      // 刷新数据以获取最新状态
       setTimeout(() => this.refresh(), 1000);
     } else {
       this.showToast(`已${actionLabel}（本地），后端未连接`, "warn");
