@@ -781,7 +781,8 @@ async function init() {
   if (!state.snapshot.decisions) state.snapshot.decisions = DEFAULT_SNAPSHOT.decisions;
   state.coderProvider = state.snapshot.coderProvider || "codex-plus";
 
-  // 渲染所有面板
+  // 加载任务列表并渲染
+  state._taskData = await AgentLab.fetchTasks();
   AgentLab.renderAll();
 
   // 事件绑定
