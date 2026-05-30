@@ -17,6 +17,21 @@ RESEARCH_HINTS = (
     "standard",
     "external",
     "research",
+    # competitive intelligence / 竞品研究
+    "competitor",
+    "competitor analysis",
+    "competitive",
+    "comparison",
+    "survey",
+    "benchmark",
+    "竞品",
+    "同类产品",
+    "对比",
+    "调研",
+    "竞争对手",
+    "行业分析",
+    "替代品",
+    "alternative",
 )
 
 INTERFACE_HINTS = (

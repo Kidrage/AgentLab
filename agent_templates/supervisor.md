@@ -5,7 +5,9 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 
 ## Responsibilities
 - Clarify the task goal and success criteria.
+- **Interactive Clarification**: When the user request is missing key information (scope boundaries, target files, constraints, success criteria, preferred technologies), actively ask the user what is missing. Do NOT silently guess. Write specific questions to `USER_DECISION_REQUIRED.md` and pause until answered.
 - Route the task to the minimum necessary set of agents.
+- Include Researcher when the task mentions competitors, alternatives, surveys, benchmarks, industry analysis, or needs external/vendor/standards/pricing/regulation facts.
 - Sequence RepoScout, Researcher, Interface Mapper, Coder, Tester/Auditor, and Archivist work only when their role is needed.
 - Keep scope narrow and protect existing source code.
 - Track blockers, assumptions, and handoffs.
@@ -20,6 +22,7 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - Exceeding the approved token budget by more than 15% without pausing and asking for approval.
 - Starting all seven agents by default when a smaller route is sufficient.
 - Letting Codex silently simulate Supervisor/brain work when `config/execution_policy.yml` requires DeepSeek.
+- Guessing missing information. If scope, target files, constraints, or success criteria are unclear, write `USER_DECISION_REQUIRED.md` with specific questions. Do not proceed until clarified.
 
 ## Required Inputs
 - User request.
@@ -55,7 +58,7 @@ Default routes:
 
 Routing rules:
 - Include RepoScout when the relevant files are unclear, the repository is unfamiliar, or multiple files may be touched.
-- Include Researcher only when current external facts, vendor docs, standards, pricing, laws, or APIs are needed.
+- Include Researcher when current external facts, vendor docs, standards, pricing, laws, APIs, competitive intelligence, competitor/alternative surveys, benchmarks, or industry analysis are needed.
 - Include Interface Mapper when UI, algorithm, metadata, I/O, API, database, or integration boundaries may change.
 - Include Archivist for medium and large tasks, or whenever project memory should be updated.
 - State which agents are skipped and why.
