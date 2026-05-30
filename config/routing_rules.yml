@@ -1,0 +1,96 @@
+version: 1
+
+strategy: smallest_safe_route
+
+task_size_thresholds:
+  medium_characters: 800
+  large_characters: 2500
+
+agent_order:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Archivist
+
+routes:
+  small_task:
+    - Supervisor
+    - Coder
+    - TesterAuditor
+
+  medium_task:
+    - Supervisor
+    - RepoScout
+    - Coder
+    - TesterAuditor
+    - Archivist
+
+  interface_sensitive_task:
+    - Supervisor
+    - RepoScout
+    - InterfaceMapper
+    - Coder
+    - TesterAuditor
+    - Archivist
+
+  research_sensitive_task:
+    - Supervisor
+    - Researcher
+    - Coder
+    - TesterAuditor
+
+  large_or_risky_task:
+    - Supervisor
+    - RepoScout
+    - Researcher
+    - InterfaceMapper
+    - Coder
+    - TesterAuditor
+    - Archivist
+
+keyword_hints:
+  research:
+    - latest
+    - current
+    - docs
+    - api
+    - pricing
+    - regulation
+    - standard
+    - external
+    - research
+    - vendor
+
+  interface:
+    - api
+    - schema
+    - protocol
+    - contract
+    - integration
+    - io
+    - metadata
+    - database
+    - migration
+    - ui
+    - file format
+
+  large_or_risky:
+    - architecture
+    - refactor
+    - multi-module
+    - cross-module
+    - migration
+    - rewrite
+    - performance
+    - security
+    - release
+    - data loss
+
+skip_rules:
+  Researcher: Skip unless external or current facts are required.
+  InterfaceMapper: Skip unless a boundary, API, schema, I/O, metadata, or integration may change.
+  RepoScout: Skip only for narrow tasks with obvious target files.
+  Archivist: Skip for small tasks unless the project memory should be updated.

@@ -1,0 +1,52 @@
+version: 1
+
+gates:
+  - id: preflight_context
+    owner: Supervisor
+    required: true
+    description: Confirm project config, context pack, repo map, and user request were read or marked missing.
+    evidence:
+      - supervisor_plan.md lists files read
+      - missing inputs are explicitly named
+
+  - id: route_and_budget
+    owner: Supervisor
+    required: true
+    description: Publish selected route, skipped agents, token budget, warning threshold, and stop threshold.
+    evidence:
+      - supervisor_plan.md route section
+      - supervisor_plan.md token budget table
+
+  - id: scoped_edit_authorization
+    owner: Supervisor
+    required: true
+    description: Name editable files or explicitly keep the task in proposal-only mode.
+    evidence:
+      - approved editable files list
+      - source write policy
+
+  - id: implementation_report
+    owner: Coder
+    required: true
+    description: Record changed files, exact commands, backend, and unresolved risks.
+    evidence:
+      - implementation_report.md
+
+  - id: validation_evidence
+    owner: TesterAuditor
+    required: true
+    description: Record validation commands that were actually run and distinguish skipped checks.
+    evidence:
+      - validation_report.md command log
+      - audit_report.md findings
+
+  - id: memory_update
+    owner: Archivist
+    required_for_routes:
+      - medium_task
+      - interface_sensitive_task
+      - large_or_risky_task
+    description: Update project memory only after validation evidence exists.
+    evidence:
+      - archive_update.md
+      - proposed updates to agent_docs

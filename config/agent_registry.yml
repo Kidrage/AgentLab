@@ -1,0 +1,125 @@
+version: 1
+
+registry_policy:
+  description: Agents are configured here first; markdown templates define role voice and report shape.
+  default_source_write_policy: never_without_supervisor_plan
+  default_shell_policy: inspect_only
+  default_memory_policy: write_reports_under_active_run
+
+agents:
+  Supervisor:
+    template_path: agent_templates/supervisor.md
+    role: Coordinates scope, routing, token budgets, stop rules, and handoffs.
+    model_profile: coordinator
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: false
+    source_write_policy: never
+    required_inputs:
+      - project_config.yml
+      - agent_docs/00_CONTEXT_PACK.md
+      - agent_docs/01_REPO_MAP.md
+      - config/execution_policy.yml
+      - runs/task_xxxx/user_request.md
+    required_outputs:
+      - runs/task_xxxx/supervisor_plan.md
+
+  RepoScout:
+    template_path: agent_templates/reposcout.md
+    role: Reads repository structure and reports relevant context without changing files.
+    model_profile: scout
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_outputs:
+      - runs/task_xxxx/reposcout_report.md
+
+  Researcher:
+    template_path: agent_templates/researcher.md
+    role: Gathers current external or reference context when needed.
+    model_profile: research
+    can_edit_source: false
+    can_run_shell: false
+    can_browse: true
+    source_write_policy: never
+    required_outputs:
+      - runs/task_xxxx/research_notes.md
+
+  InterfaceMapper:
+    template_path: agent_templates/interface_mapper.md
+    role: Tracks contracts across UI, algorithm, metadata, I/O, and integration layers.
+    model_profile: architect
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_outputs:
+      - runs/task_xxxx/interface_map.md
+
+  Coder:
+    template_path: agent_templates/coder.md
+    role: Codex Plus execution lane for real code edits, file changes, and project commands.
+    model_profile: coder
+    can_edit_source: true
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: supervisor_approved_files_only
+    shell_policy: non_destructive_only
+    execution_owner: codex_plus
+    auxiliary_model_policy: deepseek_allowed_for_source_edits_when_codex_unavailable
+    quota_policy: ask_user_before_qwen_api_coding_or_pause
+    quota_fallback:
+      when: codex_quota_exhausted
+      choices:
+        - pause_until_codex_refresh
+        - switch_to_deepseek_brain_qwen_coder_api
+        - switch_to_deepseek_api_coder
+      api_fallback_provider: qwen
+      api_fallback_profile: qwen_coder_aux
+      api_fallback_deepseek_provider: deepseek
+      api_fallback_deepseek_profile: deepseek_coder
+      automatic_patch_application: false
+    allowed_backends:
+      - codex
+      - qwen_api
+      - deepseek_api
+    required_outputs:
+      - runs/task_xxxx/implementation_report.md
+
+  CodexPromptGenerator:
+    template_path: agent_templates/coder.md
+    role: Uses DeepSeek to draft concise implementation prompts for Codex Plus.
+    model_profile: codex_prompt
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: false
+    source_write_policy: never
+    required_outputs:
+      - runs/task_xxxx/codex_prompt.md
+
+  TesterAuditor:
+    template_path: agent_templates/tester_auditor.md
+    role: Validates actual behavior and audits diffs before work is accepted.
+    model_profile: auditor
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: validation_commands_only
+    required_outputs:
+      - runs/task_xxxx/validation_report.md
+      - runs/task_xxxx/audit_report.md
+
+  Archivist:
+    template_path: agent_templates/archivist.md
+    role: Updates project memory and long-run continuity records after validation.
+    model_profile: archivist
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: true
+    source_write_policy: never
+    required_outputs:
+      - runs/task_xxxx/archive_update.md
