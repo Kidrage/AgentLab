@@ -621,6 +621,49 @@ def run_agent(
         }
     )
 
+    # ─── Coder handoff gate: external_ide_ai requires manual IDE takeover ───
+    if (
+        execute
+        and agent_name == "Coder"
+        and settings.provider == "external_ide_ai"
+        and provider != "qwen"
+        and provider != "deepseek"
+    ):
+        console.print()
+        console.print("[bold yellow]══════════════════════════════════════════════════════════════[/bold yellow]")
+        console.print("[bold yellow]  Coder 阶段由外部 IDE AI（Codex Plus）手动接管[/bold yellow]")
+        console.print("[bold yellow]══════════════════════════════════════════════════════════════[/bold yellow]")
+        console.print()
+        console.print("  默认 Coder executor 是 [bold]external_ide_ai[/bold]（Codex Plus / Claude）。")
+        console.print("  CLI 不会自动调用任何 API，需要你在 IDE 中手动执行 Coder 阶段：")
+        console.print()
+        console.print("  1. 读取上下文文件:")
+        console.print(f"     supervisor_plan:   {Path(plan.run_dir) / 'supervisor_plan.md'}")
+        console.print(f"     reposcout_report:  {Path(plan.run_dir) / 'reposcout_report.md'}")
+        console.print(f"     workflow_plan:     {Path(plan.run_dir) / 'workflow_plan.yml'}")
+        console.print()
+        console.print("  2. 在 IDE 对话中用自然语言让 Codex 编辑文件")
+        console.print("  3. 写 implementation_report.md 并记录事件：")
+        console.print(f"     ./agentlab.sh log-event --project {project_name} --task-id {task_id} --agent Coder --summary \"...\" --files-changed \"...\"")
+        console.print()
+        console.print("  [dim]如果确实要用 API 自动编码，请显式指定 Qwen fallback:[/dim]")
+        console.print(f"  [dim]./agentlab.sh run-agent Coder --project {project_name} --task-id {task_id} --execute --provider qwen [/dim]")
+        console.print(f"  [dim]或 DeepSeek API 编码: --provider deepseek[/dim]")
+        console.print()
+        handoff_path = Path(plan.run_dir) / "codex_fallback_Coder.md"
+        handoff_path.write_text(
+            f"# Coder Handoff to External IDE AI\n\n"
+            f"Provider: {settings.provider}\n"
+            f"Model: {settings.model}\n\n"
+            f"CLI blocked automatic Coder execution because the default Coder profile\n"
+            f"is `external_ide_coder`. The external IDE AI (Codex Plus) should manually\n"
+            f"take over the Coder stage.\n\n"
+            f"To use API coding fallback, re-run with `--provider qwen` or `--provider deepseek`.\n",
+            encoding="utf-8",
+        )
+        console.print(f"[dim]Handoff file: {handoff_path}[/dim]")
+        return
+
     if not execute:
         console.print("[yellow]Dry run only. No model API call was made.[/yellow]")
         console.print("[bold]Prompt preview[/bold]")
