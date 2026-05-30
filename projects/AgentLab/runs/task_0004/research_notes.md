@@ -1,3 +1,0 @@
-# Research Notes
-
-TBD

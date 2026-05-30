@@ -136,7 +136,57 @@ def run_agent_model(
     output_path: Path,
     provider_override: str | None = None,
     model_override: str | None = None,
+    apply_patches: bool = True,
 ):
     settings, configs = resolve_agent_settings(agentlab_root, agent_name, provider_override, model_override)
     messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
-    return generate_text(settings, configs.get("model_providers", {}), messages)
+    result = generate_text(settings, configs.get("model_providers", {}), messages)
+
+    # Apply file edits if the LLM included structured edit blocks
+    if apply_patches and result.status == "completed" and result.content:
+        from patch_applicator import apply_all_patches, strip_edit_blocks_from_report
+
+        project_root = Path(plan.project_root)
+        allowed_files = _extract_allowed_files(plan)
+
+        patch_results = apply_all_patches(
+            llm_output=result.content,
+            project_root=project_root,
+            allowed_files=allowed_files,
+        )
+
+        if patch_results:
+            applied = [r for r in patch_results if r.success]
+            failed = [r for r in patch_results if not r.success]
+
+            patch_summary_parts = []
+            if applied:
+                changed = [f"{r.path} (L{r.line_start}-{r.line_end})" for r in applied]
+                patch_summary_parts.append(f"Applied {len(applied)} edit(s) to: {', '.join(changed)}")
+            if failed:
+                errs = [f"{r.path}: {r.error}" for r in failed]
+                patch_summary_parts.append(f"Failed {len(failed)} edit(s): {'; '.join(errs)}")
+
+            patch_summary = "\n".join(patch_summary_parts)
+
+            # Append patch application summary to the report
+            stripped_report = strip_edit_blocks_from_report(result.content)
+            result.content = stripped_report + f"\n\n## Patch Application Results\n\n{patch_summary}\n"
+
+            # Store patch results on the result for CLI reporting
+            result.raw_usage = {**result.raw_usage, "patch_applied": len(applied), "patch_failed": len(failed),
+                               "patch_details": [r.__dict__ for r in patch_results]}
+
+    return result
+
+
+def _extract_allowed_files(plan: WorkflowPlan) -> set[str] | None:
+    """Extract Supervisor-approved file paths from the plan, if available."""
+    included = plan.included_agents or {}
+    coder_config = included.get("Coder", {}) or plan.included_agents.get("Coder", {})
+    if not coder_config:
+        return None
+    allowed = coder_config.get("allowed_files") or coder_config.get("editable_files")
+    if allowed and isinstance(allowed, list):
+        return {str(f) for f in allowed}
+    return None

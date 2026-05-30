@@ -17,21 +17,25 @@ profiles:
     max_output_tokens: 1800
 
   scout:
-    description: Repository reading and concise mapping.
+    description: Repository reading and concise mapping. Uses flash model for cost efficiency.
     provider: env:LLM_PROVIDER:deepseek
-    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    model: env:DEEPSEEK_FLASH_MODEL:deepseek-v4-flash
     temperature: 0.1
-    max_output_tokens: 2200
+    max_output_tokens: 1200
 
   architect:
-    description: Interfaces, contracts, boundaries, and architecture-sensitive review.
+    description: Interfaces, contracts, boundaries, and architecture-sensitive review. Uses flash model for cost efficiency.
     provider: env:LLM_PROVIDER:deepseek
-    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    model: env:DEEPSEEK_FLASH_MODEL:deepseek-v4-flash
     temperature: 0.15
-    max_output_tokens: 2200
+    max_output_tokens: 1200
 
   coder:
-    description: Real code edits, file changes, project commands, and implementation are handled by Codex Plus.
+    description: >
+      Real code edits via structured SEARCH/REPLACE blocks. The model API generates
+      AGENTLAB_EDIT blocks that the runtime applies to the filesystem. Works with any
+      openai_compatible provider (Qwen, DeepSeek, OpenAI, etc.). For manual IDE-based
+      execution, use external_ide_coder profile instead.
     provider: qwen
     model: env:QWEN_CODER_MODEL:qwen-plus
     temperature: 0.15
@@ -45,32 +49,32 @@ profiles:
     max_output_tokens: 3200
 
   codex_prompt:
-    description: DeepSeek-generated prompt handoff for Codex Plus implementation.
+    description: DeepSeek-generated prompt handoff for Codex Plus implementation. Uses flash model for cost efficiency.
     provider: env:LLM_PROVIDER:deepseek
-    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    model: env:DEEPSEEK_FLASH_MODEL:deepseek-v4-flash
     temperature: 0.2
-    max_output_tokens: 2200
+    max_output_tokens: 1200
 
   auditor:
-    description: Diff review, validation interpretation, and risk finding.
+    description: Diff review, validation interpretation, and risk finding. Uses flash model for cost efficiency.
     provider: env:LLM_PROVIDER:deepseek
-    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    model: env:DEEPSEEK_FLASH_MODEL:deepseek-v4-flash
     temperature: 0.1
-    max_output_tokens: 2200
+    max_output_tokens: 1200
 
   archivist:
-    description: Project memory compression and continuity updates.
+    description: Project memory compression and continuity updates. Uses flash model for cost efficiency.
     provider: env:LLM_PROVIDER:deepseek
-    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    model: env:DEEPSEEK_FLASH_MODEL:deepseek-v4-flash
     temperature: 0.1
-    max_output_tokens: 1600
+    max_output_tokens: 1000
 
   research:
-    description: External source gathering and citation-oriented summaries.
+    description: External source gathering and citation-oriented summaries. Uses flash model for cost efficiency.
     provider: env:LLM_PROVIDER:deepseek
-    model: env:DEFAULT_MODEL:deepseek-v4-pro
+    model: env:DEEPSEEK_FLASH_MODEL:deepseek-v4-flash
     temperature: 0.2
-    max_output_tokens: 2200
+    max_output_tokens: 1200
 
   qwen_general:
     description: Optional Qwen profile for general agent reasoning when explicitly selected.

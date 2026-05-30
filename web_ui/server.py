@@ -85,6 +85,8 @@ def handle_get_tasks(project: str):
                 "status": t.get("status", ""),
                 "priority": t.get("priority", ""),
                 "category": t.get("category", ""),
+                "depends_on": t.get("depends_on", []),
+                "subtasks": t.get("subtasks", []),
             }
 
     task_ids = list_dirs(run_dir)
@@ -98,6 +100,8 @@ def handle_get_tasks(project: str):
             "status": info.get("status", ""),
             "priority": info.get("priority", ""),
             "category": info.get("category", ""),
+            "depends_on": info.get("depends_on", []),
+            "subtasks": info.get("subtasks", []),
         })
 
     return {"project": project, "tasks": tasks}
@@ -238,6 +242,7 @@ def handle_get_status(project: str, task_id: str):
         "taskId": task_id,
         "taskStatus": state.get("status", "new"),
         "stage": state.get("last_event", ""),
+        "userRequest": user_request[:2000] if user_request else "",
         "coderProvider": "codex-plus",
         "coderQuotaRemaining": coder_policy.get("codex_quota_remaining", 0),
         "coderQuotaWarningThreshold": 2000,
@@ -622,12 +627,20 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
+    @staticmethod
+    def _json_default(obj):
+        """Handle non-serializable types (date, etc.)."""
+        import datetime as _dt
+        if isinstance(obj, (_dt.date, _dt.datetime)):
+            return obj.isoformat()
+        return str(obj)
+
     def _json_response(self, data, status=200):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self._cors_headers()
         self.end_headers()
-        self.wfile.write(json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8"))
+        self.wfile.write(json.dumps(data, ensure_ascii=False, indent=2, default=self._json_default).encode("utf-8"))
 
     def _serve_static(self, path: str):
         """Serve static files from web_ui directory."""

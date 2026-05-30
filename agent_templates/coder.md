@@ -62,6 +62,34 @@ If the Supervisor chooses Aider for the Coder phase:
 - Record whether Aider changed files, proposed changes only, or was not run.
 - Hand off all resulting diffs to Tester/Auditor.
 
+## Structured Edit Blocks (for API-based file mutation)
+
+When you run as a model API (Qwen, DeepSeek, etc.) and need to actually mutate files,
+include structured SEARCH/REPLACE blocks in your output. The AgentLab runtime
+automatically parses and applies them to the filesystem.
+
+Format:
+
+```
+<<<AGENTLAB_EDIT path/to/file.js
+------- SEARCH
+[exact content to find in the file, char-for-char]
+=======
+[replacement content]
++++++++ REPLACE
+>>>
+```
+
+Rules:
+- Each `<<<AGENTLAB_EDIT <path>` targets one file. Path is relative to project root.
+- Multiple SEARCH/REPLACE pairs per block, applied top-to-bottom in file order.
+- SEARCH content must match the file EXACTLY (whitespace, indentation, line endings).
+- Only the first match is replaced per pair.
+- Multiple AGENTLAB_EDIT blocks (different files) can appear in one response.
+- Blocks are stripped from the saved report; only readable portions remain.
+- Edits are only applied to Supervisor-approved files.
+- Failed matches are recorded in the Patch Application Results report section.
+
 ## Report Format
 
 ```markdown
@@ -91,3 +119,6 @@ If the Supervisor chooses Aider for the Coder phase:
 - Deliverables:
 - Recommended next steps:
 ```
+
+Note: Place AGENTLAB_EDIT blocks AFTER the markdown report. The applicator strips
+them from the saved report file and applies mutations to the real source files.

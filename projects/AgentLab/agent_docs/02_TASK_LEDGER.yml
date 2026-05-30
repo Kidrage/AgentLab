@@ -1,76 +1,40 @@
-# AgentLab Task Ledger / 任务账本
-#
-# === Task Lifecycle / 任务生命周期 ===
-#
-#   pending  →  active  →  complete  →  archived
-#                ↓            ↓
-#             blocked      blocked (保留 audit trail)
-#                ↓
-#           大脑判断 → cleared（清除）或 reopen（重新执行）
-#
-# === Blocking Policy / 阻塞策略 ===
-#   - 当 status=blocked 超过 7 天或 blocked_reason 已过时：
-#     Supervisor 可以在 supervisor_plan.md 中建议 "CLEAR" 或 "REOPEN"
-#   - 用户可以在 Web UI 中手动清除或重新激活
-#   - blocked 任务不清除 physical 文件（保留审计追踪），仅标记 status=archived
-#
-# === Naming Convention / 命名规范 ===
-#   - task_id: task_0001, task_0002, ... (4-digit sequential)
-#   - title: 可编辑，由 Supervisor 在 intake 阶段确定或用户手动修改
-#   - 大脑层判断赋予的标题优于用户 raw 描述
-#
-# === Field definitions / 字段定义 ===
-#   task_id:       unique sequential id / 唯一递增ID
-#   title:         editable short name / 可编辑简短名称
-#   description:   original task description from user / 原始任务描述（从user_request.md提取）
-#   status:        pending | active | blocked | complete | archived
-#   priority:      P0 (critical) | P1 (high) | P2 (medium) | P3 (low)
-#   category:      feature | bugfix | research | refactor | docs | infra
-#   depends_on:    list of task_ids that must complete first / 依赖的前置任务
-#   blocked_reason: brief reason when status=blocked / 阻塞原因
-#   cleared_reason: brief reason when status=archived / 清除原因
-#   route:         agent route used / 使用的 Agent 路线
-#   summary:       one-line outcome / 一句话成果
-#   started_at:    ISO 8601 timestamp
-#   completed_at:  ISO 8601 timestamp
+# AgentLab 项目任务台账
+# 层级：项目 (Project) → 任务 (Task) → 子任务 (Subtask)
+
+version: 1
+project: AgentLab
+description: AgentLab 多智能体工作流平台搭建
 
 tasks:
-  - task_id: task_0007
-    title: 竞品分析与 P0 改进
-    description: >-
-      网络搜索 AgentLab 的同类产品（多 Agent 协作开发框架/平台），整合分析他们的优点，
-      提出可以借鉴来优化 AgentLab 自身逻辑的建议。搜索范围：GitHub、技术博客、行业报告。
-    status: complete
-    priority: P0
-    category: research
-    depends_on: []
-    route:
-      - Supervisor
-      - Coder
-      - TesterAuditor
-    started_at: "2026-05-30T06:53:00Z"
-    completed_at: "2026-05-30T06:57:00Z"
-    summary: 分析8个竞品，实施3个P0改进（竞品路由、交互澄清、自动修复循环）
-
-  - task_id: task_0008
-    title: 全局任务管理系统
-    description: >-
-      清空目前所有杂乱任务，重新规划任务规则。blocked的中断任务交给大脑判断是否需要清除或重新执行。
-      UI界面可以手动管理任务。任务名可以编辑，沿用大脑层判断的任务名且可重命名。
-      UI界面添加任务进度，任务执行完后可以追加新任务给大脑判断。
+  - task_id: task_0009
+    title: Web UI 完善 & 视觉重构
+    description: 完善 AgentLab Web UI 并完成桌面 App 封装
     status: active
     priority: P0
-    category: infra
-    depends_on:
-      - task_0007
-    route:
-      - Supervisor
-      - Coder
-      - TesterAuditor
-      - Archivist
-    started_at: "2026-05-30T07:04:00Z"
-    completed_at: null
-    summary: |
-      清空混乱任务，建立任务生命周期规则 (pending→active→complete→archived)。
-      Web UI新增任务管理Tab（可编辑名称、手动状态管理、进度条、子任务追加）。
-      Supervisor大脑判断blocked任务（CLEAR或REOPEN）。CLI新增task-clear命令。
+    category: feature
+    depends_on: []
+    subtasks:
+      - id: sub_001
+        description: Patch Applicator — LLM API 直接编辑文件能力
+        status: complete
+        created_at: 2026-05-30
+      - id: sub_002
+        description: Web UI 实时任务详情面板
+        status: complete
+        created_at: 2026-05-30
+      - id: sub_003
+        description: 大脑层模型分层 (v4-pro + v4-flash)
+        status: complete
+        created_at: 2026-05-30
+      - id: sub_004
+        description: Linear x Raycast 视觉重构 — 暗色优先、毛玻璃
+        status: complete
+        created_at: 2026-05-30
+      - id: sub_005
+        description: 侧拉设置面板 + API Key 配置
+        status: complete
+        created_at: 2026-05-30
+      - id: sub_006
+        description: 项目-任务-子任务层级体系 + 聊天窗口上下文
+        status: active
+        created_at: 2026-05-30
