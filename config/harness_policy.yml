@@ -1,0 +1,93 @@
+version: 1
+
+owner: Supervisor
+provider: deepseek
+source_strategy: https://openai.com/zh-Hans-CN/index/harness-engineering/
+
+principles:
+  - Treat harness files as a navigation map, not a duplicate manual.
+  - Keep repo-local knowledge as the system of record; chat memory is advisory only.
+  - Promote repeated human feedback, audit findings, or recurring mistakes into rules, gates, or scripts.
+  - Prefer small mechanical checks over repeated model judgment when the pattern is stable.
+  - Keep every task legible through plans, reports, command evidence, and memory updates.
+  - Garbage-collect stale or contradictory guidance before it becomes hidden policy debt.
+
+map_governance:
+  root_map: AGENTS.md
+  max_root_map_lines: 120
+  required_root_maps:
+    - AGENTS.md
+    - README.md
+    - OPERATING_MODEL.md
+    - DRIVER_PROTOCOL.md
+    - config/README.md
+  required_project_maps:
+    - project_config.yml
+    - agent_docs/00_CONTEXT_PACK.md
+    - agent_docs/01_REPO_MAP.md
+    - agent_docs/02_TASK_LEDGER.yml
+    - agent_docs/03_DECISION_LOG.md
+    - agent_docs/04_INTERFACE_REGISTRY.md
+    - agent_docs/06_RISK_REGISTER.md
+    - agent_docs/10_SYNC_LEDGER.yml
+
+freshness:
+  warn_after_days:
+    agent_docs/00_CONTEXT_PACK.md: 30
+    agent_docs/01_REPO_MAP.md: 14
+    agent_docs/04_INTERFACE_REGISTRY.md: 30
+    agent_docs/06_RISK_REGISTER.md: 30
+
+feedback_loop:
+  required_task_artifacts:
+    - workflow_plan.yml
+    - supervisor_plan.md
+    - implementation_report.md
+    - validation_report.md
+    - audit_report.md
+    - brain_decisions.yml
+    - cost_ledger.yml
+  durable_feedback_channels:
+    - agent_docs/03_DECISION_LOG.md
+    - agent_docs/05_CHANGELOG_AGENT.md
+    - agent_docs/06_RISK_REGISTER.md
+    - agent_docs/07_DEVELOPMENT_LOG.md
+    - agent_docs/08_CODEX_DIALOGUE_LOG.md
+    - agent_docs/09_COST_LEDGER.yml
+  promote_to_rule_when:
+    repeated_feedback_count: 2
+    repeated_audit_finding_count: 2
+    repeated_user_correction_count: 2
+  coder_reentry_rule: high_or_medium_audit_findings_reinvoke_coder
+
+mechanical_enforcement:
+  prefer_existing_checks:
+    - python3 -B -m py_compile
+    - rg
+    - curl -s local_api
+  gate_candidates:
+    - repeated UI label ambiguity
+    - repeated project/task scope confusion
+    - repeated missing validation evidence
+    - repeated stale repo map
+    - repeated unrecorded Coder action
+
+observability:
+  cli_status_commands:
+    - brain-status
+    - harness-status
+    - policy-status
+  status_outputs:
+    - token_budget_state
+    - harness_map_health
+    - feedback_artifact_health
+    - required_user_decision
+    - stale_project_memory
+
+garbage_collection:
+  review_cadence: after_medium_or_large_task
+  actions:
+    - remove duplicated instructions from long docs and point back to AGENTS.md or config files
+    - mark stale project memory before relying on it
+    - archive obsolete blocked tasks instead of carrying hidden ambiguity
+    - convert repeated manual reminders into validation gates

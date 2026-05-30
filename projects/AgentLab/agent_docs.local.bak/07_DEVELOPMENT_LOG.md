@@ -59,3 +59,14 @@ Files changed: web_ui/app.js,web_ui/styles.css,web_ui/server.py,README.md,config
 
 Commands run: python3 -B -m py_compile web_ui/server.py agent_runtime/github_client.py agent_runtime/config_loader.py,curl -s /api/projects,curl -s /api/status
 
+
+### 2026-05-30T13:21:38.957750+00:00 - task_0009 - Coder
+
+Module: Brain Governance / Harness
+
+Summary: Added harness governance layer inspired by OpenAI harness engineering: AGENTS.md map, harness_policy, harness-status CLI, prompt context, validation gates, and UI config visibility
+
+Files changed: AGENTS.md,config/harness_policy.yml,agent_runtime/brain_governor.py,agent_runtime/run_task.py,agent_runtime/agent_runner.py,agent_runtime/workflow_plan.py,agent_runtime/config_loader.py,agent_runtime/schemas.py,config/brain_governance.yml,config/validation_gates.yml,config/memory_policy.yml,agent_templates/supervisor.md,agent_templates/tester_auditor.md,agent_templates/archivist.md,web_ui/app.js,web_ui/index.html,web_ui/server.py,README.md
+
+Commands run: python3 -B -m py_compile agent_runtime/config_loader.py agent_runtime/schemas.py agent_runtime/brain_governor.py agent_runtime/workflow_plan.py agent_runtime/agent_runner.py agent_runtime/run_task.py web_ui/server.py,./agentlab.sh harness-status --project AgentLab --task-id task_0009,./agentlab.sh brain-status --project AgentLab --task-id task_0009,curl -s /api/config,curl -s /api/status
+

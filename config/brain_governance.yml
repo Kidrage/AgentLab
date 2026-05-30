@@ -8,6 +8,8 @@ trigger_rules:
   deepseek_required_for_all_brain_planning: true
   codex_may_not_silently_simulate_brain: true
   full_directory_traversal_requires_brain_request: true
+  harness_status_check_required_before_execution: true
+  repo_local_knowledge_is_system_of_record: true
   ambiguous_decision_requires_user_yes_no: true
 
 token_governance:
@@ -44,6 +46,14 @@ loop_detection:
     - token_usage_rising_without_new_outputs
     - behavior_drifting_from_task_goal
     - full_repo_scan_repeated_without_justification
+
+harness_governance:
+  policy_file: config/harness_policy.yml
+  root_map: AGENTS.md
+  default_status_command: harness-status
+  stale_map_action: refresh_before_relying_on_memory
+  repeated_feedback_action: promote_to_rule_gate_or_script
+  garbage_collection_action: remove_duplicate_or_contradictory_guidance
 
 user_decision_protocol:
   output_file: USER_DECISION_REQUIRED.md

@@ -508,3 +508,159 @@ entries:
   estimated_cost: null
   cost_currency: null
   notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T13:21:38.959851+00:00'
+  project: AgentLab
+  task_id: task_0009
+  agent: Coder
+  provider: codex_plus_manual
+  model: Codex Plus
+  status: manual_logged
+  input_tokens: null
+  output_tokens: null
+  total_tokens: null
+  exact_cost_available: false
+  estimated_cost: null
+  cost_currency: null
+  notes: 'Added harness governance layer inspired by OpenAI harness engineering: AGENTS.md
+    map, harness_policy, harness-status CLI, prompt context, validation gates, and
+    UI config visibility'
+- timestamp: '2026-05-30T13:45:56.239253+00:00'
+  project: AgentLab
+  task_id: task_0012
+  agent: Supervisor
+  provider: deepseek
+  model: deepseek-v4-pro
+  status: completed
+  input_tokens: 14914
+  output_tokens: 3764
+  total_tokens: 18678
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T13:46:14.901896+00:00'
+  project: AgentLab
+  task_id: task_0012
+  agent: RepoScout
+  provider: deepseek
+  model: deepseek-v4-flash
+  status: completed
+  input_tokens: 14537
+  output_tokens: 1200
+  total_tokens: 15737
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T13:46:36.246748+00:00'
+  project: AgentLab
+  task_id: task_0012
+  agent: InterfaceMapper
+  provider: deepseek
+  model: deepseek-v4-flash
+  status: completed
+  input_tokens: 15111
+  output_tokens: 1200
+  total_tokens: 16311
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T13:47:02.040246+00:00'
+  project: AgentLab
+  task_id: task_0012
+  agent: TesterAuditor
+  provider: deepseek
+  model: deepseek-v4-flash
+  status: completed
+  input_tokens: 15471
+  output_tokens: 2000
+  total_tokens: 17471
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T13:47:20.619393+00:00'
+  project: AgentLab
+  task_id: task_0012
+  agent: Archivist
+  provider: deepseek
+  model: deepseek-v4-flash
+  status: completed
+  input_tokens: 16619
+  output_tokens: 1000
+  total_tokens: 17619
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T13:53:12.222591+00:00'
+  project: AgentLab
+  task_id: task_0013
+  agent: Supervisor
+  provider: deepseek
+  model: deepseek-v4-pro
+  status: completed
+  input_tokens: 15029
+  output_tokens: 4000
+  total_tokens: 19029
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T13:53:29.629870+00:00'
+  project: AgentLab
+  task_id: task_0013
+  agent: RepoScout
+  provider: deepseek
+  model: deepseek-v4-flash
+  status: completed
+  input_tokens: 15069
+  output_tokens: 1200
+  total_tokens: 16269
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T13:53:48.063693+00:00'
+  project: AgentLab
+  task_id: task_0013
+  agent: InterfaceMapper
+  provider: deepseek
+  model: deepseek-v4-flash
+  status: completed
+  input_tokens: 15932
+  output_tokens: 1200
+  total_tokens: 17132
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T13:54:14.446200+00:00'
+  project: AgentLab
+  task_id: task_0013
+  agent: TesterAuditor
+  provider: deepseek
+  model: deepseek-v4-flash
+  status: completed
+  input_tokens: 16292
+  output_tokens: 2000
+  total_tokens: 18292
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T13:54:25.186493+00:00'
+  project: AgentLab
+  task_id: task_0013
+  agent: Archivist
+  provider: deepseek
+  model: deepseek-v4-flash
+  status: completed
+  input_tokens: 17624
+  output_tokens: 1000
+  total_tokens: 18624
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.

@@ -153,8 +153,17 @@ The key rule / 核心规则：
 - Token budgets per agent phase (warning at 90%, stop at 115%) / 每个 Agent 阶段的 Token 预算（90% 警告，115% 停止）
 - Full-repo traversal requires explicit approval / 全仓库遍历需要显式批准
 - Loop detection: 3+ repeated similar decisions → stop and replan / 循环检测：3 次以上重复相似决策 → 停止并重新规划
+- Harness status checks verify `AGENTS.md`, project memory freshness, task feedback artifacts, and repeated-feedback promotion points. / Harness 状态检查会验证 `AGENTS.md`、项目记忆新鲜度、任务反馈产物和重复反馈升级点。
 - All decisions written to `brain_decisions.yml` / 所有决策写入 `brain_decisions.yml`
 - User decisions written to `USER_DECISION_REQUIRED.md` / 用户决策写入 `USER_DECISION_REQUIRED.md`
+
+Harness policy lives in `config/harness_policy.yml`. Run:
+
+```text
+./agentlab.sh harness-status --project <Project> --task-id task_0007
+```
+
+The root `AGENTS.md` is deliberately short: it is a map into local policies and project memory, not a duplicated operating manual.
 
 ---
 

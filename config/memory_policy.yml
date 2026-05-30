@@ -8,8 +8,15 @@ storage:
   authoritative_project_memory: agent_docs
   server_sync: optional_future_phase
   github_private_backup: planned_local_first_manual_sync
+  workspace_harness_map: AGENTS.md
 
 records:
+  workspace_knowledge:
+    - AGENTS.md
+    - config/harness_policy.yml
+    - config/brain_governance.yml
+    - config/validation_gates.yml
+
   task_state:
     - user_request.md
     - supervisor_plan.md
@@ -48,3 +55,6 @@ drift_controls:
   - Record DeepSeek token usage when available and Codex Plus execution as manual/unavailable for exact billing.
   - Require a brain traversal request before any full-directory or full-repository scan.
   - Stop and replan when repeated loops or task-goal drift are detected.
+  - Treat AGENTS.md as a map into local memory and config, not a full duplicate of policy.
+  - Promote repeated user feedback or audit findings into harness_policy, validation gates, scripts, or concise project memory.
+  - Run harness-status before relying on stale project memory for planning.

@@ -226,6 +226,7 @@ def handle_get_status(project: str, task_id: str):
     if not task_id or not run_dir.exists():
         project_config = load_yaml_safe(project_root / "project_config.yml")
         github_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "github_policy.yml")
+        harness_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "harness_policy.yml")
         github_config = project_config.get("github", {})
         backup_config = github_config.get("backup", {})
         return {
@@ -239,6 +240,7 @@ def handle_get_status(project: str, task_id: str):
             "brainProvider": "deepseek",
             "projectConfig": project_config,
             "githubPolicy": github_policy,
+            "harnessPolicy": harness_policy,
             "githubBackup": {
                 "enabled": bool(backup_config.get("enabled", False)),
                 "owner": backup_config.get("owner", ""),
@@ -378,6 +380,7 @@ def handle_get_status(project: str, task_id: str):
     exec_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "execution_policy.yml")
     project_config = load_yaml_safe(project_root / "project_config.yml")
     github_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "github_policy.yml")
+    harness_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "harness_policy.yml")
     brain_policy = exec_policy.get("brain_policy", {})
     coder_policy = exec_policy.get("coder_policy", {})
     github_config = project_config.get("github", {})
@@ -396,6 +399,7 @@ def handle_get_status(project: str, task_id: str):
         "brainProvider": brain_policy.get("required_provider", "deepseek"),
         "projectConfig": project_config,
         "githubPolicy": github_policy,
+        "harnessPolicy": harness_policy,
         "githubBackup": {
             "enabled": bool(backup_config.get("enabled", False)),
             "owner": backup_config.get("owner", ""),
@@ -865,6 +869,7 @@ def handle_create_project(data: dict):
                 "validation_gates": "../../config/validation_gates.yml",
                 "memory_policy": "../../config/memory_policy.yml",
                 "github_policy": "../../config/github_policy.yml",
+                "harness_policy": "../../config/harness_policy.yml",
             },
             "github": {
                 "backup": {

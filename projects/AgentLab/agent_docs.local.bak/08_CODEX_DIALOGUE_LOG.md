@@ -47,3 +47,12 @@ Not recorded.
 ### Codex Response / Action Summary
 Clarified new project mode as workspace-level project creation and new task mode as project-local task creation
 
+
+## 2026-05-30T13:21:38.957750+00:00 - task_0009 - Coder
+
+### User Message / Request
+Not recorded.
+
+### Codex Response / Action Summary
+Added harness governance layer inspired by OpenAI harness engineering: AGENTS.md map, harness_policy, harness-status CLI, prompt context, validation gates, and UI config visibility
+

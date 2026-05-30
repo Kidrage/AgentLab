@@ -17,6 +17,14 @@ gates:
       - supervisor_plan.md route section
       - supervisor_plan.md token budget table
 
+  - id: harness_status
+    owner: Supervisor
+    required: true
+    description: Confirm AGENTS.md, harness_policy.yml, project memory, and task feedback artifacts are present or explicitly marked pending.
+    evidence:
+      - harness-status output or equivalent summary in supervisor_plan.md
+      - stale or missing harness inputs listed before execution
+
   - id: scoped_edit_authorization
     owner: Supervisor
     required: true
@@ -39,6 +47,14 @@ gates:
     evidence:
       - validation_report.md command log
       - audit_report.md findings
+
+  - id: feedback_promotion
+    owner: TesterAuditor
+    required: true
+    description: Flag repeated user corrections or audit findings that should become config rules, validation gates, scripts, or AGENTS.md updates.
+    evidence:
+      - audit_report.md repeated-pattern notes
+      - proposed harness_policy.yml or validation_gates.yml update when needed
 
   - id: memory_update
     owner: Archivist

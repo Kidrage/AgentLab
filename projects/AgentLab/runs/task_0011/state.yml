@@ -1,0 +1,12 @@
+project: AgentLab
+task_id: task_0011
+current_agent: null
+completed_agents:
+- Supervisor
+- RepoScout
+reports:
+  Supervisor: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0011/supervisor_plan.md
+  RepoScout: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0011/reposcout_report.md
+status: running
+last_event: Supervisor completed report.
+updated_at: '2026-05-30T12:49:16.410755+00:00'

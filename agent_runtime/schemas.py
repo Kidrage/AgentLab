@@ -86,6 +86,8 @@ class WorkflowPlan(BaseModel):
     validation_gates: list[dict] = Field(default_factory=list)
     memory_policy: dict = Field(default_factory=dict)
     execution_policy: dict = Field(default_factory=dict)
+    harness_policy: dict = Field(default_factory=dict)
+    harness_status: dict = Field(default_factory=dict)
     missing_inputs: list[str] = Field(default_factory=list)
     aider_plan: Optional[AiderInvocationPlan] = None
     notes: list[str] = Field(default_factory=list)

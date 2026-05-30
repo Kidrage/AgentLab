@@ -1,0 +1,1 @@
+为 AgentLab 设计 TrueNAS 存储后端接入方案：用户自建了一个 TrueNAS 仓库，希望 AgentLab 使用它来存放 1) 项目记忆文件（agent_docs/*.md, agent_docs/*.yml 等持久化记忆）；2) 项目代码库（repo 目录下的源代码）。请设计：TrueNAS 上如何组织目录结构、AgentLab 需要新增哪些配置和代码组件、如何安全获取和管理 TrueNAS 访问权限（认证方式选择、凭证存储、权限最小化原则）、如何与现有本地优先架构共存（本地优先，TrueNAS 作为可选远程后端）。注意 TrueNAS 支持 NFS/SMB/iSCSI/WebDAV/S3(MinIO) 等多种协议，需要评估并推荐最适合 AgentLab 场景的协议。

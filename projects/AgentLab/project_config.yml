@@ -31,6 +31,7 @@ global_config:
   validation_gates: ../../config/validation_gates.yml
   memory_policy: ../../config/memory_policy.yml
   github_policy: ../../config/github_policy.yml
+  harness_policy: ../../config/harness_policy.yml
 
 agent_routing:
   default_strategy: smallest_safe_route

@@ -54,6 +54,8 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
     run_dir = Path(plan.run_dir)
 
     context_files = [
+        agentlab_root / "AGENTS.md",
+        agentlab_root / "config" / "harness_policy.yml",
         project_root / "project_config.yml",
         project_root / "agent_docs" / "00_CONTEXT_PACK.md",
         project_root / "agent_docs" / "01_REPO_MAP.md",

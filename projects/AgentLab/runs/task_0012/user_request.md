@@ -1,0 +1,1 @@
+调查 AgentLab 云端部署可行性：1) AgentLab 能否在云端运行？2) 这种多智能体架构是否有云端部署的可能性？请分析当前架构中与云端部署相关的设计（如 web_ui server 绑定 0.0.0.0、GitHub backup、project_config 中的 cloud runner: github_actions_workflow_dispatch），并给出修改方针，使 AgentLab 具备真正的云端部署能力。

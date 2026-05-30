@@ -66,6 +66,8 @@ def build_workflow_plan(
     missing_inputs = [
         str(path)
         for path in [
+            agentlab_root / "AGENTS.md",
+            agentlab_root / "config" / "harness_policy.yml",
             paths["project_config"],
             paths["context_pack"],
             paths["repo_map"],
@@ -108,6 +110,7 @@ def build_workflow_plan(
         validation_gates=validation_gates,
         memory_policy=configs.get("memory_policy", {}),
         execution_policy=execution_policy,
+        harness_policy=configs.get("harness_policy", {}),
         missing_inputs=sorted(set(missing_inputs)),
         aider_plan=aider_plan,
         notes=notes,
