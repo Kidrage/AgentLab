@@ -63,6 +63,21 @@ keyword_hints:
     - external
     - research
     - vendor
+    # competitive intelligence / 竞品研究
+    - competitor
+    - "competitor analysis"
+    - competitive
+    - comparison
+    - survey
+    - benchmark
+    - 竞品
+    - 同类产品
+    - 对比
+    - 调研
+    - 竞争对手
+    - 行业分析
+    - 替代品
+    - alternative
 
   interface:
     - api
@@ -90,7 +105,7 @@ keyword_hints:
     - data loss
 
 skip_rules:
-  Researcher: Skip unless external or current facts are required.
+  Researcher: Skip unless external facts, current information, competitive analysis, vendor docs, standards, pricing, or regulation lookup is required. Include Researcher when the user asks about competitors, alternatives, surveys, benchmarks, or industry analysis.
   InterfaceMapper: Skip unless a boundary, API, schema, I/O, metadata, or integration may change.
   RepoScout: Skip only for narrow tasks with obvious target files.
   Archivist: Skip for small tasks unless the project memory should be updated.

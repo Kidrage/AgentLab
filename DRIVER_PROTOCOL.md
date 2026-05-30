@@ -195,7 +195,10 @@ Coder 完成后，继续执行剩余的大脑层 agent：
 ./agentlab.sh run-agent Archivist --project <ProjectName> --task-id task_0007 --execute
 ```
 
-**如果 TesterAuditor 发现问题**：把 `audit_report.md` 的关键发现告诉用户，询问是否修复。如用户要修复，回到步骤 5（Coder 阶段）。
+**如果 TesterAuditor 发现问题**：读取 `audit_report.md` 的 `## Outputs` 部分：
+
+- 如果看到 `RECOMMEND CODER RE-ENTRY`：读取 fix items，**自动回到步骤 5（Coder 阶段）**逐项修复，修复后重新执行 TesterAuditor。循环直到 `READY FOR ARCHIVIST`。最多 3 轮，超过则询问用户。
+- 如果看到 `READY FOR ARCHIVIST`：继续执行 Archivist。
 
 ---
 
@@ -287,4 +290,5 @@ Coder 完成后，继续执行剩余的大脑层 agent：
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.1 | 2026-05-30 | 新增竞品研究关键词触发 Researcher；新增交互式需求澄清规则；新增 Tester→Coder 自动修复循环（最多3轮）；Researcher 模板支持竞品分析 |
 | 1.0 | 2026-05-30 | 初始协议，覆盖标准 7 步流程 + 特殊情况处理 |

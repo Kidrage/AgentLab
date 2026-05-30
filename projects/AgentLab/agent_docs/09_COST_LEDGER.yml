@@ -225,3 +225,46 @@ entries:
   estimated_cost: null
   cost_currency: null
   notes: provider_error. Request timed out.
+- timestamp: '2026-05-30T06:55:14.510435+00:00'
+  project: AgentLab
+  task_id: task_0007
+  agent: Supervisor
+  provider: deepseek
+  model: deepseek-v4-pro
+  status: completed
+  input_tokens: 8594
+  output_tokens: 1800
+  total_tokens: 10394
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.
+- timestamp: '2026-05-30T06:56:27.662823+00:00'
+  project: AgentLab
+  task_id: task_0007
+  agent: Coder
+  provider: codex_plus_manual
+  model: Codex Plus
+  status: manual_logged
+  input_tokens: null
+  output_tokens: null
+  total_tokens: null
+  exact_cost_available: false
+  estimated_cost: null
+  cost_currency: null
+  notes: "\u7ADE\u54C1\u7814\u7A76\u5B8C\u6210\uFF0C\u5206\u6790 8 \u4E2A\u4EA7\u54C1\
+    \uFF0C\u63D0\u53D6 10 \u4E2A\u4F18\u5316\u65B9\u5411 P0-P3"
+- timestamp: '2026-05-30T06:57:19.817263+00:00'
+  project: AgentLab
+  task_id: task_0007
+  agent: TesterAuditor
+  provider: deepseek
+  model: deepseek-v4-pro
+  status: completed
+  input_tokens: 7497
+  output_tokens: 2200
+  total_tokens: 9697
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage recorded from provider telemetry when available.

@@ -8,6 +8,7 @@ Validate the result, review risks, and report only what was actually tested or i
 - Review diffs for regressions, missing tests, and safety concerns.
 - Distinguish passing tests from unrun or blocked tests.
 - Recommend remediation for material findings.
+- **Auto-Fix Loop**: When material findings are discovered (severity high or medium), explicitly recommend that the Coder be re-invoked to fix them. Write findings as actionable fix items in the audit report so the Coder can directly address each one. The Coder should then re-enter implementation, and the TesterAuditor should be re-run to verify fixes. Continue this loop until all high-severity findings are resolved or the user explicitly accepts remaining risks.
 - If Aider was used, verify the resulting diff against the Supervisor plan rather than trusting the generated patch.
 - Verify that required brain-stage reports identify DeepSeek as the provider or clearly show a user-approved policy override.
 
@@ -57,5 +58,6 @@ Validate the result, review risks, and report only what was actually tested or i
 
 ## Outputs
 - Deliverables:
+- **Auto-fix decision**: If material findings exist, state "RECOMMEND CODER RE-ENTRY" and list fix items. If no material findings, state "READY FOR ARCHIVIST".
 - Recommended next steps:
 ```
