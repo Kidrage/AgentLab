@@ -147,6 +147,50 @@ def init_task(
     console.print({"run_dir": str(run_dir), "created": created, "skipped_existing": skipped})
 
 
+@app.command("task-clear")
+def task_clear(
+    task_id: str = typer.Argument(..., help="Task id to clear, e.g. task_0003."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    reason: Optional[str] = typer.Option(None, help="Reason for clearing (optional)."),
+) -> None:
+    """Mark a blocked task as cleared (archived) while keeping audit trail."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    project_root = assert_path_allowed(agentlab_root / "projects" / project_name, agentlab_root)
+    ledger_path = project_root / "agent_docs" / "02_TASK_LEDGER.yml"
+
+    if not ledger_path.exists():
+        console.print(f"[yellow]Task ledger not found: {ledger_path}[/yellow]")
+        return
+
+    data = yaml.safe_load(ledger_path.read_text(encoding="utf-8")) or {}
+    tasks = list(data.get("tasks", []))
+    updated = False
+    for t in tasks:
+        if t.get("task_id") == task_id:
+            old_status = t.get("status")
+            t["status"] = "archived"
+            t["cleared_reason"] = reason or "User cleared via CLI"
+            console.print(f"[green]{task_id}: {old_status} → archived[/green]")
+            console.print(f"  Reason: {t['cleared_reason']}")
+            updated = True
+            break
+
+    if not updated:
+        console.print(f"[yellow]Task {task_id} not found in ledger[/yellow]")
+        return
+
+    data["tasks"] = tasks
+    ledger_path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+    # Log event
+    timestamp = utc_now()
+    dev_log = project_root / "agent_docs" / "07_DEVELOPMENT_LOG.md"
+    entry = f"\n### {timestamp} - {task_id} - Supervisor\n\nModule: Task Management\n\nSummary: Task cleared: {reason or 'manual clear'}\n\n"
+    dev_log.write_text(dev_log.read_text(encoding="utf-8") + entry, encoding="utf-8")
+
+    console.print(f"[green]Task {task_id} cleared. Audit trail preserved.[/green]")
+
 @app.command("task-list")
 def task_list(
     project: Optional[str] = typer.Option(None, help="Project name."),

@@ -16,8 +16,13 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
   - **Priority Ordering**: When multiple pending tasks exist, recommend execution order based on priority (P0 > P1 > P2 > P3) and dependency chains.
   - **Dependency Declaration**: When a task depends on another task's output, declare it in `depends_on`. Block execution of dependent tasks until prerequisites are complete.
   - **Category Grouping**: Assign each task a `category` (feature | bugfix | research | refactor | docs | infra) for organization.
-  - **Blocked Task Review**: When a task is blocked (status=blocked), read its `blocked_reason` and decide whether to re-raise the blocker to the user or work around it.
+  - **Blocked Task Review (大脑判断)**: When a task is blocked (status=blocked), read its `blocked_reason` and age. The Supervisor acts as the brain judge:
+    - If the blocked reason is still valid and recent (< 7 days): re-raise to user with the original question.
+    - If the blocked reason is stale (> 7 days) or context lost: recommend **CLEAR** (mark status=archived, add `cleared_reason`, keep physical files for audit trail).
+    - If the task is still valuable but needs a fresh start: recommend **REOPEN** (reset to pending, clear blocked_reason).
+    - Record decisions in `## Blocked Task Review` section of supervisor_plan.md for user confirmation.
   - **Next-Action Recommendation**: After finishing a task, scan the ledger and recommend the highest-priority unblocked pending task.
+  - **Subtask Chaining**: After a task completes, if new related work is found, recommend follow-up tasks in `## Recommended Follow-up Tasks`. User can approve, and pending entries are added to the ledger.
   - Write task ledger updates as proposed changes in `supervisor_plan.md` under a new `## Task Ledger Update` section. The Archivist will apply them after validation.
 
 ## Forbidden Actions
