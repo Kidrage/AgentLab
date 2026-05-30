@@ -22,6 +22,7 @@
 # === Field definitions / 字段定义 ===
 #   task_id:       unique sequential id / 唯一递增ID
 #   title:         editable short name / 可编辑简短名称
+#   description:   original task description from user / 原始任务描述（从user_request.md提取）
 #   status:        pending | active | blocked | complete | archived
 #   priority:      P0 (critical) | P1 (high) | P2 (medium) | P3 (low)
 #   category:      feature | bugfix | research | refactor | docs | infra
@@ -36,6 +37,9 @@
 tasks:
   - task_id: task_0007
     title: 竞品分析与 P0 改进
+    description: >-
+      网络搜索 AgentLab 的同类产品（多 Agent 协作开发框架/平台），整合分析他们的优点，
+      提出可以借鉴来优化 AgentLab 自身逻辑的建议。搜索范围：GitHub、技术博客、行业报告。
     status: complete
     priority: P0
     category: research
@@ -50,6 +54,10 @@ tasks:
 
   - task_id: task_0008
     title: 全局任务管理系统
+    description: >-
+      清空目前所有杂乱任务，重新规划任务规则。blocked的中断任务交给大脑判断是否需要清除或重新执行。
+      UI界面可以手动管理任务。任务名可以编辑，沿用大脑层判断的任务名且可重命名。
+      UI界面添加任务进度，任务执行完后可以追加新任务给大脑判断。
     status: active
     priority: P0
     category: infra

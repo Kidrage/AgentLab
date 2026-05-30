@@ -69,9 +69,37 @@ def handle_get_projects():
 
 
 def handle_get_tasks(project: str):
-    """List all tasks for a project."""
+    """List all tasks for a project with titles and descriptions from ledger."""
     run_dir = AGENTLAB_ROOT / "projects" / project / "runs"
-    tasks = list_dirs(run_dir)
+    ledger_path = AGENTLAB_ROOT / "projects" / project / "agent_docs" / "02_TASK_LEDGER.yml"
+
+    # Build a map of task_id -> {title, description} from ledger
+    task_info = {}
+    if ledger_path.exists():
+        ledger = load_yaml_safe(ledger_path)
+        for t in ledger.get("tasks", []):
+            tid = t.get("task_id", "")
+            task_info[tid] = {
+                "title": t.get("title", ""),
+                "description": t.get("description", ""),
+                "status": t.get("status", ""),
+                "priority": t.get("priority", ""),
+                "category": t.get("category", ""),
+            }
+
+    task_ids = list_dirs(run_dir)
+    tasks = []
+    for tid in task_ids:
+        info = task_info.get(tid, {})
+        tasks.append({
+            "task_id": tid,
+            "title": info.get("title", tid),
+            "description": info.get("description", ""),
+            "status": info.get("status", ""),
+            "priority": info.get("priority", ""),
+            "category": info.get("category", ""),
+        })
+
     return {"project": project, "tasks": tasks}
 
 

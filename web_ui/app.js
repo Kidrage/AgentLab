@@ -570,19 +570,47 @@ const AgentLab = {
   },
 
   /* ========== 任务管理 ========== */
+  async fetchTasks() {
+    const data = await this.apiGet("/api/tasks", { project: state.project });
+    if (data && data.tasks) {
+      state._taskData = data.tasks;
+      return data.tasks;
+    }
+    return [];
+  },
   updateTaskSelector() {
     const sel = this.$("taskSelector");
+    const descEl = this.$("taskDescription");
     if (!sel) return;
-    const tasks = PROJECT_TASKS[state.project] || ["task_0001"];
-    sel.innerHTML = tasks.map(t => `<option value="${t}" ${t===state.taskId?'selected':''}>${t}</option>`).join("");
+    const tasks = state._taskData || [];
+    sel.innerHTML = tasks.map(t => {
+      const label = t.title || t.task_id;
+      return `<option value="${t.task_id}" ${t.task_id===state.taskId?'selected':''}>${label}</option>`;
+    }).join("");
+
+    // Update task description display
+    if (descEl) {
+      const current = tasks.find(t => t.task_id === state.taskId);
+      if (current?.description) {
+        descEl.textContent = current.description;
+        descEl.title = current.description;
+      } else {
+        descEl.textContent = "暂无描述";
+      }
+    }
   },
-  switchProject(project) {
+  async switchProject(project) {
     state.project = project;
-    state.taskId = (PROJECT_TASKS[project]||["task_0001"])[0];
+    state._taskData = await this.fetchTasks();
+    state.taskId = (state._taskData[0]?.task_id || "task_0001");
     this.updateTaskSelector();
     this.refresh();
   },
-  switchTask(taskId) { state.taskId = taskId; this.refresh(); },
+  async switchTask(taskId) {
+    state.taskId = taskId;
+    this.updateTaskSelector();
+    this.refresh();
+  },
   openNewTask() {
     const modal = this.$("newTaskModal");
     if (modal) modal.hidden = false;

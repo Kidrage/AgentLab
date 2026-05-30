@@ -241,7 +241,7 @@ def task_list(
                   f"Blocked: {counts.get('blocked', 0)} | "
                   f"Complete: {counts.get('complete', 0)}\n")
 
-    table = Table("ID", "Status", "Pri", "Cat", "Title", "Depends On", "Blocked Reason")
+    table = Table("ID", "Status", "Pri", "Cat", "Title", "Description", "Depends On", "Blocked Reason")
     for t in tasks:
         status_icon = {
             "pending": "⏳",
@@ -254,8 +254,11 @@ def task_list(
         deps = t.get("depends_on") or []
         dep_str = ", ".join(deps) if deps else "—"
         blocked = t.get("blocked_reason") or "—"
-        if len(blocked) > 40:
-            blocked = blocked[:37] + "..."
+        if len(blocked) > 30:
+            blocked = blocked[:27] + "..."
+        desc = t.get("description") or ""
+        if len(desc) > 50:
+            desc = desc[:47] + "..."
 
         table.add_row(
             t.get("task_id", ""),
@@ -263,6 +266,7 @@ def task_list(
             t.get("priority", ""),
             t.get("category", ""),
             t.get("title", ""),
+            desc,
             dep_str,
             blocked,
         )
