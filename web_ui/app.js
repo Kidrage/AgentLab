@@ -573,17 +573,21 @@ const AgentLab = {
   /* ========== 任务管理 ========== */
   async fetchTasks() {
     const data = await this.apiGet("/api/tasks", { project: state.project });
-    if (data && data.tasks) {
+    if (data && data.tasks && data.tasks.length > 0) {
       state._taskData = data.tasks;
       return data.tasks;
     }
-    return [];
+    // Fallback: build from PROJECT_TASKS when backend is unavailable
+    const ids = PROJECT_TASKS[state.project] || [];
+    const fallback = ids.map(id => ({ task_id: id, title: id, description: "", status: "", priority: "", category: "" }));
+    state._taskData = fallback;
+    return fallback;
   },
   updateTaskSelector() {
     const sel = this.$("taskSelector");
     const descEl = this.$("taskDescription");
     if (!sel) return;
-    const tasks = state._taskData || [];
+    const tasks = state._taskData || PROJECT_TASKS[state.project]?.map(id => ({ task_id: id, title: id, description: "" })) || [];
     sel.innerHTML = tasks.map(t => {
       const label = t.title || t.task_id;
       return `<option value="${t.task_id}" ${t.task_id===state.taskId?'selected':''}>${label}</option>`;
