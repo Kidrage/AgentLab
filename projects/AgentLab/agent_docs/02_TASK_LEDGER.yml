@@ -1,7 +1,25 @@
+# AgentLab Task Ledger / 任务账本
+#
+# Field definitions / 字段定义:
+#   task_id:       unique task identifier / 唯一任务标识
+#   title:         short description / 简短描述
+#   status:        pending | active | blocked | complete | archived
+#   priority:      P0 (critical) | P1 (high) | P2 (medium) | P3 (low)
+#   category:      feature | bugfix | research | refactor | docs | infra
+#   depends_on:    list of task_ids that must complete first / 依赖的前置任务列表
+#   blocked_reason: brief reason when status=blocked / 阻塞原因（仅当 blocked 时）
+#   route:         agent route used / 使用的 Agent 路线
+#   summary:       one-line outcome / 一句话成果
+#   started_at:    ISO 8601 timestamp when first agent ran
+#   completed_at:  ISO 8601 timestamp when archivist finished
+
 tasks:
   - task_id: task_0001
     title: Simple agent status web UI framework
     status: complete
+    priority: P1
+    category: feature
+    depends_on: []
     route:
       - Supervisor
       - RepoScout
@@ -12,3 +30,118 @@ tasks:
     started_at: "2026-05-29T04:22:00Z"
     completed_at: "2026-05-29T04:36:00Z"
     summary: Created a dependency-free static status board showing all AgentLab agents and a future-compatible status snapshot shape.
+
+  - task_id: task_0002
+    title: Aider adapter integration for Coder backend
+    status: blocked
+    priority: P2
+    category: feature
+    depends_on: []
+    blocked_reason: User decision required on Aider configuration
+    route:
+      - Supervisor
+      - RepoScout
+      - InterfaceMapper
+      - Coder
+      - TesterAuditor
+      - Archivist
+    started_at: "2026-05-29T04:40:00Z"
+    completed_at: null
+    summary: Aider adapter exploration blocked pending user configuration decision.
+
+  - task_id: task_0003
+    title: DeepSeek brain governance enforcement
+    status: blocked
+    priority: P0
+    category: infra
+    depends_on: []
+    blocked_reason: User decision required on DeepSeek unavailability fallback
+    route:
+      - Supervisor
+      - Coder
+      - TesterAuditor
+    started_at: "2026-05-29T05:00:00Z"
+    completed_at: null
+    summary: Brain governance policy enforcement blocked pending user decision.
+
+  - task_id: task_0004
+    title: CLI reduce token waste and improve routing
+    status: blocked
+    priority: P1
+    category: refactor
+    depends_on: []
+    blocked_reason: User decision required on CLI architecture
+    route:
+      - Supervisor
+      - Coder
+      - TesterAuditor
+    started_at: "2026-05-29T05:20:00Z"
+    completed_at: null
+    summary: CLI optimization blocked pending user decision.
+
+  - task_id: task_0005
+    title: Natural language task submission in Web UI
+    status: complete
+    priority: P1
+    category: feature
+    depends_on: []
+    route:
+      - Supervisor
+      - RepoScout
+      - InterfaceMapper
+      - Coder
+      - TesterAuditor
+      - Archivist
+    started_at: "2026-05-30T05:00:00Z"
+    completed_at: "2026-05-30T05:20:00Z"
+    summary: Added chat-style input box in Web UI for natural language task submission with auto init-task + prepare.
+
+  - task_id: task_0006
+    title: External AI driver protocol and GitHub backup
+    status: blocked
+    priority: P0
+    category: infra
+    depends_on: []
+    blocked_reason: User decision required on driver protocol scope
+    route:
+      - Supervisor
+      - RepoScout
+      - InterfaceMapper
+      - Coder
+      - TesterAuditor
+      - Archivist
+    started_at: "2026-05-30T06:00:00Z"
+    completed_at: null
+    summary: Created DRIVER_PROTOCOL.md for external AI relay pattern, GitHub backup and auto-push configured.
+
+  - task_id: task_0007
+    title: Competitive analysis and P0 improvements
+    status: complete
+    priority: P0
+    category: research
+    depends_on: []
+    route:
+      - Supervisor
+      - Coder
+      - TesterAuditor
+    started_at: "2026-05-30T06:53:00Z"
+    completed_at: "2026-05-30T06:57:00Z"
+    summary: >-
+      Analyzed 8 competing products. Implemented 3 P0 improvements:
+      competitive keyword routing for Researcher, Supervisor interactive clarification,
+      Tester-to-Coder auto-fix loop.
+
+  - task_id: task_0008
+    title: Task management system (global task ledger with priorities/dependencies/categories)
+    status: pending
+    priority: P0
+    category: infra
+    depends_on:
+      - task_0007
+    route: []
+    started_at: null
+    completed_at: null
+    summary: >-
+      Extend Supervisor for global task management and Archivist for structured
+      task_ledger field maintenance. Add task-list CLI command for global task dashboard.
+      Triggered by competitive research findings from task_0007.

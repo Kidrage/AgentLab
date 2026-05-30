@@ -8,6 +8,7 @@ agent through a configured model API when `--execute` is explicitly passed.
 from __future__ import annotations
 
 from pathlib import Path
+from collections import defaultdict
 from typing import Optional
 import os
 
@@ -145,6 +146,91 @@ def init_task(
     console.print("[bold]Task initialized[/bold]")
     console.print({"run_dir": str(run_dir), "created": created, "skipped_existing": skipped})
 
+
+@app.command("task-list")
+def task_list(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    status_filter: Optional[str] = typer.Option(None, help="Filter by status: pending, active, blocked, complete, archived."),
+    priority_filter: Optional[str] = typer.Option(None, help="Filter by priority: P0, P1, P2, P3."),
+    category_filter: Optional[str] = typer.Option(None, help="Filter by category: feature, bugfix, research, refactor, docs, infra."),
+    show_blocked: bool = typer.Option(False, help="Show only blocked tasks with their reasons."),
+) -> None:
+    """Show the global task ledger with optional filters."""
+    agentlab_root, project_name = runtime_context(project)
+    project_root = assert_path_allowed(agentlab_root / "projects" / project_name, agentlab_root)
+    ledger_path = project_root / "agent_docs" / "02_TASK_LEDGER.yml"
+    if not ledger_path.exists():
+        console.print(f"[yellow]Task ledger not found: {ledger_path}[/yellow]")
+        return
+
+    data = yaml.safe_load(ledger_path.read_text(encoding="utf-8")) or {}
+    tasks = data.get("tasks", [])
+
+    # Apply filters
+    if status_filter:
+        tasks = [t for t in tasks if t.get("status") == status_filter]
+    if priority_filter:
+        tasks = [t for t in tasks if t.get("priority") == priority_filter]
+    if category_filter:
+        tasks = [t for t in tasks if t.get("category") == category_filter]
+    if show_blocked:
+        tasks = [t for t in tasks if t.get("status") == "blocked"]
+
+    # Sort by priority (P0 first), then depends_on count
+    def sort_key(t):
+        prio_order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+        status_order = {"blocked": 0, "pending": 1, "active": 2, "complete": 3, "archived": 4}
+        return (prio_order.get(t.get("priority", "P2"), 2), status_order.get(t.get("status", "pending"), 1))
+
+    tasks.sort(key=sort_key)
+
+    # Summary stats
+    counts: dict[str, int] = defaultdict(int)
+    for t in tasks:
+        counts[t.get("status", "unknown")] += 1
+
+    console.print(f"\n[bold]Task Ledger — {project_name}[/bold]")
+    console.print(f"  Total: {len(tasks)} | "
+                  f"Pending: {counts.get('pending', 0)} | "
+                  f"Active: {counts.get('active', 0)} | "
+                  f"Blocked: {counts.get('blocked', 0)} | "
+                  f"Complete: {counts.get('complete', 0)}\n")
+
+    table = Table("ID", "Status", "Pri", "Cat", "Title", "Depends On", "Blocked Reason")
+    for t in tasks:
+        status_icon = {
+            "pending": "⏳",
+            "active": "🔄",
+            "blocked": "🚫",
+            "complete": "✅",
+            "archived": "📦",
+        }.get(t.get("status", ""), "❓")
+
+        deps = t.get("depends_on") or []
+        dep_str = ", ".join(deps) if deps else "—"
+        blocked = t.get("blocked_reason") or "—"
+        if len(blocked) > 40:
+            blocked = blocked[:37] + "..."
+
+        table.add_row(
+            t.get("task_id", ""),
+            f"{status_icon} {t.get('status', '')}",
+            t.get("priority", ""),
+            t.get("category", ""),
+            t.get("title", ""),
+            dep_str,
+            blocked,
+        )
+    console.print(table)
+
+    # Next-action recommendation
+    next_tasks = [t for t in tasks if t.get("status") in ("pending",) and not (t.get("depends_on") or [])]
+    if next_tasks:
+        next_task = next_tasks[0]
+        console.print(f"\n[green]Recommended next: {next_task['task_id']} — {next_task['title']} (priority={next_task.get('priority', '?')})[/green]")
+    blocked_tasks = [t for t in tasks if t.get("status") == "blocked"]
+    if blocked_tasks:
+        console.print(f"\n[yellow]{len(blocked_tasks)} blocked task(s) need attention[/yellow]")
 
 @app.command("brain-status")
 def brain_status(
