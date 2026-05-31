@@ -1,0 +1,6 @@
+project: AgentLab
+task_id: task_eval_eval_l2_task_index_feature
+percent: 50
+current_stage: coder
+status: running
+last_event_at: '2026-05-31T11:31:56.089052+00:00'

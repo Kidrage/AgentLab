@@ -1,0 +1,27 @@
+version: 1
+
+modes:
+  default: offline_first
+  allowed:
+    - offline_first
+    - mock_provider
+    - api_smoke
+    - full_api
+
+pass_thresholds:
+  system_audit_required: true
+  artifact_completeness_min: 0.90
+  lifecycle_pass_rate_min: 0.85
+  recovery_pass_rate_min: 0.80
+  budget_saving_min_vs_monolithic: 0.30
+  no_secret_leaks_required: true
+  git_dirty_allowed_after_eval: false
+
+token_estimation:
+  method: char_div_4_fallback
+  optional_tiktoken: true
+
+cost_policy:
+  use_config_prices: true
+  allow_eval_prices_override: true
+  price_override_file: config/eval_model_prices.yml

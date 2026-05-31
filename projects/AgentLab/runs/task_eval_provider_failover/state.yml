@@ -1,0 +1,10 @@
+project: AgentLab
+task_id: task_eval_provider_failover
+current_agent: Coder
+completed_agents:
+- Supervisor
+- RepoScout
+reports: {}
+status: running
+last_event: Resumed after pause
+updated_at: '2026-05-31T11:31:56.688530+00:00'

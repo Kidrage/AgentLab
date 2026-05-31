@@ -1,0 +1,7 @@
+incidents:
+- timestamp: '2026-05-31T11:31:56.684582+00:00'
+  provider: deepseek
+  incident_type: quota_exhausted
+  phase: Coder
+  status: paused
+  safe_to_resume: true

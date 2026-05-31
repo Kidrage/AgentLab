@@ -1,0 +1,10 @@
+paused_at: '2026-05-31T11:31:56.685608+00:00'
+paused_reason: Provider quota exhausted
+current_agent: Coder
+current_phase: implementation
+completed_agents:
+- Supervisor
+- RepoScout
+allowed_resume_providers:
+- qwen
+- deepseek
