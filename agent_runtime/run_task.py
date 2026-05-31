@@ -25,6 +25,13 @@ from agent_runner import (
     resolve_agent_settings,
     run_agent_model,
 )
+from guard import (
+    acquire_lock,
+    clear_stale_lock,
+    release_lock,
+    scan_stale_locks,
+    update_heartbeat,
+)
 from brain_governor import (
     evaluate_harness_status,
     evaluate_token_status,
@@ -742,10 +749,40 @@ def run_agent(
         console.print(messages[0]["content"][:1800])
         return
 
-    if output_path.exists() and not overwrite_report and not is_placeholder_report(output_path):
-        raise typer.BadParameter(f"Report exists and is not a placeholder: {output_path}")
+    # ─── Guard: acquire lock ────────────────────────────────────────────
+    tx_id = None
+    try:
+        tx_id = acquire_lock(agentlab_root, project_name, task_id)
+    except RuntimeError as e:
+        console.print(f"[yellow]Lock conflict: {e}[/yellow]")
+        console.print("If this is a stale lock from a crash, run: ./agentlab.sh recover --scan")
+        return
 
-    result = run_agent_model(agentlab_root, plan, agent_name, output_path, provider, model, apply_patches=not no_apply_patches)
+    try:
+        update_heartbeat(agentlab_root, project_name, task_id)
+
+        if output_path.exists() and not overwrite_report and not is_placeholder_report(output_path):
+            raise typer.BadParameter(f"Report exists and is not a placeholder: {output_path}")
+
+        result = run_agent_model(agentlab_root, plan, agent_name, output_path, provider, model, apply_patches=not no_apply_patches)
+    except Exception:
+        # Mark as recoverable so the user doesn't lose state
+        try:
+            from state_store import mark_failed_recoverable
+            mark_failed_recoverable(
+                Path(plan.run_dir), project_name, task_id,
+                f"{agent_name} execution interrupted (crash or exception). Transaction: {tx_id}.",
+                failed_agent=agent_name,
+            )
+        except Exception:
+            pass  # best-effort; don't mask original error
+        raise
+    finally:
+        if tx_id:
+            try:
+                release_lock(agentlab_root, project_name, task_id)
+            except Exception:
+                pass  # best-effort release
     if result.status == "blocked_user_decision":
         blocked_path = Path(plan.run_dir) / f"blocked_{agent_name}.md"
         blocked_path.write_text(result.content, encoding="utf-8")
@@ -843,6 +880,72 @@ def run_agent(
 
     console.print("[green]Agent report written[/green]")
     console.print({"output": str(output_path), "usage": result.model_dump(exclude={"content"})})
+
+
+@app.command("run-pipeline")
+def run_pipeline(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    execution_backend: str = typer.Option("langgraph", help="Pipeline backend: langgraph (or codex for legacy)."),
+) -> None:
+    """Run the full agent pipeline using the LangGraph backend (MVP).
+
+    This replaces manual step-by-step `run-agent` calls with a single complied
+    StateGraph that executes all agents in sequence with checkpointing.
+
+    Requirements:
+      pip install langgraph
+
+    The pipeline still writes all agent reports to the file system (shadow mode),
+    so existing tools and inspection scripts continue to work.
+    """
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+
+    # Allow langgraph backend
+    if execution_backend not in {"langgraph", "codex", "qwen"}:
+        raise typer.BadParameter("execution_backend must be langgraph, codex, or qwen")
+
+    if execution_backend != "langgraph":
+        console.print(f"[yellow]Backend '{execution_backend}' is the legacy runner. Use './agentlab.sh run-agent' instead.[/yellow]")
+        console.print("[yellow]The 'run-pipeline' command only supports --execution-backend langgraph.[/yellow]")
+        raise typer.Exit(1)
+
+    # Check langgraph availability
+    try:
+        import langgraph  # noqa: F401
+    except ImportError:
+        console.print("[red]LangGraph is not installed.[/red]")
+        console.print("Install it with: pip install langgraph")
+        console.print("Then retry: ./agentlab.sh run-pipeline --task-id {task_id}")
+        raise typer.Exit(1)
+
+    from langgraph_workflow import build_agentlab_graph, run_agentlab_graph
+
+    plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend)
+
+    console.print("[bold]AgentLab LangGraph Pipeline[/bold]")
+    console.print(f"  Project: {project_name}")
+    console.print(f"  Task: {task_id}")
+    console.print(f"  Agents: {' → '.join(plan.route.agents)}")
+    console.print(f"  Run dir: {plan.run_dir}")
+    console.print()
+
+    # Build and execute
+    app_graph = build_agentlab_graph(agentlab_root, plan)
+    _final_state = run_agentlab_graph(app_graph, plan)
+
+    # Mark task complete
+    run_dir = Path(plan.run_dir)
+    state = load_state(run_dir, project_name, task_id)
+    state.status = "complete"
+    state.last_event = "LangGraph pipeline completed."
+    save_state(run_dir, state)
+
+    console.print()
+    console.print("[green bold]Pipeline finished successfully.[/green bold]")
+    console.print(f"  Reports: {run_dir}/")
+    console.print(f"  State: {run_dir}/state.yml")
 
 
 if __name__ == "__main__":
