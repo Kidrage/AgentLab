@@ -1,0 +1,233 @@
+schema_version: 3
+
+# ─── AgentLab Routing Policy v3 — Size × Risk × Budget 三轴路由 ────────
+# 替代 v2 的 routing_rules.yml
+# 路由流程: user_request → classify Size + Risk → select Budget → route Agents
+# ────────────────────────────────────────────────────────────────────────
+
+default_budget: balanced
+
+risk_auto_upgrade:
+  R2: balanced    # 高风险强制至少 balanced
+  R3: max_quality # 关键风险强制 max_quality
+
+# ══════════════════════════════════════════════════════════════════════
+# 项目体量分类 (S0-S5)
+# ══════════════════════════════════════════════════════════════════════
+
+size_thresholds:
+  S0:
+    label: Tiny
+    files_max: 1
+    context_tokens_max: 8000
+    no_architecture_change: true
+    typical: 改 README、改配置注释、修小 typo
+    route: [Supervisor, Coder]
+
+  S1:
+    label: Small
+    files_max: 5
+    context_tokens_max: 30000
+    may_have_local_change: true
+    typical: 加 CLI 参数、修函数 bug、补单元测试
+    route: [Supervisor, RepoScout, Coder, TesterAuditor]
+
+  S2:
+    label: Medium
+    files_max: 20
+    context_tokens_max: 120000
+    may_have_interface_change: true
+    typical: 新功能模块、API endpoint、数据流改造
+    route: [Supervisor, RepoScout, InterfaceMapper, Coder, TesterAuditor, Verifier, Archivist]
+
+  S3:
+    label: Large
+    files_max: 100
+    context_tokens_max: 500000
+    architecture_level_change: true
+    typical: 重构插件架构、引入任务队列、多 Agent 编排
+    route: [Supervisor, RepoScout, Researcher, InterfaceMapper, Coder, TesterAuditor, Verifier, Archivist]
+
+  S4:
+    label: XLarge
+    context_tokens_min: 500000
+    multi_repo_possible: true
+    typical: 平台化 AgentLab、长期维护系统、跨服务迁移
+    route: [Supervisor, RepoScout, Researcher, InterfaceMapper, Coder, TesterAuditor, Verifier, Archivist]
+
+# ══════════════════════════════════════════════════════════════════════
+# 风险等级分类 (R0-R3)
+# ══════════════════════════════════════════════════════════════════════
+
+risk_keywords:
+  high:
+    - auth
+    - authentication
+    - permission
+    - authorization
+    - payment
+    - billing
+    - "database migration"
+    - "schema migration"
+    - delete
+    - drop
+    - truncate
+    - production
+    - prod
+    - security
+    - "private key"
+    - token
+    - credential
+    - CI/CD
+    - release
+    - deployment
+    - "data migration"
+    - 鉴权
+    - 认证
+    - 权限
+    - 支付
+    - 账单
+    - 数据库迁移
+    - 删除
+    - 生产环境
+    - 安全
+    - 私钥
+    - 凭证
+    - 部署
+    - 发布
+
+  critical:
+    - irreversible
+    - "user data"
+    - credential
+    - compliance
+    - "production database"
+    - "access control"
+    - "data loss"
+    - "GDPR"
+    - "PII"
+    - encryption
+    - 不可逆
+    - 用户数据
+    - 合规
+    - 生产数据库
+    - 权限控制
+    - 数据丢失
+    - 加密
+
+# ══════════════════════════════════════════════════════════════════════
+# 预算模式选择
+# ══════════════════════════════════════════════════════════════════════
+
+budget_selection:
+  methods:
+    - cli_flag: "--budget {frugal|balanced|max-quality}"
+    - env_var: "AGENTLAB_BUDGET_MODE"
+    - user_request_md_keyword: "budget_mode:"
+    - default: balanced
+
+  descriptions:
+    frugal:
+      display: "💰 最低成本"
+      risk_limits: [R0, R1]  # R2+ 自动升级
+    balanced:
+      display: "⚖️ 均衡 (默认)"
+      risk_limits: [R0, R1, R2]  # R3 自动升级到 max_quality
+    max_quality:
+      display: "🛡️ 全量运算"
+      risk_limits: [R0, R1, R2, R3]
+
+# ══════════════════════════════════════════════════════════════════════
+# Skippable Agent Rules
+# ══════════════════════════════════════════════════════════════════════
+
+skip_rules:
+  RepoScout:
+    skip_when: "S0 或目标文件明显"
+    include_when: "S2+ 或接口相关"
+  InterfaceMapper:
+    skip_when: "无接口/API/Schema/数据模型变更"
+    include_when: "S2+ 且有接口关键词"
+    always_include: [S4]
+  Researcher:
+    skip_when: "任务不涉及外部文档、竞品、最新规范"
+    include_when: "需要搜索外部资料"
+  TesterAuditor:
+    skip_when: "S0 纯文档/格式修改且 R0"
+    include_when: "所有 S1+ 且 R1+"
+  Verifier:
+    skip_when: "S0 或 R0 或 frugal"
+    include_when: "S2+ 或 R2+"
+  Archivist:
+    skip_when: "S0 或 frugal"
+    include_when: "S2+ 或 balanced 及以上"
+
+# ══════════════════════════════════════════════════════════════════════
+# Agent 执行顺序
+# ══════════════════════════════════════════════════════════════════════
+
+agent_order:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Verifier
+  - Archivist
+
+# ══════════════════════════════════════════════════════════════════════
+# 关键词提示 (用于路由决策)
+# ══════════════════════════════════════════════════════════════════════
+
+keyword_hints:
+  research:
+    - latest
+    - current
+    - docs
+    - pricing
+    - regulation
+    - standard
+    - external
+    - vendor
+    - competitor
+    - "competitor analysis"
+    - competitive
+    - comparison
+    - survey
+    - benchmark
+    - 竞品
+    - 调研
+    - 对比
+    - 行业分析
+
+  interface:
+    - api
+    - schema
+    - protocol
+    - contract
+    - integration
+    - io
+    - metadata
+    - database
+    - migration
+    - ui
+    - "file format"
+
+  architecture:
+    - architecture
+    - refactor
+    - multi-module
+    - cross-module
+    - migration
+    - rewrite
+    - performance
+    - security
+    - release
+    - platform
+    - framework
+    - plugin
+    - 架构
+    - 重构
+    - 插件
+    - 框架

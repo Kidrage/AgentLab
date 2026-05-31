@@ -1,17 +1,40 @@
-version: 1
+version: 2
+
+# ─── AgentLab Model Provider Registry ─────────────────────────────────────
+# 分层架构 (Model Tier Architecture) v2.0:
+#
+#   T1 大脑层 (Brain)       — deepseek-v4-pro / qwen3.7-max
+#   T2 感知层 (Perception)   — qwen3.7-max / qwen3.6-plus / qwen3.6-flash
+#   T3 执行层 (Execution)    — external_ide_ai / qwen3-coder-next / local_llm
+#   T4 审核层 (Audit)        — qwen3.6-plus / qwen3.6-flash
+#   T5 归档层 (Archive)      — qwen3.6-flash
+#
+#  预算模式 (Budget Modes) — 用户可选:
+#    🧠 brain_allocated (默认) — Supervisor 根据 L1/L2/L3 项目体量智能分配
+#    ⚡ max_quality           — 全量运算，所有 Agent 用最强模型
+#    💰 frugal                — 最低成本，flash+跳过非必要 agent
+#
+#  本地算力: Frugal 模式下优先使用本地 LLM (Ollama/vLLM)
+#  DeepSeek 75%折扣 2026-05-31 到期 → 价格大幅调整，策略重评估
+#
+#  外部IDE窗口: Coder 默认为 external_ide_ai，AgentLab 生成完整 handoff
+#  引导 prompt，外部 AI (Codex/Claude/Cline) 接收后直接执行，无需自行规划。
+# ──────────────────────────────────────────────────────────────────────────
 
 defaults:
   provider: env:LLM_PROVIDER:deepseek
-  fallback_provider:
+  fallback_provider: env:LLM_FALLBACK_PROVIDER:qwen3
 
 providers:
+
+  # ── T1 大脑层 Provider ──────────────────────────────────────────────
   deepseek:
     type: openai_compatible
-    display_name: DeepSeek
+    display_name: DeepSeek (Brain Tier)
     api_key: env:DEEPSEEK_API_KEY
     base_url: env:DEEPSEEK_BASE_URL:https://api.deepseek.com
-    default_model: env:DEEPSEEK_MODEL:deepseek-v4-pro
-    fallback_provider:
+    default_model: deepseek-v4-pro
+    fallback_provider: qwen3
     unavailable_action: ask_user
     requires_user_approval_before_fallback: true
     blocked_on:
@@ -20,11 +43,134 @@ providers:
       - rate_limited
       - provider_error
     notes:
-      - Primary low-cost auxiliary reasoning provider for personal AgentLab CLI work.
-      - Model name is intentionally configurable because account-specific model IDs may differ.
-      - Brain stages require DeepSeek for every AgentLab task, including simulations and small tasks.
-      - If unavailable, AgentLab blocks and asks the user instead of silently falling back to Codex.
+      - Brain layer default. 用于 Supervisor 规划/路由/决策。
+      - 顶级推理能力，不可降级为 flash 模型做脑力工作。
+      - 不可用时询问用户，不静默 fallback 到 Codex。
 
+  # ── T1/T2 大脑备选 + 感知层主力 ────────────────────────────────────
+  qwen3:
+    type: openai_compatible
+    display_name: Qwen3.7-Max (Brain/Perception Tier)
+    api_key: env:DASHSCOPE_API_KEY
+    base_url: env:DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1
+    default_model: qwen3.7-max
+    fallback_provider: deepseek
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_api_key
+      - quota_exceeded
+      - rate_limited
+      - provider_error
+    notes:
+      - 大脑层备选 (替换 deepseek-v4-pro) + 感知层主力 (RepoScout, InterfaceMapper)。
+      - 强推理能力，适合代码结构理解和架构分析。中文+代码理解表现优异。
+      - API: DashScope OpenAI-compatible endpoint (兼容模式)。
+      - 定价 (2026-05): $1.25/M输入, $3.75/M输出。
+      - 大脑层 L2 标准项目若 deepseek-v4-pro 太贵可降级至此。
+      - Alias: 原 qwen-max → qwen3.7-max。
+
+  # ── T2/T4/T5 感知/审核/归档层 主力 ─────────────────────────────────
+  qwen:
+    type: openai_compatible
+    display_name: Qwen3.6-Plus (Perception/Audit/Archive Tier)
+    api_key: env:DASHSCOPE_API_KEY
+    base_url: env:DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1
+    default_model: qwen3.6-plus
+    fallback_provider: qwen3
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_api_key
+      - quota_exceeded
+      - rate_limited
+      - provider_error
+    notes:
+      - 均衡推理能力，性价比之王 ($0.325/M输入, $1.95/M输出)。
+      - 用于 L2/L3: RepoScout、InterfaceMapper、Researcher、审核层、归档层。
+      - 性价比优先 — 常规工作不需要 max 级别的强推理。
+      - API: DashScope OpenAI-compatible endpoint (兼容模式)。
+      - Alias: 原 qwen-plus → qwen3.6-plus。
+
+  # ── T3 执行层 API 编码 主力 ───────────────────────────────────────
+  qwen-coder:
+    type: openai_compatible
+    display_name: Qwen3-Coder-Next (Execution Tier — API Coder)
+    api_key: env:DASHSCOPE_API_KEY
+    base_url: env:DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1
+    default_model: qwen3-coder-next
+    fallback_provider: qwen3
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_api_key
+      - quota_exceeded
+      - rate_limited
+      - provider_error
+    notes:
+      - Coder 的 API 主力：代码生成专用模型，价格最低 ($0.11/M输入, $0.80/M输出)。
+      - 优于通用模型做编码工作。所有预算模式下的默认 API Coder。
+      - 需要用户显式批准 (execution_policy.yml: qwen_coding_requires_explicit_user_approval)。
+      - Alias: 原 qwen-coder-plus → qwen3-coder-next。
+
+  # ── T3 执行层 DeepSeek 编码备选 (全量模式) ────────────────────────
+  deepseek-coder:
+    type: openai_compatible
+    display_name: DeepSeek V4 Pro (Coder — Max Quality)
+    api_key: env:DEEPSEEK_API_KEY
+    base_url: env:DEEPSEEK_BASE_URL:https://api.deepseek.com
+    default_model: deepseek-v4-pro
+    fallback_provider: qwen-coder
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_api_key
+      - quota_exceeded
+      - rate_limited
+      - provider_error
+    notes:
+      - 全量运算 (max_quality) 模式下的 Coder 备选，仅用于安全关键/架构重构。
+      - 与 deepseek provider 共享同一 API key，但角色不同。
+      - ⚠️ 成本极高 ($1.74/M输入, $3.48/M输出)，仅在 max_quality 模式启用。
+
+  # ── 本地 LLM Provider ───────────────────────────────────────────
+  qwen-local:
+    type: openai_compatible
+    display_name: Local LLM (Ollama/vLLM — Frugal Tier)
+    api_key: env:AGENTLAB_LOCAL_API_KEY:not-needed
+    base_url: env:AGENTLAB_LOCAL_BASE_URL:http://localhost:11434/v1
+    default_model: env:AGENTLAB_LOCAL_CODER_MODEL:qwen3.6-35b-a3b
+    fallback_provider: qwen-coder
+    unavailable_action: fallback_silent
+    requires_user_approval_before_fallback: false
+    blocked_on:
+      - local_llm_not_reachable
+    notes:
+      - Frugal 模式优先使用。本地模型零 API 成本，仅算力消耗。
+      - 需用户配置本地 LLM (Ollama/vLLM/LM Studio)。
+      - 能力弱于旗舰 API 模型，仅适合 L1 轻量/高频重用场景。
+      - 可通过 .env 配置: AGENTLAB_LOCAL_LLM_ENABLED, AGENTLAB_LOCAL_BASE_URL 等。
+
+  # ── T2/T4 轻量感知/简易审核 (Frugal 模式) ─────────────────────
+  qwen-flash:
+    type: openai_compatible
+    display_name: Qwen3.6-Flash (Frugal Tier)
+    api_key: env:DASHSCOPE_API_KEY
+    base_url: env:DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1
+    default_model: qwen3.6-flash
+    fallback_provider: qwen
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_api_key
+      - quota_exceeded
+    notes:
+      - 极致低成本闪速模型 ($0.1875/M输入, $1.125/M输出)。
+      - Frugal 模式下主力: 感知层、审核层、归档层。
+      - 不适合复杂推理，仅用于: 搜索汇总、简单验证、压缩记录、轻量代码扫描。
+      - Alias: 原 qwen-turbo → qwen3.6-flash。
+
+  # ── 保留扩展 ──────────────────────────────────────────────────────
   openai:
     type: openai_compatible
     display_name: OpenAI
@@ -32,46 +178,27 @@ providers:
     base_url: env:OPENAI_BASE_URL:https://api.openai.com/v1
     default_model: env:OPENAI_MODEL
     notes:
-      - Reserved as a second provider path.
-      - Keep API key in private .env only.
+      - 保留作为通用扩展通道。当前默认不启用。
+      - API key 仅在 agent_runtime/.env 中。
 
-  qwen:
-    type: openai_compatible
-    display_name: Qwen / Alibaba Cloud Model Studio
-    api_key: env:QWEN_API_KEY
-    base_url: env:QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1
-    default_model: env:QWEN_MODEL:qwen-plus
-    fallback_provider:
-    unavailable_action: ask_user
-    requires_user_approval_before_fallback: true
-    blocked_on:
-      - missing_api_key
-      - quota_exceeded
-      - rate_limited
-      - provider_error
-    notes:
-      - Qwen is available through Alibaba Cloud Model Studio / DashScope OpenAI-compatible mode.
-      - Use https://dashscope.aliyuncs.com/compatible-mode/v1 for China Beijing region keys.
-      - Use https://dashscope-intl.aliyuncs.com/compatible-mode/v1 for international/Singapore keys.
-      - Keep the actual API key in agent_runtime/.env only.
-      - Optional provider for agent profiles; DeepSeek remains the required default brain provider unless execution_policy.yml is changed.
-
+  # ── 手动执行层 ──────────────────────────────────────────────────────
   codex_plus_manual:
     type: manual_codex
-    display_name: Codex Plus
+    display_name: Codex Plus (Manual IDE)
     default_model: Codex Plus
     notes:
-      - Manual execution provider for the current Codex Plus session.
-      - AgentLab cannot call Codex Plus through a normal API.
-      - Runtime writes a Codex handoff only for execution stages that explicitly use the Coder lane.
-      - Codex must not silently replace required DeepSeek brain stages.
+      - Codex Plus 订阅用户的手动 IDE 执行。
+      - AgentLab 生成 handoff prompt，Codex Plus 在 IDE 中执行 Coder 阶段。
+      - AgentLab 不通过 API 调用 Codex Plus。
 
   external_ide_ai:
     type: external_ide_ai
-    display_name: External IDE AI
+    display_name: External IDE AI (Coder Window)
     default_model: External AI
     notes:
-      - Execution provider for external IDE AI (Codex, Claude, etc.) to act as Coder.
-      - AgentLab brain (DeepSeek) does all planning; external AI only executes Coder phase.
-      - AgentLab generates a handoff prompt with complete context, external AI executes and writes reports back.
-      - Saves token cost for external AI by eliminating planning/reasoning overhead.
+      - Coder 默认执行者：外部 IDE AI (Codex, Claude, Cline 等)。
+      - AgentLab 大脑层完成所有规划后，生成完整 handoff prompt + 上下文包。
+      - 外部 AI 只需执行编码，无需自行规划/分析架构/确定范围。
+      - 为外部 AI 节省大量 token（规划推理开销由 AgentLab 承担）。
+      - 外部 AI 的可编辑窗口：可自由选择实现方式、代码风格、具体算法，
+        但必须在 Supervisor 批准的 scope 内。

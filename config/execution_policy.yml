@@ -1,69 +1,189 @@
-version: 1
+schema_version: 3
 
-brain_policy:
-  required_provider: deepseek
-  deepseek_required_for_all_agentlab_tasks: true
-  applies_to:
-    - simulation
-    - small_task
-    - medium_task
-    - interface_sensitive_task
-    - research_sensitive_task
-    - large_or_risky_task
-    - formal_engineering_task
-  brain_agents:
-    - Supervisor
-    - RepoScout
-    - Researcher
-    - InterfaceMapper
-    - CodexPromptGenerator
-    - TesterAuditor
-    - Archivist
-  codex_may_simulate_brain: false
-  codex_brain_override_requires_user_config_change: true
-  on_deepseek_missing_key: ask_user
-  on_deepseek_quota_exceeded: ask_user
-  on_deepseek_rate_limited: ask_user
-  on_deepseek_provider_error: ask_user
-  user_decision_file: USER_DECISION_REQUIRED.md
-  required_report_metadata:
-    - brain_provider
-    - model
-    - api_called
-    - token_usage
-    - fallback_or_block_reason
+# ─── AgentLab Execution Policy v3 — Size × Risk × Budget 执行规则 ──────
+# 总则：预算决定"多豪华"，不决定"要不要安全"。
+# 高风险 (R2/R3) 自动升级预算和门禁。
+# 模型具体分配见 agent_model_profiles.yml，定价见 model_catalog.yml。
+# ────────────────────────────────────────────────────────────────────────
 
-coder_policy:
-  primary_executor: codex_plus_manual
-  coding_agent: Coder
-  api_fallback_executor: qwen
-  api_fallback_model_profile: qwen_coder_aux
-  api_fallback_stack:
-    brain_provider: deepseek
-    coder_provider: qwen
-    mode: deepseek_brain_qwen_coder_api
-  codex_quota_exact_usage_source: unavailable_manual
-  quota_check_required_before_large_edits: true
-  if_codex_quota_insufficient: ask_user
-  no_automatic_deepseek_coding: false
-  no_automatic_qwen_coding: false
-  qwen_coding_requires_explicit_user_approval: true
-  deepseek_coding_allowed: true
+# ══════════════════════════════════════════════════════════════════════
+# 预算模式
+# ══════════════════════════════════════════════════════════════════════
+
+budget_mode_policy:
+  default_budget_mode: balanced
+  available_modes: [frugal, balanced, max_quality]
+  selection_methods:
+    - cli_flag: "--budget {frugal|balanced|max-quality}"
+    - env_var: "AGENTLAB_BUDGET_MODE"
+    - user_request_md_keyword: "budget_mode:"
+    - default: balanced
+  mode_philosophy:
+    frugal:
+      goal: 最低成本跑通
+      allow_sacrifice: [推理深度, 审查覆盖率, 模型强度]
+      forbid_sacrifice: [高风险任务的测试/确认门禁]
+      auto_upgrade_on: [R2, R3]
+      auto_upgrade_to: balanced
+    balanced:
+      goal: 质量/成本平衡
+      allow_sacrifice: [不必要的全量上下文扫描]
+      forbid_sacrifice: [核心接口理解, 测试闭环]
+      auto_upgrade_on: [R3]
+      auto_upgrade_to: max_quality
+    max_quality:
+      goal: 关键任务高可靠
+      allow_sacrifice: [成本, 速度]
+      forbid_sacrifice: [事实校验, 双模型复核, 回滚计划]
+
+# ══════════════════════════════════════════════════════════════════════
+# Coder 执行策略
+# ══════════════════════════════════════════════════════════════════════
+
+execution_policy:
+  execution_tier: T3
+  coder_agent: Coder
+
+  # Coder 输出模式限制
+  allowed_output_modes:
+    - patch_plan         # 列要改哪些文件、为什么改、每个文件改什么
+    - diff               # 只输出精确 patch
+    - implementation_notes  # 给外部 IDE AI 的任务提示
+
+  # 默认 API Coder
+  default_api_coder:
+    model: qwen3-coder-next
+    provider: openrouter
+    profile_ref: qwen3_coder_next_openrouter
+    max_output_tokens: 4096
+    temperature: 0.1
+
+  # 外部 IDE AI 窗口
+  external_ide_window:
+    enabled: false
+    activation_signal:
+      env_var: AGENTLAB_EXTERNAL_CODER
+      signal_file: EXTERNAL_CODER_READY
+      cli_flag: "--executor external_ide"
+    allowed_for_budgets: [balanced, max_quality]  # Frugal 不给外部 IDE（费用不可控）
+    handoff_protocol: >
+      AgentLab 大脑层完成所有规划/感知工作后,
+      生成完整 handoff prompt，包含 scope + repo context + interface 契约。
+      外部 AI 只需执行编码，无需自行规划。
+      外部 AI 可自由选择实现方式/代码风格/算法/库,
+      但必须遵守 Supervisor 批准的 scope 和 interface 契约。
+    handoff_files:
+      - supervisor_plan.md
+      - reposcout_report.md
+      - interface_map.md
+      - research_notes.md
+    handoff_output: implementation_report.md
+
+  # 禁止 Coder 在无 RepoScout + InterfaceMapper 情况下改大型项目
+  require_context_before_coding: true
+  forbid_monolithic_patch_for: [S2, S3, S4]
+
+  # API Coder 输出规范
   api_coder_outputs:
     - implementation_report.md
     - patch_proposal.diff
     - files_to_change.yml
-    - validation_instructions.md
-  api_coder_application_policy: patch_proposal_first
-  automatic_patch_application: false
-  user_choices_when_quota_insufficient:
-    - pause_until_codex_refresh
-    - switch_to_deepseek_brain_qwen_coder_api
-    - switch_to_deepseek_api_coder
-  decision_prompt: "Codex quota may be insufficient. Should AgentLab pause until Codex quota refreshes, switch to DeepSeek brain + Qwen Coder API, or switch to DeepSeek full-stack API coding?"
+  patch_application_policy: patch_proposal_first
+
+# ══════════════════════════════════════════════════════════════════════
+# 大脑层策略
+# ══════════════════════════════════════════════════════════════════════
+
+brain_policy:
+  brain_tier: T1
+  brain_agent: Supervisor
+  decision_axes: [Size, Risk, Budget]
+  required_output_metadata:
+    - budget_mode
+    - project_size
+    - risk_level
+    - model_used
+    - provider
+    - token_usage
+    - fallback_or_block_reason
+  R2_required_output: risk_checklist
+  R3_required_outputs: [risk_checklist, rollback_plan, failure_modes]
+
+# ══════════════════════════════════════════════════════════════════════
+# 感知层策略
+# ══════════════════════════════════════════════════════════════════════
+
+perception_policy:
+  perception_tier: T2
+  perception_agents: [RepoScout, InterfaceMapper, Researcher]
+  require_context_before_coding: true
+  R2_extra:
+    RepoScout: must_output_related_file_list
+    InterfaceMapper: must_list_interface_contracts
+
+# ══════════════════════════════════════════════════════════════════════
+# 审核层策略 — 跨模型家族交叉审查
+# ══════════════════════════════════════════════════════════════════════
+
+audit_policy:
+  audit_tier: T4
+  audit_agents: [TesterAuditor, Verifier]
+  cross_family_review: >
+    与 Coder 使用不同模型家族。
+    Coder 用 Qwen → 审查用 DeepSeek；
+    Coder 用 DeepSeek → 审查用 Qwen；
+    Coder 用外部 IDE AI → 审查层至少用一个独立 API 模型。
+  R2_required: independent_model_review
+  R3_required: dual_model_review
+  tester_auditor_forbidden: >
+    不只做格式化检查。必须设计测试、解释执行结果、审查回归风险。
+
+# ══════════════════════════════════════════════════════════════════════
+# 归档层策略
+# ══════════════════════════════════════════════════════════════════════
+
+archive_policy:
+  archive_tier: T5
+  archive_agent: Archivist
+  required_outputs:
+    - changelog
+    - decisions.md
+    - known_risks.md
+  R2_extra: must_record_rollback_point
+  R3_extra: must_record_full_risk_context
+
+# ══════════════════════════════════════════════════════════════════════
+# 缓存策略
+# ══════════════════════════════════════════════════════════════════════
+
+cache_policy:
+  explicit_management: true
+  requires:
+    - repo_context_hash
+    - prompt_prefix_hash
+    - provider_cache_id
+  notes: >
+    缓存不跨 provider。同一 provider 内，通过统一 repo_context_block
+    作为固定 prefix 注入，后续 Agent 复用同一 prefix/context id。
+    不假定跨 Agent 自动 cache hit。
+
+# ══════════════════════════════════════════════════════════════════════
+# 日志策略
+# ══════════════════════════════════════════════════════════════════════
 
 logging_policy:
-  record_brain_api_calls: true
-  record_codex_manual_execution: true
-  record_simulation_as_deepseek_required: true
-  mark_codex_brain_simulation_as_policy_violation_unless_user_approved: true
+  record_per_call:
+    - agent
+    - model
+    - provider
+    - input_tokens
+    - cache_hit_tokens
+    - output_tokens
+    - estimated_cost
+  record_per_run:
+    - budget_mode
+    - project_size
+    - risk_level
+    - total_estimated_cost
+    - human_confirmation_required
+    - rollback_point
