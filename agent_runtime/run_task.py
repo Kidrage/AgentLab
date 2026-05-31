@@ -1268,5 +1268,146 @@ def provider_test(
         console.print(f"[red]✗ Provider {provider} failed: {e}[/red]")
 
 
+# ══════════════════════════════════════════════════════════════════════
+# Task Discovery & Resume Index Commands
+# ══════════════════════════════════════════════════════════════════════
+
+@app.command("task-index")
+def task_index_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    rebuild: bool = typer.Option(False, help="Full rebuild of index and per-task artifacts."),
+) -> None:
+    """Build or rebuild the project task discovery index."""
+    agentlab_root, project_name = runtime_context(project)
+    from task_index import rebuild_index, build_project_task_index, save_project_task_index, generate_per_task_artifacts, list_task_run_dirs
+
+    if rebuild:
+        index = rebuild_index(agentlab_root, project_name)
+        console.print(f"[green]Full rebuild complete.[/green]")
+    else:
+        index = build_project_task_index(agentlab_root, project_name)
+        save_project_task_index(agentlab_root, project_name, index)
+        console.print(f"[green]Index updated.[/green]")
+
+    tasks = index.get("tasks", [])
+    status_counts = {}
+    for t in tasks:
+        s = t.get("status", "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    console.print(f"\n[bold]Indexed {len(tasks)} tasks.[/bold]")
+    for status, count in sorted(status_counts.items()):
+        console.print(f"  {status}: {count}")
+    console.print(f"Index: {agentlab_root}/projects/{project_name}/task_index.yml")
+
+
+@app.command("task-find")
+def task_find_cmd(
+    query: str = typer.Argument(..., help="Search query (English and/or Chinese)."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    status: Optional[str] = typer.Option(None, help="Comma-separated status filter (paused,blocked,completed)."),
+    limit: int = typer.Option(10, help="Max results."),
+) -> None:
+    """Find tasks by natural-language query."""
+    agentlab_root, project_name = runtime_context(project)
+    from task_index import ensure_project_task_index
+    from task_search import search_tasks
+    from task_card import render_task_results_rich
+
+    index = ensure_project_task_index(agentlab_root, project_name)
+    status_list = [s.strip() for s in status.split(",") if s.strip()] if status else None
+    results = search_tasks(index, query, status_filter=status_list, limit=limit, agentlab_root=agentlab_root)
+    render_task_results_rich(results)
+
+
+@app.command("task-open")
+def task_open_cmd(
+    task_id: str = typer.Argument(..., help="Task ID to open."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Display a task card with full details."""
+    agentlab_root, project_name = runtime_context(project)
+    from task_index import ensure_project_task_index, build_task_record, run_dir_for_task
+    from task_card import render_task_card_rich
+
+    index = ensure_project_task_index(agentlab_root, project_name)
+    # Find task in index
+    record = None
+    for t in index.get("tasks", []):
+        if t.get("task_id") == task_id:
+            record = t
+            break
+    if record:
+        render_task_card_rich(record)
+    else:
+        console.print(f"[yellow]Task '{task_id}' not found in index.[/yellow]")
+
+
+@app.command("task-resume-candidates")
+def task_resume_candidates_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """List all recoverable tasks that can be resumed."""
+    agentlab_root, project_name = runtime_context(project)
+    from task_index import ensure_project_task_index
+    from task_card import render_resume_candidates_rich
+
+    index = ensure_project_task_index(agentlab_root, project_name)
+    tasks = index.get("tasks", [])
+    render_resume_candidates_rich(tasks)
+
+
+@app.command("task-map")
+def task_map_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Show project task overview grouped by status."""
+    agentlab_root, project_name = runtime_context(project)
+    from task_index import ensure_project_task_index
+    from rich.console import Console
+
+    index = ensure_project_task_index(agentlab_root, project_name)
+    tasks = index.get("tasks", [])
+
+    grouped: dict[str, list[dict]] = {}
+    for t in tasks:
+        status = t.get("status", "unknown")
+        grouped.setdefault(status, []).append(t)
+
+    console = Console()
+    console.print(f"\n[bold]AgentLab Task Map — {project_name}[/bold]\n")
+
+    order = ["running", "paused", "recoverable", "blocked", "completed", "failed", "archived", "unknown"]
+    for status in order:
+        items = grouped.get(status, [])
+        if not items:
+            continue
+        icon = {"running": "🔄", "paused": "⏸️", "recoverable": "♻️", "blocked": "🚫",
+                "completed": "✅", "failed": "❌", "archived": "📦", "unknown": "❓"}.get(status, "❓")
+        console.print(f"[bold]{icon} {status.title()}:[/bold]")
+        for t in items[:20]:
+            pct = t.get("percent_complete", 0)
+            console.print(f"  - {t['task_id']}  {pct}%  {t.get('title', '')[:50]}")
+        if len(items) > 20:
+            console.print(f"  ... and {len(items) - 20} more")
+        console.print()
+
+
+@app.command("task-artifacts")
+def task_artifacts_cmd(
+    task_id: str = typer.Argument(..., help="Task ID."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Display the artifact manifest for a task."""
+    agentlab_root, project_name = runtime_context(project)
+    from task_index import run_dir_for_task, build_artifact_manifest
+    from task_card import render_artifact_manifest_text
+
+    run_dir = run_dir_for_task(agentlab_root, project_name, task_id)
+    manifest = build_artifact_manifest(run_dir)
+    text = render_artifact_manifest_text(manifest)
+    console.print(text)
+
+
 if __name__ == "__main__":
     app()

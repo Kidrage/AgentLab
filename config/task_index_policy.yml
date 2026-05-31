@@ -1,0 +1,59 @@
+version: 1
+
+index:
+  auto_update_on_task_create: true
+  auto_update_on_prepare: true
+  auto_update_on_run_agent: true
+  auto_update_on_pause_resume: true
+  auto_update_on_self_check: true
+  auto_update_on_sync: true
+
+scan:
+  max_file_bytes: 65536
+  max_artifact_summary_chars: 600
+  ignore_dirs:
+    - .git
+    - .venv
+    - venv
+    - node_modules
+    - __pycache__
+    - dist
+    - build
+    - .mypy_cache
+    - .pytest_cache
+  ignore_files:
+    - ".env"
+    - ".env.local"
+    - "*.key"
+    - "*.pem"
+    - "*.p12"
+
+search:
+  default_limit: 10
+  min_score: 1.0
+  use_char_ngrams_for_cjk: true
+  cjk_ngram_size: 2
+  field_weights:
+    task_id: 3.0
+    title: 6.0
+    summary: 5.0
+    query_terms: 5.0
+    user_request: 4.0
+    last_event: 3.0
+    status: 2.0
+    artifact_titles: 2.0
+    artifact_summaries: 2.0
+    file_names: 1.0
+
+status:
+  terminal_statuses:
+    - completed
+    - archived
+    - failed
+  resumable_statuses:
+    - paused
+    - blocked
+    - recoverable
+    - running
+  hidden_by_default:
+    - archived
