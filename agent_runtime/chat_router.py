@@ -1,93 +1,109 @@
-"""Rule-based chat intent parser for AgentLab Terminal chat.
+"""AgentLab Terminal Chat Router — intent routing + slash commands.
 
-Parses user input into a deterministic ChatIntent without calling any LLM.
-Slash commands always win. Free-text becomes NEW_TASK or FOLLOWUP.
+Supports Task Discovery commands:
+/find, /resume-list, /attach, /open-task, /task-map, /artifacts, /summarize-task
 """
 
 from __future__ import annotations
 
-import re
-from enum import StrEnum
+from dataclasses import dataclass, field
 from typing import Optional
 
 
-class ChatIntent(StrEnum):
+class ChatIntent:
+    """Chat intent constants."""
+    # Existing
     NEW_TASK = "new_task"
-    ATTACH_TASK = "attach_task"
-    STATUS = "status"
-    PROGRESS = "progress"
-    PLAN = "plan"
     RUN_AGENT = "run_agent"
-    RUN_NEXT = "run_next"
-    CHECK = "check"
-    SYNC = "sync"
-    PAUSE = "pause"
-    RESUME = "resume"
-    PROVIDERS = "providers"
-    MODELS = "models"
-    OPEN_PATH = "open_path"
+    STATUS = "status"
     HELP = "help"
+    PIPELINE = "pipeline"
     EXIT = "exit"
-    FOLLOWUP = "followup"
-    UNKNOWN = "unknown"
+    # Task Discovery
+    FIND_TASK = "find_task"
+    RESUME_LIST = "resume_list"
+    OPEN_TASK = "open_task"
+    ATTACH_RESULT = "attach_result"
+    TASK_MAP = "task_map"
+    ARTIFACTS = "artifacts"
+    SUMMARIZE_TASK = "summarize_task"
 
 
-_SLASH_COMMANDS = {
-    "/help": (ChatIntent.HELP, None),
-    "/status": (ChatIntent.STATUS, None),
-    "/progress": (ChatIntent.PROGRESS, None),
-    "/plan": (ChatIntent.PLAN, None),
-    "/run-next": (ChatIntent.RUN_NEXT, None),
-    "/check": (ChatIntent.CHECK, None),
-    "/push": (ChatIntent.SYNC, None),
-    "/sync": (ChatIntent.SYNC, None),
-    "/pause": (ChatIntent.PAUSE, None),
-    "/resume": (ChatIntent.RESUME, None),
-    "/providers": (ChatIntent.PROVIDERS, None),
-    "/models": (ChatIntent.MODELS, None),
-    "/open": (ChatIntent.OPEN_PATH, None),
-    "/exit": (ChatIntent.EXIT, None),
-    "/quit": (ChatIntent.EXIT, None),
+@dataclass
+class ParsedIntent:
+    intent: str
+    payload: dict = field(default_factory=dict)
+    raw: str = ""
+
+
+_KNOWN_COMMANDS = {
+    "/find": ChatIntent.FIND_TASK,
+    "/resume-list": ChatIntent.RESUME_LIST,
+    "/attach": ChatIntent.ATTACH_RESULT,
+    "/open-task": ChatIntent.OPEN_TASK,
+    "/task-map": ChatIntent.TASK_MAP,
+    "/artifacts": ChatIntent.ARTIFACTS,
+    "/summarize-task": ChatIntent.SUMMARIZE_TASK,
+    "/status": ChatIntent.STATUS,
+    "/help": ChatIntent.HELP,
+    "/exit": ChatIntent.EXIT,
+    "/quit": ChatIntent.EXIT,
+    "/pipeline": ChatIntent.PIPELINE,
+    "/new": ChatIntent.NEW_TASK,
 }
 
-_TASK_RE = re.compile(r"task_\d{4}[\w\-]*")
+_NEW_TASK_KEYWORDS = [
+    "create task", "new task", "start task", "新任务", "创建任务",
+    "开始任务", "帮我做", "帮我写", "帮我改", "帮我分析", "帮我设计",
+]
+
+_STATUS_KEYWORDS = [
+    "task status", "show status", "what is current", "当前状态",
+    "查看状态", "进度", "任务状态",
+]
 
 
-def parse_input(text: str, *, has_active_task: bool = False) -> tuple[ChatIntent, Optional[str]]:
-    """Parse user input and return (intent, optional_payload).
+def parse_intent(text: str, project: str = "", active_task_id: Optional[str] = None) -> ParsedIntent:
+    """Parse a chat message into an intent.
 
-    Slash commands always win. Non-slash text becomes NEW_TASK
-    (no active task) or FOLLOWUP (active task exists).
+    Args:
+        text: User message text.
+        project: Current project name.
+        active_task_id: Currently attached task ID.
+
+    Returns:
+        A ParsedIntent with intent type and parsed payload.
     """
-    stripped = text.strip()
-
-    # Empty input
-    if not stripped:
-        return (ChatIntent.UNKNOWN, None)
+    text = text.strip()
 
     # Slash commands
-    # /run <AgentName>
-    run_match = re.match(r"^/run\s+(.+)$", stripped, re.IGNORECASE)
-    if run_match:
-        return (ChatIntent.RUN_AGENT, run_match.group(1).strip())
+    if text.startswith("/"):
+        parts = text.split(maxsplit=1)
+        cmd = parts[0].lower()
+        rest = parts[1].strip() if len(parts) > 1 else ""
 
-    # /task <task_id>
-    task_match = re.match(r"^/task\s+(.+)$", stripped, re.IGNORECASE)
-    if task_match:
-        task_val = task_match.group(1).strip()
-        return (ChatIntent.ATTACH_TASK, task_val)
+        intent_type = _KNOWN_COMMANDS.get(cmd)
+        if intent_type is None:
+            return ParsedIntent(intent=ChatIntent.HELP, payload={"message": f"Unknown command: {cmd}"}, raw=text)
 
-    # /new <text>
-    new_match = re.match(r"^/new\s+(.+)$", stripped, re.IGNORECASE)
-    if new_match:
-        return (ChatIntent.NEW_TASK, new_match.group(1).strip())
+        payload = {}
+        if intent_type == ChatIntent.FIND_TASK:
+            payload["query"] = rest
+        elif intent_type in (ChatIntent.ATTACH_RESULT, ChatIntent.OPEN_TASK):
+            payload["target"] = rest  # can be task_id or result number
 
-    # Exact slash commands
-    if stripped in _SLASH_COMMANDS:
-        intent, _ = _SLASH_COMMANDS[stripped]
-        return (intent, None)
+        return ParsedIntent(intent=intent_type, payload=payload, raw=text)
 
-    # Plain text — no slash → NEW_TASK or FOLLOWUP
-    if not has_active_task:
-        return (ChatIntent.NEW_TASK, stripped)
-    return (ChatIntent.FOLLOWUP, stripped)
+    # Keyword-based intent detection
+    text_lower = text.lower()
+
+    for kw in _NEW_TASK_KEYWORDS:
+        if kw in text_lower:
+            return ParsedIntent(intent=ChatIntent.NEW_TASK, payload={"request": text}, raw=text)
+
+    for kw in _STATUS_KEYWORDS:
+        if kw in text_lower:
+            return ParsedIntent(intent=ChatIntent.STATUS, payload={}, raw=text)
+
+    # Default: treat as potential new task or fallback
+    return ParsedIntent(intent=ChatIntent.NEW_TASK, payload={"request": text}, raw=text)
