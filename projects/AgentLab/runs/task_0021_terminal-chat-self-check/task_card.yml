@@ -1,0 +1,42 @@
+version: 1
+project: AgentLab
+task_id: task_0021_terminal-chat-self-check
+title: AgentLab Terminal Chat + Rule Self-Check + GitHub Auto-Sync Implementation
+  Spec
+summary: 'Version: v1.0 Date: 2026-05-31 Target repository: `Kidrage/AgentLab` Purpose:
+  Make AgentLab usable directly from Terminal without depending on an external IDE
+  chat window; add a rule-based local self-check gate; automatically commit and push
+  safe local changes to GitHub after successful modification.'
+status: unknown
+resume_state: unknown
+can_resume: false
+percent_complete: 0
+current_agent: null
+current_stage: null
+last_event: ''
+last_event_at: ''
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0021_terminal-chat-self-check
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0021_terminal-chat-self-check
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0021_terminal-chat-self-check
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0021_terminal-chat-self-check
+artifact_summary:
+  present: 1
+  missing: 11
+  important_missing:
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
+  - workflow_plan.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

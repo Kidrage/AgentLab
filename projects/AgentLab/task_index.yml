@@ -1,0 +1,2753 @@
+version: 1
+project: AgentLab
+generated_at: '2026-05-31T11:23:15.173774+00:00'
+source_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs
+task_count: 15
+tasks:
+- task_id: task_0009
+  title: 自然语言任务描述
+  summary: 完善 AgentLab Web UI 并完成桌面 App 封装：
+  status: running
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-05-30T08:31:11.860917+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Archivist
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: Archivist completed report.
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - ui
+  - web
+  - 一个
+  - 不改
+  - 个需
+  - 中实
+  - 中说
+  - 之前
+  - 了后
+  - 于帮
+  - 仅不
+  - 件保
+  - 件需
+  - 任务
+  - 何构
+  - 依赖
+  - 保存
+  - 保持
+  - 入口
+  - 关于
+  - 切换
+  - 创建
+  - 前只
+  - 前端
+  - 务描
+  - 动安
+  - 助页
+  - 包创
+  - 包脚
+  - 化仅
+  - 变核
+  - 口图
+  - 口支
+  - 口配
+  - 只改
+  - 只是
+  - 可用
+  - 后端
+  - 和保
+  - 和安
+  - 善并
+  - 善目
+  - 善自
+  - 图标
+  - 在中
+  - 型选
+  - 增关
+  - 处理
+  - 多窗
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0009
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 完善 AgentLab Web UI 并完成桌面 App 封装：
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0009 agentlab_root: /Users/saintpeter/Desktop/AgentLab
+      project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab repo_path:
+      /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/repo run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0009
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0009/user_request.md
+      execution_backend: codex route: task_size: medium agents: - Supervisor - RepoScout
+      - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
+      always defines scope, token budge...'
+    important: true
+  artifact_summary:
+    present: 2
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0009
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0009
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0009
+- task_id: task_0010
+  title: 任务：UrbanSound8K 城市声音事件分类模型原型（极简验证版）
+  summary: 一个 .zip 包含 Jupyter Notebook 文件 .ipynb 和数据集来源说明
+  status: running
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-05-30T11:02:32.329903+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Archivist
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: Archivist completed report.
+  last_checkpoint: null
+  query_terms:
+  - task
+  - 一个
+  - 一处
+  - 一数
+  - 一键
+  - 三完
+  - 不报
+  - 不追
+  - 个包
+  - 个流
+  - 个类
+  - 为数
+  - 为文
+  - 为最
+  - 为标
+  - 义训
+  - 乐步
+  - 事件
+  - 二特
+  - 于搭
+  - 于数
+  - 仅加
+  - 仅跑
+  - 代码
+  - 代轮
+  - 件分
+  - 件和
+  - 件放
+  - 件需
+  - 任务
+  - 位于
+  - 位象
+  - 作流
+  - 使用
+  - 保代
+  - 儿童
+  - 全连
+  - 准梅
+  - 准确
+  - 出文
+  - 出要
+  - 分类
+  - 别空
+  - 到位
+  - 加载
+  - 务城
+  - 务步
+  - 包为
+  - 包含
+  - 卷积
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0010
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 一个 .zip 包含 Jupyter Notebook 文件 .ipynb 和数据集来源说明
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0010 agentlab_root: /Users/saintpeter/Desktop/AgentLab
+      project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab repo_path:
+      /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/repo run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0010
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0010/user_request.md
+      execution_backend: codex route: task_size: medium agents: - Supervisor - RepoScout
+      - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
+      always defines scope, token budge...'
+    important: true
+  artifact_summary:
+    present: 2
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0010
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0010
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0010
+- task_id: task_0011
+  title: 自然语言任务描述
+  summary: 调查 AgentLab 在云端部署的可行性。AgentLab 目前是一个本地优先的 CLI + Web UI 工具， 需要分析是否可以在云服务器上运行（如
+    AWS、阿里云、VPS 等），以及智能体架构是否需要适配。
+  status: running
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-05-30T12:49:16.410755+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Archivist
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: Supervisor completed report.
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - codex
+  - config
+  - task
+  - ui
+  - web
+  - 一个
+  - 上运
+  - 不做
+  - 个本
+  - 云服
+  - 云端
+  - 云等
+  - 些变
+  - 些可
+  - 以及
+  - 以在
+  - 件在
+  - 件用
+  - 任务
+  - 优先
+  - 体架
+  - 依赖
+  - 修改
+  - 做实
+  - 做桌
+  - 做调
+  - 先的
+  - 关注
+  - 具用
+  - 具需
+  - 出修
+  - 分析
+  - 前是
+  - 前系
+  - 务器
+  - 务描
+  - 动接
+  - 化有
+  - 及智
+  - 发重
+  - 变化
+  - 口后
+  - 只做
+  - 可以
+  - 可行
+  - 后端
+  - 否云
+  - 否可
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0011
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 调查 AgentLab 在云端部署的可行性。AgentLab 目前是一个本地优先的 CLI + Web UI 工具， 需要分析是否可以在云服务器上运行（如
+      AWS、阿里云、VPS 等），以及智能体架构是否需要适配。
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0011 agentlab_root: /Users/saintpeter/Desktop/AgentLab
+      project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab repo_path:
+      /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/repo run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0011
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0011/user_request.md
+      execution_backend: codex route: task_size: medium agents: - Supervisor - RepoScout
+      - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
+      always defines scope, token budge...'
+    important: true
+  artifact_summary:
+    present: 2
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0011
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0011
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0011
+- task_id: task_0012
+  title: task_0012
+  summary: '调查 AgentLab 云端部署可行性：1) AgentLab 能否在云端运行？2) 这种多智能体架构是否有云端部署的可能性？请分析当前架构中与云端部署相关的设计（如
+    web_ui server 绑定 0.0.0.0、GitHub backup、project_config 中的 cloud runner: github_actions_workflow_dispatch），并给出修改方针，使
+    AgentLab 具备真正的云端部署能力。'
+  status: running
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-05-30T13:47:20.617949+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Archivist
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: Archivist completed report.
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - backup
+  - config
+  - patch
+  - task
+  - ui
+  - web
+  - 与云
+  - 中与
+  - 中的
+  - 云端
+  - 体架
+  - 使具
+  - 修改
+  - 关的
+  - 具备
+  - 出修
+  - 分析
+  - 前架
+  - 力调
+  - 可能
+  - 可行
+  - 否在
+  - 否有
+  - 在云
+  - 备真
+  - 多智
+  - 如绑
+  - 定中
+  - 并给
+  - 当前
+  - 性能
+  - 性请
+  - 改方
+  - 方针
+  - 是否
+  - 智能
+  - 有云
+  - 构中
+  - 构是
+  - 析当
+  - 架构
+  - 查云
+  - 正的
+  - 的云
+  - 的可
+  - 的并
+  - 的设
+  - 相关
+  - 真正
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0012
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: '调查 AgentLab 云端部署可行性：1) AgentLab 能否在云端运行？2) 这种多智能体架构是否有云端部署的可能性？请分析当前架构中与云端部署相关的设计（如
+      web_ui server 绑定 0.0.0.0、GitHub backup、project_config 中的 cloud runner: github_actions_workflow_dispatch），并给出修改方针，使
+      AgentLab 具备真正的云端部署能力。'
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0012 agentlab_root: /Users/saintpeter/Desktop/AgentLab
+      project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab repo_path:
+      /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/repo run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0012
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0012/user_request.md
+      execution_backend: codex route: task_size: medium agents: - Supervisor - RepoScout
+      - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
+      always defines scope, token budge...'
+    important: true
+  artifact_summary:
+    present: 2
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0012
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0012
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0012
+- task_id: task_0013
+  title: task_0013
+  summary: 为 AgentLab 设计 TrueNAS 存储后端接入方案：用户自建了一个 TrueNAS 仓库，希望 AgentLab 使用它来存放 1)
+    项目记忆文件（agent_docs/*.md, agent_docs/*.yml 等持久化记忆）；2) 项目代码库（repo 目录下的源代码）。请设计：TrueNAS
+    上如何组织目录结构、AgentLab 需要新增哪些配置和代码组件、如何安全获取和管理 TrueNAS 访问权限（认证方式选择、凭证存储、权限最小化原则）、如何与现有本地优先架构共存（本地优先，TrueNAS
+    作为可选远程后端）。注意 TrueNAS 支持 NFS/SMB/iSCSI/WebDAV/S3(MinIO) 等多种协议，需要评估并推荐最适合 AgentLab
+    场景的协议。
+  status: running
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-05-30T13:54:25.185024+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Archivist
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: Archivist completed report.
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - task
+  - web
+  - 一个
+  - 上如
+  - 下的
+  - 与现
+  - 个仓
+  - 为可
+  - 为设
+  - 久化
+  - 了一
+  - 些配
+  - 仓库
+  - 代码
+  - 件如
+  - 件等
+  - 优先
+  - 估并
+  - 何与
+  - 何安
+  - 何组
+  - 作为
+  - 使用
+  - 储后
+  - 储权
+  - 先作
+  - 先架
+  - 入方
+  - 全获
+  - 共存
+  - 凭证
+  - 则如
+  - 化原
+  - 化记
+  - 协议
+  - 原则
+  - 取和
+  - 可选
+  - 合场
+  - 后端
+  - 和代
+  - 和管
+  - 哪些
+  - 地优
+  - 场景
+  - 增哪
+  - 多种
+  - 如何
+  - 存储
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0013
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 为 AgentLab 设计 TrueNAS 存储后端接入方案：用户自建了一个 TrueNAS 仓库，希望 AgentLab 使用它来存放
+      1) 项目记忆文件（agent_docs/*.md, agent_docs/*.yml 等持久化记忆）；2) 项目代码库（repo 目录下的源代码）。请设计：TrueNAS
+      上如何组织目录结构、AgentLab 需要新增哪些配置和代码组件、如何安全获取和管理 TrueNAS 访问权限（认证方式选择、凭证存储、权限最小化原则）、如何与现有本地优先架构共存（本地优先，TrueNAS
+      作为可选远程后端）。注意 TrueNAS 支持 NFS/SMB/iSCSI/WebDAV/S3(MinIO) 等多种协议，需要评估并推荐最适合 AgentLab
+      场景的协议。
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0013 agentlab_root: /Users/saintpeter/Desktop/AgentLab
+      project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab repo_path:
+      /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/repo run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0013
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0013/user_request.md
+      execution_backend: codex route: task_size: medium agents: - Supervisor - RepoScout
+      - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
+      always defines scope, token budge...'
+    important: true
+  artifact_summary:
+    present: 2
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0013
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0013
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0013
+- task_id: task_0014
+  title: Task 0014 — LangGraph 开源调研 & AgentLab 整合评估
+  summary: 调研 LangGraph 的开源信息（GitHub star数、架构、版本、依赖、核心概念）， 评估与 AgentLab 骨架的整合难度，并判断这个工程更适合
+    DeepSeek（Cline）还是 Codex 执行。
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - codex
+  - task
+  - 与骨
+  - 个工
+  - 代码
+  - 估与
+  - 估调
+  - 依赖
+  - 信息
+  - 其骨
+  - 划型
+  - 判断
+  - 合理
+  - 合的
+  - 合评
+  - 合还
+  - 合适
+  - 合难
+  - 否是
+  - 否顺
+  - 型来
+  - 型还
+  - 基础
+  - 多大
+  - 大概
+  - 射是
+  - 层整
+  - 工程
+  - 并判
+  - 度并
+  - 度有
+  - 开源
+  - 心概
+  - 心问
+  - 念映
+  - 念评
+  - 性规
+  - 息数
+  - 执行
+  - 持其
+  - 支持
+  - 数架
+  - 整合
+  - 断这
+  - 映射
+  - 是代
+  - 是合
+  - 是否
+  - 是执
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0014
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 调研 LangGraph 的开源信息（GitHub star数、架构、版本、依赖、核心概念）， 评估与 AgentLab 骨架的整合难度，并判断这个工程更适合
+      DeepSeek（Cline）还是 Codex 执行。
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0014
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0014
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0014
+- task_id: task_0015
+  title: Task 0015 — LangGraph 骨架替换 MVP 实施
+  summary: 基于 task_0014 调研结论，将 AgentLab 的 agent 流水线骨架迁移到 LangGraph StateGraph，同时保持文件系统报告输出（影子模式兼容）。
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - task
+  - ui
+  - 不做
+  - 中新
+  - 于调
+  - 令保
+  - 件系
+  - 件路
+  - 任务
+  - 保持
+  - 保留
+  - 做条
+  - 入目
+  - 具链
+  - 兼容
+  - 写入
+  - 准能
+  - 出影
+  - 出集
+  - 函数
+  - 分支
+  - 创建
+  - 到同
+  - 务验
+  - 动态
+  - 厂在
+  - 同时
+  - 告正
+  - 告输
+  - 命令
+  - 在中
+  - 基于
+  - 增命
+  - 套子
+  - 子任
+  - 子模
+  - 完整
+  - 实施
+  - 容现
+  - 容目
+  - 容骨
+  - 将的
+  - 嵌套
+  - 工具
+  - 工厂
+  - 带创
+  - 常写
+  - 建函
+  - 建带
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 基于 task_0014 调研结论，将 AgentLab 的 agent 流水线骨架迁移到 LangGraph StateGraph，同时保持文件系统报告输出（影子模式兼容）。
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0015
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0015
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0015
+- task_id: task_0016
+  title: task_0016
+  summary: ''
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0016
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: missing
+    title: Request
+    summary: ''
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  artifact_summary:
+    present: 0
+    missing: 12
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0016
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0016
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0016
+- task_id: task_0017
+  title: task_0017
+  summary: '**请求**: AgentLab 的大脑层模型选择紊乱，需要系统规划每个 agent 的模型分配。'
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - task
+  - 与引
+  - 与性
+  - 个的
+  - 为外
+  - 为执
+  - 乱需
+  - 价比
+  - 优模
+  - 作用
+  - 作质
+  - 分层
+  - 分配
+  - 划每
+  - 划请
+  - 口与
+  - 可替
+  - 可编
+  - 各类
+  - 型分
+  - 型构
+  - 型注
+  - 型选
+  - 外部
+  - 大脑
+  - 实际
+  - 层模
+  - 层由
+  - 层系
+  - 层默
+  - 工作
+  - 引导
+  - 性价
+  - 成根
+  - 执行
+  - 择紊
+  - 换为
+  - 据实
+  - 替换
+  - 最优
+  - 有可
+  - 构成
+  - 根据
+  - 模型
+  - 每个
+  - 比为
+  - 求大
+  - 求的
+  - 注重
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0017
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: '**请求**: AgentLab 的大脑层模型选择紊乱，需要系统规划每个 agent 的模型分配。'
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0017
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0017
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0017
+- task_id: task_0018
+  title: Task 0018 — LangGraph 整合验证 & 工程分工终判
+  summary: 继承 task_0014 的调研结论，验证已有 LangGraph MVP 实现（`langgraph_schema.py` + `langgraph_workflow.py`），
+    确认代码质量、概念映射正确性，并最终判定后续实施阶段的分工方案。
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - task
+  - 代码
+  - 分工
+  - 判定
+  - 判继
+  - 合验
+  - 后续
+  - 定后
+  - 实施
+  - 实现
+  - 射正
+  - 工方
+  - 工程
+  - 工终
+  - 已有
+  - 并最
+  - 念映
+  - 性并
+  - 承的
+  - 整合
+  - 方案
+  - 施阶
+  - 映射
+  - 最终
+  - 有实
+  - 案整
+  - 概念
+  - 正确
+  - 段的
+  - 现确
+  - 的分
+  - 的调
+  - 码质
+  - 研结
+  - 确性
+  - 确认
+  - 程分
+  - 终判
+  - 结论
+  - 继承
+  - 续实
+  - 认代
+  - 论验
+  - 证工
+  - 证已
+  - 调研
+  - 质量
+  - 量概
+  - 阶段
+  - 验证
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0018
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 继承 task_0014 的调研结论，验证已有 LangGraph MVP 实现（`langgraph_schema.py` + `langgraph_workflow.py`），
+      确认代码质量、概念映射正确性，并最终判定后续实施阶段的分工方案。
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0018
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0018
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0018
+- task_id: task_0019_guard-resilience
+  title: AgentLab Resilience & Knowledge Guard v1.0
+  summary: '---'
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - backup
+  - check
+  - codex
+  - config
+  - external
+  - guard
+  - model
+  - patch
+  - resume
+  - sync
+  - task
+  - ui
+  - 一个
+  - 一保
+  - 一半
+  - 一备
+  - 一张
+  - 一次
+  - 一步
+  - 一等
+  - 三个
+  - 三层
+  - 上一
+  - 上无
+  - 下仍
+  - 下新
+  - 下流
+  - 下的
+  - 下面
+  - 不会
+  - 不允
+  - 不删
+  - 不可
+  - 不同
+  - 不建
+  - 不打
+  - 不是
+  - 不破
+  - 不能
+  - 不要
+  - 不覆
+  - 不适
+  - 不阻
+  - 与任
+  - 与完
+  - 与执
+  - 与新
+  - 与缺
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0019_guard-resilience
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: '---'
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0019_guard-resilience
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0019_guard-resilience
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0019_guard-resilience
+- task_id: task_0020_provider-failover
+  title: AgentLab Provider Failover + Resume + Progress UI Guard Spec
+  summary: '---'
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - backup
+  - check
+  - codex
+  - config
+  - external
+  - failover
+  - full
+  - guard
+  - handoff
+  - model
+  - patch
+  - resume
+  - sync
+  - task
+  - terminal
+  - ui
+  - web
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0020_provider-failover
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: '---'
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0020_provider-failover
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0020_provider-failover
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0020_provider-failover
+- task_id: task_0021_terminal-chat-self-check
+  title: AgentLab Terminal Chat + Rule Self-Check + GitHub Auto-Sync Implementation
+    Spec
+  summary: 'Version: v1.0 Date: 2026-05-31 Target repository: `Kidrage/AgentLab` Purpose:
+    Make AgentLab usable directly from Terminal without depending on an external IDE
+    chat window; add a rule-based local self-check gate; automatically commit and
+    push safe local changes to GitHub after successful modification.'
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - backup
+  - chat
+  - check
+  - codex
+  - config
+  - driver
+  - external
+  - failover
+  - full
+  - guard
+  - model
+  - resume
+  - sync
+  - task
+  - terminal
+  - ui
+  - web
+  - 一个
+  - 上传
+  - 个自
+  - 修改
+  - 制每
+  - 制给
+  - 加一
+  - 动上
+  - 后自
+  - 帮我
+  - 我给
+  - 改后
+  - 机制
+  - 查机
+  - 次修
+  - 每次
+  - 给加
+  - 自动
+  - 自查
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0021_terminal-chat-self-check
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 'Version: v1.0 Date: 2026-05-31 Target repository: `Kidrage/AgentLab`
+      Purpose: Make AgentLab usable directly from Terminal without depending on an
+      external IDE chat window; add a rule-based local self-check gate; automatically
+      commit and push safe local changes to GitHub after successful modification.'
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0021_terminal-chat-self-check
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0021_terminal-chat-self-check
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0021_terminal-chat-self-check
+- task_id: task_0022
+  title: Attached Specification
+  summary: 让 agentlab 来执行 AgentLab Codex Full-Driver 操作链规范。
+  status: completed
+  resume_state: completed
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - CodexPromptGenerator
+  - Coder
+  - TesterAuditor
+  - Archivist
+  current_agent: Supervisor
+  current_stage: preflight
+  percent_complete: 15
+  last_event: ''
+  last_checkpoint: checkpoint_002_after_coder
+  query_terms:
+  - agent
+  - api
+  - codex
+  - config
+  - driver
+  - full
+  - handoff
+  - ui
+  - 一未
+  - 一真
+  - 下的
+  - 不能
+  - 个角
+  - 为单
+  - 为唯
+  - 了完
+  - 交接
+  - 令所
+  - 以便
+  - 件创
+  - 件夹
+  - 件必
+  - 件请
+  - 件隔
+  - 件验
+  - 任务
+  - 作为
+  - 作链
+  - 使任
+  - 供了
+  - 依赖
+  - 便后
+  - 保存
+  - 保留
+  - 修改
+  - 充需
+  - 入本
+  - 关命
+  - 关文
+  - 写入
+  - 决策
+  - 出合
+  - 分离
+  - 创建
+  - 到本
+  - 加模
+  - 加相
+  - 务可
+  - 勿修
+  - 勿将
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0022
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 让 agentlab 来执行 AgentLab Codex Full-Driver 操作链规范。
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: present
+    title: Plan
+    summary: 'Implement the AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC v1.0 specification
+      into the AgentLab project. This involves: 1. Creating the spec document at docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md
+      2. Creating 10 role templates under agent_templates/codex_full_driver/ 3. Creating
+      config/execution_modes.yml execution mode configuration 4. Creating agent_runtime/codex_artifact_validator.py
+      artifact validator 5. Creating agent_runtime/handoff_builder.py handoff packet
+      builder 6. Creating agent_runtime/api_continuation.py API continuation module
+      7. Updating agentlab.sh with codex-...'
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: present
+    title: Scout
+    summary: '| Directory | Purpose | |---|---| | agent_runtime/ | Core AgentLab Python
+      runtime — CLI entrypoint, agent runner, state store, config loader | | config/
+      | All AgentLab YAML configuration files (agent registry, models, routing, etc.)
+      | | agent_templates/ | Agent role prompt templates (supervisor, coder, etc.)
+      | | projects/ | Per-project working directories with runs/ and agent_docs/ |
+      | scripts/ | Utility shell scripts | | web_ui/ | AgentLab Dash-based web UI
+      | | docs/ | Documentation (currently empty — target for new spec doc) |'
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: present
+    title: Research
+    summary: 验证 AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC 规范的实施细节，确保所有需要创建的文件与规范要求一致。
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: present
+    title: Interface
+    summary: '| Interface | Type | Change | |---|---|---| | agentlab.sh (CLI wrapper)
+      | Shell script | Add 6 new codex-* commands | | agent_runtime/run_task.py (CLI)
+      | Python/typer | Add 6 new typer commands (codex_start, codex_status, codex_handoff,
+      codex_resume, codex_verify_artifacts, continue_with_api) | | config/execution_modes.yml
+      | YAML config | New config file defining 3 execution modes | | DRIVER_PROTOCOL.md
+      | Documentation | Add codex_full_driver mode definition, update mode switching
+      rules | | docs/ | New directory | New spec document | | agent_templates/ | New
+      directory/codex_full_driver/ | 1...'
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: present
+    title: Prompt
+    summary: Implement the AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC v1.0 into
+      the AgentLab project. Create all files and templates as specified in the supervisor
+      plan. This is a Codex Full-Driver Coder phase — all file creation and editing
+      must be performed now.
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: present
+    title: Implementation
+    summary: Codex Full-Driver Mode
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: present
+    title: Validation
+    summary: '| Command | Result | Output location | |---|---|---| | python3 -c "import
+      yaml; yaml.safe_load(open(''config/execution_modes.yml''))" | Pass | YAML parsed
+      successfully | | python3 -m py_compile agent_runtime/codex_artifact_validator.py
+      | Pass | syntax OK | | python3 -m py_compile agent_runtime/handoff_builder.py
+      | Pass | syntax OK | | python3 -m py_compile agent_runtime/api_continuation.py
+      | Pass | syntax OK | | python3 -m validate_artifacts (unit test) | Pass | Missing
+      reports 07,08,09 expected — not yet written | | ls -la agent_templates/codex_full_driver/
+      | Pass | 10 template files exist |...'
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: present
+    title: Audit
+    summary: 'Post-coder diff shows 10,206 bytes of changes across 18+ files: - **New
+      files**: docs/ spec doc, 10 role templates, config/execution_modes.yml, 3 Python
+      modules - **Modified files**: agentlab.sh (6 new case branches), DRIVER_PROTOCOL.md
+      (codex_full_driver section) - **No existing files deleted or renamed**'
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: present
+    title: Archive
+    summary: '- task_id: task_0022 - title: AgentLab Codex Full-Driver 操作链规范实施 - execution_mode:
+      codex_full_driver'
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: present
+    title: Handoff
+    summary: 'task_id: task_0022 project: AgentLab execution_mode: codex_full_driver
+      status: completed last_completed_agent: Archivist next_agent: null resume_available:
+      true'
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'task_id: task_0022 project: AgentLab execution: mode: codex_full_driver
+      driver: codex artifact_contract: strict route: agents: - Supervisor - RepoScout
+      - Researcher - InterfaceMapper - CodexPromptGenerator - Coder - TesterAuditor
+      - Archivist scope: allowed_edit_paths: - docs/ - agent_templates/codex_full_driver/
+      - config/execution_modes.yml - agent_runtime/codex_artifact_validator.py - agent_runtime/handoff_builder.py
+      - agent_runtime/api_continuation.py - agentlab.sh - DRIVER_PROTOCOL.md - projects/AgentLab/runs/task_0022/
+      forbidden_paths: - .env - secrets/ - .git/ - node_modules/ - .venv/ ...'
+    important: true
+  artifact_summary:
+    present: 12
+    missing: 0
+    important_missing: []
+  backup_status:
+    github_synced: true
+    github_commit: 10273cd
+    truenas_synced: false
+    last_sync_at: 2026-05-31 19:16:00+08:00
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0022
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0022
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0022
+- task_id: task_0023
+  title: Attached Specification
+  summary: 由 AgentLab 来添加 Task Discovery & Resume Index 功能。
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - chat
+  - codex
+  - config
+  - driver
+  - full
+  - resume
+  - task
+  - terminal
+  - ui
+  - web
+  - 不使
+  - 不依
+  - 不扫
+  - 不破
+  - 不调
+  - 中英
+  - 了完
+  - 令不
+  - 令命
+  - 令端
+  - 件任
+  - 件保
+  - 件和
+  - 任何
+  - 任务
+  - 何调
+  - 使用
+  - 供了
+  - 依赖
+  - 保存
+  - 健壮
+  - 全本
+  - 到本
+  - 功能
+  - 加功
+  - 务卡
+  - 务的
+  - 务索
+  - 化不
+  - 卡片
+  - 可行
+  - 可通
+  - 向量
+  - 命令
+  - 和损
+  - 和搜
+  - 地化
+  - 地可
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0023
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 由 AgentLab 来添加 Task Discovery & Resume Index 功能。
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0023
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0023
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0023

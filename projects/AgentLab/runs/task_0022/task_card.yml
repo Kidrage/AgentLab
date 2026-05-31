@@ -1,0 +1,32 @@
+version: 1
+project: AgentLab
+task_id: task_0022
+title: Attached Specification
+summary: 让 agentlab 来执行 AgentLab Codex Full-Driver 操作链规范。
+status: completed
+resume_state: completed
+can_resume: false
+percent_complete: 15
+current_agent: Supervisor
+current_stage: preflight
+last_event: ''
+last_event_at: ''
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0022
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0022
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0022
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0022
+artifact_summary:
+  present: 12
+  missing: 0
+  important_missing: []
+backup_status:
+  github_synced: true
+  github_commit: 10273cd
+  truenas_synced: false
+  last_sync_at: 2026-05-31 19:16:00+08:00

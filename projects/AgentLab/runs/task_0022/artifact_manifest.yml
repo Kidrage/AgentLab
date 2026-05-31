@@ -1,0 +1,134 @@
+version: 1
+project: AgentLab
+task_id: task_0022
+generated_at: '2026-05-31T11:23:15.740250+00:00'
+artifacts:
+- kind: request
+  agent: user
+  path: user_request.md
+  status: present
+  title: Request
+  summary: 让 agentlab 来执行 AgentLab Codex Full-Driver 操作链规范。
+  important: true
+- kind: plan
+  agent: Supervisor
+  path: 01_supervisor_plan.md
+  status: present
+  title: Plan
+  summary: 'Implement the AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC v1.0 specification
+    into the AgentLab project. This involves: 1. Creating the spec document at docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md
+    2. Creating 10 role templates under agent_templates/codex_full_driver/ 3. Creating
+    config/execution_modes.yml execution mode configuration 4. Creating agent_runtime/codex_artifact_validator.py
+    artifact validator 5. Creating agent_runtime/handoff_builder.py handoff packet
+    builder 6. Creating agent_runtime/api_continuation.py API continuation module
+    7. Updating agentlab.sh with codex-...'
+  important: true
+- kind: scout
+  agent: RepoScout
+  path: 02_reposcout_report.md
+  status: present
+  title: Scout
+  summary: '| Directory | Purpose | |---|---| | agent_runtime/ | Core AgentLab Python
+    runtime — CLI entrypoint, agent runner, state store, config loader | | config/
+    | All AgentLab YAML configuration files (agent registry, models, routing, etc.)
+    | | agent_templates/ | Agent role prompt templates (supervisor, coder, etc.) |
+    | projects/ | Per-project working directories with runs/ and agent_docs/ | | scripts/
+    | Utility shell scripts | | web_ui/ | AgentLab Dash-based web UI | | docs/ | Documentation
+    (currently empty — target for new spec doc) |'
+  important: false
+- kind: research
+  agent: Researcher
+  path: 03_research_notes.md
+  status: present
+  title: Research
+  summary: 验证 AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC 规范的实施细节，确保所有需要创建的文件与规范要求一致。
+  important: false
+- kind: interface
+  agent: InterfaceMapper
+  path: 04_interface_map.md
+  status: present
+  title: Interface
+  summary: '| Interface | Type | Change | |---|---|---| | agentlab.sh (CLI wrapper)
+    | Shell script | Add 6 new codex-* commands | | agent_runtime/run_task.py (CLI)
+    | Python/typer | Add 6 new typer commands (codex_start, codex_status, codex_handoff,
+    codex_resume, codex_verify_artifacts, continue_with_api) | | config/execution_modes.yml
+    | YAML config | New config file defining 3 execution modes | | DRIVER_PROTOCOL.md
+    | Documentation | Add codex_full_driver mode definition, update mode switching
+    rules | | docs/ | New directory | New spec document | | agent_templates/ | New
+    directory/codex_full_driver/ | 1...'
+  important: false
+- kind: prompt
+  agent: CodexPromptGen
+  path: 05_codex_prompt.md
+  status: present
+  title: Prompt
+  summary: Implement the AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC v1.0 into
+    the AgentLab project. Create all files and templates as specified in the supervisor
+    plan. This is a Codex Full-Driver Coder phase — all file creation and editing
+    must be performed now.
+  important: false
+- kind: implementation
+  agent: Coder
+  path: 06_implementation_report.md
+  status: present
+  title: Implementation
+  summary: Codex Full-Driver Mode
+  important: true
+- kind: validation
+  agent: TesterAuditor
+  path: 07_validation_report.md
+  status: present
+  title: Validation
+  summary: '| Command | Result | Output location | |---|---|---| | python3 -c "import
+    yaml; yaml.safe_load(open(''config/execution_modes.yml''))" | Pass | YAML parsed
+    successfully | | python3 -m py_compile agent_runtime/codex_artifact_validator.py
+    | Pass | syntax OK | | python3 -m py_compile agent_runtime/handoff_builder.py
+    | Pass | syntax OK | | python3 -m py_compile agent_runtime/api_continuation.py
+    | Pass | syntax OK | | python3 -m validate_artifacts (unit test) | Pass | Missing
+    reports 07,08,09 expected — not yet written | | ls -la agent_templates/codex_full_driver/
+    | Pass | 10 template files exist |...'
+  important: true
+- kind: audit
+  agent: TesterAuditor
+  path: 08_audit_report.md
+  status: present
+  title: Audit
+  summary: 'Post-coder diff shows 10,206 bytes of changes across 18+ files: - **New
+    files**: docs/ spec doc, 10 role templates, config/execution_modes.yml, 3 Python
+    modules - **Modified files**: agentlab.sh (6 new case branches), DRIVER_PROTOCOL.md
+    (codex_full_driver section) - **No existing files deleted or renamed**'
+  important: true
+- kind: archive
+  agent: Archivist
+  path: 09_archive_update.md
+  status: present
+  title: Archive
+  summary: '- task_id: task_0022 - title: AgentLab Codex Full-Driver 操作链规范实施 - execution_mode:
+    codex_full_driver'
+  important: false
+- kind: handoff
+  agent: system
+  path: handoff_packet.yml
+  status: present
+  title: Handoff
+  summary: 'task_id: task_0022 project: AgentLab execution_mode: codex_full_driver
+    status: completed last_completed_agent: Archivist next_agent: null resume_available:
+    true'
+  important: true
+- kind: plan
+  agent: system
+  path: workflow_plan.yml
+  status: present
+  title: Plan
+  summary: 'task_id: task_0022 project: AgentLab execution: mode: codex_full_driver
+    driver: codex artifact_contract: strict route: agents: - Supervisor - RepoScout
+    - Researcher - InterfaceMapper - CodexPromptGenerator - Coder - TesterAuditor
+    - Archivist scope: allowed_edit_paths: - docs/ - agent_templates/codex_full_driver/
+    - config/execution_modes.yml - agent_runtime/codex_artifact_validator.py - agent_runtime/handoff_builder.py
+    - agent_runtime/api_continuation.py - agentlab.sh - DRIVER_PROTOCOL.md - projects/AgentLab/runs/task_0022/
+    forbidden_paths: - .env - secrets/ - .git/ - node_modules/ - .venv/ ...'
+  important: true
+summary:
+  present: 12
+  missing: 0
+  important_missing: []

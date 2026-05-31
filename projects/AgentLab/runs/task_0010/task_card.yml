@@ -1,0 +1,37 @@
+version: 1
+project: AgentLab
+task_id: task_0010
+title: 任务：UrbanSound8K 城市声音事件分类模型原型（极简验证版）
+summary: 一个 .zip 包含 Jupyter Notebook 文件 .ipynb 和数据集来源说明
+status: running
+resume_state: unknown
+can_resume: false
+percent_complete: 0
+current_agent: null
+current_stage: null
+last_event: Archivist completed report.
+last_event_at: '2026-05-30T11:02:32.329903+00:00'
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0010
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0010
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0010
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0010
+artifact_summary:
+  present: 2
+  missing: 10
+  important_missing:
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

@@ -1,0 +1,106 @@
+version: 1
+project: AgentLab
+task_id: task_0012
+generated_at: '2026-05-31T11:23:15.395025+00:00'
+artifacts:
+- kind: request
+  agent: user
+  path: user_request.md
+  status: present
+  title: Request
+  summary: '调查 AgentLab 云端部署可行性：1) AgentLab 能否在云端运行？2) 这种多智能体架构是否有云端部署的可能性？请分析当前架构中与云端部署相关的设计（如
+    web_ui server 绑定 0.0.0.0、GitHub backup、project_config 中的 cloud runner: github_actions_workflow_dispatch），并给出修改方针，使
+    AgentLab 具备真正的云端部署能力。'
+  important: true
+- kind: plan
+  agent: Supervisor
+  path: 01_supervisor_plan.md
+  status: missing
+  title: Plan
+  summary: ''
+  important: true
+- kind: scout
+  agent: RepoScout
+  path: 02_reposcout_report.md
+  status: missing
+  title: Scout
+  summary: ''
+  important: false
+- kind: research
+  agent: Researcher
+  path: 03_research_notes.md
+  status: missing
+  title: Research
+  summary: ''
+  important: false
+- kind: interface
+  agent: InterfaceMapper
+  path: 04_interface_map.md
+  status: missing
+  title: Interface
+  summary: ''
+  important: false
+- kind: prompt
+  agent: CodexPromptGen
+  path: 05_codex_prompt.md
+  status: missing
+  title: Prompt
+  summary: ''
+  important: false
+- kind: implementation
+  agent: Coder
+  path: 06_implementation_report.md
+  status: missing
+  title: Implementation
+  summary: ''
+  important: true
+- kind: validation
+  agent: TesterAuditor
+  path: 07_validation_report.md
+  status: missing
+  title: Validation
+  summary: ''
+  important: true
+- kind: audit
+  agent: TesterAuditor
+  path: 08_audit_report.md
+  status: missing
+  title: Audit
+  summary: ''
+  important: true
+- kind: archive
+  agent: Archivist
+  path: 09_archive_update.md
+  status: missing
+  title: Archive
+  summary: ''
+  important: false
+- kind: handoff
+  agent: system
+  path: handoff_packet.yml
+  status: missing
+  title: Handoff
+  summary: ''
+  important: true
+- kind: plan
+  agent: system
+  path: workflow_plan.yml
+  status: present
+  title: Plan
+  summary: 'project: AgentLab task_id: task_0012 agentlab_root: /Users/saintpeter/Desktop/AgentLab
+    project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab repo_path:
+    /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/repo run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0012
+    user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0012/user_request.md
+    execution_backend: codex route: task_size: medium agents: - Supervisor - RepoScout
+    - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
+    always defines scope, token budge...'
+  important: true
+summary:
+  present: 2
+  missing: 10
+  important_missing:
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
