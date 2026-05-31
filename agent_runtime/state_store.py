@@ -1,4 +1,4 @@
-"""Task state storage for AgentLab CLI."""
+"""Task state storage for AgentLab CLI — v3 with atomic writes."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 
 import yaml
 
+from atomic_io import atomic_write_text, atomic_write_yaml
 from schemas import TaskState
 
 
@@ -30,7 +31,7 @@ def save_state(run_dir: Path, state: TaskState) -> Path:
     run_dir.mkdir(parents=True, exist_ok=True)
     state.updated_at = utc_now()
     path = state_path(run_dir)
-    path.write_text(yaml.safe_dump(state.model_dump(mode="json"), sort_keys=False), encoding="utf-8")
+    atomic_write_yaml(path, state.model_dump(mode="json"))
     return path
 
 
@@ -50,5 +51,16 @@ def mark_agent_completed(run_dir: Path, project: str, task_id: str, agent_name: 
     state.status = "running"
     state.reports[agent_name] = str(report_path)
     state.last_event = f"{agent_name} completed report."
+    save_state(run_dir, state)
+    return state
+
+
+def mark_failed_recoverable(run_dir: Path, project: str, task_id: str, reason: str, failed_agent: str | None = None) -> TaskState:
+    """Mark task as failed_recoverable with context for recovery."""
+    state = load_state(run_dir, project, task_id)
+    state.status = "failed_recoverable"
+    if failed_agent:
+        state.current_agent = failed_agent
+    state.last_event = reason
     save_state(run_dir, state)
     return state
