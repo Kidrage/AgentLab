@@ -1,0 +1,57 @@
+version: 1
+mode: standard
+
+status_policy:
+  allow_push_on: [pass]
+  block_push_on: [fail]
+  warn_requires_confirmation: true
+
+path_policy:
+  blocked_patterns:
+    - ".env"
+    - ".env.*"
+    - "*.key"
+    - "*.pem"
+    - "*.p12"
+    - "*.pfx"
+    - "__pycache__/**"
+    - ".venv/**"
+    - "node_modules/**"
+    - ".DS_Store"
+    - ".agentlab_runtime/**"
+  allowed_large_file_patterns: []
+
+size_policy:
+  max_single_file_mb: 25
+  max_total_diff_mb: 50
+
+secret_scan:
+  enabled: true
+  max_file_mb: 5
+  redaction: true
+  patterns:
+    - "sk-[A-Za-z0-9_-]{20,}"
+    - "AKIA[0-9A-Z]{16}"
+    - "ghp_[A-Za-z0-9_]{20,}"
+    - "github_pat_[A-Za-z0-9_]{20,}"
+    - "AIza[0-9A-Za-z\\-_]{35}"
+    - "-----BEGIN PRIVATE KEY-----"
+    - "api[_-]?key\\s*[:=]\\s*[\"'][^\"']{12,}[\"']"
+    - "token\\s*[:=]\\s*[\"'][^\"']{12,}[\"']"
+    - "password\\s*[:=]\\s*[\"'][^\"']{8,}[\"']"
+
+syntax_checks:
+  python_py_compile: true
+  shell_bash_n: true
+  yaml_parse: true
+  git_diff_check: true
+
+report_completeness:
+  enabled: true
+  require_implementation_report_for_code_changes: true
+  require_validation_report_for_source_changes: false
+
+test_commands:
+  - name: compile_runtime
+    command: "python -m compileall agent_runtime"
+    required: true
