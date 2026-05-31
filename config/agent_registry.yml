@@ -1,16 +1,69 @@
-version: 1
+version: 2
+
+# ─── AgentLab Agent Registry — 分层模型绑定 v2.0 ──────────────────────────
+#
+# 每个 agent 绑定到对应的 model_profile (见 model_profiles.yml):
+#
+#   T1 大脑: Supervisor           → brain_coordinator (deepseek-v4-pro)
+#                                   brain_coordinator_l1 (qwen3.6-plus)
+#                                   brain_coordinator_maxq (deepseek-v4-pro + thinking)
+#                                   brain_coordinator_frugal (qwen3.6-flash)
+#   T2 感知: RepoScout            → perception_reposcout (qwen3.6-plus)
+#                                   perception_reposcout_l3 (qwen3.7-max)
+#   T2 感知: InterfaceMapper      → perception_interface (qwen3.6-plus)
+#   T2 感知: Researcher           → perception_research (qwen3.6-flash)
+#   T3 执行: Coder                → execution_coder_api (qwen3-coder-next)
+#                                   execution_coder_maxq (deepseek-v4-pro)
+#                                   execution_coder_local (本地 LLM)
+#   T3 执行: CodexPromptGenerator → execution_codex_prompt (qwen3.6-flash)
+#   T4 审核: TesterAuditor        → audit_tester (qwen3.6-flash)
+#   T4 审核: Verifier             → audit_verifier (qwen3.6-flash)
+#   T5 归档: Archivist            → archive_archivist (qwen3.6-flash)
+#
+#  预算模式: 🧠brain_allocated / ⚡max_quality / 💰frugal
+#  项目体量: L1轻量 / L2标准 / L3重型
+#  runtime 根据 (budget_mode, project_size) 选择对应的 profile 后缀.
+#
+#  外部 IDE 窗口:
+#   Coder 可选绑定 execution_external_ide profile.
+#   AgentLab runtime 生成 handoff prompt 后交由外部 AI 执行.
+#   外部 AI 的可编辑窗口: 自由选择实现方式、代码风格、算法,
+#   但必须遵守 Supervisor 批准的 scope 和 interface 契约.
+# ──────────────────────────────────────────────────────────────────────────
 
 registry_policy:
-  description: Agents are configured here first; markdown templates define role voice and report shape.
+  description: >
+    Agents are configured here first; markdown templates define role voice
+    and report shape.  v2.0 新增 budget_mode 和 project_size 动态选择.
   default_source_write_policy: never_without_supervisor_plan
   default_shell_policy: inspect_only
   default_memory_policy: write_reports_under_active_run
+  budget_mode: brain_allocated  # 默认，可由 runtime 覆写
+  project_size: L2              # 默认，可由 Supervisor 判断后覆写
 
 agents:
+
+  # ══════════════════════════════════════════════════════════════════════
+  # T1 大脑层 (Brain Tier)
+  # ══════════════════════════════════════════════════════════════════════
+
   Supervisor:
     template_path: agent_templates/supervisor.md
-    role: Coordinates scope, routing, token budgets, stop rules, and handoffs.
-    model_profile: coordinator
+    role: >
+      任务规划、路由决策、范围锁定、token 预算控制、项目体量判断 (L1/L2/L3)、
+      预算模式选择与执行、合成。
+    model_profile: brain_coordinator  # deepseek-v4-pro (L2/L3 默认)
+    model_tier: T1
+    # 按预算模式 + 项目体量的动态映射 (runtime 选择):
+    profile_mapping:
+      brain_allocated:
+        L1: brain_coordinator_l1       # qwen3.6-plus
+        L2: brain_coordinator           # deepseek-v4-pro
+        L3: brain_coordinator           # deepseek-v4-pro
+      max_quality:
+        any: brain_coordinator_maxq     # deepseek-v4-pro + Thinking
+      frugal:
+        any: brain_coordinator_frugal   # qwen3.6-flash
     can_edit_source: false
     can_run_shell: false
     can_write_agent_docs: false
@@ -20,14 +73,31 @@ agents:
       - agent_docs/00_CONTEXT_PACK.md
       - agent_docs/01_REPO_MAP.md
       - config/execution_policy.yml
+      - config/routing_rules.yml
       - runs/task_xxxx/user_request.md
     required_outputs:
       - runs/task_xxxx/supervisor_plan.md
+    required_metadata:
+      - budget_mode
+      - project_size
+
+  # ══════════════════════════════════════════════════════════════════════
+  # T2 感知层 (Perception Tier)
+  # ══════════════════════════════════════════════════════════════════════
 
   RepoScout:
     template_path: agent_templates/reposcout.md
-    role: Reads repository structure and reports relevant context without changing files.
-    model_profile: scout
+    role: 仓库结构阅读、代码上下文提取、依赖关系映射.
+    model_profile: perception_reposcout  # qwen3.6-plus (L2 默认)
+    model_tier: T2
+    profile_mapping:
+      brain_allocated:
+        L2: perception_reposcout          # qwen3.6-plus
+        L3: perception_reposcout_l3       # qwen3.7-max
+      max_quality:
+        any: perception_reposcout_maxq    # qwen3.7-max
+      frugal:
+        any: perception_reposcout_frugal  # qwen3.6-flash
     can_edit_source: false
     can_run_shell: true
     can_write_agent_docs: false
@@ -36,21 +106,19 @@ agents:
     required_outputs:
       - runs/task_xxxx/reposcout_report.md
 
-  Researcher:
-    template_path: agent_templates/researcher.md
-    role: Gathers current external or reference context when needed.
-    model_profile: research
-    can_edit_source: false
-    can_run_shell: false
-    can_browse: true
-    source_write_policy: never
-    required_outputs:
-      - runs/task_xxxx/research_notes.md
-
   InterfaceMapper:
     template_path: agent_templates/interface_mapper.md
-    role: Tracks contracts across UI, algorithm, metadata, I/O, and integration layers.
-    model_profile: architect
+    role: 接口契约分析、跨层边界追踪、架构敏感审查.
+    model_profile: perception_interface  # qwen3.6-plus (L2 默认)
+    model_tier: T2
+    profile_mapping:
+      brain_allocated:
+        L2: perception_interface          # qwen3.6-plus
+        L3: perception_interface_l3       # qwen3.7-max
+      max_quality:
+        any: perception_interface_maxq    # qwen3.7-max
+      frugal:
+        any: perception_interface_frugal  # qwen3.6-flash (通常跳过)
     can_edit_source: false
     can_run_shell: true
     can_write_agent_docs: false
@@ -59,40 +127,79 @@ agents:
     required_outputs:
       - runs/task_xxxx/interface_map.md
 
+  Researcher:
+    template_path: agent_templates/researcher.md
+    role: 外部资料搜索、引用汇总、信息合成.
+    model_profile: perception_research  # qwen3.6-flash (默认)
+    model_tier: T2
+    profile_mapping:
+      brain_allocated:
+        L2: perception_research           # qwen3.6-flash
+        L3: perception_research_l3        # qwen3.6-plus
+      max_quality:
+        any: perception_research_maxq     # qwen3.6-plus
+      frugal:
+        any: null                         # 跳过
+    can_edit_source: false
+    can_run_shell: false
+    can_browse: true
+    source_write_policy: never
+    required_outputs:
+      - runs/task_xxxx/research_notes.md
+
+  # ══════════════════════════════════════════════════════════════════════
+  # T3 执行层 (Execution Tier)
+  # ══════════════════════════════════════════════════════════════════════
+
   Coder:
     template_path: agent_templates/coder.md
-    role: Codex Plus execution lane for real code edits, file changes, and project commands.
-    model_profile: external_ide_coder
+    role: >
+      代码实现与文件编辑。默认通过 API 自动编码 (qwen3-coder-next).
+      系统调用 LLM API 生成 AGENTLAB_EDIT 结构化编辑块,
+      然后由 patch_applicator 应用到文件系统.
+      外部 IDE AI 窗口为可选增强:
+        接入方式: export AGENTLAB_EXTERNAL_CODER=1
+        或在 run_dir 下写入 EXTERNAL_CODER_READY 信号文件.
+        接入后 AgentLab 跳过 API 编码, 生成完整 handoff prompt,
+        交由外部 AI (Codex/Claude/Cline) 执行.
+        外部 AI 的可编辑窗口: 自由选择实现方式/代码风格/算法/库,
+        但必须遵守 Supervisor 批准的 scope 和 interface 契约.
+      本地 LLM (Frugal 模式): 优先使用 Ollama/vLLM 本地模型.
+    model_profile: execution_coder_api  # qwen3-coder-next (默认)
+    model_tier: T3
+    profile_mapping:
+      brain_allocated:
+        any: execution_coder_api         # qwen3-coder-next
+      max_quality:
+        any: execution_coder_maxq        # deepseek-v4-pro
+      frugal:
+        with_local: execution_coder_local # 本地 LLM (优先)
+        no_local: execution_coder_api    # qwen3-coder-next (fallback)
+    external_window: false
+    external_window_activation:
+      env_var: AGENTLAB_EXTERNAL_CODER
+      signal_file: EXTERNAL_CODER_READY
     can_edit_source: true
     can_run_shell: true
     can_write_agent_docs: false
     source_write_policy: supervisor_approved_files_only
     shell_policy: non_destructive_only
-    execution_owner: codex_plus
-    auxiliary_model_policy: deepseek_allowed_for_source_edits_when_codex_unavailable
-    quota_policy: ask_user_before_qwen_api_coding_or_pause
-    quota_fallback:
-      when: codex_quota_exhausted
-      choices:
-        - pause_until_codex_refresh
-        - switch_to_deepseek_brain_qwen_coder_api
-        - switch_to_deepseek_api_coder
-      api_fallback_provider: qwen
-      api_fallback_profile: qwen_coder_aux
-      api_fallback_deepseek_provider: deepseek
-      api_fallback_deepseek_profile: deepseek_coder
-      automatic_patch_application: false
+    execution_owner: qwen-coder
+    secondary_executor: deepseek-coder
+    local_executor: qwen-local
     allowed_backends:
-      - codex
-      - qwen_api
-      - deepseek_api
+      - api_qwen_coder        # qwen3-coder-next — 默认主力
+      - api_deepseek_coder    # deepseek-v4-pro — 全量模式
+      - local_llm             # 本地 Ollama/vLLM — Frugal 模式
+      - external_ide          # 外部 IDE AI — 需激活信号
     required_outputs:
       - runs/task_xxxx/implementation_report.md
 
   CodexPromptGenerator:
     template_path: agent_templates/coder.md
-    role: Uses DeepSeek to draft concise implementation prompts for Codex Plus.
-    model_profile: codex_prompt
+    role: 用轻量模型生成 Codex Plus / 外部 IDE AI 的实现引导 prompt.
+    model_profile: execution_codex_prompt  # qwen3.6-flash
+    model_tier: T3
     can_edit_source: false
     can_run_shell: false
     can_write_agent_docs: false
@@ -100,10 +207,24 @@ agents:
     required_outputs:
       - runs/task_xxxx/codex_prompt.md
 
+  # ══════════════════════════════════════════════════════════════════════
+  # T4 审核层 (Audit Tier)
+  # ══════════════════════════════════════════════════════════════════════
+
   TesterAuditor:
     template_path: agent_templates/tester_auditor.md
-    role: Validates actual behavior and audits diffs before work is accepted.
-    model_profile: auditor
+    role: Diff 审查、验证解读、风险发现、行为校验.
+    model_profile: audit_tester  # qwen3.6-flash (L1/L2 默认)
+    model_tier: T4
+    profile_mapping:
+      brain_allocated:
+        L1: audit_tester                 # qwen3.6-flash (可选)
+        L2: audit_tester                 # qwen3.6-flash
+        L3: audit_tester_l3              # qwen3.6-plus
+      max_quality:
+        any: audit_tester_maxq           # qwen3.7-max
+      frugal:
+        any: audit_tester_frugal         # qwen3.6-flash
     can_edit_source: false
     can_run_shell: true
     can_write_agent_docs: false
@@ -113,21 +234,20 @@ agents:
       - runs/task_xxxx/validation_report.md
       - runs/task_xxxx/audit_report.md
 
-  Archivist:
-    template_path: agent_templates/archivist.md
-    role: Updates project memory and long-run continuity records after validation.
-    model_profile: archivist
-    can_edit_source: false
-    can_run_shell: false
-    can_write_agent_docs: true
-    source_write_policy: never
-    required_outputs:
-      - runs/task_xxxx/archive_update.md
-
   Verifier:
     template_path: agent_templates/verifier.md
-    role: Verifies task output matches Supervisor expectations. Checks behavioral completeness and agent handoff gaps.
-    model_profile: auditor
+    role: 输出匹配检查、行为完整性验证、agent 交接缺口检测.
+    model_profile: audit_verifier  # qwen3.6-flash (L2 默认)
+    model_tier: T4
+    profile_mapping:
+      brain_allocated:
+        L1: null                         # 跳过
+        L2: audit_verifier               # qwen3.6-flash
+        L3: audit_verifier_l3            # qwen3.6-plus
+      max_quality:
+        any: audit_verifier_maxq         # qwen3.7-max
+      frugal:
+        any: null                         # 跳过
     can_edit_source: false
     can_run_shell: true
     can_write_agent_docs: false
@@ -140,3 +260,28 @@ agents:
       - runs/task_xxxx/interface_map.md
     required_outputs:
       - runs/task_xxxx/verification_report.md
+
+  # ══════════════════════════════════════════════════════════════════════
+  # T5 归档层 (Archive Tier)
+  # ══════════════════════════════════════════════════════════════════════
+
+  Archivist:
+    template_path: agent_templates/archivist.md
+    role: 项目记忆压缩、连续性更新、长期记录维护.
+    model_profile: archive_archivist  # qwen3.6-flash (L2 默认)
+    model_tier: T5
+    profile_mapping:
+      brain_allocated:
+        L1: null                         # L1 不归档
+        L2: archive_archivist            # qwen3.6-flash
+        L3: archive_archivist_l3         # qwen3.6-plus
+      max_quality:
+        any: archive_archivist_maxq      # qwen3.6-plus
+      frugal:
+        any: null                         # 不归档
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: true
+    source_write_policy: never
+    required_outputs:
+      - runs/task_xxxx/archive_update.md

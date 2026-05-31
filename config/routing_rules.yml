@@ -1,10 +1,165 @@
-version: 1
+version: 2
 
 strategy: smallest_safe_route
+
+# ══════════════════════════════════════════════════════════════════════
+# 项目体量分级 (v2.0 新增)
+# ══════════════════════════════════════════════════════════════════════
+
+project_classification:
+  enabled: true
+  default_size: L2  # 无法判断时默认标准
+
+  L1_keywords:
+    - fix
+    - bug
+    - typo
+    - rename
+    - tweak
+    - adjust
+    - patch
+    - "one line"
+    - single
+    - trivial
+    - minor
+    - "simple change"
+    - "quick fix"
+    - "add flag"
+    - "add option"
+    - "add parameter"
+    - "update readme"
+    - "fix formatting"
+    - "fix lint"
+    - "convert format"
+    - csv
+    - json
+    - yaml
+    - "log format"
+    - "error message"
+    - "config change"
+    - "env var"
+    - "comment update"
+    - 修复
+    - 改个
+    - 小修改
+    - 加个参数
+    - 加个选项
+    - 改个名字
+    - 改个报错
+    - 格式转换
+    - 配置修改
+
+  L2_keywords:
+    - feature
+    - implementation
+    - add
+    - create
+    - module
+    - component
+    - endpoint
+    - api
+    - route
+    - handler
+    - controller
+    - service
+    - middleware
+    - ui
+    - page
+    - view
+    - widget
+    - refactor
+    - restructure
+    - rewrite
+    - "data model"
+    - schema
+    - validation
+    - authentication
+    - authorization
+    - database
+    - storage
+    - cache
+    - queue
+    - logging
+    - monitoring
+    - test
+    - deploy
+    - docker
+    - ci/cd
+    - pipeline
+    - 实现
+    - 重构
+    - 功能
+    - 模块
+    - 接口
+    - 页面
+    - 组件
+    - 测试
+    - 部署
+    - 认证
+    - 权限
+    - 数据库
+    - 缓存
+    - 队列
+
+  L3_keywords:
+    - architecture
+    - platform
+    - system
+    - infrastructure
+    - microservice
+    - micro-service
+    - plugin
+    - extensio
+    - framework
+    - multi-module
+    - cross-module
+    - "cross cutting"
+    - migration
+    - upgrade
+    - breaking
+    - security
+    - compliance
+    - audit
+    - governance
+    - "design system"
+    - "from scratch"
+    - "greenfield"
+    - "full stack"
+    - orchestration
+    - distributed
+    - "load balance"
+    - scaling
+    - multi-tenant
+    - "long term"
+    - "production ready"
+    - "mission critical"
+    - "data loss"
+    - 架构
+    - 平台
+    - 系统
+    - 微服务
+    - 插件
+    - 框架
+    - 迁移
+    - 升级
+    - 安全加固
+    - 合规
+    - 长期
+    - 多租户
+    - 分布式
+    - 全栈
+
+# ══════════════════════════════════════════════════════════════════════
+# 任务大小阈值
+# ══════════════════════════════════════════════════════════════════════
 
 task_size_thresholds:
   medium_characters: 800
   large_characters: 2500
+
+# ══════════════════════════════════════════════════════════════════════
+# Agent 执行顺序
+# ══════════════════════════════════════════════════════════════════════
 
 agent_order:
   - Supervisor
@@ -13,43 +168,79 @@ agent_order:
   - InterfaceMapper
   - Coder
   - TesterAuditor
+  - Verifier
   - Archivist
 
+# ══════════════════════════════════════════════════════════════════════
+# 路由配置 (更新 v2.0 — 集成项目体量)
+# ══════════════════════════════════════════════════════════════════════
+
 routes:
+
+  # ── L1 轻量项目 ────────────────────────────────────────────────────
   small_task:
-    - Supervisor
-    - Coder
-    - TesterAuditor
+    size: L1
+    description: 脚本修改/Bug修复/单文件调整
+    agents:
+      - Supervisor    # brain_coordinator_l1 → qwen3.6-plus
+      - Coder          # execution_coder_api → qwen3-coder-next
+      # TesterAuditor 可选，由 Supervisor 决定
 
+  # ── L2 标准项目 — 基础版 (无接口/无外部资料需求) ──────────────────
   medium_task:
-    - Supervisor
-    - RepoScout
-    - Coder
-    - TesterAuditor
-    - Archivist
+    size: L2
+    description: 功能模块开发/跨文件实现
+    agents:
+      - Supervisor     # brain_coordinator → deepseek-v4-pro
+      - RepoScout      # perception_reposcout → qwen3.6-plus
+      - Coder          # execution_coder_api → qwen3-coder-next
+      - TesterAuditor  # audit_tester → qwen3.6-flash
+      - Verifier       # audit_verifier → qwen3.6-flash
+      - Archivist      # archive_archivist → qwen3.6-flash
 
+  # ── L2 标准项目 — 接口敏感 ────────────────────────────────────────
   interface_sensitive_task:
-    - Supervisor
-    - RepoScout
-    - InterfaceMapper
-    - Coder
-    - TesterAuditor
-    - Archivist
+    size: L2
+    description: 涉及API/接口/契约变更
+    agents:
+      - Supervisor
+      - RepoScout
+      - InterfaceMapper  # perception_interface → qwen3.6-plus
+      - Coder
+      - TesterAuditor
+      - Verifier
+      - Archivist
 
+  # ── L2 标准项目 — 外部资料敏感 ────────────────────────────────────
   research_sensitive_task:
-    - Supervisor
-    - Researcher
-    - Coder
-    - TesterAuditor
+    size: L2
+    description: 需要搜索外部资料/文档/竞品
+    agents:
+      - Supervisor
+      - Researcher       # perception_research → qwen3.6-flash
+      - Coder
+      - TesterAuditor
+      # InterfaceMapper 按需
+      - Verifier
+      - Archivist
 
+  # ── L3 重型项目 — 全流程 ──────────────────────────────────────────
   large_or_risky_task:
-    - Supervisor
-    - RepoScout
-    - Researcher
-    - InterfaceMapper
-    - Coder
-    - TesterAuditor
-    - Archivist
+    size: L3
+    description: 架构重构/多模块系统/安全关键 → 全流程所有Agent
+    agents:
+      - Supervisor       # brain_coordinator → deepseek-v4-pro
+      - RepoScout        # perception_reposcout_l3 → qwen3.7-max
+      - Researcher       # perception_research_l3 → qwen3.6-plus
+      - InterfaceMapper  # perception_interface_l3 → qwen3.7-max
+      - Coder            # execution_coder_api → qwen3-coder-next
+      - TesterAuditor    # audit_tester_l3 → qwen3.6-plus
+      - Verifier         # audit_verifier_l3 → qwen3.6-plus
+      - Archivist        # archive_archivist_l3 → qwen3.6-plus
+
+# ══════════════════════════════════════════════════════════════════════
+# 关键词提示 (决定路由)
+# ══════════════════════════════════════════════════════════════════════
 
 keyword_hints:
   research:
@@ -90,7 +281,7 @@ keyword_hints:
     - database
     - migration
     - ui
-    - file format
+    - "file format"
 
   large_or_risky:
     - architecture
@@ -102,10 +293,36 @@ keyword_hints:
     - performance
     - security
     - release
-    - data loss
+    - "data loss"
+
+# ══════════════════════════════════════════════════════════════════════
+# 跳过规则
+# ══════════════════════════════════════════════════════════════════════
 
 skip_rules:
-  Researcher: Skip unless external facts, current information, competitive analysis, vendor docs, standards, pricing, or regulation lookup is required. Include Researcher when the user asks about competitors, alternatives, surveys, benchmarks, or industry analysis.
-  InterfaceMapper: Skip unless a boundary, API, schema, I/O, metadata, or integration may change.
-  RepoScout: Skip only for narrow tasks with obvious target files.
-  Archivist: Skip for small tasks unless the project memory should be updated.
+  Researcher: >
+    Skip unless external facts, current information, competitive analysis,
+    vendor docs, standards, pricing, or regulation lookup is required.
+    Include Researcher when the user asks about competitors, alternatives,
+    surveys, benchmarks, or industry analysis.
+
+  InterfaceMapper: >
+    Skip unless a boundary, API, schema, I/O, metadata, or integration may change.
+    L1/L2 without interface keywords: skip. L3: always include.
+
+  RepoScout: >
+    Skip only for L1 narrow tasks with obvious target files.
+    L2: include. L3: include (deep scan with max model).
+
+  Archivist: >
+    L1: skip. L2: include (flash). L3: include (plus).
+    Frugal mode: always skip.
+
+  Verifier: >
+    L1: skip. L2: include (flash). L3: include (plus).
+    Frugal mode: skip.
+
+  TesterAuditor: >
+    L1: optional (flash, Supervisor decides).
+    L2: include (flash). L3: include (plus).
+    Frugal mode: include (flash) for basic validation.

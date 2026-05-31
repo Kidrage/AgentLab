@@ -1,0 +1,137 @@
+schema_version: 3
+last_verified: "2026-05-31"
+valid_until_days: 14
+
+# ─── AgentLab Model Catalog v3 ─────────────────────────────────────────
+# 事实源：模型能力、定价、provider 信息集中管理。
+# 每 14 天由 runtime 或人工刷新。不在白皮书或注释中硬编码价格。
+# Provider 划分：deepseek_official / openrouter / dashscope_cn / dashscope_intl
+# ────────────────────────────────────────────────────────────────────────
+
+models:
+  deepseek_v4_flash:
+    provider: deepseek_official
+    model_id: deepseek-v4-flash
+    context_window: 1000000
+    max_output: 384000
+    strengths: [cheap, fast, long_context, routing, summarization, tool_calls]
+    weaknesses: [less_deep_than_pro]
+    suitable_agents: [frugal_supervisor, frugal_auditor, light_verifier, prompt_generator]
+    pricing:
+      currency: USD
+      input_cache_hit_per_m: 0.0028
+      input_cache_miss_per_m: 0.14
+      output_per_m: 0.28
+    notes: >
+      Thinking/non-thinking 均支持。低风险任务高性价比首选。
+      AgentLab Frugal 模式 Supervisor / TesterAuditor / 轻量 Verifier 推荐。
+
+  deepseek_v4_pro:
+    provider: deepseek_official
+    model_id: deepseek-v4-pro
+    context_window: 1000000
+    max_output: 384000
+    strengths: [planning, reasoning, risk_analysis, long_context, coding_agent]
+    weaknesses: [slower_than_flash]
+    suitable_agents: [supervisor, auditor, verifier, maxq_coder]
+    pricing:
+      currency: USD
+      input_cache_hit_per_m: 0.003625
+      input_cache_miss_per_m: 0.435
+      output_per_m: 0.87
+    notes: >
+      AgentLab L2/L3 Balanced 大脑层默认。MaxQ 模式规划+审查主力。
+      BenchLM: Agentic 74, Coding 75.9 — 在 coding/agentic 维度优于 Qwen3.7-Max。
+
+  qwen3_7_max_openrouter:
+    provider: openrouter
+    model_id: qwen/qwen3.7-max
+    context_window: 1000000
+    strengths: [repo_understanding, coding_agents, chinese, long_context, multimodal]
+    weaknesses: [expensive, verbose_output]
+    suitable_agents: [reposcout_large, interface_mapper_large, perception_maxq]
+    pricing:
+      currency: USD
+      input_per_m: 1.25
+      output_per_m: 3.75
+    notes: >
+      OpenRouter 50% off 限时价（至 2026-06-22）。verbose 倾向导致输出偏多，
+      实际 agent 调用成本可能更高。BenchLM 综合 92，Knowledge 71.2 — 知识/通用最强。
+      适合 L3 感知层、中文仓库理解、复杂接口分析。
+
+  qwen3_6_plus_openrouter:
+    provider: openrouter
+    model_id: qwen/qwen3.6-plus
+    context_window: 1000000
+    strengths: [balanced, repo_understanding, chinese, multimodal, interface_analysis]
+    weaknesses: [not_top_tier_reasoning]
+    suitable_agents: [reposcout, interface_mapper, researcher, auditor_balanced]
+    pricing:
+      currency: USD
+      input_per_m: 0.325
+      output_per_m: 1.95
+    notes: >
+      Balanced 感知层主力。适合 L2 RepoScout / InterfaceMapper / 中等审查。
+      性价比均衡，但不一定比 DeepSeek V4 Pro 便宜。
+
+  qwen3_6_flash_openrouter:
+    provider: openrouter
+    model_id: qwen/qwen3.6-flash
+    context_window: 1000000
+    strengths: [fast, cheap, batch, summary, light_audit]
+    weaknesses: [weak_reasoning, no_deep_planning]
+    suitable_agents: [frugal_reposcout, frugal_interface, researcher_light, archivist_light]
+    pricing:
+      currency: USD
+      input_per_m: 0.1875
+      output_per_m: 1.125
+    notes: >
+      Frugal 模式轻量感知/审核。输出价高于 DeepSeek Flash ($0.28)，实际场景酌情选用。
+
+  qwen3_coder_next_openrouter:
+    provider: openrouter
+    model_id: qwen/qwen3-coder-next
+    context_window: 262000
+    strengths: [coding_agent, local_workflow, cheap_coder, code_generation]
+    weaknesses: [shorter_context, no_planning, no_multimodal]
+    suitable_agents: [coder, frugal_coder]
+    pricing:
+      currency: USD
+      input_per_m: 0.11
+      output_per_m: 0.80
+    notes: >
+      默认 API Coder。代码生成专精，适合生成 patch / diff / implementation_notes。
+      非唯一 Coder 选择 — 外部 IDE AI / Codex / Claude 可通过 handoff 接入。
+
+# ── Provider 配置 ──────────────────────────────────────────────────────
+
+providers:
+  deepseek_official:
+    display: DeepSeek 官方 API
+    currency: USD
+    base_url: https://api.deepseek.com
+    auth: env:DEEPSEEK_API_KEY
+    notes: 当前 V4 Flash/Pro 成本非常有竞争力。
+
+  openrouter:
+    display: OpenRouter 多模型入口
+    currency: USD
+    base_url: https://openrouter.ai/api/v1
+    auth: env:OPENROUTER_API_KEY
+    notes: 价格和可用性以 OpenRouter 当前注册表为准。适合多模型切换。
+
+  dashscope_cn:
+    display: DashScope 中国内地（北京）
+    currency: CNY
+    region: cn-beijing
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    auth: env:DASHSCOPE_API_KEY
+    notes: 可能有免费额度，适合大陆网络与阿里云生态。
+
+  dashscope_intl:
+    display: DashScope 国际（新加坡）
+    currency: CNY
+    region: singapore
+    base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+    auth: env:DASHSCOPE_API_KEY
+    notes: 无免费额度，适合非中国内地部署。
