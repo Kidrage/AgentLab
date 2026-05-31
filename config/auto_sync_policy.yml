@@ -1,0 +1,46 @@
+version: 1
+
+defaults:
+  enabled: true
+  mode: guarded_auto_push
+  remote: origin
+  branch: main
+  require_self_check: true
+  push_on_self_check_status: [pass]
+  require_confirmation_for_warn: true
+  allow_force_push: false
+  allow_push_with_untracked_blocked_files: false
+  commit_message_prefix: "AgentLab"
+
+safety:
+  never_push_if_secret_detected: true
+  never_push_if_yaml_invalid: true
+  never_push_if_python_syntax_invalid: true
+  never_push_if_shell_syntax_invalid: true
+  never_push_if_state_corrupt: true
+  never_push_if_large_file_blocked: true
+
+staging:
+  mode: all_allowed_changes
+  exclude_patterns:
+    - ".env"
+    - ".env.*"
+    - "*.key"
+    - "*.pem"
+    - "*.p12"
+    - "*.pfx"
+    - "__pycache__/**"
+    - ".venv/**"
+    - "node_modules/**"
+    - ".DS_Store"
+    - ".agentlab_runtime/**"
+
+on_success:
+  write_sync_report: true
+  update_project_sync_ledger: true
+  update_state_last_event: true
+
+on_failure:
+  write_sync_errors: true
+  do_not_commit: true
+  do_not_push: true

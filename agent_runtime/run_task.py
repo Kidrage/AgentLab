@@ -1111,6 +1111,107 @@ def providers(
             console.print(f"\n[green]No open incidents for {task_id}[/green]")
 
 
+@app.command("chat")
+def chat(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, help="Attach to existing task."),
+    new_task: bool = typer.Option(False, help="Start in new-task mode."),
+    execute: bool = typer.Option(False, help="Allow API calls."),
+    no_auto_sync: bool = typer.Option(False, help="Disable auto-push."),
+) -> None:
+    """Start Terminal chat REPL."""
+    agentlab_root, project_name = runtime_context(project)
+    from terminal_chat import chat_main
+    chat_main(
+        agentlab_root=str(agentlab_root),
+        project=project_name,
+        task_id=task_id,
+        new_task=new_task,
+        execute=execute,
+        auto_sync=not no_auto_sync,
+    )
+
+
+@app.command("check")
+def check_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    strict: bool = typer.Option(False, help="Treat warnings as failures."),
+    json_output: bool = typer.Option(False, help="Output JSON."),
+) -> None:
+    """Run rule-based self-check and write self_check_report.yml."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from rule_self_check import run_self_check
+    report = run_self_check(agentlab_root, project_name, task_id, strict=strict)
+
+    if json_output:
+        import json
+        console.print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+    else:
+        console.print(f"\n[bold]Self-Check:[/bold] [{'green' if report['status'] == 'pass' else 'yellow' if report['status'] == 'warn' else 'red'}]{report['status'].upper()}[/]")
+        console.print(f"  Passed: {report['summary']['passed']}, Warnings: {report['summary']['warnings']}, Failed: {report['summary']['failed']}")
+        for c in report.get("checks", []):
+            icon = {"pass": "✅", "warn": "⚠️", "fail": "❌"}.get(c["status"], "❓")
+            console.print(f"  {icon} {c['id']}: {c['message'][:100]}")
+        if report.get("blocking_reasons"):
+            console.print(f"\n[red]Blocking:[/red]")
+            for r in report["blocking_reasons"]:
+                console.print(f"  - {r}")
+        console.print(f"\nAuto-sync eligible: {'yes' if report.get('auto_sync_eligible') else 'no'}")
+        console.print(f"Report: {agentlab_root}/projects/{project_name}/runs/{task_id}/self_check_report.yml")
+
+
+@app.command("sync")
+def sync_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    dry_run: bool = typer.Option(False, help="Preview only, no commit/push."),
+    confirm: bool = typer.Option(False, help="Proceed even with warnings."),
+    remote: str = typer.Option("origin", help="Git remote."),
+    branch: str = typer.Option("main", help="Git branch."),
+) -> None:
+    """Run self-check + guarded commit + push."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from github_sync import run_sync
+    report = run_sync(
+        agentlab_root, project_name, task_id,
+        dry_run=dry_run, confirm=confirm, remote=remote, branch=branch,
+    )
+    status_color = "green" if report["status"] in ("pushed", "committed_only") else "yellow"
+    console.print(f"\n[bold]Sync:[/bold] [{status_color}]{report['status']}[/{status_color}]")
+    if report.get("commit_sha"):
+        console.print(f"  Commit: {report['commit_sha'][:12]}")
+    if report.get("warnings"):
+        for w in report["warnings"]:
+            console.print(f"  ⚠️  {w}")
+    if report.get("blocking_reasons"):
+        console.print(f"[red]Blocking reasons:[/red]")
+        for r in report["blocking_reasons"]:
+            console.print(f"  - {r}")
+    console.print(f"Report: {agentlab_root}/projects/{project_name}/runs/{task_id}/sync_report.yml")
+
+
+@app.command("sync-status")
+def sync_status(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Show project sync ledger."""
+    agentlab_root, project_name = runtime_context(project)
+    ledger_path = agentlab_root / "projects" / project_name / "agent_docs" / "10_SYNC_LEDGER.yml"
+    if not ledger_path.exists():
+        console.print("[yellow]No sync ledger found.[/yellow]")
+        return
+    from atomic_io import safe_read_yaml
+    ledger = safe_read_yaml(ledger_path) or {}
+    entries = ledger.get("entries", [])
+    console.print(f"\n[bold]Sync Ledger — {project_name}[/bold]")
+    console.print(f"  Total entries: {len(entries)}")
+    for e in entries[-5:]:
+        console.print(f"  {e.get('timestamp', '?')[:19]} — {e.get('task_id', '?')} — {e.get('status', '?')} — {e.get('commit_sha', '')[:12]}")
+
+
 @app.command("provider-test")
 def provider_test(
     provider: str = typer.Option("deepseek", help="Provider key to test."),
