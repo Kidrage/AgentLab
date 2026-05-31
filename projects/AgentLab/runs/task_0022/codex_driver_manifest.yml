@@ -1,0 +1,12 @@
+driver: codex
+mode: full_driver
+started_at: 2026-05-31T19:07:00+08:00
+codex_session_id: cline-codex-full-driver-task_0022
+codex_plan_or_account: cline-subscription
+cost_visibility: unavailable
+local_artifact_contract: strict
+all_role_outputs_required: true
+resume_target:
+  - codex
+  - api_native
+  - human_manual

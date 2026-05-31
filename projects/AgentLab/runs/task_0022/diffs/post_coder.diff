@@ -1,0 +1,277 @@
+diff --git a/DRIVER_PROTOCOL.md b/DRIVER_PROTOCOL.md
+index f47e7e1..f568c5d 100644
+--- a/DRIVER_PROTOCOL.md
++++ b/DRIVER_PROTOCOL.md
+@@ -322,11 +322,43 @@ Coder 完成后，继续执行剩余的大脑层 agent：
+ 
+ ---
+ 
++## Codex Full-Driver 模式
++
++从 v1.4 开始，AgentLab 支持两种 Codex 模式：
++
++### codex_coder_only（原有）
++API agents（DeepSeek 等）负责全部规划、审查和归档工作，Codex 仅执行 Coder 阶段的代码编辑和命令运行。
++
++```
++API agents → 规划/审查/归档
++Codex → 文件编辑/命令执行
++```
++
++### codex_full_driver（新增）
++当用户有 Codex 额度可用时，Codex 可临时执行所有 AgentLab 角色，但必须将每个角色的输出写入独立的本地工件文件。AgentLab 的本地文件仍然是唯一真理源。
++
++```
++Codex acting as Supervisor → RepoScout → Researcher → InterfaceMapper →
++CodexPromptGenerator → Coder → TesterAuditor → Archivist
++```
++
++关键规则：
++1. **角色分离**：每个角色必须产生独立文件，禁止将多个角色合并为一个未归档的聊天响应。
++2. **工件完整性**：所有报告、决策、diff、checkpoint 和交接状态必须写入本地 `projects/<Project>/runs/<task_id>/`。
++3. **交接包**：任务暂停或完成时必须创建 `handoff_packet.yml`，含完整的恢复说明。
++4. **自检**：GitHub push 前必须通过 `codex-verify-artifacts` 自检。
++5. **Codex → API 恢复**：通过 `./agentlab.sh continue-with-api` 使用 API agents 继续执行。
++
++详见完整规范：`docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md`
++
++---
++
+ ## 版本
+ 
+ | 版本 | 日期 | 说明 |
+ |------|------|------|
++| 1.4 | 2026-05-31 | 新增 codex_full_driver 模式定义和工件规则 |
+ | 1.3 | 2026-05-30 | 收紧 Coder 接管范围：仅限 Codex Plus（有额度），排除 cline/DeepSeek/Claude 等 |
+ | 1.2 | 2026-05-30 | 新增 Coder 模式切换规则（Codex Plus 接管 / Qwen Fallback）；新增 IDE 自动信号检测；CLI 增加 Coder handoff 阻断护栏 |
+ | 1.1 | 2026-05-30 | 新增竞品研究关键词触发 Researcher；新增交互式需求澄清规则；新增 Tester→Coder 自动修复循环（最多3轮）；Researcher 模板支持竞品分析 |
+-| 1.0 | 2026-05-30 | 初始协议，覆盖标准 7 步流程 + 特殊情况处理 |
+\ No newline at end of file
++| 1.0 | 2026-05-30 | 初始协议，覆盖标准 7 步流程 + 特殊情况处理 |
+diff --git a/agent_runtime/requirements.txt b/agent_runtime/requirements.txt
+index d85481b..5af78b6 100644
+--- a/agent_runtime/requirements.txt
++++ b/agent_runtime/requirements.txt
+@@ -5,3 +5,6 @@ pydantic
+ pyyaml
+ typer
+ rich
++# LangGraph backend (optional, for `run-pipeline`)
++langgraph>=1.2,<2.0
++langgraph-checkpoint>=4.1,<5.0
+diff --git a/agentlab.sh b/agentlab.sh
+index 17698bd..4d2fd7d 100755
+--- a/agentlab.sh
++++ b/agentlab.sh
+@@ -9,4 +9,210 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
+ fi
+ 
+ cd "$ROOT/agent_runtime"
+-exec "$PYTHON_BIN" "$ROOT/agent_runtime/run_task.py" "$@"
++
++# ─── Codex Full-Driver Mode CLI Commands ────────────────────────────────
++case "${1:-}" in
++  codex-start)
++    shift
++    exec "$PYTHON_BIN" -c "
++import sys, yaml, typer
++from pathlib import Path
++from run_task import runtime_context
++from handoff_builder import write_handoff_packet
++from state_store import load_state, save_state
++from rich.console import Console
++
++console = Console()
++agentlab_root, project_name = runtime_context(None)
++
++# Parse args
++project = None
++task_id = None
++request_file = None
++mode = 'full-driver'
++i = 1
++while i < len(sys.argv):
++    if sys.argv[i] == '--project' and i+1 < len(sys.argv):
++        project = sys.argv[i+1]; i += 2
++    elif sys.argv[i] == '--task-id' and i+1 < len(sys.argv):
++        task_id = sys.argv[i+1]; i += 2
++    elif sys.argv[i] == '--request-file' and i+1 < len(sys.argv):
++        request_file = sys.argv[i+1]; i += 2
++    elif sys.argv[i] == '--mode' and i+1 < len(sys.argv):
++        mode = sys.argv[i+1]; i += 2
++    else:
++        i += 1
++
++console.print(f'[bold]Codex Full-Driver: {task_id}[/bold]')
++console.print(f'  Project: {project or project_name}')
++console.print(f'  Mode: {mode}')
++console.print(f'  Request file: {request_file or \"(none)\"}')
++console.print()
++console.print('[green]Task initialized. Begin with preflight → supervisor → reposcout → ... → archivist → handoff[/green]')
++" "$@"
++    ;;
++  codex-status)
++    shift
++    exec "$PYTHON_BIN" -c "
++import sys
++from pathlib import Path
++from run_task import runtime_context
++from state_store import load_state
++from rich.console import Console
++
++console = Console()
++agentlab_root, project_name = runtime_context(None)
++
++task_id = 'task_0001'
++if len(sys.argv) > 1:
++    for i, arg in enumerate(sys.argv):
++        if arg == '--task-id' and i+1 < len(sys.argv):
++            task_id = sys.argv[i+1]
++        elif arg == '--project' and i+1 < len(sys.argv):
++            project_name = sys.argv[i+1]
++
++project_root = agentlab_root / 'projects' / project_name
++run_dir = project_root / 'runs' / task_id
++state = load_state(run_dir, project_name, task_id)
++
++console.print(f'[bold]Codex Task Status: {task_id}[/bold]')
++console.print(f'  Project: {project_name}')
++console.print(f'  Status: {state.status}')
++console.print(f'  Execution mode: {getattr(state, \"execution_mode\", \"codex_full_driver\")}')
++console.print(f'  Current agent: {state.current_agent}')
++console.print(f'  Completed agents: {state.completed_agents}')
++console.print(f'  Next agent: {getattr(state, \"next_agent\", \"?\")}')
++console.print(f'  Blocked: {state.blocked}')
++" "$@"
++    ;;
++  codex-handoff)
++    shift
++    exec "$PYTHON_BIN" -c "
++import sys
++from pathlib import Path
++from run_task import runtime_context
++from handoff_builder import build_handoff_packet, write_handoff_packet
++from rich.console import Console
++
++console = Console()
++agentlab_root, project_name = runtime_context(None)
++
++task_id = 'task_0001'
++if len(sys.argv) > 1:
++    for i, arg in enumerate(sys.argv):
++        if arg == '--task-id' and i+1 < len(sys.argv):
++            task_id = sys.argv[i+1]
++        elif arg == '--project' and i+1 < len(sys.argv):
++            project_name = sys.argv[i+1]
++
++project_root = agentlab_root / 'projects' / project_name
++packet = build_handoff_packet(project_root, task_id)
++path = write_handoff_packet(project_root, task_id, packet)
++console.print(f'[green]Handoff packet written:[/green] {path}')
++console.print(f'  Status: {packet[\"status\"]}')
++console.print(f'  Last agent: {packet[\"last_completed_agent\"]}')
++console.print(f'  Next agent: {packet[\"next_agent\"]}')
++" "$@"
++    ;;
++  codex-resume)
++    shift
++    exec "$PYTHON_BIN" -c "
++import sys
++from pathlib import Path
++from run_task import runtime_context
++from api_continuation import load_handoff_packet, print_continuation_plan
++from rich.console import Console
++
++console = Console()
++agentlab_root, project_name = runtime_context(None)
++
++task_id = 'task_0001'
++from_file = 'handoff_packet.yml'
++if len(sys.argv) > 1:
++    for i, arg in enumerate(sys.argv):
++        if arg == '--task-id' and i+1 < len(sys.argv):
++            task_id = sys.argv[i+1]
++        elif arg == '--project' and i+1 < len(sys.argv):
++            project_name = sys.argv[i+1]
++        elif arg == '--from' and i+1 < len(sys.argv):
++            from_file = sys.argv[i+1]
++
++project_root = agentlab_root / 'projects' / project_name
++handoff = load_handoff_packet(project_root, task_id)
++if handoff is None:
++    console.print(f'[red]No handoff packet found for {task_id}[/red]')
++    sys.exit(1)
++
++console.print(f'[bold]Resume: {task_id}[/bold]')
++console.print(f'  Status: {handoff[\"status\"]}')
++console.print(f'  Next agent: {handoff[\"next_agent\"]}')
++console.print(f'  Resume available: {handoff[\"resume_available\"]}')
++console.print()
++console.print('[green]To continue with API agents:[/green]')
++console.print(f'  ./agentlab.sh continue-with-api --project {project_name} --task-id {task_id} --from {from_file}')
++console.print()
++console.print('[green]To continue manually:[/green]')
++console.print(f'  Read {project_root}/runs/{task_id}/handoff_packet.yml')
++" "$@"
++    ;;
++  codex-verify-artifacts)
++    shift
++    exec "$PYTHON_BIN" -c "
++import sys
++from pathlib import Path
++from run_task import runtime_context
++from codex_artifact_validator import validate_artifacts, print_validation_report
++from rich.console import Console
++
++console = Console()
++agentlab_root, project_name = runtime_context(None)
++
++task_id = 'task_0001'
++if len(sys.argv) > 1:
++    for i, arg in enumerate(sys.argv):
++        if arg == '--task-id' and i+1 < len(sys.argv):
++            task_id = sys.argv[i+1]
++        elif arg == '--project' and i+1 < len(sys.argv):
++            project_name = sys.argv[i+1]
++
++project_root = agentlab_root / 'projects' / project_name
++result = validate_artifacts(project_root, task_id)
++print_validation_report(result)
++" "$@"
++    ;;
++  continue-with-api)
++    shift
++    exec "$PYTHON_BIN" -c "
++import sys
++from pathlib import Path
++from run_task import runtime_context
++from api_continuation import continue_with_api, print_continuation_plan
++from rich.console import Console
++
++console = Console()
++agentlab_root, project_name = runtime_context(None)
++
++task_id = 'task_0001'
++from_file = 'handoff_packet.yml'
++dry_run = True
++if len(sys.argv) > 1:
++    for i, arg in enumerate(sys.argv):
++        if arg == '--task-id' and i+1 < len(sys.argv):
++            task_id = sys.argv[i+1]
++        elif arg == '--project' and i+1 < len(sys.argv):
++            project_name = sys.argv[i+1]
++        elif arg == '--from' and i+1 < len(sys.argv):
++            from_file = sys.argv[i+1]
++        elif arg == '--execute':
++            dry_run = False
++
++project_root = agentlab_root / 'projects' / project_name
++result = continue_with_api(project_root, task_id, dry_run=dry_run)
++print_continuation_plan(result)
++" "$@"
++    ;;
++  *)
++    # Fall through to the standard AgentLab CLI
++    exec "$PYTHON_BIN" "$ROOT/agent_runtime/run_task.py" "$@"
++    ;;
++esac

@@ -1,0 +1,65 @@
+task_id: task_0022
+project: AgentLab
+execution_mode: codex_full_driver
+status: completed
+last_completed_agent: Archivist
+next_agent: null
+resume_available: true
+
+artifacts:
+  user_request: user_request.md
+  workflow_plan: workflow_plan.yml
+  supervisor_plan: 01_supervisor_plan.md
+  reposcout_report: 02_reposcout_report.md
+  research_notes: 03_research_notes.md
+  interface_map: 04_interface_map.md
+  codex_prompt: 05_codex_prompt.md
+  implementation_report: 06_implementation_report.md
+  validation_report: 07_validation_report.md
+  audit_report: 08_audit_report.md
+  archive_update: 09_archive_update.md
+
+code_state:
+  branch: main
+  base_commit: 1d13226442e967e7346c493f9fc8efccba98aca7
+  final_commit: null
+  dirty: true
+  changed_files:
+    - agent_runtime/api_continuation.py
+    - agent_runtime/codex_artifact_validator.py
+    - agent_runtime/handoff_builder.py
+    - agent_runtime/langgraph_schema.py
+    - agent_runtime/langgraph_workflow.py
+    - agent_runtime/requirements.txt
+    - agent_templates/codex_full_driver/00_PRE_FLIGHT.md
+    - agent_templates/codex_full_driver/01_SUPERVISOR.md
+    - agent_templates/codex_full_driver/02_REPOSCOUT.md
+    - agent_templates/codex_full_driver/03_RESEARCHER.md
+    - agent_templates/codex_full_driver/04_INTERFACE_MAPPER.md
+    - agent_templates/codex_full_driver/05_CODEX_PROMPT_GENERATOR.md
+    - agent_templates/codex_full_driver/06_CODER.md
+    - agent_templates/codex_full_driver/07_TESTER_AUDITOR.md
+    - agent_templates/codex_full_driver/08_ARCHIVIST.md
+    - agent_templates/codex_full_driver/09_HANDOFF.md
+    - config/execution_modes.yml
+    - docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md
+    - DRIVER_PROTOCOL.md
+    - agentlab.sh
+
+validation:
+  status: passed
+  commands_run:
+    - python3 YAML parse check
+    - python3 py_compile (3 modules)
+    - validate_artifacts() unit test
+  known_risks: []
+
+resume_instructions:
+  for_codex: "Read handoff_packet.yml, then continue from start if needed."
+  for_api_agents: "Run ./agentlab.sh continue-with-api --project AgentLab --task-id task_0022 --from handoff_packet.yml"
+  for_human: "Read 09_archive_update.md and 08_audit_report.md first."
+
+backup:
+  github_pushed: false
+  truenas_synced: false
+  local_checkpoint: checkpoint_002_after_coder

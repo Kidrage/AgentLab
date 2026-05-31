@@ -1,0 +1,43 @@
+task_id: task_0022
+project: AgentLab
+execution:
+  mode: codex_full_driver
+  driver: codex
+  artifact_contract: strict
+route:
+  agents:
+    - Supervisor
+    - RepoScout
+    - Researcher
+    - InterfaceMapper
+    - CodexPromptGenerator
+    - Coder
+    - TesterAuditor
+    - Archivist
+scope:
+  allowed_edit_paths:
+    - docs/
+    - agent_templates/codex_full_driver/
+    - config/execution_modes.yml
+    - agent_runtime/codex_artifact_validator.py
+    - agent_runtime/handoff_builder.py
+    - agent_runtime/api_continuation.py
+    - agentlab.sh
+    - DRIVER_PROTOCOL.md
+    - projects/AgentLab/runs/task_0022/
+  forbidden_paths:
+    - .env
+    - secrets/
+    - .git/
+    - node_modules/
+    - .venv/
+validation_gates:
+  preflight_required: true
+  implementation_report_required: true
+  validation_report_required: true
+  audit_report_required: true
+  handoff_packet_required: true
+  self_check_required_before_push: true
+resume:
+  supported: true
+  handoff_file: handoff_packet.yml

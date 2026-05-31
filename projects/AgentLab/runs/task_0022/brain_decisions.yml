@@ -1,0 +1,12 @@
+decisions:
+  - timestamp: 2026-05-31T19:07:00+08:00
+    agent: Supervisor
+    decision: "Route selection"
+    rationale: "Full agent chain required — this is a Codex Full-Driver implementation that touches 8 deliverable categories across 5 directories."
+    detail: "Route includes all 8 agents: Supervisor, RepoScout, Researcher, InterfaceMapper, CodexPromptGenerator, Coder, TesterAuditor, Archivist"
+
+  - timestamp: 2026-05-31T19:08:00+08:00
+    agent: Supervisor
+    decision: "Allowed edit paths"
+    rationale: "All changes are additive new files + 2 modifications to existing files. No risk to existing core functionality."
+    detail: "Allowed: docs/, agent_templates/codex_full_driver/, config/execution_modes.yml, 3 new agent_runtime/*.py, agentlab.sh, DRIVER_PROTOCOL.md"

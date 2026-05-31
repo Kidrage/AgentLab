@@ -1,0 +1,14 @@
+percent: 15
+current_stage: preflight
+current_agent: Supervisor
+stages:
+  preflight: completed
+  supervisor: completed
+  reposcout: completed
+  researcher: completed
+  interface_mapper: completed
+  codex_prompt_generator: completed
+  coder: active
+  tester_auditor: pending
+  archivist: pending
+  sync: pending

@@ -1,0 +1,11 @@
+diff --git a/agent_runtime/requirements.txt b/agent_runtime/requirements.txt
+index d85481b..5af78b6 100644
+--- a/agent_runtime/requirements.txt
++++ b/agent_runtime/requirements.txt
+@@ -5,3 +5,6 @@ pydantic
+ pyyaml
+ typer
+ rich
++# LangGraph backend (optional, for `run-pipeline`)
++langgraph>=1.2,<2.0
++langgraph-checkpoint>=4.1,<5.0
