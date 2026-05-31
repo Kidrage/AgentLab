@@ -948,5 +948,224 @@ def run_pipeline(
     console.print(f"  State: {run_dir}/state.yml")
 
 
+@app.command("progress")
+def progress(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Show task progress from progress.yml."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
+    from progress_tracker import load_progress, progress_summary
+    data = load_progress(run_dir)
+    if data is None:
+        console.print(f"[yellow]No progress.yml found for {project_name}/{task_id}[/yellow]")
+        console.print(f"Run: ./agentlab.sh prepare --project {project_name} --task-id {task_id} --write-plan")
+        return
+
+    summary = progress_summary(data)
+
+    console.print()
+    console.print("[bold]AgentLab Progress[/bold]")
+    console.print(f"  Project: [cyan]{summary['project']}[/cyan]")
+    console.print(f"  Task:    [cyan]{summary['task_id']}[/cyan]")
+    console.print(f"  Status:  [yellow]{summary['status']}[/yellow]")
+    console.print(f"  Progress: [green]{summary['percent']}%[/green]")
+    if summary.get("current_agent"):
+        console.print(f"  Current: {summary['current_agent']} / {summary.get('current_stage', '?')}")
+    console.print(f"  Last:    {summary.get('last_event', '—')}")
+    console.print()
+
+    table = Table("Agent", "Status", "Provider", "Tokens")
+    for ag in summary.get("agents", []):
+        icon = {"completed": "✅", "active": "🔄", "paused": "⏸️", "waiting": "⏳", "skipped": "⏭️", "blocked": "🚫", "failed": "❌"}.get(ag["status"], "❓")
+        table.add_row(ag["name"], f"{icon} {ag['status']}", ag.get("provider", "—"), str(ag.get("tokens", 0)))
+    console.print(table)
+
+    ps = summary.get("provider_status", {})
+    if ps:
+        console.print(f"\n[bold]Provider:[/bold] current={ps.get('current_provider', '—')}, failed={ps.get('failed_provider', '—')}, paused={ps.get('paused_for_provider', False)}")
+
+    inc = summary.get("incidents", {})
+    if inc and inc.get("open_count", 0) > 0:
+        console.print(f"[yellow]Open incidents: {inc['open_count']}[/yellow]")
+
+    # Check for resume availability
+    resume_path = run_dir / "resume_plan.yml"
+    if resume_path.exists():
+        console.print(f"\n[green]Resume available:[/green] ./agentlab.sh resume --project {project_name} --task-id {task_id}")
+
+
+@app.command("pause")
+def pause_task(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    reason: str = typer.Option("manual", help="Reason for pause."),
+) -> None:
+    """Pause a running task safely, marking state and progress."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = Path(agentlab_root / "projects" / project_name / "runs" / task_id)
+
+    from progress_tracker import load_progress
+    from state_store import load_state, save_state
+
+    state = load_state(run_dir, project_name, task_id)
+    state.status = "paused"
+    state.last_event = f"Paused: {reason}"
+    save_state(run_dir, state)
+    console.print(f"[green]Task {task_id} paused: {reason}[/green]")
+
+    # Update progress if exists
+    data = load_progress(run_dir)
+    if data:
+        from progress_tracker import save_progress
+        data["status"] = "paused"
+        data["last_event"] = f"Paused: {reason}"
+        data["current_stage"] = "paused"
+        save_progress(run_dir, data)
+        console.print("[dim]progress.yml updated[/dim]")
+
+
+@app.command("resume")
+def resume_task(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    provider: Optional[str] = typer.Option(None, help="Resume with a different provider (e.g. qwen)."),
+) -> None:
+    """Resume a paused task. Optionally switch provider."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = Path(agentlab_root / "projects" / project_name / "runs" / task_id)
+
+    resume_path = run_dir / "resume_plan.yml"
+    if not resume_path.exists():
+        console.print(f"[yellow]No resume plan found for {task_id}. Check: ./agentlab.sh status --project {project_name} --task-id {task_id}[/yellow]")
+        return
+
+    plan = yaml.safe_load(resume_path.read_text(encoding="utf-8")) or {}
+    console.print(f"[bold]Resume plan for {task_id}[/bold]")
+    console.print(f"  Paused reason: {plan.get('paused_reason', '?')}")
+    console.print(f"  Current agent: {plan.get('current_agent', '?')}")
+    console.print(f"  Allowed providers: {plan.get('allowed_resume_providers', [])}")
+
+    if provider:
+        allowed = plan.get("allowed_resume_providers", [])
+        if provider not in allowed:
+            console.print(f"[yellow]Provider '{provider}' is not in allowed providers: {allowed}[/yellow]")
+            return
+        console.print(f"[green]Resuming with provider override: {provider}[/green]")
+        console.print(f"  Run: ./agentlab.sh run-agent {plan.get('current_agent', 'Supervisor')} --project {project_name} --task-id {task_id} --execute --provider {provider}")
+    else:
+        console.print(f"[green]Resume with same provider[/green]")
+        console.print(f"  Run: ./agentlab.sh run-agent {plan.get('current_agent', 'Supervisor')} --project {project_name} --task-id {task_id} --execute")
+
+    # Clear pause state
+    from state_store import load_state, save_state
+    state = load_state(run_dir, project_name, task_id)
+    state.status = "running"
+    state.last_event = f"Resumed after pause ({plan.get('paused_reason', '?')})"
+    save_state(run_dir, state)
+
+    from progress_tracker import load_progress, save_progress
+    data = load_progress(run_dir)
+    if data:
+        data["status"] = "running"
+        data["provider_status"]["paused_for_provider"] = False
+        save_progress(run_dir, data)
+
+    console.print("[green]Task marked as resumed. Run 'run-agent' to continue.[/green]")
+
+
+@app.command("providers")
+def providers(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, help="Task id for per-task incident view."),
+) -> None:
+    """Show configured providers and their status. Never prints API keys."""
+    agentlab_root, _ = runtime_context(project)
+    configs = load_agentlab_configs(agentlab_root)
+    providers_config = configs.get("model_providers", {}).get("providers", {})
+
+    table = Table("Provider", "Type", "Base URL", "API Key", "Circuit")
+    from llm_provider import resolve_env_value
+    for name, cfg in providers_config.items():
+        key_ok = "✓" if resolve_env_value(cfg.get("api_key"), "") else "✗"
+        url = resolve_env_value(cfg.get("base_url"), "—")
+        if len(url) > 50:
+            url = url[:47] + "..."
+        table.add_row(name, cfg.get("type", ""), url, key_ok, "—")
+    console.print(table)
+
+    if task_id:
+        run_dir = agentlab_root / "projects" / (project or "AgentLab") / "runs" / task_id
+        from incident_manager import open_incidents
+        incidents = open_incidents(run_dir)
+        if incidents:
+            console.print(f"\n[yellow]Open incidents for {task_id}: {len(incidents)}[/yellow]")
+            for inc in incidents[:5]:
+                console.print(f"  - {inc.get('at', '?')}: {inc.get('provider', '?')} {inc.get('error_class', '?')} — {inc.get('error_message', '')[:80]}")
+        else:
+            console.print(f"\n[green]No open incidents for {task_id}[/green]")
+
+
+@app.command("provider-test")
+def provider_test(
+    provider: str = typer.Option("deepseek", help="Provider key to test."),
+    dry_run: bool = typer.Option(True, help="Dry-run: check config only. --no-dry-run to execute."),
+) -> None:
+    """Test a provider's configuration and reachability."""
+    agentlab_root, _ = runtime_context(None)
+    configs = load_agentlab_configs(agentlab_root)
+    providers_config = configs.get("model_providers", {}).get("providers", {})
+    cfg = providers_config.get(provider, {})
+
+    if not cfg:
+        console.print(f"[red]Provider '{provider}' not found in model_providers.yml[/red]")
+        return
+
+    from llm_provider import resolve_env_value
+    api_key = resolve_env_value(cfg.get("api_key"), "")
+    base_url = resolve_env_value(cfg.get("base_url"), "")
+    model = resolve_env_value(cfg.get("default_model"), "")
+
+    console.print(f"[bold]Provider: {provider}[/bold]")
+    console.print(f"  Type: {cfg.get('type')}")
+    console.print(f"  Base URL: {base_url}")
+    console.print(f"  Model: {model}")
+    console.print(f"  API Key configured: {'yes' if api_key else '[red]no[/red]'}")
+
+    if dry_run:
+        console.print("[yellow]Dry-run only. Use --no-dry-run to test with a real API call.[/yellow]")
+        return
+
+    if not api_key:
+        console.print("[red]Cannot test — no API key configured.[/red]")
+        return
+
+    from llm_provider import generate_text
+    from schemas import LLMSettings
+    test_settings = LLMSettings(
+        provider=provider,
+        provider_type=cfg.get("type", "openai_compatible"),
+        model=model,
+        base_url=base_url,
+        api_key_configured=True,
+        max_output_tokens=10,
+    )
+    messages = [{"role": "user", "content": "Reply with just: OK"}]
+    try:
+        result = generate_text(test_settings, providers_config, messages)
+        if result.status == "completed":
+            console.print(f"[green]✓ Provider {provider} responded: {result.content[:100]}[/green]")
+        else:
+            console.print(f"[yellow]Provider returned status: {result.status}[/yellow]")
+            console.print(result.error or "no error details")
+    except Exception as e:
+        console.print(f"[red]✗ Provider {provider} failed: {e}[/red]")
+
+
 if __name__ == "__main__":
     app()
