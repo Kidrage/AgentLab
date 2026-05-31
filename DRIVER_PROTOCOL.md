@@ -322,10 +322,42 @@ Coder 完成后，继续执行剩余的大脑层 agent：
 
 ---
 
+## Codex Full-Driver 模式
+
+从 v1.4 开始，AgentLab 支持两种 Codex 模式：
+
+### codex_coder_only（原有）
+API agents（DeepSeek 等）负责全部规划、审查和归档工作，Codex 仅执行 Coder 阶段的代码编辑和命令运行。
+
+```
+API agents → 规划/审查/归档
+Codex → 文件编辑/命令执行
+```
+
+### codex_full_driver（新增）
+当用户有 Codex 额度可用时，Codex 可临时执行所有 AgentLab 角色，但必须将每个角色的输出写入独立的本地工件文件。AgentLab 的本地文件仍然是唯一真理源。
+
+```
+Codex acting as Supervisor → RepoScout → Researcher → InterfaceMapper →
+CodexPromptGenerator → Coder → TesterAuditor → Archivist
+```
+
+关键规则：
+1. **角色分离**：每个角色必须产生独立文件，禁止将多个角色合并为一个未归档的聊天响应。
+2. **工件完整性**：所有报告、决策、diff、checkpoint 和交接状态必须写入本地 `projects/<Project>/runs/<task_id>/`。
+3. **交接包**：任务暂停或完成时必须创建 `handoff_packet.yml`，含完整的恢复说明。
+4. **自检**：GitHub push 前必须通过 `codex-verify-artifacts` 自检。
+5. **Codex → API 恢复**：通过 `./agentlab.sh continue-with-api` 使用 API agents 继续执行。
+
+详见完整规范：`docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md`
+
+---
+
 ## 版本
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.4 | 2026-05-31 | 新增 codex_full_driver 模式定义和工件规则 |
 | 1.3 | 2026-05-30 | 收紧 Coder 接管范围：仅限 Codex Plus（有额度），排除 cline/DeepSeek/Claude 等 |
 | 1.2 | 2026-05-30 | 新增 Coder 模式切换规则（Codex Plus 接管 / Qwen Fallback）；新增 IDE 自动信号检测；CLI 增加 Coder handoff 阻断护栏 |
 | 1.1 | 2026-05-30 | 新增竞品研究关键词触发 Researcher；新增交互式需求澄清规则；新增 Tester→Coder 自动修复循环（最多3轮）；Researcher 模板支持竞品分析 |

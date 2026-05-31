@@ -1,0 +1,33 @@
+execution_modes:
+  api_native:
+    description: "AgentLab agents run through configured API providers."
+    artifact_required: true
+    allow_codex_full_driver: false
+
+  codex_coder_only:
+    description: "API agents plan/review; Codex only edits code and runs commands."
+    artifact_required: true
+    allow_codex_full_driver: false
+
+  codex_full_driver:
+    description: "Codex emulates all AgentLab roles while writing all standard artifacts."
+    artifact_required: true
+    allow_codex_full_driver: true
+    requires_user_confirmation: true
+    requires_local_artifacts: true
+    max_audit_reentry_rounds: 3
+    allowed_roles:
+      - Supervisor
+      - RepoScout
+      - Researcher
+      - InterfaceMapper
+      - CodexPromptGenerator
+      - Coder
+      - TesterAuditor
+      - Archivist
+    forbidden:
+      - undocumented_role_merging
+      - editing_without_preflight
+      - skipping_validation
+      - skipping_handoff_packet
+      - pushing_without_self_check
