@@ -40,3 +40,32 @@ def atomic_write_yaml(path: Path, data: object, **yaml_kwargs) -> None:
     """Write YAML data atomically via safe_dump."""
     content = yaml.safe_dump(data, sort_keys=False, allow_unicode=True, **yaml_kwargs)
     atomic_write_text(path, content)
+
+
+def atomic_write_json(path: Path, data: object, **json_kwargs) -> None:
+    """Write JSON data atomically."""
+    import json
+    content = json.dumps(data, ensure_ascii=False, indent=2, default=str, **json_kwargs)
+    atomic_write_text(path, content)
+
+
+def safe_read_yaml(path: Path, default: object = None) -> object:
+    """Read YAML file safely. Returns default if missing or corrupt."""
+    if not path.exists():
+        return default
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        return data if data is not None else default
+    except (yaml.YAMLError, OSError):
+        return default
+
+
+def safe_read_json(path: Path, default: object = None) -> object:
+    """Read JSON file safely. Returns default if missing or corrupt."""
+    import json
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return default

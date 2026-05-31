@@ -11,6 +11,9 @@ import os
 import time
 from typing import Any
 
+from incident_manager import record_incident
+from progress_tracker import mark_agent_completed, mark_agent_paused, mark_agent_started
+from provider_guard import build_fallback_decision, classify_provider_error, write_user_decision_file
 from schemas import LLMCallResult, LLMSettings
 
 
@@ -79,8 +82,21 @@ def generate_text(
     settings: LLMSettings,
     model_providers: dict,
     messages: list[dict[str, str]],
+    *,
+    agent_name: str = "",
+    run_dir: str = "",
+    project: str = "",
+    task_id: str = "",
+    role: str = "",
+    risk_level: str = "R1",
+    fallback_providers: list[dict] | None = None,
+    route: list[str] | None = None,
 ) -> LLMCallResult:
-    """Call a provider or produce a Codex Plus handoff."""
+    """Call a provider or produce a Codex Plus handoff.
+
+    When agent_name/run_dir/project/task_id are provided, the call is
+    tracked via progress_tracker and failures are handled by provider_guard.
+    """
     if settings.provider_type == "manual_codex":
         return _codex_handoff(settings, messages, "Provider is configured as manual Codex Plus.")
 
@@ -101,11 +117,15 @@ def generate_text(
         client_kwargs["base_url"] = settings.base_url
     client = OpenAI(**client_kwargs)
 
-    # 自动重试：大脑层 DeepSeek 默认重试 3 次，仅全部失败后才要求用户决策
     max_retries = 3
-    retry_delays = [1.0, 2.0, 3.0]  # 指数退避
+    retry_delays = [1.0, 2.0, 3.0]
     last_error = ""
     last_reason = ""
+
+    # --- progress tracking: mark agent started ---
+    run_d = Path(run_dir) if run_dir else None
+    if run_d and agent_name:
+        mark_agent_started(run_d, agent_name, settings.provider, settings.model)
 
     for attempt in range(max_retries):
         try:
@@ -116,23 +136,102 @@ def generate_text(
                 top_p=settings.top_p,
                 max_tokens=settings.max_output_tokens,
             )
-            # 成功 — 跳出重试循环
             break
         except Exception as exc:
-            last_reason = _classify_provider_error(exc)
+            last_reason = classify_provider_error(exc)
             last_error = str(exc)
-            # 仅对临时性错误（超时、网络）重试；配额/认证错误立即退出
             if last_reason == "provider_error" and attempt < max_retries - 1:
-                delay = retry_delays[min(attempt, len(retry_delays) - 1)]
-                time.sleep(delay)
+                time.sleep(retry_delays[min(attempt, len(retry_delays) - 1)])
                 continue
-            # 最后一次尝试或非临时错误
-            return _fallback_or_raise(settings, model_providers, messages, last_reason, last_error)
+            # --- Provider guard: record incident + build fallback decision ---
+            if run_d and agent_name:
+                call_id = ""
+                try:
+                    record_incident(
+                        run_d, project, task_id, agent_name,
+                        settings.provider, settings.model,
+                        last_reason, last_error, call_id,
+                    )
+                except Exception:
+                    pass  # best-effort
 
-    # 如果重试成功，`response` 已在上面的 try 中赋值
+                # Build fallback decision
+                decision = build_fallback_decision(
+                    agent_name=agent_name,
+                    provider_key=settings.provider,
+                    error_class=last_reason,
+                    error_message=last_error,
+                    role_auto_fallback_allowed=role in ("repo_reader", "researcher", "archivist"),
+                    risk_level=risk_level,
+                    fallback_providers=fallback_providers,
+                )
+
+                if decision["action"] == "switch_provider":
+                    # Auto-fallback: retry with the next provider
+                    if fallback_providers and decision["to_provider"]:
+                        fb = fallback_providers[0]
+                        new_settings = LLMSettings(
+                            provider=fb.get("key", ""),
+                            provider_type="openai_compatible",
+                            model=fb.get("model", settings.model),
+                            base_url=fb.get("base_url"),
+                            api_key_configured=bool(_provider_secret(model_providers, fb.get("key", ""))),
+                            temperature=settings.temperature,
+                            top_p=settings.top_p,
+                            max_output_tokens=settings.max_output_tokens,
+                            profile_name=settings.profile_name,
+                        )
+                        return LLMCallResult(
+                            provider=fb.get("key", ""),
+                            model=fb.get("model", ""),
+                            content=f"[Auto-fallback] Switched from {settings.provider} to {fb.get('key', '')} ({last_reason}).\n\n"
+                                    "Please re-run the agent with the new provider.",
+                            status="fallback_handoff",
+                            error=last_error,
+                            raw_usage={"auto_fallback": True, "from": settings.provider, "to": fb.get("key", "")},
+                        )
+                elif decision["action"] == "pause_for_user":
+                    mark_agent_paused(run_d, agent_name, f"{last_reason} on {settings.provider}")
+                    write_user_decision_file(
+                        run_d, project, task_id, agent_name, role,
+                        settings.provider, last_reason, last_error,
+                        completed_agents=[], pending_agents=route or [],
+                        fallback_providers=fallback_providers,
+                    )
+                    return LLMCallResult(
+                        provider=settings.provider,
+                        model=settings.model,
+                        content=decision["message"],
+                        status="blocked_user_decision",
+                        error=last_error,
+                        raw_usage={"blocked": True, "reason": last_reason},
+                    )
+                elif decision["action"] == "replan_required":
+                    return LLMCallResult(
+                        provider=settings.provider,
+                        model=settings.model,
+                        content=decision["message"],
+                        status="blocked_user_decision",
+                        error=last_error,
+                        raw_usage={"replan_required": True, "reason": last_reason},
+                    )
+
+            return _fallback_or_raise(settings, model_providers, messages, last_reason, last_error)
 
     content = response.choices[0].message.content or ""
     usage = response.usage.model_dump() if response.usage else {}
+
+    # --- progress tracking: mark agent completed ---
+    if run_d and agent_name:
+        try:
+            mark_agent_completed(
+                run_d, agent_name, f"runs/{task_id}/{agent_name.lower()}_report.md",
+                input_tokens=usage.get("prompt_tokens", 0),
+                output_tokens=usage.get("completion_tokens", 0),
+                total_tokens=usage.get("total_tokens", 0),
+            )
+        except Exception:
+            pass  # best-effort
 
     return LLMCallResult(
         provider=settings.provider,
@@ -146,15 +245,7 @@ def generate_text(
 
 
 def _classify_provider_error(exc: Exception) -> str:
-    text = str(exc).lower()
-    status_code = getattr(exc, "status_code", None)
-    if status_code in {402, 429}:
-        return "quota_exceeded"
-    if "quota" in text or "balance" in text or "credit" in text or "insufficient" in text:
-        return "quota_exceeded"
-    if "rate limit" in text or "too many requests" in text:
-        return "rate_limited"
-    return "provider_error"
+    return classify_provider_error(exc)  # delegate to provider_guard
 
 
 def _fallback_or_raise(
