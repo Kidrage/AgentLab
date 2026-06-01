@@ -159,7 +159,7 @@ def required_artifacts_for_route(route: list[str]) -> list[str]:
         "TesterAuditor": "tester_auditor",
         "Verifier": "verifier",
         "Archivist": "archivist",
-        "CodexPromptGenerator": "codex_prompt_generator",
+        "PromptEngineer": "codex_prompt_generator",
     }
     for agent in route:
         key = agent_map.get(agent)

@@ -1,0 +1,9 @@
+project: AgentLab
+task_id: task_9999_demo-closure-test
+current_agent: null
+completed_agents: []
+reports: {}
+status: completed
+execution_mode: ''
+last_event: Task completed via dry-run pipeline
+updated_at: '2026-06-01T04:33:19.444864+00:00'

@@ -258,12 +258,26 @@ From the AgentLab root / 从 AgentLab 根目录：
 # Resume a paused task / 恢复暂停的任务
 ./agentlab.sh task-resume --project <Project> --task-id task_0007
 
+# System health check / 系统健康检查
+./agentlab.sh doctor
+
 # Terminal chat / 终端对话
 ./agentlab.sh chat --agent Supervisor --project <Project>
+
+# Task purge + project docs / 任务清理 + 项目文档
+./agentlab.sh task-purge --project <Project> --keep-days 7 --dry-run
+./agentlab.sh task-purge --project <Project> --keep-days 7
 
 # Codex full-driver commands / Codex 全驱动命令
 ./agentlab.sh codex-start --project <Project> --task-id task_0007 --mode full-driver
 ./agentlab.sh codex-handoff --project <Project> --task-id task_0007
+
+# Local closure verification / 本地闭环验证
+./agentlab.sh init-task --project AgentLab --task-id task_9999 --request-text "Demo"
+./agentlab.sh prepare --project AgentLab --task-id task_9999 --write-plan
+./agentlab.sh run-pipeline --project AgentLab --task-id task_9999 --dry-run
+./agentlab.sh check --project AgentLab --task-id task_9999
+./agentlab.sh ui
 ```
 
 `run-agent` is dry-run by default. It calls the configured model API only when you pass `--execute`.

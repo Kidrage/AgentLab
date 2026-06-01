@@ -1,0 +1,63 @@
+version: 1
+project: AgentLab
+task_id: task_9999_demo-closure-test
+status: warn
+created_at: '2026-06-01T04:35:15.130562+00:00'
+summary:
+  total_checks: 8
+  passed: 7
+  warnings: 1
+  failed: 0
+checks:
+- id: git_worktree
+  status: pass
+  severity: info
+  message: Git worktree detected.
+- id: changed_files
+  status: pass
+  severity: info
+  message: 11 changed files
+  details:
+    changed: &id001
+    - README.md
+    - agent_runtime/artifact_contract.py
+    - agent_runtime/policies.py
+    - agent_runtime/run_task.py
+    - agent_runtime/workflow_plan.py
+    - config/harness_policy.yml
+    - web_ui/server.py
+    - agent_runtime/workspace_scanner.py
+    - projects/AgentLab/docs/
+    - projects/AgentLab/runs/task_9999_demo-closure-test/
+    - projects/CodingWorkspace/
+    blocked: []
+- id: secret_scan
+  status: pass
+  severity: critical
+  message: No obvious secrets detected.
+- id: yaml_syntax
+  status: pass
+  severity: critical
+  message: All changed YAML files parse correctly.
+- id: python_syntax
+  status: pass
+  severity: critical
+  message: All changed Python files compile.
+- id: shell_syntax
+  status: pass
+  severity: critical
+  message: All changed shell scripts pass bash -n.
+- id: git_diff_whitespace
+  status: pass
+  severity: warning
+  message: No whitespace issues.
+- id: report_completeness
+  status: warn
+  severity: warning
+  message: No implementation report for code changes.
+artifacts:
+  changed_files: *id001
+  reports_written:
+  - self_check_report.yml
+blocking_reasons: []
+auto_sync_eligible: true
