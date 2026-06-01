@@ -22,6 +22,7 @@ __pycache__/
 agent_runtime/.venv/
 agent_runtime/__pycache__/
 agent_runtime/.env
+.tmp_agent_docs/
 
 # Project runs (may contain user documents)
 # Keep folder structure but exclude large transient data

@@ -9,7 +9,18 @@ def build_token_budgets(route: AgentRoute, budget_config: dict) -> list[TokenBud
     warning_ratio = float(defaults.get("warning_ratio", 0.9))
     stop_ratio = float(defaults.get("stop_ratio", 1.15))
     profiles = budget_config.get("profiles", {})
-    profile = profiles.get(route.task_size, {})
+    budget_mode = defaults.get("budget_mode", "brain_allocated")
+    size_suffix = {"small": "L1", "medium": "L2", "large": "L3"}.get(route.task_size, "L2")
+    profile_candidates = [
+        f"{budget_mode}_{size_suffix}",
+        f"brain_allocated_{size_suffix}",
+        route.task_size,
+    ]
+    profile = {}
+    for key in profile_candidates:
+        profile = profiles.get(key, {})
+        if profile:
+            break
 
     budgets: list[TokenBudget] = []
     for phase in profile.get("phases", []):

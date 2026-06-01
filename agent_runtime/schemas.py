@@ -17,12 +17,15 @@ AgentName = Literal[
 ]
 
 
+ExecutionBackend = Literal["codex", "qwen", "langgraph", "codex_full_driver"]
+
+
 class TaskRunRequest(BaseModel):
     project: str
     task_id: str
     user_request_path: Optional[str] = None
     run_dir: Optional[str] = None
-    execution_backend: Literal["codex", "qwen"] = "codex"
+    execution_backend: ExecutionBackend = "codex"
     recommended_route: list[AgentName] = Field(default_factory=list)
 
 
@@ -78,7 +81,7 @@ class WorkflowPlan(BaseModel):
     repo_path: str
     run_dir: str
     user_request_path: str
-    execution_backend: Literal["codex", "qwen"] = "codex"
+    execution_backend: ExecutionBackend = "codex"
     route: AgentRoute
     token_budgets: list[TokenBudget] = Field(default_factory=list)
     included_agents: dict[str, dict] = Field(default_factory=dict)
@@ -124,7 +127,25 @@ class TaskState(BaseModel):
     current_agent: Optional[str] = None
     completed_agents: list[str] = Field(default_factory=list)
     reports: dict[str, str] = Field(default_factory=dict)
-    status: Literal["new", "planned", "running", "blocked", "complete"] = "new"
+    status: Literal[
+        "new",
+        "planned",
+        "running",
+        "in_progress",
+        "paused",
+        "blocked",
+        "recoverable",
+        "failed_recoverable",
+        "validating",
+        "auditing",
+        "archiving",
+        "syncing",
+        "complete",
+        "completed",
+        "failed",
+        "archived",
+    ] = "new"
+    execution_mode: str = ""
     last_event: str = ""
     updated_at: str = ""
 

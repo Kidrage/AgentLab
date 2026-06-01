@@ -42,6 +42,7 @@ from config_loader import load_agentlab_configs
 from cost_tracker import append_cost_ledgers, usage_entry
 from policies import (
     assert_path_allowed,
+    ensure_dir_safe,
     ensure_safe_task_id,
     generate_slug_from_request,
     resolve_agentlab_root,
@@ -80,7 +81,16 @@ def write_text_if_missing(path: Path, text: str) -> bool:
 
 
 def ensure_project_memory_files(project_root: Path) -> None:
-    docs = project_root / "agent_docs"
+    docs_env = os.getenv("AGENTLAB_DOCS_DIR")
+    if docs_env:
+        docs = Path(docs_env)
+    else:
+        docs = project_root / "agent_docs"
+    if docs.is_symlink() and not docs.exists():
+        local_backup = docs.with_name(f"{docs.name}.local.bak")
+        if local_backup.is_dir():
+            docs = local_backup
+    ensure_dir_safe(docs, "agent_docs")
     write_text_if_missing(
         docs / "07_DEVELOPMENT_LOG.md",
         "# Development Log\n\nRecords AgentLab team activity by module.\n\n## Module: General\n\n",
@@ -135,7 +145,7 @@ def init_task(
         slug = generate_slug_from_request(request_text)
         if slug and len(slug) >= 2:
             task_id = f"{task_id}_{slug}"
-            console.print(f"[dim]Auto-slug → {task_id}[/dim]")
+            console.print(f"[dim]Auto-slug -> {task_id}[/dim]")
 
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
@@ -204,7 +214,7 @@ def task_clear(
             old_status = t.get("status")
             t["status"] = "archived"
             t["cleared_reason"] = reason or "User cleared via CLI"
-            console.print(f"[green]{task_id}: {old_status} → archived[/green]")
+            console.print(f"[green]{task_id}: {old_status} -> archived[/green]")
             console.print(f"  Reason: {t['cleared_reason']}")
             updated = True
             break
@@ -243,7 +253,6 @@ def task_list(
     data = yaml.safe_load(ledger_path.read_text(encoding="utf-8")) or {}
     tasks = data.get("tasks", [])
 
-    # Apply filters
     if status_filter:
         tasks = [t for t in tasks if t.get("status") == status_filter]
     if priority_filter:
@@ -253,7 +262,6 @@ def task_list(
     if show_blocked:
         tasks = [t for t in tasks if t.get("status") == "blocked"]
 
-    # Sort by priority (P0 first), then depends_on count
     def sort_key(t):
         prio_order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
         status_order = {"blocked": 0, "pending": 1, "active": 2, "complete": 3, "archived": 4}
@@ -261,12 +269,11 @@ def task_list(
 
     tasks.sort(key=sort_key)
 
-    # Summary stats
     counts: dict[str, int] = defaultdict(int)
     for t in tasks:
         counts[t.get("status", "unknown")] += 1
 
-    console.print(f"\n[bold]Task Ledger — {project_name}[/bold]")
+    console.print(f"\n[bold]Task Ledger -- {project_name}[/bold]")
     console.print(f"  Total: {len(tasks)} | "
                   f"Pending: {counts.get('pending', 0)} | "
                   f"Active: {counts.get('active', 0)} | "
@@ -276,16 +283,16 @@ def task_list(
     table = Table("ID", "Status", "Pri", "Cat", "Title", "Description", "Depends On", "Blocked Reason")
     for t in tasks:
         status_icon = {
-            "pending": "⏳",
-            "active": "🔄",
-            "blocked": "🚫",
-            "complete": "✅",
-            "archived": "📦",
-        }.get(t.get("status", ""), "❓")
+            "pending": chr(9203),
+            "active": chr(128260),
+            "blocked": chr(128683),
+            "complete": chr(10004),
+            "archived": chr(128230),
+        }.get(t.get("status", ""), "?")
 
         deps = t.get("depends_on") or []
-        dep_str = ", ".join(deps) if deps else "—"
-        blocked = t.get("blocked_reason") or "—"
+        dep_str = ", ".join(deps) if deps else "-"
+        blocked = t.get("blocked_reason") or "-"
         if len(blocked) > 30:
             blocked = blocked[:27] + "..."
         desc = t.get("description") or ""
@@ -304,11 +311,10 @@ def task_list(
         )
     console.print(table)
 
-    # Next-action recommendation
     next_tasks = [t for t in tasks if t.get("status") in ("pending",) and not (t.get("depends_on") or [])]
     if next_tasks:
         next_task = next_tasks[0]
-        console.print(f"\n[green]Recommended next: {next_task['task_id']} — {next_task['title']} (priority={next_task.get('priority', '?')})[/green]")
+        console.print(f"\n[green]Recommended next: {next_task['task_id']} - {next_task['title']} (priority={next_task.get('priority', '?')})[/green]")
     blocked_tasks = [t for t in tasks if t.get("status") == "blocked"]
     if blocked_tasks:
         console.print(f"\n[yellow]{len(blocked_tasks)} blocked task(s) need attention[/yellow]")
@@ -402,27 +408,48 @@ def policy_status(
     configs = load_agentlab_configs(agentlab_root)
     execution_policy = configs.get("execution_policy", {})
     brain_policy = execution_policy.get("brain_policy", {})
+    tier_policy = execution_policy.get("execution_policy", {})
     coder_policy = execution_policy.get("coder_policy", {})
     providers = configs.get("model_providers", {}).get("providers", {})
+    agent_registry = configs.get("agent_registry", {}).get("agents", {})
+    model_profiles = configs.get("model_profiles", {}).get("profiles", {})
 
     from llm_provider import resolve_env_value
 
-    deepseek = providers.get(brain_policy.get("required_provider", "deepseek"), {})
+    supervisor_profile_name = agent_registry.get("Supervisor", {}).get("model_profile", "")
+    supervisor_profile = model_profiles.get(supervisor_profile_name, {})
+    brain_provider_name = (
+        brain_policy.get("required_provider")
+        or supervisor_profile.get("provider")
+        or "deepseek"
+    )
+    deepseek = providers.get(brain_provider_name, {})
     api_key_configured = bool(resolve_env_value(deepseek.get("api_key"), ""))
+    default_api_coder = tier_policy.get("default_api_coder", {})
+    external_window = tier_policy.get("external_ide_window", {})
 
     console.print("[bold]AgentLab execution policy[/bold]")
     console.print(
         {
-            "brain_required_provider": brain_policy.get("required_provider", "deepseek"),
+            "schema_version": execution_policy.get("schema_version", 1),
+            "budget_mode_default": execution_policy.get("budget_mode_policy", {}).get("default_budget_mode", ""),
+            "brain_required_provider": brain_provider_name,
+            "brain_agent": brain_policy.get("brain_agent", "Supervisor"),
+            "brain_tier": brain_policy.get("brain_tier", ""),
             "deepseek_required_for_all_agentlab_tasks": brain_policy.get(
-                "deepseek_required_for_all_agentlab_tasks", False
+                "deepseek_required_for_all_agentlab_tasks",
+                brain_provider_name == "deepseek",
             ),
             "codex_may_simulate_brain": brain_policy.get("codex_may_simulate_brain", False),
             "deepseek_api_key_configured": api_key_configured,
-            "coder_primary_executor": coder_policy.get("primary_executor", "codex_plus_manual"),
-            "coder_api_fallback_executor": coder_policy.get("api_fallback_executor", ""),
-            "coder_api_fallback_profile": coder_policy.get("api_fallback_model_profile", ""),
-            "automatic_patch_application": coder_policy.get("automatic_patch_application", False),
+            "coder_default_provider": default_api_coder.get("provider", coder_policy.get("api_fallback_executor", "")),
+            "coder_default_model": default_api_coder.get("model", ""),
+            "external_ide_window_enabled": external_window.get("enabled", False),
+            "patch_application_policy": tier_policy.get("patch_application_policy", ""),
+            "automatic_patch_application": coder_policy.get(
+                "automatic_patch_application",
+                tier_policy.get("patch_application_policy") == "apply_directly",
+            ),
             "codex_quota_insufficient_action": coder_policy.get("if_codex_quota_insufficient", "ask_user"),
             "coder_quota_choices": coder_policy.get("user_choices_when_quota_insufficient", []),
         }
@@ -699,7 +726,6 @@ def run_agent(
         }
     )
 
-    # ─── Coder handoff gate: external_ide_ai requires manual IDE takeover ───
     if (
         execute
         and agent_name == "Coder"
@@ -708,36 +734,23 @@ def run_agent(
         and provider != "deepseek"
     ):
         console.print()
-        console.print("[bold yellow]══════════════════════════════════════════════════════════════[/bold yellow]")
-        console.print("[bold yellow]  Coder 阶段由 Codex Plus 手动接管[/bold yellow]")
-        console.print("[bold yellow]══════════════════════════════════════════════════════════════[/bold yellow]")
+        console.print("[bold yellow]??? Coder ??? Codex Plus ????[/bold yellow]")
         console.print()
-        console.print("  默认 Coder executor 是 [bold]Codex Plus[/bold]（仅限有额度的订阅用户）。")
-        console.print("  cline、DeepSeek、Claude 等其他外部 AI 不在 Coder 接管范围内。")
-        console.print("  CLI 不会自动调用任何 API，需要 Codex Plus 在 IDE 中手动执行 Coder 阶段：")
-        console.print()
-        console.print("  1. 读取上下文文件:")
+        console.print("  ?? Coder executor ?? [bold]Codex Plus[/bold]?????? Codex Plus ???Coder ??")
+        console.print("  1. ?????????:")
         console.print(f"     supervisor_plan:   {Path(plan.run_dir) / 'supervisor_plan.md'}")
         console.print(f"     reposcout_report:  {Path(plan.run_dir) / 'reposcout_report.md'}")
         console.print(f"     workflow_plan:     {Path(plan.run_dir) / 'workflow_plan.yml'}")
         console.print()
-        console.print("  2. 在 IDE 对话中用自然语言让 Codex Plus 编辑文件")
-        console.print("  3. 写 implementation_report.md 并记录事件：")
-        console.print(f"     ./agentlab.sh log-event --project {project_name} --task-id {task_id} --agent Coder --summary \"...\" --files-changed \"...\"")
-        console.print()
-        console.print("  [dim]如果确实要用 API 自动编码，请显式指定 Qwen fallback:[/dim]")
+        console.print("  [dim]???????? API ???? Qwen fallback:[/dim]")
         console.print(f"  [dim]./agentlab.sh run-agent Coder --project {project_name} --task-id {task_id} --execute --provider qwen [/dim]")
-        console.print(f"  [dim]或 DeepSeek API 编码: --provider deepseek[/dim]")
         console.print()
         handoff_path = Path(plan.run_dir) / "codex_fallback_Coder.md"
         handoff_path.write_text(
             f"# Coder Handoff to External IDE AI\n\n"
             f"Provider: {settings.provider}\n"
             f"Model: {settings.model}\n\n"
-            f"CLI blocked automatic Coder execution because the default Coder profile\n"
-            f"is `external_ide_coder`. The external IDE AI (Codex Plus) should manually\n"
-            f"take over the Coder stage.\n\n"
-            f"To use API coding fallback, re-run with `--provider qwen` or `--provider deepseek`.\n",
+            f"CLI blocked automatic Coder execution.\n",
             encoding="utf-8",
         )
         console.print(f"[dim]Handoff file: {handoff_path}[/dim]")
@@ -749,7 +762,6 @@ def run_agent(
         console.print(messages[0]["content"][:1800])
         return
 
-    # ─── Guard: acquire lock ────────────────────────────────────────────
     tx_id = None
     try:
         tx_id = acquire_lock(agentlab_root, project_name, task_id)
@@ -766,23 +778,22 @@ def run_agent(
 
         result = run_agent_model(agentlab_root, plan, agent_name, output_path, provider, model, apply_patches=not no_apply_patches)
     except Exception:
-        # Mark as recoverable so the user doesn't lose state
         try:
             from state_store import mark_failed_recoverable
             mark_failed_recoverable(
                 Path(plan.run_dir), project_name, task_id,
-                f"{agent_name} execution interrupted (crash or exception). Transaction: {tx_id}.",
+                f"{agent_name} execution interrupted. Transaction: {tx_id}.",
                 failed_agent=agent_name,
             )
         except Exception:
-            pass  # best-effort; don't mask original error
+            pass
         raise
     finally:
         if tx_id:
             try:
                 release_lock(agentlab_root, project_name, task_id)
             except Exception:
-                pass  # best-effort release
+                pass
     if result.status == "blocked_user_decision":
         blocked_path = Path(plan.run_dir) / f"blocked_{agent_name}.md"
         blocked_path.write_text(result.content, encoding="utf-8")
@@ -790,7 +801,7 @@ def run_agent(
         user_decision_path.write_text(result.content, encoding="utf-8")
         state = load_state(Path(plan.run_dir), project_name, task_id)
         state.status = "blocked"
-        state.last_event = f"{agent_name} requires user decision before fallback or retry."
+        state.last_event = f"{agent_name} requires user decision."
         state.reports[f"{agent_name}_blocked"] = str(blocked_path)
         save_state(Path(plan.run_dir), state)
         append_cost_ledgers(
@@ -866,7 +877,6 @@ def run_agent(
         ),
     )
 
-    # Show patch application results if any
     raw_usage = result.raw_usage or {}
     if "patch_applied" in raw_usage:
         applied = raw_usage.get("patch_applied", 0)
@@ -886,66 +896,49 @@ def run_agent(
 def run_pipeline(
     task_id: str = typer.Option("task_0001", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
-    execution_backend: str = typer.Option("langgraph", help="Pipeline backend: langgraph (or codex for legacy)."),
+    execution_backend: str = typer.Option("codex", help="Pipeline backend: codex dry-run runner or langgraph."),
+    dry_run: bool = typer.Option(True, help="Default dry-run, no API calls."),
 ) -> None:
-    """Run the full agent pipeline using the LangGraph backend (MVP).
-
-    This replaces manual step-by-step `run-agent` calls with a single complied
-    StateGraph that executes all agents in sequence with checkpointing.
-
-    Requirements:
-      pip install langgraph
-
-    The pipeline still writes all agent reports to the file system (shadow mode),
-    so existing tools and inspection scripts continue to work.
-    """
+    """Run the full lifecycle pipeline. Default is dry-run with fake provider."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
 
-    # Allow langgraph backend
-    if execution_backend not in {"langgraph", "codex", "qwen"}:
-        raise typer.BadParameter("execution_backend must be langgraph, codex, or qwen")
+    if execution_backend in ("langgraph",):
+        from langgraph_workflow import build_agentlab_graph, run_agentlab_graph
+        plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend)
+        console.print("[bold]AgentLab LangGraph Pipeline[/bold]")
+        console.print(f"  Project: {project_name}")
+        console.print(f"  Task: {task_id}")
+        console.print(f"  Agents: {' -> '.join(plan.route.agents)}")
+        console.print(f"  Run dir: {plan.run_dir}")
+        try:
+            app_graph = build_agentlab_graph(agentlab_root, plan)
+        except RuntimeError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return
+        _final_state = run_agentlab_graph(app_graph, plan)
+        run_dir = Path(plan.run_dir)
+        state = load_state(run_dir, project_name, task_id)
+        state.status = "complete"
+        state.last_event = "LangGraph pipeline completed."
+        save_state(run_dir, state)
+        console.print()
+        console.print("[green bold]Pipeline finished successfully.[/green bold]")
+        console.print(f"  Reports: {run_dir}/")
+        console.print(f"  State: {run_dir}/state.yml")
+        return
 
-    if execution_backend != "langgraph":
-        console.print(f"[yellow]Backend '{execution_backend}' is the legacy runner. Use './agentlab.sh run-agent' instead.[/yellow]")
-        console.print("[yellow]The 'run-pipeline' command only supports --execution-backend langgraph.[/yellow]")
-        raise typer.Exit(1)
-
-    # Check langgraph availability
-    try:
-        import langgraph  # noqa: F401
-    except ImportError:
-        console.print("[red]LangGraph is not installed.[/red]")
-        console.print("Install it with: pip install langgraph")
-        console.print("Then retry: ./agentlab.sh run-pipeline --task-id {task_id}")
-        raise typer.Exit(1)
-
-    from langgraph_workflow import build_agentlab_graph, run_agentlab_graph
-
-    plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend)
-
-    console.print("[bold]AgentLab LangGraph Pipeline[/bold]")
-    console.print(f"  Project: {project_name}")
-    console.print(f"  Task: {task_id}")
-    console.print(f"  Agents: {' → '.join(plan.route.agents)}")
-    console.print(f"  Run dir: {plan.run_dir}")
-    console.print()
-
-    # Build and execute
-    app_graph = build_agentlab_graph(agentlab_root, plan)
-    _final_state = run_agentlab_graph(app_graph, plan)
-
-    # Mark task complete
-    run_dir = Path(plan.run_dir)
-    state = load_state(run_dir, project_name, task_id)
-    state.status = "complete"
-    state.last_event = "LangGraph pipeline completed."
-    save_state(run_dir, state)
-
-    console.print()
-    console.print("[green bold]Pipeline finished successfully.[/green bold]")
-    console.print(f"  Reports: {run_dir}/")
-    console.print(f"  State: {run_dir}/state.yml")
+    from pipeline_runner import run_full_pipeline
+    result = run_full_pipeline(agentlab_root, project_name, task_id, dry_run=dry_run, fake_provider=dry_run)
+    console.print(f"\n[bold]Lifecycle Pipeline Result[/bold]")
+    console.print(f"  Final status: {result.get('final_status', result.get('status', '?'))}")
+    console.print(f"  Steps executed: {len(result.get('history', []))}")
+    console.print(f"  Pipeline complete: {bool(result.get('success'))}")
+    art = result.get('artifact_completeness', {})
+    console.print(f"  Artifact pass_rate: {art.get('pass_rate', 'N/A')} ({art.get('artifacts_passed', 0)}/{art.get('artifacts_checked', 0)})")
+    if not art.get('valid'):
+        for iss in (art.get('issues') or [])[:5]:
+            console.print(f"    Issue: {iss}")
 
 
 @app.command("progress")
@@ -975,24 +968,23 @@ def progress(
     console.print(f"  Progress: [green]{summary['percent']}%[/green]")
     if summary.get("current_agent"):
         console.print(f"  Current: {summary['current_agent']} / {summary.get('current_stage', '?')}")
-    console.print(f"  Last:    {summary.get('last_event', '—')}")
+    console.print(f"  Last:    {summary.get('last_event', '-')}")
     console.print()
 
     table = Table("Agent", "Status", "Provider", "Tokens")
     for ag in summary.get("agents", []):
-        icon = {"completed": "✅", "active": "🔄", "paused": "⏸️", "waiting": "⏳", "skipped": "⏭️", "blocked": "🚫", "failed": "❌"}.get(ag["status"], "❓")
-        table.add_row(ag["name"], f"{icon} {ag['status']}", ag.get("provider", "—"), str(ag.get("tokens", 0)))
+        icon = {"completed": chr(10004), "active": chr(128260), "paused": "P", "waiting": "W", "skipped": "S", "blocked": "X", "failed": "F"}.get(ag["status"], "?")
+        table.add_row(ag["name"], f"{icon} {ag['status']}", ag.get("provider", "-"), str(ag.get("tokens", 0)))
     console.print(table)
 
     ps = summary.get("provider_status", {})
     if ps:
-        console.print(f"\n[bold]Provider:[/bold] current={ps.get('current_provider', '—')}, failed={ps.get('failed_provider', '—')}, paused={ps.get('paused_for_provider', False)}")
+        console.print(f"\n[bold]Provider:[/bold] current={ps.get('current_provider', '-')}, failed={ps.get('failed_provider', '-')}, paused={ps.get('paused_for_provider', False)}")
 
     inc = summary.get("incidents", {})
     if inc and inc.get("open_count", 0) > 0:
         console.print(f"[yellow]Open incidents: {inc['open_count']}[/yellow]")
 
-    # Check for resume availability
     resume_path = run_dir / "resume_plan.yml"
     if resume_path.exists():
         console.print(f"\n[green]Resume available:[/green] ./agentlab.sh resume --project {project_name} --task-id {task_id}")
@@ -1018,7 +1010,6 @@ def pause_task(
     save_state(run_dir, state)
     console.print(f"[green]Task {task_id} paused: {reason}[/green]")
 
-    # Update progress if exists
     data = load_progress(run_dir)
     if data:
         from progress_tracker import save_progress
@@ -1034,15 +1025,31 @@ def resume_task(
     task_id: str = typer.Option("task_0001", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
     provider: Optional[str] = typer.Option(None, help="Resume with a different provider (e.g. qwen)."),
+    dry_run: bool = typer.Option(True, help="Dry-run resume."),
+    fake_provider: bool = typer.Option(False, help="Use fake provider."),
 ) -> None:
-    """Resume a paused task. Optionally switch provider."""
+    """Resume a paused task. Optionally switch provider or use lifecycle resume."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
     run_dir = Path(agentlab_root / "projects" / project_name / "runs" / task_id)
 
+    # Check for lifecycle-based resume
+    from lifecycle_graph import load_lifecycle
+    lc = load_lifecycle(run_dir)
+    if lc:
+        from pipeline_runner import resume_pipeline
+        result = resume_pipeline(agentlab_root, project_name, task_id, dry_run=dry_run, fake_provider=fake_provider, simulate_provider_recovered=True)
+        console.print(f"[bold]Lifecycle Resume Result[/bold]")
+        console.print(f"  Status: {result.get('status', '?')}")
+        console.print(f"  Message: {result.get('message', '?')}")
+        if result.get('artifact_completeness'):
+            art = result['artifact_completeness']
+            console.print(f"  Artifact pass_rate: {art.get('pass_rate', 'N/A')}")
+        return
+
     resume_path = run_dir / "resume_plan.yml"
-    if not resume_path.exists():
-        console.print(f"[yellow]No resume plan found for {task_id}. Check: ./agentlab.sh status --project {project_name} --task-id {task_id}[/yellow]")
+    if not resume_path.exists() and not lc:
+        console.print(f"[yellow]No resume plan or lifecycle found for {task_id}.[/yellow]")
         return
 
     plan = yaml.safe_load(resume_path.read_text(encoding="utf-8")) or {}
@@ -1051,18 +1058,6 @@ def resume_task(
     console.print(f"  Current agent: {plan.get('current_agent', '?')}")
     console.print(f"  Allowed providers: {plan.get('allowed_resume_providers', [])}")
 
-    if provider:
-        allowed = plan.get("allowed_resume_providers", [])
-        if provider not in allowed:
-            console.print(f"[yellow]Provider '{provider}' is not in allowed providers: {allowed}[/yellow]")
-            return
-        console.print(f"[green]Resuming with provider override: {provider}[/green]")
-        console.print(f"  Run: ./agentlab.sh run-agent {plan.get('current_agent', 'Supervisor')} --project {project_name} --task-id {task_id} --execute --provider {provider}")
-    else:
-        console.print(f"[green]Resume with same provider[/green]")
-        console.print(f"  Run: ./agentlab.sh run-agent {plan.get('current_agent', 'Supervisor')} --project {project_name} --task-id {task_id} --execute")
-
-    # Clear pause state
     from state_store import load_state, save_state
     state = load_state(run_dir, project_name, task_id)
     state.status = "running"
@@ -1076,7 +1071,7 @@ def resume_task(
         data["provider_status"]["paused_for_provider"] = False
         save_progress(run_dir, data)
 
-    console.print("[green]Task marked as resumed. Run 'run-agent' to continue.[/green]")
+    console.print("[green]Task marked as resumed. Run 'run-agent' or 'run-pipeline --dry-run' to continue.[/green]")
 
 
 @app.command("providers")
@@ -1092,11 +1087,11 @@ def providers(
     table = Table("Provider", "Type", "Base URL", "API Key", "Circuit")
     from llm_provider import resolve_env_value
     for name, cfg in providers_config.items():
-        key_ok = "✓" if resolve_env_value(cfg.get("api_key"), "") else "✗"
-        url = resolve_env_value(cfg.get("base_url"), "—")
+        key_ok = "ok" if resolve_env_value(cfg.get("api_key"), "") else "missing"
+        url = resolve_env_value(cfg.get("base_url"), "-")
         if len(url) > 50:
             url = url[:47] + "..."
-        table.add_row(name, cfg.get("type", ""), url, key_ok, "—")
+        table.add_row(name, cfg.get("type", ""), url, key_ok, "-")
     console.print(table)
 
     if task_id:
@@ -1106,7 +1101,7 @@ def providers(
         if incidents:
             console.print(f"\n[yellow]Open incidents for {task_id}: {len(incidents)}[/yellow]")
             for inc in incidents[:5]:
-                console.print(f"  - {inc.get('at', '?')}: {inc.get('provider', '?')} {inc.get('error_class', '?')} — {inc.get('error_message', '')[:80]}")
+                console.print(f"  - {inc.get('at', '?')}: {inc.get('provider', '?')} {inc.get('error_class', '?')} - {inc.get('error_message', '')[:80]}")
         else:
             console.print(f"\n[green]No open incidents for {task_id}[/green]")
 
@@ -1152,7 +1147,7 @@ def check_cmd(
         console.print(f"\n[bold]Self-Check:[/bold] [{'green' if report['status'] == 'pass' else 'yellow' if report['status'] == 'warn' else 'red'}]{report['status'].upper()}[/]")
         console.print(f"  Passed: {report['summary']['passed']}, Warnings: {report['summary']['warnings']}, Failed: {report['summary']['failed']}")
         for c in report.get("checks", []):
-            icon = {"pass": "✅", "warn": "⚠️", "fail": "❌"}.get(c["status"], "❓")
+            icon = {"pass": "ok", "warn": "!", "fail": "X"}.get(c["status"], "?")
             console.print(f"  {icon} {c['id']}: {c['message'][:100]}")
         if report.get("blocking_reasons"):
             console.print(f"\n[red]Blocking:[/red]")
@@ -1185,7 +1180,7 @@ def sync_cmd(
         console.print(f"  Commit: {report['commit_sha'][:12]}")
     if report.get("warnings"):
         for w in report["warnings"]:
-            console.print(f"  ⚠️  {w}")
+            console.print(f"  ! {w}")
     if report.get("blocking_reasons"):
         console.print(f"[red]Blocking reasons:[/red]")
         for r in report["blocking_reasons"]:
@@ -1206,10 +1201,10 @@ def sync_status(
     from atomic_io import safe_read_yaml
     ledger = safe_read_yaml(ledger_path) or {}
     entries = ledger.get("entries", [])
-    console.print(f"\n[bold]Sync Ledger — {project_name}[/bold]")
+    console.print(f"\n[bold]Sync Ledger - {project_name}[/bold]")
     console.print(f"  Total entries: {len(entries)}")
     for e in entries[-5:]:
-        console.print(f"  {e.get('timestamp', '?')[:19]} — {e.get('task_id', '?')} — {e.get('status', '?')} — {e.get('commit_sha', '')[:12]}")
+        console.print(f"  {e.get('timestamp', '?')[:19]} - {e.get('task_id', '?')} - {e.get('status', '?')} - {e.get('commit_sha', '')[:12]}")
 
 
 @app.command("provider-test")
@@ -1243,7 +1238,7 @@ def provider_test(
         return
 
     if not api_key:
-        console.print("[red]Cannot test — no API key configured.[/red]")
+        console.print("[red]Cannot test - no API key configured.[/red]")
         return
 
     from llm_provider import generate_text
@@ -1260,17 +1255,15 @@ def provider_test(
     try:
         result = generate_text(test_settings, providers_config, messages)
         if result.status == "completed":
-            console.print(f"[green]✓ Provider {provider} responded: {result.content[:100]}[/green]")
+            console.print(f"[green]ok Provider {provider} responded: {result.content[:100]}[/green]")
         else:
             console.print(f"[yellow]Provider returned status: {result.status}[/yellow]")
             console.print(result.error or "no error details")
     except Exception as e:
-        console.print(f"[red]✗ Provider {provider} failed: {e}[/red]")
+        console.print(f"[red]X Provider {provider} failed: {e}[/red]")
 
 
-# ══════════════════════════════════════════════════════════════════════
 # Task Discovery & Resume Index Commands
-# ══════════════════════════════════════════════════════════════════════
 
 @app.command("task-index")
 def task_index_cmd(
@@ -1279,7 +1272,7 @@ def task_index_cmd(
 ) -> None:
     """Build or rebuild the project task discovery index."""
     agentlab_root, project_name = runtime_context(project)
-    from task_index import rebuild_index, build_project_task_index, save_project_task_index, generate_per_task_artifacts, list_task_run_dirs
+    from task_index import rebuild_index, build_project_task_index, save_project_task_index
 
     if rebuild:
         index = rebuild_index(agentlab_root, project_name)
@@ -1327,11 +1320,10 @@ def task_open_cmd(
 ) -> None:
     """Display a task card with full details."""
     agentlab_root, project_name = runtime_context(project)
-    from task_index import ensure_project_task_index, build_task_record, run_dir_for_task
+    from task_index import ensure_project_task_index
     from task_card import render_task_card_rich
 
     index = ensure_project_task_index(agentlab_root, project_name)
-    # Find task in index
     record = None
     for t in index.get("tasks", []):
         if t.get("task_id") == task_id:
@@ -1375,16 +1367,14 @@ def task_map_cmd(
         grouped.setdefault(status, []).append(t)
 
     console = Console()
-    console.print(f"\n[bold]AgentLab Task Map — {project_name}[/bold]\n")
+    console.print(f"\n[bold]AgentLab Task Map -- {project_name}[/bold]\n")
 
     order = ["running", "paused", "recoverable", "blocked", "completed", "failed", "archived", "unknown"]
     for status in order:
         items = grouped.get(status, [])
         if not items:
             continue
-        icon = {"running": "🔄", "paused": "⏸️", "recoverable": "♻️", "blocked": "🚫",
-                "completed": "✅", "failed": "❌", "archived": "📦", "unknown": "❓"}.get(status, "❓")
-        console.print(f"[bold]{icon} {status.title()}:[/bold]")
+        console.print(f"[bold]{status.title()}:[/bold]")
         for t in items[:20]:
             pct = t.get("percent_complete", 0)
             console.print(f"  - {t['task_id']}  {pct}%  {t.get('title', '')[:50]}")
@@ -1407,6 +1397,77 @@ def task_artifacts_cmd(
     manifest = build_artifact_manifest(run_dir)
     text = render_artifact_manifest_text(manifest)
     console.print(text)
+
+
+# Lifecycle & Artifact Commands
+
+@app.command("lifecycle-status")
+def lifecycle_status_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Show lifecycle state for a task."""
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    from lifecycle_graph import load_lifecycle, next_node, validate_lifecycle, lifecycle_summary
+
+    lc = load_lifecycle(run_dir)
+    if not lc:
+        console.print("[yellow]No lifecycle.yml found for this task.[/yellow]")
+        console.print("Run 'run-pipeline --dry-run' to create one.")
+        return
+
+    validation = validate_lifecycle(run_dir)
+    next_n = next_node(run_dir)
+
+    console.print(f"\n[bold]Lifecycle Status: {task_id}[/bold]")
+    console.print(f"  Next node: {next_n or 'all completed'}")
+    console.print(f"  Validation: {'PASS' if validation['valid'] else 'FAIL'}")
+    console.print(f"  Completed: {validation['completed_count']}/{validation['node_count']}")
+    console.print(f"  Skipped: {validation['skipped_count']}")
+    console.print()
+    console.print(lifecycle_summary(run_dir))
+
+
+@app.command("artifact-check")
+def artifact_check_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Validate all artifacts for a task."""
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    from artifact_contract import validate_artifacts, write_artifact_manifest
+
+    result = validate_artifacts(run_dir)
+    write_artifact_manifest(run_dir, result)
+
+    status = "PASS" if result['valid'] else "FAIL"
+    console.print(f"\n[bold]Artifact Check: {task_id} - [{status}][/bold]")
+    console.print(f"  Pass rate: {result['pass_rate']} ({result['artifacts_passed']}/{result['artifacts_checked']})")
+    if result.get('issues'):
+        console.print(f"  Issues ({result['issues_count']}):")
+        for iss in result['issues'][:10]:
+            console.print(f"    - {iss.get('file', '?')}: {iss.get('issue', '?')}")
+    console.print(f"  Manifest: {run_dir}/artifact_manifest.yml")
+
+
+@app.command("run-next")
+def run_next_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    dry_run: bool = typer.Option(True, help="Default dry-run."),
+) -> None:
+    """Run the next lifecycle node."""
+    agentlab_root, project_name = runtime_context(project)
+    from pipeline_runner import run_next_node
+    result = run_next_node(agentlab_root, project_name, task_id, fake_provider=dry_run)
+    console.print(f"\n[bold]Next Node Result[/bold]")
+    console.print(f"  Node: {result.get('node', '?')}")
+    console.print(f"  Status: {result.get('status', '?')}")
+    console.print(f"  Message: {result.get('message', '?')}")
+    if result.get('resume_command'):
+        console.print(f"  Resume: {result['resume_command']}")
 
 
 if __name__ == "__main__":

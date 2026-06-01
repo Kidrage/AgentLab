@@ -14,11 +14,24 @@ class ChatIntent:
     """Chat intent constants."""
     # Existing
     NEW_TASK = "new_task"
+    ATTACH_TASK = "attach_task"
     RUN_AGENT = "run_agent"
+    RUN_NEXT = "run_next"
     STATUS = "status"
+    PROGRESS = "progress"
+    PLAN = "plan"
+    CHECK = "check"
+    SYNC = "sync"
+    PAUSE = "pause"
+    RESUME = "resume"
+    PROVIDERS = "providers"
+    MODELS = "models"
+    OPEN_PATH = "open_path"
+    FOLLOWUP = "followup"
     HELP = "help"
     PIPELINE = "pipeline"
     EXIT = "exit"
+    UNKNOWN = "unknown"
     # Task Discovery
     FIND_TASK = "find_task"
     RESUME_LIST = "resume_list"
@@ -45,6 +58,19 @@ _KNOWN_COMMANDS = {
     "/artifacts": ChatIntent.ARTIFACTS,
     "/summarize-task": ChatIntent.SUMMARIZE_TASK,
     "/status": ChatIntent.STATUS,
+    "/task": ChatIntent.ATTACH_TASK,
+    "/progress": ChatIntent.PROGRESS,
+    "/plan": ChatIntent.PLAN,
+    "/run": ChatIntent.RUN_AGENT,
+    "/run-next": ChatIntent.RUN_NEXT,
+    "/check": ChatIntent.CHECK,
+    "/push": ChatIntent.SYNC,
+    "/sync": ChatIntent.SYNC,
+    "/pause": ChatIntent.PAUSE,
+    "/resume": ChatIntent.RESUME,
+    "/providers": ChatIntent.PROVIDERS,
+    "/models": ChatIntent.MODELS,
+    "/open": ChatIntent.OPEN_PATH,
     "/help": ChatIntent.HELP,
     "/exit": ChatIntent.EXIT,
     "/quit": ChatIntent.EXIT,
@@ -107,3 +133,27 @@ def parse_intent(text: str, project: str = "", active_task_id: Optional[str] = N
 
     # Default: treat as potential new task or fallback
     return ParsedIntent(intent=ChatIntent.NEW_TASK, payload={"request": text}, raw=text)
+
+
+def parse_input(text: str, has_active_task: bool = False) -> tuple[str, str]:
+    """Compatibility parser used by terminal_chat.
+
+    Returns the older `(intent, payload_string)` shape while sharing the same
+    command table as `parse_intent`.
+    """
+    raw = text.strip()
+    if not raw:
+        return ChatIntent.UNKNOWN, ""
+
+    if raw.startswith("/"):
+        parts = raw.split(maxsplit=1)
+        cmd = parts[0].lower()
+        rest = parts[1].strip() if len(parts) > 1 else ""
+        intent = _KNOWN_COMMANDS.get(cmd)
+        if intent is None:
+            return ChatIntent.UNKNOWN, raw
+        return intent, rest
+
+    if has_active_task:
+        return ChatIntent.FOLLOWUP, raw
+    return ChatIntent.NEW_TASK, raw
