@@ -1,0 +1,24 @@
+valid: false
+pass_rate: 0.57
+artifacts_checked: 21
+artifacts_passed: 12
+issues:
+- file: workflow_plan.yml
+  issue: missing
+- file: 05_codex_prompt.md
+  issue: missing
+- file: handoff_packet.yml
+  issue: missing
+- file: brain_decisions.yml
+  issue: missing
+- file: self_check_report.yml
+  issue: missing
+- file: sync_report.yml
+  issue: missing
+- file: task_card.yml
+  issue: missing
+- file: artifact_manifest.yml
+  issue: missing
+- file: cost_ledger.yml
+  issue: missing
+issues_count: 9

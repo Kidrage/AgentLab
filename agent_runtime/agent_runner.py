@@ -144,8 +144,8 @@ def run_agent_model(
     messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
     result = generate_text(settings, configs.get("model_providers", {}), messages)
 
-    # Apply file edits if the LLM included structured edit blocks
-    if apply_patches and result.status == "completed" and result.content:
+    # Apply file edits only when policy explicitly allows direct mutation.
+    if _patch_application_enabled(configs, agent_name, apply_patches) and result.status == "completed" and result.content:
         from patch_applicator import apply_all_patches, strip_edit_blocks_from_report
 
         project_root = Path(plan.project_root)
@@ -192,3 +192,14 @@ def _extract_allowed_files(plan: WorkflowPlan) -> set[str] | None:
     if allowed and isinstance(allowed, list):
         return {str(f) for f in allowed}
     return None
+
+
+def _patch_application_enabled(configs: dict, agent_name: str, requested: bool) -> bool:
+    if not requested or agent_name != "Coder":
+        return False
+    execution_policy = configs.get("execution_policy", {})
+    tier_policy = execution_policy.get("execution_policy", {})
+    coder_policy = execution_policy.get("coder_policy", {})
+    if coder_policy.get("automatic_patch_application") is True:
+        return True
+    return tier_policy.get("patch_application_policy") == "apply_directly"

@@ -1,0 +1,18 @@
+task_id: task_0999
+project: AgentLab
+execution:
+  mode: dry_run
+route:
+  agents:
+  - Supervisor
+  - RepoScout
+  - Coder
+  - TesterAuditor
+  - Archivist
+scope:
+  allowed_edit_paths: []
+  forbidden_paths:
+  - .env
+resume:
+  supported: true
+  handoff_file: handoff_packet.yml

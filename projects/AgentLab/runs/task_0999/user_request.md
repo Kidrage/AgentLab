@@ -1,0 +1,1 @@
+Test full lifecycle closure.

@@ -1,0 +1,100 @@
+version: 1
+project: AgentLab
+task_id: task_0014
+generated_at: '2026-05-31T11:23:15.569679+00:00'
+artifacts:
+- kind: request
+  agent: user
+  path: user_request.md
+  status: present
+  title: Request
+  summary: 调研 LangGraph 的开源信息（GitHub star数、架构、版本、依赖、核心概念）， 评估与 AgentLab 骨架的整合难度，并判断这个工程更适合
+    DeepSeek（Cline）还是 Codex 执行。
+  important: true
+- kind: plan
+  agent: Supervisor
+  path: 01_supervisor_plan.md
+  status: missing
+  title: Plan
+  summary: ''
+  important: true
+- kind: scout
+  agent: RepoScout
+  path: 02_reposcout_report.md
+  status: missing
+  title: Scout
+  summary: ''
+  important: false
+- kind: research
+  agent: Researcher
+  path: 03_research_notes.md
+  status: missing
+  title: Research
+  summary: ''
+  important: false
+- kind: interface
+  agent: InterfaceMapper
+  path: 04_interface_map.md
+  status: missing
+  title: Interface
+  summary: ''
+  important: false
+- kind: prompt
+  agent: CodexPromptGen
+  path: 05_codex_prompt.md
+  status: missing
+  title: Prompt
+  summary: ''
+  important: false
+- kind: implementation
+  agent: Coder
+  path: 06_implementation_report.md
+  status: missing
+  title: Implementation
+  summary: ''
+  important: true
+- kind: validation
+  agent: TesterAuditor
+  path: 07_validation_report.md
+  status: missing
+  title: Validation
+  summary: ''
+  important: true
+- kind: audit
+  agent: TesterAuditor
+  path: 08_audit_report.md
+  status: missing
+  title: Audit
+  summary: ''
+  important: true
+- kind: archive
+  agent: Archivist
+  path: 09_archive_update.md
+  status: missing
+  title: Archive
+  summary: ''
+  important: false
+- kind: handoff
+  agent: system
+  path: handoff_packet.yml
+  status: missing
+  title: Handoff
+  summary: ''
+  important: true
+- kind: plan
+  agent: system
+  path: workflow_plan.yml
+  status: missing
+  title: Plan
+  summary: ''
+  important: true
+summary:
+  present: 1
+  missing: 11
+  important_missing:
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
+  - workflow_plan.yml

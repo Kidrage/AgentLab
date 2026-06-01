@@ -10,15 +10,25 @@ from policies import assert_path_allowed
 
 CONFIG_FILES = {
     "agent_registry": "agent_registry.yml",
+    "agent_model_profiles": "agent_model_profiles.yml",
+    "auto_sync_policy": "auto_sync_policy.yml",
+    "backup_policy": "backup_policy.yml",
     "brain_governance": "brain_governance.yml",
+    "evaluation_policy": "evaluation_policy.yml",
     "execution_policy": "execution_policy.yml",
+    "execution_modes": "execution_modes.yml",
     "github_policy": "github_policy.yml",
     "harness_policy": "harness_policy.yml",
+    "model_catalog": "model_catalog.yml",
     "model_providers": "model_providers.yml",
     "model_profiles": "model_profiles.yml",
+    "routing_policy": "routing_policy.yml",
     "routing_rules": "routing_rules.yml",
     "budget_profiles": "budget_profiles.yml",
+    "self_check_policy": "self_check_policy.yml",
+    "task_index_policy": "task_index_policy.yml",
     "validation_gates": "validation_gates.yml",
+    "version_policy": "version_policy.yml",
     "memory_policy": "memory_policy.yml",
 }
 

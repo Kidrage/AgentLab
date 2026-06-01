@@ -72,7 +72,34 @@ def _configured_route(routing_config: dict | None, key: str, fallback: list[str]
     if not routing_config:
         return fallback
     routes = routing_config.get("routes", {})
-    return list(routes.get(key) or fallback)
+    route_entry = routes.get(key)
+    if isinstance(route_entry, dict):
+        configured_agents = route_entry.get("agents")
+    else:
+        configured_agents = route_entry
+    agents = list(configured_agents or fallback)
+    if "Coder" in agents and "TesterAuditor" not in agents:
+        insert_at = agents.index("Coder") + 1
+        agents.insert(insert_at, "TesterAuditor")
+    return agents
+
+
+def _configured_route_size(routing_config: dict | None, key: str, fallback: str) -> str:
+    if not routing_config:
+        return fallback
+    route_entry = routing_config.get("routes", {}).get(key)
+    configured_size = route_entry.get("size") if isinstance(route_entry, dict) else None
+    size_map = {
+        "L1": "small",
+        "L2": "medium",
+        "L3": "large",
+        "S0": "small",
+        "S1": "small",
+        "S2": "medium",
+        "S3": "large",
+        "S4": "large",
+    }
+    return size_map.get(str(configured_size), fallback)
 
 
 def recommend_route(
@@ -112,23 +139,23 @@ def recommend_route(
 
     if looks_large:
         route_key = "large_or_risky_task"
-        task_size = "large"
+        task_size = _configured_route_size(routing_config, route_key, "large")
         agents = _configured_route(routing_config, route_key, fallback_large)
     elif touches_interfaces:
         route_key = "interface_sensitive_task"
-        task_size = "medium"
+        task_size = _configured_route_size(routing_config, route_key, "medium")
         agents = _configured_route(routing_config, route_key, fallback_interface)
     elif wants_research:
         route_key = "research_sensitive_task"
-        task_size = "medium"
+        task_size = _configured_route_size(routing_config, route_key, "medium")
         agents = _configured_route(routing_config, route_key, fallback_research)
     elif looks_medium:
         route_key = "medium_task"
-        task_size = "medium"
+        task_size = _configured_route_size(routing_config, route_key, "medium")
         agents = _configured_route(routing_config, route_key, fallback_medium)
     else:
         route_key = "small_task"
-        task_size = "small"
+        task_size = _configured_route_size(routing_config, route_key, "small")
         agents = _configured_route(routing_config, route_key, fallback_small)
 
     rationale = [

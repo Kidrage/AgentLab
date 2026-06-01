@@ -9,17 +9,46 @@ from schemas import WorkflowPlan
 from task_router import recommend_route
 
 
-def _project_paths(agentlab_root: Path, project_name: str, task_id: str) -> dict[str, Path]:
+def _resolve_configured_path(project_root: Path, configured: str | None, default: str, agentlab_root: Path) -> Path:
+    """Resolve a project-configured path relative to the project root.
+
+    AgentLab projects may bind their source repo to a sibling path such as
+    `../../`.  Resolve from `project_root`, then keep the final path inside the
+    AgentLab workspace boundary.
+    """
+    raw = configured or default
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = project_root / candidate
+    return assert_path_allowed(candidate, agentlab_root)
+
+
+def _project_docs_path(project_root: Path, configured: str | None, agentlab_root: Path) -> Path:
+    raw = configured or "agent_docs"
+    docs = Path(raw).expanduser()
+    if not docs.is_absolute():
+        docs = project_root / docs
+    if docs.is_symlink() and not docs.exists():
+        local_backup = docs.with_name(f"{docs.name}.local.bak")
+        if local_backup.is_dir():
+            return assert_path_allowed(local_backup, agentlab_root)
+    return assert_path_allowed(docs, agentlab_root)
+
+
+def _project_paths(agentlab_root: Path, project_name: str, task_id: str, project_config: dict | None = None) -> dict[str, Path]:
     project_root = assert_path_allowed(agentlab_root / "projects" / project_name, agentlab_root)
-    repo_path = assert_path_allowed(project_root / "repo", agentlab_root)
-    run_dir = assert_path_allowed(project_root / "runs" / task_id, agentlab_root)
+    paths_config = (project_config or {}).get("paths", {})
+    repo_path = _resolve_configured_path(project_root, paths_config.get("repo"), "repo", agentlab_root)
+    docs_path = _project_docs_path(project_root, paths_config.get("docs"), agentlab_root)
+    run_base = _resolve_configured_path(project_root, paths_config.get("runs"), "runs", agentlab_root)
+    run_dir = assert_path_allowed(run_base / task_id, agentlab_root)
     return {
         "project_root": project_root,
         "repo_path": repo_path,
         "run_dir": run_dir,
         "project_config": project_root / "project_config.yml",
-        "context_pack": project_root / "agent_docs" / "00_CONTEXT_PACK.md",
-        "repo_map": project_root / "agent_docs" / "01_REPO_MAP.md",
+        "context_pack": docs_path / "00_CONTEXT_PACK.md",
+        "repo_map": docs_path / "01_REPO_MAP.md",
         "user_request": run_dir / "user_request.md",
     }
 
@@ -32,12 +61,11 @@ def build_workflow_plan(
     user_request_path: Path | None = None,
 ) -> WorkflowPlan:
     """Build a complete, inspectable plan for one AgentLab task."""
-    paths = _project_paths(agentlab_root, project_name, task_id)
-    request_path = user_request_path or paths["user_request"]
-    task_text = request_path.read_text(encoding="utf-8") if request_path.exists() else ""
-
     configs = load_agentlab_configs(agentlab_root)
     project_config = load_project_config(agentlab_root, project_name)
+    paths = _project_paths(agentlab_root, project_name, task_id, project_config)
+    request_path = user_request_path or paths["user_request"]
+    task_text = request_path.read_text(encoding="utf-8") if request_path.exists() else ""
     agent_registry = configs.get("agent_registry", {}).get("agents", {})
     known_agents = list(agent_registry.keys()) or None
 

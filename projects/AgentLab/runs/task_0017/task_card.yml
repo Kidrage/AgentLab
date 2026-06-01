@@ -1,0 +1,38 @@
+version: 1
+project: AgentLab
+task_id: task_0017
+title: task_0017
+summary: '**请求**: AgentLab 的大脑层模型选择紊乱，需要系统规划每个 agent 的模型分配。'
+status: unknown
+resume_state: unknown
+can_resume: false
+percent_complete: 0
+current_agent: null
+current_stage: null
+last_event: ''
+last_event_at: ''
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0017
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0017
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0017
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0017
+artifact_summary:
+  present: 1
+  missing: 11
+  important_missing:
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
+  - workflow_plan.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

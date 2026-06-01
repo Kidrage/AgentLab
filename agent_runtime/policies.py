@@ -96,3 +96,31 @@ def assert_path_allowed(path: Path, allowed_root: Path) -> Path:
         raise ValueError(f"Refusing to access forbidden path: {target}")
 
     return target
+
+
+def ensure_dir_safe(path: Path, label: str = "directory") -> Path:
+    """Create or verify a directory, handling symlinks gracefully.
+
+    - If path exists and is a directory: pass
+    - If path is a symlink pointing to an existing directory: pass
+    - If path is a symlink pointing to missing target: error with clear message
+    - If path exists but is not a directory: error
+    - If path does not exist: create with parents
+    """
+    p = path.expanduser()
+
+    if p.exists():
+        if p.is_dir():
+            return p
+        if p.is_symlink():
+            target = p.resolve(strict=False)
+            if target.exists() and target.is_dir():
+                return p
+            raise RuntimeError(
+                f"{label} is a symlink but target is missing or not a directory: "
+                f"{p} -> {target}. Mount the target or configure an alternate path."
+            )
+        raise RuntimeError(f"{label} exists but is not a directory: {p}")
+
+    p.mkdir(parents=True, exist_ok=True)
+    return p
