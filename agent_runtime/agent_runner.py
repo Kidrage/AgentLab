@@ -13,14 +13,25 @@ from schemas import LLMSettings, WorkflowPlan
 
 
 DEFAULT_REPORT_BY_AGENT = {
+    "Supervisor": "01_supervisor_plan.md",
+    "RepoScout": "02_reposcout_report.md",
+    "Researcher": "03_research_notes.md",
+    "InterfaceMapper": "04_interface_map.md",
+    "PromptEngineer": "05_coder_prompt.md",
+    "Coder": "06_implementation_report.md",
+    "TesterAuditor": "08_audit_report.md",
+    "Verifier": "verification_report.md",
+    "Archivist": "09_archive_update.md",
+}
+
+LEGACY_REPORT_BY_AGENT = {
     "Supervisor": "supervisor_plan.md",
     "RepoScout": "reposcout_report.md",
     "Researcher": "research_notes.md",
     "InterfaceMapper": "interface_map.md",
+    "PromptEngineer": "coder_prompt.md",
     "Coder": "implementation_report.md",
-    "CodexPromptGenerator": "codex_prompt.md",
     "TesterAuditor": "audit_report.md",
-    "Verifier": "verification_report.md",
     "Archivist": "archive_update.md",
 }
 
@@ -29,7 +40,15 @@ def report_path_for_agent(plan: WorkflowPlan, agent_name: str, output: Path | No
     run_dir = Path(plan.run_dir)
     if output:
         return output if output.is_absolute() else run_dir / output
-    return run_dir / DEFAULT_REPORT_BY_AGENT.get(agent_name, f"{agent_name.lower()}_report.md")
+    report_path = run_dir / DEFAULT_REPORT_BY_AGENT.get(agent_name, f"{agent_name.lower()}_report.md")
+    if report_path.exists():
+        return report_path
+    legacy_name = LEGACY_REPORT_BY_AGENT.get(agent_name)
+    if legacy_name:
+        legacy_path = run_dir / legacy_name
+        if legacy_path.exists():
+            return legacy_path
+    return report_path
 
 
 def is_placeholder_report(path: Path) -> bool:

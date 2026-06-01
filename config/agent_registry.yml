@@ -195,17 +195,32 @@ agents:
     required_outputs:
       - runs/task_xxxx/implementation_report.md
 
-  CodexPromptGenerator:
-    template_path: agent_templates/coder.md
-    role: 用轻量模型生成 Codex Plus / 外部 IDE AI 的实现引导 prompt.
-    model_profile: execution_codex_prompt  # qwen3.6-flash
+  PromptEngineer:
+    template_path: agent_templates/prompt_engineer.md
+    role: >
+      稳定生成 Coder 执行提示词。读取 Supervisor plan + RepoScout report + Interface map,
+      拼接成结构化、可复现的 Coder 实现引导 prompt。确保 prompt 完整覆盖 scope、允许编辑的文件、
+      禁止操作、验收标准等关键信息。输出质量稳定可控，不依赖对话记忆。
+    model_profile: execution_prompt_engineer  # qwen3.6-plus (L2 默认)
     model_tier: T3
+    profile_mapping:
+      brain_allocated:
+        L2: execution_prompt_engineer          # qwen3.6-plus
+        L3: execution_prompt_engineer_l3       # qwen3.7-max
+      max_quality:
+        any: execution_prompt_engineer_maxq    # qwen3.7-max
+      frugal:
+        any: execution_prompt_engineer_frugal  # qwen3.6-flash
     can_edit_source: false
     can_run_shell: false
     can_write_agent_docs: false
     source_write_policy: never
+    required_inputs:
+      - runs/task_xxxx/supervisor_plan.md
+      - runs/task_xxxx/reposcout_report.md
+      - runs/task_xxxx/interface_map.md
     required_outputs:
-      - runs/task_xxxx/codex_prompt.md
+      - runs/task_xxxx/05_coder_prompt.md
 
   # ══════════════════════════════════════════════════════════════════════
   # T4 审核层 (Audit Tier)
@@ -267,21 +282,37 @@ agents:
 
   Archivist:
     template_path: agent_templates/archivist.md
-    role: 项目记忆压缩、连续性更新、长期记录维护.
-    model_profile: archive_archivist  # qwen3.6-flash (L2 默认)
+    role: >
+      项目记忆压缩、连续性更新、长期记录维护 (per-task).
+      跨任务文档整合: 生成开发流程文档、使用指南、CHANGELOG、任务索引 (bulk mode).
+      任务归档清理: 将旧任务移入 archive/ 目录.
+    model_profile: archive_archivist_plus  # qwen3.6-plus (L2 默认, 升级自 flash)
     model_tier: T5
     profile_mapping:
       brain_allocated:
-        L1: null                         # L1 不归档
-        L2: archive_archivist            # qwen3.6-flash
-        L3: archive_archivist_l3         # qwen3.6-plus
+        L1: null                               # L1 不归档
+        L2: archive_archivist_plus             # qwen3.6-plus
+        L3: archive_archivist_l3               # qwen3.7-max
       max_quality:
-        any: archive_archivist_maxq      # qwen3.6-plus
+        any: archive_archivist_maxq            # qwen3.7-max
       frugal:
-        any: null                         # 不归档
+        any: archive_archivist_frugal          # qwen3.6-flash
     can_edit_source: false
     can_run_shell: false
     can_write_agent_docs: true
     source_write_policy: never
+    shell_policy: read_only_inspection
+    required_inputs:
+      - runs/task_xxxx/supervisor_plan.md
+      - runs/task_xxxx/implementation_report.md
+      - runs/task_xxxx/validation_report.md
+      - runs/task_xxxx/audit_report.md
+      - project_config.yml (bulk mode)
     required_outputs:
       - runs/task_xxxx/archive_update.md
+    bulk_mode_outputs:
+      - runs/task_purge_report.yml
+      - docs/development_process.md
+      - docs/usage_guide.md
+      - docs/CHANGELOG.md
+      - docs/task_index.md
