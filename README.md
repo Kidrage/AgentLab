@@ -20,16 +20,28 @@ The goal is to make model-assisted development cheaper, more transparent, and mo
 
 ## Operating Model / 运行模型
 
-This AgentLab uses a split-brain workflow / 本 AgentLab 采用双脑工作流：
+AgentLab uses a multi-tier brain workflow with dynamic model selection:
 
 ```text
-DeepSeek API = low-cost management and reasoning / 低成本管理与推理层
-Codex Plus   = real code generation, file edits, and command execution / 实际代码生成、文件编辑和命令执行
+T1 大脑层  (Brain):    Supervisor          → DeepSeek V4 Pro / Qwen3.6-Plus
+T2 感知层  (Perception): RepoScout, Researcher, InterfaceMapper → Qwen3.6+/Qwen3.7-Max
+T3 执行层  (Execution): Coder, CodexPromptGenerator → Qwen3-Coder-Next / DeepSeek V4 Pro
+T4 审核层  (Audit):     TesterAuditor, Verifier → Qwen3.6-Flash/Plus
+T5 归档层  (Archive):   Archivist → Qwen3.6-Plus / Qwen3.7-Max
 ```
 
-DeepSeek is required for planning, task decomposition, architecture notes, code review, error analysis, and Codex prompt generation whenever AgentLab is active, including simulations and small tasks. Codex Plus performs actual source edits and project commands. See `OPERATING_MODEL.md`.
+Three budget modes control model selection per task:
+- 🧠 **brain_allocated** (default): cost-optimized tier matching by project size (L1/L2/L3)
+- ⚡ **max_quality**: best available models at every tier
+- 💰 **frugal**: lightweight models, skip optional agents, local LLM support
 
-DeepSeek 负责规划、任务分解、架构笔记、代码审查、错误分析和 Codex 提示词生成——只要 AgentLab 激活就必须使用，包括模拟和小任务。Codex Plus 执行实际的源码编辑和项目命令。详见 `OPERATING_MODEL.md`。
+Coder supports four backends:
+- `api_qwen_coder` — Qwen3-Coder-Next (default)
+- `api_deepseek_coder` — DeepSeek V4 Pro (max quality)
+- `local_llm` — Ollama/vLLM (frugal mode)
+- `external_ide` — external IDE AI handoff (Codex/Claude/Cline)
+
+See `config/agent_registry.yml`, `config/model_catalog.yml`, and `OPERATING_MODEL.md`.
 
 ---
 
@@ -37,48 +49,61 @@ DeepSeek 负责规划、任务分解、架构笔记、代码审查、错误分�
 
 ```text
 AgentLab/
-├── agent_runtime/          # Core runtime: CLI, brain governor, task router, LLM provider
-│                           # 核心运行时：CLI、大脑治理、任务路由、LLM 提供者
-├── agent_templates/        # 8 agent role prompts and report formats
-│                           # 8 个 Agent 角色提示词和报告格式
-├── config/                 # YAML policies: routing, budget, models, validation gates
-│                           # YAML 策略：路由、预算、模型、验证门禁
+├── agent_runtime/          # Core runtime: CLI, lifecycle graph, guard, progress tracker,
+│                           # brain governor, task router, provider failover, LLM provider,
+│                           # task index, terminal chat, evaluation suite
+│                           # 核心运行时：CLI、生命周期图、守护、进度追踪、
+│                           # 大脑治理、任务路由、提供者故障切换、LLM 提供者、
+│                           # 任务索引、终端聊天、评估套件
+├── agent_templates/        # 9 agent role prompts and report formats
+│                           # 9 个 Agent 角色提示词和报告格式
+├── config/                 # 22 YAML policies: routing, budget, models, validation gates,
+│                           # guard, backup, auto-sync, evaluation, execution modes, etc.
+│                           # 22 个 YAML 策略：路由、预算、模型、验证门禁、
+│                           # 守护、备份、自动同步、评估、执行模式等
 ├── projects/               # Per-project memory docs and task run records
 │                           # 每个项目的记忆文档和任务运行记录
-├── web_ui/                 # Static status dashboard (zero dependencies)
-│                           # 静态状态看板（零依赖）
+├── web_ui/                 # Static status dashboard with task details panel
+│                           # 静态状态看板（含任务详情面板）
 ├── scripts/                # Git hooks and automation
 │                           # Git 钩子和自动化脚本
+├── docs/                   # Specs: Codex Full-Driver Operation Chain
+│                           # 规范：Codex 全驱动操作链
 ├── agentlab.sh             # One-command CLI entrypoint
 │                           # 一键 CLI 入口
 ├── DRIVER_PROTOCOL.md      # Protocol for external AIs to drive AgentLab
 │                           # 外部 AI 驱动 AgentLab 的协议
-└── OPERATING_MODEL.md      # Split-brain operating rules
-                            # 双脑运行规则
+├── OPERATING_MODEL.md      # Multi-tier operating rules
+│                           # 分层运行规则
+└── CLI_ROADMAP.md          # CLI evolution roadmap
+                            # CLI 演进路线图
 ```
 
 ---
 
-## 8 Agents / 8 个智能体
+## 9 Agents / 9 个智能体
 
-| Agent / 智能体 | Role / 角色 | Provider / 提供者 | Permissions / 权限 |
+| Agent / 智能体 | Tier | Role / 角色 | Permissions / 权限 |
 |---|---|---|---|
-| **Supervisor** | 协调范围、路由、Token 预算、停止规则 | DeepSeek | 只读 |
-| **RepoScout** | 仓库结构扫描和上下文映射 | DeepSeek | 只读 + shell 检查 |
-| **Researcher** | 外部信息/文档研究 | DeepSeek | 只读 + 可浏览 |
-| **InterfaceMapper** | 接口、契约、边界映射 | DeepSeek | 只读 + shell 检查 |
-| **Coder** | 实际代码编辑、文件变更、项目命令 | **Codex Plus** | 可写源码 + 可执行 |
-| **CodexPromptGenerator** | 为 Codex 生成实现提示词 | DeepSeek | 只读 |
-| **TesterAuditor** | 验证实际行为 + diff 审计 | DeepSeek | shell 验证命令 |
-| **Archivist** | 项目记忆归档和延续性更新 | DeepSeek | 可写 agent_docs |
+| **Supervisor** | T1 | 任务规划、路由决策、范围锁定、Token 预算、预算模式选择 | 只读 |
+| **RepoScout** | T2 | 仓库结构扫描和上下文映射 | 只读 + shell 检查 |
+| **Researcher** | T2 | 外部信息/文档研究 | 只读 + 可浏览 |
+| **InterfaceMapper** | T2 | 接口、契约、边界映射 | 只读 + shell 检查 |
+| **PromptEngineer** | T3 | 稳定生成 Coder 执行提示词，拼接 scope + context + contracts | 只读 |
+| **Coder** | T3 | 代码编辑、文件变更、项目命令（API/本地/外部IDE） | 可写源码 + 可执行 |
+| **TesterAuditor** | T4 | Diff 审查、验证解读、风险发现、行为校验 | shell 验证命令 |
+| **Verifier** | T4 | 输出匹配检查、行为完整性验证、Agent 交接缺口检测 | 只读 + shell 检查 |
+| **Archivist** | T5 | 项目记忆维护 + 跨任务文档整合 + 任务归档清理 | 可写 agent_docs |
 
 Configuration / 配置入口: `config/agent_registry.yml` | Templates / 模板: `agent_templates/*.md`
+
+Budget modes and project sizes (L1/L2/L3) dynamically select which model profile each agent uses — see `config/model_catalog.yml`.
 
 ---
 
 ## Task Routing / 任务路由
 
-5 route profiles based on keyword heuristics / 5 种基于关键词启发式的路由配置：
+5 route profiles based on task content + project size heuristics:
 
 | Route / 路由 | Trigger / 触发条件 | Agents / 智能体 |
 |---|---|---|
@@ -86,9 +111,103 @@ Configuration / 配置入口: `config/agent_registry.yml` | Templates / 模板: 
 | `medium_task` | >800 chars / 字符 | +RepoScout +Archivist |
 | `interface_sensitive_task` | api/schema/protocol/db/ui 等 | +InterfaceMapper |
 | `research_sensitive_task` | latest/docs/pricing/regulation 等 | +Researcher |
-| `large_or_risky_task` | architecture/refactor/security 或 >2500 chars | 全 7 个 agent / all 7 agents |
+| `large_or_risky_task` | architecture/refactor/security 或 >2500 chars | 全 9 个 agent / all 9 agents |
 
 Principle: **smallest safe route** / 原则：**最小安全路线**。
+
+Verifier runs on L2+ tasks; skipped on L1 frugal mode.
+
+---
+
+## Lifecycle State Machine / 生命周期状态机
+
+Every task follows a canonical 14-node lifecycle with checkpoint tracking and resume support:
+
+```text
+INIT_TASK → PREPARE_PLAN → SUPERVISOR_PLAN → REPO_CONTEXT
+  → RESEARCH_OPTIONAL → INTERFACE_OPTIONAL → CODER_IMPLEMENTATION
+  → VALIDATION → AUDIT → VERIFY → ARCHIVE → SELF_CHECK
+  → SYNC_OPTIONAL → FINALIZE
+```
+
+Task states: `new` → `planned` → `in_progress` → `paused`/`blocked`/`recoverable` → `validating` → `auditing` → `archiving` → `syncing` → `completed`/`failed`
+
+Each task tracks progress via `progress.yml` with per-agent weights, token accounting, provider status, and incident tracking. Both CLI and Web UI consume this single source of truth.
+
+---
+
+## AgentLab Guard / 守护系统
+
+Concurrent safety and crash recovery for multi-agent workflows:
+
+- **Atomic I/O**: all state writes use atomic write-then-rename (`atomic_io.py`)
+- **File locks**: exclusive per-task locks prevent concurrent writes by multiple agents
+- **Heartbeats**: periodic heartbeat files detect stale/crashed processes (120s timeout)
+- **Crash recovery**: auto-detect stale locks and offer guided recovery
+- **Transaction tracking**: every lock acquisition creates an auditable transaction record
+
+Run `./agentlab.sh guard-status --project <Project> --task-id <task_id>` to inspect lock state.
+
+---
+
+## Provider Failover / 提供者故障切换
+
+When a provider API fails, AgentLab can pause and switch to a fallback:
+
+- Detects provider failures and records incidents in `progress.yml`
+- Pauses task state with `paused_for_provider` flag
+- Supports manual provider override to resume with a different model
+- Incident history recorded for post-task review
+
+---
+
+## Codex Full-Driver Mode / Codex 全驱动模式
+
+Codex can temporarily execute ALL AgentLab roles as an external driver while still writing every standard artifact locally. This allows consuming Codex quota without losing the ability to resume via API agents later.
+
+Key artifact: `handoff_packet.yml` — machine-readable resume state for any model or human.
+
+Three safe transitions: **Codex → Codex**, **Codex → API agents**, **Codex → human manual**.
+
+Full spec: `docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md`
+
+---
+
+## Task Discovery & Resume Index / 任务发现与恢复索引
+
+Global task index with searchable metadata:
+
+- `task_index.yml` — searchable registry of all tasks across all projects
+- `task_card.yml` — per-task summary: status, route, cost, key decisions
+- Task search by status, agent, risk level, budget mode
+- Resume support: find paused/blocked tasks and continue from last checkpoint
+
+CLI: `./agentlab.sh task-search --status paused`, `./agentlab.sh task-resume --project <P> --task-id <T>`
+
+---
+
+## Terminal Chat / 终端对话
+
+Direct CLI chat interface for quick agent interactions without a full task run:
+
+```bash
+./agentlab.sh chat --agent Supervisor --project <Project>
+```
+
+Supports single-turn queries with any configured agent/model, with cost tracking.
+
+---
+
+## Evaluation Suite / 评估套件
+
+Built-in evaluation framework for validating AgentLab's own behavior:
+
+- **Modes**: offline_first, mock_provider, api_smoke, full_api
+- **Audits**: system audit, artifact completeness (≥90%), lifecycle pass rate (≥85%), recovery pass rate (≥80%), budget savings (≥30% vs monolithic), secret leak detection
+- **Token estimation**: char/4 fallback with optional tiktoken
+- **Cost tracking**: config-based pricing with override support
+
+Run: `cd agent_runtime/evaluation && python eval_all.py`
 
 ---
 
@@ -100,7 +219,7 @@ From the AgentLab root / 从 AgentLab 根目录：
 # Initialize a new task / 初始化新任务
 ./agentlab.sh init-task --project <Project> --task-id task_0007
 
-# Build workflow plan (local only, no API call) / 生成工作流计划（纯本地，不调 API）
+# Build workflow plan / 生成工作流计划
 ./agentlab.sh prepare --project <Project> --task-id task_0007 --write-plan
 
 # Check task status / 查看任务状态
@@ -109,7 +228,7 @@ From the AgentLab root / 从 AgentLab 根目录：
 # Run a brain agent (dry-run by default, --execute to call API) / 运行大脑层 Agent
 ./agentlab.sh run-agent Supervisor --project <Project> --task-id task_0007 --execute
 
-# Check brain governance (token budgets per agent) / 查看大脑治理状态
+# Check brain governance / 查看大脑治理状态
 ./agentlab.sh brain-status --project <Project> --task-id task_0007
 
 # List configured models/providers / 列出已配置的模型/提供者
@@ -118,14 +237,33 @@ From the AgentLab root / 从 AgentLab 根目录：
 # View execution policy / 查看执行策略
 ./agentlab.sh policy-status --project <Project>
 
-# Log an event to development/dialogue/cost ledgers / 记录事件
+# Log an event to ledgers / 记录事件
 ./agentlab.sh log-event --project <Project> --task-id task_0007 --agent Coder --summary "..." --files-changed "..."
 
-# Request traversal permission from brain governor / 请求大脑遍历权限
+# Request traversal permission / 请求遍历权限
 ./agentlab.sh request-traversal RepoScout --project <Project> --task-id task_0007 --scope full_repo --full-repo --reason "Need initial repo map"
 
 # Request coder quota decision / 请求 Coder 配额决策
 ./agentlab.sh request-coder-quota --project <Project> --task-id task_0007 --reason "Codex quota may be insufficient"
+
+# Check guard status / 查看守护状态
+./agentlab.sh guard-status --project <Project> --task-id task_0007
+
+# Scan stale locks / 扫描过期锁
+./agentlab.sh guard-scan --project <Project>
+
+# Search tasks / 搜索任务
+./agentlab.sh task-search --project <Project> --status paused
+
+# Resume a paused task / 恢复暂停的任务
+./agentlab.sh task-resume --project <Project> --task-id task_0007
+
+# Terminal chat / 终端对话
+./agentlab.sh chat --agent Supervisor --project <Project>
+
+# Codex full-driver commands / Codex 全驱动命令
+./agentlab.sh codex-start --project <Project> --task-id task_0007 --mode full-driver
+./agentlab.sh codex-handoff --project <Project> --task-id task_0007
 ```
 
 `run-agent` is dry-run by default. It calls the configured model API only when you pass `--execute`.
@@ -141,10 +279,14 @@ Read `DRIVER_PROTOCOL.md` for the full 7-step protocol.
 
 任何外部 AI（Codex Plus、Claude、IDE 助手）都可以作为轻量中继驱动 AgentLab。完整 7 步协议见 `DRIVER_PROTOCOL.md`。
 
+Two execution modes for external AIs:
+- **Coder-Only**: external AI only edits code and runs commands; AgentLab API agents handle planning, review, archiving
+- **Full-Driver** (Codex): external AI emulates all 9 roles while writing all standard artifacts; resumable by API agents later
+
 The key rule / 核心规则：
-- **External AIs do NOT think — AgentLab's brain (DeepSeek) does.** / **外部 AI 不思考 — AgentLab 的大脑（DeepSeek）来思考。**
+- **External AIs do NOT think — AgentLab's brain does.** / **外部 AI 不思考 — AgentLab 的大脑来思考。**
 - External AIs only transcribe user requests, execute the Coder phase, and relay decisions. / 外部 AI 仅转录用户请求、执行 Coder 阶段、中继决策。
-- If DeepSeek is unavailable, AgentLab blocks and asks the user — no silent simulation. / 如果 DeepSeek 不可用，AgentLab 阻止并询问用户——不允许静默模拟。
+- If brain models are unavailable, AgentLab blocks and asks the user — no silent simulation. / 如果大脑模型不可用，AgentLab 阻止并询问用户——不允许静默模拟。
 
 ---
 
@@ -153,17 +295,20 @@ The key rule / 核心规则：
 - Token budgets per agent phase (warning at 90%, stop at 115%) / 每个 Agent 阶段的 Token 预算（90% 警告，115% 停止）
 - Full-repo traversal requires explicit approval / 全仓库遍历需要显式批准
 - Loop detection: 3+ repeated similar decisions → stop and replan / 循环检测：3 次以上重复相似决策 → 停止并重新规划
-- Harness status checks verify `AGENTS.md`, project memory freshness, task feedback artifacts, and repeated-feedback promotion points. / Harness 状态检查会验证 `AGENTS.md`、项目记忆新鲜度、任务反馈产物和重复反馈升级点。
+- Budget mode selection: brain_allocated / max_quality / frugal per task / 预算模式选择
+- Project size classification: L1 (轻量) / L2 (标准) / L3 (重型) determines model tier
+- Provider failover: auto-pause on API failure, record incident, allow manual resume with fallback model / 提供者故障切换
+- Guard system: atomic I/O, file locks, heartbeats, crash recovery / 守护系统
+- Harness status checks verify `AGENTS.md`, project memory freshness, task feedback artifacts, and repeated-feedback promotion points. / Harness 状态检查
 - All decisions written to `brain_decisions.yml` / 所有决策写入 `brain_decisions.yml`
 - User decisions written to `USER_DECISION_REQUIRED.md` / 用户决策写入 `USER_DECISION_REQUIRED.md`
 
-Harness policy lives in `config/harness_policy.yml`. Run:
+Policy configs live in `config/`. Run:
 
 ```text
 ./agentlab.sh harness-status --project <Project> --task-id task_0007
+./agentlab.sh guard-status --project <Project> --task-id task_0007
 ```
-
-The root `AGENTS.md` is deliberately short: it is a map into local policies and project memory, not a duplicated operating manual.
 
 ---
 
@@ -173,18 +318,31 @@ The root `AGENTS.md` is deliberately short: it is a map into local policies and 
 runs/task_xxxx/
 ├── user_request.md          # User's natural-language task / 用户自然语言任务
 ├── workflow_plan.yml        # Route + token budgets + validation gates / 路由 + 预算 + 门禁
+├── lifecycle.yml            # Canonical lifecycle state machine / 规范生命周期状态机
+├── progress.yml             # Per-agent progress, tokens, provider status / 各Agent进度
+├── state.yml                # Task state machine / 任务状态机
+├── task_card.yml            # Searchable task summary / 可搜索的任务摘要
 ├── supervisor_plan.md       # Scope, route, budget table, risks / 范围、路由、预算表、风险
 ├── reposcout_report.md      # Repository context / 仓库上下文
 ├── research_notes.md        # External research findings / 外部研究结果
 ├── interface_map.md         # Interface boundaries / 接口边界
+├── codex_prompt.md          # Coder handoff prompt / Coder 交接提示词
 ├── implementation_report.md # Changed files, commands, backend / 变更文件、命令、后端
 ├── validation_report.md     # Tester/Auditor validation / 测试/审计验证
 ├── audit_report.md          # Diff audit findings / Diff 审计发现
+├── verification_report.md   # Verifier completeness check / Verifier 完整性检查
 ├── archive_update.md        # Project memory updates / 项目记忆更新
 ├── brain_decisions.yml      # All governance decisions / 所有治理决策
 ├── cost_ledger.yml          # Token cost accounting / Token 成本记账
-├── state.yml                # Task state machine / 任务状态机
-└── USER_DECISION_REQUIRED.md  # When user must decide / 需要用户决策时
+├── provider_incidents.yml   # Provider failure records / 提供者故障记录
+├── handoff_packet.yml       # Machine-readable resume state / 可机读的恢复状态
+├── self_check_report.yml    # Self-check before push / 推送前自查
+├── artifact_manifest.yml    # Final artifact inventory / 最终产物清单
+├── USER_DECISION_REQUIRED.md  # When user must decide / 需要用户决策时
+├── diffs/                   # Pre/post coder diffs / Coder 前后差异
+├── checkpoints/             # Recovery checkpoints / 恢复检查点
+├── command_logs/            # Commands run and outputs / 执行命令和输出
+└── sync/                    # GitHub/Truenas sync reports / 同步报告
 ```
 
 ---
@@ -197,43 +355,53 @@ AgentLab has a dependency-free static status board / AgentLab 有一个零依赖
 web_ui/index.html
 ```
 
-Shows agent state, route, provider, ownership, edit rights, token budget, and recent events.
+Shows agent state, route, provider, ownership, edit rights, token budget, progress percentage, lifecycle stage, provider status, and recent events. Task details panel links to code layer.
 
-显示 Agent 状态、路由、提供者、所有权、编辑权限、Token 预算和最近事件。
-
----
-
-## Project / Task Hierarchy
-
-AgentLab treats projects, tasks, and subtasks as separate scopes:
-
-- **Project**: long-lived workspace, source repo binding, project memory, GitHub backup, and future cloud runner configuration.
-- **Task**: one auditable AgentLab run with `workflow_plan.yml`, reports, cost ledger, decisions, and state.
-- **Subtask**: checklist item inside a task ledger entry. It does not create a full run unless promoted to a task.
-
-Projects are always top-level siblings under `projects/<ProjectName>/`. Creating a
-new project never nests it inside the currently selected project or task. Work
-created inside the selected project is a new task.
-
-The Web UI uses the backend filesystem as the source of truth: project/task navigation reads `/api/projects` and `/api/tasks`; creation flows write real project folders, task runs, or ledger subtasks.
+显示 Agent 状态、路由、提供者、所有权、编辑权限、Token 预算、进度百分比、生命周期阶段、提供者状态和最近事件。任务详情面板与代码层关联。
 
 ---
 
-## GitHub Private Backup Plan
+## GitHub Private Backup & Auto-Sync / GitHub 私有备份与自动同步
 
-New AgentLab projects include a GitHub backup placeholder in `project_config.yml`. Global policy lives in:
+AgentLab supports guarded GitHub auto-sync with self-check before push:
 
-```text
-config/github_policy.yml
+- Private repository backup via `config/github_policy.yml`
+- Pre-push rule self-check (`rule_self_check.py`) blocks push if artifacts are incomplete
+- Sync history recorded in `agent_docs/10_SYNC_LEDGER.yml`
+- TrueNAS silent merge backup support
+- Post-commit auto-push hook (safe: blocked if `.env` or secrets staged)
+
+---
+
+## Task Purge & Project Documentation / 任务清理与项目文档
+
+Archivist (T5) 的 bulk 文档整合模式提供自动任务归档和项目文档生成:
+
+Archivist bulk mode provides automatic task archival and project documentation generation:
+
+**Task Archival / 任务归档:**
+- Auto-archive completed tasks older than `keep_days` (default 7 days) to `archive/`
+- `keep: true` flag in `state.yml` protects tasks from archival
+- Dry-run mode previews what would be archived without moving files
+
+**Project Documentation / 项目文档生成:**
+- `development_process.md` — 开发流程文档（整合所有任务的实现报告）
+- `usage_guide.md` — 使用指南（CLI 命令参考、常见工作流）
+- `CHANGELOG.md` — 项目更新日志（按任务自动维护）
+- `task_index.md` — 任务索引（所有任务的状态和路由一览）
+
+CLI / 命令行:
+```bash
+# Preview archival (dry-run) / 预览归档内容
+./agentlab.sh task-purge --project <Project> --keep-days 7 --dry-run
+
+# Execute archival + generate docs / 执行归档并生成文档
+./agentlab.sh task-purge --project <Project> --keep-days 7
 ```
 
-Defaults are local-first and private. AgentLab records sync history in:
+Generated docs are written to `projects/<Project>/docs/`. The archival report is saved as `runs/task_purge_report.yml`.
 
-```text
-agent_docs/10_SYNC_LEDGER.yml
-```
-
-Remote mutations are planned before execution. `agent_runtime/github_client.py` builds auditable GitHub request plans for private repository creation, file sync through the Contents API, and future GitHub Actions workflow dispatch.
+生成的文档写入 `projects/<Project>/docs/`。归档报告保存为 `runs/task_purge_report.yml`。
 
 ---
 
@@ -245,7 +413,7 @@ This repo is version-controlled on GitHub / 本仓库在 GitHub 上进行版本�
 https://github.com/Kidrage/AgentLab
 ```
 
-After any meaningful change, commit and push (auto-push via post-commit hook) / 每次有意义的修改后提交并推送（通过 post-commit 钩子自动推送）：
+Auto-push via post-commit hook / 通过 post-commit 钩子自动推送：
 
 ```bash
 git add -A
@@ -263,4 +431,6 @@ Use `git status` before committing to ensure no sensitive files (`.env`, credent
 
 | Version / 版本 | Date / 日期 | Changes / 变更 |
 |---|---|---|
+| 2.1 | 2026-06-01 | Agent refactoring: CodexPromptGenerator → PromptEngineer (qwen3.6-plus, stable coder handoff prompts); DocManager merged into Archivist (qwen3.6-plus, per-task archiving + bulk doc generation + task purge); 9-agent clean architecture with rationalized model assignments / Agent 重构：CodexPromptGenerator→PromptEngineer（qwen3.6-plus，稳定生成 Coder 执行提示词）；DocManager 合并入 Archivist（qwen3.6-plus，单任务归档+批量文档整合+任务清理）；9 Agent 精简架构，模型分配合理化 |
+| 2.0 | 2026-05-31 | 9-agent tiered architecture (T1-T5), Model Tier v3 with Size×Risk×Budget routing, AgentLab Guard (atomic I/O + locks + heartbeat + crash recovery), Provider Failover with pause/resume, Lifecycle State Machine (14-node graph + checkpoints), Progress Tracker (progress.yml), Verifier agent, Codex Full-Driver Operation Chain, Task Discovery & Resume Index, Terminal Chat, Evaluation Suite, Rule Self-Check + Guarded GitHub Auto-Sync, Web UI task details panel, 22 config policies, 40+ runtime modules / 9 Agent 分层架构（T1-T5）、Model Tier v3 尺寸×风险×预算路由、AgentLab 守护（原子 IO + 锁 + 心跳 + 崩溃恢复）、提供者故障切换与暂停/恢复、生命周期状态机（14节点图 + 检查点）、进度追踪、Verifier 智能体、Codex 全驱动操作链、任务发现与恢复索引、终端对话、评估套件、规则自查 + 守卫式 GitHub 自动同步、Web UI 任务详情面板、22 个配置策略、40+ 运行时模块 |
 | 1.0 | 2026-05-30 | Initial release: 8-agent multi-agent workflow, split-brain architecture (DeepSeek + Codex Plus), 5 route profiles, token budget governance, brain governor, loop detection, local status UI, driver protocol for external AI, auto-push git hook / 初始发布：8 Agent 多智能体工作流、双脑架构（DeepSeek + Codex Plus）、5 种路由配置、Token 预算治理、大脑治理、循环检测、本地状态界面、外部 AI 驱动协议、自动推送 Git 钩子 |

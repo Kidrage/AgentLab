@@ -348,18 +348,55 @@ profiles:
     budget_mode: frugal
     local_only: true
 
-  # ── Prompt 生成器 ────────────────────────────────────────────────
-  execution_codex_prompt:
+  # ── Prompt Engineer — 稳定生成 Coder 执行 prompt ──────────────────
+  execution_prompt_engineer:
     description: >
-      CodexPromptGenerator — 用轻量模型生成 Codex Plus / 外部 IDE AI 的实现引导 prompt。
-      纯模板工作，qwen3.6-flash 即可。
+      PromptEngineer L2 — 读取 Supervisor plan + RepoScout report + Interface map,
+      拼接成结构化、可复现的 Coder 实现引导 prompt。
+      qwen3.6-plus 保证输出稳定可靠。
+    provider: qwen
+    model: qwen3.6-plus
+    fallback_model: qwen3.7-max
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 2600
+    tier: T3
+    budget_mode: brain_allocated
+    applies_to: [L2]
+
+  execution_prompt_engineer_l3:
+    description: PromptEngineer L3 — qwen3.7-max。
+    provider: qwen3
+    model: qwen3.7-max
+    fallback_model: deepseek-v4-pro
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 2600
+    tier: T3
+    budget_mode: brain_allocated
+    applies_to: [L3]
+
+  execution_prompt_engineer_maxq:
+    description: PromptEngineer 全量 — qwen3.7-max。
+    provider: qwen3
+    model: qwen3.7-max
+    fallback_model: deepseek-v4-pro
+    temperature: 0.1
+    top_p: 0.9
+    max_output_tokens: 4096
+    tier: T3
+    budget_mode: max_quality
+
+  execution_prompt_engineer_frugal:
+    description: PromptEngineer 最低成本 — qwen3.6-flash。
     provider: qwen-flash
     model: qwen3.6-flash
     fallback_model: qwen3.6-plus
-    temperature: 0.2
+    temperature: 0.15
     top_p: 0.95
     max_output_tokens: 2000
     tier: T3
+    budget_mode: frugal
 
   # ══════════════════════════════════════════════════════════════════════
   # T4 审核层 (Audit Tier) — TesterAuditor / Verifier
@@ -510,3 +547,30 @@ profiles:
     max_output_tokens: 2600
     tier: T5
     budget_mode: max_quality
+  # ── 升级版 (per-task + bulk doc mode) ──────────────────────────────
+  archive_archivist_plus:
+    description: >
+      Archivist L2 升级版 — qwen3.6-plus。承担 per-task 归档 + 跨任务文档整合。
+    provider: qwen
+    model: qwen3.6-plus
+    fallback_model: qwen3.7-max
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 2600
+    tier: T5
+    budget_mode: brain_allocated
+    applies_to: [L2]
+
+  # ── 最低成本 ──────────────────────────────────────────────────────
+  archive_archivist_frugal:
+    description: >
+      Archivist 最低成本 — qwen3.6-flash。
+    provider: qwen-flash
+    model: qwen3.6-flash
+    fallback_model: qwen3.6-plus
+    temperature: 0.15
+    top_p: 0.95
+    max_output_tokens: 2000
+    tier: T5
+    budget_mode: frugal
+
