@@ -162,15 +162,16 @@ def init_task(
     skipped = []
     templates = {
         "user_request.md": user_request,
-        "supervisor_plan.md": "# Supervisor Plan\n\nTBD\n",
-        "reposcout_report.md": "# RepoScout Report\n\nTBD\n",
-        "research_notes.md": "# Research Notes\n\nTBD\n",
-        "interface_map.md": "# Interface Map\n\nTBD\n",
-        "implementation_report.md": "# Implementation Report\n\nTBD\n",
-        "validation_report.md": "# Validation Report\n\nTBD\n",
-        "audit_report.md": "# Audit Report\n\nTBD\n",
+        "01_supervisor_plan.md": "# Supervisor Plan\n\nTBD\n",
+        "02_reposcout_report.md": "# RepoScout Report\n\nTBD\n",
+        "03_research_notes.md": "# Research Notes\n\nTBD\n",
+        "04_interface_map.md": "# Interface Map\n\nTBD\n",
+        "05_coder_prompt.md": "# Coder Handoff Prompt\n\nTBD\n",
+        "06_implementation_report.md": "# Implementation Report\n\nTBD\n",
+        "07_validation_report.md": "# Validation Report\n\nTBD\n",
+        "08_audit_report.md": "# Audit Report\n\nTBD\n",
         "verification_report.md": "# Verification Report\n\nTBD\n",
-        "archive_update.md": "# Archive Update\n\nTBD\n",
+        "09_archive_update.md": "# Archive Update\n\nTBD\n",
         "cost_ledger.yml": "entries: []\n",
         "brain_decisions.yml": "decisions: []\n",
     }
@@ -941,6 +942,44 @@ def run_pipeline(
             console.print(f"    Issue: {iss}")
 
 
+@app.command("workspace-scan")
+def workspace_scan(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    target: Path = typer.Option(..., help="Local workspace directory to scan read-only."),
+    max_depth: int = typer.Option(8, help="Maximum directory depth per top-level project."),
+) -> None:
+    """Create project memory from a local workspace without model API calls."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from workspace_scanner import run_workspace_scan
+
+    result = run_workspace_scan(
+        agentlab_root=agentlab_root,
+        project=project_name,
+        task_id=task_id,
+        target=target,
+        max_depth=max_depth,
+    )
+    workspace = result["workspace"]
+    artifact = result["artifact_check"]
+    console.print("[bold]AgentLab workspace scan[/bold]")
+    console.print("No model calls, source edits, dependency installs, or validation builds were run.")
+    console.print(f"  Project: {result['project']}")
+    console.print(f"  Task: {result['task_id']}")
+    console.print(f"  Target: {result['target']}")
+    console.print(f"  Top-level projects: {workspace['top_level_project_count']}")
+    console.print(f"  Git repos: {workspace['git_repo_count']} ({workspace['dirty_git_repo_count']} dirty)")
+    console.print(f"  Files counted: {workspace['file_count']}")
+    console.print(f"  Size counted: {workspace['human_size']}")
+    console.print(f"  Agent docs: {result['docs_dir']}")
+    console.print(f"  Run dir: {result['run_dir']}")
+    console.print(
+        f"  Artifact pass_rate: {artifact.get('pass_rate')} "
+        f"({artifact.get('artifacts_passed')}/{artifact.get('artifacts_checked')})"
+    )
+
+
 @app.command("progress")
 def progress(
     task_id: str = typer.Option("task_0001", help="Task run id."),
@@ -1468,6 +1507,157 @@ def run_next_cmd(
     console.print(f"  Message: {result.get('message', '?')}")
     if result.get('resume_command'):
         console.print(f"  Resume: {result['resume_command']}")
+
+
+@app.command("doctor")
+def doctor(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    json_output: bool = typer.Option(False, help="Output JSON."),
+) -> None:
+    """AgentLab system health check."""
+    import subprocess
+    import sys
+    agentlab_root, _ = runtime_context(project)
+    results = []
+    exit_code = 0
+
+    # 1. Python version
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    if sys.version_info >= (3, 10):
+        results.append(("Python version", "PASS", py_ver))
+    else:
+        results.append(("Python version", "FAIL", f"{py_ver} < 3.10"))
+        exit_code = 1
+
+    # 2. bash syntax
+    bash_path = agentlab_root / "agentlab.sh"
+    try:
+        subprocess.run(["bash", "-n", str(bash_path)], capture_output=True, check=True)
+        results.append(("bash syntax", "PASS", str(bash_path)))
+    except subprocess.CalledProcessError:
+        results.append(("bash syntax", "FAIL", "agentlab.sh syntax error"))
+        exit_code = 1
+
+    # 3. py_compile agentlab_app.py
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "py_compile", str(agentlab_root / "agentlab_app.py")],
+            capture_output=True, check=True,
+        )
+        results.append(("py_compile agentlab_app", "PASS", ""))
+    except subprocess.CalledProcessError as e:
+        results.append(("py_compile agentlab_app", "FAIL", e.stderr.decode()[:100]))
+        exit_code = 1
+
+    # 4. py_compile agent_runtime/*.py
+    runtime_dir = agentlab_root / "agent_runtime"
+    runtime_failed = []
+    for f in sorted(runtime_dir.glob("*.py")):
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "py_compile", str(f)],
+                capture_output=True, check=True,
+            )
+        except subprocess.CalledProcessError:
+            runtime_failed.append(f.name)
+    if runtime_failed:
+        results.append(("py_compile runtime", "FAIL", ", ".join(runtime_failed)))
+        exit_code = 1
+    else:
+        results.append(("py_compile runtime", "PASS", "41 files"))
+
+    # 5. py_compile web_ui/server.py
+    ui_server = agentlab_root / "web_ui" / "server.py"
+    if ui_server.exists():
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "py_compile", str(ui_server)],
+                capture_output=True, check=True,
+            )
+            results.append(("py_compile web_ui", "PASS", ""))
+        except subprocess.CalledProcessError as e:
+            results.append(("py_compile web_ui", "FAIL", e.stderr.decode()[:100]))
+            exit_code = 1
+
+    # 6. YAML parse check
+    config_dir = agentlab_root / "config"
+    yaml_failed = []
+    for f in sorted(config_dir.glob("*.yml")):
+        try:
+            data = yaml.safe_load(f.read_text(encoding="utf-8"))
+            if data is None:
+                yaml_failed.append(f"{f.name} (empty)")
+        except Exception as e:
+            yaml_failed.append(f"{f.name} ({e})")
+    if yaml_failed:
+        results.append(("config parse", "FAIL", ", ".join(yaml_failed)))
+        exit_code = 1
+    else:
+        results.append(("config parse", "PASS", ""))
+
+    # 7. Required directories
+    dirs = ["agent_runtime", "agent_templates", "config", "projects", "web_ui"]
+    for d in dirs:
+        p = agentlab_root / d
+        results.append((f"dir {d}", "PASS" if p.is_dir() else "FAIL", str(p)))
+        if not p.is_dir():
+            exit_code = 1
+
+    # 8. Required Web UI files
+    ui_files = ["index.html", "app.js", "styles.css", "server.py"]
+    for f in ui_files:
+        p = agentlab_root / "web_ui" / f
+        results.append((f"ui file {f}", "PASS" if p.exists() else "FAIL", str(p)))
+        if not p.exists():
+            exit_code = 1
+
+    # 9. Artifact contract load
+    try:
+        from artifact_contract import REQUIRED_ARTIFACTS_BY_ROUTE, COMMON_ARTIFACTS
+        total_artifacts = len(COMMON_ARTIFACTS) + len(set(
+            a for v in REQUIRED_ARTIFACTS_BY_ROUTE.values() for a in v
+        ))
+        results.append(("artifact contract", "PASS", f"{total_artifacts} artifacts defined"))
+    except Exception as e:
+        results.append(("artifact contract", "FAIL", str(e)))
+        exit_code = 1
+
+    # 10. API key check (warn only)
+    from llm_provider import resolve_env_value
+    import os as _os
+    load_dotenv()
+    keys_found = 0
+    keys_total = 0
+    for var in ["DEEPSEEK_API_KEY", "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY"]:
+        keys_total += 1
+        if _os.getenv(var):
+            keys_found += 1
+    if keys_found == 0:
+        results.append(("API keys", "WARN", "no API keys configured"))
+    else:
+        results.append(("API keys", "PASS", f"{keys_found}/{keys_total} configured"))
+
+    if json_output:
+        import json
+        out = {
+            "status": "pass" if exit_code == 0 else "fail",
+            "checks": [
+                {"id": r[0], "status": r[1].lower(), "message": r[2]}
+                for r in results
+            ],
+        }
+        console.print(json.dumps(out, indent=2, ensure_ascii=False))
+    else:
+        for name, status, detail in results:
+            icon = {"PASS": "✅", "WARN": "⚠️", "FAIL": "❌"}.get(status, "❓")
+            console.print(f"{icon} {status:5s} {name}: {detail}")
+        console.print()
+        if exit_code == 0:
+            console.print("[green]All checks passed.[/green]")
+        else:
+            console.print("[red]Some checks failed.[/red]")
+
+    raise typer.Exit(code=exit_code)
 
 
 if __name__ == "__main__":

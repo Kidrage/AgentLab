@@ -984,6 +984,48 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
             task_id = params.get("task", [""])[0]
             return self._json_response(handle_get_status(project, task_id))
 
+        if path == "/api/health":
+            return self._json_response({"status": "ok", "timestamp": utc_now_iso()})
+
+        if path == "/api/system/doctor":
+            try:
+                result = subprocess.run(
+                    [sys.executable, str(AGENTLAB_ROOT / "agent_runtime" / "run_task.py"), "doctor", "--json-output"],
+                    capture_output=True, text=True, timeout=30,
+                    cwd=str(AGENTLAB_ROOT),
+                )
+                return self._json_response(json.loads(result.stdout))
+            except Exception:
+                return self._json_response({"status": "fail", "error": "doctor command failed"})
+
+        # /api/tasks/<project>/<task_id>/snapshot
+        if "/api/tasks/" in path and "/snapshot" in path:
+            parts = path.replace("/api/tasks/", "").rsplit("/snapshot", 1)
+            if len(parts) == 2:
+                proj_task = parts[0].split("/", 1)
+                if len(proj_task) == 2:
+                    snapshot = handle_get_status(proj_task[0], proj_task[1])
+                    return self._json_response(snapshot)
+            return self._json_response({"error": "invalid path"}, 400)
+
+        # /api/tasks/<project>/<task_id>/artifact/<filename>
+        if "/api/tasks/" in path and "/artifact/" in path:
+            parts = path.replace("/api/tasks/", "").rsplit("/artifact/", 1)
+            if len(parts) == 2:
+                proj_task = parts[0].split("/", 1)
+                filename = parts[1]
+                if len(proj_task) == 2 and filename:
+                    run_dir = AGENTLAB_ROOT / "projects" / proj_task[0] / "runs" / proj_task[1]
+                    artifact_path = run_dir / filename
+                    if artifact_path.exists():
+                        return self._json_response({
+                            "filename": filename,
+                            "size": artifact_path.stat().st_size,
+                            "content": read_text(artifact_path)[:5000],
+                        })
+                    return self._json_response({"filename": filename, "error": "not found"}, 404)
+            return self._json_response({"error": "invalid path"}, 400)
+
         if path == "/api/config":
             from agent_runtime.config_loader import load_agentlab_configs
             import os as _os
