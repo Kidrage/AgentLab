@@ -82,6 +82,10 @@ class WorkflowPlan(BaseModel):
     run_dir: str
     user_request_path: str
     execution_backend: ExecutionBackend = "codex"
+    budget_mode: str = "balanced"
+    budget_profile: str = ""
+    project_size: str = "L2"
+    risk_level: str = "R1"
     route: AgentRoute
     token_budgets: list[TokenBudget] = Field(default_factory=list)
     included_agents: dict[str, dict] = Field(default_factory=dict)

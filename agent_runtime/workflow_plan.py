@@ -1,15 +1,25 @@
 """Build transparent AgentLab workflow plans without executing agents."""
 
+import os
+import re
 from pathlib import Path
 
-from budget_planner import build_token_budgets
+from budget_planner import build_token_budgets, normalize_budget_mode, select_budget_profile_key
 from config_loader import load_agentlab_configs, load_project_config
+from model_resolver import resolve_profile_config
 from policies import assert_path_allowed
 from schemas import WorkflowPlan
 from task_router import recommend_route
 
 
-def _resolve_configured_path(project_root: Path, configured: str | None, default: str, agentlab_root: Path) -> Path:
+def _resolve_configured_path(
+    project_root: Path,
+    configured: str | None,
+    default: str,
+    agentlab_root: Path,
+    *,
+    extra_roots: list[Path] | None = None,
+) -> Path:
     """Resolve a project-configured path relative to the project root.
 
     AgentLab projects may bind their source repo to a sibling path such as
@@ -20,7 +30,7 @@ def _resolve_configured_path(project_root: Path, configured: str | None, default
     candidate = Path(raw).expanduser()
     if not candidate.is_absolute():
         candidate = project_root / candidate
-    return assert_path_allowed(candidate, agentlab_root)
+    return assert_path_allowed(candidate, agentlab_root, extra_roots=extra_roots)
 
 
 def _project_docs_path(project_root: Path, configured: str | None, agentlab_root: Path) -> Path:
@@ -38,7 +48,17 @@ def _project_docs_path(project_root: Path, configured: str | None, agentlab_root
 def _project_paths(agentlab_root: Path, project_name: str, task_id: str, project_config: dict | None = None) -> dict[str, Path]:
     project_root = assert_path_allowed(agentlab_root / "projects" / project_name, agentlab_root)
     paths_config = (project_config or {}).get("paths", {})
-    repo_path = _resolve_configured_path(project_root, paths_config.get("repo"), "repo", agentlab_root)
+    external_readonly_roots = [
+        Path(root)
+        for root in (project_config or {}).get("scope", {}).get("external_readonly_roots", [])
+    ]
+    repo_path = _resolve_configured_path(
+        project_root,
+        paths_config.get("repo"),
+        "repo",
+        agentlab_root,
+        extra_roots=external_readonly_roots,
+    )
     docs_path = _project_docs_path(project_root, paths_config.get("docs"), agentlab_root)
     run_base = _resolve_configured_path(project_root, paths_config.get("runs"), "runs", agentlab_root)
     run_dir = assert_path_allowed(run_base / task_id, agentlab_root)
@@ -53,12 +73,71 @@ def _project_paths(agentlab_root: Path, project_name: str, task_id: str, project
     }
 
 
+def _route_size_suffix(task_size: str) -> str:
+    return {"small": "L1", "medium": "L2", "large": "L3"}.get(task_size, "L2")
+
+
+def _profile_for_agent(agent_config: dict, route_size: str, budget_mode: str) -> str:
+    """Resolve an agent model profile from profile_mapping before fallback."""
+    mappings = agent_config.get("profile_mapping", {}) or {}
+    mode_key = normalize_budget_mode(budget_mode)
+    legacy_key = "brain_allocated" if mode_key == "balanced" else mode_key
+    mode_mapping = mappings.get(mode_key) or mappings.get(legacy_key) or mappings.get("brain_allocated") or {}
+    if isinstance(mode_mapping, dict):
+        direct = mode_mapping.get(route_size)
+        if direct:
+            return direct
+        any_profile = mode_mapping.get("any")
+        if any_profile:
+            return any_profile
+        # Frugal Coder mappings may distinguish local availability. Runtime does
+        # not yet probe local LLM here, so keep the API fallback.
+        no_local = mode_mapping.get("no_local")
+        if no_local:
+            return no_local
+    return agent_config.get("model_profile", "")
+
+
+def _budget_mode_from_request(task_text: str) -> str | None:
+    match = re.search(r"(?im)^\s*budget_mode\s*:\s*([\w\-]+)\s*$", task_text or "")
+    return match.group(1) if match else None
+
+
+def _resolve_budget_mode(configs: dict, task_text: str, explicit_budget_mode: str | None = None) -> str:
+    default_mode = (
+        configs.get("execution_policy", {})
+        .get("budget_mode_policy", {})
+        .get("default_budget_mode")
+        or configs.get("budget_profiles", {}).get("defaults", {}).get("budget_mode")
+        or "balanced"
+    )
+    return normalize_budget_mode(
+        explicit_budget_mode
+        or os.getenv("AGENTLAB_BUDGET_MODE")
+        or _budget_mode_from_request(task_text)
+        or default_mode
+    )
+
+
+def _classify_risk(task_text: str, routing_policy: dict) -> str:
+    text = (task_text or "").lower()
+    risk_keywords = routing_policy.get("risk_keywords", {}) if routing_policy else {}
+    critical = [str(x).lower() for x in risk_keywords.get("critical", [])]
+    high = [str(x).lower() for x in risk_keywords.get("high", [])]
+    if any(k and k in text for k in critical):
+        return "R3"
+    if any(k and k in text for k in high):
+        return "R2"
+    return "R1" if text.strip() else "R0"
+
+
 def build_workflow_plan(
     agentlab_root: Path,
     project_name: str,
     task_id: str,
     execution_backend: str = "codex",
     user_request_path: Path | None = None,
+    budget_mode: str | None = None,
 ) -> WorkflowPlan:
     """Build a complete, inspectable plan for one AgentLab task."""
     configs = load_agentlab_configs(agentlab_root)
@@ -74,14 +153,26 @@ def build_workflow_plan(
         routing_config=configs.get("routing_rules", {}),
         known_agents=known_agents,
     )
-    token_budgets = build_token_budgets(route, configs.get("budget_profiles", {}))
+    resolved_budget_mode = _resolve_budget_mode(configs, task_text, budget_mode)
+    risk_level = _classify_risk(task_text, configs.get("routing_policy", {}))
+    if risk_level == "R3" and resolved_budget_mode != "max_quality":
+        resolved_budget_mode = "max_quality"
+    elif risk_level == "R2" and resolved_budget_mode == "frugal":
+        resolved_budget_mode = "balanced"
+    token_budgets = build_token_budgets(route, configs.get("budget_profiles", {}), resolved_budget_mode)
+    budget_profile = select_budget_profile_key(route, configs.get("budget_profiles", {}), resolved_budget_mode)
+    route_size = _route_size_suffix(route.task_size)
     included_agents = {
         name: agent_registry.get(name, {})
         for name in route.agents
     }
-    profiles = configs.get("model_profiles", {}).get("profiles", {})
     model_profiles = {
-        name: profiles.get(config.get("model_profile", ""), {})
+        name: resolve_profile_config(
+            _profile_for_agent(config, route_size, resolved_budget_mode),
+            model_profiles=configs.get("model_profiles", {}),
+            model_catalog=configs.get("model_catalog", {}),
+            agent_name=name,
+        )
         for name, config in included_agents.items()
     }
 
@@ -131,6 +222,10 @@ def build_workflow_plan(
         run_dir=str(paths["run_dir"]),
         user_request_path=str(request_path),
         execution_backend=execution_backend,
+        budget_mode=resolved_budget_mode,
+        budget_profile=budget_profile,
+        project_size=route_size,
+        risk_level=risk_level,
         route=route,
         token_budgets=token_budgets,
         included_agents=included_agents,

@@ -84,11 +84,15 @@ def resolve_agentlab_root(path: Path) -> Path:
     return root
 
 
-def assert_path_allowed(path: Path, allowed_root: Path) -> Path:
+def assert_path_allowed(path: Path, allowed_root: Path, extra_roots: list[Path] | None = None) -> Path:
     root = allowed_root.resolve()
     target = path.resolve()
 
-    if root not in (target, *target.parents):
+    allowed_roots = [root]
+    for extra_root in extra_roots or []:
+        allowed_roots.append(extra_root.expanduser().resolve())
+
+    if not any(candidate in (target, *target.parents) for candidate in allowed_roots):
         raise ValueError(f"Path is outside allowed root: {target}")
     if target.name in FORBIDDEN_FILENAMES:
         raise ValueError(f"Refusing to access forbidden file: {target.name}")

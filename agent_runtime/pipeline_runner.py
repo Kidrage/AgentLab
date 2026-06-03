@@ -20,7 +20,7 @@ from lifecycle_graph import (
 from fake_provider import fake_output_for_agent, generate_sync_report
 from artifact_contract import validate_artifacts, write_artifact_manifest, ensure_skipped_artifact
 from state_store import load_state, save_state
-from progress_tracker import load_progress, save_progress
+from progress_tracker import create_progress, load_progress, save_progress
 
 NODE_TO_AGENT = {
     "SUPERVISOR_PLAN": "Supervisor",
@@ -68,6 +68,7 @@ NODE_TO_PCT = {
 def run_next_node(
     agentlab_root: Path, project: str, task_id: str, *,
     fake_provider: bool = False, simulate_quota_failure_at: Optional[str] = None,
+    budget_mode: Optional[str] = None,
 ) -> dict:
     """Execute exactly one lifecycle node and return.
 
@@ -76,7 +77,14 @@ def run_next_node(
     """
     run_dir = agentlab_root / "projects" / project / "runs" / task_id
     state = load_state(run_dir, project, task_id)
-    progress = load_progress(run_dir) or {}
+    progress = load_progress(run_dir)
+    if progress is None or "provider_status" not in progress:
+        route_agents = []
+        plan_path = run_dir / "workflow_plan.yml"
+        if plan_path.exists():
+            plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
+            route_agents = plan_data.get("route", {}).get("agents", [])
+        progress = create_progress(run_dir, project, task_id, route_agents)
 
     if load_lifecycle(run_dir) is None:
         plan_path = run_dir / "workflow_plan.yml"
@@ -123,7 +131,7 @@ def run_next_node(
     save_state(run_dir, state)
 
     progress["current_stage"] = NODE_TO_PROGRESS.get(nid, nid.lower())
-    progress["percent"] = NODE_TO_PCT.get(nid, 50)
+    progress["percent_complete"] = NODE_TO_PCT.get(nid, 50)
     progress["current_agent"] = NODE_TO_AGENT.get(nid)
     progress["status"] = "running"
     save_progress(run_dir, progress)
@@ -144,7 +152,7 @@ def run_next_node(
         plan_path = run_dir / "workflow_plan.yml"
         if not plan_path.exists():
             from workflow_plan import build_workflow_plan
-            plan = build_workflow_plan(agentlab_root, project, task_id, execution_backend="codex")
+            plan = build_workflow_plan(agentlab_root, project, task_id, execution_backend="codex", budget_mode=budget_mode)
             plan_path.write_text(yaml.safe_dump(plan.model_dump(mode="json"), sort_keys=False), encoding="utf-8")
             route_agents = plan.route.agents
         else:
@@ -155,6 +163,7 @@ def run_next_node(
             optional_requirements = {
                 "RESEARCH_OPTIONAL": "Researcher",
                 "INTERFACE_OPTIONAL": "InterfaceMapper",
+                "CODER_IMPLEMENTATION": "Coder",
                 "VERIFY": "Verifier",
             }
             for node_id, agent_name in optional_requirements.items():
@@ -189,7 +198,8 @@ def run_next_node(
             yaml.safe_dump(card, sort_keys=False), encoding="utf-8")
         mark_node_completed(run_dir, nid)
         state.status = "completed"
-        state.last_event = "Task completed via dry-run pipeline"
+        mode = "dry-run" if fake_provider else "execute"
+        state.last_event = f"Task completed via {mode} pipeline"
         save_state(run_dir, state)
         return {"status": "completed", "node": nid, "message": "Lifecycle complete.",
                 "artifact_check": result}
@@ -199,16 +209,74 @@ def run_next_node(
     report_file = NODE_TO_REPORT.get(nid)
     if fake_provider and agent:
         output = fake_output_for_agent(agent)
-    else:
-        output = f"# {nid} Report\n\nDry-run output.\n"
-    if report_file:
-        report_path = run_dir / report_file
+    elif agent and not fake_provider:
+        # ─── execute mode: call real LLM API via agent_runner ───
+        from agent_runner import run_agent_model, report_path_for_agent
+        from workflow_plan import build_workflow_plan
+
+        plan = build_workflow_plan(agentlab_root, project, task_id, budget_mode=budget_mode)
+        report_path = run_dir / report_file if report_file else report_path_for_agent(plan, agent)
+
+        try:
+            result = run_agent_model(
+                agentlab_root, plan, agent, report_path,
+                apply_patches=(agent == "Coder"),
+            )
+        except Exception as exc:
+            mark_node_failed(run_dir, nid, str(exc))
+            state.status = "blocked"
+            state.last_event = f"Blocked at {nid}: {exc}"
+            save_state(run_dir, state)
+            return {"status": "error", "node": nid, "message": str(exc)}
+
+        if result.status == "blocked_user_decision":
+            blocked_path = run_dir / f"blocked_{agent}.md"
+            blocked_path.write_text(result.content or "", encoding="utf-8")
+            (run_dir / "USER_DECISION_REQUIRED.md").write_text(result.content or "", encoding="utf-8")
+            mark_node_failed(run_dir, nid, result.error or "User decision required")
+            state.status = "blocked"
+            state.last_event = f"Blocked at {nid}: {result.error}"
+            state.reports[f"{agent}_blocked"] = str(blocked_path)
+            save_state(run_dir, state)
+            return {"status": "paused", "node": nid, "message": result.error or "User decision required"}
+
+        if result.status == "fallback_handoff":
+            fallback_path = run_dir / f"codex_fallback_{agent}.md"
+            fallback_path.write_text(result.content or "", encoding="utf-8")
+            mark_node_failed(run_dir, nid, result.error or "Provider unavailable — handoff required")
+            state.status = "blocked"
+            state.last_event = f"Handoff required at {nid}: {result.error}"
+            state.reports[f"{agent}_fallback"] = str(fallback_path)
+            save_state(run_dir, state)
+            return {"status": "paused", "node": nid, "message": result.error or "Provider unavailable"}
+
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(output, encoding="utf-8")
+        report_path.write_text(result.content or "", encoding="utf-8")
+
+        # Record token usage to cost_ledger
+        from cost_tracker import append_cost_ledgers, usage_entry
+        append_cost_ledgers(
+            agentlab_root / "projects" / project,
+            run_dir,
+            usage_entry(
+                project, task_id, agent,
+                result.provider, result.model, result.status,
+                result.input_tokens, result.output_tokens, result.total_tokens,
+                "API usage from pipeline executor.",
+            ),
+        )
         mark_node_completed(run_dir, nid, str(report_path))
         return {"status": "completed", "node": nid, "report": str(report_path)}
-    mark_node_completed(run_dir, nid)
-    return {"status": "completed", "node": nid, "message": f"{nid} done."}
+    else:
+        output = f"# {nid} Report\n\nDry-run output.\n"
+        if report_file:
+            report_path = run_dir / report_file
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(output, encoding="utf-8")
+            mark_node_completed(run_dir, nid, str(report_path))
+            return {"status": "completed", "node": nid, "report": str(report_path)}
+        mark_node_completed(run_dir, nid)
+        return {"status": "completed", "node": nid, "message": f"{nid} done."}
 
 
 def _state_signature(agentlab_root: Path, project: str, task_id: str) -> str:
@@ -228,6 +296,7 @@ def run_full_pipeline(
     agentlab_root: Path, project: str, task_id: str, *,
     dry_run: bool = True, fake_provider: bool = True,
     simulate_quota_failure_at: Optional[str] = None, max_steps: int = 30,
+    budget_mode: Optional[str] = None,
 ) -> dict:
     """Run full lifecycle pipeline with safety guards.
 
@@ -255,6 +324,11 @@ def run_full_pipeline(
             if (lc := (load_lifecycle(run_dir) or {"nodes": {}}))
         ):
             artifact_result = validate_artifacts(run_dir)
+            state = load_state(run_dir, project, task_id)
+            state.status = "completed" if artifact_result.get("valid") else "blocked"
+            mode = "dry-run" if fake_provider else "execute"
+            state.last_event = f"Task completed via {mode} pipeline" if artifact_result.get("valid") else "Artifact validation failed at pipeline completion"
+            save_state(run_dir, state)
             return {
                 "success": True, "final_status": "completed", "step": step,
                 "history": history, "artifact_completeness": artifact_result,
@@ -264,7 +338,8 @@ def run_full_pipeline(
 
         result = run_next_node(agentlab_root, project, task_id,
                                fake_provider=fake_provider,
-                               simulate_quota_failure_at=simulate_quota_failure_at)
+                               simulate_quota_failure_at=simulate_quota_failure_at,
+                               budget_mode=budget_mode)
 
         history.append({"step": step, "node": result.get("node"), "status": result.get("status"),
                         "message": result.get("message", "")})
@@ -331,6 +406,8 @@ def _ensure_lifecycle_shape(run_dir: Path) -> None:
             skip_reason = "Route does not include Researcher"
         elif node_id == "INTERFACE_OPTIONAL" and "InterfaceMapper" not in route:
             skip_reason = "Route does not include InterfaceMapper"
+        elif node_id == "CODER_IMPLEMENTATION" and "Coder" not in route:
+            skip_reason = "Route does not include Coder"
         elif node_id == "VERIFY" and "Verifier" not in route:
             skip_reason = "Route does not include Verifier"
         nodes[node_id] = {

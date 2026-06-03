@@ -177,6 +177,20 @@ agent_order:
 
 routes:
 
+  # ── L3 评估/审计项目 — 分析路线，不做源码实现 ─────────────────────
+  evaluation_task:
+    size: L3
+    description: 系统评估/性能评估/架构审计/对比分析
+    analysis_only: true
+    agents:
+      - Supervisor       # brain_coordinator → deepseek-v4-pro
+      - RepoScout        # perception_reposcout_l3 → qwen3.7-max
+      - Researcher       # perception_research_l3 → qwen3.6-plus
+      - InterfaceMapper  # perception_interface_l3 → qwen3.7-max
+      - TesterAuditor    # audit_tester_l3 → qwen3.6-plus
+      - Verifier         # audit_verifier_l3 → qwen3.6-plus
+      - Archivist        # archive_archivist_l3 → qwen3.6-plus
+
   # ── L1 轻量项目 ────────────────────────────────────────────────────
   small_task:
     size: L1
@@ -243,6 +257,29 @@ routes:
 # ══════════════════════════════════════════════════════════════════════
 
 keyword_hints:
+  evaluation:
+    - evaluate
+    - evaluation
+    - assessment
+    - assess
+    - benchmark
+    - performance evaluation
+    - performance benchmark
+    - comprehensive evaluation
+    - architecture review
+    - system review
+    - audit report
+    - compare
+    - comparison
+    - 评估
+    - 全面评估
+    - 性能评估
+    - 基准测试
+    - 架构评估
+    - 系统评估
+    - 审计报告
+    - 对比分析
+
   research:
     - latest
     - current

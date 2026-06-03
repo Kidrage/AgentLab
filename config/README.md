@@ -6,7 +6,8 @@ Edit these files first when you want to change how agents behave:
 
 - `agent_registry.yml`: agent capabilities, permissions, templates, and required outputs.
 - `model_providers.yml`: provider API keys, base URLs, and default model env mappings.
-- `model_profiles.yml`: model profile names, temperatures, and output limits.
+- `model_catalog.yml`: model facts, catalog provider labels, capabilities, and pricing notes.
+- `agent_model_profiles.yml`: budget/size/risk model selection policy.
 - `routing_rules.yml`: when each agent route is selected.
 - `budget_profiles.yml`: token budgets, warning thresholds, and stop rules.
 - `brain_governance.yml`: token governance, traversal approvals, loop detection, and yes/no decision rules.
@@ -21,14 +22,16 @@ for policy, routing, model, budget, and permission changes.
 For model switching:
 
 - Change provider defaults in `model_providers.yml`.
-- Change per-agent profile behavior in `model_profiles.yml`.
+- Change model facts in `model_catalog.yml`.
+- Change per-agent route/profile references in `agent_registry.yml`.
 - Override one run from the CLI with `--provider` or `--model`.
+- Run `./agentlab.sh model-doctor` after model changes.
 
 Current policy:
 
-- DeepSeek is the default low-cost reasoning provider.
-- DeepSeek is required for AgentLab brain planning/review even for simulations and small tasks.
-- `Coder` uses `codex_plus_manual` and should not consume DeepSeek tokens for real source edits.
-- DeepSeek failures block and ask the user; Codex must not silently simulate the brain layer.
-- If Codex quota is exhausted, AgentLab asks the user whether to pause for quota refresh or switch to DeepSeek brain + Qwen Coder API fallback.
-- Qwen is registered as an optional OpenAI-compatible provider. Set `QWEN_API_KEY`, `QWEN_BASE_URL`, and model env vars in `agent_runtime/.env`, then select Qwen with a profile change or `run-agent --provider qwen --model ...`.
+- AgentLab should self-drive through configured model APIs whenever possible.
+- External IDE AI dispatches tasks, verifies artifacts, and fills gaps only when explicitly authorized.
+- DeepSeek official API is available for high-quality brain/review work when configured.
+- Qwen models must use DashScope (`DASHSCOPE_API_KEY`) by default. OpenRouter is not assumed.
+- `Coder` defaults to `qwen-coder`/DashScope in API mode; `external_ide_ai` is a deliberate handoff/fallback, not the default.
+- Provider failures block or request user decision; external IDE AI must not silently simulate API agents.

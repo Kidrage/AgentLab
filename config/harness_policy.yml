@@ -41,10 +41,10 @@ freshness:
 feedback_loop:
   required_task_artifacts:
     - workflow_plan.yml
-    - supervisor_plan.md
-    - implementation_report.md
-    - validation_report.md
-    - audit_report.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
     - brain_decisions.yml
     - cost_ledger.yml
   durable_feedback_channels:

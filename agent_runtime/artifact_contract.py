@@ -12,6 +12,22 @@ from typing import Optional
 import yaml
 
 TBD_PATTERNS = ["TBD", "tbd", "TODO", "FIXME", "# User Request\n\nDescribe the task here."]
+EXECUTION_PLACEHOLDER_PATTERNS = [
+    "Commands run: None",
+    "Commands run: none",
+    "no execution occurred",
+    "plan-only phase",
+    "Coder phase not executed",
+    "no implementation work was performed",
+    "No validation commands were executed",
+    "Execution phase artifacts not yet provided",
+    "pre-execution state",
+]
+EXECUTION_REQUIRED_FILES = {
+    "06_implementation_report.md",
+    "07_validation_report.md",
+    "08_audit_report.md",
+}
 
 REQUIRED_ARTIFACTS_BY_ROUTE = {
     "user_request": ["user_request.md"],
@@ -24,7 +40,7 @@ REQUIRED_ARTIFACTS_BY_ROUTE = {
     "tester_auditor": ["07_validation_report.md", "08_audit_report.md"],
     "verifier": ["verification_report.md"],
     "archivist": ["09_archive_update.md"],
-    "codex_prompt_generator": ["05_codex_prompt.md"],
+    "codex_prompt_generator": ["05_coder_prompt.md"],
     "self_check": ["self_check_report.yml"],
     "sync": ["sync_report.yml"],
     "finalize": ["task_card.yml", "artifact_manifest.yml"],
@@ -121,6 +137,10 @@ def validate_artifacts(run_dir: Path) -> dict:
             issues.append({"file": fname, "issue": "TBD or empty placeholder"})
             continue
 
+        if fname in EXECUTION_REQUIRED_FILES and has_execution_placeholder(content):
+            issues.append({"file": fname, "issue": "execution placeholder or no command evidence"})
+            continue
+
         # YAML parse check for .yml/.yaml files
         if fname.endswith((".yml", ".yaml")):
             try:
@@ -145,6 +165,14 @@ def validate_artifacts(run_dir: Path) -> dict:
         "issues": issues,
         "issues_count": len(issues),
     }
+
+
+def has_execution_placeholder(content: str) -> bool:
+    lowered = content.lower()
+    for pattern in EXECUTION_PLACEHOLDER_PATTERNS:
+        if pattern.lower() in lowered:
+            return True
+    return False
 
 
 def required_artifacts_for_route(route: list[str]) -> list[str]:

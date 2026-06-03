@@ -40,6 +40,7 @@ from brain_governor import (
 )
 from config_loader import load_agentlab_configs
 from cost_tracker import append_cost_ledgers, usage_entry
+from model_resolver import resolve_profile_config, validate_model_configuration
 from policies import (
     assert_path_allowed,
     ensure_dir_safe,
@@ -109,9 +110,10 @@ def load_or_build_plan(
     task_id: str,
     execution_backend: str,
     user_request: Optional[Path] = None,
+    budget_mode: Optional[str] = None,
 ):
     plan_path = agentlab_root / "projects" / project_name / "runs" / task_id / "workflow_plan.yml"
-    if plan_path.exists() and user_request is None:
+    if plan_path.exists() and user_request is None and budget_mode is None:
         data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
         from schemas import WorkflowPlan
 
@@ -122,6 +124,7 @@ def load_or_build_plan(
         task_id=task_id,
         execution_backend=execution_backend,
         user_request_path=user_request,
+        budget_mode=budget_mode,
     )
 
 
@@ -413,12 +416,15 @@ def policy_status(
     coder_policy = execution_policy.get("coder_policy", {})
     providers = configs.get("model_providers", {}).get("providers", {})
     agent_registry = configs.get("agent_registry", {}).get("agents", {})
-    model_profiles = configs.get("model_profiles", {}).get("profiles", {})
-
     from llm_provider import resolve_env_value
 
     supervisor_profile_name = agent_registry.get("Supervisor", {}).get("model_profile", "")
-    supervisor_profile = model_profiles.get(supervisor_profile_name, {})
+    supervisor_profile = resolve_profile_config(
+        supervisor_profile_name,
+        model_profiles=configs.get("model_profiles", {}),
+        model_catalog=configs.get("model_catalog", {}),
+        agent_name="Supervisor",
+    )
     brain_provider_name = (
         brain_policy.get("required_provider")
         or supervisor_profile.get("provider")
@@ -534,10 +540,15 @@ def log_event(
     project_root = assert_path_allowed(agentlab_root / "projects" / project_name, agentlab_root)
     run_dir = assert_path_allowed(project_root / "runs" / task_id, agentlab_root)
     ensure_project_memory_files(project_root)
+    docs = project_root / "agent_docs"
+    if docs.is_symlink() and not docs.exists() and docs.with_name("agent_docs.local.bak").is_dir():
+        docs = docs.with_name("agent_docs.local.bak")
+    if not docs.exists() and docs.with_name("agent_docs.local.bak").is_dir():
+        docs = docs.with_name("agent_docs.local.bak")
 
     timestamp = utc_now()
-    dev_log = project_root / "agent_docs" / "07_DEVELOPMENT_LOG.md"
-    dialogue_log = project_root / "agent_docs" / "08_CODEX_DIALOGUE_LOG.md"
+    dev_log = docs / "07_DEVELOPMENT_LOG.md"
+    dialogue_log = docs / "08_CODEX_DIALOGUE_LOG.md"
 
     dev_entry = f"""
 ### {timestamp} - {task_id} - {agent}
@@ -584,6 +595,7 @@ def prepare(
     project: Optional[str] = typer.Option(None, help="Project name. Defaults to DEFAULT_PROJECT."),
     user_request: Optional[Path] = typer.Option(None, help="Optional path to a user request file."),
     execution_backend: str = typer.Option("codex", help="Planned Coder backend: codex or qwen."),
+    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: frugal, balanced, or max-quality."),
     write_plan: bool = typer.Option(False, help="Write runs/task_xxxx/workflow_plan.yml if it does not exist."),
     overwrite_plan: bool = typer.Option(False, help="Allow replacing an existing workflow_plan.yml."),
 ) -> None:
@@ -599,6 +611,7 @@ def prepare(
         task_id=task_id,
         execution_backend=execution_backend,
         user_request_path=user_request,
+        budget_mode=budget,
     )
 
     request = TaskRunRequest(
@@ -674,17 +687,63 @@ def models(
         )
     console.print(provider_table)
 
-    agent_table = Table("Agent", "Profile", "Provider", "Model", "Max Output")
+    agent_table = Table("Agent", "Profile", "Provider", "Model", "Max Output", "Source")
     for agent_name in registry:
         settings, _ = resolve_agent_settings(agentlab_root, agent_name)
+        profile = resolve_profile_config(
+            settings.profile_name,
+            model_profiles=configs.get("model_profiles", {}),
+            model_catalog=configs.get("model_catalog", {}),
+            agent_name=agent_name,
+        )
         agent_table.add_row(
             agent_name,
             settings.profile_name,
             settings.provider,
             settings.model,
             str(settings.max_output_tokens),
+            str(profile.get("source", "")),
         )
     console.print(agent_table)
+
+    check = validate_model_configuration(configs)
+    console.print("[bold]Model config check[/bold]")
+    console.print({"status": check["status"], "issue_count": check["issue_count"]})
+    for issue in check.get("issues", [])[:12]:
+        console.print(issue)
+
+
+@app.command("model-doctor")
+def model_doctor(
+    project: Optional[str] = typer.Option(None, help="Project name, only used to resolve root."),
+) -> None:
+    """Audit model/provider wiring without making network calls."""
+    agentlab_root, _ = runtime_context(project)
+    configs = load_agentlab_configs(agentlab_root)
+    check = validate_model_configuration(configs)
+
+    console.print("[bold]AgentLab model doctor[/bold]")
+    console.print({"status": check["status"], "issue_count": check["issue_count"]})
+
+    table = Table("Agent", "Origin", "Profile", "Provider", "Model", "Source")
+    for row in check.get("resolved_profiles", []):
+        table.add_row(
+            row.get("agent", ""),
+            row.get("origin", ""),
+            row.get("profile", ""),
+            row.get("provider", ""),
+            row.get("model", ""),
+            row.get("source", ""),
+        )
+    console.print(table)
+
+    if check.get("issues"):
+        issue_table = Table("Severity", "Scope", "Issue", "Provider/Profile")
+        for issue in check["issues"]:
+            scope = issue.get("agent") or issue.get("provider") or "global"
+            provider_profile = issue.get("provider") or issue.get("profile") or ""
+            issue_table.add_row(issue.get("severity", ""), scope, issue.get("issue", ""), provider_profile)
+        console.print(issue_table)
 
 
 @app.command("run-agent")
@@ -693,6 +752,7 @@ def run_agent(
     task_id: str = typer.Option("task_0001", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
     execution_backend: str = typer.Option("codex", help="Coder backend recorded in the workflow plan."),
+    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode used when rebuilding a plan: frugal, balanced, or max-quality."),
     provider: Optional[str] = typer.Option(None, help="Override provider, e.g. deepseek or openai."),
     model: Optional[str] = typer.Option(None, help="Override model id for this run."),
     output: Optional[Path] = typer.Option(None, help="Optional report output path, relative to run dir unless absolute."),
@@ -704,12 +764,18 @@ def run_agent(
     """Dry-run or execute a single agent and write its report."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
-    plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend)
+    plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend, budget_mode=budget)
     if agent_name not in plan.route.agents and not force:
         raise typer.BadParameter(f"{agent_name} is not in route {plan.route.agents}. Use --force to override.")
 
     output_path = assert_path_allowed(report_path_for_agent(plan, agent_name, output), agentlab_root)
-    settings, _ = resolve_agent_settings(agentlab_root, agent_name, provider, model)
+    settings, _ = resolve_agent_settings(
+        agentlab_root,
+        agent_name,
+        provider,
+        model,
+        profile_config=(plan.model_profiles or {}).get(agent_name),
+    )
     messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
 
     console.print("[bold]Agent run plan[/bold]")
@@ -731,8 +797,7 @@ def run_agent(
         execute
         and agent_name == "Coder"
         and settings.provider == "external_ide_ai"
-        and provider != "qwen"
-        and provider != "deepseek"
+        and provider not in {"qwen-coder", "qwen", "qwen3", "deepseek", "deepseek-coder"}
     ):
         console.print()
         console.print("[bold yellow]??? Coder ??? Codex Plus ????[/bold yellow]")
@@ -743,8 +808,8 @@ def run_agent(
         console.print(f"     reposcout_report:  {Path(plan.run_dir) / 'reposcout_report.md'}")
         console.print(f"     workflow_plan:     {Path(plan.run_dir) / 'workflow_plan.yml'}")
         console.print()
-        console.print("  [dim]???????? API ???? Qwen fallback:[/dim]")
-        console.print(f"  [dim]./agentlab.sh run-agent Coder --project {project_name} --task-id {task_id} --execute --provider qwen [/dim]")
+        console.print("  [dim]To use the DashScope Qwen API fallback explicitly:[/dim]")
+        console.print(f"  [dim]./agentlab.sh run-agent Coder --project {project_name} --task-id {task_id} --execute --provider qwen-coder [/dim]")
         console.print()
         handoff_path = Path(plan.run_dir) / "codex_fallback_Coder.md"
         handoff_path.write_text(
@@ -860,7 +925,11 @@ def run_agent(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(result.content, encoding="utf-8")
-    mark_agent_completed(Path(plan.run_dir), project_name, task_id, agent_name, output_path)
+    state = mark_agent_completed(Path(plan.run_dir), project_name, task_id, agent_name, output_path)
+    if all(agent in state.completed_agents for agent in plan.route.agents):
+        state.status = "completed"
+        state.last_event = "All routed agents completed."
+        save_state(Path(plan.run_dir), state)
     append_cost_ledgers(
         Path(plan.project_root),
         Path(plan.run_dir),
@@ -898,15 +967,17 @@ def run_pipeline(
     task_id: str = typer.Option("task_0001", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
     execution_backend: str = typer.Option("codex", help="Pipeline backend: codex dry-run runner or langgraph."),
+    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: frugal, balanced, or max-quality."),
     dry_run: bool = typer.Option(True, help="Default dry-run, no API calls."),
+    execute: bool = typer.Option(False, "--execute", help="Call real LLM APIs (not dry-run). False by default for safety."),
 ) -> None:
-    """Run the full lifecycle pipeline. Default is dry-run with fake provider."""
+    """Run the full lifecycle pipeline. Default is dry-run with fake provider. Use --execute for real API calls."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
 
     if execution_backend in ("langgraph",):
         from langgraph_workflow import build_agentlab_graph, run_agentlab_graph
-        plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend)
+        plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend, budget_mode=budget)
         console.print("[bold]AgentLab LangGraph Pipeline[/bold]")
         console.print(f"  Project: {project_name}")
         console.print(f"  Task: {task_id}")
@@ -929,9 +1000,16 @@ def run_pipeline(
         console.print(f"  State: {run_dir}/state.yml")
         return
 
+    # --execute overrides --dry-run: execute mode calls real LLM APIs
+    use_fake = dry_run and not execute
+    if execute:
+        console.print("[yellow]⚠ EXECUTE mode: real LLM API calls will be made. Token costs apply.[/yellow]")
+        console.print()
+
     from pipeline_runner import run_full_pipeline
-    result = run_full_pipeline(agentlab_root, project_name, task_id, dry_run=dry_run, fake_provider=dry_run)
+    result = run_full_pipeline(agentlab_root, project_name, task_id, dry_run=dry_run, fake_provider=use_fake, budget_mode=budget)
     console.print(f"\n[bold]Lifecycle Pipeline Result[/bold]")
+    console.print(f"  Mode: {'execute' if not use_fake else 'dry-run'}")
     console.print(f"  Final status: {result.get('final_status', result.get('status', '?'))}")
     console.print(f"  Steps executed: {len(result.get('history', []))}")
     console.print(f"  Pipeline complete: {bool(result.get('success'))}")
@@ -940,6 +1018,67 @@ def run_pipeline(
     if not art.get('valid'):
         for iss in (art.get('issues') or [])[:5]:
             console.print(f"    Issue: {iss}")
+
+
+@app.command("budget-eval")
+def budget_eval_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id used as the source request."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    modes: str = typer.Option("frugal,balanced,max-quality", help="Comma-separated budget modes."),
+) -> None:
+    """Compare route, model, and token budget across budget modes without API calls."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    selected_modes = [m.strip() for m in modes.split(",") if m.strip()]
+    rows = []
+    for mode in selected_modes:
+        plan = build_workflow_plan(
+            agentlab_root=agentlab_root,
+            project_name=project_name,
+            task_id=task_id,
+            execution_backend="codex",
+            budget_mode=mode,
+        )
+        total_tokens = sum(b.estimated_total_tokens for b in plan.token_budgets)
+        rows.append({
+            "mode": plan.budget_mode,
+            "budget_profile": plan.budget_profile,
+            "project_size": plan.project_size,
+            "risk_level": plan.risk_level,
+            "route": list(plan.route.agents),
+            "estimated_tokens": total_tokens,
+            "models": {
+                agent: {
+                    "profile": cfg.get("profile"),
+                    "provider": cfg.get("provider"),
+                    "model": cfg.get("model"),
+                }
+                for agent, cfg in plan.model_profiles.items()
+            },
+        })
+
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    out_path = run_dir / "budget_eval_matrix.yml"
+    out_path.write_text(
+        yaml.safe_dump({"project": project_name, "task_id": task_id, "modes": rows}, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+    table = Table("Mode", "Profile", "Size", "Risk", "Agents", "Est Tokens")
+    for row in rows:
+        table.add_row(
+            row["mode"],
+            row["budget_profile"],
+            row["project_size"],
+            row["risk_level"],
+            " → ".join(row["route"]),
+            str(row["estimated_tokens"]),
+        )
+    console.print("[bold]AgentLab budget evaluation[/bold]")
+    console.print("No model calls, source edits, dependency installs, or validation commands were run.")
+    console.print(table)
+    console.print(f"[green]Wrote:[/green] {out_path}")
 
 
 @app.command("workspace-scan")
@@ -978,6 +1117,30 @@ def workspace_scan(
         f"  Artifact pass_rate: {artifact.get('pass_rate')} "
         f"({artifact.get('artifacts_passed')}/{artifact.get('artifacts_checked')})"
     )
+
+
+@app.command("performance-eval")
+def performance_eval(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Run a local deterministic AgentLab performance evaluation."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from performance_evaluator import run_performance_evaluation, REPORT
+
+    metrics = run_performance_evaluation(agentlab_root, project_name, task_id)
+    artifact = metrics.get("artifacts", {})
+    console.print("[bold]AgentLab performance evaluation[/bold]")
+    console.print("No model calls, source edits, dependency installs, or validation builds were run.")
+    console.print(f"  Project: {project_name}")
+    console.print(f"  Task: {task_id}")
+    console.print(f"  Route: {metrics['route']['route_key']}")
+    console.print(f"  Score: {metrics['score']['total']}/100 ({metrics['score']['grade']})")
+    console.print(f"  Routing: {metrics['routing']['passed']}/{metrics['routing']['total']}")
+    console.print(f"  Commands: {metrics['commands']['passed']}/{metrics['commands']['total']}")
+    console.print(f"  Artifact pass_rate: {artifact.get('pass_rate')} ({artifact.get('artifacts_passed')}/{artifact.get('artifacts_checked')})")
+    console.print(f"  Report: {agentlab_root / 'projects' / project_name / 'runs' / task_id / REPORT}")
 
 
 @app.command("progress")
@@ -1254,7 +1417,8 @@ def provider_test(
     """Test a provider's configuration and reachability."""
     agentlab_root, _ = runtime_context(None)
     configs = load_agentlab_configs(agentlab_root)
-    providers_config = configs.get("model_providers", {}).get("providers", {})
+    model_providers_config = configs.get("model_providers", {})
+    providers_config = model_providers_config.get("providers", {})
     cfg = providers_config.get(provider, {})
 
     if not cfg:
@@ -1288,13 +1452,17 @@ def provider_test(
         model=model,
         base_url=base_url,
         api_key_configured=True,
-        max_output_tokens=10,
+        max_output_tokens=32,
     )
-    messages = [{"role": "user", "content": "Reply with just: OK"}]
+    messages = [{"role": "user", "content": "Reply with exactly the single word: OK"}]
     try:
-        result = generate_text(test_settings, providers_config, messages)
+        result = generate_text(test_settings, model_providers_config, messages)
         if result.status == "completed":
-            console.print(f"[green]ok Provider {provider} responded: {result.content[:100]}[/green]")
+            content = (result.content or "").strip()
+            if content:
+                console.print(f"[green]ok Provider {provider} responded: {content[:100]}[/green]")
+            else:
+                console.print(f"[yellow]Provider {provider} connected but returned empty content.[/yellow]")
         else:
             console.print(f"[yellow]Provider returned status: {result.status}[/yellow]")
             console.print(result.error or "no error details")
@@ -1628,7 +1796,7 @@ def doctor(
     load_dotenv()
     keys_found = 0
     keys_total = 0
-    for var in ["DEEPSEEK_API_KEY", "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY"]:
+    for var in ["DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY"]:
         keys_total += 1
         if _os.getenv(var):
             keys_found += 1

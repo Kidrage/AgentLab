@@ -51,7 +51,13 @@ NODE_REQUIRED_OUTPUTS = {
     "FINALIZE": ["task_card.yml", "artifact_manifest.yml"],
 }
 
-OPTIONAL_NODES = {"RESEARCH_OPTIONAL", "INTERFACE_OPTIONAL", "VERIFY", "SYNC_OPTIONAL"}
+OPTIONAL_NODES = {
+    "RESEARCH_OPTIONAL",
+    "INTERFACE_OPTIONAL",
+    "CODER_IMPLEMENTATION",
+    "VERIFY",
+    "SYNC_OPTIONAL",
+}
 
 TASK_STATES = {
     "new", "planned", "in_progress", "paused", "blocked",
@@ -87,6 +93,8 @@ def create_lifecycle(run_dir: Path, workflow_plan: dict) -> dict:
             skip_reason = "Route does not include Researcher"
         elif node_id == "INTERFACE_OPTIONAL" and "InterfaceMapper" not in route:
             skip_reason = "Route does not include InterfaceMapper"
+        elif node_id == "CODER_IMPLEMENTATION" and "Coder" not in route:
+            skip_reason = "Route does not include Coder"
         elif node_id == "VERIFY" and "Verifier" not in route:
             skip_reason = "Route does not include Verifier"
 

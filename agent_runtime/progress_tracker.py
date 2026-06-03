@@ -106,6 +106,7 @@ def mark_agent_started(run_dir: Path, agent_name: str, provider_key: str, model:
     data["current_agent"] = agent_name
     data["current_stage"] = "llm_call_started"
     data["status"] = "running"
+    data.setdefault("agents", {})
 
     if agent_name in data.get("agents", {}):
         data["agents"][agent_name]["status"] = "active"
@@ -113,7 +114,8 @@ def mark_agent_started(run_dir: Path, agent_name: str, provider_key: str, model:
         data["agents"][agent_name]["model"] = model
         data["agents"][agent_name]["started_at"] = utc_now()
 
-    data["provider_status"]["current_provider"] = provider_key
+    provider_status = data.setdefault("provider_status", {})
+    provider_status["current_provider"] = provider_key
     data["percent_complete"] = _calc_percent(data)
     save_progress(run_dir, data)
     return data
@@ -123,6 +125,7 @@ def mark_agent_completed(run_dir: Path, agent_name: str, report_path: str, input
     data = load_progress(run_dir)
     if data is None:
         return None
+    data.setdefault("agents", {})
     if agent_name in data.get("agents", {}):
         data["agents"][agent_name]["status"] = "completed"
         data["agents"][agent_name]["completed_at"] = utc_now()
@@ -143,12 +146,13 @@ def mark_agent_paused(run_dir: Path, agent_name: str, reason: str) -> dict | Non
     data = load_progress(run_dir)
     if data is None:
         return None
+    data.setdefault("agents", {})
     if agent_name in data.get("agents", {}):
         data["agents"][agent_name]["status"] = "paused"
     data["status"] = "paused"
     data["current_stage"] = "paused"
     data["last_event"] = f"{agent_name} paused: {reason}"
-    data["provider_status"]["paused_for_provider"] = True
+    data.setdefault("provider_status", {})["paused_for_provider"] = True
     save_progress(run_dir, data)
     return data
 
