@@ -1,0 +1,23 @@
+project: AgentLab
+task_id: task_0029_model-routing-eval
+current_agent: null
+completed_agents:
+- Supervisor
+- RepoScout
+- Researcher
+- InterfaceMapper
+- TesterAuditor
+- Verifier
+- Archivist
+reports:
+  Supervisor: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval/01_supervisor_plan.md
+  RepoScout: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval/02_reposcout_report.md
+  Researcher: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval/03_research_notes.md
+  InterfaceMapper: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval/04_interface_map.md
+  TesterAuditor: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval/08_audit_report.md
+  Verifier: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval/verification_report.md
+  Archivist: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval/09_archive_update.md
+status: completed
+execution_mode: performance_eval
+last_event: Performance evaluation completed.
+updated_at: '2026-06-02T04:15:33.276777+00:00'

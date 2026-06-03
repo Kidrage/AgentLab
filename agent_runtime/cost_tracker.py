@@ -53,5 +53,10 @@ def usage_entry(
 
 
 def append_cost_ledgers(project_root: Path, run_dir: Path, entry: dict[str, Any]) -> None:
+    docs = project_root / "agent_docs"
+    if docs.is_symlink() and not docs.exists() and docs.with_name("agent_docs.local.bak").is_dir():
+        docs = docs.with_name("agent_docs.local.bak")
+    if not docs.exists() and docs.with_name("agent_docs.local.bak").is_dir():
+        docs = docs.with_name("agent_docs.local.bak")
     append_yaml_list(run_dir / "cost_ledger.yml", "entries", entry)
-    append_yaml_list(project_root / "agent_docs" / "09_COST_LEDGER.yml", "entries", entry)
+    append_yaml_list(docs / "09_COST_LEDGER.yml", "entries", entry)

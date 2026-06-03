@@ -1,0 +1,12 @@
+status: pass
+checks:
+- name: py_compile
+  cmd: python3 -m py_compile agent_runtime/task_router.py agent_runtime/lifecycle_graph.py
+  returncode: 0
+  elapsed_ms: 83.3
+  pass: true
+- name: policy_status
+  cmd: ./agentlab.sh policy-status --project AgentLab
+  returncode: 0
+  elapsed_ms: 817.8
+  pass: true

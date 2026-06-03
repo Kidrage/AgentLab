@@ -1,0 +1,6 @@
+version: 1
+project: AgentLab
+task_id: task_0029_model-routing-eval
+title: AgentLab performance evaluation
+status: completed
+score: 100.0

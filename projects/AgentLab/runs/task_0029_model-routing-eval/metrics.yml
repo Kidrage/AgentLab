@@ -1,0 +1,148 @@
+started_at: '2026-06-02T04:15:31.629427+00:00'
+project: AgentLab
+task_id: task_0029_model-routing-eval
+route:
+  task_size: large
+  agents:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  rationale:
+  - Supervisor always defines scope, token budget, and stop rules.
+  - Route selected by evaluation_task using smallest_safe_route rules.
+  - Analysis-only route selected; Coder is skipped because no source implementation
+    is requested.
+  - Research hints detected; include Researcher when route requires current or external
+    facts.
+  - Evaluation hints detected; use analysis-only L3 route and skip Coder by default.
+  - Interface hints detected; include InterfaceMapper for boundaries and contracts.
+  - Large or risky hints detected; include the full route.
+  skipped_agents:
+  - Coder
+  - PromptEngineer
+  route_key: evaluation_task
+model_profiles:
+  Supervisor:
+    provider: deepseek
+    model: deepseek-v4-pro
+    tier: T1
+  RepoScout:
+    provider: qwen3
+    model: qwen3.7-max
+    tier: T2
+  Researcher:
+    provider: qwen
+    model: qwen3.6-plus
+    tier: T2
+  InterfaceMapper:
+    provider: qwen3
+    model: qwen3.7-max
+    tier: T2
+  TesterAuditor:
+    provider: qwen
+    model: qwen3.6-plus
+    tier: T4
+  Verifier:
+    provider: qwen
+    model: qwen3.6-plus
+    tier: T4
+  Archivist:
+    provider: qwen
+    model: qwen3.6-plus
+    tier: T5
+routing:
+  passed: 6
+  total: 6
+  pass_rate: 1.0
+  cases:
+  - case: comprehensive_evaluation
+    expected: evaluation_task
+    actual: evaluation_task
+    pass: true
+  - case: small_fix
+    expected: small_task
+    actual: small_task
+    pass: true
+  - case: interface_change
+    expected: large_or_risky_task
+    actual: large_or_risky_task
+    pass: true
+  - case: external_research
+    expected: research_sensitive_task
+    actual: research_sensitive_task
+    pass: true
+  - case: large_architecture
+    expected: large_or_risky_task
+    actual: large_or_risky_task
+    pass: true
+  - case: performance_eval
+    expected: evaluation_task
+    actual: evaluation_task
+    pass: true
+configuration:
+  registry_agents:
+  - Archivist
+  - Coder
+  - InterfaceMapper
+  - PromptEngineer
+  - RepoScout
+  - Researcher
+  - Supervisor
+  - TesterAuditor
+  - Verifier
+  schema_agents:
+  - Archivist
+  - Coder
+  - InterfaceMapper
+  - PromptEngineer
+  - RepoScout
+  - Researcher
+  - Supervisor
+  - TesterAuditor
+  - Verifier
+  route_issue_count: 0
+  profile_issue_count: 0
+  issues: []
+  pass: true
+lifecycle:
+  node_count: 14
+  expected_node_count: 14
+  coder_status: skipped
+  coder_skip_reason: Route does not include Coder
+  analysis_route_skips_coder: true
+commands:
+  passed: 2
+  total: 2
+  max_elapsed_ms: 555.0
+  results:
+  - name: py_compile
+    cmd: python3 -m py_compile agent_runtime/task_router.py agent_runtime/lifecycle_graph.py
+    returncode: 0
+    elapsed_ms: 59.2
+    pass: true
+  - name: policy_status
+    cmd: ./agentlab.sh policy-status --project AgentLab
+    returncode: 0
+    elapsed_ms: 555.0
+    pass: true
+score:
+  total: 100.0
+  grade: A
+  components:
+    routing: 30.0
+    configuration: 20.0
+    lifecycle: 20.0
+    analysis_skip: 10.0
+    commands: 20.0
+completed_at: '2026-06-02T04:15:33.268488+00:00'
+artifacts:
+  valid: true
+  pass_rate: 1.0
+  artifacts_checked: 18
+  artifacts_passed: 18
+  issues: []
+  issues_count: 0

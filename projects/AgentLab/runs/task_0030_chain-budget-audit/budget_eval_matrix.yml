@@ -1,0 +1,69 @@
+project: AgentLab
+task_id: task_0030_chain-budget-audit
+modes:
+- mode: frugal
+  budget_profile: frugal_L1
+  project_size: L1
+  risk_level: R0
+  route:
+  - Supervisor
+  - Coder
+  - TesterAuditor
+  estimated_tokens: 6400
+  models:
+    Supervisor:
+      profile: brain_coordinator_frugal
+      provider: deepseek
+      model: deepseek-v4-flash
+    Coder:
+      profile: execution_coder_api
+      provider: qwen-coder
+      model: qwen3-coder-next
+    TesterAuditor:
+      profile: audit_tester_frugal
+      provider: qwen-flash
+      model: qwen3.6-flash
+- mode: balanced
+  budget_profile: balanced_L1
+  project_size: L1
+  risk_level: R0
+  route:
+  - Supervisor
+  - Coder
+  - TesterAuditor
+  estimated_tokens: 8900
+  models:
+    Supervisor:
+      profile: brain_coordinator_l1
+      provider: qwen
+      model: qwen3.6-plus
+    Coder:
+      profile: execution_coder_api
+      provider: qwen-coder
+      model: qwen3-coder-next
+    TesterAuditor:
+      profile: audit_tester
+      provider: qwen-flash
+      model: qwen3.6-flash
+- mode: max_quality
+  budget_profile: max_quality_L1
+  project_size: L1
+  risk_level: R0
+  route:
+  - Supervisor
+  - Coder
+  - TesterAuditor
+  estimated_tokens: 10800
+  models:
+    Supervisor:
+      profile: brain_coordinator_maxq
+      provider: deepseek
+      model: deepseek-v4-pro
+    Coder:
+      profile: execution_coder_maxq
+      provider: qwen-coder
+      model: qwen3-coder-plus
+    TesterAuditor:
+      profile: audit_tester_maxq
+      provider: qwen3
+      model: qwen3.7-max

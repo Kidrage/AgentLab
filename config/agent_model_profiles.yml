@@ -10,23 +10,23 @@ profiles:
   frugal:
     supervisor:
       default: deepseek_v4_flash
-      fallback: qwen3_6_flash_openrouter
+      fallback: qwen3_6_flash_dashscope
     reposcout:
-      default: qwen3_6_flash_openrouter
+      default: qwen3_6_flash_dashscope
       fallback: deepseek_v4_flash
       skip_for: [S0]
     interface_mapper:
       default: skip_unless_required
-      fallback: qwen3_6_flash_openrouter
+      fallback: qwen3_6_flash_dashscope
     researcher:
       default: skip_unless_required
     coder:
-      default: qwen3_coder_next_openrouter
+      default: qwen3_coder_next_dashscope
       fallback: deepseek_v4_flash
       external_ide_allowed: false
     tester_auditor:
       default: deepseek_v4_flash
-      fallback: qwen3_6_flash_openrouter
+      fallback: qwen3_6_flash_dashscope
       skip_for: [S0_non_critical]
     verifier:
       default: skip_unless_required
@@ -43,7 +43,7 @@ profiles:
   balanced:
     supervisor:
       S0: deepseek_v4_flash
-      S1: qwen3_6_plus_openrouter
+      S1: qwen3_6_plus_dashscope
       S2: deepseek_v4_pro
       S3: deepseek_v4_pro
       S4: deepseek_v4_pro
@@ -51,33 +51,33 @@ profiles:
       R3: max_quality  # 自动升级
     reposcout:
       S0: skip
-      S1: qwen3_6_flash_openrouter
-      S2: qwen3_6_plus_openrouter
-      S3: qwen3_7_max_openrouter
-      S4: qwen3_7_max_openrouter
+      S1: qwen3_6_flash_dashscope
+      S2: qwen3_6_plus_dashscope
+      S3: qwen3_7_max_dashscope
+      S4: qwen3_7_max_dashscope
       R2_extra: must_output_related_file_list
     interface_mapper:
       S0: skip
       S1: skip_unless_required
-      S2: qwen3_6_plus_openrouter
-      S3: qwen3_7_max_openrouter
-      S4: qwen3_7_max_openrouter
+      S2: qwen3_6_plus_dashscope
+      S3: qwen3_7_max_dashscope
+      S4: qwen3_7_max_dashscope
       R2_extra: must_list_interface_contracts
     researcher:
       S0: skip
       S1: skip_unless_required
-      S2: qwen3_6_flash_openrouter
-      S3: qwen3_6_plus_openrouter
-      S4: qwen3_6_plus_openrouter
+      S2: qwen3_6_flash_dashscope
+      S3: qwen3_6_plus_dashscope
+      S4: qwen3_6_plus_dashscope
     coder:
-      default: qwen3_coder_next_openrouter
+      default: qwen3_coder_next_dashscope
       external_ide_allowed: true
       R2_extra: no_single_monolithic_patch
       patch_mode: [patch_plan, diff, implementation_notes]
     tester_auditor:
       R0: deepseek_v4_flash
-      R1: qwen3_6_plus_openrouter
-      R2: qwen3_6_plus_openrouter
+      R1: qwen3_6_plus_dashscope
+      R2: qwen3_6_plus_dashscope
       cross_review: >
         与 Coder 使用不同模型家族。Coder 用 Qwen → 审查用 DeepSeek；
         Coder 用 DeepSeek → 审查用 Qwen。
@@ -87,8 +87,8 @@ profiles:
       R2: deepseek_v4_pro
     archivist:
       R0: template_only
-      R1: qwen3_6_flash_openrouter
-      R2: qwen3_6_plus_openrouter
+      R1: qwen3_6_flash_dashscope
+      R2: qwen3_6_plus_dashscope
     notes: >
       AgentLab 默认模式。适合真实项目日常开发。
       核心是"不要所有步骤都用最贵模型"，但关键节点必须用强模型。
@@ -98,21 +98,21 @@ profiles:
       default: deepseek_v4_pro
       extra_outputs: [architecture_plan, failure_modes, rollback_strategy]
     reposcout:
-      default: qwen3_7_max_openrouter
+      default: qwen3_7_max_dashscope
       extra_outputs: [repo_structure_map, ranked_related_files]
     interface_mapper:
-      default: qwen3_7_max_openrouter
+      default: qwen3_7_max_dashscope
       extra_outputs: [data_structures, interface_contracts, call_chains]
     researcher:
-      default: qwen3_6_plus_openrouter
+      default: qwen3_6_plus_dashscope
       enable_external_search: true
     coder:
-      default: qwen3_coder_next_openrouter
+      default: qwen3_coder_next_dashscope
       external_ide_allowed: true
       patch_mode: [batch_patch_only]
       extra: no_monolithic_overhaul
     tester_auditor:
-      primary: qwen3_7_max_openrouter
+      primary: qwen3_7_max_dashscope
       secondary: deepseek_v4_pro
       cross_review: >
         双模型复核。关注不同错误模式。与 Coder 不同模型家族。
@@ -120,7 +120,7 @@ profiles:
       default: deepseek_v4_pro
       cross_review: 与 Coder 不同模型家族，防止同源幻觉。
     archivist:
-      default: qwen3_6_plus_openrouter
+      default: qwen3_6_plus_dashscope
       extra_outputs: [full_changelog, risks, test_results, rollback_points]
     notes: >
       核心架构、生产安全、长期主干、不可逆操作。

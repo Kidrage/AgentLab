@@ -1,422 +1,559 @@
 version: 2
-
-# ─── AgentLab Budget Profiles — 项目体量 × 预算模式 = 全矩阵 v2.0 ──────────
-#
-# 三层预算模式:
-#   🧠 brain_allocated (默认) — Supervisor 按 L1/L2/L3 自动选择模型
-#   ⚡ max_quality           — 全量运算
-#   💰 frugal                — 最低成本
-#
-# 项目体量:
-#   L1 — 轻量 (≤5文件, ≤15K tokens)
-#   L2 — 标准 (5-20文件, 15K-50K tokens)
-#   L3 — 重型 (>20文件, >50K tokens)
-#
-# 矩阵: 3 预算模式 × 3 项目体量 = 9 种完整预算方案
-# ──────────────────────────────────────────────────────────────────────────
-
 defaults:
   warning_ratio: 0.9
   stop_ratio: 1.15
   actual_usage_policy: provider_telemetry_if_available_else_manual_estimate
   over_budget_policy: pause_and_request_revised_budget
-  budget_mode: brain_allocated
+  budget_mode: balanced
   project_size: L2
-
 profiles:
-
-  # ══════════════════════════════════════════════════════════════════════
-  # 🧠 大脑层分配 — L1 轻量项目
-  # ══════════════════════════════════════════════════════════════════════
   brain_allocated_L1:
     mode: brain_allocated
     size: L1
-    total_cap_tokens: 10000
-    description: >
-      轻量项目 — 脚本修改/Bug修复/单文件调整。
-      仅 Supervisor + Coder，可选 TesterAuditor。
+    total_cap_tokens: 10235
+    description: '轻量项目 — 脚本修改/Bug修复/单文件调整。 仅 Supervisor + Coder，可选 TesterAuditor。
       大脑用 qwen3.6-plus，执行用 qwen3-coder-next。
+
+      '
     预估成本: ~$0.25
-
     phases:
-      - phase: Supervisor 规划与路由
-        agent: Supervisor
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 1500
-        estimated_output_tokens: 800
-
-      - phase: Coder 代码实现
-        agent: Coder
-        model: qwen3-coder-next
-        provider: qwen-coder
-        estimated_input_tokens: 2500
-        estimated_output_tokens: 1800
-
-      - phase: TesterAuditor 验证 (可选)
-        agent: TesterAuditor
-        model: qwen3.6-flash
-        provider: qwen-flash
-        estimated_input_tokens: 1500
-        estimated_output_tokens: 800
-        optional: true
-
-  # ══════════════════════════════════════════════════════════════════════
-  # 🧠 大脑层分配 — L2 标准项目
-  # ══════════════════════════════════════════════════════════════════════
+    - phase: Supervisor 规划与路由
+      agent: Supervisor
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 1500
+      estimated_output_tokens: 800
+    - phase: Coder 代码实现
+      agent: Coder
+      model: qwen3-coder-next
+      provider: qwen-coder
+      estimated_input_tokens: 2500
+      estimated_output_tokens: 1800
+    - phase: TesterAuditor 验证 (可选)
+      agent: TesterAuditor
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 1500
+      estimated_output_tokens: 800
+      optional: true
   brain_allocated_L2:
     mode: brain_allocated
     size: L2
-    total_cap_tokens: 25000
-    description: >
-      标准项目 — 功能模块开发/跨文件实现/中等重构。
-      全流程: Supervisor → RepoScout → (InterfaceMapper) → Coder → TesterAuditor → Verifier → Archivist。
-      大脑用 deepseek-v4-pro，感知用 qwen3.6-plus，审核+归档用 flash。
-      预估成本: ~$1.20
+    total_cap_tokens: 42550
+    description: '标准项目 — 功能模块开发/跨文件实现/中等重构。 全流程: Supervisor → RepoScout → (InterfaceMapper)
+      → Coder → TesterAuditor → Verifier → Archivist。 大脑用 deepseek-v4-pro，感知用 qwen3.6-plus，审核+归档用
+      flash。 预估成本: ~$1.20
 
+      '
     phases:
-      - phase: Supervisor 规划与路由
-        agent: Supervisor
-        model: deepseek-v4-pro
-        provider: deepseek
-        estimated_input_tokens: 3000
-        estimated_output_tokens: 1500
-
-      - phase: RepoScout 仓库扫描
-        agent: RepoScout
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 5000
-        estimated_output_tokens: 1200
-
-      - phase: InterfaceMapper 接口分析 (按需)
-        agent: InterfaceMapper
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 3500
-        estimated_output_tokens: 1000
-        optional: true
-
-      - phase: Researcher 资料搜索 (按需)
-        agent: Researcher
-        model: qwen3.6-flash
-        provider: qwen-flash
-        estimated_input_tokens: 2500
-        estimated_output_tokens: 1000
-        optional: true
-
-      - phase: Coder 代码实现
-        agent: Coder
-        model: qwen3-coder-next
-        provider: qwen-coder
-        estimated_input_tokens: 5000
-        estimated_output_tokens: 3000
-
-      - phase: TesterAuditor 验证
-        agent: TesterAuditor
-        model: qwen3.6-flash
-        provider: qwen-flash
-        estimated_input_tokens: 3000
-        estimated_output_tokens: 1200
-
-      - phase: Verifier 完整性检查
-        agent: Verifier
-        model: qwen3.6-flash
-        provider: qwen-flash
-        estimated_input_tokens: 2500
-        estimated_output_tokens: 800
-
-      - phase: Archivist 记忆更新
-        agent: Archivist
-        model: qwen3.6-flash
-        provider: qwen-flash
-        estimated_input_tokens: 2000
-        estimated_output_tokens: 800
-
-  # ══════════════════════════════════════════════════════════════════════
-  # 🧠 大脑层分配 — L3 重型项目
-  # ══════════════════════════════════════════════════════════════════════
+    - phase: Supervisor 规划与路由
+      agent: Supervisor
+      model: deepseek-v4-pro
+      provider: deepseek
+      estimated_input_tokens: 3000
+      estimated_output_tokens: 1500
+    - phase: RepoScout 仓库扫描
+      agent: RepoScout
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 5000
+      estimated_output_tokens: 1200
+    - phase: InterfaceMapper 接口分析 (按需)
+      agent: InterfaceMapper
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 3500
+      estimated_output_tokens: 1000
+      optional: true
+    - phase: Researcher 资料搜索 (按需)
+      agent: Researcher
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 2500
+      estimated_output_tokens: 1000
+      optional: true
+    - phase: Coder 代码实现
+      agent: Coder
+      model: qwen3-coder-next
+      provider: qwen-coder
+      estimated_input_tokens: 5000
+      estimated_output_tokens: 3000
+    - phase: TesterAuditor 验证
+      agent: TesterAuditor
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 3000
+      estimated_output_tokens: 1200
+    - phase: Verifier 完整性检查
+      agent: Verifier
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 2500
+      estimated_output_tokens: 800
+    - phase: Archivist 记忆更新
+      agent: Archivist
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 2000
+      estimated_output_tokens: 800
   brain_allocated_L3:
     mode: brain_allocated
     size: L3
-    total_cap_tokens: 60000
-    description: >
-      重型项目 — 架构重构/多模块系统/安全关键。
-      全流程所有 Agent 参与。
-      大脑用 deepseek-v4-pro，强感知用 qwen3.7-max，审核+归档用 qwen3.6-plus。
-      预估成本: ~$4.00
+    total_cap_tokens: 89700
+    description: '重型项目 — 架构重构/多模块系统/安全关键。 全流程所有 Agent 参与。 大脑用 deepseek-v4-pro，强感知用
+      qwen3.7-max，审核+归档用 qwen3.6-plus。 预估成本: ~$4.00
 
+      '
     phases:
-      - phase: Supervisor 规划与路由
-        agent: Supervisor
-        model: deepseek-v4-pro
-        provider: deepseek
-        estimated_input_tokens: 5000
-        estimated_output_tokens: 2500
-
-      - phase: RepoScout 深度仓库扫描
-        agent: RepoScout
-        model: qwen3.7-max
-        provider: qwen3
-        estimated_input_tokens: 12000
-        estimated_output_tokens: 2000
-
-      - phase: InterfaceMapper 接口契约分析
-        agent: InterfaceMapper
-        model: qwen3.7-max
-        provider: qwen3
-        estimated_input_tokens: 8000
-        estimated_output_tokens: 2000
-
-      - phase: Researcher 资料收集
-        agent: Researcher
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 6000
-        estimated_output_tokens: 1500
-
-      - phase: Coder 代码实现
-        agent: Coder
-        model: qwen3-coder-next
-        provider: qwen-coder
-        estimated_input_tokens: 12000
-        estimated_output_tokens: 6000
-
-      - phase: TesterAuditor 深度验证
-        agent: TesterAuditor
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 7000
-        estimated_output_tokens: 2000
-
-      - phase: Verifier 完整性验证
-        agent: Verifier
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 5000
-        estimated_output_tokens: 1500
-
-      - phase: Archivist 完整记录
-        agent: Archivist
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 4000
-        estimated_output_tokens: 1500
-
-  # ══════════════════════════════════════════════════════════════════════
-  # ⚡ 全量运算 — L2 标准项目
-  # ══════════════════════════════════════════════════════════════════════
+    - phase: Supervisor 规划与路由
+      agent: Supervisor
+      model: deepseek-v4-pro
+      provider: deepseek
+      estimated_input_tokens: 5000
+      estimated_output_tokens: 2500
+    - phase: RepoScout 深度仓库扫描
+      agent: RepoScout
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 12000
+      estimated_output_tokens: 2000
+    - phase: InterfaceMapper 接口契约分析
+      agent: InterfaceMapper
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 8000
+      estimated_output_tokens: 2000
+    - phase: Researcher 资料收集
+      agent: Researcher
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 6000
+      estimated_output_tokens: 1500
+    - phase: Coder 代码实现
+      agent: Coder
+      model: qwen3-coder-next
+      provider: qwen-coder
+      estimated_input_tokens: 12000
+      estimated_output_tokens: 6000
+    - phase: TesterAuditor 深度验证
+      agent: TesterAuditor
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 7000
+      estimated_output_tokens: 2000
+    - phase: Verifier 完整性验证
+      agent: Verifier
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 5000
+      estimated_output_tokens: 1500
+    - phase: Archivist 完整记录
+      agent: Archivist
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 4000
+      estimated_output_tokens: 1500
   max_quality_L2:
     mode: max_quality
     size: L2
-    total_cap_tokens: 40000
-    description: >
-      标准项目全量运算 — 所有 Agent 用最强模型。
-      大脑用 deepseek-v4-pro+Thinking，感知用 qwen3.7-max，Coder用 deepseek-v4-pro。
-      预估成本: ~$5.00
+    total_cap_tokens: 55199
+    description: '标准项目全量运算 — 所有 Agent 用最强模型。 大脑用 deepseek-v4-pro+Thinking，感知用 qwen3.7-max，Coder用
+      deepseek-v4-pro。 预估成本: ~$5.00
 
+      '
     phases:
-      - phase: Supervisor 规划与路由 (Thinking Mode)
-        agent: Supervisor
-        model: deepseek-v4-pro
-        provider: deepseek
-        thinking_mode: true
-        estimated_input_tokens: 4000
-        estimated_output_tokens: 2500
-
-      - phase: RepoScout 仓库扫描 (全量)
-        agent: RepoScout
-        model: qwen3.7-max
-        provider: qwen3
-        estimated_input_tokens: 6000
-        estimated_output_tokens: 1500
-
-      - phase: InterfaceMapper 接口分析 (全量)
-        agent: InterfaceMapper
-        model: qwen3.7-max
-        provider: qwen3
-        estimated_input_tokens: 4500
-        estimated_output_tokens: 1500
-
-      - phase: Researcher 资料收集 (全量)
-        agent: Researcher
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 3500
-        estimated_output_tokens: 1500
-
-      - phase: Coder 代码实现 (全量)
-        agent: Coder
-        model: deepseek-v4-pro
-        provider: deepseek-coder
-        estimated_input_tokens: 6000
-        estimated_output_tokens: 4000
-
-      - phase: TesterAuditor 验证 (全量)
-        agent: TesterAuditor
-        model: qwen3.7-max
-        provider: qwen3
-        estimated_input_tokens: 4000
-        estimated_output_tokens: 1500
-
-      - phase: Verifier 检查 (全量)
-        agent: Verifier
-        model: qwen3.7-max
-        provider: qwen3
-        estimated_input_tokens: 3000
-        estimated_output_tokens: 1000
-
-      - phase: Archivist 记录 (全量)
-        agent: Archivist
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 2500
-        estimated_output_tokens: 1000
-
-  # ══════════════════════════════════════════════════════════════════════
-  # ⚡ 全量运算 — L3 重型项目
-  # ══════════════════════════════════════════════════════════════════════
+    - phase: Supervisor 规划与路由 (Thinking Mode)
+      agent: Supervisor
+      model: deepseek-v4-pro
+      provider: deepseek
+      thinking_mode: true
+      estimated_input_tokens: 4000
+      estimated_output_tokens: 2500
+    - phase: RepoScout 仓库扫描 (全量)
+      agent: RepoScout
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 6000
+      estimated_output_tokens: 1500
+    - phase: InterfaceMapper 接口分析 (全量)
+      agent: InterfaceMapper
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 4500
+      estimated_output_tokens: 1500
+    - phase: Researcher 资料收集 (全量)
+      agent: Researcher
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 3500
+      estimated_output_tokens: 1500
+    - phase: Coder 代码实现 (全量)
+      agent: Coder
+      model: deepseek-v4-pro
+      provider: deepseek-coder
+      estimated_input_tokens: 6000
+      estimated_output_tokens: 4000
+    - phase: TesterAuditor 验证 (全量)
+      agent: TesterAuditor
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 4000
+      estimated_output_tokens: 1500
+    - phase: Verifier 检查 (全量)
+      agent: Verifier
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 3000
+      estimated_output_tokens: 1000
+    - phase: Archivist 记录 (全量)
+      agent: Archivist
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 2500
+      estimated_output_tokens: 1000
   max_quality_L3:
     mode: max_quality
     size: L3
-    total_cap_tokens: 80000
-    description: >
-      重型项目全量运算 — 最强模型 + 最大 token 预算。
-      所有 Agent 用旗舰模型，安全关键/架构重构专用。
-      预估成本: ~$12.00
+    total_cap_tokens: 116149
+    description: '重型项目全量运算 — 最强模型 + 最大 token 预算。 所有 Agent 用旗舰模型，安全关键/架构重构专用。 预估成本:
+      ~$12.00
 
+      '
     phases:
-      - phase: Supervisor 规划与路由 (Thinking Mode)
-        agent: Supervisor
-        model: deepseek-v4-pro
-        provider: deepseek
-        thinking_mode: true
-        estimated_input_tokens: 6000
-        estimated_output_tokens: 4000
-
-      - phase: RepoScout 深度扫描 (全量)
-        agent: RepoScout
-        model: qwen3.7-max
-        provider: qwen3
-        estimated_input_tokens: 15000
-        estimated_output_tokens: 3000
-
-      - phase: InterfaceMapper 契约分析 (全量)
-        agent: InterfaceMapper
-        model: qwen3.7-max
-        provider: qwen3
-        estimated_input_tokens: 10000
-        estimated_output_tokens: 3000
-
-      - phase: Researcher 资料收集 (全量)
-        agent: Researcher
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 8000
-        estimated_output_tokens: 2000
-
-      - phase: Coder 代码实现 (全量)
-        agent: Coder
-        model: deepseek-v4-pro
-        provider: deepseek-coder
-        estimated_input_tokens: 15000
-        estimated_output_tokens: 8000
-
-      - phase: TesterAuditor 深度验证 (全量)
-        agent: TesterAuditor
-        model: qwen3.7-max
-        provider: qwen3
-        estimated_input_tokens: 9000
-        estimated_output_tokens: 3000
-
-      - phase: Verifier 完整性验证 (全量)
-        agent: Verifier
-        model: qwen3.7-max
-        provider: qwen3
-        estimated_input_tokens: 6000
-        estimated_output_tokens: 2000
-
-      - phase: Archivist 完整记录 (全量)
-        agent: Archivist
-        model: qwen3.6-plus
-        provider: qwen
-        estimated_input_tokens: 5000
-        estimated_output_tokens: 2000
-
-  # ══════════════════════════════════════════════════════════════════════
-  # 💰 最低成本 — L1 轻量项目
-  # ══════════════════════════════════════════════════════════════════════
+    - phase: Supervisor 规划与路由 (Thinking Mode)
+      agent: Supervisor
+      model: deepseek-v4-pro
+      provider: deepseek
+      thinking_mode: true
+      estimated_input_tokens: 6000
+      estimated_output_tokens: 4000
+    - phase: RepoScout 深度扫描 (全量)
+      agent: RepoScout
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 15000
+      estimated_output_tokens: 3000
+    - phase: InterfaceMapper 契约分析 (全量)
+      agent: InterfaceMapper
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 10000
+      estimated_output_tokens: 3000
+    - phase: Researcher 资料收集 (全量)
+      agent: Researcher
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 8000
+      estimated_output_tokens: 2000
+    - phase: Coder 代码实现 (全量)
+      agent: Coder
+      model: deepseek-v4-pro
+      provider: deepseek-coder
+      estimated_input_tokens: 15000
+      estimated_output_tokens: 8000
+    - phase: TesterAuditor 深度验证 (全量)
+      agent: TesterAuditor
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 9000
+      estimated_output_tokens: 3000
+    - phase: Verifier 完整性验证 (全量)
+      agent: Verifier
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 6000
+      estimated_output_tokens: 2000
+    - phase: Archivist 完整记录 (全量)
+      agent: Archivist
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 5000
+      estimated_output_tokens: 2000
   frugal_L1:
     mode: frugal
     size: L1
-    total_cap_tokens: 6000
-    description: >
-      轻量项目最低成本 — 所有模型用 flash/Coder，跳过非必要 Agent。
-      大脑用 qwen3.6-flash，Coder 用 qwen3-coder-next (全系列最便宜 API)。
-      预估成本: ~$0.15
+    total_cap_tokens: 7359
+    description: '轻量项目最低成本 — 所有模型用 flash/Coder，跳过非必要 Agent。 大脑用 qwen3.6-flash，Coder
+      用 qwen3-coder-next (全系列最便宜 API)。 预估成本: ~$0.15
 
+      '
     phases:
-      - phase: Supervisor 规划 (轻量)
-        agent: Supervisor
-        model: qwen3.6-flash
-        provider: qwen-flash
-        estimated_input_tokens: 1200
-        estimated_output_tokens: 600
-
-      - phase: Coder 代码实现
-        agent: Coder
-        model: qwen3-coder-next
-        provider: qwen-coder
-        estimated_input_tokens: 1800
-        estimated_output_tokens: 1200
-
-      - phase: TesterAuditor 基本验证 (可选)
-        agent: TesterAuditor
-        model: qwen3.6-flash
-        provider: qwen-flash
-        estimated_input_tokens: 1000
-        estimated_output_tokens: 600
-        optional: true
-
-  # ══════════════════════════════════════════════════════════════════════
-  # 💰 最低成本 — L2 标准项目
-  # ══════════════════════════════════════════════════════════════════════
+    - phase: Supervisor 规划 (轻量)
+      agent: Supervisor
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 1200
+      estimated_output_tokens: 600
+    - phase: Coder 代码实现
+      agent: Coder
+      model: qwen3-coder-next
+      provider: qwen-coder
+      estimated_input_tokens: 1800
+      estimated_output_tokens: 1200
+    - phase: TesterAuditor 基本验证 (可选)
+      agent: TesterAuditor
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 1000
+      estimated_output_tokens: 600
+      optional: true
   frugal_L2:
     mode: frugal
     size: L2
-    total_cap_tokens: 12000
-    description: >
-      标准项目最低成本 — 全 flash 模型，跳过非必要 Agent。
-      ⚠️ 不推荐用于复杂功能开发，仅适合低风险需求。
-      预估成本: ~$0.50
+    total_cap_tokens: 16790
+    description: '标准项目最低成本 — 全 flash 模型，跳过非必要 Agent。 ⚠️ 不推荐用于复杂功能开发，仅适合低风险需求。 预估成本:
+      ~$0.50
 
+      '
     phases:
-      - phase: Supervisor 规划
-        agent: Supervisor
-        model: qwen3.6-flash
-        provider: qwen-flash
-        estimated_input_tokens: 2000
-        estimated_output_tokens: 1000
+    - phase: Supervisor 规划
+      agent: Supervisor
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 2000
+      estimated_output_tokens: 1000
+    - phase: RepoScout 仓库扫描 (flash)
+      agent: RepoScout
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 3000
+      estimated_output_tokens: 800
+    - phase: Coder 代码实现
+      agent: Coder
+      model: qwen3-coder-next
+      provider: qwen-coder
+      estimated_input_tokens: 3000
+      estimated_output_tokens: 2000
+    - phase: TesterAuditor 验证 (flash)
+      agent: TesterAuditor
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 2000
+      estimated_output_tokens: 800
+  balanced_L1:
+    mode: balanced
+    size: L1
+    total_cap_tokens: 10235
+    description: '轻量项目 — 脚本修改/Bug修复/单文件调整。 仅 Supervisor + Coder，可选 TesterAuditor。
+      大脑用 qwen3.6-plus，执行用 qwen3-coder-next。
 
-      - phase: RepoScout 仓库扫描 (flash)
-        agent: RepoScout
-        model: qwen3.6-flash
-        provider: qwen-flash
-        estimated_input_tokens: 3000
-        estimated_output_tokens: 800
+      '
+    预估成本: ~$0.25
+    phases:
+    - phase: Supervisor 规划与路由
+      agent: Supervisor
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 1500
+      estimated_output_tokens: 800
+    - phase: Coder 代码实现
+      agent: Coder
+      model: qwen3-coder-next
+      provider: qwen-coder
+      estimated_input_tokens: 2500
+      estimated_output_tokens: 1800
+    - phase: TesterAuditor 验证 (可选)
+      agent: TesterAuditor
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 1500
+      estimated_output_tokens: 800
+      optional: true
+    legacy_alias_of: brain_allocated_L1
+  balanced_L2:
+    mode: balanced
+    size: L2
+    total_cap_tokens: 42550
+    description: '标准项目 — 功能模块开发/跨文件实现/中等重构。 全流程: Supervisor → RepoScout → (InterfaceMapper)
+      → Coder → TesterAuditor → Verifier → Archivist。 大脑用 deepseek-v4-pro，感知用 qwen3.6-plus，审核+归档用
+      flash。 预估成本: ~$1.20
 
-      - phase: Coder 代码实现
-        agent: Coder
-        model: qwen3-coder-next
-        provider: qwen-coder
-        estimated_input_tokens: 3000
-        estimated_output_tokens: 2000
+      '
+    phases:
+    - phase: Supervisor 规划与路由
+      agent: Supervisor
+      model: deepseek-v4-pro
+      provider: deepseek
+      estimated_input_tokens: 3000
+      estimated_output_tokens: 1500
+    - phase: RepoScout 仓库扫描
+      agent: RepoScout
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 5000
+      estimated_output_tokens: 1200
+    - phase: InterfaceMapper 接口分析 (按需)
+      agent: InterfaceMapper
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 3500
+      estimated_output_tokens: 1000
+      optional: true
+    - phase: Researcher 资料搜索 (按需)
+      agent: Researcher
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 2500
+      estimated_output_tokens: 1000
+      optional: true
+    - phase: Coder 代码实现
+      agent: Coder
+      model: qwen3-coder-next
+      provider: qwen-coder
+      estimated_input_tokens: 5000
+      estimated_output_tokens: 3000
+    - phase: TesterAuditor 验证
+      agent: TesterAuditor
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 3000
+      estimated_output_tokens: 1200
+    - phase: Verifier 完整性检查
+      agent: Verifier
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 2500
+      estimated_output_tokens: 800
+    - phase: Archivist 记忆更新
+      agent: Archivist
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 2000
+      estimated_output_tokens: 800
+    legacy_alias_of: brain_allocated_L2
+  balanced_L3:
+    mode: balanced
+    size: L3
+    total_cap_tokens: 89700
+    description: '重型项目 — 架构重构/多模块系统/安全关键。 全流程所有 Agent 参与。 大脑用 deepseek-v4-pro，强感知用
+      qwen3.7-max，审核+归档用 qwen3.6-plus。 预估成本: ~$4.00
 
-      - phase: TesterAuditor 验证 (flash)
-        agent: TesterAuditor
-        model: qwen3.6-flash
-        provider: qwen-flash
-        estimated_input_tokens: 2000
-        estimated_output_tokens: 800
-
-      # InterfaceMapper, Researcher, Verifier, Archivist 全部跳过
+      '
+    phases:
+    - phase: Supervisor 规划与路由
+      agent: Supervisor
+      model: deepseek-v4-pro
+      provider: deepseek
+      estimated_input_tokens: 5000
+      estimated_output_tokens: 2500
+    - phase: RepoScout 深度仓库扫描
+      agent: RepoScout
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 12000
+      estimated_output_tokens: 2000
+    - phase: InterfaceMapper 接口契约分析
+      agent: InterfaceMapper
+      model: qwen3.7-max
+      provider: qwen3
+      estimated_input_tokens: 8000
+      estimated_output_tokens: 2000
+    - phase: Researcher 资料收集
+      agent: Researcher
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 6000
+      estimated_output_tokens: 1500
+    - phase: Coder 代码实现
+      agent: Coder
+      model: qwen3-coder-next
+      provider: qwen-coder
+      estimated_input_tokens: 12000
+      estimated_output_tokens: 6000
+    - phase: TesterAuditor 深度验证
+      agent: TesterAuditor
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 7000
+      estimated_output_tokens: 2000
+    - phase: Verifier 完整性验证
+      agent: Verifier
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 5000
+      estimated_output_tokens: 1500
+    - phase: Archivist 完整记录
+      agent: Archivist
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 4000
+      estimated_output_tokens: 1500
+    legacy_alias_of: brain_allocated_L3
+  max_quality_L1:
+    mode: max_quality
+    size: L1
+    total_cap_tokens: 12419
+    description: 轻量项目全量运算 — 即使是小任务也保留 Supervisor、Coder、TesterAuditor，并使用高质量模型映射。
+    预估成本: ~$0.25
+    phases:
+    - phase: Supervisor 规划与路由
+      agent: Supervisor
+      model: deepseek-v4-pro
+      provider: deepseek
+      estimated_input_tokens: 1800
+      estimated_output_tokens: 1000
+      thinking_mode: true
+    - phase: Coder 代码实现
+      agent: Coder
+      model: deepseek-v4-pro
+      provider: deepseek-coder
+      estimated_input_tokens: 3000
+      estimated_output_tokens: 2200
+    - phase: TesterAuditor 验证 (可选)
+      agent: TesterAuditor
+      model: qwen3.6-plus
+      provider: qwen
+      estimated_input_tokens: 1800
+      estimated_output_tokens: 1000
+    legacy_alias_of: brain_allocated_L1
+  frugal_L3:
+    mode: frugal
+    size: L3
+    description: 重型项目最低成本 — 保留安全必要 Agent，全部使用低成本模型；高风险仍应由 runtime 自动升级。
+    phases:
+    - phase: Supervisor 规划
+      agent: Supervisor
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 3000
+      estimated_output_tokens: 1500
+    - phase: RepoScout 仓库扫描
+      agent: RepoScout
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 6000
+      estimated_output_tokens: 1200
+    - phase: InterfaceMapper 接口分析
+      agent: InterfaceMapper
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 4000
+      estimated_output_tokens: 1000
+      optional: true
+    - phase: Coder 代码实现
+      agent: Coder
+      model: qwen3-coder-next
+      provider: qwen-coder
+      estimated_input_tokens: 7000
+      estimated_output_tokens: 3500
+    - phase: TesterAuditor 基本验证
+      agent: TesterAuditor
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 3500
+      estimated_output_tokens: 1200
+    - phase: Verifier 抽样检查
+      agent: Verifier
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 2500
+      estimated_output_tokens: 800
+      optional: true
+    - phase: Archivist 简要记录
+      agent: Archivist
+      model: qwen3.6-flash
+      provider: qwen-flash
+      estimated_input_tokens: 1500
+      estimated_output_tokens: 700
+      optional: true
+    total_cap_tokens: 43010

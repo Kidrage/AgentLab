@@ -8,6 +8,13 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
   PYTHON_BIN="${PYTHON:-python3}"
 fi
 
+# Load environment variables from .env file
+if [[ -f "$ROOT/agent_runtime/.env" ]]; then
+  set -a
+  source "$ROOT/agent_runtime/.env"
+  set +a
+fi
+
 cd "$ROOT/agent_runtime"
 
 # ─── Codex Full-Driver Mode CLI Commands ────────────────────────────────

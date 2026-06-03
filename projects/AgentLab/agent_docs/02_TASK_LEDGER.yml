@@ -1,0 +1,40 @@
+# AgentLab 项目任务台账
+# 层级：项目 (Project) → 任务 (Task) → 子任务 (Subtask)
+
+version: 1
+project: AgentLab
+description: AgentLab 多智能体工作流平台搭建
+
+tasks:
+  - task_id: task_0009
+    title: Web UI 完善 & 视觉重构
+    description: 完善 AgentLab Web UI 并完成桌面 App 封装
+    status: active
+    priority: P0
+    category: feature
+    depends_on: []
+    subtasks:
+      - id: sub_001
+        description: Patch Applicator — LLM API 直接编辑文件能力
+        status: complete
+        created_at: 2026-05-30
+      - id: sub_002
+        description: Web UI 实时任务详情面板
+        status: complete
+        created_at: 2026-05-30
+      - id: sub_003
+        description: 大脑层模型分层 (v4-pro + v4-flash)
+        status: complete
+        created_at: 2026-05-30
+      - id: sub_004
+        description: Linear x Raycast 视觉重构 — 暗色优先、毛玻璃
+        status: complete
+        created_at: 2026-05-30
+      - id: sub_005
+        description: 侧拉设置面板 + API Key 配置
+        status: complete
+        created_at: 2026-05-30
+      - id: sub_006
+        description: 项目-任务-子任务层级体系 + 聊天窗口上下文
+        status: active
+        created_at: 2026-05-30

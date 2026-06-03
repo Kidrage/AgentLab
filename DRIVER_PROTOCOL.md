@@ -1,55 +1,51 @@
 # AgentLab 外部 AI 驱动协议
 
 > **适用对象**：Codex Plus（有额度的订阅用户）
-> **你的角色**：轻量中继——收取自然语言任务 → 交给 AgentLab 大脑分发 → 必要时执行 Coder 阶段
-> **目标**：每步消耗尽可能少的 token，不替代 AgentLab 的大脑层
-> **注意**：cline、DeepSeek、Claude 等其他外部 AI **不在 Coder 阶段接管范围内**。你必须是 Codex Plus 订阅用户才可执行 Coder 阶段。其他外部 AI 仅可运行大脑层 Agent（Supervisor 等）。
+> **你的角色**：外部 IDE 调度与验收层——收取自然语言任务 → 写入 AgentLab task → 启动 AgentLab 自驱链路 → 验收结果 → 查漏补缺
+> **目标**：让 AgentLab 自己完成规划、感知、执行、审计和归档；外部 IDE AI 不伪装成 AgentLab 多 agent/API 执行结果
+> **注意**：Codex Plus、Cline、Claude、DeepSeek Chat 等外部 IDE/聊天 AI 默认只负责调度与验收。只有当 AgentLab Coder 阶段被显式切到 `external_ide_ai`，或用户明确授权手动接管时，外部 AI 才能编辑文件。
 
 ---
 
 ## 核心原则
 
 ```
-你（Codex Plus）   AgentLab 大脑（DeepSeek）      AgentLab 执行（Codex Plus 手动 / Qwen API）
-─────────────     ─────────────────────────      ──────────────────────────────────────────
-收任务、写文件     规划、路由、分派、审查            实际写代码、编辑文件、跑命令
-薄薄一层           所有思考工作                    只在你接管 Coder 阶段时介入
+你（外部 IDE AI）   AgentLab 大脑/感知/API Agents        AgentLab 执行/审计/归档
+──────────────     ─────────────────────────────        ───────────────────────
+收任务、启动、验收   规划、路由、分析、提示词、风险判断       Qwen Coder/API 或受控外部执行
+薄薄一层             所有可自驱的思考工作                  写报告、记账、状态推进、记忆归档
 ```
 
-- 你 **不做** 任务规划、架构分析、范围评估——那些是 Supervisor 的活
-- 你 **不做** 代码审查——那是 TesterAuditor 的活
-- 你只在 **Coder 阶段** 实际编辑文件，以及遇到 `USER_DECISION_REQUIRED` 时询问用户
+- 你默认 **不做** 任务规划、架构分析、范围评估；这些必须由 Supervisor/RepoScout/InterfaceMapper 产出本地工件
+- 你默认 **不做** 代码实现；这些必须由 AgentLab Coder API、受控外部 Coder handoff，或用户显式授权的手动接管完成
+- 你默认 **不做** 代码审查；这些必须由 TesterAuditor/Verifier 产出本地工件
+- 你可以做：创建 task、运行 CLI、检查 `workflow_plan.yml`/报告/状态、复述结果、指出缺口、要求重跑或补充验证
+- 若你手动补写任何报告或执行任何文件改动，必须在报告中标明 `backend: external_ide_manual` 或 `codex_plus_manual`，不能把它记成 API agent 自驱结果
 
 ---
 
 ## Coder 模式切换规则
 
-Coder 有两个执行模式，仅 Codex Plus 可自动检测切换。cline/DeepSeek/Claude 等不参与 Coder 阶段。
+Coder 有三个执行模式。默认目标是 AgentLab 自驱；外部 IDE AI 是 fallback/验收工具，不是默认执行者。
 
 | 模式 | 触发条件 | 行为 |
 |------|---------|------|
-| **Codex Plus 接管模式（默认）** | 用户在 IDE 中用自然语言让 Codex Plus 审查/编写/修改 AgentLab 源码或配置 | Codex Plus 全权接管 Coder 阶段，读 supervisor_plan → 编辑文件 → 写 implementation_report → log-event。Qwen 被动待命。 |
-| **Qwen API Fallback** | Codex Plus 配额不足 + 用户选择 API fallback，或用户显式说"用 Qwen 编码" | Qwen API 生成 patch proposal，用户审批后应用。 |
+| **AgentLab API Coder（默认目标）** | Coder profile 解析到 `qwen-coder`，且 `DASHSCOPE_API_KEY` 可用 | AgentLab 调 DashScope/Qwen Coder 生成 patch proposal 或结构化 edit block，按策略应用/等待审批。 |
+| **External IDE Coder（显式）** | `AGENTLAB_EXTERNAL_CODER=1`、run_dir 中存在 `EXTERNAL_CODER_READY`，或用户明确要求 IDE 接管 | AgentLab 生成完整 handoff，外部 AI 只执行 Supervisor 批准范围内的 Coder 阶段。 |
+| **Manual Rescue（救援）** | provider 缺失、配额不足、模型不可用，且用户明确授权 | 外部 IDE AI 可以临时代替某个阶段，但必须在工件中标明 `backend: external_ide_manual`，不能伪造成 API 调用。 |
 
-### Codex Plus 接管模式自动信号
+### 外部 IDE 的默认职责
 
-当你（Codex Plus）在对话中检测到以下任一信号时，**自动识别为 Codex Plus 接管 Coder 模式**，无需用户显式说"用 AgentLab Coder"：
+外部 IDE AI 接到用户任务时，默认做以下动作：
 
-| 信号 | 示例 | 自动行为 |
-|------|------|---------|
-| 用户让你审查 AgentLab 内部规则/代码 | "看看 AgentLab 的 Coder 配置对不对" | 读取相关文件 → 分析 → 编辑 → 写报告 |
-| 用户让你修改 AgentLab 源码 | "把 Coder profile 改成 external_ide_coder" | 等价于接管 Coder 阶段 |
-| 用户讨论 AgentLab 架构改动 | "我想让 Coder 支持这种切换逻辑" | 触发完整 AgentLab 工作流，自动承担 Coder |
-| 用户提及 `DRIVER_PROTOCOL.md` / `agent_registry.yml` 等 AgentLab 内部文件 | 任何引用 AgentLab 配置文件的对话 | 自动进入 Codex Plus Coder 接管模式 |
-| 用户说"帮我改 AgentLab" | 直接触发 | 等同 `run-agent Coder --execute` 但由 Codex Plus 手动执行 |
+1. 创建/更新 `user_request.md`
+2. 运行 `prepare --write-plan`
+3. 按 `workflow_plan.yml` 启动 AgentLab agent/API
+4. 遇到 `USER_DECISION_REQUIRED.md` 时向用户转述决策
+5. 任务结束后运行 artifact/lifecycle/harness/model doctor 等验收命令
+6. 只向用户反馈结论、风险、缺口和关键文件路径
 
-**不触发 Codex Plus 接管**：用户在 AgentLab 任务中讨论业务代码（非 AgentLab 自身）、问答 AgentLab 用法、查看状态。
-
-**切换回 Qwen**：仅当 Codex Plus 配额不足且用户选择 fallback，或用户明确说"用 Qwen API 编码"时。
-
-**非 Codex Plus 环境**：如果你不是 Codex Plus（如 cline/DeepSeek Chat/Claude 等），Coder 阶段跳过。仅可执行大脑层 Agent（Supervisor、TesterAuditor 等），不可编辑文件。
-
-**CLI 安全护栏**：`./agentlab.sh run-agent Coder --execute` 已加入阻断逻辑——当 Coder profile 为 `external_ide_coder`（provider=external_ide_ai）时，CLI 会阻止自动执行并提示手动接管。显式指定 `--provider qwen` 或 `--provider deepseek` 可绕过阻断使用 API fallback。
+**CLI 安全护栏**：`./agentlab.sh run-agent Coder --execute` 在 provider 为 `external_ide_ai` 时必须阻断自动执行并写 handoff。显式指定 `--provider qwen-coder`、`--provider qwen`、`--provider qwen3` 或 `--provider deepseek` 才可使用 API fallback。
 
 ---
 
@@ -135,7 +131,72 @@ ls projects/<ProjectName>/runs/ | sort | tail -1
 
 ---
 
-### 步骤 4：按顺序执行大脑层 Agent
+### 步骤 3.5：选择执行模式 ⚠️ 必须向用户确认
+
+`workflow_plan.yml` 生成后，在执行 agent 之前，**你必须向用户确认执行模式**。
+
+AgentLab 现在支持两种流水线执行模式：
+
+| 模式 | CLI 命令 | 行为 | 费用 | 适用场景 |
+|------|---------|------|------|---------|
+| **🔍 Dry-Run（默认安全）** | `run-pipeline --dry-run` | 走完完整的 14 节点生命周期，但全部使用假数据（fake provider），不调任何 LLM API | **零费用** | 验证路由正确性、artifact 完整性、生命周期闭环；首次运行建议先用 dry-run |
+| **⚡ Execute（自动执行）** | `run-pipeline --execute` | 走完完整的 14 节点生命周期，每个 agent 节点真正调用配置的模型 API（Supervisor→DeepSeek, RepoScout→Qwen, Coder→Qwen Coder 等） | **按 API 调用计费**（DeepSeek + Qwen token 消耗） | 正式执行任务，一次性自动跑完整个流水线 |
+
+#### Dry-Run 模式下流水线自动完成的内容：
+
+- 14 个生命周期节点全部标记 completed
+- 每个 agent 报告写入占位内容（标明 `fake_provider`）
+- artifact 完整性检查、self-check、sync 标记
+- `lifecycle.yml`、`progress.yml`、`state.yml`、`task_card.yml` 全部写入
+
+#### Execute 模式下流水线自动完成的内容：
+
+Dry-Run 的全部内容 + 每个 agent 节点真正调用 LLM API 产出实际报告。遇到以下情况时流水线**自动暂停**：
+
+| 暂停原因 | 触发条件 | 后续操作 |
+|---------|---------|---------|
+| `blocked_user_decision` | Agent 需要用户做出 yes/no 决策 | 读取 `USER_DECISION_REQUIRED.md`，向用户转述问题，用户回答后 resume |
+| `fallback_handoff` | Provider 不可用（如 DeepSeek API 挂了） | 读取 `codex_fallback_<Agent>.md`，告诉用户，询问是否切换 provider 或手动接管 |
+
+暂停的任务可通过以下命令恢复：
+```bash
+./agentlab.sh task-resume --project <ProjectName> --task-id <task_id>
+```
+
+#### ⚠️ 外部 AI 强制性规则：必须先问用户
+
+在 `prepare --write-plan` 之后、任何 agent 执行之前，**你必须用以下话术询问用户**（不可跳过）：
+
+```
+AgentLab 工作流计划已生成：
+  路由：Supervisor → RepoScout → ... → Archivist
+  Token 预估预算：约 XXXX tokens
+  项目体量：L1/L2/L3
+
+请选择执行模式：
+  🔍 Dry-Run（推荐先用）：零费用，验证流水线闭环是否完整
+  ⚡ Execute：真正调 LLM API，预计产生 token 费用
+
+你想用哪种模式？
+```
+
+**用户选择后**，执行对应命令：
+
+```bash
+# Dry-Run 模式
+./agentlab.sh run-pipeline --project <ProjectName> --task-id <task_id> --dry-run
+
+# Execute 模式
+./agentlab.sh run-pipeline --project <ProjectName> --task-id <task_id> --execute
+```
+
+> `run-pipeline` 一次性自动完成所有 agent 的执行，**取代**下面步骤 4-7 的手动逐个 `run-agent` 接力。步骤 4-7 的手动方式仍然可用（用于需要精细控制的场景），但默认推荐 `run-pipeline`。
+
+---
+
+### 步骤 4（手动方式）：按顺序执行大脑层 Agent
+
+> ⚠️ 如果你已通过步骤 3.5 使用 `run-pipeline --execute` 自动执行，则跳过步骤 4-7，直接用步骤 7 验收即可。以下手动方式适用于需要精细控制每个 agent 的场景。
 
 `workflow_plan.yml` → `route.agents` 列表决定了执行顺序。按顺序逐个执行，**Coder 跳过**（见步骤 5）。
 
@@ -154,7 +215,7 @@ ls projects/<ProjectName>/runs/ | sort | tail -1
 Supervisor → RepoScout → Researcher(如有) → InterfaceMapper(如有) → [Coder 暂停] → TesterAuditor → Archivist
 ```
 
-每个 `run-agent --execute` 会调用 DeepSeek API，产生 token 费用。
+每个 `run-agent --execute` 会调用 API，产生 token 费用。
 
 **你需要在每步之后检查**：
 
@@ -162,7 +223,7 @@ Supervisor → RepoScout → Researcher(如有) → InterfaceMapper(如有) → 
 |----------|------|---------|
 | `completed` | 正常完成，报告已写入 | 继续下一个 agent |
 | `blocked_user_decision` | 需要用户决策 | 阅读 `USER_DECISION_REQUIRED.md`，在对话中询问用户 yes/no，将答案传回 |
-| `fallback_handoff` | DeepSeek 不可用，生成了 handoff 文件 | 读取 `codex_fallback_<Agent>.md`，**停下来告诉用户**：DeepSeek 不可用，是否由你模拟该 agent |
+| `fallback_handoff` | API 不可用，生成了 handoff 文件 | 读取 `codex_fallback_<Agent>.md`，**停下来告诉用户**，询问是否切换 provider |
 
 **token 节省规则**：
 - 只读取报告的关键结论（summary、risks、next_steps），不读全文
@@ -308,6 +369,113 @@ Coder 完成后，继续执行剩余的大脑层 agent：
 
 ---
 
+## AgentLab 自身维护：Bug 反馈与调试闭环
+
+> ℹ️ AgentLab 本身是软件项目，execute 模式需要长期维护。当外部 AI 发现 AgentLab 自身的衔接问题、API 调用异常或逻辑 bug 时，必须遵循本条规则进行诊断和记录。
+
+### 何时触发 AgentLab 自身调试
+
+以下信号出现时，外部 AI 应进入 AgentLab 自身调试模式：
+
+| 信号 | 示例 |
+|------|------|
+| 流水线卡在某个节点不推进 | `run-pipeline` 返回 `"status": "paused"` 但无明显原因 |
+| 生命周期节点状态不一致 | `lifecycle-status` 显示某节点标记 completed 但报告文件不存在 |
+| API 调用返回意外状态 | `run-agent --execute` 返回不属于 `completed`/`blocked_user_decision`/`fallback_handoff` 的状态 |
+| artifact check 反复失败 | `artifact-check` 出现同样的 missing files 即使 agent 已执行 |
+| 报告内容被写入错误位置 | 某个 agent 的报告写到了不匹配的路径 |
+| CLI 命令报 Python 异常 | `run-pipeline --execute` 抛出未捕获的 traceback |
+
+### 调试档物清单（外部 AI 必须阅读的档）
+
+进入调试模式后，按顺序读取以下文件来诊断问题：
+
+```text
+1. pipeline_error.log                    ← 流水线引擎记录的错误（可能不存在）
+2. lifecycle.yml                         ← 逐个检查每个 node 的 status + error 字段
+3. progress.yml                          ← 检查各 agent 的 provider_status 和 incidents
+4. state.yml                             ← 检查 status / current_agent / blocked 字段
+5. provider_incidents.yml                ← 查看 API 失败记录（可能不存在）
+6. resume_plan.yml                       ← 查看上次暂停的原因和允许恢复的 provider
+7. run_task.py / pipeline_runner.py / agent_runner.py / llm_provider.py
+                                         ← 关键源码，理解断点处的代码逻辑
+```
+
+### 诊断流程（外部 AI 必须执行）
+
+```
+① 读取调试档物清单中的文件（按顺序）
+    │
+② 定位问题节点/阶段
+    │
+    ├── 是代码逻辑问题（pipeline_runner / agent_runner / llm_provider）？
+    │   ├── 读对应源码，理解预期行为 vs 实际行为
+    │   ├── 记录到 bug 反馈档（见下节）
+    │   ├── 修复源码（如果确认是 AgentLab 自身的 bug）
+    │   └── 修复后重新执行失败的节点
+    │
+    ├── 是配置问题（API key 缺失 / provider 配置错误）？
+    │   ├── 读 config/ 下对应 YAML
+    │   ├── 记录到 bug 反馈档
+    │   └── 修正配置或告知用户
+    │
+    └── 是外部因素（API 配额不足 / 网络问题）？
+        ├── 告知用户
+        └── 记录到 bug 反馈档（标注为 external）
+```
+
+### Bug 反馈档：`BUG_REPORT.md`
+
+每次发现 AgentLab 自身问题时，外部 AI 必须在 `projects/AgentLab/docs/` 下创建或追加 `BUG_REPORT.md`，格式如下：
+
+```markdown
+### [YYYY-MM-DD HH:MM] - task_xxxx - <Agent/Component>
+
+**发现者**：外部 IDE AI（执行 task_xxxx 时触发）
+
+**问题节点/阶段**：<lifecycle_node / agent_name / CLI 命令>
+
+**症状**：
+<实际行为描述，包含错误消息、返回状态>
+
+**预期行为**：
+<按照 AgentLab 设计，应该发生什么>
+
+**调试档内容摘要**：
+<从 lifecycle.yml / progress.yml / state.yml 等相关档中摘录的关键信息>
+
+**根因分析**：
+<外部 AI 的初步诊断结论>
+
+**修复措施**：
+<对源码或配置做的是什么修改，文件名 + 行号>
+
+**验证结果**：
+<修复后重新运行的结果>
+
+**后续建议**：
+<是否需要重构、是否需要增加自动化测试、是否需要更新协议>
+```
+
+### 调试记录的强制性规则
+
+1. **读档必写**：你读了调试档物清单中的任何文件，就必须在 `BUG_REPORT.md` 中留下记录（哪怕最后发现不是 bug，也要写一条 `结论: 非bug，原因: ...`）
+2. **改码必记**：修改了 `agent_runtime/` 下任何 `.py` 文件，必须记录文件名、行号和修改原因
+3. **不可只说"已修复"**：必须有验证结果（重新运行命令后的输出摘要）
+4. **长期维护视角**：每条记录末尾考虑"是否需要补充单元测试"、"是否需要更新协议/README"
+
+### 外部 AI 的责任边界
+
+- ✅ 可以：阅读 `pipeline_error.log` / `lifecycle.yml` / `state.yml` 等调试档
+- ✅ 可以：阅读 `agent_runtime/*.py` 源码理解逻辑
+- ✅ 可以：修改 `agent_runtime/*.py` 修复 bug
+- ✅ 可以：修改 `config/*.yml` 修正配置
+- ✅ 必须：将诊断和修复过程写入 `BUG_REPORT.md`
+- ❌ 不可：修复 AgentLab 自身 bug 时不写 `BUG_REPORT.md`
+- ❌ 不可：将 AgentLab 自身修复伪装成正常任务工件
+
+---
+
 ## 禁止事项
 
 - ❌ 代替 Supervisor 做路由决策
@@ -319,6 +487,8 @@ Coder 完成后，继续执行剩余的大脑层 agent：
 - ❌ 伪造 token 消耗数据
 - ❌ 把你自己（外部 AI）的推理过程写入 AgentLab 报告
 - ❌ 非 Codex Plus 环境（cline/DeepSeek/Claude）执行 Coder 阶段的文件编辑
+- ❌ 修复 AgentLab 自身 bug 时不写 `BUG_REPORT.md`
+- ❌ 将 AgentLab 自身修复伪装成正常任务工件
 
 ---
 
@@ -357,6 +527,7 @@ CodexPromptGenerator → Coder → TesterAuditor → Archivist
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.5 | 2026-06-02 | 新增 `run-pipeline --execute` 全自动流水线模式；新增步骤 3.5 强制用户确认执行模式（dry-run vs execute）；新增「AgentLab 自身维护：Bug 反馈与调试闭环」章节，定义 `BUG_REPORT.md` 长期维护机制 |
 | 1.4 | 2026-05-31 | 新增 codex_full_driver 模式定义和工件规则 |
 | 1.3 | 2026-05-30 | 收紧 Coder 接管范围：仅限 Codex Plus（有额度），排除 cline/DeepSeek/Claude 等 |
 | 1.2 | 2026-05-30 | 新增 Coder 模式切换规则（Codex Plus 接管 / Qwen Fallback）；新增 IDE 自动信号检测；CLI 增加 Coder handoff 阻断护栏 |

@@ -9,25 +9,13 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any
+from pathlib import Path
 
 from incident_manager import record_incident
+from model_resolver import resolve_env_value, resolve_profile_config
 from progress_tracker import mark_agent_completed, mark_agent_paused, mark_agent_started
 from provider_guard import build_fallback_decision, classify_provider_error, write_user_decision_file
 from schemas import LLMCallResult, LLMSettings
-
-
-def resolve_env_value(value: Any, fallback: str = "") -> str:
-    """Resolve `env:NAME` config values without exposing secrets."""
-    if value is None:
-        return fallback
-    if isinstance(value, str) and value.startswith("env:"):
-        spec = value.split(":", 1)[1]
-        if ":" in spec:
-            name, default = spec.split(":", 1)
-            return os.getenv(name, default or fallback)
-        return os.getenv(spec, fallback)
-    return str(value)
 
 
 def resolve_llm_settings(
@@ -35,6 +23,7 @@ def resolve_llm_settings(
     agent_registry: dict,
     model_providers: dict,
     model_profiles: dict,
+    model_catalog: dict | None = None,
     provider_override: str | None = None,
     model_override: str | None = None,
 ) -> LLMSettings:
@@ -42,8 +31,15 @@ def resolve_llm_settings(
     agent_config = agent_registry.get(agent_name, {})
     profile_name = agent_config.get("model_profile", "")
     profile_defaults = model_profiles.get("defaults", {})
-    profiles = model_profiles.get("profiles", {})
-    profile = {**profile_defaults, **profiles.get(profile_name, {})}
+    profile = {
+        **profile_defaults,
+        **resolve_profile_config(
+            profile_name,
+            model_profiles=model_profiles,
+            model_catalog=model_catalog or {},
+            agent_name=agent_name,
+        ),
+    }
 
     provider_name = provider_override or resolve_env_value(
         profile.get("provider"),
@@ -115,7 +111,8 @@ def generate_text(
     client_kwargs: dict[str, str] = {"api_key": api_key}
     if settings.base_url:
         client_kwargs["base_url"] = settings.base_url
-    client = OpenAI(**client_kwargs)
+    request_timeout = float(os.getenv("AGENTLAB_LLM_TIMEOUT_SECONDS", "120"))
+    client = OpenAI(timeout=request_timeout, **client_kwargs)
 
     max_retries = 3
     retry_delays = [1.0, 2.0, 3.0]
@@ -221,11 +218,23 @@ def generate_text(
     content = response.choices[0].message.content or ""
     usage = response.usage.model_dump() if response.usage else {}
 
+    report_names = {
+        "Supervisor": "01_supervisor_plan.md",
+        "RepoScout": "02_reposcout_report.md",
+        "Researcher": "03_research_notes.md",
+        "InterfaceMapper": "04_interface_map.md",
+        "PromptEngineer": "05_coder_prompt.md",
+        "Coder": "06_implementation_report.md",
+        "TesterAuditor": "08_audit_report.md",
+        "Verifier": "verification_report.md",
+        "Archivist": "09_archive_update.md",
+    }
+
     # --- progress tracking: mark agent completed ---
     if run_d and agent_name:
         try:
             mark_agent_completed(
-                run_d, agent_name, f"runs/{task_id}/{agent_name.lower()}_report.md",
+                run_d, agent_name, f"runs/{task_id}/{report_names.get(agent_name, agent_name.lower() + '_report.md')}",
                 input_tokens=usage.get("prompt_tokens", 0),
                 output_tokens=usage.get("completion_tokens", 0),
                 total_tokens=usage.get("total_tokens", 0),

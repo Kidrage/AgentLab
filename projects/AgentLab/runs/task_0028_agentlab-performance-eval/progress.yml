@@ -1,0 +1,36 @@
+project: AgentLab
+task_id: task_0028_agentlab-performance-eval
+status: completed
+percent: 100
+current_stage: completed
+current_agent: null
+last_event: Performance evaluation completed.
+agents:
+- name: Supervisor
+  status: completed
+  provider: local
+  tokens: 0
+- name: RepoScout
+  status: completed
+  provider: local
+  tokens: 0
+- name: Researcher
+  status: completed
+  provider: local
+  tokens: 0
+- name: InterfaceMapper
+  status: completed
+  provider: local
+  tokens: 0
+- name: TesterAuditor
+  status: completed
+  provider: local
+  tokens: 0
+- name: Verifier
+  status: completed
+  provider: local
+  tokens: 0
+- name: Archivist
+  status: completed
+  provider: local
+  tokens: 0

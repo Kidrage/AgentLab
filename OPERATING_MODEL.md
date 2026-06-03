@@ -1,9 +1,14 @@
 # AgentLab Operating Model
 
-This AgentLab instance uses a split-brain workflow:
+This AgentLab instance uses an external-driver, internal-agent workflow:
 
-- DeepSeek API is the low-cost management and reasoning layer.
-- Codex Plus is the real engineering execution layer.
+- AgentLab owns task routing, planning, perception, execution, audit, memory,
+  provider accounting, and local artifacts.
+- External IDE AI owns task dispatch, final acceptance, and gap-filling only.
+- DeepSeek official API remains available for high-quality brain/review work
+  when configured.
+- DashScope is the runtime provider for all Qwen profiles. OpenRouter is not a
+  default or assumed provider.
 
 ## Trigger Rule
 
@@ -33,19 +38,19 @@ DeepSeek must not be treated as the source-of-truth executor for real source
 edits. If Codex quota is exhausted and the user chooses the API fallback,
 DeepSeek remains the brain and Qwen becomes the temporary Coder model.
 
-## Codex Plus Responsibilities
+## External IDE AI Responsibilities
 
-Codex Plus handles:
+Codex Plus/Cline/Claude/etc. handle:
 
-- Writing code.
-- Editing files.
-- Running project commands.
-- Reading diffs and command output.
-- Applying fixes.
-- Producing final implementation reports.
+- Translating the user's request into `user_request.md`.
+- Running AgentLab CLI commands.
+- Reading task status and local artifacts.
+- Reporting conclusions, risks, and missing evidence to the user.
+- Manually rescuing a blocked stage only when the user explicitly authorizes it.
 
-Codex Plus dialogue and implementation actions must be summarized into the
-project dialogue log when AgentLab is active.
+When external IDE AI performs any manual rescue or file edits, the task artifact
+must say `backend: external_ide_manual` or `backend: codex_plus_manual`. It must
+not be recorded as a model API result.
 
 ## Fallback Rule
 
@@ -54,16 +59,17 @@ during a brain stage, AgentLab must stop and ask the user. Codex Plus must not
 silently perform Supervisor, RepoScout, Researcher, InterfaceMapper,
 Tester/Auditor, Archivist, or CodexPromptGenerator work as a replacement brain.
 
-If Codex Plus quota is exhausted during Coder execution, AgentLab asks the user
-whether to pause until Codex quota refreshes or switch to a pure API fallback:
+If Qwen Coder/DashScope is unavailable during Coder execution, AgentLab asks the
+user whether to pause/retry, switch to another configured API model, or authorize
+external IDE manual rescue:
 
 ```text
-DeepSeek brain + Qwen Coder API
+AgentLab brain + Qwen Coder API, or AgentLab brain + external IDE manual rescue
 ```
 
-Qwen coding is never automatic. The first safe output is a patch proposal and
-implementation report unless a later checkpoint/approval mechanism allows direct
-application.
+Qwen coding is the default self-drive API path when `DASHSCOPE_API_KEY` is
+configured. The first safe output is a patch proposal and implementation report
+unless a later checkpoint/approval mechanism allows direct application.
 
 ## New Task Protocol
 

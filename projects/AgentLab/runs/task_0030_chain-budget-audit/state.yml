@@ -1,0 +1,9 @@
+project: AgentLab
+task_id: task_0030_chain-budget-audit
+current_agent: null
+completed_agents: []
+reports: {}
+status: planned
+execution_mode: ''
+last_event: Workflow plan prepared.
+updated_at: '2026-06-02T10:42:45.310184+00:00'

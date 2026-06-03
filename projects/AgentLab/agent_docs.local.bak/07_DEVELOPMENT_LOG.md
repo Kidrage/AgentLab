@@ -70,3 +70,54 @@ Files changed: AGENTS.md,config/harness_policy.yml,agent_runtime/brain_governor.
 
 Commands run: python3 -B -m py_compile agent_runtime/config_loader.py agent_runtime/schemas.py agent_runtime/brain_governor.py agent_runtime/workflow_plan.py agent_runtime/agent_runner.py agent_runtime/run_task.py web_ui/server.py,./agentlab.sh harness-status --project AgentLab --task-id task_0009,./agentlab.sh brain-status --project AgentLab --task-id task_0009,curl -s /api/config,curl -s /api/status
 
+## 2026-06-01T08:15:14.601781+00:00 - task_0028_agentlab-performance-eval
+
+- Performance score: 95.0/100 (A)
+- Routing pass rate: 5/6
+- Mode: local deterministic evaluation, zero model tokens.
+
+## 2026-06-01T08:16:42.375391+00:00 - task_0028_agentlab-performance-eval
+
+- Performance score: 100.0/100 (A)
+- Routing pass rate: 6/6
+- Mode: local deterministic evaluation, zero model tokens.
+
+## 2026-06-01T08:19:04.942128+00:00 - task_0028_agentlab-performance-eval
+
+- Performance score: 100.0/100 (A)
+- Routing pass rate: 6/6
+- Mode: local deterministic evaluation, zero model tokens.
+
+## 2026-06-01T08:20:55.401299+00:00 - task_0028_agentlab-performance-eval
+
+- Performance score: 100.0/100 (A)
+- Routing pass rate: 6/6
+- Mode: local deterministic evaluation, zero model tokens.
+
+## 2026-06-02T04:15:33.279158+00:00 - task_0029_model-routing-eval
+
+- Performance score: 100.0/100 (A)
+- Routing pass rate: 6/6
+- Mode: local deterministic evaluation, zero model tokens.
+
+### 2026-06-02T04:16:25.544539+00:00 - task_0029_model-routing-eval - Codex
+
+Module: ModelRouting
+
+Summary: Added unified model resolver, DashScope-first Qwen routing, model-doctor, provider-test fix, and external IDE validation protocol updates.
+
+Files changed: agent_runtime/model_resolver.py,agent_runtime/llm_provider.py,agent_runtime/agent_runner.py,agent_runtime/workflow_plan.py,agent_runtime/run_task.py,agent_runtime/performance_evaluator.py,config/model_catalog.yml,config/execution_policy.yml,config/README.md,DRIVER_PROTOCOL.md,OPERATING_MODEL.md
+
+Commands run: py_compile,model-doctor,models,provider-test qwen-coder/qwen3/qwen/qwen-flash/deepseek,doctor,performance-eval
+
+
+### 2026-06-02T10:27:52.530973+00:00 - task_0011 - Coder
+
+Module: General
+
+Summary: Completed SCNet rollback to external bundled model package and built universal macOS app
+
+Files changed: none recorded
+
+Commands run: none recorded
+

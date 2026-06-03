@@ -53,8 +53,9 @@ execution_policy:
   # 默认 API Coder
   default_api_coder:
     model: qwen3-coder-next
-    provider: openrouter
-    profile_ref: qwen3_coder_next_openrouter
+    provider: qwen-coder
+    catalog_provider: dashscope_cn
+    profile_ref: qwen3_coder_next_dashscope
     max_output_tokens: 4096
     temperature: 0.1
 

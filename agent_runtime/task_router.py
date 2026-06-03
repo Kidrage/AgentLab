@@ -35,6 +35,30 @@ RESEARCH_HINTS = (
     "alternative",
 )
 
+EVALUATION_HINTS = (
+    "evaluate",
+    "evaluation",
+    "assessment",
+    "assess",
+    "benchmark",
+    "performance evaluation",
+    "performance benchmark",
+    "comprehensive evaluation",
+    "architecture review",
+    "system review",
+    "audit report",
+    "compare",
+    "comparison",
+    "评估",
+    "全面评估",
+    "性能评估",
+    "基准测试",
+    "架构评估",
+    "系统评估",
+    "审计报告",
+    "对比分析",
+)
+
 INTERFACE_HINTS = (
     "api",
     "schema",
@@ -114,9 +138,11 @@ def recommend_route(
     large_chars = int(thresholds.get("large_characters", 2500))
 
     research_hints = _configured_hints(routing_config, "research", RESEARCH_HINTS)
+    evaluation_hints = _configured_hints(routing_config, "evaluation", EVALUATION_HINTS)
     interface_hints = _configured_hints(routing_config, "interface", INTERFACE_HINTS)
     large_hints = _configured_hints(routing_config, "large_or_risky", LARGE_HINTS)
 
+    wants_evaluation = any(hint in text for hint in evaluation_hints)
     wants_research = any(hint in text for hint in research_hints)
     touches_interfaces = any(hint in text for hint in interface_hints)
     looks_large = any(hint in text for hint in large_hints) or len(text) > large_chars
@@ -126,6 +152,15 @@ def recommend_route(
     fallback_medium = ["Supervisor", "RepoScout", "Coder", "TesterAuditor", "Verifier", "Archivist"]
     fallback_interface = ["Supervisor", "RepoScout", "InterfaceMapper", "Coder", "TesterAuditor", "Verifier", "Archivist"]
     fallback_research = ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier"]
+    fallback_evaluation = [
+        "Supervisor",
+        "RepoScout",
+        "Researcher",
+        "InterfaceMapper",
+        "TesterAuditor",
+        "Verifier",
+        "Archivist",
+    ]
     fallback_large = [
         "Supervisor",
         "RepoScout",
@@ -137,7 +172,11 @@ def recommend_route(
         "Archivist",
     ]
 
-    if looks_large:
+    if wants_evaluation:
+        route_key = "evaluation_task"
+        task_size = _configured_route_size(routing_config, route_key, "large")
+        agents = _configured_route(routing_config, route_key, fallback_evaluation)
+    elif looks_large:
         route_key = "large_or_risky_task"
         task_size = _configured_route_size(routing_config, route_key, "large")
         agents = _configured_route(routing_config, route_key, fallback_large)
@@ -161,10 +200,15 @@ def recommend_route(
     rationale = [
         "Supervisor always defines scope, token budget, and stop rules.",
         f"Route selected by {route_key} using smallest_safe_route rules.",
-        "Coder and Tester/Auditor are required for implementation and verification.",
     ]
+    if "Coder" in agents:
+        rationale.append("Coder and Tester/Auditor are required for implementation and verification.")
+    else:
+        rationale.append("Analysis-only route selected; Coder is skipped because no source implementation is requested.")
     if wants_research:
         rationale.append("Research hints detected; include Researcher when route requires current or external facts.")
+    if wants_evaluation:
+        rationale.append("Evaluation hints detected; use analysis-only L3 route and skip Coder by default.")
     if touches_interfaces:
         rationale.append("Interface hints detected; include InterfaceMapper for boundaries and contracts.")
     if looks_large:

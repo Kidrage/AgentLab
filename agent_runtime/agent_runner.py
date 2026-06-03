@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 
 from config_loader import load_agentlab_configs
-from llm_provider import generate_text, resolve_llm_settings
+from llm_provider import generate_text, resolve_env_value, resolve_llm_settings
 from policies import assert_path_allowed
 from schemas import LLMSettings, WorkflowPlan
 
@@ -137,13 +137,36 @@ def resolve_agent_settings(
     agent_name: str,
     provider_override: str | None = None,
     model_override: str | None = None,
+    profile_config: dict | None = None,
 ) -> tuple[LLMSettings, dict]:
     configs = load_agentlab_configs(agentlab_root)
+    if profile_config:
+        providers = configs.get("model_providers", {}).get("providers", {})
+        provider_name = provider_override or resolve_env_value(
+            profile_config.get("provider"),
+            resolve_env_value(configs.get("model_providers", {}).get("defaults", {}).get("provider"), "deepseek"),
+        )
+        provider_config = providers.get(provider_name, {})
+        default_model = resolve_env_value(provider_config.get("default_model"), "")
+        model_name = model_override or resolve_env_value(profile_config.get("model"), default_model)
+        settings = LLMSettings(
+            provider=provider_name,
+            provider_type=provider_config.get("type", "openai_compatible"),
+            model=model_name or default_model,
+            base_url=resolve_env_value(provider_config.get("base_url"), "") or None,
+            api_key_configured=bool(resolve_env_value(provider_config.get("api_key"), "")),
+            temperature=float(profile_config.get("temperature", 0.2)),
+            top_p=float(profile_config.get("top_p", 1.0)),
+            max_output_tokens=int(profile_config.get("max_output_tokens", 2000)),
+            profile_name=str(profile_config.get("profile", "")),
+        )
+        return settings, configs
     settings = resolve_llm_settings(
         agent_name=agent_name,
         agent_registry=configs.get("agent_registry", {}).get("agents", {}),
         model_providers=configs.get("model_providers", {}),
         model_profiles=configs.get("model_profiles", {}),
+        model_catalog=configs.get("model_catalog", {}),
         provider_override=provider_override,
         model_override=model_override,
     )
@@ -159,9 +182,31 @@ def run_agent_model(
     model_override: str | None = None,
     apply_patches: bool = True,
 ):
-    settings, configs = resolve_agent_settings(agentlab_root, agent_name, provider_override, model_override)
+    from operational_uploader import maybe_run_operational_agent
+
+    operational_result = maybe_run_operational_agent(plan, agent_name)
+    if operational_result is not None:
+        return operational_result
+
+    settings, configs = resolve_agent_settings(
+        agentlab_root,
+        agent_name,
+        provider_override,
+        model_override,
+        profile_config=(plan.model_profiles or {}).get(agent_name),
+    )
     messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
-    result = generate_text(settings, configs.get("model_providers", {}), messages)
+    result = generate_text(
+        settings,
+        configs.get("model_providers", {}),
+        messages,
+        agent_name=agent_name,
+        run_dir=str(plan.run_dir),
+        project=plan.project,
+        task_id=plan.task_id,
+        role=_role_for_agent(agent_name),
+        route=getattr(plan.route, "agents", []),
+    )
 
     # Apply file edits only when policy explicitly allows direct mutation.
     if _patch_application_enabled(configs, agent_name, apply_patches) and result.status == "completed" and result.content:
@@ -211,6 +256,14 @@ def _extract_allowed_files(plan: WorkflowPlan) -> set[str] | None:
     if allowed and isinstance(allowed, list):
         return {str(f) for f in allowed}
     return None
+
+
+def _role_for_agent(agent_name: str) -> str:
+    return {
+        "RepoScout": "repo_reader",
+        "Researcher": "researcher",
+        "Archivist": "archivist",
+    }.get(agent_name, agent_name.lower())
 
 
 def _patch_application_enabled(configs: dict, agent_name: str, requested: bool) -> bool:

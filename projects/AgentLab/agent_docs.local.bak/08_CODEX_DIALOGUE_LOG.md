@@ -56,3 +56,21 @@ Not recorded.
 ### Codex Response / Action Summary
 Added harness governance layer inspired by OpenAI harness engineering: AGENTS.md map, harness_policy, harness-status CLI, prompt context, validation gates, and UI config visibility
 
+
+## 2026-06-02T04:16:25.544539+00:00 - task_0029_model-routing-eval - Codex
+
+### User Message / Request
+Not recorded.
+
+### Codex Response / Action Summary
+Added unified model resolver, DashScope-first Qwen routing, model-doctor, provider-test fix, and external IDE validation protocol updates.
+
+
+## 2026-06-02T10:27:52.530973+00:00 - task_0011 - Coder
+
+### User Message / Request
+Not recorded.
+
+### Codex Response / Action Summary
+Completed SCNet rollback to external bundled model package and built universal macOS app
+

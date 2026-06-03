@@ -161,7 +161,13 @@ def evaluate_harness_status(plan: WorkflowPlan, agentlab_root: Path) -> dict[str
     feedback_rules = policy.get("feedback_loop", {})
 
     project_root = Path(plan.project_root)
+    project_docs = project_root / "agent_docs"
+    if project_docs.is_symlink() and not project_docs.exists():
+        local_backup = project_docs.with_name("agent_docs.local.bak")
+        if local_backup.is_dir():
+            project_docs = local_backup
     run_dir = Path(plan.run_dir)
+    route_agents = set(plan.route.agents)
     checks: list[dict[str, Any]] = []
     recommendations: list[str] = []
 
@@ -194,10 +200,13 @@ def evaluate_harness_status(plan: WorkflowPlan, agentlab_root: Path) -> dict[str
             recommendations.append(f"Shorten {root_map} so it stays a map, not a manual.")
 
     for rel in map_rules.get("required_project_maps", []):
-        add_check("project", rel, project_root / rel)
+        if rel.startswith("agent_docs/"):
+            add_check("project", rel, project_docs / rel.removeprefix("agent_docs/"))
+        else:
+            add_check("project", rel, project_root / rel)
 
     for rel, max_age in freshness_rules.items():
-        path = project_root / rel
+        path = project_docs / rel.removeprefix("agent_docs/") if rel.startswith("agent_docs/") else project_root / rel
         age = _age_days(path)
         if age is not None and age > float(max_age):
             checks.append({
@@ -209,6 +218,8 @@ def evaluate_harness_status(plan: WorkflowPlan, agentlab_root: Path) -> dict[str
             recommendations.append(f"Review stale project memory: {rel}.")
 
     for rel in feedback_rules.get("required_task_artifacts", []):
+        if rel in {"06_implementation_report.md", "implementation_report.md"} and "Coder" not in route_agents:
+            continue
         add_check("task", rel, run_dir / rel, missing_state="pending")
 
     user_decision_path = run_dir / "USER_DECISION_REQUIRED.md"
@@ -223,7 +234,7 @@ def evaluate_harness_status(plan: WorkflowPlan, agentlab_root: Path) -> dict[str
 
     decisions = load_yaml(run_dir / "brain_decisions.yml").get("decisions", [])
     run_cost_entries = load_yaml(run_dir / "cost_ledger.yml").get("entries", [])
-    project_cost_entries = load_yaml(project_root / "agent_docs" / "09_COST_LEDGER.yml").get("entries", [])
+    project_cost_entries = load_yaml(project_docs / "09_COST_LEDGER.yml").get("entries", [])
 
     rank = {"ok": 0, "pending": 1, "warn": 2, "ask_user": 3}
     overall = "ok"

@@ -1,0 +1,130 @@
+version: 1
+created_at: '2026-06-01T08:20:54.469812+00:00'
+updated_at: '2026-06-01T08:20:54.478115+00:00'
+nodes:
+  INIT_TASK:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478052+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: false
+    skip_reason: null
+  PREPARE_PLAN:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478069+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: false
+    skip_reason: null
+  SUPERVISOR_PLAN:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478073+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: false
+    skip_reason: null
+  REPO_CONTEXT:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478076+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: false
+    skip_reason: null
+  RESEARCH_OPTIONAL:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478080+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: true
+    skip_reason: null
+  INTERFACE_OPTIONAL:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478083+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: true
+    skip_reason: null
+  CODER_IMPLEMENTATION:
+    status: skipped
+    started_at: null
+    completed_at: null
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: true
+    skip_reason: Route does not include Coder
+  VALIDATION:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478090+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: false
+    skip_reason: null
+  AUDIT:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478094+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: false
+    skip_reason: null
+  VERIFY:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478098+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: true
+    skip_reason: null
+  ARCHIVE:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478101+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: false
+    skip_reason: null
+  SELF_CHECK:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478105+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: false
+    skip_reason: null
+  SYNC_OPTIONAL:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478108+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: true
+    skip_reason: null
+  FINALIZE:
+    status: completed
+    started_at: null
+    completed_at: '2026-06-01T08:20:54.478111+00:00'
+    checkpoint_id: null
+    report_path: null
+    error: null
+    optional: false
+    skip_reason: null
