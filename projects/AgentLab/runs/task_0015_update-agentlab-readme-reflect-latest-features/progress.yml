@@ -1,0 +1,110 @@
+version: 1
+project: AgentLab
+task_id: task_0015_update-agentlab-readme-reflect-latest-features
+status: new
+risk_level: R2
+budget_mode: balanced
+route:
+- Supervisor
+- RepoScout
+- InterfaceMapper
+- Coder
+- TesterAuditor
+- Verifier
+- Archivist
+current_agent: null
+current_stage: initialized
+percent_complete: 0
+last_event: Task created.
+last_event_at: '2026-06-06T07:58:19.332263+00:00'
+last_checkpoint: null
+last_call_id: null
+provider_status:
+  current_provider: null
+  failed_provider: null
+  fallback_available: true
+  paused_for_provider: false
+agents:
+  Supervisor:
+    order: 1
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+  RepoScout:
+    order: 2
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+  InterfaceMapper:
+    order: 3
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+  Coder:
+    order: 4
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+  TesterAuditor:
+    order: 5
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+  Verifier:
+    order: 6
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+  Archivist:
+    order: 7
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+incidents:
+  open_count: 0
+  latest: null
+backup:
+  p0_synced: false
+  last_backup_at: null

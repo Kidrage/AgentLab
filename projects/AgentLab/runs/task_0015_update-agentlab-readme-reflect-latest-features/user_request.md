@@ -1,0 +1,1 @@
+Update AgentLab README.md to reflect latest features including: task_snapshot.py, memory_writer.py, streaming_stereo_spatializer project, AO-SpatialAuthoring-Modular project docs, test_artifact_gate.py and test_task_closure.py. Also update the changelog to add version 2.3 entries for these recent additions.

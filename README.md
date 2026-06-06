@@ -25,7 +25,7 @@ AgentLab uses a multi-tier brain workflow with dynamic model selection:
 ```text
 T1 大脑层  (Brain):    Supervisor          → DeepSeek V4 Pro / Qwen3.6-Plus
 T2 感知层  (Perception): RepoScout, Researcher, InterfaceMapper → Qwen3.6+/Qwen3.7-Max
-T3 执行层  (Execution): Coder, CodexPromptGenerator → Qwen3-Coder-Next / DeepSeek V4 Pro
+T3 执行层  (Execution): Coder, PromptEngineer → Qwen3-Coder-Next / DeepSeek V4 Pro
 T4 审核层  (Audit):     TesterAuditor, Verifier → Qwen3.6-Flash/Plus
 T5 归档层  (Archive):   Archivist → Qwen3.6-Plus / Qwen3.7-Max
 ```
@@ -51,18 +51,26 @@ See `config/agent_registry.yml`, `config/model_catalog.yml`, and `OPERATING_MODE
 AgentLab/
 ├── agent_runtime/          # Core runtime: CLI, lifecycle graph, guard, progress tracker,
 │                           # brain governor, task router, provider failover, LLM provider,
-│                           # task index, terminal chat, evaluation suite
+│                           # task index, terminal chat, evaluation suite, task snapshot,
+│                           # memory writer, artifact contract, pipeline runner, state store
 │                           # 核心运行时：CLI、生命周期图、守护、进度追踪、
 │                           # 大脑治理、任务路由、提供者故障切换、LLM 提供者、
-│                           # 任务索引、终端聊天、评估套件
-├── agent_templates/        # 9 agent role prompts and report formats
-│                           # 9 个 Agent 角色提示词和报告格式
+│                           # 任务索引、终端聊天、评估套件、任务快照、
+│                           # 记忆写入器、产物契约、管线运行器、状态存储
+├── agent_templates/        # 9 agent role prompts + Codex Full-Driver templates
+│                           # 9 个 Agent 角色提示词 + Codex 全驱动模板
 ├── config/                 # 22 YAML policies: routing, budget, models, validation gates,
 │                           # guard, backup, auto-sync, evaluation, execution modes, etc.
 │                           # 22 个 YAML 策略：路由、预算、模型、验证门禁、
 │                           # 守护、备份、自动同步、评估、执行模式等
 ├── projects/               # Per-project memory docs and task run records
+│   ├── AgentLab/           #   AgentLab self-tracking project
+│   └── AO-SpatialAuthoring-Modular/  # AO spatial audio authoring project
 │                           # 每个项目的记忆文档和任务运行记录
+├── streaming_stereo_spatializer/  # Non-AI streaming stereo→4.0 spatializer
+│                           # 非AI流式立体声→4.0空间化处理器
+├── tests/                  # Integration tests: artifact gates, task closure
+│                           # 集成测试：产物门禁、任务闭环
 ├── web_ui/                 # Static status dashboard with task details panel
 │                           # 静态状态看板（含任务详情面板）
 ├── scripts/                # Git hooks and automation
@@ -353,6 +361,7 @@ runs/task_xxxx/
 ├── self_check_report.yml    # Self-check before push / 推送前自查
 ├── artifact_manifest.yml    # Final artifact inventory / 最终产物清单
 ├── USER_DECISION_REQUIRED.md  # When user must decide / 需要用户决策时
+├── task_snapshot.yml        # Task snapshot for checkpoint recovery / 任务快照用于检查点恢复
 ├── diffs/                   # Pre/post coder diffs / Coder 前后差异
 ├── checkpoints/             # Recovery checkpoints / 恢复检查点
 ├── command_logs/            # Commands run and outputs / 执行命令和输出
@@ -419,6 +428,33 @@ Generated docs are written to `projects/<Project>/docs/`. The archival report is
 
 ---
 
+## Streaming Stereo Spatializer / 流式立体声空间化器
+
+A non-AI streaming stereo-to-4.0 spatialization tool located in `streaming_stereo_spatializer/`. Converts stereo L/R audio into five spatial layers (Bass, Front Core, Side Width, Rear Ambience, High Air) rendered to logical 4.0 output. Supports multiple presets (natural, wide, vocal_safe, live, club, bypass, ms_baseline) with energy matching and clipping prevention.
+
+非 AI 流式立体声转 4.0 空间化工具，位于 `streaming_stereo_spatializer/`。将立体声 L/R 音频转换为五层空间层（低频、前核、侧宽、后氛围、高空气），渲染为逻辑 4.0 输出。支持多种预设（自然、宽、人声安全、现场、俱乐部、旁通、M/S 基线），带有能量匹配和削波预防。
+
+---
+
+## Integration Tests / 集成测试
+
+Two test suites validate AgentLab's own pipeline integrity:
+
+| Test | Purpose |
+|---|---|
+| `test_artifact_gate.py` | Validates artifact completeness: verifies all required fields exist in workflow plan, progress, state, lifecycle, and audit reports |
+| `test_task_closure.py` | End-to-end task closure test: init → prepare → pipeline dry-run → check final state |
+
+Run with:
+```bash
+cd tests
+python -m pytest test_artifact_gate.py test_task_closure.py -v
+```
+
+两份测试套件验证 AgentLab 自身管线完整性：产物门禁验证和任务闭环测试。
+
+---
+
 ## Version Control / 版本控制
 
 This repo is version-controlled on GitHub / 本仓库在 GitHub 上进行版本控制：
@@ -445,6 +481,8 @@ Use `git status` before committing to ensure no sensitive files (`.env`, credent
 
 | Version / 版本 | Date / 日期 | Changes / 变更 |
 |---|---|---|
+| 2.3 | 2026-06-06 | Operational upload & evaluation hardening; Task Snapshot (`task_snapshot.py`) for checkpoint-based recovery; Memory Writer (`memory_writer.py`) for structured agent memory persistence; AO-SpatialAuthoring-Modular project docs (12 agent_docs + 2 task runs); Streaming Stereo Spatializer (`streaming_stereo_spatializer/`); Artifact Gate tests (`test_artifact_gate.py`) and Task Closure tests (`test_task_closure.py`); Web UI `server.py` refactor; sync report enhancements / 操作上传与评估强化；基于检查点的任务快照系统（`task_snapshot.py`）；结构化 Agent 记忆持久化（`memory_writer.py`）；AO-SpatialAuthoring-Modular 项目文档（12 agent_docs + 2 task runs）；Streaming Stereo Spatializer（`streaming_stereo_spatializer/`）；Artifact Gate 测试（`test_artifact_gate.py`）与 Task Closure 测试（`test_task_closure.py`）；Web UI `server.py` 重构；同步报告增强 |
+| 2.2 | 2026-06-05 | Closure hardening — doctor command, canonical artifacts, cockpit API; Pipeline runner refactor (`pipeline_runner.py`); Artifact contract system (`artifact_contract.py`); Lifecycle graph state machine (`lifecycle_graph.py`); Progress tracker with per-agent weighting (`progress_tracker.py`); State store with atomic writes (`state_store.py`); Task index with searchable metadata (`task_index.py`); Bug report template; Evaluation runs for lifecycle, provider failover, self-check sync, system audit / 闭环加固 — doctor 命令、规范产物、Cockpit API；管线运行器重构（`pipeline_runner.py`）；产物契约系统（`artifact_contract.py`）；生命周期图状态机（`lifecycle_graph.py`）；带 Agent 权重的进度追踪器（`progress_tracker.py`）；原子写入的状态存储（`state_store.py`）；可搜索元数据的任务索引（`task_index.py`）；Bug 报告模板；生命周期、提供者故障切换、自查同步、系统审计评估运行 |
 | 2.1 | 2026-06-01 | Agent refactoring: CodexPromptGenerator → PromptEngineer (qwen3.6-plus, stable coder handoff prompts); DocManager merged into Archivist (qwen3.6-plus, per-task archiving + bulk doc generation + task purge); 9-agent clean architecture with rationalized model assignments / Agent 重构：CodexPromptGenerator→PromptEngineer（qwen3.6-plus，稳定生成 Coder 执行提示词）；DocManager 合并入 Archivist（qwen3.6-plus，单任务归档+批量文档整合+任务清理）；9 Agent 精简架构，模型分配合理化 |
 | 2.0 | 2026-05-31 | 9-agent tiered architecture (T1-T5), Model Tier v3 with Size×Risk×Budget routing, AgentLab Guard (atomic I/O + locks + heartbeat + crash recovery), Provider Failover with pause/resume, Lifecycle State Machine (14-node graph + checkpoints), Progress Tracker (progress.yml), Verifier agent, Codex Full-Driver Operation Chain, Task Discovery & Resume Index, Terminal Chat, Evaluation Suite, Rule Self-Check + Guarded GitHub Auto-Sync, Web UI task details panel, 22 config policies, 40+ runtime modules / 9 Agent 分层架构（T1-T5）、Model Tier v3 尺寸×风险×预算路由、AgentLab 守护（原子 IO + 锁 + 心跳 + 崩溃恢复）、提供者故障切换与暂停/恢复、生命周期状态机（14节点图 + 检查点）、进度追踪、Verifier 智能体、Codex 全驱动操作链、任务发现与恢复索引、终端对话、评估套件、规则自查 + 守卫式 GitHub 自动同步、Web UI 任务详情面板、22 个配置策略、40+ 运行时模块 |
 | 1.0 | 2026-05-30 | Initial release: 8-agent multi-agent workflow, split-brain architecture (DeepSeek + Codex Plus), 5 route profiles, token budget governance, brain governor, loop detection, local status UI, driver protocol for external AI, auto-push git hook / 初始发布：8 Agent 多智能体工作流、双脑架构（DeepSeek + Codex Plus）、5 种路由配置、Token 预算治理、大脑治理、循环检测、本地状态界面、外部 AI 驱动协议、自动推送 Git 钩子 |

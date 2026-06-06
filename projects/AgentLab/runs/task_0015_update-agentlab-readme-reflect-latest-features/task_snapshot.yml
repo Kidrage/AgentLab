@@ -1,0 +1,56 @@
+version: 1
+generated_at: '2026-06-06T07:58:19.900680+00:00'
+project: AgentLab
+task_id: task_0015_update-agentlab-readme-reflect-latest-features
+status: running
+source_statuses:
+  state: planned
+  progress: new
+  lifecycle: running
+drift:
+- 'status_mismatch: {''state'': ''planned'', ''progress'': ''new'', ''lifecycle'':
+  ''running''}'
+route:
+- Supervisor
+- RepoScout
+- InterfaceMapper
+- Coder
+- TesterAuditor
+- Verifier
+- Archivist
+current_agent: null
+current_stage: initialized
+percent_complete: 21
+last_event: Workflow plan prepared.
+completed_agents: []
+reports: {}
+lifecycle:
+  status: running
+  node_count: 14
+  completed_count: 2
+  skipped_count: 1
+  failed_count: 0
+  running_count: 0
+  waiting_count: 11
+  percent_complete: 21
+  next_node: SUPERVISOR_PLAN
+  nodes:
+    INIT_TASK: completed
+    PREPARE_PLAN: completed
+    SUPERVISOR_PLAN: waiting
+    REPO_CONTEXT: waiting
+    RESEARCH_OPTIONAL: skipped
+    INTERFACE_OPTIONAL: waiting
+    CODER_IMPLEMENTATION: waiting
+    VALIDATION: waiting
+    AUDIT: waiting
+    VERIFY: waiting
+    ARCHIVE: waiting
+    SELF_CHECK: waiting
+    SYNC_OPTIONAL: waiting
+    FINALIZE: waiting
+paths:
+  state: state.yml
+  progress: progress.yml
+  lifecycle: lifecycle.yml
+  workflow_plan: workflow_plan.yml
