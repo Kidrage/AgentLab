@@ -1,33 +1,68 @@
-"""AgentLab Artifact Contract — rigorous artifact validation.
+"""AgentLab Artifact Contract - rigorous artifact validation.
 
 Detects missing files, TBD-only files, empty files, invalid YAML,
-and ensures every lifecycle node has valid outputs.
+semantic placeholders, and ensures every lifecycle node has valid outputs.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+import re
 
 import yaml
 
 TBD_PATTERNS = ["TBD", "tbd", "TODO", "FIXME", "# User Request\n\nDescribe the task here."]
+UNEXECUTED_TOOL_CALL_PATTERNS = [
+    "<tool_call",
+    "</tool_call>",
+    "\"tool_calls\"",
+    "'tool_calls'",
+    "\"function_call\"",
+    "'function_call'",
+]
 EXECUTION_PLACEHOLDER_PATTERNS = [
     "Commands run: None",
     "Commands run: none",
+    "Commands run: N/A",
+    "Commands run: n/a",
     "no execution occurred",
     "plan-only phase",
     "Coder phase not executed",
     "no implementation work was performed",
+    "No implementation work performed",
+    "No source edits have been performed",
+    "No source files were modified",
+    "no source files were modified",
+    "no upload performed",
     "No validation commands were executed",
+    "validation was not executed",
+    "audit was not executed",
     "Execution phase artifacts not yet provided",
     "pre-execution state",
 ]
 EXECUTION_REQUIRED_FILES = {
     "06_implementation_report.md",
+    "implementation_report.md",
     "07_validation_report.md",
+    "validation_report.md",
     "08_audit_report.md",
+    "audit_report.md",
 }
+ARCHIVIST_PLACEHOLDER_PATTERNS = [
+    "no agent_docs updates were applied",
+    "agent_docs updates were not applied",
+    "memory updates were not applied",
+    "no durable memory updates",
+    "no project memory was updated",
+]
+USER_DECISION_CLAIM_PATTERNS = [
+    "created user_decision_required.md",
+    "generated user_decision_required.md",
+    "wrote user_decision_required.md",
+    "written user_decision_required.md",
+    "deliverables: user_decision_required.md",
+    "output: user_decision_required.md",
+]
 
 REQUIRED_ARTIFACTS_BY_ROUTE = {
     "user_request": ["user_request.md"],
@@ -48,7 +83,7 @@ REQUIRED_ARTIFACTS_BY_ROUTE = {
 
 COMMON_ARTIFACTS = [
     "user_request.md", "workflow_plan.yml", "state.yml", "progress.yml",
-    "brain_decisions.yml", "cost_ledger.yml",
+    "task_snapshot.yml", "brain_decisions.yml", "cost_ledger.yml",
 ]
 
 SKIPPED_HEADER = "Status: skipped"
@@ -132,13 +167,9 @@ def validate_artifacts(run_dir: Path) -> dict:
             issues.append({"file": fname, "issue": f"unreadable: {e}"})
             continue
 
-        # Check for TBD/empty
-        if is_tbd_or_empty(content):
-            issues.append({"file": fname, "issue": "TBD or empty placeholder"})
-            continue
-
-        if fname in EXECUTION_REQUIRED_FILES and has_execution_placeholder(content):
-            issues.append({"file": fname, "issue": "execution placeholder or no command evidence"})
+        content_issues = artifact_content_issues(fname, content, run_dir)
+        if content_issues:
+            issues.extend({"file": fname, "issue": issue} for issue in content_issues)
             continue
 
         # YAML parse check for .yml/.yaml files
@@ -158,7 +189,7 @@ def validate_artifacts(run_dir: Path) -> dict:
 
     pass_rate = artifacts_passed / max(artifacts_checked, 1)
     return {
-        "valid": pass_rate >= 0.85,
+        "valid": pass_rate >= 0.85 and not issues,
         "pass_rate": round(pass_rate, 2),
         "artifacts_checked": artifacts_checked,
         "artifacts_passed": artifacts_passed,
@@ -172,7 +203,67 @@ def has_execution_placeholder(content: str) -> bool:
     for pattern in EXECUTION_PLACEHOLDER_PATTERNS:
         if pattern.lower() in lowered:
             return True
+    if "planning phase" in lowered and any(
+        marker in lowered
+        for marker in ("commands run: none", "no command", "not executed", "not yet provided")
+    ):
+        return True
     return False
+
+
+def has_unexecuted_tool_call(content: str) -> bool:
+    lowered = content.lower()
+    if not any(pattern in lowered for pattern in UNEXECUTED_TOOL_CALL_PATTERNS):
+        return False
+    stripped = content.strip()
+    if stripped.lower().startswith("<tool_call"):
+        return True
+    without_tool_xml = re.sub(r"<tool_call\b.*?</tool_call>", "", stripped, flags=re.IGNORECASE | re.DOTALL)
+    return len(without_tool_xml.strip()) < 200
+
+
+def has_archivist_placeholder(content: str) -> bool:
+    lowered = content.lower()
+    return any(pattern.lower() in lowered for pattern in ARCHIVIST_PLACEHOLDER_PATTERNS)
+
+
+def claims_missing_user_decision_file(content: str, run_dir: Path | None = None) -> bool:
+    lowered = content.lower()
+    if "user_decision_required.md" not in lowered:
+        return False
+    if "no user_decision_required" in lowered or "no user decision required" in lowered:
+        return False
+    if not any(pattern in lowered for pattern in USER_DECISION_CLAIM_PATTERNS):
+        return False
+    if run_dir and (run_dir / "USER_DECISION_REQUIRED.md").exists():
+        return False
+    return True
+
+
+def artifact_content_issues(fname: str, content: str, run_dir: Path | None = None) -> list[str]:
+    """Return semantic content issues for one artifact.
+
+    The checks intentionally stay conservative and pattern-based. They catch the
+    recurring AgentLab failure mode where a node produced text, but that text was
+    a tool request, a plan-only placeholder, or a claimed blocker artifact that
+    was never actually written.
+    """
+    issues: list[str] = []
+    if is_tbd_or_empty(content):
+        issues.append("TBD or empty placeholder")
+    if has_unexecuted_tool_call(content):
+        issues.append("unexecuted tool call in report")
+    if fname in EXECUTION_REQUIRED_FILES and has_execution_placeholder(content):
+        issues.append("execution placeholder or no command evidence")
+    if fname == "09_archive_update.md" and has_archivist_placeholder(content):
+        issues.append("archivist memory update placeholder")
+    if fname == "01_supervisor_plan.md" and claims_missing_user_decision_file(content, run_dir):
+        issues.append("claims USER_DECISION_REQUIRED.md but file is missing")
+    return issues
+
+
+def artifact_content_is_valid(fname: str, content: str, run_dir: Path | None = None) -> bool:
+    return not artifact_content_issues(fname, content, run_dir)
 
 
 def required_artifacts_for_route(route: list[str]) -> list[str]:

@@ -32,6 +32,11 @@ def save_state(run_dir: Path, state: TaskState) -> Path:
     state.updated_at = utc_now()
     path = state_path(run_dir)
     atomic_write_yaml(path, state.model_dump(mode="json"))
+    try:
+        from task_snapshot import safe_write_task_snapshot
+        safe_write_task_snapshot(run_dir, state.project, state.task_id)
+    except Exception:
+        pass
     return path
 
 

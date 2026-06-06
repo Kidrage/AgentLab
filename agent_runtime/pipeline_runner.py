@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 import yaml
 
+from atomic_io import atomic_write_yaml
 from lifecycle_graph import (
     load_lifecycle, save_lifecycle, next_node, mark_node_started,
     mark_node_completed, mark_node_skipped, mark_node_failed,
@@ -18,7 +19,12 @@ from lifecycle_graph import (
     create_lifecycle,
 )
 from fake_provider import fake_output_for_agent, generate_sync_report
-from artifact_contract import validate_artifacts, write_artifact_manifest, ensure_skipped_artifact
+from artifact_contract import (
+    artifact_content_issues,
+    validate_artifacts,
+    write_artifact_manifest,
+    ensure_skipped_artifact,
+)
 from state_store import load_state, save_state
 from progress_tracker import create_progress, load_progress, save_progress
 
@@ -188,19 +194,47 @@ def run_next_node(
         return {"status": "completed", "node": nid, "message": "Sync skipped (dry-run)."}
 
     if nid == "FINALIZE":
-        result = validate_artifacts(run_dir)
-        write_artifact_manifest(run_dir, result)
         from task_index import build_task_record
         record = build_task_record(agentlab_root, project, run_dir)
         card = {"version": 1, "project": project, "task_id": task_id,
-                "title": record["title"], "status": "completed"}
-        (run_dir / "task_card.yml").write_text(
-            yaml.safe_dump(card, sort_keys=False), encoding="utf-8")
+                "title": record["title"], "status": "finalizing"}
+        atomic_write_yaml(run_dir / "task_card.yml", card)
+
+        # FINALIZE must create its own required artifacts before running the
+        # final artifact contract.  The first manifest may contain a temporary
+        # self-reference issue; the second one records the final truth.
+        preliminary = validate_artifacts(run_dir)
+        write_artifact_manifest(run_dir, preliminary)
+        result = validate_artifacts(run_dir)
+        final_status = "completed" if result.get("valid") else "blocked"
+        card["status"] = final_status
+        card["artifact_check"] = {
+            "valid": bool(result.get("valid")),
+            "pass_rate": result.get("pass_rate"),
+            "issues_count": result.get("issues_count", 0),
+        }
+        atomic_write_yaml(run_dir / "task_card.yml", card)
+        result = validate_artifacts(run_dir)
+        write_artifact_manifest(run_dir, result)
+        if not result.get("valid"):
+            issues = [f"{i.get('file')}: {i.get('issue')}" for i in result.get("issues", [])]
+            return _block_on_artifact_gate(
+                run_dir, project, task_id, nid, "ArtifactContract", issues,
+                report_path=run_dir / "artifact_manifest.yml",
+            )
         mark_node_completed(run_dir, nid)
         state.status = "completed"
         mode = "dry-run" if fake_provider else "execute"
         state.last_event = f"Task completed via {mode} pipeline"
         save_state(run_dir, state)
+        progress = load_progress(run_dir) or {}
+        if progress:
+            progress["status"] = "completed"
+            progress["current_agent"] = None
+            progress["current_stage"] = "completed"
+            progress["percent_complete"] = 100
+            progress["last_event"] = state.last_event
+            save_progress(run_dir, progress)
         return {"status": "completed", "node": nid, "message": "Lifecycle complete.",
                 "artifact_check": result}
 
@@ -209,6 +243,20 @@ def run_next_node(
     report_file = NODE_TO_REPORT.get(nid)
     if fake_provider and agent:
         output = fake_output_for_agent(agent)
+        if report_file:
+            report_path = run_dir / report_file
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(output, encoding="utf-8")
+            gate_issues = artifact_content_issues(report_path.name, output, run_dir)
+            if gate_issues:
+                return _block_on_artifact_gate(
+                    run_dir, project, task_id, nid, agent, gate_issues,
+                    report_path=report_path,
+                )
+            mark_node_completed(run_dir, nid, str(report_path))
+            return {"status": "completed", "node": nid, "report": str(report_path)}
+        mark_node_completed(run_dir, nid)
+        return {"status": "completed", "node": nid, "message": f"{nid} done."}
     elif agent and not fake_provider:
         # ─── execute mode: call real LLM API via agent_runner ───
         from agent_runner import run_agent_model, report_path_for_agent
@@ -265,6 +313,12 @@ def run_next_node(
                 "API usage from pipeline executor.",
             ),
         )
+        gate_issues = artifact_content_issues(report_path.name, result.content or "", run_dir)
+        if gate_issues:
+            return _block_on_artifact_gate(
+                run_dir, project, task_id, nid, agent, gate_issues,
+                report_path=report_path,
+            )
         mark_node_completed(run_dir, nid, str(report_path))
         return {"status": "completed", "node": nid, "report": str(report_path)}
     else:
@@ -273,10 +327,62 @@ def run_next_node(
             report_path = run_dir / report_file
             report_path.parent.mkdir(parents=True, exist_ok=True)
             report_path.write_text(output, encoding="utf-8")
+            gate_issues = artifact_content_issues(report_path.name, output, run_dir)
+            if gate_issues:
+                return _block_on_artifact_gate(
+                    run_dir, project, task_id, nid, agent or nid, gate_issues,
+                    report_path=report_path,
+                )
             mark_node_completed(run_dir, nid, str(report_path))
             return {"status": "completed", "node": nid, "report": str(report_path)}
         mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": f"{nid} done."}
+
+
+def _block_on_artifact_gate(
+    run_dir: Path,
+    project: str,
+    task_id: str,
+    node_id: str,
+    agent: str,
+    issues: list[str],
+    *,
+    report_path: Path | None = None,
+) -> dict:
+    """Pause the pipeline when an artifact exists but fails semantic checks."""
+    reason = "; ".join(issues[:5]) or "Artifact semantic validation failed"
+    if len(issues) > 5:
+        reason += f"; and {len(issues) - 5} more"
+    block_path = run_dir / f"blocked_{agent}_artifact_gate.md"
+    lines = [
+        "# Artifact Gate Blocked",
+        "",
+        f"- Project: {project}",
+        f"- Task: {task_id}",
+        f"- Node: {node_id}",
+        f"- Agent: {agent}",
+    ]
+    if report_path:
+        lines.append(f"- Report: {report_path}")
+    lines.extend(["", "## Issues"])
+    lines.extend(f"- {issue}" for issue in issues)
+    lines.extend([
+        "",
+        "## Required Action",
+        "Regenerate or repair the artifact with executable evidence before resuming the lifecycle.",
+        "",
+    ])
+    content = "\n".join(lines)
+    block_path.write_text(content, encoding="utf-8")
+    (run_dir / "USER_DECISION_REQUIRED.md").write_text(content, encoding="utf-8")
+    mark_node_failed(run_dir, node_id, reason)
+    state = load_state(run_dir, project, task_id)
+    state.status = "blocked"
+    state.current_agent = agent
+    state.last_event = f"Blocked at {node_id}: artifact gate failed"
+    state.reports[f"{agent}_artifact_gate"] = str(block_path)
+    save_state(run_dir, state)
+    return {"status": "paused", "node": node_id, "message": reason, "artifact_gate": issues}
 
 
 def _state_signature(agentlab_root: Path, project: str, task_id: str) -> str:
@@ -324,13 +430,23 @@ def run_full_pipeline(
             if (lc := (load_lifecycle(run_dir) or {"nodes": {}}))
         ):
             artifact_result = validate_artifacts(run_dir)
+            write_artifact_manifest(run_dir, artifact_result)
             state = load_state(run_dir, project, task_id)
-            state.status = "completed" if artifact_result.get("valid") else "blocked"
+            final_status = "completed" if artifact_result.get("valid") else "blocked"
+            state.status = final_status
             mode = "dry-run" if fake_provider else "execute"
             state.last_event = f"Task completed via {mode} pipeline" if artifact_result.get("valid") else "Artifact validation failed at pipeline completion"
             save_state(run_dir, state)
+            progress = load_progress(run_dir) or {}
+            if progress:
+                progress["status"] = final_status
+                progress["current_agent"] = None
+                progress["current_stage"] = "completed" if final_status == "completed" else "blocked"
+                progress["percent_complete"] = 100 if final_status == "completed" else progress.get("percent_complete", 0)
+                progress["last_event"] = state.last_event
+                save_progress(run_dir, progress)
             return {
-                "success": True, "final_status": "completed", "step": step,
+                "success": bool(artifact_result.get("valid")), "final_status": final_status, "step": step,
                 "history": history, "artifact_completeness": artifact_result,
                 "started_at": started_at,
                 "completed_at": datetime.now(timezone.utc).isoformat(),

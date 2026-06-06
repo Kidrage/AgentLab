@@ -262,6 +262,13 @@ def handle_get_status(project: str, task_id: str):
 
     # Load state
     state = load_yaml_safe(run_dir / "state.yml")
+    snapshot = load_yaml_safe(run_dir / "task_snapshot.yml")
+    if not snapshot:
+        try:
+            from task_snapshot import build_task_snapshot
+            snapshot = build_task_snapshot(run_dir, project=project, task_id=task_id)
+        except Exception:
+            snapshot = {}
     plan = load_yaml_safe(run_dir / "workflow_plan.yml")
     brain = load_yaml_safe(run_dir / "brain_decisions.yml")
     cost = load_yaml_safe(run_dir / "cost_ledger.yml")
@@ -281,7 +288,7 @@ def handle_get_status(project: str, task_id: str):
     registry_agents = reg.get("agents", {})
 
     # Build agents list
-    route_agents = plan.get("route", {}).get("agents", [])
+    route_agents = snapshot.get("route") or plan.get("route", {}).get("agents", [])
     agents = []
     status_labels = {"active": "进行中", "complete": "已完成", "waiting": "等待中", "skipped": "已跳过", "blocked": "已阻塞", "new": "新建"}
 
@@ -390,8 +397,9 @@ def handle_get_status(project: str, task_id: str):
         "generatedAt": utc_now_iso(),
         "project": project,
         "taskId": task_id,
-        "taskStatus": state.get("status", "new"),
-        "stage": state.get("last_event", ""),
+        "taskStatus": snapshot.get("status") or state.get("status", "new"),
+        "stage": snapshot.get("last_event") or state.get("last_event", ""),
+        "snapshot": snapshot,
         "userRequest": user_request[:2000] if user_request else "",
         "coderProvider": "codex-plus",
         "coderQuotaRemaining": coder_policy.get("codex_quota_remaining", 0),

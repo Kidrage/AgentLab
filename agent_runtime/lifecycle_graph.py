@@ -140,6 +140,11 @@ def save_lifecycle(run_dir: Path, lifecycle: dict) -> Path:
     lifecycle["updated_at"] = _utc_now()
     path = lifecycle_path(run_dir)
     atomic_write_yaml(path, lifecycle)
+    try:
+        from task_snapshot import safe_write_task_snapshot
+        safe_write_task_snapshot(run_dir)
+    except Exception:
+        pass
     return path
 
 
