@@ -16,7 +16,9 @@ from typing import Optional
 
 import yaml
 
+from atomic_io import atomic_write_yaml
 from policies import assert_path_allowed, resolve_agentlab_root
+from task_snapshot import build_task_snapshot, write_task_snapshot
 
 
 # ─── Policy loading ───────────────────────────────────────────────────────
@@ -55,7 +57,7 @@ def list_task_run_dirs(project_root: Path) -> list[Path]:
     runs_dir = project_root / "runs"
     if not runs_dir.is_dir():
         return []
-    return sorted([p for p in runs_dir.iterdir() if p.is_dir()], key=lambda p: p.name)
+    return sorted([p for p in runs_dir.iterdir() if p.is_dir() and p.name.startswith("task_")], key=lambda p: p.name)
 
 
 # ─── Safe file reading ────────────────────────────────────────────────────
@@ -107,6 +109,14 @@ def _normalize_status(raw: Optional[str]) -> str:
     if not raw:
         return "unknown"
     status = str(raw).strip().lower()
+    aliases = {
+        "complete": "completed",
+        "done": "completed",
+        "in_progress": "running",
+        "in-progress": "running",
+        "failed_recoverable": "recoverable",
+    }
+    status = aliases.get(status, status)
     valid = {"new", "planned", "running", "paused", "blocked", "recoverable", "completed", "failed", "archived"}
     return status if status in valid else "unknown"
 
@@ -176,6 +186,7 @@ _KIND_MAP = {
     "archive_update": {"kind": "archive", "agent": "Archivist", "important": False},
     "handoff_packet": {"kind": "handoff", "agent": "system", "important": True},
     "workflow_plan": {"kind": "plan", "agent": "system", "important": True},
+    "task_snapshot": {"kind": "snapshot", "agent": "system", "important": True},
 }
 
 
@@ -197,6 +208,7 @@ def build_artifact_manifest(run_dir: Path, max_bytes: int = 65536, max_summary: 
             "archive_update": "09_archive_update.md",
             "handoff_packet": "handoff_packet.yml",
             "workflow_plan": "workflow_plan.yml",
+            "task_snapshot": "task_snapshot.yml",
         }
         path = run_dir / file_map.get(filename, f"{filename}.md")
         exists = path.exists()
@@ -248,6 +260,10 @@ def build_task_record(agentlab_root: Path, project: str, run_dir: Path, policy: 
     progress_data = _read_yaml_safe(run_dir / "progress.yml") or {}
     plan_data = _read_yaml_safe(run_dir / "workflow_plan.yml") or {}
     user_req = _read_safe_file(run_dir / "user_request.md", max_bytes) or ""
+    try:
+        snapshot = build_task_snapshot(run_dir, project=project, task_id=task_id)
+    except Exception:
+        snapshot = {}
 
     # Extract title from user_request
     title = ""
@@ -262,12 +278,12 @@ def build_task_record(agentlab_root: Path, project: str, run_dir: Path, policy: 
         title = task_id
 
     summary = _extract_summary(user_req, max_summary)
-    status = _normalize_status(state_data.get("status") or progress_data.get("status"))
-    percent = progress_data.get("percent") or 0
-    route = plan_data.get("route", {}).get("agents", []) if isinstance(plan_data.get("route"), dict) else []
-    current_agent = state_data.get("current_agent") or progress_data.get("current_agent")
-    current_stage = progress_data.get("current_stage") or progress_data.get("current_agent")
-    last_event = state_data.get("last_event") or progress_data.get("last_event", "")
+    status = _normalize_status(snapshot.get("status") or state_data.get("status") or progress_data.get("status"))
+    percent = snapshot.get("percent_complete", progress_data.get("percent_complete") or progress_data.get("percent") or 0)
+    route = snapshot.get("route") or (plan_data.get("route", {}).get("agents", []) if isinstance(plan_data.get("route"), dict) else [])
+    current_agent = snapshot.get("current_agent") or state_data.get("current_agent") or progress_data.get("current_agent")
+    current_stage = snapshot.get("current_stage") or progress_data.get("current_stage") or progress_data.get("current_agent")
+    last_event = snapshot.get("last_event") or state_data.get("last_event") or progress_data.get("last_event", "")
     last_checkpoint = state_data.get("last_checkpoint")
 
     # Backup info
@@ -311,6 +327,7 @@ def build_task_record(agentlab_root: Path, project: str, run_dir: Path, policy: 
             "state": "state.yml",
             "artifact_manifest": "artifact_manifest.yml",
             "task_card": "task_card.yml",
+            "task_snapshot": "task_snapshot.yml",
         },
         "artifacts": manifest["artifacts"],
         "artifact_summary": manifest["summary"],
@@ -369,17 +386,17 @@ def save_project_task_index(agentlab_root: Path, project: str, index: dict) -> P
     """Write task_index.yml atomically."""
     path = agentlab_root / "projects" / project / "task_index.yml"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(index, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    atomic_write_yaml(path, index)
     return path
 
 
 def ensure_project_task_index(agentlab_root: Path, project: str) -> dict:
     """Return cached index or build a fresh one."""
     cached = load_project_task_index(agentlab_root, project)
-    if cached and cached.get("tasks"):
+    run_count = len(list_task_run_dirs(project_root(agentlab_root, project)))
+    if cached and cached.get("tasks") and cached.get("task_count") == run_count:
         return cached
-    index = build_project_task_index(agentlab_root, project)
-    save_project_task_index(agentlab_root, project, index)
+    index = rebuild_index(agentlab_root, project)
     return index
 
 
@@ -387,11 +404,12 @@ def generate_per_task_artifacts(agentlab_root: Path, project: str, task_id: str)
     """Generate artifact_manifest.yml and task_card.yml for one task."""
     run_dir = run_dir_for_task(agentlab_root, project, task_id)
     policy = _load_policy(agentlab_root)
+    write_task_snapshot(run_dir, project=project, task_id=task_id)
 
     # artifact_manifest
     manifest = build_artifact_manifest(run_dir)
     manifest_path = run_dir / "artifact_manifest.yml"
-    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    atomic_write_yaml(manifest_path, manifest)
 
     # task_card
     record = build_task_record(agentlab_root, project, run_dir, policy)
@@ -414,6 +432,7 @@ def generate_per_task_artifacts(agentlab_root: Path, project: str, task_id: str)
             "user_request": "user_request.md",
             "progress": "progress.yml",
             "workflow_plan": "workflow_plan.yml",
+            "task_snapshot": "task_snapshot.yml",
             "handoff_packet": "handoff_packet.yml",
         },
         "commands": record["commands"],
@@ -421,16 +440,79 @@ def generate_per_task_artifacts(agentlab_root: Path, project: str, task_id: str)
         "backup_status": record["backup_status"],
     }
     card_path = run_dir / "task_card.yml"
-    card_path.write_text(yaml.safe_dump(card, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    atomic_write_yaml(card_path, card)
 
     return manifest_path, card_path
+
+
+def sync_task_ledger(agentlab_root: Path, project: str, index: dict | None = None) -> Path:
+    """Synchronize agent_docs/02_TASK_LEDGER.yml from real run folders.
+
+    This keeps the long-term task ledger aligned with the local source of truth
+    (`runs/task_*`) while preserving existing custom fields such as subtasks and
+    dependencies.
+    """
+    proot = project_root(agentlab_root, project)
+    docs = proot / "agent_docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    ledger_path = docs / "02_TASK_LEDGER.yml"
+    ledger = _read_yaml_safe(ledger_path) or {
+        "version": 1,
+        "project": project,
+        "description": "",
+        "tasks": [],
+    }
+    index = index or build_project_task_index(agentlab_root, project)
+    existing_by_id = {
+        str(task.get("task_id")): dict(task)
+        for task in ledger.get("tasks", []) or []
+        if task.get("task_id")
+    }
+
+    synced_tasks = []
+    seen = set()
+    for record in index.get("tasks", []) or []:
+        task_id = str(record.get("task_id"))
+        if not task_id:
+            continue
+        seen.add(task_id)
+        previous = existing_by_id.get(task_id, {})
+        entry = dict(previous)
+        entry.update({
+            "task_id": task_id,
+            "title": record.get("title") or previous.get("title") or task_id,
+            "description": record.get("summary") or previous.get("description", ""),
+            "status": record.get("status") or previous.get("status") or "unknown",
+            "priority": previous.get("priority", record.get("priority", "P2")),
+            "category": previous.get("category", record.get("category", "")),
+            "depends_on": previous.get("depends_on", []),
+            "subtasks": previous.get("subtasks", []),
+            "created_at": previous.get("created_at", record.get("created_at", "")),
+            "updated_at": record.get("updated_at") or previous.get("updated_at", ""),
+            "source_run_dir": record.get("paths", {}).get("run_dir", ""),
+            "can_resume": bool(record.get("can_resume", False)),
+            "artifact_summary": record.get("artifact_summary", {}),
+        })
+        synced_tasks.append(entry)
+
+    # Preserve legacy ledger-only tasks after run-backed tasks.
+    for task_id, task in existing_by_id.items():
+        if task_id not in seen:
+            synced_tasks.append(task)
+
+    ledger["version"] = ledger.get("version", 1)
+    ledger["project"] = project
+    ledger["generated_from_runs_at"] = datetime.now(timezone.utc).isoformat()
+    ledger["task_count"] = len(synced_tasks)
+    ledger["tasks"] = synced_tasks
+    atomic_write_yaml(ledger_path, ledger)
+    return ledger_path
 
 
 def rebuild_index(agentlab_root: Path, project: str) -> dict:
     """Full rebuild: index + per-task manifests + cards."""
     proot = project_root(agentlab_root, project)
     runs = list_task_run_dirs(proot)
-    index = build_project_task_index(agentlab_root, project)
 
     for run_dir in runs:
         try:
@@ -438,5 +520,7 @@ def rebuild_index(agentlab_root: Path, project: str) -> dict:
         except Exception:
             pass
 
+    index = build_project_task_index(agentlab_root, project)
     save_project_task_index(agentlab_root, project, index)
+    sync_task_ledger(agentlab_root, project, index)
     return index

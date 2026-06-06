@@ -110,6 +110,16 @@ Hard execution rules:
 - Keep the report concise, auditable, and scoped to this task.
 """
 
+    if agent_name == "Archivist":
+        system += """
+
+Archivist durable-memory write rules:
+- If this task should update project memory, include AGENTLAB_EDIT blocks after the report.
+- Target only paths under agent_docs/ and only files listed in config/memory_policy.yml project_memory.
+- Do not claim project memory was updated unless the structured edits are present.
+- If you cannot produce safe agent_docs edits, explain the blocker instead of writing a completed archive.
+"""
+
     user = f"""
 Prepare the AgentLab report for:
 
@@ -242,6 +252,31 @@ def run_agent_model(
             # Store patch results on the result for CLI reporting
             result.raw_usage = {**result.raw_usage, "patch_applied": len(applied), "patch_failed": len(failed),
                                "patch_details": [r.__dict__ for r in patch_results]}
+
+    if agent_name == "Archivist" and result.status == "completed" and result.content:
+        from memory_writer import apply_archivist_memory_edits, format_memory_write_section
+        from patch_applicator import strip_edit_blocks_from_report
+
+        memory_summary = apply_archivist_memory_edits(
+            agentlab_root=agentlab_root,
+            project_root=Path(plan.project_root),
+            llm_output=result.content,
+        )
+        result.content = (
+            strip_edit_blocks_from_report(result.content)
+            + "\n\n"
+            + format_memory_write_section(memory_summary)
+        )
+        result.raw_usage = {
+            **(result.raw_usage or {}),
+            "memory_edit_blocks": memory_summary.edit_blocks_found,
+            "memory_edits_applied": memory_summary.applied,
+            "memory_edits_failed": memory_summary.failed,
+            "memory_edit_details": [r.__dict__ for r in memory_summary.results],
+        }
+        if not memory_summary.ok:
+            result.status = "blocked_user_decision"
+            result.error = memory_summary.error or "Archivist memory updates were not applied."
 
     return result
 

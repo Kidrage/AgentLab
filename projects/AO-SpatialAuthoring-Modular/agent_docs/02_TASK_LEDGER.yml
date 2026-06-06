@@ -1,0 +1,11 @@
+project: AO-SpatialAuthoring-Modular
+tasks:
+- task_id: task_0001_baseline-memory
+  title: Coding workspace baseline memory
+  status: completed
+  category: docs
+  priority: P2
+  created_at: '2026-06-04T02:27:01.063888+00:00'
+  updated_at: '2026-06-04T02:27:01.063895+00:00'
+  source: /Users/saintpeter/Desktop/Coding/AO-SpatialAuthoring-Modular
+  summary: Metadata scan recorded 10 top-level projects, 0 git repos, 95924 files.

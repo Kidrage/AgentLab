@@ -25,6 +25,7 @@ from agent_runner import (
     resolve_agent_settings,
     run_agent_model,
 )
+from artifact_contract import artifact_content_issues
 from guard import (
     acquire_lock,
     clear_stale_lock,
@@ -55,6 +56,38 @@ from workflow_plan import build_workflow_plan
 
 app = typer.Typer(help="AgentLab local-first CLI.", no_args_is_help=True)
 console = Console()
+
+
+def write_agent_artifact_gate_block(
+    run_dir: Path,
+    project: str,
+    task_id: str,
+    agent_name: str,
+    output_path: Path,
+    issues: list[str],
+) -> Path:
+    block_path = run_dir / f"blocked_{agent_name}_artifact_gate.md"
+    lines = [
+        "# Artifact Gate Blocked",
+        "",
+        f"- Project: {project}",
+        f"- Task: {task_id}",
+        f"- Agent: {agent_name}",
+        f"- Report: {output_path}",
+        "",
+        "## Issues",
+    ]
+    lines.extend(f"- {issue}" for issue in issues)
+    lines.extend([
+        "",
+        "## Required Action",
+        "Regenerate or repair the artifact with executable evidence before marking the agent complete.",
+        "",
+    ])
+    content = "\n".join(lines)
+    block_path.write_text(content, encoding="utf-8")
+    (run_dir / "USER_DECISION_REQUIRED.md").write_text(content, encoding="utf-8")
+    return block_path
 
 
 def runtime_context(project: Optional[str]) -> tuple[Path, str]:
@@ -634,6 +667,24 @@ def prepare(
         wrote = write_yaml_if_allowed(plan_path, plan.model_dump(mode="json"), overwrite=overwrite_plan)
         if wrote:
             mark_planned(Path(plan.run_dir), project_name, task_id)
+            from progress_tracker import create_progress, load_progress
+            from lifecycle_graph import create_lifecycle, load_lifecycle, mark_node_completed
+            from task_snapshot import safe_write_task_snapshot
+            run_dir = Path(plan.run_dir)
+            if load_progress(run_dir) is None:
+                create_progress(
+                    run_dir,
+                    project_name,
+                    task_id,
+                    list(plan.route.agents),
+                    risk_level=plan.risk_level,
+                    budget_mode=plan.budget_mode,
+                )
+            if load_lifecycle(run_dir) is None:
+                create_lifecycle(run_dir, plan.model_dump(mode="json"))
+                mark_node_completed(run_dir, "INIT_TASK")
+                mark_node_completed(run_dir, "PREPARE_PLAN")
+            safe_write_task_snapshot(run_dir, project_name, task_id)
             console.print(f"[green]Wrote workflow plan:[/green] {plan_path}")
         else:
             console.print(f"[yellow]Plan already exists and was not overwritten:[/yellow] {plan_path}")
@@ -925,6 +976,36 @@ def run_agent(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(result.content, encoding="utf-8")
+    gate_issues = artifact_content_issues(output_path.name, result.content or "", Path(plan.run_dir))
+    if gate_issues:
+        block_path = write_agent_artifact_gate_block(
+            Path(plan.run_dir), project_name, task_id, agent_name, output_path, gate_issues
+        )
+        state = load_state(Path(plan.run_dir), project_name, task_id)
+        state.status = "blocked"
+        state.last_event = f"{agent_name} artifact gate failed."
+        state.reports[f"{agent_name}_artifact_gate"] = str(block_path)
+        save_state(Path(plan.run_dir), state)
+        append_cost_ledgers(
+            Path(plan.project_root),
+            Path(plan.run_dir),
+            usage_entry(
+                project_name,
+                task_id,
+                agent_name,
+                result.provider,
+                result.model,
+                result.status,
+                result.input_tokens,
+                result.output_tokens,
+                result.total_tokens,
+                "API usage recorded before artifact gate blocked completion.",
+            ),
+        )
+        console.print("[yellow]Artifact gate blocked completion[/yellow]")
+        console.print({"output": str(output_path), "blocked_report": str(block_path), "issues": gate_issues})
+        return
+
     state = mark_agent_completed(Path(plan.run_dir), project_name, task_id, agent_name, output_path)
     if all(agent in state.completed_agents for agent in plan.route.agents):
         state.status = "completed"
@@ -1479,7 +1560,7 @@ def task_index_cmd(
 ) -> None:
     """Build or rebuild the project task discovery index."""
     agentlab_root, project_name = runtime_context(project)
-    from task_index import rebuild_index, build_project_task_index, save_project_task_index
+    from task_index import rebuild_index, build_project_task_index, save_project_task_index, sync_task_ledger
 
     if rebuild:
         index = rebuild_index(agentlab_root, project_name)
@@ -1487,6 +1568,7 @@ def task_index_cmd(
     else:
         index = build_project_task_index(agentlab_root, project_name)
         save_project_task_index(agentlab_root, project_name, index)
+        sync_task_ledger(agentlab_root, project_name, index)
         console.print(f"[green]Index updated.[/green]")
 
     tasks = index.get("tasks", [])
@@ -1499,6 +1581,7 @@ def task_index_cmd(
     for status, count in sorted(status_counts.items()):
         console.print(f"  {status}: {count}")
     console.print(f"Index: {agentlab_root}/projects/{project_name}/task_index.yml")
+    console.print(f"Ledger: {agentlab_root}/projects/{project_name}/agent_docs/02_TASK_LEDGER.yml")
 
 
 @app.command("task-find")

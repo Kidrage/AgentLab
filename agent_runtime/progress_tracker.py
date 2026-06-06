@@ -85,6 +85,11 @@ def create_progress(
     }
     run_dir.mkdir(parents=True, exist_ok=True)
     atomic_write_yaml(progress_path(run_dir), data)
+    try:
+        from task_snapshot import safe_write_task_snapshot
+        safe_write_task_snapshot(run_dir, project, task_id)
+    except Exception:
+        pass
     return data
 
 
@@ -96,6 +101,11 @@ def load_progress(run_dir: Path) -> dict | None:
 def save_progress(run_dir: Path, data: dict) -> None:
     data["last_event_at"] = utc_now()
     atomic_write_yaml(progress_path(run_dir), data)
+    try:
+        from task_snapshot import safe_write_task_snapshot
+        safe_write_task_snapshot(run_dir, data.get("project"), data.get("task_id"))
+    except Exception:
+        pass
 
 
 def mark_agent_started(run_dir: Path, agent_name: str, provider_key: str, model: str) -> dict | None:

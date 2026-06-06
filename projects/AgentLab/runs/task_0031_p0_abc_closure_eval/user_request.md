@@ -1,0 +1,1 @@
+P0 ABC closure validation dry run: verify canonical task snapshot, artifact finalize order, and runs-to-ledger synchronization.

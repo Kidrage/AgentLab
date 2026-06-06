@@ -1,0 +1,828 @@
+project: AO-SpatialAuthoring-Modular
+task_id: task_0002_longterm-knowledgebase-research
+agentlab_root: /Users/saintpeter/Desktop/AgentLab
+project_root: /Users/saintpeter/Desktop/AgentLab/projects/AO-SpatialAuthoring-Modular
+repo_path: /Users/saintpeter/Desktop/Coding/AO-SpatialAuthoring-Modular
+run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AO-SpatialAuthoring-Modular/runs/task_0002_longterm-knowledgebase-research
+user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AO-SpatialAuthoring-Modular/runs/task_0002_longterm-knowledgebase-research/user_request.md
+execution_backend: codex
+budget_mode: max_quality
+budget_profile: max_quality_L3
+project_size: L3
+risk_level: R2
+route:
+  task_size: large
+  agents:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  rationale:
+  - Supervisor always defines scope, token budget, and stop rules.
+  - Route selected by large_or_risky_task using smallest_safe_route rules.
+  - Coder and Tester/Auditor are required for implementation and verification.
+  - Research hints detected; include Researcher when route requires current or external
+    facts.
+  - Interface hints detected; include InterfaceMapper for boundaries and contracts.
+  - Large or risky hints detected; include the full route.
+  skipped_agents:
+  - PromptEngineer
+  route_key: large_or_risky_task
+token_budgets:
+- phase: "Supervisor \u89C4\u5212\u4E0E\u8DEF\u7531 (Thinking Mode)"
+  estimated_input_tokens: 6000
+  estimated_output_tokens: 4000
+  estimated_total_tokens: 10000
+  warning_threshold_tokens: 9000
+  stop_threshold_tokens: 11500
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: "RepoScout \u6DF1\u5EA6\u626B\u63CF (\u5168\u91CF)"
+  estimated_input_tokens: 15000
+  estimated_output_tokens: 3000
+  estimated_total_tokens: 18000
+  warning_threshold_tokens: 16200
+  stop_threshold_tokens: 20700
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: "InterfaceMapper \u5951\u7EA6\u5206\u6790 (\u5168\u91CF)"
+  estimated_input_tokens: 10000
+  estimated_output_tokens: 3000
+  estimated_total_tokens: 13000
+  warning_threshold_tokens: 11700
+  stop_threshold_tokens: 14949
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: "Researcher \u8D44\u6599\u6536\u96C6 (\u5168\u91CF)"
+  estimated_input_tokens: 8000
+  estimated_output_tokens: 2000
+  estimated_total_tokens: 10000
+  warning_threshold_tokens: 9000
+  stop_threshold_tokens: 11500
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: "Coder \u4EE3\u7801\u5B9E\u73B0 (\u5168\u91CF)"
+  estimated_input_tokens: 15000
+  estimated_output_tokens: 8000
+  estimated_total_tokens: 23000
+  warning_threshold_tokens: 20700
+  stop_threshold_tokens: 26449
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: "TesterAuditor \u6DF1\u5EA6\u9A8C\u8BC1 (\u5168\u91CF)"
+  estimated_input_tokens: 9000
+  estimated_output_tokens: 3000
+  estimated_total_tokens: 12000
+  warning_threshold_tokens: 10800
+  stop_threshold_tokens: 13799
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: "Verifier \u5B8C\u6574\u6027\u9A8C\u8BC1 (\u5168\u91CF)"
+  estimated_input_tokens: 6000
+  estimated_output_tokens: 2000
+  estimated_total_tokens: 8000
+  warning_threshold_tokens: 7200
+  stop_threshold_tokens: 9200
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: "Archivist \u5B8C\u6574\u8BB0\u5F55 (\u5168\u91CF)"
+  estimated_input_tokens: 5000
+  estimated_output_tokens: 2000
+  estimated_total_tokens: 7000
+  warning_threshold_tokens: 6300
+  stop_threshold_tokens: 8049
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+included_agents:
+  Supervisor:
+    template_path: agent_templates/supervisor.md
+    role: "\u4EFB\u52A1\u89C4\u5212\u3001\u8DEF\u7531\u51B3\u7B56\u3001\u8303\u56F4\
+      \u9501\u5B9A\u3001token \u9884\u7B97\u63A7\u5236\u3001\u9879\u76EE\u4F53\u91CF\
+      \u5224\u65AD (L1/L2/L3)\u3001 \u9884\u7B97\u6A21\u5F0F\u9009\u62E9\u4E0E\u6267\
+      \u884C\u3001\u5408\u6210\u3002\n"
+    model_profile: brain_coordinator
+    model_tier: T1
+    profile_mapping:
+      brain_allocated:
+        L1: brain_coordinator_l1
+        L2: brain_coordinator
+        L3: brain_coordinator
+      max_quality:
+        any: brain_coordinator_maxq
+      frugal:
+        any: brain_coordinator_frugal
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: false
+    source_write_policy: never
+    required_inputs:
+    - project_config.yml
+    - agent_docs/00_CONTEXT_PACK.md
+    - agent_docs/01_REPO_MAP.md
+    - config/execution_policy.yml
+    - config/routing_rules.yml
+    - runs/task_xxxx/user_request.md
+    required_outputs:
+    - runs/task_xxxx/supervisor_plan.md
+    required_metadata:
+    - budget_mode
+    - project_size
+  RepoScout:
+    template_path: agent_templates/reposcout.md
+    role: "\u4ED3\u5E93\u7ED3\u6784\u9605\u8BFB\u3001\u4EE3\u7801\u4E0A\u4E0B\u6587\
+      \u63D0\u53D6\u3001\u4F9D\u8D56\u5173\u7CFB\u6620\u5C04."
+    model_profile: perception_reposcout
+    model_tier: T2
+    profile_mapping:
+      brain_allocated:
+        L2: perception_reposcout
+        L3: perception_reposcout_l3
+      max_quality:
+        any: perception_reposcout_maxq
+      frugal:
+        any: perception_reposcout_frugal
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_outputs:
+    - runs/task_xxxx/reposcout_report.md
+  Researcher:
+    template_path: agent_templates/researcher.md
+    role: "\u5916\u90E8\u8D44\u6599\u641C\u7D22\u3001\u5F15\u7528\u6C47\u603B\u3001\
+      \u4FE1\u606F\u5408\u6210."
+    model_profile: perception_research
+    model_tier: T2
+    profile_mapping:
+      brain_allocated:
+        L2: perception_research
+        L3: perception_research_l3
+      max_quality:
+        any: perception_research_maxq
+      frugal:
+        any: null
+    can_edit_source: false
+    can_run_shell: false
+    can_browse: true
+    source_write_policy: never
+    required_outputs:
+    - runs/task_xxxx/research_notes.md
+  InterfaceMapper:
+    template_path: agent_templates/interface_mapper.md
+    role: "\u63A5\u53E3\u5951\u7EA6\u5206\u6790\u3001\u8DE8\u5C42\u8FB9\u754C\u8FFD\
+      \u8E2A\u3001\u67B6\u6784\u654F\u611F\u5BA1\u67E5."
+    model_profile: perception_interface
+    model_tier: T2
+    profile_mapping:
+      brain_allocated:
+        L2: perception_interface
+        L3: perception_interface_l3
+      max_quality:
+        any: perception_interface_maxq
+      frugal:
+        any: perception_interface_frugal
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_outputs:
+    - runs/task_xxxx/interface_map.md
+  Coder:
+    template_path: agent_templates/coder.md
+    role: "\u4EE3\u7801\u5B9E\u73B0\u4E0E\u6587\u4EF6\u7F16\u8F91\u3002\u9ED8\u8BA4\
+      \u901A\u8FC7 API \u81EA\u52A8\u7F16\u7801 (qwen3-coder-next). \u7CFB\u7EDF\u8C03\
+      \u7528 LLM API \u751F\u6210 AGENTLAB_EDIT \u7ED3\u6784\u5316\u7F16\u8F91\u5757\
+      , \u7136\u540E\u7531 patch_applicator \u5E94\u7528\u5230\u6587\u4EF6\u7CFB\u7EDF\
+      . \u5916\u90E8 IDE AI \u7A97\u53E3\u4E3A\u53EF\u9009\u589E\u5F3A:\n  \u63A5\u5165\
+      \u65B9\u5F0F: export AGENTLAB_EXTERNAL_CODER=1\n  \u6216\u5728 run_dir \u4E0B\
+      \u5199\u5165 EXTERNAL_CODER_READY \u4FE1\u53F7\u6587\u4EF6.\n  \u63A5\u5165\u540E\
+      \ AgentLab \u8DF3\u8FC7 API \u7F16\u7801, \u751F\u6210\u5B8C\u6574 handoff prompt,\n\
+      \  \u4EA4\u7531\u5916\u90E8 AI (Codex/Claude/Cline) \u6267\u884C.\n  \u5916\u90E8\
+      \ AI \u7684\u53EF\u7F16\u8F91\u7A97\u53E3: \u81EA\u7531\u9009\u62E9\u5B9E\u73B0\
+      \u65B9\u5F0F/\u4EE3\u7801\u98CE\u683C/\u7B97\u6CD5/\u5E93,\n  \u4F46\u5FC5\u987B\
+      \u9075\u5B88 Supervisor \u6279\u51C6\u7684 scope \u548C interface \u5951\u7EA6\
+      .\n\u672C\u5730 LLM (Frugal \u6A21\u5F0F): \u4F18\u5148\u4F7F\u7528 Ollama/vLLM\
+      \ \u672C\u5730\u6A21\u578B.\n"
+    model_profile: execution_coder_api
+    model_tier: T3
+    profile_mapping:
+      brain_allocated:
+        any: execution_coder_api
+      max_quality:
+        any: execution_coder_maxq
+      frugal:
+        with_local: execution_coder_local
+        no_local: execution_coder_api
+    external_window: false
+    external_window_activation:
+      env_var: AGENTLAB_EXTERNAL_CODER
+      signal_file: EXTERNAL_CODER_READY
+    can_edit_source: true
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: supervisor_approved_files_only
+    shell_policy: non_destructive_only
+    execution_owner: qwen-coder
+    secondary_executor: deepseek-coder
+    local_executor: qwen-local
+    allowed_backends:
+    - api_qwen_coder
+    - api_deepseek_coder
+    - local_llm
+    - external_ide
+    required_outputs:
+    - runs/task_xxxx/implementation_report.md
+  TesterAuditor:
+    template_path: agent_templates/tester_auditor.md
+    role: "Diff \u5BA1\u67E5\u3001\u9A8C\u8BC1\u89E3\u8BFB\u3001\u98CE\u9669\u53D1\
+      \u73B0\u3001\u884C\u4E3A\u6821\u9A8C."
+    model_profile: audit_tester
+    model_tier: T4
+    profile_mapping:
+      brain_allocated:
+        L1: audit_tester
+        L2: audit_tester
+        L3: audit_tester_l3
+      max_quality:
+        any: audit_tester_maxq
+      frugal:
+        any: audit_tester_frugal
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: validation_commands_only
+    required_outputs:
+    - runs/task_xxxx/validation_report.md
+    - runs/task_xxxx/audit_report.md
+  Verifier:
+    template_path: agent_templates/verifier.md
+    role: "\u8F93\u51FA\u5339\u914D\u68C0\u67E5\u3001\u884C\u4E3A\u5B8C\u6574\u6027\
+      \u9A8C\u8BC1\u3001agent \u4EA4\u63A5\u7F3A\u53E3\u68C0\u6D4B."
+    model_profile: audit_verifier
+    model_tier: T4
+    profile_mapping:
+      brain_allocated:
+        L1: null
+        L2: audit_verifier
+        L3: audit_verifier_l3
+      max_quality:
+        any: audit_verifier_maxq
+      frugal:
+        any: null
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_inputs:
+    - runs/task_xxxx/supervisor_plan.md
+    - runs/task_xxxx/implementation_report.md
+    - runs/task_xxxx/audit_report.md
+    - runs/task_xxxx/interface_map.md
+    required_outputs:
+    - runs/task_xxxx/verification_report.md
+  Archivist:
+    template_path: agent_templates/archivist.md
+    role: "\u9879\u76EE\u8BB0\u5FC6\u538B\u7F29\u3001\u8FDE\u7EED\u6027\u66F4\u65B0\
+      \u3001\u957F\u671F\u8BB0\u5F55\u7EF4\u62A4 (per-task). \u8DE8\u4EFB\u52A1\u6587\
+      \u6863\u6574\u5408: \u751F\u6210\u5F00\u53D1\u6D41\u7A0B\u6587\u6863\u3001\u4F7F\
+      \u7528\u6307\u5357\u3001CHANGELOG\u3001\u4EFB\u52A1\u7D22\u5F15 (bulk mode).\
+      \ \u4EFB\u52A1\u5F52\u6863\u6E05\u7406: \u5C06\u65E7\u4EFB\u52A1\u79FB\u5165\
+      \ archive/ \u76EE\u5F55.\n"
+    model_profile: archive_archivist_plus
+    model_tier: T5
+    profile_mapping:
+      brain_allocated:
+        L1: null
+        L2: archive_archivist_plus
+        L3: archive_archivist_l3
+      max_quality:
+        any: archive_archivist_maxq
+      frugal:
+        any: archive_archivist_frugal
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: true
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_inputs:
+    - runs/task_xxxx/supervisor_plan.md
+    - runs/task_xxxx/implementation_report.md
+    - runs/task_xxxx/validation_report.md
+    - runs/task_xxxx/audit_report.md
+    - project_config.yml (bulk mode)
+    required_outputs:
+    - runs/task_xxxx/archive_update.md
+    bulk_mode_outputs:
+    - runs/task_purge_report.yml
+    - docs/development_process.md
+    - docs/usage_guide.md
+    - docs/CHANGELOG.md
+    - docs/task_index.md
+model_profiles:
+  Supervisor:
+    profile: brain_coordinator_maxq
+    catalog_key: deepseek_v4_pro
+    catalog_provider: deepseek_official
+    provider: deepseek
+    model: deepseek-v4-pro
+    temperature: 0.2
+    top_p: 0.95
+    max_output_tokens: 8192
+    context_window: 1000000
+    tier: T1
+    source: model_catalog
+  RepoScout:
+    profile: perception_reposcout_maxq
+    catalog_key: qwen3_7_max_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen3
+    model: qwen3.7-max
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T2
+    source: model_catalog
+  Researcher:
+    profile: perception_research_maxq
+    catalog_key: qwen3_6_plus_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen
+    model: qwen3.6-plus
+    temperature: 0.2
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T2
+    source: model_catalog
+  InterfaceMapper:
+    profile: perception_interface_maxq
+    catalog_key: qwen3_7_max_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen3
+    model: qwen3.7-max
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T2
+    source: model_catalog
+  Coder:
+    profile: execution_coder_maxq
+    catalog_key: qwen3_coder_plus_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen-coder
+    model: qwen3-coder-plus
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T3
+    source: model_catalog
+  TesterAuditor:
+    profile: audit_tester_maxq
+    catalog_key: qwen3_7_max_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen3
+    model: qwen3.7-max
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T4
+    source: model_catalog
+  Verifier:
+    profile: audit_verifier_maxq
+    catalog_key: qwen3_7_max_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen3
+    model: qwen3.7-max
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T4
+    source: model_catalog
+  Archivist:
+    profile: archive_archivist_maxq
+    catalog_key: qwen3_6_plus_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen
+    model: qwen3.6-plus
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T5
+    source: model_catalog
+validation_gates:
+- id: preflight_context
+  owner: Supervisor
+  required: true
+  description: Confirm project config, context pack, repo map, and user request were
+    read or marked missing.
+  evidence:
+  - supervisor_plan.md lists files read
+  - missing inputs are explicitly named
+- id: route_and_budget
+  owner: Supervisor
+  required: true
+  description: Publish selected route, skipped agents, token budget, warning threshold,
+    and stop threshold.
+  evidence:
+  - supervisor_plan.md route section
+  - supervisor_plan.md token budget table
+- id: harness_status
+  owner: Supervisor
+  required: true
+  description: Confirm AGENTS.md, harness_policy.yml, project memory, and task feedback
+    artifacts are present or explicitly marked pending.
+  evidence:
+  - harness-status output or equivalent summary in supervisor_plan.md
+  - stale or missing harness inputs listed before execution
+- id: scoped_edit_authorization
+  owner: Supervisor
+  required: true
+  description: Name editable files or explicitly keep the task in proposal-only mode.
+  evidence:
+  - approved editable files list
+  - source write policy
+- id: implementation_report
+  owner: Coder
+  required: true
+  description: Record changed files, exact commands, backend, and unresolved risks.
+  evidence:
+  - implementation_report.md
+- id: validation_evidence
+  owner: TesterAuditor
+  required: true
+  description: Record validation commands that were actually run and distinguish skipped
+    checks.
+  evidence:
+  - validation_report.md command log
+  - audit_report.md findings
+- id: feedback_promotion
+  owner: TesterAuditor
+  required: true
+  description: Flag repeated user corrections or audit findings that should become
+    config rules, validation gates, scripts, or AGENTS.md updates.
+  evidence:
+  - audit_report.md repeated-pattern notes
+  - proposed harness_policy.yml or validation_gates.yml update when needed
+- id: memory_update
+  owner: Archivist
+  required_for_routes:
+  - medium_task
+  - interface_sensitive_task
+  - large_or_risky_task
+  description: Update project memory only after validation evidence exists.
+  evidence:
+  - archive_update.md
+  - proposed updates to agent_docs
+memory_policy:
+  version: 1
+  storage:
+    mode: local_first
+    workspace_root: projects
+    project_root: projects/<ProjectName>
+    authoritative_task_state: runs/task_xxxx
+    authoritative_project_memory: agent_docs
+    server_sync: optional_future_phase
+    github_private_backup: planned_local_first_manual_sync
+    workspace_harness_map: AGENTS.md
+  records:
+    workspace_knowledge:
+    - AGENTS.md
+    - config/harness_policy.yml
+    - config/brain_governance.yml
+    - config/validation_gates.yml
+    task_state:
+    - user_request.md
+    - supervisor_plan.md
+    - reposcout_report.md
+    - implementation_report.md
+    - validation_report.md
+    - audit_report.md
+    - archive_update.md
+    - workflow_plan.yml
+    - cost_ledger.yml
+    - brain_decisions.yml
+    - USER_DECISION_REQUIRED.md
+    project_memory:
+    - 00_CONTEXT_PACK.md
+    - 01_REPO_MAP.md
+    - 02_TASK_LEDGER.yml
+    - 03_DECISION_LOG.md
+    - 04_INTERFACE_REGISTRY.md
+    - 05_CHANGELOG_AGENT.md
+    - 06_RISK_REGISTER.md
+    - 07_DEVELOPMENT_LOG.md
+    - 08_CODEX_DIALOGUE_LOG.md
+    - 09_COST_LEDGER.yml
+    - 10_SYNC_LEDGER.yml
+  drift_controls:
+  - Start every task from project memory and active task state, not chat history alone.
+  - Keep long context compressed into reports before passing it to later agents.
+  - Record assumptions and unresolved risks before implementation.
+  - Update project memory only from validated reports.
+  - Never claim a test, build, or manual verification passed without evidence.
+  - Trigger AgentLab only when the user explicitly asks to use AgentLab.
+  - Record every AgentLab team action in the project development log.
+  - Record Codex Coder dialogue summaries and implementation actions in the dialogue
+    log.
+  - Record DeepSeek token usage when available and Codex Plus execution as manual/unavailable
+    for exact billing.
+  - Require a brain traversal request before any full-directory or full-repository
+    scan.
+  - Stop and replan when repeated loops or task-goal drift are detected.
+  - Treat AGENTS.md as a map into local memory and config, not a full duplicate of
+    policy.
+  - Promote repeated user feedback or audit findings into harness_policy, validation
+    gates, scripts, or concise project memory.
+  - Run harness-status before relying on stale project memory for planning.
+execution_policy:
+  schema_version: 3
+  budget_mode_policy:
+    default_budget_mode: balanced
+    available_modes:
+    - frugal
+    - balanced
+    - max_quality
+    selection_methods:
+    - cli_flag: --budget {frugal|balanced|max-quality}
+    - env_var: AGENTLAB_BUDGET_MODE
+    - user_request_md_keyword: 'budget_mode:'
+    - default: balanced
+    mode_philosophy:
+      frugal:
+        goal: "\u6700\u4F4E\u6210\u672C\u8DD1\u901A"
+        allow_sacrifice:
+        - "\u63A8\u7406\u6DF1\u5EA6"
+        - "\u5BA1\u67E5\u8986\u76D6\u7387"
+        - "\u6A21\u578B\u5F3A\u5EA6"
+        forbid_sacrifice:
+        - "\u9AD8\u98CE\u9669\u4EFB\u52A1\u7684\u6D4B\u8BD5/\u786E\u8BA4\u95E8\u7981"
+        auto_upgrade_on:
+        - R2
+        - R3
+        auto_upgrade_to: balanced
+      balanced:
+        goal: "\u8D28\u91CF/\u6210\u672C\u5E73\u8861"
+        allow_sacrifice:
+        - "\u4E0D\u5FC5\u8981\u7684\u5168\u91CF\u4E0A\u4E0B\u6587\u626B\u63CF"
+        forbid_sacrifice:
+        - "\u6838\u5FC3\u63A5\u53E3\u7406\u89E3"
+        - "\u6D4B\u8BD5\u95ED\u73AF"
+        auto_upgrade_on:
+        - R3
+        auto_upgrade_to: max_quality
+      max_quality:
+        goal: "\u5173\u952E\u4EFB\u52A1\u9AD8\u53EF\u9760"
+        allow_sacrifice:
+        - "\u6210\u672C"
+        - "\u901F\u5EA6"
+        forbid_sacrifice:
+        - "\u4E8B\u5B9E\u6821\u9A8C"
+        - "\u53CC\u6A21\u578B\u590D\u6838"
+        - "\u56DE\u6EDA\u8BA1\u5212"
+  execution_policy:
+    execution_tier: T3
+    coder_agent: Coder
+    allowed_output_modes:
+    - patch_plan
+    - diff
+    - implementation_notes
+    default_api_coder:
+      model: qwen3-coder-next
+      provider: qwen-coder
+      catalog_provider: dashscope_cn
+      profile_ref: qwen3_coder_next_dashscope
+      max_output_tokens: 4096
+      temperature: 0.1
+    external_ide_window:
+      enabled: false
+      activation_signal:
+        env_var: AGENTLAB_EXTERNAL_CODER
+        signal_file: EXTERNAL_CODER_READY
+        cli_flag: --executor external_ide
+      allowed_for_budgets:
+      - balanced
+      - max_quality
+      handoff_protocol: "AgentLab \u5927\u8111\u5C42\u5B8C\u6210\u6240\u6709\u89C4\
+        \u5212/\u611F\u77E5\u5DE5\u4F5C\u540E, \u751F\u6210\u5B8C\u6574 handoff prompt\uFF0C\
+        \u5305\u542B scope + repo context + interface \u5951\u7EA6\u3002 \u5916\u90E8\
+        \ AI \u53EA\u9700\u6267\u884C\u7F16\u7801\uFF0C\u65E0\u9700\u81EA\u884C\u89C4\
+        \u5212\u3002 \u5916\u90E8 AI \u53EF\u81EA\u7531\u9009\u62E9\u5B9E\u73B0\u65B9\
+        \u5F0F/\u4EE3\u7801\u98CE\u683C/\u7B97\u6CD5/\u5E93, \u4F46\u5FC5\u987B\u9075\
+        \u5B88 Supervisor \u6279\u51C6\u7684 scope \u548C interface \u5951\u7EA6\u3002\
+        \n"
+      handoff_files:
+      - supervisor_plan.md
+      - reposcout_report.md
+      - interface_map.md
+      - research_notes.md
+      handoff_output: implementation_report.md
+    require_context_before_coding: true
+    forbid_monolithic_patch_for:
+    - S2
+    - S3
+    - S4
+    api_coder_outputs:
+    - implementation_report.md
+    - patch_proposal.diff
+    - files_to_change.yml
+    patch_application_policy: patch_proposal_first
+  brain_policy:
+    brain_tier: T1
+    brain_agent: Supervisor
+    decision_axes:
+    - Size
+    - Risk
+    - Budget
+    required_output_metadata:
+    - budget_mode
+    - project_size
+    - risk_level
+    - model_used
+    - provider
+    - token_usage
+    - fallback_or_block_reason
+    R2_required_output: risk_checklist
+    R3_required_outputs:
+    - risk_checklist
+    - rollback_plan
+    - failure_modes
+  perception_policy:
+    perception_tier: T2
+    perception_agents:
+    - RepoScout
+    - InterfaceMapper
+    - Researcher
+    require_context_before_coding: true
+    R2_extra:
+      RepoScout: must_output_related_file_list
+      InterfaceMapper: must_list_interface_contracts
+  audit_policy:
+    audit_tier: T4
+    audit_agents:
+    - TesterAuditor
+    - Verifier
+    cross_family_review: "\u4E0E Coder \u4F7F\u7528\u4E0D\u540C\u6A21\u578B\u5BB6\u65CF\
+      \u3002 Coder \u7528 Qwen \u2192 \u5BA1\u67E5\u7528 DeepSeek\uFF1B Coder \u7528\
+      \ DeepSeek \u2192 \u5BA1\u67E5\u7528 Qwen\uFF1B Coder \u7528\u5916\u90E8 IDE\
+      \ AI \u2192 \u5BA1\u67E5\u5C42\u81F3\u5C11\u7528\u4E00\u4E2A\u72EC\u7ACB API\
+      \ \u6A21\u578B\u3002\n"
+    R2_required: independent_model_review
+    R3_required: dual_model_review
+    tester_auditor_forbidden: "\u4E0D\u53EA\u505A\u683C\u5F0F\u5316\u68C0\u67E5\u3002\
+      \u5FC5\u987B\u8BBE\u8BA1\u6D4B\u8BD5\u3001\u89E3\u91CA\u6267\u884C\u7ED3\u679C\
+      \u3001\u5BA1\u67E5\u56DE\u5F52\u98CE\u9669\u3002\n"
+  archive_policy:
+    archive_tier: T5
+    archive_agent: Archivist
+    required_outputs:
+    - changelog
+    - decisions.md
+    - known_risks.md
+    R2_extra: must_record_rollback_point
+    R3_extra: must_record_full_risk_context
+  cache_policy:
+    explicit_management: true
+    requires:
+    - repo_context_hash
+    - prompt_prefix_hash
+    - provider_cache_id
+    notes: "\u7F13\u5B58\u4E0D\u8DE8 provider\u3002\u540C\u4E00 provider \u5185\uFF0C\
+      \u901A\u8FC7\u7EDF\u4E00 repo_context_block \u4F5C\u4E3A\u56FA\u5B9A prefix\
+      \ \u6CE8\u5165\uFF0C\u540E\u7EED Agent \u590D\u7528\u540C\u4E00 prefix/context\
+      \ id\u3002 \u4E0D\u5047\u5B9A\u8DE8 Agent \u81EA\u52A8 cache hit\u3002\n"
+  logging_policy:
+    record_per_call:
+    - agent
+    - model
+    - provider
+    - input_tokens
+    - cache_hit_tokens
+    - output_tokens
+    - estimated_cost
+    record_per_run:
+    - budget_mode
+    - project_size
+    - risk_level
+    - total_estimated_cost
+    - human_confirmation_required
+    - rollback_point
+harness_policy:
+  version: 1
+  owner: Supervisor
+  provider: deepseek
+  source_strategy: https://openai.com/zh-Hans-CN/index/harness-engineering/
+  principles:
+  - Treat harness files as a navigation map, not a duplicate manual.
+  - Keep repo-local knowledge as the system of record; chat memory is advisory only.
+  - Promote repeated human feedback, audit findings, or recurring mistakes into rules,
+    gates, or scripts.
+  - Prefer small mechanical checks over repeated model judgment when the pattern is
+    stable.
+  - Keep every task legible through plans, reports, command evidence, and memory updates.
+  - Garbage-collect stale or contradictory guidance before it becomes hidden policy
+    debt.
+  map_governance:
+    root_map: AGENTS.md
+    max_root_map_lines: 120
+    required_root_maps:
+    - AGENTS.md
+    - README.md
+    - OPERATING_MODEL.md
+    - DRIVER_PROTOCOL.md
+    - config/README.md
+    required_project_maps:
+    - project_config.yml
+    - agent_docs/00_CONTEXT_PACK.md
+    - agent_docs/01_REPO_MAP.md
+    - agent_docs/02_TASK_LEDGER.yml
+    - agent_docs/03_DECISION_LOG.md
+    - agent_docs/04_INTERFACE_REGISTRY.md
+    - agent_docs/06_RISK_REGISTER.md
+    - agent_docs/10_SYNC_LEDGER.yml
+  freshness:
+    warn_after_days:
+      agent_docs/00_CONTEXT_PACK.md: 30
+      agent_docs/01_REPO_MAP.md: 14
+      agent_docs/04_INTERFACE_REGISTRY.md: 30
+      agent_docs/06_RISK_REGISTER.md: 30
+  feedback_loop:
+    required_task_artifacts:
+    - workflow_plan.yml
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - brain_decisions.yml
+    - cost_ledger.yml
+    durable_feedback_channels:
+    - agent_docs/03_DECISION_LOG.md
+    - agent_docs/05_CHANGELOG_AGENT.md
+    - agent_docs/06_RISK_REGISTER.md
+    - agent_docs/07_DEVELOPMENT_LOG.md
+    - agent_docs/08_CODEX_DIALOGUE_LOG.md
+    - agent_docs/09_COST_LEDGER.yml
+    promote_to_rule_when:
+      repeated_feedback_count: 2
+      repeated_audit_finding_count: 2
+      repeated_user_correction_count: 2
+    coder_reentry_rule: high_or_medium_audit_findings_reinvoke_coder
+  mechanical_enforcement:
+    prefer_existing_checks:
+    - python3 -B -m py_compile
+    - rg
+    - curl -s local_api
+    gate_candidates:
+    - repeated UI label ambiguity
+    - repeated project/task scope confusion
+    - repeated missing validation evidence
+    - repeated stale repo map
+    - repeated unrecorded Coder action
+  observability:
+    cli_status_commands:
+    - brain-status
+    - harness-status
+    - policy-status
+    status_outputs:
+    - token_budget_state
+    - harness_map_health
+    - feedback_artifact_health
+    - required_user_decision
+    - stale_project_memory
+  garbage_collection:
+    review_cadence: after_medium_or_large_task
+    actions:
+    - remove duplicated instructions from long docs and point back to AGENTS.md or
+      config files
+    - mark stale project memory before relying on it
+    - archive obsolete blocked tasks instead of carrying hidden ambiguity
+    - convert repeated manual reminders into validation gates
+harness_status: {}
+missing_inputs: []
+aider_plan: null
+notes:
+- 'Plan only: no model calls, source edits, dependency installs, or validation commands
+  were run.'
+- Use this plan as the visible contract before starting agent execution.
+- Project config loaded.

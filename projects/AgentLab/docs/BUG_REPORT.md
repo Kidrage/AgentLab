@@ -136,3 +136,23 @@ AgentLab API Coder 原本只生成文本/patch 报告，不具备针对部署任
 
 **后续建议**：
 为 `operational_uploader` 增加单元测试和一个 fixture 化的 fake git remote 测试；后续若要支持非 Git/Gitea 上传，应新增显式协议处理器，不要扩大该窄执行器为通用 shell runner。
+
+### [2026-06-04] - task_0002_longterm-knowledgebase-research - Archivist/Coder Memory Persistence
+
+**发现者**：外部 IDE AI（验收 AO-SpatialAuthoring-Modular 知识库任务时触发）
+
+**问题节点/阶段**：`run-pipeline --execute` / Coder + Archivist / durable `agent_docs` update
+
+**症状**：AgentLab full-route execute 返回 completed，14 lifecycle steps completed，但验收发现 `projects/AO-SpatialAuthoring-Modular/agent_docs/` 仍基本为 baseline scanner 输出；原 `06_implementation_report.md` 写着 planning phase/无命令证据，artifact-check 报 implementation report 缺少 command evidence。
+
+**预期行为**：知识库/Archivist 任务完成时，应将验证后的 repo map、interface registry、risk register、development log、build/runtime guide、Xcode research 等持久化到 `agent_docs`，或至少生成可应用的结构化编辑/handoff。
+
+**调试档内容摘要**：`state.yml` 显示 completed；`progress.yml` 显示 Supervisor/RepoScout/Researcher/InterfaceMapper/Coder/TesterAuditor/Verifier/Archivist 均 completed；`artifact-check` 初始 pass_rate 0.95 且 issue 为 `06_implementation_report.md: execution placeholder or no command evidence`。
+
+**根因分析**：当前 pipeline 主要生成 per-task agent 报告；Archivist 的 `can_write_agent_docs` 能力没有对应的落盘执行机制，Coder patch application 也不会自动处理 Archivist/project-memory edits。
+
+**修复措施**：本次未改 AgentLab runtime；采用透明 `external_ide_manual` rescue，仅补写 AO-SpatialAuthoring-Modular 的 AgentLab project memory 和 task implementation report。
+
+**验证结果**：后续通过 artifact-check、关键词检查和文件存在性检查验证。
+
+**后续建议**：为 Archivist 增加专用 memory writer 或结构化 `AGENTLAB_EDIT` 应用路径；artifact-check 应验证声称更新的 durable memory 是否实际变化。

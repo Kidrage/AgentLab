@@ -24,6 +24,7 @@ agent_runtime/.venv/
 agent_runtime/__pycache__/
 agent_runtime/.env
 .tmp_agent_docs/
+decoded_outputs/
 projects/CodingWorkspace/
 
 # Project runs (may contain user documents)

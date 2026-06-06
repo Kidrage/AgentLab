@@ -1,0 +1,14 @@
+valid: false
+pass_rate: 0.79
+artifacts_checked: 19
+artifacts_passed: 15
+issues:
+- file: 06_implementation_report.md
+  issue: execution placeholder or no command evidence
+- file: self_check_report.yml
+  issue: missing
+- file: task_card.yml
+  issue: missing
+- file: artifact_manifest.yml
+  issue: missing
+issues_count: 4

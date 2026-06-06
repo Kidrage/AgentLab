@@ -1,0 +1,27 @@
+project:
+  name: AO-SpatialAuthoring-Modular
+  type: local_workspace_memory
+paths:
+  repo: /Users/saintpeter/Desktop/Coding/AO-SpatialAuthoring-Modular
+  docs: agent_docs
+  runs: runs
+scope:
+  repo_access: read_only
+  external_readonly_roots:
+  - /Users/saintpeter/Desktop/Coding/AO-SpatialAuthoring-Modular
+agent_routing:
+  default_strategy: smallest_safe_route
+  workspace_analysis_task:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Verifier
+  - Archivist
+safety_rules:
+- Treat the Coding workspace as read-only unless the user names a specific child project
+  and asks for edits.
+- Keep generated build directories out of project memory unless debugging build output.
+- Do not store credentials or private tokens in project memory.

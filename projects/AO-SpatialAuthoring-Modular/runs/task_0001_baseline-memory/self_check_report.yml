@@ -1,0 +1,11 @@
+status: pass
+checks:
+- id: target_exists
+  pass: true
+  detail: /Users/saintpeter/Desktop/Coding/AO-SpatialAuthoring-Modular
+- id: model_calls
+  pass: true
+  detail: 0 model calls
+- id: source_edits
+  pass: true
+  detail: No files under target were edited.

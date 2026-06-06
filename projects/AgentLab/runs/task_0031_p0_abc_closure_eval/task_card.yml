@@ -1,0 +1,9 @@
+version: 1
+project: AgentLab
+task_id: task_0031_p0_abc_closure_eval
+title: task_0031_p0_abc_closure_eval
+status: completed
+artifact_check:
+  valid: true
+  pass_rate: 1.0
+  issues_count: 0
