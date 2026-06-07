@@ -1,6 +1,37 @@
 version: 1
 project: AgentLab
 task_id: task_0029_model-routing-eval
-title: AgentLab performance evaluation
+title: task_0029_model-routing-eval
+summary: Run an auditable local performance evaluation of AgentLab. Measure routing,
+  model-profile selection, lifecycle behavior, artifact completeness, and baseline
+  command latency without model API calls.
 status: completed
-score: 100.0
+resume_state: completed
+can_resume: false
+percent_complete: 100
+current_agent: null
+current_stage: completed
+last_event: Performance evaluation completed.
+last_event_at: '2026-06-02T04:15:33.276777+00:00'
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0029_model-routing-eval
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0029_model-routing-eval
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0029_model-routing-eval
+artifact_summary:
+  present: 10
+  missing: 3
+  important_missing:
+  - 06_implementation_report.md
+  - handoff_packet.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

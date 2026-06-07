@@ -1,0 +1,63 @@
+version: 1
+generated_at: '2026-06-07T13:31:39.893945+00:00'
+project: AgentLab
+task_id: task_0032_self_audit
+status: blocked
+source_statuses:
+  state: blocked
+  progress: running
+  lifecycle: blocked
+drift:
+- 'status_mismatch: {''state'': ''blocked'', ''progress'': ''running'', ''lifecycle'':
+  ''blocked''}'
+route:
+- Supervisor
+- RepoScout
+- Researcher
+- InterfaceMapper
+- TesterAuditor
+- Verifier
+- Archivist
+current_agent: Verifier
+current_stage: agent_completed
+percent_complete: 61
+last_event: Archivist requires user decision.
+completed_agents:
+- Supervisor
+- Researcher
+- InterfaceMapper
+- Archivist
+reports:
+  RepoScout_blocked: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit/blocked_RepoScout.md
+  TesterAuditor_artifact_gate: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit/blocked_TesterAuditor_artifact_gate.md
+  Archivist_blocked: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit/blocked_Archivist.md
+lifecycle:
+  status: blocked
+  node_count: 14
+  completed_count: 5
+  skipped_count: 1
+  failed_count: 2
+  running_count: 2
+  waiting_count: 4
+  percent_complete: 42
+  next_node: REPO_CONTEXT
+  nodes:
+    INIT_TASK: completed
+    PREPARE_PLAN: completed
+    SUPERVISOR_PLAN: completed
+    REPO_CONTEXT: failed
+    RESEARCH_OPTIONAL: completed
+    INTERFACE_OPTIONAL: completed
+    CODER_IMPLEMENTATION: skipped
+    VALIDATION: failed
+    AUDIT: running
+    VERIFY: running
+    ARCHIVE: waiting
+    SELF_CHECK: waiting
+    SYNC_OPTIONAL: waiting
+    FINALIZE: waiting
+paths:
+  state: state.yml
+  progress: progress.yml
+  lifecycle: lifecycle.yml
+  workflow_plan: workflow_plan.yml

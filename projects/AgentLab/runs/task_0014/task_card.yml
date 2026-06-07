@@ -17,13 +17,14 @@ important_paths:
   user_request: user_request.md
   progress: progress.yml
   workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
   handoff_packet: handoff_packet.yml
 commands:
   open: ./agentlab.sh task-open --project AgentLab --task-id task_0014
   resume: ./agentlab.sh resume --project AgentLab --task-id task_0014
   chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0014
 artifact_summary:
-  present: 1
+  present: 2
   missing: 11
   important_missing:
   - 01_supervisor_plan.md

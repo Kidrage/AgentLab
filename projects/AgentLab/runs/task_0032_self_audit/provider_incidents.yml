@@ -1,0 +1,11 @@
+incidents:
+- at: '2026-06-06T08:07:23.588852+00:00'
+  project: AgentLab
+  task_id: task_0032_self_audit
+  agent: RepoScout
+  provider: qwen3
+  model: qwen3.7-max
+  error_class: network_error
+  error_message: Connection error.
+  call_id: ''
+  resolved: false

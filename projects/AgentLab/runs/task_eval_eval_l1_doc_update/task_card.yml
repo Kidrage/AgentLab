@@ -1,0 +1,40 @@
+version: 1
+project: AgentLab
+task_id: task_eval_eval_l1_doc_update
+title: task_eval_eval_l1_doc_update
+summary: ''
+status: running
+resume_state: unknown
+can_resume: false
+percent_complete: 50
+current_agent: null
+current_stage: coder
+last_event: ''
+last_event_at: ''
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_eval_eval_l1_doc_update
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_eval_eval_l1_doc_update
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_eval_eval_l1_doc_update
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_eval_eval_l1_doc_update
+artifact_summary:
+  present: 1
+  missing: 12
+  important_missing:
+  - user_request.md
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
+  - workflow_plan.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

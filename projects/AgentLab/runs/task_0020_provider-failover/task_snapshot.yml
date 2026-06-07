@@ -1,0 +1,47 @@
+version: 1
+generated_at: '2026-06-07T13:31:38.649465+00:00'
+project: AgentLab
+task_id: task_0020_provider-failover
+status: unknown
+source_statuses:
+  state: unknown
+  progress: unknown
+  lifecycle: unknown
+drift: []
+route: []
+current_agent: null
+current_stage: null
+percent_complete: 0
+last_event: ''
+completed_agents: []
+reports: {}
+lifecycle:
+  status: unknown
+  node_count: 14
+  completed_count: 0
+  skipped_count: 0
+  failed_count: 0
+  running_count: 0
+  waiting_count: 0
+  percent_complete: 0
+  next_node: null
+  nodes:
+    INIT_TASK: missing
+    PREPARE_PLAN: missing
+    SUPERVISOR_PLAN: missing
+    REPO_CONTEXT: missing
+    RESEARCH_OPTIONAL: missing
+    INTERFACE_OPTIONAL: missing
+    CODER_IMPLEMENTATION: missing
+    VALIDATION: missing
+    AUDIT: missing
+    VERIFY: missing
+    ARCHIVE: missing
+    SELF_CHECK: missing
+    SYNC_OPTIONAL: missing
+    FINALIZE: missing
+paths:
+  state: state.yml
+  progress: progress.yml
+  lifecycle: lifecycle.yml
+  workflow_plan: workflow_plan.yml

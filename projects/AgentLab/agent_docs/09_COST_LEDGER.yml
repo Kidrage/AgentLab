@@ -679,3 +679,129 @@ entries:
   cost_currency: null
   notes: Completed SCNet rollback to external bundled model package and built universal
     macOS app
+- timestamp: '2026-06-06T08:06:50.745468+00:00'
+  project: AgentLab
+  task_id: task_0032_self_audit
+  agent: Supervisor
+  provider: deepseek
+  model: deepseek-v4-pro
+  status: completed
+  input_tokens: 21365
+  output_tokens: 2729
+  total_tokens: 24094
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage from pipeline executor.
+- timestamp: '2026-06-06T08:09:55.493242+00:00'
+  project: AgentLab
+  task_id: task_0032_self_audit
+  agent: Researcher
+  provider: qwen
+  model: qwen3.6-plus
+  status: completed
+  input_tokens: 19929
+  output_tokens: 3212
+  total_tokens: 23141
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage from pipeline executor.
+- timestamp: '2026-06-06T08:11:10.425751+00:00'
+  project: AgentLab
+  task_id: task_0032_self_audit
+  agent: InterfaceMapper
+  provider: qwen3
+  model: qwen3.7-max
+  status: completed
+  input_tokens: 19821
+  output_tokens: 3641
+  total_tokens: 23462
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage from pipeline executor.
+- timestamp: '2026-06-06T08:12:18.567169+00:00'
+  project: AgentLab
+  task_id: task_0032_self_audit
+  agent: TesterAuditor
+  provider: qwen
+  model: qwen3.6-plus
+  status: completed
+  input_tokens: 20181
+  output_tokens: 3335
+  total_tokens: 23516
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage from pipeline executor.
+- timestamp: '2026-06-06T08:21:43.252406+00:00'
+  project: AgentLab
+  task_id: task_0032_self_audit
+  agent: Archivist
+  provider: qwen
+  model: qwen3.6-plus
+  status: blocked_user_decision
+  input_tokens: 21055
+  output_tokens: 4191
+  total_tokens: 25246
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: Archivist did not provide structured AGENTLAB_EDIT blocks for agent_docs.
+- timestamp: '2026-06-07T13:45:06.865108+00:00'
+  project: AgentLab
+  task_id: task_0034_repair_known_agentlab_issues
+  agent: Supervisor
+  provider: deepseek
+  model: deepseek-v4-pro
+  status: completed
+  input_tokens: 22982
+  output_tokens: 4372
+  total_tokens: 27354
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage from pipeline executor.
+- timestamp: '2026-06-07T13:45:19.890587+00:00'
+  project: AgentLab
+  task_id: task_0034_repair_known_agentlab_issues
+  agent: RepoScout
+  provider: qwen
+  model: qwen3.6-plus
+  status: completed
+  input_tokens: 21618
+  output_tokens: 478
+  total_tokens: 22096
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage from pipeline executor.
+- timestamp: '2026-06-07T13:47:01.477346+00:00'
+  project: AgentLab
+  task_id: task_0034_repair_known_agentlab_issues
+  agent: InterfaceMapper
+  provider: qwen
+  model: qwen3.6-plus
+  status: completed
+  input_tokens: 21614
+  output_tokens: 5465
+  total_tokens: 27079
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage from pipeline executor.
+- timestamp: '2026-06-07T13:47:09.539922+00:00'
+  project: AgentLab
+  task_id: task_0034_repair_known_agentlab_issues
+  agent: Coder
+  provider: qwen-coder
+  model: qwen3-coder-next
+  status: completed
+  input_tokens: 22459
+  output_tokens: 749
+  total_tokens: 23208
+  exact_cost_available: true
+  estimated_cost: null
+  cost_currency: null
+  notes: API usage from pipeline executor.

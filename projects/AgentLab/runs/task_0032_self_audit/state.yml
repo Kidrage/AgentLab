@@ -1,0 +1,12 @@
+project: AgentLab
+task_id: task_0032_self_audit
+current_agent: Verifier
+completed_agents: []
+reports:
+  RepoScout_blocked: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit/blocked_RepoScout.md
+  TesterAuditor_artifact_gate: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit/blocked_TesterAuditor_artifact_gate.md
+  Archivist_blocked: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit/blocked_Archivist.md
+status: blocked
+execution_mode: ''
+last_event: Archivist requires user decision.
+updated_at: '2026-06-06T08:21:43.094134+00:00'

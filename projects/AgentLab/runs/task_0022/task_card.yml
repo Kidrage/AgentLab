@@ -6,7 +6,7 @@ summary: 让 agentlab 来执行 AgentLab Codex Full-Driver 操作链规范。
 status: completed
 resume_state: completed
 can_resume: false
-percent_complete: 15
+percent_complete: 100
 current_agent: Supervisor
 current_stage: preflight
 last_event: ''
@@ -16,13 +16,14 @@ important_paths:
   user_request: user_request.md
   progress: progress.yml
   workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
   handoff_packet: handoff_packet.yml
 commands:
   open: ./agentlab.sh task-open --project AgentLab --task-id task_0022
   resume: ./agentlab.sh resume --project AgentLab --task-id task_0022
   chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0022
 artifact_summary:
-  present: 12
+  present: 13
   missing: 0
   important_missing: []
 backup_status:

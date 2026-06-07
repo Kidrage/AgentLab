@@ -1,0 +1,35 @@
+version: 1
+project: AgentLab
+task_id: task_0032_self_audit
+title: task_0032_self_audit
+summary: 检查AgentLab自身链路缺陷：全面检查agentlab自身链路（pipeline、state、artifact gate、memory写回、progress
+  tracking、llm provider模块导入）的闭环性和稳定性。对照本对话中的评估报告和BUG_REPORT.md，确认已修复的P0问题是否稳定，以及有无新的未闭环缺口。
+status: blocked
+resume_state: manual_decision_needed
+can_resume: true
+percent_complete: 61
+current_agent: Verifier
+current_stage: agent_completed
+last_event: Archivist requires user decision.
+last_event_at: '2026-06-06T08:21:43.094134+00:00'
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0032_self_audit
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0032_self_audit
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0032_self_audit
+artifact_summary:
+  present: 11
+  missing: 2
+  important_missing:
+  - handoff_packet.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

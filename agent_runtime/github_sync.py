@@ -46,6 +46,7 @@ def run_sync(
 
     report: dict = {
         "version": 1,
+        "target": "github",
         "project": project,
         "task_id": task_id,
         "created_at": utc_now(),
@@ -149,6 +150,7 @@ def _update_sync_ledger(root: Path, project: str, report: dict) -> None:
     entry = {
         "timestamp": report["created_at"],
         "task_id": report["task_id"],
+        "target": "github",
         "status": report["status"],
         "remote": report["remote"],
         "branch": report["branch"],

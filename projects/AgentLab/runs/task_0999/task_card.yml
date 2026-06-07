@@ -1,0 +1,38 @@
+version: 1
+project: AgentLab
+task_id: task_0999
+title: task_0999
+summary: Test full lifecycle closure.
+status: running
+resume_state: unknown
+can_resume: false
+percent_complete: 5
+current_agent: null
+current_stage: init
+last_event: 'Running: INIT_TASK'
+last_event_at: '2026-05-31T14:10:56.343628+00:00'
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0999
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0999
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0999
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0999
+artifact_summary:
+  present: 3
+  missing: 10
+  important_missing:
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

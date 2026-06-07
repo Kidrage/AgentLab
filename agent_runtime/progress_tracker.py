@@ -200,7 +200,7 @@ def progress_summary(data: dict) -> dict:
         "project": data.get("project"),
         "task_id": data.get("task_id"),
         "status": data.get("status"),
-        "percent": data.get("percent_complete", 0),
+        "percent": data.get("percent_complete", data.get("percent", 0)),
         "current_agent": data.get("current_agent"),
         "current_stage": data.get("current_stage"),
         "last_event": data.get("last_event"),

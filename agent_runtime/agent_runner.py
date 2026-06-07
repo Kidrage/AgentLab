@@ -80,11 +80,12 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
         project_root / "agent_docs" / "01_REPO_MAP.md",
         Path(plan.user_request_path),
         run_dir / "workflow_plan.yml",
-        run_dir / "supervisor_plan.md",
-        run_dir / "reposcout_report.md",
-        run_dir / "implementation_report.md",
-        run_dir / "validation_report.md",
-        run_dir / "audit_report.md",
+        run_dir / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
+        run_dir / DEFAULT_REPORT_BY_AGENT.get("RepoScout", "02_reposcout_report.md"),
+        run_dir / DEFAULT_REPORT_BY_AGENT.get("InterfaceMapper", "04_interface_map.md"),
+        run_dir / DEFAULT_REPORT_BY_AGENT.get("Coder", "06_implementation_report.md"),
+        run_dir / DEFAULT_REPORT_BY_AGENT.get("TesterAuditor", "08_audit_report.md"),
+        run_dir / "verification_report.md",
     ]
 
     context_sections = []
@@ -205,6 +206,29 @@ def run_agent_model(
         model_override,
         profile_config=(plan.model_profiles or {}).get(agent_name),
     )
+
+    # ── Budget enforcement: block before model call if agent exceeds stop threshold ──
+    from brain_governor import evaluate_token_status
+    token_statuses = evaluate_token_status(plan, agentlab_root)
+    agent_tokens = token_statuses.get(agent_name, {})
+    if agent_tokens.get("state") == "ask_user":
+        from schemas import LLMCallResult
+        budget = agent_tokens.get("budget", 0)
+        used = agent_tokens.get("used", 0)
+        stop_at = agent_tokens.get("stop_at", 0)
+        return LLMCallResult(
+            provider=settings.provider,
+            model=settings.model,
+            content=f"# {agent_name} 已超过 token 预算 stop 阈值\n\n"
+                    f"- 已使用: {used} tokens\n"
+                    f"- 预算: {budget} tokens\n"
+                    f"- Stop 阈值: {stop_at} tokens\n\n"
+                    f"调用已被硬阻断以避免无限制消耗预算。"
+                    f"请用户重配预算或确认继续后再运行。\n",
+            status="blocked_user_decision",
+            error=f"{agent_name} 已超过 token 预算 stop 阈值 (used={used}, budget={budget}, stop_at={stop_at})",
+        )
+
     messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
     result = generate_text(
         settings,

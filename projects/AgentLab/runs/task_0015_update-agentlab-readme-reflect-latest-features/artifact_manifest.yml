@@ -1,0 +1,115 @@
+version: 1
+project: AgentLab
+task_id: task_0015_update-agentlab-readme-reflect-latest-features
+generated_at: '2026-06-07T13:31:38.391990+00:00'
+artifacts:
+- kind: request
+  agent: user
+  path: user_request.md
+  status: present
+  title: Request
+  summary: 'Update AgentLab README.md to reflect latest features including: task_snapshot.py,
+    memory_writer.py, streaming_stereo_spatializer project, AO-SpatialAuthoring-Modular
+    project docs, test_artifact_gate.py and test_task_closure.py. Also update the
+    changelog to add version 2.3 entries for these recent additions.'
+  important: true
+- kind: plan
+  agent: Supervisor
+  path: 01_supervisor_plan.md
+  status: present
+  title: Plan
+  summary: TBD
+  important: true
+- kind: scout
+  agent: RepoScout
+  path: 02_reposcout_report.md
+  status: present
+  title: Scout
+  summary: TBD
+  important: false
+- kind: research
+  agent: Researcher
+  path: 03_research_notes.md
+  status: present
+  title: Research
+  summary: TBD
+  important: false
+- kind: interface
+  agent: InterfaceMapper
+  path: 04_interface_map.md
+  status: present
+  title: Interface
+  summary: TBD
+  important: false
+- kind: prompt
+  agent: CodexPromptGen
+  path: 05_codex_prompt.md
+  status: missing
+  title: Prompt
+  summary: ''
+  important: false
+- kind: implementation
+  agent: Coder
+  path: 06_implementation_report.md
+  status: present
+  title: Implementation
+  summary: TBD
+  important: true
+- kind: validation
+  agent: TesterAuditor
+  path: 07_validation_report.md
+  status: present
+  title: Validation
+  summary: TBD
+  important: true
+- kind: audit
+  agent: TesterAuditor
+  path: 08_audit_report.md
+  status: present
+  title: Audit
+  summary: TBD
+  important: true
+- kind: archive
+  agent: Archivist
+  path: 09_archive_update.md
+  status: present
+  title: Archive
+  summary: TBD
+  important: false
+- kind: handoff
+  agent: system
+  path: handoff_packet.yml
+  status: missing
+  title: Handoff
+  summary: ''
+  important: true
+- kind: plan
+  agent: system
+  path: workflow_plan.yml
+  status: present
+  title: Plan
+  summary: 'project: AgentLab task_id: task_0015_update-agentlab-readme-reflect-latest-features
+    agentlab_root: /Users/saintpeter/Desktop/AgentLab project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab
+    repo_path: /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015_update-agentlab-readme-reflect-latest-features
+    user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015_update-agentlab-readme-reflect-latest-features/user_request.md
+    execution_backend: codex budget_mode: balanced budget_profile: balanced_L2 p...'
+  important: true
+- kind: snapshot
+  agent: system
+  path: task_snapshot.yml
+  status: present
+  title: Snapshot
+  summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.386355+00:00'' project:
+    AgentLab task_id: task_0015_update-agentlab-readme-reflect-latest-features status:
+    running source_statuses: state: planned progress: new lifecycle: running drift:
+    - ''status_mismatch: {''''state'''': ''''planned'''', ''''progress'''': ''''new'''',
+    ''''lifecycle'''': ''''running''''}'' route: - Supervisor - RepoScout - InterfaceMapper
+    - Coder - TesterAuditor - Verifier - Archivist current_agent: null current_stage:
+    initialized percent_complete: 21 last_event: Workflow plan prepared. completed_agents:
+    [] reports: {} lifecycle: status: running node_co...'
+  important: true
+summary:
+  present: 11
+  missing: 2
+  important_missing:
+  - handoff_packet.yml

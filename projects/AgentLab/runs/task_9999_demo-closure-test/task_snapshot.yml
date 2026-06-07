@@ -1,0 +1,52 @@
+version: 1
+generated_at: '2026-06-07T13:31:40.288207+00:00'
+project: AgentLab
+task_id: task_9999_demo-closure-test
+status: completed
+source_statuses:
+  state: completed
+  progress: running
+  lifecycle: completed
+drift:
+- 'status_mismatch: {''state'': ''completed'', ''progress'': ''running'', ''lifecycle'':
+  ''completed''}'
+route:
+- Supervisor
+- Coder
+- TesterAuditor
+current_agent: null
+current_stage: completing
+percent_complete: 100
+last_event: Task completed via dry-run pipeline
+completed_agents: []
+reports: {}
+lifecycle:
+  status: completed
+  node_count: 14
+  completed_count: 11
+  skipped_count: 3
+  failed_count: 0
+  running_count: 0
+  waiting_count: 0
+  percent_complete: 100
+  next_node: null
+  nodes:
+    INIT_TASK: completed
+    PREPARE_PLAN: completed
+    SUPERVISOR_PLAN: completed
+    REPO_CONTEXT: completed
+    RESEARCH_OPTIONAL: skipped
+    INTERFACE_OPTIONAL: skipped
+    CODER_IMPLEMENTATION: completed
+    VALIDATION: completed
+    AUDIT: completed
+    VERIFY: skipped
+    ARCHIVE: completed
+    SELF_CHECK: completed
+    SYNC_OPTIONAL: completed
+    FINALIZE: completed
+paths:
+  state: state.yml
+  progress: progress.yml
+  lifecycle: lifecycle.yml
+  workflow_plan: workflow_plan.yml

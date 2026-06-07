@@ -916,11 +916,22 @@ def run_agent(
         blocked_path.write_text(result.content, encoding="utf-8")
         user_decision_path = Path(plan.run_dir) / "USER_DECISION_REQUIRED.md"
         user_decision_path.write_text(result.content, encoding="utf-8")
-        state = load_state(Path(plan.run_dir), project_name, task_id)
+        run_dir_path = Path(plan.run_dir)
+        state = load_state(run_dir_path, project_name, task_id)
         state.status = "blocked"
         state.last_event = f"{agent_name} requires user decision."
         state.reports[f"{agent_name}_blocked"] = str(blocked_path)
-        save_state(Path(plan.run_dir), state)
+        save_state(run_dir_path, state)
+        from progress_tracker import load_progress, save_progress
+        progress = load_progress(run_dir_path)
+        if progress:
+            progress["status"] = "blocked"
+            progress["current_stage"] = "blocked_user_decision"
+            progress["last_event"] = state.last_event
+            progress["current_agent"] = None
+            if agent_name in progress.get("agents", {}):
+                progress["agents"][agent_name]["status"] = "blocked"
+            save_progress(run_dir_path, progress)
         append_cost_ledgers(
             Path(plan.project_root),
             Path(plan.run_dir),
@@ -949,11 +960,22 @@ def run_agent(
     if result.status == "fallback_handoff":
         fallback_path = Path(plan.run_dir) / f"codex_fallback_{agent_name}.md"
         fallback_path.write_text(result.content, encoding="utf-8")
-        state = load_state(Path(plan.run_dir), project_name, task_id)
+        run_dir_path = Path(plan.run_dir)
+        state = load_state(run_dir_path, project_name, task_id)
         state.status = "blocked"
         state.last_event = f"{agent_name} needs Codex Plus handoff."
         state.reports[f"{agent_name}_fallback"] = str(fallback_path)
-        save_state(Path(plan.run_dir), state)
+        save_state(run_dir_path, state)
+        from progress_tracker import load_progress, save_progress
+        progress = load_progress(run_dir_path)
+        if progress:
+            progress["status"] = "blocked"
+            progress["current_stage"] = "handoff_required"
+            progress["last_event"] = state.last_event
+            progress["current_agent"] = None
+            if agent_name in progress.get("agents", {}):
+                progress["agents"][agent_name]["status"] = "blocked"
+            save_progress(run_dir_path, progress)
         append_cost_ledgers(
             Path(plan.project_root),
             Path(plan.run_dir),
@@ -981,11 +1003,22 @@ def run_agent(
         block_path = write_agent_artifact_gate_block(
             Path(plan.run_dir), project_name, task_id, agent_name, output_path, gate_issues
         )
-        state = load_state(Path(plan.run_dir), project_name, task_id)
+        run_dir_path = Path(plan.run_dir)
+        state = load_state(run_dir_path, project_name, task_id)
         state.status = "blocked"
         state.last_event = f"{agent_name} artifact gate failed."
         state.reports[f"{agent_name}_artifact_gate"] = str(block_path)
-        save_state(Path(plan.run_dir), state)
+        save_state(run_dir_path, state)
+        from progress_tracker import load_progress, save_progress
+        progress = load_progress(run_dir_path)
+        if progress:
+            progress["status"] = "blocked"
+            progress["current_stage"] = "blocked"
+            progress["last_event"] = state.last_event
+            progress["current_agent"] = None
+            if agent_name in progress.get("agents", {}):
+                progress["agents"][agent_name]["status"] = "blocked"
+            save_progress(run_dir_path, progress)
         append_cost_ledgers(
             Path(plan.project_root),
             Path(plan.run_dir),
@@ -1357,6 +1390,82 @@ def resume_task(
     console.print("[green]Task marked as resumed. Run 'run-agent' or 'run-pipeline --dry-run' to continue.[/green]")
 
 
+@app.command("guard-status")
+def guard_status(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, help="Filter by task id."),
+) -> None:
+    """Show active and stale file locks."""
+    agentlab_root, project_name = runtime_context(project)
+    from guard import scan_stale_locks
+
+    stale_results = scan_stale_locks(agentlab_root, timeout=120)
+    if task_id:
+        stale_results = [r for r in stale_results if task_id in r.get("lock_file", "")]
+
+    if not stale_results:
+        console.print("[green]No lock files found.[/green]")
+        return
+
+    table = Table("Project/Task", "TX ID", "Status", "Heartbeat Age", "State", "Action")
+    for r in stale_results:
+        lock_file = r.get("lock_file", "")
+        # Extract project/task from filename like "AgentLab__task_0001.lock"
+        name = Path(lock_file).stem.replace(".lock", "").replace("__", "/")
+        table.add_row(
+            name,
+            r.get("tx_id", "?"),
+            r.get("tx_status", "?"),
+            f"{r.get('heartbeat_age_seconds', '?')}s" if r.get("heartbeat_age_seconds") is not None else "N/A",
+            r.get("state", "?"),
+            r.get("recommended_action", "?"),
+        )
+    console.print("\n[bold]Guard Lock Status[/bold]")
+    console.print(table)
+    stale_count = len([r for r in stale_results if r.get("is_stale")])
+    if stale_count:
+        console.print(f"\n[yellow]{stale_count} stale lock(s) can be recovered.[/yellow]")
+        console.print("Run: ./agentlab.sh recover --scan to clear all stale locks")
+        console.print("  or: ./agentlab.sh recover --project <project> --task-id <task_id>")
+
+
+@app.command("recover")
+def recover(
+    task_id: Optional[str] = typer.Option(None, help="Task id to recover (clear stale lock)."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    scan: bool = typer.Option(False, help="Scan and clear all stale locks across all projects."),
+) -> None:
+    """Recover from crashes by clearing stale file locks."""
+    agentlab_root, project_name = runtime_context(project)
+    from guard import scan_stale_locks, clear_stale_lock
+
+    if scan:
+        stale_results = scan_stale_locks(agentlab_root, timeout=120)
+        stale = [r for r in stale_results if r.get("is_stale")]
+        if not stale:
+            console.print("[green]No stale locks found.[/green]")
+            return
+
+        cleared = 0
+        for r in stale:
+            lock_file = Path(r["lock_file"])
+            lock_file.unlink(missing_ok=True)
+            cleared += 1
+            console.print(f"  [green]Cleared[/green] {lock_file.name}")
+        console.print(f"\n[green]{cleared} stale lock(s) cleared.[/green]")
+        return
+
+    if task_id:
+        ok = clear_stale_lock(agentlab_root, project_name, task_id)
+        if ok:
+            console.print(f"[green]Stale lock cleared for {project_name}/{task_id}.[/green]")
+        else:
+            console.print(f"[yellow]No stale lock found for {project_name}/{task_id}.[/yellow]")
+        return
+
+    console.print("[yellow]Specify --task-id or --scan.[/yellow]")
+
+
 @app.command("providers")
 def providers(
     project: Optional[str] = typer.Option(None, help="Project name."),
@@ -1487,7 +1596,162 @@ def sync_status(
     console.print(f"\n[bold]Sync Ledger - {project_name}[/bold]")
     console.print(f"  Total entries: {len(entries)}")
     for e in entries[-5:]:
-        console.print(f"  {e.get('timestamp', '?')[:19]} - {e.get('task_id', '?')} - {e.get('status', '?')} - {e.get('commit_sha', '')[:12]}")
+        target = e.get("target", "github" if e.get("commit_sha") else "unknown")
+        console.print(f"  {e.get('timestamp', '?')[:19]} - {target} - {e.get('task_id', '?')} - {e.get('status', '?')} - {e.get('commit_sha', '')[:12]}")
+
+
+@app.command("migration-doctor")
+def migration_doctor_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, help="Optional task id for writing migration_doctor_report.yml."),
+    write_report: bool = typer.Option(False, help="Write report into projects/<project>/runs/<task_id>."),
+    json_output: bool = typer.Option(False, help="Output JSON."),
+    no_write_probe: bool = typer.Option(False, help="Skip SMB write probe."),
+) -> None:
+    """Check migration readiness: env, repo, SMB, Web UI, cache, backup permissions."""
+    if task_id:
+        ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from migration_doctor import run_migration_doctor
+    report = run_migration_doctor(
+        agentlab_root,
+        project_name,
+        task_id=task_id,
+        write_report=write_report,
+        write_probe=not no_write_probe,
+    )
+    if json_output:
+        import json
+        console.print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+    else:
+        color = "green" if report["status"] == "pass" else "yellow" if report["status"] == "warn" else "red"
+        console.print(f"\n[bold]Migration Doctor:[/bold] [{color}]{report['status'].upper()}[/{color}]")
+        console.print(f"  Summary: {report.get('summary', {})}")
+        table = Table("Check", "Status", "Message")
+        for check in report.get("checks", []):
+            table.add_row(check.get("id", ""), check.get("status", ""), check.get("message", ""))
+        console.print(table)
+        if report.get("blocking_reasons"):
+            console.print("[red]Blocking reasons:[/red]")
+            for reason in report["blocking_reasons"]:
+                console.print(f"  - {reason}")
+        if write_report and task_id:
+            console.print(f"Report: {agentlab_root}/projects/{project_name}/runs/{task_id}/migration_doctor_report.yml")
+    raise typer.Exit(code=1 if report["status"] == "fail" else 0)
+
+
+@app.command("migration-init")
+def migration_init_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, help="Optional task id for migration_init_report.yml."),
+    overwrite: bool = typer.Option(False, help="Overwrite existing safe helper files."),
+    json_output: bool = typer.Option(False, help="Output JSON."),
+) -> None:
+    """Generate safe migration helper files without storing real secrets."""
+    if task_id:
+        ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from migration_doctor import write_migration_bootstrap
+    report = write_migration_bootstrap(agentlab_root, project_name, task_id=task_id, overwrite=overwrite)
+    if json_output:
+        import json
+        console.print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+    else:
+        console.print("[green]Migration bootstrap files checked.[/green]")
+        console.print({"created": report.get("created", []), "skipped_existing": report.get("skipped_existing", [])})
+
+
+@app.command("truenas-status")
+def truenas_status_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name, only used to resolve root."),
+    json_output: bool = typer.Option(False, help="Output JSON."),
+    no_write_probe: bool = typer.Option(False, help="Skip SMB write probe."),
+) -> None:
+    """Check configured TrueNAS/SMB mount status."""
+    agentlab_root, _ = runtime_context(project)
+    from truenas_sync import get_truenas_status
+    report = get_truenas_status(agentlab_root, write_probe=not no_write_probe)
+    if json_output:
+        import json
+        console.print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+    else:
+        color = "green" if report["status"] == "pass" else "yellow" if report["status"] == "warn" else "red"
+        console.print(f"\n[bold]TrueNAS Status:[/bold] [{color}]{report['status'].upper()}[/{color}]")
+        console.print(f"  URL: {report.get('protocol_url', '')}")
+        console.print(f"  Mount: {report.get('mount_path', '')}")
+        console.print(f"  Mounted: {report.get('mounted', False)}")
+        console.print(f"  Writable: {report.get('writable', False)}")
+        console.print(f"  Free bytes: {report.get('free_bytes', 0)}")
+        if report.get("probe_error"):
+            console.print(f"  Probe error: {report['probe_error']}")
+    raise typer.Exit(code=1 if report["status"] == "fail" else 0)
+
+
+@app.command("truenas-sync")
+def truenas_sync_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    dry_run: bool = typer.Option(True, help="Preview only; --execute performs real copy."),
+    execute: bool = typer.Option(False, help="Execute push-only merge copy."),
+    json_output: bool = typer.Option(False, help="Output JSON."),
+    no_write_probe: bool = typer.Option(False, help="Skip SMB write probe."),
+) -> None:
+    """Run TrueNAS/SMB push-only merge sync with manifest and checksum reports."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from truenas_sync import run_truenas_sync
+    report = run_truenas_sync(
+        agentlab_root,
+        project_name,
+        task_id,
+        dry_run=dry_run,
+        execute=execute,
+        write_probe=not no_write_probe,
+    )
+    if json_output:
+        import json
+        console.print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+    else:
+        color = "green" if report["status"] in ("synced", "dry_run_completed") else "yellow" if report["status"] == "partial" else "red"
+        console.print(f"\n[bold]TrueNAS Sync:[/bold] [{color}]{report['status']}[/{color}]")
+        console.print(f"  Dry-run: {report.get('dry_run')}")
+        console.print(f"  Would copy: {report.get('would_copy_files', 0)}")
+        console.print(f"  Copied: {report.get('copied_files', 0)}")
+        console.print(f"  Skipped existing: {report.get('skipped_existing', 0)}")
+        console.print(f"  Failed: {report.get('failed_files', 0)}")
+        for warning in report.get("warnings", [])[:10]:
+            console.print(f"  ! {warning}")
+        for reason in report.get("blocking_reasons", []):
+            console.print(f"  - {reason}")
+        console.print(f"Report: {agentlab_root}/projects/{project_name}/runs/{task_id}/truenas_sync_report.yml")
+        console.print(f"Manifest: {agentlab_root}/projects/{project_name}/runs/{task_id}/truenas_manifest.yml")
+    raise typer.Exit(code=1 if report["status"] in ("failed", "partial") else 0)
+
+
+@app.command("backup-status")
+def backup_status_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, help="Optional task id filter."),
+    json_output: bool = typer.Option(False, help="Output JSON."),
+) -> None:
+    """Show combined GitHub + TrueNAS backup status."""
+    if task_id:
+        ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from truenas_sync import build_backup_status
+    report = build_backup_status(agentlab_root, project_name, task_id=task_id)
+    if json_output:
+        import json
+        console.print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+    else:
+        console.print(f"\n[bold]Backup Status - {project_name}[/bold]")
+        console.print(f"  Overall: {report.get('status')}")
+        github = report.get("github", {})
+        truenas = report.get("truenas", {})
+        tn_status = truenas.get("status", {})
+        console.print(f"  GitHub: enabled={github.get('enabled')} token={github.get('token_configured')} latest={github.get('latest', {}).get('status', '-')}")
+        console.print(f"  TrueNAS: status={tn_status.get('status')} mounted={tn_status.get('mounted')} writable={tn_status.get('writable')}")
+        console.print(f"  Ledger entries: {report.get('ledger', {}).get('entries_count', 0)}")
 
 
 @app.command("provider-test")

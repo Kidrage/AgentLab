@@ -1,0 +1,110 @@
+version: 1
+project: AgentLab
+task_id: task_0032_self_audit
+status: running
+risk_level: R1
+budget_mode: balanced
+route:
+- Supervisor
+- RepoScout
+- Researcher
+- InterfaceMapper
+- TesterAuditor
+- Verifier
+- Archivist
+current_agent: null
+current_stage: agent_completed
+percent_complete: 61
+last_event: Archivist completed.
+last_event_at: '2026-06-06T08:21:42.469770+00:00'
+last_checkpoint: null
+last_call_id: null
+provider_status:
+  current_provider: qwen
+  failed_provider: null
+  fallback_available: true
+  paused_for_provider: true
+agents:
+  Supervisor:
+    order: 1
+    status: completed
+    provider_key: deepseek
+    model: deepseek-v4-pro
+    started_at: '2026-06-06T08:05:45.783722+00:00'
+    completed_at: '2026-06-06T08:06:50.671356+00:00'
+    input_tokens: 21365
+    output_tokens: 2729
+    total_tokens: 24094
+    report_path: runs/task_0032_self_audit/01_supervisor_plan.md
+  RepoScout:
+    order: 2
+    status: paused
+    provider_key: qwen3
+    model: qwen3.7-max
+    started_at: '2026-06-06T08:06:52.151324+00:00'
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+  Researcher:
+    order: 3
+    status: completed
+    provider_key: qwen
+    model: qwen3.6-plus
+    started_at: '2026-06-06T08:08:50.005912+00:00'
+    completed_at: '2026-06-06T08:09:55.420627+00:00'
+    input_tokens: 19929
+    output_tokens: 3212
+    total_tokens: 23141
+    report_path: runs/task_0032_self_audit/03_research_notes.md
+  InterfaceMapper:
+    order: 4
+    status: completed
+    provider_key: qwen3
+    model: qwen3.7-max
+    started_at: '2026-06-06T08:09:56.709839+00:00'
+    completed_at: '2026-06-06T08:11:10.350944+00:00'
+    input_tokens: 19821
+    output_tokens: 3641
+    total_tokens: 23462
+    report_path: runs/task_0032_self_audit/04_interface_map.md
+  TesterAuditor:
+    order: 5
+    status: active
+    provider_key: qwen
+    model: qwen3.6-plus
+    started_at: '2026-06-06T08:15:26.785902+00:00'
+    completed_at: '2026-06-06T08:12:18.492183+00:00'
+    input_tokens: 20181
+    output_tokens: 3335
+    total_tokens: 23516
+    report_path: runs/task_0032_self_audit/08_audit_report.md
+  Verifier:
+    order: 6
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+  Archivist:
+    order: 7
+    status: completed
+    provider_key: qwen
+    model: qwen3.6-plus
+    started_at: '2026-06-06T08:20:19.423254+00:00'
+    completed_at: '2026-06-06T08:21:42.469693+00:00'
+    input_tokens: 21055
+    output_tokens: 4191
+    total_tokens: 25246
+    report_path: runs/task_0032_self_audit/09_archive_update.md
+incidents:
+  open_count: 0
+  latest: null
+backup:
+  p0_synced: false
+  last_backup_at: null

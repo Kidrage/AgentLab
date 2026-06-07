@@ -1,0 +1,61 @@
+version: 1
+generated_at: '2026-06-07T13:47:09.775029+00:00'
+project: AgentLab
+task_id: task_0034_repair_known_agentlab_issues
+status: blocked
+source_statuses:
+  state: blocked
+  progress: running
+  lifecycle: blocked
+drift:
+- 'status_mismatch: {''state'': ''blocked'', ''progress'': ''running'', ''lifecycle'':
+  ''blocked''}'
+route:
+- Supervisor
+- RepoScout
+- InterfaceMapper
+- Coder
+- TesterAuditor
+- Verifier
+- Archivist
+current_agent: Coder
+current_stage: agent_completed
+percent_complete: 63
+last_event: 'Blocked at CODER_IMPLEMENTATION: artifact gate failed'
+completed_agents:
+- Supervisor
+- RepoScout
+- InterfaceMapper
+- Coder
+reports:
+  Coder_artifact_gate: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0034_repair_known_agentlab_issues/blocked_Coder_artifact_gate.md
+lifecycle:
+  status: blocked
+  node_count: 14
+  completed_count: 5
+  skipped_count: 1
+  failed_count: 1
+  running_count: 0
+  waiting_count: 7
+  percent_complete: 42
+  next_node: CODER_IMPLEMENTATION
+  nodes:
+    INIT_TASK: completed
+    PREPARE_PLAN: completed
+    SUPERVISOR_PLAN: completed
+    REPO_CONTEXT: completed
+    RESEARCH_OPTIONAL: skipped
+    INTERFACE_OPTIONAL: completed
+    CODER_IMPLEMENTATION: failed
+    VALIDATION: waiting
+    AUDIT: waiting
+    VERIFY: waiting
+    ARCHIVE: waiting
+    SELF_CHECK: waiting
+    SYNC_OPTIONAL: waiting
+    FINALIZE: waiting
+paths:
+  state: state.yml
+  progress: progress.yml
+  lifecycle: lifecycle.yml
+  workflow_plan: workflow_plan.yml

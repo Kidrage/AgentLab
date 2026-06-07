@@ -1,7 +1,7 @@
 version: 1
 project: AgentLab
 task_id: task_0009
-generated_at: '2026-05-31T11:23:15.181336+00:00'
+generated_at: '2026-06-07T13:31:37.778010+00:00'
 artifacts:
 - kind: request
   agent: user
@@ -93,8 +93,21 @@ artifacts:
     - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
     always defines scope, token budge...'
   important: true
+- kind: snapshot
+  agent: system
+  path: task_snapshot.yml
+  status: present
+  title: Snapshot
+  summary: 'version: 1 generated_at: ''2026-06-07T13:31:37.772903+00:00'' project:
+    AgentLab task_id: task_0009 status: running source_statuses: state: running progress:
+    unknown lifecycle: unknown drift: [] route: - Supervisor - RepoScout - InterfaceMapper
+    - Coder - TesterAuditor - Archivist current_agent: null current_stage: null percent_complete:
+    0 last_event: Archivist completed report. completed_agents: - Supervisor - RepoScout
+    - InterfaceMapper - Coder - TesterAuditor - Archivist reports: Supervisor: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0009/supervisor_plan.md
+    RepoScout: /Us...'
+  important: true
 summary:
-  present: 2
+  present: 3
   missing: 10
   important_missing:
   - 01_supervisor_plan.md

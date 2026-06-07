@@ -1,0 +1,124 @@
+version: 1
+project: AgentLab
+task_id: task_0032_self_audit
+generated_at: '2026-06-07T13:31:39.899081+00:00'
+artifacts:
+- kind: request
+  agent: user
+  path: user_request.md
+  status: present
+  title: Request
+  summary: 检查AgentLab自身链路缺陷：全面检查agentlab自身链路（pipeline、state、artifact gate、memory写回、progress
+    tracking、llm provider模块导入）的闭环性和稳定性。对照本对话中的评估报告和BUG_REPORT.md，确认已修复的P0问题是否稳定，以及有无新的未闭环缺口。
+  important: true
+- kind: plan
+  agent: Supervisor
+  path: 01_supervisor_plan.md
+  status: present
+  title: Plan
+  summary: '- **Task id:** task_0032_self_audit - **User request:** 检查AgentLab自身链路缺陷：全面检查agentlab自身链路（pipeline、state、artifact
+    gate、memory写回、progress tracking、llm provider模块导入）的闭环性和稳定性。对照本对话中的评估报告和BUG_REPORT.md，确认已修复的P0问题是否稳定，以及有无新的未闭环缺口。
+    - **Assigned scope:** Comprehensive self-audit of AgentLab’s internal chain (pipeline,
+    state management, artifact gates, memory write-back, progress tracking, LLM provider
+    module imports). Cross-reference BUG_REPORT.md and prior evaluation reports to
+    verify that fixed P0 issues remain stable and to discover any new incomplete loops.'
+  important: true
+- kind: scout
+  agent: RepoScout
+  path: 02_reposcout_report.md
+  status: present
+  title: Scout
+  summary: TBD
+  important: false
+- kind: research
+  agent: Researcher
+  path: 03_research_notes.md
+  status: present
+  title: Research
+  summary: '```markdown'
+  important: false
+- kind: interface
+  agent: InterfaceMapper
+  path: 04_interface_map.md
+  status: present
+  title: Interface
+  summary: '```markdown'
+  important: false
+- kind: prompt
+  agent: CodexPromptGen
+  path: 05_codex_prompt.md
+  status: missing
+  title: Prompt
+  summary: ''
+  important: false
+- kind: implementation
+  agent: Coder
+  path: 06_implementation_report.md
+  status: present
+  title: Implementation
+  summary: TBD
+  important: true
+- kind: validation
+  agent: TesterAuditor
+  path: 07_validation_report.md
+  status: present
+  title: Validation
+  summary: '- Task id: task_0032_self_audit - User request: 检查AgentLab自身链路缺陷：全面检查agentlab自身链路（pipeline、state、artifact
+    gate、memory写回、progress tracking、llm provider模块导入）的闭环性和稳定性。对照本对话中的评估报告和BUG_REPORT.md，确认已修复的P0问题是否稳定，以及有无新的未闭环缺口。
+    - Assigned scope: Analysis-only L3 route (Coder skipped). Validate pipeline, state,
+    artifact gates, memory write-back, progress tracking, and LLM provider module
+    imports.'
+  important: true
+- kind: audit
+  agent: TesterAuditor
+  path: 08_audit_report.md
+  status: present
+  title: Audit
+  summary: TBD
+  important: true
+- kind: archive
+  agent: Archivist
+  path: 09_archive_update.md
+  status: present
+  title: Archive
+  summary: TBD
+  important: false
+- kind: handoff
+  agent: system
+  path: handoff_packet.yml
+  status: missing
+  title: Handoff
+  summary: ''
+  important: true
+- kind: plan
+  agent: system
+  path: workflow_plan.yml
+  status: present
+  title: Plan
+  summary: 'project: AgentLab task_id: task_0032_self_audit agentlab_root: /Users/saintpeter/Desktop/AgentLab
+    project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab repo_path:
+    /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit
+    user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit/user_request.md
+    execution_backend: codex budget_mode: balanced budget_profile: balanced_L3 project_size:
+    L3 risk_level: R1 route: task_size: large agents: - Supervisor - RepoScout - Researcher
+    - Inter...'
+  important: true
+- kind: snapshot
+  agent: system
+  path: task_snapshot.yml
+  status: present
+  title: Snapshot
+  summary: 'version: 1 generated_at: ''2026-06-07T13:31:39.893945+00:00'' project:
+    AgentLab task_id: task_0032_self_audit status: blocked source_statuses: state:
+    blocked progress: running lifecycle: blocked drift: - ''status_mismatch: {''''state'''':
+    ''''blocked'''', ''''progress'''': ''''running'''', ''''lifecycle'''': ''''blocked''''}''
+    route: - Supervisor - RepoScout - Researcher - InterfaceMapper - TesterAuditor
+    - Verifier - Archivist current_agent: Verifier current_stage: agent_completed
+    percent_complete: 61 last_event: Archivist requires user decision. completed_agents:
+    - Supervisor - Researcher - InterfaceMapper - Archivis...'
+  important: true
+summary:
+  present: 11
+  missing: 2
+  important_missing:
+  - handoff_packet.yml

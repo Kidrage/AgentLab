@@ -1,0 +1,57 @@
+version: 1
+generated_at: '2026-06-07T13:31:38.821582+00:00'
+project: AgentLab
+task_id: task_0025
+status: completed
+source_statuses:
+  state: running
+  progress: running
+  lifecycle: completed
+drift:
+- 'status_mismatch: {''state'': ''running'', ''progress'': ''running'', ''lifecycle'':
+  ''completed''}'
+route:
+- Supervisor
+- RepoScout
+- Researcher
+- InterfaceMapper
+- Coder
+- TesterAuditor
+- Verifier
+- Archivist
+current_agent: Verifier
+current_stage: verifying
+percent_complete: 100
+last_event: 'Running: VERIFY'
+completed_agents: []
+reports: {}
+lifecycle:
+  status: completed
+  node_count: 14
+  completed_count: 14
+  skipped_count: 0
+  failed_count: 0
+  running_count: 0
+  waiting_count: 0
+  percent_complete: 100
+  next_node: null
+  nodes:
+    INIT_TASK: completed
+    PREPARE_PLAN: completed
+    SUPERVISOR_PLAN: completed
+    REPO_CONTEXT: completed
+    RESEARCH_OPTIONAL: completed
+    INTERFACE_OPTIONAL: completed
+    CODER_IMPLEMENTATION: completed
+    VALIDATION: completed
+    AUDIT: completed
+    VERIFY: completed
+    ARCHIVE: completed
+    SELF_CHECK: completed
+    SYNC_OPTIONAL: completed
+    FINALIZE: completed
+paths:
+  state: state.yml
+  progress: progress.yml
+  lifecycle: lifecycle.yml
+  workflow_plan: workflow_plan.yml

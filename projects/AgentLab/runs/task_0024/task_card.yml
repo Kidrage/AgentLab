@@ -1,0 +1,39 @@
+version: 1
+project: AgentLab
+task_id: task_0024
+title: Attached Specification
+summary: 由 agentlab 来完成 Capability & Budget-Saving Evaluation 并出结果文档。
+status: unknown
+resume_state: unknown
+can_resume: false
+percent_complete: 0
+current_agent: null
+current_stage: null
+last_event: ''
+last_event_at: ''
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0024
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0024
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0024
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0024
+artifact_summary:
+  present: 2
+  missing: 11
+  important_missing:
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
+  - workflow_plan.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

@@ -1,0 +1,37 @@
+version: 1
+project: AgentLab
+task_id: task_0015_update-agentlab-readme-reflect-latest-features
+title: task_0015_update-agentlab-readme-reflect-latest-features
+summary: 'Update AgentLab README.md to reflect latest features including: task_snapshot.py,
+  memory_writer.py, streaming_stereo_spatializer project, AO-SpatialAuthoring-Modular
+  project docs, test_artifact_gate.py and test_task_closure.py. Also update the changelog
+  to add version 2.3 entries for these recent additions.'
+status: running
+resume_state: unknown
+can_resume: false
+percent_complete: 21
+current_agent: null
+current_stage: initialized
+last_event: Workflow plan prepared.
+last_event_at: '2026-06-06T07:58:19.239405+00:00'
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015_update-agentlab-readme-reflect-latest-features
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0015_update-agentlab-readme-reflect-latest-features
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0015_update-agentlab-readme-reflect-latest-features
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0015_update-agentlab-readme-reflect-latest-features
+artifact_summary:
+  present: 11
+  missing: 2
+  important_missing:
+  - handoff_packet.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

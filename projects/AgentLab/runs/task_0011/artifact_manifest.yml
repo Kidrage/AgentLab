@@ -1,7 +1,7 @@
 version: 1
 project: AgentLab
 task_id: task_0011
-generated_at: '2026-05-31T11:23:15.323706+00:00'
+generated_at: '2026-06-07T13:31:37.990825+00:00'
 artifacts:
 - kind: request
   agent: user
@@ -94,8 +94,22 @@ artifacts:
     - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
     always defines scope, token budge...'
   important: true
+- kind: snapshot
+  agent: system
+  path: task_snapshot.yml
+  status: present
+  title: Snapshot
+  summary: 'version: 1 generated_at: ''2026-06-07T13:31:37.986628+00:00'' project:
+    AgentLab task_id: task_0011 status: completed source_statuses: state: completed
+    progress: unknown lifecycle: unknown drift: - completed_agents_not_in_route route:
+    - Supervisor - RepoScout - InterfaceMapper - Coder - TesterAuditor - Archivist
+    current_agent: null current_stage: null percent_complete: 100 last_event: Coder
+    completed SCNet external-package rollback, universal build, bundling, and validation.
+    completed_agents: - Supervisor - RepoScout - Coder - Validator reports: Supervisor:
+    /Users/saintpeter/Desktop/AgentLab/p...'
+  important: true
 summary:
-  present: 2
+  present: 3
   missing: 10
   important_missing:
   - 01_supervisor_plan.md

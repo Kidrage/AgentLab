@@ -1,0 +1,742 @@
+project: AgentLab
+task_id: task_0033_codex_current_audit_perf
+agentlab_root: /Users/saintpeter/Desktop/AgentLab
+project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab
+repo_path: /Users/saintpeter/Desktop/AgentLab
+run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0033_codex_current_audit_perf
+user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0033_codex_current_audit_perf/user_request.md
+execution_backend: codex
+budget_mode: balanced
+budget_profile: balanced_L3
+project_size: L3
+risk_level: R1
+route:
+  task_size: large
+  agents:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  rationale:
+  - Supervisor always defines scope, token budget, and stop rules.
+  - Route selected by evaluation_task using smallest_safe_route rules.
+  - Analysis-only route selected; Coder is skipped because no source implementation
+    is requested.
+  - Research hints detected; include Researcher when route requires current or external
+    facts.
+  - Evaluation hints detected; use analysis-only L3 route and skip Coder by default.
+  - Interface hints detected; include InterfaceMapper for boundaries and contracts.
+  - Large or risky hints detected; include the full route.
+  skipped_agents:
+  - Coder
+  - PromptEngineer
+  route_key: evaluation_task
+token_budgets:
+- phase: Supervisor 规划与路由
+  estimated_input_tokens: 5000
+  estimated_output_tokens: 2500
+  estimated_total_tokens: 7500
+  warning_threshold_tokens: 6750
+  stop_threshold_tokens: 8625
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: RepoScout 深度仓库扫描
+  estimated_input_tokens: 12000
+  estimated_output_tokens: 2000
+  estimated_total_tokens: 14000
+  warning_threshold_tokens: 12600
+  stop_threshold_tokens: 16099
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: InterfaceMapper 接口契约分析
+  estimated_input_tokens: 8000
+  estimated_output_tokens: 2000
+  estimated_total_tokens: 10000
+  warning_threshold_tokens: 9000
+  stop_threshold_tokens: 11500
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: Researcher 资料收集
+  estimated_input_tokens: 6000
+  estimated_output_tokens: 1500
+  estimated_total_tokens: 7500
+  warning_threshold_tokens: 6750
+  stop_threshold_tokens: 8625
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: TesterAuditor 深度验证
+  estimated_input_tokens: 7000
+  estimated_output_tokens: 2000
+  estimated_total_tokens: 9000
+  warning_threshold_tokens: 8100
+  stop_threshold_tokens: 10350
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: Verifier 完整性验证
+  estimated_input_tokens: 5000
+  estimated_output_tokens: 1500
+  estimated_total_tokens: 6500
+  warning_threshold_tokens: 5850
+  stop_threshold_tokens: 7474
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+- phase: Archivist 完整记录
+  estimated_input_tokens: 4000
+  estimated_output_tokens: 1500
+  estimated_total_tokens: 5500
+  warning_threshold_tokens: 4950
+  stop_threshold_tokens: 6324
+  actual_tokens: null
+  variance_tokens: null
+  notes: ''
+included_agents:
+  Supervisor:
+    template_path: agent_templates/supervisor.md
+    role: '任务规划、路由决策、范围锁定、token 预算控制、项目体量判断 (L1/L2/L3)、 预算模式选择与执行、合成。
+
+      '
+    model_profile: brain_coordinator
+    model_tier: T1
+    profile_mapping:
+      brain_allocated:
+        L1: brain_coordinator_l1
+        L2: brain_coordinator
+        L3: brain_coordinator
+      max_quality:
+        any: brain_coordinator_maxq
+      frugal:
+        any: brain_coordinator_frugal
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: false
+    source_write_policy: never
+    required_inputs:
+    - project_config.yml
+    - agent_docs/00_CONTEXT_PACK.md
+    - agent_docs/01_REPO_MAP.md
+    - config/execution_policy.yml
+    - config/routing_rules.yml
+    - runs/task_xxxx/user_request.md
+    required_outputs:
+    - runs/task_xxxx/supervisor_plan.md
+    required_metadata:
+    - budget_mode
+    - project_size
+  RepoScout:
+    template_path: agent_templates/reposcout.md
+    role: 仓库结构阅读、代码上下文提取、依赖关系映射.
+    model_profile: perception_reposcout
+    model_tier: T2
+    profile_mapping:
+      brain_allocated:
+        L2: perception_reposcout
+        L3: perception_reposcout_l3
+      max_quality:
+        any: perception_reposcout_maxq
+      frugal:
+        any: perception_reposcout_frugal
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_outputs:
+    - runs/task_xxxx/reposcout_report.md
+  Researcher:
+    template_path: agent_templates/researcher.md
+    role: 外部资料搜索、引用汇总、信息合成.
+    model_profile: perception_research
+    model_tier: T2
+    profile_mapping:
+      brain_allocated:
+        L2: perception_research
+        L3: perception_research_l3
+      max_quality:
+        any: perception_research_maxq
+      frugal:
+        any: null
+    can_edit_source: false
+    can_run_shell: false
+    can_browse: true
+    source_write_policy: never
+    required_outputs:
+    - runs/task_xxxx/research_notes.md
+  InterfaceMapper:
+    template_path: agent_templates/interface_mapper.md
+    role: 接口契约分析、跨层边界追踪、架构敏感审查.
+    model_profile: perception_interface
+    model_tier: T2
+    profile_mapping:
+      brain_allocated:
+        L2: perception_interface
+        L3: perception_interface_l3
+      max_quality:
+        any: perception_interface_maxq
+      frugal:
+        any: perception_interface_frugal
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_outputs:
+    - runs/task_xxxx/interface_map.md
+  TesterAuditor:
+    template_path: agent_templates/tester_auditor.md
+    role: Diff 审查、验证解读、风险发现、行为校验.
+    model_profile: audit_tester
+    model_tier: T4
+    profile_mapping:
+      brain_allocated:
+        L1: audit_tester
+        L2: audit_tester
+        L3: audit_tester_l3
+      max_quality:
+        any: audit_tester_maxq
+      frugal:
+        any: audit_tester_frugal
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: validation_commands_only
+    required_outputs:
+    - runs/task_xxxx/validation_report.md
+    - runs/task_xxxx/audit_report.md
+  Verifier:
+    template_path: agent_templates/verifier.md
+    role: 输出匹配检查、行为完整性验证、agent 交接缺口检测.
+    model_profile: audit_verifier
+    model_tier: T4
+    profile_mapping:
+      brain_allocated:
+        L1: null
+        L2: audit_verifier
+        L3: audit_verifier_l3
+      max_quality:
+        any: audit_verifier_maxq
+      frugal:
+        any: null
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_inputs:
+    - runs/task_xxxx/supervisor_plan.md
+    - runs/task_xxxx/implementation_report.md
+    - runs/task_xxxx/audit_report.md
+    - runs/task_xxxx/interface_map.md
+    required_outputs:
+    - runs/task_xxxx/verification_report.md
+  Archivist:
+    template_path: agent_templates/archivist.md
+    role: '项目记忆压缩、连续性更新、长期记录维护 (per-task). 跨任务文档整合: 生成开发流程文档、使用指南、CHANGELOG、任务索引 (bulk
+      mode). 任务归档清理: 将旧任务移入 archive/ 目录.
+
+      '
+    model_profile: archive_archivist_plus
+    model_tier: T5
+    profile_mapping:
+      brain_allocated:
+        L1: null
+        L2: archive_archivist_plus
+        L3: archive_archivist_l3
+      max_quality:
+        any: archive_archivist_maxq
+      frugal:
+        any: archive_archivist_frugal
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: true
+    source_write_policy: never
+    shell_policy: read_only_inspection
+    required_inputs:
+    - runs/task_xxxx/supervisor_plan.md
+    - runs/task_xxxx/implementation_report.md
+    - runs/task_xxxx/validation_report.md
+    - runs/task_xxxx/audit_report.md
+    - project_config.yml (bulk mode)
+    required_outputs:
+    - runs/task_xxxx/archive_update.md
+    bulk_mode_outputs:
+    - runs/task_purge_report.yml
+    - docs/development_process.md
+    - docs/usage_guide.md
+    - docs/CHANGELOG.md
+    - docs/task_index.md
+model_profiles:
+  Supervisor:
+    profile: brain_coordinator
+    catalog_key: deepseek_v4_pro
+    catalog_provider: deepseek_official
+    provider: deepseek
+    model: deepseek-v4-pro
+    temperature: 0.2
+    top_p: 0.95
+    max_output_tokens: 8192
+    context_window: 1000000
+    tier: T1
+    source: model_catalog
+  RepoScout:
+    profile: perception_reposcout_l3
+    catalog_key: qwen3_7_max_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen3
+    model: qwen3.7-max
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T2
+    source: model_catalog
+  Researcher:
+    profile: perception_research_l3
+    catalog_key: qwen3_6_plus_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen
+    model: qwen3.6-plus
+    temperature: 0.2
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T2
+    source: model_catalog
+  InterfaceMapper:
+    profile: perception_interface_l3
+    catalog_key: qwen3_7_max_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen3
+    model: qwen3.7-max
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T2
+    source: model_catalog
+  TesterAuditor:
+    profile: audit_tester_l3
+    catalog_key: qwen3_6_plus_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen
+    model: qwen3.6-plus
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T4
+    source: model_catalog
+  Verifier:
+    profile: audit_verifier_l3
+    catalog_key: qwen3_6_plus_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen
+    model: qwen3.6-plus
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T4
+    source: model_catalog
+  Archivist:
+    profile: archive_archivist_l3
+    catalog_key: qwen3_6_plus_dashscope
+    catalog_provider: dashscope_cn
+    provider: qwen
+    model: qwen3.6-plus
+    temperature: 0.1
+    top_p: 0.95
+    max_output_tokens: 4096
+    context_window: 1000000
+    tier: T5
+    source: model_catalog
+validation_gates:
+- id: preflight_context
+  owner: Supervisor
+  required: true
+  description: Confirm project config, context pack, repo map, and user request were
+    read or marked missing.
+  evidence:
+  - supervisor_plan.md lists files read
+  - missing inputs are explicitly named
+- id: route_and_budget
+  owner: Supervisor
+  required: true
+  description: Publish selected route, skipped agents, token budget, warning threshold,
+    and stop threshold.
+  evidence:
+  - supervisor_plan.md route section
+  - supervisor_plan.md token budget table
+- id: harness_status
+  owner: Supervisor
+  required: true
+  description: Confirm AGENTS.md, harness_policy.yml, project memory, and task feedback
+    artifacts are present or explicitly marked pending.
+  evidence:
+  - harness-status output or equivalent summary in supervisor_plan.md
+  - stale or missing harness inputs listed before execution
+- id: scoped_edit_authorization
+  owner: Supervisor
+  required: true
+  description: Name editable files or explicitly keep the task in proposal-only mode.
+  evidence:
+  - approved editable files list
+  - source write policy
+- id: implementation_report
+  owner: Coder
+  required: true
+  description: Record changed files, exact commands, backend, and unresolved risks.
+  evidence:
+  - implementation_report.md
+- id: validation_evidence
+  owner: TesterAuditor
+  required: true
+  description: Record validation commands that were actually run and distinguish skipped
+    checks.
+  evidence:
+  - validation_report.md command log
+  - audit_report.md findings
+- id: feedback_promotion
+  owner: TesterAuditor
+  required: true
+  description: Flag repeated user corrections or audit findings that should become
+    config rules, validation gates, scripts, or AGENTS.md updates.
+  evidence:
+  - audit_report.md repeated-pattern notes
+  - proposed harness_policy.yml or validation_gates.yml update when needed
+memory_policy:
+  version: 1
+  storage:
+    mode: local_first
+    workspace_root: projects
+    project_root: projects/<ProjectName>
+    authoritative_task_state: runs/task_xxxx
+    authoritative_project_memory: agent_docs
+    server_sync: optional_future_phase
+    github_private_backup: planned_local_first_manual_sync
+    workspace_harness_map: AGENTS.md
+  records:
+    workspace_knowledge:
+    - AGENTS.md
+    - config/harness_policy.yml
+    - config/brain_governance.yml
+    - config/validation_gates.yml
+    task_state:
+    - user_request.md
+    - supervisor_plan.md
+    - reposcout_report.md
+    - implementation_report.md
+    - validation_report.md
+    - audit_report.md
+    - archive_update.md
+    - workflow_plan.yml
+    - cost_ledger.yml
+    - brain_decisions.yml
+    - USER_DECISION_REQUIRED.md
+    project_memory:
+    - 00_CONTEXT_PACK.md
+    - 01_REPO_MAP.md
+    - 02_TASK_LEDGER.yml
+    - 03_DECISION_LOG.md
+    - 04_INTERFACE_REGISTRY.md
+    - 05_CHANGELOG_AGENT.md
+    - 06_RISK_REGISTER.md
+    - 07_DEVELOPMENT_LOG.md
+    - 08_CODEX_DIALOGUE_LOG.md
+    - 09_COST_LEDGER.yml
+    - 10_SYNC_LEDGER.yml
+  drift_controls:
+  - Start every task from project memory and active task state, not chat history alone.
+  - Keep long context compressed into reports before passing it to later agents.
+  - Record assumptions and unresolved risks before implementation.
+  - Update project memory only from validated reports.
+  - Never claim a test, build, or manual verification passed without evidence.
+  - Trigger AgentLab only when the user explicitly asks to use AgentLab.
+  - Record every AgentLab team action in the project development log.
+  - Record Codex Coder dialogue summaries and implementation actions in the dialogue
+    log.
+  - Record DeepSeek token usage when available and Codex Plus execution as manual/unavailable
+    for exact billing.
+  - Require a brain traversal request before any full-directory or full-repository
+    scan.
+  - Stop and replan when repeated loops or task-goal drift are detected.
+  - Treat AGENTS.md as a map into local memory and config, not a full duplicate of
+    policy.
+  - Promote repeated user feedback or audit findings into harness_policy, validation
+    gates, scripts, or concise project memory.
+  - Run harness-status before relying on stale project memory for planning.
+execution_policy:
+  schema_version: 3
+  budget_mode_policy:
+    default_budget_mode: balanced
+    available_modes:
+    - frugal
+    - balanced
+    - max_quality
+    selection_methods:
+    - cli_flag: --budget {frugal|balanced|max-quality}
+    - env_var: AGENTLAB_BUDGET_MODE
+    - user_request_md_keyword: 'budget_mode:'
+    - default: balanced
+    mode_philosophy:
+      frugal:
+        goal: 最低成本跑通
+        allow_sacrifice:
+        - 推理深度
+        - 审查覆盖率
+        - 模型强度
+        forbid_sacrifice:
+        - 高风险任务的测试/确认门禁
+        auto_upgrade_on:
+        - R2
+        - R3
+        auto_upgrade_to: balanced
+      balanced:
+        goal: 质量/成本平衡
+        allow_sacrifice:
+        - 不必要的全量上下文扫描
+        forbid_sacrifice:
+        - 核心接口理解
+        - 测试闭环
+        auto_upgrade_on:
+        - R3
+        auto_upgrade_to: max_quality
+      max_quality:
+        goal: 关键任务高可靠
+        allow_sacrifice:
+        - 成本
+        - 速度
+        forbid_sacrifice:
+        - 事实校验
+        - 双模型复核
+        - 回滚计划
+  execution_policy:
+    execution_tier: T3
+    coder_agent: Coder
+    allowed_output_modes:
+    - patch_plan
+    - diff
+    - implementation_notes
+    default_api_coder:
+      model: qwen3-coder-next
+      provider: qwen-coder
+      catalog_provider: dashscope_cn
+      profile_ref: qwen3_coder_next_dashscope
+      max_output_tokens: 4096
+      temperature: 0.1
+    external_ide_window:
+      enabled: false
+      activation_signal:
+        env_var: AGENTLAB_EXTERNAL_CODER
+        signal_file: EXTERNAL_CODER_READY
+        cli_flag: --executor external_ide
+      allowed_for_budgets:
+      - balanced
+      - max_quality
+      handoff_protocol: 'AgentLab 大脑层完成所有规划/感知工作后, 生成完整 handoff prompt，包含 scope +
+        repo context + interface 契约。 外部 AI 只需执行编码，无需自行规划。 外部 AI 可自由选择实现方式/代码风格/算法/库,
+        但必须遵守 Supervisor 批准的 scope 和 interface 契约。
+
+        '
+      handoff_files:
+      - supervisor_plan.md
+      - reposcout_report.md
+      - interface_map.md
+      - research_notes.md
+      handoff_output: implementation_report.md
+    require_context_before_coding: true
+    forbid_monolithic_patch_for:
+    - S2
+    - S3
+    - S4
+    api_coder_outputs:
+    - implementation_report.md
+    - patch_proposal.diff
+    - files_to_change.yml
+    patch_application_policy: patch_proposal_first
+  brain_policy:
+    brain_tier: T1
+    brain_agent: Supervisor
+    decision_axes:
+    - Size
+    - Risk
+    - Budget
+    required_output_metadata:
+    - budget_mode
+    - project_size
+    - risk_level
+    - model_used
+    - provider
+    - token_usage
+    - fallback_or_block_reason
+    R2_required_output: risk_checklist
+    R3_required_outputs:
+    - risk_checklist
+    - rollback_plan
+    - failure_modes
+  perception_policy:
+    perception_tier: T2
+    perception_agents:
+    - RepoScout
+    - InterfaceMapper
+    - Researcher
+    require_context_before_coding: true
+    R2_extra:
+      RepoScout: must_output_related_file_list
+      InterfaceMapper: must_list_interface_contracts
+  audit_policy:
+    audit_tier: T4
+    audit_agents:
+    - TesterAuditor
+    - Verifier
+    cross_family_review: '与 Coder 使用不同模型家族。 Coder 用 Qwen → 审查用 DeepSeek； Coder 用 DeepSeek
+      → 审查用 Qwen； Coder 用外部 IDE AI → 审查层至少用一个独立 API 模型。
+
+      '
+    R2_required: independent_model_review
+    R3_required: dual_model_review
+    tester_auditor_forbidden: '不只做格式化检查。必须设计测试、解释执行结果、审查回归风险。
+
+      '
+  archive_policy:
+    archive_tier: T5
+    archive_agent: Archivist
+    required_outputs:
+    - changelog
+    - decisions.md
+    - known_risks.md
+    R2_extra: must_record_rollback_point
+    R3_extra: must_record_full_risk_context
+  cache_policy:
+    explicit_management: true
+    requires:
+    - repo_context_hash
+    - prompt_prefix_hash
+    - provider_cache_id
+    notes: '缓存不跨 provider。同一 provider 内，通过统一 repo_context_block 作为固定 prefix 注入，后续
+      Agent 复用同一 prefix/context id。 不假定跨 Agent 自动 cache hit。
+
+      '
+  logging_policy:
+    record_per_call:
+    - agent
+    - model
+    - provider
+    - input_tokens
+    - cache_hit_tokens
+    - output_tokens
+    - estimated_cost
+    record_per_run:
+    - budget_mode
+    - project_size
+    - risk_level
+    - total_estimated_cost
+    - human_confirmation_required
+    - rollback_point
+harness_policy:
+  version: 1
+  owner: Supervisor
+  provider: deepseek
+  source_strategy: https://openai.com/zh-Hans-CN/index/harness-engineering/
+  principles:
+  - Treat harness files as a navigation map, not a duplicate manual.
+  - Keep repo-local knowledge as the system of record; chat memory is advisory only.
+  - Promote repeated human feedback, audit findings, or recurring mistakes into rules,
+    gates, or scripts.
+  - Prefer small mechanical checks over repeated model judgment when the pattern is
+    stable.
+  - Keep every task legible through plans, reports, command evidence, and memory updates.
+  - Garbage-collect stale or contradictory guidance before it becomes hidden policy
+    debt.
+  map_governance:
+    root_map: AGENTS.md
+    max_root_map_lines: 120
+    required_root_maps:
+    - AGENTS.md
+    - README.md
+    - OPERATING_MODEL.md
+    - DRIVER_PROTOCOL.md
+    - config/README.md
+    required_project_maps:
+    - project_config.yml
+    - agent_docs/00_CONTEXT_PACK.md
+    - agent_docs/01_REPO_MAP.md
+    - agent_docs/02_TASK_LEDGER.yml
+    - agent_docs/03_DECISION_LOG.md
+    - agent_docs/04_INTERFACE_REGISTRY.md
+    - agent_docs/06_RISK_REGISTER.md
+    - agent_docs/10_SYNC_LEDGER.yml
+  freshness:
+    warn_after_days:
+      agent_docs/00_CONTEXT_PACK.md: 30
+      agent_docs/01_REPO_MAP.md: 14
+      agent_docs/04_INTERFACE_REGISTRY.md: 30
+      agent_docs/06_RISK_REGISTER.md: 30
+  feedback_loop:
+    required_task_artifacts:
+    - workflow_plan.yml
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - brain_decisions.yml
+    - cost_ledger.yml
+    durable_feedback_channels:
+    - agent_docs/03_DECISION_LOG.md
+    - agent_docs/05_CHANGELOG_AGENT.md
+    - agent_docs/06_RISK_REGISTER.md
+    - agent_docs/07_DEVELOPMENT_LOG.md
+    - agent_docs/08_CODEX_DIALOGUE_LOG.md
+    - agent_docs/09_COST_LEDGER.yml
+    promote_to_rule_when:
+      repeated_feedback_count: 2
+      repeated_audit_finding_count: 2
+      repeated_user_correction_count: 2
+    coder_reentry_rule: high_or_medium_audit_findings_reinvoke_coder
+  mechanical_enforcement:
+    prefer_existing_checks:
+    - python3 -B -m py_compile
+    - rg
+    - curl -s local_api
+    gate_candidates:
+    - repeated UI label ambiguity
+    - repeated project/task scope confusion
+    - repeated missing validation evidence
+    - repeated stale repo map
+    - repeated unrecorded Coder action
+  observability:
+    cli_status_commands:
+    - brain-status
+    - harness-status
+    - policy-status
+    status_outputs:
+    - token_budget_state
+    - harness_map_health
+    - feedback_artifact_health
+    - required_user_decision
+    - stale_project_memory
+  garbage_collection:
+    review_cadence: after_medium_or_large_task
+    actions:
+    - remove duplicated instructions from long docs and point back to AGENTS.md or
+      config files
+    - mark stale project memory before relying on it
+    - archive obsolete blocked tasks instead of carrying hidden ambiguity
+    - convert repeated manual reminders into validation gates
+harness_status: {}
+missing_inputs: []
+aider_plan: null
+notes:
+- 'Plan only: no model calls, source edits, dependency installs, or validation commands
+  were run.'
+- Use this plan as the visible contract before starting agent execution.
+- Project config loaded.

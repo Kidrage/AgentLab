@@ -1,0 +1,68 @@
+version: 1
+generated_at: '2026-06-07T13:31:39.191650+00:00'
+project: AgentLab
+task_id: task_0028_agentlab-performance-eval
+status: completed
+source_statuses:
+  state: completed
+  progress: completed
+  lifecycle: completed
+drift: []
+route:
+- Supervisor
+- RepoScout
+- Researcher
+- InterfaceMapper
+- TesterAuditor
+- Verifier
+- Archivist
+current_agent: null
+current_stage: completed
+percent_complete: 100
+last_event: Performance evaluation completed.
+completed_agents:
+- Supervisor
+- RepoScout
+- Researcher
+- InterfaceMapper
+- TesterAuditor
+- Verifier
+- Archivist
+reports:
+  Supervisor: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval/01_supervisor_plan.md
+  RepoScout: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval/02_reposcout_report.md
+  Researcher: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval/03_research_notes.md
+  InterfaceMapper: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval/04_interface_map.md
+  TesterAuditor: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval/08_audit_report.md
+  Verifier: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval/verification_report.md
+  Archivist: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval/09_archive_update.md
+lifecycle:
+  status: completed
+  node_count: 14
+  completed_count: 13
+  skipped_count: 1
+  failed_count: 0
+  running_count: 0
+  waiting_count: 0
+  percent_complete: 100
+  next_node: null
+  nodes:
+    INIT_TASK: completed
+    PREPARE_PLAN: completed
+    SUPERVISOR_PLAN: completed
+    REPO_CONTEXT: completed
+    RESEARCH_OPTIONAL: completed
+    INTERFACE_OPTIONAL: completed
+    CODER_IMPLEMENTATION: skipped
+    VALIDATION: completed
+    AUDIT: completed
+    VERIFY: completed
+    ARCHIVE: completed
+    SELF_CHECK: completed
+    SYNC_OPTIONAL: completed
+    FINALIZE: completed
+paths:
+  state: state.yml
+  progress: progress.yml
+  lifecycle: lifecycle.yml
+  workflow_plan: workflow_plan.yml

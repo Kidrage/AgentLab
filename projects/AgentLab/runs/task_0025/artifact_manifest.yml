@@ -1,7 +1,115 @@
 version: 1
+project: AgentLab
 task_id: task_0025
-valid: true
-pass_rate: 1.0
-artifacts_checked: 19
-artifacts_passed: 19
-issues: []
+generated_at: '2026-06-07T13:31:38.828439+00:00'
+artifacts:
+- kind: request
+  agent: user
+  path: user_request.md
+  status: present
+  title: Request
+  summary: Fix AgentLab lifecycle closure and artifact completeness. Raise overall
+    evaluation from 65% to ≥85%.
+  important: true
+- kind: plan
+  agent: Supervisor
+  path: 01_supervisor_plan.md
+  status: present
+  title: Plan
+  summary: Fake evaluation task for lifecycle testing.
+  important: true
+- kind: scout
+  agent: RepoScout
+  path: 02_reposcout_report.md
+  status: present
+  title: Scout
+  summary: '| Path | Purpose | |---|---| | agent_runtime/ | Core runtime |'
+  important: false
+- kind: research
+  agent: Researcher
+  path: 03_research_notes.md
+  status: present
+  title: Research
+  summary: 'Status: skipped Reason: Route does not require external research.'
+  important: false
+- kind: interface
+  agent: InterfaceMapper
+  path: 04_interface_map.md
+  status: present
+  title: Interface
+  summary: 'Status: skipped Reason: No interfaces affected by this task.'
+  important: false
+- kind: prompt
+  agent: CodexPromptGen
+  path: 05_codex_prompt.md
+  status: missing
+  title: Prompt
+  summary: ''
+  important: false
+- kind: implementation
+  agent: Coder
+  path: 06_implementation_report.md
+  status: present
+  title: Implementation
+  summary: Dry-run (fake provider)
+  important: true
+- kind: validation
+  agent: TesterAuditor
+  path: 07_validation_report.md
+  status: present
+  title: Validation
+  summary: '- YAML parse: ✅ pass - Python compile: ✅ pass'
+  important: true
+- kind: audit
+  agent: TesterAuditor
+  path: 08_audit_report.md
+  status: present
+  title: Audit
+  summary: '- YAML parse: ✅ pass - Python compile: ✅ pass'
+  important: true
+- kind: archive
+  agent: Archivist
+  path: 09_archive_update.md
+  status: present
+  title: Archive
+  summary: '- task_id: dry-run test - execution_mode: fake_provider'
+  important: false
+- kind: handoff
+  agent: system
+  path: handoff_packet.yml
+  status: missing
+  title: Handoff
+  summary: ''
+  important: true
+- kind: plan
+  agent: system
+  path: workflow_plan.yml
+  status: present
+  title: Plan
+  summary: 'project: AgentLab task_id: task_0025 agentlab_root: /Users/saintpeter/Desktop/AgentLab
+    project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab repo_path:
+    /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0025
+    user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0025/user_request.md
+    execution_backend: codex route: task_size: large agents: - Supervisor - RepoScout
+    - Researcher - InterfaceMapper - Coder - TesterAuditor - Verifier - Archivist
+    rationale: - Supervisor always defines scope, token budge...'
+  important: true
+- kind: snapshot
+  agent: system
+  path: task_snapshot.yml
+  status: present
+  title: Snapshot
+  summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.821582+00:00'' project:
+    AgentLab task_id: task_0025 status: completed source_statuses: state: running
+    progress: running lifecycle: completed drift: - ''status_mismatch: {''''state'''':
+    ''''running'''', ''''progress'''': ''''running'''', ''''lifecycle'''': ''''completed''''}''
+    route: - Supervisor - RepoScout - Researcher - InterfaceMapper - Coder - TesterAuditor
+    - Verifier - Archivist current_agent: Verifier current_stage: verifying percent_complete:
+    100 last_event: ''Running: VERIFY'' completed_agents: [] reports: {} lifecycle:
+    status: completed node_count: 14 completed_cou...'
+  important: true
+summary:
+  present: 11
+  missing: 2
+  important_missing:
+  - handoff_packet.yml

@@ -1,0 +1,110 @@
+version: 1
+project: AgentLab
+task_id: task_0034_repair_known_agentlab_issues
+status: running
+risk_level: R2
+budget_mode: balanced
+route:
+- Supervisor
+- RepoScout
+- InterfaceMapper
+- Coder
+- TesterAuditor
+- Verifier
+- Archivist
+current_agent: null
+current_stage: agent_completed
+percent_complete: 63
+last_event: Coder completed.
+last_event_at: '2026-06-07T13:47:09.466070+00:00'
+last_checkpoint: null
+last_call_id: null
+provider_status:
+  current_provider: qwen-coder
+  failed_provider: null
+  fallback_available: true
+  paused_for_provider: false
+agents:
+  Supervisor:
+    order: 1
+    status: completed
+    provider_key: deepseek
+    model: deepseek-v4-pro
+    started_at: '2026-06-07T13:43:34.133987+00:00'
+    completed_at: '2026-06-07T13:45:06.783939+00:00'
+    input_tokens: 22982
+    output_tokens: 4372
+    total_tokens: 27354
+    report_path: runs/task_0034_repair_known_agentlab_issues/01_supervisor_plan.md
+  RepoScout:
+    order: 2
+    status: completed
+    provider_key: qwen
+    model: qwen3.6-plus
+    started_at: '2026-06-07T13:45:08.146495+00:00'
+    completed_at: '2026-06-07T13:45:19.809303+00:00'
+    input_tokens: 21618
+    output_tokens: 478
+    total_tokens: 22096
+    report_path: runs/task_0034_repair_known_agentlab_issues/02_reposcout_report.md
+  InterfaceMapper:
+    order: 3
+    status: completed
+    provider_key: qwen
+    model: qwen3.6-plus
+    started_at: '2026-06-07T13:45:21.132777+00:00'
+    completed_at: '2026-06-07T13:47:01.378233+00:00'
+    input_tokens: 21614
+    output_tokens: 5465
+    total_tokens: 27079
+    report_path: runs/task_0034_repair_known_agentlab_issues/04_interface_map.md
+  Coder:
+    order: 4
+    status: completed
+    provider_key: qwen-coder
+    model: qwen3-coder-next
+    started_at: '2026-06-07T13:47:03.309921+00:00'
+    completed_at: '2026-06-07T13:47:09.466038+00:00'
+    input_tokens: 22459
+    output_tokens: 749
+    total_tokens: 23208
+    report_path: runs/task_0034_repair_known_agentlab_issues/06_implementation_report.md
+  TesterAuditor:
+    order: 5
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+  Verifier:
+    order: 6
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+  Archivist:
+    order: 7
+    status: waiting
+    provider_key: null
+    model: null
+    started_at: null
+    completed_at: null
+    input_tokens: 0
+    output_tokens: 0
+    total_tokens: 0
+    report_path: null
+incidents:
+  open_count: 0
+  latest: null
+backup:
+  p0_synced: false
+  last_backup_at: null

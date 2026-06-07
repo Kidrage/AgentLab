@@ -1,40 +1,717 @@
-# AgentLab 项目任务台账
-# 层级：项目 (Project) → 任务 (Task) → 子任务 (Subtask)
-
 version: 1
 project: AgentLab
 description: AgentLab 多智能体工作流平台搭建
-
 tasks:
-  - task_id: task_0009
-    title: Web UI 完善 & 视觉重构
-    description: 完善 AgentLab Web UI 并完成桌面 App 封装
+- task_id: task_0009
+  title: 自然语言任务描述
+  description: 完善 AgentLab Web UI 并完成桌面 App 封装：
+  status: running
+  priority: P0
+  category: feature
+  depends_on: []
+  subtasks:
+  - id: sub_001
+    description: Patch Applicator — LLM API 直接编辑文件能力
+    status: complete
+    created_at: 2026-05-30
+  - id: sub_002
+    description: Web UI 实时任务详情面板
+    status: complete
+    created_at: 2026-05-30
+  - id: sub_003
+    description: 大脑层模型分层 (v4-pro + v4-flash)
+    status: complete
+    created_at: 2026-05-30
+  - id: sub_004
+    description: Linear x Raycast 视觉重构 — 暗色优先、毛玻璃
+    status: complete
+    created_at: 2026-05-30
+  - id: sub_005
+    description: 侧拉设置面板 + API Key 配置
+    status: complete
+    created_at: 2026-05-30
+  - id: sub_006
+    description: 项目-任务-子任务层级体系 + 聊天窗口上下文
     status: active
-    priority: P0
-    category: feature
-    depends_on: []
-    subtasks:
-      - id: sub_001
-        description: Patch Applicator — LLM API 直接编辑文件能力
-        status: complete
-        created_at: 2026-05-30
-      - id: sub_002
-        description: Web UI 实时任务详情面板
-        status: complete
-        created_at: 2026-05-30
-      - id: sub_003
-        description: 大脑层模型分层 (v4-pro + v4-flash)
-        status: complete
-        created_at: 2026-05-30
-      - id: sub_004
-        description: Linear x Raycast 视觉重构 — 暗色优先、毛玻璃
-        status: complete
-        created_at: 2026-05-30
-      - id: sub_005
-        description: 侧拉设置面板 + API Key 配置
-        status: complete
-        created_at: 2026-05-30
-      - id: sub_006
-        description: 项目-任务-子任务层级体系 + 聊天窗口上下文
-        status: active
-        created_at: 2026-05-30
+    created_at: 2026-05-30
+  created_at: ''
+  updated_at: '2026-05-30T08:31:11.860917+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0009
+  can_resume: false
+  artifact_summary:
+    present: 3
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+- task_id: task_0010
+  title: 任务：UrbanSound8K 城市声音事件分类模型原型（极简验证版）
+  description: 一个 .zip 包含 Jupyter Notebook 文件 .ipynb 和数据集来源说明
+  status: running
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-05-30T11:02:32.329903+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0010
+  can_resume: false
+  artifact_summary:
+    present: 3
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+- task_id: task_0011
+  title: 自然语言任务描述
+  description: 调查 AgentLab 在云端部署的可行性。AgentLab 目前是一个本地优先的 CLI + Web UI 工具， 需要分析是否可以在云服务器上运行（如
+    AWS、阿里云、VPS 等），以及智能体架构是否需要适配。
+  status: completed
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-02T00:00:00+08:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0011
+  can_resume: false
+  artifact_summary:
+    present: 3
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+- task_id: task_0012
+  title: task_0012
+  description: '调查 AgentLab 云端部署可行性：1) AgentLab 能否在云端运行？2) 这种多智能体架构是否有云端部署的可能性？请分析当前架构中与云端部署相关的设计（如
+    web_ui server 绑定 0.0.0.0、GitHub backup、project_config 中的 cloud runner: github_actions_workflow_dispatch），并给出修改方针，使
+    AgentLab 具备真正的云端部署能力。'
+  status: running
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-05-30T13:47:20.617949+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0012
+  can_resume: false
+  artifact_summary:
+    present: 3
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+- task_id: task_0013
+  title: task_0013
+  description: 为 AgentLab 设计 TrueNAS 存储后端接入方案：用户自建了一个 TrueNAS 仓库，希望 AgentLab 使用它来存放
+    1) 项目记忆文件（agent_docs/*.md, agent_docs/*.yml 等持久化记忆）；2) 项目代码库（repo 目录下的源代码）。请设计：TrueNAS
+    上如何组织目录结构、AgentLab 需要新增哪些配置和代码组件、如何安全获取和管理 TrueNAS 访问权限（认证方式选择、凭证存储、权限最小化原则）、如何与现有本地优先架构共存（本地优先，TrueNAS
+    作为可选远程后端）。注意 TrueNAS 支持 NFS/SMB/iSCSI/WebDAV/S3(MinIO) 等多种协议，需要评估并推荐最适合 AgentLab
+    场景的协议。
+  status: running
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-05-30T13:54:25.185024+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0013
+  can_resume: false
+  artifact_summary:
+    present: 3
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+- task_id: task_0014
+  title: Task 0014 — LangGraph 开源调研 & AgentLab 整合评估
+  description: 调研 LangGraph 的开源信息（GitHub star数、架构、版本、依赖、核心概念）， 评估与 AgentLab 骨架的整合难度，并判断这个工程更适合
+    DeepSeek（Cline）还是 Codex 执行。
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0014
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0015
+  title: Task 0015 — LangGraph 骨架替换 MVP 实施
+  description: 基于 task_0014 调研结论，将 AgentLab 的 agent 流水线骨架迁移到 LangGraph StateGraph，同时保持文件系统报告输出（影子模式兼容）。
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0015_update-agentlab-readme-reflect-latest-features
+  title: task_0015_update-agentlab-readme-reflect-latest-features
+  description: 'Update AgentLab README.md to reflect latest features including: task_snapshot.py,
+    memory_writer.py, streaming_stereo_spatializer project, AO-SpatialAuthoring-Modular
+    project docs, test_artifact_gate.py and test_task_closure.py. Also update the
+    changelog to add version 2.3 entries for these recent additions.'
+  status: running
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-06T07:58:19.239405+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015_update-agentlab-readme-reflect-latest-features
+  can_resume: false
+  artifact_summary:
+    present: 11
+    missing: 2
+    important_missing:
+    - handoff_packet.yml
+- task_id: task_0016
+  title: task_0016
+  description: ''
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0016
+  can_resume: false
+  artifact_summary:
+    present: 1
+    missing: 12
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0017
+  title: task_0017
+  description: '**请求**: AgentLab 的大脑层模型选择紊乱，需要系统规划每个 agent 的模型分配。'
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0017
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0018
+  title: Task 0018 — LangGraph 整合验证 & 工程分工终判
+  description: 继承 task_0014 的调研结论，验证已有 LangGraph MVP 实现（`langgraph_schema.py` + `langgraph_workflow.py`），
+    确认代码质量、概念映射正确性，并最终判定后续实施阶段的分工方案。
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0018
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0019_guard-resilience
+  title: AgentLab Resilience & Knowledge Guard v1.0
+  description: '---'
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0019_guard-resilience
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0020_provider-failover
+  title: AgentLab Provider Failover + Resume + Progress UI Guard Spec
+  description: '---'
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0020_provider-failover
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0021_terminal-chat-self-check
+  title: AgentLab Terminal Chat + Rule Self-Check + GitHub Auto-Sync Implementation
+    Spec
+  description: 'Version: v1.0 Date: 2026-05-31 Target repository: `Kidrage/AgentLab`
+    Purpose: Make AgentLab usable directly from Terminal without depending on an external
+    IDE chat window; add a rule-based local self-check gate; automatically commit
+    and push safe local changes to GitHub after successful modification.'
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0021_terminal-chat-self-check
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0022
+  title: Attached Specification
+  description: 让 agentlab 来执行 AgentLab Codex Full-Driver 操作链规范。
+  status: completed
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0022
+  can_resume: false
+  artifact_summary:
+    present: 13
+    missing: 0
+    important_missing: []
+- task_id: task_0023
+  title: Attached Specification
+  description: 由 AgentLab 来添加 Task Discovery & Resume Index 功能。
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0023
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0024
+  title: Attached Specification
+  description: 由 agentlab 来完成 Capability & Budget-Saving Evaluation 并出结果文档。
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0024
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0025
+  title: Problem
+  description: Fix AgentLab lifecycle closure and artifact completeness. Raise overall
+    evaluation from 65% to ≥85%.
+  status: completed
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-01T02:41:20.241572+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0025
+  can_resume: false
+  artifact_summary:
+    present: 11
+    missing: 2
+    important_missing:
+    - handoff_packet.yml
+- task_id: task_0026_openclaw-agentlab-bridge
+  title: task_0026_openclaw-agentlab-bridge
+  description: 'Configure Aliyun OpenClaw application server integration with AgentLab:
+    SSH stage-0 diagnosis for 47.93.55.2, local OpenClaw-to-AgentLab bridge, task
+    registry, and TrueNAS backup templates without storing API keys.'
+  status: planned
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-01T02:46:43.164161+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0026_openclaw-agentlab-bridge
+  can_resume: false
+  artifact_summary:
+    present: 3
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+- task_id: task_0027_agentlab_comprehensive_evaluation
+  title: AgentLab 全面评估任务
+  description: 系统性地评估 AgentLab 项目的以下维度，并与 DeepSeek V4 Pro（作为行业标准）进行对比分析： 1. 设计逻辑闭环完整性
+    2. 任务分级机制完善度 3. 记忆系统完善度 4. 与 DeepSeek V4 Pro 在结果/预算/记忆留存/长文本记录与唤醒上的多维度对比 5. 优化方向与建议
+  status: unknown
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0027_agentlab_comprehensive_evaluation
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_0028_agentlab-performance-eval
+  title: task_0028_agentlab-performance-eval
+  description: Run an auditable local performance evaluation of AgentLab. Measure
+    routing, model-profile selection, lifecycle behavior, artifact completeness, and
+    baseline command latency without model API calls.
+  status: completed
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-01T08:20:55.398276+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval
+  can_resume: false
+  artifact_summary:
+    present: 10
+    missing: 3
+    important_missing:
+    - 06_implementation_report.md
+    - handoff_packet.yml
+- task_id: task_0029_model-routing-eval
+  title: task_0029_model-routing-eval
+  description: Run an auditable local performance evaluation of AgentLab. Measure
+    routing, model-profile selection, lifecycle behavior, artifact completeness, and
+    baseline command latency without model API calls.
+  status: completed
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-02T04:15:33.276777+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval
+  can_resume: false
+  artifact_summary:
+    present: 10
+    missing: 3
+    important_missing:
+    - 06_implementation_report.md
+    - handoff_packet.yml
+- task_id: task_0030_chain-budget-audit
+  title: task_0030_chain-budget-audit
+  description: ''
+  status: planned
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-02T10:42:45.310184+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0030_chain-budget-audit
+  can_resume: false
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+- task_id: task_0031_p0_abc_closure_eval
+  title: task_0031_p0_abc_closure_eval
+  description: 'P0 ABC closure validation dry run: verify canonical task snapshot,
+    artifact finalize order, and runs-to-ledger synchronization.'
+  status: completed
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-05T07:00:08.372604+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0031_p0_abc_closure_eval
+  can_resume: false
+  artifact_summary:
+    present: 11
+    missing: 2
+    important_missing:
+    - handoff_packet.yml
+- task_id: task_0032_self_audit
+  title: task_0032_self_audit
+  description: 检查AgentLab自身链路缺陷：全面检查agentlab自身链路（pipeline、state、artifact gate、memory写回、progress
+    tracking、llm provider模块导入）的闭环性和稳定性。对照本对话中的评估报告和BUG_REPORT.md，确认已修复的P0问题是否稳定，以及有无新的未闭环缺口。
+  status: blocked
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-06T08:21:43.094134+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit
+  can_resume: true
+  artifact_summary:
+    present: 11
+    missing: 2
+    important_missing:
+    - handoff_packet.yml
+- task_id: task_0033_codex_current_audit_perf
+  title: task_0033_codex_current_audit_perf
+  description: Run an auditable local performance evaluation of AgentLab. Measure
+    routing, model-profile selection, lifecycle behavior, artifact completeness, and
+    baseline command latency without model API calls.
+  status: completed
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-07T13:29:38.276354+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0033_codex_current_audit_perf
+  can_resume: false
+  artifact_summary:
+    present: 10
+    missing: 3
+    important_missing:
+    - 06_implementation_report.md
+    - handoff_packet.yml
+- task_id: task_0999
+  title: task_0999
+  description: Test full lifecycle closure.
+  status: running
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-05-31T14:10:56.343628+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0999
+  can_resume: false
+  artifact_summary:
+    present: 3
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+- task_id: task_9999_demo-closure-test
+  title: task_9999_demo-closure-test
+  description: Demo closure test
+  status: completed
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-06-01T04:33:19.444864+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_9999_demo-closure-test
+  can_resume: false
+  artifact_summary:
+    present: 11
+    missing: 2
+    important_missing:
+    - handoff_packet.yml
+- task_id: task_eval_eval_l1_cli_help_fix
+  title: task_eval_eval_l1_cli_help_fix
+  description: ''
+  status: running
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_eval_eval_l1_cli_help_fix
+  can_resume: false
+  artifact_summary:
+    present: 1
+    missing: 12
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_eval_eval_l1_doc_update
+  title: task_eval_eval_l1_doc_update
+  description: ''
+  status: running
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_eval_eval_l1_doc_update
+  can_resume: false
+  artifact_summary:
+    present: 1
+    missing: 12
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_eval_eval_l2_task_index_feature
+  title: task_eval_eval_l2_task_index_feature
+  description: ''
+  status: running
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: ''
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_eval_eval_l2_task_index_feature
+  can_resume: false
+  artifact_summary:
+    present: 1
+    missing: 12
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+- task_id: task_eval_provider_failover
+  title: task_eval_provider_failover
+  description: ''
+  status: running
+  priority: P2
+  category: ''
+  depends_on: []
+  subtasks: []
+  created_at: ''
+  updated_at: '2026-05-31T11:31:56.688530+00:00'
+  source_run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_eval_provider_failover
+  can_resume: true
+  artifact_summary:
+    present: 1
+    missing: 12
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+generated_from_runs_at: '2026-06-07T13:31:41.904765+00:00'
+task_count: 32

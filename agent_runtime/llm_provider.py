@@ -74,6 +74,47 @@ def _provider_secret(model_providers: dict, provider_name: str) -> str:
     return resolve_env_value(provider_config.get("api_key"), "")
 
 
+def build_fallback_provider_chain(
+    model_providers: dict,
+    provider_name: str,
+    *,
+    max_depth: int = 4,
+) -> list[dict]:
+    """Build a loop-safe fallback chain from model_providers.yml.
+
+    The runtime config stores fallback links on each provider, but callers do
+    not always pass an explicit fallback list. This helper turns the configured
+    `fallback_provider` chain into concrete provider descriptors so provider
+    guard decisions can actually retry a recoverable stage.
+    """
+    providers = model_providers.get("providers", {}) or {}
+    chain: list[dict] = []
+    visited = {provider_name}
+    current = provider_name
+
+    for _ in range(max_depth):
+        current_config = providers.get(current, {}) or {}
+        fallback_name = resolve_env_value(current_config.get("fallback_provider"), "")
+        if not fallback_name:
+            fallback_name = resolve_env_value(model_providers.get("defaults", {}).get("fallback_provider"), "")
+        if not fallback_name or fallback_name in visited or fallback_name not in providers:
+            break
+
+        fallback_config = providers[fallback_name]
+        chain.append(
+            {
+                "key": fallback_name,
+                "model": resolve_env_value(fallback_config.get("default_model"), ""),
+                "base_url": resolve_env_value(fallback_config.get("base_url"), "") or None,
+                "provider_type": fallback_config.get("type", "openai_compatible"),
+                "note": f"configured fallback for {current}",
+            }
+        )
+        visited.add(fallback_name)
+        current = fallback_name
+    return chain
+
+
 def generate_text(
     settings: LLMSettings,
     model_providers: dict,
@@ -101,6 +142,9 @@ def generate_text(
 
     if settings.provider_type != "openai_compatible":
         raise ValueError(f"Unsupported provider type: {settings.provider_type}")
+
+    if fallback_providers is None:
+        fallback_providers = build_fallback_provider_chain(model_providers, settings.provider)
 
     api_key = _provider_secret(model_providers, settings.provider)
     if not api_key:
@@ -164,12 +208,12 @@ def generate_text(
                 )
 
                 if decision["action"] == "switch_provider":
-                    # Auto-fallback: retry with the next provider
+                    # Auto-fallback: retry immediately with the next provider.
                     if fallback_providers and decision["to_provider"]:
                         fb = fallback_providers[0]
                         new_settings = LLMSettings(
                             provider=fb.get("key", ""),
-                            provider_type="openai_compatible",
+                            provider_type=fb.get("provider_type", "openai_compatible"),
                             model=fb.get("model", settings.model),
                             base_url=fb.get("base_url"),
                             api_key_configured=bool(_provider_secret(model_providers, fb.get("key", ""))),
@@ -178,15 +222,28 @@ def generate_text(
                             max_output_tokens=settings.max_output_tokens,
                             profile_name=settings.profile_name,
                         )
-                        return LLMCallResult(
-                            provider=fb.get("key", ""),
-                            model=fb.get("model", ""),
-                            content=f"[Auto-fallback] Switched from {settings.provider} to {fb.get('key', '')} ({last_reason}).\n\n"
-                                    "Please re-run the agent with the new provider.",
-                            status="fallback_handoff",
-                            error=last_error,
-                            raw_usage={"auto_fallback": True, "from": settings.provider, "to": fb.get("key", "")},
+                        fallback_result = generate_text(
+                            new_settings,
+                            model_providers,
+                            messages,
+                            agent_name=agent_name,
+                            run_dir=run_dir,
+                            project=project,
+                            task_id=task_id,
+                            role=role,
+                            risk_level=risk_level,
+                            fallback_providers=fallback_providers[1:],
+                            route=route,
                         )
+                        fallback_result.fallback_from = settings.provider
+                        fallback_result.raw_usage = {
+                            **(fallback_result.raw_usage or {}),
+                            "auto_fallback": True,
+                            "fallback_from": settings.provider,
+                            "fallback_to": fb.get("key", ""),
+                            "fallback_reason": last_reason,
+                        }
+                        return fallback_result
                 elif decision["action"] == "pause_for_user":
                     mark_agent_paused(run_d, agent_name, f"{last_reason} on {settings.provider}")
                     write_user_decision_file(

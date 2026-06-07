@@ -241,6 +241,22 @@ def run_next_node(
     # Agent output nodes
     agent = NODE_TO_AGENT.get(nid)
     report_file = NODE_TO_REPORT.get(nid)
+
+    # ── Supervisor gate: if USER_DECISION_REQUIRED exists after plan, stop pipeline ──
+    if nid == "SUPERVISOR_PLAN" and not fake_provider and (run_dir / "USER_DECISION_REQUIRED.md").exists():
+        # Do not mark the node as failed — it's a correct plan output.
+        # But pause the pipeline so the user can review and decide.
+        state.status = "blocked"
+        state.current_agent = "Supervisor"
+        state.last_event = "Supervisor produced split plan — user decision required before next agent"
+        save_state(run_dir, state)
+        progress["status"] = "blocked"
+        progress["current_stage"] = "blocked_user_decision"
+        progress["last_event"] = state.last_event
+        progress["current_agent"] = None
+        save_progress(run_dir, progress)
+        return {"status": "paused", "node": nid, "message": "User decision required (split plan produced)."}
+
     if fake_provider and agent:
         output = fake_output_for_agent(agent)
         if report_file:
@@ -286,6 +302,13 @@ def run_next_node(
             state.last_event = f"Blocked at {nid}: {result.error}"
             state.reports[f"{agent}_blocked"] = str(blocked_path)
             save_state(run_dir, state)
+            progress["status"] = "blocked"
+            progress["current_stage"] = "blocked_user_decision"
+            progress["last_event"] = state.last_event
+            progress["current_agent"] = None
+            if agent in progress.get("agents", {}):
+                progress["agents"][agent]["status"] = "blocked"
+            save_progress(run_dir, progress)
             return {"status": "paused", "node": nid, "message": result.error or "User decision required"}
 
         if result.status == "fallback_handoff":
@@ -296,6 +319,13 @@ def run_next_node(
             state.last_event = f"Handoff required at {nid}: {result.error}"
             state.reports[f"{agent}_fallback"] = str(fallback_path)
             save_state(run_dir, state)
+            progress["status"] = "blocked"
+            progress["current_stage"] = "handoff_required"
+            progress["last_event"] = state.last_event
+            progress["current_agent"] = None
+            if agent in progress.get("agents", {}):
+                progress["agents"][agent]["status"] = "blocked"
+            save_progress(run_dir, progress)
             return {"status": "paused", "node": nid, "message": result.error or "Provider unavailable"}
 
         report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -382,6 +412,18 @@ def _block_on_artifact_gate(
     state.last_event = f"Blocked at {node_id}: artifact gate failed"
     state.reports[f"{agent}_artifact_gate"] = str(block_path)
     save_state(run_dir, state)
+
+    # ── Sync progress.yml with blocked state ──
+    progress = load_progress(run_dir)
+    if progress:
+        progress["status"] = "blocked"
+        progress["current_agent"] = None
+        progress["current_stage"] = "blocked"
+        progress["last_event"] = state.last_event
+        if agent in progress.get("agents", {}):
+            progress["agents"][agent]["status"] = "blocked"
+        save_progress(run_dir, progress)
+
     return {"status": "paused", "node": node_id, "message": reason, "artifact_gate": issues}
 
 

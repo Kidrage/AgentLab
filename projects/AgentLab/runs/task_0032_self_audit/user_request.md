@@ -1,0 +1,1 @@
+检查AgentLab自身链路缺陷：全面检查agentlab自身链路（pipeline、state、artifact gate、memory写回、progress tracking、llm provider模块导入）的闭环性和稳定性。对照本对话中的评估报告和BUG_REPORT.md，确认已修复的P0问题是否稳定，以及有无新的未闭环缺口。

@@ -2,4 +2,34 @@ version: 1
 project: AgentLab
 task_id: task_0025
 title: Problem
+summary: Fix AgentLab lifecycle closure and artifact completeness. Raise overall evaluation
+  from 65% to ≥85%.
 status: completed
+resume_state: completed
+can_resume: false
+percent_complete: 100
+current_agent: Verifier
+current_stage: verifying
+last_event: 'Running: VERIFY'
+last_event_at: '2026-06-01T02:41:20.241572+00:00'
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0025
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0025
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0025
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0025
+artifact_summary:
+  present: 11
+  missing: 2
+  important_missing:
+  - handoff_packet.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

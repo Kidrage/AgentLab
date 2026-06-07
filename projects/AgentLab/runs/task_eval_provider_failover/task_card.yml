@@ -1,0 +1,40 @@
+version: 1
+project: AgentLab
+task_id: task_eval_provider_failover
+title: task_eval_provider_failover
+summary: ''
+status: running
+resume_state: recoverable
+can_resume: true
+percent_complete: 60
+current_agent: Coder
+current_stage: Coder
+last_event: Resumed after pause
+last_event_at: '2026-05-31T11:31:56.688530+00:00'
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_eval_provider_failover
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_eval_provider_failover
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_eval_provider_failover
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_eval_provider_failover
+artifact_summary:
+  present: 1
+  missing: 12
+  important_missing:
+  - user_request.md
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
+  - workflow_plan.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

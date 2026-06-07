@@ -1,0 +1,114 @@
+version: 1
+project: AgentLab
+task_id: task_eval_eval_l2_task_index_feature
+generated_at: '2026-06-07T13:31:40.418226+00:00'
+artifacts:
+- kind: request
+  agent: user
+  path: user_request.md
+  status: missing
+  title: Request
+  summary: ''
+  important: true
+- kind: plan
+  agent: Supervisor
+  path: 01_supervisor_plan.md
+  status: missing
+  title: Plan
+  summary: ''
+  important: true
+- kind: scout
+  agent: RepoScout
+  path: 02_reposcout_report.md
+  status: missing
+  title: Scout
+  summary: ''
+  important: false
+- kind: research
+  agent: Researcher
+  path: 03_research_notes.md
+  status: missing
+  title: Research
+  summary: ''
+  important: false
+- kind: interface
+  agent: InterfaceMapper
+  path: 04_interface_map.md
+  status: missing
+  title: Interface
+  summary: ''
+  important: false
+- kind: prompt
+  agent: CodexPromptGen
+  path: 05_codex_prompt.md
+  status: missing
+  title: Prompt
+  summary: ''
+  important: false
+- kind: implementation
+  agent: Coder
+  path: 06_implementation_report.md
+  status: missing
+  title: Implementation
+  summary: ''
+  important: true
+- kind: validation
+  agent: TesterAuditor
+  path: 07_validation_report.md
+  status: missing
+  title: Validation
+  summary: ''
+  important: true
+- kind: audit
+  agent: TesterAuditor
+  path: 08_audit_report.md
+  status: missing
+  title: Audit
+  summary: ''
+  important: true
+- kind: archive
+  agent: Archivist
+  path: 09_archive_update.md
+  status: missing
+  title: Archive
+  summary: ''
+  important: false
+- kind: handoff
+  agent: system
+  path: handoff_packet.yml
+  status: missing
+  title: Handoff
+  summary: ''
+  important: true
+- kind: plan
+  agent: system
+  path: workflow_plan.yml
+  status: missing
+  title: Plan
+  summary: ''
+  important: true
+- kind: snapshot
+  agent: system
+  path: task_snapshot.yml
+  status: present
+  title: Snapshot
+  summary: 'version: 1 generated_at: ''2026-06-07T13:31:40.415788+00:00'' project:
+    AgentLab task_id: task_eval_eval_l2_task_index_feature status: running source_statuses:
+    state: unknown progress: running lifecycle: unknown drift: [] route: [] current_agent:
+    null current_stage: coder percent_complete: 50 last_event: '''' completed_agents:
+    [] reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0 skipped_count:
+    0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete: 0 next_node:
+    null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN: missing
+    REPO_CONTEXT: missing...'
+  important: true
+summary:
+  present: 1
+  missing: 12
+  important_missing:
+  - user_request.md
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
+  - workflow_plan.yml

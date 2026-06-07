@@ -1,0 +1,40 @@
+version: 1
+project: AgentLab
+task_id: task_0026_openclaw-agentlab-bridge
+title: task_0026_openclaw-agentlab-bridge
+summary: 'Configure Aliyun OpenClaw application server integration with AgentLab:
+  SSH stage-0 diagnosis for 47.93.55.2, local OpenClaw-to-AgentLab bridge, task registry,
+  and TrueNAS backup templates without storing API keys.'
+status: planned
+resume_state: unknown
+can_resume: false
+percent_complete: 0
+current_agent: null
+current_stage: null
+last_event: Workflow plan prepared.
+last_event_at: '2026-06-01T02:46:43.164161+00:00'
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0026_openclaw-agentlab-bridge
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0026_openclaw-agentlab-bridge
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0026_openclaw-agentlab-bridge
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0026_openclaw-agentlab-bridge
+artifact_summary:
+  present: 3
+  missing: 10
+  important_missing:
+  - 01_supervisor_plan.md
+  - 06_implementation_report.md
+  - 07_validation_report.md
+  - 08_audit_report.md
+  - handoff_packet.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

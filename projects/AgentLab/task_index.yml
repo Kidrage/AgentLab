@@ -1,8 +1,8 @@
 version: 1
 project: AgentLab
-generated_at: '2026-05-31T11:23:15.173774+00:00'
+generated_at: '2026-06-07T13:31:41.721356+00:00'
 source_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs
-task_count: 15
+task_count: 32
 tasks:
 - task_id: task_0009
   title: 自然语言任务描述
@@ -87,6 +87,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -178,8 +179,22 @@ tasks:
       - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
       always defines scope, token budge...'
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:37.772903+00:00'' project:
+      AgentLab task_id: task_0009 status: running source_statuses: state: running
+      progress: unknown lifecycle: unknown drift: [] route: - Supervisor - RepoScout
+      - InterfaceMapper - Coder - TesterAuditor - Archivist current_agent: null current_stage:
+      null percent_complete: 0 last_event: Archivist completed report. completed_agents:
+      - Supervisor - RepoScout - InterfaceMapper - Coder - TesterAuditor - Archivist
+      reports: Supervisor: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0009/supervisor_plan.md
+      RepoScout: /Us...'
+    important: true
   artifact_summary:
-    present: 2
+    present: 3
     missing: 10
     important_missing:
     - 01_supervisor_plan.md
@@ -279,6 +294,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -370,8 +386,22 @@ tasks:
       - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
       always defines scope, token budge...'
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:37.888907+00:00'' project:
+      AgentLab task_id: task_0010 status: running source_statuses: state: running
+      progress: unknown lifecycle: unknown drift: [] route: - Supervisor - RepoScout
+      - InterfaceMapper - Coder - TesterAuditor - Archivist current_agent: null current_stage:
+      null percent_complete: 0 last_event: Archivist completed report. completed_agents:
+      - Supervisor - RepoScout - InterfaceMapper - Coder - TesterAuditor - Archivist
+      reports: Supervisor: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0010/supervisor_plan.md
+      RepoScout: /Us...'
+    important: true
   artifact_summary:
-    present: 2
+    present: 3
     missing: 10
     important_missing:
     - 01_supervisor_plan.md
@@ -392,12 +422,12 @@ tasks:
   title: 自然语言任务描述
   summary: 调查 AgentLab 在云端部署的可行性。AgentLab 目前是一个本地优先的 CLI + Web UI 工具， 需要分析是否可以在云服务器上运行（如
     AWS、阿里云、VPS 等），以及智能体架构是否需要适配。
-  status: running
-  resume_state: unknown
+  status: completed
+  resume_state: completed
   can_resume: false
   project: AgentLab
   created_at: ''
-  updated_at: '2026-05-30T12:49:16.410755+00:00'
+  updated_at: '2026-06-02T00:00:00+08:00'
   priority: P2
   category: ''
   risk_level: ''
@@ -410,8 +440,9 @@ tasks:
   - Archivist
   current_agent: null
   current_stage: null
-  percent_complete: 0
-  last_event: Supervisor completed report.
+  percent_complete: 100
+  last_event: Coder completed SCNet external-package rollback, universal build, bundling,
+    and validation.
   last_checkpoint: null
   query_terms:
   - agent
@@ -472,6 +503,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -564,8 +596,22 @@ tasks:
       - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
       always defines scope, token budge...'
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:37.986628+00:00'' project:
+      AgentLab task_id: task_0011 status: completed source_statuses: state: completed
+      progress: unknown lifecycle: unknown drift: - completed_agents_not_in_route
+      route: - Supervisor - RepoScout - InterfaceMapper - Coder - TesterAuditor -
+      Archivist current_agent: null current_stage: null percent_complete: 100 last_event:
+      Coder completed SCNet external-package rollback, universal build, bundling,
+      and validation. completed_agents: - Supervisor - RepoScout - Coder - Validator
+      reports: Supervisor: /Users/saintpeter/Desktop/AgentLab/p...'
+    important: true
   artifact_summary:
-    present: 2
+    present: 3
     missing: 10
     important_missing:
     - 01_supervisor_plan.md
@@ -667,6 +713,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -760,8 +807,22 @@ tasks:
       - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
       always defines scope, token budge...'
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.093134+00:00'' project:
+      AgentLab task_id: task_0012 status: running source_statuses: state: running
+      progress: unknown lifecycle: unknown drift: [] route: - Supervisor - RepoScout
+      - InterfaceMapper - Coder - TesterAuditor - Archivist current_agent: null current_stage:
+      null percent_complete: 0 last_event: Archivist completed report. completed_agents:
+      - Supervisor - RepoScout - InterfaceMapper - TesterAuditor - Archivist reports:
+      Supervisor: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0012/supervisor_plan.md
+      RepoScout: /Users/sain...'
+    important: true
   artifact_summary:
-    present: 2
+    present: 3
     missing: 10
     important_missing:
     - 01_supervisor_plan.md
@@ -865,6 +926,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -960,8 +1022,22 @@ tasks:
       - InterfaceMapper - Coder - TesterAuditor - Archivist rationale: - Supervisor
       always defines scope, token budge...'
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.208592+00:00'' project:
+      AgentLab task_id: task_0013 status: running source_statuses: state: running
+      progress: unknown lifecycle: unknown drift: [] route: - Supervisor - RepoScout
+      - InterfaceMapper - Coder - TesterAuditor - Archivist current_agent: null current_stage:
+      null percent_complete: 0 last_event: Archivist completed report. completed_agents:
+      - Supervisor - RepoScout - InterfaceMapper - TesterAuditor - Archivist reports:
+      Supervisor: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0013/supervisor_plan.md
+      RepoScout: /Users/sain...'
+    important: true
   artifact_summary:
-    present: 2
+    present: 3
     missing: 10
     important_missing:
     - 01_supervisor_plan.md
@@ -1056,6 +1132,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -1142,8 +1219,22 @@ tasks:
     title: Plan
     summary: ''
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.291036+00:00'' project:
+      AgentLab task_id: task_0014 status: unknown source_statuses: state: unknown
+      progress: unknown lifecycle: unknown drift: [] route: [] current_agent: null
+      current_stage: null percent_complete: 0 last_event: '''' completed_agents: []
+      reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0 skipped_count:
+      0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete: 0 next_node:
+      null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN: missing
+      REPO_CONTEXT: missing RESEARCH_OPTIONAL: missing I...'
+    important: true
   artifact_summary:
-    present: 1
+    present: 2
     missing: 11
     important_missing:
     - 01_supervisor_plan.md
@@ -1238,6 +1329,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -1323,8 +1415,22 @@ tasks:
     title: Plan
     summary: ''
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.306301+00:00'' project:
+      AgentLab task_id: task_0015 status: unknown source_statuses: state: unknown
+      progress: unknown lifecycle: unknown drift: [] route: [] current_agent: null
+      current_stage: null percent_complete: 0 last_event: '''' completed_agents: []
+      reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0 skipped_count:
+      0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete: 0 next_node:
+      null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN: missing
+      REPO_CONTEXT: missing RESEARCH_OPTIONAL: missing I...'
+    important: true
   artifact_summary:
-    present: 1
+    present: 2
     missing: 11
     important_missing:
     - 01_supervisor_plan.md
@@ -1342,6 +1448,166 @@ tasks:
     open: ./agentlab.sh task-open --project AgentLab --task-id task_0015
     resume: ./agentlab.sh resume --project AgentLab --task-id task_0015
     chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0015
+- task_id: task_0015_update-agentlab-readme-reflect-latest-features
+  title: task_0015_update-agentlab-readme-reflect-latest-features
+  summary: 'Update AgentLab README.md to reflect latest features including: task_snapshot.py,
+    memory_writer.py, streaming_stereo_spatializer project, AO-SpatialAuthoring-Modular
+    project docs, test_artifact_gate.py and test_task_closure.py. Also update the
+    changelog to add version 2.3 entries for these recent additions.'
+  status: running
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-06-06T07:58:19.239405+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  current_agent: null
+  current_stage: initialized
+  percent_complete: 21
+  last_event: Workflow plan prepared.
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015_update-agentlab-readme-reflect-latest-features
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 'Update AgentLab README.md to reflect latest features including: task_snapshot.py,
+      memory_writer.py, streaming_stereo_spatializer project, AO-SpatialAuthoring-Modular
+      project docs, test_artifact_gate.py and test_task_closure.py. Also update the
+      changelog to add version 2.3 entries for these recent additions.'
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: present
+    title: Plan
+    summary: TBD
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: present
+    title: Scout
+    summary: TBD
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: present
+    title: Research
+    summary: TBD
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: present
+    title: Interface
+    summary: TBD
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: present
+    title: Implementation
+    summary: TBD
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: present
+    title: Validation
+    summary: TBD
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: present
+    title: Audit
+    summary: TBD
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: present
+    title: Archive
+    summary: TBD
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0015_update-agentlab-readme-reflect-latest-features
+      agentlab_root: /Users/saintpeter/Desktop/AgentLab project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab
+      repo_path: /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015_update-agentlab-readme-reflect-latest-features
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015_update-agentlab-readme-reflect-latest-features/user_request.md
+      execution_backend: codex budget_mode: balanced budget_profile: balanced_L2 p...'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.386355+00:00'' project:
+      AgentLab task_id: task_0015_update-agentlab-readme-reflect-latest-features status:
+      running source_statuses: state: planned progress: new lifecycle: running drift:
+      - ''status_mismatch: {''''state'''': ''''planned'''', ''''progress'''': ''''new'''',
+      ''''lifecycle'''': ''''running''''}'' route: - Supervisor - RepoScout - InterfaceMapper
+      - Coder - TesterAuditor - Verifier - Archivist current_agent: null current_stage:
+      initialized percent_complete: 21 last_event: Workflow plan prepared. completed_agents:
+      [] reports: {} lifecycle: status: running node_co...'
+    important: true
+  artifact_summary:
+    present: 11
+    missing: 2
+    important_missing:
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0015_update-agentlab-readme-reflect-latest-features
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0015_update-agentlab-readme-reflect-latest-features
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0015_update-agentlab-readme-reflect-latest-features
 - task_id: task_0016
   title: task_0016
   summary: ''
@@ -1370,6 +1636,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -1455,8 +1722,22 @@ tasks:
     title: Plan
     summary: ''
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.586655+00:00'' project:
+      AgentLab task_id: task_0016 status: unknown source_statuses: state: unknown
+      progress: unknown lifecycle: unknown drift: [] route: [] current_agent: null
+      current_stage: null percent_complete: 0 last_event: '''' completed_agents: []
+      reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0 skipped_count:
+      0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete: 0 next_node:
+      null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN: missing
+      REPO_CONTEXT: missing RESEARCH_OPTIONAL: missing I...'
+    important: true
   artifact_summary:
-    present: 0
+    present: 1
     missing: 12
     important_missing:
     - user_request.md
@@ -1552,6 +1833,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -1637,8 +1919,22 @@ tasks:
     title: Plan
     summary: ''
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.600782+00:00'' project:
+      AgentLab task_id: task_0017 status: unknown source_statuses: state: unknown
+      progress: unknown lifecycle: unknown drift: [] route: [] current_agent: null
+      current_stage: null percent_complete: 0 last_event: '''' completed_agents: []
+      reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0 skipped_count:
+      0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete: 0 next_node:
+      null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN: missing
+      REPO_CONTEXT: missing RESEARCH_OPTIONAL: missing I...'
+    important: true
   artifact_summary:
-    present: 1
+    present: 2
     missing: 11
     important_missing:
     - 01_supervisor_plan.md
@@ -1734,6 +2030,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -1820,8 +2117,22 @@ tasks:
     title: Plan
     summary: ''
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.616146+00:00'' project:
+      AgentLab task_id: task_0018 status: unknown source_statuses: state: unknown
+      progress: unknown lifecycle: unknown drift: [] route: [] current_agent: null
+      current_stage: null percent_complete: 0 last_event: '''' completed_agents: []
+      reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0 skipped_count:
+      0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete: 0 next_node:
+      null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN: missing
+      REPO_CONTEXT: missing RESEARCH_OPTIONAL: missing I...'
+    important: true
   artifact_summary:
-    present: 1
+    present: 2
     missing: 11
     important_missing:
     - 01_supervisor_plan.md
@@ -1916,6 +2227,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -2001,8 +2313,22 @@ tasks:
     title: Plan
     summary: ''
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.631655+00:00'' project:
+      AgentLab task_id: task_0019_guard-resilience status: unknown source_statuses:
+      state: unknown progress: unknown lifecycle: unknown drift: [] route: [] current_agent:
+      null current_stage: null percent_complete: 0 last_event: '''' completed_agents:
+      [] reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0
+      skipped_count: 0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete:
+      0 next_node: null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN:
+      missing REPO_CONTEXT: missing RESEARCH_OP...'
+    important: true
   artifact_summary:
-    present: 1
+    present: 2
     missing: 11
     important_missing:
     - 01_supervisor_plan.md
@@ -2066,6 +2392,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -2151,8 +2478,22 @@ tasks:
     title: Plan
     summary: ''
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.649465+00:00'' project:
+      AgentLab task_id: task_0020_provider-failover status: unknown source_statuses:
+      state: unknown progress: unknown lifecycle: unknown drift: [] route: [] current_agent:
+      null current_stage: null percent_complete: 0 last_event: '''' completed_agents:
+      [] reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0
+      skipped_count: 0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete:
+      0 next_node: null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN:
+      missing REPO_CONTEXT: missing RESEARCH_O...'
+    important: true
   artifact_summary:
-    present: 1
+    present: 2
     missing: 11
     important_missing:
     - 01_supervisor_plan.md
@@ -2239,6 +2580,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -2327,8 +2669,22 @@ tasks:
     title: Plan
     summary: ''
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.668407+00:00'' project:
+      AgentLab task_id: task_0021_terminal-chat-self-check status: unknown source_statuses:
+      state: unknown progress: unknown lifecycle: unknown drift: [] route: [] current_agent:
+      null current_stage: null percent_complete: 0 last_event: '''' completed_agents:
+      [] reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0
+      skipped_count: 0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete:
+      0 next_node: null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN:
+      missing REPO_CONTEXT: missing RES...'
+    important: true
   artifact_summary:
-    present: 1
+    present: 2
     missing: 11
     important_missing:
     - 01_supervisor_plan.md
@@ -2369,7 +2725,7 @@ tasks:
   - Archivist
   current_agent: Supervisor
   current_stage: preflight
-  percent_complete: 15
+  percent_complete: 100
   last_event: ''
   last_checkpoint: checkpoint_002_after_coder
   query_terms:
@@ -2431,6 +2787,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -2557,8 +2914,22 @@ tasks:
       - agent_runtime/api_continuation.py - agentlab.sh - DRIVER_PROTOCOL.md - projects/AgentLab/runs/task_0022/
       forbidden_paths: - .env - secrets/ - .git/ - node_modules/ - .venv/ ...'
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.691955+00:00'' project:
+      AgentLab task_id: task_0022 status: completed source_statuses: state: completed
+      progress: unknown lifecycle: unknown drift: - completed_agents_not_in_route
+      route: - Supervisor - RepoScout - Researcher - InterfaceMapper - CodexPromptGenerator
+      - Coder - TesterAuditor - Archivist current_agent: Supervisor current_stage:
+      preflight percent_complete: 100 last_event: '''' completed_agents: - Preflight
+      - Supervisor - RepoScout - Researcher - InterfaceMapper - CodexPromptGenerator
+      - Coder - TesterAuditor - Archivist reports: {} lifec...'
+    important: true
   artifact_summary:
-    present: 12
+    present: 13
     missing: 0
     important_missing: []
   backup_status:
@@ -2647,6 +3018,7 @@ tasks:
     state: state.yml
     artifact_manifest: artifact_manifest.yml
     task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
   artifacts:
   - kind: request
     agent: user
@@ -2732,8 +3104,22 @@ tasks:
     title: Plan
     summary: ''
     important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.728367+00:00'' project:
+      AgentLab task_id: task_0023 status: unknown source_statuses: state: unknown
+      progress: unknown lifecycle: unknown drift: [] route: [] current_agent: null
+      current_stage: null percent_complete: 0 last_event: '''' completed_agents: []
+      reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0 skipped_count:
+      0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete: 0 next_node:
+      null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN: missing
+      REPO_CONTEXT: missing RESEARCH_OPTIONAL: missing I...'
+    important: true
   artifact_summary:
-    present: 1
+    present: 2
     missing: 11
     important_missing:
     - 01_supervisor_plan.md
@@ -2751,3 +3137,2666 @@ tasks:
     open: ./agentlab.sh task-open --project AgentLab --task-id task_0023
     resume: ./agentlab.sh resume --project AgentLab --task-id task_0023
     chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0023
+- task_id: task_0024
+  title: Attached Specification
+  summary: 由 agentlab 来完成 Capability & Budget-Saving Evaluation 并出结果文档。
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - codex
+  - config
+  - driver
+  - failover
+  - full
+  - sync
+  - task
+  - ui
+  - 不往
+  - 不调
+  - 个评
+  - 令结
+  - 令运
+  - 件规
+  - 优先
+  - 估命
+  - 估套
+  - 估模
+  - 保存
+  - 先离
+  - 出结
+  - 到不
+  - 告保
+  - 命令
+  - 地优
+  - 块命
+  - 套件
+  - 存到
+  - 完成
+  - 并出
+  - 往推
+  - 成并
+  - 所有
+  - 报告
+  - 推送
+  - 文档
+  - 显式
+  - 有报
+  - 有评
+  - 本地
+  - 来完
+  - 果文
+  - 档本
+  - 档由
+  - 档评
+  - 模块
+  - 测试
+  - 用所
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0024
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 由 agentlab 来完成 Capability & Budget-Saving Evaluation 并出结果文档。
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.743760+00:00'' project:
+      AgentLab task_id: task_0024 status: unknown source_statuses: state: unknown
+      progress: unknown lifecycle: unknown drift: [] route: [] current_agent: null
+      current_stage: null percent_complete: 0 last_event: '''' completed_agents: []
+      reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0 skipped_count:
+      0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete: 0 next_node:
+      null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN: missing
+      REPO_CONTEXT: missing RESEARCH_OPTIONAL: missing I...'
+    important: true
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0024
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0024
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0024
+- task_id: task_0025
+  title: Problem
+  summary: Fix AgentLab lifecycle closure and artifact completeness. Raise overall
+    evaluation from 65% to ≥85%.
+  status: completed
+  resume_state: completed
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-06-01T02:41:20.241572+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  current_agent: Verifier
+  current_stage: verifying
+  percent_complete: 100
+  last_event: 'Running: VERIFY'
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - check
+  - full
+  - task
+  - ui
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0025
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: Fix AgentLab lifecycle closure and artifact completeness. Raise overall
+      evaluation from 65% to ≥85%.
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: present
+    title: Plan
+    summary: Fake evaluation task for lifecycle testing.
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: present
+    title: Scout
+    summary: '| Path | Purpose | |---|---| | agent_runtime/ | Core runtime |'
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: present
+    title: Research
+    summary: 'Status: skipped Reason: Route does not require external research.'
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: present
+    title: Interface
+    summary: 'Status: skipped Reason: No interfaces affected by this task.'
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: present
+    title: Implementation
+    summary: Dry-run (fake provider)
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: present
+    title: Validation
+    summary: '- YAML parse: ✅ pass - Python compile: ✅ pass'
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: present
+    title: Audit
+    summary: '- YAML parse: ✅ pass - Python compile: ✅ pass'
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: present
+    title: Archive
+    summary: '- task_id: dry-run test - execution_mode: fake_provider'
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0025 agentlab_root: /Users/saintpeter/Desktop/AgentLab
+      project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab repo_path:
+      /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0025
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0025/user_request.md
+      execution_backend: codex route: task_size: large agents: - Supervisor - RepoScout
+      - Researcher - InterfaceMapper - Coder - TesterAuditor - Verifier - Archivist
+      rationale: - Supervisor always defines scope, token budge...'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.821582+00:00'' project:
+      AgentLab task_id: task_0025 status: completed source_statuses: state: running
+      progress: running lifecycle: completed drift: - ''status_mismatch: {''''state'''':
+      ''''running'''', ''''progress'''': ''''running'''', ''''lifecycle'''': ''''completed''''}''
+      route: - Supervisor - RepoScout - Researcher - InterfaceMapper - Coder - TesterAuditor
+      - Verifier - Archivist current_agent: Verifier current_stage: verifying percent_complete:
+      100 last_event: ''Running: VERIFY'' completed_agents: [] reports: {} lifecycle:
+      status: completed node_count: 14 completed_cou...'
+    important: true
+  artifact_summary:
+    present: 11
+    missing: 2
+    important_missing:
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0025
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0025
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0025
+- task_id: task_0026_openclaw-agentlab-bridge
+  title: task_0026_openclaw-agentlab-bridge
+  summary: 'Configure Aliyun OpenClaw application server integration with AgentLab:
+    SSH stage-0 diagnosis for 47.93.55.2, local OpenClaw-to-AgentLab bridge, task
+    registry, and TrueNAS backup templates without storing API keys.'
+  status: planned
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-06-01T02:46:43.164161+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: Workflow plan prepared.
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - backup
+  - config
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0026_openclaw-agentlab-bridge
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 'Configure Aliyun OpenClaw application server integration with AgentLab:
+      SSH stage-0 diagnosis for 47.93.55.2, local OpenClaw-to-AgentLab bridge, task
+      registry, and TrueNAS backup templates without storing API keys.'
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0026_openclaw-agentlab-bridge agentlab_root:
+      /Users/saintpeter/Desktop/AgentLab project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab
+      repo_path: /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0026_openclaw-agentlab-bridge
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0026_openclaw-agentlab-bridge/user_request.md
+      execution_backend: codex route: task_size: medium agents: - Supervisor - RepoScout
+      - InterfaceMapper - Coder - TesterAuditor - Verifier - Arch...'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:39.005189+00:00'' project:
+      AgentLab task_id: task_0026_openclaw-agentlab-bridge status: planned source_statuses:
+      state: planned progress: unknown lifecycle: unknown drift: [] route: - Supervisor
+      - RepoScout - InterfaceMapper - Coder - TesterAuditor - Verifier - Archivist
+      current_agent: null current_stage: null percent_complete: 0 last_event: Workflow
+      plan prepared. completed_agents: [] reports: {} lifecycle: status: unknown node_count:
+      14 completed_count: 0 skipped_count: 0 failed_count: 0 running_count: 0 waiting_count:
+      0 percent_complete: 0 next_n...'
+    important: true
+  artifact_summary:
+    present: 3
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0026_openclaw-agentlab-bridge
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0026_openclaw-agentlab-bridge
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0026_openclaw-agentlab-bridge
+- task_id: task_0027_agentlab_comprehensive_evaluation
+  title: AgentLab 全面评估任务
+  summary: 系统性地评估 AgentLab 项目的以下维度，并与 DeepSeek V4 Pro（作为行业标准）进行对比分析： 1. 设计逻辑闭环完整性
+    2. 任务分级机制完善度 3. 记忆系统完善度 4. 与 DeepSeek V4 Pro 在结果/预算/记忆留存/长文本记录与唤醒上的多维度对比 5. 优化方向与建议
+  status: unknown
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - 上的
+  - 下维
+  - 与作
+  - 与唤
+  - 与在
+  - 与建
+  - 业标
+  - 为行
+  - 以下
+  - 任务
+  - 优化
+  - 估任
+  - 估项
+  - 作为
+  - 全面
+  - 准进
+  - 分析
+  - 分级
+  - 制完
+  - 务任
+  - 务分
+  - 务系
+  - 务说
+  - 化方
+  - 向与
+  - 唤醒
+  - 善度
+  - 在结
+  - 地评
+  - 多维
+  - 存长
+  - 完善
+  - 完整
+  - 对比
+  - 并与
+  - 度与
+  - 度对
+  - 度并
+  - 度记
+  - 建议
+  - 录与
+  - 忆留
+  - 忆系
+  - 性任
+  - 性地
+  - 整性
+  - 文本
+  - 方向
+  - 明系
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0027_agentlab_comprehensive_evaluation
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 系统性地评估 AgentLab 项目的以下维度，并与 DeepSeek V4 Pro（作为行业标准）进行对比分析： 1. 设计逻辑闭环完整性
+      2. 任务分级机制完善度 3. 记忆系统完善度 4. 与 DeepSeek V4 Pro 在结果/预算/记忆留存/长文本记录与唤醒上的多维度对比 5.
+      优化方向与建议
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:39.119873+00:00'' project:
+      AgentLab task_id: task_0027_agentlab_comprehensive_evaluation status: unknown
+      source_statuses: state: unknown progress: unknown lifecycle: unknown drift:
+      [] route: [] current_agent: null current_stage: null percent_complete: 0 last_event:
+      '''' completed_agents: [] reports: {} lifecycle: status: unknown node_count:
+      14 completed_count: 0 skipped_count: 0 failed_count: 0 running_count: 0 waiting_count:
+      0 percent_complete: 0 next_node: null nodes: INIT_TASK: missing PREPARE_PLAN:
+      missing SUPERVISOR_PLAN: missing REPO_CONTEXT: mi...'
+    important: true
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0027_agentlab_comprehensive_evaluation
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0027_agentlab_comprehensive_evaluation
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0027_agentlab_comprehensive_evaluation
+- task_id: task_0028_agentlab-performance-eval
+  title: task_0028_agentlab-performance-eval
+  summary: Run an auditable local performance evaluation of AgentLab. Measure routing,
+    model-profile selection, lifecycle behavior, artifact completeness, and baseline
+    command latency without model API calls.
+  status: completed
+  resume_state: completed
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-06-01T08:20:55.398276+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  current_agent: null
+  current_stage: completed
+  percent_complete: 100
+  last_event: Performance evaluation completed.
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - model
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: Run an auditable local performance evaluation of AgentLab. Measure routing,
+      model-profile selection, lifecycle behavior, artifact completeness, and baseline
+      command latency without model API calls.
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: present
+    title: Plan
+    summary: 'Task: `task_0028_agentlab-performance-eval` Mode: local deterministic
+      evaluation, no model API calls.'
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: present
+    title: Scout
+    summary: '- Evaluated routing rules, agent registry, model profiles, lifecycle
+      graph, and CLI command latency. - Active route: `evaluation_task` - Active agents:
+      Supervisor, RepoScout, Researcher, InterfaceMapper, TesterAuditor, Verifier,
+      Archivist'
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: present
+    title: Research
+    summary: 'Status: completed Reason: no external research was needed for local
+      performance measurement.'
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: present
+    title: Interface
+    summary: '- routing_rules.yml routes reference registered agents - agent_registry.yml
+      model_profile values reference model_profiles.yml profiles - schemas.AgentName
+      accepts route agents'
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: present
+    title: Validation
+    summary: '- Passed: 6/6'
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: present
+    title: Audit
+    summary: '- No blocking findings.'
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: present
+    title: Archive
+    summary: '- Performance report: `/Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval/PERFORMANCE_EVALUATION.md`
+      - Evaluation completed with local deterministic checks and zero model tokens.'
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0028_agentlab-performance-eval agentlab_root:
+      /Users/saintpeter/Desktop/AgentLab project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab
+      repo_path: /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0028_agentlab-performance-eval/user_request.md
+      execution_backend: codex route: task_size: large agents: - Supervisor - RepoScout
+      - Researcher - InterfaceMapper - TesterAuditor - Verifier...'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:39.191650+00:00'' project:
+      AgentLab task_id: task_0028_agentlab-performance-eval status: completed source_statuses:
+      state: completed progress: completed lifecycle: completed drift: [] route: -
+      Supervisor - RepoScout - Researcher - InterfaceMapper - TesterAuditor - Verifier
+      - Archivist current_agent: null current_stage: completed percent_complete: 100
+      last_event: Performance evaluation completed. completed_agents: - Supervisor
+      - RepoScout - Researcher - InterfaceMapper - TesterAuditor - Verifier - Archivist
+      reports: Supervisor: /Users/saintpeter/Desk...'
+    important: true
+  artifact_summary:
+    present: 10
+    missing: 3
+    important_missing:
+    - 06_implementation_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0028_agentlab-performance-eval
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0028_agentlab-performance-eval
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0028_agentlab-performance-eval
+- task_id: task_0029_model-routing-eval
+  title: task_0029_model-routing-eval
+  summary: Run an auditable local performance evaluation of AgentLab. Measure routing,
+    model-profile selection, lifecycle behavior, artifact completeness, and baseline
+    command latency without model API calls.
+  status: completed
+  resume_state: completed
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-06-02T04:15:33.276777+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  current_agent: null
+  current_stage: completed
+  percent_complete: 100
+  last_event: Performance evaluation completed.
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - model
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: Run an auditable local performance evaluation of AgentLab. Measure routing,
+      model-profile selection, lifecycle behavior, artifact completeness, and baseline
+      command latency without model API calls.
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: present
+    title: Plan
+    summary: 'Task: `task_0029_model-routing-eval` Mode: local deterministic evaluation,
+      no model API calls.'
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: present
+    title: Scout
+    summary: '- Evaluated routing rules, agent registry, model profiles, lifecycle
+      graph, and CLI command latency. - Active route: `evaluation_task` - Active agents:
+      Supervisor, RepoScout, Researcher, InterfaceMapper, TesterAuditor, Verifier,
+      Archivist'
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: present
+    title: Research
+    summary: 'Status: completed Reason: no external research was needed for local
+      performance measurement.'
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: present
+    title: Interface
+    summary: '- routing_rules.yml routes reference registered agents - agent_registry.yml
+      model_profile values reference model_profiles.yml profiles - schemas.AgentName
+      accepts route agents'
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: present
+    title: Validation
+    summary: '- Passed: 6/6'
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: present
+    title: Audit
+    summary: '- No blocking findings.'
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: present
+    title: Archive
+    summary: '- Performance report: `/Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval/PERFORMANCE_EVALUATION.md`
+      - Evaluation completed with local deterministic checks and zero model tokens.'
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0029_model-routing-eval agentlab_root:
+      /Users/saintpeter/Desktop/AgentLab project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab
+      repo_path: /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0029_model-routing-eval/user_request.md
+      execution_backend: codex route: task_size: large agents: - Supervisor - RepoScout
+      - Researcher - InterfaceMapper - TesterAuditor - Verifier - Archivist rational...'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:39.371567+00:00'' project:
+      AgentLab task_id: task_0029_model-routing-eval status: completed source_statuses:
+      state: completed progress: completed lifecycle: completed drift: [] route: -
+      Supervisor - RepoScout - Researcher - InterfaceMapper - TesterAuditor - Verifier
+      - Archivist current_agent: null current_stage: completed percent_complete: 100
+      last_event: Performance evaluation completed. completed_agents: - Supervisor
+      - RepoScout - Researcher - InterfaceMapper - TesterAuditor - Verifier - Archivist
+      reports: Supervisor: /Users/saintpeter/Desktop/Age...'
+    important: true
+  artifact_summary:
+    present: 10
+    missing: 3
+    important_missing:
+    - 06_implementation_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0029_model-routing-eval
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0029_model-routing-eval
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0029_model-routing-eval
+- task_id: task_0030_chain-budget-audit
+  title: task_0030_chain-budget-audit
+  summary: ''
+  status: planned
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-06-02T10:42:45.310184+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - Coder
+  - TesterAuditor
+  current_agent: null
+  current_stage: null
+  percent_complete: 0
+  last_event: Workflow plan prepared.
+  last_checkpoint: null
+  query_terms:
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0030_chain-budget-audit
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: missing
+    title: Request
+    summary: ''
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0030_chain-budget-audit agentlab_root:
+      /Users/saintpeter/Desktop/AgentLab project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab
+      repo_path: /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0030_chain-budget-audit
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0030_chain-budget-audit/user_request.md
+      execution_backend: codex route: task_size: small agents: - Supervisor - Coder
+      - TesterAuditor rationale: - Supervisor always defines scope, token budget,
+      and st...'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:39.528455+00:00'' project:
+      AgentLab task_id: task_0030_chain-budget-audit status: planned source_statuses:
+      state: planned progress: unknown lifecycle: unknown drift: [] route: - Supervisor
+      - Coder - TesterAuditor current_agent: null current_stage: null percent_complete:
+      0 last_event: Workflow plan prepared. completed_agents: [] reports: {} lifecycle:
+      status: unknown node_count: 14 completed_count: 0 skipped_count: 0 failed_count:
+      0 running_count: 0 waiting_count: 0 percent_complete: 0 next_node: null nodes:
+      INIT_TASK: missing PREPARE_PLAN: missing S...'
+    important: true
+  artifact_summary:
+    present: 2
+    missing: 11
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0030_chain-budget-audit
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0030_chain-budget-audit
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0030_chain-budget-audit
+- task_id: task_0031_p0_abc_closure_eval
+  title: task_0031_p0_abc_closure_eval
+  summary: 'P0 ABC closure validation dry run: verify canonical task snapshot, artifact
+    finalize order, and runs-to-ledger synchronization.'
+  status: completed
+  resume_state: completed
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-06-05T07:00:08.372604+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  current_agent: null
+  current_stage: completed
+  percent_complete: 100
+  last_event: Task completed via dry-run pipeline
+  last_checkpoint: null
+  query_terms:
+  - sync
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0031_p0_abc_closure_eval
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 'P0 ABC closure validation dry run: verify canonical task snapshot, artifact
+      finalize order, and runs-to-ledger synchronization.'
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: present
+    title: Plan
+    summary: Fake evaluation task for lifecycle testing.
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: present
+    title: Scout
+    summary: '| Path | Purpose | |---|---| | agent_runtime/ | Core runtime |'
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: present
+    title: Research
+    summary: TBD
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: present
+    title: Interface
+    summary: 'Status: skipped Reason: No interfaces affected by this task.'
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: present
+    title: Implementation
+    summary: Dry-run (fake provider)
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: present
+    title: Validation
+    summary: '- YAML parse: ✅ pass - Python compile: ✅ pass'
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: present
+    title: Audit
+    summary: '- YAML parse: ✅ pass - Python compile: ✅ pass'
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: present
+    title: Archive
+    summary: '- task_id: dry-run test - execution_mode: fake_provider'
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0031_p0_abc_closure_eval agentlab_root:
+      /Users/saintpeter/Desktop/AgentLab project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab
+      repo_path: /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0031_p0_abc_closure_eval
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0031_p0_abc_closure_eval/user_request.md
+      execution_backend: codex budget_mode: balanced budget_profile: balanced_L2 project_size:
+      L2 risk_level: R1 route: task_size: medium agents: - Supervisor - Re...'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:39.693994+00:00'' project:
+      AgentLab task_id: task_0031_p0_abc_closure_eval status: completed source_statuses:
+      state: completed progress: completed lifecycle: completed drift: [] route: -
+      Supervisor - RepoScout - InterfaceMapper - Coder - TesterAuditor - Verifier
+      - Archivist current_agent: null current_stage: completed percent_complete: 100
+      last_event: Task completed via dry-run pipeline completed_agents: [] reports:
+      {} lifecycle: status: completed node_count: 14 completed_count: 13 skipped_count:
+      1 failed_count: 0 running_count: 0 waiting_count: 0 p...'
+    important: true
+  artifact_summary:
+    present: 11
+    missing: 2
+    important_missing:
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0031_p0_abc_closure_eval
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0031_p0_abc_closure_eval
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0031_p0_abc_closure_eval
+- task_id: task_0032_self_audit
+  title: task_0032_self_audit
+  summary: 检查AgentLab自身链路缺陷：全面检查agentlab自身链路（pipeline、state、artifact gate、memory写回、progress
+    tracking、llm provider模块导入）的闭环性和稳定性。对照本对话中的评估报告和BUG_REPORT.md，确认已修复的P0问题是否稳定，以及有无新的未闭环缺口。
+  status: blocked
+  resume_state: manual_decision_needed
+  can_resume: true
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-06-06T08:21:43.094134+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  current_agent: Verifier
+  current_stage: agent_completed
+  percent_complete: 61
+  last_event: Archivist requires user decision.
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - task
+  - 中的
+  - 以及
+  - 估报
+  - 修复
+  - 入的
+  - 全面
+  - 写回
+  - 及有
+  - 口检
+  - 否稳
+  - 告和
+  - 和确
+  - 和稳
+  - 回模
+  - 块导
+  - 复的
+  - 定以
+  - 定性
+  - 对照
+  - 对话
+  - 导入
+  - 已修
+  - 性和
+  - 性对
+  - 报告
+  - 新的
+  - 无新
+  - 是否
+  - 有无
+  - 未闭
+  - 本对
+  - 查自
+  - 检查
+  - 模块
+  - 照本
+  - 环性
+  - 环缺
+  - 的未
+  - 的评
+  - 的闭
+  - 的问
+  - 确认
+  - 稳定
+  - 缺口
+  - 缺陷
+  - 自身
+  - 认已
+  - 评估
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: 检查AgentLab自身链路缺陷：全面检查agentlab自身链路（pipeline、state、artifact gate、memory写回、progress
+      tracking、llm provider模块导入）的闭环性和稳定性。对照本对话中的评估报告和BUG_REPORT.md，确认已修复的P0问题是否稳定，以及有无新的未闭环缺口。
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: present
+    title: Plan
+    summary: '- **Task id:** task_0032_self_audit - **User request:** 检查AgentLab自身链路缺陷：全面检查agentlab自身链路（pipeline、state、artifact
+      gate、memory写回、progress tracking、llm provider模块导入）的闭环性和稳定性。对照本对话中的评估报告和BUG_REPORT.md，确认已修复的P0问题是否稳定，以及有无新的未闭环缺口。
+      - **Assigned scope:** Comprehensive self-audit of AgentLab’s internal chain
+      (pipeline, state management, artifact gates, memory write-back, progress tracking,
+      LLM provider module imports). Cross-reference BUG_REPORT.md and prior evaluation
+      reports to verify that fixed P0 issues remain stable and to discover any new
+      incomplete loops.'
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: present
+    title: Scout
+    summary: TBD
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: present
+    title: Research
+    summary: '```markdown'
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: present
+    title: Interface
+    summary: '```markdown'
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: present
+    title: Implementation
+    summary: TBD
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: present
+    title: Validation
+    summary: '- Task id: task_0032_self_audit - User request: 检查AgentLab自身链路缺陷：全面检查agentlab自身链路（pipeline、state、artifact
+      gate、memory写回、progress tracking、llm provider模块导入）的闭环性和稳定性。对照本对话中的评估报告和BUG_REPORT.md，确认已修复的P0问题是否稳定，以及有无新的未闭环缺口。
+      - Assigned scope: Analysis-only L3 route (Coder skipped). Validate pipeline,
+      state, artifact gates, memory write-back, progress tracking, and LLM provider
+      module imports.'
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: present
+    title: Audit
+    summary: TBD
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: present
+    title: Archive
+    summary: TBD
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0032_self_audit agentlab_root: /Users/saintpeter/Desktop/AgentLab
+      project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab repo_path:
+      /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0032_self_audit/user_request.md
+      execution_backend: codex budget_mode: balanced budget_profile: balanced_L3 project_size:
+      L3 risk_level: R1 route: task_size: large agents: - Supervisor - RepoScout -
+      Researcher - Inter...'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:39.893945+00:00'' project:
+      AgentLab task_id: task_0032_self_audit status: blocked source_statuses: state:
+      blocked progress: running lifecycle: blocked drift: - ''status_mismatch: {''''state'''':
+      ''''blocked'''', ''''progress'''': ''''running'''', ''''lifecycle'''': ''''blocked''''}''
+      route: - Supervisor - RepoScout - Researcher - InterfaceMapper - TesterAuditor
+      - Verifier - Archivist current_agent: Verifier current_stage: agent_completed
+      percent_complete: 61 last_event: Archivist requires user decision. completed_agents:
+      - Supervisor - Researcher - InterfaceMapper - Archivis...'
+    important: true
+  artifact_summary:
+    present: 11
+    missing: 2
+    important_missing:
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0032_self_audit
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0032_self_audit
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0032_self_audit
+- task_id: task_0033_codex_current_audit_perf
+  title: task_0033_codex_current_audit_perf
+  summary: Run an auditable local performance evaluation of AgentLab. Measure routing,
+    model-profile selection, lifecycle behavior, artifact completeness, and baseline
+    command latency without model API calls.
+  status: completed
+  resume_state: completed
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-06-07T13:29:38.276354+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  current_agent: null
+  current_stage: completed
+  percent_complete: 100
+  last_event: Performance evaluation completed.
+  last_checkpoint: null
+  query_terms:
+  - agent
+  - api
+  - codex
+  - model
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0033_codex_current_audit_perf
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: Run an auditable local performance evaluation of AgentLab. Measure routing,
+      model-profile selection, lifecycle behavior, artifact completeness, and baseline
+      command latency without model API calls.
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: present
+    title: Plan
+    summary: 'Task: `task_0033_codex_current_audit_perf` Mode: local deterministic
+      evaluation, no model API calls.'
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: present
+    title: Scout
+    summary: '- Evaluated routing rules, agent registry, model profiles, lifecycle
+      graph, and CLI command latency. - Active route: `evaluation_task` - Active agents:
+      Supervisor, RepoScout, Researcher, InterfaceMapper, TesterAuditor, Verifier,
+      Archivist'
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: present
+    title: Research
+    summary: 'Status: completed Reason: no external research was needed for local
+      performance measurement.'
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: present
+    title: Interface
+    summary: '- routing_rules.yml routes reference registered agents - agent_registry.yml
+      model_profile values reference model_profiles.yml profiles - schemas.AgentName
+      accepts route agents'
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: present
+    title: Validation
+    summary: '- Passed: 6/6'
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: present
+    title: Audit
+    summary: '- No blocking findings.'
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: present
+    title: Archive
+    summary: '- Performance report: `/Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0033_codex_current_audit_perf/PERFORMANCE_EVALUATION.md`
+      - Evaluation completed with local deterministic checks and zero model tokens.'
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_0033_codex_current_audit_perf agentlab_root:
+      /Users/saintpeter/Desktop/AgentLab project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab
+      repo_path: /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0033_codex_current_audit_perf
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0033_codex_current_audit_perf/user_request.md
+      execution_backend: codex budget_mode: balanced budget_profile: balanced_L3 project_size:
+      L3 risk_level: R1 route: task_size: large agents: - S...'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:40.090006+00:00'' project:
+      AgentLab task_id: task_0033_codex_current_audit_perf status: completed source_statuses:
+      state: completed progress: completed lifecycle: completed drift: [] route: -
+      Supervisor - RepoScout - Researcher - InterfaceMapper - TesterAuditor - Verifier
+      - Archivist current_agent: null current_stage: completed percent_complete: 100
+      last_event: Performance evaluation completed. completed_agents: - Supervisor
+      - RepoScout - Researcher - InterfaceMapper - TesterAuditor - Verifier - Archivist
+      reports: Supervisor: /Users/saintpeter/Deskt...'
+    important: true
+  artifact_summary:
+    present: 10
+    missing: 3
+    important_missing:
+    - 06_implementation_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0033_codex_current_audit_perf
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0033_codex_current_audit_perf
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0033_codex_current_audit_perf
+- task_id: task_0999
+  title: task_0999
+  summary: Test full lifecycle closure.
+  status: running
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-05-31T14:10:56.343628+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - RepoScout
+  - Coder
+  - TesterAuditor
+  - Archivist
+  current_agent: null
+  current_stage: init
+  percent_complete: 5
+  last_event: 'Running: INIT_TASK'
+  last_checkpoint: null
+  query_terms:
+  - full
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0999
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: Test full lifecycle closure.
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'task_id: task_0999 project: AgentLab execution: mode: dry_run route:
+      agents: - Supervisor - RepoScout - Coder - TesterAuditor - Archivist scope:
+      allowed_edit_paths: [] forbidden_paths: - .env resume: supported: true handoff_file:
+      handoff_packet.yml'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:40.219425+00:00'' project:
+      AgentLab task_id: task_0999 status: running source_statuses: state: running
+      progress: running lifecycle: running drift: [] route: - Supervisor - RepoScout
+      - Coder - TesterAuditor - Archivist current_agent: null current_stage: init
+      percent_complete: 5 last_event: ''Running: INIT_TASK'' completed_agents: []
+      reports: {} lifecycle: status: running node_count: 14 completed_count: 1 skipped_count:
+      2 failed_count: 0 running_count: 0 waiting_count: 10 percent_complete: 21 next_node:
+      PREPARE_PLAN nodes: INIT_TASK: completed PREPARE_P...'
+    important: true
+  artifact_summary:
+    present: 3
+    missing: 10
+    important_missing:
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_0999
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_0999
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0999
+- task_id: task_9999_demo-closure-test
+  title: task_9999_demo-closure-test
+  summary: Demo closure test
+  status: completed
+  resume_state: completed
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-06-01T04:33:19.444864+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route:
+  - Supervisor
+  - Coder
+  - TesterAuditor
+  current_agent: null
+  current_stage: completing
+  percent_complete: 100
+  last_event: Task completed via dry-run pipeline
+  last_checkpoint: null
+  query_terms:
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_9999_demo-closure-test
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: present
+    title: Request
+    summary: Demo closure test
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: present
+    title: Plan
+    summary: Fake evaluation task for lifecycle testing.
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: present
+    title: Scout
+    summary: '| Path | Purpose | |---|---| | agent_runtime/ | Core runtime |'
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: present
+    title: Research
+    summary: TBD
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: present
+    title: Interface
+    summary: TBD
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: present
+    title: Implementation
+    summary: Dry-run (fake provider)
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: present
+    title: Validation
+    summary: '- YAML parse: ✅ pass - Python compile: ✅ pass'
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: present
+    title: Audit
+    summary: '- YAML parse: ✅ pass - Python compile: ✅ pass'
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: present
+    title: Archive
+    summary: '- task_id: dry-run test - execution_mode: fake_provider'
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: present
+    title: Plan
+    summary: 'project: AgentLab task_id: task_9999_demo-closure-test agentlab_root:
+      /Users/saintpeter/Desktop/AgentLab project_root: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab
+      repo_path: /Users/saintpeter/Desktop/AgentLab run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_9999_demo-closure-test
+      user_request_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_9999_demo-closure-test/user_request.md
+      execution_backend: codex route: task_size: small agents: - Supervisor - Coder
+      - TesterAuditor rationale: - Supervisor always defines scope, token budget,
+      and stop ...'
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:40.288207+00:00'' project:
+      AgentLab task_id: task_9999_demo-closure-test status: completed source_statuses:
+      state: completed progress: running lifecycle: completed drift: - ''status_mismatch:
+      {''''state'''': ''''completed'''', ''''progress'''': ''''running'''', ''''lifecycle'''':
+      ''''completed''''}'' route: - Supervisor - Coder - TesterAuditor current_agent:
+      null current_stage: completing percent_complete: 100 last_event: Task completed
+      via dry-run pipeline completed_agents: [] reports: {} lifecycle: status: completed
+      node_count: 14 completed_count: 11 skipped_count: 3 faile...'
+    important: true
+  artifact_summary:
+    present: 11
+    missing: 2
+    important_missing:
+    - handoff_packet.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_9999_demo-closure-test
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_9999_demo-closure-test
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_9999_demo-closure-test
+- task_id: task_eval_eval_l1_cli_help_fix
+  title: task_eval_eval_l1_cli_help_fix
+  summary: ''
+  status: running
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: coder
+  percent_complete: 50
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_eval_eval_l1_cli_help_fix
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: missing
+    title: Request
+    summary: ''
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:40.386275+00:00'' project:
+      AgentLab task_id: task_eval_eval_l1_cli_help_fix status: running source_statuses:
+      state: unknown progress: running lifecycle: unknown drift: [] route: [] current_agent:
+      null current_stage: coder percent_complete: 50 last_event: '''' completed_agents:
+      [] reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0
+      skipped_count: 0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete:
+      0 next_node: null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN:
+      missing REPO_CONTEXT: missing RESEA...'
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 12
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_eval_eval_l1_cli_help_fix
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_eval_eval_l1_cli_help_fix
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_eval_eval_l1_cli_help_fix
+- task_id: task_eval_eval_l1_doc_update
+  title: task_eval_eval_l1_doc_update
+  summary: ''
+  status: running
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: coder
+  percent_complete: 50
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_eval_eval_l1_doc_update
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: missing
+    title: Request
+    summary: ''
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:40.400920+00:00'' project:
+      AgentLab task_id: task_eval_eval_l1_doc_update status: running source_statuses:
+      state: unknown progress: running lifecycle: unknown drift: [] route: [] current_agent:
+      null current_stage: coder percent_complete: 50 last_event: '''' completed_agents:
+      [] reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0
+      skipped_count: 0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete:
+      0 next_node: null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN:
+      missing REPO_CONTEXT: missing RESEARC...'
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 12
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_eval_eval_l1_doc_update
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_eval_eval_l1_doc_update
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_eval_eval_l1_doc_update
+- task_id: task_eval_eval_l2_task_index_feature
+  title: task_eval_eval_l2_task_index_feature
+  summary: ''
+  status: running
+  resume_state: unknown
+  can_resume: false
+  project: AgentLab
+  created_at: ''
+  updated_at: ''
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: null
+  current_stage: coder
+  percent_complete: 50
+  last_event: ''
+  last_checkpoint: null
+  query_terms:
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_eval_eval_l2_task_index_feature
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: missing
+    title: Request
+    summary: ''
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:40.415788+00:00'' project:
+      AgentLab task_id: task_eval_eval_l2_task_index_feature status: running source_statuses:
+      state: unknown progress: running lifecycle: unknown drift: [] route: [] current_agent:
+      null current_stage: coder percent_complete: 50 last_event: '''' completed_agents:
+      [] reports: {} lifecycle: status: unknown node_count: 14 completed_count: 0
+      skipped_count: 0 failed_count: 0 running_count: 0 waiting_count: 0 percent_complete:
+      0 next_node: null nodes: INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN:
+      missing REPO_CONTEXT: missing...'
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 12
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_eval_eval_l2_task_index_feature
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_eval_eval_l2_task_index_feature
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_eval_eval_l2_task_index_feature
+- task_id: task_eval_provider_failover
+  title: task_eval_provider_failover
+  summary: ''
+  status: running
+  resume_state: recoverable
+  can_resume: true
+  project: AgentLab
+  created_at: ''
+  updated_at: '2026-05-31T11:31:56.688530+00:00'
+  priority: P2
+  category: ''
+  risk_level: ''
+  route: []
+  current_agent: Coder
+  current_stage: Coder
+  percent_complete: 60
+  last_event: Resumed after pause
+  last_checkpoint: null
+  query_terms:
+  - failover
+  - task
+  paths:
+    run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_eval_provider_failover
+    user_request: user_request.md
+    workflow_plan: workflow_plan.yml
+    progress: progress.yml
+    state: state.yml
+    artifact_manifest: artifact_manifest.yml
+    task_card: task_card.yml
+    task_snapshot: task_snapshot.yml
+  artifacts:
+  - kind: request
+    agent: user
+    path: user_request.md
+    status: missing
+    title: Request
+    summary: ''
+    important: true
+  - kind: plan
+    agent: Supervisor
+    path: 01_supervisor_plan.md
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: scout
+    agent: RepoScout
+    path: 02_reposcout_report.md
+    status: missing
+    title: Scout
+    summary: ''
+    important: false
+  - kind: research
+    agent: Researcher
+    path: 03_research_notes.md
+    status: missing
+    title: Research
+    summary: ''
+    important: false
+  - kind: interface
+    agent: InterfaceMapper
+    path: 04_interface_map.md
+    status: missing
+    title: Interface
+    summary: ''
+    important: false
+  - kind: prompt
+    agent: CodexPromptGen
+    path: 05_codex_prompt.md
+    status: missing
+    title: Prompt
+    summary: ''
+    important: false
+  - kind: implementation
+    agent: Coder
+    path: 06_implementation_report.md
+    status: missing
+    title: Implementation
+    summary: ''
+    important: true
+  - kind: validation
+    agent: TesterAuditor
+    path: 07_validation_report.md
+    status: missing
+    title: Validation
+    summary: ''
+    important: true
+  - kind: audit
+    agent: TesterAuditor
+    path: 08_audit_report.md
+    status: missing
+    title: Audit
+    summary: ''
+    important: true
+  - kind: archive
+    agent: Archivist
+    path: 09_archive_update.md
+    status: missing
+    title: Archive
+    summary: ''
+    important: false
+  - kind: handoff
+    agent: system
+    path: handoff_packet.yml
+    status: missing
+    title: Handoff
+    summary: ''
+    important: true
+  - kind: plan
+    agent: system
+    path: workflow_plan.yml
+    status: missing
+    title: Plan
+    summary: ''
+    important: true
+  - kind: snapshot
+    agent: system
+    path: task_snapshot.yml
+    status: present
+    title: Snapshot
+    summary: 'version: 1 generated_at: ''2026-06-07T13:31:40.431273+00:00'' project:
+      AgentLab task_id: task_eval_provider_failover status: running source_statuses:
+      state: running progress: running lifecycle: unknown drift: [] route: [] current_agent:
+      Coder current_stage: null percent_complete: 60 last_event: Resumed after pause
+      completed_agents: - Supervisor - RepoScout reports: {} lifecycle: status: unknown
+      node_count: 14 completed_count: 0 skipped_count: 0 failed_count: 0 running_count:
+      0 waiting_count: 0 percent_complete: 0 next_node: null nodes: INIT_TASK: missing
+      PREPARE_PLAN: missing SUPERVISOR_PLAN:...'
+    important: true
+  artifact_summary:
+    present: 1
+    missing: 12
+    important_missing:
+    - user_request.md
+    - 01_supervisor_plan.md
+    - 06_implementation_report.md
+    - 07_validation_report.md
+    - 08_audit_report.md
+    - handoff_packet.yml
+    - workflow_plan.yml
+  backup_status:
+    github_synced: false
+    github_commit: null
+    truenas_synced: false
+    last_sync_at: ''
+  commands:
+    open: ./agentlab.sh task-open --project AgentLab --task-id task_eval_provider_failover
+    resume: ./agentlab.sh resume --project AgentLab --task-id task_eval_provider_failover
+    chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_eval_provider_failover

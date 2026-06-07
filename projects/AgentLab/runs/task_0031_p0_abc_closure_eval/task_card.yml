@@ -2,8 +2,34 @@ version: 1
 project: AgentLab
 task_id: task_0031_p0_abc_closure_eval
 title: task_0031_p0_abc_closure_eval
+summary: 'P0 ABC closure validation dry run: verify canonical task snapshot, artifact
+  finalize order, and runs-to-ledger synchronization.'
 status: completed
-artifact_check:
-  valid: true
-  pass_rate: 1.0
-  issues_count: 0
+resume_state: completed
+can_resume: false
+percent_complete: 100
+current_agent: null
+current_stage: completed
+last_event: Task completed via dry-run pipeline
+last_event_at: '2026-06-05T07:00:08.372604+00:00'
+important_paths:
+  run_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0031_p0_abc_closure_eval
+  user_request: user_request.md
+  progress: progress.yml
+  workflow_plan: workflow_plan.yml
+  task_snapshot: task_snapshot.yml
+  handoff_packet: handoff_packet.yml
+commands:
+  open: ./agentlab.sh task-open --project AgentLab --task-id task_0031_p0_abc_closure_eval
+  resume: ./agentlab.sh resume --project AgentLab --task-id task_0031_p0_abc_closure_eval
+  chat_attach: ./agentlab.sh chat --project AgentLab --task-id task_0031_p0_abc_closure_eval
+artifact_summary:
+  present: 11
+  missing: 2
+  important_missing:
+  - handoff_packet.yml
+backup_status:
+  github_synced: false
+  github_commit: null
+  truenas_synced: false
+  last_sync_at: ''

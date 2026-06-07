@@ -73,6 +73,7 @@ const state = {
   _projects: DEMO_PROJECTS.slice(),
   _taskData: [],
   _ledgerEntry: null,
+  _systemStatus: null,
 };
 
 /* ───── API 后端配置 ───── */
@@ -161,6 +162,7 @@ const AgentLab = {
     this.renderLogs();
     this.renderCost();
     this.renderConfig();
+    this.renderSystem();
     this.renderNotifications();
     this.updateProjectSelector();
     this.updateTaskSelector();
@@ -597,6 +599,97 @@ const AgentLab = {
       if (editBtn) editBtn.hidden = false;
     }
     setTimeout(() => { if (statusEl) statusEl.textContent = ""; }, 5000);
+  },
+
+  /* ========== 系统 / 迁移面板 ========== */
+  statusPill(status) {
+    const s = String(status || "unknown");
+    const label = { pass:"正常", warn:"警告", fail:"失败", synced:"已同步", dry_run_completed:"预演完成", blocked:"已阻止" }[s] || s;
+    return `<span class="status-pill" data-status="${this.esc(s)}">${this.esc(label)}</span>`;
+  },
+
+  systemRow(label, value, status = "") {
+    const pill = status ? this.statusPill(status) : "";
+    return `<div class="system-row"><span>${this.esc(label)}</span><strong>${value}</strong>${pill}</div>`;
+  },
+
+  async loadSystemStatus(force = false) {
+    if (!force && state._systemStatus) return state._systemStatus;
+    const data = await this.apiGet("/api/system/status", { project: state.project, task: state.taskId });
+    state._systemStatus = data && !data.error ? data : null;
+    return state._systemStatus;
+  },
+
+  async renderSystem() {
+    const root = this.$("systemSummary");
+    if (!root) return;
+    const data = await this.loadSystemStatus();
+    if (!data) {
+      root.innerHTML = '<div class="empty-state">系统状态 API 未连接，请启动 web_ui/server.py</div>';
+      return;
+    }
+    const migration = data.migration || {};
+    const backup = data.backup || {};
+    const truenas = data.truenas || backup.truenas?.status || {};
+    const checks = migration.checks || [];
+    const checkById = Object.fromEntries(checks.map(c => [c.id, c]));
+    const apiRows = ["env.DEEPSEEK_API_KEY", "env.DASHSCOPE_API_KEY", "env.OPENAI_API_KEY"].map(id => {
+      const c = checkById[id] || {};
+      const name = id.replace("env.", "");
+      return this.systemRow(name, this.esc(c.message || "未检查"), c.status || "unknown");
+    }).join("");
+    const github = backup.github || {};
+    const ledger = backup.ledger || {};
+    const web = data.webUi || {};
+    const cache = checkById["cache.root"] || {};
+
+    root.innerHTML = `
+      <div class="system-overview-card">${this.statusPill(migration.status)}<span>迁移检查</span><strong>${this.esc(JSON.stringify(migration.summary || {}))}</strong></div>
+      <div class="system-overview-card">${this.statusPill(truenas.status)}<span>SMB</span><strong>${this.esc(truenas.mount_path || "未配置")}</strong></div>
+      <div class="system-overview-card">${this.statusPill(backup.status)}<span>备份汇总</span><strong>${ledger.entries_count || 0} 条 ledger</strong></div>
+    `;
+    this.$("systemModelKeys", apiRows);
+    this.$("systemGithub", [
+      this.systemRow("Enabled", String(github.enabled), github.enabled ? "pass" : "warn"),
+      this.systemRow("Token", github.token_configured ? "已配置" : "未配置", github.token_configured ? "pass" : "warn"),
+      this.systemRow("Repo", this.esc(`${github.owner || "-"}/${github.repo || "-"}`)),
+      this.systemRow("Latest", this.esc(github.latest?.status || "无记录"), github.latest?.status || "warn"),
+    ].join(""));
+    this.$("systemTruenas", [
+      this.systemRow("URL", this.esc(truenas.protocol_url || "-")),
+      this.systemRow("Mount", this.esc(truenas.mount_path || "-"), truenas.mounted ? "pass" : "fail"),
+      this.systemRow("Writable", String(Boolean(truenas.writable)), truenas.writable ? "pass" : "fail"),
+      this.systemRow("Free", `${this.fmt(truenas.free_bytes || 0)} bytes`),
+      this.systemRow("Latest", this.esc(backup.truenas?.latest?.status || "无记录"), backup.truenas?.latest?.status || "warn"),
+    ].join(""));
+    this.$("systemRuntime", [
+      this.systemRow("Web Port", String(web.port || "-"), "pass"),
+      this.systemRow("Auth Token", web.authTokenConfigured ? "已启用" : "未启用", web.authTokenConfigured ? "pass" : "warn"),
+      this.systemRow("Cache", this.esc(cache.message || "未检查"), cache.status || "unknown"),
+      this.systemRow("Project", this.esc(state.project || "AgentLab")),
+    ].join(""));
+    const recent = ledger.recent_entries || [];
+    this.$("systemLedger", `<table><tr><th>Time</th><th>Target</th><th>Task</th><th>Status</th></tr>${recent.slice(-8).reverse().map(e => `<tr><td>${this.esc(String(e.timestamp||"").slice(0,19))}</td><td>${this.esc(e.target||"")}</td><td>${this.esc(e.task_id||"")}</td><td>${this.esc(e.status||"")}</td></tr>`).join("") || '<tr><td colspan="4" class="text-muted">暂无同步记录</td></tr>'}</table>`);
+  },
+
+  async runSystemCheck(kind) {
+    const output = this.$("systemCommandOutput");
+    if (output) output.textContent = "运行中...";
+    const endpoint = kind === "doctor" ? "/api/system/doctor" : kind === "truenas" ? "/api/backup/truenas-status" : "/api/system/migration-doctor";
+    const data = await this.apiGet(endpoint, { project: state.project, task: state.taskId });
+    if (output) output.textContent = JSON.stringify(data || { error: "API unavailable" }, null, 2);
+    state._systemStatus = null;
+    await this.renderSystem();
+  },
+
+  async runTruenasDryRun() {
+    const output = this.$("systemCommandOutput");
+    if (output) output.textContent = "TrueNAS dry-run 运行中...";
+    const data = await this.apiPost("/api/backup/truenas-sync", { project: state.project, taskId: state.taskId, execute: false });
+    if (output) output.textContent = JSON.stringify(data || { error: "API unavailable" }, null, 2);
+    this.showToast(data?.success ? "TrueNAS dry-run 已完成" : "TrueNAS dry-run 未完成", data?.success ? "success" : "warn");
+    state._systemStatus = null;
+    await this.renderSystem();
   },
 
   /* ========== 任务详情面板 ========== */
@@ -1144,6 +1237,7 @@ const AgentLab = {
     if (tabName === "logs") this.renderLogs();
     if (tabName === "cost") this.renderCost();
     if (tabName === "config") this.renderConfig();
+    if (tabName === "system") this.renderSystem();
   },
 
   /* ========== 命令面板 ========== */
@@ -1268,7 +1362,7 @@ function bindEvents() {
     const cmds = [
       ...projectCmds,
       ...taskCmds,
-      "Tab: 总览", "Tab: Agent 面板", "Tab: 任务日志", "Tab: 成本分析", "Tab: 配置",
+      "Tab: 总览", "Tab: Agent 面板", "Tab: 任务日志", "Tab: 成本分析", "Tab: 配置", "Tab: 系统",
       "刷新数据", "新建任务", "切换主题", "导出日志", "显示快捷键"
     ].filter(c => c.toLowerCase().includes(q));
     const results = document.getElementById("cmdResults");
@@ -1283,7 +1377,7 @@ function bindEvents() {
     if (ctrl && e.key === "t") { e.preventDefault(); AgentLab.toggleTheme(); }
     if (ctrl && e.key === "n") { e.preventDefault(); AgentLab.openNewTask(); }
     if (ctrl && e.key === "f") { e.preventDefault(); document.getElementById("logSearch")?.focus(); }
-    if (ctrl && e.key >= "1" && e.key <= "6") { e.preventDefault(); const tabs = ["dashboard","agents","logs","cost","config","about"]; AgentLab.switchTab(tabs[parseInt(e.key)-1]); }
+    if (ctrl && e.key >= "1" && e.key <= "7") { e.preventDefault(); const tabs = ["dashboard","agents","logs","cost","config","system","about"]; AgentLab.switchTab(tabs[parseInt(e.key)-1]); }
     if (e.key === "?") { e.preventDefault(); AgentLab.showShortcuts(); }
     if (e.key === "Escape") {
       document.getElementById("commandPalette").hidden = true;
@@ -1326,7 +1420,7 @@ function bindEvents() {
 window.executeCommand = (cmd) => {
   if (cmd.startsWith("切换项目:")) { AgentLab.switchProject(cmd.split(":")[1].trim()); }
   else if (cmd.startsWith("切换任务:")) { AgentLab.switchTask(cmd.split(":")[1].trim()); }
-  else if (cmd.startsWith("Tab:")) { AgentLab.switchTab({"总览":"dashboard","Agent 面板":"agents","任务日志":"logs","成本分析":"cost","配置":"config"}[cmd.split(":")[1].trim()]||"dashboard"); }
+  else if (cmd.startsWith("Tab:")) { AgentLab.switchTab({"总览":"dashboard","Agent 面板":"agents","任务日志":"logs","成本分析":"cost","配置":"config","系统":"system"}[cmd.split(":")[1].trim()]||"dashboard"); }
   else if (cmd === "刷新数据") AgentLab.refresh();
   else if (cmd === "新建任务") AgentLab.openNewTask();
   else if (cmd === "切换主题") AgentLab.toggleTheme();

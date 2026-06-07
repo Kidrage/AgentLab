@@ -1,0 +1,50 @@
+version: 1
+generated_at: '2026-06-07T13:31:39.528455+00:00'
+project: AgentLab
+task_id: task_0030_chain-budget-audit
+status: planned
+source_statuses:
+  state: planned
+  progress: unknown
+  lifecycle: unknown
+drift: []
+route:
+- Supervisor
+- Coder
+- TesterAuditor
+current_agent: null
+current_stage: null
+percent_complete: 0
+last_event: Workflow plan prepared.
+completed_agents: []
+reports: {}
+lifecycle:
+  status: unknown
+  node_count: 14
+  completed_count: 0
+  skipped_count: 0
+  failed_count: 0
+  running_count: 0
+  waiting_count: 0
+  percent_complete: 0
+  next_node: null
+  nodes:
+    INIT_TASK: missing
+    PREPARE_PLAN: missing
+    SUPERVISOR_PLAN: missing
+    REPO_CONTEXT: missing
+    RESEARCH_OPTIONAL: missing
+    INTERFACE_OPTIONAL: missing
+    CODER_IMPLEMENTATION: missing
+    VALIDATION: missing
+    AUDIT: missing
+    VERIFY: missing
+    ARCHIVE: missing
+    SELF_CHECK: missing
+    SYNC_OPTIONAL: missing
+    FINALIZE: missing
+paths:
+  state: state.yml
+  progress: progress.yml
+  lifecycle: lifecycle.yml
+  workflow_plan: workflow_plan.yml

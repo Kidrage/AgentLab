@@ -1,0 +1,129 @@
+project: AgentLab
+task_id: task_0032_self_audit
+modes:
+- mode: frugal
+  budget_profile: frugal_L3
+  project_size: L3
+  risk_level: R1
+  route:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  estimated_tokens: 26900
+  models:
+    Supervisor:
+      profile: brain_coordinator_frugal
+      provider: deepseek
+      model: deepseek-v4-flash
+    RepoScout:
+      profile: perception_reposcout_frugal
+      provider: qwen-flash
+      model: qwen3.6-flash
+    Researcher:
+      profile: perception_research
+      provider: qwen-flash
+      model: qwen3.6-flash
+    InterfaceMapper:
+      profile: perception_interface_frugal
+      provider: qwen-flash
+      model: qwen3.6-flash
+    TesterAuditor:
+      profile: audit_tester_frugal
+      provider: qwen-flash
+      model: qwen3.6-flash
+    Verifier:
+      profile: audit_verifier
+      provider: qwen-flash
+      model: qwen3.6-flash
+    Archivist:
+      profile: archive_archivist_frugal
+      provider: qwen-flash
+      model: qwen3.6-flash
+- mode: balanced
+  budget_profile: balanced_L3
+  project_size: L3
+  risk_level: R1
+  route:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  estimated_tokens: 60000
+  models:
+    Supervisor:
+      profile: brain_coordinator
+      provider: deepseek
+      model: deepseek-v4-pro
+    RepoScout:
+      profile: perception_reposcout_l3
+      provider: qwen3
+      model: qwen3.7-max
+    Researcher:
+      profile: perception_research_l3
+      provider: qwen
+      model: qwen3.6-plus
+    InterfaceMapper:
+      profile: perception_interface_l3
+      provider: qwen3
+      model: qwen3.7-max
+    TesterAuditor:
+      profile: audit_tester_l3
+      provider: qwen
+      model: qwen3.6-plus
+    Verifier:
+      profile: audit_verifier_l3
+      provider: qwen
+      model: qwen3.6-plus
+    Archivist:
+      profile: archive_archivist_l3
+      provider: qwen
+      model: qwen3.6-plus
+- mode: max_quality
+  budget_profile: max_quality_L3
+  project_size: L3
+  risk_level: R1
+  route:
+  - Supervisor
+  - RepoScout
+  - Researcher
+  - InterfaceMapper
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  estimated_tokens: 78000
+  models:
+    Supervisor:
+      profile: brain_coordinator_maxq
+      provider: deepseek
+      model: deepseek-v4-pro
+    RepoScout:
+      profile: perception_reposcout_maxq
+      provider: qwen3
+      model: qwen3.7-max
+    Researcher:
+      profile: perception_research_maxq
+      provider: qwen
+      model: qwen3.6-plus
+    InterfaceMapper:
+      profile: perception_interface_maxq
+      provider: qwen3
+      model: qwen3.7-max
+    TesterAuditor:
+      profile: audit_tester_maxq
+      provider: qwen3
+      model: qwen3.7-max
+    Verifier:
+      profile: audit_verifier_maxq
+      provider: qwen3
+      model: qwen3.7-max
+    Archivist:
+      profile: archive_archivist_maxq
+      provider: qwen
+      model: qwen3.6-plus

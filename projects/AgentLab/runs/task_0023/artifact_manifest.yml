@@ -1,7 +1,7 @@
 version: 1
 project: AgentLab
 task_id: task_0023
-generated_at: '2026-05-31T11:23:15.783394+00:00'
+generated_at: '2026-06-07T13:31:38.731622+00:00'
 artifacts:
 - kind: request
   agent: user
@@ -87,8 +87,22 @@ artifacts:
   title: Plan
   summary: ''
   important: true
+- kind: snapshot
+  agent: system
+  path: task_snapshot.yml
+  status: present
+  title: Snapshot
+  summary: 'version: 1 generated_at: ''2026-06-07T13:31:38.728367+00:00'' project:
+    AgentLab task_id: task_0023 status: unknown source_statuses: state: unknown progress:
+    unknown lifecycle: unknown drift: [] route: [] current_agent: null current_stage:
+    null percent_complete: 0 last_event: '''' completed_agents: [] reports: {} lifecycle:
+    status: unknown node_count: 14 completed_count: 0 skipped_count: 0 failed_count:
+    0 running_count: 0 waiting_count: 0 percent_complete: 0 next_node: null nodes:
+    INIT_TASK: missing PREPARE_PLAN: missing SUPERVISOR_PLAN: missing REPO_CONTEXT:
+    missing RESEARCH_OPTIONAL: missing I...'
+  important: true
 summary:
-  present: 1
+  present: 2
   missing: 11
   important_missing:
   - 01_supervisor_plan.md

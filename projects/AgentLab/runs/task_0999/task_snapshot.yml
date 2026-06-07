@@ -1,0 +1,52 @@
+version: 1
+generated_at: '2026-06-07T13:31:40.219425+00:00'
+project: AgentLab
+task_id: task_0999
+status: running
+source_statuses:
+  state: running
+  progress: running
+  lifecycle: running
+drift: []
+route:
+- Supervisor
+- RepoScout
+- Coder
+- TesterAuditor
+- Archivist
+current_agent: null
+current_stage: init
+percent_complete: 5
+last_event: 'Running: INIT_TASK'
+completed_agents: []
+reports: {}
+lifecycle:
+  status: running
+  node_count: 14
+  completed_count: 1
+  skipped_count: 2
+  failed_count: 0
+  running_count: 0
+  waiting_count: 10
+  percent_complete: 21
+  next_node: PREPARE_PLAN
+  nodes:
+    INIT_TASK: completed
+    PREPARE_PLAN: waiting
+    SUPERVISOR_PLAN: waiting
+    REPO_CONTEXT: waiting
+    RESEARCH_OPTIONAL: skipped
+    INTERFACE_OPTIONAL: skipped
+    CODER_IMPLEMENTATION: waiting
+    VALIDATION: waiting
+    AUDIT: waiting
+    VERIFY: missing
+    ARCHIVE: waiting
+    SELF_CHECK: waiting
+    SYNC_OPTIONAL: waiting
+    FINALIZE: waiting
+paths:
+  state: state.yml
+  progress: progress.yml
+  lifecycle: lifecycle.yml
+  workflow_plan: workflow_plan.yml

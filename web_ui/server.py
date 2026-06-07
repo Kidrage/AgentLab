@@ -123,6 +123,30 @@ def ensure_project_memory_files(project_root: Path, project_name: str, descripti
             path.write_text(content, encoding="utf-8")
 
 
+def run_cli_json(args: list[str], timeout: int = 30) -> dict:
+    """Run AgentLab CLI JSON command and parse stdout safely."""
+    try:
+        result = subprocess.run(
+            [sys.executable, str(AGENTLAB_ROOT / "agent_runtime" / "run_task.py"), *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=str(AGENTLAB_ROOT),
+        )
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            data = {"status": "fail", "error": "invalid json output", "stdout": result.stdout[:500]}
+        data.setdefault("returncode", result.returncode)
+        if result.stderr:
+            data.setdefault("stderr", result.stderr[:500])
+        return data
+    except subprocess.TimeoutExpired:
+        return {"status": "fail", "error": "command timeout"}
+    except Exception as exc:
+        return {"status": "fail", "error": str(exc)}
+
+
 def upsert_task_ledger_entry(project: str, task_id: str, request_text: str, status: str = "planned") -> None:
     """Keep the project task ledger aligned with real run folders."""
     project = safe_project_name(project)
@@ -175,6 +199,61 @@ def handle_get_projects():
             "backupVisibility": (github.get("backup") or {}).get("visibility", "private"),
         })
     return {"projects": projects}
+
+
+def handle_get_system_status(project: str = "AgentLab", task_id: str = ""):
+    """Return a redacted system/migration/backup status snapshot for Web UI."""
+    project = safe_project_name(project)
+    migration = run_cli_json(["migration-doctor", "--project", project, "--json-output", "--no-write-probe"], timeout=30)
+    backup_args = ["backup-status", "--project", project, "--json-output"]
+    if task_id:
+        backup_args.extend(["--task-id", task_id])
+    backup = run_cli_json(backup_args, timeout=20)
+    truenas = run_cli_json(["truenas-status", "--project", project, "--json-output", "--no-write-probe"], timeout=20)
+    return {
+        "generatedAt": utc_now_iso(),
+        "project": project,
+        "taskId": task_id,
+        "migration": migration,
+        "backup": backup,
+        "truenas": truenas,
+        "webUi": {
+            "host": "0.0.0.0",
+            "port": int(os.getenv("AGENTLAB_PORT", "8765")),
+            "authTokenEnv": "AGENTLAB_WEB_UI_TOKEN",
+            "authTokenConfigured": bool(os.getenv("AGENTLAB_WEB_UI_TOKEN")),
+        },
+    }
+
+
+def _web_execute_authorized(headers, data: dict) -> tuple[bool, str]:
+    """Authorize sensitive Web UI actions without exposing token values."""
+    required_token = os.getenv("AGENTLAB_WEB_UI_TOKEN")
+    if not required_token:
+        return False, "AGENTLAB_WEB_UI_TOKEN is not configured; execute from Web UI is disabled."
+    supplied = headers.get("X-AgentLab-Token") or data.get("authToken") or ""
+    if supplied != required_token:
+        return False, "Invalid or missing AgentLab Web UI token."
+    return True, "authorized"
+
+
+def handle_post_truenas_sync(data: dict, headers) -> dict:
+    """Run TrueNAS dry-run from Web UI; execute requires local token."""
+    project = safe_project_name(data.get("project", "AgentLab"))
+    task_id = data.get("taskId") or data.get("task_id") or "task_0001"
+    execute = bool(data.get("execute", False))
+    if execute:
+        ok, reason = _web_execute_authorized(headers, data)
+        if not ok:
+            return {"success": False, "status": "blocked", "error": reason}
+    args = ["truenas-sync", "--project", project, "--task-id", task_id, "--json-output"]
+    if execute:
+        args.append("--execute")
+    else:
+        args.append("--dry-run")
+    report = run_cli_json(args, timeout=120)
+    report["success"] = report.get("status") in {"synced", "dry_run_completed"}
+    return report
 
 
 def handle_get_tasks(project: str):
@@ -420,7 +499,7 @@ def handle_get_status(project: str, task_id: str):
         },
         "qwenFallback": {
             "provider": "Qwen",
-            "enabled": bool(os.getenv("QWEN_API_KEY")),
+            "enabled": bool(os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY")),
             "model": os.getenv("QWEN_MODEL", "qwen-plus"),
             "modelOptions": ["qwen-coder-aux", "qwen-coder-plus", "qwen-coder-turbo", "qwen-max"],
         },
@@ -925,7 +1004,7 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
     def _cors_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-AgentLab-Token")
 
     @staticmethod
     def _json_default(obj):
@@ -1006,6 +1085,27 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
             except Exception:
                 return self._json_response({"status": "fail", "error": "doctor command failed"})
 
+        if path == "/api/system/status":
+            project = params.get("project", ["AgentLab"])[0]
+            task_id = params.get("task", [""])[0]
+            return self._json_response(handle_get_system_status(project, task_id))
+
+        if path == "/api/system/migration-doctor":
+            project = params.get("project", ["AgentLab"])[0]
+            return self._json_response(run_cli_json(["migration-doctor", "--project", project, "--json-output", "--no-write-probe"]))
+
+        if path == "/api/backup/status":
+            project = params.get("project", ["AgentLab"])[0]
+            task_id = params.get("task", [""])[0]
+            args = ["backup-status", "--project", project, "--json-output"]
+            if task_id:
+                args.extend(["--task-id", task_id])
+            return self._json_response(run_cli_json(args))
+
+        if path == "/api/backup/truenas-status":
+            project = params.get("project", ["AgentLab"])[0]
+            return self._json_response(run_cli_json(["truenas-status", "--project", project, "--json-output", "--no-write-probe"]))
+
         # /api/tasks/<project>/<task_id>/snapshot
         if "/api/tasks/" in path and "/snapshot" in path:
             parts = path.replace("/api/tasks/", "").rsplit("/snapshot", 1)
@@ -1035,6 +1135,8 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
             return self._json_response({"error": "invalid path"}, 400)
 
         if path == "/api/config":
+            if not self._require_web_auth():
+                return
             from agent_runtime.config_loader import load_agentlab_configs
             import os as _os
             configs = load_agentlab_configs(AGENTLAB_ROOT)
@@ -1050,6 +1152,21 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
 
         return self._serve_static(path)
 
+    def _require_web_auth(self) -> bool:
+        """Require AGENTLAB_WEB_UI_TOKEN for sensitive endpoints.
+
+        Returns True if authorized, False if not (sends 401 response).
+        """
+        required_token = os.getenv("AGENTLAB_WEB_UI_TOKEN")
+        if not required_token:
+            self._json_response({"error": "AGENTLAB_WEB_UI_TOKEN is not configured; Web UI execution is disabled.", "success": False}, 403)
+            return False
+        supplied = self.headers.get("X-AgentLab-Token") or ""
+        if supplied != required_token:
+            self._json_response({"error": "Invalid or missing AgentLab Web UI token.", "success": False}, 401)
+            return False
+        return True
+
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -1062,6 +1179,10 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
             data = json.loads(body.decode("utf-8"))
         except json.JSONDecodeError:
             data = {}
+
+        # ── All POST endpoints require token auth ──
+        if not self._require_web_auth():
+            return
 
         if path == "/api/decision":
             return self._json_response(handle_post_decision(data))
@@ -1084,6 +1205,9 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
         if path == "/api/task/run-next":
             return self._json_response(handle_run_next_agents(data))
 
+        if path == "/api/backup/truenas-sync":
+            return self._json_response(handle_post_truenas_sync(data, self.headers))
+
         # Unknown
         self._json_response({"error": "Unknown endpoint"}, 404)
 
@@ -1094,10 +1218,14 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
 
 def main():
     port = int(os.getenv("AGENTLAB_PORT", "8765"))
-    server = HTTPServer(("0.0.0.0", port), AgentLabAPIHandler)
+    bind_host = os.getenv("AGENTLAB_WEB_UI_BIND", "127.0.0.1")
+    server = HTTPServer((bind_host, port), AgentLabAPIHandler)
     print(f"\n  AgentLab Web UI 后端服务已启动")
-    print(f"  → http://localhost:{port}\n")
-    print(f"  按 Ctrl+C 停止服务\n")
+    print(f"  → http://localhost:{port}")
+    print(f"  Bind: {bind_host}:{port}")
+    if bind_host != "127.0.0.1":
+        print(f"  ⚠  WARNING: binding to {bind_host}. Ensure AGENTLAB_WEB_UI_TOKEN is configured.")
+    print(f"\n  按 Ctrl+C 停止服务\n")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -30,6 +30,7 @@ CONFIG_FILES = {
     "validation_gates": "validation_gates.yml",
     "version_policy": "version_policy.yml",
     "memory_policy": "memory_policy.yml",
+    "migration_profile": "migration_profile.yml",
 }
 
 

@@ -120,3 +120,22 @@ Summary: Completed SCNet rollback to external bundled model package and built un
 Files changed: none recorded
 
 Commands run: none recorded
+
+## 2026-06-06T08:55:24.360986+00:00 - Archivist fallback memory write
+
+- Status: fallback_applied
+- Reason: Archivist output did not include structured AGENTLAB_EDIT blocks.
+- Safety: appended only to approved project memory file `agent_docs/07_DEVELOPMENT_LOG.md`.
+- Project: AgentLab
+
+### Archivist report excerpt
+
+# Archive Update
+
+P0 validation fallback memory entry smoke test.
+
+## 2026-06-07T13:29:38.278964+00:00 - task_0033_codex_current_audit_perf
+
+- Performance score: 100.0/100 (A)
+- Routing pass rate: 6/6
+- Mode: local deterministic evaluation, zero model tokens.

@@ -35,7 +35,8 @@ targets:
   truenas:
     enabled: true
     description: "TrueNAS SMB mount — silent background merge backup (never overwrites, never deletes)"
-    mount_path: "/Volumes/ao/AgentLab"        # SMB mount point
+    protocol_url: "smb://10.147.17.61/AgentLab_WorkSpace"
+    mount_path: "/Volumes/AgentLab_WorkSpace"        # macOS SMB mount point
     # ─── Core behavior ───
     mode: silent_background_merge       # silent_background_merge | live_symlink | periodic_sync
     # "silent_background_merge" means:
@@ -67,6 +68,27 @@ targets:
         existing_remote: keep_remote   # keep_remote | update_if_newer | ask — we KEEP remote
         new_local: push_to_remote      # push_to_remote | skip — we push new files
         deleted_local: keep_remote     # keep_remote | delete_remote — we NEVER delete
+    exclude:
+      - ".git/**"
+      - "**/.git/**"
+      - ".venv/**"
+      - "**/.venv/**"
+      - "node_modules/**"
+      - "**/node_modules/**"
+      - "**/__pycache__/**"
+      - "**/*.pyc"
+      - ".DS_Store"
+      - "**/.DS_Store"
+      - ".env"
+      - "**/.env"
+      - "agent_runtime/.env"
+      - ".agentlab_runtime/cache/**"
+    manifest:
+      enabled: true
+      checksum_algorithm: sha256
+      report_name: truenas_manifest.yml
+      include_skipped_existing: true
+      include_excluded_summary: true
     sync_items:
       - local_path: projects/          # All project data (agent_docs, repo, runs)
         remote_path: projects/

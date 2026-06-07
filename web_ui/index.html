@@ -13,7 +13,7 @@
     <h2>键盘快捷键</h2>
     <div class="shortcuts-grid">
       <div><kbd>Ctrl</kbd>+<kbd>K</kbd></div><span>命令面板</span>
-      <div><kbd>Ctrl</kbd>+<kbd>1-6</kbd></div><span>切换 Tab</span>
+      <div><kbd>Ctrl</kbd>+<kbd>1-7</kbd></div><span>切换 Tab</span>
       <div><kbd>Ctrl</kbd>+<kbd>T</kbd></div><span>切换主题</span>
       <div><kbd>Ctrl</kbd>+<kbd>N</kbd></div><span>新建任务</span>
       <div><kbd>Ctrl</kbd>+<kbd>F</kbd></div><span>搜索</span>
@@ -283,6 +283,9 @@
     <button class="tab-btn" data-tab="config">
       <span class="tab-icon">⚙</span> 配置
     </button>
+    <button class="tab-btn" data-tab="system">
+      <span class="tab-icon">⌁</span> 系统 / 迁移
+    </button>
     <button class="tab-btn" data-tab="about">
       <span class="tab-icon">ℹ</span> 关于
     </button>
@@ -484,6 +487,49 @@
     </div>
   </section>
 
+  <!-- ====== Tab: 系统 / 迁移 ====== -->
+  <section class="tab-content" id="tab-system" hidden>
+    <div class="panel-toolbar">
+      <div>
+        <h2>系统控制台 / 迁移向导</h2>
+        <p class="text-muted">只读展示 API、GitHub、SMB、缓存和同步状态；不会显示真实密钥。</p>
+      </div>
+      <div class="system-actions">
+        <button class="btn btn-sm" onclick="AgentLab.runSystemCheck('doctor')">运行 doctor</button>
+        <button class="btn btn-sm" onclick="AgentLab.runSystemCheck('migration')">迁移检查</button>
+        <button class="btn btn-sm" onclick="AgentLab.runSystemCheck('truenas')">SMB 状态</button>
+        <button class="btn btn-sm btn-primary" onclick="AgentLab.runTruenasDryRun()">TrueNAS Dry-run</button>
+      </div>
+    </div>
+    <div class="system-summary" id="systemSummary"></div>
+    <div class="system-grid">
+      <div class="dash-card">
+        <h3>模型 / API Key</h3>
+        <div id="systemModelKeys" class="system-list"></div>
+      </div>
+      <div class="dash-card">
+        <h3>GitHub 备份</h3>
+        <div id="systemGithub" class="system-list"></div>
+      </div>
+      <div class="dash-card">
+        <h3>TrueNAS / SMB</h3>
+        <div id="systemTruenas" class="system-list"></div>
+      </div>
+      <div class="dash-card">
+        <h3>Web UI / Cache</h3>
+        <div id="systemRuntime" class="system-list"></div>
+      </div>
+      <div class="dash-card span-2">
+        <h3>最近同步 Ledger</h3>
+        <div id="systemLedger" class="config-table"></div>
+      </div>
+      <div class="dash-card span-2">
+        <h3>命令输出</h3>
+        <pre id="systemCommandOutput" class="system-command-output">尚未运行系统命令。</pre>
+      </div>
+    </div>
+  </section>
+
   <!-- ====== Tab: 关于 / 帮助 ====== -->
   <section class="tab-content" id="tab-about" hidden>
     <div class="about-grid">
@@ -541,7 +587,7 @@ python3 agentlab_app.py</pre>
         <div class="about-content">
           <div class="shortcuts-grid about-shortcuts">
             <div><kbd>Ctrl</kbd>+<kbd>K</kbd></div><span>命令面板</span>
-            <div><kbd>Ctrl</kbd>+<kbd>1-6</kbd></div><span>切换 Tab</span>
+            <div><kbd>Ctrl</kbd>+<kbd>1-7</kbd></div><span>切换 Tab</span>
             <div><kbd>Ctrl</kbd>+<kbd>T</kbd></div><span>切换主题</span>
             <div><kbd>Ctrl</kbd>+<kbd>N</kbd></div><span>新建任务</span>
             <div><kbd>Ctrl</kbd>+<kbd>F</kbd></div><span>搜索</span>
