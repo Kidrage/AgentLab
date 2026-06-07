@@ -115,6 +115,41 @@ class ExecutionEvidenceGateTests(TestCase):
         )
         self.assertTrue(any("command_id" in iss for iss in issues))
 
+    def test_unknown_command_id_with_existing_log_fails(self) -> None:
+        """Report references command_id that does not exist in execution_log.yml."""
+        append_command_record(self.run_dir, {
+            "command_id": "cmd_0001",
+            "command": "pytest tests -q",
+            "exit_code": 0,
+            "stdout": "22 passed",
+        })
+        content = (
+            "# Validation Report\n\n"
+            "Tests passed.\n"
+            "command_id: cmd_9999\n"
+            "Evidence: execution_log.yml\n"
+        )
+        issue = _check_execution_evidence("07_validation_report.md", content, self.run_dir)
+        self.assertIsNotNone(issue)
+        self.assertIn("no matching command_id", issue)
+
+    def test_report_claims_success_but_exit_code_nonzero_fails(self) -> None:
+        """Report claims success but the referenced command has exit_code != 0."""
+        append_command_record(self.run_dir, {
+            "command_id": "cmd_0001",
+            "command": "pytest tests -q",
+            "exit_code": 1,
+            "stdout": "1 failed",
+        })
+        content = (
+            "# Validation Report\n\n"
+            "All tests passed.\n"
+            "command_id: cmd_0001\n"
+        )
+        issue = _check_execution_evidence("07_validation_report.md", content, self.run_dir)
+        self.assertIsNotNone(issue)
+        self.assertIn("non-zero exit_code", issue)
+
 
 if __name__ == "__main__":
     main()

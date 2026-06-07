@@ -11,7 +11,7 @@ import re
 
 import yaml
 
-from execution_log import load_execution_log, has_successful_command
+from execution_log import load_execution_log, has_successful_command, get_command_by_id
 
 TBD_PATTERNS = ["TBD", "tbd", "TODO", "FIXME", "# User Request\n\nDescribe the task here."]
 UNEXECUTED_TOOL_CALL_PATTERNS = [
@@ -410,7 +410,11 @@ def write_artifact_manifest(run_dir: Path, result: dict) -> None:
 
 def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = None) -> str | None:
     """Check if a validation/audit report claims command execution
-    but does not reference an execution_log command_id."""
+    but does not reference an execution_log command_id.
+
+    Also cross-references exit_code: if a report claims success but the
+    referenced command has non-zero exit_code, the evidence is invalid.
+    """
     # Only apply to validation/audit/verification reports
     evidence_report_files = {
         "07_validation_report.md",
@@ -422,11 +426,17 @@ def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = N
 
     lowered = content.lower()
 
-    # Look for command execution claims
+    # Look for command execution claims (spec-driven trigger list)
     command_claim_patterns = [
-        "pytest", "npm test", "cmake", "make", "xcodebuild",
-        "passed", "exit code", "commands run", "ran ",
-        "executed", "tests passed", "test results",
+        "commands run", "command run",
+        "pytest", "python -m pytest",
+        "npm test", "pnpm test", "yarn test",
+        "cmake", "make", "xcodebuild",
+        "cargo test", "go test",
+        "exit code", "exit_code",
+        "passed", "all tests passed", "tests passed",
+        "build passed", "validation passed",
+        "ran ", "executed", "test results",
     ]
     has_command_claim = any(p in lowered for p in command_claim_patterns)
     if not has_command_claim:
@@ -439,24 +449,50 @@ def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = N
         or "execution_log" in lowered
         or "evidence:" in lowered
     )
-    if has_command_id:
-        # Verify the referenced command_id actually exists
-        if run_dir is not None:
-            log = load_execution_log(run_dir)
-            commands = log.get("commands", [])
-            command_ids = [cmd.get("command_id", "") for cmd in commands]
-            # Check if any command_id in the report matches a real one
-            matched = any(cid and cid in content for cid in command_ids)
-            if not matched:
-                # References "command_id" but no matching one in execution_log
-                return (
-                    "Report claims command execution with 'command_id' reference "
-                    "but no matching command_id found in execution_log.yml"
-                )
-        return None
-    else:
+    if not has_command_id:
         # Report claims command execution but does not reference command_id
         return (
             "Report claims command execution but does not reference execution_log command_id. "
             "Add 'command_id: cmd_XXXX' or 'Evidence:' section linking to execution_log.yml."
         )
+
+    # ── command_id referenced – verify against execution_log ──
+    if run_dir is None:
+        return None
+
+    log = load_execution_log(run_dir)
+    commands = log.get("commands", [])
+    if not commands:
+        return "Report references command_id but execution_log.yml is missing or has no commands."
+
+    # Find the first command_id mentioned in the report that exists in the log
+    command_ids = [cmd.get("command_id", "") for cmd in commands]
+    matched_cid: str | None = None
+    for cid in command_ids:
+        if cid and cid in content:
+            matched_cid = cid
+            break
+
+    if matched_cid is None:
+        return (
+            "Report references command_id but no matching command_id found in execution_log.yml. "
+            "Ensure the command_id in the report matches a record in execution_log.yml."
+        )
+
+    # ── exit_code cross-check ──
+    # If the report claims success/passed, the referenced command must have exit_code == 0.
+    success_claim_patterns = [
+        "passed", "all tests passed", "tests passed",
+        "build passed", "validation passed",
+        "success", "successful",
+    ]
+    claims_success = any(p in lowered for p in success_claim_patterns)
+    if claims_success:
+        cmd = get_command_by_id(run_dir, matched_cid)
+        if cmd is not None and cmd.get("exit_code") != 0:
+            return (
+                f"Report claims success but command_id {matched_cid} has non-zero exit_code "
+                f"({cmd.get('exit_code')})."
+            )
+
+    return None
