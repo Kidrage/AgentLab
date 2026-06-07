@@ -116,13 +116,18 @@ def _block_task(
     user_action_required: bool = True,
     block_type: str = "generic",
     execution_mode: str | None = None,
+    mark_lifecycle: bool = True,
 ) -> dict:
     """Unified helper to write blocked state across state/progress/lifecycle.
 
     Always writes USER_DECISION_REQUIRED.md when user_action_required=True.
     Returns a dict with status='paused' and success=False.
+
+    mark_lifecycle: When False, skips mark_node_failed to avoid creating
+                    non-standard nodes (e.g. "PIPELINE") in lifecycle.yml.
     """
-    mark_node_failed(run_dir, node_id, reason)
+    if mark_lifecycle:
+        mark_node_failed(run_dir, node_id, reason)
     state = load_state(run_dir, project, task_id)
     state.status = "blocked"
     state.current_agent = agent
@@ -172,10 +177,42 @@ def _block_task(
     return result
 
 
+def _write_pipeline_incident(
+    run_dir: Path,
+    *,
+    incident_type: str,
+    reason: str,
+    node_id: str | None = None,
+    max_steps: int | None = None,
+) -> Path:
+    """Write pipeline_incident.yml for pipeline-level errors.
+
+    These incidents are orthogonal to agent-level lifecycle nodes.
+    """
+    import datetime as dt_mod
+    incident = {
+        "version": 1,
+        "incident_type": incident_type,
+        "reason": reason,
+        "node_id": node_id,
+        "max_steps": max_steps,
+        "created_at": dt_mod.datetime.now(dt_mod.timezone.utc).isoformat(),
+    }
+    path = run_dir / "pipeline_incident.yml"
+    path.write_text(
+        yaml.safe_dump(incident, sort_keys=False), encoding="utf-8"
+    )
+    return path
+
+
 def _sync_task_summary(
     agentlab_root: Path, project: str, task_id: str, run_dir: Path,
 ) -> None:
-    """Refresh task_card.yml and project-level task_index.yml for a run."""
+    """Refresh task_card.yml and project-level task_index.yml for a run.
+
+    Non-fatal — writes index_sync_warning.log on failure so
+    missing task_card/task_index sync is visible.
+    """
     try:
         from task_index import (
             generate_per_task_artifacts,
@@ -187,9 +224,19 @@ def _sync_task_summary(
         # Refresh project-level index
         index = build_project_task_index(agentlab_root, project)
         save_project_task_index(agentlab_root, project, index)
-    except Exception:
-        # Non-critical — don't block the pipeline for indexing issues
-        pass
+    except Exception as exc:
+        warning_path = run_dir / "index_sync_warning.log"
+        warning_lines = [
+            "# Task Index Sync Warning",
+            "",
+            f"- Project: {project}",
+            f"- Task: {task_id}",
+            f"- Exception Type: {type(exc).__name__}",
+            f"- Exception Message: {exc}",
+            "",
+            "This warning did not stop the pipeline, but task_card.yml or task_index.yml may be stale.",
+        ]
+        warning_path.write_text("\n".join(warning_lines), encoding="utf-8")
 
 
 def run_next_node(
@@ -197,14 +244,18 @@ def run_next_node(
     fake_provider: bool = False, simulate_quota_failure_at: Optional[str] = None,
     budget_mode: Optional[str] = None,
     allow_patches: bool = False,
+    execution_mode: str | None = None,
 ) -> dict:
     """Execute exactly one lifecycle node and return.
 
     allow_patches: Whether to allow patch application. Controlled by execution mode.
+    execution_mode: If provided, used in return dicts so direct callers see
+                    correct mode. Defaults to inferring from fake_provider.
 
     This is a SINGLE-STEP function. It does NOT recurse.
     The caller (run_full_pipeline) handles the loop.
     """
+    effective_execution_mode = execution_mode or ("mock_provider" if fake_provider else "execute")
     run_dir = agentlab_root / "projects" / project / "runs" / task_id
     state = load_state(run_dir, project, task_id)
     progress = load_progress(run_dir)
@@ -238,14 +289,14 @@ def run_next_node(
                     "status": "completed",
                     "node": None,
                     "message": "All nodes completed.",
-                    "execution_mode": "execute",
+                    "execution_mode": effective_execution_mode,
                     "success": False,
                 }
         return {
             "status": "waiting",
             "node": None,
             "message": "No waiting nodes.",
-            "execution_mode": "execute",
+            "execution_mode": effective_execution_mode,
             "success": False,
         }
 
@@ -612,6 +663,10 @@ def run_full_pipeline(
         if sig in seen_signatures:
             err = f"Lifecycle loop detected at step {step}: cycle in state"
             (run_dir / "pipeline_error.log").write_text(err, encoding="utf-8")
+            _write_pipeline_incident(
+                run_dir, incident_type="loop_detected",
+                reason=err, node_id="PIPELINE", max_steps=max_steps,
+            )
             blocked = _block_task(
                 agentlab_root, run_dir, project, task_id,
                 "PIPELINE", agent=None, reason=err,
@@ -620,6 +675,7 @@ def run_full_pipeline(
                 user_action_required=True,
                 block_type="pipeline_error",
                 execution_mode=mode["execution_mode"],
+                mark_lifecycle=False,
             )
             return {
                 "success": False,
@@ -722,6 +778,10 @@ def run_full_pipeline(
         if sig_after == sig:
             err = f"No progress at step {step}: state unchanged"
             (run_dir / "pipeline_error.log").write_text(err, encoding="utf-8")
+            _write_pipeline_incident(
+                run_dir, incident_type="no_progress",
+                reason=err, node_id="PIPELINE", max_steps=max_steps,
+            )
             blocked = _block_task(
                 agentlab_root, run_dir, project, task_id,
                 "PIPELINE", agent=None, reason=err,
@@ -730,6 +790,7 @@ def run_full_pipeline(
                 user_action_required=True,
                 block_type="pipeline_error",
                 execution_mode=mode["execution_mode"],
+                mark_lifecycle=False,
             )
             return {
                 "success": False,
@@ -747,6 +808,10 @@ def run_full_pipeline(
 
     err = f"Exceeded max_steps={max_steps}"
     (run_dir / "pipeline_error.log").write_text(err, encoding="utf-8")
+    _write_pipeline_incident(
+        run_dir, incident_type="max_steps_exceeded",
+        reason=err, node_id="PIPELINE", max_steps=max_steps,
+    )
     blocked = _block_task(
         agentlab_root, run_dir, project, task_id,
         "PIPELINE", agent=None, reason=err,
@@ -755,6 +820,7 @@ def run_full_pipeline(
         user_action_required=True,
         block_type="pipeline_error",
         execution_mode=mode["execution_mode"],
+        mark_lifecycle=False,
     )
     return {
         "success": False,
@@ -775,20 +841,56 @@ def resume_pipeline(
     agentlab_root: Path, project: str, task_id: str, *,
     dry_run: bool = True, fake_provider: bool = True,
     simulate_provider_recovered: bool = False,
+    simulate_quota_failure_at: Optional[str] = None,
+    max_steps: int = 30,
+    budget_mode: Optional[str] = None,
 ) -> dict:
-    """Resume paused pipeline."""
+    """Resume paused pipeline.
+
+    Guarantees a dict return for every branch — never implicitly returns None.
+    """
     run_dir = agentlab_root / "projects" / project / "runs" / task_id
     state = load_state(run_dir, project, task_id)
+
     if state.status == "completed":
-        return {"status": "completed", "message": "Already completed.", "success": True}
+        return {
+            "success": True,
+            "final_status": "completed",
+            "terminal": True,
+            "requires_user_action": False,
+            "message": "Task already completed.",
+        }
+
     if simulate_provider_recovered:
         rp = run_dir / "resume_plan.yml"
         if rp.exists():
             rp.unlink()
-    return run_full_pipeline(
-        agentlab_root, project, task_id,
-        dry_run=dry_run, fake_provider=fake_provider,
-    )
+
+    if state.status in {"blocked", "paused", "recoverable", "failed_recoverable"}:
+        return run_full_pipeline(
+            agentlab_root, project, task_id,
+            dry_run=dry_run, fake_provider=fake_provider,
+            simulate_quota_failure_at=simulate_quota_failure_at,
+            max_steps=max_steps,
+            budget_mode=budget_mode,
+        )
+
+    if state.status in {"failed", "cancelled", "archived"}:
+        return {
+            "success": False,
+            "final_status": state.status,
+            "terminal": True,
+            "requires_user_action": False,
+            "message": f"Task is not resumable from status={state.status}.",
+        }
+
+    return {
+        "success": False,
+        "final_status": state.status,
+        "terminal": False,
+        "requires_user_action": True,
+        "message": f"Task status is not recognized for resume: {state.status}",
+    }
 
 
 def _ensure_lifecycle_shape(run_dir: Path) -> None:
