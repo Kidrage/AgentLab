@@ -41,6 +41,41 @@
   - Do NOT create entries for tasks that haven't started yet (status=pending). Those are created by `init-task`.
   - If the Supervisor proposed ledger changes in `supervisor_plan.md` under `## Task Ledger Update`, apply them here.
 
+## AGENTLAB_EDIT Block Syntax
+
+To update durable project memory files (`agent_docs/`), include structured edit blocks
+after your report using EXACTLY one of the formats below. The parser is strict.
+
+### Format A: SEARCH/REPLACE (for .md files)
+
+```
+<<<AGENTLAB_EDIT agent_docs/03_DECISION_LOG.md
+------- SEARCH
+original text to find
+=======
+replacement text
++++++++ REPLACE
+>>>
+```
+
+### Format B: HTML comment with YAML merge (for .yml files)
+
+```
+<!-- AGENTLAB_EDIT: agent_docs/02_TASK_LEDGER.yml -->
+```yaml
+task_id:
+  status: complete
+  priority: P2
+```
+<!-- END AGENTLAB_EDIT -->
+```
+
+For `.yml` files, Format B performs a deep-merge: new keys are added at the top level,
+and existing keys with the same name are overwritten. Do NOT use Format B with plain
+text or non-YAML content.
+
+**Important**: The markers MUST be exact. `<<<AGENTLAB_EDIT` (not `<!-- AGENTLAB_EDIT` for SEARCH/REPLACE), and `<!-- END AGENTLAB_EDIT -->` (not `>>>`) to close HTML-style blocks.
+
 ## Bulk 文档整合模式（task-purge）
 
 通过 `./agentlab.sh task-purge --project <P> --keep-days 7` 触发。
@@ -112,3 +147,6 @@
 ## Outputs
 - Deliverables:
 - Recommended next steps:
+```
+
+After the report, include AGENTLAB_EDIT blocks using the syntax described above.

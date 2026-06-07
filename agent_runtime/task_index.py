@@ -190,8 +190,34 @@ _KIND_MAP = {
 }
 
 
-def build_artifact_manifest(run_dir: Path, max_bytes: int = 65536, max_summary: int = 600) -> dict:
-    """Build artifact_manifest.yml for a single task."""
+def _load_route(run_dir: Path) -> list[str]:
+    """Load agent route from workflow_plan.yml."""
+    plan_path = run_dir / "workflow_plan.yml"
+    if not plan_path.exists():
+        return []
+    try:
+        plan = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return []
+    route = plan.get("route", {})
+    if isinstance(route, dict):
+        return list(route.get("agents", []) or [])
+    if isinstance(route, list):
+        return list(route)
+    return []
+
+
+def build_artifact_manifest(run_dir: Path, max_bytes: int = 65536, max_summary: int = 600,
+                            route: list[str] | None = None) -> dict:
+    """Build artifact_manifest.yml for a single task.
+
+    If `route` is provided, artifacts from agents not in the route are
+    demoted to `important: False` so that analysis-only tasks don't
+    show false-positive missing implementation/handoff artifacts.
+    """
+    if route is None:
+        route = _load_route(run_dir)
+
     artifacts = []
     for filename, meta in _KIND_MAP.items():
         # Map to actual file
@@ -231,6 +257,14 @@ def build_artifact_manifest(run_dir: Path, max_bytes: int = 65536, max_summary: 
     # Count missing important artifacts
     present_count = sum(1 for a in artifacts if a["status"] == "present")
     missing_count = sum(1 for a in artifacts if a["status"] == "missing")
+    # Route-aware important demotion: if Coder not in route, Coder-specific
+    # artifacts like implementation_report and handoff_packet should not be
+    # flagged as important (avoids false-positive warnings for analysis-only tasks).
+    if route and "Coder" not in route:
+        for a in artifacts:
+            if a["agent"] in ("Coder", "system") and a["kind"] in ("implementation", "handoff"):
+                a["important"] = False
+
     important_missing = [a["path"] for a in artifacts if a["important"] and a["status"] == "missing"]
 
     return {

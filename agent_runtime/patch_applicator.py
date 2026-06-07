@@ -45,6 +45,17 @@ EDIT_BLOCK_PATTERN = re.compile(
     re.DOTALL,
 )
 
+# HTML-comment-style fallback pattern, e.g.:
+# <!-- AGENTLAB_EDIT: agent_docs/02_TASK_LEDGER.yml -->
+# ```yaml
+# ...
+# ```
+# <!-- END AGENTLAB_EDIT -->
+HTML_EDIT_BLOCK_PATTERN = re.compile(
+    r'<!--\s*AGENTLAB_EDIT\s*:\s*(.+?)-->\s*\n(.*?)\n\s*<!--\s*END\s+AGENTLAB_EDIT\s*-->',
+    re.DOTALL,
+)
+
 SEARCH_REPLACE_PATTERN = re.compile(
     r'-------\s*SEARCH\s*\n(.*?)\n\s*=======\s*\n(.*?)\n\s*\+\+\+\+\+\+\+\s*REPLACE',
     re.DOTALL,
@@ -54,9 +65,16 @@ SEARCH_REPLACE_PATTERN = re.compile(
 def parse_edit_blocks(llm_output: str) -> list[dict]:
     """Parse AGENTLAB_EDIT blocks from LLM output text.
 
-    Returns a list of dicts with keys: path, search_replace_pairs (list of (search, replace) tuples).
+    Supports two formats:
+    1. <<<AGENTLAB_EDIT path >>> with SEARCH/REPLACE pairs
+    2. <!-- AGENTLAB_EDIT: path --> with content block ending in <!-- END AGENTLAB_EDIT -->
+
+    Returns a list of dicts with keys: path, search_replace_pairs (list of (search, replace) tuples),
+    and optionally 'html_block_content' for HTML-style blocks (treated as raw replacement content).
     """
     blocks = []
+
+    # Primary <<< >>> format with SEARCH/REPLACE pairs
     for match in EDIT_BLOCK_PATTERN.finditer(llm_output):
         file_path = match.group(1).strip()
         block_content = match.group(2)
@@ -71,6 +89,18 @@ def parse_edit_blocks(llm_output: str) -> list[dict]:
             blocks.append({
                 "path": file_path,
                 "search_replace_pairs": sr_pairs,
+            })
+
+    # HTML comment style: <!-- AGENTLAB_EDIT: path --> content <!-- END AGENTLAB_EDIT -->
+    for match in HTML_EDIT_BLOCK_PATTERN.finditer(llm_output):
+        file_path = match.group(1).strip()
+        raw_content = match.group(2).strip()
+
+        if raw_content:
+            blocks.append({
+                "path": file_path,
+                "search_replace_pairs": [],
+                "html_block_content": raw_content,
             })
 
     return blocks
@@ -308,4 +338,6 @@ def apply_all_patches(
 
 def strip_edit_blocks_from_report(llm_output: str) -> str:
     """Remove AGENTLAB_EDIT blocks from report text, keeping only the readable portion."""
-    return EDIT_BLOCK_PATTERN.sub("", llm_output).strip()
+    cleaned = EDIT_BLOCK_PATTERN.sub("", llm_output)
+    cleaned = HTML_EDIT_BLOCK_PATTERN.sub("", cleaned)
+    return cleaned.strip()

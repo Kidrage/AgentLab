@@ -187,6 +187,31 @@ def validate_artifacts(run_dir: Path) -> dict:
 
         artifacts_passed += 1
 
+    # ── Snapshot drift detection ──
+    snapshot_path = run_dir / "task_snapshot.yml"
+    snapshot_drift = False
+    if snapshot_path.exists():
+        try:
+            snapshot_data = yaml.safe_load(snapshot_path.read_text(encoding="utf-8")) or {}
+            drift = snapshot_data.get("drift", {}) or {}
+            status_mismatch = snapshot_data.get("status_mismatch", False)
+            unknown_sources = [
+                k for k, v in (snapshot_data.get("sources", {}) or {}).items()
+                if v in ("unknown", None, "")
+            ]
+            if status_mismatch:
+                snapshot_drift = True
+                issues.append({"file": "task_snapshot.yml", "issue": "status_mismatch: state, progress, and lifecycle disagree"})
+            if unknown_sources:
+                snapshot_drift = True
+                issues.append({"file": "task_snapshot.yml", "issue": f"unknown source status for: {', '.join(unknown_sources)}"})
+            if drift:
+                snapshot_drift = True
+                drift_items = [f"{item.get('field', '?')}" for item in drift]
+                issues.append({"file": "task_snapshot.yml", "issue": f"drift detected: {', '.join(drift_items[:5])}"})
+        except Exception:
+            pass
+
     pass_rate = artifacts_passed / max(artifacts_checked, 1)
     return {
         "valid": pass_rate >= 0.85 and not issues,
@@ -195,6 +220,7 @@ def validate_artifacts(run_dir: Path) -> dict:
         "artifacts_passed": artifacts_passed,
         "issues": issues,
         "issues_count": len(issues),
+        "snapshot_drift": snapshot_drift,
     }
 
 
@@ -209,6 +235,59 @@ def has_execution_placeholder(content: str) -> bool:
     ):
         return True
     return False
+
+
+def has_shell_command_block_no_output(content: str) -> bool:
+    """Detect reports that contain shell commands (e.g. in ```bash blocks) but
+    no actual execution output or evidence.
+
+    These are typically placeholder artifacts where the agent wrote a command
+    it intended to run but never actually executed it.
+    """
+    # Extract content of ```bash or ```sh code blocks
+    code_blocks = re.findall(r'```(?:bash|sh)\s*\n(.*?)```', content, re.DOTALL)
+    if not code_blocks:
+        # Also try bare code blocks that look like CLI commands
+        code_blocks = re.findall(r'```\s*\n((?:(?:\$\s*)?(?:cd|ls|find|grep|cat|python|pip|npm|git|docker|curl|wget|make|cp|mv|rm|mkdir|echo|source|test|pytest|which|head|tail|sort|uniq|wc|diff)[^\n]*\n)+)```', content, re.DOTALL)
+
+    if not code_blocks:
+        return False
+
+    # Check that all code blocks contain only commands — no output evidence
+    has_output_evidence = False
+    command_only_blocks = 0
+    for block in code_blocks:
+        lines = [l.strip() for l in block.strip().split('\n') if l.strip()]
+        if not lines:
+            continue
+        # Check if this block looks like command lines only
+        command_like = [
+            l for l in lines
+            if re.match(r'^(\$\s*)?(cd|ls|find|grep|cat|python|pip|npm|git|docker|curl|wget|make|cp|mv|rm|mkdir|echo|source|test|pytest|which|head|tail|sort|uniq|wc|diff|sed|awk|brew|apt|bundle|go|cargo|java|javac|npx|yarn|node|perl|ruby|ssh|scp|tar|zip|unzip|chmod|chown|export|set|unset|env)\b', l)
+        ]
+        if len(command_like) >= len(lines) * 0.7:
+            command_only_blocks += 1
+        # Check if any block has typical command output
+        if any(re.match(r'^(#|//|/\*|-->|Error|error|WARNING|INFO|DEBUG|SUCCESS|FAIL|PASS|OK|Found|Total|Result|Output|exit|usage|Usage|Syntax)', l) for l in lines):
+            has_output_evidence = True
+
+    if command_only_blocks > 0 and not has_output_evidence:
+        # Additional check: does the report have a "Commands run:" section at all?
+        if "commands run:" not in content.lower():
+            return True
+
+    return False
+
+
+def is_command_placeholder_artifact(fname: str, content: str) -> bool:
+    """Check if a non-execution-required artifact is still just a command placeholder.
+    
+    This catches agents like RepoScout producing only shell command text without
+    actual findings. These are treated as 'command placeholder' issues.
+    """
+    if fname in EXECUTION_REQUIRED_FILES:
+        return False  # Already checked by has_execution_placeholder
+    return has_shell_command_block_no_output(content)
 
 
 def has_unexecuted_tool_call(content: str) -> bool:
@@ -255,6 +334,8 @@ def artifact_content_issues(fname: str, content: str, run_dir: Path | None = Non
         issues.append("unexecuted tool call in report")
     if fname in EXECUTION_REQUIRED_FILES and has_execution_placeholder(content):
         issues.append("execution placeholder or no command evidence")
+    if is_command_placeholder_artifact(fname, content):
+        issues.append("command-only placeholder: shell commands present but no execution output or findings")
     if fname == "09_archive_update.md" and has_archivist_placeholder(content):
         issues.append("archivist memory update placeholder")
     if fname == "01_supervisor_plan.md" and claims_missing_user_decision_file(content, run_dir):
@@ -315,4 +396,5 @@ def write_artifact_manifest(run_dir: Path, result: dict) -> None:
         "issues": result["issues"],
     }
     path = run_dir / "artifact_manifest.yml"
-    path.write_text(yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    from atomic_io import atomic_write_text
+    atomic_write_text(path, yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True), encoding="utf-8")

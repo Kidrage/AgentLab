@@ -63,34 +63,65 @@ def acquire_lock(
     *,
     timeout: int = LOCK_TIMEOUT_SECONDS,
 ) -> str:
-    """Acquire exclusive lock. Returns transaction id. Raises RuntimeError if locked."""
+    """Acquire exclusive lock. Returns transaction id. Raises RuntimeError if locked.
+
+    Uses O_CREAT | O_EXCL for atomic lock acquisition, eliminating the
+    check-then-write TOCTOU race present in the original implementation.
+    """
     lock_p = _lock_path(agentlab_root, project, task_id)
     lock_p.parent.mkdir(parents=True, exist_ok=True)
 
+    # Check for existing active lock before attempting atomic create
     if lock_p.exists():
-        # check if stale
-        data = json.loads(lock_p.read_text(encoding="utf-8"))
-        hb_p = Path(data["heartbeat_path"])
-        if hb_p.exists():
-            hb = json.loads(hb_p.read_text(encoding="utf-8"))
-            age = time.time() - hb.get("ts", 0)
-            if age < timeout:
-                raise RuntimeError(
-                    f"Lock held by tx={data['tx_id']} (heartbeat age={int(age)}s < timeout={timeout}s). "
-                    f"Stale locks older than {timeout}s are auto-cleared."
-                )
+        try:
+            data = json.loads(lock_p.read_text(encoding="utf-8"))
+            hb_p = Path(data["heartbeat_path"])
+            if hb_p.exists():
+                hb = json.loads(hb_p.read_text(encoding="utf-8"))
+                age = time.time() - hb.get("ts", 0)
+                if age < timeout:
+                    raise RuntimeError(
+                        f"Lock held by tx={data['tx_id']} (heartbeat age={int(age)}s < timeout={timeout}s). "
+                        f"Stale locks older than {timeout}s are auto-cleared."
+                    )
+            # Stale lock — remove it before attempting atomic create
+            lock_p.unlink(missing_ok=True)
+        except (json.JSONDecodeError, OSError, KeyError):
+            # Corrupt lock file — remove it
+            lock_p.unlink(missing_ok=True)
 
     tx_id = uuid4().hex[:12]
     _heartbeat_dir(agentlab_root).mkdir(parents=True, exist_ok=True)
     hb_p = _heartbeat_path(agentlab_root, project, task_id)
-    hb_p.write_text(json.dumps({"tx_id": tx_id, "ts": time.time()}), encoding="utf-8")
 
     lock_data = {
         "tx_id": tx_id,
         "heartbeat_path": str(hb_p),
         "locked_at": datetime.now(timezone.utc).isoformat(),
     }
-    lock_p.write_text(json.dumps(lock_data), encoding="utf-8")
+
+    # Atomic lock creation: O_CREAT | O_EXCL ensures exactly one process wins
+    try:
+        fd = os.open(lock_p, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(lock_data))
+    except FileExistsError:
+        # Another process won the race — re-check if the winner is active
+        if lock_p.exists():
+            try:
+                data = json.loads(lock_p.read_text(encoding="utf-8"))
+                existing_tx = data.get("tx_id", "unknown")
+            except Exception:
+                existing_tx = "unknown"
+        else:
+            existing_tx = "unknown"
+        raise RuntimeError(
+            f"Lock acquisition race lost to tx={existing_tx}. "
+            f"Retry or check ./agentlab.sh guard-status for stale locks."
+        )
+
+    # Write heartbeat AFTER successful lock creation
+    hb_p.write_text(json.dumps({"tx_id": tx_id, "ts": time.time()}), encoding="utf-8")
 
     # create transaction record
     _tx_dir(agentlab_root).mkdir(parents=True, exist_ok=True)

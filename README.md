@@ -239,6 +239,13 @@ From the AgentLab root / 从 AgentLab 根目录：
 # Check brain governance / 查看大脑治理状态
 ./agentlab.sh brain-status --project <Project> --task-id task_0007
 
+# Migration / backup readiness / 迁移与备份就绪检查
+./agentlab.sh migration-doctor --project <Project>
+./agentlab.sh migration-init --project <Project>
+./agentlab.sh truenas-status --project <Project>
+./agentlab.sh truenas-sync --project <Project> --task-id task_0007 --dry-run
+./agentlab.sh backup-status --project <Project> --task-id task_0007
+
 # List configured models/providers / 列出已配置的模型/提供者
 ./agentlab.sh models
 

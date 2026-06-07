@@ -24,7 +24,8 @@ def append_brain_decision(run_dir: Path, decision: BrainDecision) -> Path:
     data = load_yaml(path)
     data.setdefault("decisions", [])
     data["decisions"].append(decision.model_dump(mode="json"))
-    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    from atomic_io import atomic_write_text
+    atomic_write_text(path, yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     return path
 
 

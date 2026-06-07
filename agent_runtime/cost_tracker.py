@@ -17,7 +17,8 @@ def append_yaml_list(path: Path, key: str, entry: dict[str, Any]) -> Path:
     data.setdefault(key, [])
     data[key].append(entry)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    from atomic_io import atomic_write_text
+    atomic_write_text(path, yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     return path
 
 

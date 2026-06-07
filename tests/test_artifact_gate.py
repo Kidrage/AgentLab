@@ -10,8 +10,10 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 from artifact_contract import artifact_content_issues, validate_artifacts
 from lifecycle_graph import create_lifecycle, load_lifecycle, mark_node_started, save_lifecycle
+from llm_provider import build_fallback_provider_chain, generate_text
 from memory_writer import apply_archivist_memory_edits
 from pipeline_runner import _block_on_artifact_gate, run_next_node
+from schemas import LLMSettings
 
 
 class ArtifactGateTests(TestCase):
@@ -140,6 +142,167 @@ class MemoryWriterTests(TestCase):
             self.assertEqual(result.applied, 0)
             self.assertIn("File not in Supervisor-approved scope", result.results[0].error)
             self.assertEqual("old\n", readme.read_text(encoding="utf-8"))
+
+    def test_archivist_without_edit_block_appends_fallback_memory(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            project_root = root / "projects" / "Demo"
+            agent_docs = project_root / "agent_docs"
+            config = root / "config"
+            agent_docs.mkdir(parents=True)
+            config.mkdir()
+            (config / "memory_policy.yml").write_text(
+                "records:\n  project_memory:\n    - 07_DEVELOPMENT_LOG.md\n",
+                encoding="utf-8",
+            )
+            target = agent_docs / "07_DEVELOPMENT_LOG.md"
+            target.write_text("# Development Log\n", encoding="utf-8")
+
+            result = apply_archivist_memory_edits(root, project_root, "# Archive Update\n\nNo structured edits.")
+
+            self.assertTrue(result.ok)
+            self.assertTrue(result.fallback_applied)
+            text = target.read_text(encoding="utf-8")
+            self.assertIn("Archivist fallback memory write", text)
+            self.assertIn("No structured edits", text)
+
+    def test_archivist_fallback_mirrors_to_remote_repo_root(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "local"
+            remote = Path(td) / "remote"
+            project_root = root / "projects" / "Demo"
+            agent_docs = project_root / "agent_docs"
+            config = root / "config"
+            agent_docs.mkdir(parents=True)
+            config.mkdir(parents=True)
+            remote.mkdir()
+            (config / "memory_policy.yml").write_text(
+                "records:\n  project_memory:\n    - 07_DEVELOPMENT_LOG.md\n",
+                encoding="utf-8",
+            )
+            (agent_docs / "07_DEVELOPMENT_LOG.md").write_text("# Development Log\n", encoding="utf-8")
+
+            import os
+            previous = os.environ.get("AGENTLAB_REMOTE_REPO_ROOT")
+            os.environ["AGENTLAB_REMOTE_REPO_ROOT"] = str(remote)
+            try:
+                result = apply_archivist_memory_edits(root, project_root, "# Archive Update\n\nMirror me.")
+            finally:
+                if previous is None:
+                    os.environ.pop("AGENTLAB_REMOTE_REPO_ROOT", None)
+                else:
+                    os.environ["AGENTLAB_REMOTE_REPO_ROOT"] = previous
+
+            mirrored = remote / "projects" / "Demo" / "agent_docs" / "07_DEVELOPMENT_LOG.md"
+            self.assertTrue(result.ok)
+            self.assertIsNotNone(result.mirror_path)
+            self.assertTrue(mirrored.exists())
+            self.assertIn("Mirror me", mirrored.read_text(encoding="utf-8"))
+
+
+class ProviderFallbackTests(TestCase):
+    def test_build_fallback_provider_chain_from_config(self) -> None:
+        model_providers = {
+            "defaults": {"fallback_provider": "deepseek"},
+            "providers": {
+                "qwen3": {
+                    "type": "openai_compatible",
+                    "fallback_provider": "deepseek",
+                    "default_model": "qwen3.7-max",
+                    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                },
+                "deepseek": {
+                    "type": "openai_compatible",
+                    "fallback_provider": "qwen3",
+                    "default_model": "deepseek-v4-pro",
+                    "base_url": "https://api.deepseek.com",
+                },
+            },
+        }
+
+        chain = build_fallback_provider_chain(model_providers, "qwen3")
+
+        self.assertEqual(len(chain), 1)
+        self.assertEqual(chain[0]["key"], "deepseek")
+        self.assertEqual(chain[0]["model"], "deepseek-v4-pro")
+
+    def test_generate_text_auto_retries_configured_fallback_provider(self) -> None:
+        import sys
+        import types
+        from types import SimpleNamespace
+
+        calls: list[str] = []
+
+        class FakeOpenAI:
+            def __init__(self, **kwargs):
+                self.base_url = kwargs.get("base_url")
+                self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+            def create(self, **kwargs):
+                calls.append(kwargs["model"])
+                if kwargs["model"] == "qwen3.7-max":
+                    raise TimeoutError("network timeout while calling qwen3")
+                return SimpleNamespace(
+                    choices=[SimpleNamespace(message=SimpleNamespace(content="# RepoScout Report\n\nfallback ok"))],
+                    usage=SimpleNamespace(model_dump=lambda: {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}),
+                )
+
+        fake_openai = types.ModuleType("openai")
+        fake_openai.OpenAI = FakeOpenAI
+        previous_openai = sys.modules.get("openai")
+        sys.modules["openai"] = fake_openai
+
+        with tempfile.TemporaryDirectory() as td:
+            run_dir = Path(td)
+            model_providers = {
+                "providers": {
+                    "qwen3": {
+                        "type": "openai_compatible",
+                        "api_key": "qwen-key",
+                        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                        "default_model": "qwen3.7-max",
+                        "fallback_provider": "deepseek",
+                    },
+                    "deepseek": {
+                        "type": "openai_compatible",
+                        "api_key": "deepseek-key",
+                        "base_url": "https://api.deepseek.com",
+                        "default_model": "deepseek-v4-pro",
+                    },
+                }
+            }
+            settings = LLMSettings(
+                provider="qwen3",
+                provider_type="openai_compatible",
+                model="qwen3.7-max",
+                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                api_key_configured=True,
+                max_output_tokens=128,
+            )
+            try:
+                result = generate_text(
+                    settings,
+                    model_providers,
+                    [{"role": "user", "content": "scan repo"}],
+                    agent_name="RepoScout",
+                    run_dir=str(run_dir),
+                    project="Demo",
+                    task_id="task_fb",
+                    role="repo_reader",
+                    risk_level="R1",
+                    route=["RepoScout"],
+                )
+            finally:
+                if previous_openai is None:
+                    sys.modules.pop("openai", None)
+                else:
+                    sys.modules["openai"] = previous_openai
+
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(result.provider, "deepseek")
+        self.assertEqual(result.fallback_from, "qwen3")
+        self.assertEqual(calls, ["qwen3.7-max", "deepseek-v4-pro"])
+        self.assertTrue(result.raw_usage["auto_fallback"])
 
 
 class ArtifactContractTests(TestCase):

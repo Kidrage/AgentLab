@@ -11,10 +11,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import time
 from typing import Any
 
 import yaml
+
+RUNTIME_DIR = Path(__file__).resolve().parent
+if str(RUNTIME_DIR) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_DIR))
 
 from artifact_contract import validate_artifacts, write_artifact_manifest
 from config_loader import load_agentlab_configs
@@ -291,16 +296,46 @@ def write_reports(
         }]}, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
+    # Write progress.yml in canonical schema (dict agents, percent_complete key)
+    progress_agents = {}
+    for idx, agent_name in enumerate(route):
+        progress_agents[agent_name] = {
+            "order": idx + 1,
+            "status": "completed",
+            "provider_key": "local_smoke",
+            "model": "N/A",
+            "started_at": utc_now(),
+            "completed_at": utc_now(),
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "report_path": None,
+        }
     (run_dir / "progress.yml").write_text(
         yaml.safe_dump({
+            "version": 1,
             "project": workflow_plan["project"],
             "task_id": workflow_plan["task_id"],
             "status": "completed",
-            "percent": 100,
-            "current_stage": "completed",
+            "risk_level": "R1",
+            "budget_mode": "balanced",
+            "route": route,
             "current_agent": None,
-            "last_event": "Performance evaluation completed.",
-            "agents": [{"name": agent, "status": "completed", "provider": "local", "tokens": 0} for agent in route],
+            "current_stage": "completed",
+            "percent_complete": 100,
+            "last_event": "Performance evaluation (local smoke only, no model calls).",
+            "last_event_at": utc_now(),
+            "last_checkpoint": None,
+            "last_call_id": None,
+            "provider_status": {
+                "current_provider": None,
+                "failed_provider": None,
+                "fallback_available": True,
+                "paused_for_provider": False,
+            },
+            "agents": progress_agents,
+            "incidents": {"open_count": 0, "latest": None},
+            "backup": {"p0_synced": False, "last_backup_at": None},
         }, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )

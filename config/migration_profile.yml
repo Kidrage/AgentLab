@@ -1,0 +1,70 @@
+version: 1
+
+environment:
+  platform: macos
+  python: ">=3.10"
+  shell: zsh
+  agentlab_root_env: AGENTLAB_ROOT
+
+required_user_inputs:
+  model_api:
+    - name: DEEPSEEK_API_KEY
+      required: true
+      secret: true
+      purpose: Supervisor / brain / review
+    - name: DASHSCOPE_API_KEY
+      required: true
+      secret: true
+      purpose: Qwen perception / coder / audit
+    - name: OPENAI_API_KEY
+      required: false
+      secret: true
+      purpose: optional provider
+
+  repositories:
+    agentlab_source:
+      required: true
+      default_remote: https://github.com/Kidrage/AgentLab.git
+    project_workspace:
+      required: true
+      local_root: projects/
+
+  remote_workspace:
+    smb_url: "smb://10.147.17.61/AgentLab_WorkSpace"
+    macos_mount_path: "/Volumes/AgentLab_WorkSpace"
+    required: true
+    writable: true
+    backup_mode: push_only_merge
+
+  web_ui:
+    host: "0.0.0.0"
+    port_env: AGENTLAB_PORT
+    default_port: 8765
+    auth_required: true
+    auth_token_env: AGENTLAB_WEB_UI_TOKEN
+
+  cache:
+    root: ".agentlab_runtime/cache"
+    remote_mirror: false
+    max_size_mb: 2048
+    cleanup_policy: lru
+
+  backup_permissions:
+    github:
+      token_env: GITHUB_TOKEN
+      scopes:
+        - contents:write
+        - metadata:read
+    smb:
+      mount_path: "/Volumes/AgentLab_WorkSpace"
+      required_permissions:
+        - read
+        - write
+        - list
+        - create_directory
+
+validation_commands:
+  - "./agentlab.sh doctor"
+  - "./agentlab.sh model-doctor --project AgentLab"
+  - "./agentlab.sh migration-doctor --project AgentLab"
+  - "./agentlab.sh truenas-status --project AgentLab"
