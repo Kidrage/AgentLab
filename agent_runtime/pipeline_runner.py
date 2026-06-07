@@ -363,7 +363,7 @@ def run_next_node(
         if not result.get("valid"):
             issues = [f"{i.get('file')}: {i.get('issue')}" for i in result.get("issues", [])]
             return _block_on_artifact_gate(
-                run_dir, project, task_id, nid, "ArtifactContract", issues,
+                agentlab_root, run_dir, project, task_id, nid, "ArtifactContract", issues,
                 report_path=run_dir / "artifact_manifest.yml",
             )
         mark_node_completed(run_dir, nid)
@@ -409,7 +409,7 @@ def run_next_node(
             gate_issues = artifact_content_issues(report_path.name, output, run_dir)
             if gate_issues:
                 return _block_on_artifact_gate(
-                    run_dir, project, task_id, nid, agent, gate_issues,
+                    agentlab_root, run_dir, project, task_id, nid, agent, gate_issues,
                     report_path=report_path,
                 )
             mark_node_completed(run_dir, nid, str(report_path))
@@ -501,7 +501,7 @@ def run_next_node(
         gate_issues = artifact_content_issues(report_path.name, result.content or "", run_dir)
         if gate_issues:
             return _block_on_artifact_gate(
-                run_dir, project, task_id, nid, agent, gate_issues,
+                agentlab_root, run_dir, project, task_id, nid, agent, gate_issues,
                 report_path=report_path,
             )
         mark_node_completed(run_dir, nid, str(report_path))
@@ -515,7 +515,7 @@ def run_next_node(
             gate_issues = artifact_content_issues(report_path.name, output, run_dir)
             if gate_issues:
                 return _block_on_artifact_gate(
-                    run_dir, project, task_id, nid, agent or nid, gate_issues,
+                    agentlab_root, run_dir, project, task_id, nid, agent or nid, gate_issues,
                     report_path=report_path,
                 )
             mark_node_completed(run_dir, nid, str(report_path))
@@ -525,6 +525,7 @@ def run_next_node(
 
 
 def _block_on_artifact_gate(
+    agentlab_root: Path,
     run_dir: Path,
     project: str,
     task_id: str,
@@ -534,9 +535,10 @@ def _block_on_artifact_gate(
     *,
     report_path: Path | None = None,
 ) -> dict:
-    """Pause the pipeline when an artifact exists but fails semantic checks."""
-    import sys
-    module = sys.modules.get(__name__)
+    """Pause the pipeline when an artifact exists but fails semantic checks.
+
+    Delegates to _block_task for unified state/progress/lifecycle sync.
+    """
     reason = "; ".join(issues[:5]) or "Artifact semantic validation failed"
     if len(issues) > 5:
         reason += f"; and {len(issues) - 5} more"
@@ -549,8 +551,8 @@ def _block_on_artifact_gate(
         f"- Node: {node_id}",
         f"- Agent: {agent}",
     ]
-    if report_path:
-        lines.append(f"- Report: {report_path}")
+    if report_path and report_path != block_path:
+        lines.append(f"- Evidence: {report_path}")
     lines.extend(["", "## Issues"])
     lines.extend(f"- {issue}" for issue in issues)
     lines.extend([
@@ -559,31 +561,20 @@ def _block_on_artifact_gate(
         "Regenerate or repair the artifact with executable evidence before resuming the lifecycle.",
         "",
     ])
-    content = "\n".join(lines)
-    block_path.write_text(content, encoding="utf-8")
-    (run_dir / "USER_DECISION_REQUIRED.md").write_text(content, encoding="utf-8")
-    mark_node_failed(run_dir, node_id, reason)
-    state = load_state(run_dir, project, task_id)
-    state.status = "blocked"
-    state.current_agent = agent
-    state.last_event = f"Blocked at {node_id}: artifact gate failed"
-    state.reports[f"{agent}_artifact_gate"] = str(block_path)
-    save_state(run_dir, state)
+    block_path.write_text("\n".join(lines), encoding="utf-8")
 
-    progress = load_progress(run_dir)
-    if progress:
-        progress["status"] = "blocked"
-        progress["current_agent"] = None
-        progress["current_stage"] = "blocked"
-        progress["last_event"] = state.last_event
-        if agent in progress.get("agents", {}):
-            progress["agents"][agent]["status"] = "blocked"
-        save_progress(run_dir, progress)
-
-    return {
-        "status": "paused", "node": node_id,
-        "message": reason, "artifact_gate": issues, "success": False,
-    }
+    result = _block_task(
+        agentlab_root, run_dir, project, task_id, node_id,
+        agent=agent,
+        reason=reason,
+        stage="blocked_artifact_gate",
+        report_path=block_path,
+        user_action_required=True,
+        block_type="artifact_gate",
+    )
+    result["artifact_gate"] = issues
+    result["artifact_block_report"] = str(block_path)
+    return result
 
 
 def _state_signature(agentlab_root: Path, project: str, task_id: str) -> str:
@@ -621,7 +612,7 @@ def run_full_pipeline(
         if sig in seen_signatures:
             err = f"Lifecycle loop detected at step {step}: cycle in state"
             (run_dir / "pipeline_error.log").write_text(err, encoding="utf-8")
-            return _block_task(
+            blocked = _block_task(
                 agentlab_root, run_dir, project, task_id,
                 "PIPELINE", agent=None, reason=err,
                 stage="pipeline_error",
@@ -630,6 +621,19 @@ def run_full_pipeline(
                 block_type="pipeline_error",
                 execution_mode=mode["execution_mode"],
             )
+            return {
+                "success": False,
+                "final_status": "paused",
+                "terminal": False,
+                "requires_user_action": True,
+                "execution_mode": mode["execution_mode"],
+                "step": step,
+                "history": history,
+                "blocked_reason": blocked.get("message"),
+                "blocked_type": blocked.get("block_type"),
+                "started_at": started_at,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
         seen_signatures.add(sig)
 
         # Check terminal
@@ -688,10 +692,14 @@ def run_full_pipeline(
             return {
                 "success": False,
                 "final_status": "paused",
+                "terminal": False,
+                "requires_user_action": True,
                 "execution_mode": mode["execution_mode"],
                 "step": step,
                 "history": history,
                 "artifact_completeness": artifact_result,
+                "blocked_reason": result.get("message"),
+                "blocked_type": result.get("block_type"),
                 "started_at": started_at,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -699,12 +707,14 @@ def run_full_pipeline(
         if result.get("status") == "error":
             return {
                 "success": False,
-                "final_status": "error",
+                "final_status": "failed",
+                "terminal": True,
                 "execution_mode": mode["execution_mode"],
                 "step": step,
                 "history": history,
                 "error": result.get("message"),
                 "started_at": started_at,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
             }
 
         # Snapshot after, check no-progress
@@ -712,7 +722,7 @@ def run_full_pipeline(
         if sig_after == sig:
             err = f"No progress at step {step}: state unchanged"
             (run_dir / "pipeline_error.log").write_text(err, encoding="utf-8")
-            return _block_task(
+            blocked = _block_task(
                 agentlab_root, run_dir, project, task_id,
                 "PIPELINE", agent=None, reason=err,
                 stage="pipeline_error",
@@ -721,10 +731,23 @@ def run_full_pipeline(
                 block_type="pipeline_error",
                 execution_mode=mode["execution_mode"],
             )
+            return {
+                "success": False,
+                "final_status": "paused",
+                "terminal": False,
+                "requires_user_action": True,
+                "execution_mode": mode["execution_mode"],
+                "step": step,
+                "history": history,
+                "blocked_reason": blocked.get("message"),
+                "blocked_type": blocked.get("block_type"),
+                "started_at": started_at,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
 
     err = f"Exceeded max_steps={max_steps}"
     (run_dir / "pipeline_error.log").write_text(err, encoding="utf-8")
-    return _block_task(
+    blocked = _block_task(
         agentlab_root, run_dir, project, task_id,
         "PIPELINE", agent=None, reason=err,
         stage="pipeline_error",
@@ -733,6 +756,19 @@ def run_full_pipeline(
         block_type="pipeline_error",
         execution_mode=mode["execution_mode"],
     )
+    return {
+        "success": False,
+        "final_status": "paused",
+        "terminal": False,
+        "requires_user_action": True,
+        "execution_mode": mode["execution_mode"],
+        "step": max_steps,
+        "history": history,
+        "blocked_reason": blocked.get("message"),
+        "blocked_type": blocked.get("block_type"),
+        "started_at": started_at,
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def resume_pipeline(
