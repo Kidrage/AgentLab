@@ -290,14 +290,12 @@ def run_next_node(
                     "node": None,
                     "message": "All nodes completed.",
                     "execution_mode": effective_execution_mode,
-                    "success": False,
                 }
         return {
             "status": "waiting",
             "node": None,
             "message": "No waiting nodes.",
             "execution_mode": effective_execution_mode,
-            "success": False,
         }
 
     # Skip optional nodes that are already skipped
@@ -419,8 +417,7 @@ def run_next_node(
             )
         mark_node_completed(run_dir, nid)
         state.status = "completed"
-        mode = "dry-run" if fake_provider else "execute"
-        state.last_event = f"Task completed via {mode} pipeline"
+        state.last_event = f"Task completed via {effective_execution_mode} pipeline"
         save_state(run_dir, state)
         progress = load_progress(run_dir) or {}
         if progress:
@@ -700,26 +697,55 @@ def run_full_pipeline(
         ):
             artifact_result = validate_artifacts(run_dir)
             write_artifact_manifest(run_dir, artifact_result)
+            if not artifact_result.get("valid"):
+                # ── P0.5-1: terminal artifact invalid must go through _block_task ──
+                incident_path = _write_pipeline_incident(
+                    run_dir,
+                    incident_type="artifact_validation_failed",
+                    reason="Artifact validation failed at pipeline completion",
+                    node_id="FINALIZE",
+                    max_steps=max_steps,
+                )
+                block_result = _block_task(
+                    agentlab_root, run_dir, project, task_id,
+                    "FINALIZE",
+                    agent="ArtifactContract",
+                    reason="Artifact validation failed at pipeline completion",
+                    stage="blocked_artifact_validation",
+                    report_path=incident_path,
+                    user_action_required=True,
+                    block_type="artifact_validation",
+                    execution_mode=mode["execution_mode"],
+                )
+                return {
+                    "success": False,
+                    "final_status": "paused",
+                    "terminal": False,
+                    "requires_user_action": True,
+                    "execution_mode": mode["execution_mode"],
+                    "step": step,
+                    "history": history,
+                    "artifact_completeness": artifact_result,
+                    "blocked_reason": block_result.get("message"),
+                    "blocked_type": block_result.get("block_type"),
+                    "started_at": started_at,
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                }
             state = load_state(run_dir, project, task_id)
-            final_status = "completed" if artifact_result.get("valid") else "blocked"
-            state.status = final_status
-            state.last_event = (
-                f"Task completed via {mode['execution_mode']} pipeline"
-                if artifact_result.get("valid")
-                else "Artifact validation failed at pipeline completion"
-            )
+            state.status = "completed"
+            state.last_event = f"Task completed via {mode['execution_mode']} pipeline"
             save_state(run_dir, state)
             progress = load_progress(run_dir) or {}
             if progress:
-                progress["status"] = final_status
+                progress["status"] = "completed"
                 progress["current_agent"] = None
-                progress["current_stage"] = "completed" if final_status == "completed" else "blocked"
-                progress["percent_complete"] = 100 if final_status == "completed" else progress.get("percent_complete", 0)
+                progress["current_stage"] = "completed"
+                progress["percent_complete"] = 100
                 progress["last_event"] = state.last_event
                 save_progress(run_dir, progress)
             return {
-                "success": bool(artifact_result.get("valid")),
-                "final_status": final_status,
+                "success": True,
+                "final_status": "completed",
                 "execution_mode": mode["execution_mode"],
                 "step": step,
                 "history": history,
@@ -734,6 +760,7 @@ def run_full_pipeline(
             simulate_quota_failure_at=simulate_quota_failure_at,
             budget_mode=budget_mode,
             allow_patches=mode["allow_patches"],
+            execution_mode=mode["execution_mode"],
         )
         result["execution_mode"] = mode["execution_mode"]
 
