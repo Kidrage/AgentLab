@@ -71,12 +71,136 @@ NODE_TO_PCT = {
 }
 
 
+def _resolve_execution_mode(dry_run: bool, fake_provider: bool) -> dict:
+    """Resolve execution mode based on dry_run and fake_provider flags.
+
+    Returns a dict with:
+      - execution_mode: str (dry_run / mock_provider / execute)
+      - effective_fake_provider: bool
+      - allow_real_provider: bool
+      - allow_patches: bool
+    """
+    if dry_run:
+        return {
+            "execution_mode": "dry_run",
+            "effective_fake_provider": True,
+            "allow_real_provider": False,
+            "allow_patches": False,
+        }
+    if fake_provider:
+        return {
+            "execution_mode": "mock_provider",
+            "effective_fake_provider": True,
+            "allow_real_provider": False,
+            "allow_patches": False,
+        }
+    return {
+        "execution_mode": "execute",
+        "effective_fake_provider": False,
+        "allow_real_provider": True,
+        "allow_patches": True,
+    }
+
+
+def _block_task(
+    agentlab_root: Path,
+    run_dir: Path,
+    project: str,
+    task_id: str,
+    node_id: str,
+    *,
+    agent: str | None,
+    reason: str,
+    stage: str = "blocked",
+    report_path: Path | None = None,
+    user_action_required: bool = True,
+    block_type: str = "generic",
+    execution_mode: str | None = None,
+) -> dict:
+    """Unified helper to write blocked state across state/progress/lifecycle.
+
+    Always writes USER_DECISION_REQUIRED.md when user_action_required=True.
+    Returns a dict with status='paused' and success=False.
+    """
+    mark_node_failed(run_dir, node_id, reason)
+    state = load_state(run_dir, project, task_id)
+    state.status = "blocked"
+    state.current_agent = agent
+    state.last_event = f"Blocked at {node_id}: {reason}"
+    save_state(run_dir, state)
+
+    progress = load_progress(run_dir)
+    if progress:
+        progress["status"] = "blocked"
+        progress["current_agent"] = None
+        progress["current_stage"] = stage
+        progress["last_event"] = state.last_event
+        if agent and agent in progress.get("agents", {}):
+            progress["agents"][agent]["status"] = "blocked"
+        save_progress(run_dir, progress)
+
+    if user_action_required:
+        decision_lines = [
+            f"# User Decision Required",
+            "",
+            f"- Project: {project}",
+            f"- Task: {task_id}",
+            f"- Node: {node_id}",
+            f"- Block Type: {block_type}",
+            f"- Reason: {reason}",
+        ]
+        if report_path and report_path.exists():
+            decision_lines.append(f"- Evidence: {report_path}")
+        (run_dir / "USER_DECISION_REQUIRED.md").write_text(
+            "\n".join(decision_lines) + "\n", encoding="utf-8"
+        )
+
+    result: dict = {
+        "status": "paused",
+        "node": node_id,
+        "message": reason,
+        "block_type": block_type,
+        "requires_user_action": user_action_required,
+        "success": False,
+    }
+    if execution_mode:
+        result["execution_mode"] = execution_mode
+
+    # ── P1-3: Sync task_card.yml and task_index.yml on blocked state ──
+    _sync_task_summary(agentlab_root, project, task_id, run_dir)
+
+    return result
+
+
+def _sync_task_summary(
+    agentlab_root: Path, project: str, task_id: str, run_dir: Path,
+) -> None:
+    """Refresh task_card.yml and project-level task_index.yml for a run."""
+    try:
+        from task_index import (
+            generate_per_task_artifacts,
+            build_project_task_index,
+            save_project_task_index,
+        )
+        # Refresh per-task card
+        generate_per_task_artifacts(agentlab_root, project, task_id)
+        # Refresh project-level index
+        index = build_project_task_index(agentlab_root, project)
+        save_project_task_index(agentlab_root, project, index)
+    except Exception:
+        # Non-critical — don't block the pipeline for indexing issues
+        pass
+
+
 def run_next_node(
     agentlab_root: Path, project: str, task_id: str, *,
     fake_provider: bool = False, simulate_quota_failure_at: Optional[str] = None,
     budget_mode: Optional[str] = None,
+    allow_patches: bool = False,
 ) -> dict:
     """Execute exactly one lifecycle node and return.
+
+    allow_patches: Whether to allow patch application. Controlled by execution mode.
 
     This is a SINGLE-STEP function. It does NOT recurse.
     The caller (run_full_pipeline) handles the loop.
@@ -110,8 +234,20 @@ def run_next_node(
                 for n in LIFECYCLE_NODES
             )
             if all_done:
-                return {"status": "completed", "node": None, "message": "All nodes completed."}
-        return {"status": "waiting", "node": None, "message": "No waiting nodes."}
+                return {
+                    "status": "completed",
+                    "node": None,
+                    "message": "All nodes completed.",
+                    "execution_mode": "execute",
+                    "success": False,
+                }
+        return {
+            "status": "waiting",
+            "node": None,
+            "message": "No waiting nodes.",
+            "execution_mode": "execute",
+            "success": False,
+        }
 
     # Skip optional nodes that are already skipped
     if nid in OPTIONAL_NODES:
@@ -121,14 +257,14 @@ def run_next_node(
 
     # Quota failure simulation
     if simulate_quota_failure_at and nid == simulate_quota_failure_at:
-        mark_node_failed(run_dir, nid, "Simulated provider quota exhausted")
-        state.status = "blocked"
-        state.last_event = f"Quota exhausted at {nid}"
-        save_state(run_dir, state)
-        resume = {"paused_at": datetime.now(timezone.utc).isoformat(), "paused_reason": f"Failure at {nid}",
-                  "current_node": nid, "allowed_resume_providers": ["qwen", "deepseek"]}
-        (run_dir / "resume_plan.yml").write_text(yaml.safe_dump(resume, sort_keys=False), encoding="utf-8")
-        return {"status": "paused", "node": nid, "message": f"Simulated quota failure at {nid}."}
+        return _block_task(
+            agentlab_root, run_dir, project, task_id, nid,
+            agent=NODE_TO_AGENT.get(nid),
+            reason="Simulated provider quota exhausted",
+            stage="blocked_quota",
+            user_action_required=True,
+            block_type="quota_exhausted",
+        )
 
     mark_node_started(run_dir, nid)
     state.status = "running"
@@ -146,7 +282,9 @@ def run_next_node(
     if nid == "INIT_TASK":
         run_dir.mkdir(parents=True, exist_ok=True)
         if not (run_dir / "user_request.md").exists():
-            (run_dir / "user_request.md").write_text("# User Request\n\nDescribe the task here.\n", encoding="utf-8")
+            (run_dir / "user_request.md").write_text(
+                "# User Request\n\nDescribe the task here.\n", encoding="utf-8"
+            )
         if not (run_dir / "brain_decisions.yml").exists():
             (run_dir / "brain_decisions.yml").write_text("decisions: []\n", encoding="utf-8")
         if not (run_dir / "cost_ledger.yml").exists():
@@ -158,8 +296,14 @@ def run_next_node(
         plan_path = run_dir / "workflow_plan.yml"
         if not plan_path.exists():
             from workflow_plan import build_workflow_plan
-            plan = build_workflow_plan(agentlab_root, project, task_id, execution_backend="codex", budget_mode=budget_mode)
-            plan_path.write_text(yaml.safe_dump(plan.model_dump(mode="json"), sort_keys=False), encoding="utf-8")
+            plan = build_workflow_plan(
+                agentlab_root, project, task_id,
+                execution_backend="codex", budget_mode=budget_mode,
+            )
+            plan_path.write_text(
+                yaml.safe_dump(plan.model_dump(mode="json"), sort_keys=False),
+                encoding="utf-8",
+            )
             route_agents = plan.route.agents
         else:
             plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
@@ -189,20 +333,20 @@ def run_next_node(
         return {"status": "completed", "node": nid, "message": "Self-check done."}
 
     if nid == "SYNC_OPTIONAL":
-        (run_dir / "sync_report.yml").write_text("# Sync Report\n\nStatus: skipped (dry-run)\n", encoding="utf-8")
+        (run_dir / "sync_report.yml").write_text(
+            "# Sync Report\n\nStatus: skipped (dry-run)\n", encoding="utf-8")
         mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": "Sync skipped (dry-run)."}
 
     if nid == "FINALIZE":
         from task_index import build_task_record
         record = build_task_record(agentlab_root, project, run_dir)
-        card = {"version": 1, "project": project, "task_id": task_id,
-                "title": record["title"], "status": "finalizing"}
+        card = {
+            "version": 1, "project": project, "task_id": task_id,
+            "title": record["title"], "status": "finalizing",
+        }
         atomic_write_yaml(run_dir / "task_card.yml", card)
 
-        # FINALIZE must create its own required artifacts before running the
-        # final artifact contract.  The first manifest may contain a temporary
-        # self-reference issue; the second one records the final truth.
         preliminary = validate_artifacts(run_dir)
         write_artifact_manifest(run_dir, preliminary)
         result = validate_artifacts(run_dir)
@@ -235,27 +379,26 @@ def run_next_node(
             progress["percent_complete"] = 100
             progress["last_event"] = state.last_event
             save_progress(run_dir, progress)
-        return {"status": "completed", "node": nid, "message": "Lifecycle complete.",
-                "artifact_check": result}
+        return {
+            "status": "completed", "node": nid,
+            "message": "Lifecycle complete.",
+            "artifact_check": result, "success": True,
+        }
 
     # Agent output nodes
     agent = NODE_TO_AGENT.get(nid)
     report_file = NODE_TO_REPORT.get(nid)
 
-    # ── Supervisor gate: if USER_DECISION_REQUIRED exists after plan, stop pipeline ──
+    # ── Supervisor gate ──
     if nid == "SUPERVISOR_PLAN" and not fake_provider and (run_dir / "USER_DECISION_REQUIRED.md").exists():
-        # Do not mark the node as failed — it's a correct plan output.
-        # But pause the pipeline so the user can review and decide.
-        state.status = "blocked"
-        state.current_agent = "Supervisor"
-        state.last_event = "Supervisor produced split plan — user decision required before next agent"
-        save_state(run_dir, state)
-        progress["status"] = "blocked"
-        progress["current_stage"] = "blocked_user_decision"
-        progress["last_event"] = state.last_event
-        progress["current_agent"] = None
-        save_progress(run_dir, progress)
-        return {"status": "paused", "node": nid, "message": "User decision required (split plan produced)."}
+        return _block_task(
+            agentlab_root, run_dir, project, task_id, nid,
+            agent=agent,
+            reason="Supervisor produced split plan — user decision required before next agent",
+            stage="blocked_user_decision",
+            user_action_required=True,
+            block_type="user_decision",
+        )
 
     if fake_provider and agent:
         output = fake_output_for_agent(agent)
@@ -273,6 +416,7 @@ def run_next_node(
             return {"status": "completed", "node": nid, "report": str(report_path)}
         mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": f"{nid} done."}
+
     elif agent and not fake_provider:
         # ─── execute mode: call real LLM API via agent_runner ───
         from agent_runner import run_agent_model, report_path_for_agent
@@ -284,49 +428,60 @@ def run_next_node(
         try:
             result = run_agent_model(
                 agentlab_root, plan, agent, report_path,
-                apply_patches=(agent == "Coder"),
+                apply_patches=(agent == "Coder" and allow_patches),
             )
         except Exception as exc:
-            mark_node_failed(run_dir, nid, str(exc))
-            state.status = "blocked"
-            state.last_event = f"Blocked at {nid}: {exc}"
-            save_state(run_dir, state)
-            return {"status": "error", "node": nid, "message": str(exc)}
+            blocked_path = run_dir / f"blocked_{agent or nid}_exception.md"
+            blocked_content = (
+                f"# Pipeline Blocked by Exception\n\n"
+                f"- Project: {project}\n"
+                f"- Task: {task_id}\n"
+                f"- Node: {nid}\n"
+                f"- Agent: {agent}\n"
+                f"- Exception type: {type(exc).__name__}\n"
+                f"- Exception message: {exc}\n\n"
+                f"## Recovery Suggestions\n\n"
+                f"1. Check provider API key / quota / network.\n"
+                f"2. Resume with fake provider if debugging pipeline.\n"
+                f"3. Resume with another provider if provider failed.\n"
+                f"4. Inspect progress.yml and lifecycle.yml.\n"
+            )
+            blocked_path.write_text(blocked_content, encoding="utf-8")
+            return _block_task(
+                agentlab_root, run_dir, project, task_id, nid,
+                agent=agent,
+                reason=f"{type(exc).__name__}: {exc}",
+                stage="blocked_exception",
+                report_path=blocked_path,
+                user_action_required=True,
+                block_type="exception",
+            )
 
         if result.status == "blocked_user_decision":
             blocked_path = run_dir / f"blocked_{agent}.md"
             blocked_path.write_text(result.content or "", encoding="utf-8")
-            (run_dir / "USER_DECISION_REQUIRED.md").write_text(result.content or "", encoding="utf-8")
-            mark_node_failed(run_dir, nid, result.error or "User decision required")
-            state.status = "blocked"
-            state.last_event = f"Blocked at {nid}: {result.error}"
-            state.reports[f"{agent}_blocked"] = str(blocked_path)
-            save_state(run_dir, state)
-            progress["status"] = "blocked"
-            progress["current_stage"] = "blocked_user_decision"
-            progress["last_event"] = state.last_event
-            progress["current_agent"] = None
-            if agent in progress.get("agents", {}):
-                progress["agents"][agent]["status"] = "blocked"
-            save_progress(run_dir, progress)
-            return {"status": "paused", "node": nid, "message": result.error or "User decision required"}
+            return _block_task(
+                agentlab_root, run_dir, project, task_id, nid,
+                agent=agent,
+                reason=result.error or "User decision required",
+                stage="blocked_user_decision",
+                report_path=blocked_path,
+                user_action_required=True,
+                block_type="user_decision",
+            )
 
         if result.status == "fallback_handoff":
             fallback_path = run_dir / f"codex_fallback_{agent}.md"
             fallback_path.write_text(result.content or "", encoding="utf-8")
-            mark_node_failed(run_dir, nid, result.error or "Provider unavailable — handoff required")
-            state.status = "blocked"
-            state.last_event = f"Handoff required at {nid}: {result.error}"
-            state.reports[f"{agent}_fallback"] = str(fallback_path)
-            save_state(run_dir, state)
-            progress["status"] = "blocked"
-            progress["current_stage"] = "handoff_required"
-            progress["last_event"] = state.last_event
-            progress["current_agent"] = None
-            if agent in progress.get("agents", {}):
-                progress["agents"][agent]["status"] = "blocked"
-            save_progress(run_dir, progress)
-            return {"status": "paused", "node": nid, "message": result.error or "Provider unavailable"}
+            return _block_task(
+                agentlab_root, run_dir, project, task_id, nid,
+                agent=agent,
+                reason=result.error or "Provider unavailable — handoff required",
+                stage="handoff_required",
+                report_path=fallback_path,
+                user_action_required=True,
+                block_type="fallback_handoff",
+            )
 
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(result.content or "", encoding="utf-8")
@@ -350,7 +505,7 @@ def run_next_node(
                 report_path=report_path,
             )
         mark_node_completed(run_dir, nid, str(report_path))
-        return {"status": "completed", "node": nid, "report": str(report_path)}
+        return {"status": "completed", "node": nid, "report": str(report_path), "success": True}
     else:
         output = f"# {nid} Report\n\nDry-run output.\n"
         if report_file:
@@ -364,9 +519,9 @@ def run_next_node(
                     report_path=report_path,
                 )
             mark_node_completed(run_dir, nid, str(report_path))
-            return {"status": "completed", "node": nid, "report": str(report_path)}
+            return {"status": "completed", "node": nid, "report": str(report_path), "success": True}
         mark_node_completed(run_dir, nid)
-        return {"status": "completed", "node": nid, "message": f"{nid} done."}
+        return {"status": "completed", "node": nid, "message": f"{nid} done.", "success": True}
 
 
 def _block_on_artifact_gate(
@@ -380,6 +535,8 @@ def _block_on_artifact_gate(
     report_path: Path | None = None,
 ) -> dict:
     """Pause the pipeline when an artifact exists but fails semantic checks."""
+    import sys
+    module = sys.modules.get(__name__)
     reason = "; ".join(issues[:5]) or "Artifact semantic validation failed"
     if len(issues) > 5:
         reason += f"; and {len(issues) - 5} more"
@@ -413,7 +570,6 @@ def _block_on_artifact_gate(
     state.reports[f"{agent}_artifact_gate"] = str(block_path)
     save_state(run_dir, state)
 
-    # ── Sync progress.yml with blocked state ──
     progress = load_progress(run_dir)
     if progress:
         progress["status"] = "blocked"
@@ -424,7 +580,10 @@ def _block_on_artifact_gate(
             progress["agents"][agent]["status"] = "blocked"
         save_progress(run_dir, progress)
 
-    return {"status": "paused", "node": node_id, "message": reason, "artifact_gate": issues}
+    return {
+        "status": "paused", "node": node_id,
+        "message": reason, "artifact_gate": issues, "success": False,
+    }
 
 
 def _state_signature(agentlab_root: Path, project: str, task_id: str) -> str:
@@ -455,14 +614,22 @@ def run_full_pipeline(
     run_dir = agentlab_root / "projects" / project / "runs" / task_id
     history = []
     seen_signatures = set()
+    mode = _resolve_execution_mode(dry_run, fake_provider)
 
     for step in range(max_steps):
-        # Snapshot before
         sig = _state_signature(agentlab_root, project, task_id)
         if sig in seen_signatures:
             err = f"Lifecycle loop detected at step {step}: cycle in state"
             (run_dir / "pipeline_error.log").write_text(err, encoding="utf-8")
-            return {"success": False, "error": err, "step": step, "history": history}
+            return _block_task(
+                agentlab_root, run_dir, project, task_id,
+                "PIPELINE", agent=None, reason=err,
+                stage="pipeline_error",
+                report_path=run_dir / "pipeline_error.log",
+                user_action_required=True,
+                block_type="pipeline_error",
+                execution_mode=mode["execution_mode"],
+            )
         seen_signatures.add(sig)
 
         # Check terminal
@@ -476,8 +643,11 @@ def run_full_pipeline(
             state = load_state(run_dir, project, task_id)
             final_status = "completed" if artifact_result.get("valid") else "blocked"
             state.status = final_status
-            mode = "dry-run" if fake_provider else "execute"
-            state.last_event = f"Task completed via {mode} pipeline" if artifact_result.get("valid") else "Artifact validation failed at pipeline completion"
+            state.last_event = (
+                f"Task completed via {mode['execution_mode']} pipeline"
+                if artifact_result.get("valid")
+                else "Artifact validation failed at pipeline completion"
+            )
             save_state(run_dir, state)
             progress = load_progress(run_dir) or {}
             if progress:
@@ -488,42 +658,81 @@ def run_full_pipeline(
                 progress["last_event"] = state.last_event
                 save_progress(run_dir, progress)
             return {
-                "success": bool(artifact_result.get("valid")), "final_status": final_status, "step": step,
-                "history": history, "artifact_completeness": artifact_result,
+                "success": bool(artifact_result.get("valid")),
+                "final_status": final_status,
+                "execution_mode": mode["execution_mode"],
+                "step": step,
+                "history": history,
+                "artifact_completeness": artifact_result,
                 "started_at": started_at,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }
 
-        result = run_next_node(agentlab_root, project, task_id,
-                               fake_provider=fake_provider,
-                               simulate_quota_failure_at=simulate_quota_failure_at,
-                               budget_mode=budget_mode)
+        result = run_next_node(
+            agentlab_root, project, task_id,
+            fake_provider=mode["effective_fake_provider"],
+            simulate_quota_failure_at=simulate_quota_failure_at,
+            budget_mode=budget_mode,
+            allow_patches=mode["allow_patches"],
+        )
+        result["execution_mode"] = mode["execution_mode"]
 
-        history.append({"step": step, "node": result.get("node"), "status": result.get("status"),
-                        "message": result.get("message", "")})
+        history.append({
+            "step": step, "node": result.get("node"),
+            "status": result.get("status"),
+            "message": result.get("message", ""),
+        })
 
         if result.get("status") == "paused":
             artifact_result = validate_artifacts(run_dir)
-            return {"success": True, "final_status": "paused", "step": step,
-                    "history": history, "artifact_completeness": artifact_result,
-                    "started_at": started_at,
-                    "completed_at": datetime.now(timezone.utc).isoformat()}
+            return {
+                "success": False,
+                "final_status": "paused",
+                "execution_mode": mode["execution_mode"],
+                "step": step,
+                "history": history,
+                "artifact_completeness": artifact_result,
+                "started_at": started_at,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
 
         if result.get("status") == "error":
-            return {"success": False, "final_status": "error", "step": step,
-                    "history": history, "error": result.get("message"),
-                    "started_at": started_at}
+            return {
+                "success": False,
+                "final_status": "error",
+                "execution_mode": mode["execution_mode"],
+                "step": step,
+                "history": history,
+                "error": result.get("message"),
+                "started_at": started_at,
+            }
 
         # Snapshot after, check no-progress
         sig_after = _state_signature(agentlab_root, project, task_id)
         if sig_after == sig:
             err = f"No progress at step {step}: state unchanged"
             (run_dir / "pipeline_error.log").write_text(err, encoding="utf-8")
-            return {"success": False, "error": err, "step": step, "history": history}
+            return _block_task(
+                agentlab_root, run_dir, project, task_id,
+                "PIPELINE", agent=None, reason=err,
+                stage="pipeline_error",
+                report_path=run_dir / "pipeline_error.log",
+                user_action_required=True,
+                block_type="pipeline_error",
+                execution_mode=mode["execution_mode"],
+            )
 
     err = f"Exceeded max_steps={max_steps}"
     (run_dir / "pipeline_error.log").write_text(err, encoding="utf-8")
-    return {"success": False, "error": err, "step": max_steps, "history": history}
+    return _block_task(
+        agentlab_root, run_dir, project, task_id,
+        "PIPELINE", agent=None, reason=err,
+        stage="pipeline_error",
+        report_path=run_dir / "pipeline_error.log",
+        user_action_required=True,
+        block_type="pipeline_error",
+        execution_mode=mode["execution_mode"],
+    )
 
 
 def resume_pipeline(
@@ -535,13 +744,15 @@ def resume_pipeline(
     run_dir = agentlab_root / "projects" / project / "runs" / task_id
     state = load_state(run_dir, project, task_id)
     if state.status == "completed":
-        return {"status": "completed", "message": "Already completed."}
+        return {"status": "completed", "message": "Already completed.", "success": True}
     if simulate_provider_recovered:
         rp = run_dir / "resume_plan.yml"
         if rp.exists():
             rp.unlink()
-    return run_full_pipeline(agentlab_root, project, task_id,
-                             dry_run=dry_run, fake_provider=fake_provider)
+    return run_full_pipeline(
+        agentlab_root, project, task_id,
+        dry_run=dry_run, fake_provider=fake_provider,
+    )
 
 
 def _ensure_lifecycle_shape(run_dir: Path) -> None:

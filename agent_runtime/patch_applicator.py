@@ -24,9 +24,12 @@ and any warnings (e.g., only the first match was replaced when multiple existed)
 
 from __future__ import annotations
 
+import difflib
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
+import yaml
 
 
 @dataclass
@@ -236,7 +239,8 @@ def apply_edit_block(
         return AppliedEdit(path=normalized_path, success=False, error=f"File does not exist: {target}")
 
     try:
-        lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
+        original_text = target.read_text(encoding="utf-8")
+        lines = original_text.splitlines(keepends=True)
     except Exception as exc:
         return AppliedEdit(path=normalized_path, success=False, error=f"Read error: {exc}")
 
@@ -285,6 +289,12 @@ def apply_edit_block(
             error=f"Write error: {exc}",
             matched_count=total_matches,
         )
+
+    # ── P2-3: Write before/after diffs and patch apply report ──
+    _save_patch_evidence(
+        target, original_text, new_content, normalized_path,
+        total_matches, warnings,
+    )
 
     warning_msg = "; ".join(warnings[:3]) if warnings else None
     if len(warnings) > 3:
@@ -341,3 +351,61 @@ def strip_edit_blocks_from_report(llm_output: str) -> str:
     cleaned = EDIT_BLOCK_PATTERN.sub("", llm_output)
     cleaned = HTML_EDIT_BLOCK_PATTERN.sub("", cleaned)
     return cleaned.strip()
+
+
+def _save_patch_evidence(
+    target: Path,
+    original_content: str,
+    new_content: str,
+    normalized_path: str,
+    total_matches: int,
+    warnings: list[str],
+) -> None:
+    """P2-3: Save before/after diffs and a patch_apply_report.yml alongside the file."""
+    evidence_dir = target.parent
+    safe_name = normalized_path.replace("/", "_").replace("\\", "_")
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    # Before diff
+    before_diff = "\n".join(
+        difflib.unified_diff(
+            original_content.splitlines(keepends=True),
+            original_content.splitlines(keepends=True),
+            fromfile=f"a/{normalized_path}",
+            tofile=f"b/{normalized_path}",
+            lineterm="",
+        )
+    )
+    before_path = evidence_dir / f"before_diff_{safe_name}.patch"
+    before_path.write_text(before_diff or "(no changes — before snapshot)\n", encoding="utf-8")
+
+    # After diff
+    after_diff = "\n".join(
+        difflib.unified_diff(
+            original_content.splitlines(keepends=True),
+            new_content.splitlines(keepends=True),
+            fromfile=f"a/{normalized_path}",
+            tofile=f"b/{normalized_path}",
+            lineterm="",
+        )
+    )
+    after_path = evidence_dir / f"after_diff_{safe_name}.patch"
+    after_path.write_text(after_diff or "(no changes)\n", encoding="utf-8")
+
+    # Patch apply report
+    report_path = evidence_dir / f"patch_apply_report_{safe_name}.yml"
+    report = {
+        "version": 1,
+        "file": normalized_path,
+        "applied_at": timestamp,
+        "total_matches": total_matches,
+        "warnings": warnings,
+        "evidence": {
+            "before_diff": str(before_path),
+            "after_diff": str(after_path),
+        },
+    }
+    report_path.write_text(
+        yaml.safe_dump(report, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )

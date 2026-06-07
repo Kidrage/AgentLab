@@ -9,6 +9,94 @@ import yaml
 
 from state_store import utc_now
 
+# ── Pricing ──────────────────────────────────────────────────
+
+_PRICE_CACHE: dict | None = None
+_PRICE_ROOT: Path | None = None
+
+
+def load_pricing(agentlab_root: Path) -> dict:
+    """Load model pricing from config/model_pricing.yml.
+
+    Returns the `models` sub-dict keyed by model name.
+    Results are cached by agentlab_root.
+    """
+    global _PRICE_CACHE, _PRICE_ROOT
+    if _PRICE_ROOT == agentlab_root and _PRICE_CACHE is not None:
+        return _PRICE_CACHE
+    path = agentlab_root / "config" / "model_pricing.yml"
+    if not path.exists():
+        _PRICE_CACHE = {}
+        _PRICE_ROOT = agentlab_root
+        return _PRICE_CACHE
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        raw = {}
+    models = raw.get("models", {}) if isinstance(raw, dict) else {}
+    currency = raw.get("currency", "USD") if isinstance(raw, dict) else "USD"
+    _PRICE_CACHE = {"models": models, "currency": currency}
+    _PRICE_ROOT = agentlab_root
+    return _PRICE_CACHE
+
+
+def estimate_cost(
+    agentlab_root: Path,
+    model: str,
+    input_tokens: int | None,
+    output_tokens: int | None,
+) -> dict:
+    """Estimate cost for a given model and token counts.
+
+    Returns a dict with:
+        estimated_cost: float | None
+        cost_currency: str | None
+        exact_cost_available: bool
+        pricing_source: str | None
+    """
+    pricing = load_pricing(agentlab_root)
+    models = pricing.get("models", {})
+
+    if not models or model not in models:
+        return {
+            "estimated_cost": None,
+            "cost_currency": pricing.get("currency"),
+            "exact_cost_available": False,
+            "pricing_source": None,
+        }
+
+    entry = models[model]
+    input_price = entry.get("input_per_1m")
+    output_price = entry.get("output_per_1m")
+
+    # If prices are null/None, cost is unavailable
+    if input_price is None or output_price is None:
+        return {
+            "estimated_cost": None,
+            "cost_currency": pricing.get("currency"),
+            "exact_cost_available": False,
+            "pricing_source": "config/model_pricing.yml",
+        }
+
+    if input_tokens is None or output_tokens is None:
+        return {
+            "estimated_cost": None,
+            "cost_currency": pricing.get("currency"),
+            "exact_cost_available": False,
+            "pricing_source": "config/model_pricing.yml",
+        }
+
+    cost = (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
+    return {
+        "estimated_cost": round(cost, 8),
+        "cost_currency": pricing.get("currency", "USD"),
+        "exact_cost_available": True,
+        "pricing_source": "config/model_pricing.yml",
+    }
+
+
+# ── Ledger helpers ───────────────────────────────────────────
+
 
 def append_yaml_list(path: Path, key: str, entry: dict[str, Any]) -> Path:
     data = {}
@@ -33,8 +121,25 @@ def usage_entry(
     output_tokens: int | None = None,
     total_tokens: int | None = None,
     notes: str = "",
+    *,
+    agentlab_root: Path | None = None,
 ) -> dict[str, Any]:
-    exact_cost_available = provider not in {"codex_plus_manual"} and total_tokens is not None
+    """Build a usage-entry dict for cost_ledger append.
+
+    When *agentlab_root* is supplied, resolves estimated cost via
+    config/model_pricing.yml.
+    """
+    if agentlab_root is not None:
+        cost_info = estimate_cost(agentlab_root, model, input_tokens, output_tokens)
+        estimated_cost = cost_info["estimated_cost"]
+        cost_currency = cost_info["cost_currency"]
+        exact_cost_available = cost_info["exact_cost_available"]
+    else:
+        # Legacy path – keep backward-compatible None values
+        estimated_cost = None
+        cost_currency = None
+        exact_cost_available = provider not in {"codex_plus_manual"} and total_tokens is not None
+
     return {
         "timestamp": utc_now(),
         "project": project,
@@ -47,8 +152,8 @@ def usage_entry(
         "output_tokens": output_tokens,
         "total_tokens": total_tokens,
         "exact_cost_available": exact_cost_available,
-        "estimated_cost": None,
-        "cost_currency": None,
+        "estimated_cost": estimated_cost,
+        "cost_currency": cost_currency,
         "notes": notes,
     }
 
