@@ -39,6 +39,7 @@ class ArtifactGateTests(TestCase):
 
             result = _block_on_artifact_gate(
                 run_dir,
+                run_dir,
                 "AgentLab",
                 "task_gate",
                 "REPO_CONTEXT",
