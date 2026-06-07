@@ -1,0 +1,34 @@
+# AgentLab Model Pricing Reference
+# Used by cost_tracker.py to estimate API usage cost.
+#
+# Fill prices manually for each model you use.
+# Set per-unit prices to null if exact cost is unavailable (e.g., subscription quotas).
+
+version: 1
+currency: USD
+
+models:
+  qwen3-coder-next:
+    input_per_1m: 0.0
+    output_per_1m: 0.0
+    notes: "Fill manually.  Qwen3-Coder pricing TBD."
+
+  deepseek-v4-pro:
+    input_per_1m: 0.0
+    output_per_1m: 0.0
+    notes: "Fill manually.  DeepSeek-V4-Pro pricing TBD."
+
+  codex_plus_manual:
+    input_per_1m: null
+    output_per_1m: null
+    notes: "Subscription quota; exact per-token API cost unavailable."
+
+  deepseek-r1-distill-qwen-7b:
+    input_per_1m: 0.0
+    output_per_1m: 0.0
+    notes: "Fill manually.  DeepSeek-R1-Distill-Qwen-7B pricing TBD."
+
+  deepseek-r1-distill-qwen-32b:
+    input_per_1m: 0.0
+    output_per_1m: 0.0
+    notes: "Fill manually.  DeepSeek-R1-Distill-Qwen-32B pricing TBD."

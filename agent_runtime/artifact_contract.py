@@ -11,6 +11,8 @@ import re
 
 import yaml
 
+from execution_log import load_execution_log, has_successful_command
+
 TBD_PATTERNS = ["TBD", "tbd", "TODO", "FIXME", "# User Request\n\nDescribe the task here."]
 UNEXECUTED_TOOL_CALL_PATTERNS = [
     "<tool_call",
@@ -340,6 +342,12 @@ def artifact_content_issues(fname: str, content: str, run_dir: Path | None = Non
         issues.append("archivist memory update placeholder")
     if fname == "01_supervisor_plan.md" and claims_missing_user_decision_file(content, run_dir):
         issues.append("claims USER_DECISION_REQUIRED.md but file is missing")
+
+    # ── P1-1: execution evidence gate ──
+    execution_evidence_issue = _check_execution_evidence(fname, content, run_dir)
+    if execution_evidence_issue:
+        issues.append(execution_evidence_issue)
+
     return issues
 
 
@@ -398,3 +406,57 @@ def write_artifact_manifest(run_dir: Path, result: dict) -> None:
     path = run_dir / "artifact_manifest.yml"
     from atomic_io import atomic_write_text
     atomic_write_text(path, yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = None) -> str | None:
+    """Check if a validation/audit report claims command execution
+    but does not reference an execution_log command_id."""
+    # Only apply to validation/audit/verification reports
+    evidence_report_files = {
+        "07_validation_report.md",
+        "08_audit_report.md",
+        "verification_report.md",
+    }
+    if fname not in evidence_report_files:
+        return None
+
+    lowered = content.lower()
+
+    # Look for command execution claims
+    command_claim_patterns = [
+        "pytest", "npm test", "cmake", "make", "xcodebuild",
+        "passed", "exit code", "commands run", "ran ",
+        "executed", "tests passed", "test results",
+    ]
+    has_command_claim = any(p in lowered for p in command_claim_patterns)
+    if not has_command_claim:
+        return None
+
+    # Check if report references an execution_log command_id
+    has_command_id = (
+        "command_id" in lowered
+        or "cmd_" in lowered
+        or "execution_log" in lowered
+        or "evidence:" in lowered
+    )
+    if has_command_id:
+        # Verify the referenced command_id actually exists
+        if run_dir is not None:
+            log = load_execution_log(run_dir)
+            commands = log.get("commands", [])
+            command_ids = [cmd.get("command_id", "") for cmd in commands]
+            # Check if any command_id in the report matches a real one
+            matched = any(cid and cid in content for cid in command_ids)
+            if not matched:
+                # References "command_id" but no matching one in execution_log
+                return (
+                    "Report claims command execution with 'command_id' reference "
+                    "but no matching command_id found in execution_log.yml"
+                )
+        return None
+    else:
+        # Report claims command execution but does not reference command_id
+        return (
+            "Report claims command execution but does not reference execution_log command_id. "
+            "Add 'command_id: cmd_XXXX' or 'Evidence:' section linking to execution_log.yml."
+        )
