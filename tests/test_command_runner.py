@@ -332,6 +332,90 @@ def test_pytest_k_expression_is_not_treated_as_path(tmp_path: Path) -> None:
     assert result["exit_code"] == 0
 
 
+def test_pytest_junitxml_separate_external_path_is_blocked(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    tests_dir = workspace / "tests"
+    tests_dir.mkdir(parents=True)
+    run_dir.mkdir()
+    (tests_dir / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command=["python", "-m", "pytest", "tests", "--junitxml", str(tmp_path / "out.xml")],
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is True
+    assert result["command_id"] is None
+    assert "workspace" in result["blocked_reason"].lower()
+
+
+def test_pytest_rootdir_separate_external_path_is_blocked(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    tests_dir = workspace / "tests"
+    tests_dir.mkdir(parents=True)
+    run_dir.mkdir()
+    (tests_dir / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command=["python", "-m", "pytest", "tests", "--rootdir", str(tmp_path)],
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is True
+    assert result["command_id"] is None
+    assert "workspace" in result["blocked_reason"].lower()
+
+
+def test_pytest_ignore_separate_parent_escape_is_blocked(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    tests_dir = workspace / "tests"
+    outside_dir = tmp_path / "outside"
+    tests_dir.mkdir(parents=True)
+    outside_dir.mkdir()
+    run_dir.mkdir()
+    (tests_dir / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command="python -m pytest tests --ignore ../outside",
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is True
+    assert result["command_id"] is None
+    assert "workspace" in result["blocked_reason"].lower()
+
+
+def test_pytest_junitxml_workspace_relative_path_is_allowed(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    tests_dir = workspace / "tests"
+    reports_dir = workspace / "reports"
+    tests_dir.mkdir(parents=True)
+    reports_dir.mkdir()
+    run_dir.mkdir()
+    (tests_dir / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command="python -m pytest tests --junitxml reports/out.xml",
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is False
+    assert result["exit_code"] == 0
+    assert result["command_id"].startswith("cmd_")
+
+
 def test_git_read_only_command_is_allowed(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     run_dir = tmp_path / "run"
