@@ -165,22 +165,32 @@ def _is_pytest_path_like(arg: str, root: Path) -> bool:
 
 
 def _validate_pytest_paths(args: list[str], root: Path) -> tuple[bool, str]:
-    options_with_value = {
-        "-k", "-m", "--maxfail", "--tb", "--capture", "--rootdir",
-        "--confcutdir", "--junitxml", "--ignore", "--ignore-glob",
-        "--deselect",
+    expression_value_options = {"-k", "-m", "--maxfail", "--tb", "--capture"}
+    path_value_options = {
+        "--rootdir", "--confcutdir", "--junitxml", "--ignore",
+        "--ignore-glob", "--deselect",
     }
     skip_next = False
+    pending_path_option: str | None = None
     for arg in args:
+        if pending_path_option is not None:
+            ok, reason = _path_arg_is_safe(arg, root)
+            if not ok:
+                return ok, f"{pending_path_option} {reason}"
+            pending_path_option = None
+            continue
         if skip_next:
             skip_next = False
             continue
-        if arg in options_with_value:
+        if arg in expression_value_options:
             skip_next = True
+            continue
+        if arg in path_value_options:
+            pending_path_option = arg
             continue
         if arg.startswith("--") and "=" in arg:
             option, value = arg.split("=", 1)
-            if option in {"--rootdir", "--confcutdir", "--junitxml", "--ignore", "--ignore-glob", "--deselect"}:
+            if option in path_value_options:
                 ok, reason = _path_arg_is_safe(value, root)
                 if not ok:
                     return ok, reason
