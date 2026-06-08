@@ -40,13 +40,36 @@ def load_pricing(agentlab_root: Path) -> dict:
     return _PRICE_CACHE
 
 
+def _resolve_model_entry(models: dict, provider: str | None, model: str) -> tuple:
+    """Resolve a pricing entry with optional provider/model combo key.
+
+    Lookup priority:
+    1. ``provider/model`` combo key (if provider is not None)
+    2. plain ``model`` key
+
+    Returns (entry_dict, matched_key) or (None, None).
+    """
+    if provider:
+        combo_key = f"{provider}/{model}"
+        if combo_key in models:
+            return models[combo_key], combo_key
+    if model in models:
+        return models[model], model
+    return None, None
+
+
 def estimate_cost(
     agentlab_root: Path,
     model: str,
     input_tokens: int | None,
     output_tokens: int | None,
+    *,
+    provider: str | None = None,
 ) -> dict:
     """Estimate cost for a given model and token counts.
+
+    When *provider* is supplied and a ``provider/model`` combo key exists
+    in pricing, it takes priority over the plain *model* key.
 
     Returns a dict with:
         estimated_cost: float | None
@@ -57,7 +80,8 @@ def estimate_cost(
     pricing = load_pricing(agentlab_root)
     models = pricing.get("models", {})
 
-    if not models or model not in models:
+    entry, _key = _resolve_model_entry(models, provider, model)
+    if entry is None:
         return {
             "estimated_cost": None,
             "cost_currency": pricing.get("currency"),
@@ -65,7 +89,6 @@ def estimate_cost(
             "pricing_source": None,
         }
 
-    entry = models[model]
     input_price = entry.get("input_per_1m")
     output_price = entry.get("output_per_1m")
 
@@ -130,15 +153,19 @@ def usage_entry(
     config/model_pricing.yml.
     """
     if agentlab_root is not None:
-        cost_info = estimate_cost(agentlab_root, model, input_tokens, output_tokens)
+        cost_info = estimate_cost(
+            agentlab_root, model, input_tokens, output_tokens, provider=provider,
+        )
         estimated_cost = cost_info["estimated_cost"]
         cost_currency = cost_info["cost_currency"]
         exact_cost_available = cost_info["exact_cost_available"]
+        pricing_source = cost_info["pricing_source"]
     else:
         # Legacy path – keep backward-compatible None values
         estimated_cost = None
         cost_currency = None
         exact_cost_available = provider not in {"codex_plus_manual"} and total_tokens is not None
+        pricing_source = None
 
     return {
         "timestamp": utc_now(),
@@ -154,6 +181,7 @@ def usage_entry(
         "exact_cost_available": exact_cost_available,
         "estimated_cost": estimated_cost,
         "cost_currency": cost_currency,
+        "pricing_source": pricing_source,
         "notes": notes,
     }
 
