@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 from execution_log import append_command_record, load_execution_log
 from artifact_contract import _check_execution_evidence, artifact_content_issues
+from command_runner import run_logged_command, run_validation_commands_if_present
 
 
 class ExecutionEvidenceGateTests(TestCase):
@@ -145,6 +146,46 @@ class ExecutionEvidenceGateTests(TestCase):
             "# Validation Report\n\n"
             "All tests passed.\n"
             "command_id: cmd_0001\n"
+        )
+        issue = _check_execution_evidence("07_validation_report.md", content, self.run_dir)
+        self.assertIsNotNone(issue)
+        self.assertIn("non-zero exit_code", issue)
+
+    def test_artifact_gate_accepts_real_command_runner_success(self) -> None:
+        """A validation summary containing a real successful command_id passes."""
+        (self.run_dir / "ok.py").write_text("x = 1\n", encoding="utf-8")
+        (self.run_dir / "validation_commands.yml").write_text(
+            "version: 1\n"
+            "workspace_root: .\n"
+            "commands:\n"
+            "  - name: py_compile\n"
+            "    command: python -m py_compile ok.py\n"
+            "    cwd: .\n"
+            "    required: true\n",
+            encoding="utf-8",
+        )
+        summary = run_validation_commands_if_present(
+            agentlab_root=ROOT,
+            run_dir=self.run_dir,
+            workspace_root=self.run_dir,
+        )
+        content = "# Validation Report\n\nAll tests passed.\n" + summary["summary_markdown"]
+        issue = _check_execution_evidence("07_validation_report.md", content, self.run_dir)
+        self.assertIsNone(issue)
+
+    def test_artifact_gate_rejects_failed_command_claimed_as_passed(self) -> None:
+        """A success claim with a real nonzero command_id is rejected."""
+        (self.run_dir / "broken.py").write_text("def broken(:\n", encoding="utf-8")
+        result = run_logged_command(
+            agentlab_root=ROOT,
+            run_dir=self.run_dir,
+            command="python -m py_compile broken.py",
+            workspace_root=self.run_dir,
+        )
+        content = (
+            "# Validation Report\n\n"
+            "All tests passed.\n"
+            f"command_id: {result['command_id']}\n"
         )
         issue = _check_execution_evidence("07_validation_report.md", content, self.run_dir)
         self.assertIsNotNone(issue)
