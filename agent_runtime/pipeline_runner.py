@@ -25,6 +25,7 @@ from artifact_contract import (
     write_artifact_manifest,
     ensure_skipped_artifact,
 )
+from command_runner import run_validation_commands_if_present
 from state_store import load_state, save_state
 from progress_tracker import create_progress, load_progress, save_progress
 
@@ -533,6 +534,34 @@ def run_next_node(
 
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(result.content or "", encoding="utf-8")
+        report_content = result.content or ""
+
+        if nid == "VALIDATION" and effective_execution_mode == "execute":
+            command_result = run_validation_commands_if_present(
+                agentlab_root=agentlab_root,
+                run_dir=run_dir,
+                workspace_root=agentlab_root,
+                node=nid,
+                agent=agent or "TesterAuditor",
+            )
+            if command_result.get("ran"):
+                report_content = report_content.rstrip() + "\n" + command_result["summary_markdown"]
+                report_path.write_text(report_content, encoding="utf-8")
+                if not command_result.get("all_required_passed", True):
+                    return _block_task(
+                        agentlab_root,
+                        run_dir,
+                        project,
+                        task_id,
+                        nid,
+                        agent=agent,
+                        reason="Required validation command failed",
+                        stage="blocked_validation_command",
+                        report_path=report_path,
+                        user_action_required=True,
+                        block_type="validation_command_failed",
+                        execution_mode=effective_execution_mode,
+                    )
 
         # Record token usage to cost_ledger
         from cost_tracker import append_cost_ledgers, usage_entry
@@ -546,7 +575,7 @@ def run_next_node(
                 "API usage from pipeline executor.",
             ),
         )
-        gate_issues = artifact_content_issues(report_path.name, result.content or "", run_dir)
+        gate_issues = artifact_content_issues(report_path.name, report_content, run_dir)
         if gate_issues:
             return _block_on_artifact_gate(
                 agentlab_root, run_dir, project, task_id, nid, agent, gate_issues,

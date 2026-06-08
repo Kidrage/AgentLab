@@ -1,0 +1,42 @@
+version: 1
+
+default_timeout_sec: 120
+
+allowed_executables:
+  - python
+  - python3
+  - pytest
+  - git
+
+allowed_python_modules:
+  - pytest
+  - py_compile
+
+blocked_executables:
+  - sudo
+  - rm
+  - mv
+  - cp
+  - curl
+  - wget
+  - bash
+  - sh
+  - zsh
+  - powershell
+  - pip
+  - npm
+  - pnpm
+  - yarn
+  - brew
+  - apt
+  - apt-get
+
+blocked_substrings:
+  - "rm -rf"
+  - "curl |"
+  - "wget |"
+  - "sudo "
+  - " > /"
+  - " /etc/"
+  - " ~/.ssh"
+  - " id_rsa"
