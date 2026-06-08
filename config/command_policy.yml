@@ -2,6 +2,10 @@ version: 1
 
 default_timeout_sec: 120
 
+path_confinement:
+  enabled: true
+  enforce_workspace_root: true
+
 allowed_executables:
   - python
   - python3

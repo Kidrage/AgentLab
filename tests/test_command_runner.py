@@ -12,6 +12,7 @@ from command_runner import (
     run_logged_command,
     run_validation_commands_if_present,
     safe_resolve_cwd,
+    validate_command_paths,
 )
 from execution_log import load_execution_log
 
@@ -192,3 +193,201 @@ def test_normalize_and_policy_reject_python_script() -> None:
     })
     assert allowed is False
     assert "script execution" in reason
+
+
+def test_py_compile_allows_workspace_relative_path(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    workspace.mkdir()
+    run_dir.mkdir()
+    (workspace / "ok.py").write_text("x = 1\n", encoding="utf-8")
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command="python -m py_compile ok.py",
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is False
+    assert result["exit_code"] == 0
+    assert result["command_id"].startswith("cmd_")
+
+
+def test_py_compile_rejects_absolute_path_escape(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    workspace.mkdir()
+    run_dir.mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_text("x = 1\n", encoding="utf-8")
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command=["python", "-m", "py_compile", str(outside)],
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is True
+    assert result["command_id"] is None
+    assert "workspace" in result["blocked_reason"].lower()
+
+
+def test_py_compile_rejects_parent_path_escape(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    workspace.mkdir()
+    run_dir.mkdir()
+    (tmp_path / "outside.py").write_text("x = 1\n", encoding="utf-8")
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command="python -m py_compile ../outside.py",
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is True
+    assert result["command_id"] is None
+    assert "workspace" in result["blocked_reason"].lower()
+
+
+def test_pytest_allows_workspace_tests_path(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    tests_dir = workspace / "tests"
+    tests_dir.mkdir(parents=True)
+    run_dir.mkdir()
+    (tests_dir / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command="python -m pytest tests -q",
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is False
+    assert result["exit_code"] == 0
+    assert result["command_id"].startswith("cmd_")
+
+
+def test_pytest_rejects_absolute_path_escape(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    outside_tests = tmp_path / "outside_tests"
+    workspace.mkdir()
+    outside_tests.mkdir()
+    run_dir.mkdir()
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command=["python", "-m", "pytest", str(outside_tests), "-q"],
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is True
+    assert result["command_id"] is None
+    assert "workspace" in result["blocked_reason"].lower()
+
+
+def test_pytest_rejects_parent_path_escape(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    outside_tests = tmp_path / "outside_tests"
+    workspace.mkdir()
+    outside_tests.mkdir()
+    run_dir.mkdir()
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command="python -m pytest ../outside_tests -q",
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is True
+    assert result["command_id"] is None
+    assert "workspace" in result["blocked_reason"].lower()
+
+
+def test_pytest_k_expression_is_not_treated_as_path(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    tests_dir = workspace / "tests"
+    tests_dir.mkdir(parents=True)
+    run_dir.mkdir()
+    (tests_dir / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command="python -m pytest tests -q -k ok",
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is False
+    assert result["exit_code"] == 0
+
+
+def test_git_read_only_command_is_allowed(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    workspace.mkdir()
+    run_dir.mkdir()
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command="git status",
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is False
+    assert result["command_id"].startswith("cmd_")
+
+
+def test_git_dash_c_outside_is_rejected(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    workspace.mkdir()
+    run_dir.mkdir()
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command=["git", "status", "-C", str(tmp_path)],
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is True
+    assert result["command_id"] is None
+
+
+def test_git_output_option_is_rejected(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = tmp_path / "run"
+    workspace.mkdir()
+    run_dir.mkdir()
+
+    result = run_logged_command(
+        agentlab_root=_agentlab_root(),
+        run_dir=run_dir,
+        command="git diff --output=/tmp/x",
+        workspace_root=workspace,
+    )
+
+    assert result["blocked_by_policy"] is True
+    assert result["command_id"] is None
+
+
+def test_validate_command_paths_rejects_parent_escape(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    ok, reason = validate_command_paths(["python", "-m", "py_compile", "../outside.py"], workspace)
+
+    assert ok is False
+    assert "workspace" in reason.lower()
