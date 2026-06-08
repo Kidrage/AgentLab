@@ -22,6 +22,10 @@ from execution_log import append_command_record
 DEFAULT_COMMAND_POLICY: dict[str, Any] = {
     "version": 1,
     "default_timeout_sec": 120,
+    "path_confinement": {
+        "enabled": True,
+        "enforce_workspace_root": True,
+    },
     "allowed_executables": ["python", "python3", "pytest", "git"],
     "allowed_python_modules": ["pytest", "py_compile"],
     "blocked_executables": [
@@ -123,6 +127,119 @@ def safe_resolve_cwd(cwd: str | Path | None, workspace_root: Path) -> Path:
     return resolved
 
 
+def _is_path_within_root(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _resolve_command_path(arg: str, root: Path) -> Path:
+    candidate = Path(arg)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    return candidate.resolve()
+
+
+def _path_arg_is_safe(arg: str, root: Path) -> tuple[bool, str]:
+    candidate = _resolve_command_path(arg, root)
+    if not _is_path_within_root(candidate, root):
+        return False, f"path argument escapes workspace_root: {arg}"
+    return True, "allowed"
+
+
+def _is_pytest_path_like(arg: str, root: Path) -> bool:
+    if arg in {".", ".."}:
+        return True
+    path = Path(arg)
+    if path.is_absolute():
+        return True
+    if "/" in arg or "\\" in arg:
+        return True
+    if arg.startswith("."):
+        return True
+    if arg.endswith(".py"):
+        return True
+    return (root / arg).exists()
+
+
+def _validate_pytest_paths(args: list[str], root: Path) -> tuple[bool, str]:
+    options_with_value = {
+        "-k", "-m", "--maxfail", "--tb", "--capture", "--rootdir",
+        "--confcutdir", "--junitxml", "--ignore", "--ignore-glob",
+        "--deselect",
+    }
+    skip_next = False
+    for arg in args:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in options_with_value:
+            skip_next = True
+            continue
+        if arg.startswith("--") and "=" in arg:
+            option, value = arg.split("=", 1)
+            if option in {"--rootdir", "--confcutdir", "--junitxml", "--ignore", "--ignore-glob", "--deselect"}:
+                ok, reason = _path_arg_is_safe(value, root)
+                if not ok:
+                    return ok, reason
+            continue
+        if arg.startswith("-"):
+            continue
+        if _is_pytest_path_like(arg, root):
+            ok, reason = _path_arg_is_safe(arg, root)
+            if not ok:
+                return ok, reason
+    return True, "allowed"
+
+
+def _validate_git_paths(argv: list[str], root: Path) -> tuple[bool, str]:
+    if len(argv) < 2 or argv[1] not in {"status", "diff", "log"}:
+        return False, "git subcommand is not allowlisted"
+    unsafe_options = {"-C", "--output", "--exec-path"}
+    for arg in argv[2:]:
+        if arg in unsafe_options:
+            return False, f"git option is not allowed: {arg}"
+        if arg.startswith("--output=") or arg.startswith("--exec-path="):
+            return False, f"git option is not allowed: {arg.split('=', 1)[0]}"
+        if Path(arg).is_absolute():
+            return False, f"git absolute path argument is not allowed: {arg}"
+        if arg == ".." or arg.startswith("../") or "/../" in arg or arg.endswith("/.."):
+            return False, f"git path traversal is not allowed: {arg}"
+    return True, "allowed"
+
+
+def validate_command_paths(argv: list[str], workspace_root: Path) -> tuple[bool, str]:
+    """Validate command path arguments stay inside workspace_root."""
+    root = workspace_root.resolve()
+    if not root.exists():
+        return False, f"workspace_root does not exist: {root}"
+
+    executable = Path(argv[0]).name if argv else ""
+    if executable in {"python", "python3"} and len(argv) >= 3 and argv[1] == "-m":
+        module = argv[2]
+        if module == "py_compile":
+            for arg in argv[3:]:
+                if arg.startswith("-"):
+                    continue
+                ok, reason = _path_arg_is_safe(arg, root)
+                if not ok:
+                    return ok, reason
+            return True, "allowed"
+        if module == "pytest":
+            return _validate_pytest_paths(argv[3:], root)
+        return True, "allowed"
+
+    if executable == "pytest":
+        return _validate_pytest_paths(argv[1:], root)
+
+    if executable == "git":
+        return _validate_git_paths(argv, root)
+
+    return True, "allowed"
+
+
 def _sha256_text(text: str | bytes | None) -> str:
     if text is None:
         raw = b""
@@ -177,13 +294,25 @@ def run_logged_command(
 
     root = workspace_root or agentlab_root
     resolved_cwd = safe_resolve_cwd(cwd, root)
+    command_text = shlex.join(argv)
+    paths_allowed, path_reason = validate_command_paths(argv, root.resolve())
+    if not paths_allowed:
+        return {
+            "command_id": None,
+            "command": command_text,
+            "argv": argv,
+            "cwd": str(resolved_cwd),
+            "exit_code": None,
+            "timed_out": False,
+            "blocked_by_policy": True,
+            "blocked_reason": path_reason,
+        }
     run_dir.mkdir(parents=True, exist_ok=True)
 
     safe_env = os.environ.copy()
     if env:
         safe_env.update({str(k): str(v) for k, v in env.items()})
 
-    command_text = shlex.join(argv)
     timed_out = False
     exit_code: int | None
     stdout = ""
