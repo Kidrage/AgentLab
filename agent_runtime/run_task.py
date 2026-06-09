@@ -1548,6 +1548,9 @@ def check_cmd(
         console.print(f"\nAuto-sync eligible: {'yes' if report.get('auto_sync_eligible') else 'no'}")
         console.print(f"Report: {agentlab_root}/projects/{project_name}/runs/{task_id}/self_check_report.yml")
 
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
 
 @app.command("sync")
 def sync_cmd(

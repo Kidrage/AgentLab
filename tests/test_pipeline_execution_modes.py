@@ -89,5 +89,68 @@ class DryRunNoRealCallTests(TestCase):
             self.assertEqual(result.get("execution_mode"), "mock_provider")
 
 
+class DryRunClosureEvidenceTests(TestCase):
+    def test_full_dry_run_pipeline_writes_closure_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = root / "projects" / "Demo" / "runs" / "task_closure_001"
+            run_dir.mkdir(parents=True)
+            (run_dir / "user_request.md").write_text(
+                "# User Request\n\nSmoke test dry-run closure evidence.\n",
+                encoding="utf-8",
+            )
+            (run_dir / "workflow_plan.yml").write_text(
+                "route:\n"
+                "  agents:\n"
+                "    - Supervisor\n"
+                "    - RepoScout\n"
+                "    - Coder\n"
+                "    - TesterAuditor\n"
+                "    - Archivist\n",
+                encoding="utf-8",
+            )
+            create_lifecycle(
+                run_dir,
+                {
+                    "route": {
+                        "agents": [
+                            "Supervisor",
+                            "RepoScout",
+                            "Coder",
+                            "TesterAuditor",
+                            "Archivist",
+                        ]
+                    }
+                },
+            )
+
+            result = run_full_pipeline(
+                root,
+                "Demo",
+                "task_closure_001",
+                dry_run=True,
+                fake_provider=False,
+                max_steps=30,
+            )
+
+            self.assertTrue(result["success"])
+            self.assertEqual(result["final_status"], "completed")
+            self.assertEqual(result["execution_mode"], "dry_run")
+            self.assertTrue((run_dir / "implementation_report.md").exists())
+            self.assertTrue((run_dir / "validation_report.md").exists())
+            self.assertTrue((run_dir / "archive_update.md").exists())
+            self.assertTrue((run_dir / "execution_log.yml").exists())
+            self.assertTrue((run_dir / "cost_ledger.yml").exists())
+            self.assertTrue((run_dir / "artifact_manifest.yml").exists())
+
+            ledger = yaml.safe_load((run_dir / "cost_ledger.yml").read_text(encoding="utf-8")) or {}
+            entries = ledger.get("entries", [])
+            self.assertTrue(any(e.get("dry_run") is True for e in entries))
+            self.assertTrue(any(e.get("provider") == "fake_provider" for e in entries))
+
+            validation = (run_dir / "07_validation_report.md").read_text(encoding="utf-8")
+            self.assertIn("command_id", validation)
+
+
 if __name__ == "__main__":
     main()

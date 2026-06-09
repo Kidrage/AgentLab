@@ -238,6 +238,7 @@ def run_self_check(
     warnings = sum(1 for c in checks if c["status"] == "warn")
     failed = sum(1 for c in checks if c["status"] == "fail")
 
+    strict_warning_blockers = strict and warnings > 0
     overall = "fail" if failed > 0 else ("warn" if warnings > 0 else "pass")
     if strict and overall == "warn":
         overall = "fail"
@@ -260,7 +261,9 @@ def run_self_check(
             "reports_written": ["self_check_report.yml"],
         },
         "blocking_reasons": [
-            c["message"] for c in checks if c["status"] == "fail"
+            c["message"]
+            for c in checks
+            if c["status"] == "fail" or (strict_warning_blockers and c["status"] == "warn")
         ],
         "auto_sync_eligible": overall in ("pass", "warn") and not failed,
     }
