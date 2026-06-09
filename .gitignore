@@ -31,3 +31,4 @@ projects/CodingWorkspace/
 # Keep folder structure but exclude large transient data
 projects/*/runs/*/cost_ledger.yml
 projects/*/runs/*/state.yml.local.bak/
+projects/*/runs/task_*_closure-smoke*/

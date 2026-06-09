@@ -29,6 +29,14 @@ from command_runner import run_validation_commands_if_present
 from state_store import load_state, save_state
 from progress_tracker import create_progress, load_progress, save_progress
 
+ARTIFACT_ALIASES = {
+    "01_supervisor_plan.md": "supervisor_plan.md",
+    "02_reposcout_report.md": "reposcout_report.md",
+    "06_implementation_report.md": "implementation_report.md",
+    "07_validation_report.md": "validation_report.md",
+    "09_archive_update.md": "archive_update.md",
+}
+
 NODE_TO_AGENT = {
     "SUPERVISOR_PLAN": "Supervisor",
     "REPO_CONTEXT": "RepoScout",
@@ -240,6 +248,92 @@ def _sync_task_summary(
         warning_path.write_text("\n".join(warning_lines), encoding="utf-8")
 
 
+
+def _write_artifact_alias(run_dir: Path, report_name: str) -> None:
+    alias = ARTIFACT_ALIASES.get(report_name)
+    if alias and (run_dir / report_name).exists():
+        (run_dir / alias).write_text(
+            (run_dir / report_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+
+def _append_dry_run_cost_entry(
+    agentlab_root: Path,
+    run_dir: Path,
+    project: str,
+    task_id: str,
+    *,
+    node_id: str,
+    agent: str | None,
+    budget_mode: str | None,
+    execution_mode: str,
+) -> None:
+    from cost_tracker import append_cost_ledgers
+
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "project": project,
+        "task_id": task_id,
+        "node": node_id,
+        "agent": agent or node_id,
+        "budget_mode": budget_mode or "balanced",
+        "execution_mode": execution_mode,
+        "provider": "fake_provider",
+        "model": "deterministic-dry-run",
+        "dry_run": True,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost": 0.0,
+        "notes": "No paid LLM API call was made; deterministic dry-run evidence only.",
+    }
+    append_cost_ledgers(agentlab_root / "projects" / project, run_dir, entry)
+
+
+def _record_dry_run_command(run_dir: Path, node_id: str, agent: str | None) -> str:
+    from execution_log import append_command_record
+
+    return append_command_record(run_dir, {
+        "node": node_id,
+        "agent": agent or node_id,
+        "command": f"dry-run lifecycle evidence for {node_id}",
+        "cwd": str(run_dir),
+        "exit_code": 0,
+        "stdout": f"{node_id} completed in dry-run mode; no external process or API was invoked.\n",
+        "stderr": "",
+        "dry_run": True,
+        "notes": "Synthetic command record used to make dry-run validation evidence explicit.",
+    })
+
+
+def _record_dry_run_node_evidence(
+    agentlab_root: Path,
+    run_dir: Path,
+    project: str,
+    task_id: str,
+    *,
+    node_id: str,
+    agent: str | None,
+    report_name: str | None,
+    budget_mode: str | None,
+    execution_mode: str,
+) -> str:
+    command_id = _record_dry_run_command(run_dir, node_id, agent)
+    _append_dry_run_cost_entry(
+        agentlab_root,
+        run_dir,
+        project,
+        task_id,
+        node_id=node_id,
+        agent=agent,
+        budget_mode=budget_mode,
+        execution_mode=execution_mode,
+    )
+    if report_name:
+        _write_artifact_alias(run_dir, report_name)
+    return command_id
+
 def run_next_node(
     agentlab_root: Path, project: str, task_id: str, *,
     fake_provider: bool = False, simulate_quota_failure_at: Optional[str] = None,
@@ -339,6 +433,17 @@ def run_next_node(
             (run_dir / "brain_decisions.yml").write_text("decisions: []\n", encoding="utf-8")
         if not (run_dir / "cost_ledger.yml").exists():
             (run_dir / "cost_ledger.yml").write_text("entries: []\n", encoding="utf-8")
+        _record_dry_run_node_evidence(
+            agentlab_root,
+            run_dir,
+            project,
+            task_id,
+            node_id=nid,
+            agent=None,
+            report_name=None,
+            budget_mode=budget_mode,
+            execution_mode=effective_execution_mode,
+        )
         mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": f"{nid} done."}
 
@@ -372,6 +477,17 @@ def run_next_node(
                     node["status"] = "waiting"
                     node["skip_reason"] = None
             save_lifecycle(run_dir, lc)
+        _record_dry_run_node_evidence(
+            agentlab_root,
+            run_dir,
+            project,
+            task_id,
+            node_id=nid,
+            agent=None,
+            report_name="workflow_plan.yml",
+            budget_mode=budget_mode,
+            execution_mode=effective_execution_mode,
+        )
         mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": f"{nid} done."}
 
@@ -379,12 +495,34 @@ def run_next_node(
         result = validate_artifacts(run_dir)
         (run_dir / "self_check_report.yml").write_text(
             yaml.safe_dump(result, sort_keys=False), encoding="utf-8")
+        _record_dry_run_node_evidence(
+            agentlab_root,
+            run_dir,
+            project,
+            task_id,
+            node_id=nid,
+            agent=None,
+            report_name="self_check_report.yml",
+            budget_mode=budget_mode,
+            execution_mode=effective_execution_mode,
+        )
         mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": "Self-check done."}
 
     if nid == "SYNC_OPTIONAL":
         (run_dir / "sync_report.yml").write_text(
             "# Sync Report\n\nStatus: skipped (dry-run)\n", encoding="utf-8")
+        _record_dry_run_node_evidence(
+            agentlab_root,
+            run_dir,
+            project,
+            task_id,
+            node_id=nid,
+            agent=None,
+            report_name="sync_report.yml",
+            budget_mode=budget_mode,
+            execution_mode=effective_execution_mode,
+        )
         mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": "Sync skipped (dry-run)."}
 
@@ -455,6 +593,21 @@ def run_next_node(
             report_path = run_dir / report_file
             report_path.parent.mkdir(parents=True, exist_ok=True)
             report_path.write_text(output, encoding="utf-8")
+            command_id = _record_dry_run_node_evidence(
+                agentlab_root,
+                run_dir,
+                project,
+                task_id,
+                node_id=nid,
+                agent=agent,
+                report_name=report_file,
+                budget_mode=budget_mode,
+                execution_mode=effective_execution_mode,
+            )
+            if report_file in {"07_validation_report.md", "08_audit_report.md", "verification_report.md"}:
+                output = output.rstrip() + f"\n\nEvidence: command_id {command_id}\n"
+                report_path.write_text(output, encoding="utf-8")
+                _write_artifact_alias(run_dir, report_file)
             gate_issues = artifact_content_issues(report_path.name, output, run_dir)
             if gate_issues:
                 return _block_on_artifact_gate(
@@ -589,6 +742,21 @@ def run_next_node(
             report_path = run_dir / report_file
             report_path.parent.mkdir(parents=True, exist_ok=True)
             report_path.write_text(output, encoding="utf-8")
+            command_id = _record_dry_run_node_evidence(
+                agentlab_root,
+                run_dir,
+                project,
+                task_id,
+                node_id=nid,
+                agent=agent or nid,
+                report_name=report_file,
+                budget_mode=budget_mode,
+                execution_mode=effective_execution_mode,
+            )
+            if report_file in {"07_validation_report.md", "08_audit_report.md", "verification_report.md"}:
+                output = output.rstrip() + f"\n\nEvidence: command_id {command_id}\n"
+                report_path.write_text(output, encoding="utf-8")
+                _write_artifact_alias(run_dir, report_file)
             gate_issues = artifact_content_issues(report_path.name, output, run_dir)
             if gate_issues:
                 return _block_on_artifact_gate(

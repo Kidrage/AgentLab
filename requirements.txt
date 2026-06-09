@@ -1,0 +1,6 @@
+python-dotenv
+pydantic
+pyyaml
+typer
+rich
+pytest

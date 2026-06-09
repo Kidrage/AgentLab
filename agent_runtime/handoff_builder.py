@@ -82,10 +82,6 @@ def build_handoff_packet(
         else:
             route_agents = []
 
-    # Determine next agent
-    completed = list(state.completed_agents) if state.completed_agents else []
-    next_agent = _resolve_next_agent(completed, route_agents)
-
     # Determine status
     if state.status in ("complete", "completed"):
         status = "completed"
@@ -95,6 +91,11 @@ def build_handoff_packet(
         status = "paused"
     else:
         status = "running"
+
+    # Determine next agent. A completed task is terminal even when legacy
+    # state.completed_agents was not populated by the lifecycle runner.
+    completed = list(state.completed_agents) if state.completed_agents else []
+    next_agent = None if status == "completed" else _resolve_next_agent(completed, route_agents)
 
     # Collect artifact paths
     artifacts = {}
@@ -137,7 +138,7 @@ def build_handoff_packet(
         "status": status,
         "last_completed_agent": completed[-1] if completed else None,
         "next_agent": next_agent,
-        "resume_available": True,
+        "resume_available": status != "completed",
         "artifacts": artifacts,
         "code_state": {
             "branch": branch,

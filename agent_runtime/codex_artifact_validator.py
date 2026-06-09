@@ -24,8 +24,6 @@ REQUIRED_REPORTS = [
     "workflow_plan.yml",
     "state.yml",
     "progress.yml",
-    "codex_driver_manifest.yml",
-    "00_preflight_report.md",
     "01_supervisor_plan.md",
     "02_reposcout_report.md",
 ]
@@ -33,11 +31,16 @@ REQUIRED_REPORTS = [
 REQUIRED_CODER_REPORTS = [
     "03_research_notes.md",
     "04_interface_map.md",
-    "05_codex_prompt.md",
     "06_implementation_report.md",
     "07_validation_report.md",
     "08_audit_report.md",
     "09_archive_update.md",
+]
+
+REQUIRED_ARTIFACT_GROUPS = [
+    ("codex_driver_manifest.yml", "artifact_manifest.yml"),
+    ("00_preflight_report.md", "lifecycle.yml"),
+    ("05_codex_prompt.md", "05_coder_prompt.md"),
 ]
 
 REQUIRED_DIFFS = [
@@ -128,6 +131,11 @@ def validate_artifacts(
             result["missing_reports"].append(report)
             result["all_required_reports_exist"] = False
 
+    for group in REQUIRED_ARTIFACT_GROUPS:
+        if not any((run_dir / report).exists() for report in group):
+            result["missing_reports"].append(" | ".join(group))
+            result["all_required_reports_exist"] = False
+
     if result["missing_reports"]:
         result["result"] = "fail"
 
@@ -142,7 +150,7 @@ def validate_artifacts(
             result.setdefault("missing_diffs", []).append(diff_file)
 
     # ── 4. Check YAML files parse ───────────────────────────────────────
-    for report in all_required:
+    for report in all_required + [item for group in REQUIRED_ARTIFACT_GROUPS for item in group]:
         p = run_dir / report
         if p.exists() and _is_yaml_file(p):
             parsed = _parse_yaml(p)
@@ -203,6 +211,10 @@ def print_validation_report(result: dict) -> None:
     for report in all_required:
         exists = report not in result.get("missing_reports", [])
         table.add_row(report, "✅" if exists else "❌")
+    for group in REQUIRED_ARTIFACT_GROUPS:
+        label = " | ".join(group)
+        exists = label not in result.get("missing_reports", [])
+        table.add_row(label, "✅" if exists else "❌")
     console.print(table)
 
     # YAML parse
