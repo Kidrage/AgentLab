@@ -2178,5 +2178,123 @@ def doctor(
     raise typer.Exit(code=exit_code)
 
 
+@app.command("codex-start")
+def codex_start_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    request_file: Optional[Path] = typer.Option(None, help="Optional request file."),
+    mode: str = typer.Option("full-driver", help="Codex execution mode label."),
+) -> None:
+    """Show Codex full-driver start context without making model calls."""
+    agentlab_root, project_name = runtime_context(project)
+    console.print(f"[bold]Codex Full-Driver: {task_id}[/bold]")
+    console.print(f"  Project: {project_name}")
+    console.print(f"  Mode: {mode}")
+    console.print(f"  Request file: {request_file or '(none)'}")
+    console.print(f"  Run dir: {agentlab_root}/projects/{project_name}/runs/{task_id}")
+    console.print()
+    console.print("[green]Task context ready. Continue with prepare, run-pipeline, check, and handoff.[/green]")
+
+
+@app.command("codex-status")
+def codex_status_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Show Codex task state using the normal AgentLab state store."""
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    state = load_state(run_dir, project_name, task_id)
+    console.print(f"[bold]Codex Task Status: {task_id}[/bold]")
+    console.print(f"  Project: {project_name}")
+    console.print(f"  Status: {state.status}")
+    console.print(f"  Execution mode: {state.execution_mode or 'codex_full_driver'}")
+    console.print(f"  Current agent: {state.current_agent}")
+    console.print(f"  Completed agents: {state.completed_agents}")
+    console.print(f"  Blocked: {state.blocked}")
+
+
+@app.command("codex-handoff")
+def codex_handoff_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Write a machine-readable Codex handoff packet."""
+    agentlab_root, project_name = runtime_context(project)
+    from handoff_builder import build_handoff_packet, write_handoff_packet
+
+    project_root = agentlab_root / "projects" / project_name
+    packet = build_handoff_packet(project_root, task_id)
+    path = write_handoff_packet(project_root, task_id, packet)
+    console.print(f"[green]Handoff packet written:[/green] {path}")
+    console.print(f"  Status: {packet['status']}")
+    console.print(f"  Last agent: {packet['last_completed_agent']}")
+    console.print(f"  Next agent: {packet['next_agent']}")
+
+
+@app.command("codex-resume")
+def codex_resume_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    from_file: str = typer.Option("handoff_packet.yml", "--from", help="Handoff packet filename."),
+) -> None:
+    """Print Codex/API resume instructions from a handoff packet."""
+    agentlab_root, project_name = runtime_context(project)
+    from api_continuation import load_handoff_packet
+
+    project_root = agentlab_root / "projects" / project_name
+    handoff = load_handoff_packet(project_root, task_id)
+    if handoff is None:
+        console.print(f"[red]No handoff packet found for {task_id}[/red]")
+        raise typer.Exit(code=1)
+
+    console.print(f"[bold]Resume: {task_id}[/bold]")
+    console.print(f"  Status: {handoff['status']}")
+    console.print(f"  Next agent: {handoff['next_agent']}")
+    console.print(f"  Resume available: {handoff['resume_available']}")
+    console.print()
+    console.print("[green]To continue with API agents:[/green]")
+    console.print(
+        f"  ./agentlab.sh continue-with-api --project {project_name} "
+        f"--task-id {task_id} --from {from_file}"
+    )
+    console.print()
+    console.print("[green]To continue manually:[/green]")
+    console.print(f"  Read {project_root}/runs/{task_id}/handoff_packet.yml")
+
+
+@app.command("codex-verify-artifacts")
+def codex_verify_artifacts_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Validate Codex/lifecycle closure artifacts for a task."""
+    agentlab_root, project_name = runtime_context(project)
+    from codex_artifact_validator import validate_artifacts, print_validation_report
+
+    project_root = agentlab_root / "projects" / project_name
+    result = validate_artifacts(project_root, task_id)
+    print_validation_report(result)
+    if result.get("result") != "pass":
+        raise typer.Exit(code=1)
+
+
+@app.command("continue-with-api")
+def continue_with_api_cmd(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    from_file: str = typer.Option("handoff_packet.yml", "--from", help="Handoff packet filename."),
+    execute: bool = typer.Option(False, help="Allow real API continuation. Defaults to dry-run."),
+) -> None:
+    """Continue from a handoff packet using API agents or dry-run preview."""
+    agentlab_root, project_name = runtime_context(project)
+    from api_continuation import continue_with_api, print_continuation_plan
+
+    project_root = agentlab_root / "projects" / project_name
+    _ = from_file
+    result = continue_with_api(project_root, task_id, dry_run=not execute)
+    print_continuation_plan(result)
+
+
 if __name__ == "__main__":
     app()
