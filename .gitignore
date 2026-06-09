@@ -32,4 +32,3 @@ projects/CodingWorkspace/
 projects/*/runs/*/cost_ledger.yml
 projects/*/runs/*/state.yml.local.bak/
 projects/*/runs/task_*_closure-smoke*/
-.github/
