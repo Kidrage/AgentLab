@@ -20,6 +20,7 @@ Edit these files first when you want to change how agents behave:
 - `feedback_policy.yml`: feedback scaffold for task event logs, notification levels, decision cards, and watchdog policy.
 - `watchdog_policy.yml`: stale running/event/approval/lock thresholds and recovery decision-card options.
 - `webhook_policy.yml`: optional outbound webhook endpoints, retry policy, signing, and redaction controls.
+- `mcp_policy.yml`: optional external-agent tool controls for task creation, approvals, and stop-task operations.
 
 Use `agent_templates/*.md` for role prompts and report formats. Use `config/*.yml`
 for policy, routing, model, budget, and permission changes.

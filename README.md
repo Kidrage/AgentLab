@@ -289,7 +289,19 @@ CLI: `./agentlab.sh webhook-test --event ACTION_REQUIRED --project AgentLab --ta
 
 Guide: `docs/WEBHOOK_INTEGRATION.md`
 
-Not yet implemented: MCP tool server, Telegram-specific bot adapter, OpenClaw/Hermes-specific chat command parser.
+### MCP Tool Server
+
+AgentLab exposes a thin optional MCP-style stdio tool server for external agents that need structured task, decision, skill, webhook, and watchdog operations.
+
+- `agent_runtime/mcp_server.py` defines tool schemas, structured handlers, resources, and a minimal stdio JSON-RPC loop.
+- `config/mcp_policy.yml` gates task creation, decision approval, skill approval, and stop-task operations.
+- Tools include task status/events/report, decision approve/reject/resume, skill request/approval, active skill usage, webhook status, and watchdog scan.
+
+Smoke: `python -m agent_runtime.mcp_server --list-tools`
+
+Guide: `docs/MCP_INTEGRATION.md`
+
+Not yet implemented: full MCP SDK server wrapper, Telegram-specific bot adapter, OpenClaw/Hermes-specific chat command parser.
 
 Roadmap: `docs/AGENTLAB_SKILL_FEEDBACK_ROADMAP.md`
 

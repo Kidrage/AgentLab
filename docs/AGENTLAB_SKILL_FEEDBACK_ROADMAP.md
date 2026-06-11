@@ -57,6 +57,9 @@ pending_user_approval → approved → staging → validated → active → reti
 - Optional webhook notification channel is implemented and disabled by default.
 - `webhook-test`, `webhook-status`, and `webhook-redeliver` manage delivery testing and logs.
 - `docs/WEBHOOK_INTEGRATION.md` documents OpenClaw/Hermes/chat gateway integration.
+- Optional MCP-style stdio tool server is implemented in `agent_runtime/mcp_server.py`.
+- MCP tools cover task status/events/reports, decision approval, task controls, skill requests, webhook status, and watchdog scan.
+- `docs/MCP_INTEGRATION.md` documents local stdio configuration and security policy.
 
 ## Current: Not Yet Production Ready
 
@@ -73,12 +76,12 @@ pending_user_approval → approved → staging → validated → active → reti
 - No long-running watchdog daemon.
 - No Telegram-specific bot adapter or OpenClaw/Hermes-specific command parser.
 - No chat-native approval parser.
-- No MCP tool server.
+- No full MCP SDK wrapper; current MVP is a minimal dependency-free stdio JSON-RPC tool server.
 - WebSocket is not implemented; current real-time MVP uses Server-Sent Events.
 
 ## Next Implementation Targets
 
-1. Add MCP tool server for external agent control.
+1. Add full MCP SDK wrapper if a target client requires strict SDK behavior.
 2. Add Telegram/OpenClaw/Hermes-specific chat command parsers.
 3. Add a long-running watchdog daemon/scheduler.
 4. Add real sandbox validation with isolated execution.
