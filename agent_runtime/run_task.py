@@ -517,6 +517,192 @@ def skill_request(
         "cost_preview": request["cost_preview"],
         "risk": request["risk"],
     })
+    console.print(f"\n[dim]Next: ./agentlab.sh skill-approve --project {project_name} --request-id {request['id']}[/dim]")
+
+
+@app.command("skill-list")
+def skill_list(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    status_filter: Optional[str] = typer.Option(None, help="Filter by status: pending_user_approval, approved, staging, validated, active, retired, rejected."),
+) -> None:
+    """List all Skill Adoption Requests for a project."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_evolution import ensure_skill_registry, list_skill_requests, load_skill_registry, skill_staging_dir
+
+    ensure_skill_registry(agentlab_root)
+    requests = list_skill_requests(agentlab_root, project_name)
+    if status_filter:
+        requests = [r for r in requests if r.get("status") == status_filter]
+
+    registry = load_skill_registry(agentlab_root)
+    active_count = len([s for s in registry.get("skills", []) if s.get("status") == "active"])
+    retired_count = len(registry.get("retired_skills", []))
+    staging_root = skill_staging_dir(agentlab_root)
+    staging_count = len([d for d in staging_root.iterdir() if d.is_dir()]) if staging_root.exists() else 0
+
+    status_counts: dict[str, int] = {}
+    for r in requests:
+        s = r.get("status", "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    console.print(f"\n[bold]Skill Requests — {project_name}[/bold]")
+    console.print(f"  Total: {len(requests)} | "
+                  f"Pending: {status_counts.get('pending_user_approval', 0)} | "
+                  f"Approved: {status_counts.get('approved', 0)} | "
+                  f"Staging: {status_counts.get('staging', 0)} | "
+                  f"Validated: {status_counts.get('validated', 0)} | "
+                  f"Rejected: {status_counts.get('rejected', 0)}")
+    console.print(f"  Registry — Active: {active_count} | Retired: {retired_count} | Staging dirs: {staging_count}")
+
+    if not requests:
+        console.print("[dim]No skill requests found.[/dim]")
+        return
+
+    table = Table("Request ID", "Skill Name", "Status", "Source", "Skill ID")
+    for r in requests:
+        source = r.get("source", {}) or {}
+        table.add_row(
+            r.get("id", ""),
+            r.get("skill_name", ""),
+            r.get("status", ""),
+            source.get("type", ""),
+            r.get("skill_id", "-"),
+        )
+    console.print(table)
+
+
+@app.command("skill-approve")
+def skill_approve(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    request_id: str = typer.Option(..., "--request-id", help="Skill request ID to approve."),
+) -> None:
+    """Approve a pending skill request (pending_user_approval → approved)."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_evolution import approve_skill_request, ensure_skill_registry
+
+    ensure_skill_registry(agentlab_root)
+    try:
+        result = approve_skill_request(agentlab_root, project_name, request_id)
+        console.print(f"[green]Skill request approved: {request_id}[/green]")
+        console.print(f"  New status: {result.get('status')}")
+        console.print(f"\n[dim]Next: ./agentlab.sh skill-stage --project {project_name} --request-id {request_id}[/dim]")
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("skill-reject")
+def skill_reject(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    request_id: str = typer.Option(..., "--request-id", help="Skill request ID to reject."),
+    reason: str = typer.Option("Rejected by user.", "--reason", help="Reason for rejection."),
+) -> None:
+    """Reject a pending skill request (pending_user_approval → rejected)."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_evolution import ensure_skill_registry, reject_skill_request
+
+    ensure_skill_registry(agentlab_root)
+    try:
+        result = reject_skill_request(agentlab_root, project_name, request_id, reason)
+        console.print(f"[yellow]Skill request rejected: {request_id}[/yellow]")
+        console.print(f"  Reason: {result.get('rejection_reason')}")
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("skill-stage")
+def skill_stage(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    request_id: str = typer.Option(..., "--request-id", help="Approved skill request ID to stage."),
+) -> None:
+    """Stage an approved skill request (approved → staging)."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_evolution import ensure_skill_registry, stage_skill_request
+
+    ensure_skill_registry(agentlab_root)
+    try:
+        result = stage_skill_request(agentlab_root, project_name, request_id)
+        console.print(f"[green]Skill staged: {request_id}[/green]")
+        console.print({
+            "skill_id": result["skill_id"],
+            "staging_dir": result["staging_dir"],
+            "status": result["status"],
+        })
+        console.print(f"\n[dim]Next: ./agentlab.sh skill-validate --skill-id {result['skill_id']} --fake-sandbox[/dim]")
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("skill-validate")
+def skill_validate(
+    skill_id: str = typer.Option(..., "--skill-id", help="Staged skill ID to validate."),
+    fake_sandbox: bool = typer.Option(True, help="Use fake sandbox (no external execution)."),
+) -> None:
+    """Validate a staged skill (staging → validated). --fake-sandbox only reads metadata and adapted_skill.md."""
+    agentlab_root, project_name = runtime_context(None)
+    from skill_evolution import ensure_skill_registry, validate_staged_skill
+
+    ensure_skill_registry(agentlab_root)
+    try:
+        result = validate_staged_skill(agentlab_root, skill_id, fake_sandbox=fake_sandbox)
+        console.print(f"[green]Skill validated: {skill_id}[/green]")
+        console.print({
+            "status": result["status"],
+            "risk_level": result["risk_level"],
+            "checked_files": result["checked_files_count"],
+            "sandbox_report": result["sandbox_report"],
+        })
+        console.print(f"\n[dim]Next: ./agentlab.sh skill-promote --skill-id {skill_id}[/dim]")
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("skill-promote")
+def skill_promote(
+    skill_id: str = typer.Option(..., "--skill-id", help="Validated skill ID to promote."),
+) -> None:
+    """Promote a validated skill to active (validated → active)."""
+    agentlab_root, project_name = runtime_context(None)
+    from skill_evolution import ensure_skill_registry, promote_skill
+
+    ensure_skill_registry(agentlab_root)
+    try:
+        result = promote_skill(agentlab_root, skill_id)
+        console.print(f"[green]Skill promoted to active: {skill_id}[/green]")
+        console.print({
+            "skill_name": result["skill_name"],
+            "status": result["status"],
+            "active_dir": result["active_dir"],
+        })
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("skill-retire")
+def skill_retire_cmd(
+    skill_id: str = typer.Option(..., "--skill-id", help="Active skill ID to retire."),
+    reason: str = typer.Option(..., "--reason", help="Reason for retiring."),
+) -> None:
+    """Retire an active skill (active → retired)."""
+    agentlab_root, project_name = runtime_context(None)
+    from skill_evolution import ensure_skill_registry, retire_skill
+
+    ensure_skill_registry(agentlab_root)
+    try:
+        result = retire_skill(agentlab_root, skill_id, reason)
+        console.print(f"[yellow]Skill retired: {skill_id}[/yellow]")
+        console.print({
+            "reason": result["reason"],
+            "status": result["status"],
+            "retired_dir": result["retired_dir"],
+        })
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
 
 
 @app.command("feedback-status")

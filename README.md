@@ -196,16 +196,58 @@ CLI: `./agentlab.sh task-search --status paused`, `./agentlab.sh task-resume --p
 
 ---
 
-## Skill Evolution Scaffold / 技能进化骨架
+## Skill Lifecycle MVP / 技能生命周期 MVP
 
-AgentLab has a scaffold for managed skill adoption and trace-to-skill learning. It records requests and candidates; it does not yet search, install, validate, or auto-inject skills:
+AgentLab now implements a local closed-loop skill lifecycle:
 
-- `skills/registry.yml` records approved, active, and retired skills.
-- `projects/<Project>/skill_requests/` stores pending Skill Adoption Requests.
-- `projects/<Project>/runs/<task_id>/skill_candidates/` is reserved for trace-to-skill candidates.
-- `config/skill_evolution_policy.yml` defines approval, sandbox, risk, and cost-preview policy.
+### Lifecycle States
 
-CLI: `./agentlab.sh skill-status --project AgentLab`, `./agentlab.sh skill-request --project AgentLab --name ... --source ... --purpose ...`
+```
+pending_user_approval → approved → staging → validated → active → retired
+                      ↘ rejected
+```
+
+### Filesystem Layout
+
+```
+skills/
+  registry.yml          # Skill registry (status: local_lifecycle_mvp)
+  staging/<skill_id>/   # Staged skills awaiting validation
+    metadata.yml
+    adapted_skill.md
+    validation_plan.yml
+    sandbox_report.yml
+  active/<skill_id>/    # Active (promoted) skills
+    SKILL.md
+    metadata.yml
+    validation_report.yml
+    usage_ledger.yml
+  retired/<skill_id>/   # Retired skills
+    SKILL.md
+    metadata.yml
+    retired_at.yml
+```
+
+### CLI Commands
+
+```
+./agentlab.sh skill-list --project AgentLab
+./agentlab.sh skill-request --project AgentLab --name demo --source manual://demo --purpose "test"
+./agentlab.sh skill-approve --project AgentLab --request-id <id>
+./agentlab.sh skill-reject --project AgentLab --request-id <id> --reason "..."
+./agentlab.sh skill-stage --project AgentLab --request-id <id>
+./agentlab.sh skill-validate --skill-id <id> --fake-sandbox
+./agentlab.sh skill-promote --skill-id <id>
+./agentlab.sh skill-retire --skill-id <id> --reason "obsolete"
+```
+
+### Not Yet Implemented
+
+- ❌ Real GitHub search for skills
+- ❌ Real sandbox execution (only fake sandbox file checks)
+- ❌ Automatic package parsing (SKILL.md ingestion)
+- ❌ Automatic skill discovery from task traces
+- ❌ Skill injection during task planning
 
 ---
 
