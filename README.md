@@ -63,8 +63,8 @@ AgentLab/
 │                           # guard, backup, auto-sync, evaluation, execution modes, etc.
 │                           # YAML 策略：路由、预算、模型、验证门禁、
 │                           # 守护、备份、自动同步、评估、执行模式等
-├── skills/                 # Skill registry scaffold for approved/adopted skills
-│                           # 技能注册表骨架，后续承载审批后的技能
+├── skills/                 # Local skill lifecycle registry and staged/active/retired packages
+│                           # 本地技能生命周期注册表，以及 staging/active/retired 技能包
 ├── projects/               # Per-project memory docs and task run records
 │   ├── AgentLab/           #   AgentLab self-tracking project
 │   └── AO-SpatialAuthoring-Modular/  # AO spatial audio authoring project
@@ -266,13 +266,18 @@ Pipeline completion and `learning-review` inspect task events and reports for re
 
 ## Feedback Loop Scaffold / 反馈闭环骨架
 
-AgentLab has a scaffold for event-driven task feedback and human intervention. Pipeline blocks now produce decision cards and task events; push notification, SSE, and external chat approvals are still roadmap items:
+AgentLab has an MVP real-time feedback loop for event-driven task feedback and human intervention. Pipeline blocks produce decision cards and task events; the Web UI Decision Center reads those cards, exposes approve/reject/resume controls, and receives task events through Server-Sent Events with polling fallback.
 
 - `task_events.jsonl` is the per-task event timeline.
 - `decision_cards/*.yml` is the per-task pending approval queue.
 - `config/feedback_policy.yml` defines fine-grained statuses, notification levels, and watchdog thresholds.
+- `config/watchdog_policy.yml` defines stale-running, stale-event, waiting-approval, and stale-lock thresholds.
+- `web_ui/server.py` exposes `/api/tasks/<task_id>/events`, `/events/stream`, `/decisions`, decision approve/reject, and task resume/pause/stop endpoints.
+- `watchdog-scan` marks stale running tasks with `STALE_RUNNING`, refreshes `feedback_status.json`, and can create a recovery decision card.
 
-CLI: `./agentlab.sh feedback-status --project AgentLab`, `./agentlab.sh task-event --project AgentLab --task-id <T> --event TASK_CREATED`
+CLI: `./agentlab.sh feedback-status --project AgentLab`, `./agentlab.sh task-event --project AgentLab --task-id <T> --event TASK_CREATED`, `./agentlab.sh watchdog-scan --project AgentLab`, `./agentlab.sh watchdog-status --project AgentLab --task-id <T>`
+
+Not yet implemented: webhook push channels, MCP tool server, Telegram/OpenClaw/Hermes adapters.
 
 Roadmap: `docs/AGENTLAB_SKILL_FEEDBACK_ROADMAP.md`
 

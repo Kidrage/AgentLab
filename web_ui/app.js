@@ -74,6 +74,8 @@ const state = {
   _taskData: [],
   _ledgerEntry: null,
   _systemStatus: null,
+  _taskEvents: [],
+  _taskDecisions: [],
 };
 
 /* ───── API 后端配置 ───── */
@@ -115,6 +117,7 @@ const AgentLab = {
     // 尝试从后端 API 获取实时数据
     const data = await this.apiGet("/api/status", { project: state.project, task: state.taskId });
     if (data && !data.error) {
+      await this.loadDecisionCenterData();
       return { ...DEFAULT_SNAPSHOT, ...data };
     }
     // 文件协议后备
@@ -153,10 +156,51 @@ const AgentLab = {
     }, 5000);
   },
 
+  startEventStream() {
+    if (this._eventSource) {
+      this._eventSource.close();
+      this._eventSource = null;
+    }
+    if (!window.EventSource || !state.taskId) return;
+    const params = new URLSearchParams({ project: state.project });
+    const url = `${API_BASE}/api/tasks/${encodeURIComponent(state.taskId)}/events/stream?${params.toString()}`;
+    try {
+      const source = new EventSource(url);
+      source.onmessage = event => this.applyStreamEvent(event.data);
+      source.addEventListener("NO_EVENTS", event => this.applyStreamEvent(event.data));
+      source.onerror = () => {
+        source.close();
+        this._eventSource = null;
+      };
+      this._eventSource = source;
+    } catch (_) {
+      this._eventSource = null;
+    }
+  },
+
+  applyStreamEvent(raw) {
+    try {
+      const event = JSON.parse(raw);
+      if (!state._taskEvents.find(e => e.time === event.time && e.event === event.event)) {
+        state._taskEvents.push(event);
+      }
+      state.snapshot.events = state._taskEvents.map(e => ({
+        time: this.shortTime(e.time),
+        level: this.eventLevel(e),
+        agent: e.stage || e.event || "Task",
+        text: e.message || e.event || "",
+      }));
+      this.renderDecisionCenter();
+      if (state.activeTab === "dashboard") this.renderDashEvents(state.snapshot.events);
+      if (state.activeTab === "logs") this.renderLogs();
+    } catch (_) {}
+  },
+
   /* ======================== 渲染 ======================== */
   renderAll() {
     this.renderProjectPanel();
     this.renderTaskDetail();
+    this.renderDecisionCenter();
     this.renderDashboard();
     this.renderAgentGrid();
     this.renderLogs();
@@ -166,6 +210,131 @@ const AgentLab = {
     this.renderNotifications();
     this.updateProjectSelector();
     this.updateTaskSelector();
+  },
+
+  async loadDecisionCenterData() {
+    if (!state.taskId) {
+      state._taskEvents = [];
+      state._taskDecisions = [];
+      return;
+    }
+    const [events, decisions] = await Promise.all([
+      this.apiGet(`/api/tasks/${encodeURIComponent(state.taskId)}/events`, { project: state.project }),
+      this.apiGet(`/api/tasks/${encodeURIComponent(state.taskId)}/decisions`, { project: state.project }),
+    ]);
+    state._taskEvents = Array.isArray(events?.events) ? events.events : [];
+    state._taskDecisions = Array.isArray(decisions?.decisions) ? decisions.decisions : [];
+    if (state._taskEvents.length) {
+      state.snapshot.events = state._taskEvents.map(e => ({
+        time: this.shortTime(e.time),
+        level: this.eventLevel(e),
+        agent: e.stage || e.event || "Task",
+        text: e.message || e.event || "",
+      }));
+    }
+    state.snapshot.decisions = state._taskDecisions.map(d => this.normalizeDecision(d));
+  },
+
+  normalizeDecision(card) {
+    const options = Array.isArray(card.options) ? card.options : [];
+    return {
+      id: card.id,
+      title: card.title || card.type || "User decision",
+      question: card.reason || "",
+      recommendations: options.map(o => `${o.id}: ${o.label || o.id}`),
+      options,
+      default: card.recommended_action || options[0]?.id || "",
+      status: ["pending", "pending_user_approval", "waiting_for_approval"].includes(card.status) ? "pending" : card.status,
+      raw: card,
+    };
+  },
+
+  eventLevel(event) {
+    const sev = String(event.severity || "").toUpperCase();
+    const status = String(event.status || "").toUpperCase();
+    if (sev.includes("BLOCKED") || sev.includes("FAILED") || status.includes("FAILED")) return "error";
+    if (sev.includes("ACTION") || status.includes("APPROVAL")) return "decision";
+    if (sev.includes("WARNING") || status.includes("STALE")) return "warn";
+    return "info";
+  },
+
+  shortTime(value) {
+    if (!value) return "--";
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return String(value).slice(0, 16);
+    return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  },
+
+  renderDecisionCenter() {
+    const latest = state._taskEvents[state._taskEvents.length - 1] || null;
+    const taskState = state.snapshot.taskStatus || state.snapshot.snapshot?.status || "--";
+    this.$("decisionTaskState", taskState);
+    this.$("decisionLatestEvent", latest ? `${latest.event || ""}: ${latest.message || ""}` : "暂无事件");
+    const stale = latest?.event === "STALE_RUNNING" || latest?.status === "STALE_RUNNING" || String(taskState).toUpperCase().includes("STALE");
+    const staleEl = this.$("decisionStaleWarning");
+    if (staleEl) staleEl.hidden = !stale;
+    const artifactLink = this.$("decisionArtifactLink");
+    if (artifactLink) {
+      artifactLink.href = `/api/tasks/${encodeURIComponent(state.project)}/${encodeURIComponent(state.taskId)}/artifact/07_validation_report.md`;
+    }
+
+    const cardsEl = this.$("decisionCards");
+    if (cardsEl) {
+      const pending = state._taskDecisions.map(d => this.normalizeDecision(d)).filter(d => d.status === "pending");
+      cardsEl.innerHTML = pending.length ? pending.map(card => `
+        <article class="decision-live-card">
+          <div>
+            <strong>${this.esc(card.title)}</strong>
+            <p>${this.esc(card.question)}</p>
+          </div>
+          <div class="decision-options">
+            ${(card.options || []).map(o => `<span>${this.esc(o.label || o.id)}</span>`).join("")}
+          </div>
+          <div class="decision-live-actions">
+            <button class="btn btn-sm btn-primary" onclick="AgentLab.approveDecision('${this.esc(card.id)}','${this.esc(card.default || card.options?.[0]?.id || "approve_resume")}')">Approve</button>
+            <button class="btn btn-sm btn-secondary" onclick="AgentLab.rejectDecision('${this.esc(card.id)}')">Reject</button>
+          </div>
+        </article>
+      `).join("") : '<p class="text-muted">暂无待处理决策</p>';
+    }
+
+    const timeline = this.$("decisionTimeline");
+    if (timeline) {
+      timeline.innerHTML = state._taskEvents.slice(-8).reverse().map(e => `
+        <li>
+          <span class="timeline-time">${this.shortTime(e.time)}</span>
+          <span class="event-level event-${this.eventLevel(e)}">${this.esc(e.event || "EVENT")}</span>
+          <span>${this.esc(e.message || "")}</span>
+        </li>
+      `).join("") || '<li class="text-muted">暂无事件</li>';
+    }
+  },
+
+  async approveDecision(decisionId, optionId) {
+    const result = await this.apiPost(`/api/tasks/${encodeURIComponent(state.taskId)}/decisions/${encodeURIComponent(decisionId)}/approve`, {
+      project: state.project,
+      option: optionId || "approve_resume",
+    });
+    this.showToast(result?.success ? "决策已批准" : (result?.error || "批准失败"), result?.success ? "success" : "error");
+    await this.refresh();
+  },
+
+  async rejectDecision(decisionId) {
+    const result = await this.apiPost(`/api/tasks/${encodeURIComponent(state.taskId)}/decisions/${encodeURIComponent(decisionId)}/reject`, {
+      project: state.project,
+      option: "stop_task",
+    });
+    this.showToast(result?.success ? "决策已拒绝" : (result?.error || "拒绝失败"), result?.success ? "success" : "error");
+    await this.refresh();
+  },
+
+  async taskControl(action) {
+    const result = await this.apiPost(`/api/tasks/${encodeURIComponent(state.taskId)}/${action}`, {
+      project: state.project,
+      reason: "decision_center",
+    });
+    this.showToast(result?.success ? `任务已 ${action}` : (result?.error || `${action} 失败`), result?.success ? "success" : "error");
+    await this.refresh();
   },
 
   renderProjectPanel() {
@@ -959,17 +1128,21 @@ const AgentLab = {
     }
   },
   async switchProject(project) {
+    if (this._eventSource) this._eventSource.close();
     state.project = project;
     state._taskData = await this.fetchTasks();
     state.taskId = (state._taskData[0]?.task_id || "");
     this.updateProjectSelector();
     this.updateTaskSelector();
-    this.refresh();
+    await this.refresh();
+    this.startEventStream();
   },
   async switchTask(taskId) {
+    if (this._eventSource) this._eventSource.close();
     state.taskId = taskId;
     this.updateTaskSelector();
-    this.refresh();
+    await this.refresh();
+    this.startEventStream();
   },
   openNewTask() {
     this.updateProjectSelector();
@@ -1312,6 +1485,8 @@ async function init() {
   // 同步任务列表并渲染
   state._taskData = await AgentLab.fetchTasks();
   AgentLab.renderAll();
+  AgentLab.startEventStream();
+  AgentLab.startPolling();
 
   // 事件绑定
   bindEvents();

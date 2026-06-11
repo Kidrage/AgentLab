@@ -526,6 +526,158 @@ def handle_get_status(project: str, task_id: str):
     }
 
 
+def task_run_dir(project: str, task_id: str) -> Path:
+    project = safe_project_name(project)
+    return AGENTLAB_ROOT / "projects" / project / "runs" / task_id
+
+
+def handle_get_task_events(project: str, task_id: str) -> dict:
+    """Return structured task events from task_events.jsonl."""
+    run_dir = task_run_dir(project, task_id)
+    if not run_dir.exists():
+        return {"success": False, "error": "Task not found", "events": []}
+    from task_events import load_task_events
+
+    events = load_task_events(run_dir)
+    return {
+        "success": True,
+        "project": project,
+        "task_id": task_id,
+        "events": events,
+        "latest_event": events[-1] if events else None,
+    }
+
+
+def _ui_event(event: dict) -> dict:
+    severity = event.get("severity") or "INFO"
+    level = {
+        "ACTION_REQUIRED": "decision",
+        "BUDGET_WARNING": "warn",
+        "RISK_WARNING": "warn",
+        "BLOCKED": "error",
+        "FAILED_RECOVERABLE": "error",
+        "COMPLETED": "info",
+        "MILESTONE": "info",
+    }.get(severity, "info")
+    return {
+        "time": event.get("time", ""),
+        "level": level,
+        "agent": event.get("stage") or event.get("event") or "System",
+        "text": event.get("message") or event.get("event") or "",
+        "raw": event,
+    }
+
+
+def handle_get_task_decisions(project: str, task_id: str, *, all_statuses: bool = False) -> dict:
+    """Return decision cards for a task."""
+    run_dir = task_run_dir(project, task_id)
+    if not run_dir.exists():
+        return {"success": False, "error": "Task not found", "decisions": []}
+    from atomic_io import safe_read_yaml
+    from feedback_manager import decision_cards_dir, load_pending_decision_cards
+
+    if all_statuses:
+        root = decision_cards_dir(run_dir)
+        cards = []
+        if root.exists():
+            for card_path in sorted(root.glob("*.yml")):
+                card = safe_read_yaml(card_path, default={}) or {}
+                if isinstance(card, dict):
+                    card.setdefault("_path", str(card_path))
+                    cards.append(card)
+    else:
+        cards = load_pending_decision_cards(run_dir)
+    return {
+        "success": True,
+        "project": project,
+        "task_id": task_id,
+        "decisions": cards,
+        "pending_count": len([c for c in cards if c.get("status") in {"pending", "pending_user_approval", "waiting_for_approval"}]),
+    }
+
+
+def handle_resolve_task_decision(project: str, task_id: str, decision_id: str, resolution: str, data: dict) -> dict:
+    """Approve or reject a decision card through the shared feedback manager."""
+    run_dir = task_run_dir(project, task_id)
+    if not run_dir.exists():
+        return {"success": False, "error": "Task not found"}
+    option = data.get("option") or data.get("option_id")
+    if not option:
+        option = "approve_resume" if resolution == "approved" else "stop_task"
+    try:
+        from feedback_manager import resolve_decision_card
+
+        card = resolve_decision_card(run_dir, decision_id, option_id=option, resolution=resolution, actor="web_ui")
+        return {
+            "success": True,
+            "project": project,
+            "task_id": task_id,
+            "decision": card,
+            "next_recommended_action": "resume" if resolution == "approved" else None,
+        }
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def _write_task_state(run_dir: Path, *, status: str, stage: str, message: str) -> None:
+    state = load_yaml_safe(run_dir / "state.yml")
+    state["status"] = status
+    state["last_event"] = message
+    state["updated_at"] = utc_now_iso()
+    write_yaml_safe(run_dir / "state.yml", state)
+
+    progress = load_yaml_safe(run_dir / "progress.yml")
+    progress["status"] = status
+    progress["current_stage"] = stage
+    progress["last_event"] = message
+    progress["last_event_at"] = utc_now_iso()
+    write_yaml_safe(run_dir / "progress.yml", progress)
+
+
+def handle_task_control(project: str, task_id: str, action: str, data: dict | None = None) -> dict:
+    """Pause/resume/stop a task from the Decision Center."""
+    run_dir = task_run_dir(project, task_id)
+    if not run_dir.exists():
+        return {"success": False, "error": "Task not found"}
+    from feedback_manager import load_pending_decision_cards, write_feedback_status
+    from task_events import append_task_event
+
+    data = data or {}
+    reason = data.get("reason") or f"web_ui_{action}"
+    if action == "resume" and load_pending_decision_cards(run_dir):
+        return {"success": False, "error": "Task still has pending decision cards."}
+
+    mapping = {
+        "pause": ("paused", "paused", "TASK_PAUSED", "WAITING_FOR_APPROVAL", "ACTION_REQUIRED"),
+        "resume": ("running", "running", "TASK_RESUMED", "RUNNING", "MILESTONE"),
+        "stop": ("failed", "stopped", "TASK_STOPPED", "FAILED_FINAL", "FAILED_RECOVERABLE"),
+    }
+    if action not in mapping:
+        return {"success": False, "error": f"Unsupported action: {action}"}
+
+    state_status, stage, event_name, fine_status, severity = mapping[action]
+    message = f"Task {action} requested from Web UI: {reason}."
+    _write_task_state(run_dir, status=state_status, stage=stage, message=message)
+    event = append_task_event(
+        run_dir,
+        event_name,
+        stage=stage,
+        status=fine_status,
+        severity=severity,
+        message=message,
+        payload={"actor": "web_ui", "reason": reason},
+    )
+    feedback_path = write_feedback_status(run_dir)
+    return {
+        "success": True,
+        "project": project,
+        "task_id": task_id,
+        "action": action,
+        "event": event,
+        "feedback_status": str(feedback_path),
+    }
+
+
 def handle_post_decision(data: dict):
     """Handle user decision submission."""
     project = safe_project_name(data.get("project", "AgentLab"))
@@ -1048,6 +1200,55 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
         except Exception:
             self.send_error(404)
 
+    def _task_route(self, path: str) -> tuple[str, str] | None:
+        """Parse /api/tasks/<task_id>/<suffix>; project comes from query/body."""
+        prefix = "/api/tasks/"
+        if not path.startswith(prefix):
+            return None
+        rest = path[len(prefix):].strip("/")
+        if "/" not in rest:
+            return None
+        task_id, suffix = rest.split("/", 1)
+        if not task_id or not task_id.startswith("task_"):
+            return None
+        return task_id, suffix
+
+    def _sse_task_events(self, project: str, task_id: str):
+        """Stream the current task event log as Server-Sent Events."""
+        run_dir = task_run_dir(project, task_id)
+        if not run_dir.exists():
+            self._json_response({"success": False, "error": "Task not found"}, 404)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self._cors_headers()
+        self.end_headers()
+
+        from task_events import load_task_events
+
+        events = load_task_events(run_dir)
+        if not events:
+            events = [{
+                "time": utc_now_iso(),
+                "event": "NO_EVENTS",
+                "stage": None,
+                "status": None,
+                "severity": "INFO",
+                "message": "No task events recorded yet.",
+                "payload": {},
+            }]
+        try:
+            for index, event in enumerate(events):
+                self.wfile.write(f"id: {index}\n".encode("utf-8"))
+                self.wfile.write(f"event: {event.get('event', 'task_event')}\n".encode("utf-8"))
+                data = json.dumps(event, ensure_ascii=False, default=self._json_default)
+                self.wfile.write(f"data: {data}\n\n".encode("utf-8"))
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
     def do_OPTIONS(self):
         self.send_response(204)
         self._cors_headers()
@@ -1089,6 +1290,19 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
             project = params.get("project", ["AgentLab"])[0]
             task_id = params.get("task", [""])[0]
             return self._json_response(handle_get_system_status(project, task_id))
+
+        task_route = self._task_route(path)
+        if task_route:
+            task_id, suffix = task_route
+            project = params.get("project", ["AgentLab"])[0]
+            if suffix == "events":
+                return self._json_response(handle_get_task_events(project, task_id))
+            if suffix == "events/stream":
+                return self._sse_task_events(project, task_id)
+            if suffix == "decisions":
+                all_statuses = params.get("all", ["false"])[0].lower() in {"1", "true", "yes"}
+                return self._json_response(handle_get_task_decisions(project, task_id, all_statuses=all_statuses))
+            return self._json_response({"error": "Unknown task endpoint"}, 404)
 
         if path == "/api/system/migration-doctor":
             project = params.get("project", ["AgentLab"])[0]
@@ -1207,6 +1421,19 @@ class AgentLabAPIHandler(BaseHTTPRequestHandler):
 
         if path == "/api/backup/truenas-sync":
             return self._json_response(handle_post_truenas_sync(data, self.headers))
+
+        task_route = self._task_route(path)
+        if task_route:
+            task_id, suffix = task_route
+            project = data.get("project", "AgentLab")
+            if suffix.startswith("decisions/"):
+                parts = suffix.split("/")
+                if len(parts) == 3 and parts[2] in {"approve", "reject"}:
+                    resolution = "approved" if parts[2] == "approve" else "rejected"
+                    return self._json_response(handle_resolve_task_decision(project, task_id, parts[1], resolution, data))
+            if suffix in {"resume", "pause", "stop"}:
+                return self._json_response(handle_task_control(project, task_id, suffix, data))
+            return self._json_response({"error": "Unknown task endpoint"}, 404)
 
         # Unknown
         self._json_response({"error": "Unknown endpoint"}, 404)

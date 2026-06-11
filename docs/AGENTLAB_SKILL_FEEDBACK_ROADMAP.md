@@ -50,6 +50,10 @@ pending_user_approval → approved → staging → validated → active → reti
 - Pipeline node starts/completions write events.
 - Pipeline blocked paths write `USER_DECISION_REQUIRED.md`, a decision card, task events, and feedback status.
 - `decision-list`, `decision-approve`, `decision-reject`, and `decision-resume` provide a CLI approval protocol.
+- Web UI Decision Center is backed by real decision cards and task events.
+- `GET /api/tasks/<task_id>/events/stream` provides an SSE MVP with polling fallback in the frontend.
+- `watchdog-scan` and `watchdog-status` detect stale running, stale event, waiting approval, and stale lock conditions.
+- Watchdog stale handling appends `STALE_RUNNING`, refreshes feedback status, and can create a recovery decision card.
 
 ## Current: Not Yet Production Ready
 
@@ -64,16 +68,15 @@ pending_user_approval → approved → staging → validated → active → reti
 ### Feedback And Intervention
 
 - No long-running watchdog daemon.
-- No SSE/WebSocket event stream.
 - No webhook/Telegram/OpenClaw/Hermes push channel.
 - No chat-native approval parser.
-- Web UI is not yet fully backed by decision cards.
+- No MCP tool server.
+- WebSocket is not implemented; current real-time MVP uses Server-Sent Events.
 
 ## Next Implementation Targets
 
-1. Connect Web UI decision handling to `decision_cards/*.yml`.
-2. Add `GET /api/task/events/stream` using Server-Sent Events.
-3. Add a watchdog command that scans running tasks and emits `STALE_RUNNING`.
+1. Add webhook/OpenClaw/Hermes push channels for action-required events.
+2. Add MCP tool server for external agent control.
+3. Add a long-running watchdog daemon/scheduler.
 4. Add real sandbox validation with isolated execution.
 5. Add GitHub/skill-hub discovery and SKILL.md package ingestion.
-6. Add webhook and MCP integrations.

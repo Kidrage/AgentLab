@@ -246,6 +246,46 @@
     </div>
   </div>
 
+  <!-- ====== Decision Center ====== -->
+  <section class="decision-center" id="decisionCenter">
+    <div class="decision-center-head">
+      <div>
+        <span class="section-kicker">Decision Center</span>
+        <h2>实时任务控制台</h2>
+      </div>
+      <div class="decision-center-actions">
+        <button class="btn btn-sm" onclick="AgentLab.taskControl('resume')">Resume</button>
+        <button class="btn btn-sm btn-warning" onclick="AgentLab.taskControl('pause')">Pause</button>
+        <button class="btn btn-sm btn-danger" onclick="AgentLab.taskControl('stop')">Stop</button>
+      </div>
+    </div>
+    <div class="decision-status-row">
+      <div class="decision-status-cell">
+        <span>状态</span>
+        <strong id="decisionTaskState">--</strong>
+      </div>
+      <div class="decision-status-cell">
+        <span>最新事件</span>
+        <strong id="decisionLatestEvent">--</strong>
+      </div>
+      <div class="decision-status-cell warning" id="decisionStaleWarning" hidden>
+        <span>Watchdog</span>
+        <strong>任务可能已 stale</strong>
+      </div>
+      <a class="decision-artifact-link" id="decisionArtifactLink" href="#" target="_blank" rel="noreferrer">Artifacts / Reports</a>
+    </div>
+    <div class="decision-grid">
+      <div>
+        <h3>Pending Decisions</h3>
+        <div id="decisionCards" class="decision-card-list"></div>
+      </div>
+      <div>
+        <h3>Timeline</h3>
+        <ol id="decisionTimeline" class="decision-timeline"></ol>
+      </div>
+    </div>
+  </section>
+
   <!-- ====== 自然语言任务下达栏 ====== -->
   <div class="nl-task-bar" id="nlTaskBar">
     <div class="nl-context-row" id="nlContextRow">

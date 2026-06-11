@@ -863,6 +863,51 @@ def feedback_status(
                 })
 
 
+@app.command("watchdog-scan")
+def watchdog_scan_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, "--task-id", help="Optional task id to scan."),
+) -> None:
+    """Scan task runs for stale running or waiting states."""
+    if task_id:
+        ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from watchdog import scan_project
+
+    summary = scan_project(agentlab_root, project_name, task_id=task_id)
+    console.print("[bold]AgentLab Watchdog Scan[/bold]")
+    console.print({
+        "project": project_name,
+        "task_count": summary.get("task_count", 0),
+        "stale_count": summary.get("stale_count", 0),
+    })
+    table = Table("Task", "Status", "Stale", "Reasons", "Event Age", "Heartbeat Age")
+    for item in summary.get("tasks", [])[-50:]:
+        table.add_row(
+            item.get("task_id", ""),
+            item.get("raw_status", ""),
+            "yes" if item.get("is_stale") else "no",
+            ", ".join(item.get("reasons", [])),
+            str(item.get("event_age_seconds") if item.get("event_age_seconds") is not None else "-"),
+            str(item.get("heartbeat_age_seconds") if item.get("heartbeat_age_seconds") is not None else "-"),
+        )
+    console.print(table)
+
+
+@app.command("watchdog-status")
+def watchdog_status_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Show watchdog status for one task without mutating it."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from watchdog import watchdog_status
+
+    console.print("[bold]AgentLab Watchdog Status[/bold]")
+    console.print(watchdog_status(agentlab_root, project_name, task_id))
+
+
 @app.command("task-event")
 def task_event(
     task_id: str = typer.Option("task_0001", help="Task run id."),

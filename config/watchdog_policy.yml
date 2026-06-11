@@ -1,0 +1,26 @@
+schema_version: 1
+enabled: true
+
+thresholds:
+  running_without_heartbeat_seconds: 900
+  running_without_event_seconds: 900
+  waiting_for_approval_seconds: 86400
+  stale_lock_seconds: 1800
+
+stale_actions:
+  append_event: true
+  write_feedback_status: true
+  create_decision_card: true
+  decision_options:
+    - id: continue_waiting
+      label: Continue waiting
+      risk: low
+    - id: retry_current_stage
+      label: Retry current stage
+      risk: medium
+    - id: stop_task
+      label: Stop task
+      risk: medium
+    - id: mark_failed_recoverable
+      label: Mark failed recoverable
+      risk: low
