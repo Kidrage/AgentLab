@@ -4,6 +4,8 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+.env.*
+!.env.example
 
 # IDE
 .idea/
@@ -25,10 +27,40 @@ agent_runtime/__pycache__/
 agent_runtime/.env
 .tmp_agent_docs/
 decoded_outputs/
-projects/CodingWorkspace/
+outputs/
+artifacts/
+logs/
 
-# Project runs (may contain user documents)
-# Keep folder structure but exclude large transient data
-projects/*/runs/*/cost_ledger.yml
-projects/*/runs/*/state.yml.local.bak/
-projects/*/runs/task_*_closure-smoke*/
+# === Project memories — local only, never tracked ===
+# Structure: keep projects/ directory but ignore all content
+# Only projects/README.md and projects/.gitkeep may be tracked
+projects/*
+!projects/
+!projects/README.md
+!projects/.gitkeep
+
+# Per-project local state (redundant with above but explicit)
+**/agent_docs/
+**/runs/
+**/evaluation_runs/
+**/repo/
+**/*.local.bak/
+**/*.bak/
+
+# Runtime artifacts
+task_index.yml
+watchdog_status.json
+progress.yml
+handoff_packet.yml
+execution_log.yml
+execution_log.jsonl
+cost_ledger.yml
+state.yml
+state.json
+
+# Secrets
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
