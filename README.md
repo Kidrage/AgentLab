@@ -262,14 +262,23 @@ Pipeline completion and `learning-review` inspect task events and reports for re
 - ✅ skill usage ledger
 - ✅ post-task learning review
 - ✅ skill candidate generation
+- ✅ external raw `SKILL.md` import MVP
+- ✅ allowlisted URL import
+- ✅ source snapshot
+- ✅ no-network fixture test
+- ✅ optional live external skill smoke test
 
 ### Not Yet Implemented
 
-- ❌ real GitHub skill search
-- ❌ real external package parsing
+- ❌ full GitHub skill repo search
+- ❌ full external skill package parser
 - ❌ real sandbox execution
-- ❌ automatic external skill learning
+- ❌ automatic external skill learning without approval
+- ❌ production-grade supply-chain risk scanner
 - ❌ production-grade skill conflict resolution / retirement policy
+
+The first supported live external skill smoke test uses:
+`https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md`
 
 ---
 

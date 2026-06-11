@@ -46,6 +46,7 @@ REQUIRED_COMMANDS = (
     "webhook-test",
     "webhook-status",
     "webhook-redeliver",
+    "skill-import-url",
     # Core task commands
     "init-task",
     "prepare",

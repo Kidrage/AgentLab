@@ -10,6 +10,7 @@ This document separates current scaffold behavior from production AgentOps behav
 - `projects/<Project>/skill_requests/` stores pending Skill Adoption Requests.
 - `projects/<Project>/runs/<task_id>/skill_candidates/` stores trace-to-skill candidates.
 - `skill-request` creates a pending request with risk metadata and cost preview.
+- `skill-import-url` imports a real external `SKILL.md` from an allowlisted URL (network must be explicitly enabled).
 - `skill-status` summarizes active skills and pending requests.
 - `skill-list` lists all skill requests with status counts (pending/approved/staging/validated/rejected).
 - `skill-approve` transitions `pending_user_approval → approved`.
@@ -25,6 +26,16 @@ This document separates current scaffold behavior from production AgentOps behav
 - `skill_usage.yml` records task-level selected/rejected skills.
 - `skills/active/<skill_id>/usage_ledger.yml` records each selected skill usage.
 - High-risk skills are rejected for injection when policy requires approval.
+
+### External Skill Import MVP
+
+- `agent_runtime/external_skill_importer.py` implements `fetch_skill_markdown_from_url`, `parse_skill_frontmatter`, `build_external_skill_request`, and `import_skill_from_url`.
+- `config/external_skill_import_policy.yml` controls allowlist, network access, byte limits, and snapshot settings.
+- External URLs must be in the allowlist; network access is off by default.
+- Import always creates `pending_user_approval` requests; zero external code execution.
+- Source snapshots are saved under `projects/<Project>/skill_requests/<request_id>/source_snapshot/SKILL.md`.
+- `tests/fixtures/external_skills/agentskills-io/SKILL.md` provides a no-network fixture.
+- `tests/test_external_skill_importer.py` covers 11 fixture tests; `test_external_skill_importer_live.py` provides an optional live smoke test gated by `AGENTLAB_RUN_EXTERNAL_SKILL_LIVE_TEST=1`.
 
 ### Trace-to-Skill MVP
 

@@ -809,6 +809,44 @@ def skill_usage_cmd(
     console.print(data)
 
 
+@app.command("skill-import-url")
+def skill_import_url(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    url: str = typer.Option(..., "--url", help="External SKILL.md URL to import."),
+    allow_network: bool = typer.Option(False, "--allow-network", help="Allow network fetch."),
+) -> None:
+    """Import a skill from an external SKILL.md URL.
+
+    Requires --allow-network to actually fetch.  The URL must be in the
+    allowlist defined by config/external_skill_import_policy.yml.
+
+    The skill always enters pending_user_approval status.
+    """
+    agentlab_root, project_name = runtime_context(project)
+    from external_skill_importer import import_skill_from_url
+
+    result = import_skill_from_url(
+        agentlab_root,
+        project=project_name,
+        url=url,
+        allow_network=allow_network,
+    )
+
+    if result.get("ok"):
+        console.print("[green]Skill import request created[/green]")
+        console.print({
+            "request_id": result["request_id"],
+            "skill_name": result["skill_name"],
+            "source_url": result["source_url"],
+            "risk_level": result["risk_level"],
+            "estimated_tokens": result["input_tokens_estimate"],
+            "status": result["status"],
+        })
+    else:
+        console.print(f"[red]Import failed: {result.get('error')}[/red]")
+        raise typer.Exit(code=1)
+
+
 @app.command("feedback-status")
 def feedback_status(
     project: Optional[str] = typer.Option(None, help="Project name."),
