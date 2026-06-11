@@ -440,13 +440,13 @@ def harness_status(
 def skill_status(
     project: Optional[str] = typer.Option(None, help="Project name."),
 ) -> None:
-    """Show Skill Evolution scaffold status and pending adoption requests."""
+    """Show Skill Lifecycle MVP status and pending adoption requests."""
     agentlab_root, project_name = runtime_context(project)
     from skill_evolution import ensure_skill_registry, summarize_skill_system
 
     ensure_skill_registry(agentlab_root)
     summary = summarize_skill_system(agentlab_root, project_name)
-    console.print("[bold]AgentLab Skill Evolution Status[/bold]")
+    console.print("[bold]AgentLab Skill Lifecycle Status[/bold]")
     console.print({
         "project": project_name,
         "registry_path": summary["registry_path"],
@@ -454,6 +454,9 @@ def skill_status(
         "active_skill_count": summary["active_skill_count"],
         "retired_skill_count": summary["retired_skill_count"],
         "pending_request_count": summary["pending_request_count"],
+        "staging_request_count": summary.get("staging_request_count", 0),
+        "validated_request_count": summary.get("validated_request_count", 0),
+        "staging_dir_count": summary.get("staging_dir_count", 0),
         "request_queue": summary["request_queue"],
     })
 

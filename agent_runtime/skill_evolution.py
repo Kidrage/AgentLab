@@ -100,10 +100,10 @@ def default_skill_registry() -> dict[str, Any]:
         "retired_skills": [],
         "metadata": {
             "owner": "AgentLab",
-            "status": "scaffold",
+            "status": "local_lifecycle_mvp",
             "created_at": now,
             "updated_at": now,
-            "notes": "Skills are not installed automatically.",
+            "notes": "Local skill lifecycle MVP. External search and real sandbox execution are not implemented.",
         },
     }
 

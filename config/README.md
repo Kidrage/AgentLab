@@ -15,7 +15,7 @@ Edit these files first when you want to change how agents behave:
 - `harness_policy.yml`: repo-local maps, feedback loops, mechanical gates, observability, and guidance garbage collection.
 - `validation_gates.yml`: required evidence before a task can be accepted.
 - `memory_policy.yml`: local-first storage, task records, project memory, and drift controls.
-- `skill_evolution_policy.yml`: skill registry scaffold, adoption request, risk scan, and learning-cost policy.
+- `skill_evolution_policy.yml`: local skill lifecycle, adoption request, risk scan, and learning-cost policy.
 - `feedback_policy.yml`: feedback scaffold for task event logs, notification levels, decision cards, and watchdog policy.
 
 Use `agent_templates/*.md` for role prompts and report formats. Use `config/*.yml`
