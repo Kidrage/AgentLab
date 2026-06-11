@@ -3124,5 +3124,37 @@ def continue_with_api_cmd(
     print_continuation_plan(result)
 
 
+@app.command("daemon")
+def daemon(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    once: bool = typer.Option(True, help="Run one scan cycle (--once mode). Default for MVP."),
+    no_webhooks: bool = typer.Option(False, help="Disable webhook dispatch for this run."),
+) -> None:
+    """AgentLab daemon MVP: background task supervisor (--once mode)."""
+    agentlab_root, project_name = runtime_context(project)
+    from daemon import run_daemon_once
+
+    result = run_daemon_once(
+        agentlab_root,
+        project=project_name,
+        dispatch_webhooks=not no_webhooks,
+    )
+    console.print("[bold]AgentLab Daemon (--once)[/bold]")
+    console.print(result)
+
+
+@app.command("daemon-status")
+def daemon_status_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Show last daemon scan status for a project."""
+    agentlab_root, project_name = runtime_context(project)
+    from daemon import daemon_status
+
+    status = daemon_status(agentlab_root, project_name)
+    console.print("[bold]AgentLab Daemon Status[/bold]")
+    console.print(status)
+
+
 if __name__ == "__main__":
     app()

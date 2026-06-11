@@ -180,7 +180,7 @@ def mark_stale(agentlab_root: Path, project: str, task_id: str, status: dict[str
         write_feedback_status(run_dir, stale_after_seconds=0)
 
     try:
-        from webhook_dispatcher import dispatch_event
+        from webhook_dispatcher import dispatch_event, record_webhook_failure
 
         dispatch_event(
             agentlab_root,
@@ -196,8 +196,17 @@ def mark_stale(agentlab_root: Path, project: str, task_id: str, status: dict[str
                 "options": created_card.get("options", []),
             } if created_card else None,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        from webhook_dispatcher import record_webhook_failure
+
+        record_webhook_failure(
+            agentlab_root,
+            event="STALE_RUNNING",
+            project=project,
+            task_id=task_id,
+            error=str(exc),
+            context={"source": "watchdog.mark_stale", "reason": reason},
+        )
 
     result = dict(status)
     result["marked_stale"] = True

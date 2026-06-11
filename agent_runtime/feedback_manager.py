@@ -62,8 +62,18 @@ def write_decision_card(run_dir: Path, card: dict[str, Any]) -> Path:
                 "options": card.get("options", []),
             },
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        from webhook_dispatcher import record_webhook_failure
+
+        agentlab_root, project, task_id = _project_from_run_dir(run_dir)
+        record_webhook_failure(
+            agentlab_root,
+            event="ACTION_REQUIRED",
+            project=project,
+            task_id=task_id,
+            error=str(exc),
+            context={"source": "feedback_manager.write_decision_card", "decision_id": card.get("id")},
+        )
     return path
 
 

@@ -255,12 +255,21 @@ skills/
 
 Pipeline completion and `learning-review` inspect task events and reports for reusable patterns such as blocked/resolved decisions, validation failures, recovery actions, repeated approvals, repo-specific repair procedures, and artifact contract workarounds. Matching patterns create `skill_candidates/*.yml`; approving a candidate creates a `self_learned` Skill Adoption Request that follows the same lifecycle.
 
+### Implemented
+
+- ✅ local skill lifecycle
+- ✅ skill retrieval/injection MVP
+- ✅ skill usage ledger
+- ✅ post-task learning review
+- ✅ skill candidate generation
+
 ### Not Yet Implemented
 
-- ❌ Real GitHub search for skills
-- ❌ Real sandbox execution (only fake sandbox file checks)
-- ❌ Automatic package parsing (SKILL.md ingestion)
-- ❌ Webhook/MCP integrations
+- ❌ real GitHub skill search
+- ❌ real external package parsing
+- ❌ real sandbox execution
+- ❌ automatic external skill learning
+- ❌ production-grade skill conflict resolution / retirement policy
 
 ---
 
@@ -301,7 +310,26 @@ Smoke: `python -m agent_runtime.mcp_server --list-tools`
 
 Guide: `docs/MCP_INTEGRATION.md`
 
-Not yet implemented: full MCP SDK server wrapper, Telegram-specific bot adapter, OpenClaw/Hermes-specific chat command parser.
+### Implemented
+
+- ✅ task_events.jsonl
+- ✅ decision_cards
+- ✅ feedback_status
+- ✅ Web UI Decision Center MVP
+- ✅ SSE/polling real-time feedback MVP
+- ✅ watchdog scan MVP
+- ✅ webhook dispatcher MVP
+- ✅ MCP-style tool server MVP
+
+### Not Yet Implemented
+
+- ❌ chat-native OpenClaw/Hermes/Telegram adapter
+- ❌ full production MCP SDK certification
+- ❌ long-running daemon hardening
+- ❌ real GitHub skill discovery
+- ❌ real sandbox execution
+- ❌ external skill package parser
+- ❌ production-grade daemon service manager
 
 Roadmap: `docs/AGENTLAB_SKILL_FEEDBACK_ROADMAP.md`
 

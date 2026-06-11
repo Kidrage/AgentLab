@@ -1,0 +1,15 @@
+# AgentLab Daemon Policy (MVP)
+# Controls the background task supervisor daemon.
+
+schema_version: 1
+
+enabled: false
+
+scan_interval_seconds: 30
+
+projects:
+  - AgentLab
+
+dispatch_webhooks: true
+
+write_heartbeat: true

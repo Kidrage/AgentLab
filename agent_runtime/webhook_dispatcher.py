@@ -233,6 +233,59 @@ def webhook_status(agentlab_root: Path, project: str, task_id: str | None = None
     }
 
 
+def record_webhook_failure(
+    agentlab_root: Path,
+    *,
+    event: str,
+    project: str,
+    task_id: str | None = None,
+    error: str,
+    context: dict[str, Any] | None = None,
+) -> None:
+    """Record a webhook dispatch failure without crashing the main pipeline."""
+    import json as _json
+
+    entry = {
+        "event": event,
+        "project": project,
+        "task_id": task_id,
+        "created_at": utc_now(),
+        "status": "failed",
+        "error": str(error)[:500],
+        "context": context or {},
+    }
+    try:
+        append_delivery_log(agentlab_root, project, task_id, entry)
+    except Exception:
+        pass  # delivery log is best-effort; do not cascade
+    if task_id:
+        run_dir = agentlab_root / "projects" / project / "runs" / task_id
+        if run_dir.exists():
+            try:
+                from task_events import append_task_event as _append_evt
+
+                _append_evt(
+                    run_dir,
+                    "WEBHOOK_DELIVERY_FAILED",
+                    stage="webhook",
+                    status="WEBHOOK_DELIVERY_FAILED",
+                    severity="WARNING",
+                    message=f"Webhook dispatch failed for {event}: {str(error)[:200]}",
+                    payload={"event": event, "error": str(error)[:500], "context": context or {}},
+                )
+            except Exception:
+                pass  # task event is best-effort during webhook failure handling
+    # Also write warning to feedback_status if run_dir exists
+    if task_id:
+        run_dir = agentlab_root / "projects" / project / "runs" / task_id
+        try:
+            from feedback_manager import write_feedback_status as _wfs
+            if run_dir.exists():
+                _wfs(run_dir)
+        except Exception:
+            pass
+
+
 def redeliver_last_failed(agentlab_root: Path, project: str, task_id: str | None = None) -> dict[str, Any]:
     status = webhook_status(agentlab_root, project, task_id)
     failed = [item for item in status.get("deliveries", []) if item.get("status") == "failed"]
