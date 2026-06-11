@@ -196,9 +196,9 @@ CLI: `./agentlab.sh task-search --status paused`, `./agentlab.sh task-resume --p
 
 ---
 
-## Skill Evolution / 技能进化
+## Skill Evolution Scaffold / 技能进化骨架
 
-AgentLab has a scaffold for managed skill adoption and trace-to-skill learning:
+AgentLab has a scaffold for managed skill adoption and trace-to-skill learning. It records requests and candidates; it does not yet search, install, validate, or auto-inject skills:
 
 - `skills/registry.yml` records approved, active, and retired skills.
 - `projects/<Project>/skill_requests/` stores pending Skill Adoption Requests.
@@ -209,15 +209,17 @@ CLI: `./agentlab.sh skill-status --project AgentLab`, `./agentlab.sh skill-reque
 
 ---
 
-## Feedback Loop / 反馈闭环
+## Feedback Loop Scaffold / 反馈闭环骨架
 
-AgentLab has a scaffold for event-driven task feedback and human intervention:
+AgentLab has a scaffold for event-driven task feedback and human intervention. Pipeline blocks now produce decision cards and task events; push notification, SSE, and external chat approvals are still roadmap items:
 
 - `task_events.jsonl` is the per-task event timeline.
 - `decision_cards/*.yml` is the per-task pending approval queue.
 - `config/feedback_policy.yml` defines fine-grained statuses, notification levels, and watchdog thresholds.
 
 CLI: `./agentlab.sh feedback-status --project AgentLab`, `./agentlab.sh task-event --project AgentLab --task-id <T> --event TASK_CREATED`
+
+Roadmap: `docs/AGENTLAB_SKILL_FEEDBACK_ROADMAP.md`
 
 ---
 

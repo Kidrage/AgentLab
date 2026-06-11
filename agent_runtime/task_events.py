@@ -50,8 +50,13 @@ BLOCK_TYPE_TO_STATUS = {
     "repo_dirty": "BLOCKED_REPO_DIRTY",
     "validation_command_failed": "BLOCKED_TEST_FAILURE",
     "quota": "BLOCKED_BUDGET",
+    "quota_exhausted": "BLOCKED_BUDGET",
     "artifact_validation": "FAILED_RECOVERABLE",
+    "artifact_gate": "FAILED_RECOVERABLE",
     "pipeline_error": "FAILED_RECOVERABLE",
+    "exception": "FAILED_RECOVERABLE",
+    "fallback_handoff": "WAITING_FOR_APPROVAL",
+    "user_decision": "WAITING_FOR_APPROVAL",
 }
 
 
