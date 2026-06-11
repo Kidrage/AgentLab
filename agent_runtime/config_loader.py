@@ -19,6 +19,8 @@ CONFIG_FILES = {
     "execution_modes": "execution_modes.yml",
     "github_policy": "github_policy.yml",
     "harness_policy": "harness_policy.yml",
+    "skill_evolution_policy": "skill_evolution_policy.yml",
+    "feedback_policy": "feedback_policy.yml",
     "model_catalog": "model_catalog.yml",
     "model_providers": "model_providers.yml",
     "model_profiles": "model_profiles.yml",

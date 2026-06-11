@@ -1,0 +1,56 @@
+schema_version: 1
+enabled: true
+
+event_log:
+  filename: task_events.jsonl
+  max_inline_payload_chars: 4000
+
+task_statuses:
+  queued: QUEUED
+  planning: PLANNING
+  waiting_for_approval: WAITING_FOR_APPROVAL
+  running: RUNNING
+  running_degraded: RUNNING_DEGRADED
+  blocked_permission: BLOCKED_PERMISSION
+  blocked_budget: BLOCKED_BUDGET
+  blocked_missing_info: BLOCKED_MISSING_INFO
+  blocked_environment: BLOCKED_ENVIRONMENT
+  blocked_test_failure: BLOCKED_TEST_FAILURE
+  blocked_repo_dirty: BLOCKED_REPO_DIRTY
+  failed_recoverable: FAILED_RECOVERABLE
+  failed_final: FAILED_FINAL
+  completed_needs_review: COMPLETED_NEEDS_REVIEW
+  completed_pass: COMPLETED_PASS
+  completed_with_warnings: COMPLETED_WITH_WARNINGS
+  stale_running: STALE_RUNNING
+
+notifications:
+  default_channel: timeline
+  levels:
+    INFO:
+      push: false
+    MILESTONE:
+      push: false
+    ACTION_REQUIRED:
+      push: true
+    RISK_WARNING:
+      push: true
+    BUDGET_WARNING:
+      push: true
+    BLOCKED:
+      push: true
+    FAILED_RECOVERABLE:
+      push: true
+    COMPLETED:
+      push: true
+
+decision_cards:
+  directory: decision_cards
+  default_status: pending_user_approval
+  require_recommended_action: true
+
+watchdog:
+  enabled: true
+  stale_running_after_seconds: 600
+  budget_warning_at_ratio: 0.8
+  emit_stale_event: true

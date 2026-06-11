@@ -1,0 +1,42 @@
+schema_version: 1
+enabled: true
+
+registry:
+  path: skills/registry.yml
+  skill_root: skills
+  request_queue_template: projects/{project}/skill_requests
+  candidate_queue_template: projects/{project}/runs/{task_id}/skill_candidates
+
+governance:
+  external_skill_install_default: pending_user_approval
+  self_learned_skill_default: pending_review
+  require_user_approval_before_install: true
+  require_sandbox_validation_before_active: true
+  allow_network_discovery: false
+  allow_script_execution_during_scan: false
+
+risk_scan:
+  flag_scripts: true
+  flag_network_access: true
+  flag_file_modification: true
+  flag_binary_assets: true
+  default_permission_level: medium
+
+cost_estimation:
+  default_provider: deepseek
+  default_model: deepseek-v4-pro
+  default_validation_runs: 3
+  token_phases:
+    discovery_tokens: 8000
+    source_reading_tokens: 60000
+    distillation_tokens: 16000
+    adaptation_tokens: 12000
+    validation_tokens: 24000
+    audit_tokens: 6000
+    storage_indexing_tokens: 1000
+
+promotion:
+  minimum_validation_runs: 1
+  minimum_confidence: 0.7
+  retire_after_failure_rate: 0.5
+  retire_after_unused_days: 180
