@@ -436,6 +436,174 @@ def harness_status(
             console.print(f"- {item}")
 
 
+@app.command("skill-status")
+def skill_status(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Show Skill Evolution scaffold status and pending adoption requests."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_evolution import ensure_skill_registry, summarize_skill_system
+
+    ensure_skill_registry(agentlab_root)
+    summary = summarize_skill_system(agentlab_root, project_name)
+    console.print("[bold]AgentLab Skill Evolution Status[/bold]")
+    console.print({
+        "project": project_name,
+        "registry_path": summary["registry_path"],
+        "skill_count": summary["skill_count"],
+        "active_skill_count": summary["active_skill_count"],
+        "retired_skill_count": summary["retired_skill_count"],
+        "pending_request_count": summary["pending_request_count"],
+        "request_queue": summary["request_queue"],
+    })
+
+    table = Table("Request", "Skill", "Source", "Status", "Est Tokens", "Est Cost")
+    for req in summary.get("requests", [])[-10:]:
+        cost = req.get("cost_preview", {}) or {}
+        source = req.get("source", {}) or {}
+        est_cost = cost.get("estimated_cost")
+        currency = cost.get("cost_currency") or ""
+        table.add_row(
+            req.get("id", ""),
+            req.get("skill_name", ""),
+            source.get("type", ""),
+            req.get("status", ""),
+            str(cost.get("total_tokens", "")),
+            f"{est_cost} {currency}".strip() if est_cost is not None else "unavailable",
+        )
+    console.print(table)
+
+
+@app.command("skill-request")
+def skill_request(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    name: str = typer.Option(..., "--name", help="Skill name."),
+    source: str = typer.Option(..., "--source", help="Source URI, repo, or local path."),
+    purpose: str = typer.Option(..., "--purpose", help="Why AgentLab should learn this skill."),
+    source_type: str = typer.Option("manual", help="Source type: manual, github, skill_hub, self_learned."),
+    applies_to: str = typer.Option("", help="Comma-separated future task categories."),
+    has_scripts: bool = typer.Option(False, help="Mark request as containing scripts."),
+    requires_network: bool = typer.Option(False, help="Mark request as requiring network during learning."),
+    modifies_files: bool = typer.Option(True, help="Mark request as modifying files when used."),
+    validation_runs: int = typer.Option(3, help="Estimated sandbox validation runs."),
+) -> None:
+    """Create a pending Skill Adoption Request without installing anything."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_evolution import build_skill_adoption_request, ensure_skill_registry, write_skill_adoption_request
+
+    ensure_skill_registry(agentlab_root)
+    risk = {
+        "has_scripts": has_scripts,
+        "requires_network": requires_network or source_type in {"github", "skill_hub"},
+        "modifies_files": modifies_files,
+        "permission_level": "medium" if modifies_files or has_scripts else "low",
+    }
+    request = build_skill_adoption_request(
+        agentlab_root,
+        project=project_name,
+        skill_name=name,
+        source=source,
+        purpose=purpose,
+        source_type=source_type,
+        validation_runs=validation_runs,
+        risk=risk,
+        applies_to=[x.strip() for x in applies_to.split(",") if x.strip()],
+    )
+    path = write_skill_adoption_request(agentlab_root, request)
+    console.print("[green]Skill adoption request created[/green]")
+    console.print({
+        "request": str(path),
+        "status": request["status"],
+        "cost_preview": request["cost_preview"],
+        "risk": request["risk"],
+    })
+
+
+@app.command("feedback-status")
+def feedback_status(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, help="Optional task id."),
+    stale_after_seconds: int = typer.Option(600, help="Seconds before running task is considered stale."),
+) -> None:
+    """Show Feedback & Intervention scaffold status from task events and decision cards."""
+    if task_id:
+        ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from feedback_manager import project_feedback_status
+
+    summary = project_feedback_status(
+        agentlab_root,
+        project_name,
+        task_id=task_id,
+        stale_after_seconds=stale_after_seconds,
+    )
+    console.print("[bold]AgentLab Feedback Status[/bold]")
+    console.print({
+        "project": project_name,
+        "task_count": summary["task_count"],
+        "needs_attention_count": summary["needs_attention_count"],
+    })
+
+    table = Table("Task", "Feedback", "Level", "Pending", "Age", "Last Event")
+    for item in summary.get("tasks", [])[-20:]:
+        task_name = Path(item["run_dir"]).name
+        age = item.get("last_event_age_seconds")
+        table.add_row(
+            task_name,
+            item.get("feedback_status", ""),
+            item.get("notification_level", ""),
+            str(item.get("pending_decision_count", 0)),
+            f"{age}s" if age is not None else "-",
+            str(item.get("last_event") or "")[:80],
+        )
+    console.print(table)
+
+    if task_id and summary.get("tasks"):
+        events = summary["tasks"][0].get("recent_events", [])
+        if events:
+            console.print("[bold]Recent events[/bold]")
+            for event in events[-10:]:
+                console.print({
+                    "time": event.get("time"),
+                    "event": event.get("event"),
+                    "stage": event.get("stage"),
+                    "status": event.get("status"),
+                    "severity": event.get("severity"),
+                    "message": event.get("message"),
+                })
+
+
+@app.command("task-event")
+def task_event(
+    task_id: str = typer.Option("task_0001", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    event: str = typer.Option(..., "--event", help="Event type, such as TASK_CREATED or APPROVAL_REQUIRED."),
+    stage: Optional[str] = typer.Option(None, help="Lifecycle stage."),
+    status: Optional[str] = typer.Option(None, help="Fine task status, such as RUNNING or WAITING_FOR_APPROVAL."),
+    severity: str = typer.Option("INFO", help="Notification level."),
+    message: str = typer.Option("", help="Human-readable event message."),
+) -> None:
+    """Append one structured event to runs/<task_id>/task_events.jsonl."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    if not run_dir.exists():
+        console.print(f"[yellow]Task run directory does not exist: {run_dir}[/yellow]")
+        return
+    from task_events import append_task_event
+
+    event_record = append_task_event(
+        run_dir,
+        event,
+        stage=stage,
+        status=status,
+        severity=severity,
+        message=message,
+    )
+    console.print("[green]Task event appended[/green]")
+    console.print({"log": str(run_dir / "task_events.jsonl"), "event": event_record})
+
+
 @app.command("policy-status")
 def policy_status(
     project: Optional[str] = typer.Option(None, help="Project name."),

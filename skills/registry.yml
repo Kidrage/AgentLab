@@ -1,0 +1,7 @@
+schema_version: 1
+skills: []
+retired_skills: []
+metadata:
+  owner: AgentLab
+  status: scaffold
+  notes: Skill registry scaffold. Skills are not installed automatically.

@@ -59,10 +59,12 @@ AgentLab/
 │                           # 记忆写入器、产物契约、管线运行器、状态存储
 ├── agent_templates/        # 9 agent role prompts + Codex Full-Driver templates
 │                           # 9 个 Agent 角色提示词 + Codex 全驱动模板
-├── config/                 # 22 YAML policies: routing, budget, models, validation gates,
+├── config/                 # YAML policies: routing, budget, models, validation gates,
 │                           # guard, backup, auto-sync, evaluation, execution modes, etc.
-│                           # 22 个 YAML 策略：路由、预算、模型、验证门禁、
+│                           # YAML 策略：路由、预算、模型、验证门禁、
 │                           # 守护、备份、自动同步、评估、执行模式等
+├── skills/                 # Skill registry scaffold for approved/adopted skills
+│                           # 技能注册表骨架，后续承载审批后的技能
 ├── projects/               # Per-project memory docs and task run records
 │   ├── AgentLab/           #   AgentLab self-tracking project
 │   └── AO-SpatialAuthoring-Modular/  # AO spatial audio authoring project
@@ -191,6 +193,31 @@ Global task index with searchable metadata:
 - Resume support: find paused/blocked tasks and continue from last checkpoint
 
 CLI: `./agentlab.sh task-search --status paused`, `./agentlab.sh task-resume --project <P> --task-id <T>`
+
+---
+
+## Skill Evolution / 技能进化
+
+AgentLab has a scaffold for managed skill adoption and trace-to-skill learning:
+
+- `skills/registry.yml` records approved, active, and retired skills.
+- `projects/<Project>/skill_requests/` stores pending Skill Adoption Requests.
+- `projects/<Project>/runs/<task_id>/skill_candidates/` is reserved for trace-to-skill candidates.
+- `config/skill_evolution_policy.yml` defines approval, sandbox, risk, and cost-preview policy.
+
+CLI: `./agentlab.sh skill-status --project AgentLab`, `./agentlab.sh skill-request --project AgentLab --name ... --source ... --purpose ...`
+
+---
+
+## Feedback Loop / 反馈闭环
+
+AgentLab has a scaffold for event-driven task feedback and human intervention:
+
+- `task_events.jsonl` is the per-task event timeline.
+- `decision_cards/*.yml` is the per-task pending approval queue.
+- `config/feedback_policy.yml` defines fine-grained statuses, notification levels, and watchdog thresholds.
+
+CLI: `./agentlab.sh feedback-status --project AgentLab`, `./agentlab.sh task-event --project AgentLab --task-id <T> --event TASK_CREATED`
 
 ---
 
