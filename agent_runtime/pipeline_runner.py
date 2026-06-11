@@ -28,6 +28,8 @@ from artifact_contract import (
 from command_runner import run_validation_commands_if_present
 from state_store import load_state, save_state
 from progress_tracker import create_progress, load_progress, save_progress
+from task_events import append_task_event, classify_blocked_status
+from feedback_manager import create_decision_card, write_feedback_status
 
 ARTIFACT_ALIASES = {
     "01_supervisor_plan.md": "supervisor_plan.md",
@@ -168,6 +170,43 @@ def _block_task(
         (run_dir / "USER_DECISION_REQUIRED.md").write_text(
             "\n".join(decision_lines) + "\n", encoding="utf-8"
         )
+        card, card_path = create_decision_card(
+            run_dir,
+            task_id=task_id,
+            card_type=block_type,
+            title=f"{node_id} requires user action",
+            reason=reason,
+            stage=stage,
+            risk="medium",
+            options=[
+                {"id": "approve_resume", "label": "Approve resume", "risk": "medium"},
+                {"id": "defer", "label": "Defer", "risk": "low"},
+                {"id": "stop_task", "label": "Stop task", "risk": "none"},
+            ],
+            recommended_action="approve_resume",
+        )
+    else:
+        card = None
+        card_path = None
+
+    append_task_event(
+        run_dir,
+        "NODE_BLOCKED",
+        stage=stage,
+        status=classify_blocked_status(block_type),
+        severity="BLOCKED" if user_action_required else "FAILED_RECOVERABLE",
+        message=reason,
+        payload={
+            "project": project,
+            "task_id": task_id,
+            "node": node_id,
+            "agent": agent,
+            "block_type": block_type,
+            "report_path": str(report_path) if report_path else None,
+            "decision_card": str(card_path) if card_path else None,
+        },
+    )
+    feedback_status_path = write_feedback_status(run_dir)
 
     result: dict = {
         "status": "paused",
@@ -176,7 +215,11 @@ def _block_task(
         "block_type": block_type,
         "requires_user_action": user_action_required,
         "success": False,
+        "feedback_status": str(feedback_status_path),
     }
+    if card_path and card:
+        result["decision_card"] = str(card_path)
+        result["decision_id"] = card.get("id")
     if execution_mode:
         result["execution_mode"] = execution_mode
 
@@ -184,6 +227,20 @@ def _block_task(
     _sync_task_summary(agentlab_root, project, task_id, run_dir)
 
     return result
+
+
+def _mark_node_completed(run_dir: Path, node_id: str, report_path: str | None = None) -> None:
+    mark_node_completed(run_dir, node_id, report_path)
+    append_task_event(
+        run_dir,
+        "NODE_COMPLETED",
+        stage=NODE_TO_PROGRESS.get(node_id, node_id.lower()),
+        status="RUNNING",
+        severity="MILESTONE",
+        message=f"{node_id} completed.",
+        payload={"node": node_id, "report_path": report_path},
+    )
+    write_feedback_status(run_dir)
 
 
 def _write_pipeline_incident(
@@ -421,6 +478,16 @@ def run_next_node(
     progress["current_agent"] = NODE_TO_AGENT.get(nid)
     progress["status"] = "running"
     save_progress(run_dir, progress)
+    append_task_event(
+        run_dir,
+        "NODE_STARTED",
+        stage=NODE_TO_PROGRESS.get(nid, nid.lower()),
+        status="RUNNING",
+        severity="INFO",
+        message=f"{nid} started.",
+        payload={"node": nid, "agent": NODE_TO_AGENT.get(nid)},
+    )
+    write_feedback_status(run_dir)
 
     # INIT and PREPARE are already done by init/prepare CLI — just mark
     if nid == "INIT_TASK":
@@ -444,7 +511,7 @@ def run_next_node(
             budget_mode=budget_mode,
             execution_mode=effective_execution_mode,
         )
-        mark_node_completed(run_dir, nid)
+        _mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": f"{nid} done."}
 
     if nid == "PREPARE_PLAN":
@@ -488,7 +555,7 @@ def run_next_node(
             budget_mode=budget_mode,
             execution_mode=effective_execution_mode,
         )
-        mark_node_completed(run_dir, nid)
+        _mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": f"{nid} done."}
 
     if nid == "SELF_CHECK":
@@ -506,7 +573,7 @@ def run_next_node(
             budget_mode=budget_mode,
             execution_mode=effective_execution_mode,
         )
-        mark_node_completed(run_dir, nid)
+        _mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": "Self-check done."}
 
     if nid == "SYNC_OPTIONAL":
@@ -523,7 +590,7 @@ def run_next_node(
             budget_mode=budget_mode,
             execution_mode=effective_execution_mode,
         )
-        mark_node_completed(run_dir, nid)
+        _mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": "Sync skipped (dry-run)."}
 
     if nid == "FINALIZE":
@@ -554,7 +621,7 @@ def run_next_node(
                 agentlab_root, run_dir, project, task_id, nid, "ArtifactContract", issues,
                 report_path=run_dir / "artifact_manifest.yml",
             )
-        mark_node_completed(run_dir, nid)
+        _mark_node_completed(run_dir, nid)
         state.status = "completed"
         state.last_event = f"Task completed via {effective_execution_mode} pipeline"
         save_state(run_dir, state)
@@ -566,6 +633,16 @@ def run_next_node(
             progress["percent_complete"] = 100
             progress["last_event"] = state.last_event
             save_progress(run_dir, progress)
+        append_task_event(
+            run_dir,
+            "TASK_COMPLETED",
+            stage="completed",
+            status="COMPLETED_PASS",
+            severity="COMPLETED",
+            message=state.last_event,
+            payload={"artifact_check": result},
+        )
+        write_feedback_status(run_dir)
         return {
             "status": "completed", "node": nid,
             "message": "Lifecycle complete.",
@@ -614,9 +691,9 @@ def run_next_node(
                     agentlab_root, run_dir, project, task_id, nid, agent, gate_issues,
                     report_path=report_path,
                 )
-            mark_node_completed(run_dir, nid, str(report_path))
+            _mark_node_completed(run_dir, nid, str(report_path))
             return {"status": "completed", "node": nid, "report": str(report_path)}
-        mark_node_completed(run_dir, nid)
+        _mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": f"{nid} done."}
 
     elif agent and not fake_provider:
@@ -734,7 +811,7 @@ def run_next_node(
                 agentlab_root, run_dir, project, task_id, nid, agent, gate_issues,
                 report_path=report_path,
             )
-        mark_node_completed(run_dir, nid, str(report_path))
+        _mark_node_completed(run_dir, nid, str(report_path))
         return {"status": "completed", "node": nid, "report": str(report_path), "success": True}
     else:
         output = f"# {nid} Report\n\nDry-run output.\n"
@@ -763,9 +840,9 @@ def run_next_node(
                     agentlab_root, run_dir, project, task_id, nid, agent or nid, gate_issues,
                     report_path=report_path,
                 )
-            mark_node_completed(run_dir, nid, str(report_path))
+            _mark_node_completed(run_dir, nid, str(report_path))
             return {"status": "completed", "node": nid, "report": str(report_path), "success": True}
-        mark_node_completed(run_dir, nid)
+        _mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": f"{nid} done.", "success": True}
 
 
@@ -940,6 +1017,16 @@ def run_full_pipeline(
                 progress["percent_complete"] = 100
                 progress["last_event"] = state.last_event
                 save_progress(run_dir, progress)
+            append_task_event(
+                run_dir,
+                "TASK_COMPLETED",
+                stage="completed",
+                status="COMPLETED_PASS",
+                severity="COMPLETED",
+                message=state.last_event,
+                payload={"artifact_check": artifact_result},
+            )
+            write_feedback_status(run_dir)
             return {
                 "success": True,
                 "final_status": "completed",

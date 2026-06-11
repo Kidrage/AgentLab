@@ -604,6 +604,148 @@ def task_event(
     console.print({"log": str(run_dir / "task_events.jsonl"), "event": event_record})
 
 
+def _decision_run_dirs(agentlab_root: Path, project: str, task_id: str | None) -> list[Path]:
+    runs_root = agentlab_root / "projects" / project / "runs"
+    if task_id:
+        ensure_safe_task_id(task_id)
+        run_dir = runs_root / task_id
+        return [run_dir] if run_dir.exists() else []
+    if not runs_root.exists():
+        return []
+    return [p for p in sorted(runs_root.iterdir()) if p.is_dir()]
+
+
+def _find_decision_run_dir(agentlab_root: Path, project: str, decision_id: str, task_id: str | None = None) -> Path | None:
+    from feedback_manager import load_decision_card
+
+    for run_dir in _decision_run_dirs(agentlab_root, project, task_id):
+        card, _path = load_decision_card(run_dir, decision_id)
+        if card:
+            return run_dir
+    return None
+
+
+@app.command("decision-list")
+def decision_list(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, help="Optional task id."),
+    all_statuses: bool = typer.Option(False, "--all", help="Show resolved decisions too."),
+) -> None:
+    """List pending decision cards for chat/Web UI approval."""
+    agentlab_root, project_name = runtime_context(project)
+    from feedback_manager import decision_cards_dir, load_pending_decision_cards
+    from atomic_io import safe_read_yaml
+
+    rows = []
+    for run_dir in _decision_run_dirs(agentlab_root, project_name, task_id):
+        if all_statuses:
+            root = decision_cards_dir(run_dir)
+            cards = []
+            if root.exists():
+                for path in sorted(root.glob("*.yml")):
+                    data = safe_read_yaml(path, default={}) or {}
+                    if isinstance(data, dict):
+                        data.setdefault("_path", str(path))
+                        cards.append(data)
+        else:
+            cards = load_pending_decision_cards(run_dir)
+        for card in cards:
+            rows.append((run_dir.name, card))
+
+    console.print("[bold]AgentLab Decisions[/bold]")
+    console.print({"project": project_name, "count": len(rows), "show_all": all_statuses})
+    table = Table("Task", "Decision", "Type", "Status", "Recommended", "Reason")
+    for run_name, card in rows:
+        table.add_row(
+            run_name,
+            card.get("id", ""),
+            card.get("type", ""),
+            card.get("status", ""),
+            card.get("recommended_action", ""),
+            str(card.get("reason", ""))[:90],
+        )
+    console.print(table)
+
+
+@app.command("decision-approve")
+def decision_approve(
+    decision_id: str = typer.Argument(..., help="Decision card id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, help="Optional task id to narrow search."),
+    option: str = typer.Option("approve_resume", help="Option id to approve."),
+) -> None:
+    """Approve a pending decision card and clear the legacy USER_DECISION_REQUIRED gate."""
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = _find_decision_run_dir(agentlab_root, project_name, decision_id, task_id)
+    if run_dir is None:
+        console.print(f"[yellow]Decision not found: {decision_id}[/yellow]")
+        raise typer.Exit(code=1)
+
+    from feedback_manager import resolve_decision_card
+    card = resolve_decision_card(run_dir, decision_id, option_id=option, resolution="approved")
+    console.print("[green]Decision approved[/green]")
+    console.print({"task_id": run_dir.name, "decision_id": decision_id, "selected_option": card.get("selected_option")})
+
+
+@app.command("decision-reject")
+def decision_reject(
+    decision_id: str = typer.Argument(..., help="Decision card id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, help="Optional task id to narrow search."),
+    option: str = typer.Option("stop_task", help="Option id to record with rejection."),
+) -> None:
+    """Reject a pending decision card."""
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = _find_decision_run_dir(agentlab_root, project_name, decision_id, task_id)
+    if run_dir is None:
+        console.print(f"[yellow]Decision not found: {decision_id}[/yellow]")
+        raise typer.Exit(code=1)
+
+    from feedback_manager import resolve_decision_card
+    card = resolve_decision_card(run_dir, decision_id, option_id=option, resolution="rejected")
+    console.print("[yellow]Decision rejected[/yellow]")
+    console.print({"task_id": run_dir.name, "decision_id": decision_id, "selected_option": card.get("selected_option")})
+
+
+@app.command("decision-resume")
+def decision_resume(
+    task_id: str = typer.Argument(..., help="Task id to resume."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    dry_run: bool = typer.Option(True, help="Dry-run resume."),
+    fake_provider: bool = typer.Option(False, help="Use fake provider."),
+) -> None:
+    """Resume a task after its decision card has been approved."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from feedback_manager import load_pending_decision_cards
+    from pipeline_runner import resume_pipeline
+
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    if not run_dir.exists():
+        console.print(f"[yellow]Task run directory does not exist: {run_dir}[/yellow]")
+        raise typer.Exit(code=1)
+    pending = load_pending_decision_cards(run_dir)
+    if pending:
+        console.print("[yellow]Task still has pending decision cards. Approve or reject them before resume.[/yellow]")
+        for card in pending:
+            console.print(f"- {card.get('id')}: {card.get('reason')}")
+        raise typer.Exit(code=1)
+    if (run_dir / "USER_DECISION_REQUIRED.md").exists():
+        console.print("[yellow]USER_DECISION_REQUIRED.md still exists. Approve a decision card before resume.[/yellow]")
+        raise typer.Exit(code=1)
+
+    result = resume_pipeline(
+        agentlab_root,
+        project_name,
+        task_id,
+        dry_run=dry_run,
+        fake_provider=fake_provider,
+        simulate_provider_recovered=True,
+    )
+    console.print("[bold]Decision Resume Result[/bold]")
+    console.print(result)
+
+
 @app.command("policy-status")
 def policy_status(
     project: Optional[str] = typer.Option(None, help="Project name."),
