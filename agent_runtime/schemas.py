@@ -91,6 +91,7 @@ class WorkflowPlan(BaseModel):
     included_agents: dict[str, dict] = Field(default_factory=dict)
     model_profiles: dict[str, dict] = Field(default_factory=dict)
     validation_gates: list[dict] = Field(default_factory=list)
+    skills: dict = Field(default_factory=dict)
     memory_policy: dict = Field(default_factory=dict)
     execution_policy: dict = Field(default_factory=dict)
     harness_policy: dict = Field(default_factory=dict)

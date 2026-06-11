@@ -1,0 +1,19 @@
+schema_version: 1
+enabled: true
+
+retrieval:
+  max_skills_per_task: 3
+  min_confidence: 0.0
+  high_risk_requires_approval: true
+  default_injected_agents:
+    - Coder
+    - TesterAuditor
+
+matching:
+  trigger_weight: 3
+  applies_to_weight: 2
+  summary_weight: 1
+
+usage:
+  write_task_usage: true
+  append_active_skill_ledger: true

@@ -516,6 +516,8 @@ def run_next_node(
 
     if nid == "PREPARE_PLAN":
         plan_path = run_dir / "workflow_plan.yml"
+        request_path = run_dir / "user_request.md"
+        task_text = request_path.read_text(encoding="utf-8") if request_path.exists() else ""
         if not plan_path.exists():
             from workflow_plan import build_workflow_plan
             plan = build_workflow_plan(
@@ -530,6 +532,15 @@ def run_next_node(
         else:
             plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
             route_agents = plan_data.get("route", {}).get("agents", [])
+        from skill_injector import inject_skills_into_workflow_plan
+        inject_skills_into_workflow_plan(
+            agentlab_root,
+            plan_path,
+            project=project,
+            task_id=task_id,
+            task_text=task_text,
+            record_usage=True,
+        )
         lc = load_lifecycle(run_dir)
         if lc:
             optional_requirements = {
@@ -642,6 +653,14 @@ def run_next_node(
             message=state.last_event,
             payload={"artifact_check": result},
         )
+        try:
+            from post_task_learning import run_learning_review
+            run_learning_review(agentlab_root, project, task_id)
+        except Exception as exc:
+            (run_dir / "learning_review_warning.log").write_text(
+                f"Post-task learning failed: {type(exc).__name__}: {exc}\n",
+                encoding="utf-8",
+            )
         write_feedback_status(run_dir)
         return {
             "status": "completed", "node": nid,
@@ -1026,6 +1045,14 @@ def run_full_pipeline(
                 message=state.last_event,
                 payload={"artifact_check": artifact_result},
             )
+            try:
+                from post_task_learning import run_learning_review
+                run_learning_review(agentlab_root, project, task_id)
+            except Exception as exc:
+                (run_dir / "learning_review_warning.log").write_text(
+                    f"Post-task learning failed: {type(exc).__name__}: {exc}\n",
+                    encoding="utf-8",
+                )
             write_feedback_status(run_dir)
             return {
                 "success": True,

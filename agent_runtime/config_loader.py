@@ -28,6 +28,7 @@ CONFIG_FILES = {
     "routing_rules": "routing_rules.yml",
     "budget_profiles": "budget_profiles.yml",
     "self_check_policy": "self_check_policy.yml",
+    "skill_injection_policy": "skill_injection_policy.yml",
     "task_index_policy": "task_index_policy.yml",
     "validation_gates": "validation_gates.yml",
     "version_policy": "version_policy.yml",

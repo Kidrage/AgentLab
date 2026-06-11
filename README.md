@@ -198,7 +198,7 @@ CLI: `./agentlab.sh task-search --status paused`, `./agentlab.sh task-resume --p
 
 ## Skill Lifecycle MVP / 技能生命周期 MVP
 
-AgentLab now implements a local closed-loop skill lifecycle:
+AgentLab now implements a local closed-loop skill lifecycle, active skill retrieval/injection, and post-task Trace-to-Skill candidate generation:
 
 ### Lifecycle States
 
@@ -239,15 +239,28 @@ skills/
 ./agentlab.sh skill-validate --skill-id <id> --fake-sandbox
 ./agentlab.sh skill-promote --skill-id <id>
 ./agentlab.sh skill-retire --skill-id <id> --reason "obsolete"
+./agentlab.sh skill-match --project AgentLab --task-id <task_id>
+./agentlab.sh skill-inject --project AgentLab --task-id <task_id>
+./agentlab.sh skill-usage --project AgentLab --task-id <task_id>
+./agentlab.sh learning-review --project AgentLab --task-id <task_id>
+./agentlab.sh skill-candidates --project AgentLab --task-id <task_id>
+./agentlab.sh skill-candidate-approve --project AgentLab --task-id <task_id> --candidate-id <id>
 ```
+
+### Active Skill Injection
+
+`prepare --write-plan` and pipeline `PREPARE_PLAN` retrieve active skills from `skills/active/<skill_id>/metadata.yml`, record selected/rejected skills in `workflow_plan.yml`, write task-level `skill_usage.yml`, and append each selected active skill's `usage_ledger.yml`.
+
+### Trace-to-Skill Learning
+
+Pipeline completion and `learning-review` inspect task events and reports for reusable patterns such as blocked/resolved decisions, validation failures, recovery actions, repeated approvals, repo-specific repair procedures, and artifact contract workarounds. Matching patterns create `skill_candidates/*.yml`; approving a candidate creates a `self_learned` Skill Adoption Request that follows the same lifecycle.
 
 ### Not Yet Implemented
 
 - ❌ Real GitHub search for skills
 - ❌ Real sandbox execution (only fake sandbox file checks)
 - ❌ Automatic package parsing (SKILL.md ingestion)
-- ❌ Automatic skill discovery from task traces
-- ❌ Skill injection during task planning
+- ❌ Webhook/MCP integrations
 
 ---
 

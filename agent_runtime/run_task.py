@@ -708,6 +708,107 @@ def skill_retire_cmd(
         raise typer.Exit(code=1)
 
 
+@app.command("skill-match")
+def skill_match(
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Match active skills against a task without writing injection usage."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    request_path = run_dir / "user_request.md"
+    task_text = request_path.read_text(encoding="utf-8") if request_path.exists() else ""
+    from skill_retriever import load_skill_injection_policy, match_active_skills
+
+    result = match_active_skills(
+        agentlab_root,
+        task_text=task_text,
+        policy=load_skill_injection_policy(agentlab_root),
+    )
+    console.print("[bold]Skill Match[/bold]")
+    console.print({"project": project_name, "task_id": task_id, "selected": len(result["selected"]), "rejected": len(result["rejected"])})
+    table = Table("Status", "Skill", "Name", "Reason", "Load", "Saving")
+    for item in result["selected"]:
+        table.add_row(
+            "selected",
+            item.get("skill_id", ""),
+            item.get("name", ""),
+            item.get("reason", ""),
+            str(item.get("load_tokens", "")),
+            str(item.get("expected_saving_tokens", "")),
+        )
+    for item in result["rejected"]:
+        table.add_row("rejected", item.get("skill_id", ""), item.get("name", ""), item.get("reason", ""), "-", "-")
+    console.print(table)
+
+
+@app.command("skill-inject")
+def skill_inject(
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Inject matched active skills into workflow_plan.yml and write usage ledgers."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    plan_path = run_dir / "workflow_plan.yml"
+    if not plan_path.exists():
+        console.print(f"[yellow]workflow_plan.yml not found: {plan_path}[/yellow]")
+        raise typer.Exit(code=1)
+    request_path = run_dir / "user_request.md"
+    task_text = request_path.read_text(encoding="utf-8") if request_path.exists() else ""
+    from skill_injector import inject_skills_into_workflow_plan
+
+    result = inject_skills_into_workflow_plan(
+        agentlab_root,
+        plan_path,
+        project=project_name,
+        task_id=task_id,
+        task_text=task_text,
+        record_usage=True,
+    )
+    console.print("[green]Skills injected into workflow plan[/green]")
+    console.print({
+        "workflow_plan": str(plan_path),
+        "selected": len(result.get("selected", [])),
+        "rejected": len(result.get("rejected", [])),
+        "usage": result.get("usage", {}),
+    })
+
+
+@app.command("skill-usage")
+def skill_usage_cmd(
+    task_id: Optional[str] = typer.Option(None, "--task-id", help="Task run id for task skill usage."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    skill_id: Optional[str] = typer.Option(None, "--skill-id", help="Active skill id for usage ledger."),
+) -> None:
+    """Show task skill_usage.yml or an active skill usage ledger."""
+    if task_id:
+        ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from atomic_io import safe_read_yaml
+
+    if skill_id:
+        path = agentlab_root / "skills" / "active" / skill_id / "usage_ledger.yml"
+        data = safe_read_yaml(path, default={}) or {}
+        console.print("[bold]Skill Usage Ledger[/bold]")
+        console.print({"skill_id": skill_id, "path": str(path), "entries": len(data.get("entries", [])) if isinstance(data, dict) else 0})
+        if isinstance(data, dict):
+            for entry in data.get("entries", [])[-10:]:
+                console.print(entry)
+        return
+
+    if not task_id:
+        console.print("[yellow]Provide --task-id or --skill-id.[/yellow]")
+        raise typer.Exit(code=1)
+    path = agentlab_root / "projects" / project_name / "runs" / task_id / "skill_usage.yml"
+    data = safe_read_yaml(path, default={}) or {}
+    console.print("[bold]Task Skill Usage[/bold]")
+    console.print({"project": project_name, "task_id": task_id, "path": str(path)})
+    console.print(data)
+
+
 @app.command("feedback-status")
 def feedback_status(
     project: Optional[str] = typer.Option(None, help="Project name."),
@@ -933,6 +1034,105 @@ def decision_resume(
     )
     console.print("[bold]Decision Resume Result[/bold]")
     console.print(result)
+
+
+@app.command("learning-review")
+def learning_review_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    no_candidates: bool = typer.Option(False, help="Write review without creating skill candidates."),
+) -> None:
+    """Run post-task Trace-to-Skill learning review for a task."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from post_task_learning import run_learning_review
+
+    review = run_learning_review(
+        agentlab_root,
+        project_name,
+        task_id,
+        create_candidates=not no_candidates,
+    )
+    console.print("[bold]Learning Review[/bold]")
+    console.print({
+        "project": project_name,
+        "task_id": task_id,
+        "status": review.get("status"),
+        "candidate_count": review.get("candidate_count"),
+        "review": str(agentlab_root / "projects" / project_name / "runs" / task_id / "learning_review.yml"),
+    })
+
+
+@app.command("skill-candidates")
+def skill_candidates_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """List Trace-to-Skill candidates for a task."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from post_task_learning import list_skill_candidates
+
+    candidates = list_skill_candidates(agentlab_root, project_name, task_id)
+    console.print("[bold]Skill Candidates[/bold]")
+    console.print({"project": project_name, "task_id": task_id, "count": len(candidates)})
+    table = Table("Candidate", "Name", "Status", "Pattern", "Trigger")
+    for item in candidates:
+        proposed = item.get("proposed_skill", {}) or {}
+        table.add_row(
+            item.get("id", ""),
+            item.get("name", ""),
+            item.get("status", ""),
+            item.get("pattern_type", ""),
+            str(proposed.get("trigger", ""))[:80],
+        )
+    console.print(table)
+
+
+@app.command("skill-candidate-approve")
+def skill_candidate_approve_cmd(
+    candidate_id: str = typer.Option(..., "--candidate-id", help="Skill candidate id to approve."),
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Approve a Trace-to-Skill candidate and create a self_learned skill request."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from post_task_learning import approve_skill_candidate
+
+    try:
+        result = approve_skill_candidate(agentlab_root, project_name, task_id, candidate_id)
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1)
+    console.print("[green]Skill candidate approved[/green]")
+    console.print({
+        "candidate_id": candidate_id,
+        "status": result.get("status"),
+        "skill_request_id": result.get("skill_request_id"),
+        "skill_request_path": result.get("skill_request_path"),
+    })
+
+
+@app.command("skill-candidate-reject")
+def skill_candidate_reject_cmd(
+    candidate_id: str = typer.Option(..., "--candidate-id", help="Skill candidate id to reject."),
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    reason: str = typer.Option("Rejected by user.", "--reason", help="Reason for rejection."),
+) -> None:
+    """Reject a Trace-to-Skill candidate."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from post_task_learning import reject_skill_candidate
+
+    try:
+        result = reject_skill_candidate(agentlab_root, project_name, task_id, candidate_id, reason)
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1)
+    console.print("[yellow]Skill candidate rejected[/yellow]")
+    console.print({"candidate_id": candidate_id, "status": result.get("status"), "reason": result.get("rejection_reason")})
 
 
 @app.command("policy-status")
@@ -1169,7 +1369,17 @@ def prepare(
             from progress_tracker import create_progress, load_progress
             from lifecycle_graph import create_lifecycle, load_lifecycle, mark_node_completed
             from task_snapshot import safe_write_task_snapshot
+            from skill_injector import inject_skills_into_workflow_plan
             run_dir = Path(plan.run_dir)
+            task_text = Path(plan.user_request_path).read_text(encoding="utf-8") if Path(plan.user_request_path).exists() else ""
+            inject_skills_into_workflow_plan(
+                agentlab_root,
+                plan_path,
+                project=project_name,
+                task_id=task_id,
+                task_text=task_text,
+                record_usage=True,
+            )
             if load_progress(run_dir) is None:
                 create_progress(
                     run_dir,

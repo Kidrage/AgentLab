@@ -213,6 +213,23 @@ def build_workflow_plan(
     else:
         notes.append("Project config missing or empty.")
 
+    try:
+        from skill_injector import build_skill_plan
+        skills = build_skill_plan(
+            agentlab_root,
+            project=project_name,
+            task_id=task_id,
+            run_dir=paths["run_dir"],
+            task_text=task_text,
+            record_usage=False,
+        )
+    except Exception as exc:
+        skills = {
+            "selected": [],
+            "rejected": [],
+            "error": f"skill retrieval unavailable: {type(exc).__name__}: {exc}",
+        }
+
     return WorkflowPlan(
         project=project_name,
         task_id=task_id,
@@ -231,6 +248,7 @@ def build_workflow_plan(
         included_agents=included_agents,
         model_profiles=model_profiles,
         validation_gates=validation_gates,
+        skills=skills,
         memory_policy=configs.get("memory_policy", {}),
         execution_policy=execution_policy,
         harness_policy=configs.get("harness_policy", {}),

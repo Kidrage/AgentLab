@@ -19,6 +19,21 @@ This document separates current scaffold behavior from production AgentOps behav
 - `skill-promote` transitions `validated → active`, copying content to `skills/active/<skill_id>/` and updating the registry.
 - `skill-retire` transitions `active → retired`, moving content to `skills/retired/<skill_id>/`.
 - Filesystem layout: `skills/staging/`, `skills/active/`, `skills/retired/`.
+- `skill-match` retrieves active skills for a task goal by triggers, applies_to, and summary overlap.
+- `skill-inject` writes selected/rejected active skills into `workflow_plan.yml`.
+- `prepare --write-plan` and pipeline `PREPARE_PLAN` perform active skill retrieval/injection.
+- `skill_usage.yml` records task-level selected/rejected skills.
+- `skills/active/<skill_id>/usage_ledger.yml` records each selected skill usage.
+- High-risk skills are rejected for injection when policy requires approval.
+
+### Trace-to-Skill MVP
+
+- `learning-review` writes `learning_review.yml` for a completed or inspected task.
+- Blocked events, validation failures, recovery actions, repeated approvals, repo-specific repair procedures, and artifact contract workarounds can create `skill_candidates/*.yml`.
+- Pipeline completion runs post-task learning review after `FINALIZE`.
+- `skill-candidates` lists task candidates.
+- `skill-candidate-approve` turns a candidate into a `source_type=self_learned` Skill Adoption Request.
+- `skill-candidate-reject` records rejection metadata.
 
 Complete lifecycle:
 
@@ -43,8 +58,8 @@ pending_user_approval → approved → staging → validated → active → reti
 - No GitHub or skill hub search.
 - No real sandbox execution (only fake sandbox file checks).
 - No automatic SKILL.md/package parsing.
-- No automatic skill discovery from task traces.
-- No skill retrieval/injection during task planning.
+- No model-based candidate synthesis; Trace-to-Skill MVP uses deterministic event/report pattern detection.
+- No automatic promotion of learned skills; candidates still require approval and the existing lifecycle.
 
 ### Feedback And Intervention
 
@@ -60,4 +75,5 @@ pending_user_approval → approved → staging → validated → active → reti
 2. Add `GET /api/task/events/stream` using Server-Sent Events.
 3. Add a watchdog command that scans running tasks and emits `STALE_RUNNING`.
 4. Add real sandbox validation with isolated execution.
-5. Add task startup skill retrieval and explicit load-cost budgeting.
+5. Add GitHub/skill-hub discovery and SKILL.md package ingestion.
+6. Add webhook and MCP integrations.
