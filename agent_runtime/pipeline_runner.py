@@ -654,6 +654,21 @@ def run_next_node(
             payload={"artifact_check": result},
         )
         try:
+            from webhook_dispatcher import dispatch_event
+
+            dispatch_event(
+                agentlab_root,
+                event="COMPLETED",
+                project=project,
+                task_id=task_id,
+                stage="completed",
+                severity="COMPLETED",
+                summary=state.last_event,
+                reason="Pipeline finalized successfully.",
+            )
+        except Exception:
+            pass
+        try:
             from post_task_learning import run_learning_review
             run_learning_review(agentlab_root, project, task_id)
         except Exception as exc:
@@ -1045,6 +1060,21 @@ def run_full_pipeline(
                 message=state.last_event,
                 payload={"artifact_check": artifact_result},
             )
+            try:
+                from webhook_dispatcher import dispatch_event
+
+                dispatch_event(
+                    agentlab_root,
+                    event="COMPLETED",
+                    project=project,
+                    task_id=task_id,
+                    stage="completed",
+                    severity="COMPLETED",
+                    summary=state.last_event,
+                    reason="Pipeline finalized successfully.",
+                )
+            except Exception:
+                pass
             try:
                 from post_task_learning import run_learning_review
                 run_learning_review(agentlab_root, project, task_id)

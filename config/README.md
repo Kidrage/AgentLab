@@ -19,6 +19,7 @@ Edit these files first when you want to change how agents behave:
 - `skill_injection_policy.yml`: active skill retrieval, injection limits, risk approval, and usage ledger policy.
 - `feedback_policy.yml`: feedback scaffold for task event logs, notification levels, decision cards, and watchdog policy.
 - `watchdog_policy.yml`: stale running/event/approval/lock thresholds and recovery decision-card options.
+- `webhook_policy.yml`: optional outbound webhook endpoints, retry policy, signing, and redaction controls.
 
 Use `agent_templates/*.md` for role prompts and report formats. Use `config/*.yml`
 for policy, routing, model, budget, and permission changes.

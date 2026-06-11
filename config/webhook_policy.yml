@@ -1,0 +1,22 @@
+schema_version: 1
+enabled: false
+
+endpoints:
+  - name: openclaw
+    url_env: AGENTLAB_OPENCLAW_WEBHOOK_URL
+    secret_env: AGENTLAB_OPENCLAW_WEBHOOK_SECRET
+    events:
+      - ACTION_REQUIRED
+      - BLOCKED
+      - STALE_RUNNING
+      - FAILED_RECOVERABLE
+      - COMPLETED
+      - SKILL_REQUEST_PENDING
+
+retry:
+  max_attempts: 3
+  backoff_seconds: 2
+
+security:
+  sign_payload: true
+  redact_secrets: true

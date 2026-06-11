@@ -247,6 +247,19 @@ def write_skill_adoption_request(agentlab_root: Path, request: dict[str, Any]) -
     request["id"] = request_id
     path = skill_request_dir(agentlab_root, project) / f"{request_id}.yml"
     atomic_write_yaml(path, request)
+    try:
+        from webhook_dispatcher import dispatch_event
+
+        dispatch_event(
+            agentlab_root,
+            event="SKILL_REQUEST_PENDING",
+            project=project,
+            summary=f"Skill request pending: {request.get('skill_name', request_id)}",
+            reason=request.get("purpose", ""),
+            links={"skill_request": str(path)},
+        )
+    except Exception:
+        pass
     return path
 
 
@@ -601,6 +614,19 @@ def promote_skill(agentlab_root: Path, skill_id: str) -> dict[str, Any]:
     metadata["status"] = "active"
     metadata["promoted_at"] = utc_now()
     atomic_write_yaml(metadata_path, metadata)
+    try:
+        from webhook_dispatcher import dispatch_event
+
+        dispatch_event(
+            agentlab_root,
+            event="SKILL_PROMOTED",
+            project=metadata.get("project", "AgentLab"),
+            summary=f"Skill promoted: {skill_name}",
+            reason=metadata.get("purpose", ""),
+            links={"active_skill": str(active_dir)},
+        )
+    except Exception:
+        pass
 
     return {
         "skill_id": skill_id,
@@ -714,6 +740,20 @@ def write_trace_skill_candidate(agentlab_root: Path, candidate: dict[str, Any]) 
     candidate["id"] = candidate_id
     path = skill_candidate_dir(agentlab_root, project, task_id) / f"{candidate_id}.yml"
     atomic_write_yaml(path, candidate)
+    try:
+        from webhook_dispatcher import dispatch_event
+
+        dispatch_event(
+            agentlab_root,
+            event="SKILL_CANDIDATE_READY",
+            project=project,
+            task_id=task_id,
+            summary=f"Skill candidate ready: {candidate.get('name', candidate_id)}",
+            reason=(candidate.get("proposed_skill") or {}).get("trigger", ""),
+            links={"skill_candidate": str(path)},
+        )
+    except Exception:
+        pass
     return path
 
 

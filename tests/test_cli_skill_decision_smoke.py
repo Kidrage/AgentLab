@@ -57,6 +57,11 @@ def _write_pricing(root: Path) -> None:
         "decision-approve",
         "decision-reject",
         "decision-resume",
+        "watchdog-scan",
+        "watchdog-status",
+        "webhook-test",
+        "webhook-status",
+        "webhook-redeliver",
     ],
 )
 def test_task2_task3_cli_help_commands_exist(command: str) -> None:

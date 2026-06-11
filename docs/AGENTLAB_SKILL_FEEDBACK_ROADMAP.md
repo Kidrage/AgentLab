@@ -54,6 +54,9 @@ pending_user_approval → approved → staging → validated → active → reti
 - `GET /api/tasks/<task_id>/events/stream` provides an SSE MVP with polling fallback in the frontend.
 - `watchdog-scan` and `watchdog-status` detect stale running, stale event, waiting approval, and stale lock conditions.
 - Watchdog stale handling appends `STALE_RUNNING`, refreshes feedback status, and can create a recovery decision card.
+- Optional webhook notification channel is implemented and disabled by default.
+- `webhook-test`, `webhook-status`, and `webhook-redeliver` manage delivery testing and logs.
+- `docs/WEBHOOK_INTEGRATION.md` documents OpenClaw/Hermes/chat gateway integration.
 
 ## Current: Not Yet Production Ready
 
@@ -68,15 +71,15 @@ pending_user_approval → approved → staging → validated → active → reti
 ### Feedback And Intervention
 
 - No long-running watchdog daemon.
-- No webhook/Telegram/OpenClaw/Hermes push channel.
+- No Telegram-specific bot adapter or OpenClaw/Hermes-specific command parser.
 - No chat-native approval parser.
 - No MCP tool server.
 - WebSocket is not implemented; current real-time MVP uses Server-Sent Events.
 
 ## Next Implementation Targets
 
-1. Add webhook/OpenClaw/Hermes push channels for action-required events.
-2. Add MCP tool server for external agent control.
+1. Add MCP tool server for external agent control.
+2. Add Telegram/OpenClaw/Hermes-specific chat command parsers.
 3. Add a long-running watchdog daemon/scheduler.
 4. Add real sandbox validation with isolated execution.
 5. Add GitHub/skill-hub discovery and SKILL.md package ingestion.

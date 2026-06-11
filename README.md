@@ -277,7 +277,19 @@ AgentLab has an MVP real-time feedback loop for event-driven task feedback and h
 
 CLI: `./agentlab.sh feedback-status --project AgentLab`, `./agentlab.sh task-event --project AgentLab --task-id <T> --event TASK_CREATED`, `./agentlab.sh watchdog-scan --project AgentLab`, `./agentlab.sh watchdog-status --project AgentLab --task-id <T>`
 
-Not yet implemented: webhook push channels, MCP tool server, Telegram/OpenClaw/Hermes adapters.
+### Webhook Notifications
+
+AgentLab can optionally push action-required and lifecycle events to external chat gateways such as OpenClaw or Hermes. Webhooks are disabled by default; endpoint URLs and signing secrets are read only from environment variables.
+
+- `config/webhook_policy.yml` controls enabled endpoints, event allow-lists, retry count, signing, and redaction.
+- Delivery logs are written to `projects/<Project>/runs/<task_id>/webhook_delivery_log.yml` or `projects/<Project>/webhook_delivery_log.yml` for project-level skill events.
+- Dispatchable events include `ACTION_REQUIRED`, `BLOCKED`, `BUDGET_WARNING`, `STALE_RUNNING`, `FAILED_RECOVERABLE`, `COMPLETED`, `SKILL_REQUEST_PENDING`, `SKILL_CANDIDATE_READY`, and `SKILL_PROMOTED`.
+
+CLI: `./agentlab.sh webhook-test --event ACTION_REQUIRED --project AgentLab --task-id <T>`, `./agentlab.sh webhook-status --project AgentLab --task-id <T>`, `./agentlab.sh webhook-redeliver --project AgentLab --task-id <T>`
+
+Guide: `docs/WEBHOOK_INTEGRATION.md`
+
+Not yet implemented: MCP tool server, Telegram-specific bot adapter, OpenClaw/Hermes-specific chat command parser.
 
 Roadmap: `docs/AGENTLAB_SKILL_FEEDBACK_ROADMAP.md`
 

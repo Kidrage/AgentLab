@@ -179,6 +179,26 @@ def mark_stale(agentlab_root: Path, project: str, task_id: str, status: dict[str
     if actions.get("write_feedback_status", True):
         write_feedback_status(run_dir, stale_after_seconds=0)
 
+    try:
+        from webhook_dispatcher import dispatch_event
+
+        dispatch_event(
+            agentlab_root,
+            event="STALE_RUNNING",
+            project=project,
+            task_id=task_id,
+            stage=status.get("raw_status"),
+            severity="BLOCKED",
+            summary="Watchdog detected a stale task run.",
+            reason=reason,
+            decision_card={
+                "id": created_card.get("id"),
+                "options": created_card.get("options", []),
+            } if created_card else None,
+        )
+    except Exception:
+        pass
+
     result = dict(status)
     result["marked_stale"] = True
     result["decision_card_id"] = created_card.get("id") if created_card else None

@@ -908,6 +908,80 @@ def watchdog_status_cmd(
     console.print(watchdog_status(agentlab_root, project_name, task_id))
 
 
+@app.command("webhook-test")
+def webhook_test_cmd(
+    event: str = typer.Option(..., "--event", help="Event name to send, such as ACTION_REQUIRED."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, "--task-id", help="Optional task id."),
+) -> None:
+    """Send a test webhook event if webhook policy is enabled."""
+    if task_id:
+        ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from webhook_dispatcher import dispatch_event
+
+    result = dispatch_event(
+        agentlab_root,
+        event=event,
+        project=project_name,
+        task_id=task_id,
+        stage="webhook_test",
+        severity=event,
+        summary=f"AgentLab webhook test for {event}.",
+        reason="Manual webhook-test command.",
+        decision_card={"id": "test", "options": [{"id": "ack", "label": "Acknowledge"}]} if event == "ACTION_REQUIRED" else None,
+    )
+    console.print("[bold]AgentLab Webhook Test[/bold]")
+    console.print(result)
+
+
+@app.command("webhook-status")
+def webhook_status_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, "--task-id", help="Optional task id."),
+) -> None:
+    """Show webhook delivery log status."""
+    if task_id:
+        ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from webhook_dispatcher import webhook_status
+
+    status = webhook_status(agentlab_root, project_name, task_id)
+    console.print("[bold]AgentLab Webhook Status[/bold]")
+    console.print({
+        "project": project_name,
+        "task_id": task_id,
+        "delivery_count": status.get("delivery_count", 0),
+        "path": status.get("path"),
+    })
+    table = Table("Event", "Endpoint", "Status", "Attempts", "Created")
+    for item in status.get("deliveries", [])[-20:]:
+        table.add_row(
+            item.get("event", ""),
+            item.get("endpoint", ""),
+            item.get("status", ""),
+            str(len(item.get("attempts", []))),
+            item.get("created_at", ""),
+        )
+    console.print(table)
+
+
+@app.command("webhook-redeliver")
+def webhook_redeliver_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: Optional[str] = typer.Option(None, "--task-id", help="Optional task id."),
+) -> None:
+    """Redeliver the most recent failed webhook delivery."""
+    if task_id:
+        ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from webhook_dispatcher import redeliver_last_failed
+
+    result = redeliver_last_failed(agentlab_root, project_name, task_id)
+    console.print("[bold]AgentLab Webhook Redeliver[/bold]")
+    console.print(result)
+
+
 @app.command("task-event")
 def task_event(
     task_id: str = typer.Option("task_0001", help="Task run id."),

@@ -22,6 +22,13 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _project_from_run_dir(run_dir: Path) -> tuple[Path, str, str]:
+    task_id = run_dir.name
+    project = run_dir.parent.parent.name
+    agentlab_root = run_dir.parent.parent.parent.parent
+    return agentlab_root, project, task_id
+
+
 def write_decision_card(run_dir: Path, card: dict[str, Any]) -> Path:
     card_id = card.get("id")
     if not card_id:
@@ -37,6 +44,26 @@ def write_decision_card(run_dir: Path, card: dict[str, Any]) -> Path:
         message=card.get("reason", ""),
         payload={"decision_card": str(path), "type": card.get("type")},
     )
+    try:
+        from webhook_dispatcher import dispatch_event
+
+        agentlab_root, project, task_id = _project_from_run_dir(run_dir)
+        dispatch_event(
+            agentlab_root,
+            event="ACTION_REQUIRED",
+            project=project,
+            task_id=task_id,
+            stage=card.get("stage"),
+            severity="ACTION_REQUIRED",
+            summary=card.get("title", "Decision required"),
+            reason=card.get("reason", ""),
+            decision_card={
+                "id": card.get("id"),
+                "options": card.get("options", []),
+            },
+        )
+    except Exception:
+        pass
     return path
 
 
