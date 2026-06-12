@@ -32,8 +32,10 @@ def _command_text(argv: list[str]) -> str:
 
 
 def _is_sparse_clone(argv: list[str]) -> bool:
-    text = " ".join(argv)
-    return "--filter=" in text or "--depth" in argv or "--sparse" in argv or "sparse-checkout" in text
+    has_depth = any(arg == "--depth" for arg in argv) or any(arg.startswith("--depth=") for arg in argv)
+    has_blobless_filter = any(arg == "--filter=blob:none" or arg.startswith("--filter=blob:none") for arg in argv)
+    has_sparse = "--sparse" in argv
+    return has_depth and has_blobless_filter and has_sparse
 
 
 def _classify(argv: list[str]) -> str | None:
@@ -78,8 +80,8 @@ def evaluate_command(
 
     if mode == "repo_patch":
         if kind == "git_clone" and _is_sparse_clone(argv):
-            return CloneGuardDecision(text, "allow", "sparse clone allowed for repo_patch", mode)
-        return CloneGuardDecision(text, "deny", f"{kind} requires build/test or full clone approval", mode)
+            return CloneGuardDecision(text, "allow", "strict sparse clone allowed for repo_patch", mode)
+        return CloneGuardDecision(text, "pending_approval", f"{kind} requires approval; only strict sparse clone is allowed automatically", mode, True)
 
     if mode == "repo_build_test":
         if kind in {"git_clone", "git_submodule_update", "build", "install"}:

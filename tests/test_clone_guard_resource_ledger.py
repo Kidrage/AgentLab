@@ -18,11 +18,11 @@ def test_repo_profile_denies_git_clone() -> None:
 
 
 def test_repo_patch_allows_sparse_clone_only() -> None:
-    sparse = evaluate_command("git clone --filter=blob:none --sparse https://github.com/Kidrage/AgentLab", mode="repo_patch")
+    sparse = evaluate_command("git clone --depth=1 --filter=blob:none --sparse https://github.com/Kidrage/AgentLab", mode="repo_patch")
     full = evaluate_command("git clone https://github.com/Kidrage/AgentLab", mode="repo_patch")
 
     assert sparse.action == "allow"
-    assert full.action == "deny"
+    assert full.action == "pending_approval"
 
 
 def test_repo_build_test_full_clone_requires_approval() -> None:

@@ -35,6 +35,7 @@ class ResourceLedger:
         "clone_commands_blocked": 0,
         "high_cost_commands_seen": [],
         "approval_required": [],
+        "blocked": [],
     })
 
     @classmethod
@@ -57,11 +58,31 @@ class ResourceLedger:
             self.commands["high_cost_commands_seen"].append(command)
         if action == "deny" and command and str(command).startswith("git clone"):
             self.commands["clone_commands_blocked"] += 1
+        if action == "deny":
+            self.commands.setdefault("blocked", []).append({"command": command, "reason": reason})
         if action == "pending_approval":
             self.commands["approval_required"].append({"command": command, "reason": reason})
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def load_resource_ledger(run_dir: Path, task_id: str | None = None) -> ResourceLedger:
+    path = run_dir / "resource_ledger.yml"
+    if not path.exists():
+        return ResourceLedger(task_id=task_id or run_dir.name)
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return ResourceLedger(task_id=task_id or run_dir.name)
+    ledger = ResourceLedger(task_id=str(data.get("task_id") or task_id or run_dir.name), repo_url=data.get("repo_url"))
+    if isinstance(data.get("repo_access"), dict):
+        ledger.repo_access.update(data["repo_access"])
+    if isinstance(data.get("workspace"), dict):
+        ledger.workspace.update(data["workspace"])
+    if isinstance(data.get("commands"), dict):
+        ledger.commands.update(data["commands"])
+    return ledger
 
 
 def write_resource_ledger(run_dir: Path, ledger: ResourceLedger) -> Path:

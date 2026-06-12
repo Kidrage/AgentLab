@@ -7,6 +7,7 @@ import base64
 import fnmatch
 import json
 import os
+import re
 from typing import Any
 from urllib import parse, request
 
@@ -37,6 +38,8 @@ class GitHubRepoRef:
     repo: str
     ref: str = "main"
     repo_url: str = ""
+    kind: str | None = None
+    path: str | None = None
 
 
 @dataclass
@@ -54,6 +57,29 @@ class RawFileResult:
     reason: str | None = None
 
 
+GITHUB_URL_RE = re.compile(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/(?:tree|blob)/[^\s)\]}>\"']+)?")
+
+
+def extract_github_urls(text: str) -> list[str]:
+    """Extract unique github.com owner/repo URLs from free text.
+
+    Supports plain repository URLs and tree/blob URLs. Trailing punctuation from
+    prose/Markdown is stripped while preserving path components.
+    """
+    seen: set[str] = set()
+    urls: list[str] = []
+    for match in GITHUB_URL_RE.finditer(text or ""):
+        url = match.group(0).rstrip(".,;:")
+        try:
+            parse_github_url(url)
+        except ValueError:
+            continue
+        if url not in seen:
+            seen.add(url)
+            urls.append(url)
+    return urls
+
+
 def parse_github_url(url: str) -> GitHubRepoRef:
     parsed = parse.urlparse(url)
     if parsed.netloc.lower() != "github.com":
@@ -65,9 +91,14 @@ def parse_github_url(url: str) -> GitHubRepoRef:
     if repo.endswith(".git"):
         repo = repo[:-4]
     ref = "main"
+    kind = None
+    subpath = None
     if len(parts) >= 4 and parts[2] in {"tree", "blob"}:
+        kind = parts[2]
         ref = parts[3]
-    return GitHubRepoRef(owner=owner, repo=repo, ref=ref, repo_url=f"https://github.com/{owner}/{repo}")
+        if len(parts) > 4:
+            subpath = "/".join(parts[4:])
+    return GitHubRepoRef(owner=owner, repo=repo, ref=ref, repo_url=f"https://github.com/{owner}/{repo}", kind=kind, path=subpath)
 
 
 def _headers() -> dict[str, str]:
@@ -94,6 +125,20 @@ def fetch_repo_tree(repo_ref: GitHubRepoRef, recursive: bool = True) -> RepoTree
     url = f"{GITHUB_API}/repos/{repo_ref.owner}/{repo_ref.repo}/git/trees/{repo_ref.ref}?recursive={recursive_flag}"
     data = _request_json(url)
     return RepoTree(entries=list(data.get("tree") or []), truncated=bool(data.get("truncated", False)))
+
+
+def fetch_resolved_commit(repo_ref: GitHubRepoRef) -> str | None:
+    """Resolve a branch/tag ref to a commit sha via GitHub API.
+
+    Tree URLs may provide a tree SHA elsewhere; this function only returns a
+    commit SHA when the ref API exposes one. Callers must warn rather than guess.
+    """
+    ref = parse.quote(repo_ref.ref, safe="/")
+    url = f"{GITHUB_API}/repos/{repo_ref.owner}/{repo_ref.repo}/git/ref/heads/{ref}"
+    data = _request_json(url)
+    obj = data.get("object") if isinstance(data, dict) else {}
+    sha = obj.get("sha") if isinstance(obj, dict) else None
+    return str(sha) if sha else None
 
 
 def _raw_url(repo_ref: GitHubRepoRef, path: str) -> str:
@@ -159,6 +204,13 @@ def build_repo_manifest(
     manifest = RepoManifest(repo_url=repo_ref.repo_url, owner=repo_ref.owner, repo=repo_ref.repo, ref=repo_ref.ref)
     if mode == "repo_profile":
         manifest.clone_performed = False
+
+    try:
+        manifest.resolved_commit = fetch_resolved_commit(repo_ref)
+    except Exception:
+        manifest.resolved_commit = None
+    if not manifest.resolved_commit:
+        manifest.warnings.append("resolved_commit_unavailable")
 
     tree = fetch_repo_tree(repo_ref, recursive=True)
     manifest.tree_truncated = tree.truncated

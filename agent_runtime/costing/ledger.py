@@ -56,9 +56,12 @@ class CostLedger:
             "audio_input_tokens": 0,
             "estimated_cost_usd": None,
             "pricing_confidence": "none",
+            "pricing_status": "unknown",
+            "unknown_priced_calls": [],
         }
         known_cost = 0.0
         has_cost = False
+        unknown_calls: list[dict[str, Any]] = []
         confidence_rank = {"none": 0, "low": 1, "medium": 2, "high": 3}
         max_confidence = 0
         for call in self.calls:
@@ -75,9 +78,20 @@ class CostLedger:
             if call.estimated_cost_usd is not None:
                 known_cost += float(call.estimated_cost_usd)
                 has_cost = True
+            else:
+                unknown_calls.append({
+                    "stage": call.stage,
+                    "model_alias": call.model_alias,
+                    "provider_model_id": call.provider_model_id,
+                })
             max_confidence = max(max_confidence, confidence_rank.get(call.pricing_confidence, 0))
         if has_cost:
             totals["estimated_cost_usd"] = round(known_cost, 8)
+        totals["unknown_priced_calls"] = unknown_calls
+        if self.calls and not unknown_calls:
+            totals["pricing_status"] = "complete"
+        elif self.calls and len(unknown_calls) < len(self.calls):
+            totals["pricing_status"] = "partial"
         totals["pricing_confidence"] = next(
             name for name, rank in confidence_rank.items() if rank == max_confidence
         )
@@ -102,14 +116,25 @@ def render_cost_summary(ledger: CostLedger) -> str:
         f"Task ID: {ledger.task_id}",
         f"Total input tokens: {total['input_tokens']}",
         f"Total output tokens: {total['output_tokens']}",
+        f"Pricing status: {total['pricing_status']}",
         f"Total estimated cost: {cost_text}",
-        f"Pricing status: {total['pricing_confidence']}",
+        f"Pricing confidence: {total['pricing_confidence']}",
+        "",
+    ]
+    unknown_calls = total.get("unknown_priced_calls") or []
+    if unknown_calls:
+        lines.extend(["Unknown priced calls:"])
+        for item in unknown_calls:
+            model = item.get("model_alias") or item.get("provider_model_id") or "unknown"
+            lines.append(f"- {model}")
+        lines.append("")
+    lines.extend([
         "",
         "## Calls",
         "",
         "| Stage | Agent | Model | Input | Output | Estimated Cost | Usage Source | Price Source |",
         "|---|---|---:|---:|---:|---:|---|---|",
-    ]
+    ])
     for call in ledger.calls:
         model = call.model_alias or call.provider_model_id or "unknown"
         call_cost = "unknown" if call.estimated_cost_usd is None else f"${call.estimated_cost_usd:.6f}"

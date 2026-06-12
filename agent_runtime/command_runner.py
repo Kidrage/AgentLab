@@ -280,6 +280,7 @@ def run_logged_command(
     timeout_sec: int = 120,
     env: dict[str, str] | None = None,
     allow_nonzero: bool = False,
+    repo_mode: str = "repo_profile",
 ) -> dict[str, Any]:
     """Run one allowlisted command and append a structured execution record."""
     policy = load_command_policy(agentlab_root)
@@ -293,6 +294,39 @@ def run_logged_command(
             "blocked_reason": str(exc),
         }
 
+    command_text = shlex.join(argv)
+    try:
+        from ingestion.clone_guard import evaluate_command as evaluate_repo_command
+        from ingestion.resource_ledger import load_resource_ledger, write_resource_ledger
+
+        decision = evaluate_repo_command(argv, mode=repo_mode)
+        if decision.action in {"deny", "pending_approval"}:
+            ledger = load_resource_ledger(run_dir, task_id=run_dir.name)
+            ledger.record_clone_guard(decision)
+            write_resource_ledger(run_dir, ledger)
+            return {
+                "command_id": None,
+                "command": decision.command,
+                "argv": argv,
+                "exit_code": None,
+                "timed_out": False,
+                "blocked_by_policy": decision.action == "deny",
+                "pending_approval": decision.action == "pending_approval",
+                "approval_required": decision.approval_required,
+                "blocked_reason": decision.reason,
+                "repo_policy_action": decision.action,
+            }
+    except Exception as exc:
+        return {
+            "command_id": None,
+            "command": command_text,
+            "argv": argv,
+            "exit_code": None,
+            "timed_out": False,
+            "blocked_by_policy": True,
+            "blocked_reason": f"repo policy check failed: {type(exc).__name__}: {exc}",
+        }
+
     allowed, reason = is_command_allowed(command, policy)
     if not allowed:
         return {
@@ -304,7 +338,6 @@ def run_logged_command(
 
     root = workspace_root or agentlab_root
     resolved_cwd = safe_resolve_cwd(cwd, root)
-    command_text = shlex.join(argv)
     paths_allowed, path_reason = validate_command_paths(argv, root.resolve())
     if not paths_allowed:
         return {
@@ -465,6 +498,7 @@ def run_validation_commands_if_present(
             node=node,
             agent=agent,
             timeout_sec=timeout_sec,
+            repo_mode=str(config.get("repo_mode") or "repo_profile"),
         )
         entry = {
             "name": name,

@@ -29,14 +29,19 @@ DEFAULT_BUDGET_POLICY = {
 @dataclass
 class BudgetDecision:
     status: str
+    task_id: str | None = None
     approval_required: bool = False
     warnings: list[str] | None = None
     estimated_cost_usd: float | None = None
+    known_cost_usd: float | None = None
+    unknown_priced_calls: list[dict[str, Any]] | None = None
     total_tokens: int = 0
+    policy: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["warnings"] = self.warnings or []
+        data["unknown_priced_calls"] = self.unknown_priced_calls or []
         return data
 
 
@@ -56,6 +61,7 @@ def load_budget_policy(agentlab_root: Path) -> dict[str, Any]:
 def evaluate_budget_gate(ledger: Any, policy: dict[str, Any] | None = None) -> BudgetDecision:
     policy = policy or DEFAULT_BUDGET_POLICY["budget_policy"]
     total = ledger.total() if hasattr(ledger, "total") else ledger.get("total", {})
+    task_id = getattr(ledger, "task_id", None) if not isinstance(ledger, dict) else ledger.get("task_id")
     total_tokens = sum(
         int(total.get(key) or 0)
         for key in (
@@ -69,6 +75,7 @@ def evaluate_budget_gate(ledger: Any, policy: dict[str, Any] | None = None) -> B
         )
     )
     estimated_cost = total.get("estimated_cost_usd")
+    unknown_priced_calls = list(total.get("unknown_priced_calls") or [])
     warnings: list[str] = []
     approval_required = False
 
@@ -91,20 +98,31 @@ def evaluate_budget_gate(ledger: Any, policy: dict[str, Any] | None = None) -> B
     )
     if has_unknown_price and max_tokens and total_tokens > max_tokens and policy.get("unknown_price_warning", True):
         warnings.append("Unknown pricing with high token usage; cost was not converted to money.")
+    if unknown_priced_calls and any(
+        (call.get("estimated_cost_usd") is not None if isinstance(call, dict) else call.estimated_cost_usd is not None)
+        for call in (ledger.get("calls", []) if isinstance(ledger, dict) else getattr(ledger, "calls", []))
+    ):
+        warnings.append("Partial pricing: some calls have unknown prices and were not converted to money.")
 
     status = "pending_approval" if approval_required else ("warning" if warnings else "ok")
     return BudgetDecision(
+        task_id=task_id,
         status=status,
         approval_required=approval_required,
         warnings=warnings,
         estimated_cost_usd=estimated_cost,
+        known_cost_usd=estimated_cost,
+        unknown_priced_calls=unknown_priced_calls,
         total_tokens=total_tokens,
+        policy={
+            "max_task_cost_usd": policy.get("max_task_cost_usd"),
+            "require_approval_over_usd": policy.get("require_approval_over_usd"),
+            "max_total_tokens": policy.get("max_total_tokens"),
+        },
     )
 
 
 def write_budget_decision(run_dir: Path, decision: BudgetDecision) -> Path | None:
-    if decision.status == "ok":
-        return None
     path = run_dir / "budget_gate_decision.yml"
     atomic_write_text(path, yaml.safe_dump(decision.as_dict(), sort_keys=False), encoding="utf-8")
     if decision.approval_required:

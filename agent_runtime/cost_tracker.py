@@ -11,6 +11,7 @@ from state_store import utc_now
 from atomic_io import atomic_write_text
 from costing.ledger import CostCall, CostLedger, render_cost_summary
 from costing.pricing import PriceResolver
+from costing.budget import evaluate_budget_gate, load_budget_policy, write_budget_decision
 
 # ── Pricing ──────────────────────────────────────────────────
 
@@ -247,3 +248,10 @@ def _refresh_v2_run_cost_artifacts(run_ledger_path: Path) -> None:
         encoding="utf-8",
     )
     atomic_write_text(run_ledger_path.with_name("cost_summary.md"), render_cost_summary(ledger), encoding="utf-8")
+    try:
+        agentlab_root = run_ledger_path.parents[3]
+        policy = load_budget_policy(agentlab_root)
+    except Exception:
+        policy = None
+    decision = evaluate_budget_gate(ledger, policy)
+    write_budget_decision(run_ledger_path.parent, decision)

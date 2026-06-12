@@ -514,6 +514,28 @@ def _load_repo_manifest(run_dir: Path | None) -> dict:
         return {}
 
 
+def _manifest_paths(run_dir: Path | None) -> list[Path]:
+    if run_dir is None:
+        return []
+    paths: list[Path] = []
+    if (run_dir / "repo_manifest.json").exists():
+        paths.append(run_dir / "repo_manifest.json")
+    manifests_dir = run_dir / "repo_manifests"
+    if manifests_dir.exists():
+        paths.extend(sorted(manifests_dir.glob("*.json")))
+    return paths
+
+
+def _load_all_repo_manifests(run_dir: Path | None) -> list[dict]:
+    manifests = []
+    for path in _manifest_paths(run_dir):
+        try:
+            manifests.append(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+    return manifests
+
+
 def _load_resource_ledger(run_dir: Path | None) -> dict:
     if run_dir is None:
         return {}
@@ -545,29 +567,61 @@ def _check_repo_analysis_evidence(fname: str, content: str, run_dir: Path | None
     repo_claims = [
         "analyzed the repository",
         "analyzed repository",
+        "analyzed repo",
         "analysed the repository",
         "analysed repository",
+        "repository review",
+        "repo analysis",
         "分析了仓库",
         "读取了仓库",
         "read repository",
     ]
-    file_claim = re.search(r"(read|loaded|inspected|读取了)\s+[`'\"]?([A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+)", content)
+    file_claims = re.findall(
+        r"(?:read|loaded|inspected|读取了)\s+[`'\"]?([A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+)",
+        content,
+        flags=re.IGNORECASE,
+    )
     clone_claim = any(pattern in lowered for pattern in ["git clone", "cloned the repo", "cloned repository", "clone 了仓库"])
+    command_claim = any(pattern in lowered for pattern in ["executed command", "ran command", "command executed"])
     build_claim = any(pattern in lowered for pattern in ["ran tests", "ran build", "跑了测试", "跑了构建", "cmake --build", "npm test", "pytest"])
 
-    manifest = _load_repo_manifest(run_dir)
+    manifests = _load_all_repo_manifests(run_dir)
+    manifest = manifests[0] if manifests else {}
     resource_ledger = _load_resource_ledger(run_dir)
 
     if any(pattern in lowered for pattern in repo_claims) and not manifest:
         issues.append("Report claims repository analysis but repo_manifest.json is missing.")
 
-    if file_claim:
-        claimed_path = file_claim.group(2)
-        files_read = [item.get("path") for item in (manifest.get("files_read") or []) if isinstance(item, dict)]
-        if not manifest:
-            issues.append("Report claims file reads but repo_manifest.json is missing.")
-        elif claimed_path not in files_read:
-            issues.append(f"Report claims file read without repo_manifest evidence: {claimed_path}")
+    if file_claims:
+        files_read = []
+        files_skipped = []
+        for item_manifest in manifests:
+            files_read.extend(item.get("path") for item in (item_manifest.get("files_read") or []) if isinstance(item, dict))
+            files_skipped.extend(item.get("path") for item in (item_manifest.get("files_skipped_by_policy") or []) if isinstance(item, dict))
+        for claimed_path in file_claims:
+            claimed_path = claimed_path.rstrip(".,;:")
+            if claimed_path.lower() in {"repo_manifest.json", "resource_ledger.yml", "execution_log.yml"}:
+                continue
+            if "based on api manifest" in lowered and claimed_path == "repo_manifest.json":
+                continue
+            if claimed_path in files_skipped:
+                continue
+            if not manifests:
+                issues.append("Report claims file reads but repo_manifest.json is missing.")
+            elif claimed_path not in files_read:
+                issues.append(f"Report claims file read without repo_manifest evidence: {claimed_path}")
+
+    if any(pattern in lowered for pattern in ["skipped file", "skipped "]):
+        skipped_claims = re.findall(r"(?:skipped|跳过)\s+[`'\"]?([A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+)", content, flags=re.IGNORECASE)
+        files_skipped = []
+        for item_manifest in manifests:
+            files_skipped.extend(item.get("path") for item in (item_manifest.get("files_skipped_by_policy") or []) if isinstance(item, dict))
+        for claimed_path in skipped_claims:
+            claimed_path = claimed_path.rstrip(".,;:")
+            if not manifests:
+                issues.append("Report claims skipped files but repo_manifest.json is missing.")
+            elif claimed_path not in files_skipped:
+                issues.append(f"Report claims skipped file without repo_manifest evidence: {claimed_path}")
 
     if clone_claim:
         access = resource_ledger.get("repo_access", {}) if isinstance(resource_ledger, dict) else {}
@@ -576,9 +630,9 @@ def _check_repo_analysis_evidence(fname: str, content: str, run_dir: Path | None
         elif not access.get("clone_performed") and not access.get("sparse_clone_performed") and not access.get("full_clone_performed"):
             issues.append("Report claims clone activity but resource_ledger.yml shows no clone.")
 
-    if build_claim:
+    if command_claim or build_claim:
         log = load_execution_log(run_dir) if run_dir else {}
         if not log.get("commands"):
-            issues.append("Report claims build/test command execution but execution_log.yml is missing or empty.")
+            issues.append("Report claims command/build/test execution but execution_log.yml is missing or empty.")
 
     return issues

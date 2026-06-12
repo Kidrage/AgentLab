@@ -31,6 +31,19 @@ from progress_tracker import create_progress, load_progress, save_progress
 from task_events import append_task_event, classify_blocked_status
 from feedback_manager import create_decision_card, write_feedback_status
 
+try:
+    from ingestion.github_reader import extract_github_urls, build_repo_manifest, parse_github_url
+    from ingestion.repo_manifest import write_repo_manifest, RepoManifest
+    from ingestion.resource_ledger import ResourceLedger, write_resource_ledger
+except ImportError:  # pragma: no cover
+    extract_github_urls = None
+    build_repo_manifest = None
+    parse_github_url = None
+    write_repo_manifest = None
+    RepoManifest = None
+    ResourceLedger = None
+    write_resource_ledger = None
+
 ARTIFACT_ALIASES = {
     "01_supervisor_plan.md": "supervisor_plan.md",
     "02_reposcout_report.md": "reposcout_report.md",
@@ -80,6 +93,100 @@ NODE_TO_PCT = {
     "CODER_IMPLEMENTATION": 55, "VALIDATION": 70, "AUDIT": 78,
     "VERIFY": 82, "ARCHIVE": 86, "SELF_CHECK": 90, "SYNC_OPTIONAL": 95, "FINALIZE": 100,
 }
+
+
+def _repo_analysis_requested(text: str) -> bool:
+    lowered = (text or "").lower()
+    triggers = [
+        "repo analysis", "repo profile", "repository review", "architecture analysis",
+        "analyze repository", "analyse repository", "分析仓库", "仓库分析", "架构分析",
+    ]
+    clone_triggers = ["git clone", "full clone", "clone/build/test", "build and test", "run tests"]
+    return any(t in lowered for t in triggers) and not any(t in lowered for t in clone_triggers)
+
+
+def _write_repo_stage_context(run_dir: Path, manifest_paths: list[Path], warnings: list[str]) -> None:
+    context = {
+        "repo_profile": {
+            "access_mode": "repo_profile",
+            "clone_allowed": False,
+            "full_clone_allowed": False,
+            "build_allowed": False,
+            "repo_manifest_paths": [str(path) for path in manifest_paths],
+            "warnings": warnings,
+        }
+    }
+    path = run_dir / "stage_context.yml"
+    existing = {}
+    if path.exists():
+        try:
+            existing = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            existing = {}
+    existing.update(context)
+    atomic_write_yaml(path, existing)
+
+
+def ensure_repo_manifest_for_run(agentlab_root: Path, project: str, task_id: str) -> list[Path]:
+    """API-first repo ingestion hook for repo analysis/profile tasks."""
+    if extract_github_urls is None or build_repo_manifest is None:
+        return []
+    run_dir = agentlab_root / "projects" / project / "runs" / task_id
+    request_path = run_dir / "user_request.md"
+    task_text = request_path.read_text(encoding="utf-8") if request_path.exists() else ""
+    urls = extract_github_urls(task_text)
+    if not urls or not _repo_analysis_requested(task_text):
+        return []
+    existing_single = run_dir / "repo_manifest.json"
+    if existing_single.exists():
+        _write_repo_stage_context(run_dir, [existing_single], [])
+        return [existing_single]
+    manifest_paths: list[Path] = []
+    warnings: list[str] = []
+    manifests_dir = run_dir / "repo_manifests"
+    for index, url in enumerate(urls):
+        try:
+            manifest = build_repo_manifest(url, mode="repo_profile", agentlab_root=agentlab_root)
+        except Exception as exc:
+            ref = parse_github_url(url) if parse_github_url else None
+            manifest = RepoManifest(
+                repo_url=getattr(ref, "repo_url", url),
+                owner=getattr(ref, "owner", "unknown"),
+                repo=getattr(ref, "repo", "unknown"),
+                ref=getattr(ref, "ref", "main"),
+                clone_performed=False,
+                warnings=[f"repo_manifest_build_failed: {type(exc).__name__}: {exc}"],
+            )
+        warnings.extend(manifest.warnings)
+        if len(urls) == 1:
+            path = write_repo_manifest(run_dir, manifest)
+        else:
+            manifests_dir.mkdir(parents=True, exist_ok=True)
+            path = manifests_dir / f"{manifest.owner}__{manifest.repo}.json"
+            from atomic_io import atomic_write_json
+            atomic_write_json(path, manifest.as_dict())
+        manifest_paths.append(path)
+
+    if manifest_paths and ResourceLedger is not None:
+        first_manifest_data = None
+        try:
+            import json
+            first_manifest_data = json.loads(manifest_paths[0].read_text(encoding="utf-8"))
+        except Exception:
+            first_manifest_data = None
+        ledger = ResourceLedger.from_manifest(task_id, first_manifest_data or {"repo_url": urls[0], "files_read": [], "bytes_downloaded": 0, "clone_performed": False})
+        ledger.repo_access.update({
+            "access_mode": "repo_profile",
+            "clone_allowed": False,
+            "full_clone_allowed": False,
+            "build_allowed": False,
+            "clone_performed": False,
+            "manifest_paths": [str(path) for path in manifest_paths],
+            "warnings": warnings,
+        })
+        write_resource_ledger(run_dir, ledger)
+    _write_repo_stage_context(run_dir, manifest_paths, warnings)
+    return manifest_paths
 
 
 def _resolve_execution_mode(dry_run: bool, fake_provider: bool) -> dict:
@@ -962,6 +1069,7 @@ def run_full_pipeline(
     history = []
     seen_signatures = set()
     mode = _resolve_execution_mode(dry_run, fake_provider)
+    ensure_repo_manifest_for_run(agentlab_root, project, task_id)
 
     for step in range(max_steps):
         sig = _state_signature(agentlab_root, project, task_id)
