@@ -55,7 +55,58 @@ from state_store import load_state, mark_agent_completed, mark_planned, save_sta
 from workflow_plan import build_workflow_plan
 
 app = typer.Typer(help="AgentLab local-first CLI.", no_args_is_help=True)
+external_skills_app = typer.Typer(help="External Skill workflow closure commands.", no_args_is_help=True)
+app.add_typer(external_skills_app, name="external-skills")
 console = Console()
+
+
+def _run_external_skills_cli(args: list[str]) -> None:
+    from external_skills_cli import main as external_skills_main
+
+    code = external_skills_main(args)
+    if code:
+        raise typer.Exit(code=code)
+
+
+@external_skills_app.command("list")
+def external_skills_list(json_output: bool = typer.Option(False, "--json", help="Emit JSON.")) -> None:
+    """List external skills from config/external_skill_registry.yml without executing tools."""
+    _run_external_skills_cli([*( ["--json"] if json_output else [] ), "list"])
+
+
+@external_skills_app.command("scan-ecc")
+def external_skills_scan_ecc(json_output: bool = typer.Option(False, "--json", help="Emit JSON.")) -> None:
+    """Write artifacts/external_skill_inventory.json using static ECC scan only."""
+    _run_external_skills_cli([*( ["--json"] if json_output else [] ), "scan-ecc"])
+
+
+@external_skills_app.command("import-ecc")
+def external_skills_import_ecc(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview import without modifying registry."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
+) -> None:
+    """Import static ECC inventory metadata into the disabled-by-default registry."""
+    args = []
+    if json_output:
+        args.append("--json")
+    args.append("import-ecc")
+    if dry_run:
+        args.append("--dry-run")
+    _run_external_skills_cli(args)
+
+
+@external_skills_app.command("incubate")
+def external_skills_incubate(
+    task_id: str = typer.Option(..., "--task-id", help="Task id."),
+    project: str = typer.Option("AgentLab", "--project", help="Project name."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
+) -> None:
+    """Write task-scoped internal_skill_candidates.yml and skill_incubation_report.md."""
+    args = []
+    if json_output:
+        args.append("--json")
+    args.extend(["incubate", "--task-id", task_id, "--project", project])
+    _run_external_skills_cli(args)
 
 
 def write_agent_artifact_gate_block(

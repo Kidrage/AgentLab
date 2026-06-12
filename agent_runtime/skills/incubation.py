@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 import re
 
-from atomic_io import atomic_write_yaml, safe_read_yaml
+from atomic_io import atomic_write_text, atomic_write_yaml, safe_read_yaml
 
 try:
     from skills.risk import license_requires_review
@@ -86,6 +86,61 @@ def write_internal_skill_candidates(path: Path, candidates: list[InternalSkillCa
     }
     atomic_write_yaml(path, data)
     return path
+
+
+def render_incubation_report(
+    *,
+    task_id: str | None,
+    candidates: list[InternalSkillCandidate | dict[str, Any]],
+    warnings: list[str] | None = None,
+) -> str:
+    candidate_dicts = [c.to_dict() if isinstance(c, InternalSkillCandidate) else dict(c) for c in candidates]
+    lines = [
+        "# Skill Incubation Report",
+        "",
+        f"Task ID: {task_id or 'unknown'}",
+        "",
+        "Candidates:",
+    ]
+    if not candidate_dicts:
+        lines.append("- none")
+    for candidate in candidate_dicts:
+        proposed = candidate.get("proposed_internal_skill") or {}
+        safety = candidate.get("safety") or {}
+        lines.extend([
+            f"- candidate_id: {candidate.get('candidate_id')}",
+            f"  derived_from: {', '.join(candidate.get('derived_from') or [])}",
+            f"  reason: {'; '.join(candidate.get('reason') or [])}",
+            f"  proposed target_path: {proposed.get('target_path')}",
+            f"  source_code_copied: {str(bool(safety.get('source_code_copied', False))).lower()}",
+            f"  license_review_required: {str(bool(safety.get('license_review_required', True))).lower()}",
+            f"  human_review_required: {str(bool(safety.get('human_review_required', True))).lower()}",
+        ])
+    lines.extend(["", "Warnings:"])
+    if warnings:
+        lines.extend(f"- {warning}" for warning in warnings)
+    else:
+        lines.append("- none")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_incubation_artifacts(
+    output_dir: Path,
+    *,
+    task_id: str | None,
+    candidates: list[InternalSkillCandidate | dict[str, Any]],
+    warnings: list[str] | None = None,
+) -> dict[str, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    candidate_dicts = [c.to_dict() if isinstance(c, InternalSkillCandidate) else dict(c) for c in candidates]
+    for candidate in candidate_dicts:
+        candidate.setdefault("safety", {})["source_code_copied"] = False
+    candidates_path = output_dir / "internal_skill_candidates.yml"
+    report_path = output_dir / "skill_incubation_report.md"
+    write_internal_skill_candidates(candidates_path, candidate_dicts, warnings=warnings)
+    atomic_write_text(report_path, render_incubation_report(task_id=task_id, candidates=candidate_dicts, warnings=warnings))
+    return {"candidates": candidates_path, "report": report_path}
 
 
 def _slug(value: str) -> str:

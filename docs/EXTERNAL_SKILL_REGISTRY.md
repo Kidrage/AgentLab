@@ -14,3 +14,28 @@ AgentLab is a local-first AgentOps control layer. It can use external skill prov
 Disabled external skills cannot be dispatched. The registry API supports load, write, add/update, disable, uniqueness validation, and dispatchability checks. License `unknown` is flagged with `license_review_required: true`.
 
 This registry does not vendor external source code, execute tools, or bypass CostLedger / ResourceLedger / ArtifactGate controls.
+
+## Workflow CLI
+
+Use the lightweight closure commands to inspect and import metadata only:
+
+```bash
+./agentlab.sh external-skills list
+./agentlab.sh external-skills import-ecc --dry-run
+./agentlab.sh external-skills import-ecc
+```
+
+`list` reads only `config/external_skill_registry.yml` and prints `skill_id`,
+`source`, `enabled`, `capabilities`, risk level, and license review status. It
+does not execute external tools.
+
+Imported ECC skills remain:
+
+- `enabled: false`
+- `integration_mode: inventory_only`
+- `risk.requires_approval: true`
+- `license.license_review_required: true` when license is unknown
+
+Validation helpers live in `agent_runtime/skills/config_validation.py` and check
+unique `skill_id`, disabled-by-default external imports, unknown license review,
+and policy safety requirements.

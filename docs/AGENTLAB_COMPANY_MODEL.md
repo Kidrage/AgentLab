@@ -32,3 +32,9 @@ P1-A explicitly does not support:
 - No license bypass.
 - No enabling hooks/MCP/commands by default.
 - No LiteLLM Proxy, database, Redis, Postgres, dashboard, multimodal stack, or heavy dependency.
+
+P1-A.1 closes the lightweight external skill workflow without changing those
+boundaries. The supported loop is static inventory → disabled metadata import →
+usage ledger → internal candidate proposal → read-only MCP inspection. Runtime
+scan and incubation artifacts live under `artifacts/` or task `artifacts/`
+directories and are not long-lived repository root files.

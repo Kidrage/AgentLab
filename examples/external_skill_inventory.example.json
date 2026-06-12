@@ -1,0 +1,25 @@
+{
+  "source": "ecc",
+  "source_path": null,
+  "scan_mode": "static_inventory_only",
+  "found": false,
+  "warnings": [
+    "Example only: real scans write to artifacts/external_skill_inventory.json."
+  ],
+  "agents": [
+    {
+      "id": "ecc.planner",
+      "name": "planner",
+      "type": "agent",
+      "source_file": "AGENTS.md",
+      "capabilities": ["planning", "task_decomposition"],
+      "suitable_task_types": ["repo_patch", "implementation_plan"],
+      "risk_level": "medium",
+      "enabled_by_default": false
+    }
+  ],
+  "skills": [],
+  "commands": [],
+  "mcp_servers": [],
+  "hooks": []
+}

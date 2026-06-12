@@ -16,8 +16,10 @@ from state_store import utc_now
 
 try:  # Support both package and direct agent_runtime path imports in tests.
     from skills.risk import default_risk, license_requires_review, normalize_source
+    from skills.config_validation import validate_external_skill_registry
 except ImportError:  # pragma: no cover
     from .risk import default_risk, license_requires_review, normalize_source
+    from .config_validation import validate_external_skill_registry
 
 
 REGISTRY_REL_PATH = Path("config/external_skill_registry.yml")
@@ -101,6 +103,9 @@ def load_skill_registry(agentlab_root: Path, path: Path | None = None) -> dict[s
 
 def write_skill_registry(agentlab_root: Path, registry: dict[str, Any], path: Path | None = None) -> Path:
     validate_unique_skill_ids(registry)
+    errors = [msg for msg in validate_external_skill_registry(registry) if msg.startswith("error:")]
+    if errors:
+        raise ValueError("; ".join(errors))
     registry.setdefault("metadata", {})["updated_at"] = utc_now()
     out = path or registry_path(agentlab_root)
     atomic_write_yaml(out, registry)
@@ -176,7 +181,7 @@ def assert_skill_dispatchable(registry: dict[str, Any], skill_id: str) -> dict[s
 def skill_from_inventory_record(record: dict[str, Any], *, source: str = "ecc") -> ExternalSkill:
     name = str(record.get("name") or record.get("id") or "external-skill")
     skill_id = str(record.get("id") or f"{source}.{name}")
-    return ExternalSkill(
+    skill = ExternalSkill(
         skill_id=skill_id,
         source=source,
         source_type="external_agent_pack",
@@ -188,6 +193,8 @@ def skill_from_inventory_record(record: dict[str, Any], *, source: str = "ecc") 
         risk=default_risk(str(record.get("risk_level") or "medium")),
         notes=[f"Imported from {source.upper()} inventory."],
     )
+    skill.risk["requires_approval"] = True
+    return skill
 
 
 def import_inventory_records(

@@ -51,6 +51,11 @@ projects/*
 **/*.bak/
 
 # Runtime artifacts
+external_skill_inventory.json
+internal_skill_candidates.yml
+skill_incubation_report.md
+projects/*/artifacts/
+projects/*/runs/*/artifacts/
 projects/*/runs/*/task_events.jsonl
 projects/*/runs/*/decision_cards/
 projects/*/runs/*/feedback_status.json
