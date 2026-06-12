@@ -1,0 +1,28 @@
+schema_version: 1
+
+# Operator-facing language preference for README-guided deployments, chat
+# adapters, Web UI labels, reports, and future CLI output formatting.
+default_language: zh-CN
+fallback_language: en-US
+
+available_languages:
+  - code: en-US
+    label: English
+  - code: zh-CN
+    label: 中文
+
+selection_order:
+  - env: AGENTLAB_LANGUAGE
+  - config: default_language
+  - config: fallback_language
+
+output_policy:
+  allow_bilingual: true
+  default_bilingual_mode: compact
+  prefer_user_language_for_chat: true
+  keep_machine_readable_keys_english: true
+
+notes:
+  - Set AGENTLAB_LANGUAGE=en-US for English-facing operator text.
+  - Set AGENTLAB_LANGUAGE=zh-CN for Chinese-facing operator text.
+  - Machine-readable event names, command names, YAML keys, and JSON keys remain stable English identifiers.

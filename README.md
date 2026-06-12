@@ -1,12 +1,21 @@
 # AgentLab / 智能体实验室
 
-> English | 中文
+> Language / 语言: English | 中文
 
 AgentLab is a local-first, semi-managed development workflow for personal agentic software work.
 In cloud self-hosting, it is intended to run beside a public chat gateway such as
 OpenClaw, not as a public SaaS API.
 
 AgentLab 是一个本地优先、半托管的个人 Agentic 软件开发工作流。
+
+Language preference is configurable through `config/language_policy.yml` or the
+`AGENTLAB_LANGUAGE` environment variable. Use `en-US` for English-facing
+operator text or `zh-CN` for Chinese-facing operator text; machine-readable
+command names, event names, YAML keys, and JSON keys stay in English.
+
+语言偏好可通过 `config/language_policy.yml` 或 `AGENTLAB_LANGUAGE` 环境变量配置。
+使用 `en-US` 输出英文操作文案，使用 `zh-CN` 输出中文操作文案；命令名、事件名、
+YAML key 和 JSON key 等机器可读标识保持英文稳定不变。
 
 The goal is to make model-assisted development cheaper, more transparent, and more controllable than one long chat:
 
