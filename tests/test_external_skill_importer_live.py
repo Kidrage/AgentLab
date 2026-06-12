@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 LIVE_URL = (
-    "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md"
+    "https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md"
 )
 
 pytestmark = pytest.mark.skipif(
@@ -104,12 +104,12 @@ def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
     ensure_skill_registry(tmp_path)
     result = import_skill_from_url(tmp_path, project=project, url=LIVE_URL, allow_network=True)
     assert result["ok"], f"Import failed: {result.get('error')}"
-    assert result["skill_name"] == "agentskills-io"
+    assert result["skill_name"] == "skill-creator"
     assert result["status"] == "pending_user_approval"
     snapshot_path = Path(result["snapshot_path"])
     assert snapshot_path.exists()
     assert snapshot_path.name == "SKILL.md"
-    assert "agentskills-io" in snapshot_path.read_text(encoding="utf-8")
+    assert "skill-creator" in snapshot_path.read_text(encoding="utf-8")
     request_id = result["request_id"]
 
     # Step 2: Approve
@@ -139,7 +139,7 @@ def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
     # Step 6-7: Task retrieval/injection
     run_dir = tmp_path / "projects" / project / "runs" / "task_live"
     run_dir.mkdir(parents=True)
-    task_text = "build an agent skills discovery and import automation system"
+    task_text = "create and validate a new agent skill package"
     (run_dir / "user_request.md").write_text(task_text, encoding="utf-8")
     (run_dir / "workflow_plan.yml").write_text(
         yaml.safe_dump({"route": {"agents": ["Supervisor", "Coder"]}}), encoding="utf-8"
@@ -149,7 +149,7 @@ def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
     policy = load_skill_injection_policy(tmp_path)
     matches = match_active_skills(tmp_path, task_text=task_text, policy=policy)
     assert len(matches["selected"]) > 0, "No skill matched task goal"
-    assert matches["selected"][0]["name"] == "agentskills-io"
+    assert matches["selected"][0]["name"] == "skill-creator"
 
     # Step 8-9: skill injection → skill_usage.yml
     from skill_injector import inject_skills_into_workflow_plan

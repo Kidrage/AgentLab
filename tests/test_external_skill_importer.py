@@ -13,7 +13,7 @@ Covers:
  10. Import disabled by policy
  11. Network denied without --allow-network
 
-Canonical URL: openclaw/skills/killerapp/agentskills-io
+Canonical URL: anthropics/skills → skill-creator
 """
 
 from __future__ import annotations
@@ -39,9 +39,9 @@ from external_skill_importer import (
 from skill_evolution import ensure_skill_registry, load_skill_requests
 
 CANONICAL_URL = (
-    "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md"
+    "https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md"
 )
-FIXTURE_PATH = ROOT / "tests" / "fixtures" / "external_skills" / "agentskills-io" / "SKILL.md"
+FIXTURE_PATH = ROOT / "tests" / "fixtures" / "external_skills" / "skill-creator" / "SKILL.md"
 
 
 def _write_pricing(root: Path) -> None:
@@ -95,7 +95,7 @@ def test_parse_name_from_fixture() -> None:
     text = FIXTURE_PATH.read_text(encoding="utf-8")
     result = parse_skill_frontmatter(text)
     assert result["ok"], f"parse failed: {result.get('error')}"
-    assert result["name"] == "agentskills-io"
+    assert result["name"] == "skill-creator"
 
 
 # ── 2. Parse description from fixture ─────────────────────────────────
@@ -105,7 +105,7 @@ def test_parse_description_from_fixture() -> None:
     result = parse_skill_frontmatter(text)
     assert result["ok"]
     assert len(result["description"]) > 10
-    assert "AgentSkills" in result["description"] or "agent" in result["description"].lower()
+    assert "skill" in result["description"].lower()
 
 
 # ── 3. Token / cost estimation ────────────────────────────────────────
@@ -132,7 +132,7 @@ def test_fixture_creates_pending_skill_request(tmp_path: Path) -> None:
         source_url=CANONICAL_URL,
     )
     assert result["ok"], f"import failed: {result.get('error')}"
-    assert result["skill_name"] == "agentskills-io"
+    assert result["skill_name"] == "skill-creator"
     assert result["status"] == "pending_user_approval"
     assert result["request_id"].startswith("skill_req_")
 
@@ -141,7 +141,7 @@ def test_fixture_creates_pending_skill_request(tmp_path: Path) -> None:
     matching = [r for r in requests if r["id"] == result["request_id"]]
     assert len(matching) == 1
     assert matching[0]["status"] == "pending_user_approval"
-    assert matching[0]["skill_name"] == "agentskills-io"
+    assert matching[0]["skill_name"] == "skill-creator"
     assert matching[0]["source"]["type"] == "external_url"
 
 
@@ -162,7 +162,7 @@ def test_source_snapshot_saved(tmp_path: Path) -> None:
     snapshot_path = Path(result["snapshot_path"])
     assert snapshot_path.exists()
     assert snapshot_path.name == "SKILL.md"
-    assert "agentskills-io" in snapshot_path.read_text(encoding="utf-8")
+    assert "skill-creator" in snapshot_path.read_text(encoding="utf-8")
 
     request_id = result["request_id"]
     request_yml = (
@@ -170,7 +170,7 @@ def test_source_snapshot_saved(tmp_path: Path) -> None:
     )
     assert request_yml.exists(), f"Request file not found: {request_yml}"
     data = yaml.safe_load(request_yml.read_text(encoding="utf-8")) or {}
-    assert data.get("skill_name") == "agentskills-io"
+    assert data.get("skill_name") == "skill-creator"
     assert data.get("status") == "pending_user_approval"
 
 

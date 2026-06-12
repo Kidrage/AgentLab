@@ -1,6 +1,6 @@
 """No-network external skill full lifecycle closure test.
 
-Canonical fixture: openclaw/skills → agentskills-io/SKILL.md
+Canonical fixture: anthropics/skills → skill-creator/SKILL.md
 
 Verifies the complete lifecycle:
   fixture SKILL.md → import_skill_from_fixture → pending → approve → stage
@@ -20,12 +20,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 CANONICAL_URL = (
-    "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md"
+    "https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md"
 )
-FIXTURE_PATH = ROOT / "tests" / "fixtures" / "external_skills" / "agentskills-io" / "SKILL.md"
+FIXTURE_PATH = ROOT / "tests" / "fixtures" / "external_skills" / "skill-creator" / "SKILL.md"
 PROJECT = "AgentLab"
 TASK_ID = "task_external_full_closure"
-TASK_TEXT = "build an agent skills discovery and import automation system"
+TASK_TEXT = "create and validate a new agent skill package"
 
 
 def _write_configs(root: Path) -> None:
@@ -119,7 +119,7 @@ def _promote_fixture_skill(root: Path) -> tuple[str, Path]:
         source_url=CANONICAL_URL,
     )
     assert result["ok"], result
-    assert result["skill_name"] == "agentskills-io"
+    assert result["skill_name"] == "skill-creator"
     assert result["status"] == "pending_user_approval"
     snapshot_path = Path(result["snapshot_path"])
     assert snapshot_path.exists()

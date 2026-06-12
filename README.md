@@ -242,7 +242,7 @@ skills/
 ./agentlab.sh skill-usage --project AgentLab --task-id <task_id>
 ./agentlab.sh skill-import-url \
   --project AgentLab \
-  --url "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md" \
+  --url "https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md" \
   --allow-network
 ./agentlab.sh learning-review --project AgentLab --task-id <task_id>
 ./agentlab.sh skill-candidates --project AgentLab --task-id <task_id>
@@ -283,8 +283,12 @@ Pipeline completion and `learning-review` inspect task events and reports for re
 - ❌ real OpenClaw/Hermes/Telegram adapter
 - ❌ production daemon service manager
 
-The first supported live external skill smoke test uses:
-`https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md`
+The canonical live external skill URL:
+`https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md`
+
+Fallback URL candidates (documented only; AgentLab does not automatically fetch them):
+- `https://raw.githubusercontent.com/openclaw/skills/main/skills/bowen31337/create-agent-skills/SKILL.md`
+- `https://raw.githubusercontent.com/openclaw/skills/main/skills/gitgoodordietrying/skill-writer/SKILL.md`
 
 ---
 

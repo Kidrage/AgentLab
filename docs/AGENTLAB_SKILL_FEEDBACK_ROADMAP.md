@@ -32,12 +32,15 @@ This document separates current scaffold behavior from production AgentOps behav
 - `agent_runtime/external_skill_importer.py` implements `fetch_skill_markdown_from_url`, `parse_skill_frontmatter`, `build_external_skill_request`, and `import_skill_from_url`.
 - `config/external_skill_import_policy.yml` controls allowlist, network access, byte limits, and snapshot settings.
 - External URLs must be in the allowlist; network access is off by default.
-- Primary smoke URL: `https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md` (`agentskills-io`).
+- Primary smoke URL: `https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md` (`skill-creator`).
 - Import always creates `pending_user_approval` requests; zero external code execution.
 - Source snapshots are saved under `projects/<Project>/skill_requests/<request_id>/source_snapshot/SKILL.md`.
-- `tests/fixtures/external_skills/agentskills-io/SKILL.md` provides a no-network fixture.
+- `tests/fixtures/external_skills/skill-creator/SKILL.md` provides a no-network fixture.
 - `tests/test_external_skill_importer.py` covers no-network fixture tests.
-- `tests/test_external_skill_importer_live.py` provides an optional live smoke test using `agentskills-io`, gated by `AGENTLAB_RUN_EXTERNAL_SKILL_LIVE_TEST=1`.
+- `tests/test_external_skill_importer_live.py` provides an optional live smoke test using `skill-creator`, gated by `AGENTLAB_RUN_EXTERNAL_SKILL_LIVE_TEST=1`.
+- Fallback URL candidates (documented only; AgentLab does not automatically fetch fallback URLs):
+  - `https://raw.githubusercontent.com/openclaw/skills/main/skills/bowen31337/create-agent-skills/SKILL.md`
+  - `https://raw.githubusercontent.com/openclaw/skills/main/skills/gitgoodordietrying/skill-writer/SKILL.md`
 - Imported external skills enter the normal lifecycle: request → approve → stage → fake validate → active.
 - Active imported skills can be retrieved and injected into matching tasks, writing task usage and active skill ledgers.
 
