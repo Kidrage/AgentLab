@@ -356,6 +356,7 @@ AgentLab exposes a thin optional MCP-style stdio tool server for external agents
 - `config/mcp_policy.yml` gates task creation, decision approval, skill approval, and stop-task operations.
 - Tools include task status/events/report, decision approve/reject/resume, skill request/approval, active skill usage, webhook status, and watchdog scan.
 - Recommended OpenClaw transport is direct CLI or MCP stdio; do not expose MCP over public HTTP without a separate authenticated gateway.
+- Cline local STDIO setup uses `scripts/agentlab_mcp_stdio.sh`; see `docs/CLINE_MCP_SETUP.md` and `examples/cline/`.
 
 Smoke: `python -m agent_runtime.mcp_server --list-tools`
 
@@ -371,10 +372,13 @@ Guide: `docs/MCP_INTEGRATION.md`
 - ✅ watchdog scan MVP
 - ✅ webhook dispatcher MVP
 - ✅ MCP-style tool server MVP
+- ✅ Cline local STDIO MCP wrapper and config examples
 
 ### Not Yet Implemented
 
 - ❌ chat-native OpenClaw/Hermes/Telegram adapter
+- ❌ Cline Marketplace packaging
+- ❌ remote HTTP/SSE hosted MCP
 - ❌ full production MCP SDK certification
 - ❌ long-running daemon hardening
 - ❌ real GitHub skill discovery

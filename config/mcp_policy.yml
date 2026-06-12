@@ -1,7 +1,21 @@
 schema_version: 1
-enabled: false
+enabled: true
 
-allow_task_creation: true
-allow_decision_approval: true
-allow_skill_approval: true
-allow_stop_task: true
+profiles:
+  readonly:
+    allow_task_creation: false
+    allow_decision_approval: false
+    allow_skill_approval: false
+    allow_stop_task: false
+  local_cline_safe:
+    allow_task_creation: true
+    allow_decision_approval: true
+    allow_skill_approval: true
+    allow_stop_task: false
+  full_local_trusted:
+    allow_task_creation: true
+    allow_decision_approval: true
+    allow_skill_approval: true
+    allow_stop_task: true
+
+default_profile: local_cline_safe

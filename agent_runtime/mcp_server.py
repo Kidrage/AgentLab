@@ -28,6 +28,9 @@ from skill_evolution import (
 )
 from task_events import load_task_events
 
+PROTOCOL_VERSION = "2025-06-18"
+SERVER_VERSION = "0.1.0"
+
 
 def _default_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -36,10 +39,18 @@ def _default_root() -> Path:
 def load_policy(agentlab_root: Path) -> dict[str, Any]:
     policy = safe_read_yaml(agentlab_root / "config" / "mcp_policy.yml", default={}) or {}
     policy.setdefault("enabled", False)
+    profiles = policy.get("profiles") or {}
+    default_profile = policy.get("default_profile")
+    if default_profile and default_profile in profiles:
+        merged = dict(profiles[default_profile] or {})
+        for key, value in policy.items():
+            if key not in {"profiles", "default_profile"} and key not in merged:
+                merged[key] = value
+        policy = merged
     policy.setdefault("allow_task_creation", True)
     policy.setdefault("allow_decision_approval", True)
     policy.setdefault("allow_skill_approval", True)
-    policy.setdefault("allow_stop_task", True)
+    policy.setdefault("allow_stop_task", False)
     return policy
 
 
@@ -96,10 +107,31 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "agentlab_watchdog_scan": _schema(["project"], {"project": {"type": "string"}, "task_id": {"type": "string"}}),
 }
 
+TOOL_DESCRIPTIONS: dict[str, str] = {
+    "agentlab_create_task": "State-changing. Use this to create a new AgentLab task only when the user explicitly asks to start tracked work. Requires project, task_id, and request_text. Creates local task files and returns structured JSON with command output and task identifiers.",
+    "agentlab_get_task_status": "Read-only. Use this to inspect the current lifecycle status, feedback state, and pending action summary for an AgentLab task. Requires project and task_id. Returns structured JSON with status, stage, latest event, cost ledger, and pending decisions.",
+    "agentlab_get_task_events": "Read-only. Use this to review the timeline of recorded AgentLab task events. Requires project and task_id. Returns structured JSON containing the task event list.",
+    "agentlab_get_task_report": "Read-only. Use this to fetch a bounded AgentLab task report for inspection. Requires project and task_id, with optional report filename. Returns structured JSON with existence, report name, and report content.",
+    "agentlab_list_decisions": "Read-only. Use this to list pending AgentLab decision cards before asking the user what to do. Requires project and task_id. Returns structured JSON with pending decision card details.",
+    "agentlab_approve_decision": "State-changing. Use this only after the user explicitly approves a pending AgentLab decision card. Requires project, task_id, decision_id, and option. Records the user decision and returns the recommended next action.",
+    "agentlab_reject_decision": "State-changing. Use this only after the user explicitly rejects or stops a pending AgentLab decision card. Requires project, task_id, decision_id, and optional option. Records the rejection and returns structured JSON with the selected option.",
+    "agentlab_resume_task": "State-changing. Use this only after the user explicitly wants a paused or approved AgentLab task to resume. Requires project and task_id. Updates local task control state and returns the control result.",
+    "agentlab_pause_task": "State-changing. Use this only after the user explicitly asks to pause an AgentLab task. Requires project and task_id. Updates local task control state and returns the control result.",
+    "agentlab_stop_task": "State-changing. Use this only after the user explicitly asks to stop an AgentLab task. Requires project and task_id. Updates local task control state when policy allows stop actions and returns the control result.",
+    "agentlab_list_skill_requests": "Read-only. Use this to inspect pending or historical AgentLab skill adoption requests. Requires project, with optional status filter. Returns structured JSON with matching skill requests.",
+    "agentlab_request_skill_learning": "State-changing. Use this only when the user asks AgentLab to learn or track a reusable skill. Requires project, skill_name, source, purpose, and optional source_type. Creates a local skill adoption request and returns its id and status.",
+    "agentlab_approve_skill_request": "State-changing. Use this only after the user explicitly approves a pending AgentLab skill request. Requires project and request_id. Updates local skill lifecycle state and returns the request status.",
+    "agentlab_reject_skill_request": "State-changing. Use this only after the user explicitly rejects a pending AgentLab skill request. Requires project, request_id, and optional reason. Updates local skill lifecycle state and returns the request status.",
+    "agentlab_list_active_skills": "Read-only. Use this to inspect currently active AgentLab skills available for retrieval and injection. Requires no input, with optional project accepted for clients that pass one. Returns structured JSON with active skill registry entries.",
+    "agentlab_get_skill_usage": "Read-only. Use this to inspect usage history for one active AgentLab skill. Requires skill_id, with optional project accepted for clients that pass one. Returns structured JSON with the skill usage ledger.",
+    "agentlab_webhook_status": "Read-only. Use this to inspect local webhook delivery status for AgentLab feedback events. Requires project and optional task_id. Returns structured JSON with delivery log metadata and entries.",
+    "agentlab_watchdog_scan": "State-changing. Use this only when the user explicitly asks to scan AgentLab tasks for stale or blocked state. Requires project and optional task_id. May update feedback status or decision cards and returns scan results.",
+}
+
 
 def list_tools() -> list[dict[str, Any]]:
     return [
-        {"name": name, "description": name.replace("agentlab_", "AgentLab ").replace("_", " "), "inputSchema": schema}
+        {"name": name, "description": TOOL_DESCRIPTIONS[name], "inputSchema": schema}
         for name, schema in TOOL_SCHEMAS.items()
     ]
 
@@ -275,6 +307,18 @@ def call_tool(name: str, arguments: dict[str, Any], *, agentlab_root: Path | Non
     return HANDLERS[name](root, dict(arguments or {}))
 
 
+def mcp_tool_call_result(name: str, arguments: dict[str, Any], *, agentlab_root: Path | None = None) -> dict[str, Any]:
+    try:
+        result = call_tool(name, arguments, agentlab_root=agentlab_root)
+        is_error = bool(isinstance(result, dict) and result.get("ok") is False and result.get("error"))
+        text = json.dumps(result, ensure_ascii=False, default=str)
+        if is_error:
+            text = str(result.get("error") or text)
+        return {"content": [{"type": "text", "text": text}], "isError": is_error}
+    except Exception as exc:
+        return {"content": [{"type": "text", "text": str(exc)}], "isError": True}
+
+
 def list_resources() -> list[dict[str, str]]:
     return [
         {"uri": "agentlab://tasks/<project>/<task_id>/status", "name": "Task status"},
@@ -303,27 +347,41 @@ def read_resource(uri: str, *, agentlab_root: Path | None = None) -> dict[str, A
 def serve_stdio(agentlab_root: Path | None = None) -> None:
     root = agentlab_root or _default_root()
     for line in sys.stdin:
+        request: dict[str, Any] | None = None
         if not line.strip():
             continue
         try:
             request = json.loads(line)
             method = request.get("method")
+            request_id = request.get("id")
+            if request_id is None:
+                if method in {"notifications/initialized", "initialized"}:
+                    continue
             if method == "initialize":
-                result = {"serverInfo": {"name": "agentlab", "version": "mvp"}, "capabilities": {"tools": {}, "resources": {}}}
+                requested_version = (request.get("params") or {}).get("protocolVersion")
+                result = {
+                    "protocolVersion": requested_version or PROTOCOL_VERSION,
+                    "capabilities": {"tools": {}, "resources": {}},
+                    "serverInfo": {"name": "agentlab", "version": SERVER_VERSION},
+                }
             elif method == "tools/list":
                 result = {"tools": list_tools()}
             elif method == "tools/call":
                 params = request.get("params", {})
-                result = call_tool(params.get("name", ""), params.get("arguments", {}), agentlab_root=root)
+                result = mcp_tool_call_result(params.get("name", ""), params.get("arguments", {}), agentlab_root=root)
             elif method == "resources/list":
                 result = {"resources": list_resources()}
             elif method == "resources/read":
                 result = read_resource((request.get("params") or {}).get("uri", ""), agentlab_root=root)
             else:
-                raise ValueError(f"Unsupported method: {method}")
+                response = {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32601, "message": "Method not found"}}
+                print(json.dumps(response, ensure_ascii=False), flush=True)
+                continue
             response = {"jsonrpc": "2.0", "id": request.get("id"), "result": result}
+        except json.JSONDecodeError as exc:
+            response = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": f"Parse error: {exc.msg}"}}
         except Exception as exc:
-            response = {"jsonrpc": "2.0", "id": request.get("id") if "request" in locals() else None, "error": {"code": -32000, "message": str(exc)}}
+            response = {"jsonrpc": "2.0", "id": request.get("id") if request else None, "error": {"code": -32000, "message": str(exc)}}
         print(json.dumps(response, ensure_ascii=False), flush=True)
 
 

@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "agentlab": {
+      "command": "wsl",
+      "args": [
+        "bash",
+        "/home/<user>/AgentLab/scripts/agentlab_mcp_stdio.sh"
+      ],
+      "env": {
+        "AGENTLAB_ROOT": "/home/<user>/AgentLab"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "agentlab_get_task_status",
+        "agentlab_get_task_events",
+        "agentlab_get_task_report",
+        "agentlab_list_decisions",
+        "agentlab_list_active_skills",
+        "agentlab_get_skill_usage",
+        "agentlab_webhook_status"
+      ]
+    }
+  }
+}

@@ -12,6 +12,9 @@ For local OpenClaw integration, the recommended transport is stdio or a local
 process invocation. Do not expose MCP over public HTTP unless a separate
 authenticated gateway exists.
 
+For Cline, use the local STDIO wrapper and manual config examples documented in
+`docs/CLINE_MCP_SETUP.md`.
+
 ## MCP vs Webhook
 
 Webhook is push: AgentLab notifies a chat gateway when action is required.
@@ -26,14 +29,23 @@ OpenClaw can either:
 
 ## Policy
 
-`config/mcp_policy.yml`:
+`config/mcp_policy.yml` supports safety profiles:
 
 ```yaml
-enabled: false
-allow_task_creation: true
-allow_decision_approval: true
-allow_skill_approval: true
-allow_stop_task: true
+schema_version: 1
+enabled: true
+default_profile: local_cline_safe
+profiles:
+  readonly:
+    allow_task_creation: false
+    allow_decision_approval: false
+    allow_skill_approval: false
+    allow_stop_task: false
+  local_cline_safe:
+    allow_task_creation: true
+    allow_decision_approval: true
+    allow_skill_approval: true
+    allow_stop_task: false
 ```
 
 High-impact actions should continue to use existing decision and skill approval
@@ -91,11 +103,22 @@ Start:
 python -m agent_runtime.mcp_server --serve
 ```
 
+Cline wrapper:
+
+```bash
+scripts/agentlab_mcp_stdio.sh
+```
+
 Example request line:
 
 ```json
 {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
 ```
+
+Example Cline config files:
+
+- `examples/cline/mcp_agentlab_stdio.macos-linux.json`
+- `examples/cline/mcp_agentlab_stdio.wsl.json`
 
 Example Claude Desktop-style local config:
 
@@ -113,11 +136,42 @@ Example Claude Desktop-style local config:
 
 ## Security Notes
 
-- Keep `enabled: false` unless you intentionally enable local tool access.
+- Enable MCP only for trusted local STDIO clients and keep it off any public
+  HTTP/SSE surface.
 - Do not pass local secrets through tool arguments.
 - Recommended transport for local OpenClaw integration: stdio or local process.
 - Do not expose MCP over public HTTP unless a separate authenticated gateway exists.
+- For Cline `autoApprove`, use read-only tools only:
+  `agentlab_get_task_status`, `agentlab_get_task_events`,
+  `agentlab_get_task_report`, `agentlab_list_decisions`,
+  `agentlab_list_active_skills`, `agentlab_get_skill_usage`, and
+  `agentlab_webhook_status`.
+- Do not auto-approve state-changing tools such as task creation, decision
+  approval/rejection, task control, skill request/approval, or watchdog scans.
 - Stop-task, skill approval, and decision approval are controlled by
   `config/mcp_policy.yml`.
 - Tools return structured JSON and avoid exposing raw filesystem paths except
   for local smoke metadata where existing runtime APIs already produce them.
+
+## Cline Compatibility Status
+
+Implemented:
+
+- local STDIO MCP-style server
+- Cline manual config examples
+- wrapper script
+- read-only autoApprove recommendation
+- compatibility tests
+
+Not implemented:
+
+- Cline Marketplace packaging
+- remote HTTP/SSE hosted MCP
+- production MCP SDK certification
+- public AgentLab MCP gateway
+
+Future work:
+
+- Validate with official MCP Inspector.
+- Optionally migrate to official MCP Python SDK / FastMCP if Cline compatibility issues appear.
+- Add Marketplace packaging metadata after stable release.

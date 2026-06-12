@@ -106,3 +106,7 @@ mapping without executing the CLI.
 - Use localhost or private Docker network for AgentLab feedback.
 - Use OpenClaw as the only public user-facing service.
 - Prefer CLI/MCP stdio over public HTTP for local same-host integration.
+
+For Cline local STDIO MCP setup, see `docs/CLINE_MCP_SETUP.md` and the
+copyable examples under `examples/cline/`. This does not add a remote HTTP/SSE
+MCP server or any public AgentLab MCP gateway.
