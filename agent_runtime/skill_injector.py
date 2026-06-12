@@ -12,6 +12,97 @@ from skill_retriever import load_skill_injection_policy, match_active_skills
 from skill_usage import record_skill_usage
 
 
+def _existing_skill_approval_cards(run_dir: Path) -> set[str]:
+    from atomic_io import safe_read_yaml
+
+    decision_dir = run_dir / "decision_cards"
+    if not decision_dir.exists():
+        return set()
+    skill_ids: set[str] = set()
+    for path in sorted(decision_dir.glob("*.yml")):
+        card = safe_read_yaml(path, default={}) or {}
+        if not isinstance(card, dict):
+            continue
+        if card.get("type") != "SKILL_INJECTION_APPROVAL":
+            continue
+        if card.get("status") not in {"pending", "pending_user_approval", "waiting_for_approval"}:
+            continue
+        skill_id = card.get("skill", {}).get("skill_id") or card.get("payload", {}).get("skill_id")
+        if skill_id:
+            skill_ids.add(str(skill_id))
+    return skill_ids
+
+
+def _create_high_risk_skill_approval_cards(
+    run_dir: Path,
+    *,
+    task_id: str,
+    rejected: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    high_risk = [
+        item for item in rejected
+        if item.get("approval_type") == "SKILL_INJECTION_APPROVAL"
+        or (
+            str(item.get("risk_level", "")).lower() == "high"
+            and "requires approval" in str(item.get("reason", "")).lower()
+        )
+    ]
+    if not high_risk:
+        return []
+
+    from atomic_io import atomic_write_yaml
+    from feedback_manager import create_decision_card
+    from task_events import append_task_event
+
+    existing = _existing_skill_approval_cards(run_dir)
+    created: list[dict[str, Any]] = []
+    for skill in high_risk:
+        skill_id = str(skill.get("skill_id", "")).strip()
+        if not skill_id or skill_id in existing:
+            continue
+        skill_name = skill.get("name") or skill_id
+        card, path = create_decision_card(
+            run_dir,
+            task_id=task_id,
+            card_type="SKILL_INJECTION_APPROVAL",
+            title="High-risk skill requires approval",
+            reason=f"Skill '{skill_name}' requires user approval before injection.",
+            stage="skill_injection",
+            options=[
+                {"id": "approve_inject", "label": "Approve injection", "risk": "medium"},
+                {"id": "reject_inject", "label": "Reject injection", "risk": "low"},
+            ],
+            recommended_action="approve_inject",
+            risk="high",
+        )
+        card["skill"] = {
+            "skill_id": skill_id,
+            "name": skill_name,
+            "risk_level": skill.get("risk_level", "high"),
+            "reason": skill.get("reason", ""),
+            "skill_path": skill.get("skill_path"),
+        }
+        atomic_write_yaml(path, card)
+        append_task_event(
+            run_dir,
+            "SKILL_APPROVAL_REQUIRED",
+            stage="skill_injection",
+            status="WAITING_FOR_APPROVAL",
+            severity="ACTION_REQUIRED",
+            message=f"High-risk skill '{skill_name}' requires approval before injection.",
+            payload={
+                "decision_id": card.get("id"),
+                "decision_card": str(path),
+                "skill_id": skill_id,
+                "skill_name": skill_name,
+                "risk_level": skill.get("risk_level", "high"),
+            },
+        )
+        existing.add(skill_id)
+        created.append(card)
+    return created
+
+
 def build_skill_plan(
     agentlab_root: Path,
     *,
@@ -26,6 +117,11 @@ def build_skill_plan(
     matches = match_active_skills(agentlab_root, task_text=task_text, policy=policy)
     selected = matches.get("selected", [])
     rejected = matches.get("rejected", [])
+    approval_cards = _create_high_risk_skill_approval_cards(
+        run_dir,
+        task_id=task_id,
+        rejected=rejected,
+    )
     usage_paths = {}
     if record_usage and policy.get("usage", {}).get("write_task_usage", True):
         usage_paths = record_skill_usage(
@@ -39,6 +135,15 @@ def build_skill_plan(
     return {
         "selected": selected,
         "rejected": rejected,
+        "approval_cards": [
+            {
+                "id": card.get("id"),
+                "type": card.get("type"),
+                "status": card.get("status"),
+                "skill_id": card.get("skill", {}).get("skill_id"),
+            }
+            for card in approval_cards
+        ],
         "usage": usage_paths,
         "policy": {
             "source": "config/skill_injection_policy.yml",

@@ -67,7 +67,7 @@ def normalize_active_skill(agentlab_root: Path, skill_dir: Path) -> dict[str, An
     summary = metadata.get("summary") or metadata.get("purpose") or ""
     risk = metadata.get("risk_level") or metadata.get("risk", {}).get("permission_level") or "medium"
     permissions = metadata.get("permissions") or metadata.get("risk") or {}
-    triggers = metadata.get("triggers") or []
+    triggers = metadata.get("triggers") or metadata.get("trigger_keywords") or metadata.get("trigger") or []
     applies_to = metadata.get("applies_to") or metadata.get("expected_benefit", {}).get("applies_to") or []
     if isinstance(triggers, str):
         triggers = [triggers]
@@ -169,6 +169,13 @@ def match_active_skills(
                 "skill_id": skill["skill_id"],
                 "name": skill["name"],
                 "reason": "high-risk skill requires approval before injection",
+                "load_tokens": skill.get("load_tokens", 0),
+                "expected_saving_tokens": skill.get("expected_saving_tokens", 0),
+                "risk_level": skill.get("risk_level", "high"),
+                "confidence": skill.get("confidence", 0.0),
+                "skill_path": skill.get("skill_path"),
+                "requires_approval": True,
+                "approval_type": "SKILL_INJECTION_APPROVAL",
             })
             continue
         candidates.append((score, skill, reasons))

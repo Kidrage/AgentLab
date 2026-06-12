@@ -103,32 +103,23 @@ def test_high_risk_skill_injection_creates_decision_card(tmp_path: Path) -> None
         record_usage=True,
     )
 
-    selected = plan.get("selected", [])
-    high_risk_selected = [s for s in selected if s.get("risk_level") == "high"]
-    if high_risk_selected:
-        # Now call inject_skills_into_workflow_plan to trigger the full path
-        from skill_injector import inject_skills_into_workflow_plan
-        plan_path = run_dir / "workflow_plan.yml"
+    assert not plan.get("selected", []), "High-risk skill must not be selected before approval"
+    assert any(
+        item.get("skill_id") == "high_risk_demo"
+        and item.get("approval_type") == "SKILL_INJECTION_APPROVAL"
+        for item in plan.get("rejected", [])
+    ), "High-risk skill should be rejected with approval metadata"
 
-        result = inject_skills_into_workflow_plan(
-            root,
-            plan_path,
-            project="AgentLab",
-            task_id="task_test",
-            task_text=task_text,
-            record_usage=True,
-        )
-        # After injection, decision cards should have been created for high-risk
-        decision_dir = run_dir / "decision_cards"
-        card_files = list(decision_dir.glob("*.yml")) if decision_dir.exists() else []
-        high_risk_cards = []
-        for cf in card_files:
-            card = yaml.safe_load(cf.read_text(encoding="utf-8")) or {}
-            if "skill" in str(card.get("type", "")).lower() or "SKILL" in str(card.get("type", "")):
-                high_risk_cards.append(card)
-        # At minimum: no crash; verify workflow_plan reflects the skill
-        assert result is not None
-        assert "selected" in result or "skills" in str(plan_path.read_text(encoding="utf-8"))
+    decision_dir = run_dir / "decision_cards"
+    card_files = list(decision_dir.glob("*.yml")) if decision_dir.exists() else []
+    assert card_files, "High-risk injection must create a decision card"
+    high_risk_cards = [yaml.safe_load(cf.read_text(encoding="utf-8")) or {} for cf in card_files]
+    assert any(
+        card.get("type") == "SKILL_INJECTION_APPROVAL"
+        and card.get("skill", {}).get("skill_id") == "high_risk_demo"
+        for card in high_risk_cards
+    ), high_risk_cards
+    assert "SKILL_APPROVAL_REQUIRED" in (run_dir / "task_events.jsonl").read_text(encoding="utf-8")
 
 
 def test_low_risk_skill_no_decision_card(tmp_path: Path) -> None:
@@ -165,25 +156,49 @@ def test_webhook_dispatched_for_high_risk_skill_if_enabled(tmp_path: Path) -> No
     # Enable webhooks in policy
     webhook_policy = {
         "schema_version": 1,
-        "enabled": False,  # test that disabled does not crash
-        "endpoints": [],
+        "enabled": True,
+        "endpoints": [
+            {
+                "name": "mock",
+                "url_env": "AGENTLAB_HIGH_RISK_WEBHOOK_URL",
+                "events": ["ACTION_REQUIRED"],
+            }
+        ],
+        "retry": {"max_attempts": 1, "backoff_seconds": 0},
+        "security": {"sign_payload": False, "redact_secrets": True},
     }
     config_dir = root / "config"
     (config_dir / "webhook_policy.yml").write_text(yaml.safe_dump(webhook_policy), encoding="utf-8")
 
+    import webhook_dispatcher
+
+    calls = []
+    original_post_json = webhook_dispatcher.post_json
+    webhook_dispatcher.post_json = lambda url, payload, headers, timeout=10: (
+        calls.append({"url": url, "payload": payload, "headers": headers}) or (200, "ok")
+    )
+    import os
+
+    os.environ["AGENTLAB_HIGH_RISK_WEBHOOK_URL"] = "http://mock.test/hook"
     from skill_injector import inject_skills_into_workflow_plan
 
     task_text = "We need to deploy production changes immediately."
     plan_path = run_dir / "workflow_plan.yml"
 
-    result = inject_skills_into_workflow_plan(
-        root,
-        plan_path,
-        project="AgentLab",
-        task_id="task_test",
-        task_text=task_text,
-        record_usage=True,
-    )
+    try:
+        result = inject_skills_into_workflow_plan(
+            root,
+            plan_path,
+            project="AgentLab",
+            task_id="task_test",
+            task_text=task_text,
+            record_usage=True,
+        )
+    finally:
+        webhook_dispatcher.post_json = original_post_json
+        os.environ.pop("AGENTLAB_HIGH_RISK_WEBHOOK_URL", None)
 
-    # With webhook disabled, should complete without crash
     assert result is not None
+    assert calls, "High-risk approval card creation must dispatch ACTION_REQUIRED webhook"
+    assert calls[0]["payload"]["event"] == "ACTION_REQUIRED"
+    assert calls[0]["payload"]["decision_card"]["id"]

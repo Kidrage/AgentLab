@@ -4,7 +4,6 @@ Run with:
     AGENTLAB_RUN_EXTERNAL_SKILL_LIVE_TEST=1 \\
     python -m pytest -q tests/test_external_skill_importer_live.py
 
-Uses the fixture SKILL.md as a stand-in since the real URL may be unavailable.
 Validates the full lifecycle: import → approve → stage → validate → promote →
 task creation → skill retrieval/injection → usage ledger.
 """
@@ -21,8 +20,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
-FIXTURE_PATH = ROOT / "tests" / "fixtures" / "external_skills" / "agentskills-io" / "SKILL.md"
-LIVE_URL = "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md"
+LIVE_URL = "https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md"
 
 pytestmark = pytest.mark.skipif(
     os.getenv("AGENTLAB_RUN_EXTERNAL_SKILL_LIVE_TEST") != "1",
@@ -59,10 +57,29 @@ def _write_configs(root: Path) -> None:
     (root / "config" / "webhook_policy.yml").write_text(
         yaml.safe_dump({"schema_version": 1, "enabled": False, "endpoints": []}), encoding="utf-8"
     )
+    (root / "config" / "external_skill_import_policy.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "enabled": True,
+                "allow_network_by_default": False,
+                "allowed_hosts": ["raw.githubusercontent.com"],
+                "allowed_url_prefixes": [LIVE_URL],
+                "max_bytes": 200000,
+                "timeout_seconds": 20,
+                "store_source_snapshot": True,
+                "execute_external_code": False,
+                "default_status": "pending_user_approval",
+                "default_risk_level": "low",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
-    """Full lifecycle: fixture import → approve → stage → validate → promote
+    """Full lifecycle: URL import → approve → stage → validate → promote
     → task → retrieval/injection → usage ledger."""
     import cost_tracker
 
@@ -77,17 +94,15 @@ def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
         validate_staged_skill,
         promote_skill,
     )
-    from external_skill_importer import import_skill_from_fixture
+    from external_skill_importer import import_skill_from_url
 
     project = "AgentLab"
 
-    # Step 1: Import from fixture
+    # Step 1: Import from the actual allowlisted URL.
     ensure_skill_registry(tmp_path)
-    result = import_skill_from_fixture(
-        tmp_path, project=project, fixture_path=FIXTURE_PATH, source_url=LIVE_URL,
-    )
+    result = import_skill_from_url(tmp_path, project=project, url=LIVE_URL, allow_network=True)
     assert result["ok"], f"Import failed: {result.get('error')}"
-    assert result["skill_name"] == "agentskills-io"
+    assert result["skill_name"] == "printkk-print-on-demand"
     assert result["status"] == "pending_user_approval"
     request_id = result["request_id"]
 
@@ -118,7 +133,7 @@ def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
     # Step 6-7: Task retrieval/injection
     run_dir = tmp_path / "projects" / project / "runs" / "task_live"
     run_dir.mkdir(parents=True)
-    task_text = "validate an Agent Skills SKILL.md package for agent composability"
+    task_text = "build a PrintKK print on demand product design and order automation"
     (run_dir / "user_request.md").write_text(task_text, encoding="utf-8")
     (run_dir / "workflow_plan.yml").write_text(
         yaml.safe_dump({"route": {"agents": ["Supervisor", "Coder"]}}), encoding="utf-8"
@@ -128,7 +143,7 @@ def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
     policy = load_skill_injection_policy(tmp_path)
     matches = match_active_skills(tmp_path, task_text=task_text, policy=policy)
     assert len(matches["selected"]) > 0, "No skill matched task goal"
-    assert matches["selected"][0]["name"] == "agentskills-io"
+    assert matches["selected"][0]["name"] == "printkk-print-on-demand"
 
     # Step 8-9: skill injection → skill_usage.yml
     from skill_injector import inject_skills_into_workflow_plan
