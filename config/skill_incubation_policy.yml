@@ -1,0 +1,23 @@
+skill_incubation:
+  enabled: true
+  budget:
+    max_incubation_cost_usd_per_task: 0.03
+    max_incubation_tokens_per_task: 12000
+    max_candidates_per_task: 3
+  triggers:
+    min_successful_uses: 2
+    min_quality_score: 0.75
+    trigger_on_external_dependency_risk: true
+    trigger_on_high_reuse_potential: true
+  allowed_outputs:
+    - skill_summary
+    - internal_skill_candidate
+    - checklist
+    - adapter_notes
+    - risk_notes
+  forbidden_outputs:
+    - copied_external_source_code
+    - copied_incompatible_license_text
+    - secrets
+    - private_tokens
+  review_required: true

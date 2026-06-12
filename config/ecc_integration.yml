@@ -1,0 +1,22 @@
+ecc:
+  enabled: false
+  mode: inventory_only
+  local_paths:
+    - "${ECC_HOME}"
+    - "./external/everything-claude-code"
+    - "./external/ECC"
+  scan:
+    allow_markdown_scan: true
+    allow_json_yaml_scan: true
+    max_files: 200
+    max_file_kb: 256
+  import_policy:
+    default_enabled: false
+    require_manual_enable: true
+    max_imported_skills: 80
+    allow_commands: false
+    allow_hooks: false
+    allow_mcp_servers: false
+  risk_defaults:
+    level: medium
+    requires_approval: true

@@ -27,6 +27,9 @@ from skill_evolution import (
     write_skill_adoption_request,
 )
 from task_events import load_task_events
+from skills.incubation import load_incubation_policy, propose_internal_skill_candidates
+from skills.registry import load_skill_registry as load_external_skill_registry
+from skills.usage_ledger import load_skill_usage_ledger
 
 PROTOCOL_VERSION = "2025-06-18"
 SERVER_VERSION = "0.1.0"
@@ -105,6 +108,9 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "agentlab_get_skill_usage": _schema(["skill_id"], {"skill_id": {"type": "string"}, "project": {"type": "string"}}),
     "agentlab_webhook_status": _schema(["project"], {"project": {"type": "string"}, "task_id": {"type": "string"}}),
     "agentlab_watchdog_scan": _schema(["project"], {"project": {"type": "string"}, "task_id": {"type": "string"}}),
+    "agentlab_list_external_skills": _schema([], {"source": {"type": "string"}, "enabled_only": {"type": "boolean", "default": False}}),
+    "agentlab_get_skill_registry": _schema([], {}),
+    "agentlab_get_skill_incubation_candidates": _schema([], {"task_id": {"type": "string"}}),
 }
 
 TOOL_DESCRIPTIONS: dict[str, str] = {
@@ -126,6 +132,9 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
     "agentlab_get_skill_usage": "Read-only. Use this to inspect usage history for one active AgentLab skill. Requires skill_id, with optional project accepted for clients that pass one. Returns structured JSON with the skill usage ledger.",
     "agentlab_webhook_status": "Read-only. Use this to inspect local webhook delivery status for AgentLab feedback events. Requires project and optional task_id. Returns structured JSON with delivery log metadata and entries.",
     "agentlab_watchdog_scan": "State-changing. Use this only when the user explicitly asks to scan AgentLab tasks for stale or blocked state. Requires project and optional task_id. May update feedback status or decision cards and returns scan results.",
+    "agentlab_list_external_skills": "Read-only. Lists metadata for registered external skills. Does not enable, dispatch, or execute any external skill.",
+    "agentlab_get_skill_registry": "Read-only. Returns the external skill registry metadata. Does not mutate registry state or execute external providers.",
+    "agentlab_get_skill_incubation_candidates": "Read-only. Returns existing internal_skill_candidates.yml if present, or computes in-memory candidates from registry and an optional skill_usage_ledger.yml without writing files.",
 }
 
 
@@ -278,6 +287,44 @@ def _tool_watchdog_scan(agentlab_root: Path, args: dict[str, Any]) -> dict[str, 
     return scan_project(agentlab_root, args["project"], task_id=args.get("task_id"))
 
 
+def _redact_registry_paths(registry: dict[str, Any]) -> dict[str, Any]:
+    redacted = json.loads(json.dumps(registry, default=str))
+    for skill in redacted.get("external_skills", []) or []:
+        for key in ("source_path", "local_path"):
+            if key in skill and skill[key]:
+                skill[key] = Path(str(skill[key])).name
+    return redacted
+
+
+def _tool_list_external_skills(agentlab_root: Path, args: dict[str, Any]) -> dict[str, Any]:
+    registry = load_external_skill_registry(agentlab_root)
+    skills = registry.get("external_skills", []) or []
+    source = args.get("source")
+    if source:
+        skills = [skill for skill in skills if skill.get("source") == source]
+    if args.get("enabled_only", False):
+        skills = [skill for skill in skills if skill.get("enabled") is True]
+    return {"skills": skills, "count": len(skills), "readonly": True}
+
+
+def _tool_get_skill_registry(agentlab_root: Path, args: dict[str, Any]) -> dict[str, Any]:
+    return {"registry": _redact_registry_paths(load_external_skill_registry(agentlab_root)), "readonly": True}
+
+
+def _tool_get_skill_incubation_candidates(agentlab_root: Path, args: dict[str, Any]) -> dict[str, Any]:
+    existing = agentlab_root / "internal_skill_candidates.yml"
+    if existing.exists():
+        return {"candidates": safe_read_yaml(existing, default={"candidates": []}), "readonly": True, "source": "file"}
+    usage_path = agentlab_root / "skill_usage_ledger.yml"
+    if args.get("task_id"):
+        usage_path = agentlab_root / "projects" / "AgentLab" / "runs" / str(args["task_id"]) / "skill_usage_ledger.yml"
+    registry = load_external_skill_registry(agentlab_root)
+    usage = load_skill_usage_ledger(usage_path)
+    policy = load_incubation_policy(agentlab_root)
+    candidates = [candidate.to_dict() for candidate in propose_internal_skill_candidates(registry, usage, policy)]
+    return {"candidates": candidates, "readonly": True, "source": "computed_in_memory"}
+
+
 HANDLERS: dict[str, Callable[[Path, dict[str, Any]], dict[str, Any]]] = {
     "agentlab_create_task": _tool_create_task,
     "agentlab_get_task_status": _tool_get_task_status,
@@ -297,6 +344,9 @@ HANDLERS: dict[str, Callable[[Path, dict[str, Any]], dict[str, Any]]] = {
     "agentlab_get_skill_usage": _tool_get_skill_usage,
     "agentlab_webhook_status": _tool_webhook_status,
     "agentlab_watchdog_scan": _tool_watchdog_scan,
+    "agentlab_list_external_skills": _tool_list_external_skills,
+    "agentlab_get_skill_registry": _tool_get_skill_registry,
+    "agentlab_get_skill_incubation_candidates": _tool_get_skill_incubation_candidates,
 }
 
 

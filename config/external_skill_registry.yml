@@ -1,0 +1,39 @@
+schema_version: 1
+external_skills:
+  - skill_id: ecc.planner
+    source: ecc
+    source_type: external_agent_pack
+    display_name: ECC Planner
+    integration_mode: inventory_only
+    enabled: false
+    capabilities:
+      - planning
+      - task_decomposition
+      - repo_strategy
+    suitable_task_types:
+      - repo_patch
+      - architecture_review
+      - implementation_plan
+    risk:
+      level: medium
+      reasons:
+        - external_prompt_dependency
+        - unknown_runtime_behavior
+      requires_approval: true
+    license:
+      name: unknown
+      source_url: null
+      compatible_for_internal_distillation: review_required
+      license_review_required: true
+    cost:
+      billing_mode: external_harness
+      token_visibility: unknown
+      expected_cost_tier: unknown
+    fallback:
+      internal_skill: null
+      api_model_fallback: qwen3.6-plus
+    notes:
+      - Imported from ECC inventory.
+metadata:
+  owner: AgentLab
+  notes: External skills are disabled by default and inventory-only unless explicitly enabled by policy.
