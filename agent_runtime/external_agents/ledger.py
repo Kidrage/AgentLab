@@ -1,11 +1,20 @@
+from __future__ import annotations
+
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from datetime import datetime
 
 
 class ExternalAgentLedger:
-    """Tracks external agent interactions and verification status"""
+    """Tracks external agent interactions and verification status.
+
+    Key P1-B rules:
+    - add_handoff writes an entry with status=proposed.
+    - update_result_status sets the handoff status to "submitted" and records
+      evidence_status separately.  It does NOT auto-promote the
+      artifact_gate_status — a human or supervisor must approve the gate.
+    """
 
     def __init__(self, task_id: str, output_dir: Optional[str] = None):
         self.task_id = task_id
@@ -13,61 +22,63 @@ class ExternalAgentLedger:
         self.ledger_path = Path(self.output_dir) / "external_agent_ledger.yml"
         self.ledger_data = self._load_ledger()
 
-    def _load_ledger(self) -> Dict[str, Any]:
-        """Load existing ledger or create new one"""
+    def _load_ledger(self) -> dict[str, Any]:
+        """Load existing ledger or create new one."""
         if self.ledger_path.exists():
-            with open(self.ledger_path, 'r') as f:
+            with open(self.ledger_path, "r") as f:
                 loaded = yaml.safe_load(f)
                 if loaded and isinstance(loaded, dict):
                     return loaded
-        # Create fresh ledger
         ledger = {
             "task_id": self.task_id,
             "handoffs": [],
             "created_at": datetime.now().isoformat(),
         }
-        # Save immediately so the file exists on disk
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.ledger_path, 'w') as f:
+        with open(self.ledger_path, "w") as f:
             yaml.safe_dump(ledger, f, sort_keys=False)
         return ledger
 
-    def add_handoff(self, handoff_data: Dict[str, Any]) -> None:
-        """Add a new handoff to the ledger"""
+    def add_handoff(self, handoff_data: dict[str, Any]) -> None:
+        """Add a new handoff to the ledger."""
         handoff_entry = {
             "handoff_id": handoff_data["handoff_id"],
             "agent_id": handoff_data["target"]["agent_id"],
-            "status": handoff_data["target"]["status"],
+            "status": handoff_data["target"]["status"],  # "proposed"
             "billing_mode": handoff_data["budget"]["billing_mode"],
             "token_visibility": handoff_data["budget"]["external_token_visibility"],
             "api_cost_visible": handoff_data["budget"]["api_cost_visible"],
             "evidence_status": "missing",
-            "artifact_gate_status": "pending",
+            "artifact_gate_status": "pending",  # never auto-passed
             "created_at": datetime.now().isoformat(),
             "skill_usage_events": [],
         }
         self.ledger_data["handoffs"].append(handoff_entry)
         self._save_ledger()
 
-    def update_result_status(self, result_data: Dict[str, Any]) -> None:
-        """Update ledger when a result is submitted"""
+    def update_result_status(self, result_data: dict[str, Any]) -> None:
+        """Update ledger when a result is submitted.
+
+        Sets status → "submitted" (NOT "completed"/"accepted").
+        Records evidence_status separately from artifact_gate_status.
+        """
         handoff_id = result_data.get("handoff_id", "")
-        result_status = result_data.get("status", "completed")
         evidence_status = result_data.get("evidence_status", "missing")
 
         for handoff in self.ledger_data["handoffs"]:
             if handoff["handoff_id"] == handoff_id:
-                handoff["status"] = result_status
+                # Status becomes "submitted" — gate must be approved separately
+                handoff["status"] = "submitted"
                 handoff["evidence_status"] = evidence_status
-                handoff["artifact_gate_status"] = (
-                    "passed" if evidence_status == "complete" else "failed"
-                )
+                # artifact_gate_status stays "pending" until explicit approval
                 handoff["updated_at"] = datetime.now().isoformat()
                 break
         self._save_ledger()
 
-    def add_skill_usage(self, handoff_id: str, skill_data: Dict[str, Any]) -> None:
-        """Add skill usage event to the ledger"""
+    def add_skill_usage(
+        self, handoff_id: str, skill_data: dict[str, Any]
+    ) -> None:
+        """Add skill usage event to the ledger."""
         for handoff in self.ledger_data["handoffs"]:
             if handoff["handoff_id"] == handoff_id:
                 skill_event = {
@@ -89,11 +100,11 @@ class ExternalAgentLedger:
                 break
 
     def _save_ledger(self) -> None:
-        """Save ledger data to disk"""
+        """Save ledger data to disk."""
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.ledger_path, 'w') as f:
+        with open(self.ledger_path, "w") as f:
             yaml.safe_dump(self.ledger_data, f, sort_keys=False)
 
-    def get_ledger(self) -> Dict[str, Any]:
-        """Return current ledger data"""
+    def get_ledger(self) -> dict[str, Any]:
+        """Return current ledger data."""
         return self.ledger_data

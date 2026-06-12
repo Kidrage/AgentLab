@@ -97,9 +97,9 @@ class TestExternalAgentLedger(unittest.TestCase):
         ledger_data = self.ledger.get_ledger()
         handoff_entry = ledger_data["handoffs"][0]
 
-        self.assertEqual(handoff_entry["status"], "completed")
+        self.assertEqual(handoff_entry["status"], "submitted")
         self.assertEqual(handoff_entry["evidence_status"], "complete")
-        self.assertEqual(handoff_entry["artifact_gate_status"], "passed")
+        self.assertEqual(handoff_entry["artifact_gate_status"], "pending")
 
     def test_skill_usage_planned(self):
         """Test recording planned skill usage in the ledger"""

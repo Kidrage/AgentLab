@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import yaml
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
+
 from agent_runtime.external_agents.registry import registry as agent_registry
 
 class ExternalHandoff:
@@ -12,7 +15,7 @@ class ExternalHandoff:
         self.output_dir = output_dir or f"projects/AgentLab/runs/{task_id}"
         self.handoff_id = f"handoff_{datetime.now().strftime('%Y%m%d_%H%M%S%f')}"
         
-    def create_handoff(self, agent_id: str, title: str, summary: str) -> Dict[str, Any]:
+    def create_handoff(self, agent_id: str, title: str, summary: str) -> dict[str, Any]:
         """Create a new handoff artifact with validation"""
         agent = agent_registry.get_agent(agent_id)
         if not agent:
@@ -35,34 +38,49 @@ class ExternalHandoff:
                 "title": title,
                 "summary": summary
             },
-            "constraints": [],
-            "required_outputs": [],
+            "constraints": [
+                "no auto execution — user must explicitly approve this handoff",
+                "no secret or credential sharing",
+                "no full clone without separate user approval",
+                "return verifiable evidence (changed files, commands run, artifacts)",
+            ],
+            "required_outputs": [
+                "implementation_summary",
+                "changed_files",
+                "tests_run",
+                "evidence_artifacts",
+                "residual_risks",
+            ],
             "budget": {
-                "billing_mode": agent['billing']['mode'],
-                "api_cost_visible": agent['billing']['api_cost_visible'],
-                "external_token_visibility": "unknown"
+                "billing_mode": agent["billing"]["mode"],
+                "api_cost_visible": agent["billing"]["api_cost_visible"],
+                "external_token_visibility": "unknown",
             },
-            "evidence_requirements": []
+            "evidence_requirements": [
+                "commands_run — list of executed commands with exit codes",
+                "artifacts — paths to output files produced",
+                "changed_files — list of modified/new files with diff summary",
+            ],
         }
         
         self._save_artifacts(handoff_data)
         return handoff_data
-        
-    def _save_artifacts(self, handoff_data: Dict[str, Any]) -> None:
-        """Save YAML and markdown artifacts"""
+
+    def _save_artifacts(self, handoff_data: dict[str, Any]) -> None:
+        """Save YAML and markdown artifacts."""
         output_path = Path(self.output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Save YAML
-        with open(output_path / "external_handoff.yml", 'w') as f:
+        with open(output_path / "external_handoff.yml", "w") as f:
             yaml.safe_dump(handoff_data, f, sort_keys=False)
-            
+
         # Generate and save markdown
         md_content = self._generate_markdown(handoff_data)
-        with open(output_path / "external_handoff.md", 'w') as f:
+        with open(output_path / "external_handoff.md", "w") as f:
             f.write(md_content)
-            
-    def _generate_markdown(self, handoff_data: Dict[str, Any]) -> str:
+
+    def _generate_markdown(self, handoff_data: dict[str, Any]) -> str:
         """Generate markdown template for external agents"""
         md = f"# External Agent Handoff - {handoff_data['handoff_id']}\n\n"
         md += f"**Task ID:** {handoff_data['task_id']}\n"
