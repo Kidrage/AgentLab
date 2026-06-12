@@ -1,0 +1,47 @@
+external_agents:
+  - agent_id: cline_codex
+    display_name: Cline with Codex Subscription
+    type: ide_agent
+    enabled: false
+    integration_mode: handoff_only
+    capabilities:
+      - repo_edit
+      - code_review
+      - terminal_assisted_validation
+      - large_context_reasoning
+    billing:
+      mode: subscription_quota
+      api_cost_visible: false
+      token_visibility: unknown
+    risk:
+      level: medium
+      requires_user_trigger: true
+      requires_result_evidence: true
+    allowed_task_types:
+      - repo_patch
+      - repo_build_test
+      - architecture_review
+
+  - agent_id: ecc_pack
+    display_name: Everything Claude Code / ECC Skill Pack
+    type: external_agent_pack
+    enabled: false
+    integration_mode: handoff_only
+    capabilities:
+      - planning
+      - code_review
+      - security_review
+      - harness_optimization
+    billing:
+      mode: external_harness
+      api_cost_visible: false
+      token_visibility: unknown
+    risk:
+      level: high
+      requires_user_trigger: true
+      requires_skill_approval: true
+      requires_result_evidence: true
+    allowed_task_types:
+      - repo_patch
+      - security_review
+      - implementation_plan

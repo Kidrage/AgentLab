@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 import json
 
-from atomic_io import atomic_write_text
+from agent_runtime.atomic_io import atomic_write_text
 
 
 TASK_STATUSES = {

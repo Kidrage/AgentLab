@@ -15,7 +15,7 @@ def assert_file_allowed(file_path: str) -> bool:
     path = Path(file_path)
     
     # Allow only files within the project directory
-    project_dir = Path(__file__).parent.parent
+    project_dir = Path(__file__).parent.parent.parent
     try:
         path.relative_to(project_dir)
         return True
@@ -27,7 +27,7 @@ def get_allowed_paths():
     from pathlib import Path
     return {
         "cwd": str(Path.cwd()),
-        "project_dir": str(Path(__file__).parent.parent),
+        "project_dir": str(Path(__file__).parent.parent.parent),
         "allowed_patterns": [
             "projects/AgentLab/**",
             "config/**",
