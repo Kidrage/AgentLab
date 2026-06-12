@@ -149,8 +149,8 @@ def test_low_risk_skill_no_decision_card(tmp_path: Path) -> None:
     assert result is not None
 
 
-def test_webhook_dispatched_for_high_risk_skill_if_enabled(tmp_path: Path) -> None:
-    """If webhook is enabled, high-risk skill injection should dispatch ACTION_REQUIRED."""
+def test_high_risk_injection_real_path_creates_card_event_and_webhook(tmp_path: Path) -> None:
+    """Real high-risk injection path creates approval card, task event, and webhook."""
     root, run_dir = _setup_skill_env(tmp_path, risk_level="high")
 
     # Enable webhooks in policy
@@ -186,7 +186,7 @@ def test_webhook_dispatched_for_high_risk_skill_if_enabled(tmp_path: Path) -> No
     plan_path = run_dir / "workflow_plan.yml"
 
     try:
-        result = inject_skills_into_workflow_plan(
+        plan = inject_skills_into_workflow_plan(
             root,
             plan_path,
             project="AgentLab",
@@ -198,7 +198,20 @@ def test_webhook_dispatched_for_high_risk_skill_if_enabled(tmp_path: Path) -> No
         webhook_dispatcher.post_json = original_post_json
         os.environ.pop("AGENTLAB_HIGH_RISK_WEBHOOK_URL", None)
 
-    assert result is not None
+    assert not plan["selected"]
+    assert any(r["approval_type"] == "SKILL_INJECTION_APPROVAL" for r in plan["rejected"])
+
+    decision_dir = run_dir / "decision_cards"
+    card_files = list(decision_dir.glob("*.yml")) if decision_dir.exists() else []
+    assert card_files, "High-risk injection must create a decision card"
+    decision_card = yaml.safe_load(card_files[0].read_text(encoding="utf-8")) or {}
+    assert decision_card["type"] == "SKILL_INJECTION_APPROVAL"
+    assert decision_card["skill"]["skill_id"] == "high_risk_demo"
+
+    task_events_text = (run_dir / "task_events.jsonl").read_text(encoding="utf-8")
+    assert "SKILL_APPROVAL_REQUIRED" in task_events_text
+
     assert calls, "High-risk approval card creation must dispatch ACTION_REQUIRED webhook"
-    assert calls[0]["payload"]["event"] == "ACTION_REQUIRED"
-    assert calls[0]["payload"]["decision_card"]["id"]
+    webhook_payload = calls[0]["payload"]
+    assert webhook_payload["event"] == "ACTION_REQUIRED"
+    assert webhook_payload["decision_card"]["id"]

@@ -422,6 +422,7 @@ def import_skill_from_fixture(
 
     markdown_text = fixture_path.read_text(encoding="utf-8")
     markdown_sha256 = hashlib.sha256(markdown_text.encode("utf-8")).hexdigest()
+    policy = load_import_policy(agentlab_root)
 
     fm = parse_skill_frontmatter(markdown_text)
     if not fm.get("ok"):
@@ -445,6 +446,21 @@ def import_skill_from_fixture(
             "markdown_sha256": markdown_sha256,
         }
 
+    request_id = request["id"]
+    snapshot_path = None
+    if policy.get("store_source_snapshot", True):
+        snapshot_dir = (
+            agentlab_root
+            / "projects"
+            / project
+            / "skill_requests"
+            / request_id
+            / "source_snapshot"
+        )
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        snapshot_path = snapshot_dir / "SKILL.md"
+        snapshot_path.write_text(markdown_text, encoding="utf-8")
+
     from skill_evolution import write_skill_adoption_request
 
     write_skill_adoption_request(agentlab_root, request)
@@ -460,6 +476,7 @@ def import_skill_from_fixture(
         "markdown_sha256": markdown_sha256,
         "input_tokens_estimate": request["input_tokens_estimate"],
         "risk_level": "low",
-        "request_id": request["id"],
+        "request_id": request_id,
         "status": "pending_user_approval",
+        "snapshot_path": str(snapshot_path) if snapshot_path else None,
     }

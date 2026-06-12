@@ -51,7 +51,7 @@ def test_strip_removes_both_styles():
 
 def test_real_task_0032_archivist_output():
     agentlab_root = Path(__file__).resolve().parents[1]
-    content = (agentlab_root / "projects/AgentLab/runs/task_0032_self_audit/blocked_Archivist.md").read_text()
+    content = (agentlab_root / "tests/fixtures/html_archivist/blocked_Archivist.md").read_text()
     blocks = parse_edit_blocks(content)
     assert len(blocks) >= 1, f"Expected at least 1 HTML block, got {len(blocks)}"
     html_blocks = [b for b in blocks if "html_block_content" in b]

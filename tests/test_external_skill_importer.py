@@ -156,6 +156,10 @@ def test_source_snapshot_saved(tmp_path: Path) -> None:
         source_url="https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md",
     )
     assert result["ok"]
+    snapshot_path = Path(result["snapshot_path"])
+    assert snapshot_path.exists()
+    assert snapshot_path.name == "SKILL.md"
+    assert "agentskills-io" in snapshot_path.read_text(encoding="utf-8")
 
     # The request was written by import_skill_from_fixture via write_skill_adoption_request.
     # Verify the request yml exists using the request_id from the result.

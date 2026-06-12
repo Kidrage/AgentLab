@@ -30,6 +30,9 @@ decoded_outputs/
 outputs/
 artifacts/
 logs/
+*.wav
+*.aiff
+*.flac
 
 # === Project memories — local only, never tracked ===
 # Structure: keep projects/ directory but ignore all content
@@ -48,6 +51,11 @@ projects/*
 **/*.bak/
 
 # Runtime artifacts
+projects/*/runs/*/task_events.jsonl
+projects/*/runs/*/decision_cards/
+projects/*/runs/*/feedback_status.json
+projects/*/runs/*/webhook_delivery_log.yml
+projects/*/skill_requests/*/source_snapshot/
 task_index.yml
 watchdog_status.json
 progress.yml

@@ -34,8 +34,10 @@ def _existing_skill_approval_cards(run_dir: Path) -> set[str]:
 
 
 def _create_high_risk_skill_approval_cards(
+    agentlab_root: Path,
     run_dir: Path,
     *,
+    project: str,
     task_id: str,
     rejected: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -98,6 +100,34 @@ def _create_high_risk_skill_approval_cards(
                 "risk_level": skill.get("risk_level", "high"),
             },
         )
+        try:
+            from webhook_dispatcher import dispatch_event
+
+            dispatch_event(
+                agentlab_root,
+                event="ACTION_REQUIRED",
+                project=project,
+                task_id=task_id,
+                stage="skill_injection",
+                severity="ACTION_REQUIRED",
+                summary=f"High-risk skill '{skill_name}' requires approval before injection.",
+                reason=skill.get("reason", ""),
+                decision_card=card,
+            )
+        except Exception as exc:
+            try:
+                from webhook_dispatcher import record_webhook_failure
+
+                record_webhook_failure(
+                    agentlab_root,
+                    event="ACTION_REQUIRED",
+                    project=project,
+                    task_id=task_id,
+                    error=str(exc),
+                    context={"skill_id": skill_id, "decision_id": card.get("id")},
+                )
+            except Exception:
+                pass
         existing.add(skill_id)
         created.append(card)
     return created
@@ -118,7 +148,9 @@ def build_skill_plan(
     selected = matches.get("selected", [])
     rejected = matches.get("rejected", [])
     approval_cards = _create_high_risk_skill_approval_cards(
+        agentlab_root,
         run_dir,
+        project=project,
         task_id=task_id,
         rejected=rejected,
     )

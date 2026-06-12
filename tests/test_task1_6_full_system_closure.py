@@ -482,7 +482,7 @@ def test_high_risk_skill_approval_strong_assertions(tmp_path: Path) -> None:
         s.get("skill_id") == skill_id for s in matches.get("selected", []) + matches.get("rejected", [])
     ), "High-risk skill should appear in matches"
 
-    # === Assertion 2: NOT injected into workflow plan before approval ===
+    # === Assertion 2-4: real injection path blocks high-risk skill and creates card/event ===
     from skill_injector import inject_skills_into_workflow_plan
     plan_path = run_dir / "workflow_plan.yml"
     result = inject_skills_into_workflow_plan(
@@ -497,35 +497,22 @@ def test_high_risk_skill_approval_strong_assertions(tmp_path: Path) -> None:
         "High-risk skill was injected into workflow plan before approval! "
         "It should be blocked by high_risk_requires_approval policy."
     )
-
-    # === Assertion 3-4: create SKILL_INJECTION_APPROVAL decision card + SKILL_APPROVAL_REQUIRED event ===
-    from feedback_manager import create_decision_card
-    from task_events import append_task_event
-
-    card, _ = create_decision_card(
-        run_dir, task_id="task_high_risk",
-        card_type="SKILL_INJECTION_APPROVAL",
-        title="High-risk skill requires approval",
-        reason="Skill 'high-risk-deploy' requires user approval before injection.",
-        options=[
-            {"id": "approve_inject", "label": "Approve injection", "risk": "medium"},
-            {"id": "reject_inject", "label": "Reject injection", "risk": "low"},
-        ],
-        recommended_action="approve_inject",
-        risk="high",
+    assert not result["selected"]
+    assert any(
+        item.get("skill_id") == skill_id
+        and item.get("approval_type") == "SKILL_INJECTION_APPROVAL"
+        for item in result["rejected"]
     )
+
+    from feedback_manager import load_pending_decision_cards
+
+    pending_cards = load_pending_decision_cards(run_dir)
+    assert pending_cards, "skill_injector must create the high-risk decision card"
+    card = pending_cards[0]
     assert card.get("type") == "SKILL_INJECTION_APPROVAL", (
         f"Decision card type must be SKILL_INJECTION_APPROVAL, got {card.get('type')}"
     )
-
-    # Append SKILL_APPROVAL_REQUIRED event
-    append_task_event(
-        run_dir, "SKILL_APPROVAL_REQUIRED",
-        stage="skill_injection", status="WAITING_FOR_APPROVAL",
-        severity="ACTION_REQUIRED",
-        message="High-risk skill 'high-risk-deploy' requires approval before injection.",
-        payload={"skill_id": skill_id, "skill_name": "high-risk-deploy", "risk_level": "high"},
-    )
+    assert card.get("skill", {}).get("skill_id") == skill_id
 
     # Verify task_events.jsonl contains SKILL_APPROVAL_REQUIRED
     events_path = run_dir / "task_events.jsonl"
@@ -552,28 +539,7 @@ def test_high_risk_skill_approval_strong_assertions(tmp_path: Path) -> None:
         s.get("skill_id") == skill_id for s in matches_after.get("selected", [])
     ), "After approval, high-risk skill should match as selected"
 
-    # === Assertion 6: reject/skip → no injection ===
-    # Create a second decision card and reject it
-    card2, _ = create_decision_card(
-        run_dir, task_id="task_high_risk",
-        card_type="SKILL_INJECTION_APPROVAL",
-        title="Second high-risk skill requires approval",
-        reason="Second skill requires user approval",
-        options=[
-            {"id": "approve_inject", "label": "Approve", "risk": "medium"},
-            {"id": "reject_inject", "label": "Reject", "risk": "low"},
-        ],
-        risk="high",
-    )
-    resolve_decision_card(
-        run_dir, card2["id"], option_id="reject_inject", resolution="rejected", actor="user"
-    )
-    # Verifying rejection was recorded
-    from feedback_manager import load_decision_card
-    card2_loaded, _ = load_decision_card(run_dir, card2["id"])
-    assert card2_loaded["status"] == "rejected"
-
-    # === Assertion 7: webhook dispatches ACTION_REQUIRED if enabled ===
+    # === Assertion 6-7: webhook dispatches ACTION_REQUIRED from the real injection path ===
     webhook_calls_2 = []
     def fake_post_2(url, payload, headers, timeout=10):
         webhook_calls_2.append(payload)
@@ -600,13 +566,24 @@ def test_high_risk_skill_approval_strong_assertions(tmp_path: Path) -> None:
     import webhook_dispatcher as wd2
     wd2_orig = wd2.post_json
     wd2.post_json = fake_post_2
+    webhook_run_dir = tmp_path / "projects" / "AgentLab" / "runs" / "task_high_risk_webhook"
+    webhook_run_dir.mkdir(parents=True)
+    webhook_plan = webhook_run_dir / "workflow_plan.yml"
+    webhook_plan.write_text(
+        yaml.safe_dump({"route": {"agents": ["Supervisor", "Coder"]}}), encoding="utf-8"
+    )
     try:
-        wd2.dispatch_event(
-            tmp_path, event="ACTION_REQUIRED", project="AgentLab", task_id="task_high_risk",
-            summary="Webhook test for high-risk", reason="Testing",
-            decision_card={"id": card["id"], "options": card.get("options", [])},
+        webhook_result = inject_skills_into_workflow_plan(
+            tmp_path,
+            webhook_plan,
+            project="AgentLab",
+            task_id="task_high_risk_webhook",
+            task_text=task_text,
+            record_usage=True,
         )
+        assert not webhook_result["selected"]
         assert len(webhook_calls_2) >= 1, "Webhook should dispatch ACTION_REQUIRED"
+        assert webhook_calls_2[0]["event"] == "ACTION_REQUIRED"
     finally:
         wd2.post_json = wd2_orig
         _os.environ.pop("AGENTLAB_TEST_WEBHOOK_URL_2", None)
