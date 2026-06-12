@@ -13,6 +13,9 @@ external_agents:
       mode: subscription_quota
       api_cost_visible: false
       token_visibility: unknown
+      notes:
+        - "ChatGPT/Codex subscription usage is not API-billable from AgentLab."
+        - "AgentLab records handoff/result evidence only."
     risk:
       level: medium
       requires_user_trigger: true
@@ -36,6 +39,9 @@ external_agents:
       mode: external_harness
       api_cost_visible: false
       token_visibility: unknown
+      notes:
+        - "ECC is treated as an external skill/agent pack."
+        - "AgentLab does not auto-run ECC hooks, commands, or MCP servers."
     risk:
       level: high
       requires_user_trigger: true
