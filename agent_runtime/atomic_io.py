@@ -32,14 +32,16 @@ def atomic_write_yaml(path, data, sort_keys=False, allow_unicode=True):
         if temp_path.exists():
             os.unlink(temp_path)
 
-def atomic_write_json(path, data):
+def atomic_write_json(path, data, **json_kwargs):
     """Write JSON data to a file atomically."""
     path_obj = Path(str(path))
     path_obj.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path_obj.with_suffix(path_obj.suffix + '.tmp')
     try:
         with open(temp_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            kwargs = {"indent": 2, "ensure_ascii": False}
+            kwargs.update(json_kwargs)
+            json.dump(data, f, **kwargs)
         temp_path.replace(path_obj)
     finally:
         if temp_path.exists():
@@ -60,26 +62,28 @@ def atomic_read_json(path):
     with open(str(path), 'r', encoding='utf-8') as f:
         return json.load(f)
 
-def safe_read_yaml(path):
-    """Safely read YAML file, returning empty dict on failure."""
+def safe_read_yaml(path, default=None):
+    """Safely read YAML file, returning default on failure."""
     try:
-        return atomic_read_yaml(path) or {}
+        data = atomic_read_yaml(path)
+        return data if data is not None else default
     except Exception:
-        return {}
+        return default
 
-def safe_read_json(path):
-    """Safely read JSON file, returning empty dict on failure."""
+def safe_read_json(path, default=None):
+    """Safely read JSON file, returning default on failure."""
     try:
-        return atomic_read_json(path) or {}
+        data = atomic_read_json(path)
+        return data if data is not None else default
     except Exception:
-        return {}
+        return default
 
-def safe_read_text(path, encoding="utf-8"):
-    """Safely read text file, returning empty string on failure."""
+def safe_read_text(path, default="", encoding="utf-8"):
+    """Safely read text file, returning default on failure."""
     try:
         return atomic_read_text(path, encoding)
     except Exception:
-        return ""
+        return default
 
 def with_atomic_write(mode='w'):
     """Decorator for atomic write operations."""

@@ -25,21 +25,48 @@ def is_inside_work_tree(cwd: Path) -> bool:
     return rc == 0
 
 
+def parse_porcelain_z(output: str) -> list[str]:
+    """Parse ``git status --porcelain=v1 -z`` paths.
+
+    The NUL form is the only safe status format for filenames with spaces,
+    quotes, or punctuation. For rename/copy entries, return the destination
+    path because that is the path Git should stage for the resulting commit.
+    """
+    if "\0" not in output:
+        files: list[str] = []
+        for line in output.splitlines():
+            if not line:
+                continue
+            if len(line) >= 4:
+                files.append(line[3:].strip())
+        return [item for item in files if item]
+
+    files = []
+    entries = output.split("\0")
+    index = 0
+    while index < len(entries):
+        entry = entries[index]
+        index += 1
+        if not entry:
+            continue
+        if len(entry) < 4:
+            continue
+        status = entry[:2]
+        path = entry[3:]
+        if status[0] in {"R", "C"} or status[1] in {"R", "C"}:
+            if index < len(entries) and entries[index]:
+                path = entries[index]
+                index += 1
+        if path:
+            files.append(path)
+    return files
+
+
 def get_changed_files(cwd: Path) -> list[str]:
-    rc, stdout, _ = run_git(["status", "--porcelain"], cwd)
+    rc, stdout, _ = run_git(["status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd)
     if rc != 0:
         return []
-    files = []
-    for line in stdout.strip().split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split()
-        if len(parts) >= 2:
-            files.append(parts[1])
-        elif parts:
-            files.append(parts[0])
-    return files
+    return parse_porcelain_z(stdout)
 
 
 def stage_files(cwd: Path, files: list[str]) -> bool:

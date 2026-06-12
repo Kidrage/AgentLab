@@ -1,66 +1,122 @@
+"""Task state storage for AgentLab CLI."""
+
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
-from agent_runtime.atomic_io import atomic_read_yaml, atomic_write_yaml
+from typing import Any, Optional
+import json
+
+import yaml
+
+try:
+    from atomic_io import atomic_write_yaml
+except ImportError:  # pragma: no cover
+    from agent_runtime.atomic_io import atomic_write_yaml
+
+from schemas import TaskState
+
 
 def utc_now() -> str:
-    """Return current UTC time as ISO format string."""
     return datetime.now(timezone.utc).isoformat()
 
-def load_state(run_dir: Path) -> dict:
-    """Load task state from disk."""
-    path = run_dir / "task_state.yml"
-    if not path.exists():
-        return {}
-    return atomic_read_yaml(str(path)) or {}
 
-def save_state(run_dir: Path, state: dict) -> None:
-    """Save task state to disk."""
-    path = run_dir / "task_state.yml"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_yaml(str(path), state)
+def state_path(run_dir: Path) -> Path:
+    return run_dir / "state.yml"
+
+
+def load_state(run_dir: Path, project: str | None = None, task_id: str | None = None) -> TaskState:
+    path = state_path(run_dir)
+    if not path.exists():
+        return TaskState(project=project or "", task_id=task_id or run_dir.name)
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    data.setdefault("project", project or "")
+    data.setdefault("task_id", task_id or run_dir.name)
+    return TaskState(**data)
+
+
+def _state_to_dict(state: TaskState | dict[str, Any]) -> dict[str, Any]:
+    if isinstance(state, TaskState):
+        return state.model_dump(mode="json")
+    return dict(state)
+
+
+def save_state(run_dir: Path, state: TaskState | dict[str, Any]) -> Path:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    if isinstance(state, TaskState):
+        state.updated_at = utc_now()
+        project = state.project
+        task_id = state.task_id
+    else:
+        state["updated_at"] = utc_now()
+        project = state.get("project")
+        task_id = state.get("task_id")
+    path = state_path(run_dir)
+    atomic_write_yaml(path, _state_to_dict(state))
+    try:
+        from task_snapshot import safe_write_task_snapshot
+        safe_write_task_snapshot(run_dir, project, task_id)
+    except Exception:
+        pass
+    return path
+
+
+def mark_planned(run_dir: Path, project: str, task_id: str) -> TaskState:
+    state = load_state(run_dir, project, task_id)
+    state.status = "planned"
+    state.last_event = "Workflow plan prepared."
+    save_state(run_dir, state)
+    return state
+
+
+def mark_agent_completed(run_dir: Path, project: str, task_id: str, agent_name: str, report_path: Path) -> TaskState:
+    state = load_state(run_dir, project, task_id)
+    if agent_name not in state.completed_agents:
+        state.completed_agents.append(agent_name)
+    state.current_agent = None
+    state.status = "running"
+    state.reports[agent_name] = str(report_path)
+    state.last_event = f"{agent_name} completed report."
+    save_state(run_dir, state)
+    return state
+
+
+def mark_failed_recoverable(run_dir: Path, project: str, task_id: str, reason: str, failed_agent: str | None = None) -> TaskState:
+    state = load_state(run_dir, project, task_id)
+    state.status = "failed_recoverable"
+    if failed_agent:
+        state.current_agent = failed_agent
+    state.last_event = reason
+    save_state(run_dir, state)
+    return state
+
 
 class TaskEvents:
     """Manage task event recording."""
-    
+
     def __init__(self, task_id: str, run_dir: Optional[Path] = None):
         self.task_id = task_id
-        if run_dir:
-            self.run_dir = run_dir
-        else:
-            self.run_dir = Path(f"projects/AgentLab/runs/{task_id}")
-    
+        self.run_dir = run_dir or Path(f"projects/AgentLab/runs/{task_id}")
+
     def record_event(self, event_data: dict) -> None:
-        """Record a task event."""
         self.run_dir.mkdir(parents=True, exist_ok=True)
         events_path = self.run_dir / "task_events.jsonl"
-        
         event = {"timestamp": utc_now(), **event_data}
-        import json
-        line = json.dumps(event, ensure_ascii=False, sort_keys=True)
-        
-        existing = ""
-        if events_path.exists():
-            existing = events_path.read_text(encoding="utf-8")
-        
-        events_path.write_text(existing + line + "\n", encoding="utf-8")
-    
-    def get_task_events(self, task_id: str) -> list:
-        """Get events for a task."""
+        with events_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+
+    def get_task_events(self, task_id: str | None = None) -> list:
         events_path = self.run_dir / "task_events.jsonl"
         if not events_path.exists():
             return []
-        
-        import json
         events = []
         for line in events_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
             try:
-                events.append(json.loads(line))
+                event = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if task_id is None or event.get("task_id") == task_id or task_id == self.task_id:
+                events.append(event)
         return events
-
-# Alias for backward compatibility
-TaskState = dict

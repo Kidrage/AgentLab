@@ -5,7 +5,7 @@ from typing import Any
 
 import yaml
 
-from config.policies import assert_path_allowed
+from policies import assert_path_allowed
 
 
 CONFIG_FILES = {

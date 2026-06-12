@@ -16,6 +16,7 @@ from pathlib import Path
 import yaml
 
 from atomic_io import safe_read_yaml
+from git_utils import parse_porcelain_z
 
 
 def utc_now() -> str:
@@ -63,19 +64,10 @@ def run_self_check(
     })
 
     # ── 2. Changed file scan ───────────────────────────────────────────
-    rc, stdout, _ = _run(["git", "status", "--porcelain"], agentlab_root)
+    rc, stdout, _ = _run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], agentlab_root)
     changed_files: list[str] = []
     if rc == 0:
-        for line in stdout.strip().split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-            # XY filename — extract filename (skip index/worktree status)
-            parts = line.split()
-            if len(parts) >= 2:
-                changed_files.append(parts[1])
-            elif parts:
-                changed_files.append(parts[0])
+        changed_files = parse_porcelain_z(stdout)
 
     # Blocked patterns check
     blocked = policy.get("path_policy", {}).get("blocked_patterns", [])
