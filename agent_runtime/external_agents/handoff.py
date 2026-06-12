@@ -3,8 +3,6 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from agent_runtime.external_agents.registry import registry as agent_registry
-from agent_runtime.task_events import TaskEvents
-from agent_runtime.task_index import TaskIndex
 
 class ExternalHandoff:
     """Manages creation and validation of external handoff artifacts"""
@@ -12,7 +10,7 @@ class ExternalHandoff:
     def __init__(self, task_id: str, output_dir: Optional[str] = None):
         self.task_id = task_id
         self.output_dir = output_dir or f"projects/AgentLab/runs/{task_id}"
-        self.handoff_id = f"handoff_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.handoff_id = f"handoff_{datetime.now().strftime('%Y%m%d_%H%M%S%f')}"
         
     def create_handoff(self, agent_id: str, title: str, summary: str) -> Dict[str, Any]:
         """Create a new handoff artifact with validation"""
@@ -20,10 +18,7 @@ class ExternalHandoff:
         if not agent:
             raise ValueError(f"Agent {agent_id} not found in registry")
             
-        if not agent['enabled']:
-            status = "proposed"
-        else:
-            status = "proposed"  # Default status, no execution
+        status = "proposed"
             
         handoff_data = {
             "handoff_id": self.handoff_id,
@@ -51,7 +46,6 @@ class ExternalHandoff:
         }
         
         self._save_artifacts(handoff_data)
-        self._record_ledger_event(handoff_data)
         return handoff_data
         
     def _save_artifacts(self, handoff_data: Dict[str, Any]) -> None:
@@ -100,16 +94,3 @@ class ExternalHandoff:
         md += f"- Token Visibility: {budget['external_token_visibility']}\n"
         
         return md
-        
-    def _record_ledger_event(self, handoff_data: Dict[str, Any]) -> None:
-        """Record handoff creation in task events"""
-        event_data = {
-            "event_type": "external_handoff_created",
-            "handoff_id": self.handoff_id,
-            "agent_id": handoff_data['target']['agent_id'],
-            "status": handoff_data['target']['status'],
-            "billing_mode": handoff_data['budget']['billing_mode'],
-            "token_visibility": handoff_data['budget']['external_token_visibility']
-        }
-        
-        TaskEvents(self.task_id).record_event(event_data)

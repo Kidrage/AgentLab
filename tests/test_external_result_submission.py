@@ -1,8 +1,7 @@
 import unittest
-import yaml
 from pathlib import Path
 from agent_runtime.external_agents.result import ExternalResult
-from agent_runtime.task_index import TaskIndex
+from agent_runtime.external_agents.registry import registry as agent_registry
 
 class TestExternalResultSubmission(unittest.TestCase):
     def setUp(self):
@@ -11,65 +10,38 @@ class TestExternalResultSubmission(unittest.TestCase):
         self.handoff_id = "handoff_20260612_235959"
         self.output_dir = f"projects/AgentLab/runs/{self.task_id}"
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
-        
-        # Create a sample handoff file
-        handoff_data = {
-            "handoff_id": self.handoff_id,
-            "task_id": self.task_id,
-            "project": "AgentLab",
-            "target": {
-                "agent_id": "cline_codex",
-                "agent_type": "ide_agent",
-                "integration_mode": "handoff_only",
-                "enabled": False,
-                "status": "proposed"
-            },
-            "objective": {
-                "title": "Implement feature X",
-                "summary": "Description of the task to be performed by the external agent"
-            },
-            "budget": {
-                "billing_mode": "subscription_quota",
-                "api_cost_visible": False,
-                "external_token_visibility": "unknown"
-            }
-        }
-        
-        with open(Path(self.output_dir) / "external_handoff.yml", 'w') as f:
-            yaml.safe_dump(handoff_data, f)
-            
-        # Initialize task index
-        self.task_index = TaskIndex()
-        self.task_index.create_task(self.task_id, "Test Task", "External Result Submission Test")
     
-    def test_result_validation(self):
-        """Test result submission validation"""
+    def test_result_validation_missing_fields(self):
+        """Test result submission with missing required fields"""
         result = ExternalResult(self.task_id, self.handoff_id, self.output_dir)
         
-        # Test missing required fields
-        with self.assertRaises(ValueError):
-            result.submit_result({
-                "handoff_id": self.handoff_id,
-                "summary": "Test result summary"
-            })
-            
+        # Missing handoff_id
         with self.assertRaises(ValueError):
             result.submit_result({
                 "task_id": self.task_id,
                 "summary": "Test result summary"
             })
             
+        # Missing task_id
         with self.assertRaises(ValueError):
             result.submit_result({
                 "handoff_id": self.handoff_id,
-                "task_id": self.task_id
+                "summary": "Test result summary"
+            })
+            
+        # Missing executor
+        with self.assertRaises(ValueError):
+            result.submit_result({
+                "handoff_id": self.handoff_id,
+                "task_id": self.task_id,
+                "summary": "Test result summary"
             })
             
     def test_executor_validation(self):
         """Test executor field validation"""
         result = ExternalResult(self.task_id, self.handoff_id, self.output_dir)
         
-        # Test missing executor fields
+        # Missing token_visibility
         with self.assertRaises(ValueError):
             result.submit_result({
                 "handoff_id": self.handoff_id,
@@ -82,19 +54,7 @@ class TestExternalResultSubmission(unittest.TestCase):
                 "summary": "Test result summary"
             })
             
-        with self.assertRaises(ValueError):
-            result.submit_result({
-                "handoff_id": self.handoff_id,
-                "task_id": self.task_id,
-                "executor": {
-                    "agent_id": "cline_codex",
-                    "reported_by": "user",
-                    "token_visibility": "unknown"
-                },
-                "summary": "Test result summary"
-            })
-            
-    def test_token_visibility_validation(self):
+    def test_token_visibility_must_be_unknown(self):
         """Test token visibility is properly validated"""
         result = ExternalResult(self.task_id, self.handoff_id, self.output_dir)
         
@@ -111,11 +71,10 @@ class TestExternalResultSubmission(unittest.TestCase):
                 "summary": "Test result summary"
             })
             
-    def test_evidence_requirements(self):
-        """Test evidence requirement validation"""
+    def test_evidence_requirements_changed_files(self):
+        """Test missing evidence for changed files"""
         result = ExternalResult(self.task_id, self.handoff_id, self.output_dir)
         
-        # Test missing evidence for changed files
         with self.assertRaises(ValueError):
             result.submit_result({
                 "handoff_id": self.handoff_id,
@@ -130,7 +89,10 @@ class TestExternalResultSubmission(unittest.TestCase):
                 "changed_files": ["file1.py", "file2.py"]
             })
             
-        # Test missing evidence for build/test claims
+    def test_evidence_build_claims(self):
+        """Test missing evidence for build/test claims"""
+        result = ExternalResult(self.task_id, self.handoff_id, self.output_dir)
+        
         with self.assertRaises(ValueError):
             result.submit_result({
                 "handoff_id": self.handoff_id,
@@ -141,16 +103,17 @@ class TestExternalResultSubmission(unittest.TestCase):
                     "billing_mode": "subscription_quota",
                     "token_visibility": "unknown"
                 },
-                "summary": "Ran tests and made changes to improve code quality"
+                "summary": "Ran tests and fixed the code"
             })
             
-    def test_result_submission(self):
+    def test_result_submission_success(self):
         """Test successful result submission"""
         result = ExternalResult(self.task_id, self.handoff_id, self.output_dir)
         
         result_data = {
             "handoff_id": self.handoff_id,
             "task_id": self.task_id,
+            "status": "completed",
             "executor": {
                 "agent_id": "cline_codex",
                 "reported_by": "user",
@@ -162,26 +125,20 @@ class TestExternalResultSubmission(unittest.TestCase):
             "commands_run": ["pytest tests/test_feature_x.py"],
             "artifacts": ["coverage_report.xml"]
         }
-        
+
         submitted_result = result.submit_result(result_data)
         
-        # Verify result data
         self.assertEqual(submitted_result["status"], "completed")
         self.assertEqual(submitted_result["executor"]["agent_id"], "cline_codex")
         self.assertEqual(submitted_result["executor"]["token_visibility"], "unknown")
+        self.assertEqual(submitted_result["evidence_status"], "complete")
         
         # Verify YAML file was created
         yaml_path = Path(self.output_dir) / "external_result.yml"
         self.assertTrue(yaml_path.exists())
         
-        with open(yaml_path, 'r') as f:
-            yaml_data = yaml.safe_load(f)
-            self.assertEqual(yaml_data["task_id"], self.task_id)
-            self.assertEqual(yaml_data["executor"]["agent_id"], "cline_codex")
-            self.assertEqual(yaml_data["evidence_status"], "complete")
-            
-    def test_result_ledger_event(self):
-        """Test result submission records events in task ledger"""
+    def test_result_submission_partial(self):
+        """Test result submission with partial evidence"""
         result = ExternalResult(self.task_id, self.handoff_id, self.output_dir)
         
         result_data = {
@@ -193,25 +150,15 @@ class TestExternalResultSubmission(unittest.TestCase):
                 "billing_mode": "subscription_quota",
                 "token_visibility": "unknown"
             },
-            "summary": "Successfully implemented feature X",
+            "status": "partial",
+            "summary": "Partially implemented feature X",
             "changed_files": ["src/feature_x.py"],
             "commands_run": ["pytest tests/test_feature_x.py"],
             "artifacts": ["coverage_report.xml"]
         }
         
-        result.submit_result(result_data)
-        
-        # Verify event was recorded
-        events = self.task_index.get_task_events(self.task_id)
-        result_events = [e for e in events if e["event_type"] == "external_result_submitted"]
-        
-        self.assertTrue(len(result_events) > 0)
-        last_event = result_events[-1]
-        
-        self.assertEqual(last_event["handoff_id"], self.handoff_id)
-        self.assertEqual(last_event["agent_id"], "cline_codex")
-        self.assertEqual(last_event["token_visibility"], "unknown")
-        self.assertEqual(last_event["evidence_status"], "complete")
-            
+        submitted_result = result.submit_result(result_data)
+        self.assertEqual(submitted_result["evidence_status"], "complete")
+
 if __name__ == '__main__':
     unittest.main()

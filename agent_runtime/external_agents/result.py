@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from agent_runtime.external_agents.registry import registry as agent_registry
-from agent_runtime.task_events import TaskEvents
 
 class ExternalResult:
     """Handles submission and validation of external agent results"""
@@ -26,13 +25,11 @@ class ExternalResult:
         result_data.setdefault("status", "completed")
         
         # Validate evidence requirements
-        self._validate_evidence_requirements(result_data)
+        evidence_status = self._validate_evidence_requirements(result_data)
+        result_data["evidence_status"] = evidence_status
         
         # Save result artifact
         self._save_result_artifact(result_data)
-        
-        # Record in ledger
-        self._record_ledger_event(result_data)
         
         return result_data
         
@@ -62,23 +59,35 @@ class ExternalResult:
         if agent and executor["billing_mode"] != agent["billing"]["mode"]:
             raise ValueError("Billing mode mismatch with agent configuration")
     
-    def _validate_evidence_requirements(self, result_data: Dict[str, Any]) -> None:
-        """Validate evidence requirements for the result"""
-        # Check if required evidence is missing
-        if result_data.get("status") in ["completed", "partial"]:
-            changed_files = result_data.get("changed_files", [])
-            commands_run = result_data.get("commands_run", [])
-            artifacts = result_data.get("artifacts", [])
+    def _validate_evidence_requirements(self, result_data: Dict[str, Any]) -> str:
+        """Validate evidence requirements for the result. Returns evidence_status."""
+        status = result_data.get("status", "completed")
+        
+        changed_files = result_data.get("changed_files", [])
+        commands_run = result_data.get("commands_run", [])
+        artifacts = result_data.get("artifacts", [])
+        
+        # Failed/rejected = missing evidence
+        if status in ["failed", "rejected"]:
+            return "missing"
+        
+        # Check for changed files without evidence
+        if changed_files and not (artifacts or commands_run):
+            raise ValueError("Changed files require evidence of commands run or artifacts")
             
-            # Check for changed files evidence
-            if changed_files and not (artifacts or commands_run):
-                raise ValueError("Changed files require evidence of commands run or artifacts")
+        # Check for build/test claims without evidence
+        summary = result_data.get("summary", "").lower()
+        if any(claim in summary for claim in ["ran tests", "ran build", "executed commands"]):
+            if not (commands_run or artifacts):
+                raise ValueError("Build/test claims require evidence of commands run or artifacts")
                 
-            # Check for build/test claims
-            summary = result_data.get("summary", "").lower()
-            if any(claim in summary for claim in ["ran tests", "ran build", "executed commands"]):
-                if not (commands_run or artifacts):
-                    raise ValueError("Build/test claims require evidence of commands run or artifacts")
+        # Determine evidence level
+        if commands_run or artifacts:
+            return "complete"
+        elif changed_files:
+            return "partial"
+        else:
+            return "missing"
     
     def _save_result_artifact(self, result_data: Dict[str, Any]) -> None:
         """Save the result artifact to disk"""
@@ -92,33 +101,3 @@ class ExternalResult:
         # Save YAML
         with open(output_path / "external_result.yml", 'w') as f:
             yaml.safe_dump(result_data, f, sort_keys=False)
-            
-    def _record_ledger_event(self, result_data: Dict[str, Any]) -> None:
-        """Record result submission in task events"""
-        event_data = {
-            "event_type": "external_result_submitted",
-            "result_id": self.result_id,
-            "handoff_id": result_data["handoff_id"],
-            "agent_id": result_data["executor"]["agent_id"],
-            "status": result_data["status"],
-            "billing_mode": result_data["executor"]["billing_mode"],
-            "token_visibility": result_data["executor"]["token_visibility"],
-            "evidence_status": self._determine_evidence_status(result_data)
-        }
-        
-        TaskEvents(self.task_id).record_event(event_data)
-        
-    def _determine_evidence_status(self, result_data: Dict[str, Any]) -> str:
-        """Determine evidence status based on result data"""
-        if result_data.get("status") in ["rejected", "failed"]:
-            return "missing"
-            
-        # Check for key evidence fields
-        has_files = bool(result_data.get("changed_files"))
-        has_commands = bool(result_data.get("commands_run"))
-        has_artifacts = bool(result_data.get("artifacts"))
-        
-        if has_files or has_commands or has_artifacts:
-            return "complete" if (has_commands or has_artifacts) else "partial"
-            
-        return "missing"

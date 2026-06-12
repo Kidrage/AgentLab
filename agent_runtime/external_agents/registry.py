@@ -1,7 +1,6 @@
 import yaml
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from agent_runtime.config_loader import ConfigLoader
 
 class ExternalAgentRegistry:
     """Registry for external agent configurations with validation"""
