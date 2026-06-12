@@ -3,6 +3,8 @@
 > English | 中文
 
 AgentLab is a local-first, semi-managed development workflow for personal agentic software work.
+In cloud self-hosting, it is intended to run beside a public chat gateway such as
+OpenClaw, not as a public SaaS API.
 
 AgentLab 是一个本地优先、半托管的个人 Agentic 软件开发工作流。
 
@@ -15,6 +17,26 @@ The goal is to make model-assisted development cheaper, more transparent, and mo
 - Publish token budgets before work starts. / 工作开始前公开发布 Token 预算。
 - Keep implementation, validation, audit, and archival evidence separate. / 实现、验证、审计、归档证据分离。
 - Preserve long-running project direction through explicit memory files. / 通过显式记忆文件保持长期项目方向。
+
+---
+
+## Local OpenClaw Deployment / 本地 OpenClaw 部署
+
+```text
+Public Internet
+  ↓
+OpenClaw public chat endpoint
+  ↓ local CLI / MCP stdio
+AgentLab local AgentOps kernel
+  ↓ local webhook / event queue
+OpenClaw local receiver
+```
+
+Do not expose AgentLab directly to the public internet. OpenClaw should be the
+only public user-facing service; AgentLab should stay on localhost, the same
+machine, or a private Docker network.
+
+Guide: `docs/OPENCLAW_LOCAL_INTEGRATION.md`
 
 ---
 
@@ -307,7 +329,7 @@ CLI: `./agentlab.sh feedback-status --project AgentLab`, `./agentlab.sh task-eve
 
 ### Webhook Notifications
 
-AgentLab can optionally push action-required and lifecycle events to external chat gateways such as OpenClaw or Hermes. Webhooks are disabled by default; endpoint URLs and signing secrets are read only from environment variables.
+AgentLab can optionally push action-required and lifecycle events to same-host chat gateways such as OpenClaw or Hermes. Webhooks are disabled by default; endpoint URLs and signing secrets are read only from environment variables. AgentLab dispatches outbound events; OpenClaw receives them locally through localhost, a private Docker network, or a local event queue.
 
 - `config/webhook_policy.yml` controls enabled endpoints, event allow-lists, retry count, signing, and redaction.
 - Delivery logs are written to `projects/<Project>/runs/<task_id>/webhook_delivery_log.yml` or `projects/<Project>/webhook_delivery_log.yml` for project-level skill events.
@@ -319,11 +341,12 @@ Guide: `docs/WEBHOOK_INTEGRATION.md`
 
 ### MCP Tool Server
 
-AgentLab exposes a thin optional MCP-style stdio tool server for external agents that need structured task, decision, skill, webhook, and watchdog operations.
+AgentLab exposes a thin optional MCP-style stdio tool server for external agents running in the same environment that need structured task, decision, skill, webhook, and watchdog operations.
 
 - `agent_runtime/mcp_server.py` defines tool schemas, structured handlers, resources, and a minimal stdio JSON-RPC loop.
 - `config/mcp_policy.yml` gates task creation, decision approval, skill approval, and stop-task operations.
 - Tools include task status/events/report, decision approve/reject/resume, skill request/approval, active skill usage, webhook status, and watchdog scan.
+- Recommended OpenClaw transport is direct CLI or MCP stdio; do not expose MCP over public HTTP without a separate authenticated gateway.
 
 Smoke: `python -m agent_runtime.mcp_server --list-tools`
 

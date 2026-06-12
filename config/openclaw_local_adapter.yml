@@ -1,0 +1,50 @@
+enabled: false
+
+mode: local
+
+agentlab_invocation:
+  preferred: cli
+  cli_path: ./agentlab.sh
+  working_dir: .
+  allow_mcp_stdio: true
+
+feedback:
+  preferred: localhost_webhook
+  localhost_webhook_url_env: AGENTLAB_OPENCLAW_LOCAL_WEBHOOK_URL
+  fallback_event_queue: shared/agentlab_events
+  allowed_events:
+    - ACTION_REQUIRED
+    - BLOCKED
+    - STALE_RUNNING
+    - FAILED_RECOVERABLE
+    - COMPLETED
+    - SKILL_REQUEST_PENDING
+    - SKILL_CANDIDATE_READY
+    - SKILL_PROMOTED
+
+security:
+  expose_agentlab_publicly: false
+  require_localhost_or_private_network: true
+  redact_secrets: true
+  allow_public_agentlab_api: false
+
+chat_reply_mapping:
+  approve:
+    - A
+    - approve
+    - 批准
+    - 同意
+  reject:
+    - B
+    - reject
+    - 拒绝
+  stop:
+    - C
+    - stop
+    - 停止
+  resume:
+    - resume
+    - 继续
+  skip:
+    - skip
+    - 跳过

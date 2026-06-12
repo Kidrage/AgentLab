@@ -1,11 +1,16 @@
 # AgentLab MCP Integration
 
-AgentLab exposes a thin MCP-style stdio tool server for external agents that need
-structured task, decision, skill, webhook, and watchdog operations.
+AgentLab exposes a thin MCP-style stdio tool server for external agents running
+in the same environment that need structured task, decision, skill, webhook, and
+watchdog operations.
 
 The MVP intentionally has no mandatory MCP SDK dependency. `agent_runtime/mcp_server.py`
 provides tool schemas, resource readers, structured handlers, and a minimal
 stdio JSON-RPC loop compatible with local smoke testing.
+
+For local OpenClaw integration, the recommended transport is stdio or a local
+process invocation. Do not expose MCP over public HTTP unless a separate
+authenticated gateway exists.
 
 ## MCP vs Webhook
 
@@ -13,6 +18,11 @@ Webhook is push: AgentLab notifies a chat gateway when action is required.
 
 MCP is pull/control: an external agent calls tools to inspect state, approve
 decisions, resume tasks, and request skill learning.
+
+OpenClaw can either:
+
+1. call AgentLab CLI directly, or
+2. call AgentLab MCP stdio tools if OpenClaw supports MCP.
 
 ## Policy
 
@@ -103,8 +113,10 @@ Example Claude Desktop-style local config:
 
 ## Security Notes
 
-- Keep `enabled: false` unless you intentionally expose the tool server.
+- Keep `enabled: false` unless you intentionally enable local tool access.
 - Do not pass local secrets through tool arguments.
+- Recommended transport for local OpenClaw integration: stdio or local process.
+- Do not expose MCP over public HTTP unless a separate authenticated gateway exists.
 - Stop-task, skill approval, and decision approval are controlled by
   `config/mcp_policy.yml`.
 - Tools return structured JSON and avoid exposing raw filesystem paths except

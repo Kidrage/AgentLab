@@ -73,11 +73,15 @@ pending_user_approval → approved → staging → validated → active → reti
 - `watchdog-scan` and `watchdog-status` detect stale running, stale event, waiting approval, and stale lock conditions.
 - Watchdog stale handling appends `STALE_RUNNING`, refreshes feedback status, and can create a recovery decision card.
 - Optional webhook notification channel is implemented and disabled by default.
+- Webhook is primarily intended for same-host / localhost / private Docker network feedback to OpenClaw or another chat adapter.
+- AgentLab dispatches outbound events; OpenClaw receives them locally.
+- Do not expose AgentLab directly to the public internet or publish an AgentLab webhook receiver.
 - `webhook-test`, `webhook-status`, and `webhook-redeliver` manage delivery testing and logs.
-- `docs/WEBHOOK_INTEGRATION.md` documents OpenClaw/Hermes/chat gateway integration.
+- `docs/WEBHOOK_INTEGRATION.md` documents local-first OpenClaw/Hermes/chat gateway integration.
 - Optional MCP-style stdio tool server is implemented in `agent_runtime/mcp_server.py`.
 - MCP tools cover task status/events/reports, decision approval, task controls, skill requests, webhook status, and watchdog scan.
 - `docs/MCP_INTEGRATION.md` documents local stdio configuration and security policy.
+- OpenClaw should call AgentLab through CLI or MCP stdio in the same runtime; AgentLab is not a public SaaS API.
 
 ## Current: Not Yet Production Ready
 
@@ -94,8 +98,7 @@ pending_user_approval → approved → staging → validated → active → reti
 ### Feedback And Intervention
 
 - No long-running watchdog daemon.
-- No Telegram-specific bot adapter or OpenClaw/Hermes-specific command parser.
-- No chat-native approval parser.
+- No Telegram-specific bot adapter.
 - No real OpenClaw/Hermes/Telegram adapter.
 - No production daemon service manager.
 - No full MCP SDK wrapper; current MVP is a minimal dependency-free stdio JSON-RPC tool server.

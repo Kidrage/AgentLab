@@ -1,7 +1,13 @@
 # AgentLab Webhook Integration
 
-Webhook delivery is an optional reverse feedback channel for external chat agents.
-It is disabled by default and must be enabled in `config/webhook_policy.yml`.
+Webhook delivery is an optional reverse feedback channel for same-host chat
+adapters. It is primarily intended for localhost or private Docker-network
+feedback to OpenClaw or another chat adapter. It is disabled by default and must
+be enabled in `config/webhook_policy.yml`.
+
+AgentLab dispatches outbound events; OpenClaw receives them locally. Do not
+expose AgentLab directly to the public internet, and do not expose an AgentLab
+webhook receiver publicly.
 
 ## Configuration
 
@@ -28,10 +34,11 @@ security:
   redact_secrets: true
 ```
 
-Set endpoint URLs and secrets through the environment:
+Set endpoint URLs and secrets through the environment. For local OpenClaw
+integration, prefer a localhost URL or a private Docker service URL:
 
 ```bash
-export AGENTLAB_OPENCLAW_WEBHOOK_URL="https://gateway.example/hook"
+export AGENTLAB_OPENCLAW_WEBHOOK_URL="http://127.0.0.1:19118/agentlab/events"
 export AGENTLAB_OPENCLAW_WEBHOOK_SECRET="local signing secret"
 ```
 
@@ -110,3 +117,11 @@ metadata, and the redacted payload.
 ```
 
 If no endpoint URL is configured, dispatch succeeds with a skipped delivery.
+
+## Local-First Security
+
+- Webhook is primarily intended for same-host / localhost / private Docker network feedback to OpenClaw or another chat adapter.
+- Do not expose AgentLab webhook receiver publicly.
+- AgentLab dispatches outbound events; OpenClaw receives them locally.
+- Do not put API keys or private tokens in webhook payloads.
+- Keep endpoint URLs in environment variables, not committed config.
