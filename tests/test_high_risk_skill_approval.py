@@ -76,13 +76,12 @@ def test_high_risk_skill_matched_does_not_silently_reject(tmp_path: Path) -> Non
     policy = load_skill_injection_policy(root)
     result = match_active_skills(root, task_text=task_text, policy=policy)
 
-    # High-risk skill should match, not be silently filtered out
-    assert len(result["selected"]) >= 0
-    # If selected, it must flag the risk
-    for item in result.get("selected", []):
-        assert "risk_level" in item.get("metadata", item) or item.get("risk_level")
-        # The match should return the skill for the caller to decide
-        assert item.get("skill_id") == "high_risk_demo"
+    rejected = result.get("rejected", [])
+    assert any(item.get("skill_id") == "high_risk_demo" for item in rejected)
+    high_risk = next(item for item in rejected if item.get("skill_id") == "high_risk_demo")
+    assert high_risk["risk_level"] == "high"
+    assert high_risk["approval_type"] == "SKILL_INJECTION_APPROVAL"
+    assert high_risk["requires_approval"] is True
 
 
 def test_high_risk_skill_injection_creates_decision_card(tmp_path: Path) -> None:
@@ -210,6 +209,53 @@ def test_high_risk_injection_real_path_creates_card_event_and_webhook(tmp_path: 
 
     task_events_text = (run_dir / "task_events.jsonl").read_text(encoding="utf-8")
     assert "SKILL_APPROVAL_REQUIRED" in task_events_text
+
+    from feedback_manager import resolve_decision_card
+
+    approved = resolve_decision_card(
+        run_dir,
+        decision_card["id"],
+        option_id="approve_inject",
+        resolution="approved",
+        actor="user",
+    )
+    assert approved["status"] == "approved"
+
+    from skill_retriever import load_skill_injection_policy, match_active_skills
+
+    permissive_policy = load_skill_injection_policy(root)
+    permissive_policy["retrieval"] = dict(permissive_policy.get("retrieval", {}))
+    permissive_policy["retrieval"]["high_risk_requires_approval"] = False
+    matches_after_approval = match_active_skills(root, task_text=task_text, policy=permissive_policy)
+    assert any(
+        item.get("skill_id") == "high_risk_demo"
+        for item in matches_after_approval.get("selected", [])
+    )
+
+    reject_run_dir = root / "projects" / "AgentLab" / "runs" / "task_reject"
+    reject_run_dir.mkdir(parents=True)
+    reject_plan_path = reject_run_dir / "workflow_plan.yml"
+    reject_plan_path.write_text("route:\n  agents: [Supervisor, Coder]\n", encoding="utf-8")
+    reject_plan = inject_skills_into_workflow_plan(
+        root,
+        reject_plan_path,
+        project="AgentLab",
+        task_id="task_reject",
+        task_text=task_text,
+        record_usage=True,
+    )
+    reject_card_files = sorted((reject_run_dir / "decision_cards").glob("*.yml"))
+    assert reject_card_files
+    reject_card = yaml.safe_load(reject_card_files[0].read_text(encoding="utf-8")) or {}
+    rejected_card = resolve_decision_card(
+        reject_run_dir,
+        reject_card["id"],
+        option_id="reject_inject",
+        resolution="rejected",
+        actor="user",
+    )
+    assert rejected_card["status"] == "rejected"
+    assert not reject_plan["selected"]
 
     assert calls, "High-risk approval card creation must dispatch ACTION_REQUIRED webhook"
     webhook_payload = calls[0]["payload"]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import re
 from pathlib import Path
 from typing import Any
 
@@ -95,3 +96,37 @@ def test_agentlab_sh_help_does_not_crash() -> None:
         capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, f"agentlab.sh --help failed: {result.stderr[:500]}"
+
+
+def _canonical_external_skill_urls() -> dict[str, str]:
+    readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_match = re.search(
+        r"https://raw\.githubusercontent\.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL\.md",
+        readme_text,
+    )
+    assert readme_match, "README.md must document the canonical external skill smoke URL"
+
+    policy = yaml.safe_load(
+        (ROOT / "config" / "external_skill_import_policy.yml").read_text(encoding="utf-8")
+    ) or {}
+    policy_urls = policy.get("allowed_url_prefixes") or []
+    assert policy_urls, "external_skill_import_policy.yml must allow a canonical URL"
+
+    live_text = (ROOT / "tests" / "test_external_skill_importer_live.py").read_text(encoding="utf-8")
+    live_match = re.search(r'LIVE_URL\s*=\s*"([^"]+)"', live_text)
+    assert live_match, "test_external_skill_importer_live.py must define LIVE_URL"
+
+    return {
+        "readme": readme_match.group(0),
+        "policy": policy_urls[0],
+        "live_test": live_match.group(1),
+    }
+
+
+def test_skill_import_url_documented_and_url_contract_matches() -> None:
+    """README, policy, and live smoke test must share the same canonical URL."""
+    readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "skill-import-url" in readme_text
+
+    urls = _canonical_external_skill_urls()
+    assert urls["readme"] == urls["policy"] == urls["live_test"]

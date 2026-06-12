@@ -1,5 +1,5 @@
 schema_version: 1
-enabled: false
+enabled: true
 allow_network_by_default: false
 allowed_hosts:
   - raw.githubusercontent.com

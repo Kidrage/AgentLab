@@ -137,7 +137,7 @@ def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
     # Step 6-7: Task retrieval/injection
     run_dir = tmp_path / "projects" / project / "runs" / "task_live"
     run_dir.mkdir(parents=True)
-    task_text = "validate an Agent Skills SKILL.md package for agent composability"
+    task_text = "validate an Agent Skills SKILL.md package for cross-platform AI agent compatibility"
     (run_dir / "user_request.md").write_text(task_text, encoding="utf-8")
     (run_dir / "workflow_plan.yml").write_text(
         yaml.safe_dump({"route": {"agents": ["Supervisor", "Coder"]}}), encoding="utf-8"

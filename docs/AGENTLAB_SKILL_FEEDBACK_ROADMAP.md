@@ -36,7 +36,8 @@ This document separates current scaffold behavior from production AgentOps behav
 - Import always creates `pending_user_approval` requests; zero external code execution.
 - Source snapshots are saved under `projects/<Project>/skill_requests/<request_id>/source_snapshot/SKILL.md`.
 - `tests/fixtures/external_skills/agentskills-io/SKILL.md` provides a no-network fixture.
-- `tests/test_external_skill_importer.py` covers 11 fixture tests; `test_external_skill_importer_live.py` provides an optional live smoke test gated by `AGENTLAB_RUN_EXTERNAL_SKILL_LIVE_TEST=1`.
+- `tests/test_external_skill_importer.py` covers no-network fixture tests.
+- `tests/test_external_skill_importer_live.py` provides an optional live smoke test using OpenClaw `agentskills-io`, gated by `AGENTLAB_RUN_EXTERNAL_SKILL_LIVE_TEST=1`.
 
 ### Trace-to-Skill MVP
 
@@ -78,10 +79,12 @@ pending_user_approval → approved → staging → validated → active → reti
 ### Skill Evolution
 
 - No GitHub or skill hub search.
+- No full GitHub skill repo search.
+- No full external skill package parser.
 - No real sandbox execution (only fake sandbox file checks).
-- No automatic SKILL.md/package parsing.
 - No model-based candidate synthesis; Trace-to-Skill MVP uses deterministic event/report pattern detection.
-- No automatic promotion of learned skills; candidates still require approval and the existing lifecycle.
+- No automatic external skill learning without approval; candidates still require approval and the existing lifecycle.
+- No production-grade supply-chain risk scanner.
 
 ### Feedback And Intervention
 

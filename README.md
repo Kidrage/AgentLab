@@ -240,6 +240,10 @@ skills/
 ./agentlab.sh skill-match --project AgentLab --task-id <task_id>
 ./agentlab.sh skill-inject --project AgentLab --task-id <task_id>
 ./agentlab.sh skill-usage --project AgentLab --task-id <task_id>
+./agentlab.sh skill-import-url \
+  --project AgentLab \
+  --url "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md" \
+  --allow-network
 ./agentlab.sh learning-review --project AgentLab --task-id <task_id>
 ./agentlab.sh skill-candidates --project AgentLab --task-id <task_id>
 ./agentlab.sh skill-candidate-approve --project AgentLab --task-id <task_id> --candidate-id <id>
