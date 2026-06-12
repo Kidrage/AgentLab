@@ -1,10 +1,10 @@
 schema_version: 1
-enabled: true
+enabled: false
 allow_network_by_default: false
 allowed_hosts:
   - raw.githubusercontent.com
 allowed_url_prefixes:
-  - https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md
+  - https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md
 max_bytes: 200000
 timeout_seconds: 10
 store_source_snapshot: true

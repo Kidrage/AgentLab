@@ -592,11 +592,13 @@ def test_high_risk_skill_approval_strong_assertions(tmp_path: Path) -> None:
 
 def test_task1_6_external_imported_skill_retrieval_cross_check(tmp_path: Path) -> None:
     """External imported active skills must participate in Task 1-6 retrieval."""
-    canonical_url = "https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md"
-    fixture_path = ROOT / "tests" / "fixtures" / "external_skills" / "printkk" / "SKILL.md"
+    canonical_url = (
+        "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md"
+    )
+    fixture_path = ROOT / "tests" / "fixtures" / "external_skills" / "agentskills-io" / "SKILL.md"
     project = "AgentLab"
     task_id = "task_external_skill_cross_check"
-    task_text = "build a PrintKK print on demand product design and order automation"
+    task_text = "build an agent skills discovery and import automation system"
 
     config = tmp_path / "config"
     config.mkdir(parents=True)

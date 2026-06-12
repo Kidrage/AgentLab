@@ -1,4 +1,12 @@
-"""No-network external skill full lifecycle closure test."""
+"""No-network external skill full lifecycle closure test.
+
+Canonical fixture: openclaw/skills → agentskills-io/SKILL.md
+
+Verifies the complete lifecycle:
+  fixture SKILL.md → import_skill_from_fixture → pending → approve → stage
+  → fake validate → promote → active skill dir → retrieval → injection
+  → skill_usage.yml → usage_ledger.yml
+"""
 
 from __future__ import annotations
 
@@ -11,11 +19,13 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
-CANONICAL_URL = "https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md"
-FIXTURE_PATH = ROOT / "tests" / "fixtures" / "external_skills" / "printkk" / "SKILL.md"
+CANONICAL_URL = (
+    "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md"
+)
+FIXTURE_PATH = ROOT / "tests" / "fixtures" / "external_skills" / "agentskills-io" / "SKILL.md"
 PROJECT = "AgentLab"
 TASK_ID = "task_external_full_closure"
-TASK_TEXT = "build a PrintKK print on demand product design and order automation"
+TASK_TEXT = "build an agent skills discovery and import automation system"
 
 
 def _write_configs(root: Path) -> None:
@@ -71,7 +81,10 @@ def _write_configs(root: Path) -> None:
                     "applies_to_weight": 2,
                     "summary_weight": 1,
                 },
-                "usage": {"write_task_usage": True, "append_active_skill_ledger": True},
+                "usage": {
+                    "write_task_usage": True,
+                    "append_active_skill_ledger": True,
+                },
             },
             sort_keys=False,
         ),
@@ -84,6 +97,7 @@ def _write_configs(root: Path) -> None:
 
 
 def _promote_fixture_skill(root: Path) -> tuple[str, Path]:
+    """Import fixture → approve → stage → validate → promote → return (skill_id, active_dir)."""
     import cost_tracker
     from external_skill_importer import import_skill_from_fixture
     from skill_evolution import (
@@ -97,6 +111,7 @@ def _promote_fixture_skill(root: Path) -> tuple[str, Path]:
     cost_tracker._PRICE_CACHE = None
     cost_tracker._PRICE_ROOT = None
     ensure_skill_registry(root)
+
     result = import_skill_from_fixture(
         root,
         project=PROJECT,
@@ -104,7 +119,7 @@ def _promote_fixture_skill(root: Path) -> tuple[str, Path]:
         source_url=CANONICAL_URL,
     )
     assert result["ok"], result
-    assert result["skill_name"] == "printkk-print-on-demand"
+    assert result["skill_name"] == "agentskills-io"
     assert result["status"] == "pending_user_approval"
     snapshot_path = Path(result["snapshot_path"])
     assert snapshot_path.exists()
@@ -113,28 +128,41 @@ def _promote_fixture_skill(root: Path) -> tuple[str, Path]:
     request_id = result["request_id"]
     approved = approve_skill_request(root, PROJECT, request_id)
     assert approved["status"] == "approved"
+
     staged = stage_skill_request(root, PROJECT, request_id)
     skill_id = staged["skill_id"]
+
     validated = validate_staged_skill(root, skill_id, fake_sandbox=True)
     assert validated["status"] == "validated"
+
     promoted = promote_skill(root, skill_id)
     assert promoted["status"] == "active"
 
+    # Verify active skill directory was created by promote (NOT manually)
     active_dir = root / "skills" / "active" / skill_id
-    assert active_dir.exists()
+    assert active_dir.exists(), (
+        "promote_skill must create the active skill directory. "
+        "Do NOT manually create it in the test."
+    )
     assert (active_dir / "SKILL.md").exists()
     assert (active_dir / "metadata.yml").exists()
     assert (active_dir / "usage_ledger.yml").exists()
+
     metadata = yaml.safe_load((active_dir / "metadata.yml").read_text(encoding="utf-8")) or {}
     assert metadata["source"]["type"] == "external_url"
     assert metadata["source"]["uri"] == CANONICAL_URL
+
     return skill_id, active_dir
 
 
-def test_external_skill_fixture_full_lifecycle_retrieval_injection_and_usage(tmp_path: Path) -> None:
+def test_external_skill_fixture_full_lifecycle_retrieval_injection_and_usage(
+    tmp_path: Path,
+) -> None:
+    """Full closure: fixture → promote → retrieval → injection → usage ledger."""
     _write_configs(tmp_path)
     skill_id, active_dir = _promote_fixture_skill(tmp_path)
 
+    # Create task directory
     run_dir = tmp_path / "projects" / PROJECT / "runs" / TASK_ID
     run_dir.mkdir(parents=True)
     plan_path = run_dir / "workflow_plan.yml"
@@ -147,10 +175,14 @@ def test_external_skill_fixture_full_lifecycle_retrieval_injection_and_usage(tmp
     from skill_injector import inject_skills_into_workflow_plan
     from skill_retriever import load_skill_injection_policy, match_active_skills
 
+    # Skill retrieval must select the imported skill
     policy = load_skill_injection_policy(tmp_path)
     matches = match_active_skills(tmp_path, task_text=TASK_TEXT, policy=policy)
-    assert any(item["skill_id"] == skill_id for item in matches["selected"])
+    assert any(
+        item["skill_id"] == skill_id for item in matches["selected"]
+    ), f"Skill retrieval failed to match imported skill {skill_id}"
 
+    # Skill injection
     skill_plan = inject_skills_into_workflow_plan(
         tmp_path,
         plan_path,
@@ -159,16 +191,23 @@ def test_external_skill_fixture_full_lifecycle_retrieval_injection_and_usage(tmp
         task_text=TASK_TEXT,
         record_usage=True,
     )
-    assert any(item["skill_id"] == skill_id for item in skill_plan["selected"])
+    assert any(
+        item["skill_id"] == skill_id for item in skill_plan["selected"]
+    ), f"Injection did not include imported skill {skill_id}"
 
+    # Verify workflow_plan.yml records skill
     plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
     assert plan_data["skills"]["selected"][0]["skill_id"] == skill_id
 
+    # Verify skill_usage.yml exists
     usage_path = run_dir / "skill_usage.yml"
-    assert usage_path.exists()
+    assert usage_path.exists(), "skill_usage.yml must be written by injection"
     usage = yaml.safe_load(usage_path.read_text(encoding="utf-8")) or {}
     assert usage["selected"][0]["skill_id"] == skill_id
 
-    ledger = yaml.safe_load((active_dir / "usage_ledger.yml").read_text(encoding="utf-8")) or {}
-    assert ledger["entries"]
+    # Verify usage_ledger.yml appended
+    ledger = yaml.safe_load(
+        (active_dir / "usage_ledger.yml").read_text(encoding="utf-8")
+    ) or {}
+    assert ledger["entries"], "usage_ledger.yml must have entries after injection"
     assert ledger["entries"][-1]["task_id"] == TASK_ID

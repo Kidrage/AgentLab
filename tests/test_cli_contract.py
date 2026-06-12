@@ -101,7 +101,7 @@ def test_agentlab_sh_help_does_not_crash() -> None:
 def _canonical_external_skill_urls() -> dict[str, str]:
     readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_match = re.search(
-        r"https://raw\.githubusercontent\.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL\.md",
+        r"https://raw\.githubusercontent\.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL\.md",
         readme_text,
     )
     assert readme_match, "README.md must document the canonical external skill smoke URL"
@@ -113,13 +113,17 @@ def _canonical_external_skill_urls() -> dict[str, str]:
     assert policy_urls, "external_skill_import_policy.yml must allow a canonical URL"
 
     live_text = (ROOT / "tests" / "test_external_skill_importer_live.py").read_text(encoding="utf-8")
-    live_match = re.search(r'LIVE_URL\s*=\s*"([^"]+)"', live_text)
+    live_match = re.search(
+        r'https://raw\.githubusercontent\.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL\.md',
+        live_text,
+    )
     assert live_match, "test_external_skill_importer_live.py must define LIVE_URL"
+    live_url = live_match.group(0)
 
     return {
         "readme": readme_match.group(0),
         "policy": policy_urls[0],
-        "live_test": live_match.group(1),
+        "live_test": live_url,
     }
 
 
