@@ -7,6 +7,7 @@ semantic placeholders, and ensures every lifecycle node has valid outputs.
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import re
 
 import yaml
@@ -348,6 +349,9 @@ def artifact_content_issues(fname: str, content: str, run_dir: Path | None = Non
     if execution_evidence_issue:
         issues.append(execution_evidence_issue)
 
+    repo_evidence_issues = _check_repo_analysis_evidence(fname, content, run_dir)
+    issues.extend(repo_evidence_issues)
+
     return issues
 
 
@@ -496,3 +500,85 @@ def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = N
             )
 
     return None
+
+
+def _load_repo_manifest(run_dir: Path | None) -> dict:
+    if run_dir is None:
+        return {}
+    path = run_dir / "repo_manifest.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _load_resource_ledger(run_dir: Path | None) -> dict:
+    if run_dir is None:
+        return {}
+    path = run_dir / "resource_ledger.yml"
+    if not path.exists():
+        return {}
+    try:
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def _check_repo_analysis_evidence(fname: str, content: str, run_dir: Path | None = None) -> list[str]:
+    """Check repository-analysis claims against repo/resource/command evidence."""
+    evidence_report_files = {
+        "02_reposcout_report.md",
+        "03_research_notes.md",
+        "04_interface_map.md",
+        "06_implementation_report.md",
+        "07_validation_report.md",
+        "08_audit_report.md",
+        "verification_report.md",
+    }
+    if fname not in evidence_report_files:
+        return []
+    lowered = content.lower()
+    issues: list[str] = []
+
+    repo_claims = [
+        "analyzed the repository",
+        "analyzed repository",
+        "analysed the repository",
+        "analysed repository",
+        "分析了仓库",
+        "读取了仓库",
+        "read repository",
+    ]
+    file_claim = re.search(r"(read|loaded|inspected|读取了)\s+[`'\"]?([A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+)", content)
+    clone_claim = any(pattern in lowered for pattern in ["git clone", "cloned the repo", "cloned repository", "clone 了仓库"])
+    build_claim = any(pattern in lowered for pattern in ["ran tests", "ran build", "跑了测试", "跑了构建", "cmake --build", "npm test", "pytest"])
+
+    manifest = _load_repo_manifest(run_dir)
+    resource_ledger = _load_resource_ledger(run_dir)
+
+    if any(pattern in lowered for pattern in repo_claims) and not manifest:
+        issues.append("Report claims repository analysis but repo_manifest.json is missing.")
+
+    if file_claim:
+        claimed_path = file_claim.group(2)
+        files_read = [item.get("path") for item in (manifest.get("files_read") or []) if isinstance(item, dict)]
+        if not manifest:
+            issues.append("Report claims file reads but repo_manifest.json is missing.")
+        elif claimed_path not in files_read:
+            issues.append(f"Report claims file read without repo_manifest evidence: {claimed_path}")
+
+    if clone_claim:
+        access = resource_ledger.get("repo_access", {}) if isinstance(resource_ledger, dict) else {}
+        if not resource_ledger:
+            issues.append("Report claims clone activity but resource_ledger.yml is missing.")
+        elif not access.get("clone_performed") and not access.get("sparse_clone_performed") and not access.get("full_clone_performed"):
+            issues.append("Report claims clone activity but resource_ledger.yml shows no clone.")
+
+    if build_claim:
+        log = load_execution_log(run_dir) if run_dir else {}
+        if not log.get("commands"):
+            issues.append("Report claims build/test command execution but execution_log.yml is missing or empty.")
+
+    return issues

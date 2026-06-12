@@ -1,0 +1,7 @@
+budget_policy:
+  default_currency: USD
+  max_task_cost_usd: 0.20
+  max_total_tokens: 200000
+  require_approval_over_usd: 0.10
+  allow_unknown_price: true
+  unknown_price_warning: true

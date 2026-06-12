@@ -8,6 +8,9 @@ from typing import Any
 import yaml
 
 from state_store import utc_now
+from atomic_io import atomic_write_text
+from costing.ledger import CostCall, CostLedger, render_cost_summary
+from costing.pricing import PriceResolver
 
 # ── Pricing ──────────────────────────────────────────────────
 
@@ -55,6 +58,9 @@ def _resolve_model_entry(models: dict, provider: str | None, model: str) -> tupl
             return models[combo_key], combo_key
     if model in models:
         return models[model], model
+    for key, entry in models.items():
+        if isinstance(entry, dict) and entry.get("provider_model_id") == model:
+            return entry, key
     return None, None
 
 
@@ -78,43 +84,33 @@ def estimate_cost(
         pricing_source: str | None
     """
     pricing = load_pricing(agentlab_root)
-    models = pricing.get("models", {})
-
-    entry, _key = _resolve_model_entry(models, provider, model)
-    if entry is None:
+    resolver = PriceResolver(agentlab_root, pricing)
+    info = resolver.resolve(model_alias=model, provider_model_id=model, provider=provider)
+    if info.model_key is None:
         return {
             "estimated_cost": None,
             "cost_currency": pricing.get("currency"),
             "exact_cost_available": False,
             "pricing_source": None,
+            "pricing_confidence": "none",
         }
 
-    input_price = entry.get("input_per_1m")
-    output_price = entry.get("output_per_1m")
-
-    # If prices are null/None, cost is unavailable
-    if input_price is None or output_price is None:
+    cost = info.estimate_cost_usd(input_tokens=input_tokens, output_tokens=output_tokens)
+    if cost is None:
         return {
             "estimated_cost": None,
-            "cost_currency": pricing.get("currency"),
+            "cost_currency": info.currency,
             "exact_cost_available": False,
-            "pricing_source": "config/model_pricing.yml",
+            "pricing_source": info.price_source if info.price_source != "unknown" else "config/model_pricing.yml",
+            "pricing_confidence": info.pricing_confidence,
         }
 
-    if input_tokens is None or output_tokens is None:
-        return {
-            "estimated_cost": None,
-            "cost_currency": pricing.get("currency"),
-            "exact_cost_available": False,
-            "pricing_source": "config/model_pricing.yml",
-        }
-
-    cost = (input_tokens / 1_000_000) * input_price + (output_tokens / 1_000_000) * output_price
     return {
-        "estimated_cost": round(cost, 8),
-        "cost_currency": pricing.get("currency", "USD"),
+        "estimated_cost": cost,
+        "cost_currency": info.currency,
         "exact_cost_available": True,
-        "pricing_source": "config/model_pricing.yml",
+        "pricing_source": info.price_source,
+        "pricing_confidence": info.pricing_confidence,
     }
 
 
@@ -160,12 +156,14 @@ def usage_entry(
         cost_currency = cost_info["cost_currency"]
         exact_cost_available = cost_info["exact_cost_available"]
         pricing_source = cost_info["pricing_source"]
+        pricing_confidence = cost_info.get("pricing_confidence", "none")
     else:
         # Legacy path – keep backward-compatible None values
         estimated_cost = None
         cost_currency = None
         exact_cost_available = provider not in {"codex_plus_manual"} and total_tokens is not None
         pricing_source = None
+        pricing_confidence = "none"
 
     return {
         "timestamp": utc_now(),
@@ -182,6 +180,7 @@ def usage_entry(
         "estimated_cost": estimated_cost,
         "cost_currency": cost_currency,
         "pricing_source": pricing_source,
+        "pricing_confidence": pricing_confidence,
         "notes": notes,
     }
 
@@ -192,5 +191,59 @@ def append_cost_ledgers(project_root: Path, run_dir: Path, entry: dict[str, Any]
         docs = docs.with_name("agent_docs.local.bak")
     if not docs.exists() and docs.with_name("agent_docs.local.bak").is_dir():
         docs = docs.with_name("agent_docs.local.bak")
-    append_yaml_list(run_dir / "cost_ledger.yml", "entries", entry)
+    run_ledger_path = append_yaml_list(run_dir / "cost_ledger.yml", "entries", entry)
+    _refresh_v2_run_cost_artifacts(run_ledger_path)
     append_yaml_list(docs / "09_COST_LEDGER.yml", "entries", entry)
+
+
+def _call_from_legacy_entry(entry: dict[str, Any]) -> CostCall:
+    return CostCall(
+        stage=str(entry.get("stage") or entry.get("node") or entry.get("agent") or "unknown"),
+        agent=str(entry.get("agent") or "unknown"),
+        provider=entry.get("provider"),
+        model_alias=entry.get("model") or entry.get("model_alias"),
+        provider_model_id=entry.get("provider_model_id"),
+        input_tokens=int(entry.get("input_tokens") or 0),
+        output_tokens=int(entry.get("output_tokens") or 0),
+        cache_read_tokens=int(entry.get("cache_read_tokens") or 0),
+        cache_write_tokens=int(entry.get("cache_write_tokens") or 0),
+        reasoning_tokens=int(entry.get("reasoning_tokens") or 0),
+        image_input_tokens=int(entry.get("image_input_tokens") or 0),
+        audio_input_tokens=int(entry.get("audio_input_tokens") or 0),
+        usage_source=entry.get("usage_source") or ("api_usage" if entry.get("input_tokens") is not None else "unknown"),
+        price_source=entry.get("pricing_source") or "unknown",
+        estimated_cost_usd=entry.get("estimated_cost"),
+        pricing_confidence=entry.get("pricing_confidence") or ("high" if entry.get("exact_cost_available") else "none"),
+        started_at=entry.get("started_at") or entry.get("timestamp"),
+        finished_at=entry.get("finished_at"),
+    )
+
+
+def _refresh_v2_run_cost_artifacts(run_ledger_path: Path) -> None:
+    try:
+        data = yaml.safe_load(run_ledger_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return
+    entries = data.get("entries") or []
+    if not isinstance(entries, list):
+        return
+    task_id = ""
+    if entries:
+        task_id = str(entries[-1].get("task_id") or "")
+    if not task_id:
+        task_id = run_ledger_path.parent.name
+    ledger = CostLedger(
+        task_id=task_id,
+        currency=str(data.get("currency") or "USD"),
+        calls=[_call_from_legacy_entry(item) for item in entries if isinstance(item, dict)],
+    )
+    v2 = ledger.as_dict()
+    merged = dict(data)
+    merged.update(v2)
+    merged["entries"] = entries
+    atomic_write_text(
+        run_ledger_path,
+        yaml.safe_dump(merged, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    atomic_write_text(run_ledger_path.with_name("cost_summary.md"), render_cost_summary(ledger), encoding="utf-8")

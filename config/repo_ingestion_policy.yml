@@ -1,0 +1,48 @@
+repo_ingestion:
+  default_mode: api_first
+  allow_full_clone: false
+  require_approval_for_clone: true
+  require_approval_for_build: true
+
+  limits:
+    max_api_tree_entries: 100000
+    max_single_file_kb: 256
+    max_files_read: 100
+    max_total_text_mb: 5
+    max_sparse_checkout_mb: 100
+    max_workspace_mb: 200
+
+  default_excludes:
+    - ".git/**"
+    - "build/**"
+    - "dist/**"
+    - "DerivedData/**"
+    - "node_modules/**"
+    - "third_party/**"
+    - "vendor/**"
+    - "*.onnx"
+    - "*.pt"
+    - "*.pth"
+    - "*.ckpt"
+    - "*.wav"
+    - "*.flac"
+    - "*.aiff"
+    - "*.mp4"
+    - "*.zip"
+    - "*.tar"
+    - "*.dmg"
+    - "*.framework"
+    - "*.xcframework"
+
+  modes:
+    repo_profile:
+      max_level: targeted_fetch
+      clone_allowed: false
+
+    repo_patch:
+      max_level: sparse_clone
+      full_clone_allowed: false
+
+    repo_build_test:
+      max_level: full_clone
+      approval_required: true

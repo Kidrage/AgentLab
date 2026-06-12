@@ -27,6 +27,8 @@ CONFIG_FILES = {
     "routing_policy": "routing_policy.yml",
     "routing_rules": "routing_rules.yml",
     "budget_profiles": "budget_profiles.yml",
+    "budget_policy": "budget_policy.yml",
+    "repo_ingestion_policy": "repo_ingestion_policy.yml",
     "self_check_policy": "self_check_policy.yml",
     "skill_injection_policy": "skill_injection_policy.yml",
     "task_index_policy": "task_index_policy.yml",
