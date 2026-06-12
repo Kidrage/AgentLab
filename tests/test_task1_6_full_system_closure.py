@@ -588,3 +588,103 @@ def test_high_risk_skill_approval_strong_assertions(tmp_path: Path) -> None:
         wd2.post_json = wd2_orig
         _os.environ.pop("AGENTLAB_TEST_WEBHOOK_URL_2", None)
         _os.environ.pop("AGENTLAB_TEST_WEBHOOK_SECRET_2", None)
+
+
+def test_task1_6_external_imported_skill_retrieval_cross_check(tmp_path: Path) -> None:
+    """External imported active skills must participate in Task 1-6 retrieval."""
+    canonical_url = "https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md"
+    fixture_path = ROOT / "tests" / "fixtures" / "external_skills" / "printkk" / "SKILL.md"
+    project = "AgentLab"
+    task_id = "task_external_skill_cross_check"
+    task_text = "build a PrintKK print on demand product design and order automation"
+
+    config = tmp_path / "config"
+    config.mkdir(parents=True)
+    (config / "model_pricing.yml").write_text(
+        yaml.safe_dump({
+            "version": 1,
+            "currency": "USD",
+            "models": {"deepseek/deepseek-v4-pro": {"input_per_1m": 1.0, "output_per_1m": 2.0}},
+        }, sort_keys=False),
+        encoding="utf-8",
+    )
+    (config / "external_skill_import_policy.yml").write_text(
+        yaml.safe_dump({
+            "schema_version": 1,
+            "enabled": True,
+            "allow_network_by_default": False,
+            "allowed_hosts": ["raw.githubusercontent.com"],
+            "allowed_url_prefixes": [canonical_url],
+            "store_source_snapshot": True,
+            "execute_external_code": False,
+        }, sort_keys=False),
+        encoding="utf-8",
+    )
+    (config / "skill_injection_policy.yml").write_text(
+        yaml.safe_dump({
+            "schema_version": 1,
+            "enabled": True,
+            "retrieval": {"max_skills_per_task": 3, "min_confidence": 0.0, "high_risk_requires_approval": True},
+            "matching": {"trigger_weight": 3, "applies_to_weight": 2, "summary_weight": 1},
+            "usage": {"write_task_usage": True},
+        }, sort_keys=False),
+        encoding="utf-8",
+    )
+    (config / "webhook_policy.yml").write_text(
+        yaml.safe_dump({"schema_version": 1, "enabled": False, "endpoints": []}),
+        encoding="utf-8",
+    )
+
+    import cost_tracker
+    from external_skill_importer import import_skill_from_fixture
+    from skill_evolution import (
+        approve_skill_request,
+        ensure_skill_registry,
+        promote_skill,
+        stage_skill_request,
+        validate_staged_skill,
+    )
+
+    cost_tracker._PRICE_CACHE = None
+    cost_tracker._PRICE_ROOT = None
+    ensure_skill_registry(tmp_path)
+    imported = import_skill_from_fixture(
+        tmp_path,
+        project=project,
+        fixture_path=fixture_path,
+        source_url=canonical_url,
+    )
+    assert imported["ok"], imported
+    approved = approve_skill_request(tmp_path, project, imported["request_id"])
+    assert approved["status"] == "approved"
+    staged = stage_skill_request(tmp_path, project, imported["request_id"])
+    validate_staged_skill(tmp_path, staged["skill_id"], fake_sandbox=True)
+    promoted = promote_skill(tmp_path, staged["skill_id"])
+    skill_id = promoted["skill_id"]
+
+    active_metadata_path = tmp_path / "skills" / "active" / skill_id / "metadata.yml"
+    metadata = yaml.safe_load(active_metadata_path.read_text(encoding="utf-8")) or {}
+    assert metadata["source"]["type"] == "external_url"
+    assert metadata["source"]["uri"] == canonical_url
+
+    run_dir = tmp_path / "projects" / project / "runs" / task_id
+    run_dir.mkdir(parents=True)
+    plan_path = run_dir / "workflow_plan.yml"
+    plan_path.write_text(yaml.safe_dump({"route": {"agents": ["Supervisor", "Coder"]}}), encoding="utf-8")
+
+    from skill_injector import inject_skills_into_workflow_plan
+    from skill_retriever import load_skill_injection_policy, match_active_skills
+
+    policy = load_skill_injection_policy(tmp_path)
+    matches = match_active_skills(tmp_path, task_text=task_text, policy=policy)
+    assert any(item["skill_id"] == skill_id for item in matches["selected"])
+
+    plan = inject_skills_into_workflow_plan(
+        tmp_path,
+        plan_path,
+        project=project,
+        task_id=task_id,
+        task_text=task_text,
+        record_usage=True,
+    )
+    assert any(item["skill_id"] == skill_id for item in plan["selected"])

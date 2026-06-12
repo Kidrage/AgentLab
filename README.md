@@ -242,7 +242,7 @@ skills/
 ./agentlab.sh skill-usage --project AgentLab --task-id <task_id>
 ./agentlab.sh skill-import-url \
   --project AgentLab \
-  --url "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md" \
+  --url "https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md" \
   --allow-network
 ./agentlab.sh learning-review --project AgentLab --task-id <task_id>
 ./agentlab.sh skill-candidates --project AgentLab --task-id <task_id>
@@ -269,18 +269,22 @@ Pipeline completion and `learning-review` inspect task events and reports for re
 - ✅ source snapshot
 - ✅ no-network fixture test
 - ✅ optional live external skill smoke test
+- ✅ external skill lifecycle: request → approve → stage → fake validate → active
+- ✅ active imported skill retrieval/injection into a task
 
 ### Not Yet Implemented
 
 - ❌ full GitHub skill repo search
-- ❌ full external skill package parser
+- ❌ multi-file external skill package parser
 - ❌ real sandbox execution
-- ❌ automatic external skill learning without approval
+- ❌ automatic unapproved external skill learning
 - ❌ production-grade supply-chain risk scanner
-- ❌ production-grade skill conflict resolution / retirement policy
+- ❌ full skill ROI/conflict/retirement automation
+- ❌ real OpenClaw/Hermes/Telegram adapter
+- ❌ production daemon service manager
 
 The first supported live external skill smoke test uses:
-`https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md`
+`https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md`
 
 ---
 

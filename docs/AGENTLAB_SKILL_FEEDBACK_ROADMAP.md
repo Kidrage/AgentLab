@@ -32,12 +32,14 @@ This document separates current scaffold behavior from production AgentOps behav
 - `agent_runtime/external_skill_importer.py` implements `fetch_skill_markdown_from_url`, `parse_skill_frontmatter`, `build_external_skill_request`, and `import_skill_from_url`.
 - `config/external_skill_import_policy.yml` controls allowlist, network access, byte limits, and snapshot settings.
 - External URLs must be in the allowlist; network access is off by default.
-- Primary smoke URL: `https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md` (`agentskills-io`).
+- Primary smoke URL: `https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md` (`printkk-print-on-demand`).
 - Import always creates `pending_user_approval` requests; zero external code execution.
 - Source snapshots are saved under `projects/<Project>/skill_requests/<request_id>/source_snapshot/SKILL.md`.
-- `tests/fixtures/external_skills/agentskills-io/SKILL.md` provides a no-network fixture.
+- `tests/fixtures/external_skills/printkk/SKILL.md` provides a no-network fixture.
 - `tests/test_external_skill_importer.py` covers no-network fixture tests.
-- `tests/test_external_skill_importer_live.py` provides an optional live smoke test using OpenClaw `agentskills-io`, gated by `AGENTLAB_RUN_EXTERNAL_SKILL_LIVE_TEST=1`.
+- `tests/test_external_skill_importer_live.py` provides an optional live smoke test using PrintKK `printkk-print-on-demand`, gated by `AGENTLAB_RUN_EXTERNAL_SKILL_LIVE_TEST=1`.
+- Imported external skills enter the normal lifecycle: request → approve → stage → fake validate → active.
+- Active imported skills can be retrieved and injected into matching tasks, writing task usage and active skill ledgers.
 
 ### Trace-to-Skill MVP
 
@@ -78,19 +80,21 @@ pending_user_approval → approved → staging → validated → active → reti
 
 ### Skill Evolution
 
-- No GitHub or skill hub search.
 - No full GitHub skill repo search.
-- No full external skill package parser.
+- No multi-file external skill package parser.
 - No real sandbox execution (only fake sandbox file checks).
 - No model-based candidate synthesis; Trace-to-Skill MVP uses deterministic event/report pattern detection.
-- No automatic external skill learning without approval; candidates still require approval and the existing lifecycle.
+- No automatic unapproved external skill learning; candidates still require approval and the existing lifecycle.
 - No production-grade supply-chain risk scanner.
+- No full skill ROI/conflict/retirement automation.
 
 ### Feedback And Intervention
 
 - No long-running watchdog daemon.
 - No Telegram-specific bot adapter or OpenClaw/Hermes-specific command parser.
 - No chat-native approval parser.
+- No real OpenClaw/Hermes/Telegram adapter.
+- No production daemon service manager.
 - No full MCP SDK wrapper; current MVP is a minimal dependency-free stdio JSON-RPC tool server.
 - WebSocket is not implemented; current real-time MVP uses Server-Sent Events.
 

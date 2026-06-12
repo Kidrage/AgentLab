@@ -36,7 +36,7 @@ from skill_evolution import (
     load_skill_requests,
 )
 
-FIXTURE_PATH = ROOT / "tests" / "fixtures" / "external_skills" / "agentskills-io" / "SKILL.md"
+FIXTURE_PATH = ROOT / "tests" / "fixtures" / "external_skills" / "printkk" / "SKILL.md"
 
 
 def _write_pricing(root: Path) -> None:
@@ -71,7 +71,7 @@ def _write_import_policy(root: Path, *, enabled: bool = True) -> None:
                 "allow_network_by_default": False,
                 "allowed_hosts": ["raw.githubusercontent.com"],
                 "allowed_url_prefixes": [
-                    "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md"
+                    "https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md"
                 ],
                 "max_bytes": 200000,
                 "timeout_seconds": 10,
@@ -92,7 +92,7 @@ def test_parse_name_from_fixture() -> None:
     text = FIXTURE_PATH.read_text(encoding="utf-8")
     result = parse_skill_frontmatter(text)
     assert result["ok"], f"parse failed: {result.get('error')}"
-    assert result["name"] == "agentskills-io"
+    assert result["name"] == "printkk-print-on-demand"
 
 
 # ── 2. Parse description from fixture ─────────────────────────────
@@ -102,7 +102,7 @@ def test_parse_description_from_fixture() -> None:
     result = parse_skill_frontmatter(text)
     assert result["ok"]
     assert len(result["description"]) > 10
-    assert "Agent Skills" in result["description"] or "SKILL.md" in result["description"]
+    assert "PrintKK" in result["description"] or "print-on-demand" in result["description"]
 
 
 # ── 3. Token / cost estimation ────────────────────────────────────
@@ -126,10 +126,10 @@ def test_fixture_creates_pending_skill_request(tmp_path: Path) -> None:
         tmp_path,
         project="AgentLab",
         fixture_path=FIXTURE_PATH,
-        source_url="https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md",
+        source_url="https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md",
     )
     assert result["ok"], f"import failed: {result.get('error')}"
-    assert result["skill_name"] == "agentskills-io"
+    assert result["skill_name"] == "printkk-print-on-demand"
     assert result["status"] == "pending_user_approval"
     assert result["request_id"].startswith("skill_req_")
 
@@ -138,7 +138,7 @@ def test_fixture_creates_pending_skill_request(tmp_path: Path) -> None:
     matching = [r for r in requests if r["id"] == result["request_id"]]
     assert len(matching) == 1
     assert matching[0]["status"] == "pending_user_approval"
-    assert matching[0]["skill_name"] == "agentskills-io"
+    assert matching[0]["skill_name"] == "printkk-print-on-demand"
     assert matching[0]["source"]["type"] == "external_url"
 
 
@@ -153,13 +153,13 @@ def test_source_snapshot_saved(tmp_path: Path) -> None:
         tmp_path,
         project="AgentLab",
         fixture_path=FIXTURE_PATH,
-        source_url="https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md",
+        source_url="https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md",
     )
     assert result["ok"]
     snapshot_path = Path(result["snapshot_path"])
     assert snapshot_path.exists()
     assert snapshot_path.name == "SKILL.md"
-    assert "agentskills-io" in snapshot_path.read_text(encoding="utf-8")
+    assert "printkk-print-on-demand" in snapshot_path.read_text(encoding="utf-8")
 
     # The request was written by import_skill_from_fixture via write_skill_adoption_request.
     # Verify the request yml exists using the request_id from the result.
@@ -170,7 +170,7 @@ def test_source_snapshot_saved(tmp_path: Path) -> None:
     assert request_yml.exists(), f"Request file not found: {request_yml}"
     # Also verify that the request file content has the correct data
     data = yaml.safe_load(request_yml.read_text(encoding="utf-8")) or {}
-    assert data.get("skill_name") == "agentskills-io"
+    assert data.get("skill_name") == "printkk-print-on-demand"
     assert data.get("status") == "pending_user_approval"
 
 
@@ -244,7 +244,7 @@ def test_policy_allows_url_happy_path(tmp_path: Path) -> None:
     policy = load_import_policy(tmp_path)
     assert _policy_allows_url(
         policy,
-        "https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md",
+        "https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md",
     )
 
 
@@ -264,7 +264,7 @@ def test_import_disabled_by_policy(tmp_path: Path) -> None:
     result = import_skill_from_url(
         tmp_path,
         project="AgentLab",
-        url="https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md",
+        url="https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md",
         allow_network=False,
     )
     assert not result["ok"]
@@ -281,7 +281,7 @@ def test_network_denied_without_allow_network(tmp_path: Path) -> None:
     result = import_skill_from_url(
         tmp_path,
         project="AgentLab",
-        url="https://raw.githubusercontent.com/openclaw/skills/main/skills/killerapp/agentskills-io/SKILL.md",
+        url="https://raw.githubusercontent.com/pizzzzzza/printkk-agent-skill/main/printkk/SKILL.md",
         allow_network=False,
     )
     assert not result["ok"]
