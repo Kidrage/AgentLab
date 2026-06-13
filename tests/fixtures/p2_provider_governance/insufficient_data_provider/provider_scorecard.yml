@@ -1,0 +1,11 @@
+providers:
+  - provider_id: fixture.insufficient
+    provider_type: mock_executor
+    attempts: 1
+    passes: 1
+    pass_with_warnings: 0
+    needs_revision: 0
+    fails: 0
+    blocked: 0
+    total_quality_score: 1.0
+    last_verdict: PASS

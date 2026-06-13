@@ -1,0 +1,7 @@
+task_id: insufficient_data_provider
+attempts:
+  - provider_id: fixture.insufficient
+    provider_type: mock_executor
+    retry_decision: ACCEPTED
+    status: review_passed
+    estimated_cost_usd: 0.0

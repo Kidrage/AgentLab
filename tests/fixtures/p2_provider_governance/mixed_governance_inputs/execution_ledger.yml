@@ -1,0 +1,13 @@
+task_id: mixed_governance_inputs
+entries:
+  - event: completed
+    provider_id: fixture.healthy
+    provider_type: mock_executor
+    execution_mode: mock
+    status: completed
+    estimated_cost_usd: 0.0
+  - event: completed
+    provider_id: fixture.unknown_cost
+    provider_type: codex_cli
+    execution_mode: manual_handoff_only
+    status: completed

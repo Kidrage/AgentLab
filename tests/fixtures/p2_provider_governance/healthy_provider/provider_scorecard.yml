@@ -1,0 +1,12 @@
+providers:
+  - provider_id: fixture.healthy
+    provider_type: mock_executor
+    attempts: 2
+    passes: 2
+    pass_with_warnings: 0
+    needs_revision: 0
+    fails: 0
+    blocked: 0
+    average_quality_score: 1.0
+    last_verdict: PASS
+    total_quality_score: 2.0

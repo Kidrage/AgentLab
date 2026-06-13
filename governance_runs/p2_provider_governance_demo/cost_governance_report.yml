@@ -1,0 +1,10 @@
+cost_profiles:
+- provider_id: agentlab.mock_patch
+  cost_mode: none
+  estimated_total_cost_usd: 0.0
+  estimated_average_cost_usd: 0.0
+  unknown_cost_events: 0
+  cost_risk_level: low
+  requires_manual_approval: false
+  notes: []
+warnings: []

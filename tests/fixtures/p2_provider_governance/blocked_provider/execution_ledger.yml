@@ -1,0 +1,8 @@
+task_id: blocked_provider
+entries:
+  - event: completed
+    provider_id: fixture.blocked
+    provider_type: mock_executor
+    execution_mode: mock
+    status: blocked
+    estimated_cost_usd: 0.0

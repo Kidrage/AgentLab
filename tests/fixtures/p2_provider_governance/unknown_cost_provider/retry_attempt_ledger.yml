@@ -1,0 +1,6 @@
+task_id: unknown_cost_provider
+attempts:
+  - provider_id: fixture.unknown_cost
+    provider_type: codex_cli
+    retry_decision: ACCEPTED
+    status: review_passed

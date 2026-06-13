@@ -1,0 +1,7 @@
+task_id: blocked_provider
+attempts:
+  - provider_id: fixture.blocked
+    provider_type: mock_executor
+    retry_decision: STOP
+    status: blocked
+    estimated_cost_usd: 0.0

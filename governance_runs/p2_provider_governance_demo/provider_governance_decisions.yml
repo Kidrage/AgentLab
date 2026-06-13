@@ -1,0 +1,6 @@
+decisions:
+- provider_id: agentlab.mock_patch
+  status: WATCHLIST
+  reasons:
+  - acceptance rate below watchlist threshold
+  recommended_action: watchlist

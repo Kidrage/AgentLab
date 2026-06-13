@@ -1,0 +1,11 @@
+task_id: healthy_provider
+attempts:
+  - task_id: healthy_provider
+    attempt_id: attempt_001
+    attempt_index: 1
+    provider_id: fixture.healthy
+    provider_type: mock_executor
+    execution_mode: mock
+    retry_decision: ACCEPTED
+    status: review_passed
+    estimated_cost_usd: 0.0

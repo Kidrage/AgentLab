@@ -1,0 +1,8 @@
+task_id: healthy_provider
+entries:
+  - event: completed
+    provider_id: fixture.healthy
+    provider_type: mock_executor
+    execution_mode: mock
+    status: completed
+    estimated_cost_usd: 0.0

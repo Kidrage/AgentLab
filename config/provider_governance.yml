@@ -1,0 +1,53 @@
+provider_governance:
+  enabled: true
+
+  minimum_data:
+    min_attempts_for_scoring: 2
+    min_attempts_for_quarantine: 3
+
+  thresholds:
+    healthy_acceptance_rate: 0.75
+    watchlist_acceptance_rate: 0.50
+    quarantine_acceptance_rate_below: 0.35
+    high_retry_rate: 0.60
+    high_blocked_rate: 0.20
+    min_average_quality_score: 0.60
+
+  cost:
+    max_estimated_cost_usd_per_task: 0.25
+    warn_estimated_cost_usd_per_task: 0.08
+    unknown_cost_requires_manual_approval: true
+    penalize_unknown_cost: true
+
+  routing_feedback:
+    enabled: true
+    apply_as_recommendation_only: true
+    never_modify_router_policy_directly: true
+    prefer_high_quality_low_cost: true
+    downgrade_high_retry_providers: true
+    quarantine_repeated_blocked_providers: true
+
+  watchlist:
+    enabled: true
+    reasons:
+      - low_acceptance_rate
+      - high_retry_rate
+      - unknown_cost
+      - repeated_needs_revision
+      - blocked_result
+
+  quarantine:
+    enabled: true
+    requires_human_review: true
+    reasons:
+      - repeated_blocked
+      - secret_exposure
+      - external_script_execution
+      - remote_clone
+      - unreviewed_result_attempted_acceptance
+
+  artifacts:
+    write_provider_performance_profiles: true
+    write_provider_governance_report: true
+    write_cost_governance_report: true
+    write_routing_recommendations: true

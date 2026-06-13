@@ -1,0 +1,7 @@
+task_id: unknown_cost_provider
+entries:
+  - event: completed
+    provider_id: fixture.unknown_cost
+    provider_type: codex_cli
+    execution_mode: manual_handoff_only
+    status: completed

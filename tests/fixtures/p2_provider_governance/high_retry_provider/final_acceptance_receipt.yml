@@ -1,0 +1,4 @@
+task_id: high_retry_provider
+accepted: true
+final_verdict: PASS
+unreviewed_result_accepted: false

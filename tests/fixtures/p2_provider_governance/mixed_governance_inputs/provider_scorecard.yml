@@ -1,0 +1,13 @@
+providers:
+  - provider_id: fixture.healthy
+    provider_type: mock_executor
+    attempts: 2
+    passes: 2
+    total_quality_score: 2.0
+    last_verdict: PASS
+  - provider_id: fixture.unknown_cost
+    provider_type: codex_cli
+    attempts: 2
+    passes: 2
+    total_quality_score: 2.0
+    last_verdict: PASS

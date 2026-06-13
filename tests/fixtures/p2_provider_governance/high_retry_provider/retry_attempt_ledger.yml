@@ -1,0 +1,10 @@
+task_id: high_retry_provider
+attempts:
+  - provider_id: fixture.high_retry
+    provider_type: mock_executor
+    retry_decision: RETRY
+    status: review_failed
+  - provider_id: fixture.high_retry
+    provider_type: mock_executor
+    retry_decision: RETRY
+    status: review_failed

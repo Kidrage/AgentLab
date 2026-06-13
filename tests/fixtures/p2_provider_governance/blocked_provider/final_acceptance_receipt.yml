@@ -1,0 +1,4 @@
+task_id: blocked_provider_unused_acceptance_fixture
+accepted: true
+final_verdict: PASS
+unreviewed_result_accepted: false

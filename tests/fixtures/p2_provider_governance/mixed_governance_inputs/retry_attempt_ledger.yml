@@ -1,0 +1,11 @@
+task_id: mixed_governance_inputs
+attempts:
+  - provider_id: fixture.healthy
+    provider_type: mock_executor
+    retry_decision: ACCEPTED
+    status: review_passed
+    estimated_cost_usd: 0.0
+  - provider_id: fixture.unknown_cost
+    provider_type: codex_cli
+    retry_decision: ACCEPTED
+    status: review_passed
