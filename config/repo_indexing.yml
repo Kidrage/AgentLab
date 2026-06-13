@@ -1,0 +1,28 @@
+repo_indexing:
+  enabled: false
+  default_indexer: codegraph_cli_optional
+  policy:
+    require_local_checkout: true
+    forbid_remote_clone: true
+    forbid_repo_profile_indexing: true
+    require_approval_for_indexing: true
+    max_workspace_mb: 300
+    max_index_seconds: 120
+  codegraph:
+    command: codegraph
+    allow_if_missing: false
+    index_args:
+      - init
+      - -i
+    query_args:
+      explore: [explore]
+      search: [search]
+      node: [node]
+      callers: [callers]
+      callees: [callees]
+      impact: [impact]
+  codegraphcontext:
+    enabled: false
+    command: cgc
+    mode: optional_future_provider
+

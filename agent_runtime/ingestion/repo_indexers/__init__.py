@@ -1,0 +1,2 @@
+"""Optional repo indexer adapters."""
+

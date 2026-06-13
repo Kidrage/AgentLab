@@ -56,7 +56,11 @@ from workflow_plan import build_workflow_plan
 
 app = typer.Typer(help="AgentLab local-first CLI.", no_args_is_help=True)
 external_skills_app = typer.Typer(help="External Skill workflow closure commands.", no_args_is_help=True)
+search_app = typer.Typer(help="Search provider adapter commands.", no_args_is_help=True)
+repo_index_app = typer.Typer(help="Repo indexer adapter commands.", no_args_is_help=True)
 app.add_typer(external_skills_app, name="external-skills")
+app.add_typer(search_app, name="search")
+app.add_typer(repo_index_app, name="repo-index")
 console = Console()
 
 
@@ -66,6 +70,72 @@ def _run_external_skills_cli(args: list[str]) -> None:
     code = external_skills_main(args)
     if code:
         raise typer.Exit(code=code)
+
+
+def _run_search_cli(args: list[str]) -> None:
+    from search_cli import main as search_main
+
+    code = search_main(args)
+    if code:
+        raise typer.Exit(code=code)
+
+
+def _run_repo_index_cli(args: list[str]) -> None:
+    from repo_index_cli import main as repo_index_main
+
+    code = repo_index_main(args)
+    if code:
+        raise typer.Exit(code=code)
+
+
+@search_app.command("web")
+def search_web_cmd(query: str, mock: bool = typer.Option(False, "--mock"), project: str = typer.Option("AgentLab", "--project"), task_id: str | None = typer.Option(None, "--task-id")) -> None:
+    """Run or plan web search. May call external provider only when enabled."""
+    args = ["--project", project]
+    if task_id:
+        args.extend(["--task-id", task_id])
+    args.append("search-web")
+    if mock:
+        args.append("--mock")
+    args.append(query)
+    _run_search_cli(args)
+
+
+@search_app.command("extract-url")
+def search_extract_url_cmd(url: str, mock: bool = typer.Option(False, "--mock"), project: str = typer.Option("AgentLab", "--project"), task_id: str | None = typer.Option(None, "--task-id")) -> None:
+    """Extract a URL. Defaults avoid external provider calls unless enabled."""
+    args = ["--project", project]
+    if task_id:
+        args.extend(["--task-id", task_id])
+    args.append("extract-url")
+    if mock:
+        args.append("--mock")
+    args.append(url)
+    _run_search_cli(args)
+
+
+@repo_index_app.command("status")
+def repo_index_status_cmd(repo_path: Path = typer.Option(..., "--repo-path"), project: str = typer.Option("AgentLab", "--project"), task_id: str | None = typer.Option(None, "--task-id")) -> None:
+    """Read-only repo indexer status. Does not clone or index."""
+    args = ["--project", project]
+    if task_id:
+        args.extend(["--task-id", task_id])
+    args.extend(["status", "--repo-path", str(repo_path)])
+    _run_repo_index_cli(args)
+
+
+@repo_index_app.command("index")
+def repo_index_index_cmd(repo_path: Path = typer.Option(..., "--repo-path"), dry_run: bool = typer.Option(True, "--dry-run"), approve_indexing: bool = typer.Option(False, "--approve-indexing"), mode: str = typer.Option("repo_patch", "--mode"), project: str = typer.Option("AgentLab", "--project"), task_id: str | None = typer.Option(None, "--task-id")) -> None:
+    """Plan or explicitly approve local repo indexing. Never clones repos."""
+    args = ["--project", project]
+    if task_id:
+        args.extend(["--task-id", task_id])
+    args.extend(["index", "--repo-path", str(repo_path), "--mode", mode])
+    if not dry_run:
+        args.append("--execute")
+    if approve_indexing:
+        args.append("--approve-indexing")
+    _run_repo_index_cli(args)
 
 
 @external_skills_app.command("list")
@@ -1587,6 +1657,13 @@ def prepare(
                 task_id=task_id,
                 task_text=task_text,
                 record_usage=True,
+            )
+            from intelligence_plans import maybe_write_intelligence_plans
+            maybe_write_intelligence_plans(
+                run_dir,
+                task_id=task_id,
+                task_text=task_text,
+                route_key=getattr(plan.route, "route_key", None),
             )
             if load_progress(run_dir) is None:
                 create_progress(

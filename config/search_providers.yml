@@ -1,0 +1,21 @@
+search_providers:
+  default_provider: anysearch_optional
+  anysearch:
+    enabled: false
+    mode: api_or_mcp_adapter
+    api_key_env: ANYSEARCH_API_KEY
+    endpoint: "https://api.anysearch.com"
+    allow_anonymous: true
+    timeout_sec: 20
+    max_results_default: 5
+    max_batch_queries: 5
+    max_url_extract_chars: 12000
+    safety:
+      require_approval_for_batch_over: 5
+      block_localhost_urls: true
+      block_private_ip_urls: true
+      redact_api_key_in_logs: true
+  fallback:
+    enabled: true
+    provider: local_url_reader
+

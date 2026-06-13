@@ -38,3 +38,11 @@ boundaries. The supported loop is static inventory → disabled metadata import 
 usage ledger → internal candidate proposal → read-only MCP inspection. Runtime
 scan and incubation artifacts live under `artifacts/` or task `artifacts/`
 directories and are not long-lived repository root files.
+# Search And Repo Intelligence Providers
+
+AnySearch is modeled as an optional external intelligence department for web
+search, vertical search, URL extraction, and batch search. CodeGraph is modeled
+as an optional local code intelligence department for repo indexing and symbolic
+query metadata. Both departments are disabled by default, evidence-gated, and
+tracked through cost/resource/skill ledgers with unknown costs represented as
+unknown/null rather than zero.

@@ -352,6 +352,9 @@ def artifact_content_issues(fname: str, content: str, run_dir: Path | None = Non
     repo_evidence_issues = _check_repo_analysis_evidence(fname, content, run_dir)
     issues.extend(repo_evidence_issues)
 
+    intelligence_issues = _check_search_repo_intelligence_evidence(fname, content, run_dir)
+    issues.extend(intelligence_issues)
+
     return issues
 
 
@@ -546,6 +549,66 @@ def _load_resource_ledger(run_dir: Path | None) -> dict:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except Exception:
         return {}
+
+
+def _load_yaml_artifact(run_dir: Path | None, relative_path: str) -> dict:
+    if run_dir is None:
+        return {}
+    candidates = [run_dir / relative_path, run_dir / "artifacts" / "search" / relative_path, run_dir / "artifacts" / "repo_index" / relative_path]
+    for path in candidates:
+        if path.exists():
+            try:
+                return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            except Exception:
+                return {}
+    return {}
+
+
+def _json_artifact_exists(run_dir: Path | None, relative_path: str, subdir: str) -> bool:
+    if run_dir is None:
+        return False
+    return (run_dir / relative_path).exists() or (run_dir / "artifacts" / subdir / relative_path).exists()
+
+
+def _check_search_repo_intelligence_evidence(fname: str, content: str, run_dir: Path | None = None) -> list[str]:
+    evidence_report_files = {
+        "02_reposcout_report.md",
+        "03_research_notes.md",
+        "04_interface_map.md",
+        "06_implementation_report.md",
+        "07_validation_report.md",
+        "08_audit_report.md",
+        "verification_report.md",
+    }
+    if fname not in evidence_report_files:
+        return []
+    lowered = content.lower()
+    if "planned but skipped" in lowered or "planned/skipped" in lowered:
+        return []
+    issues: list[str] = []
+
+    search_ledger = _load_yaml_artifact(run_dir, "search_ledger.yml")
+    search_results_exists = _json_artifact_exists(run_dir, "search_results.json", "search")
+    search_entries = search_ledger.get("entries") or []
+    if any(p in lowered for p in ["searched web", "web search", "搜索了", "used anysearch", "extracted url"]):
+        if not search_ledger or not search_results_exists:
+            issues.append("Report claims search/URL extraction but search_ledger.yml and search_results.json evidence are missing.")
+    if "used anysearch" in lowered and not any(e.get("provider") == "anysearch" for e in search_entries if isinstance(e, dict)):
+        issues.append("Report claims AnySearch use but search_ledger provider=anysearch evidence is missing.")
+    if "extracted url" in lowered and not any(e.get("action") == "url_extract" for e in search_entries if isinstance(e, dict)):
+        issues.append("Report claims URL extraction but search_ledger action=url_extract evidence is missing.")
+
+    repo_ledger = _load_yaml_artifact(run_dir, "repo_index_ledger.yml")
+    semantic_exists = _json_artifact_exists(run_dir, "repo_semantic_library.json", "repo_index")
+    if "indexed repo" in lowered:
+        if not repo_ledger or not (repo_ledger.get("index") or {}).get("performed"):
+            issues.append("Report claims repo indexing but repo_index_ledger.yml index.performed=true evidence is missing.")
+    if "queried codegraph" in lowered and not (repo_ledger.get("queries") or []):
+        issues.append("Report claims CodeGraph query but repo_index_ledger queries evidence is missing.")
+    if "used code graph" in lowered or "used codegraph" in lowered:
+        if not semantic_exists:
+            issues.append("Report claims code graph use but repo_semantic_library.json evidence is missing.")
+    return issues
 
 
 def _check_repo_analysis_evidence(fname: str, content: str, run_dir: Path | None = None) -> list[str]:

@@ -39,3 +39,10 @@ Imported ECC skills remain:
 Validation helpers live in `agent_runtime/skills/config_validation.py` and check
 unique `skill_id`, disabled-by-default external imports, unknown license review,
 and policy safety requirements.
+# P1-C/D External Provider Entries
+
+`config/external_skill_registry.yml` includes disabled adapter entries for
+`anysearch.web_research` and `codegraph.repo_index`. These are external
+providers, not core AgentLab dependencies. Usage is recorded in
+`skill_usage_ledger.yml`, and repeated successful usage may propose internal
+checklist or strategy candidates without copying third-party source code.

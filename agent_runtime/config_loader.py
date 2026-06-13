@@ -29,6 +29,8 @@ CONFIG_FILES = {
     "budget_profiles": "budget_profiles.yml",
     "budget_policy": "budget_policy.yml",
     "repo_ingestion_policy": "repo_ingestion_policy.yml",
+    "repo_indexing": "repo_indexing.yml",
+    "search_providers": "search_providers.yml",
     "self_check_policy": "self_check_policy.yml",
     "skill_injection_policy": "skill_injection_policy.yml",
     "task_index_policy": "task_index_policy.yml",

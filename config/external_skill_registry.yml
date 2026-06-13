@@ -1,5 +1,55 @@
 schema_version: 1
 external_skills:
+  - skill_id: anysearch.web_research
+    source: anysearch
+    source_type: external_search_provider
+    display_name: AnySearch Web Research
+    integration_mode: adapter
+    enabled: false
+    capabilities:
+      - web_search
+      - batch_search
+      - url_extract
+    risk:
+      level: medium
+      requires_approval: true
+    license:
+      name: unknown
+      source_url: null
+      compatible_for_internal_distillation: review_required
+      license_review_required: true
+    cost:
+      billing_mode: external_api_or_anonymous
+      token_visibility: unknown
+    fallback:
+      internal_skill: local_url_reader
+      api_model_fallback: qwen3.6-plus
+  - skill_id: codegraph.repo_index
+    source: codegraph
+    source_type: external_cli_tool
+    display_name: CodeGraph Repo Index
+    integration_mode: adapter
+    enabled: false
+    capabilities:
+      - repo_index
+      - symbol_search
+      - callers
+      - callees
+      - impact_analysis
+    risk:
+      level: medium
+      requires_approval: true
+    license:
+      name: unknown
+      source_url: null
+      compatible_for_internal_distillation: review_required
+      license_review_required: true
+    cost:
+      billing_mode: local_resource
+      token_visibility: unknown
+    fallback:
+      internal_skill: repo_manifest_targeted_fetch
+      api_model_fallback: null
   - skill_id: ecc.planner
     source: ecc
     source_type: external_agent_pack
