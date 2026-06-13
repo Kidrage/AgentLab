@@ -1,9 +1,9 @@
 # External Agent Handoff
 
 **Task ID:** p1_closure_acceptance
-**Handoff ID:** handoff_p1_closure_acceptance_cline_codex_20260613_113651_8612e86c
+**Handoff ID:** handoff_p1_closure_acceptance_cline_codex_20260613_151004_b5c9fb54
 **Project:** AgentLab
-**Created At:** 2026-06-13T11:36:51.916571+00:00
+**Created At:** 2026-06-13T15:10:04.186817+00:00
 
 ## Target Executor
 - **Agent ID:** cline_codex
@@ -70,7 +70,7 @@ Task summary: local fake repo only. [REDACTED_SECRET] [REDACTED_SECRET]
 4. Run the following command to submit your result:
 
 ```bash
-./agentlab.sh external-agents submit-result --task-id p1_closure_acceptance --handoff-id handoff_p1_closure_acceptance_cline_codex_20260613_113651_8612e86c --result-file path/to/result.yml
+./agentlab.sh external-agents submit-result --task-id p1_closure_acceptance --handoff-id handoff_p1_closure_acceptance_cline_codex_20260613_151004_b5c9fb54 --result-file path/to/result.yml
 ```
 
 **Note:** AgentLab does NOT automatically execute external agents.

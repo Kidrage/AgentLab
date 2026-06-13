@@ -1,0 +1,21 @@
+providers:
+- provider_id: agentlab.mock_patch
+  provider_type: mock_executor
+  attempts: 5
+  accepted: 2
+  rejected: 3
+  retry_count: 3
+  pass_count: 2
+  pass_with_warnings_count: 0
+  needs_revision_count: 3
+  fail_count: 0
+  blocked_count: 0
+  acceptance_rate: 0.4
+  retry_rate: 0.6
+  blocked_rate: 0.0
+  average_quality_score: 0.61
+  last_verdict: PASS
+  trend: stable
+  notes:
+  - deterministic mock provider
+  - mock data; do not interpret as real external provider performance

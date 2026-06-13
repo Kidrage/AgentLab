@@ -1,0 +1,10 @@
+apply_automatically: false
+recommendations:
+- provider_id: agentlab.mock_patch
+  recommendation: watchlist
+  reason:
+  - acceptance rate below watchlist threshold
+  priority_delta: -1
+  requires_human_review: true
+  apply_automatically: false
+warnings: []

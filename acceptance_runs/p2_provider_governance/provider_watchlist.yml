@@ -1,0 +1,5 @@
+watchlist:
+- provider_id: agentlab.mock_patch
+  reasons:
+  - acceptance rate below watchlist threshold
+  requires_human_review: false

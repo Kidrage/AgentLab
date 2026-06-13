@@ -4,8 +4,8 @@
 P1-A/B/C/D closed-loop acceptance result: PASS.
 
 ## Commit
-- hash: 32c07d337c1b67e38ff05d2e20866965e640ad9d
-- branch: main
+- hash: 37fb9c341501c19e7c524aacf0e1daa771a15040
+- branch: stabilization/text-integrity-p1-p2
 
 ## Tests Run
 - command: python scripts/p1_acceptance_check.py --output acceptance_runs/p1_closure
@@ -20,7 +20,7 @@ P1-A/B/C/D closed-loop acceptance result: PASS.
 - handoff generated: PASS
 - secrets redacted: PASS
 - no auto-execution instruction present: PASS
-- handoff_id: handoff_p1_closure_acceptance_cline_codex_20260613_113651_8612e86c
+- handoff_id: handoff_p1_closure_acceptance_cline_codex_20260613_151004_b5c9fb54
 - evidence: external_handoff.md
 
 ## P1-C AnySearch Adapter
