@@ -1,0 +1,14 @@
+task_id: manual_codex
+task_type: architecture_review
+summary: Ask Codex manually to review architecture.
+allowed_files:
+  - docs/
+forbidden_files:
+  - .env
+required_capabilities:
+  - code_review
+risk_level: medium
+max_cost_usd: 0.25
+requires_review: true
+evidence_required:
+  - execution_result_envelope.yml

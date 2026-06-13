@@ -1,0 +1,15 @@
+task_id: mock_repo_patch
+task_type: repo_patch
+summary: Patch a small repo bug with mock executor.
+allowed_files:
+  - tests/fixtures/p2_executor_router/mock_only.txt
+forbidden_files:
+  - .env
+required_capabilities:
+  - repo_patch
+risk_level: low
+max_cost_usd: 0.25
+requires_review: true
+evidence_required:
+  - execution_result_envelope.yml
+  - result_summary.md

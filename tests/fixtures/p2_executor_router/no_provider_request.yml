@@ -1,0 +1,7 @@
+task_id: no_provider
+task_type: video_render
+summary: Unsupported task type.
+required_capabilities:
+  - video_render
+risk_level: low
+requires_review: true

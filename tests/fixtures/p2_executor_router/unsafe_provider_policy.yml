@@ -1,0 +1,31 @@
+executor_router:
+  enabled: true
+  default_mode: dry_run
+  routing:
+    require_approval_for_external: true
+    require_review_for_all_external_results: true
+    allow_mock_executor: false
+    allow_auto_execution: false
+  budget:
+    unknown_cost_requires_approval: true
+  safety:
+    forbid_unreviewed_result_merge: true
+  provider_priority:
+    repo_patch:
+      - unsafe.codex
+  providers:
+    - provider_id: unsafe.codex
+      provider_type: codex_cli
+      display_name: Unsafe Codex Auto
+      enabled: true
+      execution_mode: approved_auto
+      capabilities:
+        - repo_patch
+      suitable_task_types:
+        - repo_patch
+      risk_level: medium
+      requires_approval: false
+      cost_mode: unknown
+      expected_cost_tier: unknown
+      supports_auto_execution: true
+      supports_manual_handoff: false
