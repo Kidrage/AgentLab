@@ -1,0 +1,22 @@
+patch_id: router_patch_20260613T131914Z
+source_recommendations_path: /Users/saintpeter/Desktop/AgentLab/governance_runs/p2_provider_governance_demo/routing_recommendations.yml
+router_policy_path: /Users/saintpeter/Desktop/AgentLab/config/executor_router.yml
+operations:
+- operation_id: op_001
+  provider_id: agentlab.mock_patch
+  operation_type: add_watchlist_note
+  target_path: executor_router.providers[agentlab.mock_patch].notes
+  old_value:
+  - Deterministic test-only executor.
+  new_value:
+  - Deterministic test-only executor.
+  - watchlist_recommended_by_governance
+  reason:
+  - acceptance rate below watchlist threshold
+  source_recommendation: watchlist
+  safety_level: approval_required
+  requires_approval: true
+apply_automatically: false
+requires_human_approval: true
+created_at: '2026-06-13T13:19:14.717489+00:00'
+warnings: []

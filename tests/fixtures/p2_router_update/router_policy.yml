@@ -1,0 +1,51 @@
+executor_router:
+  enabled: true
+  default_mode: dry_run
+  routing:
+    require_approval_for_external: true
+    allow_auto_execution: false
+    allow_mock_executor: true
+  safety:
+    forbid_network_execution: true
+    forbid_remote_clone: true
+    forbid_external_script_execution: true
+    forbid_secret_exposure: true
+  provider_priority:
+    repo_patch:
+      - agentlab.mock_patch
+      - manual.codex
+      - manual.cline
+      - api.deepseek
+    architecture_review:
+      - manual.codex
+      - manual.cline
+      - api.deepseek
+  providers:
+    - provider_id: agentlab.mock_patch
+      provider_type: mock_executor
+      enabled: true
+      execution_mode: mock
+      requires_approval: false
+      supports_auto_execution: true
+      notes: []
+    - provider_id: manual.codex
+      provider_type: codex_cli
+      enabled: true
+      execution_mode: manual_handoff_only
+      requires_approval: true
+      supports_auto_execution: false
+      notes: []
+    - provider_id: manual.cline
+      provider_type: cline
+      enabled: true
+      execution_mode: manual_handoff_only
+      requires_approval: false
+      supports_auto_execution: false
+      notes: []
+    - provider_id: api.deepseek
+      provider_type: api_model
+      enabled: false
+      execution_mode: disabled
+      requires_approval: true
+      supports_auto_execution: false
+      notes: []

@@ -1,0 +1,53 @@
+events:
+- event: patch_staged
+  patch_id: router_patch_20260613T131914Z
+  status: STAGED
+  reason:
+  - router policy patch staged
+  artifacts:
+  - router_update_runs/p2_router_update_demo/router_policy_patch.yml
+  - router_update_runs/p2_router_update_demo/router_policy_patch.md
+  - router_update_runs/p2_router_update_demo/router_policy_diff.md
+  created_at: '2026-06-13T13:19:14.734911+00:00'
+- event: approval_requested
+  patch_id: router_patch_20260613T131914Z
+  status: APPROVAL_REQUIRED
+  reason:
+  - approval request generated
+  artifacts:
+  - router_update_runs/p2_router_update_demo/approval_request.yml
+  - router_update_runs/p2_router_update_demo/approval_request.md
+  created_at: '2026-06-13T13:19:14.736704+00:00'
+- event: approval_missing
+  patch_id: router_patch_20260613T131914Z
+  status: APPROVAL_REQUIRED
+  reason:
+  - '[REDACTED]'
+  artifacts:
+  - router_update_runs/p2_router_update_demo/patch_result.yml
+  created_at: '2026-06-13T13:19:19.576187+00:00'
+- event: approval_granted
+  patch_id: router_patch_20260613T131914Z
+  status: APPROVED
+  reason:
+  - '[REDACTED]'
+  artifacts: []
+  created_at: '2026-06-13T13:19:30.216813+00:00'
+- event: rollback_plan_created
+  patch_id: router_patch_20260613T131914Z
+  status: CREATED
+  reason:
+  - rollback plan generated
+  artifacts:
+  - router_update_runs/p2_router_update_demo/rollback_plan.yml
+  - router_update_runs/p2_router_update_demo/rollback_plan.md
+  created_at: '2026-06-13T13:19:30.235781+00:00'
+- event: patch_applied_to_copy
+  patch_id: router_patch_20260613T131914Z
+  status: APPLIED_TO_COPY
+  reason:
+  - router patch applied to copy
+  artifacts:
+  - router_update_runs/p2_router_update_demo/patched_executor_router.yml
+  - router_update_runs/p2_router_update_demo/patch_result.yml
+  created_at: '2026-06-13T13:19:30.247482+00:00'

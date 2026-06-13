@@ -1,0 +1,10 @@
+apply_automatically: false
+recommendations:
+  - provider_id: missing.provider
+    recommendation: watchlist
+    reason:
+      - provider absent from router policy
+    priority_delta: 0
+    requires_human_review: true
+    apply_automatically: false
+warnings: []

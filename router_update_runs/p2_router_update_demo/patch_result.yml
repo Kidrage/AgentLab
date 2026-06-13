@@ -1,0 +1,8 @@
+patch_id: router_patch_20260613T131914Z
+applied: true
+applied_to: /Users/saintpeter/Desktop/AgentLab/router_update_runs/p2_router_update_demo/patched_executor_router.yml
+status: APPLIED_TO_COPY
+operations_applied: 1
+rollback_plan_path: /Users/saintpeter/Desktop/AgentLab/router_update_runs/p2_router_update_demo/rollback_plan.yml
+reasons:
+- router patch applied to copy

@@ -1,0 +1,17 @@
+apply_automatically: false
+recommendations:
+  - provider_id: manual.codex
+    recommendation: prefer
+    reason:
+      - provider healthy
+    priority_delta: 1
+    requires_human_review: true
+    apply_automatically: false
+  - provider_id: api.deepseek
+    recommendation: prefer
+    reason:
+      - disabled provider should not move
+    priority_delta: 1
+    requires_human_review: true
+    apply_automatically: false
+warnings: []

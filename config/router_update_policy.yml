@@ -1,0 +1,60 @@
+router_update_policy:
+  enabled: true
+
+  safety:
+    never_modify_production_router_directly: true
+    require_human_approval: true
+    allow_apply_to_copy: true
+    allow_apply_to_production: false
+    forbid_enabling_disabled_external_providers: true
+    forbid_auto_execution_enablement: true
+    forbid_disabling_all_providers_for_task_type: true
+    forbid_removing_safety_constraints: true
+    require_rollback_plan: true
+
+  approval:
+    method: file_token
+    token_file_name: APPROVE_ROUTER_PATCH
+    token_value: APPROVED
+    approval_expires_minutes: 60
+
+  recommendations:
+    accept_recommendations:
+      - prefer
+      - keep
+      - watchlist
+      - downgrade
+      - quarantine
+      - require_manual_approval
+      - insufficient_data
+    mapping:
+      prefer:
+        action: adjust_priority_up
+        max_priority_delta: -1
+        requires_approval: true
+      keep:
+        action: no_op
+        requires_approval: false
+      watchlist:
+        action: add_watchlist_note
+        requires_approval: true
+      downgrade:
+        action: adjust_priority_down
+        max_priority_delta: 1
+        requires_approval: true
+      quarantine:
+        action: set_requires_approval_and_downgrade
+        requires_approval: true
+      require_manual_approval:
+        action: set_requires_approval
+        requires_approval: true
+      insufficient_data:
+        action: add_watchlist_note
+        requires_approval: false
+
+  artifacts:
+    write_patch_plan: true
+    write_diff_report: true
+    write_approval_request: true
+    write_rollback_plan: true
+    write_update_ledger: true
