@@ -30,7 +30,14 @@ def _is_blocked_host(hostname: str | None, *, block_localhost: bool = True, bloc
 class LocalUrlReader(SearchProvider):
     provider_name = "local_url_reader"
 
-    def __init__(self, *, http_get=None, block_localhost: bool = True, block_private: bool = True, max_bytes: int = 200_000):
+    def __init__(
+        self,
+        *,
+        http_get=None,
+        block_localhost: bool = True,
+        block_private: bool = True,
+        max_bytes: int = 200_000,
+    ):
         self.http_get = http_get or self._urllib_get
         self.block_localhost = block_localhost
         self.block_private = block_private
@@ -75,7 +82,11 @@ class LocalUrlReader(SearchProvider):
                 status="rejected",
                 auth_mode="disabled",
             )
-        if _is_blocked_host(parsed.hostname, block_localhost=self.block_localhost, block_private=self.block_private):
+        if _is_blocked_host(
+            parsed.hostname,
+            block_localhost=self.block_localhost,
+            block_private=self.block_private,
+        ):
             return UrlExtractResponse(
                 provider=self.provider_name,
                 url=url,
@@ -121,4 +132,3 @@ class LocalUrlReader(SearchProvider):
         req = urllib.request.Request(url, headers={"User-Agent": "AgentLab-local-url-reader/1.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:  # nosec - guarded by policy, mocked in tests
             return resp.read(max_bytes + 1)[:max_bytes]
-

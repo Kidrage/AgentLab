@@ -22,7 +22,9 @@ except ImportError:  # pragma: no cover
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="AgentLab search provider adapter CLI.")
+    parser = argparse.ArgumentParser(
+        description="AgentLab search provider adapter CLI.",
+    )
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--project", default="AgentLab")
     parser.add_argument("--task-id")
@@ -67,7 +69,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(response.as_dict(), ensure_ascii=False, indent=2))
         return 0
     if args.command == "batch-search":
-        queries = [line.strip() for line in args.queries_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+        queries = [
+            line.strip()
+            for line in args.queries_file.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
         max_results = args.max_results or int(any_cfg.get("max_results_default", 5) or 5)
         response = provider.batch_search(queries, max_results=max_results)
         write_search_artifacts(output_dir, task_id=args.task_id, action="batch_search", response=response)

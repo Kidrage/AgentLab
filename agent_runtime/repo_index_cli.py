@@ -46,7 +46,11 @@ DEFAULT_CONFIG = {
                 "impact": ["impact"],
             },
         },
-        "codegraphcontext": {"enabled": False, "command": "cgc", "mode": "optional_future_provider"},
+        "codegraphcontext": {
+            "enabled": False,
+            "command": "cgc",
+            "mode": "optional_future_provider",
+        },
     }
 }
 
@@ -106,20 +110,36 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "index":
         if not args.dry_run and not args.approve_indexing:
-            result = adapter.index_repo(args.repo_path, dry_run=True, mode=args.mode, approve_indexing=False)
+            result = adapter.index_repo(
+                args.repo_path,
+                dry_run=True,
+                mode=args.mode,
+                approve_indexing=False,
+            )
             result.decision.action = "pending_approval"
             result.decision.reasons.append("non-dry-run requires --approve-indexing")
             write_repo_index_artifacts(out, task_id=args.task_id, repo_path=args.repo_path, result=result)
             print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
             return 1
-        result = adapter.index_repo(args.repo_path, dry_run=args.dry_run, mode=args.mode, approve_indexing=args.approve_indexing)
+        result = adapter.index_repo(
+            args.repo_path,
+            dry_run=args.dry_run,
+            mode=args.mode,
+            approve_indexing=args.approve_indexing,
+        )
         write_repo_index_artifacts(out, task_id=args.task_id, repo_path=args.repo_path, result=result)
         print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
         return 0
     if args.command == "query":
         query_result = adapter.query(args.repo_path, args.query)
         status = adapter.status(args.repo_path)
-        write_repo_index_artifacts(out, task_id=args.task_id, repo_path=args.repo_path, status=status, query_result=query_result)
+        write_repo_index_artifacts(
+            out,
+            task_id=args.task_id,
+            repo_path=args.repo_path,
+            status=status,
+            query_result=query_result,
+        )
         print(json.dumps(query_result.as_dict(), ensure_ascii=False, indent=2))
         return 0
     return 2

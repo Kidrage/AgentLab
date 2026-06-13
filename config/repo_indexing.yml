@@ -15,14 +15,19 @@ repo_indexing:
       - init
       - -i
     query_args:
-      explore: [explore]
-      search: [search]
-      node: [node]
-      callers: [callers]
-      callees: [callees]
-      impact: [impact]
+      explore:
+        - explore
+      search:
+        - search
+      node:
+        - node
+      callers:
+        - callers
+      callees:
+        - callees
+      impact:
+        - impact
   codegraphcontext:
     enabled: false
     command: cgc
     mode: optional_future_provider
-

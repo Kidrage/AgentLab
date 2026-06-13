@@ -10,13 +10,27 @@ import os
 from typing import Any
 
 from .local_url_reader import LocalUrlReader
-from .provider import BatchSearchResponse, SearchProvider, SearchResponse, SearchResult, UrlExtractResponse, unknown_usage
+from .provider import (
+    BatchSearchResponse,
+    SearchProvider,
+    SearchResponse,
+    SearchResult,
+    UrlExtractResponse,
+    unknown_usage,
+)
 
 
 class AnySearchAdapter(SearchProvider):
     provider_name = "anysearch"
 
-    def __init__(self, config: dict[str, Any] | None = None, *, http_post=None, url_reader: SearchProvider | None = None, mock: bool = False):
+    def __init__(
+        self,
+        config: dict[str, Any] | None = None,
+        *,
+        http_post=None,
+        url_reader: SearchProvider | None = None,
+        mock: bool = False,
+    ):
         self.config = config or {}
         self.http_post = http_post
         self.url_reader = url_reader or LocalUrlReader()
@@ -102,7 +116,14 @@ class AnySearchAdapter(SearchProvider):
             )
         responses = [self.search_web(q, max_results=max_results) for q in queries[:max_batch]]
         status = "ok" if all(r.status == "ok" for r in responses) else "skipped"
-        return BatchSearchResponse(self.provider_name, responses, [], unknown_usage(len(responses)), status, self.auth_mode)
+        return BatchSearchResponse(
+            self.provider_name,
+            responses,
+            [],
+            unknown_usage(len(responses)),
+            status,
+            self.auth_mode,
+        )
 
     def extract_url(self, url: str, *, max_chars: int = 12000) -> UrlExtractResponse:
         if self.mock:
@@ -122,7 +143,11 @@ class AnySearchAdapter(SearchProvider):
             return response
         if self.http_post is None:
             return self.url_reader.extract_url(url, max_chars=max_chars)
-        raw = self.http_post("/extract", {"url": url, "max_chars": max_chars}, self._headers())
+        raw = self.http_post(
+            "/extract",
+            {"url": url, "max_chars": max_chars},
+            self._headers(),
+        )
         return UrlExtractResponse(
             provider=self.provider_name,
             url=url,
@@ -152,5 +177,13 @@ class AnySearchAdapter(SearchProvider):
                 rank=int(item.get("rank") or idx),
                 confidence=item.get("confidence"),
             ))
-        return SearchResponse(self.provider_name, query, vertical, results, list(raw.get("warnings") or []), unknown_usage(1), "ok", self.auth_mode)
-
+        return SearchResponse(
+            self.provider_name,
+            query,
+            vertical,
+            results,
+            list(raw.get("warnings") or []),
+            unknown_usage(1),
+            "ok",
+            self.auth_mode,
+        )

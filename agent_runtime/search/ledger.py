@@ -11,18 +11,37 @@ import yaml
 try:
     from atomic_io import atomic_write_json, atomic_write_text, atomic_write_yaml
     from state_store import utc_now
-    from skills.usage_ledger import load_skill_usage_ledger, record_skill_event, write_skill_usage_ledger
+    from skills.usage_ledger import (
+        load_skill_usage_ledger,
+        record_skill_event,
+        write_skill_usage_ledger,
+    )
 except ImportError:  # pragma: no cover
     from agent_runtime.atomic_io import atomic_write_json, atomic_write_text, atomic_write_yaml
     from agent_runtime.state_store import utc_now
-    from agent_runtime.skills.usage_ledger import load_skill_usage_ledger, record_skill_event, write_skill_usage_ledger
+    from agent_runtime.skills.usage_ledger import (
+        load_skill_usage_ledger,
+        record_skill_event,
+        write_skill_usage_ledger,
+    )
 
 
 def default_search_ledger(task_id: str | None = None) -> dict[str, Any]:
     return {"schema_version": 1, "task_id": task_id, "entries": []}
 
 
-def ledger_entry(*, provider: str, action: str, query: str | None = None, url: str | None = None, auth_mode: str = "unknown", request_count: int = 0, result_count: int = 0, warnings: list[str] | None = None, status: str = "ok") -> dict[str, Any]:
+def ledger_entry(
+    *,
+    provider: str,
+    action: str,
+    query: str | None = None,
+    url: str | None = None,
+    auth_mode: str = "unknown",
+    request_count: int = 0,
+    result_count: int = 0,
+    warnings: list[str] | None = None,
+    status: str = "ok",
+) -> dict[str, Any]:
     return {
         "search_id": f"search_{uuid.uuid4().hex[:10]}",
         "provider": provider,
@@ -43,7 +62,13 @@ def ledger_entry(*, provider: str, action: str, query: str | None = None, url: s
     }
 
 
-def write_search_artifacts(output_dir: Path, *, task_id: str | None, action: str, response: Any) -> dict[str, Path]:
+def write_search_artifacts(
+    output_dir: Path,
+    *,
+    task_id: str | None,
+    action: str,
+    response: Any,
+) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     response_data = response.as_dict() if hasattr(response, "as_dict") else dict(response)
     entries = _entries_for_response(action, response_data, task_id)
@@ -51,7 +76,11 @@ def write_search_artifacts(output_dir: Path, *, task_id: str | None, action: str
     ledger["entries"].extend(entries)
     atomic_write_yaml(output_dir / "search_ledger.yml", ledger)
     atomic_write_json(output_dir / "search_results.json", response_data)
-    atomic_write_text(output_dir / "search_summary.md", _summary(action, response_data, entries), encoding="utf-8")
+    atomic_write_text(
+        output_dir / "search_summary.md",
+        _summary(action, response_data, entries),
+        encoding="utf-8",
+    )
     _record_skill_usage(output_dir, task_id or output_dir.name, entries, response_data)
     return {
         "ledger": output_dir / "search_ledger.yml",
@@ -98,7 +127,14 @@ def _entries_for_response(action: str, data: dict[str, Any], task_id: str | None
 
 
 def _summary(action: str, data: dict[str, Any], entries: list[dict[str, Any]]) -> str:
-    lines = ["# Search Summary", "", f"- Action: {action}", f"- Provider: {data.get('provider')}", f"- Status: {data.get('status')}", ""]
+    lines = [
+        "# Search Summary",
+        "",
+        f"- Action: {action}",
+        f"- Provider: {data.get('provider')}",
+        f"- Status: {data.get('status')}",
+        "",
+    ]
     for entry in entries:
         lines.append(f"- Ledger entry: {entry['search_id']} ({entry['auth_mode']}, {entry['result_count']} results)")
     lines.append("")
@@ -108,7 +144,13 @@ def _summary(action: str, data: dict[str, Any], entries: list[dict[str, Any]]) -
 
 
 def _record_skill_usage(output_dir: Path, task_id: str, entries: list[dict[str, Any]], data: dict[str, Any]) -> None:
-    event = "used" if data.get("status") == "ok" else "skipped" if data.get("status") == "skipped" else "rejected"
+    event = (
+        "used"
+        if data.get("status") == "ok"
+        else "skipped"
+        if data.get("status") == "skipped"
+        else "rejected"
+    )
     usage_path = output_dir / "skill_usage_ledger.yml"
     ledger = load_skill_usage_ledger(usage_path)
     for entry in entries:
@@ -123,7 +165,13 @@ def _record_skill_usage(output_dir: Path, task_id: str, entries: list[dict[str, 
             success=data.get("status") == "ok",
             evidence_artifacts=["search_ledger.yml", "search_results.json"],
         )
-    successes = [e for e in ledger.get("entries", []) if e.get("skill_id") == "anysearch.web_research" and e.get("event") == "used" and e.get("success")]
+    successes = [
+        e
+        for e in ledger.get("entries", [])
+        if e.get("skill_id") == "anysearch.web_research"
+        and e.get("event") == "used"
+        and e.get("success")
+    ]
     if len(successes) >= 2:
         ledger.setdefault("candidates", []).append({
             "skill_id": "internal.web_research_checklist_from_anysearch",
@@ -133,4 +181,3 @@ def _record_skill_usage(output_dir: Path, task_id: str, entries: list[dict[str, 
             "status": "proposed",
         })
     write_skill_usage_ledger(usage_path, ledger)
-

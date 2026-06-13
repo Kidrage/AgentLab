@@ -9,7 +9,13 @@ import shutil
 import subprocess
 import time
 
-from .base import RepoIndexer, RepoIndexDecision, RepoIndexQueryResult, RepoIndexResult, RepoIndexStatus
+from .base import (
+    RepoIndexer,
+    RepoIndexDecision,
+    RepoIndexQueryResult,
+    RepoIndexResult,
+    RepoIndexStatus,
+)
 
 
 def is_remote_repo_ref(value: str | Path) -> bool:
@@ -43,14 +49,32 @@ class CodeGraphAdapter(RepoIndexer):
     def status(self, repo_path: Path) -> RepoIndexStatus:
         warnings: list[str] = []
         if is_remote_repo_ref(repo_path):
-            return RepoIndexStatus(str(repo_path), self.indexer_name, self.enabled, "denied", ["remote repo refs are not accepted"])
+            return RepoIndexStatus(
+                str(repo_path),
+                self.indexer_name,
+                self.enabled,
+                "denied",
+                ["remote repo refs are not accepted"],
+            )
         if not repo_path.exists():
-            return RepoIndexStatus(str(repo_path), self.indexer_name, self.enabled, "missing_checkout", ["repo_path does not exist"])
+            return RepoIndexStatus(
+                str(repo_path),
+                self.indexer_name,
+                self.enabled,
+                "missing_checkout",
+                ["repo_path does not exist"],
+            )
         if not self.enabled:
             warnings.append("repo_indexing disabled; status only")
             return RepoIndexStatus(display_repo_path(repo_path), self.indexer_name, False, "disabled", warnings)
         if not self.which(self.command):
-            return RepoIndexStatus(display_repo_path(repo_path), self.indexer_name, True, "setup_required", [f"{self.command} CLI not found"])
+            return RepoIndexStatus(
+                display_repo_path(repo_path),
+                self.indexer_name,
+                True,
+                "setup_required",
+                [f"{self.command} CLI not found"],
+            )
         return RepoIndexStatus(display_repo_path(repo_path), self.indexer_name, True, "available", warnings)
 
     def can_index(self, repo_path: Path, *, mode: str) -> RepoIndexDecision:
@@ -69,26 +93,89 @@ class CodeGraphAdapter(RepoIndexer):
             return RepoIndexDecision("pending_approval", ["real indexing requires explicit approval"], True)
         return RepoIndexDecision("allow", ["local checkout and policy allow indexing"])
 
-    def index_repo(self, repo_path: Path, *, dry_run: bool = True, mode: str = "repo_patch", approve_indexing: bool = False) -> RepoIndexResult:
+    def index_repo(
+        self,
+        repo_path: Path,
+        *,
+        dry_run: bool = True,
+        mode: str = "repo_patch",
+        approve_indexing: bool = False,
+    ) -> RepoIndexResult:
         decision = self.can_index(repo_path, mode=mode)
         args = list(((self.config.get("codegraph") or {}).get("index_args") or ["init", "-i"]))
         command = [self.command, *args, str(repo_path)]
         if dry_run:
-            return RepoIndexResult(display_repo_path(repo_path), self.indexer_name, True, decision, False, command, warnings=decision.reasons)
+            return RepoIndexResult(
+                display_repo_path(repo_path),
+                self.indexer_name,
+                True,
+                decision,
+                False,
+                command,
+                warnings=decision.reasons,
+            )
         if decision.action != "allow":
             if approve_indexing and decision.action == "pending_approval":
                 decision = RepoIndexDecision("allow", ["approved real indexing"], False)
             else:
-                return RepoIndexResult(display_repo_path(repo_path), self.indexer_name, False, decision, False, command, warnings=decision.reasons)
+                return RepoIndexResult(
+                    display_repo_path(repo_path),
+                    self.indexer_name,
+                    False,
+                    decision,
+                    False,
+                    command,
+                    warnings=decision.reasons,
+                )
         if not approve_indexing:
-            return RepoIndexResult(display_repo_path(repo_path), self.indexer_name, False, RepoIndexDecision("pending_approval", ["real indexing requires explicit approval"], True), False, command, warnings=["real indexing requires explicit approval"])
+            return RepoIndexResult(
+                display_repo_path(repo_path),
+                self.indexer_name,
+                False,
+                RepoIndexDecision(
+                    "pending_approval",
+                    ["real indexing requires explicit approval"],
+                    True,
+                ),
+                False,
+                command,
+                warnings=["real indexing requires explicit approval"],
+            )
         start = time.monotonic()
-        proc = self.runner(command, cwd=str(repo_path), capture_output=True, text=True, timeout=int((self.config.get("policy") or {}).get("max_index_seconds", 120)))
+        proc = self.runner(
+            command,
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            timeout=int((self.config.get("policy") or {}).get("max_index_seconds", 120)),
+        )
         duration = round(time.monotonic() - start, 3)
-        return RepoIndexResult(display_repo_path(repo_path), self.indexer_name, False, RepoIndexDecision("allow", ["index command executed"]), True, command, proc.returncode, duration_sec=duration)
+        return RepoIndexResult(
+            display_repo_path(repo_path),
+            self.indexer_name,
+            False,
+            RepoIndexDecision("allow", ["index command executed"]),
+            True,
+            command,
+            proc.returncode,
+            duration_sec=duration,
+        )
 
     def query(self, repo_path: Path, query: str) -> RepoIndexQueryResult:
         status = self.status(repo_path)
         if status.status not in {"available"}:
-            return RepoIndexQueryResult(display_repo_path(repo_path), self.indexer_name, query, warnings=status.warnings, status=status.status)
-        return RepoIndexQueryResult(display_repo_path(repo_path), self.indexer_name, query, results=[], warnings=["query adapter placeholder; no external command executed by default"], status="dry_run")
+            return RepoIndexQueryResult(
+                display_repo_path(repo_path),
+                self.indexer_name,
+                query,
+                warnings=status.warnings,
+                status=status.status,
+            )
+        return RepoIndexQueryResult(
+            display_repo_path(repo_path),
+            self.indexer_name,
+            query,
+            results=[],
+            warnings=["query adapter placeholder; no external command executed by default"],
+            status="dry_run",
+        )
