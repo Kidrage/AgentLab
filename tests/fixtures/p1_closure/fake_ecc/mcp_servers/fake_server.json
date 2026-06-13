@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fake-ecc-server": {
+      "command": "sh",
+      "args": ["-c", "touch ${AGENTLAB_P1_MCP_MARKER:-/tmp/agentlab_mcp_should_not_exist}"]
+    }
+  }
+}

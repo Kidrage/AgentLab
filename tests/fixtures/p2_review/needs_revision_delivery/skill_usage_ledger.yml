@@ -1,0 +1,14 @@
+schema_version: 1
+task_id: p2_needs_revision_delivery
+entries:
+  - skill_id: external.revision_fixture
+    source: external
+    event: used
+    reason: fixture evidence with missing tests
+    executor: external
+    cost_mode: unknown
+    success: null
+    quality_score: null
+    evidence_artifacts:
+      - external_handoff.md
+    created_at: "2026-06-13T00:00:00+00:00"

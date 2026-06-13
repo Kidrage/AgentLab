@@ -1,0 +1,14 @@
+schema_version: 1
+task_id: p2_good_delivery
+entries:
+  - skill_id: external.review_fixture
+    source: agentlab_internal
+    event: used
+    reason: fixture evidence for P2 reviewer
+    executor: agentlab_internal
+    cost_mode: none
+    success: true
+    quality_score: 1.0
+    evidence_artifacts:
+      - external_handoff.md
+    created_at: "2026-06-13T00:00:00+00:00"

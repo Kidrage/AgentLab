@@ -1,5 +1,6 @@
 import subprocess
 import unittest
+import unittest.mock
 import time
 from pathlib import Path
 from agent_runtime.external_agents.handoff import ExternalHandoff

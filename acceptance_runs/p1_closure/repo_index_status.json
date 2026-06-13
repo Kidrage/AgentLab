@@ -1,0 +1,51 @@
+{
+  "disabled_status": {
+    "repo_path": "fake_repo",
+    "indexer": "codegraph_cli",
+    "enabled": false,
+    "status": "disabled",
+    "warnings": [
+      "repo_indexing disabled; status only"
+    ]
+  },
+  "dry_run": {
+    "repo_path": "fake_repo",
+    "indexer": "codegraph_cli",
+    "dry_run": true,
+    "decision": {
+      "action": "pending_approval",
+      "reasons": [
+        "real indexing requires explicit approval"
+      ],
+      "approval_required": true
+    },
+    "performed": false,
+    "command": [
+      "codegraph",
+      "init",
+      "-i",
+      "/Users/saintpeter/Desktop/AgentLab/tests/fixtures/p1_closure/fake_repo"
+    ],
+    "exit_code": null,
+    "index_size_mb": null,
+    "indexed_files": null,
+    "duration_sec": null,
+    "warnings": [
+      "real indexing requires explicit approval"
+    ]
+  },
+  "remote_decision": {
+    "action": "deny",
+    "reasons": [
+      "remote repo URL/ref rejected; CodeGraph never clones repos"
+    ],
+    "approval_required": false
+  },
+  "repo_profile_decision": {
+    "action": "deny",
+    "reasons": [
+      "repo_profile mode forbids indexing"
+    ],
+    "approval_required": false
+  }
+}

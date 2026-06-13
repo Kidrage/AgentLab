@@ -1,0 +1,153 @@
+{
+  "disabled": {
+    "provider": "anysearch",
+    "query": "AgentLab P1 closure",
+    "vertical": null,
+    "results": [],
+    "warnings": [
+      "AnySearch provider disabled; planned/skipped without external call"
+    ],
+    "usage": {
+      "api_provider_cost_visible": false,
+      "token_visibility": "unknown",
+      "request_count": 0
+    },
+    "status": "skipped",
+    "auth_mode": "disabled"
+  },
+  "mock": {
+    "provider": "anysearch",
+    "query": "AgentLab P1 closure",
+    "vertical": null,
+    "results": [
+      {
+        "title": "Mock result for AgentLab P1 closure",
+        "url": "https://example.com/mock-search",
+        "snippet": "Mock AnySearch response for AgentLab P1 closure",
+        "source": "anysearch.mock",
+        "retrieved_at": "2026-06-13T11:36:51.924184+00:00",
+        "rank": 1,
+        "confidence": 0.9
+      }
+    ],
+    "warnings": [],
+    "usage": {
+      "api_provider_cost_visible": false,
+      "token_visibility": "unknown",
+      "request_count": 1
+    },
+    "status": "ok",
+    "auth_mode": "mock"
+  },
+  "batch": {
+    "provider": "anysearch",
+    "responses": [],
+    "warnings": [
+      "batch size 2 exceeds approval threshold 1"
+    ],
+    "usage": {
+      "api_provider_cost_visible": false,
+      "token_visibility": "unknown",
+      "request_count": 0
+    },
+    "status": "pending_approval",
+    "auth_mode": "mock"
+  },
+  "blocked_urls": [
+    {
+      "provider": "local_url_reader",
+      "url": "http://localhost:8000/secret",
+      "title": null,
+      "text": "",
+      "source": "http://localhost:8000/secret",
+      "retrieved_at": "2026-06-13T11:36:51.924295+00:00",
+      "warnings": [
+        "AnySearch provider disabled; used local_url_reader fallback",
+        "blocked localhost/private/link-local URL"
+      ],
+      "usage": {
+        "api_provider_cost_visible": false,
+        "token_visibility": "unknown",
+        "request_count": 0
+      },
+      "status": "rejected",
+      "auth_mode": "disabled"
+    },
+    {
+      "provider": "local_url_reader",
+      "url": "http://127.0.0.1:8000/secret",
+      "title": null,
+      "text": "",
+      "source": "http://127.0.0.1:8000/secret",
+      "retrieved_at": "2026-06-13T11:36:51.924363+00:00",
+      "warnings": [
+        "AnySearch provider disabled; used local_url_reader fallback",
+        "blocked localhost/private/link-local URL"
+      ],
+      "usage": {
+        "api_provider_cost_visible": false,
+        "token_visibility": "unknown",
+        "request_count": 0
+      },
+      "status": "rejected",
+      "auth_mode": "disabled"
+    },
+    {
+      "provider": "local_url_reader",
+      "url": "http://10.0.0.1/admin",
+      "title": null,
+      "text": "",
+      "source": "http://10.0.0.1/admin",
+      "retrieved_at": "2026-06-13T11:36:51.924446+00:00",
+      "warnings": [
+        "AnySearch provider disabled; used local_url_reader fallback",
+        "blocked localhost/private/link-local URL"
+      ],
+      "usage": {
+        "api_provider_cost_visible": false,
+        "token_visibility": "unknown",
+        "request_count": 0
+      },
+      "status": "rejected",
+      "auth_mode": "disabled"
+    },
+    {
+      "provider": "local_url_reader",
+      "url": "http://192.168.1.1/router",
+      "title": null,
+      "text": "",
+      "source": "http://192.168.1.1/router",
+      "retrieved_at": "2026-06-13T11:36:51.924513+00:00",
+      "warnings": [
+        "AnySearch provider disabled; used local_url_reader fallback",
+        "blocked localhost/private/link-local URL"
+      ],
+      "usage": {
+        "api_provider_cost_visible": false,
+        "token_visibility": "unknown",
+        "request_count": 0
+      },
+      "status": "rejected",
+      "auth_mode": "disabled"
+    },
+    {
+      "provider": "local_url_reader",
+      "url": "file:///etc/passwd",
+      "title": null,
+      "text": "",
+      "source": "file:///etc/passwd",
+      "retrieved_at": "2026-06-13T11:36:51.924563+00:00",
+      "warnings": [
+        "AnySearch provider disabled; used local_url_reader fallback",
+        "blocked unsupported URL scheme: file"
+      ],
+      "usage": {
+        "api_provider_cost_visible": false,
+        "token_visibility": "unknown",
+        "request_count": 0
+      },
+      "status": "rejected",
+      "auth_mode": "disabled"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+task_id: p1_closure_acceptance
+handoffs:
+- handoff_id: handoff_p1_closure_acceptance_cline_codex_20260613_113554_b550372d
+  agent_id: cline_codex
+  status: proposed
+  billing_mode: subscription_quota
+  token_visibility: unknown
+  api_cost_visible: false
+  created_at: '2026-06-13T11:35:54.169162+00:00'
+  submitted_at: null
+  evidence_status: missing
+  artifact_gate_status: pending
+  skill_usage_events:
+  - ecc.planner
+  - ecc.code-reviewer
+- handoff_id: handoff_p1_closure_acceptance_cline_codex_20260613_113651_8612e86c
+  agent_id: cline_codex
+  status: proposed
+  billing_mode: subscription_quota
+  token_visibility: unknown
+  api_cost_visible: false
+  created_at: '2026-06-13T11:36:51.921380+00:00'
+  submitted_at: null
+  evidence_status: missing
+  artifact_gate_status: pending
+  skill_usage_events:
+  - ecc.planner
+  - ecc.code-reviewer

@@ -1,0 +1,503 @@
+target:
+  task_id: p1_closure
+  target_dir: /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p1_closure
+  handoff_path: /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p1_closure/external_handoff.md
+  report_path: /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p1_closure/p1_acceptance_report.md
+  changed_files: []
+  claimed_tests: []
+summary:
+  task_id: p1_closure
+  target_dir: /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p1_closure
+  artifacts:
+  - path: external_handoff.md
+    exists: true
+    kind: artifact
+    summary: '# External Agent Handoff **Task ID:** p1_closure_acceptance **Handoff
+      ID:** handoff_p1_closure_acceptance_cline_codex_20260613_113651_8612e86c **Project:**
+      AgentLab **Created At:** 2026-06-13T11:36:51.916571+00:00 ## Target Executor
+      - **Agent ID:** cline_codex - **Display Name:** Cline with Codex...'
+    size_bytes: 2615
+  - path: skill_usage_ledger.yml
+    exists: true
+    kind: artifact
+    summary: 'schema_version: 1 task_id: p1_closure_acceptance entries: - skill_id:
+      ecc.planner source: ecc event: planned reason: external skill discovered and
+      planned for handoff only executor: agentlab_internal cost_mode: unknown success:
+      null quality_score: null evidence_artifacts: - external_skill_invento...'
+    size_bytes: 2332
+  - path: external_skill_inventory.json
+    exists: true
+    kind: artifact
+    summary: '{ "source": "ecc", "source_path": "/Users/saintpeter/Desktop/AgentLab/tests/fixtures/p1_closure/fake_ecc",
+      "scan_mode": "static_inventory_only", "found": true, "warnings": [], "agents":
+      [ { "id": "ecc.planner", "name": "planner", "type": "agent", "source_file":
+      "AGENTS.md", "capabilities": [ "cod...'
+    size_bytes: 2395
+  - path: internal_skill_candidates.yml
+    exists: true
+    kind: artifact
+    summary: 'schema_version: 1 warnings: [] candidates: - candidate_id: internal.ecc_planner_candidate
+      derived_from: - ecc.planner derivation_type: method_summary status: proposed
+      capability: - code_review - implementation - planning - repo_strategy - security_review
+      - task_decomposition reason: - external sk...'
+    size_bytes: 2346
+  - path: p1_acceptance_report.md
+    exists: true
+    kind: artifact
+    summary: '# AgentLab P1 Closure Acceptance Report ## Summary P1-A/B/C/D closed-loop
+      acceptance result: PASS. ## Commit - hash: 32c07d337c1b67e38ff05d2e20866965e640ad9d
+      - branch: main ## Tests Run - command: python scripts/p1_acceptance_check.py
+      --output acceptance_runs/p1_closure ## P1-A External Skill Reg...'
+    size_bytes: 2924
+  required_artifacts_present:
+  - external_handoff.md
+  - skill_usage_ledger.yml
+  required_artifacts_missing: []
+  optional_artifacts_present:
+  - external_skill_inventory.json
+  - internal_skill_candidates.yml
+  - p1_acceptance_report.md
+  changed_files: []
+  claimed_tests:
+  - python scripts/p1_acceptance_check.py --output acceptance_runs/p1_closure
+  report_sections_present:
+  - Summary
+  - Tests Run
+  - Safety Evidence
+  - Known Limitations
+  - Verdict
+  report_sections_missing: []
+  text_evidence:
+    external_handoff.md: '# External Agent Handoff
+
+
+      **Task ID:** p1_closure_acceptance
+
+      **Handoff ID:** handoff_p1_closure_acceptance_cline_codex_20260613_113651_8612e86c
+
+      **Project:** AgentLab
+
+      **Created At:** 2026-06-13T11:36:51.916571+00:00
+
+
+      ## Target Executor
+
+      - **Agent ID:** cline_codex
+
+      - **Display Name:** Cline with Codex Subscription
+
+      - **Type:** ide_agent
+
+      - **Integration Mode:** handoff_only
+
+      - **Enabled:** False
+
+      - **Status:** proposed
+
+
+      ## Objective
+
+      **Title:** Review a small local repo and prepare an external handoff plan
+
+      **Summary:** Task summary: local fake repo only. [REDACTED_SECRET] [REDACTED_SECRET]
+
+
+      ## Task Summary
+
+      Task summary: local fake repo only. [REDACTED_SECRET] [REDACTED_SECRET]
+
+
+      ## Repository Context
+
+      - Local checkout context only; do not clone remote repositories.
+
+      - Allowed files and forbidden files must be confirmed before editing.
+
+
+      ## Acceptance Criteria
+
+      - Provide implementation or review evidence without exposing secrets.
+
+      - Do not execute external tools automatically from AgentLab.
+
+      - Do not misuse external subscriptions, API keys, or private credentials.
+
+
+      ## Constraints
+
+      - Do not auto-run external tools from AgentLab.
+
+      - Do not full clone remote repositories unless explicitly approved.
+
+      - Do not install dependencies without approval.
+
+      - Do not copy third-party source code.
+
+      - Do not expose secrets, API keys, OAuth tokens, or subscription credentials.
+
+      - Return changed files, commands run, evidence artifacts, and residual risks.
+
+
+      ## Required Outputs
+
+      - implementation_summary
+
+      - changed_files
+
+      - tests_run
+
+      - evidence_artifacts
+
+      - residual_risks
+
+      - cost_notes
+
+
+      ## Evidence Requirements
+
+      - **require_changed_files:** True
+
+      - **require_test_summary:** True
+
+      - **require_execution_log_or_external_unverified_marker:** True
+
+      - **require_no_secret_leak:** True
+
+      - **require_residual_risks:** True
+
+
+      ## Budget
+
+      - **Billing Mode:** subscription_quota
+
+      - **API Cost Visible:** False
+
+      - **Token Visibility:** unknown
+
+      - **Expected Agentlab API Cost (USD):** None
+
+
+      ## Skill Context
+
+      - ecc.planner
+
+      - ecc.code-reviewer
+
+
+      ## How to submit result back to AgentLab
+
+
+      1. Complete the assigned task following all constraints.
+
+      2. Record all changed files, commands run, and artifacts produced.
+
+      3. Prepare a result YAML file with the required outputs listed above.
+
+      4. Run the following command to submit your result:
+
+
+      ```bash
+
+      ./agentlab.sh external-agents submit-result --task-id p1_closure_acceptance
+      --handoff-id handoff_p1_closure_acceptance_cline_codex_20260613_113651_8612e86c
+      --result-file path/to/result.yml
+
+      ```
+
+
+      **Note:** AgentLab does NOT automatically execute external agents.
+
+      You must manually perform the work and submit results.
+
+      '
+    skill_usage_ledger.yml: "schema_version: 1\ntask_id: p1_closure_acceptance\nentries:\n\
+      - skill_id: ecc.planner\n  source: ecc\n  event: planned\n  reason: external\
+      \ skill discovered and planned for handoff only\n  executor: agentlab_internal\n\
+      \  cost_mode: unknown\n  success: null\n  quality_score: null\n  evidence_artifacts:\n\
+      \  - external_skill_inventory.json\n  - external_handoff.md\n  created_at: '2026-06-13T11:36:51.926245+00:00'\n\
+      - skill_id: ecc.code-reviewer\n  source: ecc\n  event: planned\n  reason: external\
+      \ skill discovered and planned for handoff only\n  executor: agentlab_internal\n\
+      \  cost_mode: unknown\n  success: null\n  quality_score: null\n  evidence_artifacts:\n\
+      \  - external_skill_inventory.json\n  - external_handoff.md\n  created_at: '2026-06-13T11:36:51.926260+00:00'\n\
+      - skill_id: ecc.planner\n  source: ecc\n  event: rejected\n  reason: disabled\
+      \ external skill cannot be dispatched automatically\n  executor: agentlab_internal\n\
+      \  cost_mode: unknown\n  success: null\n  quality_score: null\n  evidence_artifacts:\n\
+      \  - skill_registry.yml\n  created_at: '2026-06-13T11:36:51.926266+00:00'\n\
+      - skill_id: anysearch.web_search\n  source: anysearch\n  event: skipped\n  reason:\
+      \ disabled mode returned safe skipped response\n  executor: agentlab_internal\n\
+      \  cost_mode: unknown\n  success: null\n  quality_score: null\n  evidence_artifacts:\n\
+      \  - anysearch_trace.json\n  created_at: '2026-06-13T11:36:51.926269+00:00'\n\
+      - skill_id: ecc.planner\n  source: ecc\n  event: used\n  reason: useful handoff\
+      \ pattern recorded from external capability metadata\n  executor: agentlab_internal\n\
+      \  cost_mode: unknown\n  success: true\n  quality_score: 0.9\n  evidence_artifacts:\n\
+      \  - external_handoff.md\n  created_at: '2026-06-13T11:36:51.926280+00:00'\n\
+      - skill_id: ecc.planner\n  source: ecc\n  event: used\n  reason: useful handoff\
+      \ pattern recorded from external capability metadata\n  executor: agentlab_internal\n\
+      \  cost_mode: unknown\n  success: true\n  quality_score: 0.9\n  evidence_artifacts:\n\
+      \  - external_handoff.md\n  created_at: '2026-06-13T11:36:51.926284+00:00'\n\
+      - skill_id: internal.ecc_planner_candidate\n  source: agentlab_internal\n  event:\
+      \ distilled\n  reason: candidate proposed from repeated useful external workflow\n\
+      \  executor: agentlab_internal\n  cost_mode: unknown\n  success: true\n  quality_score:\
+      \ null\n  evidence_artifacts:\n  - internal_skill_candidates.yml\n  created_at:\
+      \ '2026-06-13T11:36:51.926439+00:00'\n"
+    external_skill_inventory.json: "{\n  \"source\": \"ecc\",\n  \"source_path\":\
+      \ \"/Users/saintpeter/Desktop/AgentLab/tests/fixtures/p1_closure/fake_ecc\"\
+      ,\n  \"scan_mode\": \"static_inventory_only\",\n  \"found\": true,\n  \"warnings\"\
+      : [],\n  \"agents\": [\n    {\n      \"id\": \"ecc.planner\",\n      \"name\"\
+      : \"planner\",\n      \"type\": \"agent\",\n      \"source_file\": \"AGENTS.md\"\
+      ,\n      \"capabilities\": [\n        \"code_review\",\n        \"implementation\"\
+      ,\n        \"planning\",\n        \"repo_strategy\",\n        \"security_review\"\
+      ,\n        \"task_decomposition\"\n      ],\n      \"suitable_task_types\":\
+      \ [\n        \"architecture_review\",\n        \"implementation_plan\",\n  \
+      \      \"repo_patch\",\n        \"security_review\"\n      ],\n      \"risk_level\"\
+      : \"medium\",\n      \"enabled_by_default\": false\n    },\n    {\n      \"\
+      id\": \"ecc.code-reviewer\",\n      \"name\": \"code-reviewer\",\n      \"type\"\
+      : \"agent\",\n      \"source_file\": \"AGENTS.md\",\n      \"capabilities\"\
+      : [\n        \"code_review\",\n        \"implementation\",\n        \"repo_strategy\"\
+      ,\n        \"security_review\"\n      ],\n      \"suitable_task_types\": [\n\
+      \        \"architecture_review\",\n        \"implementation_plan\",\n      \
+      \  \"repo_patch\",\n        \"security_review\"\n      ],\n      \"risk_level\"\
+      : \"medium\",\n      \"enabled_by_default\": false\n    },\n    {\n      \"\
+      id\": \"ecc.security-reviewer\",\n      \"name\": \"security-reviewer\",\n \
+      \     \"type\": \"agent\",\n      \"source_file\": \"AGENTS.md\",\n      \"\
+      capabilities\": [\n        \"code_review\",\n        \"security_review\"\n \
+      \     ],\n      \"suitable_task_types\": [\n        \"repo_patch\",\n      \
+      \  \"security_review\"\n      ],\n      \"risk_level\": \"medium\",\n      \"\
+      enabled_by_default\": false\n    }\n  ],\n  \"skills\": [\n    {\n      \"id\"\
+      : \"ecc.repo-planner\",\n      \"name\": \"repo-planner\",\n      \"type\":\
+      \ \"skill\",\n      \"source_file\": \"skills/repo-planner/SKILL.md\",\n   \
+      \   \"capabilities\": [\n        \"implementation\",\n        \"planning\",\n\
+      \        \"repo_strategy\"\n      ],\n      \"suitable_task_types\": [\n   \
+      \     \"architecture_review\",\n        \"implementation_plan\",\n        \"\
+      repo_patch\"\n      ],\n      \"risk_level\": \"medium\",\n      \"enabled_by_default\"\
+      : false\n    }\n  ],\n  \"commands\": [\n    {\n      \"name\": \"dangerous\"\
+      ,\n      \"source_file\": \"commands/dangerous.sh\",\n      \"enabled_by_default\"\
+      : false,\n      \"executed\": false\n    }\n  ],\n  \"mcp_servers\": [\n   \
+      \ {\n      \"name\": \"fake_server\",\n      \"source_file\": \"mcp_servers/fake_server.json\"\
+      ,\n      \"enabled_by_default\": false,\n      \"started\": false\n    }\n \
+      \ ],\n  \"hooks\": []\n}"
+    internal_skill_candidates.yml: "schema_version: 1\nwarnings: []\ncandidates:\n\
+      - candidate_id: internal.ecc_planner_candidate\n  derived_from:\n  - ecc.planner\n\
+      \  derivation_type: method_summary\n  status: proposed\n  capability:\n  - code_review\n\
+      \  - implementation\n  - planning\n  - repo_strategy\n  - security_review\n\
+      \  - task_decomposition\n  reason:\n  - external skill appears useful for repeated\
+      \ tasks\n  - reduces dependency on external provider or prompt pack\n  - high\
+      \ reuse potential for common AgentLab task types\n  proposed_internal_skill:\n\
+      \    title: Planner Checklist\n    target_path: skills/internal/ecc-planner/SKILL.md\n\
+      \    summary: A local AgentLab skill candidate distilled from repeated useful\
+      \ external\n      workflows.\n  safety:\n    source_code_copied: false\n   \
+      \ license_review_required: true\n    human_review_required: true\n  budget:\n\
+      \    estimated_tokens: 4000\n    estimated_cost_usd: null\n- candidate_id: internal.ecc_code_reviewer_candidate\n\
+      \  derived_from:\n  - ecc.code-reviewer\n  derivation_type: method_summary\n\
+      \  status: proposed\n  capability:\n  - code_review\n  - implementation\n  -\
+      \ repo_strategy\n  - security_review\n  reason:\n  - reduces dependency on external\
+      \ provider or prompt pack\n  - high reuse potential for common AgentLab task\
+      \ types\n  proposed_internal_skill:\n    title: Code Reviewer Checklist\n  \
+      \  target_path: skills/internal/ecc-code-reviewer/SKILL.md\n    summary: A local\
+      \ AgentLab skill candidate distilled from repeated useful external\n      workflows.\n\
+      \  safety:\n    source_code_copied: false\n    license_review_required: true\n\
+      \    human_review_required: true\n  budget:\n    estimated_tokens: 4000\n  \
+      \  estimated_cost_usd: null\n- candidate_id: internal.ecc_security_reviewer_candidate\n\
+      \  derived_from:\n  - ecc.security-reviewer\n  derivation_type: method_summary\n\
+      \  status: proposed\n  capability:\n  - code_review\n  - security_review\n \
+      \ reason:\n  - reduces dependency on external provider or prompt pack\n  - high\
+      \ reuse potential for common AgentLab task types\n  proposed_internal_skill:\n\
+      \    title: Security Reviewer Checklist\n    target_path: skills/internal/ecc-security-reviewer/SKILL.md\n\
+      \    summary: A local AgentLab skill candidate distilled from repeated useful\
+      \ external\n      workflows.\n  safety:\n    source_code_copied: false\n   \
+      \ license_review_required: true\n    human_review_required: true\n  budget:\n\
+      \    estimated_tokens: 4000\n    estimated_cost_usd: null\n"
+    p1_acceptance_report.md: '# AgentLab P1 Closure Acceptance Report
+
+
+      ## Summary
+
+      P1-A/B/C/D closed-loop acceptance result: PASS.
+
+
+      ## Commit
+
+      - hash: 32c07d337c1b67e38ff05d2e20866965e640ad9d
+
+      - branch: main
+
+
+      ## Tests Run
+
+      - command: python scripts/p1_acceptance_check.py --output acceptance_runs/p1_closure
+
+
+      ## P1-A External Skill Registry / ECC Inventory
+
+      - static inventory scan: PASS
+
+      - registry imported disabled skills: PASS
+
+      - unknown license requires review: PASS
+
+      - evidence: external_skill_inventory.json, skill_registry.yml
+
+
+      ## P1-B External Agent Handoff
+
+      - handoff generated: PASS
+
+      - secrets redacted: PASS
+
+      - no auto-execution instruction present: PASS
+
+      - handoff_id: handoff_p1_closure_acceptance_cline_codex_20260613_113651_8612e86c
+
+      - evidence: external_handoff.md
+
+
+      ## P1-C AnySearch Adapter
+
+      - disabled safe response: PASS
+
+      - mock search completed: PASS
+
+      - batch approval required: PASS
+
+      - local/private/file URLs rejected: PASS
+
+      - evidence: anysearch_trace.json
+
+
+      ## P1-D CodeGraph Adapter
+
+      - remote repo URL rejected: PASS
+
+      - repo_profile indexing rejected: PASS
+
+      - local dry-run did not execute: PASS
+
+      - evidence: repo_index_status.json
+
+
+      ## Closed-loop Acceptance
+
+      - external skill discovered: True
+
+      - registry imported: True
+
+      - handoff generated: true
+
+      - mock search completed: true
+
+      - repo index dry-run completed: true
+
+      - skill ledger written: true
+
+      - incubation candidate generated: True
+
+
+      ## Safety Evidence
+
+      - external scripts executed: no
+
+      - MCP servers started: no
+
+      - remote repos cloned: no
+
+      - private URLs accessed: no
+
+      - secrets exposed: no
+
+      - third-party source copied: no
+
+
+      ## Artifacts
+
+      - acceptance_runs/p1_closure/external_skill_inventory.json
+
+      - acceptance_runs/p1_closure/skill_registry.yml
+
+      - acceptance_runs/p1_closure/external_handoff.md
+
+      - acceptance_runs/p1_closure/anysearch_trace.json
+
+      - acceptance_runs/p1_closure/repo_index_status.json
+
+      - acceptance_runs/p1_closure/skill_usage_ledger.yml
+
+      - acceptance_runs/p1_closure/internal_skill_candidates.yml
+
+      - acceptance_runs/p1_closure/p1_acceptance_report.md
+
+
+      ## Known Limitations
+
+      - ECC execution still not implemented.
+
+      - AnySearch real API still not implemented.
+
+      - CodeGraph real indexing still requires approval.
+
+      - External executor router not implemented.
+
+      - 3E reviewer not implemented.
+
+
+      ## Verdict
+
+      PASS
+
+
+      ## Check Detail
+
+      - inventory_found: PASS
+
+      - static_inventory_only: PASS
+
+      - skills_imported: PASS
+
+      - external_skills_disabled: PASS
+
+      - unknown_license_review: PASS
+
+      - dispatch_rejected: PASS
+
+      - handoff_generated: PASS
+
+      - handoff_redacted: PASS
+
+      - handoff_no_auto_execution: PASS
+
+      - anysearch_disabled_safe: PASS
+
+      - anysearch_mock_ok: PASS
+
+      - anysearch_batch_pending_approval: PASS
+
+      - private_urls_rejected: PASS
+
+      - codegraph_remote_rejected: PASS
+
+      - codegraph_repo_profile_rejected: PASS
+
+      - codegraph_dry_run_not_performed: PASS
+
+      - ledger_written: PASS
+
+      - candidate_generated: PASS
+
+      - candidate_source_not_copied: PASS
+
+      - candidate_license_review: PASS
+
+      - external_script_not_executed: PASS
+
+      - mcp_server_not_started: PASS
+
+      '
+  output_path: /Users/saintpeter/Desktop/AgentLab/review_runs/p2_review_p1_closure/explore_summary.yml
+findings: []
+verdict:
+  status: PASS
+  reasons:
+  - No review findings.
+  required_actions: []
+retry_handoff: null
+markdown_path: null
+yaml_path: null

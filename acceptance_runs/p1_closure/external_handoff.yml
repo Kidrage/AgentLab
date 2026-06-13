@@ -1,0 +1,43 @@
+handoff_id: handoff_p1_closure_acceptance_cline_codex_20260613_113651_8612e86c
+task_id: p1_closure_acceptance
+project: AgentLab
+created_at: '2026-06-13T11:36:51.916571+00:00'
+target:
+  agent_id: cline_codex
+  display_name: Cline with Codex Subscription
+  type: ide_agent
+  integration_mode: handoff_only
+  enabled: false
+  status: proposed
+objective:
+  title: Review a small local repo and prepare an external handoff plan
+  summary: 'Task summary: local fake repo only. [REDACTED_SECRET] [REDACTED_SECRET]'
+constraints:
+- Do not auto-run external tools from AgentLab.
+- Do not full clone remote repositories unless explicitly approved.
+- Do not install dependencies without approval.
+- Do not copy third-party source code.
+- Do not expose secrets, API keys, OAuth tokens, or subscription credentials.
+- Return changed files, commands run, evidence artifacts, and residual risks.
+required_outputs:
+- implementation_summary
+- changed_files
+- tests_run
+- evidence_artifacts
+- residual_risks
+- cost_notes
+budget:
+  billing_mode: subscription_quota
+  api_cost_visible: false
+  external_token_visibility: unknown
+  expected_agentlab_api_cost_usd: null
+evidence_requirements:
+  require_changed_files: true
+  require_test_summary: true
+  require_execution_log_or_external_unverified_marker: true
+  require_no_secret_leak: true
+  require_residual_risks: true
+skill_context:
+  suggested_external_skills:
+  - ecc.planner
+  - ecc.code-reviewer

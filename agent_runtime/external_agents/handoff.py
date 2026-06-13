@@ -5,6 +5,7 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
+import re
 
 import yaml
 
@@ -41,6 +42,19 @@ DEFAULT_EVIDENCE_REQUIREMENTS = {
     "require_no_secret_leak": True,
     "require_residual_risks": True,
 }
+
+
+SECRET_PATTERNS = [
+    re.compile(r"sk_[A-Za-z0-9_-]{6,}"),
+    re.compile(r"(?i)\b(GITHUB_TOKEN|ANYSEARCH_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY)\b\s*[:=]\s*\S+"),
+]
+
+
+def _redact_sensitive_text(value: str) -> str:
+    redacted = value
+    for pattern in SECRET_PATTERNS:
+        redacted = pattern.sub("[REDACTED_SECRET]", redacted)
+    return redacted
 
 
 @dataclass
@@ -90,8 +104,8 @@ def build_external_handoff(
     }
 
     objective = {
-        "title": title,
-        "summary": summary,
+        "title": _redact_sensitive_text(title),
+        "summary": _redact_sensitive_text(summary),
     }
 
     billing_mode = agent.billing.get("mode", "unknown")
@@ -149,6 +163,21 @@ def render_handoff_markdown(handoff: _ExternalHandoffData) -> str:
     lines.append("## Objective")
     lines.append(f"**Title:** {obj.get('title', '')}")
     lines.append(f"**Summary:** {obj.get('summary', '')}")
+    lines.append("")
+
+    lines.append("## Task Summary")
+    lines.append(obj.get("summary", ""))
+    lines.append("")
+
+    lines.append("## Repository Context")
+    lines.append("- Local checkout context only; do not clone remote repositories.")
+    lines.append("- Allowed files and forbidden files must be confirmed before editing.")
+    lines.append("")
+
+    lines.append("## Acceptance Criteria")
+    lines.append("- Provide implementation or review evidence without exposing secrets.")
+    lines.append("- Do not execute external tools automatically from AgentLab.")
+    lines.append("- Do not misuse external subscriptions, API keys, or private credentials.")
     lines.append("")
 
     lines.append("## Constraints")

@@ -1,0 +1,53 @@
+review_policy:
+  enabled: true
+
+  verdict_thresholds:
+    critical_finding: BLOCKED
+    high_finding: FAIL
+    medium_finding: NEEDS_REVISION
+    low_finding: PASS_WITH_WARNINGS
+
+  required_artifacts:
+    - external_handoff.md
+    - skill_usage_ledger.yml
+
+  optional_artifacts:
+    - external_skill_inventory.json
+    - internal_skill_candidates.yml
+    - p1_acceptance_report.md
+
+  safety_checks:
+    forbid_secret_patterns: true
+    forbid_private_url_access: true
+    forbid_remote_clone: true
+    forbid_external_script_execution: true
+    forbid_mcp_server_start: true
+    forbid_third_party_source_copy: true
+
+  forbidden_paths:
+    - ".env"
+    - "repo_profile/"
+    - ".git/"
+    - "secrets/"
+    - "node_modules/"
+    - ".venv/"
+
+  high_risk_paths:
+    - ".github/workflows/"
+    - "config/"
+    - "agent_runtime/"
+    - "scripts/"
+
+  required_report_sections:
+    - Summary
+    - Tests Run
+    - Safety Evidence
+    - Known Limitations
+    - Verdict
+
+  retry_handoff:
+    enabled: true
+    include_failed_findings: true
+    include_reproduction_commands: true
+    include_acceptance_criteria: true
+    forbid_scope_expansion: true
