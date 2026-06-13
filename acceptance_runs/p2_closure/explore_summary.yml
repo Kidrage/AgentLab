@@ -1,19 +1,19 @@
-task_id: task_p2_closure_demo
-target_dir: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/needs_revision_delivery
+task_id: task_cli_smoke
+target_dir: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/accepted_delivery
 artifacts:
 - path: external_handoff.md
   exists: true
   kind: artifact
-  summary: '# External Handoff - Needs Revision Delivery ## Task - task_id: task_p2_closure_revision
-    - delivery_id: needs_revision_delivery ## Artifact Manifest - p1_acceptance_report.md:
-    present - changed_files.yml: present - skill_usage_ledger.yml: missing ## Verdict
-    NEEDS_REVISION'
-  size_bytes: 276
+  summary: '# External Handoff - Accepted Delivery ## Task - task_id: task_p2_closure_accepted
+    - delivery_id: accepted_delivery ## Artifact Manifest - p1_acceptance_report.md:
+    present - changed_files.yml: present - skill_usage_ledger.yml: present ## Verdict
+    PASS'
+  size_bytes: 254
 - path: skill_usage_ledger.yml
-  exists: false
+  exists: true
   kind: artifact
-  summary: ''
-  size_bytes: 0
+  summary: 'events: - event: used skill_id: p2_review timestamp: "2026-06-14T00:00:00Z"'
+  size_bytes: 86
 - path: external_skill_inventory.json
   exists: false
   kind: artifact
@@ -27,21 +27,23 @@ artifacts:
 - path: p1_acceptance_report.md
   exists: true
   kind: artifact
-  summary: '# Needs Revision Delivery Acceptance Report ## Summary The delivery is
-    incomplete. Missing test evidence for the new module. ## Changed Files - agent_runtime/p2_closure/models.py
-    ## Tests Run - No tests executed yet. ## Safety Evidence - external scripts executed:
-    no - MCP servers started: no - r...'
-  size_bytes: 534
+  summary: '# Accepted Delivery Acceptance Report ## Summary The delivery is complete
+    and all artifacts are present. ## Changed Files - agent_runtime/p2_closure/models.py
+    - agent_runtime/p2_closure/closure_runner.py ## Tests Run - python -m pytest -q
+    tests/test_p2_closure_runner.py - python -m pytest -q test...'
+  size_bytes: 586
 required_artifacts_present:
 - external_handoff.md
-required_artifacts_missing:
 - skill_usage_ledger.yml
+required_artifacts_missing: []
 optional_artifacts_present:
 - p1_acceptance_report.md
 changed_files:
 - agent_runtime/p2_closure/models.py
+- agent_runtime/p2_closure/closure_runner.py
 claimed_tests:
-- No tests executed yet.
+- python -m pytest -q tests/test_p2_closure_runner.py
+- python -m pytest -q tests/test_p2_closure_capability_map.py
 report_sections_present:
 - Summary
 - Tests Run
@@ -50,14 +52,14 @@ report_sections_present:
 - Verdict
 report_sections_missing: []
 text_evidence:
-  external_handoff.md: '# External Handoff - Needs Revision Delivery
+  external_handoff.md: '# External Handoff - Accepted Delivery
 
 
     ## Task
 
-    - task_id: task_p2_closure_revision
+    - task_id: task_p2_closure_accepted
 
-    - delivery_id: needs_revision_delivery
+    - delivery_id: accepted_delivery
 
 
     ## Artifact Manifest
@@ -66,30 +68,36 @@ text_evidence:
 
     - changed_files.yml: present
 
-    - skill_usage_ledger.yml: missing
+    - skill_usage_ledger.yml: present
 
 
     ## Verdict
 
-    NEEDS_REVISION
+    PASS
 
     '
-  p1_acceptance_report.md: '# Needs Revision Delivery Acceptance Report
+  skill_usage_ledger.yml: "events:\n  - event: used\n    skill_id: p2_review\n   \
+    \ timestamp: \"2026-06-14T00:00:00Z\"\n"
+  p1_acceptance_report.md: '# Accepted Delivery Acceptance Report
 
 
     ## Summary
 
-    The delivery is incomplete. Missing test evidence for the new module.
+    The delivery is complete and all artifacts are present.
 
 
     ## Changed Files
 
     - agent_runtime/p2_closure/models.py
 
+    - agent_runtime/p2_closure/closure_runner.py
+
 
     ## Tests Run
 
-    - No tests executed yet.
+    - python -m pytest -q tests/test_p2_closure_runner.py
+
+    - python -m pytest -q tests/test_p2_closure_capability_map.py
 
 
     ## Safety Evidence
@@ -109,14 +117,12 @@ text_evidence:
 
     ## Known Limitations
 
-    - Missing test coverage for closure_runner.py.
-
-    - No pytest execution evidence.
+    - Fixture evidence only.
 
 
     ## Verdict
 
-    NEEDS_REVISION
+    PASS
 
     '
 output_path: null

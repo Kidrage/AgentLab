@@ -523,3 +523,67 @@ class TestP2ClosureScript:
         assert "P2 closure verdict:" in result.stdout
         assert "Revision packet:" in result.stdout
         assert result.returncode != 0
+
+
+# ─── CLI smoke tests via agentlab.sh / run_task.py ──────────────────
+
+
+class TestP2ClosureCLI:
+    def test_p2_closure_help_via_run_task(self):
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "agent_runtime" / "run_task.py"), "p2-closure", "--help"],
+            capture_output=True,
+            text=True,
+            cwd=str(ROOT),
+        )
+        assert result.returncode == 0
+        assert "--task-id" in result.stdout
+        assert "--delivery-path" in result.stdout
+
+    def test_p2_capability_map_help_via_run_task(self):
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "agent_runtime" / "run_task.py"), "p2-capability-map", "--help"],
+            capture_output=True,
+            text=True,
+            cwd=str(ROOT),
+        )
+        assert result.returncode == 0
+        assert "--output" in result.stdout
+
+    def test_p2_closure_accepted_via_cli(self, tmp_path: Path):
+        delivery = FIXTURES / "accepted_delivery"
+        result = subprocess.run(
+            [
+                sys.executable, str(ROOT / "agent_runtime" / "run_task.py"),
+                "p2-closure",
+                "--task-id", "test_cli_accepted",
+                "--delivery-path", str(delivery),
+                "--output-dir", str(tmp_path),
+                "--provider-id", "deepseek-v4-pro",
+                "--executor", "deepseek",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(ROOT),
+        )
+        assert result.returncode == 0
+        assert "P2 closure verdict: accepted" in result.stdout
+
+    def test_p2_closure_revision_via_cli(self, tmp_path: Path):
+        delivery = FIXTURES / "needs_revision_delivery"
+        result = subprocess.run(
+            [
+                sys.executable, str(ROOT / "agent_runtime" / "run_task.py"),
+                "p2-closure",
+                "--task-id", "test_cli_revision",
+                "--delivery-path", str(delivery),
+                "--output-dir", str(tmp_path),
+                "--provider-id", "deepseek-v4-pro",
+                "--executor", "deepseek",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(ROOT),
+        )
+        assert result.returncode != 0
+        assert "Revision packet:" in result.stdout

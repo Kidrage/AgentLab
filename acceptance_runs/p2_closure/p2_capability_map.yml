@@ -1,4 +1,4 @@
-generated_at: '2026-06-13T16:36:54Z'
+generated_at: '2026-06-13T16:59:42Z'
 base_ref: p1-p2-stable-base
 capabilities:
   review:
@@ -78,19 +78,22 @@ capabilities:
     callable_entrypoints:
     - ExternalHandoff
     - ExternalResult
+    - scan_ecc_inventory
     cli_wired: false
     configs: []
     notes:
     - Module implemented but not wired as CLI subcommand in run_task.py.
   external_skills:
-    status: implemented_or_partial
+    status: implemented
     module_paths:
     - agent_runtime/skills
     tests: []
-    callable_entrypoints: []
+    callable_entrypoints:
+    - load_skill_registry
+    - propose_internal_skill_candidates
     cli_wired: false
     configs: []
     notes:
-    - Entry points not verified via import.
+    - Module implemented but not wired as CLI subcommand in run_task.py.
 gaps: []
 recommendations: []

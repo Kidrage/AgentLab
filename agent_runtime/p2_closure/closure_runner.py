@@ -376,14 +376,6 @@ def _try_router_apply(
     original_policy = load_router_policy(router_policy_src if router_policy_src.exists() else temp_router)
 
     try:
-        patch_result = apply_router_policy_patch(
-            router_policy_path=temp_router,
-            patch_path=output_dir / f"{patch.patch_id}.yml",
-            update_policy_path=temp_update,
-            output_path=patched_copy,
-            approval_dir=approval_path.parent if approval_path.is_file() else approval_path,
-        )
-
         # Save the patch as YAML for apply_router_policy_patch to load
         patch_yaml = output_dir / f"{patch.patch_id}.yml"
         atomic_write_yaml(patch_yaml, {

@@ -11,6 +11,15 @@ from pathlib import Path
 from collections import defaultdict
 from typing import Optional
 import os
+import sys
+
+# Ensure project root is on sys.path so `agent_runtime.` imports work
+# for P2 modules when this script is run directly from within agent_runtime/.
+# Insert at position 1 so agent_runtime/ modules take priority over project-level
+# modules with the same name (e.g., atomic_io.py exists in both locations).
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(1, str(_PROJECT_ROOT))
 
 import typer
 import yaml
@@ -3320,6 +3329,91 @@ def daemon_status_cmd(
     status = daemon_status(agentlab_root, project_name)
     console.print("[bold]AgentLab Daemon Status[/bold]")
     console.print(status)
+
+
+@app.command("p2-capability-map")
+def p2_capability_map_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output YAML path. Default: acceptance_runs/p2_closure/p2_capability_map.yml"),
+) -> None:
+    """Scan P2 modules and write a capability map report."""
+    agentlab_root, _project_name = runtime_context(project)
+    from agent_runtime.p2_closure.capability_map import scan_p2_capabilities, write_capability_map
+
+    cap_map = scan_p2_capabilities()
+    if output:
+        out_path = Path(output)
+    else:
+        out_path = agentlab_root / "acceptance_runs" / "p2_closure" / "p2_capability_map.yml"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    write_capability_map(cap_map, out_path)
+    console.print(f"[green]P2 Capability Map:[/green] {out_path}")
+    table = Table("Module", "Status", "CLI", "Tests")
+    for name, info in cap_map.get("capabilities", {}).items():
+        table.add_row(name, info.get("status", "?"), "yes" if info.get("cli_wired") else "script", ", ".join(info.get("tests", [])))
+    console.print(table)
+
+
+@app.command("p2-closure")
+def p2_closure_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: str = typer.Option(..., "--task-id", help="Task identifier"),
+    delivery_path: str = typer.Option(..., "--delivery-path", help="Path to delivery artifact directory"),
+    output: Optional[str] = typer.Option(None, "--output-dir", "-o", help="Output directory. Default: acceptance_runs/p2_closure"),
+    provider_id: Optional[str] = typer.Option(None, "--provider-id", help="Provider identifier"),
+    executor: Optional[str] = typer.Option(None, "--executor", help="Executor identifier"),
+    dry_run: bool = typer.Option(True, "--dry-run/--no-dry-run", help="Dry-run mode (default)"),
+    allow_router_apply: bool = typer.Option(False, "--allow-router-apply", help="Allow router apply if approval exists"),
+    approval_path: Optional[str] = typer.Option(None, "--approval-path", help="Path to approval artifact"),
+) -> None:
+    """Run P2-F closure: review → verdict → revision → governance → router feedback."""
+    agentlab_root, _project_name = runtime_context(project)
+    from agent_runtime.p2_closure import run_p2_closure
+
+    delivery = Path(delivery_path)
+    if not delivery.is_absolute():
+        delivery = (agentlab_root / delivery).resolve()
+    if not delivery.is_dir():
+        console.print(f"[red]ERROR:[/red] delivery-path not found: {delivery}")
+        raise typer.Exit(code=1)
+
+    out_dir = Path(output) if output else agentlab_root / "acceptance_runs" / "p2_closure"
+    if not out_dir.is_absolute():
+        out_dir = (agentlab_root / out_dir).resolve()
+
+    approval = Path(approval_path) if approval_path else None
+    if approval and not approval.is_absolute():
+        approval = (agentlab_root / approval).resolve()
+
+    config_root = agentlab_root / "config"
+
+    result = run_p2_closure(
+        task_id=task_id,
+        delivery_path=delivery,
+        output_dir=out_dir,
+        config_root=config_root,
+        provider_id=provider_id,
+        executor=executor,
+        dry_run=dry_run,
+        allow_router_apply=allow_router_apply,
+        approval_path=approval,
+    )
+
+    console.print(f"[bold]P2 closure verdict:[/bold] {result.verdict_status}")
+    console.print(f"  Review verdict: [dim]{result.review_verdict_path}[/dim]")
+    if result.revision_packet_path:
+        console.print(f"  Revision packet: [dim]{result.revision_packet_path}[/dim]")
+    else:
+        console.print(f"  Revision packet: [green]not required[/green]")
+    console.print(f"  Provider feedback: [dim]{result.provider_feedback_path}[/dim]")
+    console.print(f"  Router feedback: [dim]{result.router_feedback_path}[/dim]")
+    console.print(f"  Router update: [dim]dry-run[/dim]")
+    if result.router_rollback_path:
+        console.print(f"  Router rollback: [dim]{result.router_rollback_path}[/dim]")
+    console.print(f"  Closure report: [dim]{result.closure_report_path}[/dim]")
+
+    if result.verdict_status != "accepted":
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
