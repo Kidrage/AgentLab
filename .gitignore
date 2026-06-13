@@ -31,6 +31,7 @@ decoded_outputs/
 outputs/
 artifacts/
 logs/
+router_update_runs/
 *.wav
 *.aiff
 *.flac

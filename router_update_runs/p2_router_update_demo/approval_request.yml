@@ -1,8 +1,0 @@
-patch_id: router_patch_20260613T131914Z
-required: true
-reason:
-- router policy patch changes require human approval
-approval_method: file_token
-approval_token_hint: APPROVE_ROUTER_PATCH=APPROVED
-allowed_apply_targets:
-- copy
