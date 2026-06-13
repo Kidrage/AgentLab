@@ -24,13 +24,21 @@ def test_mock_search_has_source_and_retrieved_at() -> None:
 
 
 def test_batch_over_policy_pending_approval() -> None:
-    adapter = AnySearchAdapter({"enabled": True, "safety": {"require_approval_for_batch_over": 1}}, mock=True)
+    config = {
+        "enabled": True,
+        "safety": {
+            "require_approval_for_batch_over": 1,
+        },
+    }
+    adapter = AnySearchAdapter(config, mock=True)
+
     response = adapter.batch_search(["one", "two"])
+
     assert response.status == "pending_approval"
 
 
 def test_localhost_private_url_extract_blocked() -> None:
     response = LocalUrlReader().extract_url("http://127.0.0.1:8000")
+
     assert response.status == "rejected"
     assert "blocked" in response.warnings[0]
-
