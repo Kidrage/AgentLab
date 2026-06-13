@@ -1,6 +1,7 @@
 repo_indexing:
   enabled: false
   default_indexer: codegraph_cli_optional
+
   policy:
     require_local_checkout: true
     forbid_remote_clone: true
@@ -8,6 +9,7 @@ repo_indexing:
     require_approval_for_indexing: true
     max_workspace_mb: 300
     max_index_seconds: 120
+
   codegraph:
     command: codegraph
     allow_if_missing: false
@@ -27,6 +29,12 @@ repo_indexing:
         - callees
       impact:
         - impact
+
+  artifacts:
+    write_repo_index_ledger: true
+    write_codegraph_status_json: true
+    write_repo_semantic_library: true
+
   codegraphcontext:
     enabled: false
     command: cgc

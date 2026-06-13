@@ -1,5 +1,6 @@
 search_providers:
   default_provider: anysearch_optional
+
   anysearch:
     enabled: false
     mode: api_or_mcp_adapter
@@ -10,11 +11,23 @@ search_providers:
     max_results_default: 5
     max_batch_queries: 5
     max_url_extract_chars: 12000
+
     safety:
       require_approval_for_batch_over: 5
       block_localhost_urls: true
       block_private_ip_urls: true
       redact_api_key_in_logs: true
+
+  local_url_reader:
+    block_localhost_urls: true
+    block_private_ip_urls: true
+    max_bytes: 200000
+
+  artifacts:
+    write_search_ledger: true
+    write_search_results_json: true
+    write_search_summary: true
+
   fallback:
     enabled: true
     provider: local_url_reader
