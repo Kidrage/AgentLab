@@ -1,0 +1,19 @@
+task_id: retry_fixture
+provider_id: agentlab.mock_patch
+source: retry_mock_executor
+status: BLOCKED
+changed_files:
+  - .env
+claimed_tests:
+  - No tests claimed.
+output_artifacts:
+  - mock_result/result_summary.md
+summary: deterministic blocked result
+safety_attestation:
+  external_scripts_executed: true
+  mcp_servers_started: false
+  remote_repos_cloned: false
+  private_urls_accessed: false
+  secrets_exposed: false
+  third_party_source_copied: false
+review_target_dir: review_input

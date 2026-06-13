@@ -1,0 +1,41 @@
+retry_policy:
+  enabled: true
+  loop:
+    max_attempts_per_task: 3
+    stop_on_blocked: true
+    stop_on_critical_safety_finding: true
+    stop_on_repeated_same_failure: true
+    repeated_failure_window: 2
+  budget:
+    max_retry_cost_usd_per_task: 0.5
+    warn_retry_cost_usd_per_task: 0.2
+    unknown_cost_requires_approval: true
+  routing:
+    allow_same_provider_retry: true
+    prefer_different_provider_after_failure: true
+    require_approval_for_external_retry: true
+    allow_mock_retry: true
+    allow_manual_handoff_retry: true
+    allow_auto_external_retry: false
+  review:
+    require_p2_review_each_attempt: true
+    pass_statuses:
+    - PASS
+    - PASS_WITH_WARNINGS
+    retry_statuses:
+    - NEEDS_REVISION
+    - FAIL
+    blocked_statuses:
+    - BLOCKED
+  scorecard:
+    enabled: true
+    quality_score_pass: 1.0
+    quality_score_pass_with_warnings: 0.75
+    quality_score_needs_revision: 0.35
+    quality_score_fail: 0.1
+    quality_score_blocked: 0.0
+  artifacts:
+    write_retry_loop_report: true
+    write_attempt_ledger: true
+    write_provider_scorecard: true
+    write_final_acceptance_receipt: true

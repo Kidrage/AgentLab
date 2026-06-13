@@ -1,0 +1,105 @@
+task_id: p2_retry_pass_first
+target_dir: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_pass_first/attempt_001/review_input
+artifacts:
+- path: external_handoff.md
+  exists: true
+  kind: artifact
+  summary: '# External Agent Handoff Mock/internal execution result.'
+  size_bytes: 58
+- path: skill_usage_ledger.yml
+  exists: true
+  kind: artifact
+  summary: 'task_id: p2_retry_pass_first entries: - event: routed provider_id: agentlab.mock_patch
+    provider_type: mock_executor execution_mode: mock status: ROUTED reason: - mock
+    executor allowed by policy artifacts: [] created_at: ''2026-06-13T12:39:34.659192+00:00''
+    - event: mock_executed provider_id: agentl...'
+  size_bytes: 584
+- path: external_skill_inventory.json
+  exists: false
+  kind: artifact
+  summary: ''
+  size_bytes: 0
+- path: internal_skill_candidates.yml
+  exists: false
+  kind: artifact
+  summary: ''
+  size_bytes: 0
+- path: p1_acceptance_report.md
+  exists: true
+  kind: artifact
+  summary: '# Execution Result Review Summary ## Summary Deterministic retry mock
+    produced a complete local-only result. ## Tests Run - python -m pytest -q tests/test_p2_retry_manager.py
+    ## Safety Evidence - external_scripts_executed: false - mcp_servers_started: false
+    - remote_repos_cloned: false - private_...'
+  size_bytes: 493
+required_artifacts_present:
+- external_handoff.md
+- skill_usage_ledger.yml
+required_artifacts_missing: []
+optional_artifacts_present:
+- p1_acceptance_report.md
+changed_files:
+- tests/fixtures/p2_retry_loop/mock_only.txt
+claimed_tests:
+- python -m pytest -q tests/test_p2_retry_manager.py
+report_sections_present:
+- Summary
+- Tests Run
+- Safety Evidence
+- Known Limitations
+- Verdict
+report_sections_missing: []
+text_evidence:
+  external_handoff.md: '# External Agent Handoff
+
+
+    Mock/internal execution result.
+
+    '
+  skill_usage_ledger.yml: "task_id: p2_retry_pass_first\nentries:\n- event: routed\n\
+    \  provider_id: agentlab.mock_patch\n  provider_type: mock_executor\n  execution_mode:\
+    \ mock\n  status: ROUTED\n  reason:\n  - mock executor allowed by policy\n  artifacts:\
+    \ []\n  created_at: '2026-06-13T12:39:34.659192+00:00'\n- event: mock_executed\n\
+    \  provider_id: agentlab.mock_patch\n  provider_type: mock_executor\n  execution_mode:\
+    \ mock\n  status: PASS\n  reason:\n  - Deterministic retry mock produced a complete\
+    \ local-only result.\n  artifacts:\n  - mock_result/execution_result_envelope.yml\n\
+    \  created_at: '2026-06-13T12:39:34.674943+00:00'\n"
+  p1_acceptance_report.md: '# Execution Result Review Summary
+
+
+    ## Summary
+
+    Deterministic retry mock produced a complete local-only result.
+
+
+    ## Tests Run
+
+    - python -m pytest -q tests/test_p2_retry_manager.py
+
+
+    ## Safety Evidence
+
+    - external_scripts_executed: false
+
+    - mcp_servers_started: false
+
+    - remote_repos_cloned: false
+
+    - private_urls_accessed: false
+
+    - secrets_exposed: false
+
+    - third_party_source_copied: false
+
+
+    ## Known Limitations
+
+    - External executor results are not accepted until P2-A review passes.
+
+
+    ## Verdict
+
+    - PASS
+
+    '
+output_path: null

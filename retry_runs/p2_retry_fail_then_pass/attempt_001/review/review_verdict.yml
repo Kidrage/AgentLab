@@ -1,0 +1,5 @@
+status: NEEDS_REVISION
+reasons:
+- 'MEDIUM scope: Report appears to claim modified files, but changed_files is empty.'
+required_actions:
+- Provide the changed_files list for review.

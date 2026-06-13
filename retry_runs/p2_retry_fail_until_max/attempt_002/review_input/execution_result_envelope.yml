@@ -1,0 +1,21 @@
+task_id: p2_retry_fail_until_max
+provider_id: agentlab.mock_patch
+source: retry_mock_executor
+status: NEEDS_REVISION
+changed_files: []
+claimed_tests:
+- python -m pytest -q tests/test_p2_retry_manager.py
+output_artifacts:
+- mock_result/result_summary.md
+- mock_result/changed_files.yml
+- mock_result/claimed_tests.yml
+summary: 'Deterministic retry mock produced an incomplete result that requires revision.
+  Modified files: agent_runtime/retry/retry_manager.py.'
+safety_attestation:
+  external_scripts_executed: false
+  mcp_servers_started: false
+  remote_repos_cloned: false
+  private_urls_accessed: false
+  secrets_exposed: false
+  third_party_source_copied: false
+review_target_dir: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_002/review_input

@@ -1,0 +1,40 @@
+task_id: p2_retry_fail_until_max
+attempts:
+- task_id: p2_retry_fail_until_max
+  attempt_id: attempt_001
+  attempt_index: 1
+  provider_id: agentlab.mock_patch
+  provider_type: mock_executor
+  execution_mode: mock
+  input_handoff: null
+  route_report: attempt_001/route_report.yml
+  execution_plan: attempt_001/execution_plan.yml
+  result_envelope: attempt_001/mock_result/execution_result_envelope.yml
+  review_verdict: attempt_001/review/review_verdict.yml
+  review_report: attempt_001/review/review_report.yml
+  retry_handoff: attempt_001/review/retry_handoff.md
+  retry_decision: RETRY
+  status: review_failed
+  failure_reasons:
+  - 'MEDIUM scope: Report appears to claim modified files, but changed_files is empty.'
+  estimated_cost_usd: 0.0
+  created_at: '2026-06-13T12:39:34.645187+00:00'
+- task_id: p2_retry_fail_until_max
+  attempt_id: attempt_002
+  attempt_index: 2
+  provider_id: agentlab.mock_patch
+  provider_type: mock_executor
+  execution_mode: mock
+  input_handoff: attempt_001/review/retry_handoff.md
+  route_report: attempt_002/route_report.yml
+  execution_plan: attempt_002/execution_plan.yml
+  result_envelope: attempt_002/mock_result/execution_result_envelope.yml
+  review_verdict: attempt_002/review/review_verdict.yml
+  review_report: attempt_002/review/review_report.yml
+  retry_handoff: attempt_002/review/retry_handoff.md
+  retry_decision: STOP_MAX_ATTEMPTS
+  status: review_failed
+  failure_reasons:
+  - 'MEDIUM scope: Report appears to claim modified files, but changed_files is empty.'
+  estimated_cost_usd: 0.0
+  created_at: '2026-06-13T12:39:34.761823+00:00'

@@ -1,0 +1,22 @@
+task_id: p2_retry_fail_then_pass
+entries:
+- event: routed
+  provider_id: agentlab.mock_patch
+  provider_type: mock_executor
+  execution_mode: mock
+  status: ROUTED
+  reason:
+  - mock executor allowed by policy
+  artifacts: []
+  created_at: '2026-06-13T12:39:34.664111+00:00'
+- event: mock_executed
+  provider_id: agentlab.mock_patch
+  provider_type: mock_executor
+  execution_mode: mock
+  status: NEEDS_REVISION
+  reason:
+  - 'Deterministic retry mock produced an incomplete result that requires revision.
+    Modified files: agent_runtime/retry/retry_manager.py.'
+  artifacts:
+  - mock_result/execution_result_envelope.yml
+  created_at: '2026-06-13T12:39:34.680078+00:00'

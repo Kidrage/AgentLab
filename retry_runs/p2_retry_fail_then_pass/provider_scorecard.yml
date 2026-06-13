@@ -1,0 +1,14 @@
+providers:
+- provider_id: agentlab.mock_patch
+  provider_type: mock_executor
+  attempts: 2
+  passes: 1
+  pass_with_warnings: 0
+  needs_revision: 1
+  fails: 0
+  blocked: 0
+  average_quality_score: 0.675
+  last_verdict: PASS
+  notes:
+  - deterministic mock provider
+  total_quality_score: 1.35

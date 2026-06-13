@@ -1,0 +1,6 @@
+task_id: p2_retry_fail_until_max
+accepted: false
+final_verdict: NEEDS_REVISION
+status: STOP_MAX_ATTEMPTS
+attempts: 2
+unreviewed_result_accepted: false

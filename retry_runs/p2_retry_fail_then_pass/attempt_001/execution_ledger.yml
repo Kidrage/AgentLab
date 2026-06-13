@@ -1,0 +1,55 @@
+task_id: p2_retry_fail_then_pass
+entries:
+- event: routed
+  provider_id: agentlab.mock_patch
+  provider_type: mock_executor
+  execution_mode: mock
+  status: ROUTED
+  reason:
+  - mock executor allowed by policy
+  artifacts: []
+  created_at: '2026-06-13T12:39:34.664111+00:00'
+- event: mock_executed
+  provider_id: agentlab.mock_patch
+  provider_type: mock_executor
+  execution_mode: mock
+  status: NEEDS_REVISION
+  reason:
+  - 'Deterministic retry mock produced an incomplete result that requires revision.
+    Modified files: agent_runtime/retry/retry_manager.py.'
+  artifacts:
+  - mock_result/execution_result_envelope.yml
+  created_at: '2026-06-13T12:39:34.680078+00:00'
+- event: result_ingested
+  provider_id: agentlab.mock_patch
+  provider_type: unknown
+  execution_mode: unknown
+  status: NEEDS_REVISION
+  reason:
+  - execution result converted to P2-A review target
+  artifacts:
+  - review_input/external_handoff.md
+  - review_input/skill_usage_ledger.yml
+  - review_input/result_summary.md
+  created_at: '2026-06-13T12:39:34.694882+00:00'
+- event: review_requested
+  provider_id: agentlab.mock_patch
+  provider_type: unknown
+  execution_mode: unknown
+  status: NEEDS_REVISION
+  reason:
+  - P2-A 3E review executed
+  artifacts:
+  - /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_then_pass/attempt_001/review/review_report.md
+  - /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_then_pass/attempt_001/review/review_report.yml
+  created_at: '2026-06-13T12:39:34.736271+00:00'
+- event: review_failed
+  provider_id: agentlab.mock_patch
+  provider_type: unknown
+  execution_mode: unknown
+  status: NEEDS_REVISION
+  reason:
+  - 'MEDIUM scope: Report appears to claim modified files, but changed_files is empty.'
+  artifacts:
+  - /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_then_pass/attempt_001/review/retry_handoff.md
+  created_at: '2026-06-13T12:39:34.742427+00:00'

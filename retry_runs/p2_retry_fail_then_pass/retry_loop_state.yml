@@ -1,0 +1,62 @@
+task_id: p2_retry_fail_then_pass
+task_type: repo_patch
+current_attempt: 2
+max_attempts: 3
+total_estimated_cost_usd: 0.0
+status: ACCEPTED
+attempts:
+- task_id: p2_retry_fail_then_pass
+  attempt_id: attempt_001
+  attempt_index: 1
+  provider_id: agentlab.mock_patch
+  provider_type: mock_executor
+  execution_mode: mock
+  input_handoff: null
+  route_report: attempt_001/route_report.yml
+  execution_plan: attempt_001/execution_plan.yml
+  result_envelope: attempt_001/mock_result/execution_result_envelope.yml
+  review_verdict: attempt_001/review/review_verdict.yml
+  review_report: attempt_001/review/review_report.yml
+  retry_handoff: attempt_001/review/retry_handoff.md
+  retry_decision: RETRY
+  status: review_failed
+  failure_reasons:
+  - 'MEDIUM scope: Report appears to claim modified files, but changed_files is empty.'
+  estimated_cost_usd: 0.0
+  created_at: '2026-06-13T12:39:34.649666+00:00'
+- task_id: p2_retry_fail_then_pass
+  attempt_id: attempt_002
+  attempt_index: 2
+  provider_id: agentlab.mock_patch
+  provider_type: mock_executor
+  execution_mode: mock
+  input_handoff: attempt_001/review/retry_handoff.md
+  route_report: attempt_002/route_report.yml
+  execution_plan: attempt_002/execution_plan.yml
+  result_envelope: attempt_002/mock_result/execution_result_envelope.yml
+  review_verdict: attempt_002/review/review_verdict.yml
+  review_report: attempt_002/review/review_report.yml
+  retry_handoff: null
+  retry_decision: ACCEPTED
+  status: review_passed
+  failure_reasons:
+  - No review findings.
+  estimated_cost_usd: 0.0
+  created_at: '2026-06-13T12:39:34.776169+00:00'
+decisions:
+- status: RETRY
+  reason:
+  - P2-A review verdict NEEDS_REVISION
+  next_action: route_retry
+  next_provider_id: agentlab.mock_patch
+  retry_handoff_path: attempt_001/review/retry_handoff.md
+  stop_reason: null
+- status: ACCEPTED
+  reason:
+  - P2-A review verdict PASS
+  next_action: stop
+  next_provider_id: null
+  retry_handoff_path: null
+  stop_reason: null
+final_verdict: PASS
+accepted: true

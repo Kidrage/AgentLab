@@ -1,0 +1,8 @@
+task_id: p2_retry_pass_first
+accepted: true
+final_verdict: PASS
+accepted_attempt_id: attempt_001
+review_required: true
+review_completed: true
+review_verdict_path: attempt_001/review/review_verdict.yml
+unreviewed_result_accepted: false

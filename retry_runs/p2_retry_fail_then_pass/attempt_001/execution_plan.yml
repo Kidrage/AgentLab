@@ -1,0 +1,12 @@
+task_id: p2_retry_fail_then_pass
+selected_provider_id: agentlab.mock_patch
+selected_provider_type: mock_executor
+execution_mode: mock
+approval_required: false
+estimated_cost_usd: 0.0
+estimated_risk: low
+reason:
+- mock executor allowed by policy
+handoff_artifact: null
+expected_result_envelope: execution_result_envelope.yml
+review_required: true

@@ -1,0 +1,38 @@
+task_id: p2_retry_pass_first
+decision:
+  status: ROUTED
+  selected_provider_id: agentlab.mock_patch
+  rejected_providers:
+  - provider_id: api.deepseek
+    reasons:
+    - provider disabled
+    - execution mode disabled
+  - provider_id: api.qwen
+    reasons:
+    - provider disabled
+    - execution mode disabled
+  reason:
+  - mock executor allowed by policy
+  approval_required: false
+plan:
+  task_id: p2_retry_pass_first
+  selected_provider_id: agentlab.mock_patch
+  selected_provider_type: mock_executor
+  execution_mode: mock
+  approval_required: false
+  estimated_cost_usd: 0.0
+  estimated_risk: low
+  reason:
+  - mock executor allowed by policy
+  handoff_artifact: null
+  expected_result_envelope: execution_result_envelope.yml
+  review_required: true
+rejected_providers:
+- provider_id: api.deepseek
+  reasons:
+  - provider disabled
+  - execution mode disabled
+- provider_id: api.qwen
+  reasons:
+  - provider disabled
+  - execution mode disabled

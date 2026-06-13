@@ -1,0 +1,2 @@
+claimed_tests:
+- python -m pytest -q tests/test_p2_retry_manager.py
