@@ -25,7 +25,7 @@
         "url": "https://example.com/mock-search",
         "snippet": "Mock AnySearch response for AgentLab P1 closure",
         "source": "anysearch.mock",
-        "retrieved_at": "2026-06-13T11:36:51.924184+00:00",
+        "retrieved_at": "2026-06-13T15:10:04.218201+00:00",
         "rank": 1,
         "confidence": 0.9
       }
@@ -60,7 +60,7 @@
       "title": null,
       "text": "",
       "source": "http://localhost:8000/secret",
-      "retrieved_at": "2026-06-13T11:36:51.924295+00:00",
+      "retrieved_at": "2026-06-13T15:10:04.218377+00:00",
       "warnings": [
         "AnySearch provider disabled; used local_url_reader fallback",
         "blocked localhost/private/link-local URL"
@@ -79,7 +79,7 @@
       "title": null,
       "text": "",
       "source": "http://127.0.0.1:8000/secret",
-      "retrieved_at": "2026-06-13T11:36:51.924363+00:00",
+      "retrieved_at": "2026-06-13T15:10:04.218539+00:00",
       "warnings": [
         "AnySearch provider disabled; used local_url_reader fallback",
         "blocked localhost/private/link-local URL"
@@ -98,7 +98,7 @@
       "title": null,
       "text": "",
       "source": "http://10.0.0.1/admin",
-      "retrieved_at": "2026-06-13T11:36:51.924446+00:00",
+      "retrieved_at": "2026-06-13T15:10:04.218761+00:00",
       "warnings": [
         "AnySearch provider disabled; used local_url_reader fallback",
         "blocked localhost/private/link-local URL"
@@ -117,7 +117,7 @@
       "title": null,
       "text": "",
       "source": "http://192.168.1.1/router",
-      "retrieved_at": "2026-06-13T11:36:51.924513+00:00",
+      "retrieved_at": "2026-06-13T15:10:04.218951+00:00",
       "warnings": [
         "AnySearch provider disabled; used local_url_reader fallback",
         "blocked localhost/private/link-local URL"
@@ -136,7 +136,7 @@
       "title": null,
       "text": "",
       "source": "file:///etc/passwd",
-      "retrieved_at": "2026-06-13T11:36:51.924563+00:00",
+      "retrieved_at": "2026-06-13T15:10:04.219081+00:00",
       "warnings": [
         "AnySearch provider disabled; used local_url_reader fallback",
         "blocked unsupported URL scheme: file"

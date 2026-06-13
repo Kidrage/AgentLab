@@ -36,6 +36,12 @@ router_update_runs/
 *.aiff
 *.flac
 
+# Qwen Code local state
+.qwen/
+
+# Executor runs (local only)
+executor_runs/
+
 # === Project memories — local only, never tracked ===
 # Structure: keep projects/ directory but ignore all content
 # Only projects/README.md and projects/.gitkeep may be tracked

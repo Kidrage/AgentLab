@@ -17,8 +17,11 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest pyyaml
+      - name: Text integrity audit
+        run: |
+          python scripts/audit_text_integrity.py --fail-on-suspicious
       - name: Compile
-        run: python -m compileall agent_runtime agentlab_app.py
+        run: python -m compileall agent_runtime agentlab_app.py scripts tests
       - name: Validate entrypoints
         run: |
           bash -n agentlab.sh
@@ -27,3 +30,6 @@ jobs:
           ./agentlab.sh run-pipeline --help
       - name: Run tests
         run: python -m pytest -q
+      - name: Check forbidden tracked files
+        run: |
+          bash scripts/check_forbidden_tracked_files.sh

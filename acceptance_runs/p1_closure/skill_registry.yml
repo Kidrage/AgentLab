@@ -142,7 +142,7 @@ external_skills:
   - Imported from ECC inventory.
 metadata:
   owner: AgentLab
-  created_at: '2026-06-13T11:36:51.906990+00:00'
-  updated_at: '2026-06-13T11:36:51.907204+00:00'
+  created_at: '2026-06-13T15:10:04.159285+00:00'
+  updated_at: '2026-06-13T15:10:04.159980+00:00'
   notes: External skills are disabled by default and inventory-only unless explicitly
     enabled by policy.
