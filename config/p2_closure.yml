@@ -1,0 +1,21 @@
+p2_closure_policy:
+  enabled: true
+  safety:
+    forbid_production_mutations: true
+    forbid_external_script_execution: true
+    forbid_network_calls: true
+    forbid_secret_access: true
+  artifacts:
+    required:
+      - review_verdict.yml
+      - provider_feedback.yml
+      - router_feedback.yml
+    optional:
+      - revision_packet.md
+      - router_update_dry_run.yml
+      - router_update_apply_result.yml
+      - rollback_plan.yml
+  defaults:
+    dry_run: true
+    allow_router_apply: false
+    approval_required: true

@@ -1,0 +1,96 @@
+generated_at: '2026-06-13T16:36:54Z'
+base_ref: p1-p2-stable-base
+capabilities:
+  review:
+    status: implemented
+    module_paths:
+    - agent_runtime/review
+    tests:
+    - tests/fixtures/p2_review
+    callable_entrypoints:
+    - run_three_e_review
+    - ReviewTarget
+    - ReviewVerdict
+    cli_wired: true
+    configs:
+    - config/review_policy.yml
+    notes: []
+  retry_loop:
+    status: implemented
+    module_paths:
+    - agent_runtime/retry
+    tests:
+    - tests/fixtures/p2_retry_loop
+    callable_entrypoints:
+    - run_acceptance_retry_loop
+    - RetryLoopState
+    - RetryPolicy
+    cli_wired: true
+    configs: []
+    notes: []
+  executor_router:
+    status: implemented
+    module_paths:
+    - agent_runtime/executors
+    tests:
+    - tests/fixtures/p2_executor_router
+    callable_entrypoints:
+    - route_execution_request
+    - ExecutionRequest
+    - ExecutorProvider
+    cli_wired: true
+    configs:
+    - config/executor_router.yml
+    notes: []
+  provider_governance:
+    status: implemented
+    module_paths:
+    - agent_runtime/governance
+    tests:
+    - tests/fixtures/p2_provider_governance
+    callable_entrypoints:
+    - build_provider_performance_profiles
+    - derive_governance_decisions
+    - ProviderPerformanceProfile
+    cli_wired: true
+    configs:
+    - config/provider_governance.yml
+    notes: []
+  router_update:
+    status: implemented
+    module_paths:
+    - agent_runtime/router_update
+    tests:
+    - tests/fixtures/p2_router_update
+    callable_entrypoints:
+    - build_router_policy_patch
+    - apply_router_policy_patch
+    - RouterPatchResult
+    cli_wired: true
+    configs:
+    - config/router_update_policy.yml
+    notes: []
+  external_agents:
+    status: implemented
+    module_paths:
+    - agent_runtime/external_agents
+    tests: []
+    callable_entrypoints:
+    - ExternalHandoff
+    - ExternalResult
+    cli_wired: false
+    configs: []
+    notes:
+    - Module implemented but not wired as CLI subcommand in run_task.py.
+  external_skills:
+    status: implemented_or_partial
+    module_paths:
+    - agent_runtime/skills
+    tests: []
+    callable_entrypoints: []
+    cli_wired: false
+    configs: []
+    notes:
+    - Entry points not verified via import.
+gaps: []
+recommendations: []

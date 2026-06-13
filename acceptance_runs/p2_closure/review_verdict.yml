@@ -1,0 +1,62 @@
+task_id: task_p2_closure_demo
+delivery_id: needs_revision_delivery
+review_id: review_task_p2_closure_demo_20260613T163655Z
+verdict: rejected
+scores:
+  artifact_completeness: 0.5
+  test_confidence: 0.25
+  safety_confidence: 1.0
+  requirement_alignment: 1.0
+  maintainability: 1.0
+  overall: 0.72
+review:
+  explore:
+    summary: Explored 5 artifacts in /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/needs_revision_delivery
+    discovered_artifacts:
+    - external_handoff.md
+    - skill_usage_ledger.yml
+    - external_skill_inventory.json
+    - internal_skill_candidates.yml
+    - p1_acceptance_report.md
+    claimed_changes:
+    - agent_runtime/p2_closure/models.py
+    detected_tests:
+    - No tests executed yet.
+  examine:
+    passed_checks:
+    - 'low/scope: Changed file touches high-risk path without explicit rationale:
+      agent_runtime/p2_closure/models.py'
+    failed_checks: &id001
+    - 'high/evidence: Required artifact is missing: skill_usage_ledger.yml'
+    missing_evidence:
+    - skill_usage_ledger.yml
+    safety_findings: []
+    risk_level: high
+  enhance:
+    recommended_actions:
+    - Regenerate the delivery with all required review artifacts.
+    revision_tasks:
+    - 'Fix missing-artifact-skill_usage_ledger.yml: Required artifact is missing:
+      skill_usage_ledger.yml'
+    handoff_recommendation:
+      needed: true
+      preferred_executor: deepseek
+      reason: 'HIGH evidence: Required artifact is missing: skill_usage_ledger.yml;
+        LOW scope: Changed file touches high-risk path without explicit rationale:
+        agent_runtime/p2_closure/models.py'
+evidence:
+  input_paths:
+  - /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/needs_revision_delivery
+  output_paths:
+  - /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/review_report.md
+  - /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/review_report.yml
+  logs: []
+  generated_files: []
+provider_feedback:
+  provider_id: deepseek-v4-pro
+  executor: deepseek
+  success: false
+  failure_reasons: *id001
+  quality_score: 0.72
+  retry_recommended: true
+created_at: '2026-06-13T16:36:55.035498+00:00'

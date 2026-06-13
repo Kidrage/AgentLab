@@ -1,0 +1,7 @@
+task_id: task_p2_closure_demo
+provider_id: deepseek-v4-pro
+recommendation: quarantine
+dry_run: true
+applied: false
+reason: dry-run mode; no config modified
+timestamp: '2026-06-13T16:36:55.060339+00:00'

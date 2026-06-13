@@ -1,0 +1,6 @@
+approval:
+  approved: true
+  approved_by: human
+  scope: p2_router_update
+  provider_id: "deepseek-v4-pro"
+  reason: "P2-F closure testing: approval granted for test."

@@ -1,0 +1,14 @@
+task_id: task_p2_closure_demo
+provider_id: deepseek-v4-pro
+recommendation: quarantine
+reason:
+- rejected verdict
+- 'high/evidence: Required artifact is missing: skill_usage_ledger.yml'
+confidence: high
+dry_run: true
+apply_allowed: false
+approval_required: true
+evidence:
+- /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/review_verdict.yml
+- /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/review_report.md
+- /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/revision_packet.md

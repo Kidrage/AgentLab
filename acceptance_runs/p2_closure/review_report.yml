@@ -1,0 +1,181 @@
+target:
+  task_id: task_p2_closure_demo
+  target_dir: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/needs_revision_delivery
+  handoff_path: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/needs_revision_delivery/external_handoff.md
+  report_path: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/needs_revision_delivery/p1_acceptance_report.md
+  changed_files: []
+  claimed_tests: []
+summary:
+  task_id: task_p2_closure_demo
+  target_dir: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/needs_revision_delivery
+  artifacts:
+  - path: external_handoff.md
+    exists: true
+    kind: artifact
+    summary: '# External Handoff - Needs Revision Delivery ## Task - task_id: task_p2_closure_revision
+      - delivery_id: needs_revision_delivery ## Artifact Manifest - p1_acceptance_report.md:
+      present - changed_files.yml: present - skill_usage_ledger.yml: missing ## Verdict
+      NEEDS_REVISION'
+    size_bytes: 276
+  - path: skill_usage_ledger.yml
+    exists: false
+    kind: artifact
+    summary: ''
+    size_bytes: 0
+  - path: external_skill_inventory.json
+    exists: false
+    kind: artifact
+    summary: ''
+    size_bytes: 0
+  - path: internal_skill_candidates.yml
+    exists: false
+    kind: artifact
+    summary: ''
+    size_bytes: 0
+  - path: p1_acceptance_report.md
+    exists: true
+    kind: artifact
+    summary: '# Needs Revision Delivery Acceptance Report ## Summary The delivery
+      is incomplete. Missing test evidence for the new module. ## Changed Files -
+      agent_runtime/p2_closure/models.py ## Tests Run - No tests executed yet. ##
+      Safety Evidence - external scripts executed: no - MCP servers started: no -
+      r...'
+    size_bytes: 534
+  required_artifacts_present:
+  - external_handoff.md
+  required_artifacts_missing:
+  - skill_usage_ledger.yml
+  optional_artifacts_present:
+  - p1_acceptance_report.md
+  changed_files:
+  - agent_runtime/p2_closure/models.py
+  claimed_tests:
+  - No tests executed yet.
+  report_sections_present:
+  - Summary
+  - Tests Run
+  - Safety Evidence
+  - Known Limitations
+  - Verdict
+  report_sections_missing: []
+  text_evidence:
+    external_handoff.md: '# External Handoff - Needs Revision Delivery
+
+
+      ## Task
+
+      - task_id: task_p2_closure_revision
+
+      - delivery_id: needs_revision_delivery
+
+
+      ## Artifact Manifest
+
+      - p1_acceptance_report.md: present
+
+      - changed_files.yml: present
+
+      - skill_usage_ledger.yml: missing
+
+
+      ## Verdict
+
+      NEEDS_REVISION
+
+      '
+    p1_acceptance_report.md: '# Needs Revision Delivery Acceptance Report
+
+
+      ## Summary
+
+      The delivery is incomplete. Missing test evidence for the new module.
+
+
+      ## Changed Files
+
+      - agent_runtime/p2_closure/models.py
+
+
+      ## Tests Run
+
+      - No tests executed yet.
+
+
+      ## Safety Evidence
+
+      - external scripts executed: no
+
+      - MCP servers started: no
+
+      - remote repos cloned: no
+
+      - private URLs accessed: no
+
+      - secrets exposed: no
+
+      - third-party source copied: no
+
+
+      ## Known Limitations
+
+      - Missing test coverage for closure_runner.py.
+
+      - No pytest execution evidence.
+
+
+      ## Verdict
+
+      NEEDS_REVISION
+
+      '
+  output_path: /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/explore_summary.yml
+findings:
+- finding_id: missing-artifact-skill_usage_ledger.yml
+  severity: high
+  category: evidence
+  message: 'Required artifact is missing: skill_usage_ledger.yml'
+  evidence:
+  - skill_usage_ledger.yml
+  recommendation: Regenerate the delivery with all required review artifacts.
+  status: fail
+- finding_id: high-risk-path-agent-runtime-p2-closure-models-py
+  severity: low
+  category: scope
+  message: 'Changed file touches high-risk path without explicit rationale: agent_runtime/p2_closure/models.py'
+  evidence:
+  - agent_runtime/p2_closure/models.py
+  recommendation: Document why this high-risk path needed to change.
+  status: warn
+verdict:
+  status: FAIL
+  reasons:
+  - 'HIGH evidence: Required artifact is missing: skill_usage_ledger.yml'
+  - 'LOW scope: Changed file touches high-risk path without explicit rationale: agent_runtime/p2_closure/models.py'
+  required_actions:
+  - Regenerate the delivery with all required review artifacts.
+retry_handoff:
+  path: /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/retry_handoff.md
+  failed_findings:
+  - finding_id: missing-artifact-skill_usage_ledger.yml
+    severity: high
+    category: evidence
+    message: 'Required artifact is missing: skill_usage_ledger.yml'
+    evidence:
+    - skill_usage_ledger.yml
+    recommendation: Regenerate the delivery with all required review artifacts.
+    status: fail
+  required_fixes:
+  - Regenerate the delivery with all required review artifacts.
+  reproduction_commands:
+  - python -m compileall agent_runtime agentlab_app.py
+  - python -m pytest -q
+  - python scripts/p2_review_check.py --target /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/needs_revision_delivery
+  acceptance_criteria:
+  - All required artifacts are present.
+  - All required report sections include concrete evidence.
+  - Safety evidence contains no forbidden actions, private/local/file URL access,
+    or secret-like values.
+  - Changed files avoid forbidden paths and explain high-risk path changes.
+  - The next 3E review verdict is PASS or PASS_WITH_WARNINGS.
+markdown_path: null
+yaml_path: null

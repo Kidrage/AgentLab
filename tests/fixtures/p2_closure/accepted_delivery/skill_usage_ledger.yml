@@ -1,0 +1,4 @@
+events:
+  - event: used
+    skill_id: p2_review
+    timestamp: "2026-06-14T00:00:00Z"
