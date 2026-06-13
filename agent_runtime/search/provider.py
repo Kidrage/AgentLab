@@ -46,7 +46,10 @@ class SearchResponse:
 
     def as_dict(self) -> dict[str, Any]:
         data = asdict(self)
-        data["results"] = [r.as_dict() if hasattr(r, "as_dict") else dict(r) for r in self.results]
+        data["results"] = [
+            r.as_dict() if hasattr(r, "as_dict") else dict(r)
+            for r in self.results
+        ]
         return data
 
 
@@ -61,7 +64,10 @@ class BatchSearchResponse:
 
     def as_dict(self) -> dict[str, Any]:
         data = asdict(self)
-        data["responses"] = [r.as_dict() if hasattr(r, "as_dict") else dict(r) for r in self.responses]
+        data["responses"] = [
+            r.as_dict() if hasattr(r, "as_dict") else dict(r)
+            for r in self.responses
+        ]
         return data
 
 
@@ -87,12 +93,22 @@ class SearchProvider:
 
     provider_name = "abstract"
 
-    def search_web(self, query: str, *, max_results: int = 5, vertical: str | None = None) -> SearchResponse:
+    def search_web(
+        self,
+        query: str,
+        *,
+        max_results: int = 5,
+        vertical: str | None = None,
+    ) -> SearchResponse:
         raise NotImplementedError
 
-    def batch_search(self, queries: list[str], *, max_results: int = 5) -> BatchSearchResponse:
+    def batch_search(
+        self,
+        queries: list[str],
+        *,
+        max_results: int = 5,
+    ) -> BatchSearchResponse:
         raise NotImplementedError
 
     def extract_url(self, url: str, *, max_chars: int = 12000) -> UrlExtractResponse:
         raise NotImplementedError
-

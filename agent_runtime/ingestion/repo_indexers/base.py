@@ -72,9 +72,13 @@ class RepoIndexer:
     def can_index(self, repo_path: Path, *, mode: str) -> RepoIndexDecision:
         raise NotImplementedError
 
-    def index_repo(self, repo_path: Path, *, dry_run: bool = True) -> RepoIndexResult:
+    def index_repo(
+        self,
+        repo_path: Path,
+        *,
+        dry_run: bool = True,
+    ) -> RepoIndexResult:
         raise NotImplementedError
 
     def query(self, repo_path: Path, query: str) -> RepoIndexQueryResult:
         raise NotImplementedError
-

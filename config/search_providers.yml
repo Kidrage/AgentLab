@@ -18,4 +18,3 @@ search_providers:
   fallback:
     enabled: true
     provider: local_url_reader
-

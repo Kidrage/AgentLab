@@ -28,7 +28,10 @@ DEFAULT_SEARCH_CONFIG: dict[str, Any] = {
                 "redact_api_key_in_logs": True,
             },
         },
-        "fallback": {"enabled": True, "provider": "local_url_reader"},
+        "fallback": {
+            "enabled": True,
+            "provider": "local_url_reader",
+        },
     }
 }
 
@@ -47,10 +50,14 @@ def load_search_config(root: Path | None = None) -> dict[str, Any]:
     return merged
 
 
-def search_artifact_dir(root: Path, project: str, task_id: str | None = None, output_dir: Path | None = None) -> Path:
+def search_artifact_dir(
+    root: Path,
+    project: str,
+    task_id: str | None = None,
+    output_dir: Path | None = None,
+) -> Path:
     if output_dir is not None:
         return output_dir
     if task_id:
         return root / "projects" / project / "runs" / task_id / "artifacts" / "search"
     return root / "artifacts" / "search"
-
