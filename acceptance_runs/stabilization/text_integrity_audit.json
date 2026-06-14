@@ -1,5 +1,5 @@
 {
-  "total_files": 402,
+  "total_files": 405,
   "suspicious_count": 0,
   "python_suspicious": 0,
   "yaml_suspicious": 0,
@@ -8,7 +8,7 @@
       "path": ".github/workflows/ci.yml",
       "line_count": 39,
       "max_line_length": 78,
-      "file_size_bytes": 1153,
+      "file_size_bytes": 1151,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": true,
@@ -1866,9 +1866,9 @@
     },
     {
       "path": "scripts/audit_text_integrity.py",
-      "line_count": 440,
+      "line_count": 506,
       "max_line_length": 95,
-      "file_size_bytes": 15536,
+      "file_size_bytes": 17805,
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,
@@ -1955,6 +1955,42 @@
       "file_size_bytes": 4420,
       "suspicious_single_line": false,
       "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
+      "path": "scripts/agentlab_mcp_stdio.sh",
+      "line_count": 10,
+      "max_line_length": 57,
+      "file_size_bytes": 211,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
+      "path": "scripts/check_forbidden_tracked_files.sh",
+      "line_count": 48,
+      "max_line_length": 77,
+      "file_size_bytes": 1204,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
+      "path": "scripts/git-auto-push.sh",
+      "line_count": 14,
+      "max_line_length": 118,
+      "file_size_bytes": 497,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
@@ -3114,9 +3150,9 @@
     },
     {
       "path": "tests/test_repository_text_integrity.py",
-      "line_count": 209,
+      "line_count": 261,
       "max_line_length": 96,
-      "file_size_bytes": 7116,
+      "file_size_bytes": 9106,
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,
@@ -4826,7 +4862,7 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "ok (non-Python/YAML file)"
+      "issue_summary": "ok"
     }
   ]
 }
