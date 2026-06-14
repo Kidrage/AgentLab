@@ -25,10 +25,13 @@ jobs:
           python -m compileall agent_runtime agentlab_app.py scripts tests
       - name: Run tests
         run: |
-          python -m pytest -q \
-            tests/test_ci_workflow_integrity.py \
-            tests/test_repository_text_integrity.py \
-            tests/test_p2_closure.py
+          python -m pytest -q tests/test_ci_workflow_integrity.py
+      - name: Run tests text integrity
+        run: |
+          python -m pytest -q tests/test_repository_text_integrity.py
+      - name: Run tests P2 closure
+        run: |
+          python -m pytest -q tests/test_p2_closure.py
       - name: Run tests A-G
         run: |
           python -m pytest -q tests/test_[a-g]*.py
