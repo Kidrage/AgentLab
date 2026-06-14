@@ -847,6 +847,7 @@ def _run_ssh_sync(
             "task_type": item.get("task_type", ""),
             "task_id": item.get("task_id", ""),
             "command": " ".join(rsync_cmd),
+            "cmd_list": rsync_cmd,                 # preserve list for subprocess
         })
 
     report["sync_phases"] = commands
@@ -859,12 +860,12 @@ def _run_ssh_sync(
     total_failed = 0
 
     for cmd_info in commands:
-        cmd_parts = cmd_info["command"].split()
-        if not cmd_parts:
+        cmd_list = cmd_info.get("cmd_list", [])
+        if not cmd_list:
             continue
 
         try:
-            result = subprocess.run(cmd_parts, capture_output=True, text=True, timeout=120)
+            result = subprocess.run(cmd_list, capture_output=True, text=True, timeout=120)
             output = result.stdout
             errors = result.stderr
 
