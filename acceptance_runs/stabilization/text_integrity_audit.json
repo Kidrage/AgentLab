@@ -2574,9 +2574,9 @@
     },
     {
       "path": "tests/test_p2_closure.py",
-      "line_count": 605,
+      "line_count": 619,
       "max_line_length": 126,
-      "file_size_bytes": 23743,
+      "file_size_bytes": 24076,
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,

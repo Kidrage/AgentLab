@@ -26,6 +26,16 @@ FIXTURES = ROOT / "tests" / "fixtures" / "p2_closure"
 CONFIG_ROOT = ROOT / "config"
 
 
+def _utf8_cli_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.update({
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "PYTHONIOENCODING": "utf-8",
+    })
+    return env
+
+
 # ─── H1: Capability Map ─────────────────────────────────────────────
 
 
@@ -540,6 +550,7 @@ class TestP2ClosureCLI:
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=_utf8_cli_env(),
             cwd=str(ROOT),
         )
         combined_output = result.stdout + result.stderr
@@ -554,6 +565,7 @@ class TestP2ClosureCLI:
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=_utf8_cli_env(),
             cwd=str(ROOT),
         )
         combined_output = result.stdout + result.stderr
@@ -576,6 +588,7 @@ class TestP2ClosureCLI:
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=_utf8_cli_env(),
             cwd=str(ROOT),
         )
         combined_output = result.stdout + result.stderr
@@ -598,6 +611,7 @@ class TestP2ClosureCLI:
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=_utf8_cli_env(),
             cwd=str(ROOT),
         )
         combined_output = result.stdout + result.stderr
