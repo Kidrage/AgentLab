@@ -6,9 +6,9 @@
   "audits": [
     {
       "path": ".github/workflows/ci.yml",
-      "line_count": 76,
-      "max_line_length": 78,
-      "file_size_bytes": 2672,
+      "line_count": 89,
+      "max_line_length": 96,
+      "file_size_bytes": 3264,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": true,
