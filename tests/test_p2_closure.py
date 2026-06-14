@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import types
 from pathlib import Path
 from unittest.mock import patch
 
@@ -439,15 +440,18 @@ class TestP2ClosureSafety:
         def trap_network(*args, **kwargs):
             pytest.fail("Network call detected during P2 closure")
 
-        with patch("requests.get", side_effect=trap_network):
-            with patch("requests.post", side_effect=trap_network):
-                with patch("urllib.request.urlopen", side_effect=trap_network):
-                    run_p2_closure(
-                        task_id="test_safety",
-                        delivery_path=delivery,
-                        output_dir=tmp_path,
-                        config_root=CONFIG_ROOT,
-                    )
+        fake_requests = types.ModuleType("requests")
+        fake_requests.get = trap_network
+        fake_requests.post = trap_network
+
+        with patch.dict(sys.modules, {"requests": fake_requests}):
+            with patch("urllib.request.urlopen", side_effect=trap_network):
+                run_p2_closure(
+                    task_id="test_safety",
+                    delivery_path=delivery,
+                    output_dir=tmp_path,
+                    config_root=CONFIG_ROOT,
+                )
 
     def test_does_not_read_secrets(self, tmp_path: Path):
         delivery = FIXTURES / "accepted_delivery"
