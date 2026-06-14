@@ -20,16 +20,20 @@ jobs:
       - name: Text integrity audit
         run: |
           python scripts/audit_text_integrity.py --fail-on-suspicious
-      - name: Compile
-        run: python -m compileall agent_runtime agentlab_app.py scripts tests
+      - name: Compile Python
+        run: |
+          python -m compileall agent_runtime agentlab_app.py scripts tests
+      - name: Run tests
+        run: |
+          python -m pytest -q
       - name: Validate entrypoints
         run: |
           bash -n agentlab.sh
           python -m py_compile agent_runtime/run_task.py
           ./agentlab.sh --help
           ./agentlab.sh run-pipeline --help
-      - name: Run tests
-        run: python -m pytest -q
+          ./agentlab.sh p2-closure --help
+          ./agentlab.sh p2-capability-map --help
       - name: Check forbidden tracked files
         run: |
           bash scripts/check_forbidden_tracked_files.sh

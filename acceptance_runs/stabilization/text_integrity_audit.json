@@ -1,14 +1,14 @@
 {
-  "total_files": 347,
+  "total_files": 358,
   "suspicious_count": 0,
   "python_suspicious": 0,
   "yaml_suspicious": 0,
   "audits": [
     {
       "path": ".github/workflows/ci.yml",
-      "line_count": 35,
+      "line_count": 39,
       "max_line_length": 78,
-      "file_size_bytes": 1027,
+      "file_size_bytes": 1149,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": true,
@@ -965,6 +965,78 @@
       "issue_summary": "ok"
     },
     {
+      "path": "agent_runtime/p2_closure/__init__.py",
+      "line_count": 16,
+      "max_line_length": 97,
+      "file_size_bytes": 424,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
+      "path": "agent_runtime/p2_closure/capability_map.py",
+      "line_count": 216,
+      "max_line_length": 133,
+      "file_size_bytes": 7890,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
+      "path": "agent_runtime/p2_closure/closure_runner.py",
+      "line_count": 488,
+      "max_line_length": 176,
+      "file_size_bytes": 18593,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
+      "path": "agent_runtime/p2_closure/evidence.py",
+      "line_count": 462,
+      "max_line_length": 111,
+      "file_size_bytes": 15411,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
+      "path": "agent_runtime/p2_closure/models.py",
+      "line_count": 73,
+      "max_line_length": 60,
+      "file_size_bytes": 2117,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
+      "path": "agent_runtime/p2_closure/report_writer.py",
+      "line_count": 84,
+      "max_line_length": 165,
+      "file_size_bytes": 3065,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
       "path": "agent_runtime/patch_applicator.py",
       "line_count": 411,
       "max_line_length": 112,
@@ -1362,9 +1434,9 @@
     },
     {
       "path": "agent_runtime/run_task.py",
-      "line_count": 3326,
+      "line_count": 3420,
       "max_line_length": 361,
-      "file_size_bytes": 144022,
+      "file_size_bytes": 148646,
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,
@@ -1794,21 +1866,33 @@
     },
     {
       "path": "scripts/audit_text_integrity.py",
-      "line_count": 397,
+      "line_count": 419,
       "max_line_length": 95,
-      "file_size_bytes": 13520,
+      "file_size_bytes": 14584,
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": true,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "contains corrupted 'from __future__ import annotations from'; shebang with code on same line"
+      "issue_summary": "contains docstring/future import compression; shebang with code on same line"
     },
     {
       "path": "scripts/p1_acceptance_check.py",
       "line_count": 394,
       "max_line_length": 126,
       "file_size_bytes": 15619,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "shebang with code on same line"
+    },
+    {
+      "path": "scripts/p2_closure_check.py",
+      "line_count": 81,
+      "max_line_length": 129,
+      "file_size_bytes": 3541,
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,
@@ -2489,6 +2573,18 @@
       "issue_summary": "ok"
     },
     {
+      "path": "tests/test_p2_closure.py",
+      "line_count": 589,
+      "max_line_length": 126,
+      "file_size_bytes": 23137,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
       "path": "tests/test_p2_cost_governance.py",
       "line_count": 75,
       "max_line_length": 166,
@@ -3006,15 +3102,15 @@
     },
     {
       "path": "tests/test_repository_text_integrity.py",
-      "line_count": 142,
+      "line_count": 184,
       "max_line_length": 91,
-      "file_size_bytes": 4760,
+      "file_size_bytes": 6218,
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,
-      "contains_docstring_future_same_line": false,
+      "contains_docstring_future_same_line": true,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "ok"
+      "issue_summary": "contains docstring/future import compression"
     },
     {
       "path": "tests/test_resume_pipeline.py",
@@ -3593,6 +3689,18 @@
       "issue_summary": "ok"
     },
     {
+      "path": "config/p2_closure.yml",
+      "line_count": 21,
+      "max_line_length": 42,
+      "file_size_bytes": 528,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": true,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok"
+    },
+    {
       "path": "config/provider_governance.yml",
       "line_count": 53,
       "max_line_length": 47,
@@ -4049,6 +4157,18 @@
       "issue_summary": "ok (non-Python/YAML file)"
     },
     {
+      "path": "docs/P2_CLOSURE_WORKFLOW.md",
+      "line_count": 122,
+      "max_line_length": 158,
+      "file_size_bytes": 4160,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok (non-Python/YAML file)"
+    },
+    {
       "path": "docs/P2_EXTERNAL_EXECUTOR_ROUTER.md",
       "line_count": 64,
       "max_line_length": 83,
@@ -4077,6 +4197,18 @@
       "line_count": 58,
       "max_line_length": 227,
       "file_size_bytes": 2066,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok (non-Python/YAML file)"
+    },
+    {
+      "path": "docs/P2_REVIEW_RETRY_GOVERNANCE_ROUTER_LOOP.md",
+      "line_count": 124,
+      "max_line_length": 103,
+      "file_size_bytes": 7733,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": null,
@@ -4158,9 +4290,9 @@
     },
     {
       "path": "agentlab.sh",
-      "line_count": 18,
-      "max_line_length": 57,
-      "file_size_bytes": 406,
+      "line_count": 20,
+      "max_line_length": 67,
+      "file_size_bytes": 525,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": null,

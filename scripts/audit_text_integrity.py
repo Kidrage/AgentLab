@@ -61,8 +61,13 @@ MIN_LINE_COUNTS = {
     "agent_runtime/governance/performance.py": 50,
     "agent_runtime/governance/cost.py": 50,
     "agent_runtime/governance/routing_feedback.py": 30,
+    "agent_runtime/p2_closure/closure_runner.py": 80,
+    "agent_runtime/run_task.py": 80,
     "scripts/p2_provider_governance_check.py": 60,
+    "scripts/audit_text_integrity.py": 120,
     "tests/test_repository_text_integrity.py": 80,
+    "tests/test_p2_closure.py": 80,
+    "agentlab.sh": 20,
 }
 
 
@@ -125,19 +130,28 @@ def _check_python(path: Path, root: Path) -> FileAudit:
 
     # Suspicious patterns
     content = path.read_text(encoding="utf-8", errors="replace")
-    # Detect corrupted future import: "from __future__ import annotations from ..."
-    # Use [ ] (space only, not \s) so newlines don't falsely match
-    docstring_future_same_line = bool(
-        re.search(r'from[ ]+__future__[ ]+import[ ]+annotations[ ]+from[ ]+\S', content)
+    # Detect corrupted future import/docstring compression on one physical line.
+    # Use [ ] (space only, not \s) so newlines don't falsely match.
+    docstring_future_same_line = any(
+        ('"""' in line or "'''" in line) and "from __future__ import" in line
+        for line in lines
+    ) or bool(
+        re.search(r"from[ ]+__future__[ ]+import[ ]+annotations[ ]+from[ ]+\S", content)
     )
     if docstring_future_same_line:
-        issues.append("contains corrupted 'from __future__ import annotations from'")
+        issues.append("contains docstring/future import compression")
 
     multiple_defs = False
     for line in lines:
-        if len(re.findall(r'\bdef\b', line)) >= 3:
+        def_or_class_count = len(re.findall(r"(?<!\w)(?:class|def)\s+\w+", line))
+        import_count = len(re.findall(r"(?<!\w)(?:from|import)\s+\S+", line))
+        if def_or_class_count >= 2:
             multiple_defs = True
-            issues.append("line has 3+ 'def' keywords")
+            issues.append("line has multiple class/def statements")
+            break
+        if import_count >= 4:
+            multiple_defs = True
+            issues.append("line has many import statements")
             break
 
     # Shebang followed by code on same line
@@ -193,10 +207,17 @@ def _check_yaml(path: Path, root: Path) -> FileAudit:
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
             yaml_ok = True
-            # CI workflows must have 'jobs'
+            # CI workflows must have the top-level keys GitHub Actions needs.
             if ".github/workflows/" in rel:
-                if not isinstance(data, dict) or "jobs" not in data:
-                    issues.append("CI workflow missing 'jobs' key")
+                required = {"name", "jobs"}
+                keys = set(data.keys()) if isinstance(data, dict) else set()
+                missing = sorted(required - keys)
+                if isinstance(data, dict) and "on" not in data and True not in data:
+                    missing.append("on")
+                elif not isinstance(data, dict):
+                    missing.append("on")
+                if missing:
+                    issues.append(f"CI workflow missing top-level keys: {', '.join(missing)}")
         except yaml.YAMLError as exc:
             yaml_ok = False
             issues.append(f"yaml.safe_load failed: {exc}")
@@ -213,6 +234,7 @@ def _check_yaml(path: Path, root: Path) -> FileAudit:
     max_line_len = max((len(line) for line in lines), default=0)
     if max_line_len > 2000:
         suspicious = True
+        issues.append(f"max line length {max_line_len} > 2000")
 
     # Critical file minimum line counts
     if rel in MIN_LINE_COUNTS and line_count < MIN_LINE_COUNTS[rel]:

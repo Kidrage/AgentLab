@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Total files scanned: 347
+- Total files scanned: 358
 - Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0
@@ -15,7 +15,7 @@
 |------|-------|----------|------|--------|
 | README.md | 683 | 781 | 35849 | OK |
 | docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md | 1397 | 365 | 29633 | OK |
-| agent_runtime/run_task.py | 3326 | 361 | 144022 | OK |
+| agent_runtime/run_task.py | 3420 | 361 | 148646 | OK |
 | docs/CLOSURE_MVP_REPORT.md | 81 | 324 | 4442 | OK |
 | agent_runtime/artifact_contract.py | 701 | 300 | 28249 | OK |
 | tests/test_external_skill_artifact_paths.py | 42 | 300 | 1977 | OK |
