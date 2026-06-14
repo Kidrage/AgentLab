@@ -1,0 +1,32 @@
+# AgentLab Backup Policy — Local Overrides Template
+#
+# Copy this file to backup_policy.local.yml and fill in your credentials.
+#   cp config/backup_policy.local.example.yml config/backup_policy.local.yml
+#
+# backup_policy.local.yml is gitignored — NEVER commit it.
+
+version: 1
+
+targets:
+  truenas:
+    # ─── SSH transport credentials ───
+    # Fill in your TrueNAS SSH connection details.
+    ssh:
+      host: "192.168.1.100"                    # TrueNAS IP or hostname
+      port: 22                                  # SSH port (default 22)
+      user: agentlab                            # SSH username
+      identity_file: "~/.ssh/agentlab_truenas"  # Path to SSH private key
+      # remote_base_path: the dataset mount path on TrueNAS
+      # Find it with: ssh user@host "ls -1 /mnt/"
+      remote_base_path: "/mnt/tank/AgentLab_WorkSpace"
+
+    # ─── Legacy SMB mount config (only needed if transport: smb_mount) ───
+    protocol_url: "smb://192.168.1.100/AgentLab_WorkSpace"
+    mount_path: "/Volumes/AgentLab_WorkSpace"
+
+  github:
+    # GitHub backup credentials come from environment variables:
+    #   GITHUB_TOKEN  — personal access token
+    #   GITHUB_OWNER  — set in project_config.yml per-project
+    #   GITHUB_REPO   — set in project_config.yml per-project
+    # No local file override needed.

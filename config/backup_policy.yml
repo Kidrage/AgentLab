@@ -1,73 +1,295 @@
-# AgentLab Backup Policy
-# Controls automated and manual backup of project memory, code, and task state
-# to GitHub (private repos) and TrueNAS (SMB/NFS mounted storage).
+# AgentLab Backup Policy — v3
+#
+# Controls automated and manual backup of project memory, task artifacts,
+# and configuration to TrueNAS (primary, SSH) and GitHub (secondary, code/config).
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# REMOTE LAYOUT ON TRUENAS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# <remote_base_path>/                        e.g. /mnt/hdd2/AgentLab_WorkSpace/
+# ├── memory/                                记忆仓库备份区
+# │   ├── projects/<Project>/agent_docs/     项目记忆快照
+# │   ├── global/config/                     全局配置记忆
+# │   ├── global/agent_templates/            模板记忆
+# │   ├── global/skills/                     Skill 记忆
+# │   └── MANIFEST.yml                       记忆备份清单
+# │
+# ├── tasks/                                 任务归档备份区（按类型隔离）
+# │   ├── code_reading/        完成时一次性  保留30天
+# │   ├── code_development/    每次diff增量   永久保留
+# │   ├── video_generation/    每个里程碑     永久保留
+# │   ├── content_writing/     文件保存时     保留90天
+# │   ├── research/            完成时一次性   保留90天
+# │   └── system/              文件变更时     永久保留
+# │
+# ├── projects/                              项目原始结构（merge-only，兼容旧版）
+# ├── config/                                配置同步（merge-only）
+# ├── agent_templates/                       模板同步（merge-only）
+# └── BACKUP_INDEX.yml                       全局备份索引
+#
+# ═══════════════════════════════════════════════════════════════════════════════
 
-version: 1
+version: 3
 
-# ─── Backup targets ───
+# ═══════════════════════════════════════════════════════════════════════════════
+# TASK CLASSIFICATION — Determines backup strategy per task type
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Task type is auto-detected from task metadata (workflow_plan.yml task_type field)
+# or can be manually specified via --task-type flag.
+#
+task_classification:
+  # ── code_reading — 代码仓库阅读、探索、审计类任务 ──────────────────────────
+  # 特点：只读操作，产物为报告/笔记，无需增量保护
+  code_reading:
+    remote_subpath: tasks/code_reading        # 远端存储路径
+    trigger: on_task_complete                 # on_task_complete | on_file_change | on_milestone
+    retention_days: 30                        # 30天后自动清理
+    backup_format: yaml_only                  # yaml_only | full_mirror | metadata_only
+    included_artifacts:                       # 备份哪些产物
+      - supervisor_plan.md
+      - reposcout_report.md
+      - research_notes.md
+      - interface_map.md
+      - audit_report.md
+      - verification_report.md
+      - artifact_manifest.yml
+    exclude_artifacts:
+      - "*.diff"
+      - "*.patch"
+      - cost_ledger.yml
+    notes: "代码阅读任务产物价值低，30天足够回溯，过期自动清理节省空间"
+
+  # ── code_development — 代码开发、修改、重构类任务 ──────────────────────────
+  # 特点：有写入操作，产物为代码变更，需要完整增量历史
+  code_development:
+    remote_subpath: tasks/code_development
+    trigger: on_file_change                   # 每次 diff 变更都触发
+    retention_days: 0                         # 0 = 永久保留
+    backup_format: full_mirror                # 完整镜像
+    included_artifacts:
+      - "*"                                   # 全部产物
+    exclude_artifacts:
+      - __pycache__/**
+      - "*.pyc"
+      - ".venv/**"
+      - node_modules/**
+    diff_snapshots: true                       # 保留每次 diff 快照
+    max_diff_snapshots: 50                     # 每个任务最多保留 50 次 diff 快照
+    notes: "代码开发任务价值最高，完整保留所有变更历史，永久存储"
+
+  # ── video_generation — AI视频/漫剧/短剧生成类任务 ─────────────────────────
+  # 特点：产出大文件（视频/图片），需里程碑式分段备份
+  video_generation:
+    remote_subpath: tasks/video_generation
+    trigger: on_milestone                     # 每个里程碑触发
+    retention_days: 0                         # 0 = 永久保留
+    backup_format: milestone_snapshot         # 里程碑快照模式
+    # 里程碑定义：任务内建阶段节点
+    milestones:
+      - name: 01_script                       # 剧本完成
+        trigger_on: "scripts/ 目录有新文件"
+      - name: 02_characters                   # 角色设定完成
+        trigger_on: "characters/ 目录有新文件"
+      - name: 03_storyboard                   # 分镜完成
+        trigger_on: "storyboard/ 目录有新文件"
+      - name: 04_video_raw                    # 视频初稿完成
+        trigger_on: "output/ 目录有新文件"
+      - name: 05_final                        # 终稿完成
+        trigger_on: "task_state == completed"
+    included_artifacts:
+      - "*.yml"
+      - "*.yaml"
+      - "*.md"
+      - "*.json"
+    exclude_artifacts:
+      - "*.mp4"                               # 视频大文件走独立通道
+      - "*.mov"
+      - "*.avi"
+      - "*.webm"
+    large_file_policy:                        # 大文件（>10MB）处理策略
+      enabled: true
+      threshold_mb: 10
+      action: metadata_pointer                # metadata_pointer | sync | skip
+      # metadata_pointer: 只存元数据（路径+SHA256），视频文件手动管理
+    notes: >
+      视频生成类任务是AgentLab核心变现能力，需要最细粒度的备份保护。
+      每个里程碑节点触发一次快照，确保创作过程可回滚。
+      视频大文件（>10MB）单独管理，避免rsync传输瓶颈。
+
+  # ── content_writing — 内容写作、文档创作类任务 ─────────────────────────────
+  # 特点：文本产出，需要频繁保存但不需要完整历史
+  content_writing:
+    remote_subpath: tasks/content_writing
+    trigger: on_file_change                   # 每次文件保存触发
+    retention_days: 90
+    backup_format: full_mirror
+    included_artifacts:
+      - "*.md"
+      - "*.yml"
+      - "*.yaml"
+      - "*.txt"
+      - "*.json"
+    exclude_artifacts:
+      - "*.diff"
+      - __pycache__/**
+    notes: "内容写作需要频繁备份防止丢失，但90天后历史版本价值降低"
+
+  # ── research — 调研、市场分析、信息搜集类任务 ───────────────────────────────
+  # 特点：产物为报告/数据，一次性完成
+  research:
+    remote_subpath: tasks/research
+    trigger: on_task_complete
+    retention_days: 90
+    backup_format: yaml_only
+    included_artifacts:
+      - supervisor_plan.md
+      - research_notes.md
+      - reposcout_report.md
+      - verification_report.md
+      - artifact_manifest.yml
+    notes: "研究报告具有时效性，90天内可回溯，过期自动清理"
+
+  # ── system — AgentLab 自维护类任务 ─────────────────────────────────────────
+  # 特点：配置变更、Skill管理、系统升级，影响全局
+  system:
+    remote_subpath: tasks/system
+    trigger: on_file_change
+    retention_days: 0                         # 0 = 永久保留
+    backup_format: full_mirror
+    included_artifacts:
+      - "*"
+    exclude_artifacts:
+      - __pycache__/**
+      - "*.pyc"
+    notes: "系统级任务影响AgentLab运行，永久保留完整变更记录"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MEMORY BACKUP — 记忆仓库独立备份策略
+# ═══════════════════════════════════════════════════════════════════════════════
+memory_backup:
+  enabled: true
+  remote_path: memory                         # 远端根路径（相对于 remote_base_path）
+
+  # 项目记忆：每个项目的 agent_docs/ 目录
+  project_memory:
+    source: projects/<Project>/agent_docs/
+    remote: memory/projects/<Project>/agent_docs/
+    trigger: on_file_change
+    retention_days: 0                         # 永久保留
+    format: full_mirror
+    max_versions: 10                          # 最多保留 10 个历史版本快照
+
+  # 全局记忆：跨项目共享的知识
+  global_memory:
+    sources:
+      - local: config/
+        remote: memory/global/config/
+      - local: agent_templates/
+        remote: memory/global/agent_templates/
+      - local: skills/
+        remote: memory/global/skills/
+    trigger: on_file_change
+    retention_days: 0
+    format: full_mirror
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BACKUP FORMAT SPECIFICATION
+# ═══════════════════════════════════════════════════════════════════════════════
+backup_format_spec:
+  # yaml_only: 只备份 YAML/JSON 结构化文件
+  yaml_only:
+    extensions: [".yml", ".yaml", ".json"]
+    include_markdown_reports: true            # supervisor_plan.md 等报告也纳入
+    max_file_size_mb: 5                       # 跳过 >5MB 的 YAML
+
+  # full_mirror: 完整镜像（排除大文件）
+  full_mirror:
+    all_extensions: true
+    exclude_large_files: true
+    large_file_threshold_mb: 50
+    large_file_action: warn_skip              # warn_skip | compress | sync
+
+  # milestone_snapshot: 里程碑快照（视频生成专用）
+  milestone_snapshot:
+    structure: "{task_type}/{task_id}/{milestone_name}/"
+    metadata_file: MILESTONE.yml              # 每个里程碑的元数据文件
+    include_context: true                     # 附带任务上下文（计划、决策）
+
+  # metadata_pointer: 大文件指针模式
+  metadata_pointer:
+    pointer_format: yaml
+    fields: [file_name, remote_path, size_bytes, sha256, local_original_path, created_at]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SYNC FREQUENCY RULES
+# ═══════════════════════════════════════════════════════════════════════════════
+sync_frequency:
+  # 全局频率限制
+  global:
+    max_sync_per_hour: 60                     # 每小时最多 60 次同步
+    debounce_seconds: 10                      # 文件变更后等待 10 秒再触发
+    batch_window_seconds: 30                  # 30秒内的多次变更合并为一次同步
+
+  # 按触发类型细分
+  by_trigger:
+    on_file_change:
+      debounce_seconds: 10
+      cooldown_between_syncs_seconds: 5       # 两次同步之间最少间隔 5 秒
+    on_task_complete:
+      delay_seconds: 3                        # 任务完成后等 3 秒再同步（等最后的写入完成）
+    on_milestone:
+      immediate: true                         # 里程碑触发立即同步，无 debounce
+      cooldown_between_syncs_seconds: 0
+
+  # 按任务类型细分
+  by_task_type:
+    code_reading:
+      max_per_hour: 10                        # 低频
+    code_development:
+      max_per_hour: 30                        # 中频
+    video_generation:
+      max_per_hour: 6                         # 限制（可能有视频大文件）
+    content_writing:
+      max_per_hour: 20
+    research:
+      max_per_hour: 10
+    system:
+      max_per_hour: 60                        # 高频（配置变更需要即时备份）
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BACKUP TARGET: TRUENAS (Primary)
+# ═══════════════════════════════════════════════════════════════════════════════
 targets:
-  github:
-    enabled: true
-    description: "Private GitHub repo for off-site backup and version history"
-    visibility: private
-    default_owner: ""                # Set in project_config.yml per-project
-    default_repo: ""                 # Set in project_config.yml per-project
-    default_branch: main
-    backup_branch_prefix: agentlab/   # e.g. agentlab/task-0014-backup-rules
-    auth:
-      token_env: GITHUB_TOKEN
-      protocol: https
-    sync_mode: manual_trigger        # manual_trigger | on_archive | on_task_complete
-    sync_items:
-      - path: agent_docs/            # Project memory files
-        glob: "**/*.{md,yml,yaml}"
-        exclude: [".git", ".DS_Store"]
-      - path: config/                # Global policy files
-        glob: "**/*.{md,yml,yaml}"
-      - path: agent_templates/       # Agent prompt templates
-        glob: "**/*.md"
-      - path: runs/                  # Task run artifacts (reports, plans, decisions)
-        glob: "**/*.{md,yml}"
-        exclude: ["cost_ledger.yml", "*.diff"]
-    commit_message_template: "[AgentLab] {project} — {task_id} — {description}"
-    max_commits_per_session: 10
-
   truenas:
     enabled: true
-    description: "TrueNAS SMB mount — silent background merge backup (never overwrites, never deletes)"
-    protocol_url: "smb://10.147.17.61/AgentLab_WorkSpace"
-    mount_path: "/Volumes/AgentLab_WorkSpace"        # macOS SMB mount point
-    # ─── Core behavior ───
-    mode: silent_background_merge       # silent_background_merge | live_symlink | periodic_sync
-    # "silent_background_merge" means:
-    #   - rsync runs with --ignore-existing (never overwrite remote files)
-    #   - rsync runs with --no-delete (never delete remote files)
-    #   - All sync is silent (no user-facing prompts, errors go to log only)
-    #   - Triggered automatically on file change events in watched directories
-    sync_strategy:
-      # macOS ships rsync v2.6.9 (2006) which lacks --no-delete.
-      # We use cp -R -n (recursive, no-clobber) instead:
-      #   -n = --no-clobber: never overwrite existing files (pure merge)
-      #   -R = recursive
-      # This guarantees merge-only behavior on all macOS versions.
-      tool: cp
-      flags:
-        - "-R"                        # recursive — copy directory trees
-        - "-n"                        # no-clobber — NEVER overwrite existing files (merge-only)
-        - "-p"                        # preserve timestamps, permissions, ownership
-      fallback_tool: rsync
-      fallback_flags:
-        - "--archive"
-        - "--ignore-existing"
-        - "--update"
-        - "--quiet"
-      note: >
-        rsync on macOS < v3 lacks --no-delete; cp -n provides the same
-        no-overwrite guarantee without needing brew-installed rsync.
-      merge_policy:                    # What happens when remote already has the file
-        existing_remote: keep_remote   # keep_remote | update_if_newer | ask — we KEEP remote
-        new_local: push_to_remote      # push_to_remote | skip — we push new files
-        deleted_local: keep_remote     # keep_remote | delete_remote — we NEVER delete
+    description: "TrueNAS backup — SSH rsync transport (primary backup target)"
+    transport: ssh
+
+    # SSH credentials in backup_policy.local.yml (gitignored)
+    ssh:
+      host: ""
+      port: 22
+      user: ""
+      identity_file: ""
+      remote_base_path: ""
+
+    # Legacy SMB mount (credentials in backup_policy.local.yml)
+    protocol_url: ""
+    mount_path: ""
+
+    # Core behavior: push-only, merge (never overwrite, never delete)
+    mode: silent_background_merge
+
+    # rsync strategy for SSH transport
+    rsync_flags:
+      base: ["--recursive", "--times", "--ignore-existing", "--progress", "--itemize-changes"]
+      dry_run: ["--dry-run"]
+      delete: []                                # NEVER add --delete
+      overwrite: []                             # NEVER add --overwrite
+
+    # Global exclude patterns (apply to ALL sync operations)
     exclude:
       - ".git/**"
       - "**/.git/**"
@@ -83,72 +305,173 @@ targets:
       - "**/.env"
       - "agent_runtime/.env"
       - ".agentlab_runtime/cache/**"
+      - ".qwen/**"
+      - "*.key"
+      - "*.pem"
+      - "secrets/**"
+      - "*.local.yml"
+      - "*.local.yaml"
+
+    # Merge-only policy
+    merge_policy:
+      existing_remote: keep_remote              # NEVER overwrite
+      new_local: push_to_remote                 # Push new files
+      deleted_local: keep_remote                # NEVER delete
+
+    # Manifest & integrity
     manifest:
       enabled: true
       checksum_algorithm: sha256
       report_name: truenas_manifest.yml
       include_skipped_existing: true
-      include_excluded_summary: true
+
+    # ── Sync items — what gets synced where ──────────────────────────────
     sync_items:
-      - local_path: projects/          # All project data (agent_docs, repo, runs)
-        remote_path: projects/
-        direction: push_only_merge     # push new/updated → TrueNAS, never pull, never delete
-      - local_path: config/            # Global policy files
-        remote_path: config/
+      # 记忆仓库 → memory/ 区域
+      - local_path: projects/
+        remote_path: memory/projects/
         direction: push_only_merge
-      - local_path: agent_templates/   # Agent prompt templates
-        remote_path: agent_templates/
+        item_type: memory
+      - local_path: config/
+        remote_path: memory/global/config/
         direction: push_only_merge
+        item_type: memory
+      - local_path: agent_templates/
+        remote_path: memory/global/agent_templates/
+        direction: push_only_merge
+        item_type: memory
+      - local_path: skills/
+        remote_path: memory/global/skills/
+        direction: push_only_merge
+        item_type: memory
+
+      # 任务归档 → tasks/<task_type>/ 区域（由 task_classification 决定子路径）
+      # 这些是动态路径，由 truenas_sync.py 根据任务类型运行时解析
+      - local_path: projects/<Project>/runs/<task_id>/
+        remote_path: tasks/{task_type}/{task_id}/
+        direction: push_only_merge
+        item_type: task
+        # {task_type} resolved from task_classification at runtime
+
+    # Background trigger
     background_trigger:
-      schedule: on_file_write           # on_file_write | every_5min | every_30min | manual
-      watch_paths:                      # Which directories to monitor for changes
-        - projects/AgentLab/agent_docs/
-        - projects/AgentLab/repo/
+      schedule: on_file_write
+      watch_paths:
+        - projects/
         - config/
         - agent_templates/
-      debounce_seconds: 10              # Wait 10s after last write before triggering rsync
-      max_sync_per_hour: 60             # Rate limit
+        - skills/
+      debounce_seconds: 10
+      max_sync_per_hour: 60
+
+    # Integrity check
     integrity_check:
       schedule: daily
       checksum_algorithm: sha256
       report_path: agent_docs/10_SYNC_LEDGER.yml
+      remote_index: BACKUP_INDEX.yml
 
-# ─── Backup triggers ───
+  # ═══════════════════════════════════════════════════════════════════════════
+  # BACKUP TARGET: GITHUB (Secondary — code/config versioning only)
+  # ═══════════════════════════════════════════════════════════════════════════
+  github:
+    enabled: true
+    description: "GitHub private repo for code/config versioning (NOT task artifacts)"
+    visibility: private
+    default_owner: ""
+    default_repo: ""
+    default_branch: main
+    backup_branch_prefix: agentlab/
+    auth:
+      token_env: GITHUB_TOKEN
+      protocol: https
+    sync_mode: manual_trigger
+    sync_items:
+      - path: agent_docs/
+        glob: "**/*.{md,yml,yaml}"
+      - path: config/
+        glob: "**/*.{md,yml,yaml}"
+      - path: agent_templates/
+        glob: "**/*.md"
+      - path: skills/
+        glob: "**/*.{md,yml,yaml}"
+    commit_message_template: "[AgentLab] {project} — {task_id} — {description}"
+    max_commits_per_session: 10
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RETENTION & CLEANUP
+# ═══════════════════════════════════════════════════════════════════════════════
+retention:
+  # Per task-type retention (overrides task_classification defaults)
+  by_task_type:
+    code_reading:
+      remote_days: 30
+      cleanup_schedule: weekly                # 每周清理一次过期任务
+    code_development:
+      remote_days: 0                          # 永久
+      cleanup_schedule: never
+    video_generation:
+      remote_days: 0                          # 永久
+      cleanup_schedule: never
+      cleanup_excludes:                        # 但中间里程碑可清理
+        - milestone: 01_script
+          keep_days: 365
+        - milestone: 04_video_raw
+          keep_days: 90
+    content_writing:
+      remote_days: 90
+      cleanup_schedule: weekly
+    research:
+      remote_days: 90
+      cleanup_schedule: weekly
+    system:
+      remote_days: 0
+      cleanup_schedule: never
+
+  # GitHub retention
+  github:
+    branch_retention: keep_all
+    max_branches: 0
+
+  # Memory retention
+  memory:
+    project_snapshots_keep: 10               # 每个项目保留最近 10 个记忆快照
+    global_snapshots_keep: 20                # 全局保留最近 20 个快照
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TRIGGERS
+# ═══════════════════════════════════════════════════════════════════════════════
 triggers:
-  on_archivist_complete:
-    description: "After Archivist writes archive_update.md, sync GitHub target only"
-    targets: [github]
-    auto_push: false                    # Require manual confirmation before git push
-    require_validation: true
-
   on_file_change:
-    description: "Silent background rsync to TrueNAS on any file write (merge-only, no overwrite, no delete)"
-    targets: [truenas]
-    silent: true                        # No user-facing output, errors → log only
-    log_errors_to: agent_docs/10_SYNC_LEDGER.yml
-
-  on_codex_log_event:
-    description: "After each Codex log-event, trigger silent TrueNAS sync"
+    description: "Silent background sync to TrueNAS on file write"
     targets: [truenas]
     silent: true
-    auto_push: true
+    log_errors_to: agent_docs/10_SYNC_LEDGER.yml
+
+  on_task_complete:
+    description: "Task completion triggers archivist sync + task-type backup"
+    targets: [truenas]
+    auto_push: false
+
+  on_milestone:
+    description: "Video generation milestone reached"
+    targets: [truenas]
+    silent: false
+
+  on_archivist_complete:
+    description: "After Archivist writes archive_update.md"
+    targets: [github, truenas]
+    auto_push: false
+    require_validation: true
 
   on_manual_force_sync:
-    description: "User-triggered full sync (still merge-only for safety)"
+    description: "User-triggered full sync"
     cli_command: "./agentlab.sh truenas-sync"
     web_ui_endpoint: "/api/backup/truenas-sync"
-    flags: "--ignore-existing --no-delete --update"
 
-# ─── Retention rules ───
-retention:
-  github:
-    branch_retention: keep_all         # keep_all | last_n_per_task
-    max_branches: 0                    # 0 = unlimited
-  truenas:
-    snapshot_retention_days: 90
-    keep_last_n_snapshots: 7
-
-# ─── Recovery procedure ───
+# ═══════════════════════════════════════════════════════════════════════════════
+# RECOVERY PROCEDURE
+# ═══════════════════════════════════════════════════════════════════════════════
 recovery:
   from_github:
     description: "Clone private repo and restore agent_docs/ + config/"
@@ -156,8 +479,15 @@ recovery:
       - "git clone https://github.com/<owner>/<repo>.git /tmp/agentlab-recovery"
       - "cp -a /tmp/agentlab-recovery/agent_docs/ <project>/agent_docs/"
       - "cp -a /tmp/agentlab-recovery/config/ <project>/../config/"
+      - "cp -a /tmp/agentlab-recovery/skills/ <project>/../skills/"
+
   from_truenas:
-    description: "Restore from SMB mount — already live if symlinks are intact"
-    steps:
-      - "Verify mount: ls /Volumes/ao/AgentLab/"
-      - "Recreate symlinks if missing: ln -s /Volumes/ao/AgentLab/projects/<project>/agent_docs"
+    description: "Restore from TrueNAS — SSH rsync pull"
+    steps_memory:
+      - "ssh <user>@<host> -p <port> -i <identity_file> 'ls <remote_base_path>/memory/'"
+      - "rsync -avz -e '<ssh_opts>' <user>@<host>:<remote_base_path>/memory/projects/<Project>/agent_docs/ <local_project>/agent_docs/"
+    steps_tasks:
+      - "ssh <user>@<host> -p <port> -i <identity_file> 'ls <remote_base_path>/tasks/<task_type>/<task_id>/'"
+      - "rsync -avz -e '<ssh_opts>' <user>@<host>:<remote_base_path>/tasks/<task_type>/<task_id>/ <local_project>/runs/<task_id>/"
+    steps_full:
+      - "rsync -avz --ignore-existing -e '<ssh_opts>' <user>@<host>:<remote_base_path>/ /tmp/agentlab-full-recovery/"

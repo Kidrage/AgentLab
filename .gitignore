@@ -85,3 +85,5 @@ state.json
 *.p12
 *.pfx
 secrets/
+*.local.yml
+*.local.yaml
