@@ -47,6 +47,9 @@ MIN_LINE_COUNTS = {
     "agent_runtime/repo_index_cli.py": 40,
     "agent_runtime/p2_closure/closure_runner.py": 80,
     "agent_runtime/run_task.py": 80,
+    "agent_runtime/truenas_sync.py": 500,
+    "agent_runtime/skill_evolution.py": 500,
+    "agent_runtime/post_task_learning.py": 100,
     "scripts/audit_text_integrity.py": 120,
     "tests/test_anysearch_adapter.py": 40,
     "tests/test_p1_cd_syntax_yaml_integrity.py": 40,
@@ -56,6 +59,8 @@ MIN_LINE_COUNTS = {
     "agentlab.sh": 20,
     "config/search_providers.yml": 10,
     "config/repo_indexing.yml": 10,
+    "config/backup_policy.yml": 200,
+    "config/backup_policy.local.example.yml": 15,
 }
 
 
