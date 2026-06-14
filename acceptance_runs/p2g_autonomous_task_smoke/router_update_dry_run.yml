@@ -1,7 +1,0 @@
-task_id: task_p2g_smoke
-provider_id: mock_executor
-recommendation: quarantine
-dry_run: true
-applied: false
-reason: dry-run mode; no config modified
-timestamp: '2026-06-14T05:55:16.755774+00:00'
