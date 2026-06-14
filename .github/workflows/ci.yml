@@ -31,7 +31,26 @@ jobs:
           python -m pytest -q tests/test_repository_text_integrity.py
       - name: Run tests P2 closure
         run: |
-          python -m pytest -q tests/test_p2_closure.py
+          python -m pytest -q \
+            tests/test_p2_closure.py::TestP2CapabilityMap \
+            tests/test_p2_closure.py::TestAcceptedDelivery \
+            tests/test_p2_closure.py::TestNeedsRevisionDelivery \
+            tests/test_p2_closure.py::TestUnsafeDelivery \
+            tests/test_p2_closure.py::TestMissingArtifactsDelivery
+      - name: Run tests P2 router apply
+        run: |
+          python -m pytest -q \
+            tests/test_p2_closure.py::TestRouterApplyRequiresApproval \
+            tests/test_p2_closure.py::TestRouterApplyWithApproval
+      - name: Run tests P2 safety
+        run: |
+          python -m pytest -q tests/test_p2_closure.py::TestP2ClosureSafety
+      - name: Run tests P2 script
+        run: |
+          python -m pytest -q tests/test_p2_closure.py::TestP2ClosureScript
+      - name: Run tests P2 CLI
+        run: |
+          python -m pytest -q tests/test_p2_closure.py::TestP2ClosureCLI
       - name: Run tests A-G
         run: |
           python -m pytest -q tests/test_[a-g]*.py
