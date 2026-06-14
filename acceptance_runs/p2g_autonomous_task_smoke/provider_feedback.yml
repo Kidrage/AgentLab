@@ -1,0 +1,30 @@
+task_id: task_p2g_smoke
+delivery_id: fake_repo
+provider_id: mock_executor
+executor: mock
+review_verdict: rejected
+quality_score: 0.4
+artifact_completeness: 0.0
+test_confidence: 0.0
+safety_confidence: 1.0
+retry_recommended: true
+failure_reasons:
+- 'high/evidence: Required artifact is missing: external_handoff.md'
+- 'high/evidence: Required artifact is missing: skill_usage_ledger.yml'
+- 'medium/evidence: Required report section is missing: Summary'
+- 'medium/evidence: Required report section is missing: Tests Run'
+- 'medium/evidence: Required report section is missing: Safety Evidence'
+- 'medium/evidence: Required report section is missing: Known Limitations'
+- 'medium/evidence: Required report section is missing: Verdict'
+- 'medium/tests: No claimed tests were found in the delivery evidence.'
+governance_recommendation: insufficient_data
+cost:
+  estimated_usd: null
+  token_visibility: unknown
+latency:
+  duration_sec: null
+evidence:
+- /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2g_autonomous_task_smoke/review_verdict.yml
+- /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2g_autonomous_task_smoke/review_report.md
+- /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2g_autonomous_task_smoke/revision_packet.md
+created_at: '2026-06-14T05:55:16.744247+00:00'

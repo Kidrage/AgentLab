@@ -1,0 +1,42 @@
+task_id: task_p2g_smoke
+delivery_id: fake_repo
+generated_at: '2026-06-14T05:55:16Z'
+
+artifacts:
+  input:
+    - input_task.md: task description and acceptance criteria
+    - task_plan.yml: execution plan and step definitions
+
+  closure:
+    - review_verdict.yml: unified review verdict with scores
+    - review_report.md: 3E review markdown report
+    - review_report.yml: 3E review structured report
+    - explore_summary.yml: explored artifacts summary
+    - retry_handoff.md: retry instructions for failed findings
+    - revision_packet.md: revision task card
+
+  feedback:
+    - provider_feedback.yml: provider governance feedback
+    - router_feedback.yml: router update recommendation
+    - router_update_dry_run.yml: dry-run router update artifact
+
+  governance:
+    - governance_feedback.yml: compliance and resource review
+    - revision_feedback.yml: revision instructions summary
+    - final_delivery_report.md: user-readable delivery report
+
+  reports:
+    - p2_closure_report.md: closure summary report
+    - known_limits.md: limitations of current capabilities
+
+completeness:
+  total_artifacts: 15
+  present_artifacts: 15
+  missing_artifacts: 0
+  score: 1.0
+
+quality:
+  overall_score: 0.4
+  artifact_completeness: 0.0
+  test_confidence: 0.0
+  safety_confidence: 1.0

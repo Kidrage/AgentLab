@@ -1,0 +1,43 @@
+task_id: task_p2g_smoke
+delivery_id: fake_repo
+verdict: rejected
+created_at: '2026-06-14T05:55:16Z'
+
+revision_summary:
+  total_findings: 8
+  failed_findings: 8
+  warning_findings: 0
+
+required_artifacts_missing:
+  - external_handoff.md: External handoff document linking task to delivery.
+  - skill_usage_ledger.yml: Record of skills used during execution.
+
+required_report_sections_missing:
+  - Summary: High-level description of what was done.
+  - Tests Run: Validation commands and their results.
+  - Safety Evidence: Confirmation that no unsafe operations occurred.
+  - Known Limitations: Honest statement of what the delivery cannot do.
+  - Verdict: Final acceptance/rejection decision.
+
+test_evidence:
+  claimed_tests: []
+  issue: "No tests were claimed or executed."
+  recommendation: "Run pytest on the fixture and include results."
+
+safety_findings: []
+
+revision_instructions:
+  - "Create external_handoff.md with task ID, delivery ID, and artifact manifest."
+  - "Create skill_usage_ledger.yml listing skills used (can be empty list for mock tasks)."
+  - "Add '## Summary' section to p1_acceptance_report.md with a one-line description."
+  - "Add '## Tests Run' section listing actual validation commands executed."
+  - "Add '## Safety Evidence' section confirming no unsafe operations."
+  - "Add '## Known Limitations' section noting dry-run constraints."
+  - "Add '## Verdict' section with PASS/NEEDS_REVISION/BLOCKED decision."
+  - "Execute at least one test and claim the results in the report."
+
+suggested_executor: deepseek
+suggested_approach:
+  - "Use mock executor to regenerate artifacts with complete report structure."
+  - "Include all required sections in acceptance report."
+  - "Re-run P2 closure to verify verdict improves to accepted."
