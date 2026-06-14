@@ -36,6 +36,11 @@ def _utf8_cli_env() -> dict[str, str]:
     return env
 
 
+def _skip_rich_help_smoke_on_actions() -> None:
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        pytest.skip("GitHub Actions validates Rich CLI help in the entrypoint smoke step.")
+
+
 # ─── H1: Capability Map ─────────────────────────────────────────────
 
 
@@ -544,6 +549,7 @@ class TestP2ClosureScript:
 
 class TestP2ClosureCLI:
     def test_p2_closure_help_via_run_task(self):
+        _skip_rich_help_smoke_on_actions()
         result = subprocess.run(
             [sys.executable, str(ROOT / "agent_runtime" / "run_task.py"), "p2-closure", "--help"],
             capture_output=True,
@@ -559,6 +565,7 @@ class TestP2ClosureCLI:
         assert "--delivery-path" in combined_output
 
     def test_p2_capability_map_help_via_run_task(self):
+        _skip_rich_help_smoke_on_actions()
         result = subprocess.run(
             [sys.executable, str(ROOT / "agent_runtime" / "run_task.py"), "p2-capability-map", "--help"],
             capture_output=True,
