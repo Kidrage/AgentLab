@@ -538,21 +538,27 @@ class TestP2ClosureCLI:
             [sys.executable, str(ROOT / "agent_runtime" / "run_task.py"), "p2-closure", "--help"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=str(ROOT),
         )
-        assert result.returncode == 0
-        assert "--task-id" in result.stdout
-        assert "--delivery-path" in result.stdout
+        combined_output = result.stdout + result.stderr
+        assert result.returncode == 0, combined_output[:1000]
+        assert "--task-id" in combined_output
+        assert "--delivery-path" in combined_output
 
     def test_p2_capability_map_help_via_run_task(self):
         result = subprocess.run(
             [sys.executable, str(ROOT / "agent_runtime" / "run_task.py"), "p2-capability-map", "--help"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=str(ROOT),
         )
-        assert result.returncode == 0
-        assert "--output" in result.stdout
+        combined_output = result.stdout + result.stderr
+        assert result.returncode == 0, combined_output[:1000]
+        assert "--output" in combined_output
 
     def test_p2_closure_accepted_via_cli(self, tmp_path: Path):
         delivery = FIXTURES / "accepted_delivery"
@@ -568,10 +574,13 @@ class TestP2ClosureCLI:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=str(ROOT),
         )
-        assert result.returncode == 0
-        assert "P2 closure verdict: accepted" in result.stdout
+        combined_output = result.stdout + result.stderr
+        assert result.returncode == 0, combined_output[:1000]
+        assert "P2 closure verdict: accepted" in combined_output
 
     def test_p2_closure_revision_via_cli(self, tmp_path: Path):
         delivery = FIXTURES / "needs_revision_delivery"
@@ -587,7 +596,10 @@ class TestP2ClosureCLI:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=str(ROOT),
         )
+        combined_output = result.stdout + result.stderr
         assert result.returncode != 0
-        assert "Revision packet:" in result.stdout
+        assert "Revision packet:" in combined_output
