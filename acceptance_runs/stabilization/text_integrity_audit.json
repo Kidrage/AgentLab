@@ -8,7 +8,7 @@
       "path": ".github/workflows/ci.yml",
       "line_count": 39,
       "max_line_length": 78,
-      "file_size_bytes": 1149,
+      "file_size_bytes": 1153,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": true,

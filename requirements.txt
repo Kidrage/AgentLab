@@ -3,4 +3,4 @@ pydantic
 pyyaml
 typer
 rich
-pytest
+pytest<9
