@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -127,8 +128,11 @@ def test_workflow_has_required_keys() -> None:
     for path in workflows:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         assert isinstance(data, dict), _relative(path)
-        for key in ("name", "on", "jobs"):
+        # PyYAML parses YAML 1.1 "on" as boolean True; accept both.
+        has_on = "on" in data or True in data
+        for key in ("name", "jobs"):
             assert key in data, f"{_relative(path)} missing top-level {key!r}"
+        assert has_on, f"{_relative(path)} missing top-level 'on' (or YAML 1.1 'True')"
 
 
 def test_critical_files_have_minimum_line_counts() -> None:
@@ -207,3 +211,54 @@ def test_audit_script_flags_suspicious_fixture(tmp_path: Path) -> None:
     suspicious_paths = {audit.path for audit in audits if audit.suspicious_single_line}
 
     assert "scripts/compressed.py" in suspicious_paths
+
+
+def test_shell_entrypoint_has_enough_lines() -> None:
+    """The main shell entrypoint must have a minimum number of lines."""
+    path = ROOT / "agentlab.sh"
+    assert path.exists(), "agentlab.sh missing"
+    count = _line_count(path)
+    assert count >= 20, f"agentlab.sh has only {count} lines (need >= 20)"
+
+
+def test_shell_entrypoint_passes_bash_syntax_check() -> None:
+    """The main shell entrypoint must pass bash -n syntax check."""
+    path = ROOT / "agentlab.sh"
+    assert path.exists(), "agentlab.sh missing"
+    result = subprocess.run(
+        ["bash", "-n", str(path)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, f"bash -n failed for agentlab.sh: {result.stderr.strip()}"
+
+
+def test_shell_scripts_pass_bash_syntax_check() -> None:
+    """All .sh files in scripts/ must pass bash -n syntax check."""
+    scripts_dir = ROOT / "scripts"
+    for sh_file in sorted(scripts_dir.glob("*.sh")):
+        result = subprocess.run(
+            ["bash", "-n", str(sh_file)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        rel = _relative(sh_file)
+        assert result.returncode == 0, f"bash -n failed for {rel}: {result.stderr.strip()}"
+
+
+def test_audit_script_is_not_compressed() -> None:
+    """The audit script itself must not be compressed into too few lines."""
+    path = ROOT / "scripts" / "audit_text_integrity.py"
+    assert path.exists(), "audit_text_integrity.py missing"
+    count = _line_count(path)
+    assert count >= 120, f"audit_text_integrity.py has only {count} lines (need >= 120)"
+
+
+def test_audit_script_itself_passes_bash_indirectly() -> None:
+    """The audit script must be parseable as Python and self-auditable."""
+    path = ROOT / "scripts" / "audit_text_integrity.py"
+    assert path.exists(), "audit_text_integrity.py missing"
+    source = path.read_text(encoding="utf-8")
+    ast.parse(source, filename=str(path))

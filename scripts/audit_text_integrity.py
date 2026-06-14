@@ -12,6 +12,7 @@ import argparse
 import ast
 import json
 import re
+import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,7 @@ SCAN_PATTERNS = [
     ".github/workflows/*.yaml",
     "agent_runtime/**/*.py",
     "scripts/*.py",
+    "scripts/*.sh",
     "tests/*.py",
     "config/*.yml",
     "config/*.yaml",
@@ -39,6 +41,7 @@ SCAN_PATTERNS = [
     "docs/*.md",
     "README.md",
     "agentlab.sh",
+    "*.sh",
 ]
 
 # Patterns to exclude from scanning (third-party, venv, etc.)
@@ -300,6 +303,67 @@ def _check_generic(path: Path, root: Path) -> FileAudit:
     )
 
 
+def _check_shell(path: Path, root: Path) -> FileAudit:
+    """Run shell-script-specific integrity checks including bash -n syntax."""
+    rel = str(path.relative_to(root))
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    size = path.stat().st_size
+    line_count = len(lines)
+    max_line_len = max((len(line) for line in lines), default=0)
+    issues: list[str] = []
+    suspicious = False
+
+    if max_line_len > MAX_SOURCE_LINE_LENGTH:
+        suspicious = True
+        issues.append(f"max line length {max_line_len} > {MAX_SOURCE_LINE_LENGTH}")
+
+    content = path.read_text(encoding="utf-8", errors="replace")
+    if LOCAL_ABSOLUTE_PATH_RE.search(content):
+        suspicious = True
+        issues.append("contains local absolute /Users path")
+
+    if line_count < 3 and size > 500:
+        suspicious = True
+        issues.append(f"only {line_count} lines but {size} bytes")
+
+    # bash -n syntax check
+    bash_ok: bool | None = None
+    try:
+        result = subprocess.run(
+            ["bash", "-n", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        bash_ok = result.returncode == 0
+        if not bash_ok:
+            suspicious = True
+            issues.append(f"bash -n failed: {result.stderr.strip()[:200]}")
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
+        bash_ok = None
+        issues.append(f"bash -n check skipped: {exc}")
+
+    # Critical file minimum line counts
+    if rel in MIN_LINE_COUNTS and line_count < MIN_LINE_COUNTS[rel]:
+        issues.append(
+            f"critical file needs >= {MIN_LINE_COUNTS[rel]} lines, has {line_count}"
+        )
+        suspicious = True
+
+    return FileAudit(
+        path=rel,
+        line_count=line_count,
+        max_line_length=max_line_len,
+        file_size_bytes=size,
+        suspicious_single_line=suspicious,
+        python_ast_ok=None,
+        yaml_parse_ok=None,
+        contains_docstring_future_same_line=False,
+        contains_multiple_top_level_defs_one_line=False,
+        issue_summary="; ".join(issues) if issues else "ok",
+    )
+
+
 def run_audit(root: Path | None = None) -> list[FileAudit]:
     """Run the full audit and return a list of FileAudit records."""
     base = root or ROOT
@@ -312,6 +376,8 @@ def run_audit(root: Path | None = None) -> list[FileAudit]:
             results.append(_check_python(path, base))
         elif suffix in (".yml", ".yaml"):
             results.append(_check_yaml(path, base))
+        elif suffix == ".sh":
+            results.append(_check_shell(path, base))
         else:
             results.append(_check_generic(path, base))
 
