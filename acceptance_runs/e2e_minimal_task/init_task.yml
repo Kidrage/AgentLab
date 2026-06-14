@@ -1,0 +1,13 @@
+schema_version: 1
+stage: init-task
+project: AgentLab
+task_id: task_s4_minimal_e2e
+input_path: acceptance_runs/e2e_minimal_task/input_task.md
+created_by: s4_recovery_fixture
+mode: dry_run
+network_allowed: false
+secrets_allowed: false
+artifact_root: acceptance_runs/e2e_minimal_task
+notes:
+  - Natural-language request captured as a local fixture.
+  - No provider API keys, tokens, or external endpoints are required.

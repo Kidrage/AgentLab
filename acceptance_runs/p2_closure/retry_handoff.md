@@ -12,7 +12,7 @@
 ## Reproduction Commands
 - `python -m compileall agent_runtime agentlab_app.py`
 - `python -m pytest -q`
-- `python scripts/p2_review_check.py --target /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/needs_revision_delivery`
+- `python scripts/p2_review_check.py --target tests/fixtures/p2_closure/needs_revision_delivery`
 
 ## Acceptance Criteria
 - All required artifacts are present.

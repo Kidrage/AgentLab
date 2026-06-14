@@ -1,0 +1,16 @@
+schema_version: 1
+stage: router-feedback
+project: AgentLab
+task_id: task_s4_minimal_e2e
+provider_id: mock_provider
+recommendation: neutral
+router_apply:
+  enabled: false
+  mode: dry_run
+  production_config_modified: false
+evidence:
+  review_verdict: acceptance_runs/e2e_minimal_task/review_verdict.yml
+  provider_feedback: acceptance_runs/e2e_minimal_task/provider_feedback.yml
+notes:
+  - Router feedback is recorded for closure evidence only.
+  - No production routing configuration was changed.

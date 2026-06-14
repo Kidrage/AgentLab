@@ -7,5 +7,5 @@ dry_run: true
 apply_allowed: false
 approval_required: true
 evidence:
-- /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/review_verdict.yml
-- /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/review_report.md
+- acceptance_runs/p2_closure/review_verdict.yml
+- acceptance_runs/p2_closure/review_report.md

@@ -1,5 +1,5 @@
 task_id: task_cli_smoke
-target_dir: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/accepted_delivery
+target_dir: tests/fixtures/p2_closure/accepted_delivery
 artifacts:
 - path: external_handoff.md
   exists: true

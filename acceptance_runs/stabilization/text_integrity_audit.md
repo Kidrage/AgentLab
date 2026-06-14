@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Total files scanned: 358
+- Total files scanned: 402
 - Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0
@@ -16,6 +16,8 @@
 | README.md | 683 | 781 | 35849 | OK |
 | docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md | 1397 | 365 | 29633 | OK |
 | agent_runtime/run_task.py | 3420 | 361 | 148646 | OK |
+| acceptance_runs/stabilization/S0_STABILIZATION_REPORT.md | 134 | 338 | 5803 | OK |
+| acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md | 212 | 329 | 8302 | OK |
 | docs/CLOSURE_MVP_REPORT.md | 81 | 324 | 4442 | OK |
 | agent_runtime/artifact_contract.py | 701 | 300 | 28249 | OK |
 | tests/test_external_skill_artifact_paths.py | 42 | 300 | 1977 | OK |
@@ -39,7 +41,5 @@
 | docs/repo_ingestion_p0.md | 10 | 197 | 869 | OK |
 | tests/test_external_skill_cli.py | 101 | 189 | 4536 | OK |
 | tests/test_p2_executor_result_ingestion.py | 87 | 188 | 3714 | OK |
+| acceptance_runs/p1_closure/external_handoff.md | 77 | 188 | 2615 | OK |
 | agent_runtime/task_index.py | 560 | 186 | 23412 | OK |
-| tests/test_p2_router_recommendation_loader.py | 22 | 184 | 1272 | OK |
-| tests/test_pipeline_repo_manifest_integration.py | 53 | 183 | 2557 | OK |
-| tests/test_cline_mcp_stdio_compat.py | 164 | 182 | 5646 | OK |

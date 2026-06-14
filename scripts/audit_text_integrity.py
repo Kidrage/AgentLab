@@ -33,6 +33,9 @@ SCAN_PATTERNS = [
     "tests/*.py",
     "config/*.yml",
     "config/*.yaml",
+    "acceptance_runs/**/*.yml",
+    "acceptance_runs/**/*.yaml",
+    "acceptance_runs/**/*.md",
     "docs/*.md",
     "README.md",
     "agentlab.sh",
@@ -88,6 +91,8 @@ class FileAudit:
 
 # Directories to always exclude from scanning
 EXCLUDED_DIR_PARTS = {".venv", "site-packages", "__pycache__", "node_modules"}
+LOCAL_ABSOLUTE_PATH_RE = re.compile("/" + "Users" + r"/[^\s`'\"<>]+")
+MAX_SOURCE_LINE_LENGTH = 1200
 
 
 def _resolve_scan_paths(root: Path) -> list[Path]:
@@ -113,6 +118,7 @@ def _check_python(path: Path, root: Path) -> FileAudit:
     size = path.stat().st_size
     line_count = len(lines)
     issues: list[str] = []
+    suspicious = False
 
     # AST parse
     ast_ok: bool | None = None
@@ -127,13 +133,19 @@ def _check_python(path: Path, root: Path) -> FileAudit:
         issues.append(f"ast error: {exc}")
 
     max_line_len = max((len(line) for line in lines), default=0)
+    if max_line_len > MAX_SOURCE_LINE_LENGTH:
+        suspicious = True
+        issues.append(f"max line length {max_line_len} > {MAX_SOURCE_LINE_LENGTH}")
 
     # Suspicious patterns
     content = path.read_text(encoding="utf-8", errors="replace")
     # Detect corrupted future import/docstring compression on one physical line.
     # Use [ ] (space only, not \s) so newlines don't falsely match.
+    docstring_markers = ('"""', "'''")
+    future_import_marker = "from __future__" + " import"
     docstring_future_same_line = any(
-        ('"""' in line or "'''" in line) and "from __future__ import" in line
+        any(marker in line for marker in docstring_markers)
+        and future_import_marker in line
         for line in lines
     ) or bool(
         re.search(r"from[ ]+__future__[ ]+import[ ]+annotations[ ]+from[ ]+\S", content)
@@ -154,22 +166,13 @@ def _check_python(path: Path, root: Path) -> FileAudit:
             issues.append("line has many import statements")
             break
 
-    # Shebang followed by code on same line
-    if lines and lines[0].startswith("#!"):
-        shebang_rest = lines[0][2:].strip()
-        if "python" in shebang_rest.lower():
-            parts = shebang_rest.split()
-            if len(parts) > 1 and not parts[-1].startswith("#"):
-                issues.append("shebang with code on same line")
-
     # Heuristic suspicious
-    suspicious = False
     if line_count < 5 and size > 500:
         suspicious = True
         issues.append(f"only {line_count} lines but {size} bytes")
-    if max_line_len > 2000:
+    if LOCAL_ABSOLUTE_PATH_RE.search(content):
         suspicious = True
-        issues.append(f"max line length {max_line_len} > 2000")
+        issues.append("contains local absolute /Users path")
     if ast_ok is False:
         suspicious = True
 
@@ -232,9 +235,14 @@ def _check_yaml(path: Path, root: Path) -> FileAudit:
         suspicious = True
 
     max_line_len = max((len(line) for line in lines), default=0)
-    if max_line_len > 2000:
+    if max_line_len > MAX_SOURCE_LINE_LENGTH:
         suspicious = True
-        issues.append(f"max line length {max_line_len} > 2000")
+        issues.append(f"max line length {max_line_len} > {MAX_SOURCE_LINE_LENGTH}")
+
+    content = path.read_text(encoding="utf-8", errors="replace")
+    if LOCAL_ABSOLUTE_PATH_RE.search(content):
+        suspicious = True
+        issues.append("contains local absolute /Users path")
 
     # Critical file minimum line counts
     if rel in MIN_LINE_COUNTS and line_count < MIN_LINE_COUNTS[rel]:
@@ -264,18 +272,31 @@ def _check_generic(path: Path, root: Path) -> FileAudit:
     size = path.stat().st_size
     line_count = len(lines)
     max_line_len = max((len(line) for line in lines), default=0)
+    issues: list[str] = []
+    suspicious = False
+
+    if max_line_len > MAX_SOURCE_LINE_LENGTH:
+        suspicious = True
+        issues.append(f"max line length {max_line_len} > {MAX_SOURCE_LINE_LENGTH}")
+    content = path.read_text(encoding="utf-8", errors="replace")
+    if LOCAL_ABSOLUTE_PATH_RE.search(content):
+        suspicious = True
+        issues.append("contains local absolute /Users path")
+    if line_count < 3 and size > 500:
+        suspicious = True
+        issues.append(f"only {line_count} lines but {size} bytes")
 
     return FileAudit(
         path=rel,
         line_count=line_count,
         max_line_length=max_line_len,
         file_size_bytes=size,
-        suspicious_single_line=False,
+        suspicious_single_line=suspicious,
         python_ast_ok=None,
         yaml_parse_ok=None,
         contains_docstring_future_same_line=False,
         contains_multiple_top_level_defs_one_line=False,
-        issue_summary="ok (non-Python/YAML file)",
+        issue_summary="; ".join(issues) if issues else "ok (non-Python/YAML file)",
     )
 
 

@@ -489,7 +489,7 @@ def write_project_memory(
         docs_dir / "08_CODEX_DIALOGUE_LOG.md",
         "# Codex Dialogue Log\n\nRecords user-visible Codex Coder conversations and implementation actions.\n\n",
         f"## {utc_now()} - {task_id}\n\n"
-        "User asked AgentLab to analyze `/Users/saintpeter/Desktop/Coding` and record local memory. "
+        "User asked AgentLab to analyze `<local-workspace>` and record local memory. "
         "Codex only orchestrated the local AgentLab scan and reports the resulting artifacts.\n\n",
     )
     write_yaml(docs_dir / "09_COST_LEDGER.yml", {"entries": [{

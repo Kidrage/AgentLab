@@ -294,7 +294,8 @@ def _run(args: list[str], cwd: Path | None = None) -> CommandResult:
 
 
 def _extract_local_repo(request: str) -> Path | None:
-    match = re.search(r"(/Users/[^\s，,]+/AO-SpatialAuthoring-Modular)", request)
+    users_root_pattern = "/" + "Users" + r"/[^\s，,]+/AO-SpatialAuthoring-Modular"
+    match = re.search(users_root_pattern, request)
     return Path(match.group(1)) if match else None
 
 

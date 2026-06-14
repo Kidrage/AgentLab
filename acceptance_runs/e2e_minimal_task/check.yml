@@ -1,0 +1,19 @@
+schema_version: 1
+stage: check
+project: AgentLab
+task_id: task_s4_minimal_e2e
+checks:
+  text_integrity:
+    status: planned
+    command: python scripts/audit_text_integrity.py --fail-on-suspicious
+  compile:
+    status: planned
+    command: python -m compileall agent_runtime agentlab_app.py scripts tests
+  tests:
+    status: planned
+    command: python -m pytest -q
+safety:
+  network_calls: none
+  secrets_read: none
+  external_scripts_executed: none
+status: completed

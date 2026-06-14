@@ -21,6 +21,8 @@ YAML_SCAN_ROOTS = [
     ROOT / ".github" / "workflows",
 ]
 
+ACCEPTANCE_SCAN_ROOT = ROOT / "acceptance_runs"
+
 KNOWN_TINY_PYTHON_FILES = {
     "state_store.py",
     "atomic_io.py",
@@ -82,6 +84,20 @@ def _yaml_files() -> list[Path]:
     return sorted(set(files))
 
 
+def _acceptance_artifact_files() -> list[Path]:
+    if not ACCEPTANCE_SCAN_ROOT.exists():
+        return []
+    suffixes = {".md", ".yml", ".yaml"}
+    return sorted(
+        path
+        for path in ACCEPTANCE_SCAN_ROOT.rglob("*")
+        if path.is_file()
+        and path.suffix in suffixes
+        and ".venv" not in path.parts
+        and "__pycache__" not in path.parts
+    )
+
+
 def _line_count(path: Path) -> int:
     return len(path.read_text(encoding="utf-8").splitlines())
 
@@ -124,21 +140,30 @@ def test_critical_files_have_minimum_line_counts() -> None:
 
 
 def test_no_extreme_long_source_lines() -> None:
-    for path in _python_files():
+    for path in _python_files() + _acceptance_artifact_files():
         relative_path = _relative(path)
         assert _max_line_length(path) <= 1200, (
             f"{relative_path} has a line over 1200 characters"
         )
 
 
+def test_acceptance_artifacts_have_no_local_absolute_paths() -> None:
+    local_path_pattern = re.compile("/" + "Users" + r"/[^\s`'\"<>]+")
+    for path in _acceptance_artifact_files():
+        text = path.read_text(encoding="utf-8")
+        match = local_path_pattern.search(text)
+        assert match is None, f"{_relative(path)} contains local absolute path {match.group(0)}"
+
+
 def test_no_docstring_future_import_on_same_line() -> None:
+    future_import_marker = "from __future__" + " import annotations"
     for path in _python_files():
         relative_path = _relative(path)
         lines = path.read_text(encoding="utf-8").splitlines()
 
         for number, line in enumerate(lines, start=1):
             stripped = line.lstrip()
-            if stripped.startswith('"""') and "from __future__ import annotations" in line:
+            if stripped.startswith('"""') and future_import_marker in line:
                 raise AssertionError(
                     f"{relative_path}:{number} has docstring and future import on one line"
                 )

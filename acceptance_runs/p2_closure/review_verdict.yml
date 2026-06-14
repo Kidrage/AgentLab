@@ -11,7 +11,7 @@ scores:
   overall: 0.9
 review:
   explore:
-    summary: Explored 5 artifacts in /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/accepted_delivery
+    summary: Explored 5 artifacts in tests/fixtures/p2_closure/accepted_delivery
     discovered_artifacts:
     - external_handoff.md
     - skill_usage_ledger.yml
@@ -45,10 +45,10 @@ review:
         path without explicit rationale: agent_runtime/p2_closure/closure_runner.py'
 evidence:
   input_paths:
-  - /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/accepted_delivery
+  - tests/fixtures/p2_closure/accepted_delivery
   output_paths:
-  - /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/review_report.md
-  - /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/review_report.yml
+  - acceptance_runs/p2_closure/review_report.md
+  - acceptance_runs/p2_closure/review_report.yml
   logs: []
   generated_files: []
 provider_feedback:

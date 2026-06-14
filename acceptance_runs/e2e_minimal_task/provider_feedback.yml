@@ -1,0 +1,17 @@
+schema_version: 1
+stage: provider-feedback
+project: AgentLab
+task_id: task_s4_minimal_e2e
+provider_id: mock_provider
+executor: dry_run
+review_verdict: accepted
+outcome:
+  status: success
+  retry_recommended: false
+  quarantine_recommended: false
+cost:
+  estimated_cost_usd: 0.0
+  real_api_calls: false
+notes:
+  - Provider feedback is deterministic and local.
+  - No external executor was invoked.

@@ -4,12 +4,12 @@
 P2-F closure completed with verdict: **accepted**.
 
 ## Artifacts
-- Capability Map: `/Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/p2_capability_map.yml`
-- Review Verdict: `/Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/review_verdict.yml`
+- Capability Map: `acceptance_runs/p2_closure/p2_capability_map.yml`
+- Review Verdict: `acceptance_runs/p2_closure/review_verdict.yml`
 - Revision Packet: not required
-- Provider Feedback: `/Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/provider_feedback.yml`
-- Router Feedback: `/Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/router_feedback.yml`
-- Router Update Dry-Run: `/Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/router_update_dry_run.yml`
+- Provider Feedback: `acceptance_runs/p2_closure/provider_feedback.yml`
+- Router Feedback: `acceptance_runs/p2_closure/router_feedback.yml`
+- Router Update Dry-Run: `acceptance_runs/p2_closure/router_update_dry_run.yml`
 
 ## Pipeline Steps
 

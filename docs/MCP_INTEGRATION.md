@@ -128,7 +128,7 @@ Example Claude Desktop-style local config:
     "agentlab": {
       "command": "python",
       "args": ["-m", "agent_runtime.mcp_server", "--serve"],
-      "cwd": "/Users/saintpeter/Desktop/AgentLab"
+      "cwd": "<path-to-agentlab>"
     }
   }
 }

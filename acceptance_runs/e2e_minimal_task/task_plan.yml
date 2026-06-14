@@ -1,0 +1,20 @@
+schema_version: 1
+stage: prepare
+project: AgentLab
+task_id: task_s4_minimal_e2e
+write_plan: true
+route:
+  supervisor: dry_run
+  coder: mock_execution
+  reviewer: deterministic_local
+editable_scope:
+  - acceptance_runs/e2e_minimal_task/
+  - tests/test_e2e_minimal_task_closure.py
+validation_gates:
+  - text_integrity_audit
+  - compileall
+  - pytest
+  - cli_help
+budget:
+  mode: frugal
+  external_cost_usd: 0.0

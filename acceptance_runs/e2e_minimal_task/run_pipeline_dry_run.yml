@@ -1,0 +1,16 @@
+schema_version: 1
+stage: run-pipeline
+project: AgentLab
+task_id: task_s4_minimal_e2e
+execution_mode: dry_run
+provider: mock_provider
+external_api_calls: false
+external_tools:
+  ecc: not_called
+  anysearch: not_called
+  codegraph: not_called
+  remote_mcp: not_called
+outputs:
+  plan_path: acceptance_runs/e2e_minimal_task/task_plan.yml
+  check_path: acceptance_runs/e2e_minimal_task/check.yml
+status: completed

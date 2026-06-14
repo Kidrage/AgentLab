@@ -4,7 +4,7 @@
 Review target `task_cli_smoke` completed with verdict `PASS_WITH_WARNINGS`.
 
 ## Explore
-- target_dir: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/accepted_delivery
+- target_dir: tests/fixtures/p2_closure/accepted_delivery
 - required artifacts present: external_handoff.md, skill_usage_ledger.yml
 - required artifacts missing: none
 - claimed tests: python -m pytest -q tests/test_p2_closure_runner.py, python -m pytest -q tests/test_p2_closure_capability_map.py

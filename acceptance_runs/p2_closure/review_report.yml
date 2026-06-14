@@ -1,13 +1,13 @@
 target:
   task_id: task_cli_smoke
-  target_dir: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/accepted_delivery
-  handoff_path: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/accepted_delivery/external_handoff.md
-  report_path: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/accepted_delivery/p1_acceptance_report.md
+  target_dir: tests/fixtures/p2_closure/accepted_delivery
+  handoff_path: tests/fixtures/p2_closure/accepted_delivery/external_handoff.md
+  report_path: tests/fixtures/p2_closure/accepted_delivery/p1_acceptance_report.md
   changed_files: []
   claimed_tests: []
 summary:
   task_id: task_cli_smoke
-  target_dir: /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p2_closure/accepted_delivery
+  target_dir: tests/fixtures/p2_closure/accepted_delivery
   artifacts:
   - path: external_handoff.md
     exists: true
@@ -133,7 +133,7 @@ summary:
       PASS
 
       '
-  output_path: /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p2_closure/explore_summary.yml
+  output_path: acceptance_runs/p2_closure/explore_summary.yml
 findings:
 - finding_id: high-risk-path-agent-runtime-p2-closure-models-py
   severity: low

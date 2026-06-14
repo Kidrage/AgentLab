@@ -1,0 +1,24 @@
+schema_version: 1
+stage: p2-closure
+project: AgentLab
+task_id: task_s4_minimal_e2e
+verdict: accepted
+reviewer: deterministic_local
+summary: >
+  The minimal task closure is accepted because it is a local dry-run fixture
+  with complete required artifacts and explicit safety constraints.
+scores:
+  correctness: 0.95
+  safety: 1.0
+  evidence: 0.9
+required_artifacts:
+  - acceptance_runs/e2e_minimal_task/input_task.md
+  - acceptance_runs/e2e_minimal_task/init_task.yml
+  - acceptance_runs/e2e_minimal_task/task_plan.yml
+  - acceptance_runs/e2e_minimal_task/run_pipeline_dry_run.yml
+  - acceptance_runs/e2e_minimal_task/check.yml
+  - acceptance_runs/e2e_minimal_task/provider_feedback.yml
+  - acceptance_runs/e2e_minimal_task/router_feedback.yml
+  - acceptance_runs/e2e_minimal_task/final_delivery_report.md
+revision_required: false
+revision_packet: acceptance_runs/e2e_minimal_task/revision_packet.md
