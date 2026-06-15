@@ -19,11 +19,11 @@
 | acceptance_runs/stabilization/S0_STABILIZATION_REPORT.md | 134 | 338 | 5803 | OK |
 | acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md | 212 | 329 | 8302 | OK |
 | docs/CLOSURE_MVP_REPORT.md | 81 | 324 | 4442 | OK |
-| docs/SKILL_DISTILLATION.md | 30 | 302 | 1175 | OK |
+| docs/SKILL_DISTILLATION.md | 32 | 302 | 1262 | OK |
 | agent_runtime/artifact_contract.py | 701 | 300 | 28249 | OK |
 | tests/test_external_skill_artifact_paths.py | 42 | 300 | 1977 | OK |
 | docs/EXTERNAL_AGENT_HANDOFF.md | 134 | 293 | 4842 | OK |
-| docs/SKILL_VAULT.md | 114 | 290 | 3924 | OK |
+| docs/SKILL_VAULT.md | 116 | 290 | 4011 | OK |
 | agent_runtime/mcp_server.py | 493 | 284 | 27787 | OK |
 | scripts/p2_router_update_check.py | 113 | 283 | 4420 | OK |
 | docs/AGENTLAB_COMPANY_MODEL.md | 48 | 283 | 2226 | OK |

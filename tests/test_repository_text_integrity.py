@@ -36,7 +36,7 @@ KNOWN_TINY_PYTHON_FILES = {
 }
 
 MIN_LINE_COUNTS = {
-    ".github/workflows/ci.yml": 15,
+    ".github/workflows/ci.yml": 20,
     "agent_runtime/mcp_server.py": 100,
     "agent_runtime/skills/registry.py": 80,
     "agent_runtime/external_agents/ecc_inventory.py": 80,
@@ -63,6 +63,7 @@ MIN_LINE_COUNTS = {
     "tests/test_p1_cd_syntax_yaml_integrity.py": 40,
     "tests/test_external_skill_registry.py": 40,
     "tests/test_repository_text_integrity.py": 80,
+    "tests/test_skill_vault.py": 80,
     "tests/test_p2_closure.py": 80,
     "agentlab.sh": 20,
     "config/search_providers.yml": 10,
