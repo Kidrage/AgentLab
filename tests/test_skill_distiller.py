@@ -42,9 +42,15 @@ def test_distill_generates_required_artifacts(tmp_path: Path) -> None:
     _write_run(tmp_path)
     result = distill_skill_draft(tmp_path, "Demo", "task_001")
     draft_dir = Path(result["draft_path"])
-    for name in ["SKILL.md", "metadata.yml", "validation_plan.yml", "evidence_map.yml", "source_trace.yml"]:
+    durable_dir = Path(result["durable_path"])
+    assert durable_dir == tmp_path / "memory" / "global" / "skills" / "drafts" / result["draft_id"]
+    for name in ["SKILL.md", "metadata.yml", "validation_plan.yml", "evidence_map.yml", "source_trace.yml", "origin_pointer.yml"]:
         assert (draft_dir / name).exists()
-    skill_md = (draft_dir / "SKILL.md").read_text(encoding="utf-8")
+        assert (durable_dir / name).exists()
+    pointer = tmp_path / "projects" / "Demo" / "runs" / "task_001" / "skill_drafts" / result["draft_id"] / "POINTER.yml"
+    assert pointer.exists()
+    assert not (pointer.parent / "SKILL.md").exists()
+    skill_md = (durable_dir / "SKILL.md").read_text(encoding="utf-8")
     for heading in ["## When to use", "## Inputs and assumptions", "## Procedure", "## Validation checklist", "## Failure recovery", "## Anti-patterns", "## Evidence summary", "## Limits"]:
         assert heading in skill_md
     metadata = yaml.safe_load((draft_dir / "metadata.yml").read_text(encoding="utf-8"))

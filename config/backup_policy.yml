@@ -491,3 +491,23 @@ recovery:
       - "rsync -avz -e '<ssh_opts>' <user>@<host>:<remote_base_path>/tasks/<task_type>/<task_id>/ <local_project>/runs/<task_id>/"
     steps_full:
       - "rsync -avz --ignore-existing -e '<ssh_opts>' <user>@<host>:<remote_base_path>/ /tmp/agentlab-full-recovery/"
+
+# Skill Vault backup: local-first rsync mirror to user-provided SSH/TrueNAS config.
+skill_vault_backup:
+  enabled: true
+  source: memory/global/skills
+  remote_subdir: memory/global/skills
+  trigger_events:
+    - skill_distilled
+    - skill_approved
+    - skill_rejected
+    - skill_staged
+    - skill_promoted
+    - skill_retired
+  format: full_mirror
+  include_manifest: true
+  include_registry: true
+  retention_days: 365
+  require_ssh_config: true
+  dry_run_default: true
+  auto_backup_on_skill_change: false

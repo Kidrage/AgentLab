@@ -1,0 +1,38 @@
+version: 1
+
+enabled: true
+
+local_root: memory/global/skills
+
+layout:
+  inbox: inbox
+  drafts: drafts
+  approved: approved
+  staging: staging
+  active: active
+  rejected: rejected
+  retired: retired
+  quarantine: quarantine
+
+registry:
+  file: registry.yml
+  manifest: MANIFEST.yml
+  require_source_trace: true
+  require_validation_plan: true
+  require_manual_approval: true
+
+project_run_pointers:
+  enabled: true
+  pointer_filename: POINTER.yml
+  keep_lightweight_copy: false
+
+git_policy:
+  track_vault_contents: false
+  track_config_only: true
+
+safety:
+  auto_promote: false
+  external_discovery_enabled: false
+  require_approval_for_self_learned: true
+  require_approval_for_external: true
+  auto_backup_on_skill_change: false

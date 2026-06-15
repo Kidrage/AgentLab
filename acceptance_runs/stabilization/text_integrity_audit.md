@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Total files scanned: 405
+- Total files scanned: 425
 - Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0
@@ -13,19 +13,22 @@
 
 | Path | Lines | Max Line | Size | Status |
 |------|-------|----------|------|--------|
-| README.md | 683 | 781 | 35849 | OK |
+| README.md | 693 | 781 | 36665 | OK |
 | docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md | 1397 | 365 | 29633 | OK |
-| agent_runtime/run_task.py | 3420 | 361 | 148646 | OK |
+| agent_runtime/run_task.py | 3591 | 361 | 156033 | OK |
 | acceptance_runs/stabilization/S0_STABILIZATION_REPORT.md | 134 | 338 | 5803 | OK |
 | acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md | 212 | 329 | 8302 | OK |
 | docs/CLOSURE_MVP_REPORT.md | 81 | 324 | 4442 | OK |
+| docs/SKILL_DISTILLATION.md | 30 | 302 | 1175 | OK |
 | agent_runtime/artifact_contract.py | 701 | 300 | 28249 | OK |
 | tests/test_external_skill_artifact_paths.py | 42 | 300 | 1977 | OK |
 | docs/EXTERNAL_AGENT_HANDOFF.md | 134 | 293 | 4842 | OK |
+| docs/SKILL_VAULT.md | 114 | 290 | 3924 | OK |
 | agent_runtime/mcp_server.py | 493 | 284 | 27787 | OK |
 | scripts/p2_router_update_check.py | 113 | 283 | 4420 | OK |
 | docs/AGENTLAB_COMPANY_MODEL.md | 48 | 283 | 2226 | OK |
 | docs/SKILL_INCUBATION_POLICY.md | 42 | 274 | 1698 | OK |
+| docs/SKILL_DISCOVERY_ROADMAP.md | 23 | 266 | 931 | OK |
 | docs/EXTERNAL_SKILL_REGISTRY.md | 48 | 260 | 2363 | OK |
 | docs/ECC_INVENTORY_INTEGRATION.md | 54 | 259 | 1836 | OK |
 | docs/ECC_HANDOFF_PROTOCOL.md | 133 | 258 | 4521 | OK |
@@ -40,6 +43,3 @@
 | docs/EXTERNAL_AGENT_LEDGER.md | 119 | 203 | 4531 | OK |
 | docs/repo_ingestion_p0.md | 10 | 197 | 869 | OK |
 | tests/test_external_skill_cli.py | 101 | 189 | 4536 | OK |
-| tests/test_p2_executor_result_ingestion.py | 87 | 188 | 3714 | OK |
-| acceptance_runs/p1_closure/external_handoff.md | 77 | 188 | 2615 | OK |
-| agent_runtime/task_index.py | 560 | 186 | 23412 | OK |

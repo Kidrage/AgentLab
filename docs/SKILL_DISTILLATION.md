@@ -24,3 +24,7 @@ projects/<Project>/runs/<task_id>/skill_drafts/<draft_id>/
 ```
 
 This phase does not support full-web automatic skill discovery or automatic external skill loading. `config/skill_discovery.yml` is disabled by default.
+
+## Central Skill Vault
+
+Project Memory now flows through `SkillDistiller` into `memory/global/skills/drafts/<skill_id>/`. The project run keeps only `POINTER.yml`, so task cleanup cannot remove durable skill drafts. Manual approval moves drafts to `approved`; rejection moves them to `rejected`; activation is never automatic.

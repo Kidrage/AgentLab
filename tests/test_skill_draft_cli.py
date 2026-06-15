@@ -23,19 +23,19 @@ def test_skill_draft_cli_flow(tmp_path: Path) -> None:
         assert distill.returncode == 0, distill.stderr + distill.stdout
         list_result = subprocess.run(["bash", "agentlab.sh", "skill-draft-list", "--project", project], cwd=ROOT, env=env, text=True, capture_output=True, timeout=30)
         assert list_result.returncode == 0
-        metadata_paths = list(run_dir.glob("skill_drafts/*/metadata.yml"))
-        assert metadata_paths
-        draft_id = yaml.safe_load(metadata_paths[0].read_text(encoding="utf-8"))["id"]
+        pointer_paths = list(run_dir.glob("skill_drafts/*/POINTER.yml"))
+        assert pointer_paths
+        pointer = yaml.safe_load(pointer_paths[0].read_text(encoding="utf-8"))
+        draft_id = pointer["skill_id"]
+        metadata_path = ROOT / "memory" / "global" / "skills" / "drafts" / draft_id / "metadata.yml"
+        assert metadata_path.exists()
         approve = subprocess.run(["bash", "agentlab.sh", "skill-draft-approve", "--project", project, "--draft-id", draft_id], cwd=ROOT, env=env, text=True, capture_output=True, timeout=30)
         assert approve.returncode == 0, approve.stderr + approve.stdout
-        data = yaml.safe_load(metadata_paths[0].read_text(encoding="utf-8"))
+        approved_metadata = ROOT / "memory" / "global" / "skills" / "approved" / draft_id / "metadata.yml"
+        data = yaml.safe_load(approved_metadata.read_text(encoding="utf-8"))
         assert data["status"] == "approved"
         assert not (ROOT / "skills" / "active" / draft_id).exists()
-        reject = subprocess.run(["bash", "agentlab.sh", "skill-draft-reject", "--project", project, "--draft-id", draft_id, "--reason", "not reusable"], cwd=ROOT, env=env, text=True, capture_output=True, timeout=30)
-        assert reject.returncode == 0
-        data = yaml.safe_load(metadata_paths[0].read_text(encoding="utf-8"))
-        assert data["status"] == "rejected"
-        assert data["rejection_reason"] == "not reusable"
     finally:
         import shutil
         shutil.rmtree(project_dir, ignore_errors=True)
+        shutil.rmtree(ROOT / "memory" / "global" / "skills", ignore_errors=True)

@@ -15,6 +15,14 @@ import yaml
 
 from atomic_io import atomic_write_yaml, safe_read_yaml
 from skill_evolution import build_skill_adoption_request, write_skill_adoption_request
+from skill_vault import (
+    create_project_run_pointer,
+    list_vault_skills,
+    move_skill_status,
+    register_skill,
+    resolve_skill_path,
+    update_manifest,
+)
 
 
 REQUIRED_SKILL_HEADINGS = [
@@ -191,6 +199,24 @@ def _draft_id(project: str, task_id: str, sources: list[EvidenceSource]) -> str:
     return f"skill_{slug(project)}_{slug(task_id)}_{hashlib.sha256(material.encode()).hexdigest()[:10]}"
 
 
+def durable_skill_drafts_dir(agentlab_root: Path) -> Path:
+    """Return the central Skill Vault drafts directory."""
+    return resolve_skill_path(agentlab_root, "__placeholder__", "drafts").parent
+
+
+def _write_origin_pointer(agentlab_root: Path, draft_dir: Path, project: str, task_id: str, draft_id: str) -> dict[str, Any]:
+    origin = {
+        "source_project": project,
+        "source_task_id": task_id,
+        "source_run_path": f"projects/{project}/runs/{task_id}",
+        "original_draft_path": f"projects/{project}/runs/{task_id}/skill_drafts/{draft_id}",
+        "created_by": "skill_distiller",
+        "created_at": utc_now(),
+    }
+    atomic_write_yaml(draft_dir / "origin_pointer.yml", origin)
+    return origin
+
+
 def _skill_md(name: str, sources: list[EvidenceSource]) -> str:
     lines = [
         f"# {name}",
@@ -245,7 +271,7 @@ def distill_skill_draft(agentlab_root: Path, project: str, task_id: str) -> dict
     warnings = [source.warning for source in sources if source.warning]
     draft_id = _draft_id(project, task_id, sources)
     name = _skill_name(project, task_id, sources)
-    draft_dir = agentlab_root / "projects" / project / "runs" / task_id / "skill_drafts" / draft_id
+    draft_dir = resolve_skill_path(agentlab_root, draft_id, "drafts")
     draft_dir.mkdir(parents=True, exist_ok=True)
     metadata = {
         "id": draft_id,
@@ -263,6 +289,7 @@ def distill_skill_draft(agentlab_root: Path, project: str, task_id: str) -> dict
         "manual_approval_required": True,
         "auto_promote": False,
         "warnings": warnings,
+        "vault_path": draft_dir.relative_to(agentlab_root).as_posix(),
     }
     source_trace = {
         "source_type": "project_memory_distillation",
@@ -288,22 +315,41 @@ def distill_skill_draft(agentlab_root: Path, project: str, task_id: str) -> dict
         }
     }
     (draft_dir / "SKILL.md").write_text(_skill_md(name, sources), encoding="utf-8")
-    atomic_write_yaml(draft_dir / "metadata.yml", metadata)
     atomic_write_yaml(draft_dir / "validation_plan.yml", validation_plan)
     atomic_write_yaml(draft_dir / "evidence_map.yml", evidence_map)
     atomic_write_yaml(draft_dir / "source_trace.yml", source_trace)
-    return {"draft_id": draft_id, "draft_path": str(draft_dir), "metadata": metadata, "warnings": warnings}
+    _write_origin_pointer(agentlab_root, draft_dir, project, task_id, draft_id)
+    register_skill(agentlab_root, draft_id, draft_dir, metadata, status="drafts")
+    pointer_path = create_project_run_pointer(agentlab_root, project, task_id, draft_id, draft_dir, status="draft")
+    return {
+        "draft_id": draft_id,
+        "draft_path": str(draft_dir),
+        "durable_path": str(draft_dir),
+        "vault_path": str(draft_dir),
+        "pointer_path": str(pointer_path),
+        "metadata": metadata,
+        "warnings": warnings,
+    }
 
 
 def list_skill_drafts(agentlab_root: Path, project: str) -> list[dict[str, Any]]:
-    root = agentlab_root / "projects" / project / "runs"
-    if not root.exists():
-        return []
-    drafts: list[dict[str, Any]] = []
-    for path in sorted(root.glob("*/skill_drafts/*/metadata.yml")):
-        data = safe_read_yaml(path, default={}) or {}
-        if isinstance(data, dict):
+    """List Skill Vault drafts and reviewed drafts for a project."""
+    drafts = list_vault_skills(
+        agentlab_root,
+        project=project,
+        statuses=["draft", "approved", "rejected"],
+    )
+    seen = {str(d.get("id")) for d in drafts}
+    run_root = agentlab_root / "projects" / project / "runs"
+    if run_root.exists():
+        for path in sorted(run_root.glob("*/skill_drafts/*/metadata.yml")):
+            data = safe_read_yaml(path, default={}) or {}
+            if not isinstance(data, dict) or str(data.get("id")) in seen:
+                continue
             data["path"] = str(path.parent)
+            data["durable"] = False
+            data["legacy_task_scoped"] = True
+            data["migration_hint"] = "Run ./agentlab.sh skill-vault-migrate --project <Project> --dry-run"
             data["task_id"] = path.parents[2].name
             drafts.append(data)
     return drafts
@@ -318,36 +364,50 @@ def _find_draft(agentlab_root: Path, project: str, draft_id: str) -> tuple[dict[
 
 def approve_skill_draft(agentlab_root: Path, project: str, draft_id: str) -> dict[str, Any]:
     draft, draft_dir = _find_draft(agentlab_root, project, draft_id)
+    if draft.get("legacy_task_scoped"):
+        raise ValueError("Legacy task-scoped draft must be migrated before approval")
+    approved_dir = move_skill_status(agentlab_root, draft_id, "drafts", "approved")
+    draft = safe_read_yaml(approved_dir / "metadata.yml", default={}) or draft
     draft["status"] = "approved"
     draft["approved_at"] = utc_now()
     request = build_skill_adoption_request(
         agentlab_root,
         project=project,
         skill_name=str(draft.get("name") or draft_id),
-        source=f"skill-draft://{project}/{draft_id}",
+        source=f"skill-vault://approved/{draft_id}",
         purpose="Manual approval of Project Memory to Skill Draft. Stage and validate before promotion.",
         source_type="project_memory_distillation",
         risk={"has_scripts": False, "requires_network": False, "modifies_files": False, "permission_level": "low"},
         applies_to=list(draft.get("applies_to") or []),
     )
     request["created_from_skill_draft"] = draft_id
-    request["draft_path"] = str(draft_dir)
+    request["draft_path"] = str(approved_dir)
     request["manual_approval_required"] = True
     request["auto_promote"] = False
     request_path = write_skill_adoption_request(agentlab_root, request)
     draft["skill_request_id"] = request["id"]
     draft["skill_request_path"] = str(request_path)
-    atomic_write_yaml(draft_dir / "metadata.yml", draft)
-    return {"draft": draft, "draft_path": str(draft_dir), "skill_request_id": request["id"], "skill_request_path": str(request_path)}
+    atomic_write_yaml(approved_dir / "metadata.yml", draft)
+    register_skill(agentlab_root, draft_id, approved_dir, draft, status="approved")
+    update_manifest(agentlab_root)
+    return {"draft": draft, "draft_path": str(approved_dir), "skill_request_id": request["id"], "skill_request_path": str(request_path)}
+
 
 
 def reject_skill_draft(agentlab_root: Path, project: str, draft_id: str, reason: str) -> dict[str, Any]:
-    draft, draft_dir = _find_draft(agentlab_root, project, draft_id)
+    draft, _draft_dir = _find_draft(agentlab_root, project, draft_id)
+    if draft.get("legacy_task_scoped"):
+        raise ValueError("Legacy task-scoped draft must be migrated before rejection")
+    rejected_dir = move_skill_status(agentlab_root, draft_id, "drafts", "rejected")
+    draft = safe_read_yaml(rejected_dir / "metadata.yml", default={}) or draft
     draft["status"] = "rejected"
     draft["rejected_at"] = utc_now()
     draft["rejection_reason"] = redact_sensitive_text(reason)
-    atomic_write_yaml(draft_dir / "metadata.yml", draft)
-    return {"draft": draft, "draft_path": str(draft_dir)}
+    atomic_write_yaml(rejected_dir / "metadata.yml", draft)
+    register_skill(agentlab_root, draft_id, rejected_dir, draft, status="rejected")
+    update_manifest(agentlab_root)
+    return {"draft": draft, "draft_path": str(rejected_dir)}
+
 
 
 def main(argv: list[str] | None = None) -> int:

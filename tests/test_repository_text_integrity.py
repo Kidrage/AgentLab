@@ -56,6 +56,8 @@ MIN_LINE_COUNTS = {
     "agent_runtime/search/provider.py": 40,
     "agent_runtime/search/policy.py": 40,
     "agent_runtime/skill_distiller.py": 200,
+    "agent_runtime/skill_vault.py": 200,
+    "agent_runtime/skill_backup.py": 100,
     "scripts/audit_text_integrity.py": 120,
     "tests/test_anysearch_adapter.py": 40,
     "tests/test_p1_cd_syntax_yaml_integrity.py": 40,
@@ -70,6 +72,10 @@ MIN_LINE_COUNTS = {
     "config/repo_indexing.yml": 10,
     "config/backup_policy.yml": 200,
     "config/backup_policy.local.example.yml": 15,
+    "config/skill_vault.yml": 20,
+    "docs/SKILL_VAULT.md": 40,
+    "scripts/check_remote_raw_integrity.py": 80,
+    "tests/test_text_integrity_audit.py": 60,
 }
 
 
@@ -284,6 +290,8 @@ def test_yaml_policy_files_are_not_single_line_compressed() -> None:
         "config/external_skill_import_policy.yml",
         "config/skill_distillation.yml",
         "config/skill_discovery.yml",
+        "config/skill_vault.yml",
+        "config/backup_policy.yml",
     ]:
         path = ROOT / relative_path
         assert path.exists(), f"{relative_path} missing"
@@ -296,3 +304,10 @@ def test_agentlab_shell_is_readable_and_not_single_line_large_file() -> None:
     assert path.exists() and path.is_file()
     assert _line_count(path) >= 20
     assert _max_line_length(path) <= 1000
+
+
+def test_skill_vault_is_gitignored() -> None:
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "memory/global/skills/" in gitignore
+    assert "!config/skill_vault.yml" in gitignore
+    assert "!docs/SKILL_VAULT.md" in gitignore

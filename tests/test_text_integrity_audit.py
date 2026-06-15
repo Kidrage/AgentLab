@@ -45,3 +45,24 @@ def test_skill_discovery_config_disabled() -> None:
     assert data["allow_network"] is False
     assert data["auto_import"] is False
     assert data["auto_promote"] is False
+
+
+
+def test_audit_detects_large_single_line_yaml(tmp_path: Path) -> None:
+    module = _load_audit_module()
+    config = tmp_path / "config"
+    config.mkdir()
+    bad = config / "bad.yml"
+    bad.write_text("items: [" + ", ".join(["x"] * 600) + "]\n", encoding="utf-8")
+    audits = module.run_audit(tmp_path)
+    assert any(a.path == "config/bad.yml" and a.suspicious_single_line for a in audits)
+
+
+def test_audit_detects_large_single_line_markdown(tmp_path: Path) -> None:
+    module = _load_audit_module()
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    bad = docs / "BAD.md"
+    bad.write_text("# Title " + "word " * 400 + "\n", encoding="utf-8")
+    audits = module.run_audit(tmp_path)
+    assert any(a.path == "docs/BAD.md" and a.suspicious_single_line for a in audits)

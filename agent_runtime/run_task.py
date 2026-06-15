@@ -621,10 +621,12 @@ def skill_distill_cmd(
     console.print("[green]Skill draft generated[/green]")
     console.print({
         "draft_id": result["draft_id"],
-        "draft_path": result["draft_path"],
+        "vault_path": result.get("vault_path") or result["draft_path"],
+        "pointer_path": result.get("pointer_path"),
         "warnings": result.get("warnings", []),
     })
     console.print("[dim]Draft requires manual review. It was not promoted or activated.[/dim]")
+    console.print("[dim]Skill vault changed. Run: ./agentlab.sh skill-vault-backup --dry-run[/dim]")
 
 
 @app.command("skill-draft-list")
@@ -673,6 +675,7 @@ def skill_draft_approve_cmd(
     })
     console.print(f"[dim]Next: ./agentlab.sh skill-approve --project {project_name} --request-id {result['skill_request_id']}[/dim]")
     console.print("[dim]No active skill was promoted.[/dim]")
+    console.print("[dim]Skill vault changed. Run: ./agentlab.sh skill-vault-backup --dry-run[/dim]")
 
 
 @app.command("skill-draft-reject")
@@ -692,6 +695,87 @@ def skill_draft_reject_cmd(
         raise typer.Exit(code=1)
     console.print(f"[yellow]Skill draft rejected: {draft_id}[/yellow]")
     console.print({"draft_path": result["draft_path"], "reason": result["draft"].get("rejection_reason")})
+    console.print("[dim]Skill vault changed. Run: ./agentlab.sh skill-vault-backup --dry-run[/dim]")
+
+
+@app.command("skill-vault-list")
+def skill_vault_list_cmd(
+    project: Optional[str] = typer.Option(None, help="Optional project filter."),
+    status: str = typer.Option("", "--status", help="Optional comma-separated status filter."),
+) -> None:
+    """List central Skill Vault entries from registry.yml."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_vault import list_vault_skills
+
+    statuses = [item.strip() for item in status.split(",") if item.strip()] or None
+    rows = list_vault_skills(agentlab_root, project=project_name if project else None, statuses=statuses)
+    table = Table("Skill ID", "Name", "Status", "Project", "Task", "Risk", "Path")
+    for row in rows:
+        table.add_row(
+            str(row.get("id", "")),
+            str(row.get("name", "")),
+            str(row.get("status", "")),
+            str(row.get("project", "")),
+            str(row.get("task_id", "")),
+            str(row.get("risk_level", "")),
+            str(row.get("path", "")),
+        )
+    console.print("[bold]Skill Vault[/bold]")
+    console.print(table)
+
+
+@app.command("skill-vault-status")
+def skill_vault_status_cmd() -> None:
+    """Show central Skill Vault layout and registry counts."""
+    agentlab_root, _project_name = runtime_context(None)
+    from skill_vault import vault_status
+
+    console.print(vault_status(agentlab_root))
+
+
+@app.command("skill-vault-migrate")
+def skill_vault_migrate_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    dry_run: bool = typer.Option(True, "--dry-run", help="Preview migration without modifying files."),
+    execute: bool = typer.Option(False, "--execute", help="Actually copy legacy run drafts into Skill Vault."),
+) -> None:
+    """Migrate legacy projects/<Project>/runs/*/skill_drafts into Skill Vault."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_vault import migrate_project_run_draft_to_vault
+
+    result = migrate_project_run_draft_to_vault(agentlab_root, project_name, dry_run=dry_run or not execute, execute=execute)
+    console.print(result)
+    if execute and not result.get("dry_run"):
+        console.print("[dim]Skill vault changed. Run: ./agentlab.sh skill-vault-backup --dry-run[/dim]")
+
+
+@app.command("skill-vault-backup")
+def skill_vault_backup_cmd(
+    dry_run: bool = typer.Option(True, "--dry-run", help="Plan rsync without executing."),
+    execute: bool = typer.Option(False, "--execute", help="Execute rsync. Must be explicit."),
+) -> None:
+    """Plan or explicitly execute Skill Vault rsync backup."""
+    agentlab_root, _project_name = runtime_context(None)
+    from skill_backup import dry_run_rsync_command, execute_rsync
+
+    if execute:
+        result = execute_rsync(agentlab_root)
+    else:
+        result = dry_run_rsync_command(agentlab_root)
+    console.print(result)
+    if result.get("error"):
+        console.print(f"[yellow]{result['error']}[/yellow]")
+        if execute:
+            raise typer.Exit(code=1)
+
+
+@app.command("skill-vault-backup-status")
+def skill_vault_backup_status_cmd() -> None:
+    """Show Skill Vault backup readiness without executing rsync."""
+    agentlab_root, _project_name = runtime_context(None)
+    from skill_backup import backup_status
+
+    console.print(backup_status(agentlab_root))
 
 
 @app.command("skill-request")

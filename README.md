@@ -687,3 +687,7 @@ Use `git status` before committing to ensure no sensitive files (`.env`, credent
 
 - Project Memory → Skill Draft: see [docs/SKILL_DISTILLATION.md](docs/SKILL_DISTILLATION.md).
 - External skill discovery remains disabled/manual approval only: see [docs/SKILL_DISCOVERY_ROADMAP.md](docs/SKILL_DISCOVERY_ROADMAP.md).
+
+### Skill Vault lifecycle
+
+AgentLab uses a local central Skill Vault for self-learned skills: Project Memory → SkillDistiller → `memory/global/skills/drafts` → manual approval → approved/staging/active lifecycle. Project task runs keep only lightweight pointers. Runtime vault contents are ignored by git and can be backed up with `./agentlab.sh skill-vault-backup --dry-run` followed by explicit `--execute`. External skill discovery, automatic import, automatic execution, and automatic promotion remain disabled by default.

@@ -87,3 +87,7 @@ state.json
 secrets/
 *.local.yml
 *.local.yaml
+# Skill Vault runtime memory (local only)
+memory/global/skills/
+!config/skill_vault.yml
+!docs/SKILL_VAULT.md

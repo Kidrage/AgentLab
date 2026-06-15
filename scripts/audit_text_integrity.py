@@ -77,14 +77,22 @@ MIN_LINE_COUNTS = {
     "agent_runtime/search/policy.py": 40,
     "agent_runtime/skill_evolution.py": 300,
     "agent_runtime/skill_distiller.py": 200,
+    "agent_runtime/skill_vault.py": 200,
+    "agent_runtime/skill_backup.py": 100,
     "config/search_providers.yml": 10,
     "config/external_skill_import_policy.yml": 10,
     "config/skill_distillation.yml": 20,
     "config/skill_discovery.yml": 10,
+    "config/backup_policy.yml": 200,
+    "config/skill_vault.yml": 20,
     "README.md": 20,
+    "docs/SKILL_DISTILLATION.md": 20,
+    "docs/SKILL_DISCOVERY_ROADMAP.md": 20,
+    "docs/SKILL_VAULT.md": 40,
     "scripts/p2_provider_governance_check.py": 60,
     "scripts/audit_text_integrity.py": 120,
     "tests/test_repository_text_integrity.py": 80,
+    "tests/test_text_integrity_audit.py": 60,
     "tests/test_p2_closure.py": 80,
     "agentlab.sh": 20,
 }
@@ -108,7 +116,7 @@ class FileAudit:
 # Directories to always exclude from scanning
 EXCLUDED_DIR_PARTS = {".venv", ".git", ".pytest_cache", "site-packages", "__pycache__", "node_modules", "dist", "build", "htmlcov", ".mypy_cache", ".ruff_cache"}
 LOCAL_ABSOLUTE_PATH_RE = re.compile("/" + "Users" + r"/[^\s`'\"<>]+")
-MAX_SOURCE_LINE_LENGTH = 1200
+MAX_SOURCE_LINE_LENGTH = 1000
 
 
 def _resolve_scan_paths(root: Path) -> list[Path]:
@@ -183,7 +191,7 @@ def _check_python(path: Path, root: Path) -> FileAudit:
             break
 
     # Heuristic suspicious
-    if line_count < 5 and size > 500:
+    if line_count <= 5 and size > 1000:
         suspicious = True
         issues.append(f"only {line_count} lines but {size} bytes")
     if LOCAL_ABSOLUTE_PATH_RE.search(content):
@@ -244,7 +252,7 @@ def _check_yaml(path: Path, root: Path) -> FileAudit:
         issues.append("PyYAML not available")
 
     suspicious = False
-    if line_count < 3 and size > 200:
+    if line_count <= 5 and size > 1000:
         suspicious = True
         issues.append(f"only {line_count} lines but {size} bytes")
     if yaml_ok is False:
@@ -298,7 +306,7 @@ def _check_generic(path: Path, root: Path) -> FileAudit:
     if LOCAL_ABSOLUTE_PATH_RE.search(content):
         suspicious = True
         issues.append("contains local absolute /Users path")
-    if line_count < 3 and size > 500:
+    if line_count <= 5 and size > 1000:
         suspicious = True
         issues.append(f"only {line_count} lines but {size} bytes")
 
@@ -335,7 +343,7 @@ def _check_shell(path: Path, root: Path) -> FileAudit:
         suspicious = True
         issues.append("contains local absolute /Users path")
 
-    if line_count < 3 and size > 500:
+    if line_count <= 5 and size > 1000:
         suspicious = True
         issues.append(f"only {line_count} lines but {size} bytes")
 
