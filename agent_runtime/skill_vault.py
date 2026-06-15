@@ -313,6 +313,9 @@ def migrate_project_run_draft_to_vault(
     dry_run: bool = True,
     execute: bool = False,
 ) -> dict[str, Any]:
+    # 如果执行标志为真，强制 dry_run 为假
+    if execute:
+        dry_run = False
     run_root = agentlab_root / "projects" / project / "runs"
     migrations: list[dict[str, Any]] = []
     if not run_root.exists():
