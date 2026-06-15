@@ -8,6 +8,7 @@ text-compression regressions without mutating the codebase.
 
 from __future__ import annotations
 
+# text-integrity: keep this file as real physical lines in Git and GitHub raw.
 import argparse
 import ast
 import json

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+# text-integrity: keep this file as real physical lines in Git and GitHub raw.
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any

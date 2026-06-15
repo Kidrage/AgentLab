@@ -1,3 +1,5 @@
+<!-- text-integrity: keep this file as real physical lines in Git and GitHub raw. -->
+
 # Skill Vault
 
 AgentLab stores long-lived self-learned skills in a central local Skill Vault instead of project task run directories.

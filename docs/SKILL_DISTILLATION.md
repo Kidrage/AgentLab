@@ -1,3 +1,5 @@
+<!-- text-integrity: keep this file as real physical lines in Git and GitHub raw. -->
+
 # Skill Distillation
 
 AgentLab supports a local skill lifecycle. P2-F adds Project Memory → Skill Draft.

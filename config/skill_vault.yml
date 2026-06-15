@@ -1,3 +1,4 @@
+# text-integrity: keep this file as real physical lines in Git and GitHub raw.
 version: 1
 
 enabled: true

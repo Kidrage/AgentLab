@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+# text-integrity: keep this file as real physical lines in Git and GitHub raw.
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
