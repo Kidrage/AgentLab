@@ -8,6 +8,8 @@ import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from time import time_ns
+from urllib.parse import quote
 
 CRITICAL_FILES = [
     "agent_runtime/skill_distiller.py",
@@ -62,7 +64,9 @@ class RawResult:
 
 
 def fetch_raw(repo: str, branch: str, path: str, timeout: int = 20) -> RawResult:
-    url = f"https://raw.githubusercontent.com/{repo}/{branch}/{path}"
+    encoded_path = quote(path, safe="/")
+    cache_bust = time_ns()
+    url = f"https://raw.githubusercontent.com/{repo}/{branch}/{encoded_path}?cache_bust={cache_bust}"
     try:
         with urllib.request.urlopen(url, timeout=timeout) as response:
             data = response.read()
@@ -74,7 +78,7 @@ def fetch_raw(repo: str, branch: str, path: str, timeout: int = 20) -> RawResult
     lines = text.splitlines()
     max_line = max((len(line) for line in lines), default=0)
     issues: list[str] = []
-    if len(data) > 1000 and len(lines) <= 5:
+    if len(data) > 1000 and len(lines) <= 10:
         issues.append(f"compressed: {len(lines)} physical lines for {len(data)} bytes")
     if max_line > 1000:
         issues.append(f"max line {max_line} > 1000")
