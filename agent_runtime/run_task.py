@@ -607,6 +607,93 @@ def skill_status(
     console.print(table)
 
 
+@app.command("skill-distill")
+def skill_distill_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+) -> None:
+    """Generate a deterministic Project Memory → Skill Draft. Does not promote."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from skill_distiller import distill_skill_draft
+
+    result = distill_skill_draft(agentlab_root, project_name, task_id)
+    console.print("[green]Skill draft generated[/green]")
+    console.print({
+        "draft_id": result["draft_id"],
+        "draft_path": result["draft_path"],
+        "warnings": result.get("warnings", []),
+    })
+    console.print("[dim]Draft requires manual review. It was not promoted or activated.[/dim]")
+
+
+@app.command("skill-draft-list")
+def skill_draft_list_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """List Project Memory → Skill Drafts for a project."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_distiller import list_skill_drafts
+
+    drafts = list_skill_drafts(agentlab_root, project_name)
+    table = Table("Draft ID", "Name", "Status", "Task", "Reuse", "Risk", "Path")
+    for draft in drafts:
+        table.add_row(
+            str(draft.get("id", "")),
+            str(draft.get("name", "")),
+            str(draft.get("status", "")),
+            str(draft.get("task_id", "")),
+            str(draft.get("reuse_score", "")),
+            str(draft.get("risk_level", "")),
+            str(draft.get("path", "")),
+        )
+    console.print(f"[bold]Skill Drafts — {project_name}[/bold]")
+    console.print(table)
+
+
+@app.command("skill-draft-approve")
+def skill_draft_approve_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    draft_id: str = typer.Option(..., "--draft-id", help="Draft id."),
+) -> None:
+    """Approve a skill draft by creating a pending skill lifecycle request. No promote."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_distiller import approve_skill_draft
+
+    try:
+        result = approve_skill_draft(agentlab_root, project_name, draft_id)
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"[green]Skill draft approved: {draft_id}[/green]")
+    console.print({
+        "skill_request_id": result["skill_request_id"],
+        "skill_request_path": result["skill_request_path"],
+        "draft_path": result["draft_path"],
+    })
+    console.print(f"[dim]Next: ./agentlab.sh skill-approve --project {project_name} --request-id {result['skill_request_id']}[/dim]")
+    console.print("[dim]No active skill was promoted.[/dim]")
+
+
+@app.command("skill-draft-reject")
+def skill_draft_reject_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    draft_id: str = typer.Option(..., "--draft-id", help="Draft id."),
+    reason: str = typer.Option(..., "--reason", help="Rejection reason."),
+) -> None:
+    """Reject a skill draft and keep the original draft artifacts."""
+    agentlab_root, project_name = runtime_context(project)
+    from skill_distiller import reject_skill_draft
+
+    try:
+        result = reject_skill_draft(agentlab_root, project_name, draft_id, reason)
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"[yellow]Skill draft rejected: {draft_id}[/yellow]")
+    console.print({"draft_path": result["draft_path"], "reason": result["draft"].get("rejection_reason")})
+
+
 @app.command("skill-request")
 def skill_request(
     project: Optional[str] = typer.Option(None, help="Project name."),

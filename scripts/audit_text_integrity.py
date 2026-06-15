@@ -69,6 +69,19 @@ MIN_LINE_COUNTS = {
     "agent_runtime/governance/routing_feedback.py": 30,
     "agent_runtime/p2_closure/closure_runner.py": 80,
     "agent_runtime/run_task.py": 80,
+    "agent_runtime/post_task_learning.py": 100,
+    "agent_runtime/external_skill_importer.py": 120,
+    "agent_runtime/pipeline_runner.py": 120,
+    "agent_runtime/search_cli.py": 80,
+    "agent_runtime/search/provider.py": 40,
+    "agent_runtime/search/policy.py": 40,
+    "agent_runtime/skill_evolution.py": 300,
+    "agent_runtime/skill_distiller.py": 200,
+    "config/search_providers.yml": 10,
+    "config/external_skill_import_policy.yml": 10,
+    "config/skill_distillation.yml": 20,
+    "config/skill_discovery.yml": 10,
+    "README.md": 20,
     "scripts/p2_provider_governance_check.py": 60,
     "scripts/audit_text_integrity.py": 120,
     "tests/test_repository_text_integrity.py": 80,
@@ -93,7 +106,7 @@ class FileAudit:
 
 
 # Directories to always exclude from scanning
-EXCLUDED_DIR_PARTS = {".venv", "site-packages", "__pycache__", "node_modules"}
+EXCLUDED_DIR_PARTS = {".venv", ".git", ".pytest_cache", "site-packages", "__pycache__", "node_modules", "dist", "build", "htmlcov", ".mypy_cache", ".ruff_cache"}
 LOCAL_ABSOLUTE_PATH_RE = re.compile("/" + "Users" + r"/[^\s`'\"<>]+")
 MAX_SOURCE_LINE_LENGTH = 1200
 

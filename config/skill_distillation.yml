@@ -1,0 +1,39 @@
+enabled: true
+
+default_mode: deterministic
+manual_approval_required: true
+auto_promote: false
+auto_generate_drafts_on_finalize: false
+
+sources:
+  include_project_memory: true
+  include_task_events: true
+  include_implementation_report: true
+  include_validation_report: true
+  include_archive_update: true
+  include_learning_review: true
+  include_skill_candidates: true
+  include_decision_cards: true
+  include_cost_ledger: true
+
+privacy:
+  redact_local_absolute_paths: true
+  redact_env_values: true
+  redact_api_keys: true
+  redact_emails: true
+  redact_tokens: true
+  redact_private_keys: true
+
+thresholds:
+  min_evidence_count: 1
+  min_reuse_score: 0.45
+  min_validation_signal: 1
+  max_skill_load_tokens: 1800
+  max_source_chars_per_file: 12000
+
+outputs:
+  require_skill_md: true
+  require_metadata: true
+  require_validation_plan: true
+  require_evidence_map: true
+  require_source_trace: true

@@ -50,6 +50,12 @@ MIN_LINE_COUNTS = {
     "agent_runtime/truenas_sync.py": 500,
     "agent_runtime/skill_evolution.py": 500,
     "agent_runtime/post_task_learning.py": 100,
+    "agent_runtime/external_skill_importer.py": 120,
+    "agent_runtime/pipeline_runner.py": 120,
+    "agent_runtime/search_cli.py": 80,
+    "agent_runtime/search/provider.py": 40,
+    "agent_runtime/search/policy.py": 40,
+    "agent_runtime/skill_distiller.py": 200,
     "scripts/audit_text_integrity.py": 120,
     "tests/test_anysearch_adapter.py": 40,
     "tests/test_p1_cd_syntax_yaml_integrity.py": 40,
@@ -58,6 +64,9 @@ MIN_LINE_COUNTS = {
     "tests/test_p2_closure.py": 80,
     "agentlab.sh": 20,
     "config/search_providers.yml": 10,
+    "config/external_skill_import_policy.yml": 10,
+    "config/skill_distillation.yml": 20,
+    "config/skill_discovery.yml": 10,
     "config/repo_indexing.yml": 10,
     "config/backup_policy.yml": 200,
     "config/backup_policy.local.example.yml": 15,
@@ -267,3 +276,23 @@ def test_audit_script_itself_passes_bash_indirectly() -> None:
     assert path.exists(), "audit_text_integrity.py missing"
     source = path.read_text(encoding="utf-8")
     ast.parse(source, filename=str(path))
+
+
+def test_yaml_policy_files_are_not_single_line_compressed() -> None:
+    for relative_path in [
+        "config/search_providers.yml",
+        "config/external_skill_import_policy.yml",
+        "config/skill_distillation.yml",
+        "config/skill_discovery.yml",
+    ]:
+        path = ROOT / relative_path
+        assert path.exists(), f"{relative_path} missing"
+        assert _line_count(path) > 5, f"{relative_path} appears compressed"
+        assert _max_line_length(path) <= 1000, f"{relative_path} has an extreme long line"
+
+
+def test_agentlab_shell_is_readable_and_not_single_line_large_file() -> None:
+    path = ROOT / "agentlab.sh"
+    assert path.exists() and path.is_file()
+    assert _line_count(path) >= 20
+    assert _max_line_length(path) <= 1000

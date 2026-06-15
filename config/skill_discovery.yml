@@ -1,0 +1,14 @@
+enabled: false
+allow_network: false
+auto_import: false
+auto_promote: false
+manual_approval_required: true
+
+allowed_hosts:
+  - raw.githubusercontent.com
+
+risk_policy:
+  reject_shell_danger_by_default: true
+  reject_secret_access_by_default: true
+  require_license_metadata: false
+  require_commit_pin: true

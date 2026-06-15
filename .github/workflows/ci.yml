@@ -26,6 +26,9 @@ jobs:
       - name: Run tests
         run: |
           python -m pytest -q
+      - name: Whitespace diff check
+        run: |
+          git diff --check
       - name: Validate entrypoints
         run: |
           bash -n agentlab.sh
