@@ -99,7 +99,13 @@ def fetch_raw(repo: str, branch: str, path: str, timeout: int = 20) -> RawResult
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check GitHub raw integrity for AgentLab critical files")
     parser.add_argument("--repo", required=True, help="owner/repo, e.g. Kidrage/AgentLab")
-    parser.add_argument("--branch", default="main")
+    parser.add_argument(
+        "--branch",
+        "--ref",
+        dest="branch",
+        default="main",
+        help="Git branch or ref to check",
+    )
     parser.add_argument("--fail-on-suspicious", action="store_true")
     parser.add_argument("paths", nargs="*", help="Optional paths to check instead of default critical files")
     args = parser.parse_args(argv)
