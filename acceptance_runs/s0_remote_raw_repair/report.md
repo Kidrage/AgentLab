@@ -84,12 +84,34 @@ PASS: dry_run_completed, would copy 0, copied 0, skipped existing 129, failed 0.
 Note: an earlier local compileall attempt used an invalid regex glob pattern (`**/.venv/**`) with `compileall -x`; that command failed before compilation. It was rerun with a valid Python regex exclude and passed.
 
 ## Fresh Clone Verification
-A first fresh clone from the current committed branch state exposed two validation-environment issues:
+Post-commit fresh clone from GitHub branch `fix/s0-remote-raw-integrity` passed when the same Python interpreter used for dependency installation was exported through `PYTHON`, matching `agentlab.sh`'s supported override path.
 
-1. the clone was made before this report fix was committed, so it still contained the old report with a local absolute path;
-2. the fresh environment did not install `requirements.txt`, so CLI/MCP tests failed on missing `typer` and `yaml`.
+```bash
+$ git clone --branch fix/s0-remote-raw-integrity https://github.com/Kidrage/AgentLab.git /tmp/AgentLab-fresh-verify
+$ git rev-parse HEAD
+b62016bd9dd45a68a9a49a0bdbd6e74e491a17aa
 
-The CI workflow already installs `requirements.txt`; final fresh-clone verification for this report should install requirements before running full pytest/CLI smoke.
+$ python -m pip install -r requirements.txt
+PASS
+
+$ export PYTHON="$(command -v python)"
+$ python -m compileall -q agent_runtime agentlab_app.py scripts tests
+compileall PASS
+
+$ python -m pytest -q tests/test_repository_text_integrity.py
+17 passed in 0.87s
+
+$ python -m pytest -q
+666 passed, 2 skipped in 46.06s
+
+$ bash -n agentlab.sh
+bash -n PASS
+
+$ ./agentlab.sh --help
+./agentlab.sh --help PASS
+```
+
+An earlier fresh clone run intentionally captured a local environment pitfall: `python` and `python3` were different interpreters, so installing requirements into `python` did not make dependencies visible to `agentlab.sh`'s default `python3`. The successful rerun used the documented `PYTHON` override to bind CLI subprocesses to the interpreter with installed dependencies.
 
 ## Remote Raw Verification
 The existing remote raw checker remains available:
@@ -98,13 +120,13 @@ The existing remote raw checker remains available:
 $ python scripts/check_remote_raw_integrity.py --repo Kidrage/AgentLab --branch fix/s0-remote-raw-integrity
 ```
 
-Previous S0 branch raw validation reported all default critical files OK. This continuation did not change any raw-critical source, YAML, CI, shell, or test file.
+Remote raw validation on the pushed branch passed: 24 checked files, suspicious=0. Critical raw files include `agent_runtime/skill_vault.py` (367 lines), `agent_runtime/skill_backup.py` (150 lines), `agent_runtime/truenas_sync.py` (1059 lines), `scripts/check_remote_raw_integrity.py` (125 lines), `tests/test_repository_text_integrity.py` (314 lines), and `agentlab.sh` (20 lines).
 
 ## Known Limitations
 - No MemoryKernel implemented in this round.
 - No real TrueNAS execute tested; dry-run only.
 - Remote raw check requires network.
-- Fresh clone full pytest requires installing `requirements.txt` first, matching CI.
+- On this macOS machine, `python` and `python3` point to different interpreters; fresh clone CLI tests require either a project venv or exporting `PYTHON=$(command -v python)` after installing requirements.
 
 ## Final Verdict
-PASS for local repository text integrity and local validation after the report path repair. Final branch-level PASS requires the post-commit fresh clone with dependencies and post-push remote raw check.
+PASS — local validation, post-commit fresh clone validation with dependencies, and pushed-branch remote raw validation all pass for S0 text integrity and CI trust scope.
