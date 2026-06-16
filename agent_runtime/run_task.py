@@ -1955,29 +1955,206 @@ def context_show_cmd(task_id: str = typer.Option("task_0001", help="Task run id.
 
 @app.command("context-audit")
 def context_audit_cmd(task_id: str = typer.Option("task_0001", help="Task run id."), project: Optional[str] = typer.Option(None, help="Project name."), write: bool = typer.Option(False, "--write", help="Write artifacts first.")) -> None:
-    """Audit context artifacts for parseability and externalization safety."""
+    """Audit context compression: tokens before/after, dropped/kept sources, truncation."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
     run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
     if write:
         from context_governance import write_context_artifacts
         write_context_artifacts(agentlab_root, project_name, task_id)
-    from context_governance.context_pack import load_context_artifacts
-    artifacts = load_context_artifacts(run_dir)
-    missing = [name for name, data in artifacts.items() if data is None]
-    pack = artifacts.get("context_pack") or {}
-    dumped = yaml.safe_dump(pack, sort_keys=False, allow_unicode=True)
-    issues = []
-    if missing:
-        issues.append(f"missing artifacts: {missing}")
-    if len(dumped) > 70000:
-        issues.append("context_pack appears too large")
-    if not (pack.get("externalized_artifacts") or pack.get("omitted_sections")):
-        issues.append("no externalized/omitted refs recorded")
-    console.print("[bold]Context Governance Audit[/bold]")
-    console.print({"project": project_name, "task_id": task_id, "missing": missing, "issues": issues, "pack_chars": len(dumped)})
-    if issues:
-        raise typer.Exit(code=1)
+
+    # P2-H: prefer JSON audit if available
+    audit_path = run_dir / "context_compression_audit.json"
+    if audit_path.exists():
+        import json
+        audit = json.loads(audit_path.read_text(encoding="utf-8"))
+        console.print("[bold]Context Compression Audit[/bold]")
+        console.print(f"  Task: {audit.get('task_id')}")
+        console.print(f"  Scenario: {audit.get('scenario')}")
+        console.print(f"  Strategy: {audit.get('strategy')}")
+        console.print(f"  [bold]Tokens before: {audit.get('estimated_tokens_before')}[/bold]")
+        console.print(f"  [bold]Tokens after: {audit.get('estimated_tokens_after')}[/bold]")
+        console.print(f"  [bold]Compression ratio: {audit.get('compression_ratio')}[/bold]")
+        dropped = audit.get("dropped_sources", [])
+        kept = audit.get("kept_sources", [])
+        console.print(f"  Dropped sources: {len(dropped)}")
+        console.print(f"  Kept sources: {len(kept)}")
+        truncation = audit.get("truncation_events", [])
+        if truncation:
+            console.print(f"  [yellow]Truncation events: {len(truncation)}[/yellow]")
+        if audit.get("fallback_used"):
+            console.print("  [yellow]Fallback was used![/yellow]")
+        if audit.get("warnings"):
+            console.print(f"  [yellow]Warnings: {len(audit['warnings'])}[/yellow]")
+            for w in audit["warnings"][:10]:
+                console.print(f"    - {w}")
+    else:
+        # Fallback to old P2-G audit behavior
+        from context_governance.context_pack import load_context_artifacts
+        artifacts = load_context_artifacts(run_dir)
+        missing = [name for name, data in artifacts.items() if data is None]
+        pack = artifacts.get("context_pack") or {}
+        dumped = yaml.safe_dump(pack, sort_keys=False, allow_unicode=True)
+        issues = []
+        if missing:
+            issues.append(f"missing artifacts: {missing}")
+        if len(dumped) > 70000:
+            issues.append("context_pack appears too large")
+        if not (pack.get("externalized_artifacts") or pack.get("omitted_sections")):
+            issues.append("no externalized/omitted refs recorded")
+        console.print("[bold]Context Governance Audit (P2-G)[/bold]")
+        console.print({"project": project_name, "task_id": task_id, "missing": missing, "issues": issues, "pack_chars": len(dumped)})
+        if issues:
+            raise typer.Exit(code=1)
+
+
+# ---------------------------------------------------------------------------
+# P2-H Context Governance CLI (Part C)
+# ---------------------------------------------------------------------------
+
+@app.command("context-build")
+def context_build_cmd(
+    task_id: str = typer.Option(..., help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    request_text: Optional[str] = typer.Option(None, "--request", help="Override request text."),
+    route_profile: Optional[str] = typer.Option(None, "--route-profile", help="Route profile hint."),
+    budget_mode: Optional[str] = typer.Option(None, "--budget-mode", help="Budget mode hint."),
+) -> None:
+    """Build all standard context artifacts for a task run."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from context_governance.runtime_wiring import build_context_pack_for_task
+
+    try:
+        result = build_context_pack_for_task(
+            task_id=task_id,
+            project=project_name,
+            agentlab_root=agentlab_root,
+            request_text=request_text,
+            route_profile=route_profile,
+            budget_mode=budget_mode,
+        )
+    except Exception as exc:
+        # Minimal fallback
+        console.print(f"[red]Error building context pack: {exc}[/red]")
+        from context_governance.runtime_wiring import build_context_pack_for_task
+
+        result = build_context_pack_for_task(
+            task_id=task_id,
+            project=project_name,
+            agentlab_root=agentlab_root,
+            request_text=request_text or "",
+        )
+
+    console.print("[bold green]Context artifacts built:[/bold green]")
+    for name, path in result.get("written_paths", {}).items():
+        console.print(f"  {name}: {path}")
+    audit = result.get("compression_audit", {})
+    if audit.get("fallback_used"):
+        console.print("[yellow]Note: fallback mode was used.[/yellow]")
+    if audit.get("warnings"):
+        console.print("[yellow]Warnings:[/yellow]")
+        for w in audit["warnings"]:
+            console.print(f"  - {w}")
+
+
+@app.command("context-status")
+def context_status_cmd(
+    task_id: str = typer.Option(..., help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Show context pack status without sensitive content."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
+    console.print(f"[bold]Context Status: {project_name}/{task_id}[/bold]")
+
+    artifacts = {
+        "context_profile.yml": run_dir / "context_profile.yml",
+        "context_budget.yml": run_dir / "context_budget.yml",
+        "context_pack.yml": run_dir / "context_pack.yml",
+        "context_pack.md": run_dir / "context_pack.md",
+        "context_compression_audit.json": run_dir / "context_compression_audit.json",
+        "context_sources.json": run_dir / "context_sources.json",
+    }
+
+    for name, path in artifacts.items():
+        status = "EXISTS" if path.exists() else "MISSING"
+        color = "green" if path.exists() else "red"
+        console.print(f"  [{color}]{status}[/{color}] {name}")
+
+    # Read audit for summary
+    audit_path = run_dir / "context_compression_audit.json"
+    if audit_path.exists():
+        import json
+        audit = json.loads(audit_path.read_text(encoding="utf-8"))
+        console.print(f"  Scenario: {audit.get('scenario', 'N/A')}")
+        console.print(f"  Strategy: {audit.get('strategy', 'N/A')}")
+        console.print(f"  Tokens before: {audit.get('estimated_tokens_before', 'N/A')}")
+        console.print(f"  Tokens after: {audit.get('estimated_tokens_after', 'N/A')}")
+        console.print(f"  Compression ratio: {audit.get('compression_ratio', 'N/A')}")
+        console.print(f"  Fallback used: {audit.get('fallback_used', 'N/A')}")
+        if audit.get("warnings"):
+            console.print(f"  Warnings: {len(audit['warnings'])}")
+    else:
+        console.print("  [yellow]No context audit found — run context-build first.[/yellow]")
+
+
+@app.command("context-smoke")
+def context_smoke_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Smoke-test context governance: create fixtures, build artifacts, validate schema."""
+    agentlab_root, project_name = runtime_context(project)
+    from context_governance.runtime_wiring import build_context_pack_for_task
+
+    smoke_task_id = "task_ctx_smoke"
+    smoke_request = "This is a smoke test for context governance. Run validation and verify artifacts."
+
+    result = build_context_pack_for_task(
+        task_id=smoke_task_id,
+        project=project_name,
+        agentlab_root=agentlab_root,
+        request_text=smoke_request,
+    )
+
+    paths = result.get("written_paths", {})
+    console.print("[bold green]Smoke test passed![/bold green]")
+    console.print(f"  Task ID: {smoke_task_id}")
+    console.print("  Artifacts:")
+    for name, path in paths.items():
+        console.print(f"    [green]{name}: {path}[/green]")
+
+    # Validate schema
+    import json
+    audit_path = Path(paths.get("compression_audit", ""))
+    if audit_path.exists():
+        audit = json.loads(audit_path.read_text(encoding="utf-8"))
+        assert audit.get("task_id") == smoke_task_id, "audit task_id mismatch"
+        assert audit.get("estimated_tokens_before", 0) > 0, "audit tokens_before empty"
+        assert isinstance(audit.get("compression_ratio"), (int, float)), "compression_ratio wrong type"
+        console.print("  [green]Audit schema validated.[/green]")
+
+    sources_path = Path(paths.get("context_sources", ""))
+    if sources_path.exists():
+        sources = json.loads(sources_path.read_text(encoding="utf-8"))
+        assert isinstance(sources.get("sources"), list), "sources must be a list"
+        console.print("  [green]Sources schema validated.[/green]")
+
+    pack_path = Path(paths.get("context_pack", ""))
+    if pack_path.exists():
+        pack = yaml.safe_load(pack_path.read_text(encoding="utf-8"))
+        assert pack is not None, "context_pack.yml not parseable"
+        console.print("  [green]Context pack schema validated.[/green]")
+
+    # Clean up smoke artifacts
+    run_dir = agentlab_root / "projects" / project_name / "runs" / smoke_task_id
+    for f in run_dir.glob("context_*"):
+        f.unlink()
+    for f in run_dir.glob("cost_*"):
+        f.unlink()
 
 
 @app.command("models")
@@ -3693,6 +3870,360 @@ def p2_closure_cmd(
     console.print(f"  Closure report: [dim]{result.closure_report_path}[/dim]")
 
     if result.verdict_status != "accepted":
+        raise typer.Exit(code=1)
+
+
+@app.command("failure-diagnose")
+def failure_diagnose_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task identifier"),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Diagnose a failure and generate recovery artifacts.
+
+    Reads existing failure_event.json or captures failure from run logs.
+    Generates failure_diagnosis.json, recovery_plan.md, and recovery_verdict.json.
+    """
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
+    from agent_runtime.recovery import (
+        FailureEvent,
+        FailureClassifier,
+        diagnose_failure,
+        build_recovery_plan,
+        load_retry_policy,
+        decide_retry_action,
+    )
+    from atomic_io import safe_read_yaml, safe_read_text
+    import json
+
+    # Try to load existing failure_event.json
+    event_path = run_dir / "recovery" / "failure_event.json"
+    if event_path.exists():
+        event_data = safe_read_yaml(event_path) or {}
+        failure_event = FailureEvent(
+            task_id=event_data.get("task_id", task_id),
+            project=event_data.get("project", project_name),
+            stage=event_data.get("stage", "unknown"),
+            command=event_data.get("command"),
+            exit_code=event_data.get("exit_code"),
+            error_type=event_data.get("error_type"),
+            stdout_tail=event_data.get("stdout_tail"),
+            stderr_tail=event_data.get("stderr_tail"),
+            artifact_paths=event_data.get("artifact_paths", []),
+            context_pack_path=event_data.get("context_pack_path"),
+            cost_ledger_path=event_data.get("cost_ledger_path"),
+            resource_ledger_path=event_data.get("resource_ledger_path"),
+            created_at=event_data.get("created_at", ""),
+        )
+    else:
+        # Try to construct failure event from command result or test failure
+        console.print("[yellow]No failure_event.json found. Attempting to construct from run logs.[/yellow]")
+        failure_event = FailureEvent(
+            task_id=task_id,
+            project=project_name,
+            stage="unknown",
+            command=None,
+            exit_code=None,
+            error_type=None,
+            stdout_tail=None,
+            stderr_tail=None,
+            artifact_paths=[],
+            context_pack_path=None,
+            cost_ledger_path=None,
+            resource_ledger_path=None,
+            created_at="",
+        )
+
+    # Load context pack if available
+    context_path = run_dir / "context" / "context_pack.yml"
+    context_pack = None
+    if context_path.exists():
+        context_pack = safe_read_yaml(context_path) or {}
+
+    # Diagnose the failure
+    diagnosis = diagnose_failure(failure_event, context_pack)
+
+    # Write diagnosis
+    diagnosis_path = run_dir / "recovery" / "failure_diagnosis.json"
+    diagnosis_path.parent.mkdir(parents=True, exist_ok=True)
+    diagnosis_path.write_text(json.dumps(diagnosis.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+    console.print(f"[green]Diagnosis written:[/green] {diagnosis_path}")
+
+    # Build recovery plan
+    policy = load_retry_policy(run_dir)
+    plan = build_recovery_plan(failure_event, diagnosis, policy)
+    plan_path = run_dir / "recovery" / "recovery_plan.md"
+    plan_path.write_text(plan.to_markdown(), encoding="utf-8")
+    console.print(f"[green]Recovery plan written:[/green] {plan_path}")
+
+    # Decide retry action
+    verdict = decide_retry_action(diagnosis, policy)
+
+    # Write verdict
+    verdict_path = run_dir / "recovery" / "recovery_verdict.json"
+    verdict_path.write_text(json.dumps(verdict.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+    console.print(f"[green]Recovery verdict written:[/green] {verdict_path}")
+
+    # Output summary
+    console.print(f"\n[bold]Failure Diagnosis Summary[/bold]")
+    console.print(f"  Task ID: {task_id}")
+    console.print(f"  Project: {project_name}")
+    console.print(f"  Primary Category: {diagnosis.primary_category.value}")
+    console.print(f"  Confidence: {diagnosis.confidence}")
+    console.print(f"  Verdict: {verdict.verdict.value}")
+    console.print(f"  Safe to Auto-Retry: {verdict.safe_to_auto_retry}")
+    console.print(f"  Requires Human Review: {verdict.requires_human_review}")
+    if diagnosis.root_cause_hypothesis:
+        console.print(f"\n[bold]Root Cause Hypothesis:[/bold]")
+        for h in diagnosis.root_cause_hypothesis[:3]:
+            console.print(f"  - {h.description[:100]}")
+
+    if verdict.next_commands:
+        console.print(f"\n[bold]Next Commands:[/bold]")
+        for cmd in verdict.next_commands:
+            console.print(f"  {cmd}")
+
+    if diagnosis.requires_human_review:
+        console.print("\n[red]IMPORTANT: Human review required![/red]")
+        raise typer.Exit(code=2)
+
+
+@app.command("failure-status")
+def failure_status_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task identifier"),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    json_output: bool = typer.Option(False, help="Output JSON."),
+) -> None:
+    """Show failure recovery status for a task."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
+    from atomic_io import safe_read_yaml
+
+    recovery_dir = run_dir / "recovery"
+    if not recovery_dir.exists():
+        console.print("[yellow]No recovery artifacts found.[/yellow]")
+        return
+
+    has_event = (recovery_dir / "failure_event.json").exists()
+    has_diagnosis = (recovery_dir / "failure_diagnosis.json").exists()
+    has_plan = (recovery_dir / "recovery_plan.md").exists()
+    has_verdict = (recovery_dir / "recovery_verdict.json").exists()
+
+    if json_output:
+        import json
+        status = {
+            "task_id": task_id,
+            "project": project_name,
+            "has_failure_event": has_event,
+            "has_diagnosis": has_diagnosis,
+            "has_recovery_plan": has_plan,
+            "has_verdict": has_verdict,
+        }
+        console.print(json.dumps(status, indent=2, ensure_ascii=False))
+        return
+
+    console.print(f"\n[bold]Failure Recovery Status - {task_id}[/bold]")
+    console.print(f"  Project: {project_name}")
+    console.print(f"  Failure Event: {'[green]yes[/green]' if has_event else '[red]no[/red]'}")
+    console.print(f"  Diagnosis: {'[green]yes[/green]' if has_diagnosis else '[red]no[/red]'}")
+    console.print(f"  Recovery Plan: {'[green]yes[/green]' if has_plan else '[red]no[/red]'}")
+    console.print(f"  Verdict: {'[green]yes[/green]' if has_verdict else '[red]no[/red]'}")
+
+    # Show verdict summary if available
+    if has_verdict:
+        verdict_path = recovery_dir / "recovery_verdict.json"
+        verdict = safe_read_yaml(verdict_path) or {}
+        console.print(f"\n[bold]Verdict Summary:[/bold]")
+        console.print(f"  Primary Category: {verdict.get('primary_category', '?')}")
+        console.print(f"  Verdict: {verdict.get('verdict', '?')}")
+        console.print(f"  Confidence: {verdict.get('confidence', '?')}")
+        console.print(f"  Safe to Auto-Retry: {verdict.get('safe_to_auto_retry', '?')}")
+        console.print(f"  Requires Human Review: {verdict.get('requires_human_review', '?')}")
+
+
+@app.command("recovery-plan")
+def recovery_plan_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task identifier"),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+) -> None:
+    """Generate or show recovery plan for a task."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
+    from agent_runtime.recovery import (
+        FailureEvent,
+        FailureClassifier,
+        diagnose_failure,
+        build_recovery_plan,
+        load_retry_policy,
+    )
+    from atomic_io import safe_read_yaml
+    import json
+
+    recovery_dir = run_dir / "recovery"
+    recovery_dir.mkdir(parents=True, exist_ok=True)
+
+    # Try to load existing failure event
+    event_path = recovery_dir / "failure_event.json"
+    if event_path.exists():
+        event_data = safe_read_yaml(event_path) or {}
+        failure_event = FailureEvent(
+            task_id=event_data.get("task_id", task_id),
+            project=event_data.get("project", project_name),
+            stage=event_data.get("stage", "unknown"),
+            command=event_data.get("command"),
+            exit_code=event_data.get("exit_code"),
+            error_type=event_data.get("error_type"),
+            stdout_tail=event_data.get("stdout_tail"),
+            stderr_tail=event_data.get("stderr_tail"),
+            artifact_paths=event_data.get("artifact_paths", []),
+            context_pack_path=event_data.get("context_pack_path"),
+            cost_ledger_path=event_data.get("cost_ledger_path"),
+            resource_ledger_path=event_data.get("resource_ledger_path"),
+            created_at=event_data.get("created_at", ""),
+        )
+    else:
+        failure_event = FailureEvent(
+            task_id=task_id,
+            project=project_name,
+            stage="unknown",
+            command=None,
+            exit_code=None,
+            error_type=None,
+            stdout_tail=None,
+            stderr_tail=None,
+            artifact_paths=[],
+            context_pack_path=None,
+            cost_ledger_path=None,
+            resource_ledger_path=None,
+            created_at="",
+        )
+
+    # Diagnose if not already done
+    diagnosis_path = recovery_dir / "failure_diagnosis.json"
+    if not diagnosis_path.exists():
+        context_path = run_dir / "context" / "context_pack.yml"
+        context_pack = safe_read_yaml(context_path) if context_path.exists() else None
+        diagnosis = diagnose_failure(failure_event, context_pack)
+        diagnosis_path.write_text(json.dumps(diagnosis.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+    else:
+        diagnosis_data = safe_read_yaml(diagnosis_path) or {}
+        from agent_runtime.recovery.diagnosis import CauseHypothesis, EvidenceItem, BlastRadius, FailureDiagnosis
+        from agent_runtime.recovery.failure_classifier import FailureCategory
+        diagnosis = FailureDiagnosis(
+            task_id=diagnosis_data.get("task_id", task_id),
+            project=diagnosis_data.get("project", project_name),
+            primary_category=FailureCategory(diagnosis_data.get("primary_category", "unknown")),
+            secondary_categories=[FailureCategory(c) for c in diagnosis_data.get("secondary_categories", [])],
+            confidence=diagnosis_data.get("confidence", 0),
+            root_cause_hypothesis=[CauseHypothesis(**h) for h in diagnosis_data.get("root_cause_hypothesis", [])],
+            evidence=[EvidenceItem(**e) for e in diagnosis_data.get("evidence", [])],
+            blast_radius=BlastRadius(**diagnosis_data.get("blast_radius", {})),
+            recommended_next_action=diagnosis_data.get("recommended_next_action", ""),
+            requires_human_review=diagnosis_data.get("requires_human_review", False),
+            warnings=diagnosis_data.get("warnings", []),
+            created_at=diagnosis_data.get("created_at", ""),
+        )
+
+    # Load policy and build plan if not already done
+    plan_path = recovery_dir / "recovery_plan.md"
+    if not plan_path.exists():
+        policy = load_retry_policy(run_dir)
+        plan = build_recovery_plan(failure_event, diagnosis, policy)
+        plan_path.write_text(plan.to_markdown(), encoding="utf-8")
+
+    # Output plan
+    console.print(f"\n[bold]Recovery Plan:[/bold]")
+    console.print(plan_path.read_text(encoding="utf-8"))
+
+
+@app.command("recovery-smoke")
+def recovery_smoke_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    task_id: str = typer.Option("recovery_smoke_test", "--task-id", help="Test task ID."),
+    output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o", help="Output directory."),
+) -> None:
+    """Run recovery smoke test: capture failure, diagnose, generate plan and verdict."""
+    agentlab_root, project_name = runtime_context(project)
+
+    out_dir = Path(output_dir) if output_dir else agentlab_root / "acceptance_runs" / "p2_i_failure_recovery"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    import json
+    from agent_runtime.recovery import (
+        FailureEvent,
+        FailureClassifier,
+        FailureCategory,
+        diagnose_failure,
+        build_recovery_plan,
+        load_retry_policy,
+        decide_retry_action,
+        create_failure_event,
+    )
+
+    # Create a test failure event (simulating a test failure)
+    failure_event = create_failure_event(
+        task_id=task_id,
+        project=project_name,
+        stage="pytest",
+        command="python -m pytest tests/ -q",
+        exit_code=1,
+        stderr="tests/test_example.py FAILED\nAssertionError: assert False\n1 failed in 0.1s",
+        stdout="running 5 tests...",
+        artifact_paths=[],
+    )
+
+    # Write failure event
+    event_path = out_dir / "failure_event.json"
+    event_path.write_text(json.dumps(failure_event.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+    console.print(f"[green]Failure event:[/green] {event_path}")
+
+    # Classify the failure
+    classifier = FailureClassifier()
+    classification = classifier.classify(stderr="tests/test_example.py FAILED\nAssertionError: assert False\n1 failed in 0.1s")
+    console.print(f"\n[bold]Classification:[/bold]")
+    console.print(f"  Primary: {classification.primary_category.value}")
+    console.print(f"  Confidence: {classification.confidence}")
+    console.print(f"  Is Retriable: {classification.is_retriable}")
+    console.print(f"  Requires Human Review: {classification.requires_human_review}")
+
+    # Diagnose
+    diagnosis = diagnose_failure(failure_event)
+    diagnosis_path = out_dir / "failure_diagnosis.json"
+    diagnosis_path.write_text(json.dumps(diagnosis.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+    console.print(f"\n[green]Diagnosis:[/green] {diagnosis_path}")
+
+    # Build plan
+    policy = load_retry_policy(out_dir)
+    plan = build_recovery_plan(failure_event, diagnosis, policy)
+    plan_path = out_dir / "recovery_plan.md"
+    plan_path.write_text(plan.to_markdown(), encoding="utf-8")
+    console.print(f"[green]Recovery plan:[/green] {plan_path}")
+
+    # Decide verdict
+    verdict = decide_retry_action(diagnosis, policy)
+    verdict_path = out_dir / "recovery_verdict.json"
+    verdict_path.write_text(json.dumps(verdict.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+    console.print(f"[green]Verdict:[/green] {verdict_path}")
+
+    # Output summary
+    console.print(f"\n[bold]Recovery Smoke Test Summary[/bold]")
+    console.print(f"  Task ID: {task_id}")
+    console.print(f"  Project: {project_name}")
+    console.print(f"  Primary Category: {diagnosis.primary_category.value}")
+    console.print(f"  Verdict: {verdict.verdict.value}")
+    console.print(f"  Secondary Categories: {len(classification.secondary_categories)}")
+
+    console.print(f"\n[green]Recovery smoke test completed.[/green]")
+    console.print(f"Artifacts: {out_dir}")
+
+    # Return non-zero if human review required
+    if verdict.requires_human_review:
         raise typer.Exit(code=1)
 
 

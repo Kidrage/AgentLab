@@ -33,6 +33,7 @@ KNOWN_TINY_PYTHON_FILES = {
     "agent_runtime/skills/__init__.py",
     "agent_runtime/external_agents/__init__.py",
     "agent_runtime/costing/__init__.py",
+    "agent_runtime/recovery/__init__.py",
 }
 
 MIN_LINE_COUNTS = {
@@ -79,6 +80,33 @@ MIN_LINE_COUNTS = {
     "docs/SKILL_VAULT.md": 40,
     "scripts/check_remote_raw_integrity.py": 80,
     "tests/test_text_integrity_audit.py": 60,
+    # P2-H: Context Governance Runtime Hardening
+    "agent_runtime/context_governance/redaction.py": 80,
+    "agent_runtime/context_governance/runtime_wiring.py": 80,
+    "config/context_governance.yml": 25,
+    "tests/test_context_governance_runtime_wiring.py": 80,
+    "tests/test_context_governance_artifacts.py": 80,
+    "tests/test_context_governance_cli.py": 80,
+    "tests/test_context_governance_budget_costledger.py": 80,
+    "tests/test_context_governance_redaction.py": 80,
+    "tests/test_context_governance_p2h_closure.py": 80,
+    # P2-I: Execution Reliability & Failure Recovery
+    "agent_runtime/recovery/__init__.py": 30,
+    "agent_runtime/recovery/failure_event.py": 80,
+    "agent_runtime/recovery/failure_classifier.py": 80,
+    "agent_runtime/recovery/diagnosis.py": 80,
+    "agent_runtime/recovery/recovery_plan.py": 80,
+    "agent_runtime/recovery/retry_policy.py": 80,
+    "agent_runtime/recovery/verdict.py": 80,
+    "config/failure_recovery.yml": 30,
+    "scripts/p2_i_recovery_smoke.py": 80,
+    "tests/test_failure_event_capture.py": 80,
+    "tests/test_failure_classifier.py": 80,
+    "tests/test_recovery_plan_retry.py": 80,
+    "tests/test_p2_i_recovery.py": 80,
+    "tests/test_recovery_text_integrity.py": 80,
+    "tests/test_recovery_costledger_integration.py": 80,
+    ".github/workflows/ci.yml": 25,
 }
 
 
