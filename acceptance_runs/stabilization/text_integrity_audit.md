@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Total files scanned: 425
+- Total files scanned: 435
 - Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0
@@ -19,6 +19,7 @@
 | acceptance_runs/stabilization/S0_STABILIZATION_REPORT.md | 134 | 338 | 5803 | OK |
 | acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md | 212 | 329 | 8302 | OK |
 | docs/CLOSURE_MVP_REPORT.md | 81 | 324 | 4442 | OK |
+| acceptance_runs/s0_remote_raw_repair/report.md | 140 | 319 | 6083 | OK |
 | docs/SKILL_DISTILLATION.md | 32 | 302 | 1262 | OK |
 | agent_runtime/artifact_contract.py | 701 | 300 | 28249 | OK |
 | tests/test_external_skill_artifact_paths.py | 42 | 300 | 1977 | OK |
@@ -42,4 +43,3 @@
 | tests/test_p2_router_patch_builder.py | 70 | 211 | 3793 | OK |
 | docs/EXTERNAL_AGENT_LEDGER.md | 119 | 203 | 4531 | OK |
 | docs/repo_ingestion_p0.md | 10 | 197 | 869 | OK |
-| tests/test_external_skill_cli.py | 101 | 189 | 4536 | OK |

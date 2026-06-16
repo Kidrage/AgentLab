@@ -1821,7 +1821,18 @@ def prepare(
 
     if write_plan:
         plan_path = Path(plan.run_dir) / "workflow_plan.yml"
-        wrote = write_yaml_if_allowed(plan_path, plan.model_dump(mode="json"), overwrite=overwrite_plan)
+        from context_governance import build_context_artifacts, context_summary, write_context_artifacts
+        context_artifacts = build_context_artifacts(agentlab_root, project_name, task_id)
+        plan_data = plan.model_dump(mode="json")
+        plan_data.setdefault("context_governance", {
+            "summary": context_summary(context_artifacts),
+            "profile": context_artifacts["context_profile"],
+            "budget": context_artifacts["context_budget"],
+            "artifacts": ["context_profile.yml", "context_budget.yml", "context_pack.yml", "compression_trace.yml"],
+        })
+        plan_data.setdefault("notes", list(plan_data.get("notes") or []))
+        plan_data["notes"].append("Context governance: profile, budget, compression trace, and context pack are generated before agent execution.")
+        wrote = write_yaml_if_allowed(plan_path, plan_data, overwrite=overwrite_plan)
         if wrote:
             mark_planned(Path(plan.run_dir), project_name, task_id)
             from progress_tracker import create_progress, load_progress
@@ -1829,6 +1840,7 @@ def prepare(
             from task_snapshot import safe_write_task_snapshot
             from skill_injector import inject_skills_into_workflow_plan
             run_dir = Path(plan.run_dir)
+            written_context = write_context_artifacts(agentlab_root, project_name, task_id)
             task_text = Path(plan.user_request_path).read_text(encoding="utf-8") if Path(plan.user_request_path).exists() else ""
             inject_skills_into_workflow_plan(
                 agentlab_root,
@@ -1857,9 +1869,14 @@ def prepare(
             if load_lifecycle(run_dir) is None:
                 create_lifecycle(run_dir, plan.model_dump(mode="json"))
                 mark_node_completed(run_dir, "INIT_TASK")
+                mark_node_completed(run_dir, "CONTEXT_PROFILE", written_context.get("context_profile"))
+                mark_node_completed(run_dir, "CONTEXT_BUDGET", written_context.get("context_budget"))
+                mark_node_completed(run_dir, "CONTEXT_PACK", written_context.get("context_pack"))
                 mark_node_completed(run_dir, "PREPARE_PLAN")
             safe_write_task_snapshot(run_dir, project_name, task_id)
             console.print(f"[green]Wrote workflow plan:[/green] {plan_path}")
+            console.print("[green]Wrote context governance artifacts:[/green]")
+            console.print(written_context)
         else:
             console.print(f"[yellow]Plan already exists and was not overwritten:[/yellow] {plan_path}")
 
@@ -1888,6 +1905,79 @@ def status(
         path = report_path_for_agent(plan, agent)
         table.add_row(agent, str(path), "yes" if path.exists() else "no")
     console.print(table)
+
+
+def _context_command(task_id: str, project: Optional[str], *, write: bool, show: str) -> None:
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    if write:
+        from context_governance import write_context_artifacts
+        written = write_context_artifacts(agentlab_root, project_name, task_id)
+        console.print("[green]Context governance artifacts written[/green]")
+        console.print(written)
+    from context_governance.context_pack import build_context_artifacts, context_summary, load_context_artifacts
+    artifacts = load_context_artifacts(run_dir)
+    if not any(artifacts.values()):
+        if not run_dir.exists():
+            console.print(f"[yellow]Task run directory does not exist: {run_dir}[/yellow]")
+            raise typer.Exit(code=1)
+        artifacts = build_context_artifacts(agentlab_root, project_name, task_id)
+    if show == "summary":
+        console.print(context_summary(artifacts))
+    else:
+        console.print(artifacts.get(show) or {})
+
+
+@app.command("context-profile")
+def context_profile_cmd(task_id: str = typer.Option("task_0001", help="Task run id."), project: Optional[str] = typer.Option(None, help="Project name."), write: bool = typer.Option(False, "--write", help="Write artifacts first.")) -> None:
+    """Build/show deterministic ContextProfile."""
+    _context_command(task_id, project, write=write, show="context_profile")
+
+
+@app.command("context-budget")
+def context_budget_cmd(task_id: str = typer.Option("task_0001", help="Task run id."), project: Optional[str] = typer.Option(None, help="Project name."), write: bool = typer.Option(False, "--write", help="Write artifacts first.")) -> None:
+    """Build/show deterministic ContextBudget."""
+    _context_command(task_id, project, write=write, show="context_budget")
+
+
+@app.command("context-pack")
+def context_pack_cmd(task_id: str = typer.Option("task_0001", help="Task run id."), project: Optional[str] = typer.Option(None, help="Project name."), write: bool = typer.Option(False, "--write", help="Write artifacts first.")) -> None:
+    """Build/show deterministic ContextPack."""
+    _context_command(task_id, project, write=write, show="context_pack")
+
+
+@app.command("context-show")
+def context_show_cmd(task_id: str = typer.Option("task_0001", help="Task run id."), project: Optional[str] = typer.Option(None, help="Project name."), write: bool = typer.Option(False, "--write", help="Write artifacts first.")) -> None:
+    """Print a readable context governance summary."""
+    _context_command(task_id, project, write=write, show="summary")
+
+
+@app.command("context-audit")
+def context_audit_cmd(task_id: str = typer.Option("task_0001", help="Task run id."), project: Optional[str] = typer.Option(None, help="Project name."), write: bool = typer.Option(False, "--write", help="Write artifacts first.")) -> None:
+    """Audit context artifacts for parseability and externalization safety."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    if write:
+        from context_governance import write_context_artifacts
+        write_context_artifacts(agentlab_root, project_name, task_id)
+    from context_governance.context_pack import load_context_artifacts
+    artifacts = load_context_artifacts(run_dir)
+    missing = [name for name, data in artifacts.items() if data is None]
+    pack = artifacts.get("context_pack") or {}
+    dumped = yaml.safe_dump(pack, sort_keys=False, allow_unicode=True)
+    issues = []
+    if missing:
+        issues.append(f"missing artifacts: {missing}")
+    if len(dumped) > 70000:
+        issues.append("context_pack appears too large")
+    if not (pack.get("externalized_artifacts") or pack.get("omitted_sections")):
+        issues.append("no externalized/omitted refs recorded")
+    console.print("[bold]Context Governance Audit[/bold]")
+    console.print({"project": project_name, "task_id": task_id, "missing": missing, "issues": issues, "pack_chars": len(dumped)})
+    if issues:
+        raise typer.Exit(code=1)
 
 
 @app.command("models")
@@ -2301,6 +2391,11 @@ def run_pipeline(
     console.print(f"  Final status: {result.get('final_status', result.get('status', '?'))}")
     console.print(f"  Steps executed: {len(result.get('history', []))}")
     console.print(f"  Pipeline complete: {bool(result.get('success'))}")
+    if result.get("history"):
+        nodes = [str(item.get("node")) for item in result.get("history", [])]
+        for context_node in ["CONTEXT_PROFILE", "CONTEXT_BUDGET", "CONTEXT_PACK"]:
+            if context_node in nodes:
+                console.print(f"  Context stage: {context_node}")
     art = result.get('artifact_completeness', {})
     console.print(f"  Artifact pass_rate: {art.get('pass_rate', 'N/A')} ({art.get('artifacts_passed', 0)}/{art.get('artifacts_checked', 0)})")
     if not art.get('valid'):

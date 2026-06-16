@@ -1,0 +1,253 @@
+## local validation started
+Tue Jun 16 10:18:51 CST 2026
+$ python -m compileall -x "**/.venv/**" agent_runtime agentlab_app.py scripts tests
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/saintpeter/anaconda3/lib/python3.11/compileall.py", line 462, in <module>
+    exit_status = int(not main())
+                          ^^^^^^
+  File "/Users/saintpeter/anaconda3/lib/python3.11/compileall.py", line 384, in main
+    args.rx = re.compile(args.rx)
+              ^^^^^^^^^^^^^^^^^^^
+  File "/Users/saintpeter/anaconda3/lib/python3.11/re/__init__.py", line 227, in compile
+    return _compile(pattern, flags)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/saintpeter/anaconda3/lib/python3.11/re/__init__.py", line 294, in _compile
+    p = _compiler.compile(pattern, flags)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/saintpeter/anaconda3/lib/python3.11/re/_compiler.py", line 743, in compile
+    p = _parser.parse(p, flags)
+        ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/saintpeter/anaconda3/lib/python3.11/re/_parser.py", line 982, in parse
+    p = _parse_sub(source, state, flags & SRE_FLAG_VERBOSE, 0)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/saintpeter/anaconda3/lib/python3.11/re/_parser.py", line 457, in _parse_sub
+    itemsappend(_parse(source, state, verbose, nested + 1,
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/saintpeter/anaconda3/lib/python3.11/re/_parser.py", line 684, in _parse
+    raise source.error("nothing to repeat",
+re.error: nothing to repeat at position 0
+$ python -m pytest -q tests/test_repository_text_integrity.py
+.................                                                        [100%]
+17 passed in 1.10s
+$ python -m pytest -q
+........................................................................ [ 10%]
+........................................................................ [ 21%]
+........................................................................ [ 32%]
+....................................................ss.................. [ 43%]
+........................................................................ [ 53%]
+........................................................................ [ 64%]
+........................................................................ [ 75%]
+........................................................................ [ 86%]
+........................................................................ [ 97%]
+....................                                                     [100%]
+666 passed, 2 skipped in 65.73s (0:01:05)
+$ bash -n agentlab.sh
+$ ./agentlab.sh --help
+                                                                                
+ Usage: run_task.py [OPTIONS] COMMAND [ARGS]...                                 
+                                                                                
+ AgentLab local-first CLI.                                                      
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --install-completion          Install completion for the current shell.      │
+│ --show-completion             Show completion for the current shell, to copy │
+│                               it or customize the installation.              │
+│ --help                        Show this message and exit.                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ init-task                  Create a task folder and safe placeholder files   │
+│                            without overwriting.                              │
+│ task-clear                 Mark a blocked task as cleared (archived) while   │
+│                            keeping audit trail.                              │
+│ task-list                  Show the global task ledger with optional         │
+│                            filters.                                          │
+│ brain-status               Show brain governance status for token budgets    │
+│                            and agent progress.                               │
+│ harness-status             Show repo-local harness map, feedback, and        │
+│                            project memory health.                            │
+│ skill-status               Show Skill Lifecycle MVP status and pending       │
+│                            adoption requests.                                │
+│ skill-distill              Generate a deterministic Project Memory → Skill   │
+│                            Draft. Does not promote.                          │
+│ skill-draft-list           List Project Memory → Skill Drafts for a project. │
+│ skill-draft-approve        Approve a skill draft by creating a pending skill │
+│                            lifecycle request. No promote.                    │
+│ skill-draft-reject         Reject a skill draft and keep the original draft  │
+│                            artifacts.                                        │
+│ skill-vault-list           List central Skill Vault entries from             │
+│                            registry.yml.                                     │
+│ skill-vault-status         Show central Skill Vault layout and registry      │
+│                            counts.                                           │
+│ skill-vault-migrate        Migrate legacy                                    │
+│                            projects/<Project>/runs/*/skill_drafts into Skill │
+│                            Vault.                                            │
+│ skill-vault-backup         Plan or explicitly execute Skill Vault rsync      │
+│                            backup.                                           │
+│ skill-vault-backup-status  Show Skill Vault backup readiness without         │
+│                            executing rsync.                                  │
+│ skill-request              Create a pending Skill Adoption Request without   │
+│                            installing anything.                              │
+│ skill-list                 List all Skill Adoption Requests for a project.   │
+│ skill-approve              Approve a pending skill request                   │
+│                            (pending_user_approval → approved).               │
+│ skill-reject               Reject a pending skill request                    │
+│                            (pending_user_approval → rejected).               │
+│ skill-stage                Stage an approved skill request (approved →       │
+│                            staging).                                         │
+│ skill-validate             Validate a staged skill (staging → validated).    │
+│                            --fake-sandbox only reads metadata and            │
+│                            adapted_skill.md.                                 │
+│ skill-promote              Promote a validated skill to active (validated →  │
+│                            active).                                          │
+│ skill-retire               Retire an active skill (active → retired).        │
+│ skill-match                Match active skills against a task without        │
+│                            writing injection usage.                          │
+│ skill-inject               Inject matched active skills into                 │
+│                            workflow_plan.yml and write usage ledgers.        │
+│ skill-usage                Show task skill_usage.yml or an active skill      │
+│                            usage ledger.                                     │
+│ skill-import-url           Import a skill from an external SKILL.md URL.     │
+│ feedback-status            Show Feedback & Intervention scaffold status from │
+│                            task events and decision cards.                   │
+│ watchdog-scan              Scan task runs for stale running or waiting       │
+│                            states.                                           │
+│ watchdog-status            Show watchdog status for one task without         │
+│                            mutating it.                                      │
+│ webhook-test               Send a test webhook event if webhook policy is    │
+│                            enabled.                                          │
+│ webhook-status             Show webhook delivery log status.                 │
+│ webhook-redeliver          Redeliver the most recent failed webhook          │
+│                            delivery.                                         │
+│ task-event                 Append one structured event to                    │
+│                            runs/<task_id>/task_events.jsonl.                 │
+│ decision-list              List pending decision cards for chat/Web UI       │
+│                            approval.                                         │
+│ decision-approve           Approve a pending decision card and clear the     │
+│                            legacy USER_DECISION_REQUIRED gate.               │
+│ decision-reject            Reject a pending decision card.                   │
+│ decision-resume            Resume a task after its decision card has been    │
+│                            approved.                                         │
+│ learning-review            Run post-task Trace-to-Skill learning review for  │
+│                            a task.                                           │
+│ skill-candidates           List Trace-to-Skill candidates for a task.        │
+│ skill-candidate-approve    Approve a Trace-to-Skill candidate and create a   │
+│                            self_learned skill request.                       │
+│ skill-candidate-reject     Reject a Trace-to-Skill candidate.                │
+│ policy-status              Show hard AgentLab execution policy for brain and │
+│                            coder stages.                                     │
+│ request-traversal          Ask the brain governor for traversal permission.  │
+│ request-coder-quota        Ask the user whether to pause Coder work or       │
+│                            delegate coding to DeepSeek.                      │
+│ log-event                  Append project development, dialogue, and cost    │
+│                            log entries.                                      │
+│ prepare                    Build and optionally save the visible workflow    │
+│                            plan.                                             │
+│ status                     Show task state, route, reports, and missing      │
+│                            inputs.                                           │
+│ models                     Show configured providers and agent model         │
+│                            profiles without exposing secrets.                │
+│ model-doctor               Audit model/provider wiring without making        │
+│                            network calls.                                    │
+│ run-agent                  Dry-run or execute a single agent and write its   │
+│                            report.                                           │
+│ run-pipeline               Run the full lifecycle pipeline. Default is       │
+│                            dry-run with fake provider. Use --execute for     │
+│                            real API calls.                                   │
+│ budget-eval                Compare route, model, and token budget across     │
+│                            budget modes without API calls.                   │
+│ workspace-scan             Create project memory from a local workspace      │
+│                            without model API calls.                          │
+│ performance-eval           Run a local deterministic AgentLab performance    │
+│                            evaluation.                                       │
+│ progress                   Show task progress from progress.yml.             │
+│ pause                      Pause a running task safely, marking state and    │
+│                            progress.                                         │
+│ resume                     Resume a paused task. Optionally switch provider  │
+│                            or use lifecycle resume.                          │
+│ guard-status               Show active and stale file locks.                 │
+│ recover                    Recover from crashes by clearing stale file       │
+│                            locks.                                            │
+│ providers                  Show configured providers and their status. Never │
+│                            prints API keys.                                  │
+│ chat                       Start Terminal chat REPL.                         │
+│ check                      Run rule-based self-check and write               │
+│                            self_check_report.yml.                            │
+│ sync                       Run self-check + guarded commit + push.           │
+│ sync-status                Show project sync ledger.                         │
+│ migration-doctor           Check migration readiness: env, repo, SMB, Web    │
+│                            UI, cache, backup permissions.                    │
+│ migration-init             Generate safe migration helper files without      │
+│                            storing real secrets.                             │
+│ truenas-status             Check configured TrueNAS/SMB mount status.        │
+│ truenas-sync               Run TrueNAS/SMB push-only merge sync with         │
+│                            manifest and checksum reports.                    │
+│ backup-status              Show combined GitHub + TrueNAS backup status.     │
+│ provider-test              Test a provider's configuration and reachability. │
+│ task-index                 Build or rebuild the project task discovery       │
+│                            index.                                            │
+│ task-find                  Find tasks by natural-language query.             │
+│ task-open                  Display a task card with full details.            │
+│ task-resume-candidates     List all recoverable tasks that can be resumed.   │
+│ task-map                   Show project task overview grouped by status.     │
+│ task-artifacts             Display the artifact manifest for a task.         │
+│ lifecycle-status           Show lifecycle state for a task.                  │
+│ artifact-check             Validate all artifacts for a task.                │
+│ run-next                   Run the next lifecycle node.                      │
+│ doctor                     AgentLab system health check.                     │
+│ codex-start                Show Codex full-driver start context without      │
+│                            making model calls.                               │
+│ codex-status               Show Codex task state using the normal AgentLab   │
+│                            state store.                                      │
+│ codex-handoff              Write a machine-readable Codex handoff packet.    │
+│ codex-resume               Print Codex/API resume instructions from a        │
+│                            handoff packet.                                   │
+│ codex-verify-artifacts     Validate Codex/lifecycle closure artifacts for a  │
+│                            task.                                             │
+│ continue-with-api          Continue from a handoff packet using API agents   │
+│                            or dry-run preview.                               │
+│ daemon                     AgentLab daemon MVP: background task supervisor   │
+│                            (--once mode).                                    │
+│ daemon-status              Show last daemon scan status for a project.       │
+│ p2-capability-map          Scan P2 modules and write a capability map        │
+│                            report.                                           │
+│ p2-closure                 Run P2-F closure: review → verdict → revision →   │
+│                            governance → router feedback.                     │
+│ external-skills            External Skill workflow closure commands.         │
+│ search                     Search provider adapter commands.                 │
+│ repo-index                 Repo indexer adapter commands.                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+$ ./agentlab.sh skill-vault-status
+{'vault_root': 'memory/global/skills', 'counts': {}, 'total': 0}
+$ ./agentlab.sh skill-vault-backup --dry-run
+{
+    'dry_run': True,
+    'ready': False,
+    'source': '/Users/saintpeter/Desktop/AgentLab/memory/global/skills',
+    'remote': '',
+    'command': "rsync -av --delete --dry-run 
+/Users/saintpeter/Desktop/AgentLab/memory/global/skills/ 
+'<missing-ssh-config>'",
+    'error': 'Missing SSH backup config. Set AGENTLAB_SKILL_VAULT_BACKUP_REMOTE 
+or AGENTLAB_BACKUP_SSH_USER, AGENTLAB_BACKUP_SSH_HOST, and 
+AGENTLAB_BACKUP_REMOTE_BASE.'
+}
+Missing SSH backup config. Set AGENTLAB_SKILL_VAULT_BACKUP_REMOTE or 
+AGENTLAB_BACKUP_SSH_USER, AGENTLAB_BACKUP_SSH_HOST, and 
+AGENTLAB_BACKUP_REMOTE_BASE.
+$ ./agentlab.sh truenas-sync --project AgentLab --task-id task_0015 --dry-run
+
+TrueNAS Sync: dry_run_completed
+  Dry-run: True
+  Would copy: 0
+  Copied: 0
+  Skipped existing: 129
+  Failed: 0
+Report: 
+/Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015/truenas_sync
+_report.yml
+Manifest: 
+/Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015/truenas_mani
+fest.yml

@@ -84,6 +84,148 @@ external_skills:
       api_model_fallback: qwen3.6-plus
     notes:
       - Imported from ECC inventory.
+  - skill_id: external.deep_search
+    source: external_skill_pack
+    source_type: external_skill
+    display_name: Deep Search
+    integration_mode: inventory_only
+    enabled: false
+    capabilities:
+      - web_search
+      - deep_research
+      - source_synthesis
+      - citation_collection
+    suitable_task_types:
+      - research
+      - competitive_analysis
+      - technical_due_diligence
+    risk:
+      level: medium
+      reasons:
+        - external_prompt_dependency
+        - may_require_network_access
+      requires_approval: true
+    license:
+      name: unknown
+      source_url: null
+      compatible_for_internal_distillation: review_required
+      license_review_required: true
+    cost:
+      billing_mode: external_harness
+      token_visibility: unknown
+      expected_cost_tier: unknown
+    fallback:
+      internal_skill: anysearch.web_research
+      api_model_fallback: qwen3.6-plus
+    notes:
+      - Installed as metadata-only external skill; disabled until source, license, and runtime policy are reviewed.
+  - skill_id: external.ui_designer
+    source: external_skill_pack
+    source_type: external_skill
+    display_name: UI Designer
+    integration_mode: inventory_only
+    enabled: false
+    capabilities:
+      - ui_design
+      - ux_review
+      - layout_planning
+      - design_system_guidance
+    suitable_task_types:
+      - frontend_design
+      - product_design
+      - interface_review
+    risk:
+      level: medium
+      reasons:
+        - external_prompt_dependency
+        - may_generate_visual_assets_or_design_specs
+      requires_approval: true
+    license:
+      name: unknown
+      source_url: null
+      compatible_for_internal_distillation: review_required
+      license_review_required: true
+    cost:
+      billing_mode: external_harness
+      token_visibility: unknown
+      expected_cost_tier: unknown
+    fallback:
+      internal_skill: null
+      api_model_fallback: qwen3.6-plus
+    notes:
+      - Installed as metadata-only external skill; disabled until source, license, and runtime policy are reviewed.
+  - skill_id: external.market_research_reports
+    source: external_skill_pack
+    source_type: external_skill
+    display_name: Market Research Reports
+    integration_mode: inventory_only
+    enabled: false
+    capabilities:
+      - market_research
+      - industry_analysis
+      - report_generation
+      - competitive_analysis
+    suitable_task_types:
+      - market_research
+      - business_analysis
+      - strategy_report
+    risk:
+      level: medium
+      reasons:
+        - external_prompt_dependency
+        - may_require_network_access
+        - report_accuracy_requires_review
+      requires_approval: true
+    license:
+      name: unknown
+      source_url: null
+      compatible_for_internal_distillation: review_required
+      license_review_required: true
+    cost:
+      billing_mode: external_harness
+      token_visibility: unknown
+      expected_cost_tier: unknown
+    fallback:
+      internal_skill: anysearch.web_research
+      api_model_fallback: qwen3.6-plus
+    notes:
+      - Installed as metadata-only external skill; disabled until source, license, and runtime policy are reviewed.
+  - skill_id: external.image_enhancer
+    source: external_skill_pack
+    source_type: external_skill
+    display_name: Image Enhancer
+    integration_mode: inventory_only
+    enabled: false
+    capabilities:
+      - image_enhancement
+      - image_restoration
+      - visual_quality_improvement
+      - asset_preparation
+    suitable_task_types:
+      - image_editing
+      - creative_asset_workflow
+      - visual_design
+    risk:
+      level: medium
+      reasons:
+        - external_prompt_dependency
+        - may_process_user_provided_media
+        - output_rights_require_review
+      requires_approval: true
+    license:
+      name: unknown
+      source_url: null
+      compatible_for_internal_distillation: review_required
+      license_review_required: true
+    cost:
+      billing_mode: external_harness
+      token_visibility: unknown
+      expected_cost_tier: unknown
+    fallback:
+      internal_skill: null
+      api_model_fallback: qwen3.6-plus
+    notes:
+      - Installed as metadata-only external skill; disabled until source, license, and runtime policy are reviewed.
 metadata:
   owner: AgentLab
   notes: External skills are disabled by default and inventory-only unless explicitly enabled by policy.

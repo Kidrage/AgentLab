@@ -1,0 +1,5 @@
+pytest tests/test_example.py -q
+E   AssertionError: expected 1 got 2
+Traceback (most recent call last):
+  File "tests/test_example.py", line 3, in test_x
+stderr: failure

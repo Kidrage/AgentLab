@@ -18,6 +18,9 @@ from atomic_io import atomic_write_yaml
 
 LIFECYCLE_NODES = [
     "INIT_TASK",
+    "CONTEXT_PROFILE",
+    "CONTEXT_BUDGET",
+    "CONTEXT_PACK",
     "PREPARE_PLAN",
     "SUPERVISOR_PLAN",
     "REPO_CONTEXT",
@@ -36,6 +39,9 @@ LIFECYCLE_NODES = [
 # Node dependency: which artifacts each node requires to be marked completed
 NODE_REQUIRED_OUTPUTS = {
     "INIT_TASK": ["user_request.md", "state.yml"],
+    "CONTEXT_PROFILE": ["context_profile.yml"],
+    "CONTEXT_BUDGET": ["context_budget.yml"],
+    "CONTEXT_PACK": ["context_pack.yml", "compression_trace.yml"],
     "PREPARE_PLAN": ["workflow_plan.yml"],
     "SUPERVISOR_PLAN": ["01_supervisor_plan.md"],
     "REPO_CONTEXT": ["02_reposcout_report.md"],
