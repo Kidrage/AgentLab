@@ -2405,13 +2405,13 @@ def _handle_command_failure(
         console.print(f"  Latest verdict: {verdict_path}")
 
     except Exception as recovery_err:
-        # If recovery itself fails, fall back to simple state marking
+        # If recovery itself fails, fall back to blocked (not recoverable)
         console.print(f"[yellow]Recovery pipeline failed: {recovery_err}[/yellow]")
         try:
-            from state_store import mark_failed_recoverable
-            mark_failed_recoverable(
+            from state_store import mark_failed_blocked
+            mark_failed_blocked(
                 run_dir, project_name, task_id,
-                f"{agent_name} execution interrupted. Transaction: {tx_id}.",
+                f"{agent_name} execution interrupted. Recovery pipeline failed. Transaction: {tx_id}.",
                 failed_agent=agent_name,
             )
         except Exception:

@@ -568,3 +568,44 @@ class TestRecoveryPipelineEndToEnd:
             assert len(indexed) == 3, f"Expected 3 indexed failures, got {len(indexed)}"
             assert failures_dir / "failure_event_1.json" in indexed
             assert failures_dir / "failure_event_3.json" in indexed
+
+
+# ── Recovery pipeline fallback safety ────────────────────────────────
+
+class TestRecoveryFallbackBlocked:
+
+    def test_recovery_pipeline_failure_marks_blocked(self) -> None:
+        """P2-J: when recovery pipeline itself fails, task must be blocked, not recoverable."""
+        import sys
+        agent_runtime_path = str(ROOT / "agent_runtime")
+        if agent_runtime_path not in sys.path:
+            sys.path.insert(0, agent_runtime_path)
+
+        from state_store import load_state, save_state
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir) / "runs" / "task_fallback"
+            run_dir.mkdir(parents=True)
+
+            # Seed a minimal state so load_state works
+            save_state(run_dir, {
+                "project": "AgentLab",
+                "task_id": "task_fallback",
+                "status": "running",
+                "current_agent": "Coder",
+            })
+
+            # Simulate the recovery fallback path: recovery itself fails,
+            # so mark_failed_blocked is called instead of mark_failed_recoverable
+            from state_store import mark_failed_blocked
+            mark_failed_blocked(
+                run_dir, "AgentLab", "task_fallback",
+                "Recovery pipeline failed. Transaction: tx_001.",
+                failed_agent="Coder",
+            )
+
+            state = load_state(run_dir, "AgentLab", "task_fallback")
+            assert state.status == "blocked", (
+                f"Recovery fallback must be blocked, got {state.status}"
+            )
+            assert "Recovery pipeline failed" in state.last_event
