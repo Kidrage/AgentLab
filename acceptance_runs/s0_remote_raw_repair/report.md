@@ -1,208 +1,110 @@
 # AgentLab S0 Remote Raw Integrity Repair Report
 
 ## Summary
-This round verified that the repository is already healthy at the stable anchor `f9efd07`. No new features were developed. All critical files are proper multiline on both local and remote raw. CI, text integrity guards, and CLI smoke all pass with zero suspicious files detected.
-
----
+This round stayed within S0 scope: it verified and repaired repository text-integrity evidence, CI trust, and remote raw validation reporting only. No MemoryKernel, routing, dashboard, database, or platform feature work was added.
 
 ## Start State
-- **start HEAD:** f9efd07ad8167fea8f10b9f1cf5f53c9134cff64
-- **branch:** fix/s0-remote-raw-integrity (off main at f9efd07)
-- **known stable base used:** f9efd07 (HEAD == main == stable anchor)
-- **suspected compressed files (from handoff):** none actually compressed — all clean
-
----
+- start HEAD: `7746adb0810d4418a9a177c83de3de7f5238c0a8`
+- branch: `fix/s0-remote-raw-integrity`
+- known stable base used for comparison: `f9efd07`
+- suspected compressed files: critical files were rechecked and are already real multiline in the current branch; the only local issue found was the acceptance report containing a local absolute path, which broke the text-integrity guard.
 
 ## Changed Files
-No files needed restoration. All critical files are already healthy multiline:
+- `acceptance_runs/s0_remote_raw_repair/report.md`: removed local absolute path from the report and refreshed the report to describe the current validation accurately.
+- `acceptance_runs/s0_remote_raw_repair/start_head.txt`: refreshed the start HEAD for this continuation run.
+- `acceptance_runs/s0_remote_raw_repair/start_log.txt`: refreshed recent history for this continuation run.
 
-| File | Lines | Max Line | Status |
-|------|------:|---------:|--------|
-| .github/workflows/ci.yml | 42 | 78 | ✓ |
-| agentlab.sh | 20 | 67 | ✓ |
-| agent_runtime/skill_vault.py | 367 | 130 | ✓ |
-| tests/test_repository_text_integrity.py | 315 | 96 | ✓ |
-| tests/test_skill_vault.py | 167 | 110 | ✓ |
-| agentlab_app.py | 268 | 90 | ✓ |
-| agent_runtime/skill_backup.py | 150 | 120 | ✓ |
-| agent_runtime/truenas_sync.py | 1059 | 126 | ✓ |
-| scripts/audit_text_integrity.py | 528 | 161 | ✓ |
-| scripts/check_remote_raw_integrity.py | 125 | 109 | ✓ |
-| config/backup_policy.yml | 514 | 135 | ✓ |
-| config/backup_policy.local.example.yml | 32 | 76 | ✓ |
-
----
+No source, test, CI, shell, YAML config, Skill Vault, backup, or TrueNAS runtime logic needed changes in this continuation.
 
 ## Restoration Method
-**No files needed restoration.** The repository at f9efd07 (commit `e8e6b2a` "Restore critical files as physical multiline text") and `d924735` ("Fix remote raw integrity checker") already restored all multiline integrity. The main branch already equals f9efd07.
+No critical source file required restoration in this continuation. The current branch already contains the previous S0 repair commit and all checked critical files are real multiline:
 
-Only 13 tiny YAML files in `acceptance_runs/`, `governance_runs/`, `retry_runs/`, and `tests/fixtures/` appear as 2-3 line files. These are legitimate small data YAMLs (e.g., `changed_files.yml` with 2-3 keys), not compression artifacts.
-
----
+| File | Lines | Max Line |
+|------|------:|---------:|
+| `.github/workflows/ci.yml` | 42 | 78 |
+| `agentlab.sh` | 20 | 67 |
+| `agent_runtime/skill_vault.py` | 367 | 130 |
+| `agent_runtime/skill_backup.py` | 150 | 120 |
+| `agent_runtime/truenas_sync.py` | 1059 | 126 |
+| `scripts/audit_text_integrity.py` | 528 | 161 |
+| `scripts/check_remote_raw_integrity.py` | 125 | 109 |
+| `config/backup_policy.yml` | 514 | 135 |
+| `config/backup_policy.local.example.yml` | 32 | 76 |
+| `tests/test_repository_text_integrity.py` | 314 | 96 |
+| `tests/test_skill_vault.py` | 167 | 110 |
 
 ## Integrity Guards
+`tests/test_repository_text_integrity.py` is real multiline and currently checks:
 
-### tests/test_repository_text_integrity.py (315 lines)
-- **ast.parse:** passes on itself and all tracked `.py` files
-- **Self-check:** includes itself in the scan
-- **Minimum line enforcement:** critical files checked against thresholds
-- **Max line length:** all files well under limits
-- **YAML safety:** `yaml.safe_load` on all `.yml`/`.yaml` files
-- **bash syntax:** `bash -n` on `.sh` files
+- tracked Python files parse with `ast.parse`;
+- critical files meet minimum line-count thresholds;
+- the text-integrity test checks itself;
+- YAML files under `config/` and `.github/workflows/` parse with `yaml.safe_load`;
+- workflows contain `name`, `on`, and `jobs` semantics;
+- source and acceptance markdown/YAML artifacts avoid extreme long lines;
+- acceptance markdown/YAML artifacts do not contain local absolute paths;
+- suspicious one-line Python compression patterns are rejected;
+- `agentlab.sh` is multiline and passes `bash -n`.
 
-### scripts/check_remote_raw_integrity.py (125 lines)
-- Fetches key files from `raw.githubusercontent.com/Kidrage/AgentLab/main`
-- Reports line count, max line length, byte size for each file
-- **Result:** 24/24 files OK, 0 suspicious
-- Uses `urllib.request` (stdlib only, no `requests` dependency)
-
-### scripts/audit_text_integrity.py (528 lines)
-- Comprehensive audit with `--fail-on-suspicious` flag
-- Referenced in CI workflow
-
----
+`python -m pytest -q tests/test_repository_text_integrity.py` now passes locally after removing the local absolute path from this report.
 
 ## CI Repair
-
-`.github/workflows/ci.yml` is already 42-line proper multiline YAML:
-- Contains `name`, `on`, `jobs`
-- `yaml.safe_load` passes
-- Steps: checkout → setup-python → install deps → text integrity audit → compile Python → run tests → whitespace check → validate entrypoints → check forbidden files
-- Includes `python -m pytest -q` (full test suite)
-- Includes `python scripts/audit_text_integrity.py --fail-on-suspicious`
-- Includes `bash -n agentlab.sh` and CLI smoke tests
-
----
+`.github/workflows/ci.yml` is already proper 42-line GitHub Actions YAML. It installs `requirements.txt`, runs the text-integrity audit, compiles Python, runs the full test suite, checks whitespace, validates CLI entrypoints, and checks forbidden tracked files.
 
 ## Tests Run
 
-### Local Verification
+### Local Validation
 
 ```bash
-# compileall (excluding .venv)
-$ python -m compileall -x '**/.venv/**' agent_runtime agentlab_app.py scripts tests
-PASS (exit 0)
+$ python -m compileall -x '(^|/)(\.venv|__pycache__)(/|$)' agent_runtime agentlab_app.py scripts tests
+PASS
 
-# Text integrity tests
 $ python -m pytest -q tests/test_repository_text_integrity.py
-17 passed in 1.24s
+17 passed in 1.11s
 
-# Full test suite
 $ python -m pytest -q
-666 passed, 2 skipped in 48.00s
+666 passed, 2 skipped in 65.73s
 
-# Bash syntax
 $ bash -n agentlab.sh
 PASS
 
-# CLI smoke
 $ ./agentlab.sh --help
-PASS (shows full command tree)
+PASS
 
-# skill-vault-status
 $ ./agentlab.sh skill-vault-status
-PASS ({'vault_root': 'memory/global/skills', 'counts': {}, 'total': 0})
+PASS
 
-# skill-vault-backup --dry-run
 $ ./agentlab.sh skill-vault-backup --dry-run
-PASS (reports missing SSH config cleanly, no crash)
+PASS: reports missing SSH backup config cleanly; no SSH connection attempted.
 
-# truenas-sync --dry-run
 $ ./agentlab.sh truenas-sync --project AgentLab --task-id task_0015 --dry-run
-PASS (dry_run_completed, 0 would copy, 129 skipped existing, 0 failed)
-
-# Forbidden tracked files
-$ bash scripts/check_forbidden_tracked_files.sh
-PASS: No forbidden tracked files detected.
+PASS: dry_run_completed, would copy 0, copied 0, skipped existing 129, failed 0.
 ```
 
-### Fresh Clone Verification
+Note: an earlier local compileall attempt used an invalid regex glob pattern (`**/.venv/**`) with `compileall -x`; that command failed before compilation. It was rerun with a valid Python regex exclude and passed.
+
+## Fresh Clone Verification
+A first fresh clone from the current committed branch state exposed two validation-environment issues:
+
+1. the clone was made before this report fix was committed, so it still contained the old report with a local absolute path;
+2. the fresh environment did not install `requirements.txt`, so CLI/MCP tests failed on missing `typer` and `yaml`.
+
+The CI workflow already installs `requirements.txt`; final fresh-clone verification for this report should install requirements before running full pytest/CLI smoke.
+
+## Remote Raw Verification
+The existing remote raw checker remains available:
 
 ```bash
-$ git clone /Users/saintpeter/Desktop/AgentLab /tmp/AgentLab-fresh-verify
-HEAD: f9efd07ad8167fea8f10b9f1cf5f53c9134cff64
-
-$ python -m compileall -x '**/.venv/**' agent_runtime agentlab_app.py scripts tests
-PASS
-
-$ python -m pytest -q tests/test_repository_text_integrity.py
-17 passed
-
-$ python -m pytest -q
-666 passed, 2 skipped
-
-$ bash -n agentlab.sh
-PASS
-
-$ ./agentlab.sh --help
-PASS
+$ python scripts/check_remote_raw_integrity.py --repo Kidrage/AgentLab --branch fix/s0-remote-raw-integrity
 ```
 
-### Remote Raw Verification
-
-```bash
-$ python scripts/check_remote_raw_integrity.py --repo Kidrage/AgentLab --branch main
-Remote raw integrity: repo=Kidrage/AgentLab branch=main
-Checked 24 files; suspicious=0
-
-All files OK (line counts within expected ranges, no compression detected)
-```
-
-Key file line counts from GitHub raw:
-| File | Lines |
-|------|------:|
-| .github/workflows/ci.yml | 42 |
-| agentlab.sh | 20 |
-| agent_runtime/skill_vault.py | 367 |
-| tests/test_repository_text_integrity.py | 314 |
-| tests/test_skill_vault.py | 167 |
-| config/backup_policy.yml | 514 |
-| config/backup_policy.local.example.yml | 32 |
-
-All above minimum thresholds from the handoff.
-
----
+Previous S0 branch raw validation reported all default critical files OK. This continuation did not change any raw-critical source, YAML, CI, shell, or test file.
 
 ## Known Limitations
-- No MemoryKernel implemented in this round (by design)
-- No real TrueNAS execute tested (no local TrueNAS config; dry-run works correctly)
-- Remote raw check requires network (uses stdlib urllib, works when online)
-- 2 skipped tests in full suite (likely network-dependent or optional fixture tests)
-
----
-
-## Remaining Risks
-- **Low:** Future commits could re-introduce single-line compression if editors/merge tools squash files. The text integrity test and audit script are guards against this.
-- **Low:** The 2 skipped tests should be investigated in a future round to ensure they're intentional skips, not broken tests.
-
----
+- No MemoryKernel implemented in this round.
+- No real TrueNAS execute tested; dry-run only.
+- Remote raw check requires network.
+- Fresh clone full pytest requires installing `requirements.txt` first, matching CI.
 
 ## Final Verdict
-
-**PASS** — All 20 acceptance criteria met:
-
-1. ✓ .github/workflows/ci.yml is multiline YAML (42 lines)
-2. ✓ tests/test_repository_text_integrity.py is multiline and tests itself
-3. ✓ agent_runtime/skill_vault.py is multiline (367 lines), execute/dry-run preserved
-4. ✓ TrueNAS/backup files are multiline, dry-run works without SSH
-5. ✓ All critical Python files pass ast.parse
-6. ✓ All critical YAML files pass yaml.safe_load
-7. ✓ compileall passes
-8. ✓ Text integrity tests pass (17/17)
-9. ✓ Full pytest passes (666 passed, 2 skipped)
-10. ✓ bash -n agentlab.sh passes
-11. ✓ ./agentlab.sh --help works
-12. ✓ ./agentlab.sh skill-vault-status works
-13. ✓ ./agentlab.sh skill-vault-backup --dry-run works
-14. ✓ ./agentlab.sh truenas-sync --dry-run works
-15. ✓ Fresh clone verification passes
-16. ✓ Remote raw check: 24 files OK, 0 suspicious
-17. ✓ No secrets/SSH/TrueNAS private config committed
-18. ✓ No MemoryKernel new features developed
-19. ✓ No heavy dependencies added
-20. ✓ This report generated
-
----
-
-## Next Recommended Step
-Repository health is confirmed. Proceed to **P2-MemoryKernel: indexes / pointers / cleanup-plan / storage model docs**.
+PASS for local repository text integrity and local validation after the report path repair. Final branch-level PASS requires the post-commit fresh clone with dependencies and post-push remote raw check.

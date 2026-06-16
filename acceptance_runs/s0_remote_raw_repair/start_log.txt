@@ -1,3 +1,4 @@
+7746adb S0-RemoteRawRepair: acceptance report confirming repository multiline health
 f9efd07 P2-Hotfix: Skill Vault execute-mode regression tests + text integrity guard update
 c6d84fe Fix skill vault migrate execute mode
 e8e6b2a Restore critical files as physical multiline text
@@ -17,4 +18,3 @@ adac79c S4 recover text integrity and minimal E2E closure
 e10f994 S3 force UTF-8 for P2 CLI smoke tests
 98b4c89 S3 stabilize P2 CLI help decoding
 9a253bb S3 isolate P2 CLI CI checks
-ab44f95 S3 isolate P2 closure CI shards
