@@ -1,0 +1,117 @@
+# P2-I Failure Recovery Configuration
+# AgentLab Execution Reliability & Failure Recovery settings
+
+version: 1
+
+enabled: true
+
+# Capture settings
+capture:
+  stdout_tail_chars: 8000
+  stderr_tail_chars: 8000
+  redact_secrets: true
+  redact_absolute_paths: true
+
+# Retry policy
+retry:
+  default_max_attempts: 1
+  max_attempts_by_category:
+    timeout: 2
+    resource_limit: 1
+    test_failure: 1
+    syntax_error: 0
+    secret_leak_risk: 0
+    text_integrity_failure: 0
+    remote_raw_failure: 0
+    missing_dependency: 0
+    yaml_parse_failure: 0
+    config_error: 0
+    cli_usage_error: 0
+    context_budget_exceeded: 0
+    context_missing: 2
+    permission_error: 0
+    network_disabled_or_unavailable: 2
+    external_tool_unavailable: 2
+
+  retryable_categories:
+    - timeout
+    - resource_limit
+    - network_disabled_or_unavailable
+    - external_tool_unavailable
+    - context_missing
+    - missing_artifact
+
+  non_retryable_categories:
+    - secret_leak_risk
+    - syntax_error
+    - text_integrity_failure
+    - remote_raw_failure
+    - yaml_parse_failure
+    - config_error
+    - cli_usage_error
+    - permission_error
+
+# Verdict configuration
+verdict:
+  require_human_review_for:
+    - secret_leak_risk
+    - permission_error
+    - remote_raw_failure
+    - text_integrity_failure
+    - yaml_parse_failure
+    - syntax_error
+    - unknown
+
+# Safe commands that can be auto-executed
+safe_commands:
+  - "python -m compileall agent_runtime agentlab_app.py"
+  - "python -m pytest -q"
+  - "bash -n agentlab.sh"
+  - "./agentlab.sh check"
+  - "./agentlab.sh context-smoke --project AgentLab"
+  - "./agentlab.sh context-status --project AgentLab"
+  - "./agentlab.sh failure-status --project AgentLab --task-id"
+
+# Forbidden commands that never auto-execute
+forbidden_auto_commands:
+  - "git reset --hard"
+  - "git clean -fdx"
+  - "rm -rf"
+  - "git push"
+  - "curl"
+  - "wget"
+  - "ssh"
+  - "sudo"
+  - "rm"
+  - "mv"
+  - "cp"
+
+# Ledger event configuration
+ledger:
+  event_type: failure_recovery_diagnosed
+  record_on:
+    - success
+    - failure
+  fields:
+    - task_id
+    - project
+    - primary_category
+    - confidence
+    - verdict
+    - safe_to_auto_retry
+    - requires_human_review
+    - created_at
+
+# Recovery artifacts configuration
+artifacts:
+  output_directory: recovery
+  files:
+    - failure_event.json
+    - failure_diagnosis.json
+    - recovery_plan.md
+    - retry_policy.yml
+    - recovery_verdict.json
+
+# Redaction is handled by agent_runtime/context_governance/redaction.py.
+# Secret patterns and home path detection are defined there.
+# The capture.tail settings above control truncation length.
