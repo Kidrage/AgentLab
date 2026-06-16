@@ -2391,11 +2391,25 @@ def run_pipeline(
     console.print(f"  Final status: {result.get('final_status', result.get('status', '?'))}")
     console.print(f"  Steps executed: {len(result.get('history', []))}")
     console.print(f"  Pipeline complete: {bool(result.get('success'))}")
-    if result.get("history"):
-        nodes = [str(item.get("node")) for item in result.get("history", [])]
-        for context_node in ["CONTEXT_PROFILE", "CONTEXT_BUDGET", "CONTEXT_PACK"]:
-            if context_node in nodes:
-                console.print(f"  Context stage: {context_node}")
+    nodes = {str(item.get("node")) for item in result.get("history", []) if item.get("node")}
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    try:
+        from lifecycle_graph import load_lifecycle
+
+        lifecycle = load_lifecycle(run_dir) or {}
+        for node_id, node in (lifecycle.get("nodes") or {}).items():
+            if node_id.startswith("CONTEXT_") and node.get("status") in {"completed", "skipped"}:
+                nodes.add(node_id)
+    except Exception:
+        pass
+    context_artifacts = {
+        "CONTEXT_PROFILE": "context_profile.yml",
+        "CONTEXT_BUDGET": "context_budget.yml",
+        "CONTEXT_PACK": "context_pack.yml",
+    }
+    for context_node, artifact_name in context_artifacts.items():
+        if context_node in nodes or (run_dir / artifact_name).exists():
+            console.print(f"  Context stage: {context_node}")
     art = result.get('artifact_completeness', {})
     console.print(f"  Artifact pass_rate: {art.get('pass_rate', 'N/A')} ({art.get('artifacts_passed', 0)}/{art.get('artifacts_checked', 0)})")
     if not art.get('valid'):

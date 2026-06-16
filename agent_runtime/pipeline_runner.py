@@ -536,6 +536,7 @@ def run_next_node(
         create_lifecycle(run_dir, workflow_plan)
     else:
         _ensure_lifecycle_shape(run_dir)
+        _skip_stale_context_nodes(run_dir)
 
     nid = next_node(run_dir)
     if nid is None:
@@ -1095,8 +1096,11 @@ def run_full_pipeline(
     seen_signatures = set()
     mode = _resolve_execution_mode(dry_run, fake_provider)
     ensure_repo_manifest_for_run(agentlab_root, project, task_id)
+    effective_max_steps = max_steps
+    if simulate_quota_failure_at:
+        effective_max_steps += len([n for n in LIFECYCLE_NODES if n.startswith("CONTEXT_")])
 
-    for step in range(max_steps):
+    for step in range(effective_max_steps):
         sig = _state_signature(agentlab_root, project, task_id)
         if sig in seen_signatures:
             err = f"Lifecycle loop detected at step {step}: cycle in state"
@@ -1441,3 +1445,27 @@ def _ensure_lifecycle_shape(run_dir: Path) -> None:
         (run_dir / "brain_decisions.yml").write_text("decisions: []\n", encoding="utf-8")
     if not (run_dir / "cost_ledger.yml").exists():
         (run_dir / "cost_ledger.yml").write_text("entries: []\n", encoding="utf-8")
+
+
+def _skip_stale_context_nodes(run_dir: Path) -> None:
+    """Skip P2-G nodes when a lifecycle has already advanced past them."""
+    lc = load_lifecycle(run_dir)
+    if not lc:
+        return
+    nodes = lc.get("nodes", {})
+    downstream_started = any(
+        nodes.get(node_id, {}).get("status") in {"completed", "started", "failed", "paused"}
+        for node_id in LIFECYCLE_NODES
+        if not node_id.startswith("CONTEXT_") and node_id != "INIT_TASK"
+    )
+    if not downstream_started:
+        return
+    changed = False
+    for node_id in ("CONTEXT_PROFILE", "CONTEXT_BUDGET", "CONTEXT_PACK"):
+        node = nodes.get(node_id, {})
+        if node.get("status") == "waiting":
+            node["status"] = "skipped"
+            node["skip_reason"] = "Lifecycle had already advanced before context governance nodes were introduced"
+            changed = True
+    if changed:
+        save_lifecycle(run_dir, lc)
