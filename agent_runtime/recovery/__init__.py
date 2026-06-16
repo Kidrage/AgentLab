@@ -41,6 +41,20 @@ from agent_runtime.recovery.retry_policy import (
     VerdictType,
 )
 from agent_runtime.recovery.verdict import create_verdict_from_diagnosis
+from agent_runtime.recovery.human_review import (
+    HumanReviewDecision,
+    write_human_review_decision,
+    load_latest_human_review_decision,
+    load_all_human_review_decisions,
+    DecisionType,
+)
+from agent_runtime.recovery.retry_ledger import (
+    RetryAttempt,
+    load_retry_attempts,
+    record_retry_attempt,
+    retry_attempt_count,
+)
+from agent_runtime.recovery.closure import build_recovery_closure_summary
 
 __all__ = [
     "FailureEvent",
@@ -58,4 +72,14 @@ __all__ = [
     "RecoveryVerdict",
     "create_verdict_from_diagnosis",
     "VerdictType",
+    "HumanReviewDecision",
+    "write_human_review_decision",
+    "load_latest_human_review_decision",
+    "load_all_human_review_decisions",
+    "DecisionType",
+    "RetryAttempt",
+    "load_retry_attempts",
+    "record_retry_attempt",
+    "retry_attempt_count",
+    "build_recovery_closure_summary",
 ]

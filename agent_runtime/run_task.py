@@ -3000,11 +3000,57 @@ def resume_task(
     provider: Optional[str] = typer.Option(None, help="Resume with a different provider (e.g. qwen)."),
     dry_run: bool = typer.Option(True, help="Dry-run resume."),
     fake_provider: bool = typer.Option(False, help="Use fake provider."),
+    force: bool = typer.Option(False, "--force", help="Force resume even if recovery verdict blocks it."),
 ) -> None:
     """Resume a paused task. Optionally switch provider or use lifecycle resume."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
     run_dir = Path(agentlab_root / "projects" / project_name / "runs" / task_id)
+
+    # ── P2-K: Recovery-aware guard ──
+    recovery_verdict_path = run_dir / "recovery" / "recovery_verdict.json"
+    human_decision_path = run_dir / "recovery" / "human_review_decision.json"
+
+    if recovery_verdict_path.exists():
+        from atomic_io import safe_read_yaml
+        from agent_runtime.recovery.human_review import load_latest_human_review_decision
+
+        verdict = safe_read_yaml(recovery_verdict_path) or {}
+        v = verdict.get("verdict", "")
+        human_decision = load_latest_human_review_decision(run_dir)
+
+        if v == "stop" and not force:
+            console.print("[red]Task has recovery verdict 'stop'. Resume blocked.[/red]")
+            console.print(f"  Reason: {verdict.get('reason', 'unknown')}")
+            console.print(f"  Use --force to override.")
+            return
+
+        if v == "human_review" and not force:
+            if human_decision and human_decision.decision == "approve_retry":
+                console.print("[green]Human approved retry. Resuming.[/green]")
+            elif human_decision and human_decision.decision == "reject_retry":
+                console.print("[red]Human rejected retry. Resume blocked.[/red]")
+                console.print(f"  Reason: {human_decision.reason}")
+                return
+            elif human_decision and human_decision.decision == "stop":
+                console.print("[red]Human stopped task. Resume blocked.[/red]")
+                return
+            else:
+                console.print("[red]Task requires human review before resume.[/red]")
+                console.print(f"  Use 'recovery-approve' to approve, then resume.")
+                console.print(f"  Or use --force to override.")
+                return
+
+        if force:
+            console.print("[yellow]--force used: bypassing recovery guard.[/yellow]")
+            from agent_runtime.recovery.human_review import write_human_review_decision
+            write_human_review_decision(
+                run_dir, task_id,
+                decision="approve_retry",
+                reason="Force resume by operator.",
+                source="cli",
+                force_used=True,
+            )
 
     # Check for lifecycle-based resume
     from lifecycle_graph import load_lifecycle
@@ -4230,6 +4276,14 @@ def failure_status_cmd(
     console.print(f"  Recovery Plan: {'[green]yes[/green]' if has_plan else '[red]no[/red]'}")
     console.print(f"  Verdict: {'[green]yes[/green]' if has_verdict else '[red]no[/red]'}")
 
+    has_decision = (recovery_dir / "human_review_decision.json").exists()
+    console.print(f"  Human Decision: {'[green]yes[/green]' if has_decision else '[red]no[/red]'}")
+
+    has_retry_ledger = (recovery_dir / "retry_attempts.json").exists()
+    if has_retry_ledger:
+        from agent_runtime.recovery.retry_ledger import retry_attempt_count
+        console.print(f"  Retry Attempts: {retry_attempt_count(run_dir)}")
+
     # Show verdict summary if available
     if has_verdict:
         verdict_path = recovery_dir / "recovery_verdict.json"
@@ -4422,6 +4476,274 @@ def recovery_smoke_cmd(
     # Return non-zero if human review required
     if verdict.requires_human_review:
         raise typer.Exit(code=1)
+
+
+# ── P2-K: Recovery decision commands ─────────────────────────────────
+
+@app.command("recovery-approve")
+def recovery_approve_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task identifier"),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    reason: str = typer.Option("", "--reason", help="Reason for approval."),
+    force: bool = typer.Option(False, "--force", help="Force approval even if verdict is stop."),
+    applies_to: int = typer.Option(1, "--applies-to", help="Failure index this decision applies to."),
+) -> None:
+    """Approve retry for a blocked task. Writes a durable human review decision."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
+    from agent_runtime.recovery.human_review import write_human_review_decision
+    from state_store import load_state, save_state
+
+    # Check if a verdict exists
+    verdict_path = run_dir / "recovery" / "recovery_verdict.json"
+    if not verdict_path.exists():
+        console.print("[yellow]No recovery verdict found. Writing approval anyway.[/yellow]")
+
+    decision_path = write_human_review_decision(
+        run_dir, task_id,
+        decision="approve_retry",
+        reason=reason or "Approved by human operator.",
+        source="cli",
+        applies_to_failure_index=applies_to,
+        force_used=force,
+    )
+
+    state = load_state(run_dir, project_name, task_id)
+    if state.status == "blocked":
+        state.status = "failed_recoverable"
+        state.last_event = f"Human approved retry: {reason or 'Approved'}"
+        save_state(run_dir, state)
+
+    console.print(f"[green]Retry approved.[/green]")
+    console.print(f"  Decision: {decision_path}")
+    console.print(f"  Task state: {state.status}")
+    if force:
+        console.print("[yellow]Force flag was used — this is auditable in the decision artifact.[/yellow]")
+
+
+@app.command("recovery-reject")
+def recovery_reject_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task identifier"),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    reason: str = typer.Option("", "--reason", help="Reason for rejection."),
+    applies_to: int = typer.Option(1, "--applies-to", help="Failure index this decision applies to."),
+) -> None:
+    """Reject retry for a task. Writes a durable human review decision."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
+    from agent_runtime.recovery.human_review import write_human_review_decision
+    from state_store import load_state, save_state, mark_failed_stopped
+
+    decision_path = write_human_review_decision(
+        run_dir, task_id,
+        decision="reject_retry",
+        reason=reason or "Rejected by human operator.",
+        source="cli",
+        applies_to_failure_index=applies_to,
+    )
+
+    mark_failed_stopped(
+        run_dir, project_name, task_id,
+        f"Human rejected retry: {reason or 'Rejected'}",
+    )
+
+    console.print(f"[yellow]Retry rejected.[/yellow]")
+    console.print(f"  Decision: {decision_path}")
+    console.print(f"  Task state: failed")
+
+
+@app.command("recovery-stop")
+def recovery_stop_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task identifier"),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    reason: str = typer.Option("", "--reason", help="Reason for stopping."),
+    applies_to: int = typer.Option(1, "--applies-to", help="Failure index this decision applies to."),
+) -> None:
+    """Stop a task permanently. Writes a durable human review decision."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
+    from agent_runtime.recovery.human_review import write_human_review_decision
+    from state_store import mark_failed_stopped
+
+    decision_path = write_human_review_decision(
+        run_dir, task_id,
+        decision="stop",
+        reason=reason or "Stopped by human operator.",
+        source="cli",
+        applies_to_failure_index=applies_to,
+    )
+
+    mark_failed_stopped(
+        run_dir, project_name, task_id,
+        f"Human stopped task: {reason or 'Stopped'}",
+    )
+
+    console.print(f"[red]Task stopped.[/red]")
+    console.print(f"  Decision: {decision_path}")
+    console.print(f"  Task state: failed")
+
+
+@app.command("recovery-status")
+def recovery_status_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task identifier"),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON."),
+) -> None:
+    """Show full recovery status: verdict, human decisions, retry attempts, next action."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
+    from atomic_io import safe_read_yaml
+    from agent_runtime.recovery.human_review import (
+        load_latest_human_review_decision,
+        load_all_human_review_decisions,
+    )
+    from agent_runtime.recovery.retry_ledger import load_retry_attempts, retry_attempt_count
+
+    recovery_dir = run_dir / "recovery"
+    if not recovery_dir.exists():
+        msg = {"task_id": task_id, "project": project_name, "status": "no_recovery_artifacts"}
+        if json_output:
+            console.print(json.dumps(msg, indent=2, ensure_ascii=False))
+        else:
+            console.print("[yellow]No recovery artifacts found.[/yellow]")
+        return
+
+    has_event = (recovery_dir / "failure_event.json").exists()
+    has_diagnosis = (recovery_dir / "failure_diagnosis.json").exists()
+    has_plan = (recovery_dir / "recovery_plan.md").exists()
+    has_verdict = (recovery_dir / "recovery_verdict.json").exists()
+    has_decision = (recovery_dir / "human_review_decision.json").exists()
+
+    # Load verdict
+    verdict = None
+    if has_verdict:
+        verdict = safe_read_yaml(recovery_dir / "recovery_verdict.json") or {}
+
+    # Load human decisions
+    latest_decision = load_latest_human_review_decision(run_dir)
+    all_decisions = load_all_human_review_decisions(run_dir)
+
+    # Load retry attempts
+    attempts = load_retry_attempts(run_dir)
+    attempt_count = retry_attempt_count(run_dir)
+
+    # Determine next action
+    next_action = _derive_next_action(verdict, latest_decision)
+
+    if json_output:
+        import json as _json
+        result = {
+            "task_id": task_id,
+            "project": project_name,
+            "has_failure_event": has_event,
+            "has_diagnosis": has_diagnosis,
+            "has_recovery_plan": has_plan,
+            "has_verdict": has_verdict,
+            "has_human_decision": has_decision,
+            "verdict": verdict,
+            "latest_decision": latest_decision.to_dict() if latest_decision else None,
+            "human_decisions_count": len(all_decisions),
+            "retry_attempts": attempt_count,
+            "next_action": next_action,
+        }
+        console.print(_json.dumps(result, indent=2, ensure_ascii=False))
+        return
+
+    # Rich output
+    console.print(f"\n[bold]Recovery Status — {task_id}[/bold]")
+    console.print(f"  Project: {project_name}")
+
+    # Verdict
+    if verdict:
+        v = verdict.get("verdict", "?")
+        color = {"retry": "green", "continue": "yellow", "rollback": "yellow",
+                  "stop": "red", "human_review": "red"}.get(v, "white")
+        console.print(f"\n[bold]Latest Verdict:[/bold] [{color}]{v}[/{color}]")
+        console.print(f"  Category: {verdict.get('primary_category', verdict.get('reason', '?')[:80])}")
+        console.print(f"  Safe to Auto-Retry: {verdict.get('safe_to_auto_retry', '?')}")
+        console.print(f"  Requires Human Review: {verdict.get('requires_human_review', '?')}")
+
+    # Human decisions
+    if latest_decision:
+        console.print(f"\n[bold]Latest Human Decision:[/bold]")
+        console.print(f"  Decision: {latest_decision.decision}")
+        console.print(f"  Reason: {latest_decision.reason}")
+        console.print(f"  Time: {latest_decision.created_at}")
+        if latest_decision.force_used:
+            console.print(f"  [yellow]Force was used[/yellow]")
+    if len(all_decisions) > 1:
+        console.print(f"  Total decisions: {len(all_decisions)}")
+
+    # Retry attempts
+    if attempt_count > 0:
+        console.print(f"\n[bold]Retry Attempts:[/bold] {attempt_count}")
+        for a in attempts:
+            result_color = {"success": "green", "failed": "red", "blocked": "yellow"}.get(a.result, "white")
+            console.print(f"  #{a.attempt}: [{result_color}]{a.result}[/{result_color}] ({a.trigger}) — {a.command[:60]}")
+
+    # Next action
+    console.print(f"\n[bold]Next Action:[/bold] {next_action}")
+
+    # Artifacts
+    console.print(f"\n[bold]Artifacts:[/bold]")
+    console.print(f"  failure_event.json: {'[green]yes[/green]' if has_event else '[red]no[/red]'}")
+    console.print(f"  failure_diagnosis.json: {'[green]yes[/green]' if has_diagnosis else '[red]no[/red]'}")
+    console.print(f"  recovery_plan.md: {'[green]yes[/green]' if has_plan else '[red]no[/red]'}")
+    console.print(f"  recovery_verdict.json: {'[green]yes[/green]' if has_verdict else '[red]no[/red]'}")
+    console.print(f"  human_review_decision.json: {'[green]yes[/green]' if has_decision else '[red]no[/red]'}")
+    console.print(f"  retry_attempts.json: {'[green]yes[/green]' if (recovery_dir / 'retry_attempts.json').exists() else '[red]no[/red]'}")
+
+    # Indexed failures
+    failures_dir = recovery_dir / "failures"
+    if failures_dir.exists():
+        indexed = sorted(failures_dir.glob("failure_event_*.json"))
+        if indexed:
+            console.print(f"  Indexed failures: {len(indexed)}")
+
+
+def _derive_next_action(
+    verdict: dict | None,
+    latest_decision,  # HumanReviewDecision | None
+) -> str:
+    """Derive the next allowed action from verdict and human decisions."""
+    if verdict is None:
+        return "No recovery verdict — inspect manually"
+
+    v = verdict.get("verdict", "")
+
+    if v == "stop":
+        if latest_decision and latest_decision.decision == "approve_retry" and latest_decision.force_used:
+            return "retry allowed (--force override)"
+        return "stop — task permanently failed"
+
+    if v == "human_review":
+        if latest_decision:
+            d = latest_decision.decision
+            if d == "approve_retry":
+                return "retry allowed (human approved)"
+            if d == "reject_retry":
+                return "stop — retry was rejected"
+            if d == "stop":
+                return "stop — task was stopped"
+        return "blocked — awaiting human review"
+
+    if v == "retry":
+        if latest_decision and latest_decision.decision == "reject_retry":
+            return "stop — retry was rejected after verdict"
+        return "retry allowed (per policy)"
+
+    if v == "continue":
+        return "continue allowed (retries exhausted, manual next step)"
+
+    return f"unknown verdict '{v}' — inspect manually"
 
 
 if __name__ == "__main__":
