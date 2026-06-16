@@ -1,0 +1,43 @@
+{
+  "task_id": "smoke_test",
+  "project": "AgentLab",
+  "primary_category": "test_failure",
+  "secondary_categories": [],
+  "confidence": 0.8,
+  "root_cause_hypothesis": [
+    {
+      "description": "A regression test failed, likely due to recent code changes.",
+      "confidence": 0.75,
+      "evidence_references": [
+        "stderr_tail",
+        "command"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "kind": "stderr_tail",
+      "summary": "Error output captured from failed command",
+      "source": "failure_event.stderr_tail",
+      "confidence": 0.9
+    },
+    {
+      "kind": "stdout_tail",
+      "summary": "Standard output captured from failed command",
+      "source": "failure_event.stdout_tail",
+      "confidence": 0.85
+    }
+  ],
+  "blast_radius": {
+    "likely_affected": [
+      "agent_runtime",
+      "tests"
+    ],
+    "safe_to_retry": true,
+    "safe_to_continue": false
+  },
+  "recommended_next_action": "create_recovery_plan -> retry with targeted test",
+  "requires_human_review": false,
+  "warnings": [],
+  "created_at": "2026-06-16T14:22:32.726381+00:00"
+}

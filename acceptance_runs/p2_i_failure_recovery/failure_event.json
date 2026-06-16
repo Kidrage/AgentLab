@@ -1,0 +1,15 @@
+{
+  "task_id": "smoke_test",
+  "project": "AgentLab",
+  "stage": "pytest",
+  "command": "python -m pytest tests/ -q",
+  "exit_code": 1,
+  "error_type": null,
+  "stdout_tail": "running 5 tests...",
+  "stderr_tail": "tests/test_example.py FAILED\nAssertionError: assert False\n1 failed in 0.1s",
+  "artifact_paths": [],
+  "context_pack_path": null,
+  "cost_ledger_path": null,
+  "resource_ledger_path": null,
+  "created_at": "2026-06-16T14:22:32.725813+00:00"
+}

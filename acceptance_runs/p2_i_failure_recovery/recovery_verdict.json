@@ -1,0 +1,24 @@
+{
+  "task_id": "smoke_test",
+  "verdict": "human_review",
+  "reason": "Cannot determine retry policy for test_failure",
+  "allowed_attempts_remaining": 1,
+  "safe_to_auto_retry": false,
+  "safe_to_auto_rollback": false,
+  "requires_human_review": false,
+  "next_commands": [],
+  "forbidden_without_approval": [
+    "git reset --hard",
+    "git clean -fdx",
+    "rm -rf",
+    "git push",
+    "curl",
+    "wget",
+    "ssh",
+    "sudo",
+    "rm",
+    "mv",
+    "cp"
+  ],
+  "created_at": "2026-06-16T14:22:32.731799+00:00"
+}
