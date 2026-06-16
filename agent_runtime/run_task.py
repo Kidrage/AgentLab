@@ -3009,39 +3009,35 @@ def resume_task(
 
     # ── P2-K: Recovery-aware guard ──
     recovery_verdict_path = run_dir / "recovery" / "recovery_verdict.json"
-    human_decision_path = run_dir / "recovery" / "human_review_decision.json"
 
     if recovery_verdict_path.exists():
         from atomic_io import safe_read_yaml
         from agent_runtime.recovery.human_review import load_latest_human_review_decision
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
 
         verdict = safe_read_yaml(recovery_verdict_path) or {}
-        v = verdict.get("verdict", "")
         human_decision = load_latest_human_review_decision(run_dir)
 
-        if v == "stop" and not force:
-            console.print("[red]Task has recovery verdict 'stop'. Resume blocked.[/red]")
-            console.print(f"  Reason: {verdict.get('reason', 'unknown')}")
+        result = derive_recovery_next_action(
+            verdict=verdict,
+            human_decision=human_decision,
+            force=force,
+        )
+
+        if result["allowed"]:
+            console.print(f"[green]{result['reason']}. Resuming.[/green]")
+        elif result["requires_force"]:
+            console.print(f"[red]{result['reason']}.[/red]")
             console.print(f"  Use --force to override.")
             return
-
-        if v == "human_review" and not force:
-            if human_decision and human_decision.decision == "approve_retry":
-                console.print("[green]Human approved retry. Resuming.[/green]")
-            elif human_decision and human_decision.decision == "reject_retry":
-                console.print("[red]Human rejected retry. Resume blocked.[/red]")
-                console.print(f"  Reason: {human_decision.reason}")
-                return
-            elif human_decision and human_decision.decision == "stop":
-                console.print("[red]Human stopped task. Resume blocked.[/red]")
-                return
-            else:
-                console.print("[red]Task requires human review before resume.[/red]")
+        else:
+            console.print(f"[red]{result['reason']}. Resume blocked.[/red]")
+            v = verdict.get("verdict", "")
+            if v == "human_review" and human_decision is None:
                 console.print(f"  Use 'recovery-approve' to approve, then resume.")
-                console.print(f"  Or use --force to override.")
-                return
+            return
 
-        if force:
+        if force and result["auditable_force_required"]:
             console.print("[yellow]--force used: bypassing recovery guard.[/yellow]")
             from agent_runtime.recovery.human_review import write_human_review_decision
             write_human_review_decision(
@@ -4713,37 +4709,23 @@ def _derive_next_action(
     verdict: dict | None,
     latest_decision,  # HumanReviewDecision | None
 ) -> str:
-    """Derive the next allowed action from verdict and human decisions."""
-    if verdict is None:
-        return "No recovery verdict — inspect manually"
+    """Derive the next allowed action from verdict and human decisions.
 
-    v = verdict.get("verdict", "")
+    Delegates to the extracted resume policy function for the actual logic.
+    """
+    from agent_runtime.recovery.resume_policy import derive_recovery_next_action
 
-    if v == "stop":
-        if latest_decision and latest_decision.decision == "approve_retry" and latest_decision.force_used:
-            return "retry allowed (--force override)"
-        return "stop — task permanently failed"
-
-    if v == "human_review":
-        if latest_decision:
-            d = latest_decision.decision
-            if d == "approve_retry":
-                return "retry allowed (human approved)"
-            if d == "reject_retry":
-                return "stop — retry was rejected"
-            if d == "stop":
-                return "stop — task was stopped"
-        return "blocked — awaiting human review"
-
-    if v == "retry":
-        if latest_decision and latest_decision.decision == "reject_retry":
-            return "stop — retry was rejected after verdict"
-        return "retry allowed (per policy)"
-
-    if v == "continue":
-        return "continue allowed (retries exhausted, manual next step)"
-
-    return f"unknown verdict '{v}' — inspect manually"
+    result = derive_recovery_next_action(
+        verdict=verdict,
+        human_decision=latest_decision,
+    )
+    action = result["action"]
+    reason = result["reason"]
+    if result["auditable_force_required"]:
+        return f"{action} allowed ({reason}) [--force auditable]"
+    if result["allowed"]:
+        return f"{action} allowed ({reason})"
+    return f"{action} — {reason}"
 
 
 if __name__ == "__main__":

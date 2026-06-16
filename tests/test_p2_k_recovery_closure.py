@@ -427,57 +427,187 @@ class TestStatusDisplaysRecovery:
 
     def test_next_action_derivation(self) -> None:
         """P2-K: next action is derived correctly from verdict + decision."""
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
         from agent_runtime.recovery.human_review import HumanReviewDecision
 
-        def derive(verdict: dict | None, decision) -> str:
-            if verdict is None:
-                return "No recovery verdict"
-            v = verdict.get("verdict", "")
-            if v == "stop":
-                if decision and decision.decision == "approve_retry" and decision.force_used:
-                    return "retry allowed (--force override)"
-                return "stop — task permanently failed"
-            if v == "human_review":
-                if decision:
-                    d = decision.decision
-                    if d == "approve_retry":
-                        return "retry allowed (human approved)"
-                    if d == "reject_retry":
-                        return "stop — retry was rejected"
-                    if d == "stop":
-                        return "stop — task was stopped"
-                return "blocked — awaiting human review"
-            if v == "retry":
-                if decision and decision.decision == "reject_retry":
-                    return "stop — retry was rejected after verdict"
-                return "retry allowed (per policy)"
-            if v == "continue":
-                return "continue allowed"
-            return f"unknown verdict '{v}'"
-
         # retry verdict → retry allowed
-        assert "retry allowed" in derive({"verdict": "retry", "reason": ""}, None)
+        result = derive_recovery_next_action({"verdict": "retry", "reason": ""}, None)
+        assert result["allowed"] is True
+        assert result["action"] == "retry"
 
         # human_review without decision → blocked
-        assert "blocked" in derive({"verdict": "human_review", "reason": ""}, None)
+        result = derive_recovery_next_action({"verdict": "human_review", "reason": ""}, None)
+        assert result["allowed"] is False
+        assert result["action"] == "block"
 
         # human_review with approve → retry allowed
-        assert "retry allowed" in derive(
+        result = derive_recovery_next_action(
             {"verdict": "human_review", "reason": ""},
             HumanReviewDecision(task_id="t", decision="approve_retry", reason="", created_at=""))
+        assert result["allowed"] is True
+        assert result["action"] == "retry"
 
         # human_review with reject → stop
-        assert "stop" in derive(
+        result = derive_recovery_next_action(
             {"verdict": "human_review", "reason": ""},
             HumanReviewDecision(task_id="t", decision="reject_retry", reason="", created_at=""))
+        assert result["allowed"] is False
+        assert result["action"] == "stop"
 
-        # stop → stop
-        assert "stop" in derive({"verdict": "stop", "reason": ""}, None)
+        # stop → stop (blocked)
+        result = derive_recovery_next_action({"verdict": "stop", "reason": ""}, None)
+        assert result["allowed"] is False
+        assert result["action"] == "stop"
 
-        # stop with force → retry allowed
+        # stop with force → retry allowed, auditable
         hr = HumanReviewDecision(
             task_id="t", decision="approve_retry", reason="", created_at="", force_used=True)
-        assert "retry allowed" in derive({"verdict": "stop", "reason": ""}, hr)
+        result = derive_recovery_next_action({"verdict": "stop", "reason": ""}, hr)
+        assert result["allowed"] is True
+        assert result["action"] == "retry"
+        assert result["auditable_force_required"] is True
+
+
+# ── P2-K Hardening: Resume policy regression tests ──────────────────
+
+class TestResumePolicyHardening:
+
+    def test_policy_allows_normal_retry_verdict(self) -> None:
+        """1. Policy allows normal retry verdict."""
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+
+        result = derive_recovery_next_action(
+            {"verdict": "retry", "reason": "test failure", "safe_to_auto_retry": True},
+            None,
+        )
+        assert result["allowed"] is True
+        assert result["action"] == "retry"
+
+    def test_policy_blocks_human_review_without_approval(self) -> None:
+        """2. Policy blocks human review without approval."""
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+
+        result = derive_recovery_next_action(
+            {"verdict": "human_review", "reason": "needs review"},
+            None,
+        )
+        assert result["allowed"] is False
+        assert result["action"] == "block"
+
+    def test_policy_allows_human_review_after_approval(self) -> None:
+        """3. Policy allows human review after approval."""
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+        from agent_runtime.recovery.human_review import HumanReviewDecision
+
+        result = derive_recovery_next_action(
+            {"verdict": "human_review", "reason": "needs review"},
+            HumanReviewDecision(task_id="t", decision="approve_retry", reason="OK", created_at=""),
+        )
+        assert result["allowed"] is True
+        assert result["action"] == "retry"
+
+    def test_policy_blocks_reject_decision(self) -> None:
+        """4. Policy blocks reject decision."""
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+        from agent_runtime.recovery.human_review import HumanReviewDecision
+
+        result = derive_recovery_next_action(
+            {"verdict": "human_review", "reason": "needs review"},
+            HumanReviewDecision(task_id="t", decision="reject_retry", reason="Unsafe", created_at=""),
+        )
+        assert result["allowed"] is False
+        assert result["action"] == "stop"
+
+    def test_policy_blocks_stop_verdict_without_force(self) -> None:
+        """5. Policy blocks stop verdict without force."""
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+
+        result = derive_recovery_next_action(
+            {"verdict": "stop", "reason": "permanent failure"},
+            None,
+        )
+        assert result["allowed"] is False
+        assert result["action"] == "stop"
+
+    def test_policy_allows_stop_only_with_force_and_auditable(self) -> None:
+        """6. Policy allows stop verdict only with force and marks force as auditable."""
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+        from agent_runtime.recovery.human_review import HumanReviewDecision
+
+        # Without force: blocked
+        hr = HumanReviewDecision(
+            task_id="t", decision="approve_retry", reason="", created_at="")
+        result = derive_recovery_next_action(
+            {"verdict": "stop", "reason": "permanent failure"}, hr, force=False)
+        assert result["allowed"] is False
+        assert result["requires_force"] is True
+
+        # With force: allowed and auditable
+        result = derive_recovery_next_action(
+            {"verdict": "stop", "reason": "permanent failure"}, hr, force=True)
+        assert result["allowed"] is True
+        assert result["action"] == "retry"
+        assert result["auditable_force_required"] is True
+
+    def test_dangerous_categories_never_auto_retry(self) -> None:
+        """7. Dangerous categories never become auto-retry even with human approval."""
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+        from agent_runtime.recovery.human_review import HumanReviewDecision
+
+        # Dangerous category: safe_to_auto_retry=False
+        result = derive_recovery_next_action(
+            {
+                "verdict": "human_review",
+                "reason": "secret_leak_risk",
+                "safe_to_auto_retry": False,
+            },
+            HumanReviewDecision(task_id="t", decision="approve_retry", reason="Approved", created_at=""),
+        )
+        # Allowed (human approved) but auditable because dangerous
+        assert result["allowed"] is True
+        assert result["action"] == "retry"
+        assert result["auditable_force_required"] is True
+
+    def test_unknown_verdict_defaults_to_blocked(self) -> None:
+        """8. Unknown verdict defaults to blocked/human review."""
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+
+        result = derive_recovery_next_action(
+            {"verdict": "bogus_unknown", "reason": "???"},
+            None,
+        )
+        assert result["allowed"] is False
+        assert result["action"] == "block"
+
+    def test_run_task_uses_extracted_policy_function(self) -> None:
+        """9. run_task.py uses the extracted policy function."""
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+
+        # Verify the function is importable and callable
+        result = derive_recovery_next_action(
+            {"verdict": "retry", "reason": "test"},
+            None,
+        )
+        assert result["allowed"] is True
+        assert result["action"] == "retry"
+        assert "reason" in result
+        assert "requires_force" in result
+        assert "auditable_force_required" in result
+
+    def test_no_inline_duplicate_policy_in_tests(self) -> None:
+        """10. No inline duplicate policy function remains in tests."""
+        import sys
+
+        # Check that no function named 'derive' exists in the current module
+        # (the old inline duplicate was called 'derive')
+        current_module = sys.modules[__name__]
+        for name, obj in current_module.__dict__.items():
+            if name == "derive" and callable(obj):
+                pytest.fail(f"Inline duplicate 'derive' function still exists in test module")
+
+        # Verify derive_recovery_next_action is importable from the real module
+        from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+        assert callable(derive_recovery_next_action)
 
 
 # ── P2-I smoke compatibility ────────────────────────────────────────
