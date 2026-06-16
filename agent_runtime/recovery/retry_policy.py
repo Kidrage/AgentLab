@@ -237,5 +237,10 @@ def _generate_retry_commands(category: FailureCategory) -> list[str]:
             "./agentlab.sh check",
             "python -m compileall agent_runtime agentlab_app.py",
         ])
+    elif category == FailureCategory.TEST_FAILURE:
+        commands.extend([
+            "python -m pytest tests/ -q",
+            "./agentlab.sh check",
+        ])
 
     return commands

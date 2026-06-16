@@ -34,8 +34,8 @@ class TestFailureClassifier:
 
         assert result.primary_category == FailureCategory.TEST_FAILURE
         assert result.confidence >= 0.7
-        # Test failure is not automatically retryable per design (fix first)
-        assert result.is_retriable is False
+        # P2-J: test_failure is now retryable with explicit retry policy
+        assert result.is_retriable is True
         assert result.requires_human_review is False
 
     def test_classifies_import_error(self) -> None:

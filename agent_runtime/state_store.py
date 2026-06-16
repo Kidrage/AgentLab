@@ -91,6 +91,34 @@ def mark_failed_recoverable(run_dir: Path, project: str, task_id: str, reason: s
     return state
 
 
+def mark_failed_blocked(run_dir: Path, project: str, task_id: str, reason: str, failed_agent: str | None = None) -> TaskState:
+    """Mark task as blocked / human_review required.
+
+    Use when recovery verdict is human_review or stop.
+    """
+    state = load_state(run_dir, project, task_id)
+    state.status = "blocked"
+    if failed_agent:
+        state.current_agent = failed_agent
+    state.last_event = reason
+    save_state(run_dir, state)
+    return state
+
+
+def mark_failed_stopped(run_dir: Path, project: str, task_id: str, reason: str, failed_agent: str | None = None) -> TaskState:
+    """Mark task as stopped / unsafe.
+
+    Use when recovery verdict is stop or an unsafe category is detected.
+    """
+    state = load_state(run_dir, project, task_id)
+    state.status = "failed"
+    if failed_agent:
+        state.current_agent = failed_agent
+    state.last_event = reason
+    save_state(run_dir, state)
+    return state
+
+
 class TaskEvents:
     """Manage task event recording."""
 

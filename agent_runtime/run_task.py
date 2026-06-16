@@ -1886,7 +1886,7 @@ def status(
     task_id: str = typer.Option("task_0001", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
 ) -> None:
-    """Show task state, route, reports, and missing inputs."""
+    """Show task state, route, reports, recovery verdict, and missing inputs."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
     plan = load_or_build_plan(agentlab_root, project_name, task_id, "codex")
@@ -1899,6 +1899,26 @@ def status(
     if plan.missing_inputs:
         console.print("[yellow]Missing inputs[/yellow]")
         console.print(plan.missing_inputs)
+
+    # ── Show recovery verdict if available ──
+    run_dir = Path(plan.run_dir)
+    verdict_path = run_dir / "recovery" / "recovery_verdict.json"
+    if verdict_path.exists():
+        from atomic_io import safe_read_yaml
+        verdict = safe_read_yaml(verdict_path) or {}
+        console.print("[bold]Latest Recovery Verdict[/bold]")
+        console.print(f"  Verdict: {verdict.get('verdict', '?')}")
+        console.print(f"  Reason: {verdict.get('reason', '?')}")
+        console.print(f"  Safe to Auto-Retry: {verdict.get('safe_to_auto_retry', '?')}")
+        console.print(f"  Requires Human Review: {verdict.get('requires_human_review', '?')}")
+        console.print(f"  Attempts Remaining: {verdict.get('allowed_attempts_remaining', '?')}")
+
+        # Check for indexed failures
+        failures_dir = run_dir / "recovery" / "failures"
+        if failures_dir.exists():
+            indexed = sorted(failures_dir.glob("failure_event_*.json"))
+            if indexed:
+                console.print(f"  Total failures recorded: {len(indexed)}")
 
     table = Table("Agent", "Report", "Exists")
     for agent in plan.route.agents:
@@ -2238,6 +2258,166 @@ def model_doctor(
         console.print(issue_table)
 
 
+def _handle_command_failure(
+    *,
+    agentlab_root: Path,
+    project_name: str,
+    task_id: str,
+    agent_name: str,
+    plan,
+    exc: Exception,
+    tx_id: str | None,
+) -> None:
+    """Create recovery artifacts when a command fails during task execution.
+
+    Produces: failure_event.json, failure_diagnosis.json, recovery_plan.md,
+    and recovery_verdict.json in the task run directory.  Handles multiple
+    failures by writing indexed files under recovery/failures/.
+    """
+    run_dir = Path(plan.run_dir)
+    try:
+        from agent_runtime.recovery import (
+            create_failure_event,
+            FailureClassifier,
+            diagnose_failure,
+            build_recovery_plan,
+            load_retry_policy,
+            decide_retry_action,
+        )
+        from state_store import (
+            mark_failed_recoverable,
+            mark_failed_blocked,
+            mark_failed_stopped,
+        )
+        import json
+        import traceback
+
+        # ── 1. Create FailureEvent ──
+        stderr_text = "".join(
+            traceback.format_exception_only(type(exc), exc)
+        )
+        failure_event = create_failure_event(
+            task_id=task_id,
+            project=project_name,
+            stage=agent_name,
+            command=f"run-agent {agent_name}",
+            exit_code=1,
+            stderr=stderr_text,
+            stdout=None,
+            artifact_paths=[],
+            context_pack_path=str(run_dir / "context" / "context_pack.yml"),
+            error_type=None,
+        )
+
+        # ── 2. Classify the failure ──
+        classifier = FailureClassifier()
+        classification = classifier.classify(
+            stderr=stderr_text,
+            stdout=None,
+            error_type=None,
+            exit_code=1,
+        )
+
+        # ── 3. Diagnose ──
+        diagnosis = diagnose_failure(failure_event)
+
+        # ── 4. Build recovery plan ──
+        policy = load_retry_policy(run_dir)
+        plan_obj = build_recovery_plan(failure_event, diagnosis, policy)
+
+        # ── 5. Decide verdict ──
+        verdict = decide_retry_action(diagnosis, policy)
+
+        # ── 6. Write recovery artifacts ──
+        recovery_dir = run_dir / "recovery"
+        recovery_dir.mkdir(parents=True, exist_ok=True)
+
+        # Use indexed files for multiple failures
+        failures_dir = recovery_dir / "failures"
+        failures_dir.mkdir(parents=True, exist_ok=True)
+        existing = sorted(failures_dir.glob("failure_event_*.json"))
+        index = len(existing) + 1
+
+        # Write indexed failure event
+        event_path = failures_dir / f"failure_event_{index}.json"
+        event_path.write_text(
+            json.dumps(failure_event.to_dict(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        # Write indexed diagnosis
+        diagnosis_path = failures_dir / f"failure_diagnosis_{index}.json"
+        diagnosis_path.write_text(
+            json.dumps(diagnosis.to_dict(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        # Write indexed recovery plan
+        plan_path = failures_dir / f"recovery_plan_{index}.md"
+        plan_path.write_text(plan_obj.to_markdown(), encoding="utf-8")
+
+        # Write indexed verdict
+        verdict_path = failures_dir / f"recovery_verdict_{index}.json"
+        verdict_path.write_text(
+            json.dumps(verdict.to_dict(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        # Also write latest copies at the top of recovery/ for convenience
+        _copy_latest = lambda stem, ext: (
+            (recovery_dir / f"{stem}{ext}").write_text(
+                (failures_dir / f"{stem}_{index}{ext}").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+        )
+        _copy_latest("failure_event", ".json")
+        _copy_latest("failure_diagnosis", ".json")
+        _copy_latest("recovery_plan", ".md")
+        _copy_latest("recovery_verdict", ".json")
+
+        # ── 7. Update task state based on verdict ──
+        reason = f"{agent_name} failed: {stderr_text[:200]}"
+        verdict_type = verdict.verdict.value
+
+        if verdict_type == "human_review":
+            mark_failed_blocked(
+                run_dir, project_name, task_id,
+                f"{reason} | Verdict: human_review",
+                failed_agent=agent_name,
+            )
+        elif verdict_type == "stop":
+            mark_failed_stopped(
+                run_dir, project_name, task_id,
+                f"{reason} | Verdict: stop",
+                failed_agent=agent_name,
+            )
+        else:
+            mark_failed_recoverable(
+                run_dir, project_name, task_id,
+                f"{reason} | Verdict: {verdict_type}",
+                failed_agent=agent_name,
+            )
+
+        console.print(f"\n[bold red]Agent {agent_name} failed.[/bold red]")
+        console.print(f"  Category: {diagnosis.primary_category.value}")
+        console.print(f"  Verdict: {verdict_type}")
+        console.print(f"  Recovery artifacts: {recovery_dir}/failures/")
+        console.print(f"  Latest verdict: {verdict_path}")
+
+    except Exception as recovery_err:
+        # If recovery itself fails, fall back to simple state marking
+        console.print(f"[yellow]Recovery pipeline failed: {recovery_err}[/yellow]")
+        try:
+            from state_store import mark_failed_recoverable
+            mark_failed_recoverable(
+                run_dir, project_name, task_id,
+                f"{agent_name} execution interrupted. Transaction: {tx_id}.",
+                failed_agent=agent_name,
+            )
+        except Exception:
+            pass
+
+
 @app.command("run-agent")
 def run_agent(
     agent_name: str = typer.Argument(..., help="Agent name, e.g. Supervisor or Coder."),
@@ -2259,6 +2439,23 @@ def run_agent(
     plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend, budget_mode=budget)
     if agent_name not in plan.route.agents and not force:
         raise typer.BadParameter(f"{agent_name} is not in route {plan.route.agents}. Use --force to override.")
+
+    # ── Recovery-aware guard: refuse to run unsafe tasks ──
+    run_dir = Path(plan.run_dir)
+    verdict_path = run_dir / "recovery" / "recovery_verdict.json"
+    if verdict_path.exists() and not force:
+        from atomic_io import safe_read_yaml
+        verdict = safe_read_yaml(verdict_path) or {}
+        verdict_type = verdict.get("verdict", "")
+        if verdict_type in ("human_review", "stop"):
+            console.print(
+                f"[red]Task has recovery verdict '{verdict_type}'. "
+                f"Execution blocked.[/red]"
+            )
+            console.print(f"  Reason: {verdict.get('reason', 'unknown')}")
+            console.print(f"  Use --force to override this guard.")
+            console.print(f"  Review verdict: {verdict_path}")
+            return
 
     output_path = assert_path_allowed(report_path_for_agent(plan, agent_name, output), agentlab_root)
     settings, _ = resolve_agent_settings(
@@ -2335,16 +2532,16 @@ def run_agent(
             raise typer.BadParameter(f"Report exists and is not a placeholder: {output_path}")
 
         result = run_agent_model(agentlab_root, plan, agent_name, output_path, provider, model, apply_patches=not no_apply_patches)
-    except Exception:
-        try:
-            from state_store import mark_failed_recoverable
-            mark_failed_recoverable(
-                Path(plan.run_dir), project_name, task_id,
-                f"{agent_name} execution interrupted. Transaction: {tx_id}.",
-                failed_agent=agent_name,
-            )
-        except Exception:
-            pass
+    except Exception as exc:
+        _handle_command_failure(
+            agentlab_root=agentlab_root,
+            project_name=project_name,
+            task_id=task_id,
+            agent_name=agent_name,
+            plan=plan,
+            exc=exc,
+            tx_id=tx_id,
+        )
         raise
     finally:
         if tx_id:

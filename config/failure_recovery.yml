@@ -40,6 +40,7 @@ retry:
     - external_tool_unavailable
     - context_missing
     - missing_artifact
+    - test_failure
 
   non_retryable_categories:
     - secret_leak_risk

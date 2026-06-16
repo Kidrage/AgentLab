@@ -307,6 +307,7 @@ class FailureClassifier:
             FailureCategory.EXTERNAL_TOOL_UNAVAILABLE,
             FailureCategory.CONTEXT_MISSING,
             FailureCategory.MISSING_ARTIFACT,
+            FailureCategory.TEST_FAILURE,
         }
         return category in retryable
 
