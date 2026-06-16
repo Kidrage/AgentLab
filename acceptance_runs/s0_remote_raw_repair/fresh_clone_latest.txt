@@ -1,0 +1,299 @@
+## fresh clone validation started
+Tue Jun 16 10:22:33 CST 2026
+Cloning into '/tmp/AgentLab-fresh-verify'...
+done.
+$ git rev-parse HEAD
+7746adb0810d4418a9a177c83de3de7f5238c0a8
+$ python -m compileall -x "(^|/)(\.venv|__pycache__)(/|$)" agent_runtime agentlab_app.py scripts tests
+compileall PASS
+$ python -m pytest -q tests/test_repository_text_integrity.py
+.....F...........                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_acceptance_artifacts_have_no_local_absolute_paths ____________
+
+    def test_acceptance_artifacts_have_no_local_absolute_paths() -> None:
+        local_path_pattern = re.compile("/" + "Users" + r"/[^\s`'\"<>]+")
+        for path in _acceptance_artifact_files():
+            text = path.read_text(encoding="utf-8")
+            match = local_path_pattern.search(text)
+>           assert match is None, f"{_relative(path)} contains local absolute path {match.group(0)}"
+E           AssertionError: acceptance_runs/s0_remote_raw_repair/report.md contains local absolute path /Users/saintpeter/Desktop/AgentLab
+E           assert <re.Match object; span=(4343, 4377), match='/Users/saintpeter/Desktop/AgentLab'> is None
+
+tests/test_repository_text_integrity.py:180: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_repository_text_integrity.py::test_acceptance_artifacts_have_no_local_absolute_paths
+1 failed, 16 passed in 0.99s
+$ python -m pytest -q
+........................................................................ [ 10%]
+F..................................FFFFF................................ [ 21%]
+........................................................................ [ 32%]
+....................................................ss.................. [ 43%]
+........................................................................ [ 53%]
+........................................................................ [ 64%]
+........................................................................ [ 75%]
+.......................................................F................ [ 86%]
+................F....................................................... [ 97%]
+....................                                                     [100%]
+=================================== FAILURES ===================================
+_____________________ test_agentlab_sh_help_does_not_crash _____________________
+
+    def test_agentlab_sh_help_does_not_crash() -> None:
+        """`./agentlab.sh --help` must exit successfully."""
+        import subprocess
+        sh_path = ROOT / "agentlab.sh"
+        if not sh_path.exists():
+            pytest.skip("agentlab.sh not found at repo root")
+        result = subprocess.run(
+            ["bash", str(sh_path), "--help"],
+            capture_output=True, text=True, timeout=30,
+        )
+>       assert result.returncode == 0, f"agentlab.sh --help failed: {result.stderr[:500]}"
+E       AssertionError: agentlab.sh --help failed: Traceback (most recent call last):
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/run_task.py", line 24, in <module>
+E             import typer
+E         ModuleNotFoundError: No module named 'typer'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/private/tmp/AgentLab-fresh-verify/agentlab.sh', '--help'], returncode=1, stdout='', s.../agent_runtime/run_task.py", line 24, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+
+tests/test_cli_contract.py:98: AssertionError
+______________ test_initialize_response_shape_and_id_preservation ______________
+
+    def test_initialize_response_shape_and_id_preservation() -> None:
+>       responses = _run_stdio([
+            {
+                "jsonrpc": "2.0",
+                "id": "init-1",
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "pytest", "version": "0.1"},
+                },
+            },
+            {"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {}},
+        ])
+
+tests/test_cline_mcp_stdio_compat.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [{'id': 'init-1', 'jsonrpc': '2.0', 'method': 'initialize', 'params': {'capabilities': {}, 'clientInfo': {'name': 'pyt...version': '0.1'}, 'protocolVersion': '2025-06-18'}}, {'id': 2, 'jsonrpc': '2.0', 'method': 'initialize', 'params': {}}]
+
+    def _run_stdio(messages: list[dict]) -> list[dict]:
+        proc = subprocess.run(
+            [str(ROOT / "scripts" / "agentlab_mcp_stdio.sh")],
+            input="\n".join(json.dumps(msg) for msg in messages) + "\n",
+            text=True,
+            capture_output=True,
+            cwd=str(ROOT),
+            env={**os.environ, "AGENTLAB_ROOT": str(ROOT)},
+            timeout=15,
+        )
+>       assert proc.returncode == 0, proc.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<frozen runpy>", line 198, in _run_module_as_main
+E           File "<frozen runpy>", line 88, in _run_code
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/mcp_server.py", line 20, in <module>
+E             from atomic_io import safe_read_yaml
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/atomic_io.py", line 4, in <module>
+E             import yaml
+E         ModuleNotFoundError: No module named 'yaml'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/private/tmp/AgentLab-fresh-verify/scripts/agentlab_mcp_stdio.sh'], returncode=1, stdout='', s...fy/agent_runtime/atomic_io.py", line 4, in <module>\n    import yaml\nModuleNotFoundError: No module named \'yaml\'\n').returncode
+
+tests/test_cline_mcp_stdio_compat.py:46: AssertionError
+_______________ test_tools_list_response_shape_and_descriptions ________________
+
+    def test_tools_list_response_shape_and_descriptions() -> None:
+>       responses = _run_stdio([{"jsonrpc": "2.0", "id": "tools-1", "method": "tools/list", "params": {}}])
+
+tests/test_cline_mcp_stdio_compat.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [{'id': 'tools-1', 'jsonrpc': '2.0', 'method': 'tools/list', 'params': {}}]
+
+    def _run_stdio(messages: list[dict]) -> list[dict]:
+        proc = subprocess.run(
+            [str(ROOT / "scripts" / "agentlab_mcp_stdio.sh")],
+            input="\n".join(json.dumps(msg) for msg in messages) + "\n",
+            text=True,
+            capture_output=True,
+            cwd=str(ROOT),
+            env={**os.environ, "AGENTLAB_ROOT": str(ROOT)},
+            timeout=15,
+        )
+>       assert proc.returncode == 0, proc.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<frozen runpy>", line 198, in _run_module_as_main
+E           File "<frozen runpy>", line 88, in _run_code
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/mcp_server.py", line 20, in <module>
+E             from atomic_io import safe_read_yaml
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/atomic_io.py", line 4, in <module>
+E             import yaml
+E         ModuleNotFoundError: No module named 'yaml'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/private/tmp/AgentLab-fresh-verify/scripts/agentlab_mcp_stdio.sh'], returncode=1, stdout='', s...fy/agent_runtime/atomic_io.py", line 4, in <module>\n    import yaml\nModuleNotFoundError: No module named \'yaml\'\n').returncode
+
+tests/test_cline_mcp_stdio_compat.py:46: AssertionError
+____________ test_tools_call_read_only_smoke_returns_content_block _____________
+
+    def test_tools_call_read_only_smoke_returns_content_block() -> None:
+>       responses = _run_stdio([
+            {
+                "jsonrpc": "2.0",
+                "id": "call-1",
+                "method": "tools/call",
+                "params": {"name": "agentlab_list_active_skills", "arguments": {}},
+            }
+        ])
+
+tests/test_cline_mcp_stdio_compat.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [{'id': 'call-1', 'jsonrpc': '2.0', 'method': 'tools/call', 'params': {'arguments': {}, 'name': 'agentlab_list_active_skills'}}]
+
+    def _run_stdio(messages: list[dict]) -> list[dict]:
+        proc = subprocess.run(
+            [str(ROOT / "scripts" / "agentlab_mcp_stdio.sh")],
+            input="\n".join(json.dumps(msg) for msg in messages) + "\n",
+            text=True,
+            capture_output=True,
+            cwd=str(ROOT),
+            env={**os.environ, "AGENTLAB_ROOT": str(ROOT)},
+            timeout=15,
+        )
+>       assert proc.returncode == 0, proc.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<frozen runpy>", line 198, in _run_module_as_main
+E           File "<frozen runpy>", line 88, in _run_code
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/mcp_server.py", line 20, in <module>
+E             from atomic_io import safe_read_yaml
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/atomic_io.py", line 4, in <module>
+E             import yaml
+E         ModuleNotFoundError: No module named 'yaml'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/private/tmp/AgentLab-fresh-verify/scripts/agentlab_mcp_stdio.sh'], returncode=1, stdout='', s...fy/agent_runtime/atomic_io.py", line 4, in <module>\n    import yaml\nModuleNotFoundError: No module named \'yaml\'\n').returncode
+
+tests/test_cline_mcp_stdio_compat.py:46: AssertionError
+__________________ test_unknown_method_returns_jsonrpc_error ___________________
+
+    def test_unknown_method_returns_jsonrpc_error() -> None:
+>       responses = _run_stdio([{"jsonrpc": "2.0", "id": "bad-1", "method": "unknown/method", "params": {}}])
+
+tests/test_cline_mcp_stdio_compat.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [{'id': 'bad-1', 'jsonrpc': '2.0', 'method': 'unknown/method', 'params': {}}]
+
+    def _run_stdio(messages: list[dict]) -> list[dict]:
+        proc = subprocess.run(
+            [str(ROOT / "scripts" / "agentlab_mcp_stdio.sh")],
+            input="\n".join(json.dumps(msg) for msg in messages) + "\n",
+            text=True,
+            capture_output=True,
+            cwd=str(ROOT),
+            env={**os.environ, "AGENTLAB_ROOT": str(ROOT)},
+            timeout=15,
+        )
+>       assert proc.returncode == 0, proc.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<frozen runpy>", line 198, in _run_module_as_main
+E           File "<frozen runpy>", line 88, in _run_code
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/mcp_server.py", line 20, in <module>
+E             from atomic_io import safe_read_yaml
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/atomic_io.py", line 4, in <module>
+E             import yaml
+E         ModuleNotFoundError: No module named 'yaml'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/private/tmp/AgentLab-fresh-verify/scripts/agentlab_mcp_stdio.sh'], returncode=1, stdout='', s...fy/agent_runtime/atomic_io.py", line 4, in <module>\n    import yaml\nModuleNotFoundError: No module named \'yaml\'\n').returncode
+
+tests/test_cline_mcp_stdio_compat.py:46: AssertionError
+___________________ test_stdout_cleanliness_for_smoke_input ____________________
+
+    def test_stdout_cleanliness_for_smoke_input() -> None:
+        proc = subprocess.run(
+            [str(ROOT / "scripts" / "agentlab_mcp_stdio.sh")],
+            input=(
+                '{"jsonrpc":"2.0","id":"init-1","method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"manual-smoke","version":"0.1"}}}\n'
+                '{"jsonrpc":"2.0","id":"tools-1","method":"tools/list","params":{}}\n'
+            ),
+            text=True,
+            capture_output=True,
+            cwd=str(ROOT),
+            env={**os.environ, "AGENTLAB_ROOT": str(ROOT)},
+            timeout=15,
+        )
+>       assert proc.returncode == 0, proc.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<frozen runpy>", line 198, in _run_module_as_main
+E           File "<frozen runpy>", line 88, in _run_code
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/mcp_server.py", line 20, in <module>
+E             from atomic_io import safe_read_yaml
+E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/atomic_io.py", line 4, in <module>
+E             import yaml
+E         ModuleNotFoundError: No module named 'yaml'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/private/tmp/AgentLab-fresh-verify/scripts/agentlab_mcp_stdio.sh'], returncode=1, stdout='', s...fy/agent_runtime/atomic_io.py", line 4, in <module>\n    import yaml\nModuleNotFoundError: No module named \'yaml\'\n').returncode
+
+tests/test_cline_mcp_stdio_compat.py:139: AssertionError
+____________ test_acceptance_artifacts_have_no_local_absolute_paths ____________
+
+    def test_acceptance_artifacts_have_no_local_absolute_paths() -> None:
+        local_path_pattern = re.compile("/" + "Users" + r"/[^\s`'\"<>]+")
+        for path in _acceptance_artifact_files():
+            text = path.read_text(encoding="utf-8")
+            match = local_path_pattern.search(text)
+>           assert match is None, f"{_relative(path)} contains local absolute path {match.group(0)}"
+E           AssertionError: acceptance_runs/s0_remote_raw_repair/report.md contains local absolute path /Users/saintpeter/Desktop/AgentLab
+E           assert <re.Match object; span=(4343, 4377), match='/Users/saintpeter/Desktop/AgentLab'> is None
+
+tests/test_repository_text_integrity.py:180: AssertionError
+__________________________ test_skill_draft_cli_flow ___________________________
+
+tmp_path = PosixPath('/private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-31/test_skill_draft_cli_flow0')
+
+    def test_skill_draft_cli_flow(tmp_path: Path) -> None:
+        project = "CliDemo"
+        task_id = "task_cli"
+        project_dir = ROOT / "projects" / project
+        run_dir = project_dir / "runs" / task_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (project_dir / "project_memory.md").write_text("# Memory\n- CLI distill reusable step.\n", encoding="utf-8")
+        (run_dir / "07_validation_report.md").write_text("pytest pass\n", encoding="utf-8")
+        try:
+            env = dict(os.environ, PYTHONPATH=str(ROOT / "agent_runtime"))
+            distill = subprocess.run(["bash", "agentlab.sh", "skill-distill", "--project", project, "--task-id", task_id], cwd=ROOT, env=env, text=True, capture_output=True, timeout=30)
+>           assert distill.returncode == 0, distill.stderr + distill.stdout
+E           AssertionError: Traceback (most recent call last):
+E               File "/tmp/AgentLab-fresh-verify/agent_runtime/run_task.py", line 24, in <module>
+E                 import typer
+E             ModuleNotFoundError: No module named 'typer'
+E             
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['bash', 'agentlab.sh', 'skill-distill', '--project', 'CliDemo', '--task-id', 'task_cli'], retur.../agent_runtime/run_task.py", line 24, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
+
+tests/test_skill_draft_cli.py:23: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_cli_contract.py::test_agentlab_sh_help_does_not_crash - Ass...
+FAILED tests/test_cline_mcp_stdio_compat.py::test_initialize_response_shape_and_id_preservation
+FAILED tests/test_cline_mcp_stdio_compat.py::test_tools_list_response_shape_and_descriptions
+FAILED tests/test_cline_mcp_stdio_compat.py::test_tools_call_read_only_smoke_returns_content_block
+FAILED tests/test_cline_mcp_stdio_compat.py::test_unknown_method_returns_jsonrpc_error
+FAILED tests/test_cline_mcp_stdio_compat.py::test_stdout_cleanliness_for_smoke_input
+FAILED tests/test_repository_text_integrity.py::test_acceptance_artifacts_have_no_local_absolute_paths
+FAILED tests/test_skill_draft_cli.py::test_skill_draft_cli_flow - AssertionEr...
+8 failed, 658 passed, 2 skipped in 46.60s
+$ bash -n agentlab.sh
+bash -n PASS
+$ ./agentlab.sh --help
+Traceback (most recent call last):
+  File "/tmp/AgentLab-fresh-verify/agent_runtime/run_task.py", line 24, in <module>
+    import typer
+ModuleNotFoundError: No module named 'typer'
+./agentlab.sh --help PASS

@@ -1,0 +1,60 @@
+version: 1
+
+default_policy:
+  preserve_user_prompt: true
+  preserve_exact_constraints: true
+  externalize_raw_artifacts: true
+  write_context_pack: true
+  default_max_context_tokens: 12000
+
+length_tiers:
+  S:
+    max_chars: 2000
+    strategy: direct
+  M:
+    max_chars: 12000
+    strategy: trim_and_direct
+  L:
+    max_chars: 80000
+    strategy: retrieve_and_compress
+  XL:
+    max_chars: 500000
+    strategy: hierarchical_summary
+  XXL:
+    max_chars: null
+    strategy: index_and_drilldown
+
+modalities:
+  code:
+    default_strategy: repo_map_context
+    lossy_allowed: false
+  long_text:
+    default_strategy: hierarchical_summary
+    lossy_allowed: true
+  narrative:
+    default_strategy: narrative_graph
+    lossy_allowed: true
+  image:
+    default_strategy: ocr_layout_crop
+    lossy_allowed: partial
+  web:
+    default_strategy: clean_markdown_citation_pack
+    lossy_allowed: true
+  crawl:
+    default_strategy: schema_batch_summary
+    lossy_allowed: true
+  data:
+    default_strategy: schema_profile_local_execution
+    lossy_allowed: false
+  log:
+    default_strategy: error_cluster_extract
+    lossy_allowed: true
+  abstract_reasoning:
+    default_strategy: decision_matrix
+    lossy_allowed: true
+  tool_output:
+    default_strategy: filter_externalize
+    lossy_allowed: true
+  history:
+    default_strategy: structured_condensation
+    lossy_allowed: true

@@ -1,0 +1,57 @@
+version: 1
+
+budgets:
+  small_task:
+    max_input_tokens: 6000
+    max_output_tokens: 2000
+
+  coding_task:
+    max_input_tokens: 16000
+    max_output_tokens: 4000
+    max_repo_files_initial: 12
+    max_snippets_per_file: 3
+
+  repo_audit_task:
+    max_input_tokens: 22000
+    max_output_tokens: 6000
+    max_repo_files_initial: 20
+
+  long_text_task:
+    max_input_tokens: 18000
+    max_output_tokens: 5000
+    max_chunks: 20
+
+  narrative_task:
+    max_input_tokens: 18000
+    max_output_tokens: 5000
+    max_chapters_initial: 12
+
+  visual_task:
+    max_images_initial: 1
+    max_crops: 4
+    max_ocr_chars: 12000
+
+  web_research_task:
+    max_sources: 8
+    max_source_tokens_each: 1200
+
+  crawl_task:
+    max_pages_initial: 20
+    summarize_batches: true
+    max_examples_per_schema: 5
+
+  data_analysis_task:
+    max_sample_rows: 20
+    require_local_execution: true
+
+  log_analysis_task:
+    max_error_clusters: 10
+    max_representative_lines: 30
+
+  abstract_reasoning_task:
+    max_branches: 3
+    max_depth: 4
+
+  tool_output_task:
+    max_raw_output_tokens: 1200
+    externalize_full_output: true

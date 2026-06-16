@@ -79,7 +79,8 @@ NODE_TO_REPORT = {
 }
 
 NODE_TO_PROGRESS = {
-    "INIT_TASK": "init", "PREPARE_PLAN": "planning",
+    "INIT_TASK": "init", "CONTEXT_PROFILE": "context_profile",
+    "CONTEXT_BUDGET": "context_budget", "CONTEXT_PACK": "context_pack", "PREPARE_PLAN": "planning",
     "SUPERVISOR_PLAN": "planning", "REPO_CONTEXT": "scouting",
     "RESEARCH_OPTIONAL": "research", "INTERFACE_OPTIONAL": "interfacing",
     "CODER_IMPLEMENTATION": "implementation", "VALIDATION": "validation",
@@ -88,7 +89,8 @@ NODE_TO_PROGRESS = {
 }
 
 NODE_TO_PCT = {
-    "INIT_TASK": 5, "PREPARE_PLAN": 10, "SUPERVISOR_PLAN": 20,
+    "INIT_TASK": 5, "CONTEXT_PROFILE": 7, "CONTEXT_BUDGET": 8, "CONTEXT_PACK": 9,
+    "PREPARE_PLAN": 10, "SUPERVISOR_PLAN": 20,
     "REPO_CONTEXT": 30, "RESEARCH_OPTIONAL": 35, "INTERFACE_OPTIONAL": 40,
     "CODER_IMPLEMENTATION": 55, "VALIDATION": 70, "AUDIT": 78,
     "VERIFY": 82, "ARCHIVE": 86, "SELF_CHECK": 90, "SYNC_OPTIONAL": 95, "FINALIZE": 100,
@@ -675,6 +677,29 @@ def run_next_node(
         )
         _mark_node_completed(run_dir, nid)
         return {"status": "completed", "node": nid, "message": f"{nid} done."}
+
+    if nid in {"CONTEXT_PROFILE", "CONTEXT_BUDGET", "CONTEXT_PACK"}:
+        from context_governance import write_context_artifacts
+
+        written = write_context_artifacts(agentlab_root, project, task_id)
+        report_name = {
+            "CONTEXT_PROFILE": "context_profile.yml",
+            "CONTEXT_BUDGET": "context_budget.yml",
+            "CONTEXT_PACK": "context_pack.yml",
+        }[nid]
+        _record_dry_run_node_evidence(
+            agentlab_root,
+            run_dir,
+            project,
+            task_id,
+            node_id=nid,
+            agent=None,
+            report_name=report_name,
+            budget_mode=budget_mode,
+            execution_mode=effective_execution_mode,
+        )
+        _mark_node_completed(run_dir, nid, str(run_dir / report_name))
+        return {"status": "completed", "node": nid, "message": f"{nid} done.", "artifacts": written}
 
     if nid == "SELF_CHECK":
         result = validate_artifacts(run_dir)

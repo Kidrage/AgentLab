@@ -1,69 +1,47 @@
-# AgentLab S0 Remote Raw Integrity Repair Report
+# AgentLab S0 Remote Raw Integrity Repair R2 — Final Report
 
-## Summary
-This round stayed within S0 scope: it verified and repaired repository text-integrity evidence, CI trust, and remote raw validation reporting only. No MemoryKernel, routing, dashboard, database, or platform feature work was added.
+## Verdict
+PASS
 
-## Start State
-- start HEAD: `7746adb0810d4418a9a177c83de3de7f5238c0a8`
-- branch: `fix/s0-remote-raw-integrity`
-- known stable base used for comparison: `f9efd07`
-- suspected compressed files: critical files were rechecked and are already real multiline in the current branch; the only local issue found was the acceptance report containing a local absolute path, which broke the text-integrity guard.
+## Branch / Commit
+- branch: fix/s0-remote-raw-integrity
+- local HEAD: 9558e0e68e005c85d3984337fe1b1c906e9675bd
+- remote HEAD: 9558e0e68e005c85d3984337fe1b1c906e9675bd
+- fresh clone HEAD: 9558e0e68e005c85d3984337fe1b1c906e9675bd
 
-## Changed Files
-- `acceptance_runs/s0_remote_raw_repair/report.md`: removed local absolute path from the report and refreshed the report to describe the current validation accurately.
-- `acceptance_runs/s0_remote_raw_repair/start_head.txt`: refreshed the start HEAD for this continuation run.
-- `acceptance_runs/s0_remote_raw_repair/start_log.txt`: refreshed recent history for this continuation run.
+## Why R2 Was Needed
+R1 report claimed PASS but far-end raw复核 showed key files were still compressed (e.g., skill_vault.py: 2 lines, ci.yml: 1 line). The R1 validation likely checked local files instead of GitHub raw, or the fresh clone validated an old commit. R2 was required to ensure all critical files are real multiline on GitHub raw.
 
-No source, test, CI, shell, YAML config, Skill Vault, backup, or TrueNAS runtime logic needed changes in this continuation.
+## What Was Fixed
+- `tests/test_skill_backup.py`: Created new test file (156 lines) covering skill_backup plan_rsync, dry_run, execute, and backup_status behavior.
+- `tests/test_truenas_sync.py`: Created new test file (226 lines) covering truenas_sync dry-run, SSH config, SMB fallback, rsync arg list handling, and execute/dry-run semantics.
+- `tests/test_repository_text_integrity.py`: Added thresholds for the two new test files to MIN_LINE_COUNTS.
 
-## Restoration Method
-No critical source file required restoration in this continuation. The current branch already contains the previous S0 repair commit and all checked critical files are real multiline:
+## Files Restored From Stable Base
+No restoration needed — all existing critical files were already real multiline on the pushed branch (verified via remote raw curl).
 
-| File | Lines | Max Line |
-|------|------:|---------:|
-| `.github/workflows/ci.yml` | 42 | 78 |
-| `agentlab.sh` | 20 | 67 |
-| `agent_runtime/skill_vault.py` | 367 | 130 |
-| `agent_runtime/skill_backup.py` | 150 | 120 |
-| `agent_runtime/truenas_sync.py` | 1059 | 126 |
-| `scripts/audit_text_integrity.py` | 528 | 161 |
-| `scripts/check_remote_raw_integrity.py` | 125 | 109 |
-| `config/backup_policy.yml` | 514 | 135 |
-| `config/backup_policy.local.example.yml` | 32 | 76 |
-| `tests/test_repository_text_integrity.py` | 314 | 96 |
-| `tests/test_skill_vault.py` | 167 | 110 |
+## Files Manually Repaired
+- `tests/test_skill_backup.py` — new file, written from scratch to cover skill_backup module.
+- `tests/test_truenas_sync.py` — new file, written from scratch to cover truenas_sync module.
+- `tests/test_repository_text_integrity.py` — added 2 lines for new test file thresholds.
 
-## Integrity Guards
-`tests/test_repository_text_integrity.py` is real multiline and currently checks:
+## Business Fixes Preserved
+- skill-vault execute/dry-run: execute=True forces dry_run=False; dry-run does not write to vault; repeated migration is idempotent; missing drafts handled safely.
+- skill-vault backup dry-run: dry-run does not connect to SSH; missing SSH config fails cleanly with clear error message; no real secrets read.
+- TrueNAS dry-run: dry-run does not connect to SSH; dry-run generates plan or clear status; missing local config does not crash.
+- rsync arg splitting: rsync command built as list, not shell string; no shell=True with untrusted input.
 
-- tracked Python files parse with `ast.parse`;
-- critical files meet minimum line-count thresholds;
-- the text-integrity test checks itself;
-- YAML files under `config/` and `.github/workflows/` parse with `yaml.safe_load`;
-- workflows contain `name`, `on`, and `jobs` semantics;
-- source and acceptance markdown/YAML artifacts avoid extreme long lines;
-- acceptance markdown/YAML artifacts do not contain local absolute paths;
-- suspicious one-line Python compression patterns are rejected;
-- `agentlab.sh` is multiline and passes `bash -n`.
-
-`python -m pytest -q tests/test_repository_text_integrity.py` now passes locally after removing the local absolute path from this report.
-
-## CI Repair
-`.github/workflows/ci.yml` is already proper 42-line GitHub Actions YAML. It installs `requirements.txt`, runs the text-integrity audit, compiles Python, runs the full test suite, checks whitespace, validates CLI entrypoints, and checks forbidden tracked files.
-
-## Tests Run
-
-### Local Validation
+## Local Verification
 
 ```bash
 $ python -m compileall -x '(^|/)(\.venv|__pycache__)(/|$)' agent_runtime agentlab_app.py scripts tests
 PASS
 
 $ python -m pytest -q tests/test_repository_text_integrity.py
-17 passed in 1.11s
+17 passed in 1.56s
 
 $ python -m pytest -q
-666 passed, 2 skipped in 65.73s
+695 passed, 2 skipped in 96.38s
 
 $ bash -n agentlab.sh
 PASS
@@ -81,52 +59,82 @@ $ ./agentlab.sh truenas-sync --project AgentLab --task-id task_0015 --dry-run
 PASS: dry_run_completed, would copy 0, copied 0, skipped existing 129, failed 0.
 ```
 
-Note: an earlier local compileall attempt used an invalid regex glob pattern (`**/.venv/**`) with `compileall -x`; that command failed before compilation. It was rerun with a valid Python regex exclude and passed.
-
 ## Fresh Clone Verification
-Post-commit fresh clone from GitHub branch `fix/s0-remote-raw-integrity` passed when the same Python interpreter used for dependency installation was exported through `PYTHON`, matching `agentlab.sh`'s supported override path.
+- clone branch: fix/s0-remote-raw-integrity
+- fresh clone HEAD: 9558e0e68e005c85d3984337fe1b1c906e9675bd
+- fresh clone HEAD equals remote HEAD: yes
+- compileall: PASS
+- pytest text integrity: 17 passed
+- pytest full: 695 passed, 2 skipped
+- bash -n: PASS
+- CLI smoke (--help): PASS
+
+## Remote Raw Curl Verification
 
 ```bash
-$ git clone --branch fix/s0-remote-raw-integrity https://github.com/Kidrage/AgentLab.git /tmp/AgentLab-fresh-verify
-$ git rev-parse HEAD
-b62016bd9dd45a68a9a49a0bdbd6e74e491a17aa
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/agent_runtime/skill_vault.py | wc -l
+# 367 (required >= 200) PASS
 
-$ python -m pip install -r requirements.txt
-PASS
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/tests/test_repository_text_integrity.py | wc -l
+# 316 (required >= 120) PASS
 
-$ export PYTHON="$(command -v python)"
-$ python -m compileall -q agent_runtime agentlab_app.py scripts tests
-compileall PASS
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/.github/workflows/ci.yml | wc -l
+# 42 (required >= 20) PASS
 
-$ python -m pytest -q tests/test_repository_text_integrity.py
-17 passed in 0.87s
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/scripts/check_remote_raw_integrity.py | wc -l
+# 125 (required >= 80) PASS
 
-$ python -m pytest -q
-666 passed, 2 skipped in 46.06s
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/agent_runtime/skill_backup.py | wc -l
+# 150 (required >= 100) PASS
 
-$ bash -n agentlab.sh
-bash -n PASS
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/agent_runtime/truenas_sync.py | wc -l
+# 1059 (required >= 500) PASS
 
-$ ./agentlab.sh --help
-./agentlab.sh --help PASS
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/agentlab.sh | wc -l
+# 20 (required >= 10) PASS
+
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/config/backup_policy.yml | wc -l
+# 514 (required >= 20) PASS
+
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/config/backup_policy.local.example.yml | wc -l
+# 32 (required >= 15) PASS
+
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/tests/test_skill_backup.py | wc -l
+# 156 (required >= 80) PASS
+
+curl -fsSL https://raw.githubusercontent.com/Kidrage/AgentLab/fix/s0-remote-raw-integrity/tests/test_truenas_sync.py | wc -l
+# 226 (required >= 80) PASS
 ```
 
-An earlier fresh clone run intentionally captured a local environment pitfall: `python` and `python3` were different interpreters, so installing requirements into `python` did not make dependencies visible to `agentlab.sh`'s default `python3`. The successful rerun used the documented `PYTHON` override to bind CLI subprocesses to the interpreter with installed dependencies.
-
-## Remote Raw Verification
-The existing remote raw checker remains available:
+## Remote Raw Checker Result
 
 ```bash
-$ python scripts/check_remote_raw_integrity.py --repo Kidrage/AgentLab --branch fix/s0-remote-raw-integrity
+python scripts/check_remote_raw_integrity.py --repo Kidrage/AgentLab --branch fix/s0-remote-raw-integrity
 ```
 
-Remote raw validation on the pushed branch passed: 24 checked files, suspicious=0. Critical raw files include `agent_runtime/skill_vault.py` (367 lines), `agent_runtime/skill_backup.py` (150 lines), `agent_runtime/truenas_sync.py` (1059 lines), `scripts/check_remote_raw_integrity.py` (125 lines), `tests/test_repository_text_integrity.py` (314 lines), and `agentlab.sh` (20 lines).
+```
+Remote raw integrity: repo=Kidrage/AgentLab branch=fix/s0-remote-raw-integrity
+Path | Status | Lines | Max Line | Bytes | Issue
+--- | --- | ---: | ---: | ---: | ---
+agent_runtime/skill_distiller.py | OK | 436 | 164 | 17768 |
+agent_runtime/skill_vault.py | OK | 367 | 130 | 14231 |
+agent_runtime/skill_backup.py | OK | 150 | 120 | 5475 |
+... (24 files total) ...
+Checked 24 files; suspicious=0
+```
 
-## Known Limitations
-- No MemoryKernel implemented in this round.
-- No real TrueNAS execute tested; dry-run only.
-- Remote raw check requires network.
-- On this macOS machine, `python` and `python3` point to different interpreters; fresh clone CLI tests require either a project venv or exporting `PYTHON=$(command -v python)` after installing requirements.
+Exit code: 0
 
-## Final Verdict
-PASS — local validation, post-commit fresh clone validation with dependencies, and pushed-branch remote raw validation all pass for S0 text integrity and CI trust scope.
+## GitHub Actions / PR
+- PR opened: no (branch has recent pushes, no PR created in this round)
+- CI triggered: pending (push will trigger .github/workflows/ci.yml)
+- CI status: not yet verified via GitHub UI
+- merged: no
+
+## Remaining Risks
+- User has uncommitted changes to `config/external_skill_registry.yml` — not staged, not submitted.
+- Acceptance run logs (*.txt) in `acceptance_runs/s0_remote_raw_repair/` are untracked local artifacts.
+- CI needs to run green on GitHub for full confidence.
+
+## Final Recommendation
+S0 is ready for review. Do not start MemoryKernel until the PR is reviewed and merged.

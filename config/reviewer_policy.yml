@@ -1,0 +1,46 @@
+reviewer_policy:
+  enabled: true
+
+  # Deterministic (non-LLM) reviewer checks
+  checks:
+    require_task_card: true
+    require_workflow_plan: true
+    require_evidence: true
+    require_final_report: false
+    fail_on_secret_like_text: true
+    fail_on_forbidden_local_paths: true
+
+  # Artifact requirements
+  required_artifacts:
+    - task_card.yml
+    - workflow_plan.yml
+
+  # Evidence requirements
+  evidence:
+    require_execution_log: true
+    require_changed_files_list: true
+    require_test_results_if_tests_declared: true
+
+  # Safety checks
+  safety:
+    block_on_secrets: true
+    block_on_forbidden_paths: true
+    block_on_unsafe_actions: true
+
+  # Cost checks
+  cost:
+    fail_on_budget_overrun: true
+    warn_on_cost_unknown: true
+
+  # Retry checks
+  retry:
+    block_on_max_attempts_exceeded: true
+    max_attempts_from_history: true
+
+  # Verdict mapping
+  verdict:
+    critical_finding: BLOCKED
+    high_finding: FAIL
+    medium_finding: NEEDS_REVISION
+    low_finding: PASS_WITH_WARNINGS
+    no_findings: PASS

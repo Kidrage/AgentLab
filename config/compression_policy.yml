@@ -1,0 +1,43 @@
+version: 1
+
+compression_levels:
+  C0_direct:
+    description: 原样输入，不压缩
+  C1_trim:
+    description: 删除明显重复、空白、噪声、超长日志
+  C2_extractive:
+    description: 只抽取原文片段，不改写
+  C3_query_focused_compression:
+    description: 根据任务问题过滤句子/chunk
+  C4_hierarchical_summary:
+    description: 分章/分块摘要，再合并
+  C5_graph_or_tree_index:
+    description: 构建实体图/摘要树/依赖图
+  C6_externalize_and_drilldown:
+    description: 原文留磁盘/数据库，只给索引和引用，需要时 drill down
+
+safety_rules:
+  code:
+    lossy_allowed: false
+    allowed_levels: [C0_direct, C2_extractive, C5_graph_or_tree_index, C6_externalize_and_drilldown]
+  legal:
+    lossy_allowed: false
+    allowed_levels: [C2_extractive, C6_externalize_and_drilldown]
+  config:
+    lossy_allowed: false
+    allowed_levels: [C0_direct, C2_extractive]
+  tests:
+    lossy_allowed: false
+    allowed_levels: [C2_extractive, C6_externalize_and_drilldown]
+  narrative:
+    lossy_allowed: true
+    allowed_levels: [C3_query_focused_compression, C4_hierarchical_summary, C5_graph_or_tree_index]
+  web:
+    lossy_allowed: true
+    allowed_levels: [C3_query_focused_compression, C6_externalize_and_drilldown]
+  data:
+    lossy_allowed: false
+    allowed_levels: [C6_externalize_and_drilldown]
+  image:
+    lossy_allowed: partial
+    allowed_levels: [C2_extractive, C3_query_focused_compression, C6_externalize_and_drilldown]

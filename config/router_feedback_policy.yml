@@ -1,0 +1,44 @@
+router_feedback_policy:
+  enabled: true
+
+  # Safety: never modify production router policy without explicit approval
+  safety:
+    dry_run_only_by_default: true
+    forbid_production_mutations: true
+    require_approval_for_apply: true
+
+  # Recommendation thresholds
+  thresholds:
+    # Minimum review score for "prefer" recommendation
+    min_review_score_for_prefer: 0.85
+    # Number of consecutive failures before "quarantine"
+    quarantine_after_failures: 3
+    # Number of consecutive failures before "avoid"
+    avoid_after_failures: 2
+
+  # Recommendation actions
+  actions:
+    # success + high score → keep or prefer
+    success_high_score: prefer
+    # success + medium score → keep
+    success_medium_score: keep
+    # success + low score → keep
+    success_low_score: keep
+    # needs_revision → neutral or watchlist
+    needs_revision: watchlist
+    # fail → avoid
+    fail: avoid
+    # blocked/unsafe → quarantine
+    blocked: quarantine
+
+  # Evidence requirements
+  evidence:
+    require_review_verdict: true
+    require_provider_feedback: true
+    min_evidence_files: 1
+
+  # Ledger
+  ledger:
+    write_provider_feedback_ledger: true
+    write_router_feedback_ledger: true
+    ledger_path: "projects/{project}/provider_feedback_ledger.yml"

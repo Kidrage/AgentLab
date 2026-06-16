@@ -1,0 +1,6 @@
+goal: finish task
+constraints:
+  - no network
+decisions:
+  - use deterministic packer
+failed_attempts: []
