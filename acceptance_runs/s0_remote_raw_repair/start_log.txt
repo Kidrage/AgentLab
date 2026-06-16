@@ -1,0 +1,20 @@
+7746adb S0-RemoteRawRepair: acceptance report confirming repository multiline health
+f9efd07 P2-Hotfix: Skill Vault execute-mode regression tests + text integrity guard update
+c6d84fe Fix skill vault migrate execute mode
+e8e6b2a Restore critical files as physical multiline text
+d924735 Fix remote raw integrity checker
+b9e8dbf Add central skill vault and raw integrity checks
+00f4cd4 Implement skill distillation and text integrity guards
+85c07ab fix: rsync subprocess arg splitting bug + restore multiline integrity
+38ec64a fix: restore multiline integrity for v3 backup files
+5cef97f feat: TrueNAS SSH 直连备份 + 任务分类备份体系
+a5ca990 S4-R2 update audit output artifacts
+80dc739 S4-R2 add recovery report with full verification results
+d7aa3fb S4-R2 restore true multiline integrity on remote main
+adac79c S4 recover text integrity and minimal E2E closure
+49d8c43 Revert "P2-G: autonomous task smoke demo with end-to-end closure artifacts"
+1974d71 P2-G: autonomous task smoke demo with end-to-end closure artifacts
+9a185a4 S3 defer Rich help smoke to CI entrypoint step
+e10f994 S3 force UTF-8 for P2 CLI smoke tests
+98b4c89 S3 stabilize P2 CLI help decoding
+9a253bb S3 isolate P2 CLI CI checks
