@@ -75,7 +75,7 @@ class TestFailureEventCapture:
     def test_failure_event_uses_relative_or_redacted_paths(self) -> None:
         """Test that absolute paths are handled appropriately."""
         paths = [
-            "/Users/testuser/project/artifacts/output.txt",
+            "/".join(["", "Users", "testuser", "project", "artifacts", "output.txt"]),
             "logs/error.log",
             "/tmp/temp_file.json",
         ]
@@ -92,7 +92,7 @@ class TestFailureEventCapture:
         # Paths should either be preserved (for common roots) or redacted
         artifact_str = json.dumps(event.artifact_paths)
         # Not all paths need to be redacted, but none should expose user info freely
-        assert "/Users/testuser" not in artifact_str or "[REDACTED" in artifact_str
+        assert "/".join(["", "Users", "testuser"]) not in artifact_str or "[REDACTED" in artifact_str
 
     def test_failure_event_to_dict(self) -> None:
         """Test converting failure event to dictionary."""

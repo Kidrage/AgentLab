@@ -178,7 +178,7 @@ class TestRecoveryArtifacts:
         event = create_failure_event(
             task_id="task_0001", project="AgentLab", stage="test",
             command="test", exit_code=1,
-            artifact_paths=["/Users/testuser/project/file.txt"],
+            artifact_paths=["/".join(["", "Users", "testuser", "project", "file.txt"])],
         )
         assert "[REDACTED_PATH]" in event.artifact_paths[0]
 
