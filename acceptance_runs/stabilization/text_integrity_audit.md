@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Total files scanned: 500
+- Total files scanned: 515
 - Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0

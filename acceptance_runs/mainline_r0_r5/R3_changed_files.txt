@@ -1,0 +1,17 @@
+# R3 Changed Files
+# Generated: 2026-06-17
+
+## Added
+agent_runtime/local_search/__init__.py
+agent_runtime/local_search/document.py
+agent_runtime/local_search/indexer.py
+agent_runtime/local_search/query.py
+agent_runtime/local_search/storage.py
+agent_runtime/local_search/evidence.py
+agent_runtime/local_search/cli.py
+config/local_search.yml
+docs/LOCAL_SEARCH.md
+tests/test_r3_local_search.py
+acceptance_runs/mainline_r0_r5/R3_acceptance_report.md
+acceptance_runs/mainline_r0_r5/R3_changed_files.txt
+acceptance_runs/mainline_r0_r5/R3_test_output.txt
