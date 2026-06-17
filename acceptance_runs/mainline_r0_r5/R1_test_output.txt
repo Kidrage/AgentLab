@@ -1,0 +1,86 @@
+=== audit ===
+
+Total files scanned: 500
+Suspicious files: 0
+
+PASS: No suspicious files or --fail-on-suspicious not set.
+
+=== compileall ===
+Listing 'agent_runtime/router_update'...
+Listing 'agent_runtime/search'...
+Listing 'agent_runtime/skills'...
+
+=== baseline acceptance ===
+======================================================================
+AgentLab Mainline Baseline Acceptance Report
+======================================================================
+
+## P0: 10 PASS, 0 WARN, 0 FAIL
+
+  ✅ CostLedger v2 (agent_runtime.costing.ledger)
+  ✅ Cost Pricing (agent_runtime.costing.pricing)
+  ✅ BudgetGate (agent_runtime.costing.budget)
+  ✅ Budget Planner (agent_runtime.budget_planner)
+  ✅ RepoManifest (agent_runtime.ingestion.repo_manifest)
+  ✅ CloneGuard (agent_runtime.ingestion.clone_guard)
+  ✅ ResourceLedger (agent_runtime.ingestion.resource_ledger)
+  ✅ Artifact Evidence Gate (agent_runtime.artifact_contract)
+  ✅ Pipeline Runner (agent_runtime.pipeline_runner)
+  ✅ Cost Tracker (agent_runtime.cost_tracker)
+
+## P1: 7 PASS, 0 WARN, 0 FAIL
+
+  ✅ External Skill Registry (agent_runtime.skills.registry)
+  ✅ ECC Inventory (agent_runtime.external_agents.ecc_inventory)
+  ✅ External Agent Handoff (agent_runtime.external_agents.handoff)
+  ✅ AnySearch Adapter (agent_runtime.search.anysearch_adapter)
+  ✅ CodeGraph Adapter (agent_runtime.ingestion.repo_indexers.codegraph_adapter)
+  ✅ Search Provider Base (agent_runtime.search.provider)
+  ✅ Local URL Reader (agent_runtime.search.local_url_reader)
+
+## P2: 24 PASS, 0 WARN, 0 FAIL
+
+  ✅ 3E Reviewer (agent_runtime.review.three_e_reviewer)
+  ✅ Review Models (agent_runtime.review.models)
+  ✅ Retry Manager (agent_runtime.retry.retry_manager)
+  ✅ Retry Policy (agent_runtime.retry.policy)
+  ✅ Provider Scorecard (agent_runtime.retry.scorecard)
+  ✅ Router Update Patch Applier (agent_runtime.router_update.patch_applier)
+  ✅ Router Update Patch Builder (agent_runtime.router_update.patch_builder)
+  ✅ Context Governance (agent_runtime.context_governance.context_pack)
+  ✅ P2 Closure Runner (agent_runtime.p2_closure.closure_runner)
+  ✅ P2 Capability Map (agent_runtime.p2_closure.capability_map)
+  ✅ Governance Performance (agent_runtime.governance.performance)
+  ✅ Governance Cost (agent_runtime.governance.cost)
+  ✅ Routing Feedback (agent_runtime.governance.routing_feedback)
+  ✅ Failure Event Capture (agent_runtime.recovery.failure_event)
+  ✅ Failure Classifier (agent_runtime.recovery.failure_classifier)
+  ✅ Failure Diagnosis (agent_runtime.recovery.diagnosis)
+  ✅ Recovery Plan (agent_runtime.recovery.recovery_plan)
+  ✅ Recovery Verdict (agent_runtime.recovery.verdict)
+  ✅ Retry Policy (Recovery) (agent_runtime.recovery.retry_policy)
+  ✅ Human Review (agent_runtime.recovery.human_review)
+  ✅ Resume Policy (agent_runtime.recovery.resume_policy)
+  ✅ Recovery Closure (agent_runtime.recovery.closure)
+  ✅ Closure Feedback (agent_runtime.recovery.closure_feedback)
+  ✅ Context Redaction (agent_runtime.recovery.redaction)
+
+----------------------------------------------------------------------
+TOTAL: 41 checks | 41 PASS | 0 WARN | 0 FAIL
+----------------------------------------------------------------------
+
+Verdict: PASS
+
+=== pytest R1 ===
+...............................                                          [100%]
+31 passed in 1.89s
+
+=== pytest full ===
+........................................................................ [ 99%]
+....                                                                     [100%]
+1010 passed, 2 skipped in 96.33s (0:01:36)
+
+=== CLI ===
+                                                                                
+ Usage: run_task.py [OPTIONS] COMMAND [ARGS]...                                 
+                                                                                

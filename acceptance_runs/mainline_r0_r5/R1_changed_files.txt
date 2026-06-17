@@ -1,0 +1,13 @@
+# R1 Changed Files
+# Generated: 2026-06-17
+
+## Modified
+atomic_io.py
+
+## Added
+scripts/mainline_baseline_acceptance.py
+tests/test_mainline_baseline_acceptance.py
+docs/MAINLINE_BASELINE_STATUS.md
+acceptance_runs/mainline_r0_r5/R1_acceptance_report.md
+acceptance_runs/mainline_r0_r5/R1_changed_files.txt
+acceptance_runs/mainline_r0_r5/R1_test_output.txt

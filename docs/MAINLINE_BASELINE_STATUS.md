@@ -1,0 +1,106 @@
+# Mainline Baseline Status
+
+Last verified: 2026-06-17 (R1 stage of mainline-r0-r5-repair)
+
+## P0 — Core Infrastructure
+
+| Module | Status | Key File(s) |
+|--------|--------|-------------|
+| CostLedger v2 | ✅ Active | `agent_runtime/costing/ledger.py` |
+| Cost Pricing | ✅ Active | `agent_runtime/costing/pricing.py` |
+| BudgetGate | ✅ Active | `agent_runtime/costing/budget.py` |
+| Budget Planner | ✅ Active | `agent_runtime/budget_planner.py` |
+| RepoManifest | ✅ Active | `agent_runtime/ingestion/repo_manifest.py` |
+| CloneGuard | ✅ Active | `agent_runtime/ingestion/clone_guard.py` |
+| ResourceLedger | ✅ Active | `agent_runtime/ingestion/resource_ledger.py` |
+| Artifact Evidence Gate | ✅ Active | `agent_runtime/artifact_contract.py` |
+| Pipeline Runner | ✅ Active | `agent_runtime/pipeline_runner.py` |
+| Cost Tracker | ✅ Active | `agent_runtime/cost_tracker.py` |
+
+## P1 — External Integration
+
+| Module | Status | Key File(s) | Safety |
+|--------|--------|-------------|--------|
+| External Skill Registry | ✅ Active | `agent_runtime/skills/registry.py` | Disabled by default |
+| ECC Inventory | ✅ Active | `agent_runtime/external_agents/ecc_inventory.py` | Scan-only |
+| External Agent Handoff | ✅ Active | `agent_runtime/external_agents/handoff.py` | Approval-gated |
+| AnySearch Adapter | ✅ Active | `agent_runtime/search/anysearch_adapter.py` | Default disabled |
+| CodeGraph Adapter | ✅ Active | `agent_runtime/ingestion/repo_indexers/codegraph_adapter.py` | Local/dry-run only |
+| Search Provider Base | ✅ Active | `agent_runtime/search/provider.py` | Abstract |
+| Local URL Reader | ✅ Active | `agent_runtime/search/local_url_reader.py` | Local-only |
+
+**P1 Safety Posture:**
+- External skills are NOT enabled by default.
+- External skills are NOT executed during tests.
+- AnySearch defaults to disabled in config.
+- CodeGraph is local-only, dry-run, approval-gated.
+- ECC inventory is scan-only (no script execution).
+
+## P2 — Review, Retry, Governance, Recovery
+
+### P2-B: Review
+| Module | Status | Key File(s) |
+|--------|--------|-------------|
+| 3E Reviewer | ✅ Active | `agent_runtime/review/three_e_reviewer.py` |
+| Review Models | ✅ Active | `agent_runtime/review/models.py` |
+| Review Policy | ✅ Active | `agent_runtime/review/policy.py` |
+
+### P2-C: Retry
+| Module | Status | Key File(s) |
+|--------|--------|-------------|
+| Retry Manager | ✅ Active | `agent_runtime/retry/retry_manager.py` |
+| Retry Policy | ✅ Active | `agent_runtime/retry/policy.py` |
+| Provider Scorecard | ✅ Active | `agent_runtime/retry/scorecard.py` |
+
+### P2-D: Router Update
+| Module | Status | Key File(s) |
+|--------|--------|-------------|
+| Patch Applier | ✅ Active | `agent_runtime/router_update/patch_applier.py` |
+| Patch Builder | ✅ Active | `agent_runtime/router_update/patch_builder.py` |
+
+### P2-G: Context Governance
+| Module | Status | Key File(s) |
+|--------|--------|-------------|
+| Context Pack | ✅ Active | `agent_runtime/context_governance/context_pack.py` |
+
+### P2-F: P2 Closure
+| Module | Status | Key File(s) |
+|--------|--------|-------------|
+| Closure Runner | ✅ Active | `agent_runtime/p2_closure/closure_runner.py` |
+| Capability Map | ✅ Active | `agent_runtime/p2_closure/capability_map.py` |
+
+### P2 Shared: Governance
+| Module | Status | Key File(s) |
+|--------|--------|-------------|
+| Performance | ✅ Active | `agent_runtime/governance/performance.py` |
+| Cost | ✅ Active | `agent_runtime/governance/cost.py` |
+| Routing Feedback | ✅ Active | `agent_runtime/governance/routing_feedback.py` |
+
+### P2-I/K: Failure Recovery
+| Module | Status | Key File(s) |
+|--------|--------|-------------|
+| Failure Event | ✅ Active | `agent_runtime/recovery/failure_event.py` |
+| Failure Classifier | ✅ Active | `agent_runtime/recovery/failure_classifier.py` |
+| Diagnosis | ✅ Active | `agent_runtime/recovery/diagnosis.py` |
+| Recovery Plan | ✅ Active | `agent_runtime/recovery/recovery_plan.py` |
+| Recovery Verdict | ✅ Active | `agent_runtime/recovery/verdict.py` |
+| Retry Policy | ✅ Active | `agent_runtime/recovery/retry_policy.py` |
+| Human Review | ✅ Active | `agent_runtime/recovery/human_review.py` |
+| Resume Policy | ✅ Active | `agent_runtime/recovery/resume_policy.py` |
+| Closure | ✅ Active | `agent_runtime/recovery/closure.py` |
+| Closure Feedback | ✅ Active | `agent_runtime/recovery/closure_feedback.py` |
+| Context Redaction | ✅ Active | `agent_runtime/recovery/redaction.py` |
+
+## CLI Recovery Commands
+
+All 9 P2 recovery commands are registered and accessible:
+
+- `failure-diagnose`
+- `failure-status`
+- `recovery-plan`
+- `recovery-smoke`
+- `recovery-approve`
+- `recovery-reject`
+- `recovery-stop`
+- `recovery-status`
+- `recovery-feedback`

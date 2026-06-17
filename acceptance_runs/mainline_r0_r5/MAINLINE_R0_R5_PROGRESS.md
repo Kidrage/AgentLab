@@ -1,11 +1,11 @@
 # Mainline R0-R5 Progress
 
 ## Current Stage
-R0 (completed)
+R1 (completed)
 
 ## Completed Stages
-- R0: PASS, pending commit, 979 passed / 2 skipped / 0 failed
-- R1: pending
+- R0: PASS, commit b1a76bb, 979 passed / 2 skipped / 0 failed
+- R1: PASS, pending commit, 1010 passed / 2 skipped / 0 failed, 41/41 baseline checks
 - R2: pending
 - R3: pending
 - R4: pending
@@ -15,7 +15,7 @@ R0 (completed)
 None
 
 ## Next Stage Gate
-R1 — Stable Baseline Re-Acceptance for P0/P1/P2
-- Requires R0 commit to be clean
-- Must verify P0/P1/P2 behavior still works after R0 integrity repairs
-- Must not add new features
+R2 — Skill Registry Information Completion
+- Requires R0+R1 to be clean
+- Must extend skill registry metadata schema
+- Must preserve backward compatibility
