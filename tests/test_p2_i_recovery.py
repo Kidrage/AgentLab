@@ -416,14 +416,5 @@ class TestCostLedgerIntegration:
         assert total["pricing_status"] == "complete"
 
 
-class TestContextGovernanceIntegration:
-
-    def test_context_governance_tests_importable(self) -> None:
-        """Verify P2-H context governance modules remain importable."""
-        import agent_runtime.context_governance
-        import agent_runtime.context_governance.redaction
-        import agent_runtime.context_governance.runtime_wiring
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from agent_runtime.context_governance.redaction import redact_context_text
+from agent_runtime.recovery.redaction import redact_context_text
 
 
 @dataclass
