@@ -1,0 +1,40 @@
+# R5: Skill Discovery Policy
+# Governs the deterministic skill discovery candidate flow.
+# Discovery produces candidates only — never installs, enables, or promotes.
+
+enabled: false
+no_network: true
+no_auto_import: true
+no_auto_promote: true
+require_human_review: true
+
+candidate_defaults:
+  enabled: false
+  lifecycle_status: candidate
+  requires_human_review: true
+  requires_tests: true
+  requires_metadata_completion: true
+
+discovery_sources:
+  - scripts
+  - docs
+  - tests
+  - acceptance_runs
+  - recovery_history
+  - closure_feedback
+
+excluded_sources:
+  - external_unverified
+  - unlicensed
+
+promotion_requirements:
+  requires_human_review: true
+  requires_tests: true
+  requires_metadata_completion: true
+  requires_staging_verification: true
+
+safety:
+  never_execute_external_code: true
+  never_copy_external_source: true
+  never_auto_enable: true
+  external_derived_license_review_required: true

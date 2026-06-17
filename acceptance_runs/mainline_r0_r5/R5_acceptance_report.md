@@ -38,11 +38,37 @@ PASS
 - `write_candidates()` / `load_candidates()` — YAML round-trip
 - `merge_candidates()` — merges and deduplicates candidate lists
 
+### Added `config/skill_discovery_policy.yml` (closure)
+- `enabled: false`, `no_network: true`, `no_auto_import: true`, `no_auto_promote: true`
+- `require_human_review: true`
+- Candidate defaults: `enabled: false`, `lifecycle_status: candidate`
+- Promotion requirements: human review, tests, metadata completion, staging verification
+- Safety: never execute external code, never copy external source, never auto-enable
+
 ### Added `docs/SKILL_DISCOVERY_V1.md`
 - Full documentation: overview, schema, sources, heuristics, safety
 
 ### Added `tests/test_r5_skill_discovery.py` (607 lines)
 - 49 tests covering discovery, candidates, policy, writer, safety
+
+## Commands Run (closure)
+
+```
+python scripts/audit_text_integrity.py
+  → 539 files scanned, 0 suspicious — PASS
+
+python -m compileall agent_runtime agentlab_app.py
+  → clean — PASS
+
+python -m pytest -q tests/test_r5_skill_discovery.py
+  → 49 passed — PASS
+
+python -m pytest -q
+  → 1151 passed, 2 skipped — PASS
+
+./agentlab.sh --help
+  → all commands present — PASS
+```
 
 ## Acceptance Criteria Checklist
 
@@ -59,11 +85,12 @@ PASS
 | 9 | Tests pass | ✅ 49/49 R5, 1151 total |
 | 10 | Docs exist | ✅ docs/SKILL_DISCOVERY_V1.md |
 | 11 | R5 report written | ✅ This file |
-| 12 | R5 commit created | ✅ Pending |
+| 12 | R5 commit created | ✅ 7aa623e (initial) + closure pending |
 
 ## Safety Confirmation
-- No skills were installed or promoted
-- No external skills were executed
-- No source code was copied from external sources
-- No candidate skill was auto-enabled
-- Discovery produces candidates only
+- No skills were installed or promoted.
+- No external skills were executed.
+- No source code was copied from external sources.
+- No candidate skill was auto-enabled.
+- Discovery produces candidates only.
+- No new functionality was added in this closure commit.
