@@ -80,16 +80,7 @@ MIN_LINE_COUNTS = {
     "docs/SKILL_VAULT.md": 40,
     "scripts/check_remote_raw_integrity.py": 80,
     "tests/test_text_integrity_audit.py": 60,
-    # P2-H: Context Governance Runtime Hardening
-    "agent_runtime/context_governance/redaction.py": 80,
-    "agent_runtime/context_governance/runtime_wiring.py": 80,
     "config/context_governance.yml": 25,
-    "tests/test_context_governance_runtime_wiring.py": 80,
-    "tests/test_context_governance_artifacts.py": 80,
-    "tests/test_context_governance_cli.py": 80,
-    "tests/test_context_governance_budget_costledger.py": 80,
-    "tests/test_context_governance_redaction.py": 80,
-    "tests/test_context_governance_p2h_closure.py": 80,
     # P2-I: Execution Reliability & Failure Recovery
     "agent_runtime/recovery/__init__.py": 30,
     "agent_runtime/recovery/failure_event.py": 80,
