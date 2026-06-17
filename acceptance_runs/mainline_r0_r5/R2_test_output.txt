@@ -1,0 +1,25 @@
+=== audit ===
+
+Total files scanned: 504
+Suspicious files: 0
+
+PASS: No suspicious files or --fail-on-suspicious not set.
+
+=== compileall ===
+Listing 'agent_runtime/router_update'...
+Listing 'agent_runtime/search'...
+Listing 'agent_runtime/skills'...
+
+=== R2 tests ===
+............................                                             [100%]
+28 passed in 0.15s
+
+=== full pytest ===
+........................................................................ [ 96%]
+................................                                         [100%]
+1038 passed, 2 skipped in 95.00s (0:01:35)
+
+=== CLI ===
+                                                                                
+ Usage: run_task.py [OPTIONS] COMMAND [ARGS]...                                 
+                                                                                

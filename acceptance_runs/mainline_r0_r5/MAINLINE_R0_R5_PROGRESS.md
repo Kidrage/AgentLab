@@ -1,12 +1,12 @@
 # Mainline R0-R5 Progress
 
 ## Current Stage
-R1 (completed)
+R2 (completed)
 
 ## Completed Stages
 - R0: PASS, commit b1a76bb, 979 passed / 2 skipped / 0 failed
-- R1: PASS, pending commit, 1010 passed / 2 skipped / 0 failed, 41/41 baseline checks
-- R2: pending
+- R1: PASS, commit 147268e, 1010 passed / 2 skipped / 0 failed
+- R2: PASS, pending commit, 1038 passed / 2 skipped / 0 failed, 28 R2 tests
 - R3: pending
 - R4: pending
 - R5: pending
@@ -15,7 +15,7 @@ R1 (completed)
 None
 
 ## Next Stage Gate
-R2 — Skill Registry Information Completion
-- Requires R0+R1 to be clean
-- Must extend skill registry metadata schema
-- Must preserve backward compatibility
+R3 — Local Search and Project Knowledge Index
+- Requires R0+R1+R2 to be clean
+- Must add local-first knowledge index
+- Must use Python stdlib only (no external DB)
