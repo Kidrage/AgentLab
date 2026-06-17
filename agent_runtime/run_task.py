@@ -4705,6 +4705,63 @@ def recovery_status_cmd(
             console.print(f"  Indexed failures: {len(indexed)}")
 
 
+@app.command("recovery-feedback")
+def recovery_feedback_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task identifier"),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    output_dir: Optional[str] = typer.Option(None, "--output-dir", help="Output directory for feedback artifacts."),
+) -> None:
+    """Generate P2-L closure quality feedback from recovery history.
+
+    Reads recovery artifacts from the task run directory and writes
+    ``closure_quality_feedback.json`` and ``closure_quality_feedback.md``.
+    """
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+
+    if not run_dir.exists():
+        console.print(f"[red]Task run directory does not exist: {run_dir}[/red]")
+        raise typer.Exit(code=1)
+
+    out = Path(output_dir) if output_dir else run_dir
+
+    from agent_runtime.recovery.closure_feedback import (
+        load_recovery_history,
+        derive_closure_quality_feedback,
+        write_closure_feedback_json,
+        write_closure_feedback_report,
+    )
+
+    console.print(f"Loading recovery history from {run_dir} ...")
+    history, warnings = load_recovery_history(run_dir)
+
+    for w in warnings:
+        console.print(f"  [yellow][WARNING] {w}[/yellow]")
+
+    feedback = derive_closure_quality_feedback(
+        task_id=task_id,
+        recovery_history=history,
+    )
+
+    json_path = write_closure_feedback_json(feedback, out)
+    md_path = write_closure_feedback_report(feedback, out)
+
+    console.print(f"\n[bold]Closure Quality Feedback — {task_id}[/bold]")
+    console.print(f"  Verdict:            {feedback.verdict}")
+    console.print(f"  Quality Score:      {feedback.quality_score}")
+    console.print(f"  Recovery Used:      {feedback.recovery_used}")
+    console.print(f"  Recovery Success:   {feedback.recovery_successful}")
+    console.print(f"  Retry Count:        {feedback.retry_count}")
+    console.print(f"  Human Review:       {feedback.human_review_required}")
+    if feedback.blocked_reason:
+        console.print(f"  Blocked Reason:     {feedback.blocked_reason}")
+    console.print(f"  Lessons:            {len(feedback.lessons)}")
+    console.print(f"  Recommended Actions: {feedback.recommended_actions}")
+    console.print(f"\n  [green]JSON:[/green] {json_path}")
+    console.print(f"  [green]MD:[/green]   {md_path}")
+
+
 def _derive_next_action(
     verdict: dict | None,
     latest_decision,  # HumanReviewDecision | None

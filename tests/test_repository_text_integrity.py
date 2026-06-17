@@ -98,6 +98,10 @@ MIN_LINE_COUNTS = {
     "tests/test_recovery_text_integrity.py": 80,
     "tests/test_recovery_costledger_integration.py": 80,
     ".github/workflows/ci.yml": 25,
+    # P2-L: Recovery closure feedback
+    "agent_runtime/recovery/closure_feedback.py": 80,
+    "tests/test_p2_l_closure_feedback.py": 80,
+    "docs/P2_L_CLOSURE_FEEDBACK.md": 20,
 }
 
 

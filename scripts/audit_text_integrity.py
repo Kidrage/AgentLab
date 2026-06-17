@@ -96,6 +96,10 @@ MIN_LINE_COUNTS = {
     "tests/test_text_integrity_audit.py": 60,
     "tests/test_p2_closure.py": 80,
     "agentlab.sh": 20,
+    # P2-L: Recovery closure feedback
+    "agent_runtime/recovery/closure_feedback.py": 80,
+    "tests/test_p2_l_closure_feedback.py": 80,
+    "docs/P2_L_CLOSURE_FEEDBACK.md": 20,
 }
 
 

@@ -56,6 +56,14 @@ from agent_runtime.recovery.retry_ledger import (
 )
 from agent_runtime.recovery.closure import build_recovery_closure_summary
 from agent_runtime.recovery.resume_policy import derive_recovery_next_action
+from agent_runtime.recovery.closure_feedback import (
+    ClosureQualityFeedback,
+    RecoveryHistoryEntry,
+    derive_closure_quality_feedback,
+    load_recovery_history,
+    write_closure_feedback_json,
+    write_closure_feedback_report,
+)
 
 __all__ = [
     "FailureEvent",
@@ -84,4 +92,10 @@ __all__ = [
     "retry_attempt_count",
     "build_recovery_closure_summary",
     "derive_recovery_next_action",
+    "ClosureQualityFeedback",
+    "RecoveryHistoryEntry",
+    "derive_closure_quality_feedback",
+    "load_recovery_history",
+    "write_closure_feedback_json",
+    "write_closure_feedback_report",
 ]
