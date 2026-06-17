@@ -1,0 +1,13 @@
+# R5 Changed Files
+# Generated: 2026-06-17
+
+## Added
+agent_runtime/skills/discovery.py
+agent_runtime/skills/discovery_policy.py
+agent_runtime/skills/candidate_writer.py
+docs/SKILL_DISCOVERY_V1.md
+tests/test_r5_skill_discovery.py
+acceptance_runs/mainline_r0_r5/R5_acceptance_report.md
+acceptance_runs/mainline_r0_r5/R5_changed_files.txt
+acceptance_runs/mainline_r0_r5/R5_test_output.txt
+acceptance_runs/mainline_r0_r5/MAINLINE_R0_R5_FINAL_REPORT.md

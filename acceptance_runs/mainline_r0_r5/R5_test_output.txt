@@ -1,0 +1,20 @@
+=== audit ===
+
+Total files scanned: 536
+Suspicious files: 0
+
+PASS: No suspicious files or --fail-on-suspicious not set.
+
+=== R5 tests ===
+.................................................                        [100%]
+49 passed in 0.21s
+
+=== full pytest ===
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1151 passed, 2 skipped, 11 warnings in 93.57s (0:01:33)
+
+=== CLI ===
+                                                                                
+ Usage: run_task.py [OPTIONS] COMMAND [ARGS]...                                 
+                                                                                
