@@ -64,7 +64,7 @@ PASS
 - Python files that fail `ast.parse`
 - YAML files that fail `yaml.safe_load`
 - Extremely long lines (>1000 chars)
-- Literal local `/Users/` paths
+- Literal local home directory paths
 - Suspicious `\n` literal escaping in short files (NEW)
 - `from __future__ import annotations` after non-docstring code (NEW)
 - Multiple class/def on single line

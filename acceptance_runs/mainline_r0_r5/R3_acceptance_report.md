@@ -59,7 +59,7 @@ PASS
 - **JSONL storage** — simple, appendable, human-readable
 - **BM25 scoring** — standard IR baseline, deterministic
 - **Secret redaction** — lines with API key/password/token assignments are filtered
-- **Path redaction** — local `/Users/...` paths replaced with `<HOME>`
+- **Path redaction** — local absolute home paths replaced with `<HOME>`
 
 ## Safety Confirmation
 - No external APIs called

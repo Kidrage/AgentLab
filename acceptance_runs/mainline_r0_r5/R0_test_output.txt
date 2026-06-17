@@ -1,5 +1,5 @@
 === scripts/audit_text_integrity.py ===
-Markdown report written to /Users/saintpeter/Desktop/AgentLab/acceptance_runs/stabilization/text_integrity_audit.md
+Markdown report written to <HOME>/Desktop/AgentLab/acceptance_runs/stabilization/text_integrity_audit.md
 
 Total files scanned: 495
 Suspicious files: 0

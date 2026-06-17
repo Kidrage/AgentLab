@@ -1,0 +1,37 @@
+# R4: Native Web Intelligence Configuration
+web_intelligence:
+  enabled: false
+  mode: mock_first
+  obey_robots_txt: true
+
+  rate_limit:
+    requests_per_minute: 10
+
+  fetch:
+    timeout_seconds: 10
+    max_response_kb: 512
+    allowed_schemes:
+      - http
+      - https
+
+  safety:
+    block_private_networks: true
+    block_file_urls: true
+    block_login_required: true
+    block_paywall_bypass: true
+    blocked_schemes:
+      - file
+      - ftp
+      - ssh
+      - data
+      - javascript
+    blocked_hostnames:
+      - localhost
+      - 127.0.0.1
+      - "::1"
+
+  cache:
+    root: ".agentlab_runtime/web_cache"
+
+  citation_ledger:
+    path: ".agentlab_runtime/citation_ledger.jsonl"

@@ -1,0 +1,15 @@
+=== audit ===
+
+Total files scanned: 530
+Suspicious files: 0
+
+PASS: No suspicious files or --fail-on-suspicious not set.
+
+=== R4 tests ===
+.....................................                                    [100%]
+37 passed in 0.09s
+
+=== full pytest ===
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1102 passed, 2 skipped, 11 warnings in 100.16s (0:01:40)
