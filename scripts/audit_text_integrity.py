@@ -40,6 +40,7 @@ SCAN_PATTERNS = [
     "acceptance_runs/**/*.yaml",
     "acceptance_runs/**/*.md",
     "docs/*.md",
+    "docs/**/*.md",
     "README.md",
     "agentlab.sh",
     "*.sh",
@@ -100,6 +101,12 @@ MIN_LINE_COUNTS = {
     "agent_runtime/recovery/closure_feedback.py": 80,
     "tests/test_p2_l_closure_feedback.py": 80,
     "docs/P2_L_CLOSURE_FEEDBACK.md": 20,
+    # R0: Additional recovery files
+    "agent_runtime/recovery/closure.py": 80,
+    "agent_runtime/recovery/human_review.py": 80,
+    "agent_runtime/recovery/redaction.py": 80,
+    "agent_runtime/recovery/resume_policy.py": 80,
+    "agent_runtime/recovery/retry_ledger.py": 80,
 }
 
 
@@ -116,6 +123,8 @@ class FileAudit:
     contains_docstring_future_same_line: bool
     contains_multiple_top_level_defs_one_line: bool
     issue_summary: str
+    future_import_after_code: bool = False
+    suspicious_literal_newlines: bool = False
 
 
 # Directories to always exclude from scanning
@@ -195,6 +204,38 @@ def _check_python(path: Path, root: Path) -> FileAudit:
             issues.append("line has many import statements")
             break
 
+    # R0: Detect suspicious literal \\n sequences where real newlines expected.
+    # Heuristic: if a short file (<20 lines) has many literal \\n occurrences
+    # outside of obvious string contexts, it may be line-compressed.
+    literal_backslash_n_count = content.count("\\n")
+    if line_count < 20 and literal_backslash_n_count > 30:
+        suspicious = True
+        issues.append(
+            f"suspicious literal \\n count ({literal_backslash_n_count}) "
+            f"in short file ({line_count} lines)"
+        )
+
+    # R0: Detect from __future__ import annotations after non-docstring code.
+    future_import_after_code = False
+    future_import_marker = "from __future__" + " import annotations"
+    seen_future = False
+    seen_code = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if future_import_marker in stripped:
+            seen_future = True
+            if seen_code:
+                future_import_after_code = True
+                issues.append("from __future__ import annotations appears after code")
+                break
+            continue
+        if stripped.startswith(('"""', "'''")):
+            continue
+        if not seen_future:
+            seen_code = True
+
     # Heuristic suspicious
     if line_count <= 5 and size > 1000:
         suspicious = True
@@ -212,6 +253,8 @@ def _check_python(path: Path, root: Path) -> FileAudit:
         )
         suspicious = True
 
+    literal_nl_suspicious = line_count < 20 and literal_backslash_n_count > 30
+
     return FileAudit(
         path=rel,
         line_count=line_count,
@@ -223,6 +266,8 @@ def _check_python(path: Path, root: Path) -> FileAudit:
         contains_docstring_future_same_line=docstring_future_same_line,
         contains_multiple_top_level_defs_one_line=multiple_defs,
         issue_summary="; ".join(issues) if issues else "ok",
+        future_import_after_code=future_import_after_code,
+        suspicious_literal_newlines=literal_nl_suspicious,
     )
 
 

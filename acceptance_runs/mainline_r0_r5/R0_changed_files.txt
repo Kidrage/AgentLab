@@ -1,0 +1,13 @@
+# R0 Changed Files
+# Generated: 2026-06-17
+
+## Modified
+scripts/audit_text_integrity.py
+tests/test_repository_text_integrity.py
+
+## Added
+pytest.ini
+acceptance_runs/mainline_r0_r5/R0_acceptance_report.md
+acceptance_runs/mainline_r0_r5/R0_changed_files.txt
+acceptance_runs/mainline_r0_r5/R0_test_output.txt
+acceptance_runs/mainline_r0_r5/MAINLINE_R0_R5_PROGRESS.md

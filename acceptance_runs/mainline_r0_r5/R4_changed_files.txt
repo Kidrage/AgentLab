@@ -1,0 +1,26 @@
+# R4 Changed Files
+# Generated: 2026-06-17
+
+## Added
+agent_runtime/intelligence/__init__.py
+agent_runtime/intelligence/web_policy.py
+agent_runtime/intelligence/web_fetcher.py
+agent_runtime/intelligence/web_cache.py
+agent_runtime/intelligence/source_extractor.py
+agent_runtime/intelligence/source_ranker.py
+agent_runtime/intelligence/research_planner.py
+agent_runtime/intelligence/research_brief.py
+agent_runtime/intelligence/citation_ledger.py
+agent_runtime/intelligence/cli.py
+config/web_intelligence.yml
+config/source_quality_policy.yml
+docs/NATIVE_WEB_INTELLIGENCE.md
+tests/test_r4_web_intelligence.py
+acceptance_runs/mainline_r0_r5/R4_acceptance_report.md
+acceptance_runs/mainline_r0_r5/R4_changed_files.txt
+acceptance_runs/mainline_r0_r5/R4_test_output.txt
+
+## Modified (path redaction)
+acceptance_runs/mainline_r0_r5/R0_acceptance_report.md
+acceptance_runs/mainline_r0_r5/R0_test_output.txt
+acceptance_runs/mainline_r0_r5/R3_acceptance_report.md

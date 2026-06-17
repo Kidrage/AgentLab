@@ -1,0 +1,46 @@
+# R3: Local Search Configuration
+local_search:
+  enabled: true
+  index_path: ".agentlab_runtime/local_search.jsonl"
+
+  source_categories:
+    - repo_files
+    - docs
+    - config
+    - skills
+    - tests
+    - scripts
+    - acceptance_runs
+    - task_runs
+    - recovery_history
+    - closure_feedback
+    - external_inventory
+    - project_brain
+    - web_snapshots
+
+  exclude_dirs:
+    - .venv
+    - __pycache__
+    - .git
+    - .pytest_cache
+    - node_modules
+    - dist
+    - build
+    - .egg-info
+    - htmlcov
+    - .mypy_cache
+    - .ruff_cache
+    - DSP-Spacializer
+
+  max_file_size_bytes: 1048576  # 1 MB
+
+  redact:
+    local_paths: true
+    secrets: true
+
+  query:
+    default_max_results: 20
+    bm25_k1: 1.5
+    bm25_b: 0.75
+    exact_phrase_boost: 1.5
+    min_token_length: 2

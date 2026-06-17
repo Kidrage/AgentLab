@@ -102,6 +102,12 @@ MIN_LINE_COUNTS = {
     "agent_runtime/recovery/closure_feedback.py": 80,
     "tests/test_p2_l_closure_feedback.py": 80,
     "docs/P2_L_CLOSURE_FEEDBACK.md": 20,
+    # R0: Additional recovery files
+    "agent_runtime/recovery/closure.py": 80,
+    "agent_runtime/recovery/human_review.py": 80,
+    "agent_runtime/recovery/redaction.py": 80,
+    "agent_runtime/recovery/resume_policy.py": 80,
+    "agent_runtime/recovery/retry_ledger.py": 80,
 }
 
 
@@ -337,3 +343,88 @@ def test_skill_vault_is_gitignored() -> None:
     assert "memory/global/skills/" in gitignore
     assert "!config/skill_vault.yml" in gitignore
     assert "!docs/SKILL_VAULT.md" in gitignore
+
+
+# ── R0 mainline repair: additional guards ──────────────────────────────
+
+
+def test_audit_detects_suspicious_literal_newlines(tmp_path: Path) -> None:
+    """A short file with many literal \\n sequences should be flagged."""
+    module = _load_audit_module()
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    bad = scripts / "compressed.py"
+    bad.write_text(
+        "x = 'line1\\nline2\\nline3\\nline4\\nline5\\nline6\\nline7\\n"
+        "line8\\nline9\\nline10\\nline11\\nline12\\nline13\\nline14\\n"
+        "line15\\nline16\\nline17\\nline18\\nline19\\nline20\\n"
+        "line21\\nline22\\nline23\\nline24\\nline25\\nline26\\n"
+        "line27\\nline28\\nline29\\nline30\\nline31\\n'\n",
+        encoding="utf-8",
+    )
+    audits = module.run_audit(tmp_path)
+    flagged = [a for a in audits if a.suspicious_literal_newlines]
+    assert any(a.path == "scripts/compressed.py" for a in flagged)
+
+
+def test_audit_detects_future_import_after_code(tmp_path: Path) -> None:
+    """Future annotations import after real code should be flagged."""
+    module = _load_audit_module()
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    bad = scripts / "bad_order.py"
+    bad.write_text(
+        "import os\n"
+        "x = 42\n"
+        "from __future__ import annotations\n"
+        "y = x + 1\n",
+        encoding="utf-8",
+    )
+    audits = module.run_audit(tmp_path)
+    flagged = [a for a in audits if a.future_import_after_code]
+    assert any(a.path == "scripts/bad_order.py" for a in flagged)
+
+
+def test_audit_allows_future_import_after_docstring(tmp_path: Path) -> None:
+    """Future annotations import right after a docstring is fine."""
+    module = _load_audit_module()
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    good = scripts / "good_order.py"
+    good.write_text(
+        '"""Module docstring."""\n'
+        "from __future__ import annotations\n"
+        "import os\n"
+        "x = 42\n",
+        encoding="utf-8",
+    )
+    audits = module.run_audit(tmp_path)
+    flagged = [a for a in audits if a.future_import_after_code]
+    assert not any(a.path == "scripts/good_order.py" for a in flagged)
+
+
+def test_recovery_module_files_meet_minimum_lines() -> None:
+    """All tracked recovery module files must meet minimum line counts."""
+    recovery_dir = ROOT / "agent_runtime" / "recovery"
+    if not recovery_dir.exists():
+        return
+    for py_file in sorted(recovery_dir.glob("*.py")):
+        if py_file.name == "__init__.py":
+            continue
+        count = _line_count(py_file)
+        assert count >= 80, f"{_relative(py_file)} has only {count} lines (need >= 80)"
+
+
+def _load_audit_module():
+    """Helper to load the audit script as a module."""
+    import importlib.util
+    import sys as _sys
+    spec = importlib.util.spec_from_file_location(
+        "audit_text_integrity_r0",
+        ROOT / "scripts" / "audit_text_integrity.py",
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    _sys.modules["audit_text_integrity_r0"] = module
+    spec.loader.exec_module(module)
+    return module

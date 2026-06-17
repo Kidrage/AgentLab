@@ -1,0 +1,13 @@
+# R2 Changed Files
+# Generated: 2026-06-17
+
+## Modified
+agent_runtime/skills/registry.py
+
+## Added
+agent_runtime/skills/metadata.py
+tests/test_r2_skill_registry_metadata.py
+docs/SKILL_REGISTRY_METADATA.md
+acceptance_runs/mainline_r0_r5/R2_acceptance_report.md
+acceptance_runs/mainline_r0_r5/R2_changed_files.txt
+acceptance_runs/mainline_r0_r5/R2_test_output.txt

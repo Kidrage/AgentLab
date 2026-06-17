@@ -17,9 +17,11 @@ from state_store import utc_now
 try:  # Support both package and direct agent_runtime path imports in tests.
     from skills.risk import default_risk, license_requires_review, normalize_source
     from skills.config_validation import validate_external_skill_registry
+    from skills.metadata import enrich_skill_dict
 except ImportError:  # pragma: no cover
     from .risk import default_risk, license_requires_review, normalize_source
     from .config_validation import validate_external_skill_registry
+    from .metadata import enrich_skill_dict
 
 
 REGISTRY_REL_PATH = Path("config/external_skill_registry.yml")
@@ -98,6 +100,8 @@ def load_skill_registry(agentlab_root: Path, path: Path | None = None) -> dict[s
     data.setdefault("schema_version", 1)
     data.setdefault("external_skills", [])
     data.setdefault("metadata", {})
+    for skill in data["external_skills"]:
+        enrich_skill_dict(skill)
     return data
 
 
@@ -144,6 +148,7 @@ def add_or_update_skill(
     item.setdefault("license", {"name": "unknown", "source_url": None, "compatible_for_internal_distillation": "review_required"})
     if license_requires_review(item.get("license")):
         item.setdefault("license", {})["license_review_required"] = True
+    enrich_skill_dict(item)
     skill_id = item.get("skill_id")
     if not skill_id:
         raise ValueError("External skill missing skill_id.")

@@ -1,0 +1,32 @@
+=== scripts/audit_text_integrity.py ===
+Markdown report written to <HOME>/Desktop/AgentLab/acceptance_runs/stabilization/text_integrity_audit.md
+
+Total files scanned: 495
+Suspicious files: 0
+
+PASS: No suspicious files or --fail-on-suspicious not set.
+
+=== python -m compileall ===
+Listing 'agent_runtime/retry'...
+Listing 'agent_runtime/review'...
+Listing 'agent_runtime/router_update'...
+Listing 'agent_runtime/search'...
+Listing 'agent_runtime/skills'...
+
+=== pytest -q tests/test_repository_text_integrity.py tests/test_text_integrity_audit.py ===
+..........................                                               [100%]
+26 passed in 1.37s
+
+=== pytest -q (full suite) ===
+........................................................................ [ 80%]
+........................................................................ [ 88%]
+........................................................................ [ 95%]
+.............................................                            [100%]
+979 passed, 2 skipped in 111.60s (0:01:51)
+
+=== agentlab.sh --help ===
+                                                                                
+ Usage: run_task.py [OPTIONS] COMMAND [ARGS]...                                 
+                                                                                
+ AgentLab local-first CLI.                                                      
+                                                                                

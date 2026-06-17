@@ -1,0 +1,23 @@
+# R4: Source Quality Policy
+source_quality:
+  scoring:
+    domain_trust_weight: 40
+    content_length_weight: 35
+    title_presence_weight: 15
+    content_type_weight: 10
+    max_score: 100
+
+  minimum_quality_score: 20
+
+  trusted_domains:
+    - docs.python.org
+    - github.com
+    - developer.mozilla.org
+    - en.wikipedia.org
+    - stackoverflow.com
+    - arxiv.org
+    - rfc-editor.org
+
+  untrusted_patterns:
+    - "content-farm"
+    - "clickbait"
