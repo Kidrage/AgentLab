@@ -22,6 +22,7 @@ __pycache__/
 ._*
 
 # AgentLab runtime
+.agentlab/
 .agentlab_runtime/
 agent_runtime/.venv/
 agent_runtime/__pycache__/
@@ -51,6 +52,10 @@ projects/*
 !projects/.gitkeep
 
 # Per-project local state (redundant with above but explicit)
+projects/*/tmp/
+projects/*/scratch/
+projects/*/tasks/*/raw/
+projects/*/tasks/*/tmp/
 **/agent_docs/
 **/runs/
 **/evaluation_runs/
