@@ -220,9 +220,16 @@ def _check_python(path: Path, root: Path) -> FileAudit:
     future_import_marker = "from __future__" + " import annotations"
     seen_future = False
     seen_code = False
+    in_module_docstring = False
+    module_docstring_seen = False
+    module_docstring_quote = ""
     for line in lines:
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
+            continue
+        if in_module_docstring:
+            if module_docstring_quote and module_docstring_quote in stripped:
+                in_module_docstring = False
             continue
         if future_import_marker in stripped:
             seen_future = True
@@ -231,8 +238,16 @@ def _check_python(path: Path, root: Path) -> FileAudit:
                 issues.append("from __future__ import annotations appears after code")
                 break
             continue
-        if stripped.startswith(('"""', "'''")):
-            continue
+        if not seen_future and not seen_code and not module_docstring_seen:
+            for quote in ('"""', "'''"):
+                if stripped.startswith(quote):
+                    module_docstring_seen = True
+                    if stripped.count(quote) == 1:
+                        in_module_docstring = True
+                        module_docstring_quote = quote
+                    break
+            if module_docstring_seen:
+                continue
         if not seen_future:
             seen_code = True
 

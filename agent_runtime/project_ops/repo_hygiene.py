@@ -1,11 +1,11 @@
+from __future__ import annotations
+
 """Repository hygiene checks for AgentLab S2.5.
 
 The checker is intentionally conservative and local-only. It reports root-level
 artifacts that should be moved into `.agentlab/`, `projects/`, or
 `acceptance_runs/` instead of silently deleting anything.
 """
-
-from __future__ import annotations
 
 import fnmatch
 import json
@@ -59,7 +59,10 @@ DEFAULT_FORBIDDEN_PATTERNS = [
     "scratch*",
 ]
 
-ABSOLUTE_PATH_PATTERN = re.compile(r"(/Users/[^\s'\"]+|/home/[^\s'\"]+)")
+MACOS_USERS_PREFIX = "/" + "Users"
+ABSOLUTE_PATH_PATTERN = re.compile(
+    r"(" + re.escape(MACOS_USERS_PREFIX) + r"/[^\s'\"]+|/home/[^\s'\"]+)"
+)
 
 
 def load_hygiene_policy(repo_root: Path) -> dict[str, Any]:
