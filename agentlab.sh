@@ -17,4 +17,21 @@ if [[ -f "$ROOT/agent_runtime/.env" ]]; then
   set +a
 fi
 
+PROJECT_OPS_COMMANDS=(
+  repo-hygiene-check
+  project-route
+  project-init
+  project-status
+  task-compact
+  agent-contributions
+)
+
+if [[ $# -gt 0 ]]; then
+  for cmd in "${PROJECT_OPS_COMMANDS[@]}"; do
+    if [[ "$1" == "$cmd" ]]; then
+      exec "$PYTHON_BIN" -m agent_runtime.project_ops.cli "$@"
+    fi
+  done
+fi
+
 exec "$PYTHON_BIN" "$ROOT/agent_runtime/run_task.py" "$@"
