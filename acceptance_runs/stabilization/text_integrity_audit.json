@@ -1,5 +1,5 @@
 {
-  "total_files": 539,
+  "total_files": 556,
   "suspicious_count": 0,
   "python_suspicious": 0,
   "yaml_suspicious": 0,
@@ -70,8 +70,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -84,8 +84,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -140,8 +140,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -154,8 +154,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -168,8 +168,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -182,8 +182,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -588,8 +588,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -602,8 +602,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -770,8 +770,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -854,8 +854,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -868,8 +868,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -882,8 +882,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -924,8 +924,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -938,8 +938,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1064,8 +1064,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1078,8 +1078,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1204,8 +1204,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1414,8 +1414,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1428,8 +1428,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1442,8 +1442,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1456,8 +1456,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1470,8 +1470,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1484,8 +1484,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1498,8 +1498,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1526,8 +1526,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1540,8 +1540,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1554,8 +1554,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1568,8 +1568,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1596,8 +1596,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1610,8 +1610,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1624,8 +1624,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1736,8 +1736,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1750,8 +1750,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1764,8 +1764,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1806,8 +1806,120 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "agent_runtime/project_ops/__init__.py",
+      "line_count": 25,
+      "max_line_length": 115,
+      "file_size_bytes": 884,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "agent_runtime/project_ops/agent_contributions.py",
+      "line_count": 83,
+      "max_line_length": 130,
+      "file_size_bytes": 3439,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "agent_runtime/project_ops/agent_packet.py",
+      "line_count": 69,
+      "max_line_length": 106,
+      "file_size_bytes": 2324,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "agent_runtime/project_ops/cli.py",
+      "line_count": 157,
+      "max_line_length": 138,
+      "file_size_bytes": 5846,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "agent_runtime/project_ops/models.py",
+      "line_count": 119,
+      "max_line_length": 91,
+      "file_size_bytes": 3190,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "agent_runtime/project_ops/project_router.py",
+      "line_count": 259,
+      "max_line_length": 128,
+      "file_size_bytes": 9647,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "agent_runtime/project_ops/repo_hygiene.py",
+      "line_count": 207,
+      "max_line_length": 119,
+      "file_size_bytes": 6981,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "agent_runtime/project_ops/task_compaction.py",
+      "line_count": 153,
+      "max_line_length": 116,
+      "file_size_bytes": 5540,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1820,8 +1932,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1834,8 +1946,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1862,8 +1974,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -1960,8 +2072,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2366,8 +2478,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2380,8 +2492,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2422,8 +2534,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2534,8 +2646,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2618,8 +2730,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2632,8 +2744,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2646,8 +2758,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2660,8 +2772,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2674,8 +2786,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2702,8 +2814,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2716,8 +2828,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2772,8 +2884,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2800,8 +2912,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2814,8 +2926,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2842,8 +2954,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2856,8 +2968,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2870,8 +2982,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2912,8 +3024,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -2968,22 +3080,22 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
       "path": "scripts/audit_text_integrity.py",
-      "line_count": 577,
+      "line_count": 592,
       "max_line_length": 161,
-      "file_size_bytes": 20894,
+      "file_size_bytes": 21557,
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -3010,8 +3122,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -3024,8 +3136,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -3066,8 +3178,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -3262,8 +3374,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -3290,8 +3402,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -3626,8 +3738,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -3640,8 +3752,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -3654,8 +3766,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4396,8 +4508,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4410,8 +4522,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4424,8 +4536,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4438,8 +4550,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4452,8 +4564,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4606,8 +4718,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4648,8 +4760,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4704,8 +4816,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4732,8 +4844,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4746,8 +4858,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -4909,6 +5021,20 @@
       "line_count": 67,
       "max_line_length": 100,
       "file_size_bytes": 2843,
+      "suspicious_single_line": false,
+      "python_ast_ok": true,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "tests/test_s2_5_projectops.py",
+      "line_count": 115,
+      "max_line_length": 110,
+      "file_size_bytes": 4472,
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,
@@ -5110,8 +5236,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -5208,8 +5334,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -5222,8 +5348,8 @@
       "yaml_parse_ok": null,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "from __future__ import annotations appears after code",
-      "future_import_after_code": true,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
       "suspicious_literal_newlines": false
     },
     {
@@ -5256,9 +5382,9 @@
     },
     {
       "path": "tests/test_text_integrity_audit.py",
-      "line_count": 68,
+      "line_count": 147,
       "max_line_length": 119,
-      "file_size_bytes": 2430,
+      "file_size_bytes": 4854,
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,
@@ -5290,6 +5416,20 @@
       "suspicious_single_line": false,
       "python_ast_ok": true,
       "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "config/agent_collaboration.yml",
+      "line_count": 15,
+      "max_line_length": 51,
+      "file_size_bytes": 492,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": true,
       "contains_docstring_future_same_line": false,
       "contains_multiple_top_level_defs_one_line": false,
       "issue_summary": "ok",
@@ -5343,20 +5483,6 @@
       "line_count": 32,
       "max_line_length": 76,
       "file_size_bytes": 1344,
-      "suspicious_single_line": false,
-      "python_ast_ok": null,
-      "yaml_parse_ok": true,
-      "contains_docstring_future_same_line": false,
-      "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "ok",
-      "future_import_after_code": false,
-      "suspicious_literal_newlines": false
-    },
-    {
-      "path": "config/backup_policy.local.yml",
-      "line_count": 28,
-      "max_line_length": 73,
-      "file_size_bytes": 1005,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": true,
@@ -5801,6 +5927,20 @@
       "suspicious_literal_newlines": false
     },
     {
+      "path": "config/project_routing.yml",
+      "line_count": 20,
+      "max_line_length": 43,
+      "file_size_bytes": 464,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": true,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
       "path": "config/provider_governance.yml",
       "line_count": 53,
       "max_line_length": 47,
@@ -5833,6 +5973,20 @@
       "line_count": 48,
       "max_line_length": 34,
       "file_size_bytes": 920,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": true,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "config/repository_hygiene.yml",
+      "line_count": 46,
+      "max_line_length": 26,
+      "file_size_bytes": 823,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": true,
@@ -6081,6 +6235,20 @@
       "suspicious_literal_newlines": false
     },
     {
+      "path": "config/task_compaction.yml",
+      "line_count": 22,
+      "max_line_length": 40,
+      "file_size_bytes": 570,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": true,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
       "path": "config/task_index_policy.yml",
       "line_count": 59,
       "max_line_length": 35,
@@ -6295,20 +6463,6 @@
       "line_count": 43,
       "max_line_length": 84,
       "file_size_bytes": 1433,
-      "suspicious_single_line": false,
-      "python_ast_ok": null,
-      "yaml_parse_ok": true,
-      "contains_docstring_future_same_line": false,
-      "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "ok",
-      "future_import_after_code": false,
-      "suspicious_literal_newlines": false
-    },
-    {
-      "path": "acceptance_runs/p1_closure/internal_skill_candidates.yml",
-      "line_count": 79,
-      "max_line_length": 85,
-      "file_size_bytes": 2346,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": true,
@@ -6725,20 +6879,6 @@
       "suspicious_literal_newlines": false
     },
     {
-      "path": "acceptance_runs/p1_closure/skill_incubation_report.md",
-      "line_count": 29,
-      "max_line_length": 167,
-      "file_size_bytes": 1219,
-      "suspicious_single_line": false,
-      "python_ast_ok": null,
-      "yaml_parse_ok": null,
-      "contains_docstring_future_same_line": false,
-      "contains_multiple_top_level_defs_one_line": false,
-      "issue_summary": "ok (non-Python/YAML file)",
-      "future_import_after_code": false,
-      "suspicious_literal_newlines": false
-    },
-    {
       "path": "acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md",
       "line_count": 212,
       "max_line_length": 329,
@@ -6921,6 +7061,20 @@
       "suspicious_literal_newlines": false
     },
     {
+      "path": "acceptance_runs/s2_5_projectops/S2_5_PROJECTOPS_REPORT.md",
+      "line_count": 56,
+      "max_line_length": 136,
+      "file_size_bytes": 1487,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok (non-Python/YAML file)",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
       "path": "acceptance_runs/s4_recovery/S4_R2_RECOVERY_REPORT.md",
       "line_count": 192,
       "max_line_length": 78,
@@ -7009,6 +7163,34 @@
       "line_count": 113,
       "max_line_length": 180,
       "file_size_bytes": 7492,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok (non-Python/YAML file)",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "docs/AGENT_COLLABORATION_OBSERVABILITY.md",
+      "line_count": 31,
+      "max_line_length": 127,
+      "file_size_bytes": 723,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok (non-Python/YAML file)",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "docs/AGENT_PACKET_CONTRACT.md",
+      "line_count": 28,
+      "max_line_length": 95,
+      "file_size_bytes": 637,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": null,
@@ -7383,10 +7565,52 @@
       "suspicious_literal_newlines": false
     },
     {
+      "path": "docs/PROJECT_DIRECTORY_LAYOUT.md",
+      "line_count": 39,
+      "max_line_length": 241,
+      "file_size_bytes": 953,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok (non-Python/YAML file)",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "docs/REPOSITORY_DIRECTORY_CONSTITUTION.md",
+      "line_count": 53,
+      "max_line_length": 246,
+      "file_size_bytes": 1466,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok (non-Python/YAML file)",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
       "path": "docs/REPO_INGESTION_POLICY.md",
       "line_count": 39,
       "max_line_length": 80,
       "file_size_bytes": 1253,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok (non-Python/YAML file)",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
+      "path": "docs/S2_5_PROJECTOPS_REPOSITORY_HYGIENE.md",
+      "line_count": 45,
+      "max_line_length": 224,
+      "file_size_bytes": 1597,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": null,
@@ -7495,6 +7719,20 @@
       "suspicious_literal_newlines": false
     },
     {
+      "path": "docs/TASK_COMPACTION_POLICY.md",
+      "line_count": 26,
+      "max_line_length": 143,
+      "file_size_bytes": 807,
+      "suspicious_single_line": false,
+      "python_ast_ok": null,
+      "yaml_parse_ok": null,
+      "contains_docstring_future_same_line": false,
+      "contains_multiple_top_level_defs_one_line": false,
+      "issue_summary": "ok (non-Python/YAML file)",
+      "future_import_after_code": false,
+      "suspicious_literal_newlines": false
+    },
+    {
       "path": "docs/WEBHOOK_INTEGRATION.md",
       "line_count": 127,
       "max_line_length": 128,
@@ -7538,9 +7776,9 @@
     },
     {
       "path": "agentlab.sh",
-      "line_count": 20,
+      "line_count": 37,
       "max_line_length": 67,
-      "file_size_bytes": 525,
+      "file_size_bytes": 842,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": null,
