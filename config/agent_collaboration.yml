@@ -1,0 +1,15 @@
+agent_collaboration:
+  packet_max_context_budget_tokens_default: 1200
+  packet_max_context_budget_tokens_hard_limit: 4000
+  require_must_read_artifacts: true
+  require_forbidden_actions: true
+  contribution_ledger:
+    enabled: true
+    track_artifacts_created: true
+    track_findings: true
+    track_decisions: true
+    track_cost_estimates: true
+  lightweight_packet_forbidden_defaults:
+    - reread_full_raw_logs
+    - modify_unrelated_files
+    - execute_external_tools_without_approval
