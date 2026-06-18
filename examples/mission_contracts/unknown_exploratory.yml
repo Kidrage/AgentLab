@@ -1,0 +1,45 @@
+schema_version: '1.0'
+mission_id: mission_unknown_exploratory_001
+created_at: null
+task_type: unknown
+user_goal: Please handle this.
+intent_summary: Ambiguous request requiring clarification before execution.
+non_goals:
+  - Do not execute unknown work.
+hard_constraints:
+  - Ask clarifying questions first.
+soft_preferences:
+  - Offer safe domain candidates.
+unknowns:
+  - The user intent, domain, artifacts, and acceptance gates are unknown.
+assumptions:
+  - id: assumption_001
+    text: The safest plan is clarification, not execution.
+    confidence: high
+    requires_user_confirmation: true
+required_capabilities:
+  - capability: human_approval
+    reason: Unknown task requires approval before execution.
+    required: true
+    source: system_required
+required_artifacts:
+  - artifact_type: document
+    name: clarifying_questions
+    description: Questions before execution.
+    required: true
+acceptance_gates:
+  - gate_id: no_execution_without_clarification
+    description: No execution happens before clarification.
+    verification_method: manual_review
+    required: true
+risks:
+  - risk_id: ambiguous_goal_risk
+    level: high
+    description: Ambiguous goal may cause unsafe action.
+    mitigation: Stop and clarify.
+human_approval:
+  required: true
+  reason: Unknown task type.
+recommended_route: Supervisor -> Verifier
+notes:
+  - Example S2 unknown contract.

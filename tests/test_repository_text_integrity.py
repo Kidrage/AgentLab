@@ -94,11 +94,17 @@ MIN_LINE_COUNTS = {
     "agent_runtime/brain/risk_builder.py": 100,
     "agent_runtime/brain/assumption_builder.py": 120,
     "config/domain_workflow_templates.yml": 120,
+    "config/artifact_contract_templates.yml": 20,
+    "config/acceptance_gate_templates.yml": 20,
     "tests/test_task_compiler_mvp.py": 160,
     "tests/test_domain_workflow_templates.py": 100,
     "tests/test_task_compiler_domain_refinement.py": 160,
+    "tests/test_s2_domain_workflow_templates.py": 100,
+    "tests/test_s2_workflow_planner.py": 120,
+    "tests/test_s2_workflow_cli.py": 40,
     "docs/TASK_COMPILER.md": 80,
     "docs/DOMAIN_WORKFLOW_TEMPLATES.md": 80,
+    "docs/S2_DOMAIN_WORKFLOW_TEMPLATES.md": 80,
     "scripts/compile_mission_contract.py": 80,
     "scripts/s0_stable_baseline_check.py": 80,
     "docs/MISSION_CONTRACT.md": 60,
@@ -131,6 +137,12 @@ MIN_LINE_COUNTS = {
     "agent_runtime/recovery/redaction.py": 80,
     "agent_runtime/recovery/resume_policy.py": 80,
     "agent_runtime/recovery/retry_ledger.py": 80,
+    # S2: Domain Workflow Templates
+    "agent_runtime/domain_workflows/models.py": 60,
+    "agent_runtime/domain_workflows/loader.py": 100,
+    "agent_runtime/domain_workflows/matcher.py": 50,
+    "agent_runtime/domain_workflows/planner.py": 120,
+    "agent_runtime/domain_workflows/renderer.py": 70,
 }
 
 

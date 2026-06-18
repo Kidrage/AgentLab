@@ -207,11 +207,22 @@ def test_text_integrity_guards_include_s1_cdef_files() -> None:
 
     expected = {
         "config/domain_workflow_templates.yml": 120,
+        "config/artifact_contract_templates.yml": 20,
+        "config/acceptance_gate_templates.yml": 20,
         "agent_runtime/brain/domain_workflows.py": 150,
+        "agent_runtime/domain_workflows/models.py": 60,
+        "agent_runtime/domain_workflows/loader.py": 100,
+        "agent_runtime/domain_workflows/matcher.py": 50,
+        "agent_runtime/domain_workflows/planner.py": 120,
+        "agent_runtime/domain_workflows/renderer.py": 70,
         "agent_runtime/brain/risk_builder.py": 100,
         "agent_runtime/brain/assumption_builder.py": 120,
         "tests/test_domain_workflow_templates.py": 100,
         "tests/test_task_compiler_domain_refinement.py": 160,
+        "tests/test_s2_domain_workflow_templates.py": 100,
+        "tests/test_s2_workflow_planner.py": 120,
+        "tests/test_s2_workflow_cli.py": 40,
+        "docs/S2_DOMAIN_WORKFLOW_TEMPLATES.md": 80,
         "docs/DOMAIN_WORKFLOW_TEMPLATES.md": 80,
     }
     for path, minimum in expected.items():

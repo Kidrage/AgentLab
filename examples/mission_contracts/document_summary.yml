@@ -1,0 +1,45 @@
+schema_version: '1.0'
+mission_id: mission_document_summary_001
+created_at: null
+task_type: document_processing
+user_goal: Summarize a PDF document, extract its structure, verify coverage, and format the output as Markdown.
+intent_summary: Document processing with structure extraction and coverage verification.
+non_goals:
+  - Do not invent missing pages.
+hard_constraints:
+  - Separate extraction from interpretation.
+soft_preferences:
+  - Use concise bullets.
+unknowns:
+  - The input document path is not included in this fixture.
+assumptions:
+  - id: assumption_001
+    text: The document will be supplied by the user before execution.
+    confidence: medium
+    requires_user_confirmation: true
+required_capabilities:
+  - capability: file_read
+    reason: Read the supplied document.
+    required: true
+    source: inferred
+required_artifacts:
+  - artifact_type: report
+    name: coverage_review
+    description: Coverage check for pages and sections.
+    required: true
+acceptance_gates:
+  - gate_id: coverage_verified
+    description: Requested content is covered or caveated.
+    verification_method: review
+    required: true
+risks:
+  - risk_id: extraction_error_risk
+    level: medium
+    description: PDF extraction may miss structure.
+    mitigation: Verify coverage.
+human_approval:
+  required: true
+  reason: Input document is missing.
+recommended_route: DocManager -> Verifier
+notes:
+  - Example S2 document contract.

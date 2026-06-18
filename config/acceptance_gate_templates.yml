@@ -1,0 +1,84 @@
+# AgentLab S2 Acceptance Gate Templates
+# Gates describe review requirements for planned workflows. They do not execute
+# tests, call networks, install skills, or invoke providers.
+acceptance_gate_templates:
+  scope_is_bounded:
+    description: Mission scope, non-goals, and constraints are explicit.
+    verification_method: review
+    required: true
+  no_unapproved_execution:
+    description: No external tool, shell, web, model, or provider execution occurs without approval.
+    verification_method: review
+    required: true
+  relevant_tests_pass_or_limitations_recorded:
+    description: Relevant verification passes, or limitations are documented honestly.
+    verification_method: test
+    required: true
+  text_integrity_audit_passes:
+    description: Output avoids secrets, local absolute paths, generated junk, and compressed text corruption.
+    verification_method: review
+    required: true
+  rollback_notes_exist:
+    description: A rollback or safe revert path is documented for risky changes.
+    verification_method: artifact_exists
+    required: true
+  source_policy_is_explicit:
+    description: Source collection policy, freshness expectations, and citation rules are explicit.
+    verification_method: review
+    required: true
+  source_quality_gate:
+    description: Source quality, bias, recency, and relevance are assessed.
+    verification_method: citation_check
+    required: true
+  citation_grounding_gate:
+    description: Nontrivial factual claims are grounded in source references.
+    verification_method: citation_check
+    required: true
+  no_fake_citations:
+    description: No fake citations, invented sources, or unsupported factual claims are present.
+    verification_method: citation_check
+    required: true
+  outline_first_gate:
+    description: Creative planning artifacts exist before drafting begins.
+    verification_method: review
+    required: true
+  continuity_review_complete:
+    description: Continuity, canon, structure, or argument consistency is reviewed.
+    verification_method: artifact_exists
+    required: true
+  mvp_is_bounded:
+    description: MVP scope is explicitly smaller than the full product vision.
+    verification_method: review
+    required: true
+  cleaning_is_reproducible:
+    description: Data cleaning and validation steps are reproducible.
+    verification_method: artifact_exists
+    required: true
+  coverage_verified:
+    description: Requested document pages, sections, or tables are covered or caveated.
+    verification_method: review
+    required: true
+  capability_gap_declared_if_missing:
+    description: Missing multimodal, audio, web, or external capability is declared as a warning or decision point.
+    verification_method: manual_review
+    required: true
+  visual_uncertainty_labeled:
+    description: Visual findings include provenance and uncertainty labels.
+    verification_method: review
+    required: true
+  objective_subjective_separated:
+    description: Audio or music notes separate measurable observations from subjective judgments.
+    verification_method: review
+    required: true
+  dry_run_precedes_execution:
+    description: Dry-run or preview planning precedes any local operation.
+    verification_method: manual_review
+    required: true
+  learning_goal_defined:
+    description: Learning goal and learner assumptions are explicit.
+    verification_method: review
+    required: true
+  no_execution_without_clarification:
+    description: Unknown or exploratory tasks stop before execution until clarified or approved.
+    verification_method: manual_review
+    required: true

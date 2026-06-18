@@ -1,0 +1,54 @@
+schema_version: '1.0'
+mission_id: mission_coding_bug_001
+created_at: null
+task_type: coding
+user_goal: Fix a regression in this repository, patch the smallest safe code path, run targeted tests, and summarize changed files.
+intent_summary: Repository bug fix with test and rollback evidence.
+non_goals:
+  - Do not refactor unrelated modules.
+hard_constraints:
+  - Preserve unrelated dirty files.
+  - Do not use network calls.
+soft_preferences:
+  - Prefer targeted pytest or compile checks.
+unknowns:
+  - Exact failing test and changed file surface are not known yet.
+assumptions:
+  - id: assumption_001
+    text: The target repository is the current checkout unless the user specifies another path.
+    confidence: medium
+    requires_user_confirmation: false
+required_capabilities:
+  - capability: file_read
+    reason: Inspect relevant source and tests.
+    required: true
+    source: inferred
+  - capability: code_edit
+    reason: Apply the minimal patch.
+    required: true
+    source: inferred
+  - capability: test_execution
+    reason: Run targeted verification.
+    required: true
+    source: inferred
+required_artifacts:
+  - artifact_type: document
+    name: patch_plan
+    description: Smallest safe patch plan.
+    required: true
+acceptance_gates:
+  - gate_id: tests_recorded
+    description: Relevant tests pass or limitations are recorded.
+    verification_method: test
+    required: true
+risks:
+  - risk_id: regression_risk
+    level: medium
+    description: Patch may affect nearby behavior.
+    mitigation: Run targeted tests and review diff.
+human_approval:
+  required: false
+  reason: No destructive action requested.
+recommended_route: RepoScout -> Coder -> Tester
+notes:
+  - Example S2 coding contract.

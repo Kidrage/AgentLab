@@ -244,6 +244,56 @@ def write_text_if_missing(path: Path, text: str) -> bool:
     return True
 
 
+@app.command("workflow-plan")
+def workflow_plan_cmd(
+    mission_contract: Path = typer.Option(..., "--mission-contract", help="Path to a mission_contract.yml file."),
+    out: Path = typer.Option(..., "--out", help="Output directory for workflow_plan.yml and workflow_plan.md."),
+) -> None:
+    """Build an S2 domain workflow plan from a Mission Contract. No execution."""
+    from agent_runtime.domain_workflows import (
+        DEFAULT_ACCEPTANCE_TEMPLATE_PATH,
+        DEFAULT_ARTIFACT_TEMPLATE_PATH,
+        DEFAULT_DOMAIN_TEMPLATE_PATH,
+        WorkflowTemplateLoadError,
+        WorkflowTemplateValidationError,
+        build_workflow_plan as build_s2_workflow_plan,
+        load_acceptance_gate_templates,
+        load_artifact_contract_templates,
+        load_domain_workflow_templates,
+        render_workflow_plan_markdown,
+        write_workflow_plan_yaml,
+    )
+
+    if not mission_contract.exists():
+        console.print(f"[red]Error: mission contract does not exist: {mission_contract}[/red]")
+        raise typer.Exit(code=1)
+    try:
+        contract_data = yaml.safe_load(mission_contract.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        console.print(f"[red]Error: mission contract is not valid YAML: {exc}[/red]")
+        raise typer.Exit(code=1)
+    if not isinstance(contract_data, dict):
+        console.print("[red]Error: mission contract must be a YAML mapping.[/red]")
+        raise typer.Exit(code=1)
+    contract_data["_source_path"] = str(mission_contract)
+    try:
+        templates = load_domain_workflow_templates(DEFAULT_DOMAIN_TEMPLATE_PATH)
+        artifact_templates = load_artifact_contract_templates(DEFAULT_ARTIFACT_TEMPLATE_PATH)
+        gate_templates = load_acceptance_gate_templates(DEFAULT_ACCEPTANCE_TEMPLATE_PATH)
+        plan = build_s2_workflow_plan(contract_data, templates, artifact_templates, gate_templates)
+    except (WorkflowTemplateLoadError, WorkflowTemplateValidationError, ValueError) as exc:
+        console.print(f"[red]Error: failed to build workflow plan: {exc}[/red]")
+        raise typer.Exit(code=1)
+
+    out.mkdir(parents=True, exist_ok=True)
+    yaml_path = out / "workflow_plan.yml"
+    md_path = out / "workflow_plan.md"
+    write_workflow_plan_yaml(plan, yaml_path)
+    md_path.write_text(render_workflow_plan_markdown(plan), encoding="utf-8")
+    console.print("[green]Workflow plan generated[/green]")
+    console.print({"workflow_plan_yml": str(yaml_path), "workflow_plan_md": str(md_path), "template_id": plan.template_id})
+
+
 def ensure_project_memory_files(project_root: Path) -> None:
     docs_env = os.getenv("AGENTLAB_DOCS_DIR")
     if docs_env:

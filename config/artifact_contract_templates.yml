@@ -1,0 +1,88 @@
+# AgentLab S2 Artifact Contract Templates
+# Deterministic planning hints only. They define artifact categories that workflow
+# plans can reference; they do not create files or execute tools.
+artifact_contract_templates:
+  scope_summary:
+    artifact_type: document
+    description: Mission scope, constraints, non-goals, and known unknowns.
+    required: true
+  repo_context_summary:
+    artifact_type: report
+    description: Branch, dirty files, entrypoints, and relevant repository facts.
+    required: true
+  patch_plan:
+    artifact_type: document
+    description: Smallest safe implementation plan with rollback notes.
+    required: true
+  test_results:
+    artifact_type: report
+    description: Targeted verification commands and honest results or limitations.
+    required: true
+  acceptance_report:
+    artifact_type: report
+    description: Final verdict, changed files, verification, risks, and follow-ups.
+    required: true
+  source_plan:
+    artifact_type: document
+    description: Approved source types, freshness rules, and citation policy.
+    required: true
+  source_quality_table:
+    artifact_type: dataset
+    description: Reliability, recency, relevance, and bias assessment for sources.
+    required: true
+  citation_ledger:
+    artifact_type: dataset
+    description: Mapping of claims to source references.
+    required: true
+  content_constitution:
+    artifact_type: document
+    description: Creative rules, style commitments, canon, and forbidden moves.
+    required: true
+  outline:
+    artifact_type: document
+    description: Structure that must precede longform drafting.
+    required: true
+  continuity_ledger:
+    artifact_type: report
+    description: Continuity facts, conflicts, and resolution notes.
+    required: true
+  evidence_plan:
+    artifact_type: document
+    description: Business or research evidence plan before recommendations.
+    required: true
+  requirements_map:
+    artifact_type: document
+    description: Product requirements traced to user needs and constraints.
+    required: true
+  schema_profile:
+    artifact_type: report
+    description: Dataset fields, quality, missing values, and schema caveats.
+    required: true
+  coverage_review:
+    artifact_type: report
+    description: Document coverage and extraction caveats.
+    required: true
+  vision_capability_check:
+    artifact_type: report
+    description: Vision capability availability and capability-gap decision point.
+    required: true
+  audio_asset_manifest:
+    artifact_type: dataset
+    description: Audio inputs, stems, references, or missing assets.
+    required: true
+  dry_run_plan:
+    artifact_type: document
+    description: Non-destructive local operation preview plan.
+    required: true
+  rollback_plan:
+    artifact_type: document
+    description: Restore strategy, stop conditions, and safety notes.
+    required: true
+  lesson_plan:
+    artifact_type: document
+    description: Scaffolded teaching sequence and checkpoints.
+    required: true
+  clarifying_questions:
+    artifact_type: document
+    description: Questions required before safe execution of an ambiguous task.
+    required: true

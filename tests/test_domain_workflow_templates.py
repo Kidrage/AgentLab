@@ -18,7 +18,6 @@ TEMPLATE_PATH = ROOT / "config" / "domain_workflow_templates.yml"
 
 REQUIRED_TEMPLATE_IDS = {
     "coding_software_engineering",
-    "debugging_triage",
     "research_investigation",
     "business_strategy",
     "creative_longform",
@@ -154,4 +153,4 @@ def test_template_yaml_is_readable_multiline() -> None:
     lines = TEMPLATE_PATH.read_text(encoding="utf-8").splitlines()
     assert len(lines) >= 120
     assert max(len(line) for line in lines) <= 1000
-    assert lines[0].startswith("# AgentLab S1-C")
+    assert lines[0].startswith("# AgentLab S2")

@@ -1,0 +1,45 @@
+schema_version: '1.0'
+mission_id: mission_multimodal_image_001
+created_at: null
+task_type: multimodal
+user_goal: Review an image or UI screenshot, extract visible evidence, label uncertainty, and summarize visual issues.
+intent_summary: Multimodal image review with capability gap handling.
+non_goals:
+  - Do not call a vision model in S2.
+hard_constraints:
+  - Declare missing vision capability if unavailable.
+soft_preferences:
+  - Reference input artifacts for each observation.
+unknowns:
+  - The image file path is not included in this fixture.
+assumptions:
+  - id: assumption_001
+    text: A future runtime or user will provide visual input and approved capability.
+    confidence: low
+    requires_user_confirmation: true
+required_capabilities:
+  - capability: image_understanding
+    reason: Understand visual input.
+    required: true
+    source: inferred
+required_artifacts:
+  - artifact_type: report
+    name: vision_capability_check
+    description: Vision capability availability and gaps.
+    required: true
+acceptance_gates:
+  - gate_id: capability_gap_declared
+    description: Vision capability gap is declared when unavailable.
+    verification_method: manual_review
+    required: true
+risks:
+  - risk_id: visual_hallucination_risk
+    level: medium
+    description: Visual claims can be hallucinated.
+    mitigation: Reference inputs and label uncertainty.
+human_approval:
+  required: true
+  reason: Vision capability is not guaranteed in S2.
+recommended_route: Researcher -> Verifier
+notes:
+  - Example S2 multimodal contract.

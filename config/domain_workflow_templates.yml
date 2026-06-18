@@ -1,240 +1,591 @@
-# AgentLab S1-C Domain Workflow Templates MVP
-#
-# This file is deterministic planning data. It defines compile-time workflow
-# expectations only. It does not execute tools, call providers, install skills,
-# browse the web, run vision/audio systems, or integrate with the runtime
-# lifecycle. Keep entries readable and multiline so raw GitHub content remains
-# auditable.
-
+# AgentLab S2 Domain Workflow Templates
+# Deterministic planning data only: no execution, no network, no provider calls, no skill install.
 templates:
   coding_software_engineering:
     template_id: coding_software_engineering
+    display_name: Coding / Software Engineering
+    description: Plan safe repository or software changes with scoped inspection, patch design, tests, audit, and rollback evidence.
+    trigger_task_types:
+      - coding
+      - debugging
+      - repo_patch
     task_types:
       - coding
       - debugging
+      - repo_patch
     trigger_signals:
-      - repo
-      - repository
-      - github
-      - test
-      - pytest
       - bug
+      - repository
+      - repo
+      - pytest
+      - test
       - patch
       - branch
       - commit
-      - cli
-      - api
       - code
     required_capabilities:
-      - repo_inspection
       - file_read
-      - file_write
+      - repo_inspection
       - code_edit
       - test_execution
+      - shell_command
+    recommended_agents:
+      - repo_scout
+      - coder
+      - tester_auditor
+      - verifier
+    recommended_skills:
+      - repo_triage
+      - safe_patch_planning
+      - test_runner_interpretation
+      - rollback_planning
     phase_plan:
-      - understand_request
-      - inspect_context
-      - propose_plan
-      - execute_or_handoff
-      - validate
-      - summarize
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize the mission contract and preserve constraints.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - repo_scout
+          - coder
+        recommended_skills:
+          - repo_triage
+          - safe_patch_planning
+        required_capabilities:
+          - file_read
+          - repo_inspection
+          - code_edit
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: inspect_repo_context
+        title: Inspect repo context
+        goal: Identify branch, dirty files, entrypoints, and relevant docs without broad scanning.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - repo_context_summary
+        acceptance_gates:
+          - repo_context_is_documented
+        recommended_agents:
+          - repo_scout
+          - coder
+        recommended_skills:
+          - repo_triage
+          - safe_patch_planning
+        required_capabilities:
+          - file_read
+          - repo_inspection
+          - code_edit
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: locate_change_surface
+        title: Locate change surface
+        goal: Map likely files, symbols, tests, and interfaces touched by the requested change.
+        required_inputs:
+          - repo_context_summary
+        expected_artifacts:
+          - change_surface_map
+        acceptance_gates:
+          - change_surface_is_minimal
+        recommended_agents:
+          - repo_scout
+          - coder
+        recommended_skills:
+          - repo_triage
+          - safe_patch_planning
+        required_capabilities:
+          - file_read
+          - repo_inspection
+          - code_edit
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: design_patch_plan
+        title: Design patch plan
+        goal: Design the smallest safe patch and rollback path before editing.
+        required_inputs:
+          - change_surface_map
+        expected_artifacts:
+          - patch_plan
+          - rollback_plan
+        acceptance_gates:
+          - patch_plan_is_reviewable
+        recommended_agents:
+          - repo_scout
+          - coder
+        recommended_skills:
+          - repo_triage
+          - safe_patch_planning
+        required_capabilities:
+          - file_read
+          - repo_inspection
+          - code_edit
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: implement_patch
+        title: Implement patch
+        goal: Apply only task-scoped code or documentation changes.
+        required_inputs:
+          - patch_plan
+        expected_artifacts:
+          - changed_files_summary
+        acceptance_gates:
+          - unrelated_files_untouched
+        recommended_agents:
+          - repo_scout
+          - coder
+        recommended_skills:
+          - repo_triage
+          - safe_patch_planning
+        required_capabilities:
+          - file_read
+          - repo_inspection
+          - code_edit
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: run_tests
+        title: Run tests
+        goal: Run targeted verification or record explicit limitations.
+        required_inputs:
+          - changed_files_summary
+        expected_artifacts:
+          - test_results
+        acceptance_gates:
+          - relevant_tests_pass_or_limitations_recorded
+        recommended_agents:
+          - repo_scout
+          - coder
+        recommended_skills:
+          - repo_triage
+          - safe_patch_planning
+        required_capabilities:
+          - file_read
+          - repo_inspection
+          - code_edit
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: audit_text_integrity
+        title: Audit text integrity
+        goal: Check for secrets, local paths, generated junk, and compressed text artifacts.
+        required_inputs:
+          - changed_files_summary
+          - test_results
+        expected_artifacts:
+          - text_integrity_audit
+        acceptance_gates:
+          - no_secret_or_local_path_leak
+        recommended_agents:
+          - repo_scout
+          - coder
+        recommended_skills:
+          - repo_triage
+          - safe_patch_planning
+        required_capabilities:
+          - file_read
+          - repo_inspection
+          - code_edit
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: produce_acceptance_report
+        title: Produce acceptance report
+        goal: Summarize verdict, changed files, verification, risks, and follow-ups.
+        required_inputs:
+          - test_results
+          - text_integrity_audit
+        expected_artifacts:
+          - acceptance_report
+        acceptance_gates:
+          - acceptance_report_complete
+        recommended_agents:
+          - repo_scout
+          - coder
+        recommended_skills:
+          - repo_triage
+          - safe_patch_planning
+        required_capabilities:
+          - file_read
+          - repo_inspection
+          - code_edit
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
     required_artifacts:
-      - intent_summary.md
-      - repo_findings.md
+      - scope_summary
+      - repo_context_summary
+      - change_surface_map
+      - patch_plan
       - patch_plan.md
+      - changed_files_summary
       - changed_files_summary.md
+      - test_results
       - test_results.md
+      - text_integrity_audit
+      - acceptance_report
       - acceptance_report.md
     acceptance_gates:
-      - relevant tests pass
-      - changed files summarized
-      - no secrets leaked
-      - rollback notes exist
-      - implementation scope matches requested change
+      - scope_is_bounded
+      - change_surface_is_minimal
+      - relevant_tests_pass_or_limitations_recorded
+      - text_integrity_audit_passes
+      - rollback_notes_exist
     risk_defaults:
       - regression_risk
       - insufficient_test_coverage
       - local_path_or_secret_leak_risk
+    failure_recovery:
+      missing_evidence: inspect_repo_context_again
+      test_failure: create_retry_plan
+      ambiguous_scope: ask_user
+    human_decision_points:
+      - approve_large_patch
+      - approve_external_execution
     human_approval:
       required_by_default: false
       required_when:
-        - destructive_change
-        - external_execution
-        - force_push
+        - approve_large_patch
+        - approve_external_execution
+    route_preferences:
+      default_route: coding
+      allowed_routes:
+        - coding
+        - repo_patch
+    risk_notes:
+      - Do not modify unrelated files.
+      - Do not force push or run destructive commands without approval.
     notes:
-      - Deterministic MVP template for repository coding work.
-      - Future runtime integration must still verify branch, dirty files, and tests.
-
-  debugging_triage:
-    template_id: debugging_triage
-    task_types:
-      - debugging
-    trigger_signals:
-      - bug
-      - debug
-      - failure
-      - failing
-      - traceback
-      - stack trace
-      - regression
-      - reproduce
-      - ci
-      - test failure
-    required_capabilities:
-      - repo_inspection
-      - file_read
-      - code_edit
-      - test_execution
-    phase_plan:
-      - understand_failure
-      - collect_reproduction_signal
-      - localize_root_cause
-      - propose_minimal_fix
-      - execute_or_handoff
-      - validate_regression
-      - summarize_root_cause
-    required_artifacts:
-      - failure_summary.md
-      - reproduction_notes.md
-      - repo_findings.md
-      - patch_plan.md
-      - changed_files_summary.md
-      - test_results.md
-      - acceptance_report.md
-    acceptance_gates:
-      - original failure or closest repro is documented
-      - relevant failing test passes or limitation is explained
-      - regression risk is summarized
-      - no unrelated refactor is introduced
-      - rollback notes exist
-    risk_defaults:
-      - regression_risk
-      - insufficient_test_coverage
-      - root_cause_misdiagnosis_risk
-      - local_path_or_secret_leak_risk
-    human_approval:
-      required_by_default: false
-      required_when:
-        - destructive_change
-        - external_execution
-        - unreproduced_failure
-    notes:
-      - Deterministic MVP template for triage and repair planning.
-      - The compiler records triage needs but never runs failing commands itself.
+      - Do not modify unrelated files.
+      - Do not force push or run destructive commands without approval.
 
   research_investigation:
     template_id: research_investigation
+    display_name: Research / Investigation
+    description: Plan source-grounded investigation with explicit source policy, quality review, citations, uncertainty, and no live web execution.
+    trigger_task_types:
+      - research
+      - investigation
     task_types:
       - research
+      - investigation
     trigger_signals:
       - research
       - investigate
-      - compare
-      - latest
-      - current
       - source
       - citation
       - evidence
+      - latest
+      - current
       - report
-      - literature
     required_capabilities:
+      - source_collection
       - web_search
       - source_citation
       - long_document_reading
+    recommended_agents:
+      - researcher
+      - verifier
+      - doc_manager
+    recommended_skills:
+      - source_planning
+      - citation_grounding
+      - evidence_table_building
+      - uncertainty_labeling
     phase_plan:
-      - understand_question
-      - define_scope_and_source_policy
-      - collect_sources_or_handoff
-      - build_evidence_ledger
-      - synthesize_findings
-      - validate_citations
-      - summarize_uncertainty
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize the research contract and constraints.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - research_scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - source_planning
+          - citation_grounding
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: clarify_research_question
+        title: Clarify research question
+        goal: Convert the user goal into answerable subquestions and boundaries.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - research_questions
+        acceptance_gates:
+          - question_is_answerable
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - source_planning
+          - citation_grounding
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: build_source_plan
+        title: Build source plan
+        goal: Define approved source types, freshness needs, and citation policy.
+        required_inputs:
+          - research_questions
+        expected_artifacts:
+          - source_plan
+        acceptance_gates:
+          - source_policy_is_explicit
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - source_planning
+          - citation_grounding
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: collect_sources_or_request_provider
+        title: Collect sources or request provider
+        goal: Plan source collection or request future web/source provider capability without executing it.
+        required_inputs:
+          - source_plan
+        expected_artifacts:
+          - source_collection_request
+        acceptance_gates:
+          - no_unapproved_web_execution
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - source_planning
+          - citation_grounding
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: evaluate_source_quality
+        title: Evaluate source quality
+        goal: Score source reliability, recency, bias, and coverage.
+        required_inputs:
+          - source_collection_request
+        expected_artifacts:
+          - source_quality_table
+        acceptance_gates:
+          - source_quality_gate
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - source_planning
+          - citation_grounding
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: extract_fact_table
+        title: Extract fact table
+        goal: Map facts to source references and distinguish assumptions.
+        required_inputs:
+          - source_quality_table
+        expected_artifacts:
+          - fact_table
+        acceptance_gates:
+          - claims_have_sources
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - source_planning
+          - citation_grounding
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: synthesize_findings
+        title: Synthesize findings
+        goal: Produce findings with citations and caveats.
+        required_inputs:
+          - fact_table
+        expected_artifacts:
+          - citation_grounded_report
+        acceptance_gates:
+          - citation_grounding_gate
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - source_planning
+          - citation_grounding
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: uncertainty_review
+        title: Uncertainty review
+        goal: Review stale facts, missing evidence, and confidence.
+        required_inputs:
+          - citation_grounded_report
+        expected_artifacts:
+          - uncertainty_review
+        acceptance_gates:
+          - uncertainty_is_labeled
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - source_planning
+          - citation_grounding
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: produce_citation_grounded_report
+        title: Produce citation grounded report
+        goal: Package final report and citation ledger.
+        required_inputs:
+          - uncertainty_review
+        expected_artifacts:
+          - final_research_report
+          - citation_ledger
+        acceptance_gates:
+          - no_fake_citations
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - source_planning
+          - citation_grounding
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
     required_artifacts:
-      - research_plan.md
-      - source_table.yml
-      - evidence_notes.md
-      - analysis_report.md
-      - citation_ledger.yml
-      - uncertainty_notes.md
+      - research_scope_summary
+      - research_questions
+      - source_plan
+      - source_collection_request
+      - source_quality_table
+      - fact_table
+      - citation_grounded_report
+      - uncertainty_review
+      - final_research_report
+      - citation_ledger
     acceptance_gates:
-      - source citations are present for factual claims
-      - source dates or access dates are recorded
-      - no fake citations are present
-      - freshness requirements are explicit
-      - uncertainty and source quality are labeled
+      - source_policy_is_explicit
+      - source_quality_gate
+      - claims_have_sources
+      - citation_grounding_gate
+      - no_fake_citations
     risk_defaults:
       - stale_source_risk
       - fake_citation_risk
       - source_quality_risk
+    failure_recovery:
+      missing_evidence: request_sources_or_provider
+      source_conflict: label_uncertainty
+      ambiguous_scope: ask_user
+    human_decision_points:
+      - approve_source_policy
+      - approve_external_source_collection
     human_approval:
       required_by_default: false
       required_when:
-        - external_execution
-        - paid_source_required
-        - source_policy_missing
+        - approve_source_policy
+        - approve_external_source_collection
+    route_preferences:
+      default_route: research
+      allowed_routes:
+        - research
+        - analysis
+    risk_notes:
+      - S2 plans source collection only; it does not browse.
+      - Do not invent citations.
     notes:
-      - Deterministic MVP template for source-grounded research plans.
-      - Web collection remains a future execution concern, not a compiler action.
-
-  business_strategy:
-    template_id: business_strategy
-    task_types:
-      - business
-      - research
-    trigger_signals:
-      - market
-      - company
-      - competitor
-      - industry
-      - pricing
-      - customer
-      - go-to-market
-      - gtm
-      - startup
-      - strategy
-    required_capabilities:
-      - web_search
-      - source_citation
-      - long_document_reading
-    phase_plan:
-      - understand_business_question
-      - define_market_scope
-      - collect_sources_or_handoff
-      - map_competitors_and_assumptions
-      - synthesize_strategy_options
-      - validate_evidence
-      - summarize_recommendations
-    required_artifacts:
-      - business_brief.md
-      - source_table.yml
-      - competitor_matrix.md
-      - evidence_notes.md
-      - analysis_report.md
-      - citation_ledger.yml
-      - uncertainty_notes.md
-    acceptance_gates:
-      - market claims have citations
-      - competitor facts include dates or access dates
-      - assumptions are separated from evidence
-      - source quality and possible bias are noted
-      - recommendations map back to evidence
-    risk_defaults:
-      - stale_source_risk
-      - fake_citation_risk
-      - source_quality_risk
-      - strategic_overconfidence_risk
-    human_approval:
-      required_by_default: false
-      required_when:
-        - external_execution
-        - paid_source_required
-        - investment_or_legal_decision
-    notes:
-      - Deterministic MVP template for business and market strategy planning.
-      - Outputs are planning evidence, not financial or legal advice.
+      - S2 plans source collection only; it does not browse.
+      - Do not invent citations.
 
   creative_longform:
     template_id: creative_longform
+    display_name: Creative / Longform
+    description: Plan longform creative production through genre, constitution, bible, outline, cards, draft, continuity, and style revision.
+    trigger_task_types:
+      - creative_longform
+      - creative
+      - writing
     task_types:
       - creative_longform
       - creative
@@ -243,162 +594,1584 @@ templates:
       - novel
       - story
       - chapter
-      - character
-      - worldbuilding
+      - fiction
       - outline
       - scene
-      - fiction
-      - tone
-      - audience
+      - character
+      - worldbuilding
     required_capabilities:
       - file_write
       - long_document_reading
       - human_approval
+    recommended_agents:
+      - prompt_engineer
+      - doc_manager
+      - verifier
+    recommended_skills:
+      - creative_briefing
+      - outline_first_planning
+      - continuity_tracking
+      - style_revision
     phase_plan:
-      - understand_creative_brief
-      - identify_genre_tone_audience
-      - plan_outline_and_continuity
-      - draft_or_handoff
-      - revise_against_constraints
-      - summarize_changes
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize creative brief, constraints, and non-goals.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - creative_scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - prompt_engineer
+          - doc_manager
+        recommended_skills:
+          - creative_briefing
+          - outline_first_planning
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: define_genre_and_audience
+        title: Define genre and audience
+        goal: Capture genre, audience, tone, length, and style promises.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - creative_brief
+        acceptance_gates:
+          - genre_audience_defined
+        recommended_agents:
+          - prompt_engineer
+          - doc_manager
+        recommended_skills:
+          - creative_briefing
+          - outline_first_planning
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: build_story_or_content_constitution
+        title: Build story or content constitution
+        goal: Define rules for voice, themes, canon, and forbidden moves.
+        required_inputs:
+          - creative_brief
+        expected_artifacts:
+          - content_constitution
+        acceptance_gates:
+          - constitution_exists_before_draft
+        recommended_agents:
+          - prompt_engineer
+          - doc_manager
+        recommended_skills:
+          - creative_briefing
+          - outline_first_planning
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: build_world_or_topic_bible
+        title: Build world or topic bible
+        goal: Create reusable setting, character, topic, or continuity notes.
+        required_inputs:
+          - content_constitution
+        expected_artifacts:
+          - world_or_topic_bible
+        acceptance_gates:
+          - bible_exists_before_draft
+        recommended_agents:
+          - prompt_engineer
+          - doc_manager
+        recommended_skills:
+          - creative_briefing
+          - outline_first_planning
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: build_structure_outline
+        title: Build structure outline
+        goal: Plan sections, beats, acts, or chapters before drafting.
+        required_inputs:
+          - world_or_topic_bible
+        expected_artifacts:
+          - outline
+        acceptance_gates:
+          - outline_first_gate
+        recommended_agents:
+          - prompt_engineer
+          - doc_manager
+        recommended_skills:
+          - creative_briefing
+          - outline_first_planning
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: create_scene_or_section_cards
+        title: Create scene or section cards
+        goal: Break the outline into cards with purpose and continuity links.
+        required_inputs:
+          - outline
+        expected_artifacts:
+          - scene_or_section_cards
+        acceptance_gates:
+          - cards_precede_draft
+        recommended_agents:
+          - prompt_engineer
+          - doc_manager
+        recommended_skills:
+          - creative_briefing
+          - outline_first_planning
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: draft_content
+        title: Draft content
+        goal: Draft only after planning artifacts exist.
+        required_inputs:
+          - scene_or_section_cards
+        expected_artifacts:
+          - draft
+        acceptance_gates:
+          - draft_follows_outline
+        recommended_agents:
+          - prompt_engineer
+          - doc_manager
+        recommended_skills:
+          - creative_briefing
+          - outline_first_planning
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: continuity_review
+        title: Continuity review
+        goal: Check canon, character, argument, and timeline continuity.
+        required_inputs:
+          - draft
+          - world_or_topic_bible
+        expected_artifacts:
+          - continuity_ledger
+        acceptance_gates:
+          - continuity_review_complete
+        recommended_agents:
+          - prompt_engineer
+          - doc_manager
+        recommended_skills:
+          - creative_briefing
+          - outline_first_planning
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: style_revision
+        title: Style revision
+        goal: Revise for tone, pacing, audience, and constraints.
+        required_inputs:
+          - draft
+          - continuity_ledger
+        expected_artifacts:
+          - revision_notes
+        acceptance_gates:
+          - style_revision_complete
+        recommended_agents:
+          - prompt_engineer
+          - doc_manager
+        recommended_skills:
+          - creative_briefing
+          - outline_first_planning
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: final_package
+        title: Final package
+        goal: Package draft, notes, caveats, and next revision choices.
+        required_inputs:
+          - revision_notes
+        expected_artifacts:
+          - final_creative_package
+        acceptance_gates:
+          - final_package_complete
+        recommended_agents:
+          - prompt_engineer
+          - doc_manager
+        recommended_skills:
+          - creative_briefing
+          - outline_first_planning
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
     required_artifacts:
-      - creative_brief.md
+      - creative_scope_summary
+      - creative_brief
+      - content_constitution
+      - world_or_topic_bible
+      - outline
       - outline.md
-      - world_or_context_bible.md
-      - character_or_structure_notes.md
-      - draft.md
+      - scene_or_section_cards
+      - draft
+      - continuity_ledger
       - continuity_ledger.md
-      - revision_notes.md
+      - revision_notes
+      - final_creative_package
     acceptance_gates:
-      - outline or structure exists before final draft
-      - continuity choices are tracked
-      - requested tone and audience are reflected
-      - revisions are summarized
-      - unresolved creative decisions are labeled
+      - genre_audience_defined
+      - outline_first_gate
+      - cards_precede_draft
+      - continuity_review_complete
+      - style_revision_complete
     risk_defaults:
       - continuity_drift_risk
       - tone_mismatch_risk
       - premature_draft_without_outline_risk
+    failure_recovery:
+      missing_brief: ask_user
+      continuity_failure: revise_bible_and_outline
+      style_mismatch: style_revision
+    human_decision_points:
+      - approve_outline_before_drafting
+      - approve_major_style_change
     human_approval:
       required_by_default: false
       required_when:
-        - outline_approval_requested
-        - major_direction_change
+        - approve_outline_before_drafting
+        - approve_major_style_change
+    route_preferences:
+      default_route: creative
+      allowed_routes:
+        - creative
+        - document
+    risk_notes:
+      - Creative workflows must not jump straight to drafting.
     notes:
-      - Deterministic MVP template for longform creative planning.
-      - It prevents jumping directly to final draft without structure.
+      - Creative workflows must not jump straight to drafting.
 
-  document_processing:
-    template_id: document_processing
+  business_strategy:
+    template_id: business_strategy
+    display_name: Business / Strategy
+    description: Plan strategy work with business question framing, market context, evidence plan, positioning, risks, options, and next steps.
+    trigger_task_types:
+      - business
+      - strategy
     task_types:
-      - document_processing
-      - document
-      - extraction
+      - business
+      - strategy
     trigger_signals:
-      - pdf
-      - docx
-      - document
-      - table
-      - extract
-      - parse
-      - ocr
-      - summary
-      - format
+      - market
+      - company
+      - competitor
+      - pricing
+      - customer
+      - gtm
+      - strategy
+      - startup
     required_capabilities:
-      - file_read
+      - source_collection
+      - web_search
+      - source_citation
+      - long_document_reading
+    recommended_agents:
+      - researcher
+      - interface_mapper
+      - verifier
+    recommended_skills:
+      - business_question_framing
+      - market_mapping
+      - risk_analysis
+      - option_synthesis
+    phase_plan:
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize business objective and constraints.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - business_scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - researcher
+          - interface_mapper
+        recommended_skills:
+          - business_question_framing
+          - market_mapping
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: define_business_question
+        title: Define business question
+        goal: Frame the decision, audience, market, and time horizon.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - business_question
+        acceptance_gates:
+          - business_question_defined
+        recommended_agents:
+          - researcher
+          - interface_mapper
+        recommended_skills:
+          - business_question_framing
+          - market_mapping
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: map_market_or_company_context
+        title: Map market or company context
+        goal: Identify market segments, actors, assumptions, and known facts.
+        required_inputs:
+          - business_question
+        expected_artifacts:
+          - context_map
+        acceptance_gates:
+          - context_map_reviewed
+        recommended_agents:
+          - researcher
+          - interface_mapper
+        recommended_skills:
+          - business_question_framing
+          - market_mapping
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: collect_evidence_plan
+        title: Collect evidence plan
+        goal: Plan sources and freshness requirements without executing web collection.
+        required_inputs:
+          - context_map
+        expected_artifacts:
+          - evidence_plan
+        acceptance_gates:
+          - source_policy_is_explicit
+        recommended_agents:
+          - researcher
+          - interface_mapper
+        recommended_skills:
+          - business_question_framing
+          - market_mapping
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: analyze_positioning
+        title: Analyze positioning
+        goal: Compare options, competitors, differentiation, and constraints.
+        required_inputs:
+          - evidence_plan
+        expected_artifacts:
+          - positioning_analysis
+        acceptance_gates:
+          - positioning_tied_to_evidence
+        recommended_agents:
+          - researcher
+          - interface_mapper
+        recommended_skills:
+          - business_question_framing
+          - market_mapping
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: analyze_risks
+        title: Analyze risks
+        goal: Document strategic, operational, legal, and evidence risks.
+        required_inputs:
+          - positioning_analysis
+        expected_artifacts:
+          - risk_analysis
+        acceptance_gates:
+          - risks_are_explicit
+        recommended_agents:
+          - researcher
+          - interface_mapper
+        recommended_skills:
+          - business_question_framing
+          - market_mapping
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: synthesize_options
+        title: Synthesize options
+        goal: Create options with tradeoffs and assumptions.
+        required_inputs:
+          - risk_analysis
+        expected_artifacts:
+          - strategy_options
+        acceptance_gates:
+          - options_map_to_evidence
+        recommended_agents:
+          - researcher
+          - interface_mapper
+        recommended_skills:
+          - business_question_framing
+          - market_mapping
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: recommendation_and_next_steps
+        title: Recommendation and next steps
+        goal: Produce recommendation, next actions, caveats, and decision points.
+        required_inputs:
+          - strategy_options
+        expected_artifacts:
+          - recommendation_brief
+        acceptance_gates:
+          - recommendation_has_caveats
+        recommended_agents:
+          - researcher
+          - interface_mapper
+        recommended_skills:
+          - business_question_framing
+          - market_mapping
+        required_capabilities:
+          - source_collection
+          - web_search
+          - source_citation
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+    required_artifacts:
+      - business_scope_summary
+      - business_question
+      - context_map
+      - evidence_plan
+      - positioning_analysis
+      - risk_analysis
+      - strategy_options
+      - recommendation_brief
+    acceptance_gates:
+      - business_question_defined
+      - source_policy_is_explicit
+      - positioning_tied_to_evidence
+      - options_map_to_evidence
+      - recommendation_has_caveats
+    risk_defaults:
+      - stale_source_risk
+      - source_quality_risk
+      - strategic_overconfidence_risk
+    failure_recovery:
+      missing_evidence: request_sources_or_provider
+      overbroad_scope: narrow_business_question
+      high_stakes_decision: ask_user
+    human_decision_points:
+      - approve_evidence_plan
+      - approve_high_stakes_recommendation
+    human_approval:
+      required_by_default: false
+      required_when:
+        - approve_evidence_plan
+        - approve_high_stakes_recommendation
+    route_preferences:
+      default_route: business
+      allowed_routes:
+        - business
+        - research
+    risk_notes:
+      - Outputs are planning support, not financial or legal advice.
+    notes:
+      - Outputs are planning support, not financial or legal advice.
+
+  product_design:
+    template_id: product_design
+    display_name: Product Design
+    description: Plan product design through user problem, personas, jobs, requirements, solution options, MVP, metrics, and delivery spec.
+    trigger_task_types:
+      - product_design
+      - product
+      - design
+    task_types:
+      - product_design
+      - product
+      - design
+    trigger_signals:
+      - product
+      - ux
+      - persona
+      - jobs
+      - mvp
+      - wireframe
+      - requirements
+      - metrics
+    required_capabilities:
       - file_write
       - long_document_reading
+      - human_approval
+    recommended_agents:
+      - interface_mapper
+      - prompt_engineer
+      - verifier
+    recommended_skills:
+      - persona_mapping
+      - requirements_mapping
+      - mvp_scoping
+      - acceptance_metrics
     phase_plan:
-      - understand_document_goal
-      - confirm_input_files_and_scope
-      - plan_extraction
-      - extract_or_handoff
-      - quality_check_outputs
-      - summarize_uncertainty
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize design objective and constraints.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - product_scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - interface_mapper
+          - prompt_engineer
+        recommended_skills:
+          - persona_mapping
+          - requirements_mapping
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: identify_user_problem
+        title: Identify user problem
+        goal: Define the user problem, context, and target outcome.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - problem_statement
+        acceptance_gates:
+          - problem_is_user_centered
+        recommended_agents:
+          - interface_mapper
+          - prompt_engineer
+        recommended_skills:
+          - persona_mapping
+          - requirements_mapping
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: define_personas_and_jobs
+        title: Define personas and jobs
+        goal: Map personas, jobs-to-be-done, and user constraints.
+        required_inputs:
+          - problem_statement
+        expected_artifacts:
+          - personas_and_jobs
+        acceptance_gates:
+          - personas_are_explicit
+        recommended_agents:
+          - interface_mapper
+          - prompt_engineer
+        recommended_skills:
+          - persona_mapping
+          - requirements_mapping
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: map_requirements
+        title: Map requirements
+        goal: Separate functional, nonfunctional, design, and delivery requirements.
+        required_inputs:
+          - personas_and_jobs
+        expected_artifacts:
+          - requirements_map
+        acceptance_gates:
+          - requirements_are_traceable
+        recommended_agents:
+          - interface_mapper
+          - prompt_engineer
+        recommended_skills:
+          - persona_mapping
+          - requirements_mapping
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: design_solution_options
+        title: Design solution options
+        goal: Create multiple solution options with tradeoffs.
+        required_inputs:
+          - requirements_map
+        expected_artifacts:
+          - solution_options
+        acceptance_gates:
+          - options_have_tradeoffs
+        recommended_agents:
+          - interface_mapper
+          - prompt_engineer
+        recommended_skills:
+          - persona_mapping
+          - requirements_mapping
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: define_mvp_scope
+        title: Define MVP scope
+        goal: Select MVP scope, non-goals, and deferred items.
+        required_inputs:
+          - solution_options
+        expected_artifacts:
+          - mvp_scope
+        acceptance_gates:
+          - mvp_is_bounded
+        recommended_agents:
+          - interface_mapper
+          - prompt_engineer
+        recommended_skills:
+          - persona_mapping
+          - requirements_mapping
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: acceptance_and_metrics
+        title: Acceptance and metrics
+        goal: Define acceptance criteria, metrics, and review gates.
+        required_inputs:
+          - mvp_scope
+        expected_artifacts:
+          - acceptance_metrics
+        acceptance_gates:
+          - metrics_are_testable
+        recommended_agents:
+          - interface_mapper
+          - prompt_engineer
+        recommended_skills:
+          - persona_mapping
+          - requirements_mapping
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: delivery_spec
+        title: Delivery spec
+        goal: Package the product/design delivery spec for future implementation.
+        required_inputs:
+          - acceptance_metrics
+        expected_artifacts:
+          - delivery_spec
+        acceptance_gates:
+          - delivery_spec_complete
+        recommended_agents:
+          - interface_mapper
+          - prompt_engineer
+        recommended_skills:
+          - persona_mapping
+          - requirements_mapping
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
     required_artifacts:
-      - extraction_plan.md
-      - input_document_manifest.yml
-      - parsed_content.md
-      - table_outputs/
-      - quality_check.md
-      - summary.md
+      - product_scope_summary
+      - problem_statement
+      - personas_and_jobs
+      - requirements_map
+      - solution_options
+      - mvp_scope
+      - acceptance_metrics
+      - delivery_spec
     acceptance_gates:
-      - input file scope is listed
-      - extracted content is separated from interpretation
-      - table structure is quality checked
-      - OCR or parsing uncertainty is labeled
-      - output format matches request
+      - problem_is_user_centered
+      - requirements_are_traceable
+      - mvp_is_bounded
+      - metrics_are_testable
+      - delivery_spec_complete
     risk_defaults:
-      - extraction_error_risk
-      - table_structure_loss_risk
-      - OCR_quality_risk
+      - unclear_user_problem_risk
+      - overbuilt_mvp_risk
+      - metric_mismatch_risk
+    failure_recovery:
+      missing_user_context: ask_user
+      conflicting_requirements: create_decision_point
+      overbroad_scope: narrow_mvp
+    human_decision_points:
+      - approve_mvp_scope
+      - approve_solution_direction
     human_approval:
       required_by_default: false
       required_when:
-        - external_execution
-        - private_document
-        - destructive_change
+        - approve_mvp_scope
+        - approve_solution_direction
+    route_preferences:
+      default_route: product
+      allowed_routes:
+        - product
+        - creative
+        - business
+    risk_notes:
+      - Keep MVP scope smaller than full product vision.
     notes:
-      - Deterministic MVP template for document parsing and transformation plans.
-      - It does not perform OCR or file conversion during compilation.
+      - Keep MVP scope smaller than full product vision.
 
   data_analysis:
     template_id: data_analysis
+    display_name: Data Analysis
+    description: Plan data work through dataset/question definition, schema inspection, cleaning, analysis, visualization, caveats, and final report.
+    trigger_task_types:
+      - data_analysis
+      - data
+      - analysis
     task_types:
       - data_analysis
       - data
-      - analytics
+      - analysis
     trigger_signals:
       - csv
       - xlsx
       - spreadsheet
-      - dataframe
       - dataset
+      - dataframe
       - chart
       - statistics
-      - benchmark
-      - evaluation
+      - analysis
     required_capabilities:
       - file_read
-      - file_write
       - spreadsheet_processing
       - data_analysis
+      - file_write
+    recommended_agents:
+      - researcher
+      - coder
+      - tester_auditor
+    recommended_skills:
+      - schema_inspection
+      - data_cleaning_plan
+      - analysis_reproducibility
+      - chart_caveat_review
     phase_plan:
-      - understand_analysis_goal
-      - confirm_data_source_and_schema
-      - profile_data_quality
-      - analyze_or_handoff
-      - validate_reproducibility
-      - summarize_findings_and_limits
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize data objective and constraints.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - data_scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - researcher
+          - coder
+        recommended_skills:
+          - schema_inspection
+          - data_cleaning_plan
+        required_capabilities:
+          - file_read
+          - spreadsheet_processing
+          - data_analysis
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: define_dataset_and_question
+        title: Define dataset and question
+        goal: Identify dataset source, analysis question, and output goal.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - dataset_question
+        acceptance_gates:
+          - dataset_question_defined
+        recommended_agents:
+          - researcher
+          - coder
+        recommended_skills:
+          - schema_inspection
+          - data_cleaning_plan
+        required_capabilities:
+          - file_read
+          - spreadsheet_processing
+          - data_analysis
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: inspect_schema
+        title: Inspect schema
+        goal: Plan schema, fields, missing values, and quality inspection.
+        required_inputs:
+          - dataset_question
+        expected_artifacts:
+          - schema_profile
+        acceptance_gates:
+          - schema_profile_exists
+        recommended_agents:
+          - researcher
+          - coder
+        recommended_skills:
+          - schema_inspection
+          - data_cleaning_plan
+        required_capabilities:
+          - file_read
+          - spreadsheet_processing
+          - data_analysis
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: clean_and_validate_data
+        title: Clean and validate data
+        goal: Plan cleaning, validation, reproducibility, and excluded records.
+        required_inputs:
+          - schema_profile
+        expected_artifacts:
+          - cleaning_validation_plan
+        acceptance_gates:
+          - cleaning_is_reproducible
+        recommended_agents:
+          - researcher
+          - coder
+        recommended_skills:
+          - schema_inspection
+          - data_cleaning_plan
+        required_capabilities:
+          - file_read
+          - spreadsheet_processing
+          - data_analysis
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: analyze
+        title: Analyze
+        goal: Define computations, comparisons, models, or summaries.
+        required_inputs:
+          - cleaning_validation_plan
+        expected_artifacts:
+          - analysis_plan
+        acceptance_gates:
+          - analysis_maps_to_question
+        recommended_agents:
+          - researcher
+          - coder
+        recommended_skills:
+          - schema_inspection
+          - data_cleaning_plan
+        required_capabilities:
+          - file_read
+          - spreadsheet_processing
+          - data_analysis
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: visualize_or_summarize
+        title: Visualize or summarize
+        goal: Plan charts, tables, or summaries with caveats.
+        required_inputs:
+          - analysis_plan
+        expected_artifacts:
+          - visualization_or_summary_spec
+        acceptance_gates:
+          - visuals_have_caveats
+        recommended_agents:
+          - researcher
+          - coder
+        recommended_skills:
+          - schema_inspection
+          - data_cleaning_plan
+        required_capabilities:
+          - file_read
+          - spreadsheet_processing
+          - data_analysis
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: caveat_review
+        title: Caveat review
+        goal: Review limitations, bias, sample quality, and uncertainty.
+        required_inputs:
+          - visualization_or_summary_spec
+        expected_artifacts:
+          - caveat_review
+        acceptance_gates:
+          - limitations_are_explicit
+        recommended_agents:
+          - researcher
+          - coder
+        recommended_skills:
+          - schema_inspection
+          - data_cleaning_plan
+        required_capabilities:
+          - file_read
+          - spreadsheet_processing
+          - data_analysis
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: final_report
+        title: Final report
+        goal: Package findings, methodology, caveats, and reproducibility notes.
+        required_inputs:
+          - caveat_review
+        expected_artifacts:
+          - data_analysis_report
+        acceptance_gates:
+          - final_report_complete
+        recommended_agents:
+          - researcher
+          - coder
+        recommended_skills:
+          - schema_inspection
+          - data_cleaning_plan
+        required_capabilities:
+          - file_read
+          - spreadsheet_processing
+          - data_analysis
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
     required_artifacts:
-      - data_profile.md
-      - cleaning_log.md
-      - analysis_notebook_or_script.py
-      - charts/
-      - findings_report.md
-      - evaluation_report.md
+      - data_scope_summary
+      - dataset_question
+      - schema_profile
+      - cleaning_validation_plan
+      - analysis_plan
+      - visualization_or_summary_spec
+      - caveat_review
+      - data_analysis_report
     acceptance_gates:
-      - data source and schema are documented
-      - cleaning steps are reproducible
-      - findings distinguish evidence from interpretation
-      - charts include caveats where needed
-      - output goal is satisfied
+      - dataset_question_defined
+      - schema_profile_exists
+      - cleaning_is_reproducible
+      - analysis_maps_to_question
+      - limitations_are_explicit
     risk_defaults:
       - dirty_data_risk
       - schema_mismatch_risk
       - misleading_chart_risk
+    failure_recovery:
+      missing_dataset: ask_user
+      schema_failure: request_schema_sample
+      analysis_unclear: clarify_question
+    human_decision_points:
+      - approve_data_source
+      - approve_statistical_method
     human_approval:
       required_by_default: false
       required_when:
-        - destructive_change
-        - private_data
-        - external_execution
+        - approve_data_source
+        - approve_statistical_method
+    route_preferences:
+      default_route: analysis
+      allowed_routes:
+        - analysis
+        - coding
+    risk_notes:
+      - Do not infer dataset facts before inspecting data.
     notes:
-      - Deterministic MVP template for structured data analysis planning.
-      - The compiler does not load datasets or generate charts.
+      - Do not infer dataset facts before inspecting data.
+
+  document_processing:
+    template_id: document_processing
+    display_name: Document Processing
+    description: Plan document parsing, structure extraction, summarization or transformation, coverage verification, and formatted output.
+    trigger_task_types:
+      - document_processing
+      - document
+      - summarization
+    task_types:
+      - document_processing
+      - document
+      - summarization
+    trigger_signals:
+      - pdf
+      - docx
+      - document
+      - extract
+      - summarize
+      - table
+      - ocr
+      - format
+    required_capabilities:
+      - file_read
+      - long_document_reading
+      - file_write
+    recommended_agents:
+      - doc_manager
+      - verifier
+    recommended_skills:
+      - document_structure_extraction
+      - coverage_verification
+      - summary_traceability
+      - formatting
+    phase_plan:
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize document objective and constraints.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - document_scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - doc_manager
+          - verifier
+        recommended_skills:
+          - document_structure_extraction
+          - coverage_verification
+        required_capabilities:
+          - file_read
+          - long_document_reading
+          - file_write
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: identify_document_type
+        title: Identify document type
+        goal: Identify file type, sections, pages, and requested transformation.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - document_type_summary
+        acceptance_gates:
+          - document_type_defined
+        recommended_agents:
+          - doc_manager
+          - verifier
+        recommended_skills:
+          - document_structure_extraction
+          - coverage_verification
+        required_capabilities:
+          - file_read
+          - long_document_reading
+          - file_write
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: extract_structure
+        title: Extract structure
+        goal: Plan extraction of headings, tables, pages, or fields.
+        required_inputs:
+          - document_type_summary
+        expected_artifacts:
+          - structure_map
+        acceptance_gates:
+          - structure_map_exists
+        recommended_agents:
+          - doc_manager
+          - verifier
+        recommended_skills:
+          - document_structure_extraction
+          - coverage_verification
+        required_capabilities:
+          - file_read
+          - long_document_reading
+          - file_write
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: summarize_or_transform
+        title: Summarize or transform
+        goal: Plan summary, extraction, conversion, or table output.
+        required_inputs:
+          - structure_map
+        expected_artifacts:
+          - transformation_plan
+        acceptance_gates:
+          - transform_maps_to_request
+        recommended_agents:
+          - doc_manager
+          - verifier
+        recommended_skills:
+          - document_structure_extraction
+          - coverage_verification
+        required_capabilities:
+          - file_read
+          - long_document_reading
+          - file_write
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: verify_coverage
+        title: Verify coverage
+        goal: Check all requested sections/pages/tables are covered or caveated.
+        required_inputs:
+          - transformation_plan
+        expected_artifacts:
+          - coverage_review
+        acceptance_gates:
+          - coverage_verified
+        recommended_agents:
+          - doc_manager
+          - verifier
+        recommended_skills:
+          - document_structure_extraction
+          - coverage_verification
+        required_capabilities:
+          - file_read
+          - long_document_reading
+          - file_write
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: format_output
+        title: Format output
+        goal: Package output in requested format with caveats.
+        required_inputs:
+          - coverage_review
+        expected_artifacts:
+          - formatted_output
+        acceptance_gates:
+          - format_matches_request
+        recommended_agents:
+          - doc_manager
+          - verifier
+        recommended_skills:
+          - document_structure_extraction
+          - coverage_verification
+        required_capabilities:
+          - file_read
+          - long_document_reading
+          - file_write
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+    required_artifacts:
+      - document_scope_summary
+      - document_type_summary
+      - structure_map
+      - transformation_plan
+      - coverage_review
+      - formatted_output
+    acceptance_gates:
+      - document_type_defined
+      - structure_map_exists
+      - coverage_verified
+      - summary_traces_to_source
+      - format_matches_request
+    risk_defaults:
+      - extraction_error_risk
+      - table_structure_loss_risk
+      - ocr_quality_risk
+    failure_recovery:
+      missing_document: ask_user
+      ocr_uncertain: mark_uncertainty
+      coverage_gap: request_scope_decision
+    human_decision_points:
+      - approve_ocr_uncertainty
+      - approve_output_format
+    human_approval:
+      required_by_default: false
+      required_when:
+        - approve_ocr_uncertainty
+        - approve_output_format
+    route_preferences:
+      default_route: document
+      allowed_routes:
+        - document
+        - analysis
+    risk_notes:
+      - Separate extraction from interpretation.
+    notes:
+      - Separate extraction from interpretation.
+
+  multimodal_vision:
+    template_id: multimodal_vision
+    display_name: Multimodal / Vision
+    description: Plan image, screenshot, video, or visual analysis with capability checks, observation plan, evidence extraction, confidence review, and gap handling.
+    trigger_task_types:
+      - multimodal
+      - vision
+      - image
+    task_types:
+      - multimodal
+      - vision
+      - image
+    trigger_signals:
+      - image
+      - screenshot
+      - video
+      - photo
+      - visual
+      - ocr
+      - diagram
+    required_capabilities:
+      - image_understanding
+      - vision_observation
+      - file_read
+      - human_approval
+    recommended_agents:
+      - researcher
+      - verifier
+    recommended_skills:
+      - visual_observation_planning
+      - ocr_uncertainty_labeling
+      - capability_gap_reporting
+    phase_plan:
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize visual objective and constraints.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - visual_scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - visual_observation_planning
+          - ocr_uncertainty_labeling
+        required_capabilities:
+          - image_understanding
+          - vision_observation
+          - file_read
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: identify_visual_inputs
+        title: Identify visual inputs
+        goal: List images, screenshots, videos, pages, frames, or missing inputs.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - visual_input_manifest
+        acceptance_gates:
+          - visual_inputs_identified
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - visual_observation_planning
+          - ocr_uncertainty_labeling
+        required_capabilities:
+          - image_understanding
+          - vision_observation
+          - file_read
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: check_vision_capability
+        title: Check vision capability
+        goal: Check whether required vision capability is available from the contract.
+        required_inputs:
+          - visual_input_manifest
+        expected_artifacts:
+          - vision_capability_check
+        acceptance_gates:
+          - capability_gap_declared_if_missing
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - visual_observation_planning
+          - ocr_uncertainty_labeling
+        required_capabilities:
+          - image_understanding
+          - vision_observation
+          - file_read
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: create_observation_plan
+        title: Create observation plan
+        goal: Plan observations, OCR, uncertainty labels, and references.
+        required_inputs:
+          - vision_capability_check
+        expected_artifacts:
+          - observation_plan
+        acceptance_gates:
+          - observation_plan_has_references
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - visual_observation_planning
+          - ocr_uncertainty_labeling
+        required_capabilities:
+          - image_understanding
+          - vision_observation
+          - file_read
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: extract_visual_evidence
+        title: Extract visual evidence
+        goal: Plan evidence extraction only when capability is available or future provider is approved.
+        required_inputs:
+          - observation_plan
+        expected_artifacts:
+          - visual_evidence_table
+        acceptance_gates:
+          - visual_evidence_references_inputs
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - visual_observation_planning
+          - ocr_uncertainty_labeling
+        required_capabilities:
+          - image_understanding
+          - vision_observation
+          - file_read
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: summarize_findings
+        title: Summarize findings
+        goal: Summarize findings with visual provenance and confidence.
+        required_inputs:
+          - visual_evidence_table
+        expected_artifacts:
+          - visual_findings_summary
+        acceptance_gates:
+          - visual_uncertainty_labeled
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - visual_observation_planning
+          - ocr_uncertainty_labeling
+        required_capabilities:
+          - image_understanding
+          - vision_observation
+          - file_read
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: human_review_if_low_confidence
+        title: Human review if low confidence
+        goal: Request review for low confidence, missing capability, or ambiguous visual evidence.
+        required_inputs:
+          - visual_findings_summary
+        expected_artifacts:
+          - human_review_request
+        acceptance_gates:
+          - human_review_for_low_confidence
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - visual_observation_planning
+          - ocr_uncertainty_labeling
+        required_capabilities:
+          - image_understanding
+          - vision_observation
+          - file_read
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+    required_artifacts:
+      - visual_scope_summary
+      - visual_input_manifest
+      - vision_capability_check
+      - observation_plan
+      - visual_evidence_table
+      - vision_observations.yml
+      - visual_findings_summary
+      - human_review_request
+    acceptance_gates:
+      - visual_inputs_identified
+      - capability_gap_declared_if_missing
+      - observation_plan_has_references
+      - visual_uncertainty_labeled
+      - human_review_for_low_confidence
+    risk_defaults:
+      - visual_hallucination_risk
+      - ocr_error_risk
+      - missing_frame_reference_risk
+    failure_recovery:
+      missing_visual_input: ask_user
+      missing_capability: record_capability_gap
+      low_confidence: human_review
+    human_decision_points:
+      - approve_vision_provider
+      - human_review_low_confidence
+    human_approval:
+      required_by_default: false
+      required_when:
+        - approve_vision_provider
+        - human_review_low_confidence
+    route_preferences:
+      default_route: multimodal
+      allowed_routes:
+        - multimodal
+        - document
+    risk_notes:
+      - No real vision model integration exists in S2.
+    notes:
+      - No real vision model integration exists in S2.
 
   audio_music:
     template_id: audio_music
+    display_name: Audio / Music
+    description: Plan audio or music analysis/generation work with asset inspection, method planning, notes, subjective quality review, and final report.
+    trigger_task_types:
+      - audio_music
+      - audio
+      - music
     task_types:
       - audio_music
       - audio
@@ -406,163 +2179,488 @@ templates:
     trigger_signals:
       - audio
       - music
+      - stem
       - mix
       - master
-      - spatial
       - hrtf
       - binaural
       - loudness
-      - stem
-      - speaker
+      - song
     required_capabilities:
+      - audio_analysis
       - file_read
       - file_write
-      - audio_analysis
+      - human_approval
+    recommended_agents:
+      - researcher
+      - verifier
+    recommended_skills:
+      - audio_asset_manifest
+      - objective_subjective_separation
+      - quality_review
     phase_plan:
-      - understand_audio_goal
-      - confirm_input_assets
-      - define_evaluation_method
-      - analyze_or_handoff
-      - separate_measured_and_subjective_notes
-      - summarize_validation_limits
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize audio objective and constraints.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - audio_scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - audio_asset_manifest
+          - objective_subjective_separation
+        required_capabilities:
+          - audio_analysis
+          - file_read
+          - file_write
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: identify_audio_task_type
+        title: Identify audio task type
+        goal: Classify analysis, generation, mixing, transcription, or planning request.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - audio_task_type
+        acceptance_gates:
+          - audio_task_type_defined
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - audio_asset_manifest
+          - objective_subjective_separation
+        required_capabilities:
+          - audio_analysis
+          - file_read
+          - file_write
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: inspect_available_audio_artifacts
+        title: Inspect available audio artifacts
+        goal: Plan asset manifest and identify missing stems or references.
+        required_inputs:
+          - audio_task_type
+        expected_artifacts:
+          - audio_asset_manifest
+        acceptance_gates:
+          - audio_assets_identified_or_missing
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - audio_asset_manifest
+          - objective_subjective_separation
+        required_capabilities:
+          - audio_analysis
+          - file_read
+          - file_write
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: define_analysis_or_generation_plan
+        title: Define analysis or generation plan
+        goal: Define method, tools needed, evaluation criteria, and capability gaps.
+        required_inputs:
+          - audio_asset_manifest
+        expected_artifacts:
+          - audio_method_plan
+        acceptance_gates:
+          - method_is_explicit
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - audio_asset_manifest
+          - objective_subjective_separation
+        required_capabilities:
+          - audio_analysis
+          - file_read
+          - file_write
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: produce_audio_notes_or_processing_plan
+        title: Produce audio notes or processing plan
+        goal: Plan measurable notes, listening notes, or processing steps.
+        required_inputs:
+          - audio_method_plan
+        expected_artifacts:
+          - audio_notes_or_processing_plan
+        acceptance_gates:
+          - objective_subjective_separated
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - audio_asset_manifest
+          - objective_subjective_separation
+        required_capabilities:
+          - audio_analysis
+          - file_read
+          - file_write
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: subjective_quality_review
+        title: Subjective quality review
+        goal: Review listening environment, taste assumptions, and quality caveats.
+        required_inputs:
+          - audio_notes_or_processing_plan
+        expected_artifacts:
+          - subjective_quality_review
+        acceptance_gates:
+          - quality_caveats_labeled
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - audio_asset_manifest
+          - objective_subjective_separation
+        required_capabilities:
+          - audio_analysis
+          - file_read
+          - file_write
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: final_audio_report
+        title: Final audio report
+        goal: Package final audio report with assets, method, notes, and limitations.
+        required_inputs:
+          - subjective_quality_review
+        expected_artifacts:
+          - final_audio_report
+        acceptance_gates:
+          - final_report_complete
+        recommended_agents:
+          - researcher
+          - verifier
+        recommended_skills:
+          - audio_asset_manifest
+          - objective_subjective_separation
+        required_capabilities:
+          - audio_analysis
+          - file_read
+          - file_write
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
     required_artifacts:
-      - audio_task_brief.md
-      - input_asset_manifest.yml
-      - audio_analysis_report.md
-      - analysis_report.md
-      - processing_plan.md
-      - listening_or_validation_notes.md
+      - audio_scope_summary
+      - audio_task_type
+      - audio_asset_manifest
+      - audio_method_plan
+      - audio_notes_or_processing_plan
+      - subjective_quality_review
+      - final_audio_report
     acceptance_gates:
-      - input assets are listed
-      - objective measurements are separated from listening notes
-      - playback or evaluation target is documented
-      - capability gap is labeled if tooling is unavailable
-      - clipping or loudness caveats are recorded
+      - audio_task_type_defined
+      - audio_assets_identified_or_missing
+      - method_is_explicit
+      - objective_subjective_separated
+      - quality_caveats_labeled
     risk_defaults:
       - subjective_evaluation_risk
-      - playback_environment_mismatch_risk
-      - artifact_loudness_or_clipping_risk
+      - playback_environment_risk
+      - audio_capability_gap_risk
+    failure_recovery:
+      missing_audio: ask_user
+      missing_capability: record_capability_gap
+      quality_dispute: human_review
+    human_decision_points:
+      - approve_audio_method
+      - approve_subjective_quality_direction
     human_approval:
       required_by_default: false
       required_when:
-        - external_execution
-        - copyrighted_asset
-        - destructive_change
+        - approve_audio_method
+        - approve_subjective_quality_direction
+    route_preferences:
+      default_route: audio
+      allowed_routes:
+        - audio
+        - creative
+    risk_notes:
+      - No real audio model integration exists in S2.
     notes:
-      - Deterministic MVP template for audio and music analysis plans.
-      - No real audio analysis runtime is invoked by the compiler.
-
-  multimodal_vision:
-    template_id: multimodal_vision
-    task_types:
-      - multimodal
-      - vision
-      - image
-      - video
-    trigger_signals:
-      - image
-      - screenshot
-      - video
-      - visual
-      - photo
-      - diagram
-      - figure
-      - ocr
-      - frame
-    required_capabilities:
-      - file_read
-      - file_write
-      - image_understanding
-    phase_plan:
-      - understand_visual_goal
-      - confirm_input_artifacts
-      - define_observation_schema
-      - observe_or_handoff
-      - label_uncertainty
-      - summarize_provenance
-    required_artifacts:
-      - input_artifact_manifest.yml
-      - vision_observations.yml
-      - extracted_text.md
-      - annotated_artifacts/
-      - visual_summary.md
-    acceptance_gates:
-      - each visual observation references an input artifact
-      - uncertainty is labeled for ambiguous visuals
-      - extracted text is separated from interpretation
-      - page frame or screenshot reference is recorded
-      - capability gap is labeled if vision tooling is unavailable
-    risk_defaults:
-      - visual_hallucination_risk
-      - OCR_error_risk
-      - missing_frame_or_page_reference_risk
-    human_approval:
-      required_by_default: false
-      required_when:
-        - external_execution
-        - private_image
-        - biometric_or_sensitive_visual
-    notes:
-      - Deterministic MVP template for visual and multimodal planning.
-      - The compiler does not run a vision model.
+      - No real audio model integration exists in S2.
 
   local_ops_automation:
     template_id: local_ops_automation
+    display_name: Local Ops / Automation
+    description: Plan local filesystem or automation work with resource scope, permission checks, dry run, approval, verification, and rollback.
+    trigger_task_types:
+      - local_ops
+      - automation
+      - filesystem
     task_types:
       - local_ops
       - automation
       - filesystem
     trigger_signals:
-      - local file
-      - folder
-      - filesystem
-      - cleanup
       - delete
-      - remove
-      - move
-      - backup
+      - cleanup
+      - local
+      - filesystem
+      - folder
       - shell
-      - deploy
+      - dry-run
+      - rollback
     required_capabilities:
       - file_read
       - file_write
       - local_shell
       - human_approval
+    recommended_agents:
+      - repo_scout
+      - tester_auditor
+      - verifier
+    recommended_skills:
+      - permission_checking
+      - dry_run_planning
+      - rollback_planning
+      - change_verification
     phase_plan:
-      - understand_operation_goal
-      - confirm_path_scope
-      - plan_dry_run
-      - require_approval
-      - execute_or_handoff
-      - verify_and_summarize
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize local operation objective and constraints.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - local_ops_scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - repo_scout
+          - tester_auditor
+        recommended_skills:
+          - permission_checking
+          - dry_run_planning
+        required_capabilities:
+          - file_read
+          - file_write
+          - local_shell
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: identify_local_resource_scope
+        title: Identify local resource scope
+        goal: Identify allowed paths, resources, and protected areas.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - resource_scope
+        acceptance_gates:
+          - resource_scope_is_explicit
+        recommended_agents:
+          - repo_scout
+          - tester_auditor
+        recommended_skills:
+          - permission_checking
+          - dry_run_planning
+        required_capabilities:
+          - file_read
+          - file_write
+          - local_shell
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: permission_check
+        title: Permission check
+        goal: Confirm human approval requirements and command/file safety.
+        required_inputs:
+          - resource_scope
+        expected_artifacts:
+          - permission_check
+        acceptance_gates:
+          - permission_gate_passes
+        recommended_agents:
+          - repo_scout
+          - tester_auditor
+        recommended_skills:
+          - permission_checking
+          - dry_run_planning
+        required_capabilities:
+          - file_read
+          - file_write
+          - local_shell
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: dry_run_plan
+        title: Dry run plan
+        goal: Plan non-destructive preview commands or simulated changes.
+        required_inputs:
+          - permission_check
+        expected_artifacts:
+          - dry_run_plan
+        acceptance_gates:
+          - dry_run_precedes_execution
+        recommended_agents:
+          - repo_scout
+          - tester_auditor
+        recommended_skills:
+          - permission_checking
+          - dry_run_planning
+        required_capabilities:
+          - file_read
+          - file_write
+          - local_shell
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: execute_or_request_approval
+        title: Execute or request approval
+        goal: Do not execute automatically; request approval for any real operation.
+        required_inputs:
+          - dry_run_plan
+        expected_artifacts:
+          - approval_request_or_execution_plan
+        acceptance_gates:
+          - no_unapproved_execution
+        recommended_agents:
+          - repo_scout
+          - tester_auditor
+        recommended_skills:
+          - permission_checking
+          - dry_run_planning
+        required_capabilities:
+          - file_read
+          - file_write
+          - local_shell
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: verify_changes
+        title: Verify changes
+        goal: Plan verification of expected local state changes.
+        required_inputs:
+          - approval_request_or_execution_plan
+        expected_artifacts:
+          - verification_plan
+        acceptance_gates:
+          - verification_plan_exists
+        recommended_agents:
+          - repo_scout
+          - tester_auditor
+        recommended_skills:
+          - permission_checking
+          - dry_run_planning
+        required_capabilities:
+          - file_read
+          - file_write
+          - local_shell
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: rollback_plan
+        title: Rollback plan
+        goal: Document restore strategy and stop conditions.
+        required_inputs:
+          - verification_plan
+        expected_artifacts:
+          - rollback_plan
+        acceptance_gates:
+          - rollback_plan_exists
+        recommended_agents:
+          - repo_scout
+          - tester_auditor
+        recommended_skills:
+          - permission_checking
+          - dry_run_planning
+        required_capabilities:
+          - file_read
+          - file_write
+          - local_shell
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
     required_artifacts:
-      - operation_plan.md
+      - local_ops_scope_summary
+      - resource_scope
+      - permission_check
+      - dry_run_plan
       - dry_run_report.md
+      - approval_request_or_execution_plan
+      - verification_plan
+      - rollback_plan
       - rollback_plan.md
-      - changed_files_manifest.yml
-      - completion_report.md
     acceptance_gates:
-      - dry-run evidence exists before destructive action
-      - path scope is confirmed
-      - rollback plan exists
-      - human approval is recorded
-      - changed files or operations are manifested
+      - resource_scope_is_explicit
+      - permission_gate_passes
+      - dry_run_precedes_execution
+      - no_unapproved_execution
+      - rollback_plan_exists
     risk_defaults:
       - destructive_change_risk
       - rollback_failure_risk
       - path_scope_risk
+    failure_recovery:
+      missing_scope: ask_user
+      permission_denied: request_approval
+      verification_failure: rollback_or_stop
+    human_decision_points:
+      - approve_local_resource_scope
+      - approve_real_execution
     human_approval:
       required_by_default: true
       required_when:
-        - destructive_change
-        - local_shell
-        - external_execution
+        - approve_local_resource_scope
+        - approve_real_execution
+    route_preferences:
+      default_route: local_ops
+      allowed_routes:
+        - local_ops
+        - coding
+    risk_notes:
+      - S2 plans operations only and must not execute them.
     notes:
-      - Deterministic MVP template for local filesystem or shell automation.
-      - Human approval remains required before destructive execution.
+      - S2 plans operations only and must not execute them.
 
   education_tutoring:
     template_id: education_tutoring
+    display_name: Education / Tutoring
+    description: Plan tutoring through learning goal, level assessment, lesson plan, stepwise teaching, practice, and feedback.
+    trigger_task_types:
+      - education
+      - tutoring
+      - teaching
     task_types:
       - education
       - tutoring
@@ -570,89 +2668,424 @@ templates:
     trigger_signals:
       - teach
       - explain
+      - learn
       - lesson
-      - homework
-      - quiz
-      - study
-      - tutor
-      - learner
       - practice
+      - quiz
+      - student
+      - tutor
     required_capabilities:
       - file_write
+      - long_document_reading
       - human_approval
+    recommended_agents:
+      - prompt_engineer
+      - verifier
+    recommended_skills:
+      - learner_level_assessment
+      - lesson_scaffolding
+      - practice_generation
+      - feedback_loop
     phase_plan:
-      - understand_learning_goal
-      - infer_or_ask_learner_level
-      - plan_lesson_sequence
-      - create_explanation_or_handoff
-      - add_practice
-      - verify_clarity
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize learning objective and constraints.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - learning_scope_summary
+        acceptance_gates:
+          - scope_is_bounded
+        recommended_agents:
+          - prompt_engineer
+          - verifier
+        recommended_skills:
+          - learner_level_assessment
+          - lesson_scaffolding
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: identify_learning_goal
+        title: Identify learning goal
+        goal: Define topic, outcome, and preferred style.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - learning_goal
+        acceptance_gates:
+          - learning_goal_defined
+        recommended_agents:
+          - prompt_engineer
+          - verifier
+        recommended_skills:
+          - learner_level_assessment
+          - lesson_scaffolding
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: assess_level
+        title: Assess level
+        goal: Infer or ask for learner level and prerequisites.
+        required_inputs:
+          - learning_goal
+        expected_artifacts:
+          - level_assessment
+        acceptance_gates:
+          - level_assessment_present
+        recommended_agents:
+          - prompt_engineer
+          - verifier
+        recommended_skills:
+          - learner_level_assessment
+          - lesson_scaffolding
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: create_lesson_plan
+        title: Create lesson plan
+        goal: Plan scaffolded explanation sequence and checkpoints.
+        required_inputs:
+          - level_assessment
+        expected_artifacts:
+          - lesson_plan
+        acceptance_gates:
+          - lesson_sequence_scaffolded
+        recommended_agents:
+          - prompt_engineer
+          - verifier
+        recommended_skills:
+          - learner_level_assessment
+          - lesson_scaffolding
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: teach_stepwise
+        title: Teach stepwise
+        goal: Produce explanation in incremental steps.
+        required_inputs:
+          - lesson_plan
+        expected_artifacts:
+          - stepwise_explanation
+        acceptance_gates:
+          - steps_are_clear
+        recommended_agents:
+          - prompt_engineer
+          - verifier
+        recommended_skills:
+          - learner_level_assessment
+          - lesson_scaffolding
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: practice
+        title: Practice
+        goal: Provide exercises, examples, or checks.
+        required_inputs:
+          - stepwise_explanation
+        expected_artifacts:
+          - practice_questions
+        acceptance_gates:
+          - practice_matches_goal
+        recommended_agents:
+          - prompt_engineer
+          - verifier
+        recommended_skills:
+          - learner_level_assessment
+          - lesson_scaffolding
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: feedback
+        title: Feedback
+        goal: Plan answer key, feedback rubric, and next learning steps.
+        required_inputs:
+          - practice_questions
+        expected_artifacts:
+          - feedback_rubric
+        acceptance_gates:
+          - feedback_loop_available
+        recommended_agents:
+          - prompt_engineer
+          - verifier
+        recommended_skills:
+          - learner_level_assessment
+          - lesson_scaffolding
+        required_capabilities:
+          - file_write
+          - long_document_reading
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
     required_artifacts:
-      - learning_goal.md
-      - lesson_plan.md
-      - explanation.md
-      - practice_questions.md
-      - answer_key.md
+      - learning_scope_summary
+      - learning_goal
+      - level_assessment
+      - lesson_plan
+      - stepwise_explanation
+      - practice_questions
+      - feedback_rubric
     acceptance_gates:
-      - learning goal is explicit
-      - learner assumptions are labeled
-      - lesson sequence is scaffolded
-      - practice or checks are included when useful
-      - answer key or rubric exists for exercises
+      - learning_goal_defined
+      - level_assessment_present
+      - lesson_sequence_scaffolded
+      - practice_matches_goal
+      - feedback_loop_available
     risk_defaults:
-      - learner_level_mismatch_risk
+      - wrong_level_risk
       - unsupported_claim_risk
-      - insufficient_practice_risk
+      - practice_mismatch_risk
+    failure_recovery:
+      missing_level: ask_user
+      confusing_explanation: reteach_with_examples
+      practice_failure: adjust_lesson
+    human_decision_points:
+      - confirm_learning_level
+      - approve_lesson_depth
     human_approval:
       required_by_default: false
       required_when:
-        - learner_context_missing
-        - sensitive_education_context
+        - confirm_learning_level
+        - approve_lesson_depth
+    route_preferences:
+      default_route: education
+      allowed_routes:
+        - education
+        - document
+    risk_notes:
+      - Tutor plans should adapt to learner feedback.
     notes:
-      - Deterministic MVP template for tutoring and education planning.
-      - It produces planning artifacts only, not adaptive runtime tutoring.
+      - Tutor plans should adapt to learner feedback.
 
   unknown_exploratory:
     template_id: unknown_exploratory
+    display_name: Unknown / Exploratory
+    description: Plan safe clarification for ambiguous tasks without execution, capability assumptions, or external calls.
+    trigger_task_types:
+      - unknown
+      - exploratory
     task_types:
       - unknown
       - exploratory
     trigger_signals:
-      - unclear
-      - ambiguous
-      - handle this
-      - help
       - unknown
+      - ambiguous
+      - unclear
+      - handle this
+      - please do it
     required_capabilities:
       - human_approval
+    recommended_agents:
+      - supervisor
+      - verifier
+    recommended_skills:
+      - clarifying_question_generation
+      - safe_default_planning
+      - capability_gap_reporting
     phase_plan:
-      - restate_known_request
-      - identify_unknowns
-      - propose_clarifying_questions
-      - define_safe_minimal_plan
-      - require_human_approval
-      - summarize_limits
+      - phase_id: compile_mission
+        title: Compile mission
+        goal: Normalize known request fragments and missing details.
+        required_inputs:
+          - mission_contract
+        expected_artifacts:
+          - known_request_summary
+        acceptance_gates:
+          - knowns_are_recorded
+        recommended_agents:
+          - supervisor
+          - verifier
+        recommended_skills:
+          - clarifying_question_generation
+          - safe_default_planning
+        required_capabilities:
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: clarify_intent
+        title: Clarify intent
+        goal: Identify what cannot be safely inferred.
+        required_inputs:
+          - known_request_summary
+        expected_artifacts:
+          - clarifying_questions
+        acceptance_gates:
+          - clarifying_questions_exist
+        recommended_agents:
+          - supervisor
+          - verifier
+        recommended_skills:
+          - clarifying_question_generation
+          - safe_default_planning
+        required_capabilities:
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: classify_domain_candidates
+        title: Classify domain candidates
+        goal: List possible domains and evidence for each.
+        required_inputs:
+          - clarifying_questions
+        expected_artifacts:
+          - domain_candidate_table
+        acceptance_gates:
+          - candidates_are_labeled
+        recommended_agents:
+          - supervisor
+          - verifier
+        recommended_skills:
+          - clarifying_question_generation
+          - safe_default_planning
+        required_capabilities:
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: identify_capability_gaps
+        title: Identify capability gaps
+        goal: List required capabilities that cannot be assumed.
+        required_inputs:
+          - domain_candidate_table
+        expected_artifacts:
+          - capability_gap_summary
+        acceptance_gates:
+          - capability_gaps_labeled
+        recommended_agents:
+          - supervisor
+          - verifier
+        recommended_skills:
+          - clarifying_question_generation
+          - safe_default_planning
+        required_capabilities:
+          - human_approval
+        human_decision_point: false
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: propose_next_questions
+        title: Propose next questions
+        goal: Create the next user questions or safest default plan.
+        required_inputs:
+          - capability_gap_summary
+        expected_artifacts:
+          - next_questions
+        acceptance_gates:
+          - next_questions_are_actionable
+        recommended_agents:
+          - supervisor
+          - verifier
+        recommended_skills:
+          - clarifying_question_generation
+          - safe_default_planning
+        required_capabilities:
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
+      - phase_id: wait_for_user_or_safe_default_plan
+        title: Wait for user or safe default plan
+        goal: Stop before execution and wait for clarification or explicit approval.
+        required_inputs:
+          - next_questions
+        expected_artifacts:
+          - safe_default_plan
+        acceptance_gates:
+          - no_execution_without_clarification
+        recommended_agents:
+          - supervisor
+          - verifier
+        recommended_skills:
+          - clarifying_question_generation
+          - safe_default_planning
+        required_capabilities:
+          - human_approval
+        human_decision_point: true
+        failure_recovery:
+          missing_evidence: request_more_context
+          phase_failure: create_retry_plan
+          ambiguous_scope: ask_user
     required_artifacts:
-      - intent_summary.md
-      - clarifying_questions.md
-      - assumptions.yml
-      - proposed_plan.md
-      - acceptance_report.md
+      - known_request_summary
+      - clarifying_questions
+      - domain_candidate_table
+      - capability_gap_summary
+      - next_questions
+      - safe_default_plan
     acceptance_gates:
-      - ambiguity is explicitly documented
-      - human approval is required before execution
-      - execution scope is not expanded beyond prompt
-      - capability gaps are labeled
-      - safe minimal next step is proposed
+      - knowns_are_recorded
+      - clarifying_questions_exist
+      - capability_gaps_labeled
+      - no_execution_without_clarification
     risk_defaults:
       - ambiguous_goal_risk
       - capability_gap_risk
+      - unsafe_default_action_risk
+    failure_recovery:
+      ambiguous_scope: ask_user
+      missing_evidence: request_more_context
+      unsafe_action: stop
+    human_decision_points:
+      - clarify_intent_before_execution
+      - approve_safe_default_plan
     human_approval:
       required_by_default: true
       required_when:
-        - unknown_task_type
-        - destructive_change
-        - external_execution
+        - clarify_intent_before_execution
+        - approve_safe_default_plan
+    route_preferences:
+      default_route: unknown
+      allowed_routes:
+        - unknown
+    risk_notes:
+      - Unknown workflows must not execute.
     notes:
-      - Deterministic MVP fallback template.
-      - Unknown domains must not crash selection or pretend certainty.
+      - Unknown workflows must not execute.

@@ -122,6 +122,7 @@ def _address_is_private(
 _DEFAULT_POLICY: dict = {
     "enabled": False,
     "mode": "mock_first",
+    "resolve_dns_for_validation": False,
     "obey_robots_txt": True,
     "rate_limit_per_minute": 10,
     "timeout_seconds": 10,
@@ -216,8 +217,12 @@ def validate_url(
             normalized_url="",
         )
 
-    # Private / reserved IP check
-    if is_private_ip(hostname):
+    # Private / reserved IP check. Literal IPs are always checked. DNS
+    # resolution is opt-in because the default R4 path is offline and mock-first;
+    # host DNS can vary by machine, VPN, or captive network.
+    if _hostname_is_private_literal(hostname) or (
+        bool(policy.get("resolve_dns_for_validation", False)) and is_private_ip(hostname)
+    ):
         return URLValidation(
             url=url,
             allowed=False,
@@ -241,3 +246,11 @@ def validate_url(
         reason="OK",
         normalized_url=normalized,
     )
+
+
+def _hostname_is_private_literal(hostname: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(hostname)
+    except ValueError:
+        return False
+    return _address_is_private(addr)

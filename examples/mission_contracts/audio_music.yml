@@ -1,0 +1,45 @@
+schema_version: '1.0'
+mission_id: mission_audio_music_001
+created_at: null
+task_type: audio_music
+user_goal: Analyze music stems for spatial audio balance, loudness, subjective quality, and final audio notes.
+intent_summary: Audio/music planning with asset manifest and quality review.
+non_goals:
+  - Do not invoke audio models in S2.
+hard_constraints:
+  - Separate measurable observations from subjective notes.
+soft_preferences:
+  - Include playback caveats.
+unknowns:
+  - The audio files and playback target are not specified.
+assumptions:
+  - id: assumption_001
+    text: Audio assets must be provided before execution.
+    confidence: medium
+    requires_user_confirmation: true
+required_capabilities:
+  - capability: audio_analysis
+    reason: Analyze audio assets in a future runtime.
+    required: true
+    source: inferred
+required_artifacts:
+  - artifact_type: dataset
+    name: audio_asset_manifest
+    description: Audio input asset manifest.
+    required: true
+acceptance_gates:
+  - gate_id: objective_subjective_separated
+    description: Objective observations are separated from subjective listening notes.
+    verification_method: review
+    required: true
+risks:
+  - risk_id: subjective_evaluation_risk
+    level: medium
+    description: Audio judgments can be subjective.
+    mitigation: Record playback context.
+human_approval:
+  required: true
+  reason: Audio method and assets require confirmation.
+recommended_route: Researcher -> Verifier
+notes:
+  - Example S2 audio contract.

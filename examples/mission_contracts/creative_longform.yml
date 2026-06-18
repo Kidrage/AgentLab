@@ -2,44 +2,44 @@ schema_version: '1.0'
 mission_id: mission_creative_longform_001
 created_at: null
 task_type: creative_longform
-user_goal: Draft a longform story outline and opening scene.
-intent_summary: Create structured creative writing assets from user direction.
+user_goal: Create a longform story chapter with genre, audience, outline, continuity tracking, draft, and style revision.
+intent_summary: Longform creative writing should plan before drafting.
 non_goals:
-  - Do not imitate a living author's style.
+  - Do not jump directly to final prose.
 hard_constraints:
-  - Respect user-provided content boundaries.
+  - Outline must precede drafting.
 soft_preferences:
-  - Keep tone cinematic and emotionally grounded.
+  - Maintain a lyrical but clear tone.
 unknowns:
-  - Preferred target length for the full piece.
+  - Target word count and exact audience are not fully specified.
 assumptions:
   - id: assumption_001
-    text: The user wants original prose rather than a summary.
+    text: The user wants a planning package before final drafting.
     confidence: medium
-    requires_user_confirmation: false
+    requires_user_confirmation: true
 required_capabilities:
-  - capability: text_generation
-    reason: Generate original outline and prose deliverables.
+  - capability: file_write
+    reason: Write planning and draft artifacts.
     required: true
     source: inferred
 required_artifacts:
   - artifact_type: document
-    name: outline_and_opening_scene
-    description: Longform outline plus an opening prose scene.
+    name: outline
+    description: Outline before drafting.
     required: true
 acceptance_gates:
-  - gate_id: gate_001
-    description: Output follows the requested tone and avoids non-goals.
+  - gate_id: outline_first
+    description: Planning artifacts exist before drafting.
     verification_method: review
     required: true
 risks:
-  - risk_id: risk_001
-    level: low
-    description: Creative output may drift from the requested tone.
-    mitigation: Include style constraints in the route notes.
+  - risk_id: continuity_drift_risk
+    level: medium
+    description: Longform content may drift.
+    mitigation: Use a continuity ledger.
 human_approval:
-  required: false
-  reason: No external execution or irreversible action is needed.
-recommended_route: Prompt Engineer -> Coder
+  required: true
+  reason: Confirm outline direction before final drafting.
+recommended_route: PromptEngineer -> DocManager -> Verifier
 notes:
-  - Creative example fixture for S1-A.
+  - Example S2 creative contract.
