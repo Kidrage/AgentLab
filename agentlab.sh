@@ -29,6 +29,7 @@ PROJECT_OPS_COMMANDS=(
 if [[ $# -gt 0 ]]; then
   for cmd in "${PROJECT_OPS_COMMANDS[@]}"; do
     if [[ "$1" == "$cmd" ]]; then
+      cd "$ROOT"
       exec "$PYTHON_BIN" -m agent_runtime.project_ops.cli "$@"
     fi
   done
