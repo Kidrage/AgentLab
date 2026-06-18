@@ -73,10 +73,24 @@ def test_s0_s1a_critical_files_are_in_remote_raw_defaults() -> None:
 
     assert ".github/workflows/ci.yml" in critical
     assert "agent_runtime/brain/mission_contract.py" in critical
+    assert "agent_runtime/brain/task_compiler.py" in critical
+    assert "agent_runtime/brain/domain_signals.py" in critical
+    assert "agent_runtime/brain/artifact_builder.py" in critical
+    assert "agent_runtime/brain/acceptance_builder.py" in critical
     assert "tests/test_mission_contract_schema.py" in critical
+    assert "tests/test_task_compiler_mvp.py" in critical
+    assert "docs/TASK_COMPILER.md" in critical
+    assert "scripts/compile_mission_contract.py" in critical
     assert "scripts/s0_stable_baseline_check.py" in critical
     assert "scripts/audit_text_integrity.py" in critical
     assert "scripts/check_remote_raw_integrity.py" in critical
     assert module.MIN_LINES["agent_runtime/brain/mission_contract.py"] >= 180
+    assert module.MIN_LINES["agent_runtime/brain/task_compiler.py"] >= 180
+    assert module.MIN_LINES["agent_runtime/brain/domain_signals.py"] >= 80
+    assert module.MIN_LINES["agent_runtime/brain/artifact_builder.py"] >= 100
+    assert module.MIN_LINES["agent_runtime/brain/acceptance_builder.py"] >= 100
     assert module.MIN_LINES["tests/test_mission_contract_schema.py"] >= 100
+    assert module.MIN_LINES["tests/test_task_compiler_mvp.py"] >= 160
+    assert module.MIN_LINES["docs/TASK_COMPILER.md"] >= 80
+    assert module.MIN_LINES["scripts/compile_mission_contract.py"] >= 80
     assert module.MIN_LINES["scripts/s0_stable_baseline_check.py"] >= 80

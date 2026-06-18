@@ -1,0 +1,1 @@
+Organize and delete duplicate local files in a folder with a dry-run report, rollback plan, and human approval.

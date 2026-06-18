@@ -1,0 +1,1 @@
+Review this UI screenshot, extract visible text, describe visual issues, and mark uncertain observations.

@@ -1,0 +1,1 @@
+Analyze a CSV and XLSX spreadsheet, clean the dataframe, generate charts, and write a findings report.

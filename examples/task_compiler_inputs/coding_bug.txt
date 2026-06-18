@@ -1,0 +1,1 @@
+Fix the pytest failure in this repository, make the smallest safe patch, and produce an acceptance report.
