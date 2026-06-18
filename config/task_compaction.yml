@@ -1,0 +1,22 @@
+task_compaction:
+  enabled: true
+  default_state_after_close: compacted
+  delete_raw_artifacts_by_default: false
+  preserve_hash_index: true
+  memory_promotion_categories:
+    - decisions
+    - architecture_changes
+    - unresolved_questions
+    - reusable_patterns
+    - failure_patterns
+    - skill_candidates
+  compact_outputs:
+    - task_summary.md
+    - final_verdict.yml
+    - artifact_index.yml
+    - decision_delta.yml
+    - memory_promotions.yml
+    - unresolved_items.yml
+    - reusable_patterns.yml
+    - cost_summary.yml
+    - agent_contribution_summary.yml
