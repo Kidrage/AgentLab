@@ -1,0 +1,20 @@
+routing:
+  reserved_self_projects:
+    - AgentLab
+  self_development_signals:
+    - "AgentLab"
+    - "this repo"
+    - "这个仓库"
+    - "修仓库"
+    - "mainline"
+    - "主线修复"
+    - "repository hygiene"
+  create_new_project_by_default_for:
+    - creative_longform
+    - research_investigation
+    - business_strategy
+    - product_design
+    - document_processing
+    - audio_music
+    - multimodal_vision
+  require_confirmation_when_ambiguous: true
