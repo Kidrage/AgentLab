@@ -1,0 +1,46 @@
+root_policy:
+  allowed_root_files:
+    - .gitignore
+    - README.md
+    - agentlab.sh
+    - agentlab_app.py
+    - pyproject.toml
+    - requirements.txt
+    - requirements-dev.txt
+    - pytest.ini
+    - tox.ini
+    - mypy.ini
+  allowed_root_dirs:
+    - .git
+    - .github
+    - .agentlab
+    - .pytest_cache
+    - .venv
+    - __pycache__
+    - acceptance_runs
+    - agent_runtime
+    - config
+    - docs
+    - examples
+    - memory
+    - projects
+    - scripts
+    - skills
+    - tests
+  ignored_runtime_dirs:
+    - .agentlab
+    - .venv
+    - __pycache__
+    - .pytest_cache
+  forbidden_root_patterns:
+    - "*.tmp"
+    - "*handoff*.md"
+    - "*draft*.md"
+    - "粘贴的*"
+    - "untitled*"
+    - "scratch*"
+  require_gitignore_for:
+    - .agentlab/
+    - projects/*/runs/
+    - projects/*/tmp/
+    - projects/*/scratch/
