@@ -57,7 +57,7 @@ EXCLUDE_PATTERNS = [
 
 # Minimum line counts for critical files
 MIN_LINE_COUNTS = {
-    ".github/workflows/ci.yml": 20,
+    ".github/workflows/ci.yml": 25,
     "agent_runtime/mcp_server.py": 80,
     "agent_runtime/skills/registry.py": 80,
     "agent_runtime/skills/usage_ledger.py": 40,
