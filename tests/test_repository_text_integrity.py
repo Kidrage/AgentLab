@@ -15,11 +15,13 @@ ROOT = Path(__file__).resolve().parents[1]
 PYTHON_SCAN_ROOTS = [
     ROOT / "agent_runtime",
     ROOT / "tests",
+    ROOT / "scripts",
 ]
 
 YAML_SCAN_ROOTS = [
     ROOT / "config",
     ROOT / ".github" / "workflows",
+    ROOT / "examples" / "mission_contracts",
 ]
 
 ACCEPTANCE_SCAN_ROOT = ROOT / "acceptance_runs"
@@ -84,6 +86,9 @@ MIN_LINE_COUNTS = {
     "tests/test_s0_stable_baseline.py": 40,
     "tests/test_mission_contract_schema.py": 100,
     "agent_runtime/brain/mission_contract.py": 200,
+    "scripts/s0_stable_baseline_check.py": 80,
+    "docs/MISSION_CONTRACT.md": 60,
+    "docs/S0_STABLE_BASELINE.md": 40,
     "config/context_governance.yml": 25,
     # P2-I: Execution Reliability & Failure Recovery
     "agent_runtime/recovery/__init__.py": 30,
@@ -227,6 +232,14 @@ def test_acceptance_artifacts_have_no_local_absolute_paths() -> None:
 
 def test_no_docstring_future_import_on_same_line() -> None:
     future_import_marker = "from __future__" + " import annotations"
+    forbidden_docstring_future = (
+        '""" '
+        + "from __future__ import annotations"
+    )
+    forbidden_future_import_import = (
+        "from __future__ import annotations "
+        + "import"
+    )
     for path in _python_files():
         relative_path = _relative(path)
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -237,6 +250,12 @@ def test_no_docstring_future_import_on_same_line() -> None:
                 raise AssertionError(
                     f"{relative_path}:{number} has docstring and future import on one line"
                 )
+            assert forbidden_docstring_future not in line, (
+                f"{relative_path}:{number} has explicit compressed docstring/future import"
+            )
+            assert forbidden_future_import_import not in line, (
+                f"{relative_path}:{number} has future import/import compression"
+            )
 
 
 def test_no_many_defs_or_classes_on_single_line() -> None:
@@ -345,6 +364,31 @@ def test_yaml_policy_files_are_not_single_line_compressed() -> None:
         assert _max_line_length(path) <= 1000, f"{relative_path} has an extreme long line"
 
 
+def test_key_s0_s1a_files_are_multiline() -> None:
+    minimums = {
+        ".github/workflows/ci.yml": 25,
+        "agent_runtime/brain/mission_contract.py": 180,
+        "tests/test_mission_contract_schema.py": 100,
+        "scripts/s0_stable_baseline_check.py": 80,
+        "docs/MISSION_CONTRACT.md": 60,
+        "docs/S0_STABLE_BASELINE.md": 40,
+    }
+    for relative_path, minimum in minimums.items():
+        path = ROOT / relative_path
+        assert path.exists(), f"{relative_path} missing"
+        assert _line_count(path) >= minimum, f"{relative_path} appears compressed"
+        assert _max_line_length(path) <= 1000, f"{relative_path} has an extreme long line"
+
+
+def test_yaml_files_are_not_low_line_compressed_mappings() -> None:
+    for path in _yaml_files():
+        text = path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        assert not (len(lines) <= 2 and text.count(":") >= 6), (
+            f"{_relative(path)} appears to be compressed YAML"
+        )
+
+
 def test_agentlab_shell_is_readable_and_not_single_line_large_file() -> None:
     path = ROOT / "agentlab.sh"
     assert path.exists() and path.is_file()
@@ -397,6 +441,38 @@ def test_audit_detects_future_import_after_code(tmp_path: Path) -> None:
     audits = module.run_audit(tmp_path)
     flagged = [a for a in audits if a.future_import_after_code]
     assert any(a.path == "scripts/bad_order.py" for a in flagged)
+
+
+def test_audit_detects_explicit_compressed_future_import_patterns(tmp_path: Path) -> None:
+    """Compressed future-import patterns should be rejected without self-matching."""
+    module = _load_audit_module()
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    bad = scripts / "future_compressed.py"
+    bad.write_text(
+        '""" '
+        + "from __future__ import annotations "
+        + "import os\n",
+        encoding="utf-8",
+    )
+    audits = module.run_audit(tmp_path)
+    flagged = [a for a in audits if a.suspicious_single_line]
+    assert any(a.path == "scripts/future_compressed.py" for a in flagged)
+
+
+def test_audit_detects_low_line_compressed_yaml(tmp_path: Path) -> None:
+    """A one-line YAML mapping with many keys should be suspicious."""
+    module = _load_audit_module()
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    bad = workflows / "ci.yml"
+    bad.write_text(
+        "name: CI on: push jobs: test runs-on: ubuntu-latest steps: [] extra: value\n",
+        encoding="utf-8",
+    )
+    audits = module.run_audit(tmp_path)
+    flagged = [a for a in audits if a.suspicious_single_line]
+    assert any(a.path == ".github/workflows/ci.yml" for a in flagged)
 
 
 def test_audit_allows_future_import_after_docstring(tmp_path: Path) -> None:

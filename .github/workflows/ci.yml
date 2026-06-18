@@ -29,10 +29,10 @@ jobs:
       - name: Stable baseline smoke
         run: |
           python scripts/s0_stable_baseline_check.py
-      - name: Remote raw integrity on main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Remote raw integrity on pushed branch
+        if: github.event_name == 'push'
         run: |
-          python scripts/check_remote_raw_integrity.py --ref main --fail-on-suspicious
+          python scripts/check_remote_raw_integrity.py --ref "$GITHUB_REF_NAME" --fail-on-suspicious
       - name: Whitespace diff check
         run: |
           git diff --check

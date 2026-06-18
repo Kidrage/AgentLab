@@ -65,3 +65,18 @@ def test_default_repo_allows_ref_command_without_explicit_repo(monkeypatch) -> N
 
     assert code == 0
     assert calls == [("Kidrage/AgentLab", "main", "README.md", True)]
+
+
+def test_s0_s1a_critical_files_are_in_remote_raw_defaults() -> None:
+    module = _load_remote_raw_module()
+    critical = set(module.CRITICAL_FILES)
+
+    assert ".github/workflows/ci.yml" in critical
+    assert "agent_runtime/brain/mission_contract.py" in critical
+    assert "tests/test_mission_contract_schema.py" in critical
+    assert "scripts/s0_stable_baseline_check.py" in critical
+    assert "scripts/audit_text_integrity.py" in critical
+    assert "scripts/check_remote_raw_integrity.py" in critical
+    assert module.MIN_LINES["agent_runtime/brain/mission_contract.py"] >= 180
+    assert module.MIN_LINES["tests/test_mission_contract_schema.py"] >= 100
+    assert module.MIN_LINES["scripts/s0_stable_baseline_check.py"] >= 80

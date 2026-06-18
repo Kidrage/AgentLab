@@ -36,6 +36,8 @@ SCAN_PATTERNS = [
     "tests/*.py",
     "config/*.yml",
     "config/*.yaml",
+    "examples/**/*.yml",
+    "examples/**/*.yaml",
     "acceptance_runs/**/*.yml",
     "acceptance_runs/**/*.yaml",
     "acceptance_runs/**/*.md",
@@ -93,6 +95,12 @@ MIN_LINE_COUNTS = {
     "docs/SKILL_VAULT.md": 40,
     "scripts/p2_provider_governance_check.py": 60,
     "scripts/audit_text_integrity.py": 120,
+    "scripts/check_remote_raw_integrity.py": 120,
+    "scripts/s0_stable_baseline_check.py": 80,
+    "agent_runtime/brain/mission_contract.py": 180,
+    "tests/test_mission_contract_schema.py": 100,
+    "docs/MISSION_CONTRACT.md": 60,
+    "docs/S0_STABLE_BASELINE.md": 40,
     "tests/test_repository_text_integrity.py": 80,
     "tests/test_text_integrity_audit.py": 60,
     "tests/test_p2_closure.py": 80,
@@ -191,6 +199,22 @@ def _check_python(path: Path, root: Path) -> FileAudit:
     if docstring_future_same_line:
         issues.append("contains docstring/future import compression")
 
+    forbidden_docstring_future = (
+        '""" '
+        + "from __future__ import annotations"
+    )
+    if any(forbidden_docstring_future in line for line in lines):
+        suspicious = True
+        issues.append("contains explicit docstring/future import one-line compression")
+
+    forbidden_future_import_import = (
+        "from __future__ import annotations "
+        + "import"
+    )
+    if forbidden_future_import_import in content:
+        suspicious = True
+        issues.append("contains future import followed by import on same line")
+
     multiple_defs = False
     for line in lines:
         def_or_class_count = len(re.findall(r"(?<!\w)(?:class|def)\s+\w+", line))
@@ -240,6 +264,9 @@ def _check_python(path: Path, root: Path) -> FileAudit:
     if line_count <= 5 and size > 1000:
         suspicious = True
         issues.append(f"only {line_count} lines but {size} bytes")
+    if line_count <= 2 and content.count(":") >= 6:
+        suspicious = True
+        issues.append("YAML appears compressed: very low line count with many mappings")
     if LOCAL_ABSOLUTE_PATH_RE.search(content):
         suspicious = True
         issues.append("contains local absolute /Users path")
@@ -305,6 +332,10 @@ def _check_yaml(path: Path, root: Path) -> FileAudit:
     if line_count <= 5 and size > 1000:
         suspicious = True
         issues.append(f"only {line_count} lines but {size} bytes")
+    content = path.read_text(encoding="utf-8", errors="replace")
+    if line_count <= 2 and content.count(":") >= 6:
+        suspicious = True
+        issues.append("YAML appears compressed: very low line count with many mappings")
     if yaml_ok is False:
         suspicious = True
 
@@ -313,7 +344,6 @@ def _check_yaml(path: Path, root: Path) -> FileAudit:
         suspicious = True
         issues.append(f"max line length {max_line_len} > {MAX_SOURCE_LINE_LENGTH}")
 
-    content = path.read_text(encoding="utf-8", errors="replace")
     if LOCAL_ABSOLUTE_PATH_RE.search(content):
         suspicious = True
         issues.append("contains local absolute /Users path")
