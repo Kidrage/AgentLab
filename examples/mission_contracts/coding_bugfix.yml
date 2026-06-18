@@ -1,0 +1,49 @@
+schema_version: '1.0'
+mission_id: mission_coding_bugfix_001
+created_at: null
+task_type: coding
+user_goal: Fix a failing repository test with the smallest safe code change.
+intent_summary: Repair a coding regression while preserving existing behavior.
+non_goals:
+  - Do not redesign the application architecture.
+hard_constraints:
+  - Preserve unrelated user work in the repository.
+soft_preferences:
+  - Prefer targeted tests over full-suite debugging loops.
+unknowns:
+  - Exact failing test root cause is not known before inspection.
+assumptions:
+  - id: assumption_001
+    text: The repository already contains reproducible tests.
+    confidence: medium
+    requires_user_confirmation: false
+required_capabilities:
+  - capability: file_read
+    reason: Inspect the failing test and related implementation files.
+    required: true
+    source: system_required
+  - capability: file_write
+    reason: Apply a minimal local patch if a code regression is found.
+    required: true
+    source: inferred
+required_artifacts:
+  - artifact_type: patch
+    name: bugfix_patch
+    description: Minimal source or test patch that resolves the regression.
+    required: true
+acceptance_gates:
+  - gate_id: gate_001
+    description: Targeted tests and repository text integrity checks pass.
+    verification_method: test
+    required: true
+risks:
+  - risk_id: risk_001
+    level: medium
+    description: A broad refactor could mask the actual regression.
+    mitigation: Keep edits scoped to the failing behavior.
+human_approval:
+  required: false
+  reason: Local deterministic repair only.
+recommended_route: RepoScout -> Coder -> Tester
+notes:
+  - Example contract for S1-A schema validation.

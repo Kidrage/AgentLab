@@ -1,0 +1,45 @@
+schema_version: '1.0'
+mission_id: mission_creative_longform_001
+created_at: null
+task_type: creative_longform
+user_goal: Draft a longform story outline and opening scene.
+intent_summary: Create structured creative writing assets from user direction.
+non_goals:
+  - Do not imitate a living author's style.
+hard_constraints:
+  - Respect user-provided content boundaries.
+soft_preferences:
+  - Keep tone cinematic and emotionally grounded.
+unknowns:
+  - Preferred target length for the full piece.
+assumptions:
+  - id: assumption_001
+    text: The user wants original prose rather than a summary.
+    confidence: medium
+    requires_user_confirmation: false
+required_capabilities:
+  - capability: text_generation
+    reason: Generate original outline and prose deliverables.
+    required: true
+    source: inferred
+required_artifacts:
+  - artifact_type: document
+    name: outline_and_opening_scene
+    description: Longform outline plus an opening prose scene.
+    required: true
+acceptance_gates:
+  - gate_id: gate_001
+    description: Output follows the requested tone and avoids non-goals.
+    verification_method: review
+    required: true
+risks:
+  - risk_id: risk_001
+    level: low
+    description: Creative output may drift from the requested tone.
+    mitigation: Include style constraints in the route notes.
+human_approval:
+  required: false
+  reason: No external execution or irreversible action is needed.
+recommended_route: Prompt Engineer -> Coder
+notes:
+  - Creative example fixture for S1-A.

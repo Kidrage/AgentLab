@@ -22,10 +22,17 @@ jobs:
           python scripts/audit_text_integrity.py --fail-on-suspicious
       - name: Compile Python
         run: |
-          python -m compileall agent_runtime agentlab_app.py scripts tests
+          python -m compileall agent_runtime agentlab_app.py
       - name: Run tests
         run: |
           python -m pytest -q
+      - name: Stable baseline smoke
+        run: |
+          python scripts/s0_stable_baseline_check.py
+      - name: Remote raw integrity on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          python scripts/check_remote_raw_integrity.py --ref main --fail-on-suspicious
       - name: Whitespace diff check
         run: |
           git diff --check

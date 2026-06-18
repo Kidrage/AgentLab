@@ -23,7 +23,7 @@ def test_ref_is_branch_alias(monkeypatch) -> None:
     module = _load_remote_raw_module()
     calls = []
 
-    def fake_fetch_raw(repo: str, branch: str, path: str, timeout: int = 20):
+    def fake_fetch_raw(repo: str, branch: str, path: str, timeout: int = 20, compare_local: bool = True):
         calls.append((repo, branch, path, timeout))
         return module.RawResult(path=path, status="OK", lines=1, max_line=1, bytes=1)
 
@@ -39,7 +39,7 @@ def test_branch_argument_still_works(monkeypatch) -> None:
     module = _load_remote_raw_module()
     calls = []
 
-    def fake_fetch_raw(repo: str, branch: str, path: str, timeout: int = 20):
+    def fake_fetch_raw(repo: str, branch: str, path: str, timeout: int = 20, compare_local: bool = True):
         calls.append((repo, branch, path, timeout))
         return module.RawResult(path=path, status="OK", lines=1, max_line=1, bytes=1)
 
@@ -49,3 +49,19 @@ def test_branch_argument_still_works(monkeypatch) -> None:
 
     assert code == 0
     assert calls == [("Kidrage/AgentLab", "main", "README.md", 20)]
+
+
+def test_default_repo_allows_ref_command_without_explicit_repo(monkeypatch) -> None:
+    module = _load_remote_raw_module()
+    calls = []
+
+    def fake_fetch_raw(repo: str, branch: str, path: str, timeout: int = 20, compare_local: bool = True):
+        calls.append((repo, branch, path, compare_local))
+        return module.RawResult(path=path, status="OK", lines=10, max_line=80, bytes=100)
+
+    monkeypatch.setattr(module, "fetch_raw", fake_fetch_raw)
+
+    code = module.main(["--ref", "main", "README.md"])
+
+    assert code == 0
+    assert calls == [("Kidrage/AgentLab", "main", "README.md", True)]

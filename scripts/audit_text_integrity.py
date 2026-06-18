@@ -459,7 +459,10 @@ def write_json(audits: list[FileAudit], output_dir: Path) -> dict[str, Any]:
     """Write JSON report and return summary dict."""
     summary: dict[str, Any] = {
         "total_files": len(audits),
+        "files_scanned": len(audits),
         "suspicious_count": sum(1 for a in audits if a.suspicious_single_line),
+        "suspicious_files": [a.path for a in audits if a.suspicious_single_line],
+        "verdict": "PASS" if not any(a.suspicious_single_line for a in audits) else "FAIL",
         "python_suspicious": sum(
             1 for a in audits if a.suspicious_single_line and a.python_ast_ok is not None
         ),
@@ -556,6 +559,10 @@ def main() -> None:
 
     # Console summary
     suspicious_count = summary["suspicious_count"]
+    print(f"files_scanned: {summary['files_scanned']}")
+    print(f"suspicious_count: {summary['suspicious_count']}")
+    print(f"suspicious_files: {summary['suspicious_files']}")
+    print(f"verdict: {summary['verdict']}")
     print(f"\nTotal files scanned: {summary['total_files']}")
     print(f"Suspicious files: {suspicious_count}")
 

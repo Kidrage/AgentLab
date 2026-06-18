@@ -60,6 +60,7 @@ MIN_LINE_COUNTS = {
     "agent_runtime/skill_vault.py": 200,
     "agent_runtime/skill_backup.py": 100,
     "scripts/audit_text_integrity.py": 120,
+    "scripts/s0_stable_baseline_check.py": 80,
     "tests/test_anysearch_adapter.py": 40,
     "tests/test_p1_cd_syntax_yaml_integrity.py": 40,
     "tests/test_external_skill_registry.py": 40,
@@ -80,6 +81,9 @@ MIN_LINE_COUNTS = {
     "docs/SKILL_VAULT.md": 40,
     "scripts/check_remote_raw_integrity.py": 80,
     "tests/test_text_integrity_audit.py": 60,
+    "tests/test_s0_stable_baseline.py": 40,
+    "tests/test_mission_contract_schema.py": 100,
+    "agent_runtime/brain/mission_contract.py": 200,
     "config/context_governance.yml": 25,
     # P2-I: Execution Reliability & Failure Recovery
     "agent_runtime/recovery/__init__.py": 30,
@@ -200,6 +204,16 @@ def test_no_extreme_long_source_lines() -> None:
         relative_path = _relative(path)
         assert _max_line_length(path) <= 1200, (
             f"{relative_path} has a line over 1200 characters"
+        )
+
+
+def test_markdown_docs_have_no_extreme_long_lines() -> None:
+    doc_files = [ROOT / "README.md"] + sorted((ROOT / "docs").rglob("*.md"))
+    for path in doc_files:
+        if not path.exists() or not path.is_file():
+            continue
+        assert _max_line_length(path) <= 5000, (
+            f"{_relative(path)} has a Markdown/text line over 5000 characters"
         )
 
 

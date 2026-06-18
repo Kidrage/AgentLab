@@ -1,0 +1,45 @@
+schema_version: '1.0'
+mission_id: mission_research_company_001
+created_at: null
+task_type: research
+user_goal: Produce a concise company research brief from provided sources.
+intent_summary: Summarize business facts, risks, and open questions.
+non_goals:
+  - Do not make investment recommendations.
+hard_constraints:
+  - Use only user-provided or approved sources.
+soft_preferences:
+  - Separate facts from assumptions.
+unknowns:
+  - Whether external browsing is approved for the mission.
+assumptions:
+  - id: assumption_001
+    text: The user will provide source material or approve source collection.
+    confidence: low
+    requires_user_confirmation: true
+required_capabilities:
+  - capability: file_read
+    reason: Read provided documents or source exports.
+    required: true
+    source: inferred
+required_artifacts:
+  - artifact_type: report
+    name: company_research_brief
+    description: Structured report with facts, citations, risks, and unknowns.
+    required: true
+acceptance_gates:
+  - gate_id: gate_001
+    description: Claims that require support include source references.
+    verification_method: citation_check
+    required: true
+risks:
+  - risk_id: risk_001
+    level: medium
+    description: Unsupported claims could be mistaken for verified facts.
+    mitigation: Mark unsupported items as assumptions or unknowns.
+human_approval:
+  required: true
+  reason: External source collection may require user approval.
+recommended_route: Researcher -> Verifier
+notes:
+  - Example research contract; not a domain classifier output.

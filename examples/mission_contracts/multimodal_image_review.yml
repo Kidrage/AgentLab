@@ -1,0 +1,45 @@
+schema_version: '1.0'
+mission_id: mission_multimodal_image_review_001
+created_at: null
+task_type: multimodal
+user_goal: Review provided images and produce visual QA notes.
+intent_summary: Analyze user-supplied visual artifacts and report issues.
+non_goals:
+  - Do not generate replacement image assets.
+hard_constraints:
+  - Use only images explicitly provided by the user.
+soft_preferences:
+  - Group findings by severity.
+unknowns:
+  - Whether screenshots or design references are available.
+assumptions:
+  - id: assumption_001
+    text: The mission has access to local or attached image files.
+    confidence: low
+    requires_user_confirmation: true
+required_capabilities:
+  - capability: image_read
+    reason: Inspect provided visual artifacts.
+    required: true
+    source: user_requested
+required_artifacts:
+  - artifact_type: report
+    name: visual_qa_report
+    description: Findings, severity, and recommended corrections.
+    required: true
+acceptance_gates:
+  - gate_id: gate_001
+    description: Every major visual issue includes a location or description.
+    verification_method: manual_review
+    required: true
+risks:
+  - risk_id: risk_001
+    level: medium
+    description: Missing image inputs would block the mission.
+    mitigation: Ask for required files before execution.
+human_approval:
+  required: false
+  reason: Read-only review of user-provided assets.
+recommended_route: Verifier -> Tester
+notes:
+  - Current S1-A only validates this contract; no vision runtime is wired.

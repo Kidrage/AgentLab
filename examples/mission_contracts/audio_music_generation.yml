@@ -1,0 +1,45 @@
+schema_version: '1.0'
+mission_id: mission_audio_music_generation_001
+created_at: null
+task_type: audio_music
+user_goal: Plan a short music generation task and define acceptance criteria.
+intent_summary: Capture audio/music intent without invoking generation tools.
+non_goals:
+  - Do not call external audio generation APIs in S1-A.
+hard_constraints:
+  - Avoid copyrighted artist imitation requests.
+soft_preferences:
+  - Include tempo, mood, and instrumentation notes when available.
+unknowns:
+  - Desired duration and export format.
+assumptions:
+  - id: assumption_001
+    text: This stage records the contract only and does not render audio.
+    confidence: high
+    requires_user_confirmation: false
+required_capabilities:
+  - capability: audio_planning
+    reason: Convert music intent into structured non-executable requirements.
+    required: true
+    source: inferred
+required_artifacts:
+  - artifact_type: document
+    name: music_generation_brief
+    description: Non-executable creative brief and acceptance criteria.
+    required: true
+acceptance_gates:
+  - gate_id: gate_001
+    description: Brief includes goal, constraints, and explicit non-goals.
+    verification_method: review
+    required: true
+risks:
+  - risk_id: risk_001
+    level: medium
+    description: The user may expect real media generation in this foundation stage.
+    mitigation: State that S1-A does not execute audio generation.
+human_approval:
+  required: false
+  reason: Contract-only planning artifact.
+recommended_route: Prompt Engineer -> Verifier
+notes:
+  - Audio fixture confirms task_type support without multimodal runtime work.
