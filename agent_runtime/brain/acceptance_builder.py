@@ -8,7 +8,10 @@ before accepting a compiled task result.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
+from .assumption_builder import SUPPORTED_CAPABILITIES
+from .domain_workflows import DomainWorkflowTemplate
 from .mission_contract import MissionAcceptanceGate, MissionTaskType
 
 
@@ -108,22 +111,130 @@ GATE_SPECS: dict[MissionTaskType, tuple[AcceptanceGateSpec, ...]] = {
 }
 
 
-def build_acceptance_gates(task_type: MissionTaskType | str) -> list[MissionAcceptanceGate]:
-    """Build deterministic acceptance gates for a supported task type."""
+PROMPT_GATE_RULES: tuple[tuple[re.Pattern[str], tuple[tuple[str, str, str], ...]], ...] = (
+    (
+        re.compile(r"\b(ci|github actions?)\b", re.IGNORECASE),
+        (("ci_evidence", "CI status or local equivalent evidence is recorded.", "review"),),
+    ),
+    (
+        re.compile(r"\b(test|tests|pytest|unit test|integration test)\b", re.IGNORECASE),
+        (("test_output", "Test command output or explicit test limitation is recorded.", "test"),),
+    ),
+    (
+        re.compile(r"\b(web|current|latest|company|market|competitor|today)\b", re.IGNORECASE),
+        (("fresh_sources", "Source citations and freshness evidence are required.", "citation_check"),),
+    ),
+    (
+        re.compile(r"\b(screenshot|image|video|photo|visual)\b", re.IGNORECASE),
+        (("visual_provenance", "Observation provenance and uncertainty labels are required.", "review"),),
+    ),
+    (
+        re.compile(r"\b(audio|music|mix|master|hrtf|spatial|binaural)\b", re.IGNORECASE),
+        (("audio_objective_subjective", "Objective measurements are separated from subjective listening notes.", "review"),),
+    ),
+    (
+        re.compile(r"\b(local file|delete|cleanup|clean up|remove|filesystem|folder)\b", re.IGNORECASE),
+        (("dry_run_and_rollback", "Dry-run evidence and rollback plan are required.", "manual_review"),),
+    ),
+    (
+        re.compile(r"\b(external agent|external agents|tool|tools|handoff|connector)\b", re.IGNORECASE),
+        (("handoff_ledger", "External agent/tool handoff and evidence ledger are required.", "artifact_exists"),),
+    ),
+)
 
-    normalized = task_type if isinstance(task_type, MissionTaskType) else MissionTaskType(str(task_type))
-    specs = GATE_SPECS.get(normalized, GATE_SPECS[MissionTaskType.UNKNOWN])
-    gates: list[MissionAcceptanceGate] = []
-    for index, spec in enumerate(specs, start=1):
-        gates.append(
-            MissionAcceptanceGate(
-                gate_id=f"{normalized.value}_{index:02d}_{spec.suffix}",
-                description=spec.description,
-                verification_method=spec.verification_method,
-                required=spec.required,
-            )
+
+def _normalize_task_type(task_type: MissionTaskType | str) -> MissionTaskType:
+    """Normalize strings to MissionTaskType without raising on unknown values."""
+
+    if isinstance(task_type, MissionTaskType):
+        return task_type
+    try:
+        return MissionTaskType(str(task_type))
+    except ValueError:
+        return MissionTaskType.UNKNOWN
+
+
+def _gate_id_prefix(task_type: MissionTaskType, template: DomainWorkflowTemplate | None) -> str:
+    """Build a stable gate id prefix."""
+
+    if template is None:
+        return task_type.value
+    return f"{task_type.value}_{template.template_id}"
+
+
+def _add_gate(
+    gates: dict[str, MissionAcceptanceGate],
+    gate_id: str,
+    description: str,
+    verification_method: str,
+    required: bool = True,
+) -> None:
+    """Add a gate by description to dedupe semantically stable outputs."""
+
+    key = description.strip().lower()
+    if key in gates:
+        return
+    gates[key] = MissionAcceptanceGate(
+        gate_id=gate_id,
+        description=description,
+        verification_method=verification_method,
+        required=required,
+    )
+
+
+def _prompt_specific_gate_specs(prompt: str) -> list[tuple[str, str, str]]:
+    """Return prompt-specific gate specs in stable declaration order."""
+
+    specs: list[tuple[str, str, str]] = []
+    for pattern, gate_specs in PROMPT_GATE_RULES:
+        if pattern.search(prompt or ""):
+            specs.extend(gate_specs)
+    return specs
+
+
+def _capability_gap_gate_specs(required_capabilities: list[str]) -> list[tuple[str, str, str]]:
+    """Return capability gap gates for capabilities not implemented locally."""
+
+    gaps = [capability for capability in required_capabilities if capability not in SUPPORTED_CAPABILITIES]
+    if not gaps:
+        return []
+    return [
+        (
+            "capability_gap",
+            "Capability gap is declared for unavailable required capabilities: " + ", ".join(sorted(set(gaps))) + ".",
+            "manual_review",
         )
-    return gates
+    ]
+
+
+def build_acceptance_gates(
+    task_type: MissionTaskType | str,
+    prompt: str = "",
+    domain_template: DomainWorkflowTemplate | None = None,
+    required_capabilities: list[str] | None = None,
+) -> list[MissionAcceptanceGate]:
+    """Build base + template + prompt-specific acceptance gates."""
+
+    normalized = _normalize_task_type(task_type)
+    specs = GATE_SPECS.get(normalized, GATE_SPECS[MissionTaskType.UNKNOWN])
+    gates: dict[str, MissionAcceptanceGate] = {}
+    for index, spec in enumerate(specs, start=1):
+        _add_gate(
+            gates,
+            f"{normalized.value}_{index:02d}_{spec.suffix}",
+            spec.description,
+            spec.verification_method,
+            spec.required,
+        )
+    prefix = _gate_id_prefix(normalized, domain_template)
+    if domain_template is not None:
+        for index, description in enumerate(domain_template.acceptance_gates, start=1):
+            _add_gate(gates, f"{prefix}_template_{index:02d}", description, "review", True)
+    prompt_specs = _prompt_specific_gate_specs(prompt)
+    prompt_specs.extend(_capability_gap_gate_specs(required_capabilities or []))
+    for index, (suffix, description, method) in enumerate(prompt_specs, start=1):
+        _add_gate(gates, f"{prefix}_prompt_{index:02d}_{suffix}", description, method, True)
+    return list(gates.values())
 
 
 def gate_descriptions_for_task_type(task_type: MissionTaskType | str) -> list[str]:

@@ -15,8 +15,15 @@ from pathlib import Path
 from typing import Any
 
 from .acceptance_builder import build_acceptance_gates
+from .assumption_builder import build_assumptions_and_unknowns
 from .artifact_builder import build_required_artifacts
 from .domain_signals import classify_task_type
+from .domain_workflows import (
+    DomainWorkflowTemplate,
+    load_domain_workflow_templates,
+    select_domain_workflow,
+    template_note,
+)
 from .mission_contract import (
     MissionAssumption,
     MissionCapabilityRequirement,
@@ -26,6 +33,12 @@ from .mission_contract import (
     MissionTaskType,
     validate_mission_contract,
     write_mission_contract,
+)
+from .risk_builder import (
+    build_risks as build_domain_risks,
+    risk_description_for_name,
+    risk_level_for_name,
+    risk_mitigation_for_name,
 )
 
 
@@ -146,10 +159,11 @@ class TaskCompilationError(ValueError):
 
 @dataclass
 class TaskCompilationResult:
-    """Public S1-B compile packet for deterministic planning previews."""
+    """Public S1-C/D/E/F compile packet for deterministic planning previews."""
 
     contract: MissionContract
     intent_summary: str
+    selected_template_id: str = "unknown_exploratory"
     domain_signals: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     decision_cards: list[dict[str, Any]] = field(default_factory=list)
@@ -228,12 +242,24 @@ def _add_capability(
     )
 
 
-def build_required_capabilities(task_type: MissionTaskType, prompt: str) -> list[MissionCapabilityRequirement]:
-    """Generate required capabilities from task type and prompt signals."""
+def build_required_capabilities(
+    task_type: MissionTaskType,
+    prompt: str,
+    domain_template: DomainWorkflowTemplate | None = None,
+) -> list[MissionCapabilityRequirement]:
+    """Generate required capabilities from task type, template, and prompt signals."""
 
     capabilities: dict[str, MissionCapabilityRequirement] = {}
     for capability, reason in CAPABILITIES_BY_TYPE.get(task_type, CAPABILITIES_BY_TYPE[MissionTaskType.UNKNOWN]):
         _add_capability(capabilities, capability, reason)
+    if domain_template is not None:
+        for capability in domain_template.required_capabilities:
+            _add_capability(
+                capabilities,
+                capability,
+                f"Required by domain workflow template {domain_template.template_id}.",
+                "system_required",
+            )
     for needles, capability_spec in PROMPT_CAPABILITY_SIGNALS:
         if _contains_any(prompt, needles):
             capability, reason = capability_spec
@@ -302,6 +328,22 @@ def build_assumptions(prompt: str, task_type: MissionTaskType) -> list[MissionAs
                 text="Ambiguous details should be resolved by conservative planning or human clarification.",
                 confidence="medium",
                 requires_user_confirmation=True,
+            )
+        )
+    return assumptions
+
+
+def mission_assumptions_from_texts(texts: list[str]) -> list[MissionAssumption]:
+    """Map deterministic assumption strings to MissionAssumption entries."""
+
+    assumptions: list[MissionAssumption] = []
+    for index, text in enumerate(texts, start=1):
+        assumptions.append(
+            MissionAssumption(
+                id=f"assumption_{index:03d}",
+                text=text,
+                confidence="high" if index == 1 else "medium",
+                requires_user_confirmation=False,
             )
         )
     return assumptions
@@ -408,6 +450,22 @@ def build_risks(task_type: MissionTaskType, gaps: list[str]) -> list[MissionRisk
     return risks
 
 
+def mission_risks_from_names(risk_names: list[str]) -> list[MissionRisk]:
+    """Map risk-name strings to simple MissionRisk schema entries."""
+
+    risks: list[MissionRisk] = []
+    for index, risk_name in enumerate(risk_names, start=1):
+        risks.append(
+            MissionRisk(
+                risk_id=f"risk_{index:03d}_{risk_name}",
+                level=risk_level_for_name(risk_name),
+                description=risk_description_for_name(risk_name),
+                mitigation=risk_mitigation_for_name(risk_name),
+            )
+        )
+    return risks
+
+
 def recommended_route_for(task_type: MissionTaskType) -> str:
     """Recommend a future route without invoking lifecycle integration."""
 
@@ -442,14 +500,28 @@ def compile_task_packet(
     compact_prompt = _compact_prompt(user_prompt)
     classification = classify_task_type(compact_prompt)
     task_type = classification.task_type
+    catalog = load_domain_workflow_templates()
+    selected_template = select_domain_workflow(task_type.value, classification.domain_signals, catalog)
     mission_id = task_id or _default_task_id(compact_prompt, project)
-    capabilities = build_required_capabilities(task_type, compact_prompt)
-    unknowns = build_unknowns(compact_prompt, task_type)
-    assumptions = build_assumptions(compact_prompt, task_type)
-    decision_cards = build_decision_cards(task_type, compact_prompt, capabilities, unknowns)
+    capabilities = build_required_capabilities(task_type, compact_prompt, selected_template)
+    capability_names = [item.capability for item in capabilities]
+    assumptions_text, refined_unknowns, refined_decision_cards = build_assumptions_and_unknowns(
+        compact_prompt,
+        task_type.value,
+        classification.domain_signals,
+        capability_names,
+    )
+    legacy_unknowns = build_unknowns(compact_prompt, task_type)
+    unknowns = _dedupe(refined_unknowns + legacy_unknowns)
+    assumptions = mission_assumptions_from_texts(assumptions_text)
+    legacy_decision_cards = build_decision_cards(task_type, compact_prompt, capabilities, unknowns)
+    decision_cards = refined_decision_cards + legacy_decision_cards
     gaps = unimplemented_capabilities(capabilities)
     warnings = build_warnings(compact_prompt, task_type, gaps, unknowns)
+    warnings.extend(catalog.warnings)
+    warnings = _dedupe(warnings)
     intent_summary = build_intent_summary(compact_prompt, task_type)
+    risk_names = build_domain_risks(compact_prompt, task_type.value, capability_names, selected_template)
     contract = MissionContract(
         mission_id=mission_id,
         created_at=_utc_timestamp(),
@@ -469,13 +541,16 @@ def compile_task_packet(
         unknowns=unknowns,
         assumptions=assumptions,
         required_capabilities=capabilities,
-        required_artifacts=build_required_artifacts(task_type),
-        acceptance_gates=build_acceptance_gates(task_type),
-        risks=build_risks(task_type, gaps),
+        required_artifacts=build_required_artifacts(task_type, compact_prompt, selected_template),
+        acceptance_gates=build_acceptance_gates(task_type, compact_prompt, selected_template, capability_names),
+        risks=mission_risks_from_names(risk_names),
         human_approval=human_approval_policy(task_type, compact_prompt, decision_cards),
         recommended_route=recommended_route_for(task_type),
         notes=[
-            "S1-B Task Compiler MVP; classification is deterministic heuristic.",
+            "compiled_by: task_compiler_s1_cdef",
+            template_note(selected_template),
+            "deterministic_compiler: true",
+            "S1-C/D/E/F Task Compiler refinement; classification is deterministic heuristic.",
             "Capability gaps are represented as contract requirements and decision cards, not failures.",
         ],
     )
@@ -485,6 +560,7 @@ def compile_task_packet(
     return TaskCompilationResult(
         contract=contract,
         intent_summary=intent_summary,
+        selected_template_id=selected_template.template_id,
         domain_signals=classification.domain_signals,
         warnings=warnings,
         decision_cards=decision_cards,

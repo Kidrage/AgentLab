@@ -267,6 +267,23 @@ def classify_task_type(prompt: str) -> DomainClassification:
         if matches:
             matched_keywords[rule.task_type.value] = matches
 
+    # S1-C/D/E/F refinement: when the prompt is explicitly asking to research
+    # or compare a market/company, business/research intent should outrank a
+    # product-topic word such as "audio" or "speaker".  The audio/music rule is
+    # still selected for analysis, mixing, mastering, HRTF, loudness, or stem
+    # prompts where audio processing is the actual task.
+    research_markers = {"research", "investigate", "compare", "latest", "source", "citation", "report"}
+    business_markers = {"market", "company", "competitor", "industry", "business", "customer", "pricing", "startup"}
+    audio_analysis_markers = {"mix", "master", "hrtf", "stem", "stems", "loudness", "spectrogram", "binaural"}
+    research_hits = set(matched_keywords.get(MissionTaskType.RESEARCH.value, []))
+    business_hits = set(matched_keywords.get(MissionTaskType.BUSINESS.value, []))
+    audio_hits = set(matched_keywords.get(MissionTaskType.AUDIO_MUSIC.value, []))
+    if (research_hits & research_markers or business_hits & business_markers) and not (audio_hits & audio_analysis_markers):
+        if research_hits:
+            scores[MissionTaskType.RESEARCH.value] = scores.get(MissionTaskType.RESEARCH.value, 0) + 2
+        if business_hits:
+            scores[MissionTaskType.BUSINESS.value] = scores.get(MissionTaskType.BUSINESS.value, 0) + 2
+
     best_type = MissionTaskType.UNKNOWN
     best_score = 0
     for task_type in TASK_TYPE_PRIORITY:

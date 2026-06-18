@@ -9,9 +9,11 @@ exist before a task can be accepted.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from pathlib import PurePosixPath
 
+from .domain_workflows import DomainWorkflowTemplate
 from .mission_contract import MissionArtifactContract, MissionTaskType
 
 
@@ -118,6 +120,28 @@ ARTIFACT_SPECS: dict[MissionTaskType, tuple[ArtifactSpec, ...]] = {
 }
 
 
+PROMPT_ARTIFACT_RULES: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = (
+    (re.compile(r"\b(ci|github actions?)\b", re.IGNORECASE), ("ci_results.md",)),
+    (re.compile(r"\b(readme|docs?|documentation)\b", re.IGNORECASE), ("documentation_update.md",)),
+    (re.compile(r"\b(benchmark|eval|evaluation)\b", re.IGNORECASE), ("evaluation_report.md",)),
+    (re.compile(r"\b(pdf|table|tables)\b", re.IGNORECASE), ("table_extraction_report.md",)),
+    (re.compile(r"\b(screenshot|image|photo|video|visual)\b", re.IGNORECASE), ("vision_observations.yml",)),
+    (re.compile(r"\b(audio|music|spatial|hrtf|binaural|loudness)\b", re.IGNORECASE), ("audio_analysis_report.md",)),
+    (re.compile(r"\b(cleanup|clean up|delete|remove|filesystem|local file|folder)\b", re.IGNORECASE), ("dry_run_report.md", "rollback_plan.md")),
+)
+
+PROMPT_ARTIFACT_DESCRIPTIONS = {
+    "ci_results.md": "CI or GitHub Actions status and local equivalent evidence.",
+    "documentation_update.md": "Documentation or README update summary and verification notes.",
+    "evaluation_report.md": "Benchmark, evaluation, or measurement results and caveats.",
+    "table_extraction_report.md": "Table extraction result, structure checks, and parsing caveats.",
+    "vision_observations.yml": "Structured screenshot, image, or video observations with provenance.",
+    "audio_analysis_report.md": "Audio/music analysis notes separating objective and subjective observations.",
+    "dry_run_report.md": "Dry-run evidence before local cleanup, delete, or filesystem changes.",
+    "rollback_plan.md": "Rollback plan for local or destructive operations.",
+}
+
+
 def artifact_type_for_name(name: str) -> str:
     """Infer a valid MissionArtifactContract artifact_type for a path name."""
 
@@ -138,22 +162,83 @@ def artifact_type_for_name(name: str) -> str:
     return "other"
 
 
-def build_required_artifacts(task_type: MissionTaskType | str) -> list[MissionArtifactContract]:
-    """Build deterministic required artifacts for a supported task type."""
+def _normalize_task_type(task_type: MissionTaskType | str) -> MissionTaskType:
+    """Normalize strings to MissionTaskType without crashing on unknown values."""
 
-    normalized = task_type if isinstance(task_type, MissionTaskType) else MissionTaskType(str(task_type))
+    if isinstance(task_type, MissionTaskType):
+        return task_type
+    try:
+        return MissionTaskType(str(task_type))
+    except ValueError:
+        return MissionTaskType.UNKNOWN
+
+
+def _add_artifact(
+    artifacts: dict[str, MissionArtifactContract],
+    name: str,
+    description: str,
+    artifact_type: str | None = None,
+    required: bool = True,
+) -> None:
+    """Add one artifact while preserving first description and stable order."""
+
+    if name in artifacts:
+        return
+    artifacts[name] = MissionArtifactContract(
+        artifact_type=artifact_type or artifact_type_for_name(name),
+        name=name,
+        description=description,
+        required=required,
+    )
+
+
+def prompt_specific_artifact_names(prompt: str) -> list[str]:
+    """Return prompt-specific artifact names without adding unrelated outputs."""
+
+    names: list[str] = []
+    for pattern, artifacts in PROMPT_ARTIFACT_RULES:
+        if pattern.search(prompt or ""):
+            names.extend(artifacts)
+    seen: set[str] = set()
+    result: list[str] = []
+    for name in names:
+        if name not in seen:
+            seen.add(name)
+            result.append(name)
+    return result
+
+
+def build_required_artifacts(
+    task_type: MissionTaskType | str,
+    prompt: str = "",
+    domain_template: DomainWorkflowTemplate | None = None,
+) -> list[MissionArtifactContract]:
+    """Build base + domain-template + prompt-specific artifacts.
+
+    The merge order is stable: task-type defaults first, selected domain template
+    artifacts second, and prompt-specific artifacts last. Duplicate names are
+    removed without reordering existing entries.
+    """
+
+    normalized = _normalize_task_type(task_type)
     specs = ARTIFACT_SPECS.get(normalized, ARTIFACT_SPECS[MissionTaskType.UNKNOWN])
-    artifacts: list[MissionArtifactContract] = []
+    artifacts: dict[str, MissionArtifactContract] = {}
     for spec in specs:
-        artifacts.append(
-            MissionArtifactContract(
-                artifact_type=spec.artifact_type or artifact_type_for_name(spec.name),
-                name=spec.name,
-                description=spec.description,
-                required=spec.required,
+        _add_artifact(artifacts, spec.name, spec.description, spec.artifact_type, spec.required)
+    if domain_template is not None:
+        for name in domain_template.required_artifacts:
+            _add_artifact(
+                artifacts,
+                name,
+                f"Required by domain workflow template {domain_template.template_id}.",
             )
+    for name in prompt_specific_artifact_names(prompt):
+        _add_artifact(
+            artifacts,
+            name,
+            PROMPT_ARTIFACT_DESCRIPTIONS.get(name, "Prompt-specific planning artifact."),
         )
-    return artifacts
+    return list(artifacts.values())
 
 
 def artifact_names_for_task_type(task_type: MissionTaskType | str) -> list[str]:

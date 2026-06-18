@@ -76,6 +76,7 @@ def summary_for_result(output_path: Path, result) -> dict[str, object]:
     return {
         "task_id": contract.mission_id,
         "task_type": str(contract.task_type),
+        "selected_template_id": result.selected_template_id,
         "required_capabilities_count": len(contract.required_capabilities),
         "required_artifacts_count": len(contract.required_artifacts),
         "acceptance_gates_count": len(contract.acceptance_gates),

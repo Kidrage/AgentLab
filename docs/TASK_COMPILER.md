@@ -343,3 +343,53 @@ Execution remains a separate concern. A valid compiled MissionContract does not
 grant permission to modify files, call APIs, browse the web, or run shell
 commands. Those actions require the normal AgentLab execution route, approval
 policy, and verification gates.
+
+## 17. S1-C/D/E/F domain workflow refinements
+
+S1-C/D/E/F extends the deterministic S1-B compiler with domain workflow templates
+and refined builders while preserving the non-executing local-first guarantee.
+
+The compile flow is now:
+
+```text
+user_prompt
+→ domain_signals / lightweight task type classification
+→ select domain workflow template
+→ required capabilities
+→ artifacts
+→ acceptance gates
+→ assumptions / unknowns / decision cards
+→ risks
+→ MissionContract
+```
+
+The selected template is surfaced in `TaskCompilationResult.selected_template_id`
+and in contract notes as:
+
+```text
+compiled_by: task_compiler_s1_cdef
+domain_workflow_template: <template_id>
+deterministic_compiler: true
+```
+
+Domain templates live in `config/domain_workflow_templates.yml`, and the loader
+lives in `agent_runtime/brain/domain_workflows.py`. Unknown domains fall back to
+`unknown_exploratory` rather than crashing.
+
+## 18. Refined artifact, gate, assumption, and risk builders
+
+S1-D merges artifacts from task-type defaults, the selected template, and prompt
+signals such as CI, documentation, benchmark/eval, PDF/table, screenshot/image,
+audio/music, and local cleanup/delete operations.
+
+S1-E merges acceptance gates from task-type defaults, template gates,
+prompt-specific evidence requirements, and capability-gap checks. Research gates
+continue to guard against fake citations, creative longform gates require outline
+and continuity planning, multimodal gates require provenance and uncertainty, and
+audio gates separate objective measurements from subjective listening notes.
+
+S1-F adds deterministic assumption, unknown, decision-card, and risk builders.
+These builders record missing context, capability gaps, human approval needs, and
+domain-specific risks without executing tools or contacting external services.
+
+The optional CLI now includes `selected_template_id` in its JSON summary.

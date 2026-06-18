@@ -1,0 +1,658 @@
+# AgentLab S1-C Domain Workflow Templates MVP
+#
+# This file is deterministic planning data. It defines compile-time workflow
+# expectations only. It does not execute tools, call providers, install skills,
+# browse the web, run vision/audio systems, or integrate with the runtime
+# lifecycle. Keep entries readable and multiline so raw GitHub content remains
+# auditable.
+
+templates:
+  coding_software_engineering:
+    template_id: coding_software_engineering
+    task_types:
+      - coding
+      - debugging
+    trigger_signals:
+      - repo
+      - repository
+      - github
+      - test
+      - pytest
+      - bug
+      - patch
+      - branch
+      - commit
+      - cli
+      - api
+      - code
+    required_capabilities:
+      - repo_inspection
+      - file_read
+      - file_write
+      - code_edit
+      - test_execution
+    phase_plan:
+      - understand_request
+      - inspect_context
+      - propose_plan
+      - execute_or_handoff
+      - validate
+      - summarize
+    required_artifacts:
+      - intent_summary.md
+      - repo_findings.md
+      - patch_plan.md
+      - changed_files_summary.md
+      - test_results.md
+      - acceptance_report.md
+    acceptance_gates:
+      - relevant tests pass
+      - changed files summarized
+      - no secrets leaked
+      - rollback notes exist
+      - implementation scope matches requested change
+    risk_defaults:
+      - regression_risk
+      - insufficient_test_coverage
+      - local_path_or_secret_leak_risk
+    human_approval:
+      required_by_default: false
+      required_when:
+        - destructive_change
+        - external_execution
+        - force_push
+    notes:
+      - Deterministic MVP template for repository coding work.
+      - Future runtime integration must still verify branch, dirty files, and tests.
+
+  debugging_triage:
+    template_id: debugging_triage
+    task_types:
+      - debugging
+    trigger_signals:
+      - bug
+      - debug
+      - failure
+      - failing
+      - traceback
+      - stack trace
+      - regression
+      - reproduce
+      - ci
+      - test failure
+    required_capabilities:
+      - repo_inspection
+      - file_read
+      - code_edit
+      - test_execution
+    phase_plan:
+      - understand_failure
+      - collect_reproduction_signal
+      - localize_root_cause
+      - propose_minimal_fix
+      - execute_or_handoff
+      - validate_regression
+      - summarize_root_cause
+    required_artifacts:
+      - failure_summary.md
+      - reproduction_notes.md
+      - repo_findings.md
+      - patch_plan.md
+      - changed_files_summary.md
+      - test_results.md
+      - acceptance_report.md
+    acceptance_gates:
+      - original failure or closest repro is documented
+      - relevant failing test passes or limitation is explained
+      - regression risk is summarized
+      - no unrelated refactor is introduced
+      - rollback notes exist
+    risk_defaults:
+      - regression_risk
+      - insufficient_test_coverage
+      - root_cause_misdiagnosis_risk
+      - local_path_or_secret_leak_risk
+    human_approval:
+      required_by_default: false
+      required_when:
+        - destructive_change
+        - external_execution
+        - unreproduced_failure
+    notes:
+      - Deterministic MVP template for triage and repair planning.
+      - The compiler records triage needs but never runs failing commands itself.
+
+  research_investigation:
+    template_id: research_investigation
+    task_types:
+      - research
+    trigger_signals:
+      - research
+      - investigate
+      - compare
+      - latest
+      - current
+      - source
+      - citation
+      - evidence
+      - report
+      - literature
+    required_capabilities:
+      - web_search
+      - source_citation
+      - long_document_reading
+    phase_plan:
+      - understand_question
+      - define_scope_and_source_policy
+      - collect_sources_or_handoff
+      - build_evidence_ledger
+      - synthesize_findings
+      - validate_citations
+      - summarize_uncertainty
+    required_artifacts:
+      - research_plan.md
+      - source_table.yml
+      - evidence_notes.md
+      - analysis_report.md
+      - citation_ledger.yml
+      - uncertainty_notes.md
+    acceptance_gates:
+      - source citations are present for factual claims
+      - source dates or access dates are recorded
+      - no fake citations are present
+      - freshness requirements are explicit
+      - uncertainty and source quality are labeled
+    risk_defaults:
+      - stale_source_risk
+      - fake_citation_risk
+      - source_quality_risk
+    human_approval:
+      required_by_default: false
+      required_when:
+        - external_execution
+        - paid_source_required
+        - source_policy_missing
+    notes:
+      - Deterministic MVP template for source-grounded research plans.
+      - Web collection remains a future execution concern, not a compiler action.
+
+  business_strategy:
+    template_id: business_strategy
+    task_types:
+      - business
+      - research
+    trigger_signals:
+      - market
+      - company
+      - competitor
+      - industry
+      - pricing
+      - customer
+      - go-to-market
+      - gtm
+      - startup
+      - strategy
+    required_capabilities:
+      - web_search
+      - source_citation
+      - long_document_reading
+    phase_plan:
+      - understand_business_question
+      - define_market_scope
+      - collect_sources_or_handoff
+      - map_competitors_and_assumptions
+      - synthesize_strategy_options
+      - validate_evidence
+      - summarize_recommendations
+    required_artifacts:
+      - business_brief.md
+      - source_table.yml
+      - competitor_matrix.md
+      - evidence_notes.md
+      - analysis_report.md
+      - citation_ledger.yml
+      - uncertainty_notes.md
+    acceptance_gates:
+      - market claims have citations
+      - competitor facts include dates or access dates
+      - assumptions are separated from evidence
+      - source quality and possible bias are noted
+      - recommendations map back to evidence
+    risk_defaults:
+      - stale_source_risk
+      - fake_citation_risk
+      - source_quality_risk
+      - strategic_overconfidence_risk
+    human_approval:
+      required_by_default: false
+      required_when:
+        - external_execution
+        - paid_source_required
+        - investment_or_legal_decision
+    notes:
+      - Deterministic MVP template for business and market strategy planning.
+      - Outputs are planning evidence, not financial or legal advice.
+
+  creative_longform:
+    template_id: creative_longform
+    task_types:
+      - creative_longform
+      - creative
+      - writing
+    trigger_signals:
+      - novel
+      - story
+      - chapter
+      - character
+      - worldbuilding
+      - outline
+      - scene
+      - fiction
+      - tone
+      - audience
+    required_capabilities:
+      - file_write
+      - long_document_reading
+      - human_approval
+    phase_plan:
+      - understand_creative_brief
+      - identify_genre_tone_audience
+      - plan_outline_and_continuity
+      - draft_or_handoff
+      - revise_against_constraints
+      - summarize_changes
+    required_artifacts:
+      - creative_brief.md
+      - outline.md
+      - world_or_context_bible.md
+      - character_or_structure_notes.md
+      - draft.md
+      - continuity_ledger.md
+      - revision_notes.md
+    acceptance_gates:
+      - outline or structure exists before final draft
+      - continuity choices are tracked
+      - requested tone and audience are reflected
+      - revisions are summarized
+      - unresolved creative decisions are labeled
+    risk_defaults:
+      - continuity_drift_risk
+      - tone_mismatch_risk
+      - premature_draft_without_outline_risk
+    human_approval:
+      required_by_default: false
+      required_when:
+        - outline_approval_requested
+        - major_direction_change
+    notes:
+      - Deterministic MVP template for longform creative planning.
+      - It prevents jumping directly to final draft without structure.
+
+  document_processing:
+    template_id: document_processing
+    task_types:
+      - document_processing
+      - document
+      - extraction
+    trigger_signals:
+      - pdf
+      - docx
+      - document
+      - table
+      - extract
+      - parse
+      - ocr
+      - summary
+      - format
+    required_capabilities:
+      - file_read
+      - file_write
+      - long_document_reading
+    phase_plan:
+      - understand_document_goal
+      - confirm_input_files_and_scope
+      - plan_extraction
+      - extract_or_handoff
+      - quality_check_outputs
+      - summarize_uncertainty
+    required_artifacts:
+      - extraction_plan.md
+      - input_document_manifest.yml
+      - parsed_content.md
+      - table_outputs/
+      - quality_check.md
+      - summary.md
+    acceptance_gates:
+      - input file scope is listed
+      - extracted content is separated from interpretation
+      - table structure is quality checked
+      - OCR or parsing uncertainty is labeled
+      - output format matches request
+    risk_defaults:
+      - extraction_error_risk
+      - table_structure_loss_risk
+      - OCR_quality_risk
+    human_approval:
+      required_by_default: false
+      required_when:
+        - external_execution
+        - private_document
+        - destructive_change
+    notes:
+      - Deterministic MVP template for document parsing and transformation plans.
+      - It does not perform OCR or file conversion during compilation.
+
+  data_analysis:
+    template_id: data_analysis
+    task_types:
+      - data_analysis
+      - data
+      - analytics
+    trigger_signals:
+      - csv
+      - xlsx
+      - spreadsheet
+      - dataframe
+      - dataset
+      - chart
+      - statistics
+      - benchmark
+      - evaluation
+    required_capabilities:
+      - file_read
+      - file_write
+      - spreadsheet_processing
+      - data_analysis
+    phase_plan:
+      - understand_analysis_goal
+      - confirm_data_source_and_schema
+      - profile_data_quality
+      - analyze_or_handoff
+      - validate_reproducibility
+      - summarize_findings_and_limits
+    required_artifacts:
+      - data_profile.md
+      - cleaning_log.md
+      - analysis_notebook_or_script.py
+      - charts/
+      - findings_report.md
+      - evaluation_report.md
+    acceptance_gates:
+      - data source and schema are documented
+      - cleaning steps are reproducible
+      - findings distinguish evidence from interpretation
+      - charts include caveats where needed
+      - output goal is satisfied
+    risk_defaults:
+      - dirty_data_risk
+      - schema_mismatch_risk
+      - misleading_chart_risk
+    human_approval:
+      required_by_default: false
+      required_when:
+        - destructive_change
+        - private_data
+        - external_execution
+    notes:
+      - Deterministic MVP template for structured data analysis planning.
+      - The compiler does not load datasets or generate charts.
+
+  audio_music:
+    template_id: audio_music
+    task_types:
+      - audio_music
+      - audio
+      - music
+    trigger_signals:
+      - audio
+      - music
+      - mix
+      - master
+      - spatial
+      - hrtf
+      - binaural
+      - loudness
+      - stem
+      - speaker
+    required_capabilities:
+      - file_read
+      - file_write
+      - audio_analysis
+    phase_plan:
+      - understand_audio_goal
+      - confirm_input_assets
+      - define_evaluation_method
+      - analyze_or_handoff
+      - separate_measured_and_subjective_notes
+      - summarize_validation_limits
+    required_artifacts:
+      - audio_task_brief.md
+      - input_asset_manifest.yml
+      - audio_analysis_report.md
+      - analysis_report.md
+      - processing_plan.md
+      - listening_or_validation_notes.md
+    acceptance_gates:
+      - input assets are listed
+      - objective measurements are separated from listening notes
+      - playback or evaluation target is documented
+      - capability gap is labeled if tooling is unavailable
+      - clipping or loudness caveats are recorded
+    risk_defaults:
+      - subjective_evaluation_risk
+      - playback_environment_mismatch_risk
+      - artifact_loudness_or_clipping_risk
+    human_approval:
+      required_by_default: false
+      required_when:
+        - external_execution
+        - copyrighted_asset
+        - destructive_change
+    notes:
+      - Deterministic MVP template for audio and music analysis plans.
+      - No real audio analysis runtime is invoked by the compiler.
+
+  multimodal_vision:
+    template_id: multimodal_vision
+    task_types:
+      - multimodal
+      - vision
+      - image
+      - video
+    trigger_signals:
+      - image
+      - screenshot
+      - video
+      - visual
+      - photo
+      - diagram
+      - figure
+      - ocr
+      - frame
+    required_capabilities:
+      - file_read
+      - file_write
+      - image_understanding
+    phase_plan:
+      - understand_visual_goal
+      - confirm_input_artifacts
+      - define_observation_schema
+      - observe_or_handoff
+      - label_uncertainty
+      - summarize_provenance
+    required_artifacts:
+      - input_artifact_manifest.yml
+      - vision_observations.yml
+      - extracted_text.md
+      - annotated_artifacts/
+      - visual_summary.md
+    acceptance_gates:
+      - each visual observation references an input artifact
+      - uncertainty is labeled for ambiguous visuals
+      - extracted text is separated from interpretation
+      - page frame or screenshot reference is recorded
+      - capability gap is labeled if vision tooling is unavailable
+    risk_defaults:
+      - visual_hallucination_risk
+      - OCR_error_risk
+      - missing_frame_or_page_reference_risk
+    human_approval:
+      required_by_default: false
+      required_when:
+        - external_execution
+        - private_image
+        - biometric_or_sensitive_visual
+    notes:
+      - Deterministic MVP template for visual and multimodal planning.
+      - The compiler does not run a vision model.
+
+  local_ops_automation:
+    template_id: local_ops_automation
+    task_types:
+      - local_ops
+      - automation
+      - filesystem
+    trigger_signals:
+      - local file
+      - folder
+      - filesystem
+      - cleanup
+      - delete
+      - remove
+      - move
+      - backup
+      - shell
+      - deploy
+    required_capabilities:
+      - file_read
+      - file_write
+      - local_shell
+      - human_approval
+    phase_plan:
+      - understand_operation_goal
+      - confirm_path_scope
+      - plan_dry_run
+      - require_approval
+      - execute_or_handoff
+      - verify_and_summarize
+    required_artifacts:
+      - operation_plan.md
+      - dry_run_report.md
+      - rollback_plan.md
+      - changed_files_manifest.yml
+      - completion_report.md
+    acceptance_gates:
+      - dry-run evidence exists before destructive action
+      - path scope is confirmed
+      - rollback plan exists
+      - human approval is recorded
+      - changed files or operations are manifested
+    risk_defaults:
+      - destructive_change_risk
+      - rollback_failure_risk
+      - path_scope_risk
+    human_approval:
+      required_by_default: true
+      required_when:
+        - destructive_change
+        - local_shell
+        - external_execution
+    notes:
+      - Deterministic MVP template for local filesystem or shell automation.
+      - Human approval remains required before destructive execution.
+
+  education_tutoring:
+    template_id: education_tutoring
+    task_types:
+      - education
+      - tutoring
+      - teaching
+    trigger_signals:
+      - teach
+      - explain
+      - lesson
+      - homework
+      - quiz
+      - study
+      - tutor
+      - learner
+      - practice
+    required_capabilities:
+      - file_write
+      - human_approval
+    phase_plan:
+      - understand_learning_goal
+      - infer_or_ask_learner_level
+      - plan_lesson_sequence
+      - create_explanation_or_handoff
+      - add_practice
+      - verify_clarity
+    required_artifacts:
+      - learning_goal.md
+      - lesson_plan.md
+      - explanation.md
+      - practice_questions.md
+      - answer_key.md
+    acceptance_gates:
+      - learning goal is explicit
+      - learner assumptions are labeled
+      - lesson sequence is scaffolded
+      - practice or checks are included when useful
+      - answer key or rubric exists for exercises
+    risk_defaults:
+      - learner_level_mismatch_risk
+      - unsupported_claim_risk
+      - insufficient_practice_risk
+    human_approval:
+      required_by_default: false
+      required_when:
+        - learner_context_missing
+        - sensitive_education_context
+    notes:
+      - Deterministic MVP template for tutoring and education planning.
+      - It produces planning artifacts only, not adaptive runtime tutoring.
+
+  unknown_exploratory:
+    template_id: unknown_exploratory
+    task_types:
+      - unknown
+      - exploratory
+    trigger_signals:
+      - unclear
+      - ambiguous
+      - handle this
+      - help
+      - unknown
+    required_capabilities:
+      - human_approval
+    phase_plan:
+      - restate_known_request
+      - identify_unknowns
+      - propose_clarifying_questions
+      - define_safe_minimal_plan
+      - require_human_approval
+      - summarize_limits
+    required_artifacts:
+      - intent_summary.md
+      - clarifying_questions.md
+      - assumptions.yml
+      - proposed_plan.md
+      - acceptance_report.md
+    acceptance_gates:
+      - ambiguity is explicitly documented
+      - human approval is required before execution
+      - execution scope is not expanded beyond prompt
+      - capability gaps are labeled
+      - safe minimal next step is proposed
+    risk_defaults:
+      - ambiguous_goal_risk
+      - capability_gap_risk
+    human_approval:
+      required_by_default: true
+      required_when:
+        - unknown_task_type
+        - destructive_change
+        - external_execution
+    notes:
+      - Deterministic MVP fallback template.
+      - Unknown domains must not crash selection or pretend certainty.
