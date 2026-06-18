@@ -1,0 +1,15 @@
+schema_version: 1
+skill_id: s5-safe-local-evidence-demo
+package_path: acceptance_runs/s5_evidence_recovery_intelligence/fixtures/safe_skill
+passed: true
+promotion_eligible: true
+dispatch_eligible: true
+reports:
+  parsed_package: parsed_package.yml
+  trust_report: trust_report.yml
+  permission_report: permission_report.yml
+  sandbox_report: sandbox_report.yml
+  promotion_eligibility: promotion_eligibility.yml
+notes:
+- S4 validation is metadata-only.
+- No skill code, shell command, network call, or promotion was executed.

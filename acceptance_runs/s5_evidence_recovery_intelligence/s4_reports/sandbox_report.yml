@@ -1,0 +1,11 @@
+schema_version: 1
+skill_id: s5-safe-local-evidence-demo
+mode: mock
+executed_code: false
+checked_files:
+- file: SKILL.md
+  exists: true
+errors: []
+passed: true
+notes:
+- Mock sandbox only; no external code, shell, or network was executed.

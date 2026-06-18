@@ -88,6 +88,8 @@ class WorkflowPlan(BaseModel):
     risk_level: str = "R1"
     route: AgentRoute
     token_budgets: list[TokenBudget] = Field(default_factory=list)
+    execution_profile: dict = Field(default_factory=dict)
+    route_controls: dict = Field(default_factory=dict)
     included_agents: dict[str, dict] = Field(default_factory=dict)
     model_profiles: dict[str, dict] = Field(default_factory=dict)
     validation_gates: list[dict] = Field(default_factory=list)

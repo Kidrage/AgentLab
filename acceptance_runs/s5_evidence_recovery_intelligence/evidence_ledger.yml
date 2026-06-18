@@ -1,0 +1,19 @@
+schema_version: 1
+stage: S5
+facts_allowed: true
+minimum_evidence_sources: 1
+sources:
+- path: evidence_policy.md
+  source_category: docs
+  content_hash: a465ddf76fa3cee36d40a7c79e09a90e3cf4286fff42641fa0233c3dae71c9f3
+  snippet: '# S5 Evidence Policy Fixture
+
+
+    S5 requires an evidence ledger before factual claims are accepted. Local search...'
+  score: 1.2902
+  line_start: 1
+  line_end: 3
+citation_policy:
+  no_sources_no_factual_claims: true
+  record_content_hash: true
+  record_line_refs: true

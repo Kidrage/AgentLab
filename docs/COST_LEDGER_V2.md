@@ -8,6 +8,8 @@ cost estimates without converting unknown prices to `$0`.
 - Every `append_cost_ledgers()` update refreshes `cost_ledger.yml` v2 fields.
 - `cost_summary.md` is regenerated with `Pricing status`.
 - `budget_gate_decision.yml` is written after each run-level cost update.
+- `cost-status` and `cost-doctor` read local ledger data only; they do not call
+  models, billing APIs, or web pricing pages.
 
 ## Pricing Status
 
@@ -43,6 +45,21 @@ total tokens, approval requirement, warnings, and active budget policy.
 
 Unknown pricing remains `null` and may produce warnings for high-token usage; it
 is never treated as zero-dollar cost unless explicitly priced as free.
+
+## Lightweight Observability
+
+Cost entries include lightweight provenance fields where available:
+
+```yaml
+usage_source: provider_response | unavailable
+cost_accuracy: estimated | measured | unknown
+pricing_source: config/model_pricing.yml | provider_bill | unknown
+pricing_confidence: high | medium | low | none
+```
+
+Default task execution uses provider response usage already returned by the
+model call plus the local `config/model_pricing.yml` table. It does not spend
+extra tokens or perform extra network requests for cost tracking.
 
 ## Not Supported
 

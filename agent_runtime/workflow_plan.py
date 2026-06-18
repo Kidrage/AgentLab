@@ -131,6 +131,94 @@ def _classify_risk(task_text: str, routing_policy: dict) -> str:
     return "R1" if text.strip() else "R0"
 
 
+def _risk_max(*levels: str) -> str:
+    rank = {"R0": 0, "R1": 1, "R2": 2, "R3": 3}
+    normalized = [level if level in rank else "R1" for level in levels if level]
+    if not normalized:
+        return "R0"
+    return max(normalized, key=lambda level: rank[level])
+
+
+def _compile_execution_profile(task_text: str, project_name: str, task_id: str) -> tuple[dict, list[str]]:
+    if not task_text.strip():
+        return {}, ["Brain compiler skipped because user request is empty."]
+    try:
+        from agent_runtime.brain.task_compiler import TaskCompilationError, compile_task_packet
+
+        result = compile_task_packet(task_text, task_id=task_id, project=project_name)
+        notes = [
+            f"Brain compiler selected template {result.selected_template_id}.",
+            f"Brain execution profile: {result.execution_profile.get('task_size', '?')}/"
+            f"{result.execution_profile.get('risk_level', '?')}/"
+            f"{result.execution_profile.get('route_key_hint', '?')}.",
+        ]
+        for warning in result.warnings[:3]:
+            notes.append(f"Brain compiler warning: {warning}")
+        return result.execution_profile, notes
+    except TaskCompilationError as exc:
+        return {}, [f"Brain compiler returned structured errors; keyword route fallback used: {exc.errors}"]
+    except Exception as exc:
+        return {}, [f"Brain compiler unavailable; keyword route fallback used: {type(exc).__name__}: {exc}"]
+
+
+def _skipped_agent_reason(agent: str, route_key: str, execution_profile: dict) -> str:
+    boundaries = set(execution_profile.get("boundaries") or [])
+    if agent == "Researcher":
+        if "web_research_is_mock_or_source_plan_until_network_approved" in boundaries:
+            return "Live research skipped until network policy and allowlist approval exist."
+        return "No external/current-source requirement in the selected route."
+    if agent == "InterfaceMapper":
+        return "No interface, schema, protocol, or integration boundary required for this phase."
+    if agent == "RepoScout":
+        return "Route is narrow enough for targeted inspection instead of broad repo scouting."
+    if agent == "Archivist":
+        return "Archival handoff can wait until a broader or completed phase."
+    if agent == "Verifier":
+        return "Independent verification skipped for lightweight phase; TesterAuditor or targeted checks remain expected."
+    if agent == "Coder":
+        return "Analysis-only route; implementation is not requested for this phase."
+    if route_key == "small_task":
+        return "Skipped by small-task route controls."
+    return "Skipped by selected route controls."
+
+
+def _build_route_controls(route, execution_profile: dict, risk_level: str, budget_mode: str) -> dict:
+    boundaries = list(execution_profile.get("boundaries") or [])
+    failure_policy = str(execution_profile.get("failure_policy") or "keyword_route_boundary")
+    approval_first = risk_level == "R3" or any("approval" in boundary for boundary in boundaries)
+    mock_first = any("network" in boundary or "mock" in boundary for boundary in boundaries)
+    recovery_artifacts = []
+    if boundaries:
+        recovery_artifacts.extend([
+            "recovery/failure_event.json",
+            "recovery/failure_diagnosis.json",
+            "recovery/recovery_plan.md",
+            "recovery/recovery_verdict.json",
+        ])
+    if approval_first:
+        recovery_artifacts.append("recovery/human_review_decision.json")
+
+    skipped_reasons = {
+        agent: _skipped_agent_reason(agent, route.route_key, execution_profile)
+        for agent in route.skipped_agents
+    }
+
+    return {
+        "schema_version": 1,
+        "source": "brain_execution_profile" if execution_profile else "keyword_router_fallback",
+        "route_key": route.route_key,
+        "task_size": route.task_size,
+        "risk_level": risk_level,
+        "budget_mode": budget_mode,
+        "failure_policy": failure_policy,
+        "mock_first": mock_first,
+        "approval_first": approval_first,
+        "recovery_boundaries": boundaries,
+        "skipped_agent_reasons": skipped_reasons,
+        "recovery_artifacts_if_blocked": list(dict.fromkeys(recovery_artifacts)),
+    }
+
+
 def build_workflow_plan(
     agentlab_root: Path,
     project_name: str,
@@ -147,14 +235,23 @@ def build_workflow_plan(
     task_text = request_path.read_text(encoding="utf-8") if request_path.exists() else ""
     agent_registry = configs.get("agent_registry", {}).get("agents", {})
     known_agents = list(agent_registry.keys()) or None
+    execution_profile, brain_notes = _compile_execution_profile(task_text, project_name, task_id)
 
     route = recommend_route(
         task_text,
         routing_config=configs.get("routing_rules", {}),
         known_agents=known_agents,
+        brain_profile=execution_profile,
     )
-    resolved_budget_mode = _resolve_budget_mode(configs, task_text, budget_mode)
-    risk_level = _classify_risk(task_text, configs.get("routing_policy", {}))
+    profile_budget_mode = execution_profile.get("budget_mode") if execution_profile else None
+    budget_hint = budget_mode
+    if budget_hint is None and not os.getenv("AGENTLAB_BUDGET_MODE") and not _budget_mode_from_request(task_text):
+        budget_hint = profile_budget_mode
+    resolved_budget_mode = _resolve_budget_mode(configs, task_text, budget_hint)
+    risk_level = _risk_max(
+        _classify_risk(task_text, configs.get("routing_policy", {})),
+        str(execution_profile.get("risk_level") or "") if execution_profile else "",
+    )
     if risk_level == "R3" and resolved_budget_mode != "max_quality":
         resolved_budget_mode = "max_quality"
     elif risk_level == "R2" and resolved_budget_mode == "frugal":
@@ -162,6 +259,7 @@ def build_workflow_plan(
     token_budgets = build_token_budgets(route, configs.get("budget_profiles", {}), resolved_budget_mode)
     budget_profile = select_budget_profile_key(route, configs.get("budget_profiles", {}), resolved_budget_mode)
     route_size = _route_size_suffix(route.task_size)
+    route_controls = _build_route_controls(route, execution_profile, risk_level, resolved_budget_mode)
     included_agents = {
         name: agent_registry.get(name, {})
         for name in route.agents
@@ -201,6 +299,7 @@ def build_workflow_plan(
         "Plan only: no model calls, source edits, dependency installs, or validation commands were run.",
         "Use this plan as the visible contract before starting agent execution.",
     ]
+    notes.extend(brain_notes)
     execution_policy = configs.get("execution_policy", {})
     brain_policy = execution_policy.get("brain_policy", {})
     if brain_policy.get("deepseek_required_for_all_agentlab_tasks", False):
@@ -245,6 +344,8 @@ def build_workflow_plan(
         risk_level=risk_level,
         route=route,
         token_budgets=token_budgets,
+        execution_profile=execution_profile,
+        route_controls=route_controls,
         included_agents=included_agents,
         model_profiles=model_profiles,
         validation_gates=validation_gates,

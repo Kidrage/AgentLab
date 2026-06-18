@@ -1,0 +1,32 @@
+schema_version: 1
+stage: S5
+mode: mock_first
+network_enabled: false
+topic: S5 evidence recovery intelligence
+queries:
+- evidence recovery intelligence documentation
+- evidence recovery intelligence tutorial guide
+- evidence recovery intelligence best practices
+- evidence recovery intelligence example code
+- evidence recovery intelligence troubleshooting common issues
+planned_sources:
+- query: evidence recovery intelligence documentation
+  expected_type: docs
+- query: evidence recovery intelligence tutorial guide
+  expected_type: tutorial
+- query: evidence recovery intelligence best practices
+  expected_type: reference
+- query: evidence recovery intelligence example code
+  expected_type: tutorial
+- query: evidence recovery intelligence troubleshooting common issues
+  expected_type: discussion
+inputs:
+  mission_contract: null
+  workflow_plan: null
+  s4_report_dir: acceptance_runs/s5_evidence_recovery_intelligence/s4_reports
+  local_index: acceptance_runs/s5_evidence_recovery_intelligence/local_search_index.jsonl
+route_controls:
+  mock_first: true
+  approval_first: true
+  no_real_web_fetch: true
+  no_skill_dispatch: true

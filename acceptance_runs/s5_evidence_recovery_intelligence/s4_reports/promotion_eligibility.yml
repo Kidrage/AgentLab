@@ -1,0 +1,10 @@
+schema_version: 1
+skill_id: s5-safe-local-evidence-demo
+promotion_eligible: true
+dispatch_eligible: true
+active_status_allowed: true
+human_approval:
+  required: true
+  approved: true
+blockers: []
+next_action: promote_or_dispatch_allowed

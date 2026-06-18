@@ -1,7 +1,7 @@
 # Codex / AgentLab 工作逻辑交接说明
 
 生成时间：2026-06-18  
-适用仓库：`/Users/saintpeter/Desktop/AgentLab`  
+适用仓库：`<repo>`
 当前分支快照：`mainline-r0-r5-repair`  
 当前远程快照：`origin https://github.com/Kidrage/AgentLab.git`
 
@@ -83,7 +83,7 @@ sed -n 'start,endp' path
 ### Shell
 
 - 使用 `functions.exec_command` 运行本地命令。
-- 工作区为 `workspace-write`：可读仓库，可写 `/Users/saintpeter/Desktop/AgentLab`、`/tmp`、系统临时目录。
+- 工作区为 `workspace-write`：可读仓库，可写 `<repo>`、系统临时目录。
 - 需要网络、GUI、写出沙箱、或重要命令因沙箱失败时，用 `sandbox_permissions: require_escalated` 请求用户批准。
 - 不运行破坏性命令，除非用户明确要求并确认安全；尤其避免 `rm -rf`、force push、hard reset、删分支、改历史、递归改权限。
 

@@ -1,0 +1,27 @@
+schema_version: 1
+required_fields:
+  - skill_id
+  - display_name
+  - capabilities
+  - permissions
+  - risk_level
+  - source
+  - license
+supported_files:
+  - SKILL.md
+  - skill.yml
+  - manifest.yml
+  - README.md
+  - examples/
+  - tests/
+safe_defaults:
+  dispatchable: false
+  risk_level: medium
+  permissions:
+    filesystem_read: []
+    filesystem_write: []
+    shell: false
+    network: false
+    env: false
+    secrets: false
+    external_tools: []

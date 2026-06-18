@@ -1,0 +1,17 @@
+schema_version: 1
+skill_id: s5-safe-local-evidence-demo
+permissions:
+  filesystem_read: []
+  filesystem_write: []
+  shell: false
+  network: false
+  env: false
+  secrets: false
+  external_tools: []
+policy:
+  default_allow: false
+  require_explicit_permissions: true
+approval_required: []
+errors: []
+warnings: []
+passed: true

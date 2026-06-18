@@ -1,0 +1,11 @@
+schema_version: 1
+stage: S5
+acceptance:
+  research_plan_generated: true
+  source_plan_generated: true
+  evidence_ledger_generated: true
+  private_sources_blocked_by_policy: true
+  local_search_evidence_count: 1
+  s4_gate_checked: true
+  no_network_used: true
+verdict: pass

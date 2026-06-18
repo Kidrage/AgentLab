@@ -1,0 +1,9 @@
+schema_version: 1
+stage: S5
+status: ready_for_review
+blocked_reasons: []
+recovery_actions:
+- build_or_refresh_local_search_index
+- collect_mock_or_approved_sources
+- rerun_s4_trust_validation_before_active_dispatch
+replanning_decision: review_evidence

@@ -1,0 +1,40 @@
+schema_version: 1
+network_enabled: false
+auto_install: false
+require_human_review: true
+sources:
+  - source_id: builtin
+    source_type: builtin
+    enabled: true
+    requires_network: false
+    description: AgentLab built-in skill metadata.
+  - source_id: local_folder
+    source_type: local_folder
+    enabled: true
+    requires_network: false
+    description: Reviewed local skill folders.
+  - source_id: github_raw_allowlisted
+    source_type: github_raw_allowlisted
+    enabled: false
+    requires_network: true
+    description: Allowlisted GitHub raw SKILL.md URLs.
+  - source_id: github_repo_allowlisted
+    source_type: github_repo_allowlisted
+    enabled: false
+    requires_network: true
+    description: Allowlisted GitHub repositories.
+  - source_id: external_agent_pack
+    source_type: external_agent_pack
+    enabled: false
+    requires_network: false
+    description: Static external agent inventories.
+  - source_id: user_uploaded
+    source_type: user_uploaded
+    enabled: false
+    requires_network: false
+    description: User-provided skill packages pending review.
+  - source_id: self_learned_candidate
+    source_type: self_learned_candidate
+    enabled: true
+    requires_network: false
+    description: AgentLab self-learned draft candidates.

@@ -970,6 +970,7 @@ def run_next_node(
                 result.provider, result.model, result.status,
                 result.input_tokens, result.output_tokens, result.total_tokens,
                 "API usage from pipeline executor.",
+                agentlab_root=agentlab_root,
             ),
         )
         gate_issues = artifact_content_issues(report_path.name, report_content, run_dir)

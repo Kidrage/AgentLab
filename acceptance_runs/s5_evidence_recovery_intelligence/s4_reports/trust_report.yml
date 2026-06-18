@@ -1,0 +1,8 @@
+schema_version: 1
+skill_id: s5-safe-local-evidence-demo
+package_path: acceptance_runs/s5_evidence_recovery_intelligence/fixtures/safe_skill
+trust_score: 100
+findings: []
+passed: true
+notes:
+- Static scan only; no skill code executed.

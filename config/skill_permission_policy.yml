@@ -1,0 +1,11 @@
+schema_version: 1
+default_allow: false
+require_explicit_permissions: true
+blocked_permissions:
+  - shell
+  - network
+  - env
+  - secrets
+approval_required_permissions:
+  - filesystem_write
+  - external_tools

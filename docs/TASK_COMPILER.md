@@ -95,6 +95,39 @@ compile_task_packet(
 - `domain_signals`
 - `warnings`
 - `decision_cards`
+- `execution_profile`
+
+## 4.1 Brain execution profile
+
+The compiler also emits a lightweight `execution_profile` for downstream
+routing. This is the first-stage brain decision for task weight and execution
+posture. It is deliberately a hint, not an executor:
+
+- `task_size`: `small`, `medium`, or `large`
+- `risk_level`: `R0` through `R3`
+- `budget_mode`: suggested `frugal`, `balanced`, or `max_quality`
+- `route_key_hint`: preferred existing route key such as `small_task`,
+  `medium_task`, `research_sensitive_task`, or `large_or_risky_task`
+- `boundaries`: recovery boundaries such as mock-first networking, permission
+  stop points, approval gates, and plan-first execution
+
+The workflow planner consumes this profile before falling back to the legacy
+keyword router. Network, permission, or capability-gap signals should become
+decision cards and recovery boundaries, not fatal failures that collapse the
+whole pipeline.
+
+`workflow_plan.yml` also records `route_controls`, a downstream-friendly view
+derived from the profile:
+
+- `mock_first`: plan or dry-run external/network work until policy allows it
+- `approval_first`: require human approval before risky local/destructive work
+- `recovery_boundaries`: stable boundary ids from the profile
+- `skipped_agent_reasons`: why omitted agents are not part of this phase
+- `recovery_artifacts_if_blocked`: expected recovery files when execution
+  later blocks
+
+This keeps the routing decision lightweight but explicit enough for status UI,
+task snapshots, and future recovery packet generation.
 
 ## 5. Supported task types
 

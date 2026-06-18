@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from collections import defaultdict
 from typing import Optional
+import json
 import os
 import sys
 
@@ -244,6 +245,182 @@ def write_text_if_missing(path: Path, text: str) -> bool:
     return True
 
 
+@app.command("repo-hygiene-check")
+def repo_hygiene_check(json_output: bool = typer.Option(False, "--json", help="Emit JSON.")) -> None:
+    """Report AgentLab repository constitution and root pollution issues."""
+    agentlab_root, _project_name = runtime_context(None)
+    from repo_hygiene import check_repo_hygiene, render_hygiene_report
+
+    report = check_repo_hygiene(agentlab_root)
+    if json_output:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        console.print(render_hygiene_report(report))
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("project-route")
+def project_route_cmd(
+    mission_contract: Path = typer.Option(..., "--mission-contract", help="Path to a mission_contract.yml file."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
+) -> None:
+    """Route a Mission Contract to an existing, new, self-development, or decision-required project."""
+    agentlab_root, _project_name = runtime_context(None)
+    from project_ops import route_mission_contract
+
+    try:
+        result = route_mission_contract(mission_contract, agentlab_root=agentlab_root)
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1)
+    if json_output:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        route = result["route"]
+        console.print("[bold]Project route[/bold]")
+        console.print(route)
+        if route["action"] == "ambiguous_requires_user_decision":
+            console.print("[yellow]Decision required: do not default this mission to projects/AgentLab.[/yellow]")
+
+
+@app.command("project-init")
+def project_init_cmd(
+    project_id: str = typer.Option(..., "--project-id", help="Stable project id."),
+    project_type: str = typer.Option(..., "--type", help="Project type, e.g. creative_longform."),
+    title: str = typer.Option(..., "--title", help="Human-readable project title."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
+) -> None:
+    """Initialize a project folder with manifest, memory, runs, and artifact roots."""
+    agentlab_root, _project_name = runtime_context(None)
+    from project_ops import init_project
+
+    try:
+        result = init_project(agentlab_root, project_id, project_type, title)
+    except ValueError as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1)
+    if json_output:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        console.print("[green]Project initialized[/green]")
+        console.print(result)
+
+
+@app.command("task-compact")
+def task_compact_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
+) -> None:
+    """Create a compact task summary and indexes without deleting raw files."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from task_compaction import compact_task
+
+    try:
+        result = compact_task(agentlab_root, project_name, task_id)
+    except FileNotFoundError as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1)
+    if json_output:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        console.print("[green]Task compact generated[/green]")
+        console.print(result)
+
+
+@app.command("agent-contributions")
+def agent_contributions_cmd(
+    task_id: str = typer.Option(..., "--task", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    agent_id: str = typer.Option("", "--agent-id", help="Append a contribution for this agent."),
+    role: str = typer.Option("", "--role", help="Agent role when appending."),
+    status: str = typer.Option("completed", "--status", help="Contribution status when appending."),
+    summary: str = typer.Option("", "--summary", help="Short summary when appending."),
+    accepted: Optional[bool] = typer.Option(None, "--accepted/--rejected", help="Supervisor acceptance when appending."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
+) -> None:
+    """Show or append a lightweight per-agent contribution ledger."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from task_compaction import append_agent_contribution, build_agent_contribution_summary
+
+    run_dir = agentlab_root / "projects" / project_name / "runs" / task_id
+    if agent_id:
+        append_agent_contribution(
+            agentlab_root,
+            project_name,
+            task_id,
+            {
+                "agent_id": agent_id,
+                "role": role or "unknown",
+                "status": status,
+                "summary": summary,
+                "accepted_by_supervisor": accepted,
+            },
+        )
+    summary_data = build_agent_contribution_summary(run_dir)
+    if json_output:
+        print(json.dumps(summary_data, ensure_ascii=False, indent=2))
+    else:
+        console.print("[bold]Agent contributions[/bold]")
+        console.print(summary_data)
+
+
+@app.command("project-status")
+def project_status_cmd(
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
+) -> None:
+    """Show project manifest, task lifecycle counts, risks, and next actions."""
+    agentlab_root, project_name = runtime_context(project)
+    from task_compaction import project_status
+
+    result = project_status(agentlab_root, project_name)
+    if json_output:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        console.print("[bold]Project status[/bold]")
+        console.print(result)
+
+
+@app.command("cost-status")
+def cost_status_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
+) -> None:
+    """Summarize local cost ledger data without calling providers or billing APIs."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from cost_observer import cost_status, render_cost_status
+
+    result = cost_status(agentlab_root, project_name, task_id)
+    if json_output:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        console.print(render_cost_status(result))
+
+
+@app.command("cost-doctor")
+def cost_doctor_cmd(
+    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    project: Optional[str] = typer.Option(None, help="Project name."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
+) -> None:
+    """Check local cost observability gaps without spending tokens."""
+    ensure_safe_task_id(task_id)
+    agentlab_root, project_name = runtime_context(project)
+    from cost_observer import cost_doctor, render_cost_doctor
+
+    result = cost_doctor(agentlab_root, project_name, task_id)
+    if json_output:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        console.print(render_cost_doctor(result))
+
+
 @app.command("workflow-plan")
 def workflow_plan_cmd(
     mission_contract: Path = typer.Option(..., "--mission-contract", help="Path to a mission_contract.yml file."),
@@ -292,6 +469,48 @@ def workflow_plan_cmd(
     md_path.write_text(render_workflow_plan_markdown(plan), encoding="utf-8")
     console.print("[green]Workflow plan generated[/green]")
     console.print({"workflow_plan_yml": str(yaml_path), "workflow_plan_md": str(md_path), "template_id": plan.template_id})
+
+
+@app.command("skill-search-plan")
+def skill_search_plan_cmd(
+    mission_contract: Path = typer.Option(..., "--mission-contract", help="Path to a mission_contract.yml file."),
+    workflow_plan: Path = typer.Option(..., "--workflow-plan", help="Path to a workflow_plan.yml file."),
+    out: Path = typer.Option(..., "--out", help="Output directory for skill_search_plan.yml."),
+) -> None:
+    """Build an S3 skill search plan from Mission Contract + Workflow Plan. No execution."""
+    from agent_runtime.skills.skill_search_plan import (
+        build_skill_search_plan,
+        load_yaml_mapping,
+        write_skill_search_plan,
+    )
+
+    if not mission_contract.exists():
+        console.print(f"[red]Error: mission contract does not exist: {mission_contract}[/red]")
+        raise typer.Exit(code=1)
+    if not workflow_plan.exists():
+        console.print(f"[red]Error: workflow plan does not exist: {workflow_plan}[/red]")
+        raise typer.Exit(code=1)
+    try:
+        contract_data = load_yaml_mapping(mission_contract)
+        workflow_data = load_yaml_mapping(workflow_plan)
+    except yaml.YAMLError as exc:
+        console.print(f"[red]Error: input YAML is invalid: {exc}[/red]")
+        raise typer.Exit(code=1)
+    if not contract_data or not workflow_data:
+        console.print("[red]Error: mission contract and workflow plan must be YAML mappings.[/red]")
+        raise typer.Exit(code=1)
+
+    plan = build_skill_search_plan(contract_data, workflow_data)
+    out.mkdir(parents=True, exist_ok=True)
+    output_path = out / "skill_search_plan.yml"
+    write_skill_search_plan(plan, output_path)
+    console.print("[green]Skill search plan generated[/green]")
+    console.print({
+        "skill_search_plan_yml": str(output_path),
+        "required_capabilities": len(plan.get("required_capabilities") or []),
+        "candidate_sources": len(plan.get("candidate_sources") or []),
+        "approval_required": plan.get("approval_required"),
+    })
 
 
 def ensure_project_memory_files(project_root: Path) -> None:
@@ -1012,6 +1231,124 @@ def skill_validate(
     except (FileNotFoundError, ValueError) as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
+
+
+@app.command("skill-trust-validate")
+def skill_trust_validate(
+    package_path: Path = typer.Option(..., "--package-path", help="Local skill package directory or SKILL.md file."),
+    out: Path = typer.Option(..., "--out", help="Output directory for S4 validation reports."),
+    approved: bool = typer.Option(False, "--approved", help="Mark human approval as already granted for eligibility calculation."),
+) -> None:
+    """Run S4 trust, permission, and mock sandbox validation. No execution."""
+    from agent_runtime.skills.validation import validate_skill_package_for_s4
+
+    if not package_path.exists():
+        console.print(f"[red]Error: skill package path does not exist: {package_path}[/red]")
+        raise typer.Exit(code=1)
+    result = validate_skill_package_for_s4(
+        package_path,
+        out,
+        human_approval={"approved": approved},
+    )
+    console.print("[green]S4 skill validation reports generated[/green]")
+    console.print(result)
+
+
+@app.command("web-research-plan")
+def web_research_plan(
+    mission_contract: Optional[Path] = typer.Option(None, "--mission-contract", help="S1 mission_contract.yml input."),
+    workflow_plan_path: Optional[Path] = typer.Option(None, "--workflow-plan", help="S2 workflow_plan.yml input."),
+    s4_report_dir: Optional[Path] = typer.Option(None, "--s4-report-dir", help="Directory containing S4 validation reports."),
+    local_index: Optional[Path] = typer.Option(None, "--local-index", help="Optional local search JSONL index for evidence snippets."),
+    out: Path = typer.Option(..., "--out", help="Output directory for S5 research/evidence/recovery artifacts."),
+    topic: str = typer.Option("", "--topic", help="Fallback topic when no mission contract is provided."),
+    max_local_results: int = typer.Option(5, "--max-local-results", help="Maximum local evidence snippets to record."),
+) -> None:
+    """Generate S5 mock-first research, evidence, and recovery artifacts."""
+    from agent_runtime.intelligence.s5_planner import build_s5_research_packet
+
+    for label, path in (
+        ("mission contract", mission_contract),
+        ("workflow plan", workflow_plan_path),
+        ("S4 report directory", s4_report_dir),
+        ("local index", local_index),
+    ):
+        if path is not None and not path.exists():
+            console.print(f"[red]Error: {label} does not exist: {path}[/red]")
+            raise typer.Exit(code=1)
+
+    result = build_s5_research_packet(
+        mission_contract_path=mission_contract,
+        workflow_plan_path=workflow_plan_path,
+        s4_report_dir=s4_report_dir,
+        local_index_path=local_index,
+        topic=topic,
+        out_dir=out,
+        max_local_results=max_local_results,
+    )
+    console.print("[green]S5 research/evidence packet generated[/green]")
+    console.print(result)
+
+
+@app.command("local-search-index")
+def local_search_index(
+    root: Path = typer.Option(Path("."), "--root", help="Repository/project root to index."),
+    output: Path = typer.Option(Path(".agentlab_runtime/local_search.jsonl"), "--output", help="Output JSONL index path."),
+    project: Optional[str] = typer.Option(None, "--project", help="Project label for CLI compatibility."),
+) -> None:
+    """Build the deterministic local search index without external services."""
+    from agent_runtime.local_search.indexer import build_index
+    from agent_runtime.local_search.storage import save_index
+
+    root = root.resolve()
+    if not root.is_dir():
+        console.print(f"[red]Error: root directory does not exist: {root}[/red]")
+        raise typer.Exit(code=1)
+    output_path = output if output.is_absolute() else root / output
+    docs = build_index(root)
+    save_index(docs, output_path)
+    console.print("[green]Local search index generated[/green]")
+    console.print({"project": project, "root": str(root), "documents": len(docs), "index": str(output_path)})
+
+
+@app.command("local-search-query")
+def local_search_query(
+    query: str = typer.Option(..., "--query", "-q", help="Search query."),
+    root: Path = typer.Option(Path("."), "--root", help="Repository/project root."),
+    index: Path = typer.Option(Path(".agentlab_runtime/local_search.jsonl"), "--index", help="JSONL index path."),
+    max_results: int = typer.Option(10, "--max-results", help="Maximum result count."),
+    source_category: Optional[str] = typer.Option(None, "--source-category", help="Optional source category filter."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional YAML output path for machine-readable results."),
+) -> None:
+    """Query the deterministic local search index and return evidence snippets."""
+    from agent_runtime.atomic_io import atomic_write_yaml
+    from agent_runtime.local_search.query import query_index
+    from agent_runtime.local_search.storage import load_index
+
+    root = root.resolve()
+    index_path = index if index.is_absolute() else root / index
+    if not index_path.exists():
+        console.print(f"[red]Error: local search index does not exist: {index_path}[/red]")
+        raise typer.Exit(code=1)
+    docs = load_index(index_path)
+    categories = [source_category] if source_category else None
+    results = query_index(docs, query, max_results=max_results, source_categories=categories)
+    try:
+        display_index = str(index_path.relative_to(root))
+    except ValueError:
+        display_index = str(index)
+    payload = {
+        "query": query,
+        "index": display_index,
+        "result_count": len(results),
+        "results": [item.to_dict() for item in results],
+    }
+    if out is not None:
+        out_path = out if out.is_absolute() else root / out
+        atomic_write_yaml(out_path, payload)
+        console.print(f"[green]Local search results written: {out_path}[/green]")
+    else:
+        console.print(payload)
 
 
 @app.command("skill-promote")
@@ -1823,6 +2160,7 @@ Commands run: {commands_run or "none recorded"}
         model=model,
         status="manual_logged",
         notes=summary,
+        agentlab_root=agentlab_root,
     )
     append_cost_ledgers(project_root, run_dir, entry)
     console.print("[green]Logged AgentLab event[/green]")
@@ -2634,6 +2972,7 @@ def run_agent(
                 result.output_tokens,
                 result.total_tokens,
                 result.error or "User decision required.",
+                agentlab_root=agentlab_root,
             ),
         )
         console.print("[yellow]User decision required before continuing[/yellow]")
@@ -2678,6 +3017,7 @@ def run_agent(
                 result.output_tokens,
                 result.total_tokens,
                 result.error or "Codex Plus handoff.",
+                agentlab_root=agentlab_root,
             ),
         )
         console.print("[yellow]Codex Plus handoff written[/yellow]")
@@ -2721,6 +3061,7 @@ def run_agent(
                 result.output_tokens,
                 result.total_tokens,
                 "API usage recorded before artifact gate blocked completion.",
+                agentlab_root=agentlab_root,
             ),
         )
         console.print("[yellow]Artifact gate blocked completion[/yellow]")
@@ -2746,6 +3087,7 @@ def run_agent(
             result.output_tokens,
             result.total_tokens,
             "API usage recorded from provider telemetry when available.",
+            agentlab_root=agentlab_root,
         ),
     )
 

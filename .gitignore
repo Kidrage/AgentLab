@@ -22,6 +22,7 @@ __pycache__/
 ._*
 
 # AgentLab runtime
+.agentlab/
 .agentlab_runtime/
 agent_runtime/.venv/
 agent_runtime/__pycache__/

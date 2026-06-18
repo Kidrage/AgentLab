@@ -166,6 +166,15 @@ def usage_entry(
         pricing_source = None
         pricing_confidence = "none"
 
+    if input_tokens is not None or output_tokens is not None or total_tokens is not None:
+        usage_source = "provider_response"
+    else:
+        usage_source = "unavailable"
+    if estimated_cost is not None:
+        cost_accuracy = "estimated" if pricing_source != "provider_bill" else "measured"
+    else:
+        cost_accuracy = "unknown"
+
     return {
         "timestamp": utc_now(),
         "project": project,
@@ -177,11 +186,13 @@ def usage_entry(
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "total_tokens": total_tokens,
+        "usage_source": usage_source,
         "exact_cost_available": exact_cost_available,
         "estimated_cost": estimated_cost,
         "cost_currency": cost_currency,
         "pricing_source": pricing_source,
         "pricing_confidence": pricing_confidence,
+        "cost_accuracy": cost_accuracy,
         "notes": notes,
     }
 

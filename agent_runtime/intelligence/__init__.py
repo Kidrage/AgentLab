@@ -71,6 +71,11 @@ from .citation_ledger import (
     write_citation_ledger,
 )
 
+# -- s5_planner -------------------------------------------------------------
+from .s5_planner import (
+    build_s5_research_packet,
+)
+
 __all__ = [
     # web_policy
     "URLValidation",
@@ -112,4 +117,6 @@ __all__ = [
     "CitationLedger",
     "load_citation_ledger",
     "write_citation_ledger",
+    # s5_planner
+    "build_s5_research_packet",
 ]

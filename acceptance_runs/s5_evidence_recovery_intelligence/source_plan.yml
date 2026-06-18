@@ -1,0 +1,44 @@
+schema_version: 1
+required_capabilities: []
+candidate_source_types:
+- official_docs
+- project_docs
+- acceptance_reports
+- recovery_history
+- web_snapshots
+blocked_source_types:
+- localhost
+- private_ip
+- file_url
+- login_wall
+- paywall_bypass
+- unbounded_crawl
+s4_gate:
+  present: true
+  passed: true
+  reports:
+  - path: acceptance_runs/s5_evidence_recovery_intelligence/s4_reports/permission_report.yml
+    report: permission_report
+    eligible: null
+    status: null
+    blocked_reasons: []
+  - path: acceptance_runs/s5_evidence_recovery_intelligence/s4_reports/promotion_eligibility.yml
+    report: promotion_eligibility
+    eligible: true
+    status: null
+    blocked_reasons: []
+  - path: acceptance_runs/s5_evidence_recovery_intelligence/s4_reports/s4_validation_summary.yml
+    report: s4_validation_summary
+    eligible: true
+    status: null
+    blocked_reasons: []
+  - path: acceptance_runs/s5_evidence_recovery_intelligence/s4_reports/sandbox_report.yml
+    report: sandbox_report
+    eligible: null
+    status: null
+    blocked_reasons: []
+  - path: acceptance_runs/s5_evidence_recovery_intelligence/s4_reports/trust_report.yml
+    report: trust_report
+    eligible: null
+    status: null
+    blocked_reasons: []

@@ -1,0 +1,5 @@
+schema_version: 1
+require_human_approval: true
+require_trust_pass: true
+require_permission_pass: true
+require_sandbox_pass: true

@@ -167,6 +167,7 @@ class TaskCompilationResult:
     domain_signals: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     decision_cards: list[dict[str, Any]] = field(default_factory=list)
+    execution_profile: dict[str, Any] = field(default_factory=dict)
 
 
 def _utc_timestamp() -> str:
@@ -466,6 +467,112 @@ def mission_risks_from_names(risk_names: list[str]) -> list[MissionRisk]:
     return risks
 
 
+def build_execution_profile(
+    task_type: MissionTaskType,
+    prompt: str,
+    capability_names: list[str],
+    risk_names: list[str],
+    unknowns: list[str],
+    decision_cards: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build the brain-layer execution posture consumed by downstream routing.
+
+    This is intentionally a compact hint, not an executor. It lets the compiler
+    express task size, route pressure, and failure boundaries without running
+    network calls, shell commands, or repository inspection.
+    """
+
+    text = prompt.lower()
+    word_count = len(prompt.split())
+    high_risk_count = sum(1 for name in risk_names if risk_level_for_name(name) == "high")
+    medium_risk_count = sum(1 for name in risk_names if risk_level_for_name(name) == "medium")
+    needs_external_info = any(name in capability_names for name in {"web_search", "source_citation"})
+    needs_interface_review = any(token in text for token in ("api", "schema", "protocol", "contract", "integration", "database", "migration", "ui"))
+    architecture_pressure = any(
+        token in text
+        for token in (
+            "architecture",
+            "platform",
+            "multi-module",
+            "cross-module",
+            "migration",
+            "rewrite",
+            "orchestration",
+            "framework",
+            "large task",
+        )
+    )
+    long_project = word_count > 800 or len(prompt) > 5000
+    approval_required = any(card.get("kind") == "human_approval" for card in decision_cards)
+    capability_gap = any(card.get("kind") == "capability_gap" for card in decision_cards)
+
+    if task_type == MissionTaskType.UNKNOWN:
+        route_key = "small_task"
+    elif task_type in {MissionTaskType.RESEARCH, MissionTaskType.BUSINESS}:
+        route_key = "research_sensitive_task"
+    elif task_type in {MissionTaskType.CODING, MissionTaskType.DEBUGGING} and needs_interface_review:
+        route_key = "interface_sensitive_task"
+    elif architecture_pressure or long_project:
+        route_key = "large_or_risky_task"
+    elif task_type in {MissionTaskType.CODING, MissionTaskType.DEBUGGING}:
+        route_key = "small_task" if word_count < 160 and len(unknowns) <= 2 else "medium_task"
+    else:
+        route_key = "medium_task"
+
+    if route_key == "large_or_risky_task":
+        task_size = "large"
+    elif route_key in {"medium_task", "interface_sensitive_task", "research_sensitive_task"}:
+        task_size = "medium"
+    else:
+        task_size = "small"
+
+    if task_type == MissionTaskType.LOCAL_OPS or approval_required and "local_shell" in capability_names:
+        risk_level = "R3"
+    elif high_risk_count or capability_gap:
+        risk_level = "R2"
+    elif medium_risk_count or unknowns:
+        risk_level = "R1"
+    else:
+        risk_level = "R0"
+
+    budget_mode = "max_quality" if risk_level == "R3" else "balanced"
+    if task_size == "small" and risk_level in {"R0", "R1"} and not needs_external_info:
+        budget_mode = "frugal"
+
+    boundaries = [
+        "plan_first_no_execution",
+        "network_calls_require_policy_and_allowlist",
+        "permission_errors_stop_at_recovery_plan",
+        "capability_gaps_become_decision_cards_not_crashes",
+    ]
+    if needs_external_info:
+        boundaries.append("web_research_is_mock_or_source_plan_until_network_approved")
+    if task_type == MissionTaskType.LOCAL_OPS:
+        boundaries.append("local_ops_require_dry_run_path_scope_and_rollback")
+
+    rationale = [
+        f"Brain compiler classified task_type={task_type.value}.",
+        f"Execution profile selected {task_size}/{risk_level}/{route_key}.",
+    ]
+    if architecture_pressure or long_project:
+        rationale.append("Large-project pressure detected; route should split phases instead of expanding blindly.")
+    if needs_external_info:
+        rationale.append("External/current facts requested; route may plan research but must not require live network by default.")
+    if capability_gap:
+        rationale.append("Capability gaps are represented as approval decisions instead of fatal execution errors.")
+
+    return {
+        "schema_version": 1,
+        "task_size": task_size,
+        "risk_level": risk_level,
+        "budget_mode": budget_mode,
+        "route_key_hint": route_key,
+        "failure_policy": "recoverable_boundary",
+        "boundaries": boundaries,
+        "rationale": rationale,
+    }
+
+
 def recommended_route_for(task_type: MissionTaskType) -> str:
     """Recommend a future route without invoking lifecycle integration."""
 
@@ -522,6 +629,14 @@ def compile_task_packet(
     warnings = _dedupe(warnings)
     intent_summary = build_intent_summary(compact_prompt, task_type)
     risk_names = build_domain_risks(compact_prompt, task_type.value, capability_names, selected_template)
+    execution_profile = build_execution_profile(
+        task_type,
+        compact_prompt,
+        capability_names,
+        risk_names,
+        unknowns,
+        decision_cards,
+    )
     contract = MissionContract(
         mission_id=mission_id,
         created_at=_utc_timestamp(),
@@ -552,6 +667,7 @@ def compile_task_packet(
             "deterministic_compiler: true",
             "S1-C/D/E/F Task Compiler refinement; classification is deterministic heuristic.",
             "Capability gaps are represented as contract requirements and decision cards, not failures.",
+            f"execution_profile: {execution_profile['task_size']}/{execution_profile['risk_level']}/{execution_profile['route_key_hint']}",
         ],
     )
     errors = validate_mission_contract(contract)
@@ -564,6 +680,7 @@ def compile_task_packet(
         domain_signals=classification.domain_signals,
         warnings=warnings,
         decision_cards=decision_cards,
+        execution_profile=execution_profile,
     )
 
 

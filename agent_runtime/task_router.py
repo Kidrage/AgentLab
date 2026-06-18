@@ -84,6 +84,32 @@ LARGE_HINTS = (
     "release",
 )
 
+FALLBACK_ROUTES = {
+    "small_task": ["Supervisor", "Coder", "TesterAuditor", "Verifier"],
+    "medium_task": ["Supervisor", "RepoScout", "Coder", "TesterAuditor", "Verifier", "Archivist"],
+    "interface_sensitive_task": ["Supervisor", "RepoScout", "InterfaceMapper", "Coder", "TesterAuditor", "Verifier", "Archivist"],
+    "research_sensitive_task": ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier"],
+    "evaluation_task": [
+        "Supervisor",
+        "RepoScout",
+        "Researcher",
+        "InterfaceMapper",
+        "TesterAuditor",
+        "Verifier",
+        "Archivist",
+    ],
+    "large_or_risky_task": [
+        "Supervisor",
+        "RepoScout",
+        "Researcher",
+        "InterfaceMapper",
+        "Coder",
+        "TesterAuditor",
+        "Verifier",
+        "Archivist",
+    ],
+}
+
 
 def _configured_hints(routing_config: dict | None, key: str, fallback: tuple[str, ...]) -> tuple[str, ...]:
     if not routing_config:
@@ -126,12 +152,89 @@ def _configured_route_size(routing_config: dict | None, key: str, fallback: str)
     return size_map.get(str(configured_size), fallback)
 
 
+def _known_agent_set(routing_config: dict | None, known_agents: list[str] | None) -> set[str]:
+    return set(known_agents or (routing_config or {}).get("agent_order") or [
+        "Supervisor",
+        "RepoScout",
+        "Researcher",
+        "InterfaceMapper",
+        "Coder",
+        "TesterAuditor",
+        "Verifier",
+        "Archivist",
+    ])
+
+
+def _agent_route(
+    *,
+    task_size: str,
+    agents: list[str],
+    rationale: list[str],
+    route_key: str,
+    routing_config: dict | None,
+    known_agents: list[str] | None,
+) -> AgentRoute:
+    all_agents = _known_agent_set(routing_config, known_agents)
+    skipped = sorted(all_agents.difference(agents))
+    return AgentRoute(
+        task_size=task_size,
+        agents=agents,
+        rationale=rationale,
+        skipped_agents=skipped,
+        route_key=route_key,
+    )
+
+
+def _route_from_brain_profile(
+    brain_profile: dict | None,
+    routing_config: dict | None,
+    known_agents: list[str] | None,
+) -> AgentRoute | None:
+    if not brain_profile:
+        return None
+    route_key = str(brain_profile.get("route_key_hint") or "").strip()
+    if route_key not in FALLBACK_ROUTES:
+        return None
+    fallback_agents = FALLBACK_ROUTES[route_key]
+    configured_size = str(brain_profile.get("task_size") or "").strip().lower()
+    fallback_size = configured_size if configured_size in {"small", "medium", "large"} else {
+        "small_task": "small",
+        "medium_task": "medium",
+        "interface_sensitive_task": "medium",
+        "research_sensitive_task": "medium",
+        "evaluation_task": "large",
+        "large_or_risky_task": "large",
+    }[route_key]
+    task_size = _configured_route_size(routing_config, route_key, fallback_size)
+    agents = _configured_route(routing_config, route_key, fallback_agents)
+    rationale = [
+        "Brain execution profile selected route before keyword fallback.",
+        f"Profile route={route_key}, size={brain_profile.get('task_size', task_size)}, risk={brain_profile.get('risk_level', 'unknown')}.",
+    ]
+    rationale.extend(str(item) for item in brain_profile.get("rationale", [])[:4])
+    for boundary in brain_profile.get("boundaries", [])[:4]:
+        rationale.append(f"Boundary: {boundary}.")
+    return _agent_route(
+        task_size=task_size,
+        agents=agents,
+        rationale=rationale,
+        route_key=route_key,
+        routing_config=routing_config,
+        known_agents=known_agents,
+    )
+
+
 def recommend_route(
     task_text: str,
     routing_config: dict | None = None,
     known_agents: list[str] | None = None,
+    brain_profile: dict | None = None,
 ) -> AgentRoute:
     """Return a conservative route based on task wording."""
+    brain_route = _route_from_brain_profile(brain_profile, routing_config, known_agents)
+    if brain_route is not None:
+        return brain_route
+
     text = task_text.lower()
     thresholds = (routing_config or {}).get("task_size_thresholds", {})
     medium_chars = int(thresholds.get("medium_characters", 800))
@@ -148,54 +251,30 @@ def recommend_route(
     looks_large = any(hint in text for hint in large_hints) or len(text) > large_chars
     looks_medium = len(text) > medium_chars
 
-    fallback_small = ["Supervisor", "Coder", "TesterAuditor", "Verifier"]
-    fallback_medium = ["Supervisor", "RepoScout", "Coder", "TesterAuditor", "Verifier", "Archivist"]
-    fallback_interface = ["Supervisor", "RepoScout", "InterfaceMapper", "Coder", "TesterAuditor", "Verifier", "Archivist"]
-    fallback_research = ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier"]
-    fallback_evaluation = [
-        "Supervisor",
-        "RepoScout",
-        "Researcher",
-        "InterfaceMapper",
-        "TesterAuditor",
-        "Verifier",
-        "Archivist",
-    ]
-    fallback_large = [
-        "Supervisor",
-        "RepoScout",
-        "Researcher",
-        "InterfaceMapper",
-        "Coder",
-        "TesterAuditor",
-        "Verifier",
-        "Archivist",
-    ]
-
     if wants_evaluation:
         route_key = "evaluation_task"
         task_size = _configured_route_size(routing_config, route_key, "large")
-        agents = _configured_route(routing_config, route_key, fallback_evaluation)
+        agents = _configured_route(routing_config, route_key, FALLBACK_ROUTES[route_key])
     elif looks_large:
         route_key = "large_or_risky_task"
         task_size = _configured_route_size(routing_config, route_key, "large")
-        agents = _configured_route(routing_config, route_key, fallback_large)
+        agents = _configured_route(routing_config, route_key, FALLBACK_ROUTES[route_key])
     elif touches_interfaces:
         route_key = "interface_sensitive_task"
         task_size = _configured_route_size(routing_config, route_key, "medium")
-        agents = _configured_route(routing_config, route_key, fallback_interface)
+        agents = _configured_route(routing_config, route_key, FALLBACK_ROUTES[route_key])
     elif wants_research:
         route_key = "research_sensitive_task"
         task_size = _configured_route_size(routing_config, route_key, "medium")
-        agents = _configured_route(routing_config, route_key, fallback_research)
+        agents = _configured_route(routing_config, route_key, FALLBACK_ROUTES[route_key])
     elif looks_medium:
         route_key = "medium_task"
         task_size = _configured_route_size(routing_config, route_key, "medium")
-        agents = _configured_route(routing_config, route_key, fallback_medium)
+        agents = _configured_route(routing_config, route_key, FALLBACK_ROUTES[route_key])
     else:
         route_key = "small_task"
         task_size = _configured_route_size(routing_config, route_key, "small")
-        agents = _configured_route(routing_config, route_key, fallback_small)
+        agents = _configured_route(routing_config, route_key, FALLBACK_ROUTES[route_key])
 
     rationale = [
         "Supervisor always defines scope, token budget, and stop rules.",
@@ -214,21 +293,11 @@ def recommend_route(
     if looks_large:
         rationale.append("Large or risky hints detected; include the full route.")
 
-    all_agents = set(known_agents or (routing_config or {}).get("agent_order") or [
-        "Supervisor",
-        "RepoScout",
-        "Researcher",
-        "InterfaceMapper",
-        "Coder",
-        "TesterAuditor",
-        "Archivist",
-    ])
-    skipped = sorted(all_agents.difference(agents))
-
-    return AgentRoute(
+    return _agent_route(
         task_size=task_size,
         agents=agents,
         rationale=rationale,
-        skipped_agents=skipped,
         route_key=route_key,
+        routing_config=routing_config,
+        known_agents=known_agents,
     )

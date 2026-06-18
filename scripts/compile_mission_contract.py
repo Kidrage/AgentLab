@@ -81,6 +81,7 @@ def summary_for_result(output_path: Path, result) -> dict[str, object]:
         "required_artifacts_count": len(contract.required_artifacts),
         "acceptance_gates_count": len(contract.acceptance_gates),
         "human_approval_required": contract.human_approval.required,
+        "execution_profile": result.execution_profile,
         "output_path": str(output_path),
     }
 

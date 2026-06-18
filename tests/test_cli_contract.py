@@ -27,6 +27,7 @@ REQUIRED_COMMANDS = (
     "skill-reject",
     "skill-stage",
     "skill-validate",
+    "skill-trust-validate",
     "skill-promote",
     "skill-retire",
     "skill-match",
@@ -48,6 +49,9 @@ REQUIRED_COMMANDS = (
     "webhook-status",
     "webhook-redeliver",
     "skill-import-url",
+    "web-research-plan",
+    "local-search-index",
+    "local-search-query",
     # Core task commands
     "init-task",
     "prepare",

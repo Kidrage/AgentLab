@@ -216,6 +216,7 @@ def build_task_snapshot(run_dir: Path, project: str | None = None, task_id: str 
     progress_status = normalize_status(progress.get("status"))
     lifecycle_status = normalize_status(lifecycle_info.get("status"))
     route = _route_from_plan(plan) or list(progress.get("route", []) or [])
+    route_controls = plan.get("route_controls", {}) if isinstance(plan.get("route_controls", {}), dict) else {}
     status = _choose_status(state_status, progress_status, lifecycle_status, has_plan=bool(plan))
 
     percent = _progress_percent(progress)
@@ -253,6 +254,7 @@ def build_task_snapshot(run_dir: Path, project: str | None = None, task_id: str 
         "source_statuses": source_statuses,
         "drift": drift,
         "route": route,
+        "route_controls": route_controls,
         "current_agent": current_agent,
         "current_stage": current_stage,
         "percent_complete": percent,

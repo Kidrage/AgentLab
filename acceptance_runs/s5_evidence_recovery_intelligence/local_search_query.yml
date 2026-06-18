@@ -1,0 +1,14 @@
+query: evidence ledger factual claims
+index: local_search_index.jsonl
+result_count: 1
+results:
+- path: evidence_policy.md
+  source_category: docs
+  content_hash: a465ddf76fa3cee36d40a7c79e09a90e3cf4286fff42641fa0233c3dae71c9f3
+  snippet: '# S5 Evidence Policy Fixture
+
+
+    S5 requires an evidence ledger before factual claims are accepted. Local search...'
+  score: 1.3861
+  line_start: 1
+  line_end: 3

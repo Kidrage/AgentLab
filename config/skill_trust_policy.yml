@@ -1,0 +1,9 @@
+schema_version: 1
+fail_on_high: true
+suspicious_patterns:
+  shell_execution: "\\b(subprocess|os\\.system|shell|exec\\(|eval\\()\\b"
+  network_access: "\\b(curl|wget|requests\\.|urllib|http://|https://)\\b"
+  secret_access: "\\b(API_KEY|TOKEN|SECRET|PASSWORD|os\\.environ|dotenv)\\b"
+  destructive_filesystem: "\\b(rm -rf|delete|unlink|shutil\\.rmtree|truncate)\\b"
+  path_traversal: "\\.\\./"
+  binary_reference: "\\b(\\.dylib|\\.so|\\.dll|\\.exe)\\b"
