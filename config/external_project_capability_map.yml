@@ -1,0 +1,95 @@
+schema_version: 1
+capabilities:
+  complex_document_ingestion:
+    providers:
+      - mineru
+  pdf_ocr:
+    providers:
+      - mineru
+  table_extraction:
+    providers:
+      - mineru
+  formula_extraction:
+    providers:
+      - mineru
+  lightweight_document_to_markdown:
+    providers:
+      - markitdown
+  office_to_markdown:
+    providers:
+      - markitdown
+  pdf_text_extraction:
+    providers:
+      - markitdown
+  media_metadata_extraction:
+    providers:
+      - markitdown
+  codebase_structural_memory:
+    providers:
+      - codebase_memory_mcp
+  symbol_lookup:
+    providers:
+      - codebase_memory_mcp
+  call_graph_query:
+    providers:
+      - codebase_memory_mcp
+  impact_analysis:
+    providers:
+      - codebase_memory_mcp
+  project_knowledge_graph:
+    providers:
+      - graphify
+  multi_artifact_graph:
+    providers:
+      - graphify
+  repo_doc_media_relationships:
+    providers:
+      - graphify
+  vision_evidence_normalization:
+    providers:
+      - supervision
+  detection_annotation:
+    providers:
+      - supervision
+  dataset_visualization:
+    providers:
+      - supervision
+  skill_package_reference:
+    providers:
+      - mattpocock_skills
+  engineering_sop_reference:
+    providers:
+      - mattpocock_skills
+  handoff_skill_reference:
+    providers:
+      - mattpocock_skills
+  minimal_patch_reviewer:
+    providers:
+      - ponytail
+  dependency_skeptic:
+    providers:
+      - ponytail
+  anti_overengineering_gate:
+    providers:
+      - ponytail
+  web_social_intelligence_provider:
+    providers:
+      - agent_reach
+  market_channel_research:
+    providers:
+      - agent_reach
+  self_evolving_skill_research_reference:
+    providers:
+      - babyagi
+  trace_to_skill_inspiration:
+    providers:
+      - babyagi
+  p2r_reference:
+    providers:
+      - aitoearn
+  content_production_pipeline_reference:
+    providers:
+      - aitoearn
+  channel_operation_reference:
+    providers:
+      - aitoearn

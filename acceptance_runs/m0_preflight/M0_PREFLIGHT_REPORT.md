@@ -6,7 +6,7 @@ PASS
 
 ## Baseline
 
-- Repository: `/Users/saintpeter/Desktop/AgentLab`
+- Repository: `<repo-root>`
 - Branch: `main`
 - Baseline commit before M0 edits: `ecd8bb41dbdb2fc88e256c01c0e7c9cbf525854f`
 - Remote: `origin https://github.com/Kidrage/AgentLab.git`

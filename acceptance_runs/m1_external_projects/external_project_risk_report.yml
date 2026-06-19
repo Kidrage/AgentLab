@@ -1,0 +1,25 @@
+schema_version: 1
+project_count: 10
+default_enabled_count: 0
+high_risk_projects:
+- agent_reach
+- aitoearn
+- babyagi
+- codebase_memory_mcp
+approval_required_projects:
+- agent_reach
+- aitoearn
+- babyagi
+- codebase_memory_mcp
+- graphify
+- markitdown
+- mattpocock_skills
+- mineru
+- ponytail
+- supervision
+safety_invariants:
+  no_external_code_execution: true
+  no_clone: true
+  no_install: true
+  all_default_disabled: true
+  all_registry_only: true

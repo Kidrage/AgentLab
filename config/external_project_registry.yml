@@ -1,0 +1,315 @@
+schema_version: 1
+external_projects:
+  - project_id: mineru
+    display_name: MinerU
+    source_url: https://github.com/opendatalab/MinerU
+    role: capability_provider
+    default_enabled: false
+    integration_stage: registry_only
+    capabilities:
+      - complex_document_ingestion
+      - pdf_ocr
+      - table_extraction
+      - formula_extraction
+    risk:
+      level: medium
+      reasons:
+        - external_dependency
+        - parser_quality_varies
+        - heavy_runtime_optional
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - document_path
+      expected_outputs:
+        - document_asset.yml
+        - extracted_markdown.md
+        - extraction_quality_report.yml
+    notes:
+      - Do not vendor source.
+      - Do not execute until adapter is explicitly approved.
+
+  - project_id: markitdown
+    display_name: MarkItDown
+    source_url: https://github.com/microsoft/markitdown
+    role: capability_provider
+    default_enabled: false
+    integration_stage: registry_only
+    capabilities:
+      - lightweight_document_to_markdown
+      - office_to_markdown
+      - pdf_text_extraction
+      - media_metadata_extraction
+    risk:
+      level: medium
+      reasons:
+        - external_dependency
+        - parser_quality_varies
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - document_path
+      expected_outputs:
+        - extracted_markdown.md
+        - conversion_report.yml
+    notes:
+      - Registry entry only.
+      - Adapter execution requires a separate approval gate.
+
+  - project_id: codebase_memory_mcp
+    display_name: Codebase-Memory-MCP
+    source_url: https://github.com/modelcontextprotocol/servers
+    role: reference_implementation
+    default_enabled: false
+    integration_stage: registry_only
+    capabilities:
+      - codebase_structural_memory
+      - symbol_lookup
+      - call_graph_query
+      - impact_analysis
+    risk:
+      level: high
+      reasons:
+        - mcp_server
+        - filesystem_indexing
+        - external_dependency
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - repo_path
+      expected_outputs:
+        - codebase_memory_index.yml
+        - symbol_map.yml
+        - impact_report.yml
+    notes:
+      - Do not launch MCP servers automatically.
+      - Use as a contract/reference until explicitly approved.
+
+  - project_id: graphify
+    display_name: Graphify
+    source_url: https://github.com/stephenc222/graphify
+    role: reference_implementation
+    default_enabled: false
+    integration_stage: registry_only
+    capabilities:
+      - project_knowledge_graph
+      - multi_artifact_graph
+      - repo_doc_media_relationships
+    risk:
+      level: medium
+      reasons:
+        - external_dependency
+        - graph_quality_varies
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - artifact_manifest.yml
+      expected_outputs:
+        - project_graph.yml
+        - graph_quality_report.yml
+    notes:
+      - Registry entry only.
+
+  - project_id: supervision
+    display_name: Supervision
+    source_url: https://github.com/roboflow/supervision
+    role: capability_provider
+    default_enabled: false
+    integration_stage: registry_only
+    capabilities:
+      - vision_evidence_normalization
+      - detection_annotation
+      - dataset_visualization
+    risk:
+      level: medium
+      reasons:
+        - external_dependency
+        - media_processing
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - media_artifact
+      expected_outputs:
+        - normalized_vision_evidence.yml
+        - annotation_manifest.yml
+    notes:
+      - Does not run real vision models by default.
+
+  - project_id: mattpocock_skills
+    display_name: mattpocock/skills
+    source_url: https://github.com/mattpocock/skills
+    role: reference_implementation
+    default_enabled: false
+    integration_stage: registry_only
+    capabilities:
+      - skill_package_reference
+      - engineering_sop_reference
+      - handoff_skill_reference
+    risk:
+      level: low
+      reasons:
+        - reference_material
+        - external_content_review_required
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - skill_source_reference
+      expected_outputs:
+        - skill_review_report.yml
+        - adapted_skill_draft.md
+    notes:
+      - Do not auto-install external skills.
+
+  - project_id: ponytail
+    display_name: Ponytail
+    source_url: https://github.com/ponytail-ai/ponytail
+    role: reference_implementation
+    default_enabled: false
+    integration_stage: registry_only
+    capabilities:
+      - minimal_patch_reviewer
+      - dependency_skeptic
+      - anti_overengineering_gate
+    risk:
+      level: medium
+      reasons:
+        - external_dependency
+        - review_quality_varies
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - diff
+      expected_outputs:
+        - patch_review.yml
+        - overengineering_report.yml
+    notes:
+      - Registry/reference only.
+
+  - project_id: agent_reach
+    display_name: Agent-Reach
+    source_url: https://github.com/AgentOps-AI/agent-reach
+    role: high_risk_reference
+    default_enabled: false
+    integration_stage: registry_only
+    capabilities:
+      - web_social_intelligence_provider
+      - market_channel_research
+    risk:
+      level: high
+      reasons:
+        - platform_terms_risk
+        - web_social_intelligence
+        - external_dependency
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - research_question
+      expected_outputs:
+        - market_channel_research.yml
+        - source_review_report.yml
+    notes:
+      - Disabled by default.
+      - No crawling or platform automation without explicit policy.
+
+  - project_id: babyagi
+    display_name: BabyAGI
+    source_url: https://github.com/yoheinakajima/babyagi
+    role: research_reference
+    default_enabled: false
+    integration_stage: registry_only
+    capabilities:
+      - self_evolving_skill_research_reference
+      - trace_to_skill_inspiration
+    risk:
+      level: high
+      reasons:
+        - self_execution_research
+        - autonomous_loop_risk
+        - external_dependency
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - learning_trace
+      expected_outputs:
+        - skill_evolution_review.yml
+        - safety_gap_report.yml
+    notes:
+      - No auto execution.
+      - Research reference only.
+
+  - project_id: aitoearn
+    display_name: AiToEarn
+    source_url: https://github.com/bleedline/AiToEarn
+    role: p2r_reference
+    default_enabled: false
+    integration_stage: registry_only
+    capabilities:
+      - p2r_reference
+      - content_production_pipeline_reference
+      - channel_operation_reference
+    risk:
+      level: high
+      reasons:
+        - channel_operation_reference
+        - monetization_claims_require_review
+        - platform_terms_risk
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - production_goal
+      expected_outputs:
+        - p2r_reference_review.yml
+        - compliance_gap_report.yml
+    notes:
+      - Reference only.
+      - Do not automate posting, engagement, payments, or account actions.

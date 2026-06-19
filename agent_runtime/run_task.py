@@ -70,9 +70,11 @@ app = typer.Typer(help="AgentLab local-first CLI.", no_args_is_help=True)
 external_skills_app = typer.Typer(help="External Skill workflow closure commands.", no_args_is_help=True)
 search_app = typer.Typer(help="Search provider adapter commands.", no_args_is_help=True)
 repo_index_app = typer.Typer(help="Repo indexer adapter commands.", no_args_is_help=True)
+external_projects_app = typer.Typer(help="M1 external project registry commands.", no_args_is_help=True)
 app.add_typer(external_skills_app, name="external-skills")
 app.add_typer(search_app, name="search")
 app.add_typer(repo_index_app, name="repo-index")
+app.add_typer(external_projects_app, name="external-projects")
 console = Console()
 
 
@@ -98,6 +100,68 @@ def _run_repo_index_cli(args: list[str]) -> None:
     code = repo_index_main(args)
     if code:
         raise typer.Exit(code=code)
+
+
+@external_projects_app.command("list")
+def external_projects_list() -> None:
+    """List registered external projects without executing external code."""
+    from agent_runtime.external_projects import load_external_project_registry
+
+    registry = load_external_project_registry(_PROJECT_ROOT)
+    table = Table(title="AgentLab External Projects")
+    table.add_column("project_id")
+    table.add_column("role")
+    table.add_column("enabled")
+    table.add_column("stage")
+    table.add_column("risk")
+    for project in registry.to_sorted_projects():
+        table.add_row(
+            project.project_id,
+            project.role,
+            str(project.default_enabled).lower(),
+            project.integration_stage,
+            project.risk.level,
+        )
+    console.print(table)
+
+
+@external_projects_app.command("inspect")
+def external_projects_inspect(project: str = typer.Option(..., "--project")) -> None:
+    """Inspect one external project registry record."""
+    from agent_runtime.external_projects import load_external_project_registry
+
+    registry = load_external_project_registry(_PROJECT_ROOT)
+    record = registry.get(project)
+    console.print(yaml.safe_dump(record.to_dict(), sort_keys=False))
+
+
+@external_projects_app.command("capability-map")
+def external_projects_capability_map(
+    capability: str | None = typer.Option(None, "--capability"),
+) -> None:
+    """Show external projects mapped to a capability."""
+    from agent_runtime.external_projects import load_external_project_registry
+
+    registry = load_external_project_registry(_PROJECT_ROOT)
+    if capability:
+        providers = [project.project_id for project in registry.providers_for_capability(capability)]
+        console.print(yaml.safe_dump({"capability": capability, "providers": providers}, sort_keys=False))
+        return
+    console.print(yaml.safe_dump({"capabilities": registry.capability_map()}, sort_keys=False))
+
+
+@external_projects_app.command("risk-report")
+def external_projects_risk_report(out: Path = typer.Option(..., "--out")) -> None:
+    """Write a registry-only external project risk report."""
+    from agent_runtime.external_projects import (
+        load_external_project_registry,
+        write_external_project_risk_report,
+    )
+
+    registry = load_external_project_registry(_PROJECT_ROOT)
+    yaml_path, md_path = write_external_project_risk_report(registry, out)
+    console.print(f"wrote {yaml_path}")
+    console.print(f"wrote {md_path}")
 
 
 @search_app.command("web")

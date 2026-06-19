@@ -122,3 +122,22 @@ Last verified: 2026-06-19 (S7/S8 local repair)
 - S8 executor results are evidence only until S7 phase acceptance passes.
 - External executors remain approval-gated and are not auto-dispatched.
 - Verification: `62 passed`; text integrity suspicious files: `0`; S7→S8 CLI smoke produced project brain, task packet, ingested evidence, and phase acceptance artifacts.
+
+## M-Series — Product Mainline Repair
+
+Last verified: 2026-06-20 (M0/M1-1 local repair)
+
+| Stage | Status | Key File(s) | Acceptance |
+|-------|--------|-------------|------------|
+| M0 Preflight / Baseline Lock | ✅ Active | `docs/M_SERIES_SCOPE.md` | `acceptance_runs/m0_preflight/M0_PREFLIGHT_REPORT.md` |
+| M1-1 External Project Registry + Capability Mapping | ✅ Active | `agent_runtime/external_projects/*`, `config/external_project_*.yml` | `acceptance_runs/m1_external_projects/M1_EXTERNAL_PROJECT_REGISTRY_REPORT.md` |
+
+**M-Series Safety Posture:**
+- Pre-M-series backup is tagged as `m-series-pre-m0-backup`.
+- M0 freezes scope: M1 is governance, M2 is operator control, M3 is business/asset/revenue loops.
+- M1-1 is registry-only: no clone, vendor, install, import, launch, or execution of external project code.
+- All external projects are disabled by default and require approval before any future adapter work.
+- Network and shell permissions are false in M1-1 registry records.
+
+**Next recommended M-series stage:**
+- M1-2 Mission Compiler v2.

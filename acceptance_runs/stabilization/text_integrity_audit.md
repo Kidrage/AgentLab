@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Total files scanned: 667
+- Total files scanned: 683
 - Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0
@@ -23,7 +23,7 @@
 | agent_runtime/context_governance/packers/web_context_packer.py | 11 | 389 | 1023 | OK |
 | agent_runtime/context_governance/packers/image_context_packer.py | 11 | 367 | 1084 | OK |
 | docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md | 1397 | 365 | 29633 | OK |
-| agent_runtime/run_task.py | 5170 | 361 | 224844 | OK |
+| agent_runtime/run_task.py | 5234 | 361 | 227486 | OK |
 | acceptance_runs/stabilization/S0_STABILIZATION_REPORT.md | 134 | 338 | 5803 | OK |
 | docs/README.en-US.md | 314 | 330 | 14171 | OK |
 | acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md | 212 | 329 | 8302 | OK |
@@ -33,6 +33,7 @@
 | docs/SKILL_DISTILLATION.md | 32 | 302 | 1262 | OK |
 | agent_runtime/artifact_contract.py | 701 | 300 | 28249 | OK |
 | tests/test_external_skill_artifact_paths.py | 42 | 300 | 1977 | OK |
+| acceptance_runs/m0_preflight/M0_PREFLIGHT_REPORT.md | 74 | 299 | 2995 | OK |
 | docs/S11_OPS_CONSOLE.md | 54 | 296 | 1497 | OK |
 | docs/EXTERNAL_AGENT_HANDOFF.md | 134 | 293 | 4842 | OK |
 | docs/SKILL_VAULT.md | 116 | 290 | 4011 | OK |
@@ -42,4 +43,3 @@
 | docs/AGENTLAB_COMPANY_MODEL.md | 48 | 283 | 2226 | OK |
 | agent_runtime/context_governance/packers/narrative_packer.py | 16 | 278 | 1237 | OK |
 | acceptance_runs/s11_dashboard/S11_DASHBOARD_REPORT.md | 78 | 276 | 2823 | OK |
-| docs/SKILL_INCUBATION_POLICY.md | 42 | 274 | 1698 | OK |

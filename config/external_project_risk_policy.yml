@@ -1,0 +1,28 @@
+schema_version: 1
+default_mode: registry_only
+all_projects_default_enabled: false
+require_approval_for:
+  - high_risk
+  - external_dependency
+  - shell
+  - network
+  - filesystem_write
+  - mcp_server
+  - platform_terms_risk
+blocked_without_explicit_stage:
+  - clone
+  - install
+  - import_external_code
+  - execute_external_code
+  - launch_mcp_server
+  - crawl_web
+  - platform_post
+  - account_action
+  - payment_action
+safety_invariants:
+  no_external_code_execution: true
+  no_auto_install: true
+  no_auto_network: true
+  no_auto_shell: true
+  no_auto_mcp: true
+  evidence_required_before_acceptance: true
