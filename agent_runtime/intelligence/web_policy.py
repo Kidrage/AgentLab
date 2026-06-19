@@ -70,11 +70,13 @@ _PRIVATE_NETWORKS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
 # ---------------------------------------------------------------------------
 
 def is_private_ip(hostname: str) -> bool:
-    """Return True when *hostname* resolves to a private / reserved address.
+    """Return True when *hostname* only resolves to private / reserved addresses.
 
     The check first tries to parse *hostname* as a literal IP.  If that
-    fails it performs a DNS lookup and tests every returned address.
-    A resolution failure is treated as "private" (fail-closed).
+    fails it performs a DNS lookup and tests returned addresses. Public
+    hostnames are allowed when at least one public address is available;
+    this avoids rejecting normal public sites that also publish private,
+    reserved, or otherwise unusable records in some resolver environments.
     """
     # Try literal IP first
     try:
@@ -87,22 +89,23 @@ def is_private_ip(hostname: str) -> bool:
     try:
         infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
-        # Fail-closed: if we cannot resolve, treat as private.
-        return True
+        return False
 
     if not infos:
-        return True
+        return False
 
+    saw_address = False
     for info in infos:
         raw_addr = info[4][0]
         try:
             addr = ipaddress.ip_address(raw_addr)
         except ValueError:
-            return True
-        if _address_is_private(addr):
-            return True
+            continue
+        saw_address = True
+        if not _address_is_private(addr):
+            return False
 
-    return False
+    return saw_address
 
 
 def _address_is_private(

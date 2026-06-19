@@ -30,6 +30,23 @@ class S6FailureType(str, Enum):
     UNKNOWN = "unknown"
 
 
+RECOVERABLE_FAILURES: set[S6FailureType] = {
+    S6FailureType.ARTIFACT_FAILED_VALIDATION,
+    S6FailureType.QUALITY_FAILED,
+    S6FailureType.CONTEXT_INSUFFICIENT,
+    S6FailureType.BUDGET_EXCEEDED,
+}
+
+
+HARD_STOP_FAILURES: set[S6FailureType] = {
+    S6FailureType.AGENT_HALLUCINATED,
+    S6FailureType.EVIDENCE_MISSING,
+    S6FailureType.PERMISSION_MISSING,
+    S6FailureType.CAPABILITY_GAP,
+    S6FailureType.UNKNOWN,
+}
+
+
 LEGACY_FAILURE_MAP: dict[str, S6FailureType] = {
     "syntax_error": S6FailureType.ARTIFACT_FAILED_VALIDATION,
     "test_failure": S6FailureType.QUALITY_FAILED,
@@ -54,6 +71,18 @@ LEGACY_FAILURE_MAP: dict[str, S6FailureType] = {
 }
 
 
+def classify_s6_failure(value: str | None) -> dict[str, object]:
+    """Return normalized taxonomy metadata for route planning and reporting."""
+
+    normalized = normalize_failure_type(value)
+    return {
+        "failure_type": normalized.value,
+        "recoverable": normalized in RECOVERABLE_FAILURES,
+        "hard_stop": normalized in HARD_STOP_FAILURES,
+        "legacy_label": bool(value and str(value).strip().lower() in LEGACY_FAILURE_MAP),
+    }
+
+
 def normalize_failure_type(value: str | None) -> S6FailureType:
     """Normalize raw, legacy, or S6 labels into an S6FailureType."""
 
@@ -70,3 +99,9 @@ def all_s6_failure_types() -> list[str]:
     """Return all documented S6 failure type labels."""
 
     return [item.value for item in S6FailureType]
+
+
+def all_legacy_failure_labels() -> list[str]:
+    """Return all legacy failure labels accepted by the S6 taxonomy."""
+
+    return sorted(LEGACY_FAILURE_MAP)
