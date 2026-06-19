@@ -37,9 +37,14 @@ jobs:
               done
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            bash scripts/ci_excerpt_failure.sh
           fi
           exit "$status"
+      - name: Upload pytest output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output
+          path: pytest-output.txt
       - name: S10 generalization gate
         run: |
           ./agentlab.sh eval-generalization --out acceptance_runs/s10_generalization_eval
