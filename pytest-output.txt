@@ -1,0 +1,73 @@
+........................................................................ [  5%]
+........................................................................ [ 11%]
+........................................................................ [ 17%]
+.......................................................ss............... [ 23%]
+........................................................................ [ 29%]
+........................................................................ [ 35%]
+.....ss................................................................. [ 41%]
+........................................................................ [ 47%]
+........................................................................ [ 53%]
+........................................................................ [ 59%]
+........................................................................ [ 65%]
+........................................................................ [ 71%]
+........................................................................ [ 77%]
+........................................................................ [ 83%]
+.........................................F.............................. [ 89%]
+........................................................................ [ 95%]
+....................................................                     [100%]
+=================================== FAILURES ===================================
+______________ test_s11_cli_writes_status_and_rejects_public_bind ______________
+tests/test_s11_s12_productization.py:53: in test_s11_cli_writes_status_and_rejects_public_bind
+    assert "ops_console_snapshot.yml" in result.output
+E   AssertionError: assert 'ops_console_snapshot.yml' in 'wrote \n/tmp/pytest-of-runner/pytest-0/test_s11_cli_writes_status_and0/ops_console_snaps\nhot.yml\n'
+E    +  where 'wrote \n/tmp/pytest-of-runner/pytest-0/test_s11_cli_writes_status_and0/ops_console_snaps\nhot.yml\n' = <Result okay>.output
+=============================== warnings summary ===============================
+tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /tmp/pytest-of-runner/pytest-0/test_build_index_handles_missi0/agent_runtime (category=repo_files)
+    warnings.warn(
+
+tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /tmp/pytest-of-runner/pytest-0/test_build_index_handles_missi0/docs (category=docs)
+    warnings.warn(
+
+tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /tmp/pytest-of-runner/pytest-0/test_build_index_handles_missi0/config (category=config)
+    warnings.warn(
+
+tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /tmp/pytest-of-runner/pytest-0/test_build_index_handles_missi0/agent_runtime/skills (category=skills)
+    warnings.warn(
+
+tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /tmp/pytest-of-runner/pytest-0/test_build_index_handles_missi0/tests (category=tests)
+    warnings.warn(
+
+tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /tmp/pytest-of-runner/pytest-0/test_build_index_handles_missi0/scripts (category=scripts)
+    warnings.warn(
+
+tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /tmp/pytest-of-runner/pytest-0/test_build_index_handles_missi0/acceptance_runs (category=acceptance_runs)
+    warnings.warn(
+
+tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /tmp/pytest-of-runner/pytest-0/test_build_index_handles_missi0/projects (category=recovery_history)
+    warnings.warn(
+
+tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /tmp/pytest-of-runner/pytest-0/test_build_index_handles_missi0/projects (category=closure_feedback)
+    warnings.warn(
+
+tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /tmp/pytest-of-runner/pytest-0/test_build_index_handles_missi0/projects (category=project_brain)
+    warnings.warn(
+
+tests/test_r3_local_search.py::test_load_missing_index_returns_empty
+  /home/runner/work/AgentLab/AgentLab/agent_runtime/local_search/storage.py:36: UserWarning: load_index: index file not found: /tmp/pytest-of-runner/pytest-0/test_load_missing_index_return0/nonexistent.jsonl
+    warnings.warn(f"load_index: index file not found: {path}")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_s11_s12_productization.py::test_s11_cli_writes_status_and_rejects_public_bind - AssertionError: assert 'ops_console_snapshot.yml' in 'wrote \n/tmp/pytest-of-runner/pytest-0/test_s11_cli_writes_status_and0/ops_console_snaps\nhot.yml\n'
+ +  where 'wrote \n/tmp/pytest-of-runner/pytest-0/test_s11_cli_writes_status_and0/ops_console_snaps\nhot.yml\n' = <Result okay>.output
+1 failed, 1199 passed, 4 skipped, 11 warnings in 71.24s (0:01:11)
