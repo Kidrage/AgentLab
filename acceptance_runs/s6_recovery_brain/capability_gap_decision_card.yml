@@ -1,0 +1,19 @@
+schema_version: 1
+status: ready
+required_capabilities:
+- file_read
+available_capabilities:
+- file_read
+- local_search
+- shell_dry_run
+- skill_discovery_plan
+- skill_trust_validation
+- web_intelligence_mock
+missing_capabilities: []
+human_decision_required: false
+recommended_actions:
+- continue_with_current_capabilities
+safety:
+  no_install_without_approval: true
+  no_external_execution_without_approval: true
+  mock_first: true

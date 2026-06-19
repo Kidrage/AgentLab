@@ -1,0 +1,20 @@
+# S6 evidence integrity policy
+
+version: 1
+enabled: true
+hard_fail_on:
+  - evidence_missing
+  - facts_allowed_without_sources
+  - claims_without_sources
+  - source_missing_content_hash
+  - source_missing_line_refs
+
+required_source_fields:
+  - content_hash
+  - line_refs
+
+rules:
+  no_sources_no_factual_claims: true
+  require_content_hash: true
+  require_line_refs: true
+  verifier_must_reject_ungrounded_claims: true

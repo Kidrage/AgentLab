@@ -1,0 +1,30 @@
+# S6 task-production failure taxonomy
+
+version: 1
+failure_types:
+  - tool_unavailable
+  - network_blocked
+  - provider_failed
+  - skill_missing
+  - skill_failed
+  - artifact_failed_validation
+  - quality_failed
+  - agent_hallucinated
+  - evidence_missing
+  - permission_missing
+  - context_insufficient
+  - budget_exceeded
+  - capability_gap
+  - unknown
+
+legacy_category_mapping:
+  test_failure: quality_failed
+  syntax_error: artifact_failed_validation
+  import_error: tool_unavailable
+  missing_artifact: artifact_failed_validation
+  text_integrity_failure: artifact_failed_validation
+  network_disabled_or_unavailable: network_blocked
+  external_tool_unavailable: tool_unavailable
+  context_missing: context_insufficient
+  context_budget_exceeded: budget_exceeded
+  permission_error: permission_missing

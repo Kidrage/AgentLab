@@ -1,0 +1,40 @@
+# S6 Recovery Brain strategy policy
+
+version: 1
+enabled: true
+auto_execute: false
+ledger_required: true
+no_infinite_retry: true
+
+default_route_options:
+  - retry_same
+  - retry_with_stronger_model
+  - decompose_smaller
+  - search_skill
+  - install_capability
+  - switch_external_agent
+  - fallback_manual_template
+  - ask_user
+  - stop_safely
+
+human_approval_required_for:
+  - tool_unavailable
+  - network_blocked
+  - provider_failed
+  - skill_missing
+  - skill_failed
+  - agent_hallucinated
+  - evidence_missing
+  - permission_missing
+  - capability_gap
+  - unknown
+
+max_attempts_by_failure_type:
+  context_insufficient: 1
+  artifact_failed_validation: 1
+  quality_failed: 1
+  provider_failed: 1
+  evidence_missing: 0
+  permission_missing: 0
+  budget_exceeded: 0
+  capability_gap: 0

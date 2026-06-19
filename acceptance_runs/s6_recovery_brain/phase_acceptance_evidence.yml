@@ -1,0 +1,11 @@
+schema_version: 1
+stage: S6
+acceptance:
+  strategy_plan_generated: true
+  alternative_route_plan_generated: true
+  capability_gap_decision_card_generated: true
+  fake_evidence_report_generated: true
+  evidence_missing_hard_fails: true
+  no_infinite_retry: true
+  ledger_written: true
+verdict: pass

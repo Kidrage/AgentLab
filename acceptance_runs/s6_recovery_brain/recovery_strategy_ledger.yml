@@ -1,0 +1,7 @@
+entries:
+- stage: S6
+  failure_type: evidence_missing
+  next_action: stop_safely
+  human_approval_required: true
+  evidence_verdict: pass
+  missing_capabilities: []

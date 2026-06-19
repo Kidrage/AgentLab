@@ -4476,6 +4476,41 @@ def recovery_smoke_cmd(
 
 # ── P2-K: Recovery decision commands ─────────────────────────────────
 
+@app.command("recovery-brain-plan")
+def recovery_brain_plan_cmd(
+    out: Path = typer.Option(..., "--out", help="Output directory for S6 recovery brain artifacts."),
+    failure_type: Optional[str] = typer.Option(None, "--failure-type", help="Explicit S6 or legacy failure category."),
+    failure_event: Optional[Path] = typer.Option(None, "--failure-event", help="Optional failure_event.json input."),
+    diagnosis: Optional[Path] = typer.Option(None, "--diagnosis", help="Optional failure_diagnosis.json input."),
+    mission_contract: Optional[Path] = typer.Option(None, "--mission-contract", help="Optional S1 mission contract."),
+    evidence_ledger: Optional[Path] = typer.Option(None, "--evidence-ledger", help="Optional S5 evidence_ledger.yml input."),
+    available_capability: Optional[list[str]] = typer.Option(None, "--available-capability", help="Repeatable capability already available."),
+) -> None:
+    """Generate S6 recovery strategy, alternative route, gap, and evidence reports."""
+    from agent_runtime.recovery.alternative_route_planner import build_s6_recovery_brain_packet
+
+    for label, path in (
+        ("failure event", failure_event),
+        ("diagnosis", diagnosis),
+        ("mission contract", mission_contract),
+        ("evidence ledger", evidence_ledger),
+    ):
+        if path is not None and not path.exists():
+            console.print(f"[red]Error: {label} does not exist: {path}[/red]")
+            raise typer.Exit(code=1)
+
+    result = build_s6_recovery_brain_packet(
+        out_dir=out,
+        failure_type=failure_type,
+        failure_event_path=failure_event,
+        diagnosis_path=diagnosis,
+        mission_contract_path=mission_contract,
+        evidence_ledger_path=evidence_ledger,
+        available_capabilities=available_capability,
+    )
+    console.print("[green]S6 recovery brain packet generated[/green]")
+    console.print(result)
+
 @app.command("recovery-approve")
 def recovery_approve_cmd(
     task_id: str = typer.Option(..., "--task-id", help="Task identifier"),

@@ -48,6 +48,7 @@ REQUIRED_COMMANDS = (
     "webhook-status",
     "webhook-redeliver",
     "skill-import-url",
+    "recovery-brain-plan",
     # Core task commands
     "init-task",
     "prepare",

@@ -64,6 +64,11 @@ from agent_runtime.recovery.closure_feedback import (
     write_closure_feedback_json,
     write_closure_feedback_report,
 )
+from agent_runtime.recovery.alternative_route_planner import build_s6_recovery_brain_packet
+from agent_runtime.recovery.capability_gap_resolver import build_capability_gap_decision_card
+from agent_runtime.recovery.fake_evidence_detector import detect_fake_evidence
+from agent_runtime.recovery.failure_taxonomy import S6FailureType, normalize_failure_type
+from agent_runtime.recovery.strategy_search import RecoveryStrategy, search_recovery_strategy
 
 __all__ = [
     "FailureEvent",
@@ -98,4 +103,11 @@ __all__ = [
     "load_recovery_history",
     "write_closure_feedback_json",
     "write_closure_feedback_report",
+    "S6FailureType",
+    "normalize_failure_type",
+    "RecoveryStrategy",
+    "search_recovery_strategy",
+    "build_capability_gap_decision_card",
+    "detect_fake_evidence",
+    "build_s6_recovery_brain_packet",
 ]

@@ -1,0 +1,13 @@
+schema_version: 1
+stage: S6
+primary_failure_type: evidence_missing
+next_action: stop_safely
+route_options:
+- action: stop_safely
+  approval_required: true
+  max_attempts: 0
+- action: stop_safely
+  approval_required: false
+  max_attempts: 0
+no_infinite_retry: true
+write_to_ledger: true

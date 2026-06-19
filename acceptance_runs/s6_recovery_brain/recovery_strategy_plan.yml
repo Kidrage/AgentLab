@@ -1,0 +1,24 @@
+schema_version: 1
+stage: S6
+failure_type: evidence_missing
+strategy:
+  failure_type: evidence_missing
+  next_action: stop_safely
+  rationale: Missing evidence is a hard fail for factual claims; collect sources before
+    continuing.
+  safe_to_auto_execute: false
+  requires_human_approval: true
+  max_attempts: 0
+escalation:
+  failure_type: evidence_missing
+  human_approval_required: true
+  stop_on_missing_evidence: true
+  max_auto_retries: 0
+  ledger_required: true
+inputs:
+  failure_event: null
+  diagnosis: null
+  mission_contract: examples/mission_contracts/research_company.yml
+  evidence_ledger: acceptance_runs/s5_evidence_recovery_intelligence/evidence_ledger.yml
+ledger_required: true
+auto_execute: false
