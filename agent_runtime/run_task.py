@@ -403,6 +403,56 @@ def ci_gates(dry_run: bool = typer.Option(False, "--dry-run")) -> None:
             raise typer.Exit(code=completed.returncode)
 
 
+@app.command("ops-console-status")
+def ops_console_status(
+    project: str = typer.Option("AgentLab", "--project"),
+    out: Path = typer.Option(Path("acceptance_runs/s11_dashboard"), "--out"),
+) -> None:
+    """Write a read-only S11 ops console snapshot. Does not start a server."""
+    from agent_runtime.ops_console import write_ops_console_snapshot
+
+    path = write_ops_console_snapshot(_PROJECT_ROOT, project=project, out_dir=out)
+    console.print(f"wrote {path}")
+
+
+@app.command("ops-console-serve")
+def ops_console_serve(
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8765, "--port"),
+    dry_run: bool = typer.Option(True, "--dry-run/--execute"),
+) -> None:
+    """Plan a local-only S11 dashboard server launch; execute remains opt-in."""
+    from agent_runtime.ops_console.status_api import dry_run_server_plan
+
+    try:
+        plan = dry_run_server_plan(_PROJECT_ROOT, host=host, port=port)
+    except ValueError as exc:
+        console.print(str(exc))
+        raise typer.Exit(code=2) from exc
+    if dry_run:
+        console.print(yaml.safe_dump(plan, sort_keys=False))
+        return
+    console.print("S11 server execution is intentionally not automatic; run the printed uvicorn command explicitly.")
+    raise typer.Exit(code=2)
+
+
+@app.command("service-factory-plan")
+def service_factory_plan(
+    prompt: str = typer.Option(..., "--prompt"),
+    out: Path = typer.Option(Path("acceptance_runs/s12_productization/service_factory_demo"), "--out"),
+    complexity: str = typer.Option("medium", "--complexity"),
+) -> None:
+    """Write S12 service match, quote, timeline, and delivery package artifacts."""
+    from agent_runtime.service_factory import write_service_factory_artifacts
+
+    data = write_service_factory_artifacts(_PROJECT_ROOT, prompt=prompt, out_dir=out, complexity=complexity)
+    console.print(yaml.safe_dump({
+        "service_id": data["service_match"]["service_id"],
+        "quote_band": data["quote_estimate"]["quote_band"],
+        "out": str(out),
+    }, sort_keys=False, allow_unicode=True))
+
+
 def write_text_if_missing(path: Path, text: str) -> bool:
     if path.exists():
         return False

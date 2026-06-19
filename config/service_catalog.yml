@@ -1,0 +1,102 @@
+version: 1
+services:
+  - service_id: repo_cleanup
+    description: Repair repository hygiene, CI, docs, tests, and release readiness.
+    required_capabilities: [filesystem_read, filesystem_write, shell_command, git_ops]
+    default_workflow_template: coding_software_engineering
+    estimated_phases: 5
+    quality_rubric: [tests_pass, diff_reviewed, rollback_documented, acceptance_report]
+    deliverables: [patch_plan, test_evidence, repaired_repo, acceptance_report]
+    human_approval_points: [scope_approval, final_merge]
+    risk_notes: [may_modify_source_files, requires_git_review]
+    trigger_terms: [repo, repository, ci, tests, cleanup, 修复, 仓库]
+  - service_id: bug_fix_plan
+    description: Diagnose a software bug and produce a patch plan with tests.
+    required_capabilities: [filesystem_read, shell_command, git_ops]
+    default_workflow_template: coding_software_engineering
+    estimated_phases: 4
+    quality_rubric: [root_cause, failing_test_first, focused_fix, regression_check]
+    deliverables: [debug_report, patch_plan, regression_tests]
+    human_approval_points: [fix_scope]
+    risk_notes: [unknown_root_cause_until_reproduced]
+    trigger_terms: [bug, error, failing, debug, 报错]
+  - service_id: longform_novel_blueprint
+    description: Plan a longform fiction project without drafting chapters prematurely.
+    required_capabilities: [filesystem_read, filesystem_write]
+    default_workflow_template: creative_longform
+    estimated_phases: 6
+    quality_rubric: [story_constitution, character_bible, chapter_outline, continuity_ledger]
+    deliverables: [story_bible, character_bible, chapter_outline, continuity_ledger]
+    human_approval_points: [premise_approval, outline_approval]
+    risk_notes: [large_scope, continuity_management_required]
+    trigger_terms: [novel, story, chapter, fiction, 小说, 长篇]
+  - service_id: company_research_report
+    description: Evidence-grounded company or market research with citation ledger.
+    required_capabilities: [web_search, browser_fetch, filesystem_write]
+    default_workflow_template: research_investigation
+    estimated_phases: 5
+    quality_rubric: [source_quality, citation_grounding, uncertainty_review, recommendation]
+    deliverables: [source_plan, citation_ledger, fact_table, research_report]
+    human_approval_points: [source_scope, final_recommendation]
+    risk_notes: [requires_current_sources, no_source_no_claim]
+    trigger_terms: [company, market, research, 公司, 调研, 分析]
+  - service_id: document_summary
+    description: Summarize and structure document content with extraction evidence.
+    required_capabilities: [filesystem_read, pdf_read, docx_read]
+    default_workflow_template: document_processing
+    estimated_phases: 3
+    quality_rubric: [extraction_contract, summary_grounded, tables_listed]
+    deliverables: [document_result, summary, table_plan]
+    human_approval_points: [document_scope]
+    risk_notes: [source_document_required]
+    trigger_terms: [pdf, document, docx, 文档, 摘要]
+  - service_id: spreadsheet_cleanup
+    description: Plan spreadsheet normalization, validation, and delivery.
+    required_capabilities: [filesystem_read, spreadsheet_read, filesystem_write]
+    default_workflow_template: data_analysis
+    estimated_phases: 4
+    quality_rubric: [schema_detected, dry_run_changes, validation_report]
+    deliverables: [cleanup_plan, validation_report, cleaned_workbook_contract]
+    human_approval_points: [data_scope, write_approval]
+    risk_notes: [data_loss_if_unapproved_write]
+    trigger_terms: [spreadsheet, excel, csv, 表格]
+  - service_id: local_file_organization
+    description: Design a local-first file organization assistant with dry-run safety.
+    required_capabilities: [filesystem_read, filesystem_write]
+    default_workflow_template: local_ops_automation
+    estimated_phases: 4
+    quality_rubric: [dry_run_first, path_allowlist, rollback_plan, user_approval_before_write]
+    deliverables: [organization_plan, dry_run_manifest, approval_card, delivery_contract]
+    human_approval_points: [path_scope, write_execution]
+    risk_notes: [must_not_touch_private_paths_without_scope, destructive_moves_blocked_by_default]
+    trigger_terms: [file organization, local files, organize, 文件整理, 本地文件, 整理助手]
+  - service_id: audio_analysis_plan
+    description: Plan audio transcription or analysis while respecting missing backend gates.
+    required_capabilities: [audio_transcription, audio_analysis]
+    default_workflow_template: audio_music
+    estimated_phases: 3
+    quality_rubric: [capability_check, audio_contract, human_review_risk]
+    deliverables: [capability_gap_or_audio_result, evidence_artifacts, analysis_plan]
+    human_approval_points: [audio_backend_approval]
+    risk_notes: [backend_may_be_missing, no_fabricated_transcripts]
+    trigger_terms: [audio, music, transcript, 音频, 音乐]
+  - service_id: multimodal_review
+    description: Plan image, video, or mixed-media review through capability fabric.
+    required_capabilities: [image_understanding, video_understanding, ocr]
+    default_workflow_template: multimodal_vision
+    estimated_phases: 4
+    quality_rubric: [capability_gap_detection, structured_evidence, confidence_label]
+    deliverables: [capability_gap_or_media_result, review_plan, evidence_artifacts]
+    human_approval_points: [media_backend_approval]
+    risk_notes: [requires_multimodal_backend, human_review_required]
+    trigger_terms: [image, video, ocr, 图片, 视频, 看图]
+  - service_id: personal_automation_workflow
+    description: Convert a rough automation request into a safe workflow plan.
+    required_capabilities: [filesystem_read, filesystem_write]
+    default_workflow_template: unknown_exploratory
+    estimated_phases: 3
+    quality_rubric: [mission_contract, workflow_plan, approval_gates]
+    deliverables: [automation_plan, risk_notes, next_steps]
+    human_approval_points: [scope_clarification, execution_approval]
+    risk_notes: [unknown_scope, explicit_approval_required]
+    trigger_terms: [automation, workflow, assistant, 自动化, 助手]

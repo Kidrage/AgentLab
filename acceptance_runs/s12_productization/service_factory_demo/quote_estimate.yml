@@ -1,0 +1,28 @@
+service_id: local_file_organization
+complexity: medium
+quote_band: large
+effort_points: 10.56
+required_capabilities:
+- filesystem_read
+- filesystem_write
+external_execution_needed: false
+human_approval_count: 2
+timeline:
+  estimated_phases: 4
+  phase_unit: deterministic local-first phase
+  approval_gates:
+  - path_scope
+  - write_execution
+quality_rubric:
+- dry_run_first
+- path_allowlist
+- rollback_plan
+- user_approval_before_write
+deliverables:
+- organization_plan
+- dry_run_manifest
+- approval_card
+- delivery_contract
+risk_notes:
+- must_not_touch_private_paths_without_scope
+- destructive_moves_blocked_by_default

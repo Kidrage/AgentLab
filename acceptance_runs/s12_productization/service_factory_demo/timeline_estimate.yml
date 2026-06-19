@@ -1,0 +1,5 @@
+estimated_phases: 4
+phase_unit: deterministic local-first phase
+approval_gates:
+- path_scope
+- write_execution

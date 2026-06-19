@@ -1,6 +1,6 @@
 stage: S10
 suite: generalization_eval
-started_at: '2026-06-19T13:31:06.649254+00:00'
+started_at: '2026-06-19T14:42:13.765527+00:00'
 offline_only: true
 external_execution: blocked
 total: 6
@@ -82,4 +82,4 @@ results:
   - search_results.yml
   score: 1.0
   pass: true
-completed_at: '2026-06-19T13:31:06.649504+00:00'
+completed_at: '2026-06-19T14:42:13.765801+00:00'

@@ -1,0 +1,24 @@
+bind_host: 127.0.0.1
+public_bind_allowed: false
+default_mode: read_only
+redact_secrets: true
+redact_private_paths: true
+ui_failure_is_non_blocking: true
+approval_actions:
+  - approve_skill
+  - reject_skill
+  - approve_capability
+  - approve_executor_handoff
+  - approve_phase_close
+  - request_replanning
+visible_sections:
+  - Project Overview
+  - Project Brain
+  - Roadmap / Milestones
+  - Phase Status
+  - Task Packets
+  - Skill Registry
+  - Capability Registry
+  - Recovery / Failures
+  - Evidence Artifacts
+  - Budget / Resource Ledger

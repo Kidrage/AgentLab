@@ -1,0 +1,92 @@
+console:
+  stage: S11
+  mode: ops_console_snapshot
+  bind_host: 127.0.0.1
+  read_only: true
+  ui_failure_is_non_blocking: true
+project:
+  name: AgentLab
+  project_brain_present: false
+  acceptance_report_count: 11
+  latest_acceptance_reports:
+  - S6_RECOVERY_BRAIN_REPORT.md
+  - S7_LONG_PROJECT_ORCHESTRATOR_REPORT.md
+  - S8_EXECUTOR_CONNECTOR_REPORT.md
+  - S9_CAPABILITY_FABRIC_REPORT.md
+  - S0_STABILIZATION_REPORT.md
+roadmap:
+  visible_sections:
+  - Project Overview
+  - Project Brain
+  - Roadmap / Milestones
+  - Phase Status
+  - Task Packets
+skills:
+  request_counts:
+    pending_user_approval: 0
+    approved: 0
+    staging: 0
+    validated: 0
+    active: 0
+    retired: 0
+  registry_present: false
+  read_only: true
+capabilities:
+  total: 18
+  ids:
+  - audio_analysis
+  - audio_transcription
+  - browser_fetch
+  - database_query
+  - docx_read
+  - filesystem_read
+  - filesystem_write
+  - git_ops
+  - github_ops
+  - ide_handoff
+  - image_understanding
+  - ocr
+  - openclaw_notify
+  - pdf_read
+  - shell_command
+  - spreadsheet_read
+  - video_understanding
+  - web_search
+  missing_backend:
+  - audio_analysis
+  - audio_transcription
+  - database_query
+  - docx_read
+  - github_ops
+  - image_understanding
+  - ocr
+  - openclaw_notify
+  - pdf_read
+  - spreadsheet_read
+  - video_understanding
+  requires_approval:
+  - browser_fetch
+  - filesystem_write
+  - git_ops
+  - shell_command
+  - web_search
+decisions:
+  pending_count: 126
+  supported_actions:
+  - approve
+  - reject
+  - resume
+  - request_replanning
+  actions_require_explicit_cli: true
+evidence:
+  acceptance_runs_present: true
+  artifact_links_are_relative: true
+budget:
+  resource_ledger_visible: false
+  secrets_displayed: false
+security:
+  local_only: true
+  public_bind_allowed: false
+  secrets_displayed: false
+  private_paths_redacted: true
+  read_only_unless_explicit_action: true
