@@ -1,6 +1,12 @@
 # AgentLab / 智能体实验室
 
-> Language / 语言: English | 中文
+> Language / 语言:
+> [English](docs/README.en-US.md) |
+> [中文](docs/README.zh-CN.md)
+>
+> Switchable standalone guides are available in both languages:
+> [English guide](docs/README.en-US.md) and
+> [中文说明](docs/README.zh-CN.md).
 
 AgentLab is a local-first, semi-managed development workflow for personal agentic software work.
 In cloud self-hosting, it is intended to run beside a public chat gateway such as
