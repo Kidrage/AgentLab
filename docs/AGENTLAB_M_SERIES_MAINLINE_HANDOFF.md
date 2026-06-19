@@ -187,7 +187,7 @@ Guard against:
 - YAML files compressed into one line.
 - Markdown files with broken code fences.
 - `from __future__ import annotations` not placed correctly.
-- literal `/Users/...` private paths.
+- literal private absolute paths.
 - secrets/tokens.
 - broken GitHub Actions YAML.
 - tests that pass locally but are unreadable on GitHub raw.
