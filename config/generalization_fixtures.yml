@@ -1,0 +1,55 @@
+version: 1
+offline_only: true
+fixtures:
+  - fixture_id: docs_only_release_note
+    domain: docs
+    request: Update release notes for a completed local-only feature.
+    expected_route: small_task
+    required_artifacts:
+      - workflow_plan.yml
+      - docs_update.md
+    offline_only: true
+    allow_external_execution: false
+  - fixture_id: cli_help_regression
+    domain: cli
+    request: Verify CLI help still works after adding commands.
+    expected_route: small_task
+    required_artifacts:
+      - cli_help.txt
+      - validation_summary.yml
+    offline_only: true
+    allow_external_execution: false
+  - fixture_id: capability_gap_image
+    domain: capability_gap
+    request: Mission needs image understanding without a configured backend.
+    expected_route: evaluation_task
+    required_artifacts:
+      - capability_gap_decision_card.yml
+    offline_only: true
+    allow_external_execution: false
+  - fixture_id: recovery_plan_probe
+    domain: recovery
+    request: Recover from a failing baseline by writing a plan before code changes.
+    expected_route: large_or_risky_task
+    required_artifacts:
+      - recovery_plan.yml
+      - root_cause_notes.md
+    offline_only: true
+    allow_external_execution: false
+  - fixture_id: project_brain_status
+    domain: project_brain
+    request: Summarize project state and next stage from local artifacts.
+    expected_route: evaluation_task
+    required_artifacts:
+      - project_brain_summary.yml
+    offline_only: true
+    allow_external_execution: false
+  - fixture_id: search_repo_mock
+    domain: search_repo_mock
+    request: Search a local repo index using mock/offline provider only.
+    expected_route: research_sensitive_task
+    required_artifacts:
+      - search_results.yml
+      - provider_policy.yml
+    offline_only: true
+    allow_external_execution: false

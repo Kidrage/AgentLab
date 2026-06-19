@@ -1,0 +1,3 @@
+fixture_id: cli_help_regression
+domain: cli
+mock: true

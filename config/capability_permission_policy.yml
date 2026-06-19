@@ -1,0 +1,12 @@
+default_mode: mock_first
+allow_external_execution_by_default: false
+allow_network_by_default: false
+allow_shell_by_default: false
+allow_write_by_default: false
+require_explicit_approval_for:
+  - external
+  - network
+  - shell
+  - write
+disabled_capabilities: []
+approved_capabilities: []

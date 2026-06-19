@@ -26,6 +26,10 @@ jobs:
       - name: Run tests
         run: |
           python -m pytest -q
+      - name: S10 generalization gate
+        run: |
+          ./agentlab.sh eval-generalization --out acceptance_runs/s10_generalization_eval
+          ./agentlab.sh ci-gates --dry-run
       - name: Whitespace diff check
         run: |
           git diff --check

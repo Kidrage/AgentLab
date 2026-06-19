@@ -1,0 +1,3 @@
+fixture_id: search_repo_mock
+domain: search_repo_mock
+mock: true

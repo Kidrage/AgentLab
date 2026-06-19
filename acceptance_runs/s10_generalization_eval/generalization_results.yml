@@ -1,0 +1,85 @@
+stage: S10
+suite: generalization_eval
+started_at: '2026-06-19T13:31:06.649254+00:00'
+offline_only: true
+external_execution: blocked
+total: 6
+passed: 6
+failed: 0
+verdict: PASS
+results:
+- fixture_id: capability_gap_image
+  domain: capability_gap
+  expected_route: evaluation_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - capability_gap_decision_card.yml
+  required_artifacts:
+  - capability_gap_decision_card.yml
+  score: 1.0
+  pass: true
+- fixture_id: cli_help_regression
+  domain: cli
+  expected_route: small_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - cli_help.txt
+  - validation_summary.yml
+  required_artifacts:
+  - cli_help.txt
+  - validation_summary.yml
+  score: 1.0
+  pass: true
+- fixture_id: docs_only_release_note
+  domain: docs
+  expected_route: small_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - docs_update.md
+  - workflow_plan.yml
+  required_artifacts:
+  - docs_update.md
+  - workflow_plan.yml
+  score: 1.0
+  pass: true
+- fixture_id: project_brain_status
+  domain: project_brain
+  expected_route: evaluation_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - project_brain_summary.yml
+  required_artifacts:
+  - project_brain_summary.yml
+  score: 1.0
+  pass: true
+- fixture_id: recovery_plan_probe
+  domain: recovery
+  expected_route: large_or_risky_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - recovery_plan.yml
+  - root_cause_notes.md
+  required_artifacts:
+  - recovery_plan.yml
+  - root_cause_notes.md
+  score: 1.0
+  pass: true
+- fixture_id: search_repo_mock
+  domain: search_repo_mock
+  expected_route: research_sensitive_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - provider_policy.yml
+  - search_results.yml
+  required_artifacts:
+  - provider_policy.yml
+  - search_results.yml
+  score: 1.0
+  pass: true
+completed_at: '2026-06-19T13:31:06.649504+00:00'

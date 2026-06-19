@@ -18,6 +18,9 @@ import sys
 # Insert at position 1 so agent_runtime/ modules take priority over project-level
 # modules with the same name (e.g., atomic_io.py exists in both locations).
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_RUNTIME_ROOT = Path(__file__).resolve().parent
+if str(_RUNTIME_ROOT) not in sys.path:
+    sys.path.insert(1, str(_RUNTIME_ROOT))
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(1, str(_PROJECT_ROOT))
 
@@ -234,6 +237,170 @@ def write_yaml_if_allowed(path: Path, data: dict, overwrite: bool = False) -> bo
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     return True
+
+
+@app.command("capability-list")
+def capability_list() -> None:
+    """List S9 capability fabric records without executing any backend."""
+    from agent_runtime.capabilities import create_builtin_registry
+
+    table = Table(title="AgentLab Capability Fabric")
+    table.add_column("capability_id")
+    table.add_column("status")
+    table.add_column("backend")
+    table.add_column("risk")
+    for record in create_builtin_registry().to_sorted_records():
+        table.add_row(record.capability_id, record.status.value, record.backend_type, record.risk_level.value)
+    console.print(table)
+
+
+@app.command("capability-check")
+def capability_check(
+    capability: str = typer.Option(..., "--capability"),
+    out: Path | None = typer.Option(None, "--out"),
+) -> None:
+    """Check whether a capability can be selected under default S9 policy."""
+    from agent_runtime.capabilities import PermissionGate, create_builtin_registry, write_capability_gap_card
+
+    registry = create_builtin_registry()
+    decision = PermissionGate(registry).evaluate(capability)
+    console.print(yaml.safe_dump({
+        "capability": capability,
+        "allowed": decision.allowed,
+        "reason": decision.reason,
+        "requires_approval": decision.requires_approval,
+    }, sort_keys=False))
+    if out and decision.reason == "missing_backend":
+        path = write_capability_gap_card(
+            registry=registry,
+            capability_id=capability,
+            out_dir=out,
+            reason="capability check found no configured backend",
+        )
+        console.print(f"wrote {path}")
+
+
+@app.command("capability-gap")
+def capability_gap(
+    capability: str = typer.Option(..., "--capability"),
+    out: Path = typer.Option(..., "--out"),
+    reason: str = typer.Option("capability requested but backend is unavailable", "--reason"),
+) -> None:
+    """Write a deterministic capability gap decision card."""
+    from agent_runtime.capabilities import create_builtin_registry, write_capability_gap_card
+
+    path = write_capability_gap_card(
+        registry=create_builtin_registry(),
+        capability_id=capability,
+        out_dir=out,
+        reason=reason,
+    )
+    console.print(f"wrote {path}")
+
+
+@app.command("vision-contract")
+def vision_contract(
+    input_artifact: str = typer.Option(..., "--input"),
+    out: Path = typer.Option(..., "--out"),
+    mock: bool = typer.Option(False, "--mock"),
+) -> None:
+    """Write a mock-only vision result contract. Real model execution is not allowed here."""
+    from agent_runtime.capabilities import write_vision_contract
+
+    path = write_vision_contract(
+        input_artifact=input_artifact,
+        out_dir=out,
+        observations=["mock vision observation; no image backend executed"],
+        summary="mock vision contract only",
+        evidence_artifacts=[input_artifact],
+        confidence="mock_only",
+        mock=mock,
+    )
+    console.print(f"wrote {path}")
+
+
+@app.command("audio-contract")
+def audio_contract(
+    input_artifact: str = typer.Option(..., "--input"),
+    out: Path = typer.Option(..., "--out"),
+    mock: bool = typer.Option(False, "--mock"),
+) -> None:
+    """Write a mock-only audio result contract. Real audio execution is not allowed here."""
+    from agent_runtime.capabilities import write_audio_contract
+
+    path = write_audio_contract(
+        input_artifact=input_artifact,
+        out_dir=out,
+        duration=0.0,
+        observations=["mock audio observation; no audio backend executed"],
+        transcript="mock transcript",
+        features={"mode": "mock"},
+        summary="mock audio contract only",
+        evidence_artifacts=[input_artifact],
+        confidence="mock_only",
+        mock=mock,
+    )
+    console.print(f"wrote {path}")
+
+
+@app.command("document-contract")
+def document_contract(
+    input_artifact: str = typer.Option(..., "--input"),
+    out: Path = typer.Option(..., "--out"),
+    mock: bool = typer.Option(False, "--mock"),
+) -> None:
+    """Write a mock-only document result contract. Real parser execution is not allowed here."""
+    from agent_runtime.capabilities import write_document_contract
+
+    path = write_document_contract(
+        input_artifact=input_artifact,
+        out_dir=out,
+        pages=0,
+        extracted_text="mock extracted text",
+        tables=[],
+        figures=[],
+        citations=[],
+        evidence_artifacts=[input_artifact],
+        confidence="mock_only",
+        mock=mock,
+    )
+    console.print(f"wrote {path}")
+
+
+@app.command("eval-generalization")
+def eval_generalization(
+    out: Path = typer.Option(Path("acceptance_runs/s10_generalization_eval"), "--out"),
+) -> None:
+    """Run the S10 offline generalization evaluation suite."""
+    from agent_runtime.evaluation.generalization_suite import run_generalization_suite
+
+    summary = run_generalization_suite(_PROJECT_ROOT, out)
+    console.print(yaml.safe_dump({
+        "verdict": summary["verdict"],
+        "passed": summary["passed"],
+        "total": summary["total"],
+        "out": str(out),
+    }, sort_keys=False))
+
+
+@app.command("ci-gates")
+def ci_gates(dry_run: bool = typer.Option(False, "--dry-run")) -> None:
+    """Run or print the local S10 CI gate policy commands."""
+    from agent_runtime.evaluation.generalization_suite import load_ci_gate_policy
+
+    import subprocess
+
+    policy = load_ci_gate_policy(_PROJECT_ROOT)
+    commands = [gate["command"] for gate in policy["gates"]]
+    if dry_run:
+        for command in commands:
+            console.print(command)
+        return
+    for command in commands:
+        console.print(f"$ {command}")
+        completed = subprocess.run(command, shell=True, cwd=_PROJECT_ROOT)
+        if completed.returncode != 0:
+            raise typer.Exit(code=completed.returncode)
 
 
 def write_text_if_missing(path: Path, text: str) -> bool:

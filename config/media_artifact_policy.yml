@@ -1,0 +1,8 @@
+allow_real_model_execution_by_default: false
+mock_required_for_contract_commands: true
+require_evidence_artifacts: true
+output_contracts:
+  vision: vision_result.yml
+  audio: audio_result.yml
+  document: document_result.yml
+risk_for_multimodal_outputs: human_review_required

@@ -1,0 +1,73 @@
+capabilities:
+  - capability_id: audio_analysis
+    backend_type: mock_contract
+    status: missing_backend
+    permissions: [read]
+  - capability_id: audio_transcription
+    backend_type: mock_contract
+    status: missing_backend
+    permissions: [read]
+  - capability_id: browser_fetch
+    backend_type: adapter
+    status: requires_approval
+    permissions: [network]
+  - capability_id: database_query
+    backend_type: adapter
+    status: missing_backend
+    permissions: [read]
+  - capability_id: docx_read
+    backend_type: mock_contract
+    status: missing_backend
+    permissions: [read]
+  - capability_id: filesystem_read
+    backend_type: builtin
+    status: available
+    permissions: [read]
+  - capability_id: filesystem_write
+    backend_type: builtin
+    status: requires_approval
+    permissions: [write]
+  - capability_id: git_ops
+    backend_type: builtin
+    status: requires_approval
+    permissions: [shell, write]
+  - capability_id: github_ops
+    backend_type: adapter
+    status: missing_backend
+    permissions: [network, write]
+  - capability_id: ide_handoff
+    backend_type: artifact
+    status: available
+    permissions: [write]
+  - capability_id: image_understanding
+    backend_type: mock_contract
+    status: missing_backend
+    permissions: [read]
+  - capability_id: ocr
+    backend_type: mock_contract
+    status: missing_backend
+    permissions: [read]
+  - capability_id: openclaw_notify
+    backend_type: adapter
+    status: missing_backend
+    permissions: [network, write]
+  - capability_id: pdf_read
+    backend_type: mock_contract
+    status: missing_backend
+    permissions: [read]
+  - capability_id: shell_command
+    backend_type: builtin
+    status: requires_approval
+    permissions: [shell]
+  - capability_id: spreadsheet_read
+    backend_type: mock_contract
+    status: missing_backend
+    permissions: [read]
+  - capability_id: video_understanding
+    backend_type: mock_contract
+    status: missing_backend
+    permissions: [read]
+  - capability_id: web_search
+    backend_type: adapter
+    status: requires_approval
+    permissions: [network]

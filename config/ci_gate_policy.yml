@@ -1,0 +1,16 @@
+version: 1
+offline_only: true
+allow_external_execution: false
+gates:
+  - name: text_integrity
+    command: python scripts/audit_text_integrity.py --fail-on-suspicious
+  - name: compile_runtime
+    command: python -m compileall agent_runtime agentlab_app.py scripts tests
+  - name: focused_s9_s10_tests
+    command: python -m pytest -q tests/test_s9_capability_fabric.py tests/test_s10_generalization_eval.py
+  - name: generalization_suite
+    command: ./agentlab.sh eval-generalization --out acceptance_runs/s10_generalization_eval
+  - name: cli_help
+    command: ./agentlab.sh --help
+  - name: run_pipeline_help
+    command: ./agentlab.sh run-pipeline --help

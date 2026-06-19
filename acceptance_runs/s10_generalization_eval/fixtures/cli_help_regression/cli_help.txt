@@ -1,0 +1,3 @@
+# cli_help_regression
+
+Offline fixture artifact for cli.

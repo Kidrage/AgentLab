@@ -1,0 +1,3 @@
+fixture_id: recovery_plan_probe
+domain: recovery
+mock: true
