@@ -1,0 +1,10 @@
+schema_version: 1
+stage: S7
+context_policy:
+  preserve_raw_history_in_prompt: false
+  summary_required_per_phase: true
+  snapshot_required_on_init: true
+safety:
+  llm_calls_allowed: false
+  network_allowed: false
+  external_executor_dispatch_allowed: false

@@ -1,0 +1,19 @@
+schema_version: 1
+stage: S8
+connectors:
+  mock_executor:
+    auto_execute: true
+    requires_human_approval: false
+    network_allowed: false
+  codex:
+    auto_execute: false
+    requires_human_approval: true
+  cline:
+    auto_execute: false
+    requires_human_approval: true
+  claude_code:
+    auto_execute: false
+    requires_human_approval: true
+  human_contractor:
+    auto_execute: false
+    requires_human_approval: true

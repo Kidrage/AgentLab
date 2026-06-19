@@ -1,0 +1,13 @@
+schema_version: 1
+stage: S8
+permissions:
+  default_network: false
+  default_shell: false
+  default_external_dispatch: false
+  forbidden_files:
+    - .env
+    - agent_runtime/.env
+    - .git/**
+review:
+  result_ingestion_does_not_accept: true
+  phase_acceptance_required: true

@@ -1,0 +1,7 @@
+schema_version: 1
+stage: S7_S8
+phase_acceptance:
+  require_named_evidence: true
+  require_human_approval_marker: true
+  executor_result_is_evidence_only: true
+  accept_without_review: false

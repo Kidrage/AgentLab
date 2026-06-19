@@ -4474,6 +4474,135 @@ def recovery_smoke_cmd(
         raise typer.Exit(code=1)
 
 
+
+@app.command("project-brain-init")
+def project_brain_init_cmd(
+    mission_contract: Path = typer.Option(..., "--mission-contract", help="Mission contract YAML."),
+    project: str = typer.Option(..., "--project", help="Project name."),
+    out: Path = typer.Option(..., "--out", help="Output project brain directory."),
+) -> None:
+    """Generate an S7 long-project project brain from a mission contract."""
+    from agent_runtime.program_manager.project_brain import build_project_brain
+
+    if not mission_contract.exists():
+        console.print(f"[red]Error: mission contract does not exist: {mission_contract}[/red]")
+        raise typer.Exit(code=1)
+    result = build_project_brain(mission_contract, project, out)
+    console.print("[green]S7 project brain initialized[/green]")
+    console.print(result)
+
+
+@app.command("project-plan")
+def s7_project_plan_cmd(
+    project_brain: Path = typer.Option(..., "--project-brain", help="Project brain directory."),
+    out: Path = typer.Option(..., "--out", help="Output directory for phase plan."),
+    phase_id: Optional[str] = typer.Option(None, "--phase-id", help="Optional phase id to plan."),
+) -> None:
+    """Generate an S7 phase plan from an existing project brain."""
+    from agent_runtime.program_manager.project_brain import build_project_plan
+
+    if not project_brain.is_dir():
+        console.print(f"[red]Error: project brain directory does not exist: {project_brain}[/red]")
+        raise typer.Exit(code=1)
+    result = build_project_plan(project_brain, out, phase_id=phase_id)
+    console.print("[green]S7 phase plan generated[/green]")
+    console.print(result)
+
+
+@app.command("project-next")
+def s7_project_next_cmd(
+    project_brain: Path = typer.Option(..., "--project-brain", help="Project brain directory."),
+    out: Path = typer.Option(..., "--out", help="Output directory for next actions."),
+) -> None:
+    """Generate next S7 project action from roadmap and acceptance history."""
+    from agent_runtime.program_manager.project_brain import build_project_next_actions
+
+    if not project_brain.is_dir():
+        console.print(f"[red]Error: project brain directory does not exist: {project_brain}[/red]")
+        raise typer.Exit(code=1)
+    result = build_project_next_actions(project_brain, out)
+    console.print("[green]S7 next actions generated[/green]")
+    console.print(result)
+
+
+@app.command("phase-accept")
+def s7_phase_accept_cmd(
+    phase_plan: Path = typer.Option(..., "--phase-plan", help="Phase plan YAML."),
+    evidence_dir: Path = typer.Option(..., "--evidence-dir", help="Evidence directory."),
+    out: Path = typer.Option(..., "--out", help="Output directory."),
+) -> None:
+    """Evaluate S7 phase acceptance evidence."""
+    from agent_runtime.program_manager.phase_acceptance import accept_phase
+
+    if not phase_plan.exists():
+        console.print(f"[red]Error: phase plan does not exist: {phase_plan}[/red]")
+        raise typer.Exit(code=1)
+    result = accept_phase(phase_plan, evidence_dir, out)
+    console.print("[green]S7 phase acceptance evaluated[/green]")
+    console.print(result)
+    if not result.get("accepted"):
+        raise typer.Exit(code=1)
+
+
+@app.command("executor-task-create")
+def s8_executor_task_create_cmd(
+    phase_plan: Path = typer.Option(..., "--phase-plan", help="S7 phase plan YAML."),
+    executor_type: str = typer.Option("mock_executor", "--executor-type", help="Executor connector type."),
+    out: Path = typer.Option(..., "--out", help="Output directory for task packet."),
+) -> None:
+    """Create an S8 phase-aware executor task packet."""
+    from agent_runtime.executors.task_packet import create_task_packet
+
+    if not phase_plan.exists():
+        console.print(f"[red]Error: phase plan does not exist: {phase_plan}[/red]")
+        raise typer.Exit(code=1)
+    result = create_task_packet(phase_plan, executor_type, out)
+    console.print("[green]S8 executor task packet generated[/green]")
+    console.print(result)
+
+
+@app.command("executor-result-ingest")
+def s8_executor_result_ingest_cmd(
+    result_dir: Path = typer.Option(..., "--result-dir", help="Directory containing execution_result_envelope.yml."),
+    task_packet: Path = typer.Option(..., "--task-packet", help="Task packet YAML."),
+    out: Path = typer.Option(..., "--out", help="Output directory for ingested result."),
+) -> None:
+    """Ingest S8 executor result evidence without accepting it directly."""
+    from agent_runtime.executors.phase_connector import ingest_phase_executor_result
+
+    if not result_dir.is_dir():
+        console.print(f"[red]Error: result directory does not exist: {result_dir}[/red]")
+        raise typer.Exit(code=1)
+    if not task_packet.exists():
+        console.print(f"[red]Error: task packet does not exist: {task_packet}[/red]")
+        raise typer.Exit(code=1)
+    result = ingest_phase_executor_result(result_dir, task_packet, out)
+    console.print("[green]S8 executor result ingested[/green]")
+    console.print(result)
+
+
+@app.command("executor-review")
+def s8_executor_review_cmd(
+    ingested_result: Path = typer.Option(..., "--ingested-result", help="ingested_result.yml path."),
+    phase_plan: Path = typer.Option(..., "--phase-plan", help="S7 phase plan YAML."),
+    out: Path = typer.Option(..., "--out", help="Output directory for executor phase review."),
+) -> None:
+    """Review S8 executor result through S7 phase acceptance."""
+    from agent_runtime.executors.phase_connector import review_phase_executor_result
+
+    if not ingested_result.exists():
+        console.print(f"[red]Error: ingested result does not exist: {ingested_result}[/red]")
+        raise typer.Exit(code=1)
+    if not phase_plan.exists():
+        console.print(f"[red]Error: phase plan does not exist: {phase_plan}[/red]")
+        raise typer.Exit(code=1)
+    result = review_phase_executor_result(ingested_result, phase_plan, out)
+    console.print("[green]S8 executor phase review generated[/green]")
+    console.print(result)
+    if not result.get("accepted"):
+        raise typer.Exit(code=1)
+
+
 # ── P2-K: Recovery decision commands ─────────────────────────────────
 
 @app.command("recovery-brain-plan")

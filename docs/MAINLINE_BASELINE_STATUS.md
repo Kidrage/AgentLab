@@ -104,3 +104,21 @@ All 9 P2 recovery commands are registered and accessible:
 - `recovery-stop`
 - `recovery-status`
 - `recovery-feedback`
+
+
+## S7-S8 — Long Project Orchestrator and Executor Connector Loop
+
+Last verified: 2026-06-19 (S7/S8 local repair)
+
+| Stage | Status | Key File(s) | Acceptance |
+|-------|--------|-------------|------------|
+| S7 Long Project Orchestrator | ✅ Active | `agent_runtime/program_manager/*` | `acceptance_runs/s7_long_project_orchestrator/S7_LONG_PROJECT_ORCHESTRATOR_REPORT.md` |
+| S8 Executor Connector Loop | ✅ Active | `agent_runtime/executors/task_packet.py`, `agent_runtime/executors/phase_connector.py` | `acceptance_runs/s8_executor_connector/S8_EXECUTOR_CONNECTOR_REPORT.md` |
+
+**S7/S8 Safety Posture:**
+- S7 is deterministic and planning-only: no LLM calls, no network access, no external executor dispatch.
+- S7 project brain writes roadmap, milestone graph, phase plans, phase summaries, snapshots, acceptance history, and next actions.
+- S8 converts S7 phase plans into task packets and connector contracts.
+- S8 executor results are evidence only until S7 phase acceptance passes.
+- External executors remain approval-gated and are not auto-dispatched.
+- Verification: `62 passed`; text integrity suspicious files: `0`; S7→S8 CLI smoke produced project brain, task packet, ingested evidence, and phase acceptance artifacts.
