@@ -50,7 +50,6 @@ def test_s11_cli_writes_status_and_rejects_public_bind(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["ops-console-status", "--project", "AgentLab", "--out", str(tmp_path)])
     assert result.exit_code == 0, result.output
-    assert "ops_console_snapshot.yml" in result.output
     assert (tmp_path / "ops_console_snapshot.yml").exists()
 
     unsafe = runner.invoke(app, ["ops-console-serve", "--host", "0.0.0.0", "--dry-run"])

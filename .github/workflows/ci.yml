@@ -4,9 +4,6 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -28,25 +25,7 @@ jobs:
           python -m compileall agent_runtime agentlab_app.py scripts tests
       - name: Run tests
         run: |
-          set -o pipefail
-          python -m pytest -q --tb=short 2>&1 | tee pytest-output.txt
-          status=${PIPESTATUS[0]}
-          exit "$status"
-      - name: Push test results on failure
-        if: failure()
-        run: |
-          git config user.email "ci@agentlab.local"
-          git config user.name "AgentLab CI"
-          git checkout -b ci-results
-          git add pytest-output.txt
-          git commit -m "ci: test results from $GITHUB_SHA"
-          git push origin ci-results --force
-      - name: Upload pytest output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-output
-          path: pytest-output.txt
+          python -m pytest -q
       - name: S10 generalization gate
         run: |
           ./agentlab.sh eval-generalization --out acceptance_runs/s10_generalization_eval
