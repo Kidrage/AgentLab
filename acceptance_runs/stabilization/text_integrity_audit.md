@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Total files scanned: 556
+- Total files scanned: 577
 - Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0
@@ -23,7 +23,7 @@
 | agent_runtime/context_governance/packers/web_context_packer.py | 11 | 389 | 1023 | OK |
 | agent_runtime/context_governance/packers/image_context_packer.py | 11 | 367 | 1084 | OK |
 | docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md | 1397 | 365 | 29633 | OK |
-| agent_runtime/run_task.py | 4789 | 361 | 208925 | OK |
+| agent_runtime/run_task.py | 4824 | 361 | 210825 | OK |
 | acceptance_runs/stabilization/S0_STABILIZATION_REPORT.md | 134 | 338 | 5803 | OK |
 | acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md | 212 | 329 | 8302 | OK |
 | docs/CLOSURE_MVP_REPORT.md | 81 | 324 | 4442 | OK |

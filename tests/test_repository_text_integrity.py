@@ -108,6 +108,46 @@ MIN_LINE_COUNTS = {
     "agent_runtime/recovery/redaction.py": 80,
     "agent_runtime/recovery/resume_policy.py": 80,
     "agent_runtime/recovery/retry_ledger.py": 80,
+    # S6: Recovery Brain / alternative route planning
+    "agent_runtime/recovery/failure_taxonomy.py": 80,
+    "agent_runtime/recovery/strategy_search.py": 80,
+    "agent_runtime/recovery/alternative_route_planner.py": 120,
+    "agent_runtime/recovery/capability_gap_resolver.py": 80,
+    "agent_runtime/recovery/escalation_policy.py": 80,
+    "agent_runtime/recovery/fake_evidence_detector.py": 80,
+    "config/recovery_strategy_policy.yml": 20,
+    "config/failure_taxonomy.yml": 20,
+    "config/evidence_integrity_policy.yml": 15,
+    "docs/S6_RECOVERY_BRAIN.md": 40,
+    "tests/test_s6_recovery_brain.py": 80,
+    "acceptance_runs/s6_recovery_brain/S6_RECOVERY_BRAIN_REPORT.md": 40,
+    "acceptance_runs/s6_recovery_brain/recovery_strategy_plan.yml": 10,
+    "acceptance_runs/s6_recovery_brain/alternative_route_plan.yml": 5,
+    "acceptance_runs/s6_recovery_brain/capability_gap_decision_card.yml": 10,
+    "acceptance_runs/s6_recovery_brain/fake_evidence_report.yml": 5,
+    "acceptance_runs/s6_recovery_brain/phase_acceptance_evidence.yml": 5,
+    "acceptance_runs/s6_recovery_brain/recovery_strategy_ledger.yml": 5,
+}
+
+HIDDEN_LINE_SEPARATORS = {
+    "\u0085": "U+0085 NEXT LINE",
+    "\u2028": "U+2028 LINE SEPARATOR",
+    "\u2029": "U+2029 PARAGRAPH SEPARATOR",
+}
+
+BIDI_CONTROL_CHARS = {
+    "\u061c": "U+061C ARABIC LETTER MARK",
+    "\u200e": "U+200E LEFT-TO-RIGHT MARK",
+    "\u200f": "U+200F RIGHT-TO-LEFT MARK",
+    "\u202a": "U+202A LEFT-TO-RIGHT EMBEDDING",
+    "\u202b": "U+202B RIGHT-TO-LEFT EMBEDDING",
+    "\u202c": "U+202C POP DIRECTIONAL FORMATTING",
+    "\u202d": "U+202D LEFT-TO-RIGHT OVERRIDE",
+    "\u202e": "U+202E RIGHT-TO-LEFT OVERRIDE",
+    "\u2066": "U+2066 LEFT-TO-RIGHT ISOLATE",
+    "\u2067": "U+2067 RIGHT-TO-LEFT ISOLATE",
+    "\u2068": "U+2068 FIRST STRONG ISOLATE",
+    "\u2069": "U+2069 POP DIRECTIONAL ISOLATE",
 }
 
 
@@ -152,11 +192,18 @@ def _acceptance_artifact_files() -> list[Path]:
 
 
 def _line_count(path: Path) -> int:
-    return len(path.read_text(encoding="utf-8").splitlines())
+    text = path.read_text(encoding="utf-8")
+    if not text:
+        return 0
+    return text.count("\n") + (0 if text.endswith("\n") else 1)
 
 
 def _max_line_length(path: Path) -> int:
-    lines = path.read_text(encoding="utf-8").splitlines()
+    text = path.read_text(encoding="utf-8")
+    lines = text.split("\n")
+    if text.endswith("\n"):
+        lines = lines[:-1]
+    lines = [line.rstrip("\r") for line in lines]
     return max((len(line) for line in lines), default=0)
 
 
@@ -201,6 +248,18 @@ def test_no_extreme_long_source_lines() -> None:
         assert _max_line_length(path) <= 1200, (
             f"{relative_path} has a line over 1200 characters"
         )
+
+
+def test_no_hidden_unicode_line_or_bidi_controls() -> None:
+    docs = sorted((ROOT / "docs").rglob("*.md")) if (ROOT / "docs").exists() else []
+    files = _python_files() + _yaml_files() + _acceptance_artifact_files() + docs
+    files.extend([ROOT / "README.md", ROOT / "agentlab.sh"])
+
+    forbidden = {**HIDDEN_LINE_SEPARATORS, **BIDI_CONTROL_CHARS}
+    for path in sorted({p for p in files if p.exists()}):
+        text = path.read_text(encoding="utf-8")
+        for char, label in forbidden.items():
+            assert char not in text, f"{_relative(path)} contains hidden Unicode {label}"
 
 
 def test_acceptance_artifacts_have_no_local_absolute_paths() -> None:
@@ -383,6 +442,21 @@ def test_audit_detects_future_import_after_code(tmp_path: Path) -> None:
     audits = module.run_audit(tmp_path)
     flagged = [a for a in audits if a.future_import_after_code]
     assert any(a.path == "scripts/bad_order.py" for a in flagged)
+
+
+def test_audit_detects_hidden_unicode_controls(tmp_path: Path) -> None:
+    """Unicode separators and bidi controls must not count as safe text."""
+    module = _load_audit_module()
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    bad = docs / "hidden.md"
+    bad.write_text("first\u2028second\nnormal\u202eoverride\n", encoding="utf-8")
+
+    audits = module.run_audit(tmp_path)
+    flagged = [a for a in audits if a.suspicious_single_line]
+
+    assert any(a.path == "docs/hidden.md" and a.contains_hidden_line_separator for a in flagged)
+    assert any(a.path == "docs/hidden.md" and a.contains_bidi_control for a in flagged)
 
 
 def test_audit_allows_future_import_after_docstring(tmp_path: Path) -> None:

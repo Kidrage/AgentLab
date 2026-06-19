@@ -107,6 +107,25 @@ MIN_LINE_COUNTS = {
     "agent_runtime/recovery/redaction.py": 80,
     "agent_runtime/recovery/resume_policy.py": 80,
     "agent_runtime/recovery/retry_ledger.py": 80,
+    # S6: Recovery Brain / alternative route planning
+    "agent_runtime/recovery/failure_taxonomy.py": 80,
+    "agent_runtime/recovery/strategy_search.py": 80,
+    "agent_runtime/recovery/alternative_route_planner.py": 120,
+    "agent_runtime/recovery/capability_gap_resolver.py": 80,
+    "agent_runtime/recovery/escalation_policy.py": 80,
+    "agent_runtime/recovery/fake_evidence_detector.py": 80,
+    "config/recovery_strategy_policy.yml": 20,
+    "config/failure_taxonomy.yml": 20,
+    "config/evidence_integrity_policy.yml": 15,
+    "docs/S6_RECOVERY_BRAIN.md": 40,
+    "tests/test_s6_recovery_brain.py": 80,
+    "acceptance_runs/s6_recovery_brain/S6_RECOVERY_BRAIN_REPORT.md": 40,
+    "acceptance_runs/s6_recovery_brain/recovery_strategy_plan.yml": 10,
+    "acceptance_runs/s6_recovery_brain/alternative_route_plan.yml": 5,
+    "acceptance_runs/s6_recovery_brain/capability_gap_decision_card.yml": 10,
+    "acceptance_runs/s6_recovery_brain/fake_evidence_report.yml": 5,
+    "acceptance_runs/s6_recovery_brain/phase_acceptance_evidence.yml": 5,
+    "acceptance_runs/s6_recovery_brain/recovery_strategy_ledger.yml": 5,
 }
 
 
@@ -125,12 +144,58 @@ class FileAudit:
     issue_summary: str
     future_import_after_code: bool = False
     suspicious_literal_newlines: bool = False
+    contains_hidden_line_separator: bool = False
+    contains_bidi_control: bool = False
 
 
 # Directories to always exclude from scanning
 EXCLUDED_DIR_PARTS = {".venv", ".git", ".pytest_cache", "site-packages", "__pycache__", "node_modules", "dist", "build", "htmlcov", ".mypy_cache", ".ruff_cache"}
 LOCAL_ABSOLUTE_PATH_RE = re.compile("/" + "Users" + r"/[^\s`'\"<>]+")
 MAX_SOURCE_LINE_LENGTH = 1000
+HIDDEN_LINE_SEPARATORS = {
+    "\u0085": "U+0085 NEXT LINE",
+    "\u2028": "U+2028 LINE SEPARATOR",
+    "\u2029": "U+2029 PARAGRAPH SEPARATOR",
+}
+BIDI_CONTROL_CHARS = {
+    "\u061c": "U+061C ARABIC LETTER MARK",
+    "\u200e": "U+200E LEFT-TO-RIGHT MARK",
+    "\u200f": "U+200F RIGHT-TO-LEFT MARK",
+    "\u202a": "U+202A LEFT-TO-RIGHT EMBEDDING",
+    "\u202b": "U+202B RIGHT-TO-LEFT EMBEDDING",
+    "\u202c": "U+202C POP DIRECTIONAL FORMATTING",
+    "\u202d": "U+202D LEFT-TO-RIGHT OVERRIDE",
+    "\u202e": "U+202E RIGHT-TO-LEFT OVERRIDE",
+    "\u2066": "U+2066 LEFT-TO-RIGHT ISOLATE",
+    "\u2067": "U+2067 RIGHT-TO-LEFT ISOLATE",
+    "\u2068": "U+2068 FIRST STRONG ISOLATE",
+    "\u2069": "U+2069 POP DIRECTIONAL ISOLATE",
+}
+
+
+def _physical_lf_lines(content: str) -> list[str]:
+    """Return LF-delimited physical lines, preserving hidden separators."""
+    if not content:
+        return []
+    lines = content.split("\n")
+    if content.endswith("\n"):
+        lines = lines[:-1]
+    return [line.rstrip("\r") for line in lines]
+
+
+def _hidden_unicode_issues(content: str) -> tuple[list[str], bool, bool]:
+    issues: list[str] = []
+    has_hidden_line_separator = False
+    has_bidi_control = False
+    for char, label in HIDDEN_LINE_SEPARATORS.items():
+        if char in content:
+            has_hidden_line_separator = True
+            issues.append(f"contains hidden line separator {label}")
+    for char, label in BIDI_CONTROL_CHARS.items():
+        if char in content:
+            has_bidi_control = True
+            issues.append(f"contains bidi control {label}")
+    return issues, has_hidden_line_separator, has_bidi_control
 
 
 def _resolve_scan_paths(root: Path) -> list[Path]:
@@ -152,16 +217,21 @@ def _resolve_scan_paths(root: Path) -> list[Path]:
 def _check_python(path: Path, root: Path) -> FileAudit:
     """Run Python-specific integrity checks."""
     rel = str(path.relative_to(root))
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    content = path.read_text(encoding="utf-8", errors="replace")
+    lines = _physical_lf_lines(content)
     size = path.stat().st_size
     line_count = len(lines)
     issues: list[str] = []
     suspicious = False
+    hidden_issues, has_hidden_line_separator, has_bidi_control = _hidden_unicode_issues(content)
+    if hidden_issues:
+        suspicious = True
+        issues.extend(hidden_issues)
 
     # AST parse
     ast_ok: bool | None = None
     try:
-        ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        ast.parse(content)
         ast_ok = True
     except SyntaxError as exc:
         ast_ok = False
@@ -176,7 +246,6 @@ def _check_python(path: Path, root: Path) -> FileAudit:
         issues.append(f"max line length {max_line_len} > {MAX_SOURCE_LINE_LENGTH}")
 
     # Suspicious patterns
-    content = path.read_text(encoding="utf-8", errors="replace")
     # Detect corrupted future import/docstring compression on one physical line.
     # Use [ ] (space only, not \s) so newlines don't falsely match.
     docstring_markers = ('"""', "'''")
@@ -283,21 +352,25 @@ def _check_python(path: Path, root: Path) -> FileAudit:
         issue_summary="; ".join(issues) if issues else "ok",
         future_import_after_code=future_import_after_code,
         suspicious_literal_newlines=literal_nl_suspicious,
+        contains_hidden_line_separator=has_hidden_line_separator,
+        contains_bidi_control=has_bidi_control,
     )
 
 
 def _check_yaml(path: Path, root: Path) -> FileAudit:
     """Run YAML-specific integrity checks."""
     rel = str(path.relative_to(root))
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    content = path.read_text(encoding="utf-8", errors="replace")
+    lines = _physical_lf_lines(content)
     size = path.stat().st_size
     line_count = len(lines)
     issues: list[str] = []
+    hidden_issues, has_hidden_line_separator, has_bidi_control = _hidden_unicode_issues(content)
 
     yaml_ok: bool | None = None
     if yaml is not None:
         try:
-            data = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
+            data = yaml.safe_load(content)
             yaml_ok = True
             # CI workflows must have the top-level keys GitHub Actions needs.
             if ".github/workflows/" in rel:
@@ -317,6 +390,9 @@ def _check_yaml(path: Path, root: Path) -> FileAudit:
         issues.append("PyYAML not available")
 
     suspicious = False
+    if hidden_issues:
+        suspicious = True
+        issues.extend(hidden_issues)
     if line_count <= 5 and size > 1000:
         suspicious = True
         issues.append(f"only {line_count} lines but {size} bytes")
@@ -328,7 +404,6 @@ def _check_yaml(path: Path, root: Path) -> FileAudit:
         suspicious = True
         issues.append(f"max line length {max_line_len} > {MAX_SOURCE_LINE_LENGTH}")
 
-    content = path.read_text(encoding="utf-8", errors="replace")
     if LOCAL_ABSOLUTE_PATH_RE.search(content):
         suspicious = True
         issues.append("contains local absolute /Users path")
@@ -351,23 +426,29 @@ def _check_yaml(path: Path, root: Path) -> FileAudit:
         contains_docstring_future_same_line=False,
         contains_multiple_top_level_defs_one_line=False,
         issue_summary="; ".join(issues) if issues else "ok",
+        contains_hidden_line_separator=has_hidden_line_separator,
+        contains_bidi_control=has_bidi_control,
     )
 
 
 def _check_generic(path: Path, root: Path) -> FileAudit:
     """Fallback check for non-Python/YAML files."""
     rel = str(path.relative_to(root))
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    content = path.read_text(encoding="utf-8", errors="replace")
+    lines = _physical_lf_lines(content)
     size = path.stat().st_size
     line_count = len(lines)
     max_line_len = max((len(line) for line in lines), default=0)
     issues: list[str] = []
     suspicious = False
+    hidden_issues, has_hidden_line_separator, has_bidi_control = _hidden_unicode_issues(content)
+    if hidden_issues:
+        suspicious = True
+        issues.extend(hidden_issues)
 
     if max_line_len > MAX_SOURCE_LINE_LENGTH:
         suspicious = True
         issues.append(f"max line length {max_line_len} > {MAX_SOURCE_LINE_LENGTH}")
-    content = path.read_text(encoding="utf-8", errors="replace")
     if LOCAL_ABSOLUTE_PATH_RE.search(content):
         suspicious = True
         issues.append("contains local absolute /Users path")
@@ -386,24 +467,30 @@ def _check_generic(path: Path, root: Path) -> FileAudit:
         contains_docstring_future_same_line=False,
         contains_multiple_top_level_defs_one_line=False,
         issue_summary="; ".join(issues) if issues else "ok (non-Python/YAML file)",
+        contains_hidden_line_separator=has_hidden_line_separator,
+        contains_bidi_control=has_bidi_control,
     )
 
 
 def _check_shell(path: Path, root: Path) -> FileAudit:
     """Run shell-script-specific integrity checks including bash -n syntax."""
     rel = str(path.relative_to(root))
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    content = path.read_text(encoding="utf-8", errors="replace")
+    lines = _physical_lf_lines(content)
     size = path.stat().st_size
     line_count = len(lines)
     max_line_len = max((len(line) for line in lines), default=0)
     issues: list[str] = []
     suspicious = False
+    hidden_issues, has_hidden_line_separator, has_bidi_control = _hidden_unicode_issues(content)
+    if hidden_issues:
+        suspicious = True
+        issues.extend(hidden_issues)
 
     if max_line_len > MAX_SOURCE_LINE_LENGTH:
         suspicious = True
         issues.append(f"max line length {max_line_len} > {MAX_SOURCE_LINE_LENGTH}")
 
-    content = path.read_text(encoding="utf-8", errors="replace")
     if LOCAL_ABSOLUTE_PATH_RE.search(content):
         suspicious = True
         issues.append("contains local absolute /Users path")
@@ -447,6 +534,8 @@ def _check_shell(path: Path, root: Path) -> FileAudit:
         contains_docstring_future_same_line=False,
         contains_multiple_top_level_defs_one_line=False,
         issue_summary="; ".join(issues) if issues else "ok",
+        contains_hidden_line_separator=has_hidden_line_separator,
+        contains_bidi_control=has_bidi_control,
     )
 
 

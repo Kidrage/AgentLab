@@ -13,6 +13,7 @@ from time import time_ns
 from urllib.parse import quote
 
 CRITICAL_FILES = [
+    ".github/workflows/ci.yml",
     "agent_runtime/skill_distiller.py",
     "agent_runtime/skill_vault.py",
     "agent_runtime/skill_backup.py",
@@ -40,9 +41,29 @@ CRITICAL_FILES = [
     # P2-L: Recovery closure feedback
     "agent_runtime/recovery/closure_feedback.py",
     "tests/test_p2_l_closure_feedback.py",
+    # S6: Recovery Brain / alternative route planning
+    "agent_runtime/recovery/failure_taxonomy.py",
+    "agent_runtime/recovery/strategy_search.py",
+    "agent_runtime/recovery/alternative_route_planner.py",
+    "agent_runtime/recovery/capability_gap_resolver.py",
+    "agent_runtime/recovery/escalation_policy.py",
+    "agent_runtime/recovery/fake_evidence_detector.py",
+    "config/recovery_strategy_policy.yml",
+    "config/failure_taxonomy.yml",
+    "config/evidence_integrity_policy.yml",
+    "docs/S6_RECOVERY_BRAIN.md",
+    "tests/test_s6_recovery_brain.py",
+    "acceptance_runs/s6_recovery_brain/S6_RECOVERY_BRAIN_REPORT.md",
+    "acceptance_runs/s6_recovery_brain/recovery_strategy_plan.yml",
+    "acceptance_runs/s6_recovery_brain/alternative_route_plan.yml",
+    "acceptance_runs/s6_recovery_brain/capability_gap_decision_card.yml",
+    "acceptance_runs/s6_recovery_brain/fake_evidence_report.yml",
+    "acceptance_runs/s6_recovery_brain/phase_acceptance_evidence.yml",
+    "acceptance_runs/s6_recovery_brain/recovery_strategy_ledger.yml",
 ]
 
 MIN_LINES = {
+    ".github/workflows/ci.yml": 20,
     "agent_runtime/skill_distiller.py": 200,
     "agent_runtime/skill_vault.py": 200,
     "agent_runtime/skill_backup.py": 100,
@@ -57,6 +78,46 @@ MIN_LINES = {
     # P2-L: Recovery closure feedback
     "agent_runtime/recovery/closure_feedback.py": 80,
     "tests/test_p2_l_closure_feedback.py": 80,
+    # S6: Recovery Brain / alternative route planning
+    "agent_runtime/recovery/failure_taxonomy.py": 80,
+    "agent_runtime/recovery/strategy_search.py": 80,
+    "agent_runtime/recovery/alternative_route_planner.py": 120,
+    "agent_runtime/recovery/capability_gap_resolver.py": 80,
+    "agent_runtime/recovery/escalation_policy.py": 80,
+    "agent_runtime/recovery/fake_evidence_detector.py": 80,
+    "config/recovery_strategy_policy.yml": 20,
+    "config/failure_taxonomy.yml": 20,
+    "config/evidence_integrity_policy.yml": 15,
+    "docs/S6_RECOVERY_BRAIN.md": 40,
+    "tests/test_s6_recovery_brain.py": 80,
+    "acceptance_runs/s6_recovery_brain/S6_RECOVERY_BRAIN_REPORT.md": 40,
+    "acceptance_runs/s6_recovery_brain/recovery_strategy_plan.yml": 10,
+    "acceptance_runs/s6_recovery_brain/alternative_route_plan.yml": 5,
+    "acceptance_runs/s6_recovery_brain/capability_gap_decision_card.yml": 10,
+    "acceptance_runs/s6_recovery_brain/fake_evidence_report.yml": 5,
+    "acceptance_runs/s6_recovery_brain/phase_acceptance_evidence.yml": 5,
+    "acceptance_runs/s6_recovery_brain/recovery_strategy_ledger.yml": 5,
+}
+
+HIDDEN_LINE_SEPARATORS = {
+    "\u0085": "U+0085 NEXT LINE",
+    "\u2028": "U+2028 LINE SEPARATOR",
+    "\u2029": "U+2029 PARAGRAPH SEPARATOR",
+}
+
+BIDI_CONTROL_CHARS = {
+    "\u061c": "U+061C ARABIC LETTER MARK",
+    "\u200e": "U+200E LEFT-TO-RIGHT MARK",
+    "\u200f": "U+200F RIGHT-TO-LEFT MARK",
+    "\u202a": "U+202A LEFT-TO-RIGHT EMBEDDING",
+    "\u202b": "U+202B RIGHT-TO-LEFT EMBEDDING",
+    "\u202c": "U+202C POP DIRECTIONAL FORMATTING",
+    "\u202d": "U+202D LEFT-TO-RIGHT OVERRIDE",
+    "\u202e": "U+202E RIGHT-TO-LEFT OVERRIDE",
+    "\u2066": "U+2066 LEFT-TO-RIGHT ISOLATE",
+    "\u2067": "U+2067 RIGHT-TO-LEFT ISOLATE",
+    "\u2068": "U+2068 FIRST STRONG ISOLATE",
+    "\u2069": "U+2069 POP DIRECTIONAL ISOLATE",
 }
 
 
@@ -68,6 +129,24 @@ class RawResult:
     max_line: int = 0
     bytes: int = 0
     issue: str = ""
+
+
+def physical_lf_line_count(data: bytes) -> int:
+    """Count physical LF-delimited lines, not Unicode splitlines."""
+    if not data:
+        return 0
+    return data.count(b"\n") + (0 if data.endswith(b"\n") else 1)
+
+
+def hidden_unicode_issues(text: str) -> list[str]:
+    issues: list[str] = []
+    for char, label in HIDDEN_LINE_SEPARATORS.items():
+        if char in text:
+            issues.append(f"contains hidden line separator {label}")
+    for char, label in BIDI_CONTROL_CHARS.items():
+        if char in text:
+            issues.append(f"contains bidi control {label}")
+    return issues
 
 
 def fetch_raw(repo: str, branch: str, path: str, timeout: int = 20) -> RawResult:
@@ -82,20 +161,21 @@ def fetch_raw(repo: str, branch: str, path: str, timeout: int = 20) -> RawResult
     except urllib.error.URLError as exc:
         return RawResult(path=path, status="ERROR", issue=str(exc.reason))
     text = data.decode("utf-8", errors="replace")
-    lines = text.splitlines()
-    max_line = max((len(line) for line in lines), default=0)
-    issues: list[str] = []
-    if len(data) > 1000 and len(lines) <= 10:
-        issues.append(f"compressed: {len(lines)} physical lines for {len(data)} bytes")
+    physical_lines = physical_lf_line_count(data)
+    lines = text.split("\n")
+    max_line = max((len(line.rstrip("\r")) for line in lines), default=0)
+    issues = hidden_unicode_issues(text)
+    if len(data) > 1000 and physical_lines <= 10:
+        issues.append(f"compressed: {physical_lines} physical LF lines for {len(data)} bytes")
     if max_line > 1000:
         issues.append(f"max line {max_line} > 1000")
     minimum = MIN_LINES.get(path)
-    if minimum is not None and len(lines) < minimum:
-        issues.append(f"critical file needs >= {minimum} lines, has {len(lines)}")
+    if minimum is not None and physical_lines < minimum:
+        issues.append(f"critical file needs >= {minimum} LF lines, has {physical_lines}")
     return RawResult(
         path=path,
         status="OK" if not issues else "SUSPICIOUS",
-        lines=len(lines),
+        lines=physical_lines,
         max_line=max_line,
         bytes=len(data),
         issue="; ".join(issues),
