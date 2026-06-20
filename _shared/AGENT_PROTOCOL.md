@@ -1,21 +1,24 @@
-# Agent Protocol — Shared Workspace Convention
+# Agent Protocol — Three-Endpoint Shared Workspace Convention
 
 > **权威版本位置**: `ssh truenas:/mnt/hdd2/AgentLab_WorkSpace/_shared/AGENT_PROTOCOL.md`
-> 本文件是 4 个 agent CLI（Claude Code, Hermes, Codex, Agy）之间的**唯一共享协议**。
+> 本文件是 4 个 agent CLI（Claude Code, Hermes, Codex, Agy）之间的**唯一共享协议**，
+> 覆盖 **三端**（Local Mac / Truenas Relay / Cloud Runtime 250）。
 > 各 agent 的本地指令文件不得重复本文内容；只保留 agent 特有指令 + 指向本文的指针。
 
 ---
 
-## 1. 工作原则：本地优先，truenas 为镜像
+## 1. 工作原则：本地优先，三端镜像
 
-| 层级 | 位置 | 用途 |
-|------|------|------|
-| **Primary** | 本地磁盘 | 日常编码、运行、测试 |
-| **Mirror** | `truenas:/mnt/hdd2/AgentLab_WorkSpace/` | 备份 + 跨 agent 共享读取 |
+| 端点 | 位置 | 角色 | 用途 |
+|------|------|------|------|
+| **Local Mac** | `saintpeter@Mac` | 主开发端 | 日常编码、运行、测试，所有 agent 的本地主战场 |
+| **Relay Hub** | `truenas:/mnt/hdd2/AgentLab_WorkSpace/` | 共享镜像 | 备份 + 跨 agent 共享读取 + 向 250 分发 |
+| **Cloud Runtime** | `admin@10.147.17.250` | 执行端 | 远程运行、部署、持续任务执行 |
 
-- 所有 agent **默认工作在本地**，不直接操作 truenas。
-- 重要产出（项目记忆、会话摘要、导出文件）**推送到 truenas 对应命名空间**。
+- 所有 agent **默认工作在本地 Mac**，不直接操作远端。
+- 重要产出（项目记忆、会话摘要、导出文件）**推送到 truenas 对应命名空间** → 由 250 从 truenas 拉取。
 - 任何 agent 可以**只读访问**其他 agent 的 truenas 命名空间来获取上下文。
+- **AgentLab 主目录**（`~/AgentLab/`）在三端之间保持同步（详见 Section 11）。
 - 不要向 truenas 推送：`node_modules/`、`.venv/`、`__pycache__/`、构建产物、缓存、日志、二进制文件、密钥。
 
 ---
@@ -177,6 +180,8 @@ truenas:/mnt/hdd2/AgentLab_WorkSpace/
 
 ## 8. SSH 连接信息
 
+### Relay Hub (Truenas)
+
 ```
 Host:      truenas (10.147.17.61:2222)
 User:      agentlab
@@ -185,7 +190,18 @@ Workspace: /mnt/hdd2/AgentLab_WorkSpace
 Disk:      11TB
 ```
 
-SSH 配置位于 `~/.ssh/config`，所有 agent 共享使用。macOS LaunchAgent (`com.agentlab.truenas-keepalive`) 在开机时自动建立保活连接。
+### Cloud Runtime (250)
+
+```
+Host:      10.147.17.250
+User:      admin
+Key:       ~/.ssh/id_rsa (RSA)
+Workspace: /home/admin/AgentLab
+OS:        Alibaba Cloud Linux 3
+Disk:      40GB
+```
+
+SSH 配置位于 `~/.ssh/config`，所有 agent 共享使用。macOS LaunchAgent (`com.agentlab.truenas-keepalive`) 在开机时自动建立到 truenas 的保活连接。
 
 ---
 
@@ -415,4 +431,114 @@ AgentLab 配置位于 `truenas:/mnt/hdd2/AgentLab_WorkSpace/config/`。以下为
 
 ---
 
-*最后更新: 2026-06-20 | 维护者: Claude Code (saintpeter)*
+## 11. 三端 AgentLab 主目录同步
+
+> **核心原则**: AgentLab 主目录（`~/AgentLab/`）的代码、配置、协议文件**必须在三端之间保持同步**。
+> 以 GitHub (`Kidrage/AgentLab.git`) 为 git 中枢，truenas 为 workspace 中转站。
+
+### 11.1 三端同步拓扑
+
+```
+Local Mac (saintpeter)  ←──git push/ pull──→  GitHub (Kidrage/AgentLab.git)
+         │                                              │
+         │ rsync workspace mirror                       │ git pull (HTTP)
+         ▼                                              ▼
+   Truenas (agentlab)   ←──rsync pull workspace──  Cloud Runtime 250 (admin)
+         │                                              │
+         └────────── ssh git push ──────────────────────→┘  (truenas 无法访问 GitHub 时的替代路径)
+```
+
+### 11.2 AgentLab 主目录同步规则
+
+**以下内容属于 AgentLab 主目录同步范围（必须保持三端一致）：**
+
+| 内容 | 同步方式 | 频率 |
+|------|----------|------|
+| 源代码（`agent_runtime/`, `agent_templates/`, `web_ui/`, `scripts/`, `skills/`） | Git (GitHub) | 每次 commit |
+| 配置文件（`config/`） | Git (GitHub) | 每次 config 变更 |
+| 协议文件（`_shared/`, `shared_protocols/`） | Git (GitHub) | 协议更新时 |
+| 项目记忆（`projects/`） | rsync (via truenas) | 任务完成时 |
+| Agent 状态（`shared_protocols/agent_states/`） | rsync (via truenas) | 状态变化时 |
+| 测试、文档 | Git (GitHub) | 每次 commit |
+
+**以下内容 NOT 同步（各端独立）：**
+
+| 内容 | 原因 |
+|------|------|
+| `.agents/` (locks, states) | 本地锁，仅通过 rsync 到 truenas |
+| `.env` | 各端密钥不同 |
+| `.cache/`, `__pycache__/`, `.pytest_cache/` | 构建缓存 |
+| `executor_runs/`, `router_update_runs/` | 运行时产物，本地独立 |
+| `git-repos/` | 裸仓库，各端按需维护 |
+
+### 11.3 同步操作手册
+
+#### 从 Local Mac 同步到其他端
+
+```bash
+# 1. 代码推送到 GitHub
+cd ~/AgentLab
+git add -A && git commit -m "..."
+git push origin main
+
+# 2. Workspace 同步到 truenas（agentlab.sh 或手动 rsync）
+./agentlab.sh truenas-sync --execute
+# 或:
+rsync -avz -e "ssh -p 2222" \
+  --exclude '.git' --exclude '__pycache__' --exclude '.pytest_cache' \
+  --exclude '.env' --exclude '.venv' --exclude '.cache' \
+  --exclude 'executor_runs' --exclude 'router_update_runs' \
+  --exclude 'git-repos' \
+  ~/AgentLab/ agentlab@truenas:/mnt/hdd2/AgentLab_WorkSpace/
+```
+
+#### 250 从 GitHub 拉取代码
+
+```bash
+# 在 250 上:
+cd ~/AgentLab
+git -c http.proxy= -c https.proxy= fetch origin main
+git reset --hard origin/main
+```
+
+#### 250 从 truenas 拉取 workspace 镜像
+
+```bash
+# 在 250 上:
+rsync -avz --exclude '.git' --exclude '__pycache__' --exclude '.cache' \
+  agentlab@truenas:/mnt/hdd2/AgentLab_WorkSpace/ ~/AgentLab/
+```
+
+#### truenas 无法访问 GitHub 时的替代路径
+
+```bash
+# 从本地 Mac 直接推送 git 对象到 truenas:
+cd ~/AgentLab
+git push ssh://truenas/mnt/hdd2/AgentLab_WorkSpace main:refs/heads/sync-temp
+# 然后在 truenas 上:
+ssh truenas "cd /mnt/hdd2/AgentLab_WorkSpace && git reset --hard sync-temp && git branch -D sync-temp"
+```
+
+### 11.4 同步纪律
+
+1. **任何端修改 AgentLab 代码后，必须同步到其他两端**
+2. **协议文件（`_shared/AGENT_PROTOCOL.md`）变更优先同步**——这是跨 agent 的合同
+3. **主目录同步前先检查各端状态**：确认没有未提交的修改
+4. **三端 AgentLab 的 git HEAD 必须指向同一个 commit**（允许 truenas 短暂滞后，但必须在下一个工作周期开始前追上）
+5. **禁止在三端并行修改同一文件**——如果不可避免，先在本地合并，再推送
+6. **定期自检**：任何 agent 在进入 AgentLab 主目录时，运行 `git fetch origin && git status -sb` 确认同步状态
+
+### 11.5 三端同步自检命令
+
+```bash
+# 在任何端点运行，确认三端一致:
+echo "=== Local ===" && cd ~/AgentLab && git rev-parse --short HEAD
+echo "=== Truenas ===" && ssh truenas "cd /mnt/hdd2/AgentLab_WorkSpace && git rev-parse --short HEAD"
+echo "=== 250 ===" && ssh admin@10.147.17.250 "cd ~/AgentLab && git rev-parse --short HEAD"
+```
+
+三端应输出相同的 commit hash。
+
+---
+
+*最后更新: 2026-06-21 | 维护者: Claude Code (saintpeter)*
