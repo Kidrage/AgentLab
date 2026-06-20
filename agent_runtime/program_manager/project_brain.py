@@ -14,10 +14,60 @@ from agent_runtime.program_manager.replanner import recommend_next_action
 from agent_runtime.program_manager.roadmap import build_roadmap
 
 
-def build_project_brain(mission_contract_path: Path, project: str, out_dir: Path) -> dict:
+def build_project_brain(
+    mission_contract_path: Path,
+    project: str,
+    out_dir: Path,
+    workflow_plan_path: Path | None = None,
+) -> dict:
     contract = load_mission_contract(mission_contract_path)
     brief = build_project_brief_data(project, contract)
-    roadmap = build_roadmap(brief)
+
+    workflow_plan = {}
+    if workflow_plan_path and workflow_plan_path.exists():
+        try:
+            workflow_plan = yaml.safe_load(workflow_plan_path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            pass
+    
+    if not workflow_plan and workflow_plan_path is not None:
+        from agent_runtime.project_workflows.planner import create_project_workflow_plan
+        agentlab_root = Path(__file__).resolve().parents[2]
+        try:
+            workflow_plan_obj = create_project_workflow_plan(
+                mission_contract_path=mission_contract_path,
+                agentlab_root=agentlab_root,
+                project_id=project,
+            )
+            if hasattr(workflow_plan_obj, "model_dump"):
+                workflow_plan = workflow_plan_obj.model_dump()
+            else:
+                workflow_plan = workflow_plan_obj.dict()
+        except Exception:
+            pass
+
+    if workflow_plan and "phases" in workflow_plan:
+        milestones = []
+        for i, phase in enumerate(workflow_plan["phases"]):
+            milestones.append({
+                "milestone_id": f"m{i + 1}",
+                "phase_id": phase.get("phase_id", f"phase_{i + 1:02d}"),
+                "title": phase.get("title", ""),
+                "goal": phase.get("goal", ""),
+                "status": "planned",
+                "expected_artifacts": phase.get("expected_artifacts", []),
+                "acceptance_gates": phase.get("acceptance_gates", []),
+            })
+        roadmap = {
+            "project": project,
+            "task_type": contract.get("task_type", "unknown"),
+            "milestones": milestones,
+            "no_direct_execution": True,
+            "acceptance_required_before_next_phase": True,
+        }
+    else:
+        roadmap = build_roadmap(brief)
+
     graph = build_milestone_graph(roadmap)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "phase_summaries").mkdir(exist_ok=True)
@@ -31,6 +81,20 @@ def build_project_brain(mission_contract_path: Path, project: str, out_dir: Path
     atomic_write_yaml(out_dir / "unresolved_questions.yml", {"questions": []})
     atomic_write_yaml(out_dir / "known_risks.yml", {"risks": brief.get("risk_flags", [])})
     atomic_write_yaml(out_dir / "architecture_state.yml", {"state": "planned", "modules": []})
+    
+    # Write current_phase.yml
+    milestones_list = roadmap.get("milestones") or []
+    first_phase_id = milestones_list[0]["phase_id"] if milestones_list else "phase_01"
+    current_phase = {
+        "phase_id": first_phase_id,
+        "status": "planned"
+    }
+    atomic_write_yaml(out_dir / "current_phase.yml", current_phase)
+    
+    # Write phase_plan.yml
+    first_phase = build_phase_plan(brief, roadmap, first_phase_id)
+    atomic_write_yaml(out_dir / "phase_plan.yml", first_phase)
+
     next_actions = recommend_next_action({"entries": []}, roadmap)
     atomic_write_yaml(out_dir / "next_actions.yml", next_actions)
     write_snapshot(out_dir, "initial", {"project_brief": brief, "roadmap": roadmap})

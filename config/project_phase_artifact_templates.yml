@@ -1,0 +1,265 @@
+# Phase Artifact Templates
+# Maps phase titles to their default expected artifacts.
+
+compile_mission:
+  artifacts:
+    - mission_contract.yml
+    - intent_summary.md
+
+ask_clarification:
+  artifacts:
+    - clarification_questions.md
+
+inspect_repo_or_create_blueprint:
+  artifacts:
+    - repo_context.yml
+    - repo_risks.yml
+
+define_architecture:
+  artifacts:
+    - architecture_doc.md
+    - architecture_diagram.yml
+
+create_task_packets:
+  artifacts:
+    - task_packet.yml
+    - scope_boundary.yml
+
+executor_patch_loop:
+  artifacts:
+    - executor_result.yml
+    - changed_files.txt
+    - patch_diff.txt
+
+run_tests:
+  artifacts:
+    - test_results.yml
+    - coverage_report.md
+
+phase_acceptance:
+  artifacts:
+    - phase_acceptance.yml
+    - phase_summary.md
+
+documentation_and_delivery:
+  artifacts:
+    - delivery_package.md
+    - changelog.md
+
+define_audience_style_constraints:
+  artifacts:
+    - audience_profile.yml
+    - style_guide.md
+
+create_content_constitution:
+  artifacts:
+    - content_constitution.md
+
+create_world_or_topic_bible:
+  artifacts:
+    - world_bible.md
+    - character_bible.md
+
+build_outline:
+  artifacts:
+    - chapter_outline.yml
+    - narrative_arc.yml
+
+create_section_or_scene_cards:
+  artifacts:
+    - scene_cards.yml
+    - chapter_scene_map.yml
+
+draft_batch:
+  artifacts:
+    - draft_chapters/
+    - draft_progress.yml
+
+continuity_review:
+  artifacts:
+    - continuity_ledger.yml
+    - continuity_issues.yml
+
+revision_loop:
+  artifacts:
+    - revision_notes.md
+    - revised_chapters/
+
+final_package:
+  artifacts:
+    - final_manuscript.md
+    - delivery_package.md
+
+define_platform_audience_style:
+  artifacts:
+    - platform_brief.yml
+    - audience_persona.yml
+    - style_reference.yml
+
+research_or_source_plan:
+  artifacts:
+    - research_plan.yml
+    - source_list.yml
+
+script_generation:
+  artifacts:
+    - script.md
+    - script_outline.yml
+    - dialogue_notes.md
+
+storyboard_or_shot_plan:
+  artifacts:
+    - storyboard.yml
+    - shot_list.yml
+
+asset_plan:
+  artifacts:
+    - asset_manifest.yml
+    - asset_sources.yml
+
+video_tool_handoff:
+  artifacts:
+    - tool_handoff_packet.yml
+    - render_instructions.md
+
+qa_review:
+  artifacts:
+    - qa_report.yml
+    - qa_checklist.md
+
+revision_notes:
+  artifacts:
+    - revision_notes.md
+    - revised_assets/
+
+delivery_package:
+  artifacts:
+    - delivery_package.md
+    - asset_inventory.yml
+
+define_research_scope:
+  artifacts:
+    - research_scope.yml
+    - search_strategy.md
+
+ingest_sources:
+  artifacts:
+    - source_manifest.yml
+    - ingested_sources/
+
+extract_metadata:
+  artifacts:
+    - metadata_index.yml
+    - keyword_index.yml
+
+build_fact_table:
+  artifacts:
+    - fact_table.yml
+    - claims_ledger.yml
+
+summarize_by_topic:
+  artifacts:
+    - topic_summaries/
+    - cross_topic_index.yml
+
+create_archive_index:
+  artifacts:
+    - archive_index.yml
+    - taxonomy.yml
+
+evidence_quality_review:
+  artifacts:
+    - evidence_quality_report.yml
+    - source_quality_ledger.yml
+
+final_report:
+  artifacts:
+    - final_report.md
+    - executive_summary.md
+
+define_document_scope:
+  artifacts:
+    - document_scope.yml
+    - ingestion_plan.yml
+
+ingest_documents:
+  artifacts:
+    - ingestion_manifest.yml
+    - raw_extracts/
+
+extract_text_and_metadata:
+  artifacts:
+    - extracted_text/
+    - metadata_index.yml
+
+build_index:
+  artifacts:
+    - search_index.jsonl
+    - category_index.yml
+
+quality_review:
+  artifacts:
+    - quality_report.yml
+    - extraction_issues.yml
+
+create_knowledge_base:
+  artifacts:
+    - knowledge_base_index.yml
+    - kb_structure.yml
+
+define_modalities_and_assets:
+  artifacts:
+    - modality_plan.yml
+    - asset_type_registry.yml
+
+create_asset_pipeline:
+  artifacts:
+    - asset_pipeline.yml
+    - generation_order.yml
+
+generate_or_source_assets:
+  artifacts:
+    - asset_manifest.yml
+    - sourced_assets/
+
+integrate_and_assemble:
+  artifacts:
+    - integrated_draft/
+    - assembly_log.yml
+
+cross_modal_qa:
+  artifacts:
+    - cross_modal_qa_report.yml
+    - sync_issues.yml
+
+define_automation_scope:
+  artifacts:
+    - automation_scope.yml
+    - safety_boundaries.yml
+
+create_script_or_workflow:
+  artifacts:
+    - automation_script.py
+    - workflow_config.yml
+
+test_dry_run:
+  artifacts:
+    - dry_run_results.yml
+    - dry_run_log.txt
+
+deploy_and_monitor:
+  artifacts:
+    - deployment_log.yml
+    - monitor_config.yml
+
+review_clarification:
+  artifacts:
+    - clarification_review.yml
+
+resolve_unknowns:
+  artifacts:
+    - resolved_unknowns.yml
+
+update_mission_contract:
+  artifacts:
+    - mission_contract.yml

@@ -1,0 +1,5 @@
+# SSH Workspace Synchronization (TrueNAS)
+Local development on this Mac takes priority. The remote SSH workspace on TrueNAS (agentlab@10.147.17.61:2222 at /mnt/hdd2/AgentLab_WorkSpace/AgentLab/) is used exclusively as a backup and shared read location. 
+
+After completing any task or file modification locally, you MUST synchronize the changes to the remote TrueNAS workspace using:
+`rsync -avz -e "ssh -p 2222" --exclude '__pycache__' --exclude '.pytest_cache' /Users/saintpeter/Desktop/AgentLab/ agentlab@10.147.17.61:/mnt/hdd2/AgentLab_WorkSpace/AgentLab/`

@@ -2255,6 +2255,31 @@ def status(
     console.print(table)
 
 
+@app.command("project-workflow-plan")
+def project_workflow_plan_cmd(
+    mission_contract: Path = typer.Option(..., "--mission-contract", help="Path to mission contract YAML file."),
+    out: Path = typer.Option(..., "--out", help="Output directory to save workflow plan files."),
+    project_id: Optional[str] = typer.Option(None, "--project-id", help="Optional project ID override."),
+) -> None:
+    """Generate a ProjectWorkflowPlan based on the mission contract."""
+    from agent_runtime.project_workflows.planner import create_project_workflow_plan
+    from agent_runtime.project_workflows.renderer import write_workflow_plan
+
+    agentlab_root, _ = runtime_context(None)
+    
+    plan = create_project_workflow_plan(
+        mission_contract_path=mission_contract,
+        agentlab_root=agentlab_root,
+        project_id=project_id,
+    )
+    
+    write_workflow_plan(plan, out)
+    if plan.warnings:
+        for w in plan.warnings:
+            console.print(f"[yellow]Warning: {w}[/yellow]")
+    console.print(f"[green]Project workflow plan generated and saved to:[/green] {out}")
+
+
 def _context_command(task_id: str, project: Optional[str], *, write: bool, show: str) -> None:
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
@@ -4874,57 +4899,183 @@ def s7_phase_accept_cmd(
 
 @app.command("executor-task-create")
 def s8_executor_task_create_cmd(
-    phase_plan: Path = typer.Option(..., "--phase-plan", help="S7 phase plan YAML."),
-    executor_type: str = typer.Option("mock_executor", "--executor-type", help="Executor connector type."),
+    project: Optional[str] = typer.Option(None, "--project", help="Project name."),
+    phase: Optional[str] = typer.Option(None, "--phase", help="Phase ID."),
+    executor: Optional[str] = typer.Option(None, "--executor", help="Executor type (claude_code_handoff, etc.)."),
+    phase_plan: Optional[Path] = typer.Option(None, "--phase-plan", help="S7 phase plan YAML."),
+    executor_type: Optional[str] = typer.Option(None, "--executor-type", help="Executor connector type (for backwards compatibility)."),
     out: Path = typer.Option(..., "--out", help="Output directory for task packet."),
 ) -> None:
     """Create an S8 phase-aware executor task packet."""
     from agent_runtime.executors.task_packet import create_task_packet
 
-    if not phase_plan.exists():
-        console.print(f"[red]Error: phase plan does not exist: {phase_plan}[/red]")
+    actual_phase_plan = phase_plan
+    resolved_executor = executor or executor_type or "mock_executor"
+
+    if actual_phase_plan is None:
+        if project and phase:
+            brain_dir = Path("projects") / project / "project_brain"
+            actual_phase_plan = brain_dir / "phase_plan.yml"
+            if not actual_phase_plan.exists():
+                out.mkdir(parents=True, exist_ok=True)
+                temp_plan_path = out / "temp_phase_plan.yml"
+                brief_path = brain_dir / "project_brief.yml"
+                roadmap_path = brain_dir / "roadmap.yml"
+                brief = {}
+                roadmap = {}
+                if brief_path.exists():
+                    brief = yaml.safe_load(brief_path.read_text(encoding="utf-8")) or {}
+                if roadmap_path.exists():
+                    roadmap = yaml.safe_load(roadmap_path.read_text(encoding="utf-8")) or {}
+
+                from agent_runtime.program_manager.phase_planner import build_phase_plan
+                try:
+                    phase_dict = build_phase_plan(brief, roadmap, phase_id=phase)
+                except Exception:
+                    phase_dict = {
+                        "project": project,
+                        "phase_id": phase,
+                        "goal": f"Execute {phase}",
+                    }
+                temp_plan_path.write_text(yaml.safe_dump(phase_dict, sort_keys=False, allow_unicode=True), encoding="utf-8")
+                actual_phase_plan = temp_plan_path
+        else:
+            console.print("[red]Error: Either --phase-plan or BOTH --project and --phase must be specified.[/red]")
+            raise typer.Exit(code=1)
+
+    if not actual_phase_plan or not actual_phase_plan.exists():
+        console.print(f"[red]Error: phase plan does not exist: {actual_phase_plan}[/red]")
         raise typer.Exit(code=1)
-    result = create_task_packet(phase_plan, executor_type, out)
+
+    result = create_task_packet(actual_phase_plan, resolved_executor, out)
     console.print("[green]S8 executor task packet generated[/green]")
     console.print(result)
 
 
 @app.command("executor-result-ingest")
 def s8_executor_result_ingest_cmd(
-    result_dir: Path = typer.Option(..., "--result-dir", help="Directory containing execution_result_envelope.yml."),
-    task_packet: Path = typer.Option(..., "--task-packet", help="Task packet YAML."),
-    out: Path = typer.Option(..., "--out", help="Output directory for ingested result."),
+    project: Optional[str] = typer.Option(None, "--project", help="Project name."),
+    result_dir: Path = typer.Option(..., "--result-dir", help="Directory containing execution_result_envelope.yml or executor_result.yml."),
+    task_packet: Optional[Path] = typer.Option(None, "--task-packet", help="Task packet YAML."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Output directory for ingested result."),
 ) -> None:
     """Ingest S8 executor result evidence without accepting it directly."""
     from agent_runtime.executors.phase_connector import ingest_phase_executor_result
 
+    actual_out = out
+    actual_task_packet = task_packet
+
+    if actual_out is None:
+        if project:
+            actual_out = Path("projects") / project / "executor_results"
+        else:
+            console.print("[red]Error: Either --out or --project must be specified.[/red]")
+            raise typer.Exit(code=1)
+
+    if actual_task_packet is None:
+        if project:
+            tp_path = Path("projects") / project / "task_packets" / "task_packet.yml"
+            if tp_path.exists():
+                actual_task_packet = tp_path
+            else:
+                candidates = list(Path("projects").glob(f"{project}/**/task_packet.yml"))
+                if candidates:
+                    actual_task_packet = candidates[0]
+                else:
+                    console.print(f"[red]Error: task_packet.yml not found for project {project}[/red]")
+                    raise typer.Exit(code=1)
+        else:
+            console.print("[red]Error: Either --task-packet or --project must be specified.[/red]")
+            raise typer.Exit(code=1)
+
     if not result_dir.is_dir():
         console.print(f"[red]Error: result directory does not exist: {result_dir}[/red]")
         raise typer.Exit(code=1)
-    if not task_packet.exists():
-        console.print(f"[red]Error: task packet does not exist: {task_packet}[/red]")
+    if not actual_task_packet.exists():
+        console.print(f"[red]Error: task packet does not exist: {actual_task_packet}[/red]")
         raise typer.Exit(code=1)
-    result = ingest_phase_executor_result(result_dir, task_packet, out)
+
+    result = ingest_phase_executor_result(result_dir, actual_task_packet, actual_out)
     console.print("[green]S8 executor result ingested[/green]")
     console.print(result)
 
 
 @app.command("executor-review")
 def s8_executor_review_cmd(
-    ingested_result: Path = typer.Option(..., "--ingested-result", help="ingested_result.yml path."),
-    phase_plan: Path = typer.Option(..., "--phase-plan", help="S7 phase plan YAML."),
-    out: Path = typer.Option(..., "--out", help="Output directory for executor phase review."),
+    project: Optional[str] = typer.Option(None, "--project", help="Project name."),
+    phase: Optional[str] = typer.Option(None, "--phase", help="Phase ID."),
+    ingested_result: Optional[Path] = typer.Option(None, "--ingested-result", help="ingested_result.yml path."),
+    phase_plan: Optional[Path] = typer.Option(None, "--phase-plan", help="S7 phase plan YAML."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Output directory for executor phase review."),
 ) -> None:
     """Review S8 executor result through S7 phase acceptance."""
     from agent_runtime.executors.phase_connector import review_phase_executor_result
 
-    if not ingested_result.exists():
-        console.print(f"[red]Error: ingested result does not exist: {ingested_result}[/red]")
+    actual_ingested_result = ingested_result
+    actual_phase_plan = phase_plan
+    actual_out = out
+
+    if actual_ingested_result is None:
+        if project:
+            actual_ingested_result = Path("projects") / project / "executor_results" / "ingested_result.yml"
+            if not actual_ingested_result.exists():
+                candidates = list(Path("projects").glob(f"{project}/**/ingested_result.yml"))
+                if candidates:
+                    actual_ingested_result = candidates[0]
+                else:
+                    console.print(f"[red]Error: ingested_result.yml not found for project {project}[/red]")
+                    raise typer.Exit(code=1)
+        else:
+            console.print("[red]Error: Either --ingested-result or --project must be specified.[/red]")
+            raise typer.Exit(code=1)
+
+    if actual_phase_plan is None:
+        if project:
+            actual_phase_plan = Path("projects") / project / "project_brain" / "phase_plan.yml"
+            if not actual_phase_plan.exists() and phase:
+                brain_dir = Path("projects") / project / "project_brain"
+                brain_dir.mkdir(parents=True, exist_ok=True)
+                brief_path = brain_dir / "project_brief.yml"
+                roadmap_path = brain_dir / "roadmap.yml"
+                brief = {}
+                roadmap = {}
+                if brief_path.exists():
+                    brief = yaml.safe_load(brief_path.read_text(encoding="utf-8")) or {}
+                if roadmap_path.exists():
+                    roadmap = yaml.safe_load(roadmap_path.read_text(encoding="utf-8")) or {}
+
+                from agent_runtime.program_manager.phase_planner import build_phase_plan
+                try:
+                    phase_dict = build_phase_plan(brief, roadmap, phase_id=phase)
+                except Exception:
+                    phase_dict = {
+                        "project": project,
+                        "phase_id": phase,
+                        "goal": f"Execute {phase}",
+                    }
+                actual_phase_plan.write_text(yaml.safe_dump(phase_dict, sort_keys=False, allow_unicode=True), encoding="utf-8")
+            if not actual_phase_plan.exists():
+                console.print(f"[red]Error: phase plan not found for project {project}[/red]")
+                raise typer.Exit(code=1)
+        else:
+            console.print("[red]Error: Either --phase-plan or --project must be specified.[/red]")
+            raise typer.Exit(code=1)
+
+    if actual_out is None:
+        if project:
+            actual_out = Path("projects") / project / "evidence"
+        else:
+            console.print("[red]Error: Either --out or --project must be specified.[/red]")
+            raise typer.Exit(code=1)
+
+    if not actual_ingested_result.exists():
+        console.print(f"[red]Error: ingested result does not exist: {actual_ingested_result}[/red]")
         raise typer.Exit(code=1)
-    if not phase_plan.exists():
-        console.print(f"[red]Error: phase plan does not exist: {phase_plan}[/red]")
+    if not actual_phase_plan.exists():
+        console.print(f"[red]Error: phase plan does not exist: {actual_phase_plan}[/red]")
         raise typer.Exit(code=1)
-    result = review_phase_executor_result(ingested_result, phase_plan, out)
+
+    result = review_phase_executor_result(actual_ingested_result, actual_phase_plan, actual_out)
     console.print("[green]S8 executor phase review generated[/green]")
     console.print(result)
     if not result.get("accepted"):

@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+def render_handoff(task_packet: dict, out_dir: Path) -> Path:
+    packet = task_packet.get("task_packet") or task_packet
+    executor_type = packet.get("executor_type", "local_cli_generic")
+    
+    title = f"# External Execution Handoff: {executor_type}"
+    
+    lines = [
+        title,
+        "",
+        "## Objective",
+        packet.get("objective", "No objective provided."),
+        "",
+        "## Context Summary",
+        packet.get("context_summary", "No context summary provided."),
+        "",
+        "## Allowed Files",
+    ]
+    for f in packet.get("allowed_files") or []:
+        lines.append(f"- {f}")
+    lines.append("")
+    lines.append("## Forbidden Files")
+    for f in packet.get("forbidden_files") or []:
+        lines.append(f"- {f}")
+    lines.append("")
+    
+    lines.append("## Required Outputs")
+    for out in packet.get("required_outputs") or []:
+        lines.append(f"- {out}")
+    lines.append("")
+    
+    lines.append("## Acceptance Criteria")
+    for criteria in packet.get("acceptance_criteria") or []:
+        lines.append(f"- {criteria}")
+    lines.append("")
+    
+    lines.append("## Safety Notes")
+    for note in packet.get("safety_notes") or []:
+        lines.append(f"- {note}")
+    lines.append("")
+    
+    # Custom executor-specific instructions
+    if executor_type in {"claude_code_handoff", "claude_code"}:
+        lines.extend([
+            "## Claude Code Instructions",
+            "- Use the `claude` CLI to execute changes.",
+            "- Ensure no forbidden commands (like push) are run.",
+        ])
+    elif executor_type == "hermes_handoff":
+        lines.extend([
+            "## Hermes Instructions",
+            "- Use hermes agent to execute the requested changes.",
+        ])
+    elif executor_type in {"codex_handoff", "codex"}:
+        lines.extend([
+            "## Codex Instructions",
+            "- Use Codex tool to apply code changes.",
+        ])
+    elif executor_type == "manual_patch_submitter":
+        lines.extend([
+            "## Manual Patch Instructions",
+            "- Create standard diffs for manual review.",
+        ])
+    else:
+        lines.extend([
+            "## General CLI Instructions",
+            "- Execute the task using standard local CLI workflow.",
+        ])
+        
+    lines.append("")
+    content = "\n".join(lines)
+    
+    handoff_file = out_dir / "external_execution_handoff.md"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    handoff_file.write_text(content, encoding="utf-8")
+    return handoff_file

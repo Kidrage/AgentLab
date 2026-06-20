@@ -1,0 +1,215 @@
+# Phase Acceptance Templates
+# Maps phase titles to their default acceptance gate IDs (list of strings).
+
+compile_mission:
+  gates:
+    - contract_syntax_valid
+    - intent_clear
+
+ask_clarification:
+  gates:
+    - questions_concise
+
+inspect_repo_or_create_blueprint:
+  gates:
+    - repo_scouted
+
+define_architecture:
+  gates:
+    - architecture_sound
+
+create_task_packets:
+  gates:
+    - tasks_decomposed
+
+executor_patch_loop:
+  gates:
+    - diff_reviewed
+
+run_tests:
+  gates:
+    - tests_pass
+
+phase_acceptance:
+  gates:
+    - acceptance_verdict
+
+documentation_and_delivery:
+  gates:
+    - delivery_complete
+
+define_audience_style_constraints:
+  gates:
+    - style_defined
+
+create_content_constitution:
+  gates:
+    - constitution_written
+
+create_world_or_topic_bible:
+  gates:
+    - bible_documented
+
+build_outline:
+  gates:
+    - outline_logical
+
+create_section_or_scene_cards:
+  gates:
+    - cards_detailed
+
+draft_batch:
+  gates:
+    - draft_complete
+
+continuity_review:
+  gates:
+    - continuity_passes
+
+revision_loop:
+  gates:
+    - revisions_applied
+
+final_package:
+  gates:
+    - package_validated
+
+define_platform_audience_style:
+  gates:
+    - platform_specs_defined
+
+research_or_source_plan:
+  gates:
+    - research_plan_sound
+
+script_generation:
+  gates:
+    - script_approved
+
+storyboard_or_shot_plan:
+  gates:
+    - storyboard_complete
+
+asset_plan:
+  gates:
+    - assets_listed
+
+video_tool_handoff:
+  gates:
+    - handoff_complete
+
+qa_review:
+  gates:
+    - qa_passed
+
+revision_notes:
+  gates:
+    - adjust_completed
+
+delivery_package:
+  gates:
+    - delivery_package_valid
+
+define_research_scope:
+  gates:
+    - scope_bounded
+
+ingest_sources:
+  gates:
+    - sources_ingested
+
+extract_metadata:
+  gates:
+    - metadata_extracted
+
+build_fact_table:
+  gates:
+    - facts_sound
+
+summarize_by_topic:
+  gates:
+    - summaries_structured
+
+create_archive_index:
+  gates:
+    - index_created
+
+evidence_quality_review:
+  gates:
+    - evidence_quality
+
+final_report:
+  gates:
+    - report_synthesized
+
+define_document_scope:
+  gates:
+    - docs_scope_valid
+
+ingest_documents:
+  gates:
+    - docs_ingested
+
+extract_text_and_metadata:
+  gates:
+    - parsing_complete
+
+build_index:
+  gates:
+    - index_valid
+
+quality_review:
+  gates:
+    - quality_thresholds_met
+
+create_knowledge_base:
+  gates:
+    - kb_structure_valid
+
+define_modalities_and_assets:
+  gates:
+    - modalities_defined
+
+create_asset_pipeline:
+  gates:
+    - pipeline_mapped
+
+generate_or_source_assets:
+  gates:
+    - assets_sourced
+
+integrate_and_assemble:
+  gates:
+    - assembly_passed
+
+cross_modal_qa:
+  gates:
+    - cross_modal_consistency
+
+define_automation_scope:
+  gates:
+    - boundaries_set
+
+create_script_or_workflow:
+  gates:
+    - code_generated
+
+test_dry_run:
+  gates:
+    - dry_run_passes
+
+deploy_and_monitor:
+  gates:
+    - monitor_configured
+
+review_clarification:
+  gates:
+    - clarification_verified
+
+resolve_unknowns:
+  gates:
+    - unknowns_resolved
+
+update_mission_contract:
+  gates:
+    - mission_contract_updated

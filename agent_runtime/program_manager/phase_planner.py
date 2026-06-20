@@ -10,23 +10,26 @@ def build_phase_plan(project_brief: dict, roadmap: dict, phase_id: str | None = 
         selected = milestones[0]
     selected = selected or {"phase_id": phase_id or "phase_1", "goal": "Plan the next safe phase"}
     task_type = str(project_brief.get("task_type") or "unknown")
-    outputs = _outputs_for_task_type(task_type, str(selected.get("phase_id")))
+    
+    outputs = selected.get("expected_artifacts") or _outputs_for_task_type(task_type, str(selected.get("phase_id")))
+    acceptance_criteria = selected.get("acceptance_gates") or [
+        "all_required_outputs_have_evidence",
+        "phase_evidence_ledger_written",
+        "no_policy_bypass_or_external_auto_execution",
+    ]
+    
     phase = PhasePlan(
         phase_id=str(selected.get("phase_id")),
         goal=str(selected.get("goal")),
-        scope=["planning", "artifact_generation", "evidence_review"],
-        inputs=["project_brief.yml", "roadmap.yml", "milestone_graph.yml"],
+        scope=selected.get("scope") or ["planning", "artifact_generation", "evidence_review"],
+        inputs=selected.get("inputs") or ["project_brief.yml", "roadmap.yml", "milestone_graph.yml"],
         outputs=outputs,
-        acceptance_criteria=[
-            "all_required_outputs_have_evidence",
-            "phase_evidence_ledger_written",
-            "no_policy_bypass_or_external_auto_execution",
-        ],
-        required_capabilities=[str(item) for item in project_brief.get("required_capabilities") or []],
-        recommended_skills=[f"{task_type}_planner", "evidence_reviewer"],
-        risk_flags=[str(item) for item in project_brief.get("risk_flags") or []],
-        human_decision_points=["approve_phase_close", "request_replanning"],
-        evidence_required=[f"{item}.yml" for item in outputs],
+        acceptance_criteria=acceptance_criteria,
+        required_capabilities=selected.get("required_capabilities") or [str(item) for item in project_brief.get("required_capabilities") or []],
+        recommended_skills=selected.get("recommended_skills") or [f"{task_type}_planner", "evidence_reviewer"],
+        risk_flags=selected.get("risk_flags") or [str(item) for item in project_brief.get("risk_flags") or []],
+        human_decision_points=selected.get("human_decision_points") or ["approve_phase_close", "request_replanning"],
+        evidence_required=selected.get("evidence_required") or [f"{item}.yml" for item in outputs],
     )
     data = to_plain_data(phase)
     data["project"] = project_brief.get("project")

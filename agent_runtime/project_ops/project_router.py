@@ -33,6 +33,9 @@ PROJECT_DIRS = [
     "artifacts",
     "acceptance",
     "cost",
+    "evidence",
+    "task_packets",
+    "executor_results",
 ]
 
 
@@ -221,12 +224,22 @@ def project_status(repo_root: Path, project_id: str) -> dict[str, Any]:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         return list(data.get(key, []))
 
+    # Support dictionary next_actions
+    next_actions_path = brain_root / "next_actions.yml"
+    next_actions_data = {}
+    if next_actions_path.exists():
+        try:
+            next_actions_data = yaml.safe_load(next_actions_path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            pass
+
     return {
         "project": manifest,
         "task_counts": counts,
         "unresolved_questions": read_yaml_list("unresolved_questions.yml", "questions"),
         "known_risks": read_yaml_list("known_risks.yml", "risks"),
         "next_actions": read_yaml_list("next_actions.yml", "actions"),
+        "next_actions_data": next_actions_data,
     }
 
 
@@ -249,8 +262,18 @@ def render_project_status(status: dict[str, Any]) -> str:
     risks = status.get("known_risks", [])
     lines.extend([f"- {risk}" for risk in risks] or ["No known risks recorded."])
     lines.extend(["", "## Next Actions", ""])
-    actions = status.get("next_actions", [])
-    lines.extend([f"- {action}" for action in actions] or ["No next actions recorded."])
+    
+    next_actions_data = status.get("next_actions_data", {})
+    if next_actions_data:
+        if "next_action" in next_actions_data:
+            lines.append(f"- Next Action: {next_actions_data.get('next_action')}")
+        if "next_phase_id" in next_actions_data:
+            lines.append(f"- Next Phase: {next_actions_data.get('next_phase_id')}")
+        if "reason" in next_actions_data:
+            lines.append(f"- Reason: {next_actions_data.get('reason')}")
+    else:
+        actions = status.get("next_actions", [])
+        lines.extend([f"- {action}" for action in actions] or ["No next actions recorded."])
     lines.append("")
     return "\n".join(lines)
 

@@ -74,14 +74,54 @@ def project_route(
 
 @app.command("project-init")
 def project_init(
-    project_id: str = typer.Option(..., "--project-id"),
-    project_type: str = typer.Option("user_project", "--type"),
+    project_id: Optional[str] = typer.Option(None, "--project-id"),
+    project_type: Optional[str] = typer.Option(None, "--type"),
     title: str = typer.Option("", "--title"),
+    mission_contract: Optional[Path] = typer.Option(None, "--mission-contract", help="Path to mission contract YAML."),
+    workflow_plan: Optional[Path] = typer.Option(None, "--workflow-plan", help="Path to project workflow plan YAML."),
+    project: Optional[str] = typer.Option(None, "--project", help="Project ID override."),
     json_output: bool = typer.Option(False, "--json"),
     root: Optional[Path] = typer.Option(None, "--root"),
 ) -> None:
     repo_root = (root or repo_root_from_cwd()).resolve()
-    result = init_project(repo_root, project_id=project_id, project_type=project_type, title=title or project_id)
+
+    p_id = project or project_id
+    if not p_id:
+        if mission_contract and mission_contract.exists():
+            try:
+                contract = yaml.safe_load(mission_contract.read_text(encoding="utf-8")) or {}
+                p_id = contract.get("project_id") or contract.get("project")
+            except Exception:
+                pass
+        if not p_id and workflow_plan and workflow_plan.exists():
+            try:
+                plan_data = yaml.safe_load(workflow_plan.read_text(encoding="utf-8")) or {}
+                p_id = plan_data.get("project_id")
+            except Exception:
+                pass
+    p_id = p_id or "DemoProject"
+
+    p_type = project_type
+    if not p_type and mission_contract and mission_contract.exists():
+        try:
+            contract = yaml.safe_load(mission_contract.read_text(encoding="utf-8")) or {}
+            p_type = contract.get("project_type")
+        except Exception:
+            pass
+    p_type = p_type or "user_project"
+
+    result = init_project(repo_root, project_id=p_id, project_type=p_type, title=title or p_id)
+    
+    if mission_contract and mission_contract.exists():
+        from agent_runtime.program_manager.project_brain import build_project_brain
+        brain_root = repo_root / "projects" / p_id / "project_brain"
+        build_project_brain(
+            mission_contract_path=mission_contract,
+            project=p_id,
+            out_dir=brain_root,
+            workflow_plan_path=workflow_plan,
+        )
+
     payload = asdict(result)
     if json_output:
         print(json.dumps(payload, indent=2, ensure_ascii=False))

@@ -1,0 +1,293 @@
+# Project Workflow Templates — M1-3
+# Defines the canonical templates with phase lists and details.
+
+schema_version: 1
+
+templates:
+  codebase_build_project:
+    template_id: codebase_build_workflow
+    project_type: codebase_build_project
+    phases:
+      - title: compile_mission
+        goal: "Compile user prompt into structured mission contract."
+        required_inputs: ["user_prompt"]
+        recommended_executors: ["Supervisor"]
+      - title: inspect_repo_or_create_blueprint
+        goal: "Inspect repository files, structure, and dependencies."
+        required_inputs: ["mission_contract.yml"]
+        recommended_executors: ["RepoScout"]
+      - title: define_architecture
+        goal: "Define the target architecture and changes plan."
+        required_inputs: ["repo_context.yml"]
+        recommended_executors: ["Researcher"]
+      - title: create_task_packets
+        goal: "Decompose the architecture plan into discrete task packets."
+        required_inputs: ["architecture_doc.md"]
+        recommended_executors: ["Supervisor"]
+      - title: executor_patch_loop
+        goal: "Apply patches and implement changes in a loop."
+        required_inputs: ["task_packet.yml"]
+        recommended_executors: ["Coder"]
+      - title: run_tests
+        goal: "Run test suites and compile check to verify correctness."
+        required_inputs: ["executor_result.yml"]
+        recommended_executors: ["TesterAuditor"]
+      - title: phase_acceptance
+        goal: "Perform final verification gates review."
+        required_inputs: ["test_results.yml"]
+        recommended_executors: ["Verifier"]
+      - title: documentation_and_delivery
+        goal: "Produce delivery package and changelog."
+        required_inputs: ["phase_acceptance.yml"]
+        recommended_executors: ["Archivist"]
+
+  longform_text_project:
+    template_id: longform_text_workflow
+    project_type: longform_text_project
+    phases:
+      - title: compile_mission
+        goal: "Compile creative prompt into structured mission contract."
+        required_inputs: ["user_prompt"]
+        recommended_executors: ["Supervisor"]
+      - title: define_audience_style_constraints
+        goal: "Define audience demographics, formatting styles, and tone constraints."
+        required_inputs: ["mission_contract.yml"]
+        recommended_executors: ["Researcher"]
+      - title: create_content_constitution
+        goal: "Define stylistic rules and editorial policies."
+        required_inputs: ["style_guide.md"]
+        recommended_executors: ["Researcher"]
+      - title: create_world_or_topic_bible
+        goal: "Build fact bible, settings, character descriptions or topical guide."
+        required_inputs: ["content_constitution.md"]
+        recommended_executors: ["Researcher"]
+      - title: build_outline
+        goal: "Develop chapter-by-chapter story outline or topic list."
+        required_inputs: ["world_bible.md"]
+        recommended_executors: ["Supervisor"]
+      - title: create_section_or_scene_cards
+        goal: "Create outline detail cards for drafting guidance."
+        required_inputs: ["chapter_outline.yml"]
+        recommended_executors: ["Supervisor"]
+      - title: draft_batch
+        goal: "Generate drafts sequentially for scenes or sections."
+        required_inputs: ["scene_or_section_cards.yml"]
+        recommended_executors: ["Coder"]
+      - title: continuity_review
+        goal: "Verify logic flow, references consistency and narrative consistency."
+        required_inputs: ["draft_manuscript.md"]
+        recommended_executors: ["TesterAuditor"]
+      - title: revision_loop
+        goal: "Apply corrections from review findings into manuscript."
+        required_inputs: ["continuity_ledger.yml"]
+        recommended_executors: ["Coder"]
+      - title: final_package
+        goal: "Final review, formatting and packaging."
+        required_inputs: ["revision_notes.md"]
+        recommended_executors: ["Archivist"]
+
+  video_generation_project:
+    template_id: video_generation_workflow
+    project_type: video_generation_project
+    phases:
+      - title: compile_mission
+        goal: "Compile prompt into structured video production contract."
+        required_inputs: ["user_prompt"]
+        recommended_executors: ["Supervisor"]
+      - title: define_platform_audience_style
+        goal: "Define platform formatting specs, constraints, and target style."
+        required_inputs: ["mission_contract.yml"]
+        recommended_executors: ["Researcher"]
+      - title: research_or_source_plan
+        goal: "Gather facts, research topics, and formulate references plan."
+        required_inputs: ["platform_audience_style_brief.md"]
+        recommended_executors: ["Researcher"]
+      - title: script_generation
+        goal: "Write production-ready script with timings and visual cues."
+        required_inputs: ["research_notes.md"]
+        recommended_executors: ["Coder"]
+      - title: storyboard_or_shot_plan
+        goal: "Decompose script into storyboard frames and visual layout."
+        required_inputs: ["script.txt"]
+        recommended_executors: ["Coder"]
+      - title: asset_plan
+        goal: "Define visual, audio, and background asset sourcing list."
+        required_inputs: ["storyboard.yml"]
+        recommended_executors: ["Supervisor"]
+      - title: video_tool_handoff
+        goal: "Generate tool parameters or code packages for production."
+        required_inputs: ["asset_manifest.yml"]
+        recommended_executors: ["Coder"]
+      - title: qa_review
+        goal: "Review production draft for timing, assets, and visual flow."
+        required_inputs: ["tool_handoff_packet.yml"]
+        recommended_executors: ["TesterAuditor"]
+      - title: revision_notes
+        goal: "Document necessary script/asset adjustments."
+        required_inputs: ["qa_report.yml"]
+        recommended_executors: ["Verifier"]
+      - title: delivery_package
+        goal: "Deliver final packed assets and scripts."
+        required_inputs: ["revision_notes.md"]
+        recommended_executors: ["Archivist"]
+
+  research_archive_project:
+    template_id: research_archive_workflow
+    project_type: research_archive_project
+    phases:
+      - title: compile_mission
+        goal: "Compile research prompt into mission contract."
+        required_inputs: ["user_prompt"]
+        recommended_executors: ["Supervisor"]
+      - title: define_research_scope
+        goal: "Determine research boundaries, questions, and sources list."
+        required_inputs: ["mission_contract.yml"]
+        recommended_executors: ["Researcher"]
+      - title: ingest_sources
+        goal: "Ingest reference articles, PDFs, websites, or datasets."
+        required_inputs: ["research_scope.md"]
+        recommended_executors: ["RepoScout"]
+      - title: extract_metadata
+        goal: "Extract source metadata, authors, and citation markers."
+        required_inputs: ["source_manifest.yml"]
+        recommended_executors: ["RepoScout"]
+      - title: build_fact_table
+        goal: "Build structured fact table with source mapping."
+        required_inputs: ["extracted_text.txt"]
+        recommended_executors: ["Coder"]
+      - title: summarize_by_topic
+        goal: "Synthesize facts into topic summaries."
+        required_inputs: ["fact_table.yml"]
+        recommended_executors: ["Coder"]
+      - title: create_archive_index
+        goal: "Index and organize research catalog."
+        required_inputs: ["topic_summaries.yml"]
+        recommended_executors: ["Supervisor"]
+      - title: evidence_quality_review
+        goal: "Verify source quality, bias, and citation completeness."
+        required_inputs: ["archive_index.yml"]
+        recommended_executors: ["TesterAuditor"]
+      - title: final_report
+        goal: "Produce final synthesized report with bibliography."
+        required_inputs: ["evidence_quality_report.yml"]
+        recommended_executors: ["Archivist"]
+
+  document_knowledgebase_project:
+    template_id: document_knowledgebase_workflow
+    project_type: document_knowledgebase_project
+    phases:
+      - title: compile_mission
+        goal: "Compile document prompt into mission contract."
+        required_inputs: ["user_prompt"]
+        recommended_executors: ["Supervisor"]
+      - title: define_document_scope
+        goal: "Identify document input types and parsing constraints."
+        required_inputs: ["mission_contract.yml"]
+        recommended_executors: ["Researcher"]
+      - title: ingest_documents
+        goal: "Ingest PDF, DOCX, or text files."
+        required_inputs: ["document_scope.md"]
+        recommended_executors: ["RepoScout"]
+      - title: extract_text_and_metadata
+        goal: "Extract texts and schema metadata."
+        required_inputs: ["ingestion_manifest.yml"]
+        recommended_executors: ["Coder"]
+      - title: build_index
+        goal: "Generate terms, references, and topical indexes."
+        required_inputs: ["extracted_text.txt"]
+        recommended_executors: ["Coder"]
+      - title: quality_review
+        goal: "Audit parsing accuracy, character encodings, and missing sections."
+        required_inputs: ["metadata_index.yml"]
+        recommended_executors: ["TesterAuditor"]
+      - title: create_knowledge_base
+        goal: "Compile indexes and structured documents into KB schema."
+        required_inputs: ["quality_report.yml"]
+        recommended_executors: ["Supervisor"]
+      - title: delivery_package
+        goal: "Deliver compiled KB schema and export index."
+        required_inputs: ["knowledge_base_index.yml"]
+        recommended_executors: ["Archivist"]
+
+  multimodal_content_project:
+    template_id: multimodal_content_workflow
+    project_type: multimodal_content_project
+    phases:
+      - title: compile_mission
+        goal: "Compile content prompt into mission contract."
+        required_inputs: ["user_prompt"]
+        recommended_executors: ["Supervisor"]
+      - title: define_modalities_and_assets
+        goal: "Identify visual, text, audio, and interactive modality pipelines."
+        required_inputs: ["mission_contract.yml"]
+        recommended_executors: ["Researcher"]
+      - title: create_asset_pipeline
+        goal: "Create transformation scripts and file paths for assets."
+        required_inputs: ["modality_plan.md"]
+        recommended_executors: ["Coder"]
+      - title: generate_or_source_assets
+        goal: "Synthesize or source required text, images, or audio clips."
+        required_inputs: ["asset_pipeline_scripts.py"]
+        recommended_executors: ["Coder"]
+      - title: integrate_and_assemble
+        goal: "Integrate modalities into final composite format."
+        required_inputs: ["asset_manifest.yml"]
+        recommended_executors: ["Coder"]
+      - title: cross_modal_qa
+        goal: "Verify synchronizations, layouts, and link formats."
+        required_inputs: ["integrated_draft.md"]
+        recommended_executors: ["TesterAuditor"]
+      - title: delivery_package
+        goal: "Package assets and integrated manifest."
+        required_inputs: ["cross_modal_qa_report.yml"]
+        recommended_executors: ["Archivist"]
+
+  local_automation_project:
+    template_id: local_automation_workflow
+    project_type: local_automation_project
+    phases:
+      - title: compile_mission
+        goal: "Compile automation prompt into mission contract."
+        required_inputs: ["user_prompt"]
+        recommended_executors: ["Supervisor"]
+      - title: define_automation_scope
+        goal: "Define local directories, filesystem boundaries, and constraints."
+        required_inputs: ["mission_contract.yml"]
+        recommended_executors: ["Researcher"]
+      - title: create_script_or_workflow
+        goal: "Generate target automation shell script or python package."
+        required_inputs: ["automation_scope.md"]
+        recommended_executors: ["Coder"]
+      - title: test_dry_run
+        goal: "Execute automation script in dry run / simulation mode."
+        required_inputs: ["automation_script.sh"]
+        recommended_executors: ["TesterAuditor"]
+      - title: deploy_and_monitor
+        goal: "Run script with live side-effects and write execution logs."
+        required_inputs: ["dry_run_results.yml"]
+        recommended_executors: ["Archivist"]
+
+  unknown_project:
+    template_id: unknown_project_workflow
+    project_type: unknown_project
+    phases:
+      - title: compile_mission
+        goal: "Compile unclassified prompt into mission contract."
+        required_inputs: ["user_prompt"]
+        recommended_executors: ["Supervisor"]
+      - title: ask_clarification
+        goal: "Construct clarification questions for the user."
+        required_inputs: ["mission_contract.yml"]
+        recommended_executors: ["Supervisor"]
+      - title: review_clarification
+        goal: "Wait for and evaluate user clarification responses."
+        required_inputs: ["clarification_questions.md"]
+        recommended_executors: ["Supervisor"]
+      - title: resolve_unknowns
+        goal: "Re-evaluate project capabilities and update metadata."
+        required_inputs: ["user_clarification.txt"]
+        recommended_executors: ["Researcher"]
+      - title: update_mission_contract
+        goal: "Regenerate final mission contract with correct details."
+        required_inputs: ["resolved_unknowns.yml"]
+        recommended_executors: ["Supervisor"]
