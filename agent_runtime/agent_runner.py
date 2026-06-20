@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from cli_executor import CliAgentNotAvailable, resolve_cli_profile, run_cli_agent
 from config_loader import load_agentlab_configs
 from llm_provider import generate_text, resolve_env_value, resolve_llm_settings
 from policies import assert_path_allowed
@@ -198,6 +199,36 @@ def run_agent_model(
     operational_result = maybe_run_operational_agent(plan, agent_name)
     if operational_result is not None:
         return operational_result
+
+    # ── CLI Agent dispatch (executor_type: cli_agent) ─────────────────────────
+    # Attempt to route this agent call through a local CLI agent (e.g. hermes,
+    # claude_code) as defined in config/agent_model_profiles.yml.  If the
+    # binary is not installed, we fall through to the direct API path below.
+    configs_for_cli = load_agentlab_configs(agentlab_root)
+    agent_model_profiles = configs_for_cli.get("agent_model_profiles", {})
+    budget_mode = getattr(plan, "budget_mode", "balanced") or "balanced"
+    agent_role_key = agent_name.lower().replace(" ", "_")
+    # Map AgentLab canonical names to profile role keys
+    _role_key_map = {
+        "supervisor": "supervisor",
+        "reposcout": "reposcout",
+        "researcher": "researcher",
+        "interfacemapper": "interface_mapper",
+        "coder": "coder",
+        "promptengineer": "execution_prompt_engineer",
+        "testerauditor": "tester_auditor",
+        "verifier": "verifier",
+        "archivist": "archivist",
+    }
+    agent_role_key = _role_key_map.get(agent_name.lower(), agent_name.lower())
+    cli_role_profile = resolve_cli_profile(agent_model_profiles, budget_mode, agent_role_key)
+    if cli_role_profile is not None:
+        cli_result = run_cli_agent(plan, agent_name, cli_role_profile)
+        if not isinstance(cli_result, CliAgentNotAvailable):
+            # CLI agent ran (success or failure) — return without touching API.
+            return cli_result
+        # Binary absent: fall through to direct API path below.
+    # ─────────────────────────────────────────────────────────────────────────
 
     settings, configs = resolve_agent_settings(
         agentlab_root,
