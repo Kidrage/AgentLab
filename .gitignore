@@ -96,3 +96,8 @@ secrets/
 memory/global/skills/
 !config/skill_vault.yml
 !docs/SKILL_VAULT.md
+
+# Agent Coordination (local only, synced via rsync)
+.agents/locks/
+.agents/agent_states/
+
