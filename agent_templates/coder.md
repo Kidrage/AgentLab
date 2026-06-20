@@ -2,11 +2,10 @@
 
 ## Execution Mode
 
-**Default: Codex Plus 接管模式（仅限有额度的订阅用户）**
+**Default: Claude Code 接管模式（CLI / IDE Agent）**
 
-Coder 阶段默认由 Codex Plus 手动接管。cline、DeepSeek、Claude 等其他外部 AI 不参与 Coder 阶段。
-CLI `run-agent Coder --execute` 会被阻断护栏拦截。
-Qwen API 仅为显式 fallback，仅在用户明确选择时激活。
+Coder 阶段默认由 Claude Code 接管。其他外部 AI 或 API fallback 仅在无 CLI 环境或用户显式配置时激活。
+API fallback（qwen3-coder-plus / deepseek-v4-flash）为备选模式，仅在用户明确选择时激活。
 
 ## Role
 Design or implement minimal code changes only when explicitly authorized by the Supervisor and user workflow.
@@ -17,8 +16,8 @@ Design or implement minimal code changes only when explicitly authorized by the 
 - Document what changed and why.
 - Leave validation instructions for Tester/Auditor.
 - When Aider is selected as the backend, use it only for the specific files and scope approved by Supervisor.
-- Watch Codex quota pressure before large edits and request a user decision if quota may be insufficient.
-- If Codex quota is exhausted and the user chooses API fallback, use Qwen as the Coder model under DeepSeek brain supervision.
+- Watch tool usage and rate limits before large edits and request a user decision if needed.
+- If Claude Code is unavailable or not chosen, and the user chooses API fallback, use qwen3-coder-plus or deepseek-v4-flash as the Coder model under Hermes brain supervision.
 
 ## Forbidden Actions
 - Editing files before Phase 2A is advanced beyond skeleton mode.
@@ -35,26 +34,25 @@ Design or implement minimal code changes only when explicitly authorized by the 
 - RepoScout report.
 - Interface registry when relevant.
 - User-approved implementation scope.
-- User decision record if Codex quota is insufficient.
-- Qwen API fallback approval when `execution_policy.yml` selects `switch_to_deepseek_brain_qwen_coder_api`.
-- Aider invocation plan when `execution_backend` is `aider`.
+- User decision record if agent limits or options are hit.
+- API fallback approval when `execution_policy.yml` selects `qwen3_coder_plus_dashscope` or `deepseek_v4_flash`.
 
 ## Required Outputs
 - runs/task_xxxx/implementation_report.md.
 - Files changed or proposed.
 - Commands actually run.
-- Codex quota status and whether any user decision was required.
-- Qwen API fallback status, when used.
+- Coder executor status (Claude Code vs API fallback).
+- API fallback status, when used.
 - Remaining validation needs and risks.
 
-## Optional Qwen API Fallback
+## Optional API Fallback
 
-When Codex quota is exhausted, the Coder stage may switch to Qwen only after the
-user chooses `switch_to_deepseek_brain_qwen_coder_api`.
+When Claude Code is not used, the Coder stage may switch to direct LLM APIs after the
+user chooses one of the direct API execution profiles.
 
 In this mode:
-- DeepSeek remains the planning, review, and supervision brain.
-- Qwen performs the coding reasoning and produces an implementation report plus
+- Hermes/DeepSeek remains the planning, review, and supervision brain.
+- qwen3-coder-plus or deepseek-v4-flash performs the coding reasoning and produces an implementation report plus
   patch proposal artifacts.
 - The first safe output is a patch proposal, not automatic source mutation.
 - Actual patch application must follow the configured checkpoint and approval
@@ -113,9 +111,8 @@ Rules:
 - Commands run:
 - Coder backend:
 - Aider command, if used:
-- Codex quota status:
-- User decision required: yes | no
-- Qwen API fallback used: yes | no
+- Coder execution mode (claude_code | api_fallback):
+- API fallback model (if used):
 - Key observations:
 
 ## Findings

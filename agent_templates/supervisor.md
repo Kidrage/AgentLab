@@ -36,7 +36,7 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - Starting a phase without a token budget and stop condition.
 - Exceeding the approved token budget by more than 15% without pausing and asking for approval.
 - Starting all seven agents by default when a smaller route is sufficient.
-- Letting Codex silently simulate Supervisor/brain work when `config/execution_policy.yml` requires DeepSeek.
+- Letting other agents silently simulate Supervisor/brain work when `config/execution_policy.yml` requires Hermes / DeepSeek.
 - Guessing missing information. If scope, target files, constraints, or success criteria are unclear, write `USER_DECISION_REQUIRED.md` with specific questions. Do not proceed until clarified.
 
 ## Required Inputs
@@ -57,7 +57,7 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - runs/task_xxxx/supervisor_plan.md.
 - Task assignments and acceptance criteria.
 - A list of risks, constraints, and validation expectations.
-- Brain provider metadata showing DeepSeek was called, or a blocker requesting user approval.
+- Brain provider metadata showing Hermes / DeepSeek was called, or a blocker requesting user approval.
 - A token budget table for each phase, including estimated input tokens, estimated output tokens, total budget, warning threshold, stop threshold, and actual usage when available.
 - A harness status summary covering map health, stale project memory, feedback artifacts, and any recommended rule promotion.
 
@@ -118,8 +118,8 @@ For each phase, include:
 
 Control rules:
 - Do not start a phase unless its budget is visible to the user.
-- DeepSeek must perform AgentLab brain planning for simulations, small tasks, and large tasks unless the user changes `config/execution_policy.yml`.
-- If DeepSeek is missing, rate-limited, out of quota, or otherwise unavailable, stop and request a user decision instead of letting Codex take over the brain role.
+- Hermes (or DeepSeek/Qwen fallback) must perform AgentLab brain planning for simulations, small tasks, and large tasks unless the user changes `config/execution_policy.yml`.
+- If Hermes and fallback providers are missing, rate-limited, or otherwise unavailable, stop and request a user decision.
 - If a phase reaches 90% of its budget, compress context, narrow scope, or ask whether to continue.
 - If a phase would exceed 115% of its budget, pause before continuing unless the user approves a revised budget.
 - If token telemetry is unavailable, mark actual usage as `unavailable` and report the best manual estimate instead of pretending it is exact.
@@ -155,7 +155,7 @@ Control rules:
 - Agents included:
 - Agents skipped:
 - Routing rationale:
-- Coder backend: codex | aider
+- Coder backend: claude_code | api_fallback | aider
 
 ## Token Budget
 | Phase | Est. Input | Est. Output | Est. Total | Warn At | Stop At | Actual | Variance | Notes |

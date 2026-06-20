@@ -36,9 +36,8 @@ To keep the project clean, all agents must strictly adhere to the following **th
 
 ## Brain Layer Rules
 
-- DeepSeek owns Supervisor, planning, review, routing, and policy decisions
-  unless `config/execution_policy.yml` is explicitly changed by the user.
-- Codex Plus owns Coder execution and local file edits.
+- Hermes (local/remote agent) owns Supervisor/Brain Layer, planning, review, routing, and policy decisions, with direct LLM APIs (DeepSeek/Qwen) as low-cost/deterministic fallback.
+- Claude Code (local/remote agent) owns Coder execution and local file edits, with direct LLM APIs (qwen3-coder-plus / deepseek-v4-flash) as fallback.
 - Before execution, publish route, budget, editable scope, and validation gates.
 - Prefer the smallest safe route; include agents only when their function is
   needed.

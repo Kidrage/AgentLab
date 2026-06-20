@@ -37,7 +37,7 @@ def test_router_update_cli_validate_patched_policy(tmp_path: Path):
 
 def test_router_update_cli_never_modifies_config_executor_router(tmp_path: Path):
     original = Path("config/executor_router.yml").read_text(encoding="utf-8")
-    main(["stage", "--recommendations", "governance_runs/p2_provider_governance_demo/routing_recommendations.yml", "--router-policy", "config/executor_router.yml", "--output", str(tmp_path)])
+    main(["stage", "--recommendations", "docs/archive/historical_runs/governance_runs/p2_provider_governance_demo/routing_recommendations.yml", "--router-policy", "config/executor_router.yml", "--output", str(tmp_path)])
     (tmp_path / "APPROVE_ROUTER_PATCH").write_text("APPROVED\n", encoding="utf-8")
     main(["apply-copy", "--router-policy", "config/executor_router.yml", "--patch", str(tmp_path / "router_policy_patch.yml"), "--output", str(tmp_path / "patched.yml"), "--approval-dir", str(tmp_path)])
     assert Path("config/executor_router.yml").read_text(encoding="utf-8") == original
