@@ -25,7 +25,23 @@ jobs:
           python -m compileall agent_runtime agentlab_app.py scripts tests
       - name: Run tests
         run: |
-          timeout 300s python -m pytest -q -vv --tb=short
+          set -o pipefail
+          timeout 300s python -m pytest -q -vv --tb=short 2>&1 | tee pytest.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            python - <<'PY'
+          from pathlib import Path
+
+          log = Path("pytest.log").read_text(encoding="utf-8", errors="replace")
+          lines = log.splitlines()
+          failures = [line for line in lines if line.startswith("FAILED ")]
+          if not failures:
+              failures = [line for line in lines if "E   " in line][-10:]
+          message = "%0A".join(failures[-20:]) if failures else "pytest failed; inspect Run tests log"
+          print(f"::error title=pytest failure::{message}")
+          PY
+          fi
+          exit "$status"
       - name: S10 generalization gate
         run: |
           ./agentlab.sh eval-generalization --out acceptance_runs/s10_generalization_eval
