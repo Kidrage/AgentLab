@@ -125,12 +125,21 @@ Last verified: 2026-06-19 (S7/S8 local repair)
 
 ## M-Series — Product Mainline Repair
 
-Last verified: 2026-06-20 (M0/M1-1 local repair)
+Last verified: 2026-06-20 (M1-7 local repair)
 
 | Stage | Status | Key File(s) | Acceptance |
 |-------|--------|-------------|------------|
 | M0 Preflight / Baseline Lock | ✅ Active | `docs/M_SERIES_SCOPE.md` | `acceptance_runs/m0_preflight/M0_PREFLIGHT_REPORT.md` |
 | M1-1 External Project Registry + Capability Mapping | ✅ Active | `agent_runtime/external_projects/*`, `config/external_project_*.yml` | `acceptance_runs/m1_external_projects/M1_EXTERNAL_PROJECT_REGISTRY_REPORT.md` |
+| M1-2 Mission Compiler v2 | ✅ Active | `agent_runtime/brain/*`, `config/mission_compiler_v2.yml` | `acceptance_runs/m1_mission_compiler_v2/M1_MISSION_COMPILER_V2_REPORT.md` |
+| M1-3 Project Workflow Templates v2 | ✅ Active | `agent_runtime/project_workflows/*`, `config/project_workflow_templates.yml` | `acceptance_runs/m1_project_workflow_templates/M1_PROJECT_WORKFLOW_TEMPLATES_REPORT.md` |
+| M1-4 Project Brain v1 | ✅ Active | `agent_runtime/program_manager/project_brain.py` | `acceptance_runs/m1_project_brain/M1_PROJECT_BRAIN_REPORT.md` |
+| M1-5 Executor Connector Loop v1 | ✅ Active | `agent_runtime/executors/*`, `config/executor_connectors.yml` | `acceptance_runs/m1_executor_connector_loop/M1_EXECUTOR_CONNECTOR_LOOP_REPORT.md` |
+| M1-6 Document / Code / Media Ingestion v1 | ✅ Active | `agent_runtime/ingestion/*`, `config/ingestion_providers.yml` | `acceptance_runs/m1_ingestion/M1_INGESTION_REPORT.md` |
+| M1-7 Phase Acceptance v1 | ✅ Active | `agent_runtime/program_manager/phase_acceptance.py` | `acceptance_runs/m1_phase_acceptance/M1_PHASE_ACCEPTANCE_REPORT.md` |
+| M1-8 Recovery / Replanning v2 | ✅ Active | `agent_runtime/recovery/phase_recovery.py`, `agent_runtime/recovery/replanning.py` | `acceptance_runs/m1_recovery/M1_RECOVERY_REPORT.md` |
+| M1-9 Context Compression v1 | ✅ Active | `agent_runtime/program_manager/context_compressor.py` | `acceptance_runs/m1_context_compression/M1_CONTEXT_COMPRESSION_REPORT.md` |
+| M1-10 Generalization Demo Suite | ✅ Active | `agent_runtime/evaluation/m1_demo_runner.py` | `acceptance_runs/m1_generalization_demo/M1_GENERALIZATION_DEMO_REPORT.md` |
 
 **M-Series Safety Posture:**
 - Pre-M-series backup is tagged as `m-series-pre-m0-backup`.
@@ -140,4 +149,4 @@ Last verified: 2026-06-20 (M0/M1-1 local repair)
 - Network and shell permissions are false in M1-1 registry records.
 
 **Next recommended M-series stage:**
-- M1-2 Mission Compiler v2.
+- M2-1 Config Center.
