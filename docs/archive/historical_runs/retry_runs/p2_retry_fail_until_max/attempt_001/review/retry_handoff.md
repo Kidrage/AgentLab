@@ -12,7 +12,7 @@
 ## Reproduction Commands
 - `python -m compileall agent_runtime agentlab_app.py`
 - `python -m pytest -q`
-- `python scripts/p2_review_check.py --target /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input`
+- `python scripts/p2_review_check.py --target <PROJECT_ROOT>/retry_runs/p2_retry_fail_until_max/attempt_001/review_input`
 
 ## Acceptance Criteria
 - All required artifacts are present.

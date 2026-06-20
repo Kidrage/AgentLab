@@ -4,7 +4,7 @@
 Review target `p2_retry_fail_then_pass` completed with verdict `PASS`.
 
 ## Explore
-- target_dir: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_then_pass/attempt_002/review_input
+- target_dir: <PROJECT_ROOT>/retry_runs/p2_retry_fail_then_pass/attempt_002/review_input
 - required artifacts present: external_handoff.md, skill_usage_ledger.yml
 - required artifacts missing: none
 - claimed tests: python -m pytest -q tests/test_p2_retry_manager.py

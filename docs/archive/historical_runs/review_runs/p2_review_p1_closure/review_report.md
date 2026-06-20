@@ -4,7 +4,7 @@
 Review target `p1_closure` completed with verdict `PASS`.
 
 ## Explore
-- target_dir: /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p1_closure
+- target_dir: <PROJECT_ROOT>/acceptance_runs/p1_closure
 - required artifacts present: external_handoff.md, skill_usage_ledger.yml
 - required artifacts missing: none
 - claimed tests: python scripts/p1_acceptance_check.py --output acceptance_runs/p1_closure

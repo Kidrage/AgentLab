@@ -3,26 +3,11 @@
 ## Summary
 
 - Total files scanned: 801
-- Suspicious files: 12
+- Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0
 
-## Suspicious Files
-
-| Path | Lines | Max Line | Size | AST/YAML | Issues |
-|------|-------|----------|------|----------|--------|
-| docs/archive/historical_runs/executor_runs/p2_router_demo/external_execution_handoff.md | 59 | 218 | 1686 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/executor_runs/p2_router_handoff/external_execution_handoff.md | 59 | 218 | 1689 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/executor_runs/p2_router_mock/review/review_report.md | 36 | 122 | 1142 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/retry_runs/p2_retry_fail_then_pass/attempt_001/review/retry_handoff.md | 30 | 141 | 1131 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/retry_runs/p2_retry_fail_then_pass/attempt_001/review/review_report.md | 36 | 108 | 1258 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/retry_runs/p2_retry_fail_then_pass/attempt_002/review/review_report.md | 36 | 108 | 1031 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/retry_runs/p2_retry_fail_until_max/attempt_001/review/retry_handoff.md | 30 | 141 | 1131 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/retry_runs/p2_retry_fail_until_max/attempt_001/review/review_report.md | 36 | 108 | 1258 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/retry_runs/p2_retry_fail_until_max/attempt_002/review/retry_handoff.md | 30 | 141 | 1131 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/retry_runs/p2_retry_fail_until_max/attempt_002/review/review_report.md | 36 | 108 | 1258 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/retry_runs/p2_retry_pass_first/attempt_001/review/review_report.md | 36 | 104 | 1023 |  | contains local absolute /Users path |
-| docs/archive/historical_runs/review_runs/p2_review_p1_closure/review_report.md | 36 | 90 | 1008 |  | contains local absolute /Users path |
+## No suspicious files detected.
 
 ## Top 30 Files by Max Line Length
 
