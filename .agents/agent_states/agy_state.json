@@ -1,0 +1,9 @@
+{
+  "agent": "agy",
+  "updated": "2026-06-20T10:02:20Z",
+  "current_task": "idle",
+  "status": "idle",
+  "working_repo": "",
+  "branch": "",
+  "notes": "Initial state after local-first lock protocol deployment"
+}
