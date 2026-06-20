@@ -26,8 +26,10 @@ jobs:
       - name: Run tests
         run: |
           set -o pipefail
+          set +e
           timeout 300s python -m pytest -q -vv --tb=short 2>&1 | tee pytest.log
           status=${PIPESTATUS[0]}
+          set -e
           if [ "$status" -ne 0 ]; then
             python - <<'PY'
           from pathlib import Path
