@@ -13,9 +13,11 @@ All required conditions are met.
 | Field | Value |
 |---|---|
 | Branch | `main` |
-| Final commit | `1e1d407` |
-| Remote origin/main | `1e1d407c6a4b3b4584c9b5e808f88e038e044e5c` |
-| CI run URL | https://github.com/Kidrage/AgentLab/actions/runs/27883907454 |
+| Final commit | `670aaef` |
+| Full commit hash | `670aaef329676118e5d9437a34c0d0ab6a5d0441` |
+| Remote origin/main | `670aaef329676118e5d9437a34c0d0ab6a5d0441` |
+| CI run URL | https://github.com/Kidrage/AgentLab/actions/runs/27883990423 |
+| CI run number | #213 |
 | CI conclusion | **success** ✅ |
 | Remote push status | **Pushed** — remote main = local HEAD |
 
@@ -156,18 +158,19 @@ All hotfix files clean. Archive files sanitized.
 ```text
 Checked 72 files; suspicious=0
 ```
-All remote files pass against `origin/main` (`1e1d407`). Full output saved to:
+All remote files pass against `origin/main` (`670aaef`). Full output saved to:
 `acceptance_runs/hybrid_agent_executor_hotfix/remote_raw_integrity_full.txt`
 
 ### GitHub Actions CI
 
-| Run | URL | Conclusion |
-|---|---|---|
-| #212 | https://github.com/Kidrage/AgentLab/actions/runs/27883907454 | **success** ✅ |
-| #211 | https://github.com/Kidrage/AgentLab/actions/runs/27883733478 | failure (pre-existing archive paths, fixed in 1e1d407) |
-| #210 | https://github.com/Kidrage/AgentLab/actions/runs/27883457628 | failure (same pre-existing issue) |
+| Run | SHA | URL | Conclusion |
+|---|---|---|---|
+| #213 | `670aaef` (final) | https://github.com/Kidrage/AgentLab/actions/runs/27883990423 | **success** ✅ |
+| #212 | `1e1d407` (archive fix) | https://github.com/Kidrage/AgentLab/actions/runs/27883907454 | **success** ✅ |
+| #211 | `b635b29` | https://github.com/Kidrage/AgentLab/actions/runs/27883733478 | failure (pre-existing archive paths, fixed in 1e1d407) |
+| #210 | `d3b13d9` | https://github.com/Kidrage/AgentLab/actions/runs/27883457628 | failure (same pre-existing issue) |
 
-CI steps: Text integrity audit → Compile Python → Run tests → S10 generalization gate → Whitespace diff check → Validate entrypoints → Check forbidden tracked files. All pass in #212.
+CI steps: Text integrity audit → Compile Python → Run tests → S10 generalization gate → Whitespace diff check → Validate entrypoints → Check forbidden tracked files. **All 7 steps pass in #213.**
 
 ---
 
