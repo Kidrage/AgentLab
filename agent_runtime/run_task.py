@@ -5082,6 +5082,104 @@ def s8_executor_review_cmd(
         raise typer.Exit(code=1)
 
 
+# ── M1-6: Ingestion commands ───────────────────────────────────────────
+
+@app.command("ingest-artifact")
+def ingest_artifact_cmd(
+    project: Optional[str] = typer.Option(None, "--project", help="Project name."),
+    path: Path = typer.Option(..., "--path", help="Path to the artifact to ingest."),
+    provider: str = typer.Option("markitdown_mock", "--provider", help="Ingestion provider (markitdown_mock, mineru_mock, supervision_mock, codebase_memory_mock, graphify_mock)."),
+    artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Override artifact ID (auto-generated from filename if omitted)."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Output directory for ingestion result."),
+) -> None:
+    """Ingest a document, code, or media artifact using a mock provider."""
+    from agent_runtime.ingestion import IngestionContract, ingest_document, ingest_code, ingest_media
+
+    source_type = _guess_ingestion_type(path)
+    artifact = artifact_id or f"ingest_{path.stem}"
+    actual_out = out or (Path("projects") / project / "ingested" if project else Path("ingested_output"))
+    actual_out.mkdir(parents=True, exist_ok=True)
+
+    contract = IngestionContract(
+        artifact_id=artifact,
+        source_path=str(path),
+        source_type=source_type,
+        provider=provider,
+        project_id=project,
+    )
+
+    if source_type == "document":
+        result = ingest_document(contract)
+    elif source_type == "code":
+        result = ingest_code(contract, repo_root=str(path) if path.is_dir() else str(path.parent))
+    elif source_type == "media":
+        result = ingest_media(contract)
+    else:
+        console.print(f"[red]Error: unknown source_type '{source_type}' for {path}[/red]")
+        raise typer.Exit(code=1)
+
+    _write_ingestion_output(actual_out, result)
+    console.print(f"[green]Ingestion {result.status} — artifact: {result.artifact_id}[/green]")
+    console.print(f"  Provider: {result.provider}, assets: {result.output_assets}")
+    if result.warnings:
+        console.print(f"[yellow]  Warnings: {result.warnings}[/yellow]")
+
+
+@app.command("ingest-repo-memory")
+def ingest_repo_memory_cmd(
+    project: Optional[str] = typer.Option(None, "--project", help="Project name."),
+    repo: Path = typer.Option(..., "--repo", help="Path to the repository to ingest."),
+    provider: str = typer.Option("codebase_memory_mock", "--provider", help="Provider (codebase_memory_mock, graphify_mock)."),
+    artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Override artifact ID."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Output directory for ingestion result."),
+) -> None:
+    """Ingest repository structural memory using a mock codebase-memory provider."""
+    from agent_runtime.ingestion import IngestionContract, ingest_code
+
+    artifact = artifact_id or f"repo_{repo.name}"
+    actual_out = out or (Path("projects") / project / "ingested" if project else Path("ingested_output"))
+    actual_out.mkdir(parents=True, exist_ok=True)
+
+    contract = IngestionContract(
+        artifact_id=artifact,
+        source_path=str(repo),
+        source_type="code",
+        provider=provider,
+        project_id=project,
+    )
+
+    result = ingest_code(contract, repo_root=str(repo))
+    _write_ingestion_output(actual_out, result)
+    console.print(f"[green]Repo memory ingestion {result.status} — artifact: {result.artifact_id}[/green]")
+    console.print(f"  Provider: {result.provider}, assets: {result.output_assets}")
+    if result.warnings:
+        console.print(f"[yellow]  Warnings: {result.warnings}[/yellow]")
+
+
+def _guess_ingestion_type(path: Path) -> str:
+    """Guess source_type from file extension."""
+    doc_exts = {".pdf", ".docx", ".doc", ".pptx", ".xlsx", ".html", ".htm", ".md", ".txt", ".rst", ".csv"}
+    media_exts = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".mp4", ".mov", ".avi", ".webm", ".mp3", ".wav", ".ogg", ".flac"}
+    ext = path.suffix.lower()
+    if ext in doc_exts:
+        return "document"
+    if ext in media_exts:
+        return "media"
+    if path.is_dir() or ext in {".py", ".js", ".ts", ".go", ".rs", ".java", ".c", ".cpp", ".h"}:
+        return "code"
+    return "unknown"
+
+
+def _write_ingestion_output(out_dir: Path, result) -> None:
+    """Write ingestion result YAML to output directory."""
+    import yaml as _yaml
+    result_path = out_dir / f"{result.artifact_id}_ingestion_result.yml"
+    result_path.write_text(
+        _yaml.safe_dump(result.to_dict(), sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+
 # ── P2-K: Recovery decision commands ─────────────────────────────────
 
 @app.command("recovery-brain-plan")

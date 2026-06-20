@@ -1,0 +1,145 @@
+# M1-6 Ingestion Provider Registry
+schema_version: 1
+stage: M1-6
+
+providers:
+  markitdown:
+    display_name: MarkItDown
+    role: lightweight_document_to_markdown
+    source_url: https://github.com/microsoft/markitdown
+    default_enabled: false
+    integration_stage: mock
+    capabilities:
+      - lightweight_document_to_markdown
+      - office_to_markdown
+      - pdf_text_extraction
+      - media_metadata_extraction
+    risk:
+      level: low
+      reasons:
+        - external_dependency
+      requires_approval: false
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - document_path
+      expected_outputs:
+        - extracted_markdown.md
+        - document_asset.yml
+
+  mineru:
+    display_name: MinerU
+    role: complex_document_ingestion
+    source_url: https://github.com/opendatalab/MinerU
+    default_enabled: false
+    integration_stage: mock
+    capabilities:
+      - complex_document_ingestion
+      - pdf_ocr
+      - table_extraction
+      - formula_extraction
+    risk:
+      level: medium
+      reasons:
+        - external_dependency
+        - parser_quality_varies
+        - heavy_runtime_optional
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - document_path
+      expected_outputs:
+        - document_asset.yml
+        - extracted_markdown.md
+        - extraction_quality_report.yml
+
+  codebase_memory:
+    display_name: Codebase-Memory-MCP
+    role: codebase_structural_memory
+    source_url: https://github.com/anthropics/claude-code
+    default_enabled: false
+    integration_stage: mock
+    capabilities:
+      - codebase_structural_memory
+      - symbol_lookup
+      - call_graph_query
+      - impact_analysis
+    risk:
+      level: medium
+      reasons:
+        - external_dependency
+        - requires_mcp_launch
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: false
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - repo_path
+      expected_outputs:
+        - code_graph_asset.yml
+
+  graphify:
+    display_name: Graphify
+    role: project_knowledge_graph
+    source_url: https://github.com/anthropics/claude-code
+    default_enabled: false
+    integration_stage: mock
+    capabilities:
+      - project_knowledge_graph
+      - multi_artifact_graph
+      - repo_doc_media_relationships
+    risk:
+      level: medium
+      reasons:
+        - external_dependency
+        - requires_hook_install
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - repo_path
+      expected_outputs:
+        - project_graph_asset.yml
+
+  supervision:
+    display_name: Supervision
+    role: vision_evidence_normalization
+    source_url: https://github.com/roboflow/supervision
+    default_enabled: false
+    integration_stage: mock
+    capabilities:
+      - vision_evidence_normalization
+      - detection_annotation
+      - dataset_visualization
+    risk:
+      level: medium
+      reasons:
+        - external_dependency
+        - no_model_execution_by_default
+      requires_approval: true
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: artifacts_only
+      network: false
+      shell: false
+    adapter_contract:
+      expected_inputs:
+        - media_path
+      expected_outputs:
+        - vision_evidence.yml

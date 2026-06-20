@@ -1,0 +1,30 @@
+# M1-6 Media Ingestion Policy
+schema_version: 1
+stage: M1-6
+
+media_ingestion:
+  default_provider: supervision_mock
+  allowed_providers:
+    - supervision_mock
+  require_approval_for: []
+  max_file_size_bytes: 100_000_000  # 100 MB
+  allowed_extensions:
+    - .png
+    - .jpg
+    - .jpeg
+    - .gif
+    - .svg
+    - .webp
+    - .mp4
+    - .mov
+    - .avi
+    - .webm
+    - .mp3
+    - .wav
+    - .ogg
+    - .flac
+  output_dir: ingested_media
+  quality_checks:
+    - metadata_present
+    - hash_present
+    - size_under_limit

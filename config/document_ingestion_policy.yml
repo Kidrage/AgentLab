@@ -1,0 +1,29 @@
+# M1-6 Document Ingestion Policy
+schema_version: 1
+stage: M1-6
+
+document_ingestion:
+  default_provider: markitdown_mock
+  allowed_providers:
+    - markitdown_mock
+    - mineru_mock
+  require_approval_for:
+    - mineru_mock  # heavy extraction needs explicit approval
+  max_file_size_bytes: 10_000_000  # 10 MB
+  allowed_extensions:
+    - .pdf
+    - .docx
+    - .doc
+    - .pptx
+    - .xlsx
+    - .html
+    - .htm
+    - .md
+    - .txt
+    - .rst
+    - .csv
+  output_dir: ingested_documents
+  quality_checks:
+    - content_not_empty
+    - hash_present
+    - warnings_count_under_5
