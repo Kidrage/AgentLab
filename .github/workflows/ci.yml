@@ -25,7 +25,7 @@ jobs:
           python -m compileall agent_runtime agentlab_app.py scripts tests
       - name: Run tests
         run: |
-          python -m pytest -q
+          timeout 300s python -m pytest -q -vv --tb=short
       - name: S10 generalization gate
         run: |
           ./agentlab.sh eval-generalization --out acceptance_runs/s10_generalization_eval
