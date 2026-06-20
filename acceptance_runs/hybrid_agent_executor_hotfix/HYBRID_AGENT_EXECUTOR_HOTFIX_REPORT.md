@@ -1,4 +1,4 @@
-# Hybrid Agent Executor Hotfix — Acceptance Report
+# Hybrid Agent Executor Hotfix — Final Integrity + CI Closure Report
 
 ## Verdict
 
@@ -13,8 +13,11 @@ All required conditions are met.
 | Field | Value |
 |---|---|
 | Branch | `main` |
-| Commit | `50ea342` (base) + hotfix changes (unstaged) |
-| Remote push status | **Pending** — changes are local; remote `main` is clean (0 suspicious in remote raw check) |
+| Final commit | `1e1d407` |
+| Remote origin/main | `1e1d407c6a4b3b4584c9b5e808f88e038e044e5c` |
+| CI run URL | https://github.com/Kidrage/AgentLab/actions/runs/27883907454 |
+| CI conclusion | **success** ✅ |
+| Remote push status | **Pushed** — remote main = local HEAD |
 
 ---
 
@@ -129,12 +132,12 @@ tests/test_cli_executor.py — 14/14 tests pass (verified independently)
 
 ## Text Integrity
 
-### Local audit
+### Local audit (final)
 
 ```text
 Total files scanned: 801
-Suspicious files: 12 (all in docs/archive/historical_runs/ — pre-existing, not hotfix)
-All hotfix files clean.
+Suspicious files: 0
+All hotfix files clean. Archive files sanitized.
 ```
 
 ### Minimum line counts (all met)
@@ -148,13 +151,23 @@ All hotfix files clean.
 | `AGENTS.md` | >= 80 | 103 |
 | `OPERATING_MODEL.md` | >= 80 | 216 |
 
-### Remote raw integrity
+### Remote raw integrity (post-push)
 
 ```text
 Checked 72 files; suspicious=0
 ```
-All remote files pass (current `main` on GitHub). Full output saved to:
+All remote files pass against `origin/main` (`1e1d407`). Full output saved to:
 `acceptance_runs/hybrid_agent_executor_hotfix/remote_raw_integrity_full.txt`
+
+### GitHub Actions CI
+
+| Run | URL | Conclusion |
+|---|---|---|
+| #212 | https://github.com/Kidrage/AgentLab/actions/runs/27883907454 | **success** ✅ |
+| #211 | https://github.com/Kidrage/AgentLab/actions/runs/27883733478 | failure (pre-existing archive paths, fixed in 1e1d407) |
+| #210 | https://github.com/Kidrage/AgentLab/actions/runs/27883457628 | failure (same pre-existing issue) |
+
+CI steps: Text integrity audit → Compile Python → Run tests → S10 generalization gate → Whitespace diff check → Validate entrypoints → Check forbidden tracked files. All pass in #212.
 
 ---
 
@@ -191,24 +204,24 @@ python -m compileall agent_runtime/ — PASS (no errors)
 | Private IPs/ports removed from public docs | ✅ PASS (0 occurrences) |
 | `from __future__ import annotations` at top of Python files | ✅ PASS (cli_executor.py:32, agent_runner.py:3, test files verified) |
 | pytest passes | ✅ PASS (1393 passed, 2 skipped) |
-| Text integrity audit passes | ✅ PASS (only pre-existing archive noise) |
+| Text integrity audit passes | ✅ PASS (0 suspicious, archives sanitized) |
 | Remote raw integrity output is complete and not truncated | ✅ PASS (72 files, 0 suspicious) |
 | No real subprocess in unit tests | ✅ PASS (verified by AST inspection) |
+| GitHub Actions CI green on pushed commit | ✅ PASS (run #212, conclusion: success) |
+| Working tree clean | ✅ PASS (only intentional local files ignored) |
 
 ---
 
 ## Known Limitations
 
-1. **Remote push pending**: Hotfix changes are local. Remote check reflects the already-clean `main` on GitHub. Changes should be pushed after review.
-2. **No Hermes/Claude Code end-to-end smoke test**: These binaries are not installed in the test environment. E2E testing requires a configured workstation with Hermes and Claude Code installed.
-3. **Fallback config structure in `hybrid_agent_executor`**: The `fallback` key uses a nested `{executor_type, provider, model}` dict, which differs slightly from the simple string fallback in `balanced`. The runtime's `resolve_cli_profile` function doesn't yet parse the nested fallback structure — this is a follow-up item.
-4. **Historical archive `/Users` paths**: 12 files in `docs/archive/historical_runs/` contain local absolute paths. These are pre-existing and not part of this hotfix.
+1. **No Hermes/Claude Code end-to-end smoke test**: These binaries are not installed in the CI environment. E2E testing requires a configured workstation with Hermes and Claude Code installed.
+2. **Fallback config structure in `hybrid_agent_executor`**: The `fallback` key uses a nested `{executor_type, provider, model}` dict, which differs slightly from the simple string fallback in `balanced`. The runtime's `resolve_cli_profile` function doesn't yet parse the nested fallback structure — this is a follow-up item.
+3. **`docs/archive/historical_runs/executor_runs/` untracked files**: 3 local-only .md files still contain `/Users/` paths. These are not tracked in git, so CI is unaffected. Can be cleaned up or deleted locally.
 
 ---
 
 ## Next Recommended Step
 
-1. **Review and push** this hotfix to `main`.
+1. **Proceed to M2** per the roadmap now that this hotfix is accepted and CI is green.
 2. **Verify with real binaries**: Install Hermes and Claude Code, run `./agentlab.sh run-agent Supervisor --project AgentLab --task-id task_test --execute` and confirm the CLI dispatch works end-to-end.
-3. **Implement fallback config parsing**: Extend `resolve_cli_profile` / `run_cli_agent` to parse the nested `fallback: {executor_type, provider, model}` structure and use it to auto-select the API fallback model.
-4. **Proceed to M2** per the roadmap once this hotfix is accepted.
+3. **Implement fallback config parsing**: Extend `resolve_cli_profile` / `run_cli_agent` to parse the nested `fallback: {executor_type, provider, model}` structure.

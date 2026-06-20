@@ -20,8 +20,8 @@ config/external_skill_import_policy.yml | OK | 16 | 106 | 618 |
 docs/SKILL_DISTILLATION.md | OK | 32 | 302 | 1262 | 
 docs/SKILL_DISCOVERY_ROADMAP.md | OK | 23 | 266 | 931 | 
 docs/SKILL_VAULT.md | OK | 116 | 290 | 4011 | 
-scripts/audit_text_integrity.py | OK | 707 | 161 | 26687 | 
-scripts/check_remote_raw_integrity.py | OK | 257 | 109 | 10696 | 
+scripts/audit_text_integrity.py | OK | 710 | 161 | 26810 | 
+scripts/check_remote_raw_integrity.py | OK | 275 | 109 | 11349 | 
 tests/test_repository_text_integrity.py | OK | 531 | 96 | 20521 | 
 tests/test_text_integrity_audit.py | OK | 147 | 119 | 4854 | 
 README.md | OK | 700 | 781 | 37132 | 
@@ -67,9 +67,9 @@ agent_runtime/external_projects/models.py | OK | 93 | 89 | 3053 |
 agent_runtime/external_projects/registry.py | OK | 83 | 105 | 3384 | 
 AGENTS.md | OK | 103 | 366 | 7433 | 
 OPERATING_MODEL.md | OK | 216 | 289 | 7824 | 
-config/agent_model_profiles.yml | OK | 134 | 83 | 4588 | 
-agent_templates/coder.md | OK | 129 | 174 | 4742 | 
-agent_templates/supervisor.md | OK | 181 | 314 | 10405 | 
+config/agent_model_profiles.yml | OK | 258 | 86 | 8513 | 
+agent_templates/coder.md | OK | 129 | 174 | 4805 | 
+agent_templates/supervisor.md | OK | 181 | 314 | 10421 | 
 agent_runtime/cli_executor.py | OK | 282 | 94 | 10524 | 
 agent_runtime/agent_runner.py | OK | 367 | 128 | 15193 | 
 tests/test_cli_executor.py | OK | 370 | 116 | 14683 | 
