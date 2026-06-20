@@ -126,6 +126,26 @@ MIN_LINE_COUNTS = {
     "acceptance_runs/s6_recovery_brain/fake_evidence_report.yml": 5,
     "acceptance_runs/s6_recovery_brain/phase_acceptance_evidence.yml": 5,
     "acceptance_runs/s6_recovery_brain/recovery_strategy_ledger.yml": 5,
+    # M1 Core Modules
+    "agent_runtime/brain/mission_contract.py": 150,
+    "agent_runtime/program_manager/project_brain.py": 100,
+    "agent_runtime/brain/renderer.py": 80,
+    "agent_runtime/project_workflows/planner.py": 80,
+    "agent_runtime/program_manager/context_compressor.py": 80,
+    "agent_runtime/program_manager/phase_acceptance.py": 80,
+    "agent_runtime/program_manager/acceptance_renderer.py": 70,
+    "agent_runtime/external_projects/models.py": 70,
+    "agent_runtime/brain/decision_card_builder.py": 70,
+    "agent_runtime/brain/project_type_classifier.py": 70,
+    "agent_runtime/external_projects/registry.py": 60,
+    "agent_runtime/program_manager/next_action_decider.py": 40,
+    "agent_runtime/brain/artifact_contract_builder.py": 40,
+    "agent_runtime/brain/risk_classifier.py": 40,
+    "agent_runtime/brain/acceptance_gate_builder.py": 40,
+    "agent_runtime/project_workflows/renderer.py": 40,
+    "agent_runtime/brain/domain_classifier.py": 40,
+    "agent_runtime/program_manager/phase_planner.py": 35,
+    "agent_runtime/brain/capability_requirement_builder.py": 30,
 }
 
 

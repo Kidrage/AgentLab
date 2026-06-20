@@ -523,11 +523,33 @@ CodexPromptGenerator → Coder → TesterAuditor → Archivist
 
 ---
 
+## 双端协作与同步协议 (Dual-End Collaboration and Sync Protocol)
+
+从 v1.6 开始，AgentLab 引入了双端协作与数据同步协议，以支持本地（开发环境）与云端（运行/部署环境）之间的无缝协作，同时保持两者技能、MCP 服务以及运行记忆能力同步更新：
+
+### 1. 物理链路拓扑 (Network Topology)
+*   **本地开发端 (Local Mac)**：作为主开发环境和 Codebase/配置的源头真理（Source of Truth）。
+*   **资源交换中转站 (Relay Hub - TrueNAS)**：`10.147.17.61:2222`，底座路径为 `/mnt/hdd2/AgentLab_WorkSpace/`。负责接收本地的备份更新，并作为中转站将数据分发给云端部署服务器。
+*   **Cloud Runtime (Cloud Server)**：云端部署服务器 `10.147.17.250`。作为任务运行/部署环境，可以直接通过 SSH 从本地 Mac 直连，并配置了通过密钥连接至 TrueNAS 仓库的快捷别名 `truenas`。
+
+### 2. 双向同步流程 (Sync Workflow)
+*   **本地 -> 中转站 (Truenas Push)**：本地代码、定制 `skills/`、`config/` 或记忆库有更新时，在本地执行：
+    `./agentlab.sh truenas-sync --execute`
+    或手动同步全部结构：
+    `rsync -avz -e "ssh -p 2222" --exclude '__pycache__' --exclude '.pytest_cache' --exclude '.venv' --exclude 'node_modules' /Users/saintpeter/Desktop/AgentLab/ agentlab@10.147.17.61:/mnt/hdd2/AgentLab_WorkSpace/`
+*   **中转站 -> 云端部署端 (Remote Pull)**：云端 `10.147.17.250` 通过 `rsync` 自动拉取 TrueNAS 中的最新快照进行同步更新：
+    `ssh admin@10.147.17.250 "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' truenas:/mnt/hdd2/AgentLab_WorkSpace/ /home/admin/AgentLab/"`
+*   **云端 -> 中转站 -> 本地 (Remote Pullback)**：云端执行产生的 Task 运行记录、事件日志和内存变更，会在任务归档时先同步推送到 `10.147.17.61`，本地拉回后自动对齐，从而保持双端环境下的 MCP、技能以及记忆的完美一致。
+
+---
+
 ## 版本
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.6 | 2026-06-20 | 新增双端协作与同步协议，定义 Local Mac -> TrueNAS (10.147.17.61) -> Cloud Server (10.147.17.250) 三点一线式的代码、MCP服务、Skills 与记忆快照同步同步规范 |
 | 1.5 | 2026-06-02 | 新增 `run-pipeline --execute` 全自动流水线模式；新增步骤 3.5 强制用户确认执行模式（dry-run vs execute）；新增「AgentLab 自身维护：Bug 反馈与调试闭环」章节，定义 `BUG_REPORT.md` 长期维护机制 |
+
 | 1.4 | 2026-05-31 | 新增 codex_full_driver 模式定义和工件规则 |
 | 1.3 | 2026-05-30 | 收紧 Coder 接管范围：仅限 Codex Plus（有额度），排除 cline/DeepSeek/Claude 等 |
 | 1.2 | 2026-05-30 | 新增 Coder 模式切换规则（Codex Plus 接管 / Qwen Fallback）；新增 IDE 自动信号检测；CLI 增加 Coder handoff 阻断护栏 |

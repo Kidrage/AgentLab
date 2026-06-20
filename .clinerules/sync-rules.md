@@ -1,5 +1,10 @@
-# SSH Workspace Synchronization (TrueNAS)
-Local development on this Mac takes priority. The remote SSH workspace on TrueNAS (agentlab@10.147.17.61:2222 at /mnt/hdd2/AgentLab_WorkSpace/AgentLab/) is used exclusively as a backup and shared read location. 
+# Dual-End Collaboration and Sync Protocol (双端协作与同步协议)
+Local development on this Mac takes priority. The remote SSH workspace on TrueNAS (`10.147.17.61`) acts as the central resource relay hub, and the cloud server (`10.147.17.250`) acts as the run/deployment target.
 
-After completing any task or file modification locally, you MUST synchronize the changes to the remote TrueNAS workspace using:
-`rsync -avz -e "ssh -p 2222" --exclude '__pycache__' --exclude '.pytest_cache' /Users/saintpeter/Desktop/AgentLab/ agentlab@10.147.17.61:/mnt/hdd2/AgentLab_WorkSpace/AgentLab/`
+*   **Local Mac -> TrueNAS (`10.147.17.61`)**: Push local changes to configs, skills, memory snapshots using:
+    `./agentlab.sh truenas-sync --execute`
+    Or manual rsync:
+    `rsync -avz -e "ssh -p 2222" --exclude '__pycache__' --exclude '.pytest_cache' /Users/saintpeter/Desktop/AgentLab/ agentlab@10.147.17.61:/mnt/hdd2/AgentLab_WorkSpace/`
+*   **TrueNAS (`10.147.17.61`) -> Cloud Runtime (`10.147.17.250`)**: Remote agents on `10.147.17.250` pull workspace/skills/MCP updates from `10.147.17.61` using:
+    `ssh admin@10.147.17.250 "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' truenas:/mnt/hdd2/AgentLab_WorkSpace/ /home/admin/AgentLab/"`
+

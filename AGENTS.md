@@ -39,6 +39,17 @@ Keep detailed policy in `config/*.yml` and long-lived project memory in
 - Record real commands and real validation results only.
 - Never store credentials or private tokens in project memory.
 
+## Dual-End Collaboration Protocol (双端协作协约)
+
+- **Network Topology / Link Layout**:
+  - **Local Mac**: Primary development environment and source of truth.
+  - **Relay Hub (TrueNAS at `10.147.17.61:2222`)**: Resource exchange relay station and backup.
+  - **Cloud Runtime (Server at `10.147.17.250`)**: Running / deployment environment. Directly accessible via SSH from Local Mac and connected to the TrueNAS repository.
+- **Sync Workflow**:
+  - Local Mac pushes skills, configs, memory snapshots to `10.147.17.61` using `./agentlab.sh truenas-sync --execute`.
+  - Cloud Runtime (`10.147.17.250`) pulls updates from `10.147.17.61` using `rsync` to synchronize `skills`, `mcp`, and task status.
+  - Cloud Runtime execution results are pushed back to `10.147.17.61` and then pulled to Local Mac to ensure all memory capabilities are synchronized.
+
 ## Useful Commands
 
 - `./agentlab.sh prepare --project AgentLab --task-id task_0009 --write-plan`
@@ -46,3 +57,4 @@ Keep detailed policy in `config/*.yml` and long-lived project memory in
 - `./agentlab.sh harness-status --project AgentLab --task-id task_0009`
 - `./agentlab.sh policy-status --project AgentLab`
 - `./agentlab.sh log-event --project AgentLab --task-id task_0009 --agent Coder --summary "..."`
+
