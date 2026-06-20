@@ -28,7 +28,7 @@
 
 | Path | Lines | Max Line | Size | Status |
 |------|-------|----------|------|--------|
-| README.md | 699 | 781 | 36867 | OK |
+| README.md | 700 | 781 | 37132 | OK |
 | agent_runtime/context_governance/packers/history_packer.py | 11 | 533 | 1186 | OK |
 | agent_runtime/context_governance/packers/tool_output_packer.py | 11 | 466 | 1109 | OK |
 | acceptance_runs/m1_project_brain/M1_4_ACCEPTANCE_REPORT.md | 38 | 460 | 2369 | OK |

@@ -206,10 +206,11 @@ Commands:
 AgentLab operates across a dual-end execution link layout to enable remote running / deployment while maintaining synchronized agent capabilities:
 
 1.  **Architecture**:
-    *   **Local Mac (saintpeter)**: Primary development environment and source of truth.
-    *   **Relay Hub (TrueNAS at `10.147.17.61:2222`)**: Shared repository and exchange relay station at `/mnt/hdd2/AgentLab_WorkSpace/`.
-    *   **Cloud Runtime (Server at `10.147.17.250`)**: Run/deployment server. Connected to `10.147.17.61` and directly accessible from Local Mac via SSH (`admin@10.147.17.250`).
+    *   **Local Mac (<USER>)**: Primary development environment and source of truth.
+    *   **Relay Hub (TrueNAS at `<RELAY_IP>:<PORT>`)**: Shared repository and exchange relay station.
+    *   **Cloud Runtime (Server at `<CLOUD_IP>`)**: Run/deployment server. Connected to `<RELAY_IP>` and directly accessible from Local Mac via SSH (`admin@<CLOUD_IP>`).
 2.  **Sync Workflow**:
-    *   **Local Mac -> Relay Hub**: Local pushes workspace changes (skills, configs, memory snapshots) to TrueNAS (`10.147.17.61`) using `./agentlab.sh truenas-sync --execute` or manual rsync.
-    *   **Relay Hub -> Cloud Runtime (250)**: Remote agents on `10.147.17.250` pull workspace/skills/MCP updates from `10.147.17.61` using `rsync` over SSH.
-    *   **Cloud Runtime (250) -> Relay Hub -> Local Mac**: Task execution logs and agent memory produced on `10.147.17.250` sync back to TrueNAS (`10.147.17.61`), then pull to local Mac, maintaining synchronized memory and skills.
+    *   **Local Mac -> Relay Hub**: Local pushes workspace changes (skills, configs, memory snapshots) to TrueNAS (`<RELAY_IP>`) using `./agentlab.sh truenas-sync --execute` or manual rsync.
+    *   **Relay Hub -> Cloud Runtime**: Remote agents on `<CLOUD_IP>` pull workspace/skills/MCP updates from `<RELAY_IP>` using `rsync` over SSH.
+    *   **Cloud Runtime -> Relay Hub -> Local Mac**: Task execution logs and agent memory produced on `<CLOUD_IP>` sync back to TrueNAS (`<RELAY_IP>`), then pull to local Mac, maintaining synchronized memory and skills.
+

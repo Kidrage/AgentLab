@@ -146,6 +146,12 @@ MIN_LINE_COUNTS = {
     "agent_runtime/brain/domain_classifier.py": 40,
     "agent_runtime/program_manager/phase_planner.py": 35,
     "agent_runtime/brain/capability_requirement_builder.py": 30,
+    # Hybrid Agent Executor and Workspace rules
+    "AGENTS.md": 80,
+    "OPERATING_MODEL.md": 150,
+    "config/agent_model_profiles.yml": 100,
+    "agent_templates/coder.md": 100,
+    "agent_templates/supervisor.md": 150,
 }
 
 

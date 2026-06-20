@@ -86,12 +86,12 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
 
 - **Network Topology / Link Layout**:
   - **Local Mac**: Primary development environment and source of truth.
-  - **Relay Hub (TrueNAS at `10.147.17.61:2222`)**: Resource exchange relay station and backup.
-  - **Cloud Runtime (Server at `10.147.17.250`)**: Running / deployment environment. Directly accessible via SSH from Local Mac and connected to the TrueNAS repository.
+  - **Relay Hub (TrueNAS at `<RELAY_IP>:<PORT>`)**: Resource exchange relay station and backup.
+  - **Cloud Runtime (Server at `<CLOUD_IP>`)**: Running / deployment environment. Directly accessible via SSH from Local Mac and connected to the TrueNAS repository.
 - **Sync Workflow**:
-  - Local Mac pushes skills, configs, memory snapshots to `10.147.17.61` using `./agentlab.sh truenas-sync --execute`.
-  - Cloud Runtime (`10.147.17.250`) pulls updates from `10.147.17.61` using `rsync` to synchronize `skills`, `mcp`, and task status.
-  - Cloud Runtime execution results are pushed back to `10.147.17.61` and then pulled to Local Mac to ensure all memory capabilities are synchronized.
+  - Local Mac pushes skills, configs, memory snapshots to `<RELAY_IP>` using `./agentlab.sh truenas-sync --execute`.
+  - Cloud Runtime (`<CLOUD_IP>`) pulls updates from `<RELAY_IP>` using `rsync` to synchronize `skills`, `mcp`, and task status.
+  - Cloud Runtime execution results are pushed back to `<RELAY_IP>` and then pulled to Local Mac to ensure all memory capabilities are synchronized.
 
 ## Useful Commands
 

@@ -57,28 +57,29 @@ Guide: `docs/OPENCLAW_LOCAL_INTEGRATION.md`
 
 ## Operating Model / 运行模型
 
-AgentLab uses a multi-tier brain workflow with dynamic model selection:
+AgentLab uses a hybrid agent-executor operating model with custom CLI agents and dynamic API fallbacks:
 
 ```text
-T1 大脑层  (Brain):    Supervisor          → DeepSeek V4 Pro / Qwen3.6-Plus
+T1 大脑层  (Brain):    Supervisor          → Hermes (Default cli_agent) / DeepSeek API Fallback
 T2 感知层  (Perception): RepoScout, Researcher, InterfaceMapper → Qwen3.6+/Qwen3.7-Max
-T3 执行层  (Execution): Coder, PromptEngineer → Qwen3-Coder-Next / DeepSeek V4 Pro
-T4 审核层  (Audit):     TesterAuditor, Verifier → Qwen3.6-Flash/Plus
+T3 执行层  (Execution): Coder, PromptEngineer → Claude Code (Default cli_agent) / Qwen3 Coder Plus Fallback
+T4 审核层  (Audit):     TesterAuditor, Verifier → Qwen3.6-Flash/Plus / DeepSeek API Fallback
 T5 归档层  (Archive):   Archivist → Qwen3.6-Plus / Qwen3.7-Max
 ```
 
-Three budget modes control model selection per task:
+Three budget modes control model/executor selection per task:
 - 🧠 **brain_allocated** (default): cost-optimized tier matching by project size (L1/L2/L3)
-- ⚡ **max_quality**: best available models at every tier
-- 💰 **frugal**: lightweight models, skip optional agents, local LLM support
+- ⚡ **max_quality**: best available CLI agents and models at every tier
+- 💰 **frugal**: lightweight models, skip optional agents, direct API/local LLM support
 
-Coder supports four backends:
-- `api_qwen_coder` — Qwen3-Coder-Next (default)
-- `api_deepseek_coder` — DeepSeek V4 Pro (max quality)
+Coder supports hybrid execution backends:
+- `claude_code` — Claude Code CLI executor (Default)
+- `api_qwen_coder_plus` — Qwen3-Coder-Plus (direct API fallback)
+- `api_deepseek_flash` — DeepSeek V4 Flash (frugal API fallback)
 - `local_llm` — Ollama/vLLM (frugal mode)
 - `external_ide` — external IDE AI handoff (Codex/Claude/Cline)
 
-See `config/agent_registry.yml`, `config/model_catalog.yml`, and `OPERATING_MODEL.md`.
+See `config/agent_model_profiles.yml`, `config/agent_registry.yml`, `config/model_catalog.yml`, and `OPERATING_MODEL.md`.
 
 ---
 
