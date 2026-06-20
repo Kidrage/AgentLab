@@ -39,6 +39,36 @@ Keep detailed policy in `config/*.yml` and long-lived project memory in
 - Record real commands and real validation results only.
 - Never store credentials or private tokens in project memory.
 
+## Repository Directory Constitution & Hygiene (仓库目录宪章与数据整洁规范)
+
+ALL agents entering this workspace MUST read and enforce this directory layout. NEVER write temporary artifacts, logs, or backups directly to the root directory. Keep the workspace pure and organized.
+
+### Core Layout & Maintenance Policy
+
+| Directory / File | Description & Purpose | Deletion / Cleanup Policy |
+| :--- | :--- | :--- |
+| `agent_runtime/` | Core python runtime (CLI, model router, lifecycle graph). | **NEVER DELETE**. Source code directory. |
+| `agent_templates/` | Agent role prompts (supervisor, coder, auditor) and handoff templates. | **NEVER DELETE**. Critical template definitions. |
+| `config/` | System-wide routing policies, token budgets, failover catalogs. | **NEVER DELETE**. Policy source of truth. |
+| `docs/` | Engineering specifications, design documents, and historical archives. | **NEVER DELETE**. Keep docs updated. |
+| `docs/archive/` | Historical blueprints, retired design reports, and `historical_runs/`. | Safe to organize, but contains historical context. |
+| `examples/` | Integration guides, prompt examples, CLI run skeletons. | **NEVER DELETE**. Crucial reference files. |
+| `projects/` | Workspace projects containing memory (`agent_docs/`) and task runs. | **DO NOT DELETE**. Active working directories. |
+| `projects/<P>/runs/` | Task execution ledgers, event streams, local execution states. | Run `./agentlab.sh task-purge` to clean old tasks (keeps last 7 days). |
+| `scripts/` | Git hooks, workspace hygiene verifiers, automation scripts. | **NEVER DELETE**. Core automation tools. |
+| `skills/` | Agent skill vault (active/staging/retired local skill lifecycle packages). | **DO NOT DELETE**. Local skill database. |
+| `tests/` | Integrated QA pipeline: artifact gates, task closure tests. | **NEVER DELETE**. Standard test suites. |
+| `web_ui/` | Dashboard status UI and decision center server code. | **NEVER DELETE**. Control plane front-end. |
+| `acceptance_runs/` | CI validation reports, generalization gate artifacts. | Managed by CI scripts. Do not manually touch. |
+| `agentlab.sh` | Main CLI entry point. | **NEVER DELETE**. |
+| `agentlab_app.py` | Standalone UI server app. | **NEVER DELETE**. |
+
+### Hygiene & Compliance Rules (整洁性合规条例)
+1. **Zero Root-level Pollution**: No logs (`.log`, `.txt`), task artifacts, or workspace snapshots are allowed to be created in the root directory.
+2. **Task Artifact Scoping**: All task-level execution traces (such as `task_packet.yml`, `cost_ledger.yml`, `state.yml`) must be written exclusively to `projects/<ProjectName>/runs/<task_id>/`.
+3. **Audit Before Commit**: The `rule_self_check.py` pre-push check is strictly integrated. Commit hooks will block pushes if root-level pollution or credential leak is detected.
+4. **Task Purge & Archiving**: Regularly purge old task runs using `./agentlab.sh task-purge --project <ProjectName> --keep-days 7` to keep the disk space tidy.
+
 ## Dual-End Collaboration Protocol (双端协作协约)
 
 - **Network Topology / Link Layout**:
