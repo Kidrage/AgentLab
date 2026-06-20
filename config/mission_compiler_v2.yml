@@ -1,0 +1,284 @@
+# Mission Compiler v2 — M1-2
+# Deterministic, rule-based compilation from rough user prompts into
+# structured mission contracts. No LLM calls; keyword/pattern matching only.
+
+schema_version: 1
+
+# Task domain classification: keyword → (domain, typical project_type)
+domain_keywords:
+  coding:
+    keywords:
+      - build
+      - create app
+      - implement
+      - fix bug
+      - refactor
+      - code
+      - repository
+      - repo
+      - API
+      - CLI
+      - python
+      - javascript
+      - typescript
+      - rust
+      - go lang
+      - frontend
+      - backend
+      - database
+      - deploy
+      - docker
+      - test
+      - patch
+      - feature
+      - library
+      - module
+      - package
+      - framework
+      - migrate
+      - upgrade dependency
+      - component
+      - endpoint
+      - route
+
+  creative_longform:
+    keywords:
+      - write novel
+      - write story
+      - write book
+      - write fiction
+      - write chapter
+      - write article
+      - write blog
+      - write content
+      - longform
+      - long-form
+      - worldbuilding
+      - world build
+      - character
+      - plot
+      - outline
+      - manuscript
+      - narrative
+      - prose
+      - genre
+      - series
+      - novel series
+      - fanfiction
+      - creative writing
+
+  video_generation:
+    keywords:
+      - video
+      - youtube
+      - tiktok
+      - short video
+      - film
+      - animation
+      - edit video
+      - produce video
+      - generate video
+      - render video
+      - script video
+      - storyboard
+      - footage
+      - clip
+      - reel
+      - short-form video
+      - content creator
+      - vlog
+
+  research:
+    keywords:
+      - research
+      - paper
+      - study
+      - survey
+      - literature review
+      - analyze
+      - academic
+      - archive
+      - bibliography
+      - citation
+      - source
+      - evidence review
+      - systematic review
+      - meta-analysis
+      - thesis
+      - dissertation
+      - white paper
+      - report
+
+  document_processing:
+    keywords:
+      - document
+      - pdf
+      - extract
+      - parse
+      - OCR
+      - scan
+      - convert
+      - markdown
+      - spreadsheet
+      - excel
+      - csv
+      - word
+      - docx
+      - pptx
+      - ingest
+      - index documents
+      - knowledge base
+      - document processing
+
+  audio_music:
+    keywords:
+      - audio
+      - music
+      - podcast
+      - sound
+      - voice
+      - transcription
+      - speech
+      - song
+      - composition
+      - recording
+      - mix
+      - master audio
+
+  multimodal:
+    keywords:
+      - multimodal
+      - image and text
+      - video and text
+      - audio and video
+      - mixed media
+      - cross-modal
+      - vision and language
+      - multi-format
+
+  local_ops:
+    keywords:
+      - automate
+      - script
+      - workflow
+      - cron
+      - backup
+      - local
+      - desktop
+      - file organize
+      - batch
+      - rename
+      - convert files
+      - sync
+      - monitor
+
+# Project type classification: keyword → project_type
+project_type_keywords:
+  codebase_build_project:
+    - build app
+    - create project
+    - implement feature
+    - fix bug in repo
+    - refactor codebase
+    - add module
+    - create library
+    - software project
+    - codebase
+
+  longform_text_project:
+    - write novel
+    - write book
+    - write story
+    - write fiction
+    - write longform
+    - write article series
+    - write content series
+    - long-form content
+    - creative writing project
+    - manuscript
+
+  video_generation_project:
+    - video project
+    - produce video
+    - video series
+    - youtube channel
+    - video content
+    - generate video
+    - edit video project
+    - animation project
+
+  research_archive_project:
+    - research project
+    - literature review
+    - archive project
+    - paper project
+    - study project
+    - systematic review
+    - thesis project
+
+  document_knowledgebase_project:
+    - document project
+    - knowledge base
+    - extract from documents
+    - index documents
+    - document processing project
+    - ingest documents
+
+  multimodal_content_project:
+    - multimodal project
+    - mixed media project
+    - multimedia content
+    - cross-media project
+
+  local_automation_project:
+    - automate task
+    - local workflow
+    - file automation
+    - desktop automation
+    - script automation
+    - batch process
+
+# Scale estimation heuristics
+scale_heuristics:
+  small:
+    max_words: 500
+    max_phases: 1
+  medium:
+    max_words: 2000
+    max_phases: 3
+  large:
+    min_words: 2000
+    min_phases: 3
+
+# Default approval requirements
+default_approvals:
+  external_executor_needed: false
+  human_approval_required: true
+
+# Non-goal detection patterns (things that trigger warnings)
+non_goal_patterns:
+  - real platform post
+  - auto post
+  - auto publish
+  - spam
+  - fake engagement
+  - scrape login
+  - bypass paywall
+  - bulk account
+  - impersonate
+  - steal content
+  - pirate
+
+# Hard constraint detection
+constraint_patterns:
+  - must not use
+  - cannot use
+  - forbidden
+  - prohibited
+  - must use
+  - require
+  - only use
+  - must be
+  - must run locally
+  - offline only
+  - no network

@@ -71,10 +71,12 @@ external_skills_app = typer.Typer(help="External Skill workflow closure commands
 search_app = typer.Typer(help="Search provider adapter commands.", no_args_is_help=True)
 repo_index_app = typer.Typer(help="Repo indexer adapter commands.", no_args_is_help=True)
 external_projects_app = typer.Typer(help="M1 external project registry commands.", no_args_is_help=True)
+mission_compiler_app = typer.Typer(help="M1-2 mission compiler v2 commands.", no_args_is_help=True)
 app.add_typer(external_skills_app, name="external-skills")
 app.add_typer(search_app, name="search")
 app.add_typer(repo_index_app, name="repo-index")
 app.add_typer(external_projects_app, name="external-projects")
+app.add_typer(mission_compiler_app, name="mission-compiler")
 console = Console()
 
 
@@ -162,6 +164,51 @@ def external_projects_risk_report(out: Path = typer.Option(..., "--out")) -> Non
     yaml_path, md_path = write_external_project_risk_report(registry, out)
     console.print(f"wrote {yaml_path}")
     console.print(f"wrote {md_path}")
+
+
+@mission_compiler_app.command("compile")
+def compile_mission_v2(
+    prompt_file: Path = typer.Option(..., "--prompt-file", help="Path to a .txt file containing the rough user prompt."),
+    out: Path = typer.Option(..., "--out", help="Output directory for mission contract artifacts."),
+    project: str = typer.Option("", "--project", help="Optional project name."),
+    task_id: str | None = typer.Option(None, "--task-id", help="Optional task ID."),
+) -> None:
+    """Compile a rough project prompt into a mission contract v2.
+
+    Reads the prompt from --prompt-file and writes deterministic mission
+    contract artifacts to --out. No LLM calls — purely keyword/rule-based.
+    """
+    from agent_runtime.brain import build_mission_contract
+    from agent_runtime.brain.renderer import render_mission_contract_outputs
+
+    if not prompt_file.exists():
+        console.print(f"[red]Error:[/red] prompt file not found: {prompt_file}")
+        raise typer.Exit(code=1)
+    prompt_text = prompt_file.read_text(encoding="utf-8").strip()
+    if not prompt_text:
+        console.print("[red]Error:[/red] prompt file is empty")
+        raise typer.Exit(code=1)
+
+    contract = build_mission_contract(
+        prompt_text,
+        project_id=project or None,
+        task_id=task_id,
+    )
+    written = render_mission_contract_outputs(contract, out)
+
+    console.print(f"[green]Mission contract compiled.[/green]")
+    console.print(f"  domain:        {contract['task_type']}")
+    console.print(f"  project_type:  {contract['project_type']}")
+    console.print(f"  long_project:  {contract['is_long_project']}")
+    console.print(f"  scale:         {contract['estimated_scale']}")
+    console.print(f"  capabilities:  {len(contract['required_capabilities'])} required")
+    console.print(f"  risk_flags:    {len(contract['risk_flags'])}")
+    console.print(f"  decision_cards: {len(contract['decision_cards'])}")
+    console.print(f"  artifacts written to: {out}")
+    for name, path in sorted(written.items()):
+        if name.endswith("_dir"):
+            continue
+        console.print(f"    -> {path.name}")
 
 
 @search_app.command("web")

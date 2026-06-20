@@ -1,0 +1,1 @@
+I want to automate my local file organization workflow: scan my Downloads folder, classify files by type and date, rename them with consistent naming conventions, and move them to organized project folders. The script should run daily as a cron job, log its actions, and never delete files without explicit confirmation.

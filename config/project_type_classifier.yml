@@ -1,0 +1,310 @@
+# Project Type Classifier — M1-2
+# Maps project types to their canonical phases, required capabilities,
+# and risk profiles. Used by the mission compiler v2.
+
+schema_version: 1
+
+project_types:
+  codebase_build_project:
+    display_name: Codebase Build / Repair Project
+    description: Building, repairing, refactoring, or extending a codebase.
+    is_long_project: true
+    estimated_scale: medium
+    canonical_phases:
+      - compile_mission
+      - inspect_repo_or_create_blueprint
+      - define_architecture
+      - create_task_packets
+      - executor_patch_loop
+      - run_tests
+      - phase_acceptance
+      - documentation_and_delivery
+    required_capabilities:
+      - filesystem_read
+      - filesystem_write
+      - shell_command
+      - git_ops
+    optional_capabilities:
+      - github_ops
+      - web_search
+    risk_flags:
+      - code_quality_regression
+      - external_dependency_risk
+      - test_coverage_gaps
+    artifact_targets:
+      - repo_context
+      - architecture_doc
+      - task_packet
+      - patch_plan
+      - test_results
+      - acceptance_report
+      - delivery_package
+    external_executor_recommended: true
+    asset_registry_recommended: true
+    human_approval_points:
+      - before_patch_application
+      - before_merge_or_push
+
+  longform_text_project:
+    display_name: Longform Text / Creative Writing Project
+    description: Novel, book, article series, or longform content creation.
+    is_long_project: true
+    estimated_scale: large
+    canonical_phases:
+      - compile_mission
+      - define_audience_style_constraints
+      - create_content_constitution
+      - create_world_or_topic_bible
+      - build_outline
+      - create_section_or_scene_cards
+      - draft_batch
+      - continuity_review
+      - revision_loop
+      - final_package
+    required_capabilities:
+      - filesystem_read
+      - filesystem_write
+    optional_capabilities:
+      - web_search
+      - browser_fetch
+      - image_understanding
+    risk_flags:
+      - continuity_errors
+      - style_drift
+      - scope_creep
+    artifact_targets:
+      - content_constitution
+      - world_or_topic_bible
+      - chapter_outline
+      - scene_or_section_cards
+      - draft_manuscript
+      - continuity_ledger
+      - revision_notes
+      - final_package
+    external_executor_recommended: false
+    asset_registry_recommended: true
+    human_approval_points:
+      - before_drafting_large_batch
+      - before_final_package
+
+  video_generation_project:
+    display_name: Video Generation Project
+    description: Planning and producing video content (script, storyboard, assets).
+    is_long_project: true
+    estimated_scale: large
+    canonical_phases:
+      - compile_mission
+      - define_platform_audience_style
+      - research_or_source_plan
+      - script_generation
+      - storyboard_or_shot_plan
+      - asset_plan
+      - video_tool_handoff
+      - qa_review
+      - revision_notes
+      - delivery_package
+    required_capabilities:
+      - filesystem_read
+      - filesystem_write
+    optional_capabilities:
+      - image_understanding
+      - audio_transcription
+      - audio_analysis
+      - web_search
+      - browser_fetch
+      - video_understanding
+    risk_flags:
+      - external_tool_dependency
+      - asset_quality_risk
+      - platform_compatibility
+      - long_render_times
+    artifact_targets:
+      - platform_audience_style_brief
+      - research_notes
+      - script
+      - storyboard
+      - asset_manifest
+      - tool_handoff_packet
+      - qa_report
+      - delivery_package
+    external_executor_recommended: true
+    asset_registry_recommended: true
+    human_approval_points:
+      - before_script_finalization
+      - before_video_tool_handoff
+      - before_delivery
+
+  research_archive_project:
+    display_name: Research / Archive Project
+    description: Academic or professional research, literature review, or knowledge archive.
+    is_long_project: true
+    estimated_scale: large
+    canonical_phases:
+      - compile_mission
+      - define_research_scope
+      - ingest_sources
+      - extract_metadata
+      - build_fact_table
+      - summarize_by_topic
+      - create_archive_index
+      - evidence_quality_review
+      - final_report
+    required_capabilities:
+      - filesystem_read
+      - filesystem_write
+      - web_search
+      - browser_fetch
+    optional_capabilities:
+      - pdf_read
+      - docx_read
+      - spreadsheet_read
+      - ocr
+      - database_query
+    risk_flags:
+      - citation_accuracy
+      - source_quality
+      - scope_creep
+      - bias_risk
+    artifact_targets:
+      - research_scope
+      - source_manifest
+      - fact_table
+      - topic_summaries
+      - archive_index
+      - evidence_quality_report
+      - final_report
+    external_executor_recommended: false
+    asset_registry_recommended: true
+    human_approval_points:
+      - after_source_ingestion
+      - before_final_report
+
+  document_knowledgebase_project:
+    display_name: Document / Knowledge Base Project
+    description: Ingesting, parsing, and organizing documents into a knowledge base.
+    is_long_project: true
+    estimated_scale: medium
+    canonical_phases:
+      - compile_mission
+      - define_document_scope
+      - ingest_documents
+      - extract_text_and_metadata
+      - build_index
+      - quality_review
+      - create_knowledge_base
+      - delivery_package
+    required_capabilities:
+      - filesystem_read
+      - filesystem_write
+      - pdf_read
+    optional_capabilities:
+      - docx_read
+      - spreadsheet_read
+      - ocr
+      - web_search
+      - browser_fetch
+    risk_flags:
+      - document_quality_varies
+      - encoding_issues
+      - large_file_handling
+    artifact_targets:
+      - document_scope
+      - ingestion_manifest
+      - extracted_text
+      - metadata_index
+      - quality_report
+      - knowledge_base_index
+      - delivery_package
+    external_executor_recommended: false
+    asset_registry_recommended: true
+    human_approval_points:
+      - after_ingestion
+      - before_delivery
+
+  multimodal_content_project:
+    display_name: Multimodal Content Project
+    description: Projects mixing text, images, audio, video, and/or interactive media.
+    is_long_project: true
+    estimated_scale: large
+    canonical_phases:
+      - compile_mission
+      - define_modalities_and_assets
+      - create_asset_pipeline
+      - generate_or_source_assets
+      - integrate_and_assemble
+      - cross_modal_qa
+      - delivery_package
+    required_capabilities:
+      - filesystem_read
+      - filesystem_write
+    optional_capabilities:
+      - image_understanding
+      - audio_transcription
+      - audio_analysis
+      - video_understanding
+      - ocr
+    risk_flags:
+      - cross_modal_consistency
+      - asset_sync
+      - format_compatibility
+    artifact_targets:
+      - modality_plan
+      - asset_manifest
+      - integrated_draft
+      - cross_modal_qa_report
+      - delivery_package
+    external_executor_recommended: true
+    asset_registry_recommended: true
+    human_approval_points:
+      - after_asset_plan
+      - before_delivery
+
+  local_automation_project:
+    display_name: Local Automation Project
+    description: Local workflow automation, file organization, or scripting.
+    is_long_project: false
+    estimated_scale: small
+    canonical_phases:
+      - compile_mission
+      - define_automation_scope
+      - create_script_or_workflow
+      - test_dry_run
+      - deploy_and_monitor
+    required_capabilities:
+      - filesystem_read
+      - filesystem_write
+      - shell_command
+    optional_capabilities: []
+    risk_flags:
+      - filesystem_damage_risk
+      - infinite_loop_risk
+    artifact_targets:
+      - automation_script
+      - dry_run_results
+      - deployment_log
+    external_executor_recommended: false
+    asset_registry_recommended: false
+    human_approval_points:
+      - before_execution
+      - after_dry_run
+
+  unknown_project:
+    display_name: Unknown / Unclassified Project
+    description: Fallback for unrecognized project types. Requires human clarification.
+    is_long_project: false
+    estimated_scale: unknown
+    canonical_phases:
+      - compile_mission
+      - ask_clarification
+    required_capabilities: []
+    optional_capabilities: []
+    risk_flags:
+      - unknown_domain
+      - needs_clarification
+    artifact_targets:
+      - mission_contract
+      - clarification_questions
+    external_executor_recommended: false
+    asset_registry_recommended: false
+    human_approval_points:
+      - after_clarification

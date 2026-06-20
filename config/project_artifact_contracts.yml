@@ -1,0 +1,344 @@
+# Project Artifact Contracts — M1-2
+# Defines expected artifacts for each project type and phase.
+# Used by the artifact contract builder to generate artifact_contracts.yml.
+
+schema_version: 1
+
+# Per-phase artifact definitions (referenced by project type phases)
+phase_artifacts:
+  compile_mission:
+    outputs:
+      - mission_contract.yml
+      - intent_summary.md
+    evidence_required: false
+
+  ask_clarification:
+    outputs:
+      - clarification_questions.md
+    evidence_required: false
+
+  inspect_repo_or_create_blueprint:
+    outputs:
+      - repo_context.yml
+      - repo_risks.yml
+    evidence_required: true
+    evidence_types:
+      - file_listing
+      - dependency_graph
+
+  define_architecture:
+    outputs:
+      - architecture_doc.md
+      - architecture_diagram.yml
+    evidence_required: true
+    evidence_types:
+      - module_map
+      - dependency_tree
+
+  create_task_packets:
+    outputs:
+      - task_packet.yml
+      - scope_boundary.yml
+    evidence_required: false
+
+  executor_patch_loop:
+    outputs:
+      - executor_result.yml
+      - changed_files.txt
+      - patch_diff.txt
+    evidence_required: true
+    evidence_types:
+      - diff_output
+      - test_output
+
+  run_tests:
+    outputs:
+      - test_results.yml
+      - coverage_report.md
+    evidence_required: true
+    evidence_types:
+      - pytest_output
+      - compileall_output
+
+  phase_acceptance:
+    outputs:
+      - phase_acceptance.yml
+      - phase_summary.md
+    evidence_required: true
+    evidence_types:
+      - review_verdict
+      - artifact_validation
+
+  documentation_and_delivery:
+    outputs:
+      - delivery_package.md
+      - changelog.md
+    evidence_required: false
+
+  define_audience_style_constraints:
+    outputs:
+      - audience_profile.yml
+      - style_guide.md
+    evidence_required: false
+
+  create_content_constitution:
+    outputs:
+      - content_constitution.md
+    evidence_required: false
+
+  create_world_or_topic_bible:
+    outputs:
+      - world_bible.md
+      - character_bible.md
+    evidence_required: false
+
+  build_outline:
+    outputs:
+      - chapter_outline.yml
+      - narrative_arc.yml
+    evidence_required: false
+
+  create_section_or_scene_cards:
+    outputs:
+      - scene_cards.yml
+      - chapter_scene_map.yml
+    evidence_required: false
+
+  draft_batch:
+    outputs:
+      - draft_chapters/
+      - draft_progress.yml
+    evidence_required: true
+    evidence_types:
+      - word_count
+      - scene_count
+
+  continuity_review:
+    outputs:
+      - continuity_ledger.yml
+      - continuity_issues.yml
+    evidence_required: true
+
+  revision_loop:
+    outputs:
+      - revision_notes.md
+      - revised_chapters/
+    evidence_required: true
+    evidence_types:
+      - diff_from_previous
+      - review_comments_resolved
+
+  final_package:
+    outputs:
+      - final_manuscript.md
+      - delivery_package.md
+    evidence_required: false
+
+  define_platform_audience_style:
+    outputs:
+      - platform_brief.yml
+      - audience_persona.yml
+      - style_reference.yml
+    evidence_required: false
+
+  research_or_source_plan:
+    outputs:
+      - research_plan.yml
+      - source_list.yml
+    evidence_required: false
+
+  script_generation:
+    outputs:
+      - script.md
+      - script_outline.yml
+      - dialogue_notes.md
+    evidence_required: true
+    evidence_types:
+      - word_count
+      - scene_count
+
+  storyboard_or_shot_plan:
+    outputs:
+      - storyboard.yml
+      - shot_list.yml
+    evidence_required: false
+
+  asset_plan:
+    outputs:
+      - asset_manifest.yml
+      - asset_sources.yml
+    evidence_required: false
+
+  video_tool_handoff:
+    outputs:
+      - tool_handoff_packet.yml
+      - render_instructions.md
+    evidence_required: false
+
+  qa_review:
+    outputs:
+      - qa_report.yml
+      - qa_checklist.md
+    evidence_required: true
+
+  revision_notes:
+    outputs:
+      - revision_notes.md
+      - revised_assets/
+    evidence_required: true
+
+  delivery_package:
+    outputs:
+      - delivery_package.md
+      - asset_inventory.yml
+    evidence_required: false
+
+  define_research_scope:
+    outputs:
+      - research_scope.yml
+      - search_strategy.md
+    evidence_required: false
+
+  ingest_sources:
+    outputs:
+      - source_manifest.yml
+      - ingested_sources/
+    evidence_required: true
+    evidence_types:
+      - source_count
+      - citation_list
+
+  extract_metadata:
+    outputs:
+      - metadata_index.yml
+      - keyword_index.yml
+    evidence_required: false
+
+  build_fact_table:
+    outputs:
+      - fact_table.yml
+      - claims_ledger.yml
+    evidence_required: true
+
+  summarize_by_topic:
+    outputs:
+      - topic_summaries/
+      - cross_topic_index.yml
+    evidence_required: false
+
+  create_archive_index:
+    outputs:
+      - archive_index.yml
+      - taxonomy.yml
+    evidence_required: false
+
+  evidence_quality_review:
+    outputs:
+      - evidence_quality_report.yml
+      - source_quality_ledger.yml
+    evidence_required: true
+
+  final_report:
+    outputs:
+      - final_report.md
+      - executive_summary.md
+    evidence_required: false
+
+  define_document_scope:
+    outputs:
+      - document_scope.yml
+      - ingestion_plan.yml
+    evidence_required: false
+
+  ingest_documents:
+    outputs:
+      - ingestion_manifest.yml
+      - raw_extracts/
+    evidence_required: true
+    evidence_types:
+      - document_count
+      - page_count
+
+  extract_text_and_metadata:
+    outputs:
+      - extracted_text/
+      - metadata_index.yml
+    evidence_required: false
+
+  build_index:
+    outputs:
+      - search_index.jsonl
+      - category_index.yml
+    evidence_required: false
+
+  quality_review:
+    outputs:
+      - quality_report.yml
+      - extraction_issues.yml
+    evidence_required: true
+
+  create_knowledge_base:
+    outputs:
+      - knowledge_base_index.yml
+      - kb_structure.yml
+    evidence_required: false
+
+  define_modalities_and_assets:
+    outputs:
+      - modality_plan.yml
+      - asset_type_registry.yml
+    evidence_required: false
+
+  create_asset_pipeline:
+    outputs:
+      - asset_pipeline.yml
+      - generation_order.yml
+    evidence_required: false
+
+  generate_or_source_assets:
+    outputs:
+      - asset_manifest.yml
+      - sourced_assets/
+    evidence_required: true
+    evidence_types:
+      - asset_count
+      - asset_type_count
+
+  integrate_and_assemble:
+    outputs:
+      - integrated_draft/
+      - assembly_log.yml
+    evidence_required: true
+
+  cross_modal_qa:
+    outputs:
+      - cross_modal_qa_report.yml
+      - sync_issues.yml
+    evidence_required: true
+
+  define_automation_scope:
+    outputs:
+      - automation_scope.yml
+      - safety_boundaries.yml
+    evidence_required: false
+
+  create_script_or_workflow:
+    outputs:
+      - automation_script.py
+      - workflow_config.yml
+    evidence_required: false
+
+  test_dry_run:
+    outputs:
+      - dry_run_results.yml
+      - dry_run_log.txt
+    evidence_required: true
+    evidence_types:
+      - execution_log
+      - error_log
+
+  deploy_and_monitor:
+    outputs:
+      - deployment_log.yml
+      - monitor_config.yml
+    evidence_required: true

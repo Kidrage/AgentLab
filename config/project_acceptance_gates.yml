@@ -1,0 +1,167 @@
+# Project Acceptance Gates — M1-2
+# Defines acceptance criteria and validation gates per project type.
+# Used by the acceptance gate builder to generate acceptance_gates.yml.
+
+schema_version: 1
+
+# Global acceptance gates — applied to all project types
+global_gates:
+  - gate_id: no_placeholder_artifacts
+    description: No artifact contains placeholder or TODO content.
+    severity: critical
+    check: artifact_content_validation
+
+  - gate_id: text_integrity
+    description: Multiline files are preserved, no one-line compression.
+    severity: critical
+    check: text_integrity_audit
+
+  - gate_id: no_private_paths
+    description: No absolute private paths or secrets in artifacts.
+    severity: critical
+    check: path_redaction_scan
+
+  - gate_id: evidence_exists
+    description: Required evidence artifacts are present and non-empty.
+    severity: critical
+    check: evidence_file_check
+
+  - gate_id: human_approval
+    description: Human approval obtained at required decision points.
+    severity: critical
+    check: decision_log_check
+
+  - gate_id: no_external_execution
+    description: No unauthorized external tool/model execution occurred.
+    severity: critical
+    check: execution_log_audit
+
+# Per-project-type gates
+project_type_gates:
+  codebase_build_project:
+    - gate_id: tests_pass
+      description: All tests pass (or known failures documented).
+      severity: critical
+      check: test_output_parse
+
+    - gate_id: compileall_passes
+      description: compileall passes for all changed Python files.
+      severity: critical
+      check: compileall_check
+
+    - gate_id: diff_reviewed
+      description: Patch diff has been reviewed and approved.
+      severity: high
+      check: diff_inspection
+
+    - gate_id: no_breaking_api_change
+      description: No breaking change to public API without documentation.
+      severity: high
+      check: api_surface_diff
+
+  longform_text_project:
+    - gate_id: continuity_passes
+      description: Continuity ledger shows no unresolved conflicts.
+      severity: critical
+      check: continuity_ledger_review
+
+    - gate_id: style_consistent
+      description: Style guide compliance verified across all chapters.
+      severity: high
+      check: style_consistency_check
+
+    - gate_id: word_count_on_target
+      description: Draft word count matches project brief targets.
+      severity: low
+      check: word_count_check
+
+  video_generation_project:
+    - gate_id: script_approved
+      description: Script has been reviewed and approved.
+      severity: critical
+      check: decision_log_check
+
+    - gate_id: storyboard_complete
+      description: Storyboard covers all script scenes.
+      severity: high
+      check: scene_coverage_check
+
+    - gate_id: asset_manifest_complete
+      description: All required assets are listed and sourced.
+      severity: high
+      check: asset_manifest_check
+
+    - gate_id: qa_passed
+      description: QA review shows no blocking issues.
+      severity: critical
+      check: qa_checklist_check
+
+  research_archive_project:
+    - gate_id: sources_cited
+      description: All factual claims have source citations.
+      severity: critical
+      check: citation_audit
+
+    - gate_id: evidence_quality
+      description: Source quality scores meet minimum thresholds.
+      severity: high
+      check: source_quality_review
+
+    - gate_id: no_plagiarism_flag
+      description: Extracted text shows no significant unattributed copying.
+      severity: critical
+      check: plagiarism_flag_check
+
+  document_knowledgebase_project:
+    - gate_id: extraction_complete
+      description: All documents in scope have been ingested and extracted.
+      severity: critical
+      check: ingestion_manifest_check
+
+    - gate_id: index_builds
+      description: Search index builds successfully and returns results.
+      severity: high
+      check: index_smoke_test
+
+    - gate_id: quality_thresholds_met
+      description: Extraction quality scores meet minimum thresholds.
+      severity: high
+      check: quality_report_check
+
+  multimodal_content_project:
+    - gate_id: all_modalities_covered
+      description: All planned modalities have corresponding assets.
+      severity: critical
+      check: modality_coverage_check
+
+    - gate_id: cross_modal_consistency
+      description: Assets are consistent across modalities.
+      severity: high
+      check: cross_modal_check
+
+    - gate_id: format_validation
+      description: All asset formats are valid and accessible.
+      severity: high
+      check: format_validation_check
+
+  local_automation_project:
+    - gate_id: dry_run_passes
+      description: Dry run completed without errors or unauthorized side effects.
+      severity: critical
+      check: dry_run_log_check
+
+    - gate_id: safety_boundaries_respected
+      description: Script stays within declared file/path scope.
+      severity: critical
+      check: scope_violation_check
+
+    - gate_id: rollback_tested
+      description: Rollback mechanism verified working.
+      severity: high
+      check: rollback_test
+
+  unknown_project:
+    - gate_id: clarification_received
+      description: User has provided enough information to classify project.
+      severity: critical
+      check: clarification_check

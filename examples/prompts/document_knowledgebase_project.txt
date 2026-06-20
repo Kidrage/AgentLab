@@ -1,0 +1,1 @@
+I have a collection of technical documents, PDF whitepapers, and Excel spreadsheets about our company's product architecture. I want to ingest all these documents, extract text and metadata, build a searchable knowledge base index, and create a navigable taxonomy. The knowledge base will be used by our engineering team for onboarding and reference.

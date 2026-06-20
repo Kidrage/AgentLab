@@ -1,0 +1,1 @@
+I want to build a local-first task runner CLI app in Python that can manage long-running projects. It should track project phases, record evidence, and help with acceptance reviews. The project should use Typer for CLI, YAML for state files, and be fully testable offline.
