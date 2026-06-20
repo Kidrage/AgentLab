@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tempfile
 from pathlib import Path
 
@@ -9,6 +10,13 @@ import pytest
 import yaml
 
 from agent_runtime.brain.mission_contract import build_mission_contract
+
+
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def strip_ansi(text: str) -> str:
+    return ANSI_ESCAPE_RE.sub("", text)
 
 
 # ── Prompt fixtures ────────────────────────────────────────────────
@@ -540,8 +548,9 @@ class TestMissionCompilerCLI:
             capture_output=True, text=True, cwd=Path(__file__).resolve().parents[1],
         )
         assert result.returncode == 0
-        assert "--prompt-file" in result.stdout
-        assert "--out" in result.stdout
+        stdout = strip_ansi(result.stdout)
+        assert "--prompt-file" in stdout
+        assert "--out" in stdout
 
     def test_compile_writes_to_out_dir(self):
         import subprocess
