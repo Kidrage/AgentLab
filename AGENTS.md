@@ -13,6 +13,20 @@ Keep detailed policy in `config/*.yml` and long-lived project memory in
 - Coder handoffs and external executor rules live in `DRIVER_PROTOCOL.md` and
   `OPERATING_MODEL.md`.
 
+## Artifact & Deliverable Delivery Rules (业务产物交付与三层隔离规范)
+
+To keep the project clean, all agents must strictly adhere to the following **three-tier artifact structure** when executing tasks (e.g., writing novels, compiling data, writing code):
+
+1. **Task Sandbox Area (工作进行区)**
+   * **Path**: `projects/<ProjectName>/runs/<task_id>/`
+   * **Purpose**: Task execution details, temporary diffs (`diffs/`), tool/command outputs (`command_logs/`), and step-by-step agent handoff reports (`01_supervisor_plan.md`, `06_implementation_report.md`, etc.). This contains the execution noise and gets archived/purged regularly.
+2. **Task Artifact Capture (阶段产物产生区)**
+   * **Path**: `projects/<ProjectName>/runs/<task_id>/artifacts/`
+   * **Purpose**: The immediate deliverables completed *by this specific task* (e.g., Chapter 3 draft, revised outlines, specific script outputs) for verification.
+3. **Project Production Area (项目级/最终交付区)**
+   * **Path**: `projects/<ProjectName>/artifacts/`
+   * **Purpose**: The official, clean, project-level repository for all finalized deliverables. During the `ARCHIVE` phase, the **Archivist** agent extracts verified assets from the *Task Artifact Capture* area, copies them here, and maintains a clean index. Users can inspect this single directory for all completed deliverables without wading through runs or logs.
+
 ## Scope Rules
 
 - New project: create a top-level sibling under `projects/`.
