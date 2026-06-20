@@ -118,7 +118,7 @@ For each phase, include:
 
 Control rules:
 - Do not start a phase unless its budget is visible to the user.
-- Hermes (or DeepSeek/Qwen fallback) must perform AgentLab brain planning for simulations, small tasks, and large tasks unless the user changes `config/execution_policy.yml`.
+- Hermes is the preferred brain executor for AgentLab planning. DeepSeek/Qwen direct API serves as fallback when Hermes is unavailable, unless the user changes `config/execution_policy.yml`.
 - If Hermes and fallback providers are missing, rate-limited, or otherwise unavailable, stop and request a user decision.
 - If a phase reaches 90% of its budget, compress context, narrow scope, or ask whether to continue.
 - If a phase would exceed 115% of its budget, pause before continuing unless the user approves a revised budget.

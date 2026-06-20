@@ -152,6 +152,9 @@ MIN_LINE_COUNTS = {
     "config/agent_model_profiles.yml": 100,
     "agent_templates/coder.md": 100,
     "agent_templates/supervisor.md": 150,
+    "agent_runtime/cli_executor.py": 120,
+    "agent_runtime/agent_runner.py": 120,
+    "tests/test_cli_executor.py": 100,
 }
 
 

@@ -51,7 +51,7 @@ When Claude Code is not used, the Coder stage may switch to direct LLM APIs afte
 user chooses one of the direct API execution profiles.
 
 In this mode:
-- Hermes/DeepSeek remains the planning, review, and supervision brain.
+- Hermes remains the primary planning, review, and supervision brain. DeepSeek/Qwen serve as API fallback when Hermes is unavailable.
 - qwen3-coder-plus or deepseek-v4-flash performs the coding reasoning and produces an implementation report plus
   patch proposal artifacts.
 - The first safe output is a patch proposal, not automatic source mutation.

@@ -153,7 +153,7 @@ Python stdlib HTTP server (`server.py`) + vanilla JS SPA (`app.js`, `index.html`
 
 - **External AI is not the brain.** Claude/Codex/other external AIs default to dispatch and acceptance — they must NOT perform planning, code review, or implementation unless the user explicitly authorizes manual rescue. See `OPERATING_MODEL.md` and `DRIVER_PROTOCOL.md`.
 
-- **DeepSeek owns the brain layer.** Supervisor, planning, review, routing, and policy decisions use DeepSeek V4 Pro unless the user explicitly changes `config/execution_policy.yml`.
+- **Hermes is the preferred brain executor.** Supervisor, planning, review, routing, and policy decisions use Hermes CLI agent in hybrid mode, with DeepSeek/Qwen direct API as fallback. The user may change this via `config/execution_policy.yml`.
 
 - **Local-first, file-based state.** Everything is stored as YAML/MD/JSON files under `projects/<ProjectName>/runs/<task_id>/`. There is no database — the filesystem is the state store.
 
@@ -170,15 +170,15 @@ Python stdlib HTTP server (`server.py`) + vanilla JS SPA (`app.js`, `index.html`
 - **Dual-End Collaboration and Sync Protocol (双端协作与同步协议)**:
   * **Architecture**:
     - **Local Host (Mac)**: Primary development environment and source of truth.
-    - **Relay Hub (TrueNAS at `10.147.17.61:2222`)**: Shared repository and exchange relay station at `/mnt/hdd2/AgentLab_WorkSpace/`.
-    - **Cloud Runtime (Server at `10.147.17.250`)**: Run/deployment server. Connected to `10.147.17.61` and directly accessible from Local Mac via SSH (`admin@10.147.17.250`).
+    - **Relay Hub (TrueNAS at `<PRIVATE_RELAY_HOST>:<PRIVATE_RELAY_SSH_PORT>`)**: Shared repository and exchange relay station at `/mnt/hdd2/AgentLab_WorkSpace/`.
+    - **Cloud Runtime (Server at `<PRIVATE_CLOUD_RUNTIME>`)**: Run/deployment server. Connected to `<PRIVATE_RELAY_HOST>` and directly accessible from Local Mac via SSH (`admin@<PRIVATE_CLOUD_RUNTIME>`).
   * **Sync Workflow**:
     - **Local Mac -> Relay Hub**: Push local changes to config, skills, memory snapshots using:
       `./agentlab.sh truenas-sync --execute`
       Or manual full rsync:
-      `rsync -avz -e "ssh -p 2222" --exclude '__pycache__' --exclude '.pytest_cache' /Users/saintpeter/Desktop/AgentLab/ agentlab@10.147.17.61:/mnt/hdd2/AgentLab_WorkSpace/`
-    - **Relay Hub -> Cloud Runtime (250)**: Remote agents on `10.147.17.250` pull workspace/skills/MCP updates from `10.147.17.61` to `/home/admin/AgentLab/` using:
-      `ssh admin@10.147.17.250 "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' truenas:/mnt/hdd2/AgentLab_WorkSpace/ /home/admin/AgentLab/"`
-    - **Cloud Runtime (250) -> Relay Hub -> Local Mac**: Tasks executed on `10.147.17.250` sync run logs back to `10.147.17.61` first, which then can be pulled to local Mac, maintaining synchronized memory capabilities.
+      `rsync -avz -e "ssh -p <PRIVATE_RELAY_SSH_PORT>" --exclude '__pycache__' --exclude '.pytest_cache' /path/to/AgentLab/ agentlab@<PRIVATE_RELAY_HOST>:/mnt/hdd2/AgentLab_WorkSpace/`
+    - **Relay Hub -> Cloud Runtime (250)**: Remote agents on `<PRIVATE_CLOUD_RUNTIME>` pull workspace/skills/MCP updates from `<PRIVATE_RELAY_HOST>` to `/home/admin/AgentLab/` using:
+      `ssh admin@<PRIVATE_CLOUD_RUNTIME> "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' truenas:/mnt/hdd2/AgentLab_WorkSpace/ /home/admin/AgentLab/"`
+    - **Cloud Runtime (250) -> Relay Hub -> Local Mac**: Tasks executed on `<PRIVATE_CLOUD_RUNTIME>` sync run logs back to `<PRIVATE_RELAY_HOST>` first, which then can be pulled to local Mac, maintaining synchronized memory capabilities.
 
 

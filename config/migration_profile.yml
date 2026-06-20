@@ -30,7 +30,7 @@ required_user_inputs:
       local_root: projects/
 
   remote_workspace:
-    smb_url: "smb://10.147.17.61/AgentLab_WorkSpace"
+    smb_url: "smb://<PRIVATE_RELAY_HOST>/AgentLab_WorkSpace"
     macos_mount_path: "/Volumes/AgentLab_WorkSpace"
     required: true
     writable: true

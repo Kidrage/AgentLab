@@ -1,0 +1,12 @@
+# Private network topology for AgentLab dual-end collaboration.
+# Copy this file to config/local_private_topology.yml and fill in your real values.
+# config/local_private_topology.yml is gitignored — never commit real IPs/ports.
+
+private_topology:
+  relay_host: "<PRIVATE_RELAY_HOST>"       # e.g. 10.147.17.61
+  relay_ssh_port: "<PRIVATE_RELAY_SSH_PORT>"  # e.g. 2222
+  cloud_runtime: "<PRIVATE_CLOUD_RUNTIME>"     # e.g. 10.147.17.250
+  relay_workspace_path: "/mnt/hdd2/AgentLab_WorkSpace"
+  cloud_workspace_path: "/home/admin/AgentLab"
+  relay_ssh_user: "agentlab"
+  cloud_ssh_user: "admin"

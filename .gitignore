@@ -92,6 +92,7 @@ state.json
 secrets/
 *.local.yml
 *.local.yaml
+config/local_private_topology.yml
 # Skill Vault runtime memory (local only)
 memory/global/skills/
 !config/skill_vault.yml
