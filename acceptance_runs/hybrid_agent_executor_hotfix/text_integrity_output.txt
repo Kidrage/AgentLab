@@ -1,0 +1,20 @@
+Markdown report written to /Users/saintpeter/Desktop/AgentLab/acceptance_runs/stabilization/text_integrity_audit.md
+
+Total files scanned: 801
+Suspicious files: 12
+
+Suspicious files:
+  - docs/archive/historical_runs/executor_runs/p2_router_demo/external_execution_handoff.md: contains local absolute /Users path
+  - docs/archive/historical_runs/executor_runs/p2_router_handoff/external_execution_handoff.md: contains local absolute /Users path
+  - docs/archive/historical_runs/executor_runs/p2_router_mock/review/review_report.md: contains local absolute /Users path
+  - docs/archive/historical_runs/retry_runs/p2_retry_fail_then_pass/attempt_001/review/retry_handoff.md: contains local absolute /Users path
+  - docs/archive/historical_runs/retry_runs/p2_retry_fail_then_pass/attempt_001/review/review_report.md: contains local absolute /Users path
+  - docs/archive/historical_runs/retry_runs/p2_retry_fail_then_pass/attempt_002/review/review_report.md: contains local absolute /Users path
+  - docs/archive/historical_runs/retry_runs/p2_retry_fail_until_max/attempt_001/review/retry_handoff.md: contains local absolute /Users path
+  - docs/archive/historical_runs/retry_runs/p2_retry_fail_until_max/attempt_001/review/review_report.md: contains local absolute /Users path
+  - docs/archive/historical_runs/retry_runs/p2_retry_fail_until_max/attempt_002/review/retry_handoff.md: contains local absolute /Users path
+  - docs/archive/historical_runs/retry_runs/p2_retry_fail_until_max/attempt_002/review/review_report.md: contains local absolute /Users path
+  - docs/archive/historical_runs/retry_runs/p2_retry_pass_first/attempt_001/review/review_report.md: contains local absolute /Users path
+  - docs/archive/historical_runs/review_runs/p2_review_p1_closure/review_report.md: contains local absolute /Users path
+
+PASS: No suspicious files or --fail-on-suspicious not set.

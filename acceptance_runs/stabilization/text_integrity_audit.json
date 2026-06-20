@@ -11144,7 +11144,7 @@
       "path": "acceptance_runs/stabilization/text_integrity_audit.md",
       "line_count": 60,
       "max_line_length": 162,
-      "file_size_bytes": 4488,
+      "file_size_bytes": 4538,
       "suspicious_single_line": false,
       "python_ast_ok": null,
       "yaml_parse_ok": null,
