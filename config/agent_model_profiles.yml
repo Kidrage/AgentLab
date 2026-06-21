@@ -1,5 +1,5 @@
 schema_version: 4.0
-default_mode: full_api
+default_mode: full_cli
 modes:
   full_cli:
     notes: 全 Agents CLI 模式。所有可用角色都通过本地命令行智能体拉起。
@@ -12,27 +12,23 @@ modes:
           default: deepseek_v4_pro
         reposcout:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role reposcout --task
-            {task_packet_path} --max-quality
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path} --max-quality
           default: qwen3_7_max_dashscope
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role interface_mapper
-            --task {task_packet_path} --max-quality
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path} --max-quality
           default: qwen3_7_max_dashscope
         researcher:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role researcher --task
-            {task_packet_path} --max-quality
+          cli_agent: claude_code
+          cli_command: claude --task {task_packet_path} --max-quality
           default: qwen3_6_plus_dashscope
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role prompt_engineer
-            --task {task_packet_path} --max-quality
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path} --max-quality
           default: qwen3_7_max_dashscope
         coder:
           executor_type: cli_agent
@@ -42,21 +38,18 @@ modes:
           external_ide_allowed: true
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role tester_auditor
-            --task {task_packet_path} --max-quality
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path} --max-quality
           default: qwen3_7_max_dashscope
         verifier:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role verifier --task
-            {task_packet_path} --max-quality
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path} --max-quality
           default: deepseek_v4_pro
         archivist:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role archivist --task
-            {task_packet_path} --max-quality
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path} --max-quality
           default: qwen3_6_plus_dashscope
       performance:
         supervisor:
@@ -66,27 +59,23 @@ modes:
           default: deepseek_v4_pro
         reposcout:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role reposcout --task
-            {task_packet_path}
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path}
           default: qwen3_6_plus_dashscope
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role interface_mapper
-            --task {task_packet_path}
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path}
           default: qwen3_6_plus_dashscope
         researcher:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role researcher --task
-            {task_packet_path}
+          cli_agent: claude_code
+          cli_command: claude --task {task_packet_path}
           default: qwen3_6_flash_dashscope
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role prompt_engineer
-            --task {task_packet_path}
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path}
           default: qwen3_6_plus_dashscope
         coder:
           executor_type: cli_agent
@@ -96,21 +85,18 @@ modes:
           external_ide_allowed: true
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role tester_auditor
-            --task {task_packet_path}
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path}
           default: qwen3_6_plus_dashscope
         verifier:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role verifier --task
-            {task_packet_path}
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path}
           default: qwen3_6_flash_dashscope
         archivist:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role archivist --task
-            {task_packet_path}
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path}
           default: qwen3_6_plus_dashscope
       low:
         supervisor:
@@ -120,17 +106,15 @@ modes:
           default: deepseek_v4_flash
         reposcout:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role reposcout --task
-            {task_packet_path} --fast
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path} --fast
           default: qwen3_6_flash_dashscope
         interface_mapper: skip
         researcher: skip
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role prompt_engineer
-            --task {task_packet_path} --fast
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path} --fast
           default: qwen3_6_flash_dashscope
         coder:
           executor_type: cli_agent
@@ -140,16 +124,14 @@ modes:
           external_ide_allowed: false
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role tester_auditor
-            --task {task_packet_path} --fast
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path} --fast
           default: deepseek_v4_flash
         verifier: skip
         archivist:
           executor_type: cli_agent
-          cli_agent: cli_executor
-          cli_command: python -m agent_runtime.cli_executor --role archivist --task
-            {task_packet_path} --fast
+          cli_agent: agy
+          cli_command: agy --task {task_packet_path} --fast
           default: qwen3_6_flash_dashscope
   full_api:
     notes: 纯 API 模式。根据环境中的 API 密钥及能力动态选配，或回退至静态降级链。
