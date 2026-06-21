@@ -170,15 +170,15 @@ Python stdlib HTTP server (`server.py`) + vanilla JS SPA (`app.js`, `index.html`
 - **Dual-End Collaboration and Sync Protocol (双端协作与同步协议)**:
   * **Architecture**:
     - **Local Host (Mac)**: Primary development environment and source of truth.
-    - **Relay Hub (TrueNAS at `<PRIVATE_RELAY_HOST>:<PRIVATE_RELAY_SSH_PORT>`)**: Shared repository and exchange relay station at `/mnt/hdd2/AgentLab_WorkSpace/`.
+    - **Relay Hub (TrueNAS at `<PRIVATE_RELAY_HOST>:<PRIVATE_RELAY_SSH_PORT>`)**: Shared repository and exchange relay station at `/mnt/hdd2/AgentLab_WorkSpace/AgentLab/`.
     - **Cloud Runtime (Server at `<PRIVATE_CLOUD_RUNTIME>`)**: Run/deployment server. Connected to `<PRIVATE_RELAY_HOST>` and directly accessible from Local Mac via SSH (`admin@<PRIVATE_CLOUD_RUNTIME>`).
   * **Sync Workflow**:
     - **Local Mac -> Relay Hub**: Push local changes to config, skills, memory snapshots using:
       `./agentlab.sh truenas-sync --execute`
       Or manual full rsync:
-      `rsync -avz -e "ssh -p <PRIVATE_RELAY_SSH_PORT>" --exclude '__pycache__' --exclude '.pytest_cache' /path/to/AgentLab/ agentlab@<PRIVATE_RELAY_HOST>:/mnt/hdd2/AgentLab_WorkSpace/`
+      `rsync -avz -e "ssh -p <PRIVATE_RELAY_SSH_PORT>" --exclude '__pycache__' --exclude '.pytest_cache' /path/to/AgentLab/ agentlab@<PRIVATE_RELAY_HOST>:/mnt/hdd2/AgentLab_WorkSpace/AgentLab/`
     - **Relay Hub -> Cloud Runtime (250)**: Remote agents on `<PRIVATE_CLOUD_RUNTIME>` pull workspace/skills/MCP updates from `<PRIVATE_RELAY_HOST>` to `/home/admin/AgentLab/` using:
-      `ssh admin@<PRIVATE_CLOUD_RUNTIME> "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' truenas:/mnt/hdd2/AgentLab_WorkSpace/ /home/admin/AgentLab/"`
+      `ssh admin@<PRIVATE_CLOUD_RUNTIME> "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' truenas:/mnt/hdd2/AgentLab_WorkSpace/AgentLab/ /home/admin/AgentLab/"`
     - **Cloud Runtime (250) -> Relay Hub -> Local Mac**: Tasks executed on `<PRIVATE_CLOUD_RUNTIME>` sync run logs back to `<PRIVATE_RELAY_HOST>` first, which then can be pulled to local Mac, maintaining synchronized memory capabilities.
 
 

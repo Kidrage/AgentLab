@@ -529,16 +529,16 @@ CodexPromptGenerator → Coder → TesterAuditor → Archivist
 
 ### 1. 物理链路拓扑 (Network Topology)
 *   **本地开发端 (Local Mac)**：作为主开发环境和 Codebase/配置的源头真理（Source of Truth）。
-*   **资源交换中转站 (Relay Hub - TrueNAS)**：`<PRIVATE_RELAY_HOST>:<PRIVATE_RELAY_SSH_PORT>`，底座路径为 `/mnt/hdd2/AgentLab_WorkSpace/`。负责接收本地的备份更新，并作为中转站将数据分发给云端部署服务器。
+*   **资源交换中转站 (Relay Hub - TrueNAS)**：`<PRIVATE_RELAY_HOST>:<PRIVATE_RELAY_SSH_PORT>`，底座路径为 `/mnt/hdd2/AgentLab_WorkSpace/AgentLab/`。负责接收本地的备份更新，并作为中转站将数据分发给云端部署服务器。
 *   **Cloud Runtime (Cloud Server)**：云端部署服务器 `<PRIVATE_CLOUD_RUNTIME>`。作为任务运行/部署环境，可以直接通过 SSH 从本地 Mac 直连，并配置了通过密钥连接至 TrueNAS 仓库的快捷别名 `truenas`。
 
 ### 2. 双向同步流程 (Sync Workflow)
 *   **本地 -> 中转站 (Truenas Push)**：本地代码、定制 `skills/`、`config/` 或记忆库有更新时，在本地执行：
     `./agentlab.sh truenas-sync --execute`
     或手动同步全部结构：
-    `rsync -avz -e "ssh -p <PRIVATE_RELAY_SSH_PORT>" --exclude '__pycache__' --exclude '.pytest_cache' --exclude '.venv' --exclude 'node_modules' /path/to/AgentLab/ agentlab@<PRIVATE_RELAY_HOST>:/mnt/hdd2/AgentLab_WorkSpace/`
+    `rsync -avz -e "ssh -p <PRIVATE_RELAY_SSH_PORT>" --exclude '__pycache__' --exclude '.pytest_cache' --exclude '.venv' --exclude 'node_modules' /path/to/AgentLab/ agentlab@<PRIVATE_RELAY_HOST>:/mnt/hdd2/AgentLab_WorkSpace/AgentLab/`
 *   **中转站 -> 云端部署端 (Remote Pull)**：云端 `<PRIVATE_CLOUD_RUNTIME>` 通过 `rsync` 自动拉取 TrueNAS 中的最新快照进行同步更新：
-    `ssh admin@<PRIVATE_CLOUD_RUNTIME> "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' truenas:/mnt/hdd2/AgentLab_WorkSpace/ /home/admin/AgentLab/"`
+    `ssh admin@<PRIVATE_CLOUD_RUNTIME> "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' truenas:/mnt/hdd2/AgentLab_WorkSpace/AgentLab/ /home/admin/AgentLab/"`
 *   **云端 -> 中转站 -> 本地 (Remote Pullback)**：云端执行产生的 Task 运行记录、事件日志和内存变更，会在任务归档时先同步推送到 `<PRIVATE_RELAY_HOST>`，本地拉回后自动对齐，从而保持双端环境下的 MCP、技能以及记忆的完美一致。
 
 ---

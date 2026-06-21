@@ -82,6 +82,17 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
 3. **Audit Before Commit**: The `rule_self_check.py` pre-push check is strictly integrated. Commit hooks will block pushes if root-level pollution or credential leak is detected.
 4. **Task Purge & Archiving**: Regularly purge old task runs using `./agentlab.sh task-purge --project <ProjectName> --keep-days 7` to keep the disk space tidy.
 
+## Front-Desk Operator & Tool Call Responsibilities (前端接线员与底层AI调用分工)
+
+- **OpenClaw (`openclaw`)**:
+  - **角色与司职**：前端接线员 (Front-desk Operator)。
+  - **主要职责**：负责对接与用户的自然语言沟通（如微信 wechat-mp-bot/wechat-ai-bot、Telegram 或 Web UI 交互），接收原始 prompt，展示计划门禁/审批流（如 Dry-Run vs Execute），并在必要时将任务推送到后端 AgentLab 公司系统中处理成资产。
+  - **连接机制**：通过 `agy-bridge` (FastAPI 包装的 OpenAI 兼容端点 `/v1/chat/completions`) 调用底座 `agy -p` 命令，进而驱动 Hermes / Antigravity 大脑层。
+- **Bailian CLI (`bl` / `bailian-cli`)**:
+  - **角色与司职**：底层多模态 AI 工具调用者 (Multi-modal AI Tool Caller)。
+  - **主要职责**：DashScope/阿里云百炼平台服务的主要交互工具。负责处理文本对话、多模态对话、图像生成与编辑、视频生成与编辑/参考（Wan2.x/happyhorse等）、语音合成与识别 (TTS/ASR)、临时 OSS 文件上传、知识库检索 (RAG) 等。
+  - **使用规范**：所有后端执行 Agent (如 Coder, Researcher) 在需要调用模型生成或编辑资产时，必须**最高优先级默认调用 `bl` 命令**。
+
 ## Dual-End Collaboration Protocol (双端协作协约)
 
 - **Network Topology / Link Layout**:
