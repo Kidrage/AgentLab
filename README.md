@@ -606,6 +606,26 @@ AgentLab supports guarded GitHub auto-sync with self-check before push:
 
 ---
 
+## Agent Corporation & Multi-End Sync / Agent 公司化与三端多端同步
+
+AgentLab supports transforming the workspace into an **Agent Corporation (Agent OS)** framework to synchronize configurations and histories across local and remote environments:
+
+- **Centralized Workstations / 集中管理工作站**: All agent workspace settings (such as `.claude`, `.gemini`, `.hermes`, `.qwen`, `.codex`) are stored in `AgentLab/.agents/workspaces/` to ensure they are synchronized. Local symlinks are automatically established from home directories for seamless execution.
+- **Three-End Multi-Party Topology / 三端多方协作**:
+  - *Local Mac* acts as the primary development source of truth.
+  - *10.147.17.61 (Relay Hub 中转站)* acts as the central information and workspace relay station.
+  - *10.147.17.250 (Cloud Office 250办公区)* pulls updates from 61 via SSH/rsync to align runtime memory and execution history.
+- **Double-Track Sync / 双轨同步**: 
+  - *Scheme A (Git)*: Used for framework/structure code changes (in `agent_runtime/`, `config/`), pushed to git repositories.
+  - *Scheme B (Rsync / truenas-sync)*: Used for daily workspace databases, runtime histories, and Agent local states, pushed to 10.147.17.61.
+- **Strict Data Security / 资产安全防泄漏**: Commercial project assets (under `projects/`) and API keys/credentials must *never* be pushed to external GitHub. They are exclusively synced internally to the 61 TrueNAS Relay Hub.
+- **Cost & Quality Governance (Trial Run) / 财务与质量网关（试运营）**:
+  - *Cost Ledger & Budget Grill*: A unified `cost_ledger.yml` in the task sandbox tracks API tokens, with a conversational `Budget Grill` triggered by the Supervisor to handle overruns, leaving budget headroom for future department expansions.
+  - *Dual-Gate Acceptance*: Closures require both automated tests (e.g. `pytest`) and peer-review audits (`ponytail-review` by TesterAuditor/Verifier) to verify correctness and prevent over-engineering.
+- **Workspace Cleanup / 工作区清理规则**: Old runs older than 7 days are cleaned up across all three ends (Local Mac, 61 TrueNAS, 250 Cloud Runtime) while preserving active running tasks (such as `task_0001`, `task_0009`, `task_0010`, `task_0035`, and `task_p2g_*`).
+
+---
+
 ## Task Purge & Project Documentation / 任务清理与项目文档
 
 Archivist (T5) 的 bulk 文档整合模式提供自动任务归档和项目文档生成:

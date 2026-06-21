@@ -101,4 +101,5 @@ memory/global/skills/
 # Agent Coordination (local only, synced via rsync)
 .agents/locks/
 .agents/agent_states/
+.agents/workspaces/
 
