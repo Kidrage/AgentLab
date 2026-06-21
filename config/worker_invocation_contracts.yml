@@ -1,0 +1,165 @@
+# Configuration for local worker command invocation contracts
+contracts:
+  hermes:
+    worker_id: hermes
+    display_name: Hermes CLI
+    command: hermes
+    invocation_style: one_shot_prompt
+    template: >-
+      hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path},
+      perform the requested AgentLab role work, and return a concise markdown report
+      with findings, actions taken, verification, and blockers."
+    required_placeholders:
+      - task_packet_path
+    safe_probe:
+      - hermes
+      - --help
+    expected_parse:
+      argv_prefix:
+        - hermes
+        - -z
+    validation:
+      shlex_parse_required: true
+      require_existing_binary: false
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    error_classification:
+      invalid_exit_codes:
+        - 2
+      invalid_invocation_patterns:
+        - "usage:"
+        - "unrecognized arguments"
+      auth_required_patterns:
+        - "API key"
+        - "unauthorized"
+        - "auth required"
+    fallback:
+      on_binary_missing: alternate_worker_or_direct_api
+      on_invalid_invocation: direct_api
+
+  claude:
+    worker_id: claude_code
+    display_name: Claude Code
+    command: claude
+    invocation_style: one_shot_prompt
+    template: 'claude -p "{prompt}"'
+    required_placeholders:
+      - prompt
+    safe_probe:
+      - claude
+      - --help
+    expected_parse:
+      argv_prefix:
+        - claude
+        - -p
+    validation:
+      shlex_parse_required: true
+    error_classification:
+      invalid_exit_codes:
+        - 2
+      invalid_invocation_patterns:
+        - "usage:"
+        - "unrecognized arguments"
+    fallback:
+      on_binary_missing: alternate_worker_or_direct_api
+      on_invalid_invocation: direct_api
+
+  bl:
+    worker_id: bl
+    display_name: Bailian CLI
+    command: bl
+    invocation_style: one_shot_prompt
+    template: 'bl chat -p "{prompt}"'
+    required_placeholders:
+      - prompt
+    safe_probe:
+      - bl
+      - --help
+    expected_parse:
+      argv_prefix:
+        - bl
+        - chat
+    validation:
+      shlex_parse_required: true
+    fallback:
+      on_binary_missing: alternate_worker_or_direct_api
+      on_invalid_invocation: direct_api
+
+  aider:
+    worker_id: aider
+    display_name: Aider
+    command: aider
+    invocation_style: one_shot_prompt
+    template: 'aider --message "{prompt}"'
+    required_placeholders:
+      - prompt
+    safe_probe:
+      - aider
+      - --help
+    expected_parse:
+      argv_prefix:
+        - aider
+        - --message
+    validation:
+      shlex_parse_required: true
+    fallback:
+      on_binary_missing: alternate_worker_or_direct_api
+
+  codex:
+    worker_id: codex
+    display_name: Codex Code
+    command: codex
+    invocation_style: one_shot_prompt
+    template: 'codex --task "{prompt}"'
+    required_placeholders:
+      - prompt
+    safe_probe:
+      - codex
+      - --help
+    expected_parse:
+      argv_prefix:
+        - codex
+        - --task
+    validation:
+      shlex_parse_required: true
+    fallback:
+      on_binary_missing: alternate_worker_or_direct_api
+
+  openclaw:
+    worker_id: openclaw
+    display_name: OpenClaw Operator
+    command: openclaw
+    invocation_style: one_shot_prompt
+    template: 'openclaw run --prompt "{prompt}"'
+    required_placeholders:
+      - prompt
+    safe_probe:
+      - openclaw
+      - --help
+    expected_parse:
+      argv_prefix:
+        - openclaw
+        - run
+    validation:
+      shlex_parse_required: true
+    fallback:
+      on_binary_missing: alternate_worker_or_direct_api
+
+  git:
+    worker_id: git
+    display_name: Git VCS
+    command: git
+    invocation_style: deterministic_tool
+    template: 'git {args}'
+    required_placeholders:
+      - args
+    safe_probe:
+      - git
+      - --version
+    expected_parse:
+      argv_prefix:
+        - git
+    validation:
+      shlex_parse_required: true
+    fallback:
+      on_binary_missing: alternate_worker_or_direct_api

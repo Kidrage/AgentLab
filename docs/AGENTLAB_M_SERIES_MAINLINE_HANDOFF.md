@@ -50,8 +50,8 @@ The intended version milestones:
 v0.7 Project Kernel
   M1 completed. AgentLab can run long-governance projects and coordinate local CLI agents.
 
-v0.8 Operator OS
-  M2 completed. AgentLab is transparent, configurable, observable, and cost-controlled.
+v0.8 Operator OS / Local Agent Company Control Plane
+  M2 completed. AgentLab is transparent, configurable, observable, cost-controlled, and able to discover, evaluate, assign, and govern local agent/tool workers.
 
 v0.9 Project-to-Revenue OS
   M3 completed. AgentLab can assetize projects and manage business-oriented production/revenue loops.
@@ -304,15 +304,20 @@ M1 Project Governance Kernel
   M1-9 Context Compression v1
   M1-10 Generalization Demo Suite
 ↓
-M2 Operator OS / Transparent Control Plane
-  M2-1 Config Center
-  M2-2 Cost System v2
-  M2-3 Event Timeline / Observability
-  M2-4 TUI
-  M2-5 WebUI
-  M2-6 AgentLab Assistant Modes
-  M2-7 Skill / Capability / Executor Control Panel
-  M2-8 Operator Acceptance Demo
+M2 Operator OS / Local Agent Company Control Plane
+  M2-0 Runtime Hygiene & Safety Baseline
+  M2-1 Local Worker Registry / Agent Doctor
+  M2-2 Capability Schema & 9-Role Requirement Matrix
+  M2-3 Worker Audition / Performance Ledger
+  M2-4 Role Assignment Router v2
+  M2-5 Config Center v2
+  M2-6 Cost, Risk & Approval System v2
+  M2-7 Observability / Event Timeline v2
+  M2-8 Control Panel: Workers / Skills / Capabilities / Executors
+  M2-9 AgentLab Assistant Modes
+  M2-10 TUI
+  M2-11 WebUI
+  M2-12 Operator Acceptance Demo
 ↓
 M3 Project-to-Revenue OS
   M3-1 Business Contract
@@ -1536,27 +1541,56 @@ M1 fully passes if:
 
 ---
 
-# 6. M2 — Operator OS / Transparent Control Plane
+# 6. M2 — Operator OS / Local Agent Company Control Plane
 
 ## 6.1 M2 Objective
 
-M2 makes AgentLab easy to control.
+M2 makes AgentLab transparent, controllable, cost-aware, and able to manage the user’s local agent/tool ecosystem as an “agent company.”
+
+M2 is no longer only a dashboard/control-plane upgrade. It must also solve the central product problem:
+
+```text
+Most users already have multiple local agent CLIs and tools:
+Claude Code, Codex, Hermes, OpenClaw, Aider, Bailian CLI, Qwen CLI,
+Gemini CLI, rg, git, ast-grep, pytest, ruff, eslint, docker, etc.
+
+AgentLab should discover these workers, evaluate their capabilities,
+assign them to the 9 AgentLab roles, route tasks safely, track cost,
+record evidence, and let the operator inspect/override decisions.
+```
 
 The user should be able to see:
 
 ```text
 what AgentLab is doing
 why it is doing it
-what it costs
+which role is responsible
+which local CLI/tool/worker is assigned
+why that worker was selected
+what capabilities were required
+what permissions are involved
+what the cost/risk is
 what is blocked
 what needs approval
-which agent/tool/skill is involved
 what evidence exists
 what changed
 what happens next
 ```
 
-M2 is about transparency and operator control.
+M2 turns AgentLab into the local-first management layer for a multi-agent workstation.
+
+The core product narrative is:
+
+```text
+Other tools provide individual agents.
+AgentLab manages the local agent company.
+
+Claude Code / Codex / Aider / Hermes / OpenClaw / Bailian CLI / deterministic tools
+are not competitors to AgentLab. They are workers, front desks, specialist tools,
+or capability providers managed by AgentLab.
+```
+
+---
 
 ## 6.2 M2 Non-Goals
 
@@ -1564,25 +1598,1153 @@ Do not implement in M2:
 
 ```text
 - real commercial revenue loop
-- platform posting
 - CRM
 - payment
-- advanced business strategy
-- real social scraping
+- platform posting
 - unsafe automation
+- real social scraping
+- autonomous external tool installation
+- uncontrolled shell execution
+- automatic upload of user files to cloud providers
+- automatic public network binding for WebUI/OpenClaw gateways
 ```
 
-M2 may show placeholders for future business/ROI fields, but must not make them core.
+M2 may prepare hooks for M3 asset/revenue/business loops, but it must not make commercial automation core yet.
+
+M2 may expose local frontdesk gateway status, such as OpenClaw or a WeChat gateway, but it must not turn those gateways into uncontrolled autonomous execution endpoints.
 
 ---
 
-## 6.3 M2-1 — Config Center
+## 6.3 Revised M2 Dependency Graph
 
-### Goal
+The old M2 order was:
 
-Make configuration transparent, inspectable, validated, and override-aware.
+```text
+Config Center
+→ Cost System
+→ Timeline
+→ TUI
+→ WebUI
+→ Assistant
+→ Skill/Capability/Executor Control Panel
+→ Operator Demo
+```
 
-### Add Modules
+The revised M2 order should be:
+
+```text
+M2-0 Runtime Hygiene & Safety Baseline
+↓
+M2-1 Local Worker Registry / Agent Doctor
+↓
+M2-2 Capability Schema & 9-Role Requirement Matrix
+↓
+M2-3 Worker Audition / Performance Ledger
+↓
+M2-4 Role Assignment Router v2
+↓
+M2-5 Config Center v2
+↓
+M2-6 Cost, Risk & Approval System v2
+↓
+M2-7 Observability / Event Timeline v2
+↓
+M2-8 Control Panel: Workers / Skills / Capabilities / Executors
+↓
+M2-9 AgentLab Assistant Modes
+↓
+M2-10 TUI
+↓
+M2-11 WebUI
+↓
+M2-12 Operator Acceptance Demo
+```
+
+Reason for the reorder:
+
+```text
+Worker discovery and role assignment must come before UI.
+
+Otherwise the TUI/WebUI can only show static configs, not the real product value:
+“AgentLab knows which local agents/tools exist, what they are good at,
+what they cost, what they are allowed to do, and which role they should fill.”
+```
+
+---
+
+# 6.4 M2-0 — Runtime Hygiene & Safety Baseline
+
+## Goal
+
+Before adding worker management, fix and validate the local/remote runtime topology.
+
+AgentLab must clearly separate:
+
+```text
+profiles = private runtime state/config/auth/cache/logs
+workspaces = temporary execution/build/checkouts/task sandboxes
+bridges = gateway/adapter/connector processes
+logs = redacted operational logs
+runtime = pid/socket/health/status files
+```
+
+This stage exists because local agent CLIs often create private directories such as:
+
+```text
+.claude
+.codex
+.qwen
+.hermes
+.gemini
+.claude.json
+```
+
+These are usually runtime profile/state/config/auth directories, not task workspaces. AgentLab must not treat them as cleanable project workspaces.
+
+## Required Layout
+
+```text
+AgentLab/
+  .agents/
+    profiles/
+      claude/
+      codex/
+      qwen/
+      hermes/
+      gemini/
+      bailian/
+      openclaw/
+    workspaces/
+      claude/
+      codex/
+      qwen/
+      hermes/
+      openclaw/
+      generic_cli/
+    bridges/
+      agy_bridge/
+      openclaw_gateway/
+      wechat_gateway/
+    logs/
+    runtime/
+```
+
+## Required Git Ignore Rules
+
+Add or verify:
+
+```gitignore
+.agents/
+.claude/
+.codex/
+.hermes/
+.gemini/
+.qwen/
+.claude.json
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.pid
+*.sock
+.env
+.env.*
+```
+
+If `.qwen/` or `.env` already exists in `.gitignore`, keep it. The key requirement is that all new local agent state paths are explicitly protected.
+
+## Add Modules
+
+```text
+agent_runtime/runtime_hygiene/
+  __init__.py
+  layout.py
+  symlink_audit.py
+  gitignore_audit.py
+  secret_scan.py
+  profile_workspace_classifier.py
+  renderer.py
+```
+
+## Runtime Layout Report Schema
+
+```yaml
+runtime_layout:
+  agentlab_root:
+  profiles_dir:
+  workspaces_dir:
+  bridges_dir:
+  logs_dir:
+  runtime_dir:
+  profile_entries:
+    - name:
+      path:
+      exists:
+      symlink:
+      target:
+      git_tracked:
+      risk_flags: []
+  workspace_entries:
+    - name:
+      path:
+      exists:
+      symlink:
+      target:
+      git_tracked:
+      cleanable:
+      risk_flags: []
+  warnings: []
+```
+
+## CLI
+
+```bash
+./agentlab.sh runtime-doctor
+./agentlab.sh runtime-layout
+./agentlab.sh runtime-audit-symlinks
+./agentlab.sh runtime-secret-scan
+```
+
+## Tests
+
+```text
+tests/test_m2_runtime_hygiene_layout.py
+tests/test_m2_runtime_gitignore_audit.py
+tests/test_m2_runtime_secret_scan.py
+tests/test_m2_profile_workspace_classifier.py
+```
+
+## Acceptance
+
+M2-0 passes if:
+
+```text
+- .agents/profiles and .agents/workspaces are semantically separated
+- .agents/ is ignored by Git
+- agent profile directories are never treated as cleanable task workspaces
+- no token/state/log file is tracked
+- symlink targets can be inspected
+- local and remote layout can be represented symmetrically
+- runtime-doctor produces a Markdown and YAML report
+```
+
+---
+
+# 6.5 M2-1 — Local Worker Registry / Agent Doctor
+
+## Goal
+
+Discover local agent CLIs and deterministic tools installed on the user’s machine.
+
+AgentLab must not assume the user has Claude, Codex, Aider, Hermes, OpenClaw, Bailian CLI, or any other tool. It must detect and record what is actually available.
+
+## Worker Categories
+
+```text
+coding_agent
+planning_agent
+frontdesk_agent
+multimodal_cloud_tool
+research_tool
+deterministic_repo_tool
+deterministic_ast_tool
+test_runner
+linter
+formatter
+shell_tool
+vcs_tool
+container_tool
+unknown
+```
+
+## Initial Worker Candidates
+
+```text
+claude
+codex
+aider
+hermes
+openclaw
+agy
+bl / bailian-cli
+qwen
+gemini
+rg
+git
+git grep
+ast-grep / sg
+pytest
+ruff
+eslint
+mypy
+npm
+pnpm
+uv
+docker
+```
+
+## Add Modules
+
+```text
+agent_runtime/workers/
+  __init__.py
+  worker_card.py
+  registry.py
+  detector.py
+  command_probe.py
+  auth_probe.py
+  version_probe.py
+  health_probe.py
+  renderer.py
+```
+
+## Worker Card Schema
+
+```yaml
+worker:
+  worker_id: claude_code
+  display_name: Claude Code
+  command: claude
+  installed: true
+  version: null
+  authenticated: unknown
+  category: coding_agent
+  source: local_cli
+  can_read_files: true
+  can_edit_files: true
+  can_run_shell: true
+  can_access_network: unknown
+  can_upload_files: unknown
+  interactive: true
+  supports_noninteractive_task: unknown
+  supports_mcp: unknown
+  supports_long_context: unknown
+  cost_tier: high
+  risk_level: high
+  default_enabled: false
+  approval_required: true
+  best_for:
+    - repo_level_coding
+    - architecture_reasoning
+    - large_refactor
+  avoid_for:
+    - deterministic_search
+    - cheap_lint
+    - secret_handling
+  notes: []
+```
+
+## Detection Rules
+
+Detection must be safe and best-effort:
+
+```text
+- command presence may use `which` / `command -v`
+- version probe may call `--version` or equivalent only when safe
+- auth probe must never print tokens
+- health probe must not launch an interactive editing session
+- unknown tools are represented as unknown, not failure
+- worker-scan must work offline
+```
+
+## CLI
+
+```bash
+./agentlab.sh worker-scan
+./agentlab.sh worker-list
+./agentlab.sh worker-inspect --worker claude_code
+./agentlab.sh worker-doctor
+```
+
+## Outputs
+
+```text
+.agentlab/cache/worker_registry.yml
+acceptance_runs/m2_worker_registry/worker_scan_report.md
+```
+
+## Tests
+
+```text
+tests/test_m2_worker_registry.py
+tests/test_m2_worker_detector.py
+tests/test_m2_worker_card_schema.py
+tests/test_m2_worker_cli.py
+```
+
+## Acceptance
+
+M2-1 passes if:
+
+```text
+- worker-scan works even if no external agent CLI is installed
+- missing tools are reported cleanly
+- installed tools are detected by command presence
+- version/auth probes are best-effort and never leak secrets
+- worker cards are generated deterministically
+- high-risk workers default to approval_required=true
+- deterministic tools such as rg/git/pytest/ruff can be registered as workers
+```
+# 6.5.5 M2-1.5 — CLI Invocation Contract Validator
+
+## Goal
+
+Validate that every configured local agent CLI is not only installed, but also invoked through a real, supported, testable command contract.
+
+This stage exists because command presence is not enough:
+
+```text
+CLI binary exists ≠ CLI invocation is valid
+```
+
+Example failure class:
+
+```text
+hermes binary exists
+→ AgentLab selects Hermes as Supervisor
+→ configured command uses fake template: hermes --task {task_packet_path}
+→ Hermes exits with argparse usage failure / exit code 2
+→ old AgentLab misclassifies the failure as blocked_user_decision
+→ correct behavior should classify it as invalid_cli_invocation and fallback
+```
+
+M2-1.5 prevents stale, fake, hallucinated, or unsupported CLI templates from entering the worker routing pool.
+
+---
+
+## Required Principle
+
+Every local agent CLI must be represented by an invocation contract, not only a raw command string.
+
+Bad:
+
+```yaml
+cli_command: hermes --task {task_packet_path}
+```
+
+Good:
+
+```yaml
+worker_invocation_contract:
+  worker_id: hermes
+  command: hermes
+  invocation_style: one_shot_prompt
+  template: >
+    hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path},
+    perform the requested AgentLab role work, and return a concise markdown report
+    with findings, actions taken, verification, and blockers."
+  required_placeholders:
+    - task_packet_path
+  safe_probe:
+    - hermes
+    - --help
+  expected_parse:
+    argv_prefix:
+      - hermes
+      - -z
+  invalid_invocation_patterns:
+    - "usage:"
+    - "unrecognized arguments"
+  invalid_exit_codes:
+    - 2
+  fallback_on_invalid_invocation: direct_api
+```
+
+---
+
+## Add Modules
+
+```text
+agent_runtime/workers/
+  invocation_contract.py
+  command_template_validator.py
+  cli_error_classifier.py
+  safe_probe_runner.py
+  invocation_report.py
+```
+
+---
+
+## Add Configs
+
+```text
+config/worker_invocation_contracts.yml
+config/cli_error_classification.yml
+```
+
+---
+
+## Invocation Contract Schema
+
+```yaml
+worker_invocation_contract:
+  worker_id:
+  display_name:
+  command:
+  invocation_style: one_shot_prompt | chat_query | task_file | stdin | custom | deterministic_tool
+  template:
+  required_placeholders: []
+  optional_placeholders: []
+  safe_probe: []
+  expected_parse:
+    argv_prefix: []
+    must_contain: []
+    must_not_contain: []
+  validation:
+    shlex_parse_required: true
+    require_existing_binary: false
+    allow_shell: false
+    allow_unquoted_placeholders: false
+  error_classification:
+    invalid_exit_codes: []
+    invalid_invocation_patterns: []
+    auth_required_patterns: []
+    rate_limit_patterns: []
+    network_failure_patterns: []
+    permission_denied_patterns: []
+  fallback:
+    on_binary_missing: alternate_worker_or_direct_api
+    on_invalid_invocation: direct_api
+    on_auth_required: blocked_user_setup
+    on_network_required: offline_or_retry_later
+    on_permission_denied: approval_required
+```
+
+---
+
+## Required CLI Error Classes
+
+```text
+binary_missing
+invalid_cli_invocation
+auth_required
+network_required
+permission_denied
+timeout
+rate_limited
+model_unavailable
+provider_error
+task_failed
+unknown_failure
+```
+
+---
+
+## Error Classification Rules
+
+Minimum rules:
+
+```text
+exit code 2 + stderr contains "usage:" or "unrecognized arguments"
+→ invalid_cli_invocation
+
+binary missing / command not found
+→ binary_missing
+
+stderr contains auth/login/API key related failure
+→ auth_required
+
+stderr contains network/DNS/proxy/connection failure
+→ network_required
+
+stderr contains permission denied / sandbox denied
+→ permission_denied
+
+stderr contains rate limit / quota exceeded
+→ rate_limited
+
+timeout exceeded
+→ timeout
+```
+
+The key rule:
+
+```text
+binary present but invalid arguments must never be treated as available worker.
+```
+
+---
+
+## Initial Workers That Must Have Invocation Contracts
+
+```text
+hermes
+claude
+codex
+aider
+openclaw
+agy
+bl / bailian-cli
+qwen
+gemini
+rg
+git
+ast-grep / sg
+pytest
+ruff
+eslint
+```
+
+Priority order:
+
+```text
+P0 Hermes
+  Already known to have had fake --task templates. Must be locked by regression tests.
+
+P0 Claude / Codex / Aider
+  High-risk coding workers. They can edit files and run shell commands, so invocation contracts must be validated.
+
+P0 bl / Bailian CLI
+  Cloud/multimodal/RAG/OSS-capable worker. Must be approval-gated before upload or paid generation.
+
+P1 OpenClaw / agy
+  Frontdesk/bridge/gateway workers. Must not be accidentally treated as unrestricted executors.
+
+P1 qwen / gemini
+  API/CLI fallback workers. Validate auth, model arguments, and failure classification.
+
+P2 deterministic tools
+  rg / git / ast-grep / pytest / ruff / eslint.
+  Lower risk, but still require command presence, template parse, and output classification.
+```
+
+---
+
+## CLI
+
+```bash
+./agentlab.sh worker-contracts
+./agentlab.sh worker-contract-validate --worker hermes
+./agentlab.sh worker-contract-validate --all
+./agentlab.sh worker-invocation-probe --worker hermes --mock
+./agentlab.sh worker-invocation-report --out acceptance_runs/m2_worker_invocation_contracts
+```
+
+---
+
+## Outputs
+
+```text
+acceptance_runs/m2_worker_invocation_contracts/
+  worker_invocation_contract_report.md
+  worker_invocation_contract_report.yml
+  invalid_templates.yml
+  classified_cli_failures.yml
+```
+
+---
+
+## Tests
+
+```text
+tests/test_m2_worker_invocation_contract.py
+tests/test_m2_command_template_validator.py
+tests/test_m2_cli_error_classifier.py
+tests/test_m2_worker_invocation_probe.py
+```
+
+---
+
+## Minimum Regression Tests
+
+```text
+- Hermes old fake template `hermes --task {task_packet_path}` is classified as invalid_cli_invocation.
+- Hermes old fake template `hermes --task-packet {task_packet_path}` is classified as invalid_cli_invocation.
+- Valid Hermes one-shot template parses as: ['hermes', '-z', <prompt containing task_packet_path>].
+- invalid_cli_invocation returns CliAgentNotAvailable(reason="invalid_cli_invocation").
+- invalid_cli_invocation triggers direct API or alternate worker fallback, not blocked_user_decision.
+- all configured cli_command templates pass shlex validation.
+- every command template declares required placeholders.
+- missing placeholder fails config validation.
+- binary present but bad args is not treated as available worker.
+- grep hits of old bad templates are allowed only inside regression tests.
+```
+
+---
+
+## Acceptance
+
+M2-1.5 passes if:
+
+```text
+- every configured local CLI worker has an invocation contract
+- command templates parse with shlex
+- required placeholders are declared and validated
+- invalid CLI arguments are classified as invalid_cli_invocation
+- invalid_cli_invocation triggers fallback, not blocked_user_decision
+- Hermes real one-shot interface is represented as hermes -z <prompt>
+- stale/fake CLI templates are caught before route execution
+- worker registry excludes or marks workers with invalid invocation contracts
+- route assignment can only select workers with valid or explicitly approved invocation contracts
+- no real external CLI execution is required for tests
+```
+
+---
+
+# 6.6 M2-2 — Capability Schema & 9-Role Requirement Matrix
+
+## Goal
+
+Separate AgentLab roles from concrete CLIs.
+
+A role is not a CLI.
+A role requires capabilities.
+A capability can be provided by one or more workers/tools.
+
+This is the conceptual center of M2.
+
+## 9 AgentLab Roles
+
+```text
+Supervisor
+RepoScout
+InterfaceMapper
+Researcher
+PromptEngineer
+Coder
+TesterAuditor
+Verifier
+Archivist
+```
+
+## Add Modules
+
+```text
+agent_runtime/capabilities/
+  __init__.py
+  capability_schema.py
+  role_requirements.py
+  compatibility.py
+  risk_tags.py
+  renderer.py
+```
+
+## Add Configs
+
+```text
+config/capability_schema.yml
+config/agent_role_requirements.yml
+config/worker_capability_defaults.yml
+```
+
+## Capability Families
+
+```text
+planning
+task_decomposition
+budget_reasoning
+read_only_repo_search
+symbol_lookup
+structural_ast_scan
+external_research
+web_search
+context_assembly
+prompt_handoff
+file_edit
+patch_generation
+shell_execution
+test_execution
+diff_review
+lint_check
+format_check
+secret_scan
+artifact_archive
+git_commit
+multimodal_generation
+cloud_upload
+rag_query
+frontdesk_chat
+approval_ui
+```
+
+## Role Requirement Example
+
+```yaml
+roles:
+  supervisor:
+    required_capabilities:
+      - planning
+      - task_decomposition
+      - budget_reasoning
+    preferred_capabilities:
+      - long_context
+      - tool_routing
+    forbidden_capabilities: []
+    default_risk_ceiling: medium
+    human_approval_required_for:
+      - shell_execution
+      - cloud_upload
+      - external_network
+
+  repo_scout:
+    required_capabilities:
+      - read_only_repo_search
+    preferred_capabilities:
+      - symbol_lookup
+    forbidden_capabilities:
+      - file_edit
+      - cloud_upload
+    default_risk_ceiling: low
+
+  interface_mapper:
+    required_capabilities:
+      - structural_ast_scan
+    preferred_capabilities:
+      - symbol_lookup
+      - read_only_repo_search
+    forbidden_capabilities:
+      - cloud_upload
+    default_risk_ceiling: low
+
+  researcher:
+    required_capabilities:
+      - external_research
+    preferred_capabilities:
+      - web_search
+      - rag_query
+    forbidden_capabilities:
+      - file_edit
+    default_risk_ceiling: medium
+    human_approval_required_for:
+      - external_network
+      - cloud_upload
+
+  prompt_engineer:
+    required_capabilities:
+      - context_assembly
+      - prompt_handoff
+    preferred_capabilities:
+      - budget_reasoning
+    forbidden_capabilities:
+      - file_edit
+      - shell_execution
+    default_risk_ceiling: medium
+
+  coder:
+    required_capabilities:
+      - file_edit
+      - patch_generation
+    preferred_capabilities:
+      - shell_execution
+      - test_execution
+    forbidden_capabilities: []
+    default_risk_ceiling: high
+
+  tester_auditor:
+    required_capabilities:
+      - test_execution
+      - diff_review
+    preferred_capabilities:
+      - evidence_quality_review
+    forbidden_capabilities:
+      - cloud_upload
+    default_risk_ceiling: medium
+
+  verifier:
+    required_capabilities:
+      - lint_check
+      - diff_review
+      - secret_scan
+    preferred_capabilities:
+      - format_check
+      - test_execution
+    forbidden_capabilities:
+      - unrelated_file_edit
+    default_risk_ceiling: medium
+
+  archivist:
+    required_capabilities:
+      - artifact_archive
+    preferred_capabilities:
+      - git_commit
+    forbidden_capabilities:
+      - unsafe_delete
+    default_risk_ceiling: medium
+```
+
+## CLI
+
+```bash
+./agentlab.sh capabilities
+./agentlab.sh role-requirements
+./agentlab.sh role-inspect --role Coder
+./agentlab.sh role-compatible-workers --role RepoScout
+```
+
+## Tests
+
+```text
+tests/test_m2_capability_schema.py
+tests/test_m2_role_requirements.py
+tests/test_m2_role_worker_compatibility.py
+```
+
+## Acceptance
+
+M2-2 passes if:
+
+```text
+- all 9 roles are defined
+- each role has required capabilities
+- deterministic tools can satisfy deterministic roles
+- rg/git grep cannot be assigned as Coder
+- pytest cannot be assigned as Supervisor
+- bl cannot be assigned to cloud_upload tasks without approval
+- cloud/multimodal/upload capabilities are marked high-risk
+```
+
+---
+
+# 6.7 M2-3 — Worker Audition / Performance Ledger
+
+## Goal
+
+Evaluate workers instead of trusting static recommendations.
+
+AgentLab should know not only whether a CLI exists, but whether it performs well for a role.
+
+## Audition Levels
+
+```text
+quick
+  command presence, version, help output, safe dry-run if available
+
+standard
+  small fixture task per role, no real repo mutation
+
+deep
+  controlled sandbox task with mock repo and measurable outcome
+```
+
+## Add Modules
+
+```text
+agent_runtime/workers/
+  audition.py
+  audition_tasks.py
+  audition_runner.py
+  audition_scorer.py
+  performance_ledger.py
+  sandbox.py
+```
+
+## Audition Task Types
+
+```text
+repo_search_task
+interface_mapping_task
+small_patch_task
+test_runner_task
+lint_review_task
+handoff_generation_task
+research_summary_task
+archive_task
+```
+
+## Score Dimensions
+
+```text
+role_fit_score
+success_rate
+cost_score
+latency_score
+safety_score
+diff_minimality_score
+evidence_quality_score
+operator_friction_score
+```
+
+## Performance Ledger Schema
+
+```yaml
+worker_performance:
+  worker_id: claude_code
+  role_scores:
+    coder: 0.91
+    supervisor: 0.82
+    tester_auditor: 0.72
+  cost_score: 0.35
+  safety_score: 0.68
+  last_audition:
+    timestamp:
+    suite: standard
+    verdict: pass
+  historical_runs:
+    total: 12
+    success: 10
+    failed: 2
+```
+
+## CLI
+
+```bash
+./agentlab.sh worker-audition --all --level quick
+./agentlab.sh worker-audition --worker codex --role Coder --level standard
+./agentlab.sh worker-scorecard
+```
+
+## Tests
+
+```text
+tests/test_m2_worker_audition.py
+tests/test_m2_audition_scorer.py
+tests/test_m2_worker_performance_ledger.py
+```
+
+## Acceptance
+
+M2-3 passes if:
+
+```text
+- audition can run with fully mocked workers
+- failed audition does not break registry
+- role scorecards are produced
+- performance ledger persists
+- real external CLI audition is opt-in
+- no user repo is mutated during audition
+- audition output can influence route assignment
+```
+
+---
+
+# 6.8 M2-4 — Role Assignment Router v2
+
+## Goal
+
+Assign local workers/tools to the 9 AgentLab roles based on:
+
+```text
+role requirements
+worker capabilities
+worker availability
+mode
+tier
+cost policy
+risk policy
+approval status
+historical performance
+project override
+task packet constraints
+```
+
+## Add Modules
+
+```text
+agent_runtime/routing/
+  __init__.py
+  role_assignment.py
+  worker_router.py
+  route_decision.py
+  fallback_policy.py
+  mode_tier_policy.py
+  approval_gate.py
+  renderer.py
+```
+
+## Add Configs
+
+```text
+config/role_assignment_policy.yml
+config/worker_fallback_policy.yml
+config/mode_tier_worker_policy.yml
+```
+
+## Assignment Modes
+
+```text
+single_cli_company
+  One strong local agent can fill multiple roles through separate task contracts.
+
+hybrid_local_company
+  Deterministic tools handle search/test/lint/archive; agent CLIs handle reasoning/coding.
+
+cost_saving_factory
+  Prefer zero-cost deterministic tools and cheap models; escalate only on failure.
+
+max_quality_swarm
+  Strong workers can run competing plans/patches with verifier arbitration.
+
+frontdesk_gateway
+  OpenClaw/WeChat/WebUI receives the user request; AgentLab compiles/contracts/routes.
+```
+
+## Route Decision Schema
+
+```yaml
+route_decision:
+  project_id:
+  phase_id:
+  task_id:
+  role: Coder
+  selected_worker: claude_code
+  selected_command: claude
+  selection_reason:
+    - required file_edit and patch_generation
+    - worker has highest coder score
+    - max_quality tier allows high-cost worker
+  rejected_workers:
+    - worker: rg
+      reason: lacks file_edit
+    - worker: bl
+      reason: cloud_upload risk not needed
+  required_capabilities:
+    - file_edit
+    - patch_generation
+  risk_level: high
+  approval_required: true
+  cost_estimate:
+    known: false
+    policy: approval_required
+  fallback_workers:
+    - codex
+    - aider
+  constraints:
+    allowed_files: []
+    forbidden_files: []
+  evidence_paths: []
+```
+
+## CLI
+
+```bash
+./agentlab.sh assign-role --role Coder --project DemoProject --tier performance
+./agentlab.sh route-task --task-packet /tmp/task_packet.yml
+./agentlab.sh route-explain --decision /tmp/route_decision.yml
+```
+
+## Tests
+
+```text
+tests/test_m2_role_assignment_router.py
+tests/test_m2_worker_fallback_policy.py
+tests/test_m2_mode_tier_worker_policy.py
+tests/test_m2_route_decision_schema.py
+```
+
+## Acceptance
+
+M2-4 passes if:
+
+```text
+- Coder falls back from Claude to Codex/Aider when Claude is unavailable
+- RepoScout prefers rg/git grep over LLM workers
+- InterfaceMapper prefers ast-grep/tree-sitter-style tools
+- Verifier prefers deterministic lint/test tools
+- high-risk workers require approval
+- route decisions record why selected and why rejected
+- route decisions are saved as evidence
+- route decision can be explained by CLI and assistant mode
+```
+
+---
+
+# 6.9 M2-5 — Config Center v2
+
+## Goal
+
+Make configuration transparent, layered, validated, override-aware, and connected to worker/role routing.
+
+## Add Modules
 
 ```text
 agent_runtime/config_center/
@@ -1593,10 +2755,11 @@ agent_runtime/config_center/
   resolver.py
   diff.py
   profile.py
+  secrets_redaction.py
   renderer.py
 ```
 
-### Add Configs
+## Add Configs
 
 ```text
 config/config_center.yml
@@ -1604,11 +2767,15 @@ config/config_ui_schema.yml
 config/config_profiles.yml
 ```
 
-### Config Layers
+## Config Layers
 
 ```text
 global defaults
 environment profile
+local worker registry
+role assignment policy
+cost policy
+risk policy
 project override
 executor override
 skill override
@@ -1617,16 +2784,16 @@ user approval override
 runtime temporary override
 ```
 
-### CLI
+## CLI
 
 ```bash
 ./agentlab.sh config-list
-./agentlab.sh config-get --key cost.budget_policy.project_soft_limit_usd
+./agentlab.sh config-get --key routing.default_mode
 ./agentlab.sh config-diff --project DemoProject
 ./agentlab.sh config-validate
 ```
 
-### Tests
+## Tests
 
 ```text
 tests/test_m2_config_center.py
@@ -1634,27 +2801,30 @@ tests/test_m2_config_resolution.py
 tests/test_m2_config_cli.py
 ```
 
-### Acceptance
+## Acceptance
 
-M2-1 passes if:
+M2-5 passes if:
 
 ```text
 - config values show source layer
 - invalid config fails cleanly
 - project override works
+- worker/role routing configs validate
 - config diff works
 - no secret values are displayed raw
 ```
 
 ---
 
-## 6.4 M2-2 — Cost System v2
+# 6.10 M2-6 — Cost, Risk & Approval System v2
 
-### Goal
+## Goal
 
-Replace weak cost tracking with budget, prediction, attribution, alerts, and efficiency review.
+Connect costs and approval gates to worker routing.
 
-### Add Modules
+Cost is not only model token cost. M2 must treat unknown local CLI cost, paid API usage, cloud uploads, video/image generation, and long-running agents as budget-sensitive operations.
+
+## Add Modules
 
 ```text
 agent_runtime/costs/
@@ -1666,51 +2836,35 @@ agent_runtime/costs/
   efficiency_review.py
   model_cost_profile.py
   executor_cost_profile.py
+  worker_cost_profile.py
+  renderer.py
+
+agent_runtime/approvals/
+  decision_card.py
+  approval_policy.py
+  approval_ledger.py
+  risk_gate.py
   renderer.py
 ```
 
-### Add Configs
+## Add Configs
 
 ```text
 config/cost_policy_v2.yml
 config/model_cost_profiles.yml
 config/executor_cost_profiles.yml
+config/worker_cost_profiles.yml
+config/approval_policy.yml
 ```
 
-### Data Layout
-
-```text
-projects/<project_id>/cost/
-  project_budget.yml
-  phase_budget.yml
-  spend_ledger.yml
-  model_usage_ledger.yml
-  executor_cost_ledger.yml
-  cost_alerts.yml
-  cost_efficiency_report.md
-```
-
-### Budget Policy Example
-
-```yaml
-budget_policy:
-  project_soft_limit_usd: 5.00
-  project_hard_limit_usd: 10.00
-  phase_soft_limit_usd: 1.00
-  require_approval_above_usd: 0.50
-  cheap_model_first: true
-  escalate_model_on_failure: true
-  max_retries_before_escalation: 1
-  stop_on_unbounded_loop: true
-  unknown_external_cli_cost_policy: approval_required
-```
-
-### Cost Attribution Dimensions
+## Cost Attribution Dimensions
 
 ```text
 project
 phase
 task
+role
+worker
 executor
 model
 skill
@@ -1719,16 +2873,36 @@ artifact
 recovery_attempt
 ```
 
-### CLI
+## Approval Triggers
+
+```text
+unknown external CLI cost
+high-cost model
+cloud upload
+multimodal generation
+file deletion
+large diff
+shell execution
+network access
+private path access
+secret-adjacent file access
+public WebUI/OpenClaw bind
+```
+
+## CLI
 
 ```bash
 ./agentlab.sh cost-status --project DemoProject
-./agentlab.sh cost-estimate --project DemoProject --phase phase_001
+./agentlab.sh cost-estimate --task-packet /tmp/task_packet.yml
 ./agentlab.sh cost-alerts --project DemoProject
 ./agentlab.sh cost-efficiency-review --project DemoProject
+
+./agentlab.sh approvals
+./agentlab.sh approve --decision-card <id>
+./agentlab.sh reject --decision-card <id>
 ```
 
-### Tests
+## Tests
 
 ```text
 tests/test_m2_cost_policy.py
@@ -1736,31 +2910,34 @@ tests/test_m2_cost_estimator.py
 tests/test_m2_spend_ledger.py
 tests/test_m2_cost_alerts.py
 tests/test_m2_cost_attribution.py
+tests/test_m2_approval_policy.py
+tests/test_m2_decision_cards.py
 ```
 
-### Acceptance
+## Acceptance
 
-M2-2 passes if:
+M2-6 passes if:
 
 ```text
-- budget can be set per project and phase
-- estimated cost is generated before task packet
-- spend ledger records model/executor/skill/capability attribution
+- estimated cost is generated before route execution
+- spend ledger records role/worker/model/executor attribution
 - hard limit blocks execution
 - soft limit creates approval decision card
 - unknown external CLI cost requires approval
-- efficiency review compares cost across phases/tasks
+- risky worker capabilities require approval
+- bl/cloud/multimodal calls are gated before upload/generation
+- efficiency review compares cost across workers and roles
 ```
 
 ---
 
-## 6.5 M2-3 — Event Timeline / Observability
+# 6.11 M2-7 — Observability / Event Timeline v2
 
-### Goal
+## Goal
 
-Create a unified event timeline.
+Create a unified event timeline covering mission, routing, worker assignment, cost, approvals, execution, evidence, acceptance, and recovery.
 
-### Add Modules
+## Add Modules
 
 ```text
 agent_runtime/observability/
@@ -1772,7 +2949,32 @@ agent_runtime/observability/
   log_redaction.py
 ```
 
-### Data Layout
+## Event Types
+
+```text
+mission_compiled
+worker_detected
+worker_auditioned
+role_assigned
+route_decision_created
+approval_requested
+approval_accepted
+approval_rejected
+task_packet_created
+executor_started
+executor_finished
+artifact_created
+evidence_collected
+cost_estimated
+cost_recorded
+phase_accepted
+phase_retried
+recovery_planned
+config_changed
+ui_action
+```
+
+## Data Layout
 
 ```text
 projects/<project_id>/observability/
@@ -1783,223 +2985,132 @@ projects/<project_id>/observability/
   artifact_events.yml
   cost_events.yml
   decision_events.yml
+  route_events.yml
+  worker_events.yml
 ```
 
-### Event Schema
-
-```yaml
-event:
-  event_id:
-  timestamp:
-  project_id:
-  phase_id:
-  task_id:
-  event_type:
-  actor:
-  summary:
-  references:
-  cost_delta:
-  severity:
-  redacted:
-```
-
-### CLI
+## CLI
 
 ```bash
 ./agentlab.sh timeline --project DemoProject
-./agentlab.sh timeline --project DemoProject --event-type cost
+./agentlab.sh timeline --project DemoProject --event-type role_assigned
 ./agentlab.sh event-log-tail --project DemoProject
 ```
 
-### Tests
+## Tests
 
 ```text
 tests/test_m2_event_log.py
 tests/test_m2_timeline_query.py
 tests/test_m2_log_redaction.py
+tests/test_m2_route_events.py
 ```
 
-### Acceptance
+## Acceptance
 
-M2-3 passes if:
+M2-7 passes if:
 
 ```text
 - key actions emit events
-- timeline can be queried
-- events link to artifacts/evidence/cost/decision cards
+- route decisions appear in timeline
+- approvals appear in timeline
+- cost events link to role/worker/task
+- events link to artifacts/evidence/decision cards
 - logs redact secrets and private paths
 - timeline is append-only
 ```
 
 ---
 
-## 6.6 M2-4 — TUI
+# 6.12 M2-8 — Control Panel: Workers / Skills / Capabilities / Executors
 
-### Goal
+## Goal
 
-Build a terminal control surface for project operations.
+Unify management of local workers, skills, capabilities, and executors.
 
-### Add Modules
+This replaces the old narrow Skill / Capability / Executor Control Panel with a broader company-management view.
 
-```text
-agentlab_tui/
-  __init__.py
-  app.py
-  screens/
-  widgets/
-  commands.py
-```
-
-Or place under existing app structure if preferred.
-
-### TUI Screens
+## Add Modules
 
 ```text
-Project List
-Project Overview
-Current Phase
-Task Packets
-Executor Results
-Evidence
-Cost Dashboard
-Decision Cards
-Skills
-Capabilities
-Config
-Logs / Timeline
+agent_runtime/control_panel/
+  worker_control.py
+  skill_control.py
+  capability_control.py
+  executor_control.py
+  approval_actions.py
+  status_summary.py
+  renderer.py
 ```
 
-### Required Actions
+## Features
 
 ```text
-approve
-reject
-pause
-resume
-retry
-rollback
-open artifact
-show cost
-show next action
-export handoff
+- list local workers by status
+- enable/disable worker
+- show worker permissions/risk/cost
+- show worker role scores
+- show assigned roles
+- force-assign worker to role for a project
+- reset assignment override
+- list skills by status
+- enable/disable skill
+- approve/reject skill candidate
+- show skill risk/permissions
+- list capabilities and active backend
+- approve capability use
+- list executors and trust level
+- enable/disable executor
+- show executor cost policy
 ```
 
-### CLI
+## CLI
 
 ```bash
-./agentlab.sh tui
+./agentlab.sh control workers
+./agentlab.sh control worker-inspect --worker claude_code
+./agentlab.sh control worker-enable --worker codex
+./agentlab.sh control worker-disable --worker bl
+
+./agentlab.sh control skills
+./agentlab.sh control capabilities
+./agentlab.sh control executors
+./agentlab.sh control approve --decision-card <id>
 ```
 
-### Tests
-
-Use lightweight tests only:
+## Tests
 
 ```text
-tests/test_m2_tui_routes.py
-tests/test_m2_tui_command_handlers.py
+tests/test_m2_control_panel_workers.py
+tests/test_m2_control_panel_skills.py
+tests/test_m2_control_panel_capabilities.py
+tests/test_m2_control_panel_executors.py
 ```
 
-### Acceptance
+## Acceptance
 
-M2-4 passes if:
+M2-8 passes if:
 
 ```text
-- TUI can start locally
-- project list loads
-- project status view works
-- decision card approve/reject calls backend APIs
-- cost status visible
-- TUI failure does not break CLI core
+- operator can inspect workers/skills/capabilities/executors
+- mutating actions require explicit approval where risky
+- disabled workers cannot be routed
+- disabled capabilities cannot execute
+- risky entities show warnings
+- route overrides are recorded and reversible
 ```
 
 ---
 
-## 6.7 M2-5 — WebUI
+# 6.13 M2-9 — AgentLab Assistant Modes
 
-### Goal
+## Goal
 
-Build a local WebUI dashboard.
+Give AgentLab a grounded self-explanation and operation assistant layer.
 
-### Add Modules
+The assistant must explain AgentLab state, not hallucinate free-form answers.
 
-```text
-agentlab_app/dashboard/
-  app.py
-  routes.py
-  api.py
-  templates/
-  static/
-```
-
-Or use existing app structure.
-
-### Pages
-
-```text
-/dashboard
-/projects
-/project/<id>
-/project/<id>/timeline
-/project/<id>/costs
-/project/<id>/phases
-/project/<id>/artifacts
-/tasks
-/skills
-/capabilities
-/executors
-/settings
-/recovery
-```
-
-### Security
-
-```text
-- bind to 127.0.0.1 by default
-- no public bind unless explicit config
-- no secrets display
-- path redaction
-- mutating actions require CSRF or local action token if applicable
-- read-only mode available
-```
-
-### CLI
-
-```bash
-./agentlab.sh webui --host 127.0.0.1 --port 8765
-```
-
-### Tests
-
-```text
-tests/test_m2_webui_routes.py
-tests/test_m2_webui_security.py
-tests/test_m2_webui_api.py
-```
-
-### Acceptance
-
-M2-5 passes if:
-
-```text
-- WebUI starts locally
-- project overview loads
-- timeline/cost/phase/artifact pages work
-- decision actions can be approved/rejected
-- WebUI does not expose secrets
-- WebUI can be disabled
-```
-
----
-
-## 6.8 M2-6 — AgentLab Assistant Modes
-
-### Goal
-
-Give AgentLab a self-explanation and operation assistant layer.
-
-This should not become a free-form uncontrolled chat agent. It should be grounded in system state.
-
-### Add Modules
+## Add Modules
 
 ```text
 agent_runtime/assistant/
@@ -2008,9 +3119,11 @@ agent_runtime/assistant/
   response_planner.py
   explanations.py
   command_suggestions.py
+  route_explainer.py
+  worker_explainer.py
 ```
 
-### Modes
+## Modes
 
 ```text
 operator mode
@@ -2024,139 +3137,311 @@ reviewer mode
 
 teacher mode
   Explain why the system made a decision.
+
+router mode
+  Explain why a role was assigned to a worker.
+
+worker doctor mode
+  Explain missing/broken local CLI setup.
 ```
 
-### CLI
+## CLI
 
 ```bash
 ./agentlab.sh ask --project DemoProject "为什么这个项目被 blocked？"
 ./agentlab.sh explain-phase --project DemoProject --phase phase_001
 ./agentlab.sh explain-cost --project DemoProject
+./agentlab.sh explain-route --decision /tmp/route_decision.yml
+./agentlab.sh explain-worker --worker claude_code
 ```
 
-### Tests
+## Tests
 
 ```text
 tests/test_m2_assistant_modes.py
 tests/test_m2_assistant_state_grounding.py
+tests/test_m2_assistant_route_explainer.py
+tests/test_m2_assistant_worker_explainer.py
 ```
 
-### Acceptance
+## Acceptance
 
-M2-6 passes if:
+M2-9 passes if:
 
 ```text
 - assistant answers using project state
 - assistant cites local artifact paths/state references
+- assistant can explain worker selection
+- assistant can explain rejected workers
+- assistant can explain cost/risk/approval gates
 - assistant does not hallucinate unavailable facts
-- assistant can explain cost, phase acceptance, executor result, decision card
 ```
 
 ---
 
-## 6.9 M2-7 — Skill / Capability / Executor Control Panel
+# 6.14 M2-10 — TUI
 
-### Goal
+## Goal
 
-Unify management of skills, capabilities, and executors.
+Build a terminal control surface for project operations and local agent company management.
 
-### Add Modules
-
-```text
-agent_runtime/control_panel/
-  skill_control.py
-  capability_control.py
-  executor_control.py
-  approval_actions.py
-  status_summary.py
-```
-
-### Features
+## Add Modules
 
 ```text
-- list skills by status
-- enable/disable skill
-- approve/reject skill candidate
-- show skill risk/permissions
-- list capabilities and active backend
-- approve capability use
-- list executors and trust level
-- enable/disable executor
-- show executor cost policy
+agentlab_tui/
+  __init__.py
+  app.py
+  screens/
+  widgets/
+  commands.py
 ```
 
-### CLI
+Or place under existing app structure if preferred.
+
+## TUI Screens
+
+```text
+Project List
+Project Overview
+Current Phase
+Task Packets
+Route Decisions
+Worker Registry
+Role Assignment Matrix
+Worker Scorecards
+Executor Results
+Evidence
+Cost Dashboard
+Decision Cards
+Skills
+Capabilities
+Executors
+Config
+Logs / Timeline
+```
+
+## Required Actions
+
+```text
+approve
+reject
+pause
+resume
+retry
+rollback
+open artifact
+show cost
+show next action
+export handoff
+enable/disable worker
+inspect worker
+run worker doctor
+show route explanation
+```
+
+## CLI
 
 ```bash
-./agentlab.sh control skills
-./agentlab.sh control capabilities
-./agentlab.sh control executors
-./agentlab.sh control approve --decision-card <id>
+./agentlab.sh tui
 ```
 
-### Tests
+## Tests
+
+Use lightweight tests only:
 
 ```text
-tests/test_m2_control_panel_skills.py
-tests/test_m2_control_panel_capabilities.py
-tests/test_m2_control_panel_executors.py
+tests/test_m2_tui_routes.py
+tests/test_m2_tui_command_handlers.py
+tests/test_m2_tui_worker_views.py
 ```
 
-### Acceptance
+## Acceptance
 
-M2-7 passes if:
+M2-10 passes if:
 
 ```text
-- operator can inspect skills/capabilities/executors
-- mutating actions require explicit approval
-- risky entities show warnings
-- disabled entities cannot execute
+- TUI can start locally
+- project list loads
+- project status view works
+- worker registry view works
+- role assignment view works
+- decision card approve/reject calls backend APIs
+- cost status visible
+- TUI failure does not break CLI core
 ```
 
 ---
 
-## 6.10 M2-8 — Operator Acceptance Demo
+# 6.15 M2-11 — WebUI
 
-### Goal
+## Goal
 
-Prove M2 works as an operator control plane.
+Build a local WebUI dashboard for AgentLab operations and local worker/company management.
 
-### Demo
+## Add Modules
 
 ```text
-1. create demo project
-2. generate task packet
-3. estimate cost
-4. show in TUI
-5. show in WebUI
-6. ingest mock executor result
-7. generate phase acceptance
-8. view timeline
-9. approve/retry decision
-10. show cost report
+agentlab_app/dashboard/
+  app.py
+  routes.py
+  api.py
+  templates/
+  static/
 ```
 
-### CLI
+Or use existing app structure.
+
+## Pages
+
+```text
+/dashboard
+/projects
+/project/<id>
+/project/<id>/timeline
+/project/<id>/costs
+/project/<id>/phases
+/project/<id>/artifacts
+/project/<id>/routes
+/workers
+/workers/<id>
+/roles
+/skills
+/capabilities
+/executors
+/settings
+/recovery
+/approvals
+```
+
+## Security
+
+```text
+- bind to 127.0.0.1 by default
+- no public bind unless explicit config and approval
+- no secrets display
+- path redaction
+- mutating actions require CSRF or local action token if applicable
+- read-only mode available
+- OpenClaw/frontdesk gateway status is visible but cannot expose private endpoints by default
+```
+
+## CLI
+
+```bash
+./agentlab.sh webui --host 127.0.0.1 --port 8765
+```
+
+## Tests
+
+```text
+tests/test_m2_webui_routes.py
+tests/test_m2_webui_security.py
+tests/test_m2_webui_api.py
+tests/test_m2_webui_worker_pages.py
+```
+
+## Acceptance
+
+M2-11 passes if:
+
+```text
+- WebUI starts locally
+- project overview loads
+- worker registry page loads
+- role assignment page loads
+- timeline/cost/phase/artifact pages work
+- decision actions can be approved/rejected
+- WebUI does not expose secrets
+- WebUI can be disabled
+```
+
+---
+
+# 6.16 M2-12 — Operator Acceptance Demo
+
+## Goal
+
+Prove M2 works as an operator-controlled local agent company.
+
+## Demo Flow
+
+```text
+1. run runtime-doctor
+2. run worker-scan
+3. build worker registry
+4. load 9-role requirement matrix
+5. run mocked worker audition
+6. create demo project
+7. generate task packet
+8. estimate cost
+9. route task to role/worker
+10. create route_decision.yml
+11. request approval if needed
+12. show project/route/cost in TUI
+13. show project/route/cost in WebUI
+14. ingest mock executor result
+15. generate phase acceptance
+16. view timeline
+17. approve/retry decision
+18. show cost report
+19. show worker scorecard
+20. export operator report
+```
+
+## CLI
 
 ```bash
 ./agentlab.sh m2-operator-demo --out acceptance_runs/m2_operator_demo
 ```
 
-### Acceptance
+## Acceptance Report
+
+Create:
+
+```text
+acceptance_runs/m2_operator_demo/M2_OPERATOR_OS_LOCAL_AGENT_COMPANY_REPORT.md
+```
+
+Include:
+
+```text
+- runtime hygiene report
+- worker registry summary
+- detected/mocked worker cards
+- role requirement matrix summary
+- audition scorecard
+- route_decision.yml examples
+- approval decision card examples
+- cost estimate and ledger examples
+- timeline excerpts
+- TUI smoke result
+- WebUI smoke result
+- assistant explanation examples
+- safety notes
+- known limitations
+```
+
+## Final M2 Acceptance
 
 M2 fully passes if:
 
 ```text
-- WebUI/TUI can inspect same project
+- runtime hygiene passes
+- worker registry works
+- all 9 roles have capability requirements
+- worker audition works with mocks
+- role assignment router produces explainable route decisions
 - config center works
-- cost v2 works
+- cost/risk/approval gates work
 - timeline records key events
-- assistant can explain project state
+- WebUI/TUI can inspect same project and route decisions
+- assistant can explain project state and worker routing
 - user can approve/reject/retry from UI/TUI/CLI
 - core CLI works without UI
+- no real external CLI execution is required for tests
+- no secrets/private paths are leaked
 ```
 
----
 
 # 7. M3 — Project-to-Revenue OS
 
@@ -3037,13 +4322,18 @@ AgentLab M-series is complete when all of the following are true.
 ## 9.2 M2 Final Acceptance
 
 ```text
-- configuration is transparent and layered
-- cost system v2 estimates, tracks, alerts, attributes, and reviews spend
-- timeline records project events
+- runtime hygiene separates profiles/workspaces/bridges/logs/runtime
+- local worker registry discovers installed/missing agent CLIs and deterministic tools
+- all 9 roles have explicit capability requirements
+- worker audition and scorecards work with mocked workers
+- role assignment router produces explainable route decisions
+- configuration is transparent, layered, and connected to routing
+- cost/risk/approval system gates high-risk workers and unknown costs
+- timeline records project, worker, route, approval, cost, artifact, and acceptance events
 - TUI works
 - WebUI works
-- assistant explains project state
-- skills/capabilities/executors can be inspected and controlled
+- assistant explains project state and worker routing
+- workers/skills/capabilities/executors can be inspected and controlled
 - operator demo passes
 - CLI remains fully usable without UI
 ```
@@ -3113,25 +4403,48 @@ Create acceptance_runs/m1_project_governance_kernel/M1_PROJECT_GOVERNANCE_KERNEL
 ```markdown
 You are working on Kidrage/AgentLab.
 
-Current goal: M2 Operator OS / Transparent Control Plane.
+Current goal: M2 Operator OS / Local Agent Company Control Plane.
 
 Assume M1 is complete.
 Do not implement M3 business/revenue/CRM.
 Do not add unsafe external execution.
+Do not auto-run real external agent CLIs in tests.
+Do not expose WebUI/OpenClaw/frontdesk gateways publicly by default.
+Do not display secrets or private runtime state.
 
-Implement:
-- Config Center
-- Cost System v2
-- Event Timeline / Observability
-- TUI skeleton
-- WebUI skeleton
-- AgentLab Assistant Modes
-- Skill/Capability/Executor Control Panel
+Implement M2 in this order:
+- M2-0 Runtime Hygiene & Safety Baseline
+- M2-1 Local Worker Registry / Agent Doctor
+- M2-2 Capability Schema & 9-Role Requirement Matrix
+- M2-3 Worker Audition / Performance Ledger
+- M2-4 Role Assignment Router v2
+- M2-5 Config Center v2
+- M2-6 Cost, Risk & Approval System v2
+- M2-7 Observability / Event Timeline v2
+- M2-8 Control Panel: Workers / Skills / Capabilities / Executors
+- M2-9 AgentLab Assistant Modes
+- M2-10 TUI skeleton
+- M2-11 WebUI skeleton
+- M2-12 Operator Acceptance Demo
 
 All UI must be optional. CLI core must work without UI.
+All worker discovery and audition tests must be mock-first.
+All route decisions must be explainable and saved as evidence.
+All high-risk workers/capabilities must require explicit approval.
 
-Create acceptance_runs/m2_operator_os/M2_OPERATOR_OS_REPORT.md.
+Run:
+python -m compileall agent_runtime agentlab_app.py
+python -m pytest -q
+./agentlab.sh --help
+./agentlab.sh worker-scan --help
+./agentlab.sh assign-role --help
+./agentlab.sh route-task --help
+python scripts/audit_text_integrity.py
+
+Create:
+acceptance_runs/m2_operator_demo/M2_OPERATOR_OS_LOCAL_AGENT_COMPANY_REPORT.md
 ```
+
 
 ## 10.3 M3 Start Prompt
 
@@ -3166,6 +4479,6 @@ Create acceptance_runs/m3_project_to_revenue/M3_PROJECT_TO_REVENUE_REPORT.md.
 
 ```text
 M1 makes AgentLab able to govern long projects.
-M2 makes AgentLab transparent, controllable, and cost-aware.
+M2 makes AgentLab transparent, controllable, cost-aware, and able to manage local agent/tool workers.
 M3 makes AgentLab know why it produces, what assets it creates, and how those assets connect to delivery, revenue, learning, and reuse.
 ```

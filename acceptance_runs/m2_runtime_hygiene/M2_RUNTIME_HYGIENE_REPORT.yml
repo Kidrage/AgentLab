@@ -1,0 +1,257 @@
+runtime_layout:
+  agentlab_root: /HOME
+  profiles_dir: .agents/profiles
+  workspaces_dir: .agents/workspaces
+  bridges_dir: .agents/bridges
+  logs_dir: .agents/logs
+  runtime_dir: .agents/runtime
+  profile_entries:
+  - name: claude
+    path: .agents/profiles/claude
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    risk_flags: []
+  - name: codex
+    path: .agents/profiles/codex
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    risk_flags: []
+  - name: qwen
+    path: .agents/profiles/qwen
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    risk_flags: []
+  - name: hermes
+    path: .agents/profiles/hermes
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    risk_flags: []
+  - name: gemini
+    path: .agents/profiles/gemini
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    risk_flags: []
+  - name: bailian
+    path: .agents/profiles/bailian
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    risk_flags: []
+  - name: openclaw
+    path: .agents/profiles/openclaw
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    risk_flags: []
+  workspace_entries:
+  - name: claude
+    path: .agents/workspaces/claude
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    cleanable: true
+    risk_flags: []
+  - name: codex
+    path: .agents/workspaces/codex
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    cleanable: true
+    risk_flags: []
+  - name: qwen
+    path: .agents/workspaces/qwen
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    cleanable: true
+    risk_flags: []
+  - name: hermes
+    path: .agents/workspaces/hermes
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    cleanable: true
+    risk_flags: []
+  - name: openclaw
+    path: .agents/workspaces/openclaw
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    cleanable: true
+    risk_flags: []
+  - name: generic_cli
+    path: .agents/workspaces/generic_cli
+    exists: false
+    symlink: false
+    target: null
+    git_tracked: false
+    cleanable: true
+    risk_flags: []
+  warnings: []
+symlink_audit:
+  symlinks:
+  - path: .qwen
+    target: /HOME
+    resolved_target: /HOME
+    is_valid: true
+    outside_workspace: false
+    absolute: true
+    broken: false
+    risk_flags:
+    - absolute_path_symlink
+  - path: .gemini
+    target: /HOME
+    resolved_target: /HOME
+    is_valid: true
+    outside_workspace: false
+    absolute: true
+    broken: false
+    risk_flags:
+    - absolute_path_symlink
+  - path: .claude
+    target: /HOME
+    resolved_target: /HOME
+    is_valid: true
+    outside_workspace: false
+    absolute: true
+    broken: false
+    risk_flags:
+    - absolute_path_symlink
+  - path: .codex
+    target: /HOME
+    resolved_target: /HOME
+    is_valid: true
+    outside_workspace: false
+    absolute: true
+    broken: false
+    risk_flags:
+    - absolute_path_symlink
+  - path: .claude.json
+    target: /HOME
+    resolved_target: /HOME
+    is_valid: true
+    outside_workspace: false
+    absolute: true
+    broken: false
+    risk_flags:
+    - absolute_path_symlink
+  - path: .hermes
+    target: /HOME
+    resolved_target: /HOME
+    is_valid: true
+    outside_workspace: false
+    absolute: true
+    broken: false
+    risk_flags:
+    - absolute_path_symlink
+  warnings:
+  - 'Symlink /HOME uses absolute path target: /HOME'
+  - 'Symlink /HOME uses absolute path target:
+    /HOME'
+  - 'Symlink /HOME uses absolute path target:
+    /HOME'
+  - 'Symlink /HOME uses absolute path target:
+    /HOME'
+  - 'Symlink /HOME uses absolute path target:
+    /HOME'
+  - 'Symlink /HOME uses absolute path target:
+    /HOME'
+gitignore_audit:
+  missing_rules: []
+  warnings: []
+secret_scan:
+  findings:
+  - file: config/model_providers.yml
+    line: 140
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '    api_key: env:AGENTLAB_LOCAL_API_KEY:********'
+  - file: scripts/p1_acceptance_check.py
+    line: 116
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '        "Task summary: local fake repo only. GITHUB_TOKEN=********
+      sk_test_should_not_render",'
+  - file: agent_runtime/ingestion/github_reader.py
+    line: 110
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '    token = ********("GITHUB_TOKEN")'
+  - file: agent_runtime/search/anysearch_adapter.py
+    line: 39
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '        self.api_key = ********(self.api_key_env)'
+  - file: agent_runtime/.env
+    line: 4
+    pattern_matched: OpenAI API Key
+    snippet_redacted: DEEPSEEK_API_KEY=********
+  - file: agent_runtime/.env
+    line: 4
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: DEEPSEEK_API_KEY=********
+  - file: agent_runtime/.env
+    line: 9
+    pattern_matched: OpenAI API Key
+    snippet_redacted: QWEN_API_KEY=********
+  - file: agent_runtime/.env
+    line: 9
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: QWEN_API_KEY=********
+  - file: agent_runtime/.env
+    line: 12
+    pattern_matched: OpenAI API Key
+    snippet_redacted: DASHSCOPE_API_KEY=********
+  - file: agent_runtime/.env
+    line: 12
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: DASHSCOPE_API_KEY=********
+  - file: agent_runtime/llm_provider.py
+    line: 56
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '    api_key = ********(provider_config.get("api_key"), "")'
+  - file: agent_runtime/llm_provider.py
+    line: 149
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '    api_key = ********(model_providers, settings.provider)'
+  - file: agent_runtime/run_task.py
+    line: 4044
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '    api_key = ********(cfg.get("api_key"), "")'
+  - file: agent_runtime/truenas_sync.py
+    line: 91
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '    password = ********("AGENTLAB_TRUENAS_PASSWORD", "").strip()'
+  - file: agent_runtime/webhook_dispatcher.py
+    line: 189
+    pattern_matched: Generic Assignment Secret
+    snippet_redacted: '        secret = ********(endpoint.get("secret_env", ""))'
+  warnings:
+  - Potential secret leak (Generic Assignment Secret) in model_providers.yml:140
+  - Potential secret leak (Generic Assignment Secret) in p1_acceptance_check.py:116
+  - Potential secret leak (Generic Assignment Secret) in github_reader.py:110
+  - Potential secret leak (Generic Assignment Secret) in anysearch_adapter.py:39
+  - Potential secret leak (OpenAI API Key) in .env:4
+  - Potential secret leak (Generic Assignment Secret) in .env:4
+  - Potential secret leak (OpenAI API Key) in .env:9
+  - Potential secret leak (Generic Assignment Secret) in .env:9
+  - Potential secret leak (OpenAI API Key) in .env:12
+  - Potential secret leak (Generic Assignment Secret) in .env:12
+  - Potential secret leak (Generic Assignment Secret) in llm_provider.py:56
+  - Potential secret leak (Generic Assignment Secret) in llm_provider.py:149
+  - Potential secret leak (Generic Assignment Secret) in run_task.py:4044
+  - Potential secret leak (Generic Assignment Secret) in truenas_sync.py:91
+  - Potential secret leak (Generic Assignment Secret) in webhook_dispatcher.py:189

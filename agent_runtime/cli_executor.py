@@ -74,7 +74,7 @@ def resolve_cli_profile(
     profile_name: str,
     agent_role: str,
 ) -> dict[str, Any] | None:
-    """Return the profile config for *agent_role* inside the active mode and tier.
+    """Return the profile config for *agent_role* inside *profile_name*.
 
     Returns ``None`` if the profile or role is not found, or if
     ``executor_type`` is not ``cli_agent``.
@@ -85,30 +85,9 @@ def resolve_cli_profile(
         agent_role: Lower-cased role key inside the profile, e.g. ``"supervisor"``,
             ``"coder"``.
     """
-    import os
-    agent_role = agent_role.lower().replace(" ", "_")
-    if agent_role == "execution_prompt_engineer":
-        agent_role = "prompt_engineer"
-
-    tier = budget_mode_to_tier(profile_name)
-    mode = os.getenv("AGENTLAB_MODE", agent_model_profiles.get("default_mode", "full_api")).lower()
-
-    modes = agent_model_profiles.get("modes", {}) or {}
-    mode_cfg = modes.get(mode, {}) or {}
-    tiers = mode_cfg.get("tiers", {}) or {}
-    tier_cfg = tiers.get(tier, {}) or {}
-    role_cfg = tier_cfg.get(agent_role, {}) or {}
-
-    if not role_cfg:
-        # Fallback to legacy profiles lookup for backward compatibility
-        profiles = agent_model_profiles.get("profiles", {}) or {}
-        profile = profiles.get(profile_name, {}) or {}
-        role_cfg = profile.get(agent_role, {}) or {}
-
-    if isinstance(role_cfg, str) and role_cfg == "skip":
-        return None
-    if not isinstance(role_cfg, dict):
-        return None
+    profiles = agent_model_profiles.get("profiles", {}) or {}
+    profile = profiles.get(profile_name, {}) or {}
+    role_cfg = profile.get(agent_role, {}) or {}
     if role_cfg.get("executor_type") != "cli_agent":
         return None
     return role_cfg

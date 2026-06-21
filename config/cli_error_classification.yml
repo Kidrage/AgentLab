@@ -1,0 +1,44 @@
+# Global CLI error classification rules
+rules:
+  - error_class: invalid_cli_invocation
+    exit_codes:
+      - 2
+    patterns:
+      - "usage:"
+      - "unrecognized arguments"
+      - "error: unrecognized"
+      - "invalid choice:"
+
+  - error_class: auth_required
+    patterns:
+      - "API key"
+      - "unauthorized"
+      - "auth required"
+      - "Authentication"
+      - "login required"
+      - "not authenticated"
+
+  - error_class: network_required
+    patterns:
+      - "network"
+      - "DNS"
+      - "proxy"
+      - "connection failed"
+      - "timeout"
+      - "timed out"
+      - "timed_out"
+      - "Could not resolve"
+
+  - error_class: permission_denied
+    patterns:
+      - "Permission denied"
+      - "sandbox denied"
+      - "AccessDenied"
+      - "not allowed"
+
+  - error_class: rate_limited
+    patterns:
+      - "rate limit"
+      - "quota exceeded"
+      - "too many requests"
+      - "429"

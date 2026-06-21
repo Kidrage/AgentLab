@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Total files scanned: 802
+- Total files scanned: 845
 - Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0
@@ -13,7 +13,7 @@
 
 | Path | Lines | Max Line | Size | Status |
 |------|-------|----------|------|--------|
-| README.md | 720 | 781 | 39415 | OK |
+| README.md | 720 | 781 | 39419 | OK |
 | agent_runtime/context_governance/packers/history_packer.py | 11 | 533 | 1186 | OK |
 | agent_runtime/context_governance/packers/tool_output_packer.py | 11 | 466 | 1109 | OK |
 | acceptance_runs/m1_project_brain/M1_4_ACCEPTANCE_REPORT.md | 38 | 460 | 2369 | OK |
@@ -26,7 +26,7 @@
 | agent_runtime/context_governance/packers/web_context_packer.py | 11 | 389 | 1023 | OK |
 | agent_runtime/context_governance/packers/image_context_packer.py | 11 | 367 | 1084 | OK |
 | docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md | 1397 | 365 | 29633 | OK |
-| agent_runtime/run_task.py | 5625 | 361 | 245837 | OK |
+| agent_runtime/run_task.py | 5918 | 361 | 258496 | OK |
 | acceptance_runs/stabilization/S0_STABILIZATION_REPORT.md | 134 | 338 | 5803 | OK |
 | docs/README.en-US.md | 314 | 330 | 14171 | OK |
 | acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md | 212 | 329 | 8302 | OK |
@@ -41,5 +41,5 @@
 | docs/S11_OPS_CONSOLE.md | 54 | 296 | 1497 | OK |
 | docs/EXTERNAL_AGENT_HANDOFF.md | 134 | 293 | 4842 | OK |
 | docs/SKILL_VAULT.md | 116 | 290 | 4011 | OK |
+| tests/test_cli_executor.py | 397 | 288 | 17196 | OK |
 | docs/S9_VISION_AUDIO_DOCUMENT_CONTRACTS.md | 75 | 288 | 1528 | OK |
-| agent_runtime/mcp_server.py | 493 | 284 | 27787 | OK |

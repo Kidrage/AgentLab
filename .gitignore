@@ -103,3 +103,25 @@ memory/global/skills/
 .agents/agent_states/
 .agents/workspaces/
 
+# M2 Required ignore rules
+.agents/
+.agents
+.claude/
+.claude
+.codex/
+.codex
+.hermes/
+.hermes
+.gemini/
+.gemini
+.qwen/
+.qwen
+.claude.json
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.pid
+*.sock
+
+

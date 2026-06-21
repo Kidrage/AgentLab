@@ -1,0 +1,73 @@
+worker_invocation_contracts:
+- worker_id: hermes
+  display_name: Hermes CLI
+  command: hermes
+  template: hermes -z "You are an AgentLab CLI executor. Read the JSON task packet
+    at {task_packet_path}, perform the requested AgentLab role work, and return a
+    concise markdown report with findings, actions taken, verification, and blockers."
+  template_valid: true
+  template_errors: &id001 []
+  safe_probe_status: passed
+  safe_probe_exit_code: 0
+  safe_probe_error_class: null
+  warnings: *id001
+- worker_id: claude_code
+  display_name: Claude Code
+  command: claude
+  template: claude -p "{prompt}"
+  template_valid: true
+  template_errors: &id002 []
+  safe_probe_status: passed
+  safe_probe_exit_code: 0
+  safe_probe_error_class: null
+  warnings: *id002
+- worker_id: bl
+  display_name: Bailian CLI
+  command: bl
+  template: bl chat -p "{prompt}"
+  template_valid: true
+  template_errors: &id003 []
+  safe_probe_status: passed
+  safe_probe_exit_code: 0
+  safe_probe_error_class: null
+  warnings: *id003
+- worker_id: aider
+  display_name: Aider
+  command: aider
+  template: aider --message "{prompt}"
+  template_valid: true
+  template_errors: &id004 []
+  safe_probe_status: skipped
+  safe_probe_exit_code: null
+  safe_probe_error_class: binary_missing
+  warnings: *id004
+- worker_id: codex
+  display_name: Codex Code
+  command: codex
+  template: codex --task "{prompt}"
+  template_valid: true
+  template_errors: &id005 []
+  safe_probe_status: passed
+  safe_probe_exit_code: 0
+  safe_probe_error_class: null
+  warnings: *id005
+- worker_id: openclaw
+  display_name: OpenClaw Operator
+  command: openclaw
+  template: openclaw run --prompt "{prompt}"
+  template_valid: true
+  template_errors: &id006 []
+  safe_probe_status: passed
+  safe_probe_exit_code: 0
+  safe_probe_error_class: null
+  warnings: *id006
+- worker_id: git
+  display_name: Git VCS
+  command: git
+  template: git {args}
+  template_valid: true
+  template_errors: &id007 []
+  safe_probe_status: passed
+  safe_probe_exit_code: 0
+  safe_probe_error_class: null
+  warnings: *id007
