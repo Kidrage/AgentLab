@@ -39,7 +39,7 @@ AgentLab 演进为一个完整的 **Agent 软件公司 (Agent OS)**。本协议�
 *   **绝对路径**：`AgentLab/.agents/workspaces/`
 *   **运行机制**：
     *   所有 Agents 的配置文件夹（如 `.claude`, `.gemini`, `.hermes`, `.qwen`, `.codex` 等）统一存放在 `AgentLab/.agents/workspaces/` 内，随仓库一同进行多端同步。
-    *   在本地 Mac 用户根目录 `/Users/saintpeter/` 下，创建对应的软链接（Symlinks）指向上述仓库目录，确保独立 CLI 终端可以正常读写，且不污染外部空间。
+    *   在本地 Mac 用户根目录 `~/` 下，创建对应的软链接（Symlinks）指向上述仓库目录，确保独立 CLI 终端可以正常读写，且不污染外部空间。
 
 ### 2.2 三层产物隔离规范 (Three-Tier Artifact Structure)
 任何任务交付必须严格按照三层结构输出，坚决杜绝在仓库根目录直接写临时日志或混乱代码：
@@ -105,7 +105,7 @@ AgentLab 演进为一个完整的 **Agent 软件公司 (Agent OS)**。本协议�
 ## 5. 共享 Skills 库与 MCP 服务规范
 
 ### 5.1 共享技能包 (Skills Vault)
-*   **全局技能库**：`/Users/saintpeter/.agents/skills/`，内置 `agent-reach`、`bailian-cli`、`ponytail` 等 26 个通用技能。
+*   **全局技能库**：`~/.agents/skills/`，内置 `agent-reach`、`bailian-cli`、`ponytail` 等 26 个通用技能。
 *   **工作区技能库**：`AgentLab/.agents/skills/`，如 `repo-navigation-token-saver`。
 *   **调用规矩**：在执行包含相关关键字的任务时，Agent 必须读取对应技能的 `SKILL.md` 指导，或者将任务托管给具备该技能的子 Agent 实例。
 
