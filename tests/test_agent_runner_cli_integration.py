@@ -48,7 +48,7 @@ def _cli_role_profile() -> dict:
     return {
         "executor_type": "cli_agent",
         "cli_agent": "hermes",
-        "cli_command": "hermes --task {task_packet_path}",
+        "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
         "default": "deepseek_v4_pro",
     }
 
@@ -326,6 +326,15 @@ class TestAgentRunnerCliDispatch:
         )
 
 
+def _iter_config_role_groups(data: dict):
+    """Yield named role groups from legacy profiles and schema-v4 modes/tiers."""
+    for name, profile in (data.get("profiles", {}) or {}).items():
+        yield name, profile
+    for mode_name, mode in (data.get("modes", {}) or {}).items():
+        for tier_name, tier in ((mode or {}).get("tiers", {}) or {}).items():
+            yield f"{mode_name}.{tier_name}", tier or {}
+
+
 # ── Config profile tests ───────────────────────────────────────────────────
 
 
@@ -338,10 +347,8 @@ class TestConfigProfiles:
 
         config_path = Path(__file__).parent.parent / "config" / "agent_model_profiles.yml"
         data = yaml.safe_load(config_path.read_text())
-        profiles = data.get("profiles", {})
-
         cli_supervisors = []
-        for name, profile in profiles.items():
+        for name, profile in _iter_config_role_groups(data):
             sup = profile.get("supervisor", {})
             if sup.get("executor_type") == "cli_agent":
                 cli_supervisors.append(name)
@@ -355,10 +362,8 @@ class TestConfigProfiles:
 
         config_path = Path(__file__).parent.parent / "config" / "agent_model_profiles.yml"
         data = yaml.safe_load(config_path.read_text())
-        profiles = data.get("profiles", {})
-
         cli_coders = []
-        for name, profile in profiles.items():
+        for name, profile in _iter_config_role_groups(data):
             coder = profile.get("coder", {})
             if coder.get("executor_type") == "cli_agent":
                 cli_coders.append(name)
@@ -372,10 +377,8 @@ class TestConfigProfiles:
 
         config_path = Path(__file__).parent.parent / "config" / "agent_model_profiles.yml"
         data = yaml.safe_load(config_path.read_text())
-        profiles = data.get("profiles", {})
-
         direct_api_profiles = []
-        for name, profile in profiles.items():
+        for name, profile in _iter_config_role_groups(data):
             all_direct = all(
                 role.get("executor_type") == "direct_api"
                 for role in profile.values()
@@ -387,14 +390,19 @@ class TestConfigProfiles:
         assert direct_api_profiles, "No direct API-only profile found"
         print(f"Direct API-only profiles: {direct_api_profiles}")
 
-    def test_four_required_profiles_exist(self):
-        """Config has balanced, low_cost, direct_api_only, hybrid_agent_executor."""
+    def test_required_execution_modes_exist(self):
+        """Config has the schema-v4 execution modes or legacy named profiles."""
         import yaml
 
         config_path = Path(__file__).parent.parent / "config" / "agent_model_profiles.yml"
         data = yaml.safe_load(config_path.read_text())
-        profiles = data.get("profiles", {})
+        if "modes" in data:
+            required = {"full_cli", "full_api", "hybrid_ide"}
+            missing = required - set((data.get("modes", {}) or {}).keys())
+            assert not missing, f"Missing modes: {missing}"
+            return
 
+        profiles = data.get("profiles", {})
         required = {"balanced", "low_cost", "direct_api_only", "hybrid_agent_executor"}
         missing = required - set(profiles.keys())
         assert not missing, f"Missing profiles: {missing}"

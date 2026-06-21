@@ -8,7 +8,7 @@ modes:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
-          cli_command: hermes --task {task_packet_path} --max-quality
+          cli_command: 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."'
           default: deepseek_v4_pro
         reposcout:
           executor_type: cli_agent
@@ -55,7 +55,7 @@ modes:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
-          cli_command: hermes --task {task_packet_path}
+          cli_command: 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."'
           default: deepseek_v4_pro
         reposcout:
           executor_type: cli_agent
@@ -102,7 +102,7 @@ modes:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
-          cli_command: hermes --task {task_packet_path} --fast
+          cli_command: 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."'
           default: deepseek_v4_flash
         reposcout:
           executor_type: cli_agent

@@ -162,6 +162,23 @@ def _binary_available(argv: list[str]) -> bool:
     return shutil.which(argv[0]) is not None
 
 
+def _looks_like_cli_usage_error(stderr_text: str) -> bool:
+    """Return True when a present CLI rejected AgentLab's command template.
+
+    Argparse-style usage failures mean the binary exists, but the configured
+    template is incompatible with the real CLI surface. Treat that like an
+    unavailable CLI executor so callers can use the configured direct-API
+    fallback instead of blocking the whole run.
+    """
+    lowered = stderr_text.lower()
+    return "usage:" in lowered and (
+        "unrecognized arguments" in lowered
+        or "no such option" in lowered
+        or "unknown option" in lowered
+        or "invalid option" in lowered
+    )
+
+
 def run_cli_agent(
     plan: WorkflowPlan,
     agent_name: str,
@@ -255,6 +272,9 @@ def run_cli_agent(
     duration_s = (finished_at - started_at).total_seconds()
 
     # ── Determine success ─────────────────────────────────────────────────────
+    stdout_text = proc.stdout.strip()
+    stderr_text = proc.stderr.strip()
+
     # Exit 127 means "command not found" in sh-style shells.
     if proc.returncode == 127:
         return CliAgentNotAvailable(
@@ -263,8 +283,19 @@ def run_cli_agent(
             detail=f"Shell exit 127: `{argv[0]}` not found.",
         )
 
-    stdout_text = proc.stdout.strip()
-    stderr_text = proc.stderr.strip()
+    # Exit 2 + argparse usage usually means AgentLab's cli_command template is
+    # stale for the installed CLI, e.g. `hermes --task ...` against Hermes,
+    # which only supports `hermes -z PROMPT` / `hermes chat -q PROMPT`.
+    if proc.returncode == 2 and _looks_like_cli_usage_error(stderr_text):
+        return CliAgentNotAvailable(
+            cli_agent=cli_agent_name,
+            reason="invalid_cli_invocation",
+            detail=(
+                f"CLI agent `{argv[0]}` rejected the configured command template "
+                f"with an argparse usage error. stderr: {stderr_text[:500]}"
+            ),
+        )
+
     success = proc.returncode == 0 and bool(stdout_text)
 
     # ── Build the canonical AgentLab report ──────────────────────────────────

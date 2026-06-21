@@ -46,7 +46,7 @@ def _sample_profiles(executor_type: str = "cli_agent") -> dict:
                 "supervisor": {
                     "executor_type": executor_type,
                     "cli_agent": "hermes",
-                    "cli_command": "hermes --task {task_packet_path}",
+                    "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
                     "default": "deepseek_v4_pro",
                     "fallback": "qwen3_6_plus_dashscope",
                 },
@@ -156,16 +156,16 @@ class TestRenderCommand:
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import _render_command
 
-        argv = _render_command("hermes --task {task_packet_path}", tmp_path / "pkt.json")
+        argv = _render_command('hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."', tmp_path / "pkt.json")
         assert argv[0] == "hermes"
-        assert str(tmp_path / "pkt.json") in argv
+        assert any(str(tmp_path / "pkt.json") in arg for arg in argv)
 
     def test_appends_path_when_no_placeholder(self, tmp_path):
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import _render_command
 
-        argv = _render_command("hermes --task", tmp_path / "pkt.json")
+        argv = _render_command("agent-cli --task", tmp_path / "pkt.json")
         assert str(tmp_path / "pkt.json") in argv
 
 
@@ -206,7 +206,7 @@ class TestRunCliAgentBinaryNotFound:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": "hermes --task {task_packet_path}",
+            "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
             "default": "deepseek_v4_pro",
         }
 
@@ -240,7 +240,7 @@ class TestRunCliAgentSubprocess:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": "hermes --task {task_packet_path}",
+            "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
             "default": "deepseek_v4_pro",
         }
 
@@ -266,7 +266,7 @@ class TestRunCliAgentSubprocess:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": "hermes --task {task_packet_path}",
+            "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
         }
 
         mock_proc = self._mock_proc(1, stdout="", stderr="fatal error")
@@ -290,7 +290,7 @@ class TestRunCliAgentSubprocess:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": "hermes --task {task_packet_path}",
+            "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
         }
 
         with patch("cli_executor.shutil.which", return_value="/usr/bin/hermes"), \
@@ -311,7 +311,7 @@ class TestRunCliAgentSubprocess:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": "hermes --task {task_packet_path}",
+            "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
         }
 
         mock_proc = self._mock_proc(127, stdout="", stderr="hermes: command not found")
@@ -321,6 +321,33 @@ class TestRunCliAgentSubprocess:
             result = run_cli_agent(plan, "Supervisor", role_profile)
 
         assert isinstance(result, CliAgentNotAvailable)
+
+    def test_argparse_usage_error_returns_not_available(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import CliAgentNotAvailable, run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        (tmp_path / "projects" / "TestProject" / "runs" / "task_test_001").mkdir(parents=True, exist_ok=True)
+
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "hermes",
+            "cli_command": "hermes --task {task_packet_path}",
+        }
+
+        mock_proc = self._mock_proc(
+            2,
+            stdout="",
+            stderr="usage: hermes [-h] [-z PROMPT] ...\nhermes: error: unrecognized arguments: --task",
+        )
+
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/hermes"), \
+             patch("cli_executor.subprocess.run", return_value=mock_proc):
+            result = run_cli_agent(plan, "Supervisor", role_profile)
+
+        assert isinstance(result, CliAgentNotAvailable)
+        assert result.reason == "invalid_cli_invocation"
 
     def test_raw_usage_contains_metadata(self, tmp_path):
         import sys
