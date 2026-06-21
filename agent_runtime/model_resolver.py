@@ -133,12 +133,47 @@ def runtime_provider_for_catalog_model(model_entry: dict[str, Any], *, agent_nam
     return catalog_provider
 
 
+def resolve_dynamic_api_model(role_key: str, model_catalog: dict | None, agent_model_profiles: dict | None) -> str | None:
+    """Dynamically assign models based on reasoning/context capability and local API key availability."""
+    import os
+    has_deepseek = bool(os.getenv("DEEPSEEK_API_KEY"))
+    has_dashscope = bool(os.getenv("DASHSCOPE_API_KEY"))
+
+    # If no keys are set, fallback to static defaults
+    if not has_deepseek and not has_dashscope:
+        return None
+
+    if role_key in {"supervisor", "verifier", "tester_auditor"}:
+        if has_deepseek:
+            return "deepseek_v4_pro"
+        elif has_dashscope:
+            return "qwen3_7_max_dashscope"
+    elif role_key == "coder":
+        if has_dashscope:
+            return "qwen3_coder_plus_dashscope"
+        elif has_deepseek:
+            return "deepseek_v4_pro"
+    elif role_key in {"reposcout", "interface_mapper", "prompt_engineer"}:
+        if has_dashscope:
+            return "qwen3_7_max_dashscope"
+        elif has_deepseek:
+            return "deepseek_v4_pro"
+    elif role_key in {"researcher", "archivist"}:
+        if has_deepseek:
+            return "deepseek_v4_flash"
+        elif has_dashscope:
+            return "qwen3_6_plus_dashscope"
+
+    return None
+
+
 def resolve_profile_config(
     profile_name: str,
     *,
     model_profiles: dict[str, Any] | None = None,
     model_catalog: dict[str, Any] | None = None,
     agent_name: str = "",
+    agent_model_profiles: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Resolve a profile name into runtime provider/model settings.
 
@@ -149,18 +184,78 @@ def resolve_profile_config(
     if is_skip_profile(profile_name):
         return {"skip": True, "profile": profile_name, "source": "skip"}
 
-    legacy_profiles = (model_profiles or {}).get("profiles", {}) or {}
-    legacy_profile = legacy_profiles.get(profile_name)
-    if legacy_profile:
-        return {**legacy_profile, "profile": profile_name, "source": "legacy_model_profiles"}
+    # 1. Load agent_model_profiles.yml if not provided
+    if agent_model_profiles is None:
+        from pathlib import Path
+        import yaml
+        try:
+            agentlab_root = Path(__file__).resolve().parent.parent
+            profiles_path = agentlab_root / "config" / "agent_model_profiles.yml"
+            if profiles_path.exists():
+                agent_model_profiles = yaml.safe_load(profiles_path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            agent_model_profiles = {}
 
-    catalog = model_catalog or {}
-    catalog_key = catalog_key_for_profile(profile_name, catalog)
+    # 2. Get active mode and tier
+    import os
+    from cli_executor import budget_mode_to_tier
+
+    budget_mode = os.getenv("AGENTLAB_BUDGET_MODE", "balanced").lower()
+    if profile_name.lower().replace("-", "_") in {"frugal", "balanced", "max_quality", "low_cost", "direct_api_only", "hybrid_agent_executor"}:
+        budget_mode = profile_name
+
+    tier = budget_mode_to_tier(budget_mode)
+    mode = os.getenv("AGENTLAB_MODE", agent_model_profiles.get("default_mode", "full_api")).lower()
+
+    # 3. Resolve role key from agent name
+    role_key = agent_name.lower().replace(" ", "_")
+    _role_key_map = {
+        "supervisor": "supervisor",
+        "reposcout": "reposcout",
+        "researcher": "researcher",
+        "interfacemapper": "interface_mapper",
+        "coder": "coder",
+        "promptengineer": "prompt_engineer",
+        "testerauditor": "tester_auditor",
+        "verifier": "verifier",
+        "archivist": "archivist",
+    }
+    role_key = _role_key_map.get(role_key, role_key)
+
+    # 4. Lookup config in modes and tiers
+    modes = agent_model_profiles.get("modes", {}) or {}
+    mode_cfg = modes.get(mode, {}) or {}
+    tiers = mode_cfg.get("tiers", {}) or {}
+    tier_cfg = tiers.get(tier, {}) or {}
+    role_cfg = tier_cfg.get(role_key, {}) or {}
+
+    if isinstance(role_cfg, str) and role_cfg in {"skip", "skip_unless_required"}:
+        return {"skip": True, "profile": profile_name, "source": "mode_tier_skip"}
+
+    catalog_key = None
+    if isinstance(role_cfg, dict):
+        if mode == "full_api" and tier == "full":
+            catalog_key = resolve_dynamic_api_model(role_key, model_catalog, agent_model_profiles)
+        if not catalog_key:
+            catalog_key = role_cfg.get("default")
+            if role_cfg.get("executor_type") == "special" and role_cfg.get("provider") == "external_ide_ai":
+                catalog_key = "external_ide_ai"
+
+    # Fallback to legacy lookup
+    if not catalog_key:
+        catalog = model_catalog or {}
+        catalog_key = catalog_key_for_profile(profile_name, catalog)
+
     if catalog_key in SPECIAL_PROFILE_CONFIGS:
         config = SPECIAL_PROFILE_CONFIGS[catalog_key]
         return {**config, "profile": profile_name, "catalog_key": catalog_key}
 
+    catalog = model_catalog or {}
     model_entry = (catalog.get("models", {}) or {}).get(catalog_key)
+    if not model_entry:
+        catalog_key = LEGACY_PROFILE_ALIASES.get(catalog_key, catalog_key)
+        model_entry = (catalog.get("models", {}) or {}).get(catalog_key)
+
     if not model_entry:
         return {"profile": profile_name, "catalog_key": catalog_key, "unresolved": True}
 
@@ -178,7 +273,7 @@ def resolve_profile_config(
         "max_output_tokens": min(max_output, 8192),
         "context_window": model_entry.get("context_window"),
         "tier": _tier_for_agent(agent_name),
-        "source": "model_catalog",
+        "source": "model_catalog_via_mode_tier",
     }
 
 

@@ -5598,6 +5598,84 @@ def recovery_feedback_cmd(
     console.print(f"  [green]MD:[/green]   {md_path}")
 
 
+@app.command("configure-agent")
+def configure_agent_cmd(
+    agent: str = typer.Option(..., "--agent", help="Canonical agent name (e.g. Supervisor, Coder, RepoScout, etc.)."),
+    mode: Optional[str] = typer.Option(None, "--mode", help="Mode to update: full_cli, full_api, or hybrid_ide. If omitted, applies to all modes."),
+    tier: Optional[str] = typer.Option(None, "--tier", help="Tier to update: full, performance, or low. If omitted, applies to all tiers."),
+    executor_type: Optional[str] = typer.Option(None, "--executor-type", help="Executor type: cli_agent, direct_api, or special."),
+    cli_agent: Optional[str] = typer.Option(None, "--cli-agent", help="CLI agent binary name (e.g. hermes, claude_code)."),
+    cli_command: Optional[str] = typer.Option(None, "--cli-command", help="Shell command pattern to execute."),
+    default_model: Optional[str] = typer.Option(None, "--default-model", help="Default fallback model ID from catalog."),
+    skip: bool = typer.Option(False, "--skip", help="Whether to skip/disable this agent in the specified tier."),
+    project: Optional[str] = typer.Option(None, help="Project name, only used to resolve root."),
+) -> None:
+    """Manually configure an Agent's execution type, CLI parameters, or model mappings."""
+    agentlab_root, _ = runtime_context(project)
+    profiles_path = agentlab_root / "config" / "agent_model_profiles.yml"
+
+    if not profiles_path.exists():
+        console.print(f"[red]Error: agent_model_profiles.yml not found at {profiles_path}[/red]")
+        raise typer.Exit(code=1)
+
+    import yaml
+    try:
+        data = yaml.safe_load(profiles_path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:
+        console.print(f"[red]Error parsing agent_model_profiles.yml: {exc}[/red]")
+        raise typer.Exit(code=1)
+
+    role_key = agent.lower().replace(" ", "_")
+    _role_key_map = {
+        "supervisor": "supervisor",
+        "reposcout": "reposcout",
+        "researcher": "researcher",
+        "interfacemapper": "interface_mapper",
+        "coder": "coder",
+        "promptengineer": "prompt_engineer",
+        "testerauditor": "tester_auditor",
+        "verifier": "verifier",
+        "archivist": "archivist",
+    }
+    role_key = _role_key_map.get(role_key, role_key)
+
+    modes_to_update = [mode.lower()] if mode else ["full_cli", "full_api", "hybrid_ide"]
+    tiers_to_update = [tier.lower()] if tier else ["full", "performance", "low"]
+
+    modes_data = data.setdefault("modes", {})
+
+    updated_count = 0
+    for m in modes_to_update:
+        mode_cfg = modes_data.setdefault(m, {})
+        tiers_cfg = mode_cfg.setdefault("tiers", {})
+        for t in tiers_to_update:
+            tier_cfg = tiers_cfg.setdefault(t, {})
+            if skip:
+                tier_cfg[role_key] = "skip"
+                updated_count += 1
+            else:
+                agent_cfg = tier_cfg.get(role_key)
+                if not isinstance(agent_cfg, dict) or agent_cfg == "skip":
+                    agent_cfg = {}
+                if executor_type:
+                    agent_cfg["executor_type"] = executor_type.lower()
+                if cli_agent is not None:
+                    agent_cfg["cli_agent"] = cli_agent
+                if cli_command is not None:
+                    agent_cfg["cli_command"] = cli_command
+                if default_model is not None:
+                    agent_cfg["default"] = default_model
+                tier_cfg[role_key] = agent_cfg
+                updated_count += 1
+
+    try:
+        profiles_path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        console.print(f"[green]Successfully updated config for Agent '{agent}' across {updated_count} mode/tier configurations.[/green]")
+    except Exception as exc:
+        console.print(f"[red]Error writing updates: {exc}[/red]")
+        raise typer.Exit(code=1)
+
+
 def _derive_next_action(
     verdict: dict | None,
     latest_decision,  # HumanReviewDecision | None

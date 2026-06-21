@@ -57,12 +57,24 @@ class CliAgentNotAvailable:
     detail: str = ""
 
 
+def budget_mode_to_tier(budget_mode: str) -> str:
+    """Map the budget mode to one of the three tiers: full, performance, low."""
+    mode_lower = str(budget_mode or "").lower().replace("-", "_")
+    if mode_lower in {"frugal", "low", "low_cost"}:
+        return "low"
+    if mode_lower in {"balanced", "performance", "brain_allocated"}:
+        return "performance"
+    if mode_lower in {"max_quality", "full"}:
+        return "full"
+    return "performance"
+
+
 def resolve_cli_profile(
     agent_model_profiles: dict[str, Any],
     profile_name: str,
     agent_role: str,
 ) -> dict[str, Any] | None:
-    """Return the profile config for *agent_role* inside *profile_name*.
+    """Return the profile config for *agent_role* inside the active mode and tier.
 
     Returns ``None`` if the profile or role is not found, or if
     ``executor_type`` is not ``cli_agent``.
@@ -73,9 +85,30 @@ def resolve_cli_profile(
         agent_role: Lower-cased role key inside the profile, e.g. ``"supervisor"``,
             ``"coder"``.
     """
-    profiles = agent_model_profiles.get("profiles", {}) or {}
-    profile = profiles.get(profile_name, {}) or {}
-    role_cfg = profile.get(agent_role, {}) or {}
+    import os
+    agent_role = agent_role.lower().replace(" ", "_")
+    if agent_role == "execution_prompt_engineer":
+        agent_role = "prompt_engineer"
+
+    tier = budget_mode_to_tier(profile_name)
+    mode = os.getenv("AGENTLAB_MODE", agent_model_profiles.get("default_mode", "full_api")).lower()
+
+    modes = agent_model_profiles.get("modes", {}) or {}
+    mode_cfg = modes.get(mode, {}) or {}
+    tiers = mode_cfg.get("tiers", {}) or {}
+    tier_cfg = tiers.get(tier, {}) or {}
+    role_cfg = tier_cfg.get(agent_role, {}) or {}
+
+    if not role_cfg:
+        # Fallback to legacy profiles lookup for backward compatibility
+        profiles = agent_model_profiles.get("profiles", {}) or {}
+        profile = profiles.get(profile_name, {}) or {}
+        role_cfg = profile.get(agent_role, {}) or {}
+
+    if isinstance(role_cfg, str) and role_cfg == "skip":
+        return None
+    if not isinstance(role_cfg, dict):
+        return None
     if role_cfg.get("executor_type") != "cli_agent":
         return None
     return role_cfg
