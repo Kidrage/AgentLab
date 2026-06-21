@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Total files scanned: 750
+- Total files scanned: 802
 - Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0
@@ -13,7 +13,7 @@
 
 | Path | Lines | Max Line | Size | Status |
 |------|-------|----------|------|--------|
-| README.md | 699 | 781 | 36867 | OK |
+| README.md | 720 | 781 | 39415 | OK |
 | agent_runtime/context_governance/packers/history_packer.py | 11 | 533 | 1186 | OK |
 | agent_runtime/context_governance/packers/tool_output_packer.py | 11 | 466 | 1109 | OK |
 | acceptance_runs/m1_project_brain/M1_4_ACCEPTANCE_REPORT.md | 38 | 460 | 2369 | OK |
@@ -31,6 +31,7 @@
 | docs/README.en-US.md | 314 | 330 | 14171 | OK |
 | acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md | 212 | 329 | 8302 | OK |
 | agent_runtime/capabilities/registry.py | 80 | 325 | 6618 | OK |
+| acceptance_runs/hybrid_agent_executor_hotfix/HYBRID_AGENT_EXECUTOR_HOTFIX_REPORT.md | 230 | 325 | 9982 | OK |
 | docs/CLOSURE_MVP_REPORT.md | 81 | 324 | 4442 | OK |
 | acceptance_runs/s0_remote_raw_repair/report.md | 140 | 319 | 6083 | OK |
 | docs/SKILL_DISTILLATION.md | 32 | 302 | 1262 | OK |
@@ -42,4 +43,3 @@
 | docs/SKILL_VAULT.md | 116 | 290 | 4011 | OK |
 | docs/S9_VISION_AUDIO_DOCUMENT_CONTRACTS.md | 75 | 288 | 1528 | OK |
 | agent_runtime/mcp_server.py | 493 | 284 | 27787 | OK |
-| scripts/p2_router_update_check.py | 113 | 283 | 4420 | OK |
