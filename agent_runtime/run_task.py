@@ -789,6 +789,130 @@ def cache_profile_report(
     print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True))
 
 
+@app.command("capability-providers")
+def capability_providers() -> None:
+    """List all registered capability providers."""
+    from agent_runtime.capability_broker.broker_registry import BrokerRegistry
+    registry = BrokerRegistry(_PROJECT_ROOT / "config" / "capability_provider_registry.yml")
+    providers_dict = {p.provider_id: p.passport.to_dict() for p in registry.list_providers()}
+    print(yaml.safe_dump(providers_dict, sort_keys=False, allow_unicode=True))
+
+
+@app.command("capability-provider-inspect")
+def capability_provider_inspect(
+    provider: str = typer.Option(..., "--provider")
+) -> None:
+    """Inspect a capability provider passport."""
+    from agent_runtime.capability_broker.broker_registry import BrokerRegistry
+    registry = BrokerRegistry(_PROJECT_ROOT / "config" / "capability_provider_registry.yml")
+    p = registry.get_provider(provider)
+    if not p:
+        console.print(f"[red]Error: capability provider '{provider}' not found.[/red]")
+        raise typer.Exit(code=1)
+    print(yaml.safe_dump(p.passport.to_dict(), sort_keys=False, allow_unicode=True))
+
+
+@app.command("skill-discover")
+def skill_discover(
+    worker: str = typer.Option(..., "--worker"),
+    safe: bool = typer.Option(True, "--safe/--unsafe")
+) -> None:
+    """Discover local skills exposed by a worker."""
+    from agent_runtime.capability_broker.skill_discovery import discover_worker_skills
+    discovered = discover_worker_skills(worker, safe=safe)
+    result = {p.provider_id: p.to_dict() for p in discovered}
+    print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True))
+
+
+@app.command("mcp-discover")
+def mcp_discover(
+    worker: str = typer.Option(..., "--worker"),
+    safe: bool = typer.Option(True, "--safe/--unsafe")
+) -> None:
+    """Discover local MCP servers exposed by a worker."""
+    from agent_runtime.capability_broker.mcp_discovery import discover_worker_mcps
+    discovered = discover_worker_mcps(worker, safe=safe)
+    result = {p.provider_id: p.to_dict() for p in discovered}
+    print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True))
+
+
+@app.command("capability-broker-plan")
+def capability_broker_plan(
+    capability: str = typer.Option(..., "--capability"),
+    project: str = typer.Option("AgentLab", "--project")
+) -> None:
+    """Route a capability to the best provider and write the plan to project files."""
+    from agent_runtime.capability_broker.broker_registry import BrokerRegistry
+    from agent_runtime.capability_broker.provider_trust import ProviderTrustPolicy
+    from agent_runtime.capability_broker.provider_routing import route_capability
+    from agent_runtime.capability_broker.renderer import render_provider_routing_plan
+    
+    registry = BrokerRegistry(_PROJECT_ROOT / "config" / "capability_provider_registry.yml")
+    trust_policy = ProviderTrustPolicy(_PROJECT_ROOT / "config" / "provider_trust_policy.yml")
+    
+    # Also load discovered providers if any
+    from agent_runtime.capability_broker.skill_discovery import discover_worker_skills
+    from agent_runtime.capability_broker.mcp_discovery import discover_worker_mcps
+    
+    # Discovered providers for claude_code
+    for p in discover_worker_skills("claude_code", safe=True):
+        registry.register_passport(p)
+    for p in discover_worker_mcps("claude_code", safe=True):
+        registry.register_passport(p)
+        
+    prov, decision = route_capability(capability, registry, trust_policy, project_id=project)
+    
+    # Save output to projects/<project>/capability_broker/
+    cb_dir = _PROJECT_ROOT / "projects" / project / "capability_broker"
+    cb_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save provider passports
+    passports = {p.provider_id: p.passport.to_dict() for p in registry.list_providers()}
+    (cb_dir / "provider_passports.yml").write_text(yaml.safe_dump(passports, sort_keys=False), encoding="utf-8")
+    
+    # Save broker registry
+    registry_data = {"providers": passports}
+    (cb_dir / "broker_registry.yml").write_text(yaml.safe_dump(registry_data, sort_keys=False), encoding="utf-8")
+    
+    # Save routing decisions
+    routing_data = {
+        "routing_decisions": [decision]
+    }
+    (cb_dir / "provider_routing_decisions.yml").write_text(yaml.safe_dump(routing_data, sort_keys=False), encoding="utf-8")
+    
+    # Save delegated capabilities
+    delegated = [p.passport.to_dict() for p in registry.list_providers() if p.passport.invocation_mode == "delegated_worker"]
+    (cb_dir / "delegated_capabilities.yml").write_text(yaml.safe_dump({"delegated_capabilities": delegated}, sort_keys=False), encoding="utf-8")
+    
+    # Save trust report
+    report_md = trust_policy.generate_trust_report(registry.list_providers())
+    (cb_dir / "provider_trust_report.md").write_text(report_md, encoding="utf-8")
+    
+    # Print the markdown route plan
+    route_plan_md = render_provider_routing_plan(capability, decision)
+    print(route_plan_md)
+
+
+@app.command("provider-trust-report")
+def provider_trust_report() -> None:
+    """Print the provider trust evaluation report."""
+    from agent_runtime.capability_broker.broker_registry import BrokerRegistry
+    from agent_runtime.capability_broker.provider_trust import ProviderTrustPolicy
+    
+    registry = BrokerRegistry(_PROJECT_ROOT / "config" / "capability_provider_registry.yml")
+    trust_policy = ProviderTrustPolicy(_PROJECT_ROOT / "config" / "provider_trust_policy.yml")
+    
+    # Also load discovered providers
+    from agent_runtime.capability_broker.skill_discovery import discover_worker_skills
+    from agent_runtime.capability_broker.mcp_discovery import discover_worker_mcps
+    for p in discover_worker_skills("claude_code", safe=True):
+        registry.register_passport(p)
+    for p in discover_worker_mcps("claude_code", safe=True):
+        registry.register_passport(p)
+        
+    print(trust_policy.generate_trust_report(registry.list_providers()))
+
+
 
 @app.command("eval-generalization")
 def eval_generalization(

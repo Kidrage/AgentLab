@@ -1,0 +1,10 @@
+default_trust:
+  agentlab_owned: trusted
+  discovered: provisional
+  declared: provisional
+  external: untrusted
+risk_trust_gates:
+  critical: disabled
+  high: provisional
+  medium: provisional
+  low: trusted

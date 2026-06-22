@@ -1,0 +1,51 @@
+providers:
+  agentlab_repo_scout_rg:
+    provider_id: agentlab_repo_scout_rg
+    provider_type: agentlab_owned_tool
+    source: agentlab_owned
+    canonical_capabilities:
+      - read_only_repo_search
+      - grep_pattern
+    transparency: transparent
+    invocation_mode: direct
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: none
+      shell: limited
+      network: no
+      cloud_upload: no
+    risk_level: low
+    cost_model:
+      known: true
+      attribution: provider_level
+      estimated_usd: 0.0
+      estimated_tokens: 0
+    verification:
+      probe_available: true
+      audition_required: false
+    trust_level: trusted
+  agentlab_test_runner_pytest:
+    provider_id: agentlab_test_runner_pytest
+    provider_type: agentlab_owned_tool
+    source: agentlab_owned
+    canonical_capabilities:
+      - run_tests
+      - parse_test_failures
+    transparency: transparent
+    invocation_mode: direct
+    permissions:
+      filesystem_read: scoped
+      filesystem_write: none
+      shell: limited
+      network: no
+      cloud_upload: no
+    risk_level: low
+    cost_model:
+      known: true
+      attribution: provider_level
+      estimated_usd: 0.0
+      estimated_tokens: 0
+    verification:
+      probe_available: true
+      audition_required: false
+    trust_level: trusted

@@ -1,0 +1,5 @@
+broker_policy:
+  prefer_agentlab_owned: true
+  auto_discover_skills: true
+  safe_mode: true
+  verification_audition_required_for_untrusted: true
