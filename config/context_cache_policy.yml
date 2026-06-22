@@ -1,0 +1,23 @@
+default:
+  max_raw_tokens: 16000
+  max_effective_tokens: 8000
+  required_assets:
+    - task_contract
+    - changed_files_summary
+    - relevant_symbol_map
+    - acceptance_criteria
+  excluded_assets:
+    - full_chat_history
+    - unrelated_phase_reports
+    - private_runtime_logs
+claude_code:
+  max_raw_tokens: 32000
+  max_effective_tokens: 16000
+  required_assets:
+    - task_contract
+    - repo_map
+    - interface_map
+    - stable_role_prefix
+    - approved_skill_context
+  excluded_assets:
+    - full_chat_history

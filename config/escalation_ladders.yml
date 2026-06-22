@@ -1,0 +1,9 @@
+escalation_ladder:
+  initial: deterministic_scan
+  if_missing_context: api_supervisor_compact
+  if_patch_needed: single_cli_coder
+  if_tests_fail: cached_failure_analyzer
+  if_diff_high_risk: cached_or_strong_llm_verifier
+  if_repeated_failure: multi_agent_redesign
+  if_budget_exceeded: stop_or_ask_user
+  if_cache_miss_or_unknown_cost: downgrade_or_require_approval

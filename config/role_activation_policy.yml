@@ -1,0 +1,64 @@
+roles:
+  Supervisor:
+    candidate_worker: claude_code
+    expected_benefit:
+      quality_gain: high
+      risk_reduction: medium
+      speed_gain: medium
+      recovery_value: medium
+  PromptEngineer:
+    candidate_worker: claude_code
+    expected_benefit:
+      quality_gain: medium
+      risk_reduction: low
+      speed_gain: low
+      recovery_value: none
+  Coder:
+    candidate_worker: claude_code
+    expected_benefit:
+      quality_gain: high
+      risk_reduction: high
+      speed_gain: high
+      recovery_value: high
+  Researcher:
+    candidate_worker: claude_code
+    expected_benefit:
+      quality_gain: medium
+      risk_reduction: low
+      speed_gain: medium
+      recovery_value: none
+  RepoScout:
+    candidate_worker: rg
+    expected_benefit:
+      quality_gain: low
+      risk_reduction: low
+      speed_gain: high
+      recovery_value: none
+  InterfaceMapper:
+    candidate_worker: ast_grep
+    expected_benefit:
+      quality_gain: low
+      risk_reduction: low
+      speed_gain: high
+      recovery_value: none
+  TesterAuditor:
+    candidate_worker: pytest
+    expected_benefit:
+      quality_gain: medium
+      risk_reduction: high
+      speed_gain: medium
+      recovery_value: medium
+  Verifier:
+    candidate_worker: ruff
+    expected_benefit:
+      quality_gain: low
+      risk_reduction: high
+      speed_gain: low
+      recovery_value: none
+  Archivist:
+    candidate_worker: git
+    expected_benefit:
+      quality_gain: low
+      risk_reduction: low
+      speed_gain: medium
+      recovery_value: none

@@ -692,6 +692,103 @@ def worker_invocation_report(
     console.print(f"unified contract validation reports written to {out}")
 
 
+@app.command("activation-plan")
+def activation_plan(
+    task_packet: Path = typer.Option(..., "--task-packet")
+) -> None:
+    """Compile the execution economy activation plan for a task packet."""
+    from agent_runtime.execution_economy.activation_plan import compile_activation_plan
+    plan = compile_activation_plan(task_packet, _PROJECT_ROOT)
+    print(yaml.safe_dump(plan, sort_keys=False, allow_unicode=True))
+
+
+@app.command("activation-explain")
+def activation_explain(
+    decision: Path = typer.Option(..., "--decision")
+) -> None:
+    """Explain an activation decision."""
+    if not decision.exists():
+        console.print(f"[red]Error: decision file '{decision}' not found.[/red]")
+        raise typer.Exit(code=1)
+    content = yaml.safe_load(decision.read_text(encoding="utf-8")) or {}
+    console.print(f"[bold]Role:[/bold] {content.get('role')}")
+    console.print(f"[bold]Candidate Worker:[/bold] {content.get('candidate_worker')}")
+    console.print(f"[bold]Decision:[/bold] {content.get('decision')}")
+    console.print(f"[bold]Marginal Utility Verdict:[/bold] {content.get('marginal_utility_verdict')}")
+    console.print("[bold]Reasons:[/bold]")
+    for r in content.get("reason", []):
+        console.print(f"  - {r}")
+
+
+@app.command("execution-economy-report")
+def execution_economy_report(
+    project: str = typer.Option(..., "--project")
+) -> None:
+    """Print the markdown execution economy report for a project."""
+    report_path = _PROJECT_ROOT / "projects" / project / "execution_economy" / "execution_economy_report.md"
+    if not report_path.exists():
+        console.print(f"[red]Error: execution economy report not found for project '{project}'.[/red]")
+        raise typer.Exit(code=1)
+    print(report_path.read_text(encoding="utf-8"))
+
+
+@app.command("estimate-spawn-cost")
+def estimate_spawn_cost(
+    worker: str = typer.Option(..., "--worker"),
+    role: str = typer.Option(..., "--role")
+) -> None:
+    """Estimate the cost to spawn a specific worker for a role."""
+    from agent_runtime.execution_economy.activation_cost import ActivationCost
+    from agent_runtime.execution_economy.activation_plan import DEFAULT_WORKER_COSTS, load_worker_costs
+    from agent_runtime.execution_economy.effective_cost import calculate_effective_tokens, estimate_cost_in_usd, get_cost_tier
+    from agent_runtime.execution_economy.cache_profile import calculate_cache_profile
+    
+    worker_costs = load_worker_costs(_PROJECT_ROOT / "config" / "worker_activation_costs.yml")
+    w_cost_dict = worker_costs.get(worker, DEFAULT_WORKER_COSTS.get("claude_code"))
+    act_cost = ActivationCost.from_dict({"worker_id": worker, **w_cost_dict})
+    
+    cp = calculate_cache_profile(worker)
+    act_cost.cache_profile = cp
+    
+    effective_tokens = calculate_effective_tokens(act_cost)
+    act_cost.fixed_startup_cost.effective_prompt_tokens = effective_tokens
+    
+    raw_tokens = act_cost.fixed_startup_cost.raw_prompt_tokens + act_cost.variable_cost.task_specific_context_tokens
+    raw_usd = estimate_cost_in_usd(raw_tokens, worker)
+    eff_usd = estimate_cost_in_usd(effective_tokens, worker)
+    
+    result = {
+        "worker_id": worker,
+        "role": role,
+        "raw_tokens": raw_tokens,
+        "effective_tokens": effective_tokens,
+        "estimated_usd": raw_usd,
+        "effective_estimated_usd": get_cost_tier(eff_usd),
+        "coordination_cost": act_cost.non_token_costs.coordination_cost,
+        "permission_risk": act_cost.non_token_costs.permission_risk,
+        "state_mutation_risk": act_cost.non_token_costs.state_mutation_risk
+    }
+    print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True))
+
+
+@app.command("cache-profile-report")
+def cache_profile_report(
+    worker: str = typer.Option(..., "--worker")
+) -> None:
+    """Generate a cache profile report for a worker."""
+    from agent_runtime.execution_economy.cache_profile import calculate_cache_profile
+    cp = calculate_cache_profile(worker)
+    result = {
+        "worker_id": worker,
+        "stable_prefix_hash": cp.stable_prefix_hash,
+        "skill_context_hash": cp.skill_context_hash,
+        "mcp_manifest_hash": cp.mcp_manifest_hash,
+        "last_cache_hit_observed": cp.last_cache_hit_observed,
+        "cache_confidence": cp.cache_confidence
+    }
+    print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True))
+
+
 
 @app.command("eval-generalization")
 def eval_generalization(

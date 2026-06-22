@@ -1,0 +1,6 @@
+# Execution economy general parameters
+default_coordination_cost: low
+discount_factor: 0.85
+approval_required_threshold_usd: 0.15
+evidence_requirements_level: standard
+governance_strict_mode: true
