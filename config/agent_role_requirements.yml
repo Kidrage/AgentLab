@@ -1,0 +1,100 @@
+roles:
+  supervisor:
+    required_capabilities:
+      - planning
+      - task_decomposition
+      - budget_reasoning
+    preferred_capabilities:
+      - long_context
+      - tool_routing
+    forbidden_capabilities: []
+    default_risk_ceiling: medium
+    human_approval_required_for:
+      - shell_execution
+      - cloud_upload
+      - external_network
+
+  repo_scout:
+    required_capabilities:
+      - read_only_repo_search
+    preferred_capabilities:
+      - symbol_lookup
+    forbidden_capabilities:
+      - file_edit
+      - cloud_upload
+    default_risk_ceiling: low
+
+  interface_mapper:
+    required_capabilities:
+      - structural_ast_scan
+    preferred_capabilities:
+      - symbol_lookup
+      - read_only_repo_search
+    forbidden_capabilities:
+      - cloud_upload
+    default_risk_ceiling: low
+
+  researcher:
+    required_capabilities:
+      - external_research
+    preferred_capabilities:
+      - web_search
+      - rag_query
+    forbidden_capabilities:
+      - file_edit
+    default_risk_ceiling: medium
+    human_approval_required_for:
+      - external_network
+      - cloud_upload
+
+  prompt_engineer:
+    required_capabilities:
+      - context_assembly
+      - prompt_handoff
+    preferred_capabilities:
+      - budget_reasoning
+    forbidden_capabilities:
+      - file_edit
+      - shell_execution
+    default_risk_ceiling: medium
+
+  coder:
+    required_capabilities:
+      - file_edit
+      - patch_generation
+    preferred_capabilities:
+      - shell_execution
+      - test_execution
+    forbidden_capabilities: []
+    default_risk_ceiling: high
+
+  tester_auditor:
+    required_capabilities:
+      - test_execution
+      - diff_review
+    preferred_capabilities:
+      - evidence_quality_review
+    forbidden_capabilities:
+      - cloud_upload
+    default_risk_ceiling: medium
+
+  verifier:
+    required_capabilities:
+      - lint_check
+      - diff_review
+      - secret_scan
+    preferred_capabilities:
+      - format_check
+      - test_execution
+    forbidden_capabilities:
+      - unrelated_file_edit
+    default_risk_ceiling: medium
+
+  archivist:
+    required_capabilities:
+      - artifact_archive
+    preferred_capabilities:
+      - git_commit
+    forbidden_capabilities:
+      - unsafe_delete
+    default_risk_ceiling: medium

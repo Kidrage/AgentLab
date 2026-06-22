@@ -1,0 +1,102 @@
+# Capability Schema Definitions for AgentLab M2-2
+capabilities:
+  planning:
+    display_name: Planning
+    description: Formulate plans and strategic paths.
+    risk_level: medium
+  task_decomposition:
+    display_name: Task Decomposition
+    description: Break tasks down into smaller steps.
+    risk_level: low
+  budget_reasoning:
+    display_name: Budget Reasoning
+    description: Analyze and control task token and monetary budgets.
+    risk_level: low
+  read_only_repo_search:
+    display_name: Read-only Repo Search
+    description: Search files and directory structures inside repository without modifying.
+    risk_level: low
+  symbol_lookup:
+    display_name: Symbol Lookup
+    description: Look up functions, classes, and types definition.
+    risk_level: low
+  structural_ast_scan:
+    display_name: Structural AST Scan
+    description: Analyze syntax trees and code structures.
+    risk_level: low
+  external_research:
+    display_name: External Research
+    description: Run deep surveys of external resources or documentation.
+    risk_level: medium
+  web_search:
+    display_name: Web Search
+    description: Query search engines for information.
+    risk_level: medium
+  context_assembly:
+    display_name: Context Assembly
+    description: Construct the context package and prompt for workers.
+    risk_level: low
+  prompt_handoff:
+    display_name: Prompt Handoff
+    description: Handle handoffs of prompts and context to executors.
+    risk_level: low
+  file_edit:
+    display_name: File Edit
+    description: Modify file contents directly.
+    risk_level: high
+  patch_generation:
+    display_name: Patch Generation
+    description: Generate repository diffs and git patches.
+    risk_level: high
+  shell_execution:
+    display_name: Shell Execution
+    description: Run arbitrary shell commands.
+    risk_level: high
+  test_execution:
+    display_name: Test Execution
+    description: Execute unit and integration test suites.
+    risk_level: medium
+  diff_review:
+    display_name: Diff Review
+    description: Perform code reviews on diff outputs.
+    risk_level: medium
+  lint_check:
+    display_name: Lint Check
+    description: Run linter tools to verify style and semantics.
+    risk_level: low
+  format_check:
+    display_name: Format Check
+    description: Verify formatting styles on codebase.
+    risk_level: low
+  secret_scan:
+    display_name: Secret Scan
+    description: Detect exposed credentials, keys, or passwords.
+    risk_level: low
+  artifact_archive:
+    display_name: Artifact Archive
+    description: Save and package task outputs into archive directory.
+    risk_level: low
+  git_commit:
+    display_name: Git Commit
+    description: Create git commits and manage branch history.
+    risk_level: medium
+  multimodal_generation:
+    display_name: Multimodal Generation
+    description: Generate or process images, audio, or video files.
+    risk_level: high
+  cloud_upload:
+    display_name: Cloud Upload
+    description: Upload assets or data to remote cloud servers.
+    risk_level: high
+  rag_query:
+    display_name: RAG Query
+    description: Query local or remote knowledge base.
+    risk_level: low
+  frontdesk_chat:
+    display_name: Frontdesk Chat
+    description: Handle chat gateway and operator communication.
+    risk_level: low
+  approval_ui:
+    display_name: Approval UI
+    description: Prompt and manage operator approvals.
+    risk_level: low

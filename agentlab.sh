@@ -2,7 +2,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_BIN="$ROOT/agent_runtime/.venv/bin/python"
+PYTHON_BIN="$ROOT/.venv/bin/python"
+if [[ ! -x "$PYTHON_BIN" && -x "$ROOT/.venv/bin/python3" ]]; then
+  PYTHON_BIN="$ROOT/.venv/bin/python3"
+elif [[ ! -x "$PYTHON_BIN" && -x "$ROOT/agent_runtime/.venv/bin/python" ]]; then
+  PYTHON_BIN="$ROOT/agent_runtime/.venv/bin/python"
+elif [[ ! -x "$PYTHON_BIN" && -x "$ROOT/agent_runtime/.venv/bin/python3" ]]; then
+  PYTHON_BIN="$ROOT/agent_runtime/.venv/bin/python3"
+fi
 
 _python_has_runtime_deps() {
   "$1" - <<'PY' >/dev/null 2>&1

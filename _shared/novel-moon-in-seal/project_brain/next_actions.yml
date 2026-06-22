@@ -1,0 +1,36 @@
+actions:
+  - id: na_001
+    priority: critical
+    status: done
+    description: "女主名定稿：莲茉"
+    details: "用户确认。莲花的莲+茉莉的茉。柔美。娇艳欲滴。但有刺。"
+
+  - id: na_002
+    priority: critical
+    status: done
+    description: "七境名定稿"
+    details: "长衡野/沉渊渡/万象渊/两不疑/时漏滩/缄舌岭/烬落岭。用户确认。"
+
+  - id: na_003
+    priority: critical
+    status: done
+    description: "隙月镇定稿"
+    details: "裂缝中漏下的月光。用户确认。"
+
+  - id: na_004
+    priority: critical
+    status: done
+    description: "悬疑暗面设定定稿"
+    details: "7个世界暗面要素，不当机制当世界写。用户确认。"
+
+  - id: na_005
+    priority: critical
+    status: done
+    description: "调整后主线已写"
+    details: "前10章每章节奏+悬疑渗透点+莲茉动向。在tasks/plan/调整后主线.md"
+
+  - id: na_006
+    priority: critical
+    status: waiting_user
+    description: "等待用户确认——可以写第一章了吗"
+    details: "所有设定已定稿。第一章目标：隙月镇质感+古玉初现+莲茉无声的第一道痕迹。"

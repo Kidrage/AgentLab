@@ -1,0 +1,87 @@
+workers:
+  claude_code:
+    supported_capabilities:
+      - planning
+      - task_decomposition
+      - read_only_repo_search
+      - symbol_lookup
+      - structural_ast_scan
+      - context_assembly
+      - prompt_handoff
+      - file_edit
+      - patch_generation
+      - shell_execution
+      - test_execution
+      - diff_review
+      - lint_check
+      - format_check
+      - secret_scan
+      - artifact_archive
+      - git_commit
+
+  hermes:
+    supported_capabilities:
+      - planning
+      - task_decomposition
+      - budget_reasoning
+      - context_assembly
+      - prompt_handoff
+      - diff_review
+      - artifact_archive
+      - git_commit
+
+  qwen:
+    supported_capabilities:
+      - planning
+      - task_decomposition
+      - budget_reasoning
+
+  gemini:
+    supported_capabilities:
+      - planning
+      - task_decomposition
+      - budget_reasoning
+
+  bl:
+    supported_capabilities:
+      - multimodal_generation
+      - cloud_upload
+      - web_search
+      - rag_query
+
+  rg:
+    supported_capabilities:
+      - read_only_repo_search
+
+  git:
+    supported_capabilities:
+      - git_commit
+      - diff_review
+      - patch_generation
+
+  ast_grep:
+    supported_capabilities:
+      - structural_ast_scan
+      - symbol_lookup
+
+  sg:
+    supported_capabilities:
+      - structural_ast_scan
+      - symbol_lookup
+
+  pytest:
+    supported_capabilities:
+      - test_execution
+
+  ruff:
+    supported_capabilities:
+      - lint_check
+      - format_check
+
+  eslint:
+    supported_capabilities:
+      - lint_check
+
+  mypy:
+    supported_capabilities:
+      - lint_check

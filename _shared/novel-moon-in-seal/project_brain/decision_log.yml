@@ -1,0 +1,54 @@
+decisions:
+  - id: dec_001
+    date: "2026-06-20"
+    category: title
+    decision: "书名定为《印中人》"
+    rationale: "用户确认。不直接展示世界名。三解：印中有人/人人皆有走不出的印/终章谜底"
+
+  - id: dec_002
+    date: "2026-06-20"
+    category: romance
+    decision: "女主名暂定莲茉。要可爱又迷人。增加原创设定：她是'遗忘的概念具象化'"
+    rationale: "用户拒了莲茉，要求名字可爱+原创设定。用诗经出处+记忆领域概念。"
+
+  - id: dec_100
+    date: "2026-06-20"
+    category: romance
+    decision: "莲茉的原创特色——她是被打破的法则产生的'智慧伤痕'，领域是记忆。"
+    details: "不同点：1)她不是被封印的人，是被遗忘的世界法则留下的伤痕。2)能力在记忆领域——读取/存储/抹除。3)她的天敌是'大遗忘'——一个正在吞噬世界记忆的宇宙现象。4)莲茉就是世界的免疫系统。5)最终她可以选择消散以拯救世界——或存在下去让世界慢慢被遗忘。"
+
+  - id: dec_003
+    date: "2026-06-20"
+    category: worldbuilding
+    decision: "七州地名从单字改为多字，不用州/城/国后缀"
+    rationale: "用户要求多字+虚幻感+不落俗套。新方案：长衡野/沉渊渡/万象渊/两不疑/时漏滩/缄舌岭/烬落岭"
+
+  - id: dec_004
+    date: "2026-06-20"
+    category: worldbuilding
+    decision: "主城定名隙月镇——非'城'后缀，暗示裂痕世界"
+    rationale: "用户拒了璧城。隙月=从缝隙中漏出的月光，符合天裂设定又含蓄。镇比城更低调，适合开局。"
+
+  - id: dec_005
+    date: "2026-06-20"
+    category: worldbuilding
+    decision: "开局舞台缩至隙月镇一座城+周边。前10章不离开镇子。"
+    rationale: "世界一点一点展露，先让读者爱上这一座镇子的人事物。"
+
+  - id: dec_006
+    date: "2026-06-20"
+    category: powersystem
+    decision: "保留弱可胜强五机制，增加绝望机制：概念锁死/代价转移/阶位压制"
+    rationale: "用户说也要有强者绝对碾压的机制。阶位差2阶以上时低阶印痕被压制。但这是'正面战斗情况'——暗杀/陷阱/环境可利用。绝望机制需要在后续剧情中付出代价化解。"
+
+  - id: dec_007
+    date: "2026-06-20"
+    category: quality
+    decision: "每5章用Hermes/Claude式审查。自动handoff机制。"
+    rationale: "用户死规矩：上下文爆了/写不出新意/脱离主线→自动spawn审查agents。每5章做一次全面体检：主线偏差/生动度/通顺度/男频审美/人物是否崩。"
+
+  - id: dec_008
+    date: "2026-06-20"
+    category: tracking
+    decision: "每5章汇报一次成本。格式：每章tokens + 5章合计。"
+    rationale: "用户确认每章统计，攒5章报一次。纯tokens格式。"
