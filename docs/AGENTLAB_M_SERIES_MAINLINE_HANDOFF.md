@@ -307,13 +307,16 @@ M1 Project Governance Kernel
 M2 Operator OS / Local Agent Company Control Plane
   M2-0 Runtime Hygiene & Safety Baseline
   M2-1 Local Worker Registry / Agent Doctor
+  M2-1.5 CLI Invocation Contract Validator
+  M2-1.6 Cache-Aware Execution Economy Engine
+  M2-1.7 Skill / MCP Capability Broker
   M2-2 Capability Schema & 9-Role Requirement Matrix
   M2-3 Worker Audition / Performance Ledger
-  M2-4 Role Assignment Router v2
+  M2-4 Role Activation + Assignment Router v2
   M2-5 Config Center v2
   M2-6 Cost, Risk & Approval System v2
   M2-7 Observability / Event Timeline v2
-  M2-8 Control Panel: Workers / Skills / Capabilities / Executors
+  M2-8 Control Panel: Workers / Skills / MCPs / Capabilities / Executors
   M2-9 AgentLab Assistant Modes
   M2-10 TUI
   M2-11 WebUI
@@ -1590,6 +1593,25 @@ are not competitors to AgentLab. They are workers, front desks, specialist tools
 or capability providers managed by AgentLab.
 ```
 
+M2 must also establish AgentLab's cache-aware execution economy:
+
+```text
+9 roles are governance responsibilities, not mandatory model calls.
+Workers are lazily activated.
+Stable role/skill/MCP startup context may be cache-discounted when cache confidence is measurable.
+Deterministic tools and cached evidence are preferred before model/API/CLI/MCP calls when sufficient.
+Every activation must explain effective marginal cost, cache assumption, expected benefit, risk reduction, permission risk, and fallback.
+```
+
+M2 must also establish AgentLab's capability brokerage:
+
+```text
+Do not force every local agent CLI to share the same skills/MCP servers.
+Normalize heterogeneous skills/MCPs as capability provider passports.
+AgentLab-owned skills and brokered MCPs are canonical.
+Worker-local skills/MCPs are delegated opaque capabilities until verified.
+```
+
 ---
 
 ## 6.2 M2 Non-Goals
@@ -1637,11 +1659,17 @@ M2-0 Runtime Hygiene & Safety Baseline
 ↓
 M2-1 Local Worker Registry / Agent Doctor
 ↓
+M2-1.5 CLI Invocation Contract Validator
+↓
+M2-1.6 Cache-Aware Execution Economy Engine
+↓
+M2-1.7 Skill / MCP Capability Broker
+↓
 M2-2 Capability Schema & 9-Role Requirement Matrix
 ↓
 M2-3 Worker Audition / Performance Ledger
 ↓
-M2-4 Role Assignment Router v2
+M2-4 Role Activation + Assignment Router v2
 ↓
 M2-5 Config Center v2
 ↓
@@ -2277,6 +2305,848 @@ M2-1.5 passes if:
 - worker registry excludes or marks workers with invalid invocation contracts
 - route assignment can only select workers with valid or explicitly approved invocation contracts
 - no real external CLI execution is required for tests
+```
+
+---
+
+# 6.5.6 M2-1.6 — Cache-Aware Execution Economy Engine
+
+## Goal
+
+Decide whether a worker/API/MCP/tool should be activated at all, using real marginal cost instead of raw prompt size.
+
+This stage closes the cost-risk gap exposed by full-CLI style routing. AgentLab must not treat the 9 roles as 9 mandatory agent invocations. It also must not over-penalize workers whose stable role/skill/MCP startup context can reliably hit provider context cache.
+
+Core distinction:
+
+```text
+9 roles = always-on governance responsibilities
+workers = lazily activated execution resources
+LLM/API/CLI/MCP calls = resources whose activation must be justified by marginal cost, risk, and expected value
+cached startup context = potentially cheap tokens, not free permission or coordination
+```
+
+This is the key product differentiator:
+
+```text
+AgentLab is not a multi-agent spammer.
+AgentLab is a cache-aware execution economy manager.
+
+It does not win by blindly calling fewer agents.
+It wins by knowing when extra agents are cheap, useful, safe, and worth activating.
+```
+
+---
+
+## Required Principle
+
+Every task may be reviewed through the 9-role responsibility model, but workers are activated only when the expected value of activation exceeds the effective marginal cost, coordination overhead, and permission risk.
+
+Hard rule:
+
+```text
+Do not spawn an unmeasured, unauthorized, or low-value LLM/API/CLI/MCP worker.
+If a worker is warm/cached/read-only/low-risk, its activation threshold may be lower.
+If a worker can mutate files, run shell, access network, upload data, or use opaque MCP/skills, permission and evidence gates remain strict regardless of token cache.
+```
+
+Cost principle:
+
+```text
+Optimize for marginal cost, not raw token count.
+Stable role/skill/MCP context may be cache-discounted, but permission risk, coordination cost, evidence quality, and state mutation risk are never discounted by token cache.
+```
+
+Default order:
+
+```text
+1. deterministic local tools
+2. cached evidence/context assets
+3. local context assembly
+4. small cache-friendly direct API reasoning
+5. warm/cached read-only reviewer or planner
+6. single CLI/API worker for mutation or generation
+7. additional reviewer / specialist when marginal value is justified
+8. multi-agent / swarm only with explicit approval
+```
+
+Examples:
+
+```text
+RepoScout
+  default: rg / git grep / repo-index
+  not default: Claude/Codex/Hermes for simple search
+  allowed: cached LLM repo scout if semantic repo understanding is high-value and read-only
+
+InterfaceMapper
+  default: ast-grep / tree-sitter-style scripts
+  not default: full LLM repo scan
+  allowed: cached LLM interface review if deterministic map is incomplete or ambiguous
+
+TesterAuditor
+  default: pytest / npm test / diff parser
+  not default: LLM test reviewer unless test failure is complex
+  allowed: cached reviewer when failure interpretation is cheap and likely to reduce retry loops
+
+Verifier
+  default: ruff / eslint / git diff --check / secret scan
+  not default: LLM reviewer unless diff risk is high
+  allowed: cached read-only LLM reviewer for medium/high-risk semantic diffs
+
+Archivist
+  default: local ledger / task compact / git metadata
+  not default: LLM call
+  allowed: compact cached summarizer when a long phase needs durable project memory
+```
+
+---
+
+## Add Runtime Modules
+
+```text
+agent_runtime/execution_economy/
+  __init__.py
+  activation_cost.py
+  cache_profile.py
+  effective_cost.py
+  marginal_utility_gate.py
+  role_activation_policy.py
+  role_coalescing.py
+  context_reuse_policy.py
+  escalation_ladder.py
+  activation_decision.py
+  activation_plan.py
+  renderer.py
+```
+
+---
+
+## Add Configs
+
+```text
+config/execution_economy_policy.yml
+config/worker_activation_costs.yml
+config/context_cache_policy.yml
+config/role_activation_policy.yml
+config/escalation_ladders.yml
+```
+
+---
+
+## Activation Cost Schema
+
+```yaml
+worker_activation_cost:
+  worker_id:
+  fixed_startup_cost:
+    raw_prompt_tokens:
+    cacheable_prompt_tokens:
+    expected_cache_hit_rate:
+    effective_prompt_tokens:
+    estimated_cached_input_discount: none | low | medium | high | unknown
+    estimated_latency_s:
+    operator_friction: low | medium | high
+  cache_profile:
+    stable_prefix_hash:
+    skill_context_hash:
+    mcp_manifest_hash:
+    last_cache_hit_observed: true | false | unknown
+    cache_confidence: low | medium | high | unknown
+  variable_cost:
+    task_specific_context_tokens:
+    context_tokens_per_kb:
+    output_tokens_expected:
+    dollars_per_call:
+  non_token_costs:
+    coordination_cost: low | medium | high
+    permission_risk: low | medium | high | critical
+    state_mutation_risk: low | medium | high | critical
+  hidden_costs:
+    - context_duplication
+    - handoff_interpretation
+    - diff_conflict_risk
+  confidence: low | medium | high
+```
+
+Deterministic tool example:
+
+```yaml
+worker_activation_cost:
+  worker_id: rg
+  fixed_startup_cost:
+    raw_prompt_tokens: 0
+    cacheable_prompt_tokens: 0
+    expected_cache_hit_rate: 0.0
+    effective_prompt_tokens: 0
+    estimated_cached_input_discount: none
+    estimated_latency_s: 0.1
+    operator_friction: low
+  cache_profile:
+    stable_prefix_hash: null
+    skill_context_hash: null
+    mcp_manifest_hash: null
+    last_cache_hit_observed: false
+    cache_confidence: high
+  variable_cost:
+    task_specific_context_tokens: 0
+    context_tokens_per_kb: 0
+    output_tokens_expected: 0
+    dollars_per_call: 0
+  non_token_costs:
+    coordination_cost: low
+    permission_risk: low
+    state_mutation_risk: low
+  hidden_costs: []
+  confidence: high
+```
+
+High-skill CLI worker example:
+
+```yaml
+worker_activation_cost:
+  worker_id: claude_code
+  fixed_startup_cost:
+    raw_prompt_tokens: 12000
+    cacheable_prompt_tokens: 9500
+    expected_cache_hit_rate: 0.85
+    effective_prompt_tokens: 2500
+    estimated_cached_input_discount: high
+    estimated_latency_s: 8
+    operator_friction: medium
+  cache_profile:
+    stable_prefix_hash: "sha256:role-skill-prefix"
+    skill_context_hash: "sha256:approved-skill-set"
+    mcp_manifest_hash: "sha256:declared-mcp-passports"
+    last_cache_hit_observed: unknown
+    cache_confidence: medium
+  variable_cost:
+    task_specific_context_tokens: 3000
+    context_tokens_per_kb: 180
+    output_tokens_expected: 2000
+    dollars_per_call: unknown
+  non_token_costs:
+    coordination_cost: medium
+    permission_risk: high
+    state_mutation_risk: high
+  hidden_costs:
+    - context_duplication
+    - handoff_interpretation
+    - diff_conflict_risk
+  confidence: medium
+```
+
+---
+
+## Activation Decision Schema
+
+```yaml
+activation_decision:
+  project_id:
+  phase_id:
+  task_id:
+  role:
+  candidate_worker:
+  decision: spawn | skip | satisfy_by_deterministic | satisfy_by_cache | coalesce | defer | require_approval
+  activation_temperature: deterministic | cold | warm_cached | hot_session | unknown
+  satisfied_by: []
+  selected_worker:
+  selected_provider:
+  activation_cost:
+    raw_tokens:
+    cacheable_tokens:
+    effective_tokens:
+    estimated_usd:
+    effective_estimated_usd:
+    latency_class:
+    coordination_cost: low | medium | high
+    permission_risk: low | medium | high | critical
+    state_mutation_risk: low | medium | high | critical
+  cache_verdict:
+    expected: hit | partial_hit | miss | unknown
+    confidence: low | medium | high
+    evidence: []
+  expected_benefit:
+    quality_gain: none | low | medium | high
+    risk_reduction: none | low | medium | high
+    speed_gain: none | low | medium | high
+    recovery_value: none | low | medium | high
+  marginal_utility_verdict: justified | not_justified | unknown_requires_approval
+  reason: []
+  fallback: []
+  context_budget:
+    max_raw_tokens:
+    max_effective_tokens:
+    required_assets: []
+    excluded_assets: []
+  evidence_paths: []
+```
+
+Example: skip LLM verifier when deterministic checks are enough:
+
+```yaml
+activation_decision:
+  role: Verifier
+  candidate_worker: claude_code
+  decision: satisfy_by_deterministic
+  activation_temperature: deterministic
+  satisfied_by:
+    - ruff_check
+    - git_diff_check
+    - secret_scan
+  expected_benefit:
+    quality_gain: low
+    risk_reduction: low
+    speed_gain: none
+  marginal_utility_verdict: not_justified
+  reason:
+    - deterministic verification is sufficient
+    - no high-risk semantic change detected
+    - cached LLM reviewer still has low marginal value for this diff
+```
+
+Example: spawn cached read-only reviewer because marginal cost is low and risk reduction is useful:
+
+```yaml
+activation_decision:
+  role: Verifier
+  candidate_worker: claude_code
+  decision: spawn
+  activation_temperature: warm_cached
+  selected_worker: claude_code
+  activation_cost:
+    raw_tokens: 11000
+    cacheable_tokens: 9000
+    effective_tokens: 2200
+    estimated_usd: unknown
+    effective_estimated_usd: low
+    latency_class: medium
+    coordination_cost: low
+    permission_risk: low
+    state_mutation_risk: low
+  cache_verdict:
+    expected: hit
+    confidence: medium
+    evidence:
+      - stable role/skill prefix reused
+      - read-only review packet
+  expected_benefit:
+    quality_gain: medium
+    risk_reduction: high
+    speed_gain: low
+  marginal_utility_verdict: justified
+  reason:
+    - cached startup context makes reviewer activation cheap
+    - diff has semantic risk not covered by deterministic checks
+    - worker is read-only for this packet
+```
+
+Example: spawn Coder because patch work is needed:
+
+```yaml
+activation_decision:
+  role: Coder
+  candidate_worker: claude_code
+  decision: spawn
+  activation_temperature: warm_cached
+  selected_worker: claude_code
+  expected_benefit:
+    quality_gain: high
+    risk_reduction: high
+    speed_gain: medium
+  marginal_utility_verdict: justified
+  reason:
+    - task requires multi-file patch generation
+    - deterministic tools cannot modify code
+    - Coder role has high expected value for this task
+    - cache may reduce token cost but write/shell permissions still require approval gates
+```
+
+---
+
+## Role Coalescing
+
+Small tasks should not spawn separate workers for every role. Multiple roles can be bundled into one compact packet when the risk is low.
+
+Examples:
+
+```text
+Small code fix:
+  Supervisor + PromptEngineer + Coder
+  → single compact coder packet
+
+Validation task:
+  TesterAuditor + Verifier
+  → deterministic validation packet or one cached read-only review packet if semantic risk is meaningful
+
+Archive task:
+  Archivist
+  → local ledger writer, no model call unless a compact cached summary is needed
+```
+
+Role coalescing output:
+
+```yaml
+role_coalescing:
+  coalesced_packet_id:
+  roles:
+    - Supervisor
+    - PromptEngineer
+    - Coder
+  selected_worker: codex
+  reason:
+    - small bounded patch
+    - no separate planning worker needed
+    - one compact context pack has lower effective cost than multiple cold activations
+  risk_level: medium
+```
+
+---
+
+## Context Reuse Policy
+
+AgentLab must not send raw full project history to every worker.
+
+Preferred context assets:
+
+```text
+task_contract.yml
+mission_contract.yml
+project_brain/current_phase.yml
+repo_map.yml
+interface_map.yml
+diff_summary.md
+acceptance_criteria.yml
+known_risks.yml
+decision_log_compact.yml
+related_evidence_index.yml
+stable_role_prefix.md
+approved_skill_context.md
+mcp_provider_passport_index.yml
+```
+
+Context budget example:
+
+```yaml
+context_budget:
+  max_raw_tokens: 16000
+  max_effective_tokens: 8000
+  required_assets:
+    - task_contract
+    - changed_files_summary
+    - relevant_symbol_map
+    - acceptance_criteria
+  excluded_assets:
+    - full_chat_history
+    - unrelated_phase_reports
+    - private_runtime_logs
+```
+
+---
+
+## Escalation Ladder
+
+Default escalation ladder:
+
+```text
+Level 0: deterministic tools
+Level 1: cached evidence + local context assembly
+Level 2: small cache-friendly API reasoning
+Level 3: warm/cached read-only reviewer or planner
+Level 4: single CLI coder / mutating worker with approval gates
+Level 5: additional specialist reviewer when effective cost and risk reduction justify it
+Level 6: multi-agent compare / swarm with explicit approval
+```
+
+Escalation triggers:
+
+```text
+missing_context
+failed_deterministic_validation
+patch_required
+tests_failed
+high_risk_diff
+repeated_failure
+budget_exceeded
+human_approval
+cache_miss_or_unknown_cost
+```
+
+Escalation ladder example:
+
+```yaml
+escalation_ladder:
+  initial: deterministic_scan
+  if_missing_context: api_supervisor_compact
+  if_patch_needed: single_cli_coder
+  if_tests_fail: cached_failure_analyzer
+  if_diff_high_risk: cached_or_strong_llm_verifier
+  if_repeated_failure: multi_agent_redesign
+  if_budget_exceeded: stop_or_ask_user
+  if_cache_miss_or_unknown_cost: downgrade_or_require_approval
+```
+
+---
+
+## CLI
+
+```bash
+./agentlab.sh activation-plan --task-packet <path>
+./agentlab.sh activation-explain --decision <path>
+./agentlab.sh execution-economy-report --project <project>
+./agentlab.sh estimate-spawn-cost --worker claude_code --role Coder
+./agentlab.sh cache-profile-report --worker claude_code
+```
+
+---
+
+## Outputs
+
+```text
+projects/<project_id>/execution_economy/
+  activation_plan.yml
+  activation_decisions/
+    supervisor.yml
+    reposcout.yml
+    interface_mapper.yml
+    researcher.yml
+    prompt_engineer.yml
+    coder.yml
+    tester_auditor.yml
+    verifier.yml
+    archivist.yml
+  role_coalescing.yml
+  context_reuse_plan.yml
+  cache_profile_report.yml
+  escalation_ladder.yml
+  execution_economy_report.md
+```
+
+---
+
+## Tests
+
+```text
+tests/test_m2_activation_cost.py
+tests/test_m2_cache_profile.py
+tests/test_m2_effective_cost.py
+tests/test_m2_marginal_utility_gate.py
+tests/test_m2_role_activation_policy.py
+tests/test_m2_role_coalescing.py
+tests/test_m2_context_reuse_policy.py
+tests/test_m2_escalation_ladder.py
+tests/test_m2_activation_plan_cli.py
+```
+
+---
+
+## Acceptance
+
+M2-1.6 passes if:
+
+```text
+- large_or_risky_task no longer means activate all 9 LLM/CLI workers
+- roles are always checked, workers are lazily activated
+- raw prompt tokens, cacheable tokens, effective tokens, and cache confidence are recorded separately
+- deterministic tools are preferred for RepoScout / InterfaceMapper / TesterAuditor / Verifier when sufficient
+- cached evidence is preferred before repeated tool/model calls
+- warm/cached low-risk workers can be activated with a lower threshold when expected marginal value is meaningful
+- LLM/API/CLI/MCP worker spawn requires marginal utility gate based on effective cost, not raw token count alone
+- token cache never discounts permission risk, state mutation risk, evidence requirements, or coordination risk
+- small task can complete with zero or one LLM worker if deterministic checks suffice
+- medium/high-risk semantic diff can trigger cached read-only LLM reviewer when justified
+- repeated failure can escalate to stronger worker
+- high-risk diff can trigger LLM reviewer
+- max_quality_swarm requires explicit approval
+- every skipped worker has explicit reason
+- every spawned worker has raw/effective cost, cache verdict, quality/risk justification, and fallback
+```
+
+---
+
+# 6.5.7 M2-1.7 — Skill / MCP Capability Broker
+
+## Goal
+
+Manage heterogeneous skills and MCP services across local workers without forcing every worker to install or expose the same skill/MCP set.
+
+Core principle:
+
+```text
+Do not unify every CLI's skills/MCP installation.
+Unify capability semantics, provider passports, permissions, cost, trust, transparency, and evidence.
+```
+
+This stage prevents AgentLab from becoming a fragile skill-sync manager.
+
+Correct interpretation:
+
+```text
+AgentLab-owned skills/SOPs and approved MCP adapters are canonical.
+Worker-local skills/MCPs are heterogeneous delegated capabilities.
+AgentLab may discover, record, score, and use them, but it does not treat them as truth by default.
+```
+
+---
+
+## Provider Types
+
+```text
+agentlab_owned_tool
+agentlab_owned_skill
+agentlab_brokered_mcp
+direct_api_provider
+worker_local_skill
+worker_local_mcp
+external_handoff_provider
+unknown
+```
+
+---
+
+## Provider Priority
+
+Default provider priority:
+
+```text
+1. AgentLab-owned deterministic tool / skill
+2. AgentLab-brokered approved MCP
+3. direct API provider
+4. worker-local delegated skill/MCP
+5. external manual handoff
+```
+
+Rationale:
+
+```text
+Transparent, cheap, testable providers should win by default.
+Opaque worker-local skills/MCPs may be useful, but they require trust scoring and evidence.
+```
+
+---
+
+## Add Runtime Modules
+
+```text
+agent_runtime/capability_broker/
+  __init__.py
+  capability_provider.py
+  provider_passport.py
+  skill_discovery.py
+  mcp_discovery.py
+  broker_registry.py
+  provider_trust.py
+  provider_routing.py
+  brokered_invocation.py
+  delegated_capability.py
+  renderer.py
+```
+
+---
+
+## Add Configs
+
+```text
+config/capability_provider_registry.yml
+config/skill_mcp_broker_policy.yml
+config/provider_trust_policy.yml
+config/mcp_permission_policy.yml
+```
+
+---
+
+## Provider Passport Schema
+
+```yaml
+capability_provider_passport:
+  provider_id:
+  provider_type:
+  owner_worker:
+  source: discovered | declared | agentlab_owned | external
+  canonical_capabilities: []
+  transparency: transparent | semi_transparent | opaque
+  invocation_mode: direct | brokered_mcp | delegated_worker | manual_handoff
+  permissions:
+    filesystem_read:
+    filesystem_write:
+    shell:
+    network:
+    cloud_upload:
+  risk_level: low | medium | high | critical
+  cost_model:
+    known:
+    attribution:
+    estimated_usd:
+    estimated_tokens:
+  verification:
+    probe_available:
+    audition_required:
+    last_successful_use:
+  trust_level: trusted | provisional | untrusted | disabled
+  disabled_by_default:
+  allowed_projects: []
+  notes: []
+```
+
+AgentLab-owned deterministic provider example:
+
+```yaml
+capability_provider_passport:
+  provider_id: agentlab_repo_scout_rg
+  provider_type: agentlab_owned_tool
+  source: agentlab_owned
+  canonical_capabilities:
+    - read_only_repo_search
+  transparency: transparent
+  invocation_mode: direct
+  permissions:
+    filesystem_read: scoped
+    filesystem_write: false
+    shell: limited
+    network: false
+    cloud_upload: false
+  risk_level: low
+  cost_model:
+    known: true
+    attribution: provider_level
+    estimated_usd: 0
+    estimated_tokens: 0
+  trust_level: trusted
+  disabled_by_default: false
+```
+
+Worker-local skill example:
+
+```yaml
+capability_provider_passport:
+  provider_id: claude_local_skill_code_review
+  provider_type: worker_local_skill
+  owner_worker: claude_code
+  source: discovered
+  canonical_capabilities:
+    - code_review
+    - diff_risk_analysis
+  transparency: opaque
+  invocation_mode: delegated_worker
+  permissions:
+    filesystem_read: unknown
+    filesystem_write: possible
+    shell: possible
+    network: unknown
+    cloud_upload: unknown
+  risk_level: high
+  cost_model:
+    known: false
+    attribution: worker_level_only
+  verification:
+    probe_available: false
+    audition_required: true
+    last_successful_use: null
+  trust_level: provisional
+  disabled_by_default: true
+```
+
+---
+
+## Discovery Levels
+
+```text
+Level 0: declarative config
+  User or config declares worker-local skills/MCPs. Low risk, low trust.
+
+Level 1: safe probe
+  Run safe list/version/help commands only if supported. Never leak tokens.
+
+Level 2: sandbox audition
+  Test provider capability inside mock repo/fixture. No real user repo mutation.
+```
+
+---
+
+## Brokered vs Delegated MCP
+
+Preferred:
+
+```text
+AgentLab MCP Broker
+→ approved MCP server
+→ scoped tool call
+→ evidence ledger
+→ result returned as context asset
+```
+
+Fallback:
+
+```text
+Worker-local MCP
+→ represented as delegated opaque/semi-transparent capability
+→ requires provider passport
+→ routed through risk/cost/approval policy
+```
+
+Rule:
+
+```text
+If AgentLab can call a tool directly or through an approved broker, do not ask an LLM worker to spend tokens discovering the same information through its own MCP unless the marginal value is justified.
+```
+
+---
+
+## CLI
+
+```bash
+./agentlab.sh capability-providers
+./agentlab.sh capability-provider-inspect --provider <id>
+./agentlab.sh skill-discover --worker claude_code --safe
+./agentlab.sh mcp-discover --worker claude_code --safe
+./agentlab.sh capability-broker-plan --capability code_review
+./agentlab.sh provider-trust-report
+```
+
+---
+
+## Outputs
+
+```text
+projects/<project_id>/capability_broker/
+  provider_passports.yml
+  broker_registry.yml
+  provider_trust_report.md
+  provider_routing_decisions.yml
+  delegated_capabilities.yml
+```
+
+---
+
+## Tests
+
+```text
+tests/test_m2_capability_provider_passport.py
+tests/test_m2_skill_discovery.py
+tests/test_m2_mcp_discovery.py
+tests/test_m2_provider_trust_policy.py
+tests/test_m2_provider_routing.py
+tests/test_m2_brokered_invocation.py
+tests/test_m2_delegated_capability.py
+```
+
+---
+
+## Acceptance
+
+M2-1.7 passes if:
+
+```text
+- AgentLab does not require every worker to share the same skills/MCP servers
+- worker-local skills are represented as delegated opaque capabilities
+- worker-local MCPs are represented as delegated opaque or semi-transparent providers
+- AgentLab-owned tools/skills are preferred when cheaper and transparent
+- MCP access is brokered through AgentLab when possible
+- worker-local MCP use is allowed only as declared/delegated capability
+- every provider has a passport
+- every provider has permissions, risk, trust, cost, and transparency level
+- high-risk MCP providers require approval
+- cached evidence is preferred before tool/MCP calls
+- provider selection is explainable
 ```
 
 ---
@@ -3399,7 +4269,7 @@ Prove M2 works as an operator-controlled local agent company.
 Create:
 
 ```text
-acceptance_runs/m2_operator_demo/M2_OPERATOR_OS_LOCAL_AGENT_COMPANY_REPORT.md
+acceptance_runs/m2_operator_demo/M2_OPERATOR_OS_EXECUTION_ECONOMY_REPORT.md
 ```
 
 Include:
@@ -4324,16 +5194,24 @@ AgentLab M-series is complete when all of the following are true.
 ```text
 - runtime hygiene separates profiles/workspaces/bridges/logs/runtime
 - local worker registry discovers installed/missing agent CLIs and deterministic tools
+- CLI invocation contracts validate real supported command templates
+- invalid CLI invocation triggers fallback instead of blocked_user_decision
+- cache-aware execution economy creates activation decisions before route decisions
+- roles are always checked but workers are lazily activated
+- raw tokens, cached tokens, effective cost, and cache confidence are recorded separately
+- warm/cached low-risk workers may be activated more aggressively when marginal value is justified
+- deterministic tools and cached evidence are preferred before model/API/CLI/MCP calls when sufficient
+- capability broker represents AgentLab-owned tools, MCPs, worker-local skills, and worker-local MCPs as provider passports
 - all 9 roles have explicit capability requirements
 - worker audition and scorecards work with mocked workers
-- role assignment router produces explainable route decisions
-- configuration is transparent, layered, and connected to routing
-- cost/risk/approval system gates high-risk workers and unknown costs
-- timeline records project, worker, route, approval, cost, artifact, and acceptance events
+- role activation + assignment router produces explainable activation and route decisions
+- configuration is transparent, layered, and connected to routing/economy/brokerage
+- cost/risk/approval system gates high-risk workers, high-risk providers, max_quality_swarm, unknown costs, and untrusted cache assumptions
+- timeline records project, worker, provider, activation, route, approval, cost, artifact, and acceptance events
 - TUI works
 - WebUI works
-- assistant explains project state and worker routing
-- workers/skills/capabilities/executors can be inspected and controlled
+- assistant explains project state, worker routing, activation economy, and provider brokerage
+- workers/skills/MCPs/capabilities/executors can be inspected and controlled
 - operator demo passes
 - CLI remains fully usable without UI
 ```
@@ -4403,7 +5281,7 @@ Create acceptance_runs/m1_project_governance_kernel/M1_PROJECT_GOVERNANCE_KERNEL
 ```markdown
 You are working on Kidrage/AgentLab.
 
-Current goal: M2 Operator OS / Local Agent Company Control Plane.
+Current goal: M2 Operator OS / Local Agent Company / Cache-Aware Execution Economy.
 
 Assume M1 is complete.
 Do not implement M3 business/revenue/CRM.
@@ -4411,35 +5289,46 @@ Do not add unsafe external execution.
 Do not auto-run real external agent CLIs in tests.
 Do not expose WebUI/OpenClaw/frontdesk gateways publicly by default.
 Do not display secrets or private runtime state.
+Do not force all workers to install the same skills or MCP servers.
+Do not define full_cli as "start all role workers.
 
 Implement M2 in this order:
 - M2-0 Runtime Hygiene & Safety Baseline
 - M2-1 Local Worker Registry / Agent Doctor
+- M2-1.5 CLI Invocation Contract Validator
+- M2-1.6 Cache-Aware Execution Economy Engine
+- M2-1.7 Skill / MCP Capability Broker
 - M2-2 Capability Schema & 9-Role Requirement Matrix
 - M2-3 Worker Audition / Performance Ledger
-- M2-4 Role Assignment Router v2
+- M2-4 Role Activation + Assignment Router v2
 - M2-5 Config Center v2
 - M2-6 Cost, Risk & Approval System v2
 - M2-7 Observability / Event Timeline v2
-- M2-8 Control Panel: Workers / Skills / Capabilities / Executors
+- M2-8 Control Panel: Workers / Skills / MCPs / Capabilities / Executors
 - M2-9 AgentLab Assistant Modes
 - M2-10 TUI skeleton
 - M2-11 WebUI skeleton
 - M2-12 Operator Acceptance Demo
 
 All UI must be optional. CLI core must work without UI.
-All worker discovery and audition tests must be mock-first.
+All worker discovery, invocation contract validation, provider discovery, and audition tests must be mock-first.
+All route decisions must include activation decisions.
 All route decisions must be explainable and saved as evidence.
-All high-risk workers/capabilities must require explicit approval.
+All high-risk workers/capabilities/providers must require explicit approval.
 
 Run:
 python -m compileall agent_runtime agentlab_app.py
 python -m pytest -q
 ./agentlab.sh --help
 ./agentlab.sh worker-scan --help
+./agentlab.sh worker-contract-validate --help
+./agentlab.sh worker-invocation-probe --help
+./agentlab.sh activation-plan --help
+./agentlab.sh capability-providers --help
 ./agentlab.sh assign-role --help
 ./agentlab.sh route-task --help
 python scripts/audit_text_integrity.py
+python scripts/check_remote_raw_integrity.py --ref HEAD
 
 Create:
 acceptance_runs/m2_operator_demo/M2_OPERATOR_OS_LOCAL_AGENT_COMPANY_REPORT.md
@@ -4458,6 +5347,7 @@ Do not implement unsafe platform automation.
 Do not post to real platforms.
 Do not scrape login-walled or paywalled content.
 Do not automate payments or legal contracts.
+Do not bypass M2 activation economy or provider brokerage.
 
 Implement:
 - Business Contract
@@ -4475,7 +5365,98 @@ Create acceptance_runs/m3_project_to_revenue/M3_PROJECT_TO_REVENUE_REPORT.md.
 
 ---
 
-# 11. One-Line Summary
+
+# 11. Required Repository-Level Corrections
+
+These cross-stage cleanup requirements must be completed before claiming M2 is stable.
+
+## 11.1 Rename or Redefine `full_cli`
+
+Problematic meaning:
+
+```text
+full_cli = all available roles are started through local CLI agents
+```
+
+Required meaning:
+
+```text
+full_cli / adaptive_cli = prefer local CLI workers only when activation is justified.
+It must not mean all 9 roles spawn workers.
+```
+
+Recommended mode names:
+
+```text
+adaptive_hybrid       # default
+api_governed
+external_ide_handoff
+frugal_deterministic
+max_quality_swarm     # approval required
+```
+
+## 11.2 Fix Large Task Routing Semantics
+
+Bad:
+
+```text
+large_or_risky_task = all 9 agents
+```
+
+Good:
+
+```text
+large_or_risky_task =
+  all 9 roles are evaluated,
+  but workers are lazily activated by Cache-Aware Execution Economy policy,
+  and warm/cached low-risk reviewers may be used more aggressively when marginal value is justified.
+```
+
+## 11.3 Fix Fake CLI Command Templates
+
+Known bad examples:
+
+```text
+hermes --task {task_packet_path}
+hermes --task {task_packet_path} --max-quality
+hermes --task-packet {task_packet_path}
+claude --task {task_packet_path}
+```
+
+Required:
+
+```text
+- every external CLI command must be backed by a worker invocation contract
+- fake/stale templates must fail validation
+- invalid invocation must fallback, not block as user decision
+```
+
+## 11.4 Treat Agent-Local Skills/MCPs as Opaque Until Proven
+
+Required:
+
+```text
+- do not assume Claude/Codex/Hermes/Aider local skills are equivalent
+- do not force skill/MCP synchronization across workers
+- discover worker-local skills/MCPs only through safe probes or declarations
+- represent each provider with a passport
+- prefer AgentLab-owned or brokered transparent providers
+```
+
+## 11.5 Ensure M3 Uses M2 Instead of Bypassing It
+
+Required:
+
+```text
+- production pipeline stages request M2 activation planning before worker execution
+- market/channel providers pass M2 capability broker policy
+- analytics and revenue ledgers can link back to M2 activation/cost records
+- SOP/Skill Factory can promote successful playbooks into AgentLab-owned provider passports
+```
+
+---
+
+# 12. One-Line Summary
 
 ```text
 M1 makes AgentLab able to govern long projects.
