@@ -555,7 +555,7 @@ def _get_task_type_config(agentlab_root: Path, task_type: str) -> dict[str, Any]
 
 
 def _build_memory_sync_items(agentlab_root: Path, cfg: dict[str, Any]) -> list[dict[str, Any]]:
-    """Build sync item list for memory backup (config, templates, skills, projects/agent_docs)."""
+    """Build sync items for config, templates, skills, repository, and project memory."""
     items: list[dict[str, Any]] = []
     remote_memory = "memory"  # remote base for memory
 
@@ -586,6 +586,16 @@ def _build_memory_sync_items(agentlab_root: Path, cfg: dict[str, Any]) -> list[d
             "local_path": str(skills_dir),
             "local_abs": skills_dir,
             "remote_path": f"{remote_memory}/global/skills/",
+            "item_type": "memory",
+        })
+
+    # Repository HandOff mirrors → memory/repositories/
+    repository_memory = agentlab_root / "memory" / "repositories"
+    if repository_memory.is_dir():
+        items.append({
+            "local_path": str(repository_memory),
+            "local_abs": repository_memory,
+            "remote_path": f"{remote_memory}/repositories/",
             "item_type": "memory",
         })
 

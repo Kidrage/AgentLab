@@ -111,6 +111,17 @@ def _write_task_packet(run_dir: Path, agent_name: str, plan: WorkflowPlan) -> Pa
         "included_agents": plan.included_agents,
         "model_profiles": plan.model_profiles,
         "validation_gates": plan.validation_gates,
+        "repository_handoff": {
+            "policy": str(Path(plan.agentlab_root) / "config" / "repository_handoff_policy.yml"),
+            "project_local_candidates": [
+                str(Path(plan.project_root) / ".agentlab" / "HandOff.md"),
+                str(Path(plan.project_root) / "agent_docs" / "HandOff.md"),
+            ],
+            "discover_before_read": True,
+            "create_if_missing_before_deep_read": True,
+            "refresh_after_material_change": True,
+            "refresh_before_final_report": True,
+        },
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
     packet_path = run_dir / f"task_packet_{agent_name.lower()}.json"

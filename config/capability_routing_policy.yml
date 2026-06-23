@@ -1,0 +1,98 @@
+schema_version: 1
+authority: _shared/AGENT_PROTOCOL.md
+strategy: smallest_safe_verified_route
+
+selection_dimensions:
+  - capability_fit
+  - deterministic_verifiability
+  - data_locality
+  - quality_requirement
+  - token_cost
+  - monetary_cost
+  - latency
+  - privacy_and_upload_risk
+  - authentication_and_availability
+  - historical_performance
+
+route_order:
+  - local_deterministic_tool
+  - verified_local_skill
+  - declared_local_stdio_mcp
+  - local_agent_cli
+  - approved_cloud_specialist
+  - remote_agent_handoff
+
+rules:
+  - id: no_ceremonial_model_call
+    action: forbid
+    when: deterministic_or_existing_context_is_sufficient
+  - id: metadata_before_skill_body
+    action: require
+    when: selecting_skill
+  - id: one_skill_first
+    action: require
+    when: one_skill_fully_covers_task
+  - id: mcp_schema_before_call
+    action: require
+    when: selecting_mcp_tool
+  - id: compact_task_packet
+    action: require
+    when: invoking_agent
+  - id: local_validation_after_generation
+    action: require
+    when: generated_output_is_verifiable_locally
+  - id: no_undeclared_worker_local_mcp
+    action: forbid
+    when: provider_not_registered
+  - id: explicit_approval_for_upload_or_write
+    action: require_approval
+    when_any: [cloud_upload, external_write, shell_mutation, public_network_bind]
+
+context_policy:
+  include:
+    - objective
+    - assigned_role
+    - allowed_files
+    - forbidden_files
+    - acceptance_criteria
+    - relevant_symbols
+    - relevant_failure_output
+  exclude:
+    - full_chat_history
+    - unrelated_files
+    - raw_full_repository
+    - unrelated_agent_memory
+    - secrets
+  tool_output_max_tokens: 1200
+
+fallback_policy:
+  automatic_fallback_allowed: false
+  deterministic_equivalent_allowed: true
+  named_agent_unavailable: report_to_user
+  capability_gap: write_gap_card
+
+evidence:
+  required:
+    - selected_provider
+    - selection_reason
+    - rejected_alternatives
+    - invocation_contract
+    - actual_token_usage_when_available
+    - actual_files_changed
+    - validation_result
+
+managed_skill_overrides:
+  bailian-cli:
+    universal_ai_task_trigger: forbidden
+    allowed_when:
+      - user_explicitly_requests_bailian
+      - bailian_specialist_capability_is_required
+    forbidden_when:
+      - ordinary_local_coding
+      - git_or_shell_work
+      - deterministic_repo_search
+      - local_testing_or_linting
+      - ceremonial_planning_call
+    localization_note: >-
+      This skill normally lives outside the AgentLab repository. Each endpoint
+      must verify its local SKILL.md follows this override after installation or update.

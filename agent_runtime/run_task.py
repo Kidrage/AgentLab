@@ -80,6 +80,38 @@ app.add_typer(mission_compiler_app, name="mission-compiler")
 console = Console()
 
 
+@app.command("repository-handoff")
+def repository_handoff_cmd(
+    repo: Path = typer.Option(..., "--repo", exists=True, file_okay=False, resolve_path=True),
+    shared_memory_root: Optional[Path] = typer.Option(
+        None,
+        "--shared-memory-root",
+        help="Shared repository-memory root; defaults to AgentLab memory/repositories.",
+    ),
+    write: bool = typer.Option(False, "--write", help="Create or refresh both HandOff copies."),
+) -> None:
+    """Discover or safely refresh repository memory without bulk content reads."""
+    from repository_handoff import discover_handoff, scan_repository, update_handoffs
+
+    memory_root = (shared_memory_root or (_PROJECT_ROOT / "memory" / "repositories")).expanduser().resolve()
+    if write:
+        result = update_handoffs(repo, memory_root)
+        result["status"] = "updated"
+    else:
+        existing = discover_handoff(repo, memory_root)
+        snapshot = scan_repository(repo)
+        result = {
+            "status": "found" if existing else "missing",
+            "repository_id": snapshot["repository_id"],
+            "handoff_path": str(existing) if existing else None,
+            "required_action": None if existing else "rerun with --write before deep repository work",
+            "path_count": snapshot["scan"]["path_count"],
+            "truncated": snapshot["scan"]["truncated"],
+            "content_bulk_read": snapshot["scan"]["content_bulk_read"],
+        }
+    console.print(yaml.safe_dump(result, allow_unicode=True, sort_keys=False).rstrip())
+
+
 def _run_external_skills_cli(args: list[str]) -> None:
     from external_skills_cli import main as external_skills_main
 

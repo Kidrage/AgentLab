@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 from truenas_sync import (
     DEFAULT_EXCLUDES,
+    _build_memory_sync_items,
     _build_rsync_command,
     _is_excluded,
     _load_backup_policy,
@@ -224,3 +225,17 @@ def test_build_backup_status_returns_dict(tmp_path: Path) -> None:
     assert "github" in status
     assert "truenas" in status
     assert "ledger" in status
+
+
+def test_repository_handoff_memory_is_in_sync_items(tmp_path: Path) -> None:
+    repository_memory = tmp_path / "memory" / "repositories" / "sample-id"
+    repository_memory.mkdir(parents=True)
+    (repository_memory / "HandOff.md").write_text("# HandOff\n", encoding="utf-8")
+
+    items = _build_memory_sync_items(tmp_path, {})
+
+    assert any(
+        item["local_abs"] == tmp_path / "memory" / "repositories"
+        and item["remote_path"] == "memory/repositories/"
+        for item in items
+    )

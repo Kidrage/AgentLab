@@ -142,16 +142,6 @@ DEFAULT_CANDIDATES = [
         "default_enabled": True,
         "approval_required": False,
     },
-    {
-        "worker_id": "sg",
-        "display_name": "ast-grep (sg)",
-        "command": "sg",
-        "category": WorkerCategory.DETERMINISTIC_AST_TOOL,
-        "cost_tier": "free",
-        "risk_level": "low",
-        "default_enabled": True,
-        "approval_required": False,
-    },
     # Testing & Linting
     {
         "worker_id": "pytest",

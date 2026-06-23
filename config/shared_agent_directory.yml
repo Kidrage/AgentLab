@@ -1,0 +1,207 @@
+schema_version: 1
+authority: _shared/AGENT_PROTOCOL.md
+generated_inventory_policy: explicit_registration
+
+peer_discovery:
+  required_before_collaboration: true
+  required_reads:
+    - _shared/AGENT_PROTOCOL.md
+    - config/shared_agent_directory.yml
+    - config/capability_routing_policy.yml
+    - config/agent_collaboration.yml
+    - config/repository_handoff_policy.yml
+  required_checks:
+    - identify_current_endpoint
+    - identify_current_agent
+    - list_peer_endpoints
+    - list_peer_agents
+    - validate_target_invocation_contract
+    - inspect_target_status_and_locks
+    - discover_or_create_repository_handoff
+  unknown_peer_behavior: stop_and_report_inventory_gap
+
+repository_memory:
+  applies_to_all_endpoints_and_agents: true
+  policy: config/repository_handoff_policy.yml
+  discover_command: ./agentlab.sh repository-handoff --repo "{repository_path}"
+  refresh_command: ./agentlab.sh repository-handoff --repo "{repository_path}" --write
+  local_path: .agentlab/HandOff.md
+  shared_path: memory/repositories/{repository_id}/HandOff.md
+
+endpoints:
+  local_source:
+    display_name: Local Source Workstation
+    role: source_of_truth_development
+    workspace: ~/AgentLab
+    writable_scopes: [source, config, protocols, tests, projects]
+    sync_out: [git, truenas_rsync]
+    peer_awareness_required: true
+  relay_hub:
+    display_name: TrueNAS Relay Hub
+    role: mirror_and_exchange_only
+    workspace: /mnt/hdd2/AgentLab_WorkSpace
+    writable_scopes: [workspace_mirror, agent_namespaces, shared_state]
+    execution_allowed: false
+    peer_awareness_required: true
+  cloud_runtime:
+    display_name: Cloud Runtime
+    role: deployment_and_continuous_execution
+    workspace: /home/admin/AgentLab
+    writable_scopes: [runtime_state, task_runs, deployment_artifacts]
+    source_changes_require_upstream_handoff: true
+    peer_awareness_required: true
+  localization_69:
+    display_name: Localization Endpoint 69
+    role: localization_target
+    workspace: discover_on_endpoint
+    status: inventory_required
+    writable_scopes: [localization_workspace]
+    must_publish_before_collaboration:
+      - resolved_workspace
+      - installed_agents
+      - invocation_contracts
+      - skill_inventory
+      - mcp_inventory
+      - deterministic_tool_inventory
+    peer_awareness_required: true
+
+agents:
+  agentlab:
+    display_name: AgentLab Control Plane
+    class: governance_control_plane
+    primary_roles: [contract_compile, routing, approval, evidence, acceptance, archive]
+    invocation:
+      command: ./agentlab.sh
+      task_route: ./agentlab.sh route-task --task-packet "{task_packet_path}"
+      status: ./agentlab.sh status --project "{project}" --task-id "{task_id}"
+    may_edit_project_files: false
+    may_write_governance_artifacts: true
+  openclaw:
+    display_name: OpenClaw Front Desk
+    class: frontdesk_gateway
+    primary_roles: [user_intake, approval_display, delegation, result_delivery]
+    invocation:
+      command: openclaw
+      one_turn: openclaw agent --agent "{frontdesk_agent_id}" --message "{prompt}"
+    explicit_named_delegation_mode: relay_only
+    may_edit_task_files_when_relaying: false
+  hermes:
+    display_name: Hermes
+    class: supervisor_agent
+    primary_roles: [planning, decomposition, coordination, recovery, global_memory]
+    invocation:
+      command: hermes
+      one_shot: >-
+        hermes -z "Read the task packet at {task_packet_path}; perform only the assigned role;
+        return findings, actions, verification, changed files, and blockers."
+    high_risk: true
+  codex:
+    display_name: Codex
+    class: coding_agent
+    primary_roles: [scoped_implementation, refactor, review, ci_repair]
+    invocation:
+      command: codex
+      noninteractive: >-
+        codex exec --json -C "{workspace_path}" "Read the task packet at
+        {task_packet_path}; perform only the assigned work and report actual changes."
+    high_risk: true
+  claude_code:
+    display_name: Claude Code
+    class: coding_agent
+    primary_roles: [deep_analysis, architecture, multi_file_implementation, review]
+    invocation:
+      command: claude
+      noninteractive: >-
+        claude --output-format json -p "Read the task packet at {task_packet_path};
+        perform only the assigned work and report actual changes."
+    high_risk: true
+  qwen:
+    display_name: Qwen Code
+    class: general_agent
+    primary_roles: [planning, analysis, scoped_implementation, audit]
+    invocation:
+      command: qwen
+      noninteractive: >-
+        qwen --bare --approval-mode default --output-format json "Read the task packet at
+        {task_packet_path}; perform only the assigned role and report actual changes."
+    high_risk: true
+  agy:
+    display_name: Antigravity
+    class: lightweight_agent
+    primary_roles: [fast_exploration, lightweight_analysis, prompt_handoff]
+    invocation:
+      command: agy
+      noninteractive: >-
+        agy --sandbox -p "Read the task packet at {task_packet_path}; perform only the
+        assigned role and report findings and actual changes."
+    high_risk: true
+  bl:
+    display_name: Bailian CLI
+    class: specialist_cloud_tool
+    primary_roles: [multimodal, media_generation, speech, rag, bailian_search]
+    invocation:
+      command: bl
+      contract: capability_specific_subcommand_required
+    may_act_as_general_frontdesk: false
+    high_risk: medium
+
+deterministic_tools:
+  rg:
+    capabilities: [repo_search]
+    token_cost: 0
+    priority: first
+  git:
+    capabilities: [history, diff, status, archive]
+    token_cost: 0
+    priority: first
+  ast_grep:
+    command: ast-grep
+    capabilities: [structural_search]
+    availability_required: true
+  pytest:
+    capabilities: [python_test]
+    local_command: uv run --python 3.11 --with-requirements requirements.txt python -m pytest
+  ruff:
+    capabilities: [python_lint, format_check]
+    availability_required: true
+
+mcp_servers:
+  agentlab_stdio:
+    transport: stdio
+    command: scripts/agentlab_mcp_stdio.sh
+    exposure: local_only
+    state_changing_tools_require_approval: true
+  worker_local:
+    status: delegated_opaque_until_declared
+    invocation_allowed_only_if_registered: true
+
+services:
+  agentlab_mcp:
+    transport: stdio
+    port: null
+    exposure: local_process_only
+  agentlab_ops_console:
+    bind: 127.0.0.1
+    port_env: AGENTLAB_PORT
+    default_port: 8765
+    exposure: local_only
+  openclaw_gateway:
+    bind: 127.0.0.1
+    default_port: 18789
+    status: optional_runtime_service
+    exposure: local_or_private_network_only
+  openclaw_agentlab_webhook:
+    bind: 127.0.0.1
+    default_port: 19118
+    status: optional_feedback_adapter
+    exposure: local_only
+  hermes_dashboard:
+    bind: 127.0.0.1
+    default_port: 9119
+    status: optional_operator_ui
+    exposure: local_only
+
+network_policy:
+  public_bind_default: forbidden
+  credentials_in_directory: forbidden
+  endpoint_specific_overrides_require_approval: true

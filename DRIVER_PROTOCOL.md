@@ -1,6 +1,11 @@
 # AgentLab 外部 AI 驱动协议
 
 > **适用对象**：Codex Plus（有额度的订阅用户）
+> **跨端权威协议**：`_shared/AGENT_PROTOCOL.md`。端点、Agent、准确调用命令与
+> 能力路由分别以 `config/shared_agent_directory.yml`、
+> `config/worker_invocation_contracts.yml`、`config/capability_routing_policy.yml` 为准。
+> 所有仓库读取前必须执行 `config/repository_handoff_policy.yml` 的 HandOff 门禁；
+> 缺失时先运行 `./agentlab.sh repository-handoff --repo <path> --write`。
 > **你的角色**：外部 IDE 调度与验收层——收取自然语言任务 → 写入 AgentLab task → 启动 AgentLab 自驱链路 → 验收结果 → 查漏补缺
 > **目标**：让 AgentLab 自己完成规划、感知、执行、审计和归档；外部 IDE AI 不伪装成 AgentLab 多 agent/API 执行结果
 > **注意**：Codex Plus、Cline、Claude、DeepSeek Chat 等外部 IDE/聊天 AI 默认只负责调度与验收。只有当 AgentLab Coder 阶段被显式切到 `external_ide_ai`，或用户明确授权手动接管时，外部 AI 才能编辑文件。
@@ -526,6 +531,11 @@ CodexPromptGenerator → Coder → TesterAuditor → Archivist
 ## 双端协作与同步协议 (Dual-End Collaboration and Sync Protocol)
 
 从 v1.6 开始，AgentLab 引入了双端协作与数据同步协议，以支持本地（开发环境）与云端（运行/部署环境）之间的无缝协作，同时保持两者技能、MCP 服务以及运行记忆能力同步更新：
+
+本节只描述同步链路。正式协作前的 peer discovery、角色分工、准确调用命令、
+Skill/MCP/Tool 成本路由、显式点名委派和证据归属，统一服从
+`_shared/AGENT_PROTOCOL.md`。任何新端点（包括 69 本地化端）必须先在
+`config/shared_agent_directory.yml` 完成能力盘点和同伴登记，才能接收正式任务。
 
 ### 1. 物理链路拓扑 (Network Topology)
 *   **本地开发端 (Local Mac)**：作为主开发环境和 Codebase/配置的源头真理（Source of Truth）。

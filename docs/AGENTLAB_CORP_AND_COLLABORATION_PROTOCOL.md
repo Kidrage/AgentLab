@@ -1,6 +1,12 @@
 # AgentLab 企业架构与多端 Agents 协作协议
 **（AgentLab Corp & Multi-End Collaboration Protocol）**
 
+> 本文描述企业模型。跨端 Agent 行为、同伴发现、调用合同、显式委派和能力路由的
+> 唯一权威来源是 `_shared/AGENT_PROTOCOL.md` 及其结构化附件
+> `config/shared_agent_directory.yml`、`config/capability_routing_policy.yml`、
+> `config/agent_collaboration.yml`、`config/repository_handoff_policy.yml`。冲突时以
+> 权威协议和结构化配置为准。
+
 ---
 
 ## 目录
@@ -89,28 +95,36 @@ AgentLab 演进为一个完整的 **Agent 软件公司 (Agent OS)**。本协议�
 
 ## 4. Token 节约与高效检索规范
 
-所有 Agent 在进行大规模仓库检索时，严禁使用盲目的全局 grep 以免耗尽上下文 Token。
+所有 Agent 先搜索并读取仓库 HandOff；缺失时先运行
+`./agentlab.sh repository-handoff --repo <path> --write`。安全枚举全部路径和元数据是
+强制步骤，批量读取全部文件内容则禁止。代码、文献、图片、音频和混合项目均适用。
 
 ### 4.1 检索优先级定义
-1.  **第一优先级：MCP 知识图谱工具 (Codebase Graph Tools)**  
-    使用 `codebase-memory-mcp` 专门工具来获取精确的数据，不加载冗余文本：
+1.  **第一优先级：本地确定性工具**
+    使用 `git status`、`git ls-files`、`rg --files`、定向 `rg`、测试与 linter。
+    不递归 `cat`，不读取二进制/密钥，不跟随目录软链接，不扫描依赖缓存。
+2.  **第二优先级：已登记的 MCP 知识图谱工具（如端点确实提供）**
+    先验证 MCP schema 和端点登记，再用单个必要工具获取精确数据：
     *   `search_graph`：通过模式查找特定的函数、类或路由。
     *   `trace_path`：分析代码的调用栈（inbound / outbound）。
     *   `get_code_snippet`：仅获取目标代码块的源码。
-2.  **第二优先级：传统 Grep (Fallback search)**  
-    仅用于检索非代码文本、字面量、系统配置或 error 日志。
+3.  **后续升级**
+    按 `config/capability_routing_policy.yml` 依次选择精确 Skill、本地 Agent CLI、
+    经批准云端专用能力和远端 handoff；每次升级都要有能力缺口证据。
 
 ---
 
 ## 5. 共享 Skills 库与 MCP 服务规范
 
 ### 5.1 共享技能包 (Skills Vault)
-*   **全局技能库**：`~/.agents/skills/`，内置 `agent-reach`、`bailian-cli`、`ponytail` 等 26 个通用技能。
-*   **工作区技能库**：`AgentLab/.agents/skills/`，如 `repo-navigation-token-saver`。
-*   **调用规矩**：在执行包含相关关键字的任务时，Agent 必须读取对应技能的 `SKILL.md` 指导，或者将任务托管给具备该技能的子 Agent 实例。
+*   **能力清单**：以 `config/shared_agent_directory.yml` 中各端实际发布的 Skill、MCP、
+    工具和 Agent 为准，不使用固定数量或历史名称推断当前能力。
+*   **调用规矩**：只加载与当前能力缺口精确匹配的 `SKILL.md`；不因关键词宽泛匹配
+    批量加载 Skill，也不为“走流程”调用模型或云服务。
 
 ### 5.2 共享 MCP 配置 (Shared MCP Config)
-*   各端 Agents 的配置文件（`~/.claude.json` 与 `~/.gemini/config/mcp_config.json`）中必须统一注册运行 `codebase-memory-mcp` 服务，实现图谱数据同源。
+*   各端只调用已在共享目录登记且通过 schema/健康检查的 MCP。未登记或不可用时，
+    使用本地确定性工具并报告清单缺口，不得假装 MCP 存在。
 
 ---
 

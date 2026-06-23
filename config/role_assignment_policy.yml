@@ -5,7 +5,7 @@ roles:
   RepoScout:
     candidates: [rg, claude_code]
   InterfaceMapper:
-    candidates: [ast_grep, sg, claude_code]
+    candidates: [ast_grep, claude_code]
   Researcher:
     candidates: [bl, claude_code]
   PromptEngineer:

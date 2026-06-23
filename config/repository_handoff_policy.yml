@@ -1,0 +1,91 @@
+schema_version: 1
+authority: _shared/AGENT_PROTOCOL.md
+enabled: true
+
+discovery:
+  always_before_repository_read: true
+  filenames:
+    - .agentlab/HandOff.md
+    - agent_docs/HandOff.md
+    - HandOff.md
+    - HANDOFF.md
+  shared_memory_root: memory/repositories
+  missing_action: create_or_request_immediately
+
+placement:
+  repository_local: .agentlab/HandOff.md
+  compatible_project_memory: agent_docs/HandOff.md
+  shared_memory: memory/repositories/{repository_id}/HandOff.md
+  always_write_shared_copy: true
+  read_only_repository_fallback: shared_memory
+  root_level_handoff_forbidden_when_hygiene_policy_forbids_it: true
+
+safe_scan:
+  principle: complete_path_and_metadata_inventory_without_bulk_content_read
+  prefer:
+    - git_status
+    - git_ls_files
+    - git_log
+    - git_remote
+    - rg_files
+    - targeted_rg
+    - file_metadata
+  forbidden:
+    - recursive_cat
+    - unfiltered_ls_recursive
+    - unfiltered_tree
+    - follow_symlink_directories
+    - read_binary_payloads
+    - dump_full_git_history
+    - read_secrets
+    - scan_dependency_caches
+  ignored_directories:
+    - .agentlab
+    - .git
+    - .venv
+    - venv
+    - node_modules
+    - dist
+    - build
+    - coverage
+    - __pycache__
+    - .pytest_cache
+    - .mypy_cache
+    - .ruff_cache
+    - .cache
+    - memory/repositories
+  max_paths: 200000
+  example_paths_per_category: 20
+  history_commits: 20
+
+required_sections:
+  - repository_identity
+  - current_state
+  - directory_routes
+  - data_and_file_structure
+  - key_entrypoints
+  - change_history
+  - current_changes
+  - related_repositories
+  - validation_and_risks
+  - agent_notes
+
+update_triggers:
+  - repository_first_seen
+  - branch_changed
+  - commit_created
+  - files_changed
+  - directory_structure_changed
+  - schema_or_interface_changed
+  - related_repository_changed
+  - task_handoff
+  - before_final_report
+
+enforcement:
+  all_agents_required: true
+  handoff_must_be_in_must_read: true
+  update_after_change_before_completion: true
+  missing_handoff_blocks_deep_read: true
+  read_only_exception_requires_shared_copy: true
+  generated_facts_must_be_deterministic: true
+  manual_notes_must_be_preserved: true

@@ -31,6 +31,7 @@ records:
     - USER_DECISION_REQUIRED.md
 
   project_memory:
+    - HandOff.md
     - 00_CONTEXT_PACK.md
     - 01_REPO_MAP.md
     - 02_TASK_LEDGER.yml
@@ -53,7 +54,9 @@ drift_controls:
   - Record every AgentLab team action in the project development log.
   - Record Codex Coder dialogue summaries and implementation actions in the dialogue log.
   - Record DeepSeek token usage when available and Codex Plus execution as manual/unavailable for exact billing.
-  - Require a brain traversal request before any full-directory or full-repository scan.
+  - Require safe full path/metadata inventory before repository work; it is exempt from traversal approval.
+  - Require a brain traversal request before any bulk full-directory or full-repository content read.
+  - Discover or create HandOff.md before project content reads and refresh it after every material change.
   - Stop and replan when repeated loops or task-goal drift are detected.
   - Treat AGENTS.md as a map into local memory and config, not a full duplicate of policy.
   - Promote repeated user feedback or audit findings into harness_policy, validation gates, scripts, or concise project memory.

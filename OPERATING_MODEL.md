@@ -34,6 +34,23 @@ AgentLab may delegate reasoning, coding, review, research, or artifact productio
 * asset registration,
 * final delivery state.
 
+The canonical peer directory and invocation contracts are
+`config/shared_agent_directory.yml` and `config/worker_invocation_contracts.yml`.
+Every collaborator must identify its endpoint and peers before work begins; it
+must never invent a command for another agent.
+
+Every executor and gateway must also enforce
+`config/repository_handoff_policy.yml`: discover repository memory before reading
+project contents, create it when missing, and refresh the repository-local and
+shared-memory HandOff copies after material changes and before final reporting.
+The inventory covers all paths and metadata but never bulk-reads repository content.
+
+When a user explicitly asks a front-desk agent to invoke a named agent, the
+front desk becomes a relay and reporter only. It may package, dispatch, monitor,
+inspect evidence, and report the named agent's result and actual file diff. It
+must not implement the delegated task, silently substitute another agent, or
+claim the delegate's changes as its own.
+
 ### Preferred high-capability local configuration
 
 A high-capability local-first configuration may look like:
@@ -213,4 +230,3 @@ AgentLab operates across a dual-end execution link layout to enable remote runni
     *   **Local Mac -> Relay Hub**: Local pushes workspace changes (skills, configs, memory snapshots) to TrueNAS (`<RELAY_IP>`) using `./agentlab.sh truenas-sync --execute` or manual rsync.
     *   **Relay Hub -> Cloud Runtime**: Remote agents on `<CLOUD_IP>` pull workspace/skills/MCP updates from `<RELAY_IP>` using `rsync` over SSH.
     *   **Cloud Runtime -> Relay Hub -> Local Mac**: Task execution logs and agent memory produced on `<CLOUD_IP>` sync back to TrueNAS (`<RELAY_IP>`), then pull to local Mac, maintaining synchronized memory and skills.
-

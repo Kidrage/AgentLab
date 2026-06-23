@@ -75,8 +75,12 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
 
     context_files = [
         agentlab_root / "AGENTS.md",
+        agentlab_root / "config" / "repository_handoff_policy.yml",
+        agentlab_root / ".agentlab" / "HandOff.md",
         agentlab_root / "config" / "harness_policy.yml",
         project_root / "project_config.yml",
+        project_root / ".agentlab" / "HandOff.md",
+        project_root / "agent_docs" / "HandOff.md",
         project_root / "agent_docs" / "00_CONTEXT_PACK.md",
         project_root / "agent_docs" / "01_REPO_MAP.md",
         Path(plan.user_request_path),
@@ -106,6 +110,12 @@ Agent registry settings:
 {yaml.safe_dump(agent_config, sort_keys=False)}
 
 Hard execution rules:
+- Before reading repository/project content, discover and read its HandOff. If missing,
+  create it with `./agentlab.sh repository-handoff --repo <path> --write` before deep read.
+- Safe full path/metadata inventory is required; bulk content reads, binary/secret reads,
+  symlink-directory traversal, and dependency-cache scans are forbidden.
+- After any material project change and before final reporting, refresh both the local
+  and shared-memory HandOff copies.
 - Write a report only; do not claim source files were changed unless they actually were.
 - Do not invent command results.
 - If information is missing, state what is missing and what should happen next.

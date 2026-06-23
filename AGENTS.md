@@ -6,6 +6,12 @@ Keep detailed policy in `config/*.yml` and long-lived project memory in
 
 ## Source Of Truth
 
+- Cross-endpoint collaboration rules live in `_shared/AGENT_PROTOCOL.md`.
+- Endpoint, Agent, command, tool, and MCP inventory lives in
+  `config/shared_agent_directory.yml`; never guess an invocation command.
+- Capability selection order lives in `config/capability_routing_policy.yml`.
+- Repository-safe inventory and durable memory rules live in
+  `config/repository_handoff_policy.yml`.
 - Workspace projects live as siblings under `projects/<ProjectName>/`.
 - Project memory lives in `projects/<ProjectName>/agent_docs/`.
 - Task state lives in `projects/<ProjectName>/runs/<task_id>/`.
@@ -46,6 +52,13 @@ To keep the project clean, all agents must strictly adhere to the following **th
 
 ## Editing Rules
 
+- Before reading project content, run `./agentlab.sh repository-handoff --repo <path>`;
+  if missing, rerun with `--write` before deep reading. This safely inventories all
+  paths/metadata without bulk-reading contents and writes `.agentlab/HandOff.md` plus
+  the shared `memory/repositories/` mirror.
+- Refresh both HandOff copies after every material repository/project change and
+  before final reporting. This applies to every Agent and every code, literature,
+  image, audio, or mixed-data project.
 - Use existing patterns and helpers before adding new abstractions.
 - Preserve unrelated user changes in the worktree.
 - Use `apply_patch` for manual edits.
@@ -88,10 +101,15 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
   - **角色与司职**：前端接线员 (Front-desk Operator)。
   - **主要职责**：负责对接与用户的自然语言沟通（如微信 wechat-mp-bot/wechat-ai-bot、Telegram 或 Web UI 交互），接收原始 prompt，展示计划门禁/审批流（如 Dry-Run vs Execute），并在必要时将任务推送到后端 AgentLab 公司系统中处理成资产。
   - **连接机制**：通过 `agy-bridge` (FastAPI 包装的 OpenAI 兼容端点 `/v1/chat/completions`) 调用底座 `agy -p` 命令，进而驱动 Hermes / Antigravity 大脑层。
+  - **显式委派边界**：用户明确点名调用其他 Agent 时，OpenClaw 只做 handoff、
+    调用、监控和证据化报告，不得自行执行任务或编辑目标文件；目标不可用时停止并
+    报告，不得静默 fallback。
 - **Bailian CLI (`bl` / `bailian-cli`)**:
   - **角色与司职**：底层多模态 AI 工具调用者 (Multi-modal AI Tool Caller)。
   - **主要职责**：DashScope/阿里云百炼平台服务的主要交互工具。负责处理文本对话、多模态对话、图像生成与编辑、视频生成与编辑/参考（Wan2.x/happyhorse等）、语音合成与识别 (TTS/ASR)、临时 OSS 文件上传、知识库检索 (RAG) 等。
-  - **使用规范**：所有后端执行 Agent (如 Coder, Researcher) 在需要调用模型生成或编辑资产时，必须**最高优先级默认调用 `bl` 命令**。
+  - **使用规范**：仅在用户明确要求或任务确实需要百炼多模态、媒体、语音、RAG、
+    百炼搜索等专用能力时调用。普通编码、Git、测试、仓库检索优先使用本地确定性
+    工具；禁止为了流程进行象征性 `bl` 调用。
 
 ## Dual-End Collaboration Protocol (双端协作协约)
 
@@ -106,9 +124,10 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
 
 ## Useful Commands
 
+- `./agentlab.sh repository-handoff --repo <path>`
+- `./agentlab.sh repository-handoff --repo <path> --write`
 - `./agentlab.sh prepare --project AgentLab --task-id task_0009 --write-plan`
 - `./agentlab.sh brain-status --project AgentLab --task-id task_0009`
 - `./agentlab.sh harness-status --project AgentLab --task-id task_0009`
 - `./agentlab.sh policy-status --project AgentLab`
 - `./agentlab.sh log-event --project AgentLab --task-id task_0009 --agent Coder --summary "..."`
-

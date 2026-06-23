@@ -1,4 +1,8 @@
 agent_collaboration:
+  authority: _shared/AGENT_PROTOCOL.md
+  directory: config/shared_agent_directory.yml
+  capability_routing_policy: config/capability_routing_policy.yml
+  repository_handoff_policy: config/repository_handoff_policy.yml
   packet_max_context_budget_tokens_default: 1200
   packet_max_context_budget_tokens_hard_limit: 4000
   require_must_read_artifacts: true
@@ -13,3 +17,51 @@ agent_collaboration:
     - reread_full_raw_logs
     - modify_unrelated_files
     - execute_external_tools_without_approval
+  peer_discovery:
+    required_before_first_collaboration: true
+    require_target_command_validation: true
+    require_status_and_lock_check: true
+    unknown_peer_action: stop_and_report
+  repository_handoff:
+    required_for_all_agents: true
+    discover_before_repository_read: true
+    missing_blocks_deep_read: true
+    deterministic_command: ./agentlab.sh repository-handoff --repo "{repository_path}" --write
+    local_path: .agentlab/HandOff.md
+    shared_memory_root: memory/repositories
+    refresh_after_material_change: true
+    refresh_before_final_report: true
+  explicit_named_delegation:
+    enabled: true
+    trigger_when_user_names_agent_and_requests_action: true
+    applies_to_classes:
+      - frontdesk_gateway
+      - chat_adapter
+      - operator_gateway
+    dispatcher_may_execute_task: false
+    dispatcher_allowed_actions:
+      - capture_user_request
+      - resolve_named_agent
+      - validate_invocation_contract
+      - create_handoff_packet
+      - invoke_named_agent
+      - monitor_status
+      - read_result_artifacts
+      - inspect_git_diff_and_status
+      - report_named_agent_result
+    dispatcher_forbidden_actions:
+      - implement_task_itself
+      - edit_task_files
+      - silently_fallback_to_another_agent
+      - claim_delegate_work_as_own
+      - report_unverified_file_changes
+    named_agent_unavailable: stop_and_report
+    result_report_must_include:
+      - requested_agent
+      - invoked_agent
+      - exact_invocation_contract
+      - agent_result_summary
+      - actual_changed_files
+      - actual_diff_summary
+      - validation_results
+      - unresolved_risks

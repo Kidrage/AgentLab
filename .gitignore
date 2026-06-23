@@ -95,6 +95,7 @@ secrets/
 config/local_private_topology.yml
 # Skill Vault runtime memory (local only)
 memory/global/skills/
+memory/repositories/
 !config/skill_vault.yml
 !docs/SKILL_VAULT.md
 
@@ -123,5 +124,4 @@ memory/global/skills/
 *.log
 *.pid
 *.sock
-
 

@@ -88,11 +88,6 @@ workers:
       - structural_ast_scan
       - symbol_lookup
 
-  sg:
-    supported_capabilities:
-      - structural_ast_scan
-      - symbol_lookup
-
   pytest:
     supported_capabilities:
       - test_execution

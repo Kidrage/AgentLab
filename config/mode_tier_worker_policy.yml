@@ -8,14 +8,14 @@ modes:
   hybrid_local_company:
     role_preferences:
       RepoScout: [rg]
-      InterfaceMapper: [ast_grep, sg]
+      InterfaceMapper: [ast_grep]
       TesterAuditor: [pytest]
       Verifier: [ruff, mypy, eslint]
       Archivist: [git]
   cost_saving_factory:
     role_preferences:
       RepoScout: [rg]
-      InterfaceMapper: [ast_grep, sg]
+      InterfaceMapper: [ast_grep]
       TesterAuditor: [pytest]
       Verifier: [ruff, mypy, eslint]
       Archivist: [git]
@@ -29,7 +29,7 @@ modes:
 tiers:
   low:
     cost_ceiling: low
-    preferred_workers: [rg, ast_grep, sg, pytest, ruff, eslint, mypy, git]
+    preferred_workers: [rg, ast_grep, pytest, ruff, eslint, mypy, git]
   performance:
     cost_ceiling: high
     preferred_workers: []

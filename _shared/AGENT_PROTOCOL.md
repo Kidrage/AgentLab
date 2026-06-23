@@ -1,8 +1,8 @@
-# Agent Protocol — Three-Endpoint Shared Workspace Convention
+# Agent Protocol — Multi-Endpoint Shared Workspace Convention
 
 > **权威版本位置**: `ssh truenas:/mnt/hdd2/AgentLab_WorkSpace/_shared/AGENT_PROTOCOL.md`
-> 本文件是 4 个 agent CLI（Claude Code, Hermes, Codex, Agy）之间的**唯一共享协议**，
-> 覆盖 **三端**（Local Mac / Truenas Relay / Cloud Runtime 250）。
+> 本文件是 AgentLab、接线层、执行 Agent 与专用工具之间的**唯一共享协议**，
+> 覆盖核心三端（Local Mac / Truenas Relay / Cloud Runtime）及登记扩展端点。
 > 各 agent 的本地指令文件不得重复本文内容；只保留 agent 特有指令 + 指向本文的指针。
 
 ---
@@ -14,6 +14,7 @@
 | **Local Mac** | `saintpeter@Mac` | 主开发端 | 日常编码、运行、测试，所有 agent 的本地主战场 |
 | **Relay Hub** | `truenas:/mnt/hdd2/AgentLab_WorkSpace/` | 共享镜像 | 备份 + 跨 agent 共享读取 + 向 250 分发 |
 | **Cloud Runtime** | `admin@10.147.17.250` | 执行端 | 远程运行、部署、持续任务执行 |
+| **Localization 69** | 由该端在清单中登记 | 本地化落地端 | 本地部署、能力盘点、协议适配；登记完成前不得参与正式协作 |
 
 - 所有 agent **默认工作在本地 Mac**，不直接操作远端。
 - 重要产出（项目记忆、会话摘要、导出文件）**推送到 truenas 对应命名空间** → 由 250 从 truenas 拉取。
@@ -27,10 +28,36 @@
 
 | Agent | 定位 | 擅长的任务 |
 |-------|------|-----------|
+| **AgentLab** (`./agentlab.sh`) | 治理与事实源 | 编译任务合同、路由、审批、证据、验收、归档；不替代专业执行 Agent |
+| **OpenClaw** (`openclaw`) | 接线层 | 用户入口、审批展示、显式委派、结果回传；委派时不得自行实现任务 |
 | **Claude Code** (`~/.claude/`) | 深度编码主力 | 复杂重构、深层代码分析、多文件架构变更、设计系统、Workflow 编排 |
 | **Hermes** (`~/.hermes/`) | 系统协调员 | 系统级操作、跨工具协调、CLI 执行监控、全局记忆管理、MCP 网关 |
 | **Codex** (`~/.codex/`) | 快速交付 | 快速代码片段、API 集成、仓库 onboarding、CI/CD 确认、PR 工作流 |
-| **Agy** (`/usr/local/bin/agy`) | 轻量探索 | 极速探索、轻量任务、多模态处理、快速问答 |
+| **Qwen Code** (`qwen`) | 通用执行 Agent | 规划、分析、有限范围实现与审计 |
+| **Agy** (`agy`) | 轻量探索 | 极速探索、轻量分析、Prompt 交接；不承担高风险静默修改 |
+| **Bailian CLI** (`bl`) | 云端专用能力工具 | 多模态、媒体、语音、RAG、百炼搜索；不是通用接线员或默认代码 Agent |
+
+### 2.1 开工前互相认识（强制握手）
+
+任何端点或 Agent 第一次进入协作任务前，必须读取：
+
+1. `_shared/AGENT_PROTOCOL.md`
+2. `config/shared_agent_directory.yml`
+3. `config/capability_routing_policy.yml`
+4. `config/agent_collaboration.yml`
+
+然后确认自身端点、自身 Agent ID、其他端点、其他 Agent、目标 Agent 的准确
+调用合同、目标状态文件和任务锁。未知端点、未知 Agent、未知调用命令均不得猜测；
+必须停止并报告 inventory gap。结构化清单是事实源，本文只解释规则。
+
+### 2.2 准确调用与职责边界
+
+- 所有跨 Agent 调用必须使用 `config/shared_agent_directory.yml` 或
+  `config/worker_invocation_contracts.yml` 中登记且验证过的命令。
+- 不得把 `--help` 成功当作任务调用合同有效的证据。
+- 不得把 Worker、Skill、MCP、专用云工具视为等价能力。
+- 调用者负责合同、权限、上下文和结果验收；被调用者只负责分配给它的角色。
+- 目标不可用或合同无效时，停止并报告；不得静默切换到其他 Agent。
 
 ---
 
@@ -61,7 +88,7 @@ truenas:/mnt/hdd2/AgentLab_WorkSpace/
 - 每个 agent **只写入自己的命名空间**（`agents/<name>/`）。
 - 读取其他 agent 的命名空间时**只读**，不修改。
 - `projects/` 和 `memory/` 为共享区，任何 agent 可写，但写入前检查其他 agent 的状态文件。
-- `_shared/` 只有协议维护者（当前为 Claude Code）写入。
+- `_shared/` 只有获得用户授权的协议维护者写入；维护者身份不限于某个 Agent。
 
 ---
 
@@ -130,7 +157,7 @@ truenas:/mnt/hdd2/AgentLab_WorkSpace/
 - 遵循第 10 节的完整 Token 效率策略（本节为摘要，详细方案见下方）
 - 优先使用最廉价的导航方式（rg, git grep, git ls-files）
 - 先读轻量级仓库地图（AGENTS.md, REPO_GUIDE.md）再深入
-- 禁止全仓库扫描
+- 必须做全仓库“路径与元数据”安全盘点；禁止全仓库内容暴力读取
 - 不读 `.venv/`、`node_modules/`、`dist/`、`build/`、`coverage/`、`.git/`、`__pycache__/`、缓存、日志、lockfile、二进制文件
 
 ### 6.2 Git 纪律
@@ -157,6 +184,71 @@ truenas:/mnt/hdd2/AgentLab_WorkSpace/
 - 失败要么修复，要么明确报告
 - 产出最终报告：结论、仓库、分支、commit、变更文件、验证结果、剩余风险
 
+### 6.6 Skill / MCP / Tool / Agent 选择顺序
+
+统一使用 `config/capability_routing_policy.yml`，默认按以下顺序逐级升级：
+
+1. 本地确定性工具（`rg`, `git`, AST, tests, linters）
+2. 精确命中的已验证本地 Skill
+3. 已登记的本地 STDIO MCP
+4. 本地 Agent CLI
+5. 经批准的云端专用能力
+6. 远端 Agent handoff
+
+每次升级必须有能力缺口证据。禁止为了“走流程”进行模型调用；生成工作交给
+模型后，验证优先交给确定性工具。只加载命中的 Skill，禁止批量灌入所有 Skill
+正文；MCP 必须先读 schema，再调用单个必要工具。
+
+### 6.7 用户显式点名其他 Agent 时的接线层规则
+
+当用户对 OpenClaw、聊天适配器或其他接线层明确说“调用/让/交给某个 Agent”时：
+
+- 接线层进入 `relay_only`，不得自行规划后实现任务，不得编辑任务目标文件。
+- 只允许：记录原始请求、解析目标 Agent、验证调用合同、生成 handoff、调用目标、
+  监控、读取结果、检查实际 Git/file diff、向用户报告。
+- 不得静默 fallback，不得冒充被调用 Agent，不得把自己的推断写成目标 Agent 结果。
+- 目标 Agent 失败或不可用时，只报告失败、证据和下一选择，等待用户决定。
+- 接线层允许写入的只有 handoff、事件、状态、日志和结果索引等治理工件。
+
+最终报告必须包含：用户点名 Agent、实际调用 Agent、调用合同、Agent 结果摘要、
+实际变更文件、diff 摘要、验证结果与剩余风险。文件变化必须由调用前后快照或 Git
+证据确认，不能只相信 Agent 自述。
+
+### 6.8 归属与证据
+
+- 每个产出记录 `requested_agent`、`invoked_agent`、`reporting_agent`。
+- 代码/文件修改归属实际执行者，接线层只拥有转交与报告工件。
+- token 与费用仅记录真实遥测；本地 CLI 无遥测时写 `unavailable`，不得估算成事实。
+- 被调用 Agent 的原始结果与接线层摘要分开保存，禁止覆盖原文。
+
+### 6.9 端点能力发布
+
+每个新端点在正式协作前必须向 `config/shared_agent_directory.yml` 发布：工作区、
+已安装 Agent、准确命令、Skill 清单、MCP 清单、确定性工具、认证可用状态（不得
+包含密钥）和版本。69 端在完成此登记前只能做本地化盘点，不能接收正式委派。
+
+### 6.10 仓库记忆与 HandOff 强制门禁
+
+所有端点、接线层和执行 Agent 处理任何新旧代码仓库、文献集、图片集、音频集或
+混合项目时，必须执行 `config/repository_handoff_policy.yml`：
+
+1. 读取项目内容前，先依次查找 `.agentlab/HandOff.md`、
+   `agent_docs/HandOff.md`、兼容旧名 `HandOff.md` / `HANDOFF.md`，以及
+   `memory/repositories/<repository_id>/HandOff.md` 共享镜像。
+2. 不存在时，必须在深度读取前立即创建；当前 Agent 无写权限时，立即请求创建，
+   同时至少在共享记忆区创建只读仓库镜像。确定性命令为：
+   `./agentlab.sh repository-handoff --repo <path> --write`。
+3. 允许且要求完整盘点路径、文件类型、大小等元数据和有限 Git 历史；禁止递归
+   `cat`、读取二进制负载/密钥、跟随目录软链接、扫描依赖缓存或倾倒全部历史。
+4. HandOff 必须记录仓库/数据结构、目录路线、入口、变更历史、当前状态、相关
+   仓库、媒体/文献路线、验证风险和可保留的 Agent 注记。
+5. 分支、commit、文件、目录、schema、接口、相关仓库或任务状态发生实质变化后，
+   以及最终报告前，实际修改者必须刷新本地和共享双副本。
+
+该门禁适用于“全新任务”和“继续任务”，不得因已有聊天上下文、Agent 身份或前端
+接线角色跳过。接线层在 `relay_only` 下可创建/刷新 HandOff 治理工件，但仍不得
+编辑用户点名委派的任务目标文件。
+
 ---
 
 ## 7. Agent 特有指令位置
@@ -165,10 +257,13 @@ truenas:/mnt/hdd2/AgentLab_WorkSpace/
 
 | Agent | 本地文件 | 用途 |
 |-------|----------|------|
+| AgentLab | `AGENTS.md` | 仓库治理规则 + 指向本协议 |
+| OpenClaw | `~/.openclaw/workspace/AGENTS.md` | 接线层特有通道规则 + 指向本协议 |
 | Claude Code | `~/.claude/CLAUDE.md` | Claude 特有工作流、skills、repo-scout |
 | Hermes | `~/.hermes/SOUL.md` | 人格定义 + truenas 指针 |
 | Codex | `~/.codex/AGENTS.md` | Codex 特有：onboarding 协议、`.codex/` 目录约定、codebase-memory-mcp |
 | Agy | `~/.agy/AGENTS.md` | Agy 特有配置 |
+| Qwen Code | `~/.qwen/AGENTS.md`（若存在） | Qwen 特有配置 + 指向本协议 |
 
 **禁止事项：**
 - ❌ 不得在两个 agent 的指令文件中写相同的规则
@@ -207,10 +302,11 @@ SSH 配置位于 `~/.ssh/config`，所有 agent 共享使用。macOS LaunchAgent
 
 ## 9. 协议更新流程
 
-1. 修改本文件（`_shared/AGENT_PROTOCOL.md`）并推送到 truenas
-2. 如需更新 agent 特有指令，只修改对应 agent 的本地文件
-3. 在 commit message 中标注 `[protocol]` 前缀
-4. 其他 agent 下次读取本协议时自动获得更新
+1. 修改本文件以及对应结构化清单并运行协议校验测试
+2. 更新 `config/shared_agent_directory.yml` 时不得写入密钥或私有 token
+3. 如需更新 Agent 特有指令，只修改对应 Agent 的本地文件并保留本协议指针
+4. 在 commit message 中标注 `[protocol]` 前缀
+5. 先同步代码与协议，再同步状态；其他 Agent 在下一任务握手时读取新版本
 
 ---
 
@@ -245,15 +341,21 @@ Agent 在获取任何信息时，必须从最便宜的层级开始，逐级升�
 
 ### 10.2 仓库导航最小化（Minimal Repo Navigation）
 
-进入任意 git 仓库的标准流程，禁止全量扫描：
+进入任意仓库/项目的标准流程。必须安全盘点全部路径与元数据，禁止全量读取内容：
 
 ```
-Step 1 (L0+L1) — 快照采集（始终执行，~2秒）:
+Step 0 (L0) — HandOff 门禁（始终最先执行）:
+  ./agentlab.sh repository-handoff --repo <path>
+  → found: 先读 HandOff，再进入 Step 1
+  → missing: 立即加 --write 创建本地 + 共享记忆双副本；无写权限则请求创建
+
+Step 1 (L0+L1) — 安全路径/元数据快照（始终执行）:
   git rev-parse --show-toplevel
   git status -sb
   git branch --show-current
   git remote -v
-  git ls-files | wc -l              # 了解规模
+  git ls-files -co --exclude-standard | wc -l
+  # 非 Git 项目使用 rg --files，并排除缓存、依赖、产物目录
 
 Step 2 (L1) — 地图优先（查找已有导航文件）:
   检查: AGENTS.md, .codex/REPO_GUIDE.md, .codex/repo_files.txt,
@@ -279,6 +381,9 @@ Step 4 (L3+L4) — 精确定位:
 - 在未定位目标前打开大型文件（>500行）
 - 重复读取同一文件（利用已有上下文缓存）
 
+`git ls-files` / `rg --files` 的全路径枚举和文件元数据统计不属于“暴力扫描”；它们
+是必需的安全盘点。路径清单不能扩展为批量文件内容读取。
+
 **codebase-memory-mcp 优先（如可用）：**
 - `search_graph(name_pattern="...")` → 定位函数/类，无需 grep 全仓库
 - `trace_path(function_name="...")` → 追踪调用链，无需逐文件阅读
@@ -292,40 +397,42 @@ Agent 启动或切换任务时，按以下顺序增量恢复（低 token 消耗�
 ```
 恢复链（从最便宜到最完整）:
 
-1. Agent 状态 JSON（L5 快速通道, ~200 tok）:
+1. Repository HandOff（L4，始终执行）:
+   搜索 `.agentlab/HandOff.md`、`agent_docs/HandOff.md`、兼容旧名和共享镜像
+   → 找到：先读再继续
+   → 缺失：立即创建/请求创建，深度仓库读取在此之前不得开始
+
+2. Agent 状态 JSON（L5 快速通道, ~200 tok）:
    读取 .agents/agent_states/<name>_state.json
    → 获取: 当前任务、仓库路径、分支、状态
    → 如果 status = "idle" → 无进行中任务，等待用户指令
 
-2. Git 现场恢复（L1, ~50 tok）:
+3. Git 现场恢复（L1, ~50 tok）:
    git status -sb
    git branch --show-current
    → 确认工作区是否有未提交变更
 
-3. 会话摘要索引（L0 → L4, ~500 tok）:
+4. 会话摘要索引（L0 → L4, ~500 tok）:
    ls agents/<name>/sessions/ | tail -10
    → 读取最近 1-2 个会话文件
    → 如果当前任务匹配某个会话 → 读取该会话获取上下文
 
-4. 项目记忆（L0 → L4, ~1K tok）:
+5. 项目记忆（L0 → L4, ~1K tok）:
    ls agents/<name>/projects/
    → 如果 working_repo 匹配已有项目记忆 → 读取该记忆
    → 获得: 项目架构、长期方向、关键决策
 
-5. 仓库地图（L4, ~2K tok，仅当 Step 1-4 不足时）:
+6. 仓库地图（L4, ~2K tok，仅当前述信息不足时）:
    读取仓库的 AGENTS.md / REPO_GUIDE.md
    → 仅在任务涉及该仓库但 agent 无记忆时执行
 
-6. HANDOFF.md（L4，仅当存在时）:
-   检查仓库根目录的 HANDOFF.md
-   → 包含上一次 agent 的详细交接信息
 ```
 
 **恢复决策树：**
-- 用户给出全新指令 → 跳过恢复，直接执行
-- 用户说 "继续" → 从 Step 1 走到 Step 3（状态 + 最近会话）
-- 用户指定仓库 → Step 1 + Step 4 + Step 5（状态 + 项目记忆 + 仓库地图）
-- 用户说 "继续上次的 XXX" → Step 1 + 搜索会话文件名匹配 "XXX"
+- 用户给出全新指令 → 仍执行 HandOff 门禁，然后直接执行
+- 用户说 "继续" → 从 Step 1 走到 Step 4（HandOff + 状态 + Git + 最近会话）
+- 用户指定仓库 → Step 1 + Step 3 + Step 5 + Step 6
+- 用户说 "继续上次的 XXX" → Step 1 + Step 4 搜索会话文件名匹配 "XXX"
 
 ### 10.4 长期项目记忆（Long-term Project Memory）
 
@@ -368,7 +475,7 @@ Agent 启动或切换任务时，按以下顺序增量恢复（低 token 消耗�
 
 **记忆读写规则：**
 - **写记忆**：仅在重大节点（阶段完成、架构决策、阻塞出现）时更新，不要在每行代码变更后更新
-- **读记忆**：Step 10.3.4 的恢复链中读取，或跨 agent 协作时读取其他 agent 的记忆
+- **读记忆**：Step 10.3.5 的恢复链中读取，或跨 agent 协作时读取其他 agent 的记忆
 - **记忆过期**：超过 30 天未更新的项目记忆，读取时需先验证仓库当前状态是否匹配
 - **记忆大小**：控制在 2000 字以内（≈ 3000 tokens），超出则拆分到 `exports/<project>/` 下
 
@@ -380,7 +487,7 @@ AgentLab 配置位于 `truenas:/mnt/hdd2/AgentLab_WorkSpace/config/`。以下为
 
 | 场景 | 需要读取的配置 | 成本 |
 |------|---------------|------|
-| 选择模型 | `model_profiles.yml` + `model_providers.yml` | ~1K tok |
+| 选择模型 | `agent_model_profiles.yml` + `model_providers.yml` | ~1K tok |
 | 路由判断 | `routing_policy.yml` + `routing_rules.yml` | ~500 tok |
 | 预算控制 | `budget_profiles.yml` | ~300 tok |
 | 执行策略 | `execution_policy.yml` + `execution_modes.yml` | ~500 tok |
@@ -476,10 +583,11 @@ Local Mac (saintpeter)  ←──git push/ pull──→  GitHub (Kidrage/AgentL
 #### 从 Local Mac 同步到其他端
 
 ```bash
-# 1. 代码推送到 GitHub
+# 1. 代码提交；只有用户明确授权同步到远端时才 push
 cd ~/AgentLab
-git add -A && git commit -m "..."
-git push origin main
+git status -sb
+git add <approved-paths> && git commit -m "..."
+git push origin HEAD:main  # requires explicit user authorization
 
 # 2. Workspace 同步到 truenas（agentlab.sh 或手动 rsync）
 ./agentlab.sh truenas-sync --execute
@@ -495,10 +603,11 @@ rsync -avz -e "ssh -p 2222" \
 #### 250 从 GitHub 拉取代码
 
 ```bash
-# 在 250 上:
+# 在 Cloud Runtime 上；工作区不干净时停止并报告，不得覆盖
 cd ~/AgentLab
 git -c http.proxy= -c https.proxy= fetch origin main
-git reset --hard origin/main
+git status --short
+git merge --ff-only origin/main
 ```
 
 #### 250 从 truenas 拉取 workspace 镜像
@@ -521,12 +630,13 @@ ssh truenas "cd /mnt/hdd2/AgentLab_WorkSpace && git reset --hard sync-temp && gi
 
 ### 11.4 同步纪律
 
-1. **任何端修改 AgentLab 代码后，必须同步到其他两端**
+1. **任何端修改 AgentLab 代码后，必须准备可同步提交；push/远端写入仍需用户授权**
 2. **协议文件（`_shared/AGENT_PROTOCOL.md`）变更优先同步**——这是跨 agent 的合同
 3. **主目录同步前先检查各端状态**：确认没有未提交的修改
 4. **三端 AgentLab 的 git HEAD 必须指向同一个 commit**（允许 truenas 短暂滞后，但必须在下一个工作周期开始前追上）
 5. **禁止在三端并行修改同一文件**——如果不可避免，先在本地合并，再推送
 6. **定期自检**：任何 agent 在进入 AgentLab 主目录时，运行 `git fetch origin && git status -sb` 确认同步状态
+7. **协作前握手**：确认 `shared_agent_directory.yml` 中能看到自己、目标端点和目标 Agent；69 端还必须把 `inventory_required` 更新为已盘点状态
 
 ### 11.5 三端同步自检命令
 
@@ -541,4 +651,4 @@ echo "=== 250 ===" && ssh admin@10.147.17.250 "cd ~/AgentLab && git rev-parse --
 
 ---
 
-*最后更新: 2026-06-21 | 维护者: Claude Code (saintpeter)*
+*最后更新: 2026-06-23 | 维护者: AgentLab protocol maintainers*

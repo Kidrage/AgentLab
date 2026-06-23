@@ -61,6 +61,14 @@ def create_task_packet(phase_plan_path: Path, executor_type: str, out_dir: Path)
             "rollback_required": phase.get("rollback_required", True),
             "cost_policy": phase.get("cost_policy") or "low_cost_only",
             "safety_notes": phase.get("safety_notes") or ["Do not expose credentials.", "Only edit files in the allowed_files list."],
+            "repository_handoff": {
+                "policy": "config/repository_handoff_policy.yml",
+                "must_discover_before_repository_read": True,
+                "create_or_request_if_missing": True,
+                "safe_inventory_only": True,
+                "refresh_after_material_change": True,
+                "refresh_before_final_report": True,
+            },
         }
     }
     packet["connector_contract"] = build_connector_contract(executor_type, packet["task_packet"])
@@ -73,4 +81,3 @@ def create_task_packet(phase_plan_path: Path, executor_type: str, out_dir: Path)
     render_handoff(packet, out_dir)
     
     return packet
-

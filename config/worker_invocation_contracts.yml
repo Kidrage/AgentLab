@@ -42,18 +42,23 @@ contracts:
     display_name: Claude Code
     command: claude
     invocation_style: one_shot_prompt
-    template: 'claude -p "{prompt}"'
+    template: >-
+      claude --output-format json -p "Read the task packet at {task_packet_path};
+      perform only the assigned work and report actual changed files and validation."
     required_placeholders:
-      - prompt
+      - task_packet_path
     safe_probe:
       - claude
       - --help
     expected_parse:
       argv_prefix:
         - claude
+        - --output-format
+        - json
         - -p
     validation:
       shlex_parse_required: true
+      allow_unquoted_placeholders: true
     error_classification:
       invalid_exit_codes:
         - 2
@@ -69,7 +74,7 @@ contracts:
     display_name: Bailian CLI
     command: bl
     invocation_style: one_shot_prompt
-    template: 'bl chat -p "{prompt}"'
+    template: 'bl text chat --message "{prompt}"'
     required_placeholders:
       - prompt
     safe_probe:
@@ -78,6 +83,7 @@ contracts:
     expected_parse:
       argv_prefix:
         - bl
+        - text
         - chat
     validation:
       shlex_parse_required: true
@@ -110,18 +116,22 @@ contracts:
     display_name: Codex Code
     command: codex
     invocation_style: one_shot_prompt
-    template: 'codex --task "{prompt}"'
+    template: >-
+      codex exec --json -C "{workspace_path}" "Read the task packet at
+      {task_packet_path}; perform only the assigned work and report actual changes."
     required_placeholders:
-      - prompt
+      - workspace_path
+      - task_packet_path
     safe_probe:
       - codex
       - --help
     expected_parse:
       argv_prefix:
         - codex
-        - --task
+        - exec
     validation:
       shlex_parse_required: true
+      allow_unquoted_placeholders: true
     fallback:
       on_binary_missing: alternate_worker_or_direct_api
 
@@ -130,8 +140,9 @@ contracts:
     display_name: OpenClaw Operator
     command: openclaw
     invocation_style: one_shot_prompt
-    template: 'openclaw run --prompt "{prompt}"'
+    template: 'openclaw agent --agent "{frontdesk_agent_id}" --message "{prompt}"'
     required_placeholders:
+      - frontdesk_agent_id
       - prompt
     safe_probe:
       - openclaw
@@ -139,11 +150,49 @@ contracts:
     expected_parse:
       argv_prefix:
         - openclaw
-        - run
+        - agent
     validation:
       shlex_parse_required: true
     fallback:
       on_binary_missing: alternate_worker_or_direct_api
+
+  qwen:
+    worker_id: qwen
+    display_name: Qwen Code
+    command: qwen
+    invocation_style: task_packet_prompt
+    template: >-
+      qwen --bare --approval-mode default --output-format json "Read the task packet at
+      {task_packet_path}; perform only the assigned role and report actual changes."
+    required_placeholders:
+      - task_packet_path
+    safe_probe: [qwen, --help]
+    expected_parse:
+      argv_prefix: [qwen, --bare]
+    validation:
+      shlex_parse_required: true
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+
+  agy:
+    worker_id: agy
+    display_name: Antigravity CLI
+    command: agy
+    invocation_style: task_packet_prompt
+    template: >-
+      agy --sandbox -p "Read the task packet at {task_packet_path}; perform only the
+      assigned role and report findings and actual changes."
+    required_placeholders:
+      - task_packet_path
+    safe_probe: [agy, --help]
+    expected_parse:
+      argv_prefix: [agy, --sandbox, -p]
+    validation:
+      shlex_parse_required: true
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
 
   git:
     worker_id: git

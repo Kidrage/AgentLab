@@ -182,6 +182,13 @@ memory_backup:
     format: full_mirror
     max_versions: 10                          # 最多保留 10 个历史版本快照
 
+  repository_memory:
+    source: memory/repositories/
+    remote: memory/repositories/
+    trigger: on_file_change
+    retention_days: 0
+    format: full_mirror
+
   # 全局记忆：跨项目共享的知识
   global_memory:
     sources:
@@ -343,6 +350,10 @@ targets:
         item_type: memory
       - local_path: skills/
         remote_path: memory/global/skills/
+        direction: push_only_merge
+        item_type: memory
+      - local_path: memory/repositories/
+        remote_path: memory/repositories/
         direction: push_only_merge
         item_type: memory
 

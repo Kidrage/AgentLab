@@ -41,6 +41,7 @@ root_policy:
     - "scratch*"
   require_gitignore_for:
     - .agentlab/
+    - memory/repositories/
     - projects/*/runs/
     - projects/*/tmp/
     - projects/*/scratch/
