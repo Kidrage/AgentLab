@@ -1,0 +1,12 @@
+schema_version: 1
+roles:
+  Supervisor: [hermes, qwen, gemini, claude_code]
+  RepoScout: [rg, claude_code]
+  InterfaceMapper: [ast_grep, sg, claude_code]
+  Researcher: [bl, claude_code]
+  PromptEngineer: [hermes, claude_code]
+  Coder: [claude_code, codex, aider]
+  TesterAuditor: [pytest, claude_code, codex]
+  Verifier: [ruff, mypy, eslint, claude_code]
+  Archivist: [git, claude_code]
+default: []

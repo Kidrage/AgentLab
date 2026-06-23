@@ -1,0 +1,20 @@
+schema_version: 1
+roles:
+  Supervisor:
+    candidates: [hermes, qwen, gemini, claude_code]
+  RepoScout:
+    candidates: [rg, claude_code]
+  InterfaceMapper:
+    candidates: [ast_grep, sg, claude_code]
+  Researcher:
+    candidates: [bl, claude_code]
+  PromptEngineer:
+    candidates: [hermes, claude_code]
+  Coder:
+    candidates: [claude_code, codex, aider]
+  TesterAuditor:
+    candidates: [pytest, claude_code, codex]
+  Verifier:
+    candidates: [ruff, mypy, eslint, claude_code]
+  Archivist:
+    candidates: [git, claude_code]

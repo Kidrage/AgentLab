@@ -19,6 +19,28 @@ workers:
       - artifact_archive
       - git_commit
 
+  codex:
+    supported_capabilities:
+      - planning
+      - task_decomposition
+      - context_assembly
+      - prompt_handoff
+      - file_edit
+      - patch_generation
+      - shell_execution
+      - test_execution
+      - diff_review
+      - lint_check
+      - secret_scan
+
+  aider:
+    supported_capabilities:
+      - file_edit
+      - patch_generation
+      - shell_execution
+      - test_execution
+      - diff_review
+
   hermes:
     supported_capabilities:
       - planning
@@ -44,6 +66,7 @@ workers:
 
   bl:
     supported_capabilities:
+      - external_research
       - multimodal_generation
       - cloud_upload
       - web_search
@@ -55,6 +78,7 @@ workers:
 
   git:
     supported_capabilities:
+      - artifact_archive
       - git_commit
       - diff_review
       - patch_generation
@@ -72,11 +96,15 @@ workers:
   pytest:
     supported_capabilities:
       - test_execution
+      - diff_review
+      - evidence_quality_review
 
   ruff:
     supported_capabilities:
       - lint_check
       - format_check
+      - diff_review
+      - secret_scan
 
   eslint:
     supported_capabilities:

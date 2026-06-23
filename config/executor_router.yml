@@ -1,13 +1,13 @@
 executor_router:
   enabled: true
-  default_mode: execute
+  default_mode: dry_run
 
   routing:
     require_approval_for_external: true
     require_review_for_all_external_results: true
     prefer_manual_handoff_until_approved: true
     allow_mock_executor: true
-    allow_auto_execution: true
+    allow_auto_execution: false
 
   budget:
     max_cost_usd_per_task: 0.25
@@ -120,8 +120,8 @@ executor_router:
     - provider_id: api.deepseek
       provider_type: api_model
       display_name: DeepSeek API Model
-      enabled: true
-      execution_mode: execute
+      enabled: false
+      execution_mode: disabled
       capabilities:
         - repo_patch
         - reasoning
@@ -138,8 +138,8 @@ executor_router:
     - provider_id: api.qwen
       provider_type: api_model
       display_name: Qwen API Model
-      enabled: true
-      execution_mode: execute
+      enabled: false
+      execution_mode: disabled
       capabilities:
         - repo_patch
         - reasoning

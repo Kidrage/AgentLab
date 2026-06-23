@@ -1,0 +1,38 @@
+schema_version: 1
+modes:
+  single_cli_company:
+    role_preferences:
+      Supervisor: [claude_code, hermes]
+      PromptEngineer: [claude_code, hermes]
+      Coder: [claude_code, codex, aider]
+  hybrid_local_company:
+    role_preferences:
+      RepoScout: [rg]
+      InterfaceMapper: [ast_grep, sg]
+      TesterAuditor: [pytest]
+      Verifier: [ruff, mypy, eslint]
+      Archivist: [git]
+  cost_saving_factory:
+    role_preferences:
+      RepoScout: [rg]
+      InterfaceMapper: [ast_grep, sg]
+      TesterAuditor: [pytest]
+      Verifier: [ruff, mypy, eslint]
+      Archivist: [git]
+  max_quality_swarm:
+    role_preferences:
+      Supervisor: [hermes, claude_code, qwen, gemini]
+      Coder: [claude_code, codex, aider]
+  frontdesk_gateway:
+    role_preferences:
+      Supervisor: [hermes, qwen, gemini]
+tiers:
+  low:
+    cost_ceiling: low
+    preferred_workers: [rg, ast_grep, sg, pytest, ruff, eslint, mypy, git]
+  performance:
+    cost_ceiling: high
+    preferred_workers: []
+  max_quality:
+    cost_ceiling: high
+    preferred_workers: [claude_code, codex, hermes]
