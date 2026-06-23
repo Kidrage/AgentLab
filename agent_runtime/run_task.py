@@ -761,6 +761,99 @@ def worker_invocation_report(
     console.print(f"unified contract validation reports written to {out}")
 
 
+@app.command("worker-audition")
+def worker_audition(
+    all_workers: bool = typer.Option(False, "--all", help="Audition all workers"),
+    worker: Optional[str] = typer.Option(None, "--worker", help="The name of the worker to audition"),
+    role: Optional[str] = typer.Option(None, "--role", help="The name of the role to audition (e.g. Coder)"),
+    level: str = typer.Option("quick", "--level", help="Audition level (quick, standard, deep)"),
+    real: bool = typer.Option(False, "--real", help="Execute real binaries instead of mock simulation")
+) -> None:
+    """Evaluate local workers via mock simulation or sandboxed execution."""
+    from agent_runtime.workers.audition import run_all_auditions, run_single_audition
+    from rich.table import Table
+
+    if not all_workers and (not worker or not role):
+        console.print("[red]Error: Must specify --all, or both --worker and --role[/red]")
+        raise typer.Exit(code=1)
+
+    results = []
+    if all_workers:
+        console.print(f"Starting audition suite (level: [cyan]{level}[/cyan], real: [cyan]{real}[/cyan]) for all workers...")
+        results = run_all_auditions(level, real, _PROJECT_ROOT)
+    else:
+        console.print(f"Running single audition for worker [cyan]{worker}[/cyan] as [cyan]{role}[/cyan] (level: {level}, real: {real})...")
+        try:
+            res = run_single_audition(worker, role, level, real, _PROJECT_ROOT)
+            results = [res]
+        except Exception as e:
+            console.print(f"[red]Audition failed: {str(e)}[/red]")
+            raise typer.Exit(code=1)
+
+    table = Table(title="Worker Audition Results")
+    table.add_column("Worker ID", style="cyan", no_wrap=True)
+    table.add_column("Role")
+    table.add_column("Level")
+    table.add_column("Verdict", style="bold")
+    table.add_column("Role Fit Score", justify="right")
+    table.add_column("Cost Score", justify="right")
+    table.add_column("Safety Score", justify="right")
+
+
+    for r in results:
+        v_style = "green" if r["verdict"] == "pass" else "red"
+        scores = r["scores"]
+        table.add_row(
+            r["worker_id"],
+            r["role"],
+            r["level"],
+            f"[{v_style}]{r['verdict'].upper()}[/{v_style}]",
+            f"{scores['role_fit_score']:.2f}",
+            f"{scores['cost_score']:.2f}",
+            f"{scores['safety_score']:.2f}"
+        )
+    console.print(table)
+
+
+@app.command("worker-scorecard")
+def worker_scorecard() -> None:
+    """Show the consolidated performance scorecards and history for all workers."""
+    from agent_runtime.workers.audition import get_scorecard_report_data
+    from rich.table import Table
+
+    data = get_scorecard_report_data(_PROJECT_ROOT)
+    if not data:
+        console.print("[yellow]No worker performance ledger found. Please run worker auditions first.[/yellow]")
+        return
+
+    table = Table(title="AgentLab Worker Scorecard Ledger")
+    table.add_column("Worker ID", style="cyan", no_wrap=True)
+    table.add_column("Role Scores")
+    table.add_column("Cost Score", justify="right")
+    table.add_column("Safety Score", justify="right")
+    table.add_column("Last Audition")
+    table.add_column("Historical Runs", justify="right")
+
+
+    for w_id, perf in sorted(data.items()):
+        role_scores_str = ", ".join(f"{r}: {s:.2f}" for r, s in perf.get("role_scores", {}).items())
+        last = perf.get("last_audition", {})
+        last_str = f"{last.get('verdict', '').upper()} ({last.get('suite', '')})" if last else "N/A"
+        hist = perf.get("historical_runs", {})
+        hist_str = f"{hist.get('success', 0)}/{hist.get('total', 0)}"
+
+        table.add_row(
+            w_id,
+            role_scores_str or "None",
+            f"{perf.get('cost_score', 0.5):.2f}",
+            f"{perf.get('safety_score', 0.5):.2f}",
+            last_str,
+            hist_str
+        )
+    console.print(table)
+
+
+
 @app.command("activation-plan")
 def activation_plan(
     task_packet: Path = typer.Option(..., "--task-packet")

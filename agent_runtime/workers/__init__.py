@@ -16,6 +16,7 @@ from .command_template_validator import validate_template
 from .cli_error_classifier import CliErrorClass, classify_cli_error
 from .safe_probe_runner import run_safe_probe
 from .invocation_report import generate_invocation_report
+from .audition import run_all_auditions, run_single_audition, get_scorecard_report_data
 
 __all__ = [
     "WorkerCard",
@@ -34,4 +35,8 @@ __all__ = [
     "classify_cli_error",
     "run_safe_probe",
     "generate_invocation_report",
+    "run_all_auditions",
+    "run_single_audition",
+    "get_scorecard_report_data",
 ]
+
