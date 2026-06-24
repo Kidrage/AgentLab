@@ -53,16 +53,16 @@ EXCLUDE_PATTERNS = [
     "**/__pycache__/**",
 ]
 
-# Files that legitimately contain local absolute paths (user-specific configs, acceptance reports).
-# The local-path check is suppressed for these so CI stays green.
+# Files that legitimately contain local absolute paths (user-specific configs).
+# The local-path check is suppressed ONLY for these explicitly-audited files.
+# acceptance_runs/ reports must NOT contain raw /Users paths — sanitize before committing.
 _SKIP_LOCAL_PATH_CHECK: set[str] = {
     "config/shared_agent_directory.yml",
 }
 
-# Directory prefixes whose contents are exempt from local-path checks.
-_SKIP_LOCAL_PATH_DIRS: list[str] = [
-    "acceptance_runs/",
-]
+# No blanket directory exemptions. Add individual files to _SKIP_LOCAL_PATH_CHECK
+# only after verifying they cannot reasonably be sanitized.
+_SKIP_LOCAL_PATH_DIRS: list[str] = []
 
 
 def _is_exempt_from_local_path_check(rel: str) -> bool:

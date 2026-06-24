@@ -188,3 +188,165 @@ def test_config_get_budget_policy_fields() -> None:
     result = _agentlab("config", "config-get", "--key", "budget_policy.max_task_cost_usd")
     assert result.returncode == 0
     assert "0.2" in result.stdout
+
+
+# ── E2E secret redaction tests (fixture-based, no real API keys) ──────────
+
+
+class TestSecretRedactionE2E:
+    """End-to-end secret redaction tests using temporary fixture configs.
+
+    These cover the full chain: schema → resolver → renderer → output,
+    verifying that secrets are redacted end-to-end without relying on
+    real API keys or environment variables.
+    """
+
+    @staticmethod
+    def _make_temp_agentlab_root(tmp_path: Path) -> Path:
+        """Create a minimal AgentLab config directory with a fake secret."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        # Config file with a fake API key
+        (config_dir / "model_providers.yml").write_text(
+            "deepseek_api_key: fake-test-secret-12345\n"
+        )
+        return tmp_path
+
+    def test_full_chain_secret_redacted_in_renderer(self, tmp_path: Path) -> None:
+        """schema + resolver + renderer: secret must be redacted in output."""
+        root = self._make_temp_agentlab_root(tmp_path)
+
+        schema_keys = {
+            "model_providers.deepseek_api_key": ConfigKeySchema(
+                key="model_providers.deepseek_api_key", secret=True, type_="str"
+            ),
+        }
+
+        cv = resolve_key(root, "model_providers.deepseek_api_key", schema_keys=schema_keys)
+        assert cv is not None, "Secret key should resolve from fixture config"
+        assert cv.value == "fake-test-secret-12345", "Fixture value should be loaded"
+        assert cv.is_secret is True, (
+            "Schema secret=true MUST propagate to ConfigValue.is_secret — "
+            "if this fails, the resolver→renderer chain is broken"
+        )
+
+        # Verify renderer would redact (this is what render_config_get calls)
+        display = _safe_repr(cv.value, cv.key, cv_is_secret=cv.is_secret)
+        assert display == REDACTED_PLACEHOLDER, (
+            f"_safe_repr should return {REDACTED_PLACEHOLDER} when cv.is_secret=True, "
+            f"got '{display}' — secret would leak to terminal"
+        )
+
+    def test_full_chain_non_secret_passes_through(self, tmp_path: Path) -> None:
+        """Non-secret keys in the same config must NOT be redacted."""
+        root = self._make_temp_agentlab_root(tmp_path)
+        (root / "config" / "model_providers.yml").write_text(
+            "deepseek_api_key: fake-secret\n"
+            "some_setting: visible-value\n"
+        )
+
+        schema_keys = {
+            "model_providers.deepseek_api_key": ConfigKeySchema(
+                key="model_providers.deepseek_api_key", secret=True, type_="str"
+            ),
+        }
+
+        # Secret key → redacted
+        cv_secret = resolve_key(root, "model_providers.deepseek_api_key", schema_keys=schema_keys)
+        assert cv_secret is not None and cv_secret.is_secret is True
+        assert _safe_repr(cv_secret.value, cv_secret.key, cv_is_secret=True) == REDACTED_PLACEHOLDER
+
+        # Non-secret key → visible
+        cv_visible = resolve_key(root, "model_providers.some_setting", schema_keys=schema_keys)
+        assert cv_visible is not None and cv_visible.is_secret is False, (
+            "Key not in schema should have is_secret=False"
+        )
+        assert _safe_repr(cv_visible.value, cv_visible.key, cv_is_secret=False) == "visible-value"
+
+    def test_schema_does_not_cross_contaminate_keys(self, tmp_path: Path) -> None:
+        """Schema secret=true for one key must NOT affect other keys."""
+        root = self._make_temp_agentlab_root(tmp_path)
+        (root / "config" / "model_providers.yml").write_text(
+            "deepseek_api_key: sk-secret\n"
+            "provider_name: DeepSeek\n"
+            "dashscope_api_key: qwen-secret\n"
+        )
+
+        schema_keys = {
+            "model_providers.deepseek_api_key": ConfigKeySchema(
+                key="model_providers.deepseek_api_key", secret=True, type_="str"
+            ),
+            # dashscope_api_key NOT in schema — should not be secret
+        }
+
+        # Marked secret → is_secret=True
+        cv1 = resolve_key(root, "model_providers.deepseek_api_key", schema_keys=schema_keys)
+        assert cv1 is not None and cv1.is_secret is True
+
+        # NOT in schema → is_secret=False (even though key name is heuristically secret)
+        cv2 = resolve_key(root, "model_providers.dashscope_api_key", schema_keys=schema_keys)
+        assert cv2 is not None, "dashscope_api_key should resolve from fixture"
+        assert cv2.is_secret is False, (
+            "Key NOT in schema should have is_secret=False — "
+            "cross-contamination bug: schema secret flag leaked to unrelated key"
+        )
+
+        # Unrelated key → is_secret=False
+        cv3 = resolve_key(root, "model_providers.provider_name", schema_keys=schema_keys)
+        assert cv3 is not None and cv3.is_secret is False
+
+    def test_cli_config_get_redacts_fixture_secret(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CLI config-get (monkeypatched root) must redact fixture secret.
+
+        This is the closest test to the original CLI E2E test that was
+        removed in 2050806, but it uses a temp fixture config instead of
+        relying on real API keys.
+        """
+        import io
+        from rich.console import Console
+        from agent_runtime.config_center import cli as cli_mod
+
+        root = self._make_temp_agentlab_root(tmp_path)
+
+        # Minimal config_center.yml schema in temp dir
+        import yaml
+        schema_path = root / "config" / "config_center.yml"
+        schema_path.write_text(yaml.dump({
+            "version": 1,
+            "keys": {
+                "model_providers.deepseek_api_key": {
+                    "type": "str",
+                    "secret": True,
+                },
+            },
+        }))
+
+        # Monkeypatch the root
+        monkeypatch.setattr(cli_mod, "_agentlab_root", lambda: root)
+
+        # Capture Rich console output — must patch the renderer's console,
+        # not the cli module's (cli imports console from renderer)
+        import agent_runtime.config_center.renderer as renderer_mod
+        captured = io.StringIO()
+        monkeypatch.setattr(renderer_mod, "console", Console(file=captured, force_terminal=False))
+
+        # Run the actual CLI command function (pass project=None explicitly
+        # because typer.Option defaults are OptionInfo objects, not None)
+        cli_mod.config_get(key="model_providers.deepseek_api_key", project=None)
+
+        output = captured.getvalue()
+
+        # The secret value must NOT appear in output
+        assert "fake-test-secret-12345" not in output, (
+            f"SECRET LEAK: raw fixture secret appeared in CLI output:\n{output[:300]}"
+        )
+        # Redaction marker must appear
+        assert REDACTED_PLACEHOLDER in output, (
+            f"Missing redaction marker in CLI output:\n{output[:300]}"
+        )
+        # Is Secret must be true
+        assert "true" in output, (
+            f"Expected Is Secret: true in CLI output:\n{output[:300]}"
+        )

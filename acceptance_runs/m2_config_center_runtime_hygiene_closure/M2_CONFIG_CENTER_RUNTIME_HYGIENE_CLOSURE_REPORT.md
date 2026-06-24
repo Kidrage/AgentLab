@@ -6,10 +6,10 @@
 ## Baseline
 - **branch:** main
 - **before commit:** c3b641c `feat(runtime): implement M2-5 Config Center v2`
-- **final commit:** 46fae8b `fix(ci): repair CI failures — missing shell wrapper + text integrity exemption`
-- **intermediate commits:** 8f15949 (M2 repair), cbdaeb8 (gh protocol, CLAUDE.md), 46fae8b (CI fix)
+- **final commit:** 2050806 `fix(tests): rewrite secret tests as unit tests + clean acceptance report paths`
+- **intermediate commits:** c3b641c (M2-5 Config Center v2), 8f15949 (M2 repair), cbdaeb8 (gh protocol, CLAUDE.md), 46fae8b (CI fix)
 - **remote:** origin → `git@github.com:Kidrage/AgentLab.git`, relay → `ssh://admin@10.147.17.250:/home/admin/AgentLab`
-- **latest CI:** run 28080134077 (46fae8b) — in progress
+- **latest CI:** run for 2050806 — not yet confirmed on public Actions page; local pytest 1593 pass (non-sandbox)
 - **gh CLI:** installed v2.95.0 locally; SSH auth working; API auth pending (`gh auth login` needed)
 
 ## Summary
@@ -170,10 +170,21 @@ $ ./agentlab.sh config config-get --key nonexistent.key  # PASS (exit non-zero)
 
 ## CI Evidence
 
-- GitHub CLI (`gh`) not available in this environment
-- Remote: `origin → git@github.com:Kidrage/AgentLab.git`
-- CI status cannot be confirmed until push triggers GitHub Actions
-- Local validation is comprehensive and passes all criteria
+- GitHub Actions: latest workflow runs on `main` are visible at https://github.com/Kidrage/AgentLab/actions
+- Public Actions page still shows latest run as CI #232 (commit c3b641c); a run for 2050806 has not yet been confirmed
+- `gh` CLI API auth pending — cannot query combined status directly
+- Local full pytest (non-sandbox): 1593 passed, 2 skipped (per 2050806 commit message)
+- CI green confirmation deferred to next push / manual `gh run list` check
+
+## Post-2050806 Open Items
+
+Commit 2050806 improved test reliability but introduced two items requiring follow-up:
+
+1. **Secret redaction E2E coverage reduced**: The commit replaced CLI-based secret redaction tests with unit tests for `_safe_repr`/`is_secret_key`. A fixture/env-based CLI E2E test should be added back to cover the full `schema → resolver → CLI → renderer → terminal output` chain without relying on real API keys.
+
+2. **Text integrity exemption narrowed**: 46fae8b added a blanket `acceptance_runs/` exemption from local-path checks. This has been narrowed — only `config/shared_agent_directory.yml` (user-local config) is exempt; acceptance reports must use sanitized paths.
+
+3. **Shell wrapper shebang**: `scripts/check_forbidden_tracked_files.sh` had a malformed shebang (`#\!/usr/bin/env bash`). Fixed to `#!/usr/bin/env bash`.
 
 ## Safety Notes
 
