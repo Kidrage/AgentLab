@@ -109,6 +109,6 @@ def project_diff(
     project_name: str,
 ) -> ConfigDiff:
     """Diff a project's config overrides against the base (no-project) config."""
-    base = resolve_all_keys(agentlab_root, project_name=None)
-    override = resolve_all_keys(agentlab_root, project_name=project_name)
+    base, _, _ = resolve_all_keys(agentlab_root, project_name=None)
+    override, _, _ = resolve_all_keys(agentlab_root, project_name=project_name)
     return diff_configs(base, override, base_label="base", override_label=f"project:{project_name}")

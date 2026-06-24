@@ -118,7 +118,12 @@ def _load_all_yamls(dir_path: Path) -> dict[str, Any]:
 
     Each file's contents are stored under its namespace key (filename stem),
     so ``routing_policy.yml`` → ``{"routing_policy": {contents}}``.
-    This allows dotted-key lookups like ``routing_policy.default_mode``.
+    This allows dotted-key lookups like ``routing_policy.default_budget``.
+
+    **Double-wrap prevention:** If a config file already uses its own filename
+    stem as its sole top-level key (e.g. ``budget_policy.yml`` containing
+    ``budget_policy: { ... }``), the inner dict is unwrapped to avoid
+    ``budget_policy.budget_policy.*`` double-namespacing.
     """
     merged: dict[str, Any] = {}
     if not dir_path.is_dir():
@@ -130,6 +135,11 @@ def _load_all_yamls(dir_path: Path) -> dict[str, Any]:
         data = _load_yaml(fpath)
         if not data:
             continue
+        # Unwrap if the file already uses its stem as its sole top-level key
+        if isinstance(data, dict) and len(data) == 1 and ns in data:
+            unwrapped = data[ns]
+            if isinstance(unwrapped, dict):
+                data = unwrapped
         if ns in merged and isinstance(merged[ns], dict):
             merged[ns] = _deep_merge(merged[ns], data)
         else:

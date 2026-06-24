@@ -30,11 +30,11 @@ profiles:
   frugal:
     _description: Frugal profile — minimum cost, smallest models, strict budgets
     routing_policy:
-      default_mode: furgal
+      default_budget: frugal
     budget_policy:
       max_tokens_per_task: 50000
-    model_profiles:
-      default_budget_mode: furgal
+    agent_model_profiles:
+      default_budget_mode: frugal
 
   max_quality:
     _description: Maximum quality — best models, highest budgets, all validation gates

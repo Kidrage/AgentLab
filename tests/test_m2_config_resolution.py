@@ -49,8 +49,10 @@ def test_resolve_key_tracks_source_layer() -> None:
 
 
 def test_resolve_all_keys_returns_many_keys() -> None:
-    resolved = resolve_all_keys(ROOT)
+    resolved, truncated, total = resolve_all_keys(ROOT, limit=50)
     assert len(resolved) > 20, f"Expected >20 keys, got {len(resolved)}"
+    assert total > 100, f"Expected >100 total, got {total}"
+    assert truncated  # limit=50 < 3431
     for cv in resolved.values():
         assert isinstance(cv, ConfigValue)
         assert cv.layer in ConfigLayer
@@ -58,7 +60,9 @@ def test_resolve_all_keys_returns_many_keys() -> None:
 
 def test_resolve_all_keys_with_explicit_list() -> None:
     keys = ["routing_policy.default_budget", "routing_policy.schema_version"]
-    resolved = resolve_all_keys(ROOT, keys=keys)
+    resolved, truncated, total = resolve_all_keys(ROOT, keys=keys)
+    assert not truncated
+    assert total == len(keys)
     assert len(resolved) <= len(keys)
     for k in keys:
         if k in resolved:

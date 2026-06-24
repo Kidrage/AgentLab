@@ -22,8 +22,11 @@ HANDOFF_NAMES = (
     Path(".agentlab/HandOff.md"),
     Path("agent_docs/HandOff.md"),
     Path("HandOff.md"),
-    Path("HANDOFF.md"),
 )
+
+# Legacy names that are recognised but not written by AgentLab.
+# Must be checked case-insensitively on macOS/APFS.
+_HANDOFF_LEGACY_NAMES_LOWER = {"handoff.md"}
 
 IGNORED_DIRS = {
     ".agentlab",
@@ -356,12 +359,38 @@ def render_handoff(snapshot: dict[str, Any], *, existing: str = "") -> str:
     return "\n".join(lines)
 
 
+def _iterdir_lower_map(dir_path: Path) -> dict[str, Path]:
+    """Return a dict mapping lowercase name → actual Path for entries in *dir_path*."""
+    try:
+        return {entry.name.lower(): entry for entry in dir_path.iterdir()}
+    except OSError:
+        return {}
+
+
 def discover_handoff(root: Path, shared_memory_root: Path | None = None) -> Path | None:
     root = Path(root).expanduser().resolve()
+    # Build a case-insensitive index of root-level files (one directory listing)
+    root_index = _iterdir_lower_map(root)
     for relative in HANDOFF_NAMES:
+        # Fast path: direct parent check handles nested paths and simple files
         candidate = root / relative
         if candidate.is_file():
+            # On case-insensitive filesystems, resolve to actual on-disk case.
+            # The top-level check uses the pre-built index; nested paths
+            # (e.g. .agentlab/HandOff.md) fall back to plain iterdir.
+            parent = candidate.parent
+            if parent == root and candidate.name.lower() in root_index:
+                return root_index[candidate.name.lower()]
+            # For nested paths, do a one-off iterdir for case accuracy
+            nested_index = _iterdir_lower_map(parent)
+            if candidate.name.lower() in nested_index:
+                return nested_index[candidate.name.lower()]
             return candidate
+    # Legacy case-insensitive names (e.g. HANDOFF.md)
+    if root_index:
+        for entry_lower, entry_path in root_index.items():
+            if entry_lower in _HANDOFF_LEGACY_NAMES_LOWER and entry_path.is_file():
+                return entry_path
     if shared_memory_root:
         snapshot = scan_repository(root, max_paths=1)
         candidate = Path(shared_memory_root) / snapshot["repository_id"] / "HandOff.md"

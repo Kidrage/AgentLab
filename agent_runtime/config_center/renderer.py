@@ -19,10 +19,15 @@ from agent_runtime.config_center.secrets_redaction import (
 console = Console()
 
 
-def _safe_repr(value: Any, key: str = "") -> str:
-    """Render a value for display, redacting secrets."""
+def _safe_repr(value: Any, key: str = "", cv_is_secret: bool = False) -> str:
+    """Render a value for display, redacting secrets.
+
+    Redaction combines:
+    1. Schema metadata (``ConfigValue.is_secret``)
+    2. Key-name heuristics (e.g. ``*_api_key``, ``*_secret``)
+    """
     last_seg = key.rsplit(".", 1)[-1] if key else ""
-    if is_secret_key(last_seg):
+    if cv_is_secret or is_secret_key(last_seg):
         return REDACTED_PLACEHOLDER
     if isinstance(value, bool):
         return str(value)
@@ -41,20 +46,22 @@ def render_config_list(resolved: dict[str, ConfigValue]) -> None:
     table.add_column("Key", style="cyan", no_wrap=False)
     table.add_column("Value", style="green", no_wrap=False)
     table.add_column("Source Layer", style="yellow")
+    table.add_column("Secret", style="magenta")
     table.add_column("Overridden", style="dim")
 
     for key, cv in sorted(resolved.items()):
-        # Redact secret values
-        display_value = _safe_repr(cv.value, key)
+        # Redact secret values using both schema metadata and key-name heuristics
+        display_value = _safe_repr(cv.value, key, cv_is_secret=cv.is_secret)
+        secret_marker = "🔒" if cv.is_secret else ""
         overridden = ", ".join(o.name.lower() for o in cv.overridden_from) if cv.overridden_from else "—"
-        table.add_row(key, display_value, cv.source_label, overridden)
+        table.add_row(key, display_value, cv.source_label, secret_marker, overridden)
 
     console.print(table)
 
 
 def render_config_get(key: str, cv: ConfigValue) -> None:
     """Render a single config value with full metadata."""
-    display_value = _safe_repr(cv.value, key)
+    display_value = _safe_repr(cv.value, key, cv_is_secret=cv.is_secret)
     overridden = ", ".join(o.name.lower() for o in cv.overridden_from) if cv.overridden_from else "(none)"
 
     text = Text()
@@ -67,7 +74,7 @@ def render_config_get(key: str, cv: ConfigValue) -> None:
     text.append(f"Overridden: ", style="bold")
     text.append(f"{overridden}\n")
     text.append(f"Is Secret:  ", style="bold")
-    text.append(f"{cv.is_secret}")
+    text.append(f"{'true' if cv.is_secret else 'false'}")
 
     console.print(Panel(text, title=f"Config: {key}", border_style="blue"))
 

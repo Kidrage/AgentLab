@@ -5,13 +5,13 @@ active_profile: null  # Set to dev, prod, frugal, or max_quality to activate
 
 keys:
   # ── Routing ──
-  routing_policy.default_mode:
+  routing_policy.default_budget:
     type: str
     required: true
     ui_group: routing
-    ui_label: Default Routing Mode
-    description: Default mode for task-to-agent routing (full_cli, brain_allocated, max_quality, furgal)
-    allowed_values: [full_cli, brain_allocated, max_quality, furgal]
+    ui_label: Default Budget Mode
+    description: Default budget mode for task-to-agent routing (frugal, balanced, max_quality)
+    allowed_values: [frugal, balanced, max_quality]
 
   routing_policy.allow_automatic_fallback:
     type: bool
@@ -22,21 +22,29 @@ keys:
     description: Whether routing may automatically fall back to alternative agents
 
   # ── Execution ──
-  execution_policy.default_mode:
+  execution_policy.budget_mode_policy.default_budget_mode:
     type: str
     required: true
     ui_group: execution
-    ui_label: Default Execution Mode
-    description: How the Coder agent executes tasks
-    allowed_values: [api, cli, external_ide]
+    ui_label: Default Budget Mode
+    description: Default budget mode for execution policy (frugal, balanced, max_quality)
+    allowed_values: [frugal, balanced, max_quality]
 
-  execution_policy.require_explicit_execute:
+  execution_policy.execution_policy.execution_tier:
+    type: str
+    required: false
+    default: T3
+    ui_group: execution
+    ui_label: Execution Tier
+    description: The tier at which Coder executes (T3)
+
+  execution_policy.execution_policy.require_context_before_coding:
     type: bool
     required: false
     default: true
     ui_group: execution
-    ui_label: Require Explicit --execute
-    description: Whether run-agent commands need explicit --execute flag
+    ui_label: Require Context Before Coding
+    description: Whether Coder must have RepoScout + InterfaceMapper context before coding
 
   # ── Budget ──
   budget_policy.max_tokens_per_task:
@@ -56,14 +64,14 @@ keys:
     description: Percentage of token budget at which to emit warnings
 
   # ── Model ──
-  model_profiles.default_budget_mode:
+  agent_model_profiles.default_budget_mode:
     type: str
     required: false
-    default: brain_allocated
+    default: balanced
     ui_group: model
     ui_label: Default Budget Mode
-    description: Budget mode that selects model tier (brain_allocated, max_quality, furgal)
-    allowed_values: [brain_allocated, max_quality, furgal]
+    description: Budget mode that selects model tier (frugal, balanced, max_quality)
+    allowed_values: [frugal, balanced, max_quality]
 
   # ── API Keys (secret) ──
   model_providers.deepseek_api_key:

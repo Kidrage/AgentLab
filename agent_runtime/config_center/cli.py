@@ -18,7 +18,7 @@ from agent_runtime.config_center.renderer import (
     render_validation,
 )
 from agent_runtime.config_center.resolver import resolve_all_keys, resolve_key
-from agent_runtime.config_center.validator import validate_config_dry
+from agent_runtime.config_center.validator import load_schema, validate_config_dry
 
 app = typer.Typer(help="M2-5 Config Center commands.", no_args_is_help=True)
 
@@ -27,17 +27,44 @@ def _agentlab_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _load_schema_keys(root: Path) -> dict:
+    """Load schema keys dict for secret-metadata propagation."""
+    schema = load_schema(root / "config" / "config_center.yml")
+    return schema.keys
+
+
 @app.command("config-list")
 def config_list(
     project: Optional[str] = typer.Option(None, "--project", help="Project name for project-level overrides"),
+    limit: Optional[int] = typer.Option(None, "--limit", help="Max number of keys to display (no limit by default)"),
+    show_all: bool = typer.Option(False, "--all", help="Show all keys (overrides --limit)"),
 ) -> None:
     """List all resolved config keys with source-layer metadata."""
     root = _agentlab_root()
-    resolved = resolve_all_keys(root, project_name=project)
+    schema_keys = _load_schema_keys(root)
+
+    effective_limit: int | None = None
+    if show_all:
+        effective_limit = None
+    elif limit is not None:
+        effective_limit = limit
+
+    resolved, truncated, total = resolve_all_keys(
+        root,
+        project_name=project,
+        limit=effective_limit,
+        schema_keys=schema_keys,
+    )
     if not resolved:
         console.print("[yellow]No config keys discovered.[/yellow]")
         return
     render_config_list(resolved)
+
+    if truncated:
+        console.print(
+            f"\n[yellow]Showing {len(resolved)} of {total} config keys. "
+            f"Use --all or --limit N to view more.[/yellow]"
+        )
 
     # Show active profile if set
     active = get_active_profile(root)
@@ -47,12 +74,13 @@ def config_list(
 
 @app.command("config-get")
 def config_get(
-    key: str = typer.Option(..., "--key", help="Dotted config key path, e.g. routing_policy.default_mode"),
+    key: str = typer.Option(..., "--key", help="Dotted config key path, e.g. routing_policy.default_budget"),
     project: Optional[str] = typer.Option(None, "--project", help="Project name for project-level overrides"),
 ) -> None:
     """Get a single config value with full source-layer metadata."""
     root = _agentlab_root()
-    cv = resolve_key(root, key, project_name=project)
+    schema_keys = _load_schema_keys(root)
+    cv = resolve_key(root, key, project_name=project, schema_keys=schema_keys)
     if cv is None:
         console.print(f"[red]Key '{key}' not found in any config layer.[/red]")
         raise typer.Exit(code=1)
