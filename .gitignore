@@ -125,3 +125,9 @@ memory/repositories/
 *.pid
 *.sock
 
+# AgentLab runtime observability logs
+/observability/
+/projects/*/observability/*.jsonl
+/projects/*/observability/*_events.yml
+/projects/*/observability/executor_runs.yml
+/projects/*/observability/worker_events.yml

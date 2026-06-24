@@ -557,3 +557,18 @@ def _load_audit_module():
     _sys.modules["audit_text_integrity_r0"] = module
     spec.loader.exec_module(module)
     return module
+
+def test_observability_logs_are_gitignored() -> None:
+    """Ensure that runtime observability logs are gitignored so they aren't accidentally tracked."""
+    import subprocess
+    root = Path(__file__).resolve().parent.parent
+    check_paths = [
+        "observability/event_log.jsonl",
+        "observability/timeline.jsonl",
+        "observability/executor_runs.yml",
+        "observability/worker_events.yml",
+        "projects/test/observability/timeline.jsonl"
+    ]
+    for p in check_paths:
+        result = subprocess.run(["git", "check-ignore", "-q", p], cwd=root)
+        assert result.returncode == 0, f"{p} is not gitignored"

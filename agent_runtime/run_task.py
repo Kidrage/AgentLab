@@ -559,15 +559,17 @@ def route_task_cmd(
     try:
         result = route_task_packet(task_packet, _PROJECT_ROOT)
         from agent_runtime.observability.api import emit_event
-        for r, d in result.get("route_decisions", {}).items():
+        plan = result.get("route_plan", {})
+        for d in plan.get("decisions", []):
+            r = d.get("role", "unknown")
             emit_event(
-                project_id=result.get("project_id", "AgentLab"),
+                project_id=plan.get("project_id", "AgentLab"),
                 project_dir=_PROJECT_ROOT,
                 event_type="route_decision_created",
                 details={"route_profile": d.get("route_profile"), "rejected_alternatives": d.get("rejected_alternatives")},
                 worker_id=d.get("selected_worker"),
                 role_id=r,
-                task_id=result.get("task_id", "unknown_task"),
+                task_id=plan.get("task_id", "unknown_task"),
             )
     except (FileNotFoundError, ValueError, yaml.YAMLError) as exc:
         console.print(f"[red]Error: {exc}[/red]")
