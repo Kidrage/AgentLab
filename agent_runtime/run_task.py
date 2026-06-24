@@ -93,6 +93,15 @@ def tui_cmd(headless: bool = typer.Option(False, "--headless", help="Run in head
     else:
         run_tui()
 
+@app.command("webui")
+def webui_cmd(host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"), port: int = typer.Option(8765, "--port", help="Port to bind to")):
+    """Start the AgentLab Web User Interface."""
+    try:
+        from agentlab_app.dashboard.app import run_server
+        run_server(host=host, port=port)
+    except ImportError as e:
+        print(f"Failed to load WebUI module: {e}")
+
 from agent_runtime.config_center.cli import app as config_app
 from agent_runtime.assistant.cli import register_assistant_commands
 app.add_typer(external_skills_app, name="external-skills")
