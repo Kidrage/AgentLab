@@ -66,12 +66,27 @@ from schemas import TaskRunRequest
 from state_store import load_state, mark_agent_completed, mark_planned, save_state, utc_now
 from workflow_plan import build_workflow_plan
 
+# -- M2-10 TUI Module Integration --
+def run_tui():
+    try:
+        from agentlab_tui.app import AgentLabTUI
+        tui = AgentLabTUI()
+        tui.run()
+    except ImportError as e:
+        print(f"Failed to load TUI module: {e}")
+
 app = typer.Typer(help="AgentLab local-first CLI.", no_args_is_help=True)
 external_skills_app = typer.Typer(help="External Skill workflow closure commands.", no_args_is_help=True)
 search_app = typer.Typer(help="Search provider adapter commands.", no_args_is_help=True)
 repo_index_app = typer.Typer(help="Repo indexer adapter commands.", no_args_is_help=True)
 external_projects_app = typer.Typer(help="M1 external project registry commands.", no_args_is_help=True)
 mission_compiler_app = typer.Typer(help="M1-2 mission compiler v2 commands.", no_args_is_help=True)
+
+@app.command("tui")
+def tui_cmd():
+    """Start the AgentLab Terminal User Interface."""
+    run_tui()
+
 from agent_runtime.config_center.cli import app as config_app
 from agent_runtime.assistant.cli import register_assistant_commands
 app.add_typer(external_skills_app, name="external-skills")
