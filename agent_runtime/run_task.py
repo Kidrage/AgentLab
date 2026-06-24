@@ -6488,5 +6488,34 @@ def reject(decision_id: str = typer.Option(..., "--decision-id", help="Decision 
         typer.echo(f"Decision {decision_id} not found.")
         raise typer.Exit(1)
 
+@app.command("timeline")
+def timeline_command(project: str = typer.Option(..., "--project", help="Project name"), event_type: str = typer.Option(None, "--event-type")):
+    import os
+    from agent_runtime.observability.query import query_timeline
+    from agent_runtime.observability.renderer import render_timeline
+    
+    project_dir = os.path.join(str(_PROJECT_ROOT), "projects", project)
+    if not os.path.exists(project_dir):
+        project_dir = str(_PROJECT_ROOT)
+        
+    events = query_timeline(project_dir, event_type=event_type)
+    typer.echo(render_timeline(events))
+
+@app.command("event-log-tail")
+def event_log_tail_command(project: str = typer.Option(..., "--project", help="Project name"), limit: int = typer.Option(50, "--limit")):
+    import os
+    import json
+    from agent_runtime.observability.query import tail_event_log
+    
+    project_dir = os.path.join(str(_PROJECT_ROOT), "projects", project)
+    if not os.path.exists(project_dir):
+        project_dir = str(_PROJECT_ROOT)
+        
+    entries = tail_event_log(project_dir, limit=limit)
+    if not entries:
+        typer.echo("No event log found or empty.")
+    for entry in entries:
+        typer.echo(json.dumps(entry, ensure_ascii=False))
+
 if __name__ == '__main__':
     app()
