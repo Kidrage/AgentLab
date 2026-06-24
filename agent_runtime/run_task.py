@@ -6595,3 +6595,78 @@ def event_log_tail_command(project: str = typer.Option(..., "--project", help="P
 
 if __name__ == '__main__':
     app()
+control_app = typer.Typer(help="Control Panel: Manage Workers, Skills, Capabilities, and Executors")
+app.add_typer(control_app, name="control")
+
+@control_app.command("workers")
+def control_workers(project: str = typer.Option("AgentLab", "--project")):
+    from agent_runtime.control_panel.worker_control import WorkerControl
+    from agent_runtime.control_panel.renderer import render_worker_table
+    wc = WorkerControl(_PROJECT_ROOT)
+    console.print(render_worker_table(wc.list_workers()))
+
+@control_app.command("worker-enable")
+def control_worker_enable(worker: str = typer.Option(..., "--worker")):
+    from agent_runtime.control_panel.worker_control import WorkerControl
+    wc = WorkerControl(_PROJECT_ROOT)
+    wc.enable_worker(worker)
+    typer.echo(f"Enabled worker: {worker}")
+
+@control_app.command("worker-disable")
+def control_worker_disable(worker: str = typer.Option(..., "--worker")):
+    from agent_runtime.control_panel.worker_control import WorkerControl
+    wc = WorkerControl(_PROJECT_ROOT)
+    wc.disable_worker(worker)
+    typer.echo(f"Disabled worker: {worker}")
+
+@control_app.command("worker-inspect")
+def control_worker_inspect(worker: str = typer.Option(..., "--worker")):
+    from agent_runtime.control_panel.worker_control import WorkerControl
+    import yaml
+    wc = WorkerControl(_PROJECT_ROOT)
+    overrides = wc.get_overrides(worker)
+    typer.echo(f"Control panel state for {worker}:")
+    typer.echo(yaml.safe_dump(overrides))
+
+@control_app.command("worker-force-assign")
+def control_worker_force_assign(worker: str = typer.Option(..., "--worker"), role: str = typer.Option(..., "--role")):
+    from agent_runtime.control_panel.worker_control import WorkerControl
+    wc = WorkerControl(_PROJECT_ROOT)
+    wc.force_assign_role(worker, role)
+    typer.echo(f"Forced worker {worker} to role {role}")
+
+@control_app.command("worker-reset-assign")
+def control_worker_reset_assign(worker: str = typer.Option(..., "--worker")):
+    from agent_runtime.control_panel.worker_control import WorkerControl
+    wc = WorkerControl(_PROJECT_ROOT)
+    wc.reset_assignment(worker)
+    typer.echo(f"Reset assignment for {worker}")
+
+@control_app.command("skills")
+def control_skills(project: str = typer.Option("AgentLab", "--project")):
+    from agent_runtime.control_panel.skill_control import SkillControl
+    import yaml
+    sc = SkillControl(_PROJECT_ROOT)
+    typer.echo(yaml.safe_dump(sc.list_skills()))
+
+@control_app.command("capabilities")
+def control_capabilities(project: str = typer.Option("AgentLab", "--project")):
+    from agent_runtime.control_panel.capability_control import CapabilityControl
+    import yaml
+    cc = CapabilityControl(_PROJECT_ROOT)
+    typer.echo(yaml.safe_dump(cc.list_capabilities()))
+
+@control_app.command("executors")
+def control_executors(project: str = typer.Option("AgentLab", "--project")):
+    from agent_runtime.control_panel.executor_control import ExecutorControl
+    import yaml
+    ec = ExecutorControl(_PROJECT_ROOT)
+    typer.echo(yaml.safe_dump(ec.list_executors()))
+
+@control_app.command("approve")
+def control_approve_decision(decision_id: str = typer.Option(..., "--decision-card"), actor: str = typer.Option("admin", "--actor"), reason: str = typer.Option("Approved via control panel", "--reason")):
+    from agent_runtime.control_panel.approval_actions import control_approve
+    if control_approve(_PROJECT_ROOT, "AgentLab", decision_id, actor, reason):
+        typer.echo(f"Approved {decision_id}")
+    else:
+        typer.echo(f"Failed to approve {decision_id}")

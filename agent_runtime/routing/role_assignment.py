@@ -97,6 +97,15 @@ class RoleAssignmentEngine:
         if not role_req:
             raise ValueError(f"Unknown role: {role}")
 
+        from agent_runtime.control_panel.state import ControlState
+        control_state = ControlState(self.root)
+        
+        forced_worker = None
+        for w_id, w_state in control_state._state.get("workers", {}).items():
+            if w_state.get("force_role") == role and w_state.get("status", "enabled") != "disabled":
+                forced_worker = w_id
+                break
+
         required = list(dict.fromkeys([
             *role_req.required_capabilities,
             *(extra_required_capabilities or []),
@@ -109,10 +118,22 @@ class RoleAssignmentEngine:
         approved = set(approved_workers or [])
         base_candidates = self._configured_candidates(role)
         candidates = self.mode_tier_policy.rank(base_candidates, role, mode, tier)
+        if forced_worker:
+            if forced_worker in candidates:
+                candidates.remove(forced_worker)
+            candidates.insert(0, forced_worker)
+            
         rejected: list[RejectedWorker] = []
         eligible: list[tuple[str, int]] = []
 
         for index, worker_id in enumerate(candidates):
+            if control_state.is_disabled("workers", worker_id):
+                rejected.append(RejectedWorker(worker_id, "disabled in control panel"))
+                continue
+                
+            if worker_id == forced_worker:
+                eligible.append((worker_id, -1000))
+                continue
             card = self.worker_cards.get(worker_id)
             if not card:
                 rejected.append(RejectedWorker(worker_id, "worker is not registered"))
