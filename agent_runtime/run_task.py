@@ -536,6 +536,16 @@ def assign_role_cmd(
         available_workers=available_worker,
         approved_workers=approved_worker,
     )
+    from agent_runtime.observability.api import emit_event
+    emit_event(
+        project_id=project,
+        project_dir=_PROJECT_ROOT,
+        event_type="role_assigned",
+        details={"decision_path": getattr(decision, "decision_path", ""), "rejected_alternatives": getattr(decision, "rejected_alternatives", [])},
+        worker_id=getattr(decision, "selected_worker", ""),
+        role_id=role,
+        task_id=task_id,
+    )
     console.print(yaml.safe_dump(decision.to_dict(), sort_keys=False, allow_unicode=True))
 
 
@@ -548,6 +558,17 @@ def route_task_cmd(
 
     try:
         result = route_task_packet(task_packet, _PROJECT_ROOT)
+        from agent_runtime.observability.api import emit_event
+        for r, d in result.get("route_decisions", {}).items():
+            emit_event(
+                project_id=result.get("project_id", "AgentLab"),
+                project_dir=_PROJECT_ROOT,
+                event_type="route_decision_created",
+                details={"route_profile": d.get("route_profile"), "rejected_alternatives": d.get("rejected_alternatives")},
+                worker_id=d.get("selected_worker"),
+                role_id=r,
+                task_id=result.get("task_id", "unknown_task"),
+            )
     except (FileNotFoundError, ValueError, yaml.YAMLError) as exc:
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(code=1)
@@ -702,8 +723,10 @@ def worker_scan() -> None:
     registry = WorkerRegistry(_PROJECT_ROOT / ".agentlab" / "cache")
     registry.scan_and_register()
     console.print(f"Scanned system and cached workers at {registry.cache_path}")
+    from agent_runtime.observability.api import emit_event
     for w in registry.list_workers():
         status = "installed" if w.installed else "missing"
+        emit_event("AgentLab", _PROJECT_ROOT, "worker_detected", details={"status": status, "version": w.version}, worker_id=w.worker_id)
         console.print(f"- {w.display_name} ({w.worker_id}): {status} (version: {w.version or 'N/A'})")
 
 
@@ -886,6 +909,14 @@ def worker_audition(
         except Exception as e:
             console.print(f"[red]Audition failed: {str(e)}[/red]")
             raise typer.Exit(code=1)
+
+    from agent_runtime.observability.api import emit_event
+    for r in results:
+        emit_event(
+            project_id="AgentLab", project_dir=_PROJECT_ROOT, event_type="worker_auditioned",
+            details={"level": level, "real": real, "passed": getattr(r, "passed", False)},
+            worker_id=getattr(r, "worker_id", worker), role_id=getattr(r, "role", role)
+        )
 
     table = Table(title="Worker Audition Results")
     table.add_column("Worker ID", style="cyan", no_wrap=True)
@@ -3807,7 +3838,18 @@ def run_pipeline(
         console.print()
 
     from pipeline_runner import run_full_pipeline
+    from agent_runtime.observability.api import emit_event
+    emit_event(
+        project_id=project_name, project_dir=agentlab_root, event_type="executor_started",
+        details={"mode": 'execute' if not use_fake else 'dry-run'}, task_id=task_id
+    )
     result = run_full_pipeline(agentlab_root, project_name, task_id, dry_run=(dry_run and not execute), fake_provider=use_fake, budget_mode=budget)
+    emit_event(
+        project_id=project_name, project_dir=agentlab_root, event_type="executor_finished",
+        details={"status": result.get('final_status', '?'), "success": bool(result.get('success'))}, task_id=task_id
+    )
+    if result.get("success"):
+        emit_event(project_id=project_name, project_dir=agentlab_root, event_type="phase_accepted", details={}, task_id=task_id)
     console.print(f"\n[bold]Lifecycle Pipeline Result[/bold]")
     console.print(f"  Mode: {'execute' if not use_fake else 'dry-run'}")
     console.print(f"  Final status: {result.get('final_status', result.get('status', '?'))}")
@@ -6423,6 +6465,24 @@ def cost_estimate(task_packet: str = typer.Option(..., "--task-packet", help="Pa
         typer.echo(f"Error loading task packet: {e}")
         raise typer.Exit(1)
     est = estimate_cost(packet, _PROJECT_ROOT)
+    from agent_runtime.observability.api import emit_event
+    project_id = packet.get("project_id", "AgentLab")
+    emit_event(
+        project_id=project_id,
+        project_dir=_PROJECT_ROOT,
+        event_type="cost_estimated",
+        details={
+            "model": packet.get("model", "unknown"),
+            "cached_input_tokens": getattr(est, "cached_input_tokens", 0),
+            "uncached_input_tokens": getattr(est, "uncached_input_tokens", 0),
+            "output_tokens": getattr(est, "output_tokens", 0),
+            "budget_policy": getattr(est, "budget_policy", "standard"),
+            "requires_approval": getattr(est, "requires_approval", False),
+        },
+        task_id=packet.get("task_id", "unknown"),
+        worker_id=packet.get("worker_id", "unknown"),
+        cost_usd=getattr(est, "total_cost_usd", 0.0)
+    )
     typer.echo(render_cost_estimate(est, format_type=format))
 
 @app.command("cost-alerts")
@@ -6471,6 +6531,14 @@ def approve(decision_id: str = typer.Option(..., "--decision-id", help="Decision
     ledger = load_approval_ledger(path)
     if ledger.approve_decision(decision_id, actor, reason):
         write_approval_ledger(ledger, path)
+        from agent_runtime.observability.api import emit_event
+        emit_event(
+            project_id=project,
+            project_dir=_PROJECT_ROOT,
+            event_type="approval_accepted",
+            details={"decision_card_id": decision_id, "reason": reason, "actor": actor, "approval_status": "accepted"},
+            user_id=actor
+        )
         typer.echo(f"Approved {decision_id}")
     else:
         typer.echo(f"Decision {decision_id} not found.")
@@ -6483,6 +6551,14 @@ def reject(decision_id: str = typer.Option(..., "--decision-id", help="Decision 
     ledger = load_approval_ledger(path)
     if ledger.reject_decision(decision_id, actor, reason):
         write_approval_ledger(ledger, path)
+        from agent_runtime.observability.api import emit_event
+        emit_event(
+            project_id=project,
+            project_dir=_PROJECT_ROOT,
+            event_type="approval_rejected",
+            details={"decision_card_id": decision_id, "reason": reason, "actor": actor, "approval_status": "rejected"},
+            user_id=actor
+        )
         typer.echo(f"Rejected {decision_id}")
     else:
         typer.echo(f"Decision {decision_id} not found.")

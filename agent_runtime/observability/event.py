@@ -23,13 +23,29 @@ class Event:
     task_id: Optional[str] = None
     role_id: Optional[str] = None
     cost_usd: Optional[float] = None
+    schema_version: str = "m2.7.1"
     
+    def __post_init__(self):
+        validate_event_type(self.event_type)
+        if not self.timestamp:
+            raise ValueError("timestamp must be present")
+        if not self.project_id:
+            raise ValueError("project_id must be present")
+        if not isinstance(self.details, dict):
+            raise ValueError("details must be a dict")
+        if self.cost_usd is not None and (not isinstance(self.cost_usd, (int, float)) or self.cost_usd < 0):
+            raise ValueError("cost_usd must be numeric and non-negative")
+            
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
         
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> Event:
         return cls(**data)
+
+def validate_event_type(event_type: str) -> None:
+    if event_type not in VALID_EVENT_TYPES:
+        raise ValueError(f"Unknown event type: {event_type}")
 
 # Valid event types defined in M2-7 spec
 VALID_EVENT_TYPES = {

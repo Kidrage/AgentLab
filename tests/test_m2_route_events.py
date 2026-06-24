@@ -10,6 +10,6 @@ def test_route_events_yaml(tmp_path):
     route_file = os.path.join(tmp_path, "observability", "route_events.yml")
     assert os.path.exists(route_file)
     with open(route_file, "r") as f:
-        data = yaml.safe_load(f)
+        data = list(yaml.safe_load_all(f))
         assert len(data) == 1
         assert data[0]["event_type"] == "route_decision_created"

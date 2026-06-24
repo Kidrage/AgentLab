@@ -1,0 +1,31 @@
+---
+event_id: c398732b-ad64-4788-9fe0-05d8f9bf807d
+event_type: role_assigned
+timestamp: '2026-06-24T13:49:19.675458+00:00'
+project_id: AgentLab
+details:
+  decision_path: ''
+  rejected_alternatives: []
+source: system
+user_id: null
+worker_id: codex
+task_id: ad_hoc_route
+role_id: Coder
+cost_usd: null
+schema_version: m2.7.1
+---
+event_id: b9254828-1254-455f-b8de-a2ea958916bd
+event_type: worker_auditioned
+timestamp: '2026-06-24T13:50:03.805516+00:00'
+project_id: AgentLab
+details:
+  level: quick
+  real: false
+  passed: false
+source: system
+user_id: null
+worker_id: claude_code
+task_id: null
+role_id: Coder
+cost_usd: null
+schema_version: m2.7.1

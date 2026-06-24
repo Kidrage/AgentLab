@@ -6,12 +6,12 @@ worker_performance:
     cost_score: 0.3
     safety_score: 0.4
     last_audition:
-      timestamp: '2026-06-24T21:16:38.740794'
+      timestamp: '2026-06-24T21:50:03.780560'
       suite: quick
       verdict: pass
     historical_runs:
-      total: 7
-      success: 7
+      total: 9
+      success: 9
       failed: 0
   codex:
     role_scores:

@@ -45,4 +45,5 @@ class EventLogger:
         if target_file:
             path = os.path.join(self.observability_dir, target_file)
             with open(path, "a", encoding="utf-8") as f:
-                yaml.safe_dump([safe_dict], f, allow_unicode=True, sort_keys=False)
+                f.write("---\n")
+                yaml.safe_dump(safe_dict, f, allow_unicode=True, sort_keys=False)

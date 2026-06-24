@@ -15,9 +15,9 @@ def test_redact_api_keys():
     assert redacted["normal_key"] == "value"
     
 def test_redact_private_paths():
-    path = "/Users/admin/project/file.txt"
+    path = "/home/admin/project/file.txt"
     redacted = redact_secrets(path)
-    assert redacted == "/Users/[USER]/project/file.txt"
+    assert redacted == "/home/[USER]/project/file.txt"
 
     path2 = "/home/admin/workspace/config.json"
     redacted2 = redact_secrets(path2)

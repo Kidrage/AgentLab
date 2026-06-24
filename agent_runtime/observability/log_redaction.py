@@ -26,7 +26,7 @@ def redact_secrets(data: Union[Dict[str, Any], List[Any], str, Any]) -> Union[Di
         redacted = re.sub(r'(bearer\s+)[a-zA-Z0-9_\-\.]+', r'\1[REDACTED]', redacted, flags=re.IGNORECASE)
         
         # Redact private paths
-        redacted = re.sub(r'/Users/[a-zA-Z0-9_-]+/', r'/Users/[USER]/', redacted)
+        redacted = re.sub(r'/home/[a-zA-Z0-9_-]+/', r'/home/[USER]/', redacted)
         redacted = re.sub(r'/home/[a-zA-Z0-9_-]+/', r'/home/[USER]/', redacted)
         
         return redacted
