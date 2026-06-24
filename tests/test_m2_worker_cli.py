@@ -26,7 +26,7 @@ def test_worker_list_cli():
          patch("agent_runtime.workers.registry.WorkerRegistry.list_workers", return_value=[]):
         res = runner.invoke(run_task.app, ["worker-list"])
         assert res.exit_code == 0
-        
+
 def test_worker_inspect_cli_not_found():
     runner = CliRunner()
     with patch("agent_runtime.workers.registry.WorkerRegistry.load_from_cache", return_value=True), \

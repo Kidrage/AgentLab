@@ -18,14 +18,14 @@ def test_effective_cost_calculations():
         }
     }
     cost = ActivationCost.from_dict(cost_dict)
-    
+
     # 10000 - 8000 * 0.85 + 2000 = 10000 - 6800 + 2000 = 3200 + 2000 = 5200
     eff_tokens = calculate_effective_tokens(cost)
     assert eff_tokens == 5200
-    
+
     usd = estimate_cost_in_usd(eff_tokens, "claude_code")
     assert usd == (5200 / 1000.0) * 0.015
-    
+
     assert get_cost_tier(0.0) == "none"
     assert get_cost_tier(0.005) == "low"
     assert get_cost_tier(0.05) == "medium"

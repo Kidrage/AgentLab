@@ -35,9 +35,9 @@ def _phase(path: Path) -> Path:
 def test_task_packet_schema_and_handoff(tmp_path: Path) -> None:
     phase_plan = _phase(tmp_path / "phase_plan.yml")
     out_dir = tmp_path / "packet_out"
-    
+
     packet = create_task_packet(phase_plan, "claude_code_handoff", out_dir)
-    
+
     # Verify task packet fields are fully populated
     tp = packet["task_packet"]
     assert tp["packet_id"] == "DemoProject_phase_001_task"
@@ -56,13 +56,13 @@ def test_task_packet_schema_and_handoff(tmp_path: Path) -> None:
     assert tp["rollback_required"] is True
     assert tp["cost_policy"] == "free_tier"
     assert tp["safety_notes"] == ["No secrets"]
-    
+
     # Verify YAML is written
     tp_file = out_dir / "task_packet.yml"
     assert tp_file.is_file()
     tp_yaml = yaml.safe_load(tp_file.read_text(encoding="utf-8"))
     assert tp_yaml["task_packet"]["packet_id"] == "DemoProject_phase_001_task"
-    
+
     # Verify handoff markdown generation
     handoff_file = out_dir / "external_execution_handoff.md"
     assert handoff_file.is_file()

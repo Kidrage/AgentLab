@@ -14,7 +14,7 @@ def test_invoke_delegated_capability():
         risk_level="low",
         trust_level="provisional"
     ))
-    
+
     result = invoke_delegated_capability(provider, "code_review", {"repo": "agentlab"})
     assert result["success"] is True
     assert "evidence" in result

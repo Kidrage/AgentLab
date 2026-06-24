@@ -9,10 +9,10 @@ from agent_runtime.workers.performance_ledger import PerformanceLedger
 def test_performance_ledger_lifecycle(tmp_path: Path) -> None:
     ledger_file = tmp_path / "worker_performance_ledger.yml"
     ledger = PerformanceLedger(ledger_file)
-    
+
     # Empty at start
     assert len(ledger.performances) == 0
-    
+
     # Update performance
     ledger.update_performance(
         worker_id="claude_code",
@@ -25,7 +25,7 @@ def test_performance_ledger_lifecycle(tmp_path: Path) -> None:
         timestamp="2026-06-22T12:00:00",
         is_success=True
     )
-    
+
     # Verify memory state
     perf = ledger.get_worker_performance("claude_code")
     assert perf is not None
@@ -45,14 +45,14 @@ def test_performance_ledger_lifecycle(tmp_path: Path) -> None:
 def test_get_best_worker_for_role(tmp_path: Path) -> None:
     ledger_file = tmp_path / "worker_performance_ledger.yml"
     ledger = PerformanceLedger(ledger_file)
-    
+
     # Set up some performance metrics
     ledger.update_performance("claude_code", "Coder", 0.91, 0.3, 0.4, "standard", "pass", "t1", True)
     ledger.update_performance("aider", "Coder", 0.75, 0.3, 0.4, "standard", "pass", "t2", True)
-    
+
     best = ledger.get_best_worker_for_role("Coder", ["claude_code", "aider"])
     assert best == "claude_code"
-    
+
     # For a role without scores, falls back to first compatible worker
     best_fallback = ledger.get_best_worker_for_role("Supervisor", ["qwen", "gemini"])
     assert best_fallback == "qwen"

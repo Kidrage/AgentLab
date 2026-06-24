@@ -1,5 +1,15 @@
 cost_policy:
-  version: 2.0
-  hard_limit_usd: 10.0
-  soft_limit_usd: 5.0
+  version: 2
   currency: USD
+  project_soft_limit_usd: 5.00
+  project_hard_limit_usd: 10.00
+  phase_soft_limit_usd: 1.00
+  phase_hard_limit_usd: 2.00
+  task_soft_limit_usd: 0.50
+  task_hard_limit_usd: 1.00
+  require_approval_above_usd: 0.50
+  cheap_model_first: true
+  escalate_model_on_failure: true
+  max_retries_before_escalation: 1
+  stop_on_unbounded_loop: true
+  unknown_cli_cost_requires_approval: true

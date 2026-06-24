@@ -6,11 +6,11 @@ from agent_runtime.workers.invocation_contract import load_contracts, WorkerInvo
 def test_load_contracts():
     config_path = Path(__file__).resolve().parents[1] / "config" / "worker_invocation_contracts.yml"
     contracts = load_contracts(config_path)
-    
+
     assert len(contracts) > 0
     assert "hermes" in contracts
     assert "claude" in contracts
-    
+
     c = contracts["hermes"]
     assert isinstance(c, WorkerInvocationContract)
     assert c.worker_id == "hermes"

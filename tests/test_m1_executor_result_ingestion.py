@@ -54,12 +54,12 @@ def _executor_result_dir(path: Path) -> Path:
 def test_executor_result_ingestion(tmp_path: Path) -> None:
     phase_plan = _phase(tmp_path / "phase_plan.yml")
     packet = create_task_packet(phase_plan, "claude_code_handoff", tmp_path / "packet")
-    
+
     result_dir = _executor_result_dir(tmp_path / "result")
     ingest_dir = tmp_path / "ingest"
-    
+
     report = ingest_phase_executor_result(result_dir, tmp_path / "packet" / "task_packet.yml", ingest_dir)
-    
+
     # Assertions
     assert report["phase_id"] == "phase_001"
     assert report["result_status"] == "PASS"
@@ -68,7 +68,7 @@ def test_executor_result_ingestion(tmp_path: Path) -> None:
     assert report["accepted_without_review"] is False
     assert (ingest_dir / "ingested_result.yml").is_file()
     assert (ingest_dir / "phase_evidence" / "evidence_ledger.yml").is_file()
-    
+
     loaded = yaml.safe_load((ingest_dir / "ingested_result.yml").read_text(encoding="utf-8"))
     assert loaded["changed_files"] == ["tests/test_file.py"]
     assert loaded["artifacts"] == ["evidence.yml"]

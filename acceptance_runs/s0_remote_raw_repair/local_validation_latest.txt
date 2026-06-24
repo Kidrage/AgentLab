@@ -45,11 +45,11 @@ $ python -m pytest -q
 666 passed, 2 skipped in 65.73s (0:01:05)
 $ bash -n agentlab.sh
 $ ./agentlab.sh --help
-                                                                                
- Usage: run_task.py [OPTIONS] COMMAND [ARGS]...                                 
-                                                                                
- AgentLab local-first CLI.                                                      
-                                                                                
+
+ Usage: run_task.py [OPTIONS] COMMAND [ARGS]...
+
+ AgentLab local-first CLI.
+
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
 │ --install-completion          Install completion for the current shell.      │
 │ --show-completion             Show completion for the current shell, to copy │
@@ -227,15 +227,15 @@ $ ./agentlab.sh skill-vault-backup --dry-run
     'ready': False,
     'source': '/Users/<LOCAL_USER>/Desktop/AgentLab/memory/global/skills',
     'remote': '',
-    'command': "rsync -av --delete --dry-run 
-/Users/<LOCAL_USER>/Desktop/AgentLab/memory/global/skills/ 
+    'command': "rsync -av --delete --dry-run
+/Users/<LOCAL_USER>/Desktop/AgentLab/memory/global/skills/
 '<missing-ssh-config>'",
-    'error': 'Missing SSH backup config. Set AGENTLAB_SKILL_VAULT_BACKUP_REMOTE 
-or AGENTLAB_BACKUP_SSH_USER, AGENTLAB_BACKUP_SSH_HOST, and 
+    'error': 'Missing SSH backup config. Set AGENTLAB_SKILL_VAULT_BACKUP_REMOTE
+or AGENTLAB_BACKUP_SSH_USER, AGENTLAB_BACKUP_SSH_HOST, and
 AGENTLAB_BACKUP_REMOTE_BASE.'
 }
-Missing SSH backup config. Set AGENTLAB_SKILL_VAULT_BACKUP_REMOTE or 
-AGENTLAB_BACKUP_SSH_USER, AGENTLAB_BACKUP_SSH_HOST, and 
+Missing SSH backup config. Set AGENTLAB_SKILL_VAULT_BACKUP_REMOTE or
+AGENTLAB_BACKUP_SSH_USER, AGENTLAB_BACKUP_SSH_HOST, and
 AGENTLAB_BACKUP_REMOTE_BASE.
 $ ./agentlab.sh truenas-sync --project AgentLab --task-id task_0015 --dry-run
 
@@ -245,9 +245,9 @@ TrueNAS Sync: dry_run_completed
   Copied: 0
   Skipped existing: 129
   Failed: 0
-Report: 
+Report:
 /Users/<LOCAL_USER>/Desktop/AgentLab/projects/AgentLab/runs/task_0015/truenas_sync
 _report.yml
-Manifest: 
+Manifest:
 /Users/<LOCAL_USER>/Desktop/AgentLab/projects/AgentLab/runs/task_0015/truenas_mani
 fest.yml

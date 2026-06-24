@@ -53,7 +53,7 @@ E       AssertionError: agentlab.sh --help failed: Traceback (most recent call l
 E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/run_task.py", line 24, in <module>
 E             import typer
 E         ModuleNotFoundError: No module named 'typer'
-E         
+E
 E       assert 1 == 0
 E        +  where 1 = CompletedProcess(args=['bash', '/private/tmp/AgentLab-fresh-verify/agentlab.sh', '--help'], returncode=1, stdout='', s.../agent_runtime/run_task.py", line 24, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
 
@@ -75,8 +75,8 @@ ______________ test_initialize_response_shape_and_id_preservation ______________
             {"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {}},
         ])
 
-tests/test_cline_mcp_stdio_compat.py:71: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_cline_mcp_stdio_compat.py:71:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 messages = [{'id': 'init-1', 'jsonrpc': '2.0', 'method': 'initialize', 'params': {'capabilities': {}, 'clientInfo': {'name': 'pyt...version': '0.1'}, 'protocolVersion': '2025-06-18'}}, {'id': 2, 'jsonrpc': '2.0', 'method': 'initialize', 'params': {}}]
 
@@ -99,7 +99,7 @@ E             from atomic_io import safe_read_yaml
 E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/atomic_io.py", line 4, in <module>
 E             import yaml
 E         ModuleNotFoundError: No module named 'yaml'
-E         
+E
 E       assert 1 == 0
 E        +  where 1 = CompletedProcess(args=['/private/tmp/AgentLab-fresh-verify/scripts/agentlab_mcp_stdio.sh'], returncode=1, stdout='', s...fy/agent_runtime/atomic_io.py", line 4, in <module>\n    import yaml\nModuleNotFoundError: No module named \'yaml\'\n').returncode
 
@@ -109,8 +109,8 @@ _______________ test_tools_list_response_shape_and_descriptions ________________
     def test_tools_list_response_shape_and_descriptions() -> None:
 >       responses = _run_stdio([{"jsonrpc": "2.0", "id": "tools-1", "method": "tools/list", "params": {}}])
 
-tests/test_cline_mcp_stdio_compat.py:92: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_cline_mcp_stdio_compat.py:92:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 messages = [{'id': 'tools-1', 'jsonrpc': '2.0', 'method': 'tools/list', 'params': {}}]
 
@@ -133,7 +133,7 @@ E             from atomic_io import safe_read_yaml
 E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/atomic_io.py", line 4, in <module>
 E             import yaml
 E         ModuleNotFoundError: No module named 'yaml'
-E         
+E
 E       assert 1 == 0
 E        +  where 1 = CompletedProcess(args=['/private/tmp/AgentLab-fresh-verify/scripts/agentlab_mcp_stdio.sh'], returncode=1, stdout='', s...fy/agent_runtime/atomic_io.py", line 4, in <module>\n    import yaml\nModuleNotFoundError: No module named \'yaml\'\n').returncode
 
@@ -150,8 +150,8 @@ ____________ test_tools_call_read_only_smoke_returns_content_block _____________
             }
         ])
 
-tests/test_cline_mcp_stdio_compat.py:105: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_cline_mcp_stdio_compat.py:105:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 messages = [{'id': 'call-1', 'jsonrpc': '2.0', 'method': 'tools/call', 'params': {'arguments': {}, 'name': 'agentlab_list_active_skills'}}]
 
@@ -174,7 +174,7 @@ E             from atomic_io import safe_read_yaml
 E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/atomic_io.py", line 4, in <module>
 E             import yaml
 E         ModuleNotFoundError: No module named 'yaml'
-E         
+E
 E       assert 1 == 0
 E        +  where 1 = CompletedProcess(args=['/private/tmp/AgentLab-fresh-verify/scripts/agentlab_mcp_stdio.sh'], returncode=1, stdout='', s...fy/agent_runtime/atomic_io.py", line 4, in <module>\n    import yaml\nModuleNotFoundError: No module named \'yaml\'\n').returncode
 
@@ -184,8 +184,8 @@ __________________ test_unknown_method_returns_jsonrpc_error ___________________
     def test_unknown_method_returns_jsonrpc_error() -> None:
 >       responses = _run_stdio([{"jsonrpc": "2.0", "id": "bad-1", "method": "unknown/method", "params": {}}])
 
-tests/test_cline_mcp_stdio_compat.py:120: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_cline_mcp_stdio_compat.py:120:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 messages = [{'id': 'bad-1', 'jsonrpc': '2.0', 'method': 'unknown/method', 'params': {}}]
 
@@ -208,7 +208,7 @@ E             from atomic_io import safe_read_yaml
 E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/atomic_io.py", line 4, in <module>
 E             import yaml
 E         ModuleNotFoundError: No module named 'yaml'
-E         
+E
 E       assert 1 == 0
 E        +  where 1 = CompletedProcess(args=['/private/tmp/AgentLab-fresh-verify/scripts/agentlab_mcp_stdio.sh'], returncode=1, stdout='', s...fy/agent_runtime/atomic_io.py", line 4, in <module>\n    import yaml\nModuleNotFoundError: No module named \'yaml\'\n').returncode
 
@@ -237,7 +237,7 @@ E             from atomic_io import safe_read_yaml
 E           File "/private/tmp/AgentLab-fresh-verify/agent_runtime/atomic_io.py", line 4, in <module>
 E             import yaml
 E         ModuleNotFoundError: No module named 'yaml'
-E         
+E
 E       assert 1 == 0
 E        +  where 1 = CompletedProcess(args=['/private/tmp/AgentLab-fresh-verify/scripts/agentlab_mcp_stdio.sh'], returncode=1, stdout='', s...fy/agent_runtime/atomic_io.py", line 4, in <module>\n    import yaml\nModuleNotFoundError: No module named \'yaml\'\n').returncode
 
@@ -274,7 +274,7 @@ E           AssertionError: Traceback (most recent call last):
 E               File "/tmp/AgentLab-fresh-verify/agent_runtime/run_task.py", line 24, in <module>
 E                 import typer
 E             ModuleNotFoundError: No module named 'typer'
-E             
+E
 E           assert 1 == 0
 E            +  where 1 = CompletedProcess(args=['bash', 'agentlab.sh', 'skill-distill', '--project', 'CliDemo', '--task-id', 'task_cli'], retur.../agent_runtime/run_task.py", line 24, in <module>\n    import typer\nModuleNotFoundError: No module named \'typer\'\n').returncode
 

@@ -34,7 +34,7 @@ def test_role_requirements_loads_correctly() -> None:
 
 def test_role_cli_commands() -> None:
     runner = CliRunner()
-    
+
     # 1. role-requirements command
     result1 = runner.invoke(app, ["role-requirements"])
     assert result1.exit_code == 0

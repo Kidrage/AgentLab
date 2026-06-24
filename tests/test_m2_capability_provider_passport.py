@@ -30,14 +30,14 @@ def test_provider_passport_serialization():
         },
         "trust_level": "trusted"
     }
-    
+
     passport = CapabilityProviderPassport.from_dict(passport_dict)
     assert passport.provider_id == "test_provider"
     assert passport.permissions.filesystem_read == "scoped"
     assert passport.cost_model.known is True
     assert passport.verification.probe_available is True
     assert passport.trust_level == "trusted"
-    
+
     serialized = passport.to_dict()
     assert serialized["provider_id"] == "test_provider"
     assert serialized["permissions"]["filesystem_read"] == "scoped"

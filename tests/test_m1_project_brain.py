@@ -60,10 +60,10 @@ def test_build_project_brain_with_workflow_plan(mission_contract_path, workflow_
         out_dir=out_dir,
         workflow_plan_path=workflow_plan_path
     )
-    
+
     assert res["ok"] is True
     assert out_dir.exists()
-    
+
     # Check that key files exist
     assert (out_dir / "product_vision.md").exists()
     assert (out_dir / "project_brief.yml").exists()
@@ -78,19 +78,19 @@ def test_build_project_brain_with_workflow_plan(mission_contract_path, workflow_
     assert (out_dir / "architecture_state.yml").exists()
     assert (out_dir / "next_actions.yml").exists()
     assert (out_dir / "snapshots" / "initial.yml").exists()
-    
+
     # Verify roadmap milestones match workflow plan phases
     roadmap = yaml.safe_load((out_dir / "roadmap.yml").read_text(encoding="utf-8"))
     assert len(roadmap["milestones"]) == 2
     assert roadmap["milestones"][0]["phase_id"] == "phase_01"
     assert roadmap["milestones"][0]["expected_artifacts"] == ["mission_contract.yml"]
     assert roadmap["milestones"][0]["acceptance_gates"] == ["gate_1"]
-    
+
     # Verify current phase is first milestone
     current = yaml.safe_load((out_dir / "current_phase.yml").read_text(encoding="utf-8"))
     assert current["phase_id"] == "phase_01"
     assert current["status"] == "planned"
-    
+
     # Verify phase plan matches first phase details
     phase_plan = yaml.safe_load((out_dir / "phase_plan.yml").read_text(encoding="utf-8"))
     assert phase_plan["phase_id"] == "phase_01"
@@ -106,10 +106,10 @@ def test_build_project_brain_auto_compiles_workflow_plan(mission_contract_path, 
         out_dir=out_dir,
         workflow_plan_path=out_dir / "nonexistent.yml"
     )
-    
+
     assert res["ok"] is True
     roadmap = yaml.safe_load((out_dir / "roadmap.yml").read_text(encoding="utf-8"))
-    
+
     # Should have compiled template phases (codebase build has 8 phases)
     assert len(roadmap["milestones"]) >= 5
     assert roadmap["milestones"][0]["phase_id"] == "phase_01"

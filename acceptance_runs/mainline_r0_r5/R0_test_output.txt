@@ -25,8 +25,8 @@ Listing 'agent_runtime/skills'...
 979 passed, 2 skipped in 111.60s (0:01:51)
 
 === agentlab.sh --help ===
-                                                                                
- Usage: run_task.py [OPTIONS] COMMAND [ARGS]...                                 
-                                                                                
- AgentLab local-first CLI.                                                      
-                                                                                
+
+ Usage: run_task.py [OPTIONS] COMMAND [ARGS]...
+
+ AgentLab local-first CLI.
+

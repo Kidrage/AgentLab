@@ -8,7 +8,7 @@ class TestExternalAgentRegistry(unittest.TestCase):
         """Set up test environment"""
         self.config_path = "config/test_external_agents.yml"
         Path(self.config_path).parent.mkdir(parents=True, exist_ok=True)
-        
+
         config_data = {
             "external_agents": [
                 {
@@ -35,26 +35,26 @@ class TestExternalAgentRegistry(unittest.TestCase):
                 }
             ]
         }
-        
+
         with open(self.config_path, 'w') as f:
             yaml.safe_dump(config_data, f)
-            
+
         self.registry = ExternalAgentRegistry(self.config_path)
-    
+
     def test_agents_default_disabled(self):
         agents = self.registry.list_agents()
         for agent in agents:
             self.assertFalse(agent['enabled'])
-    
+
     def test_agent_validation_token_visibility(self):
         agents = self.registry.list_agents()
         for agent in agents:
             self.assertEqual(agent['billing']['token_visibility'], 'unknown')
             self.assertEqual(agent['integration_mode'], 'handoff_only')
-    
+
     def test_agent_list_count(self):
         self.assertEqual(len(self.registry.list_agents()), 2)
-    
+
     def test_get_agent_by_id(self):
         cline = self.registry.get_agent("cline_codex")
         self.assertIsNotNone(cline)
@@ -62,10 +62,10 @@ class TestExternalAgentRegistry(unittest.TestCase):
         ecc = self.registry.get_agent("ecc_pack")
         self.assertIsNotNone(ecc)
         self.assertEqual(ecc["type"], "external_agent_pack")
-    
+
     def test_agent_not_found(self):
         self.assertIsNone(self.registry.get_agent("non_existent"))
-    
+
     def test_is_agent_enabled(self):
         self.assertFalse(self.registry.is_agent_enabled("cline_codex"))
         self.assertFalse(self.registry.is_agent_enabled("ecc_pack"))

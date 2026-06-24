@@ -19,12 +19,12 @@ def test_config_profiles_use_current_schema_keys() -> None:
     profiles_path = ROOT / "config" / "config_profiles.yml"
     data = yaml.safe_load(profiles_path.read_text(encoding="utf-8")) or {}
     profiles = data.get("profiles", {})
-    
+
     for name, profile in profiles.items():
         # Check routing_policy
         rp = profile.get("routing_policy", {})
         assert "default_mode" not in rp, f"Profile '{name}' uses stale 'routing_policy.default_mode'"
-        
+
         # Check model_profiles
         assert "model_profiles" not in profile, f"Profile '{name}' uses stale namespace 'model_profiles'"
 
@@ -48,7 +48,7 @@ def test_config_profile_frugal_validates() -> None:
     profiles = data.get("profiles", {})
     assert "frugal" in profiles
     assert "furgal" not in profiles
-    
+
     errors = validate_config_dry(ROOT, profile_override="frugal")
     assert errors == [], f"frugal profile errors: {errors}"
 
@@ -90,7 +90,7 @@ def test_profile_overlay_unknown_key_fails_or_warns() -> None:
     }
     errors = validate_profile_keys(bad_profile, schema.keys)
     assert len(errors) > 0, "Expected unknown keys to fail validation, but they passed."
-    
+
     # Check that the specific unknown key paths are flagged in the errors
     err_str = "".join(errors)
     assert "routing_policy.unknown_key_xyz" in err_str

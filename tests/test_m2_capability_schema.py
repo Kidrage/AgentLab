@@ -11,7 +11,7 @@ from agent_runtime.run_task import app
 def test_capability_schema_loads_correctly() -> None:
     schema_path = Path(__file__).resolve().parent.parent / "config" / "capability_schema.yml"
     schema = CapabilitySchema.load_from_file(schema_path)
-    
+
     planning_cap = schema.get_capability("planning")
     assert planning_cap is not None
     assert planning_cap.display_name == "Planning"

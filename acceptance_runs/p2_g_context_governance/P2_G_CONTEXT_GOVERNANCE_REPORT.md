@@ -66,7 +66,7 @@ CONTEXT_PROFILE → CONTEXT_BUDGET → CONTEXT_PACK
 ## Artifacts
 生成以下文件：
 - context_profile.yml
-- context_budget.yml 
+- context_budget.yml
 - context_pack.yml
 - compression_trace.yml
 

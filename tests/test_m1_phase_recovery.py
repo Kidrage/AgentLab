@@ -44,7 +44,7 @@ def test_recover_failed_phase(tmp_path: Path):
 
 def test_phase_replan_cli(tmp_path: Path):
     runner = CliRunner()
-    
+
     acceptance_path = tmp_path / "acceptance.yml"
     acceptance_data = {
         "phase_id": "phase_001",
@@ -54,7 +54,7 @@ def test_phase_replan_cli(tmp_path: Path):
     acceptance_path.write_text(yaml.safe_dump(acceptance_data), encoding="utf-8")
 
     out_dir = tmp_path / "out"
-    
+
     result = runner.invoke(
         app,
         [

@@ -8,7 +8,7 @@ from agent_runtime.capability_broker.provider_routing import route_capability
 def test_route_capability():
     registry = BrokerRegistry()
     trust_policy = ProviderTrustPolicy()
-    
+
     # 1. Register a worker local skill for code_review
     passport = CapabilityProviderPassport(
         provider_id="claude_local_skill_code_review",
@@ -19,14 +19,14 @@ def test_route_capability():
         trust_level="provisional"
     )
     registry.register_passport(passport)
-    
+
     # 2. Route code_review
     provider, decision = route_capability("code_review", registry, trust_policy)
-    
+
     assert provider is not None
     assert provider.provider_id == "claude_local_skill_code_review"
     assert decision["status"] == "success"
-    
+
     # 3. Route unknown capability
     provider_none, decision_fail = route_capability("unknown_cap", registry, trust_policy)
     assert provider_none is None

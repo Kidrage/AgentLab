@@ -13,12 +13,12 @@ def test_invoke_brokered_provider():
         invocation_mode="brokered_mcp",
         risk_level="medium"
     ))
-    
+
     result = invoke_brokered_provider(provider, "filesystem_read", {"path": "/tmp"})
     assert result["success"] is True
     assert "evidence" in result
     assert result["evidence"]["provider_id"] == "test_mcp"
-    
+
     # Critical risk should raise error
     provider_critical = CapabilityProvider(CapabilityProviderPassport(
         provider_id="test_mcp_crit",

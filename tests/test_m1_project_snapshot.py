@@ -38,7 +38,7 @@ def test_build_and_write_snapshot(tmp_path: Path):
 
 def test_project_compress_and_snapshot_cli(tmp_path: Path):
     runner = CliRunner()
-    
+
     # 1. Test project-summarize-phase CLI
     sum_res = runner.invoke(
         app,
@@ -50,7 +50,7 @@ def test_project_compress_and_snapshot_cli(tmp_path: Path):
     )
     assert sum_res.exit_code == 0
     assert "Phase summary written successfully" in sum_res.output
-    
+
     # 2. Test project-snapshot CLI
     snap_res = runner.invoke(
         app,

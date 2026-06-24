@@ -44,13 +44,13 @@ def test_worker_card_to_and_from_dict():
         "avoid_for": ["search"],
         "notes": ["test note"]
     }
-    
+
     card = WorkerCard.from_dict(data)
     assert card.worker_id == "claude_code"
     assert card.version == "1.2.3"
     assert card.authenticated == "yes"
     assert card.category == WorkerCategory.CODING_AGENT
-    
+
     dumped = card.to_dict()
     assert dumped["worker_id"] == "claude_code"
     assert dumped["best_for"] == ["refactoring"]

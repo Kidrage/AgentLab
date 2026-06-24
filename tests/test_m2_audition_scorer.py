@@ -13,7 +13,7 @@ def test_scorer_success_case() -> None:
         latency_s=0.1,
         worker_risk="low"
     )
-    
+
     assert scores["success_rate"] == 1.0
     assert scores["cost_score"] == 1.0
     assert scores["safety_score"] == 0.95
@@ -31,7 +31,7 @@ def test_scorer_failure_case() -> None:
         latency_s=5.0,
         worker_risk="high"
     )
-    
+
     assert scores["success_rate"] == 0.0
     assert scores["cost_score"] == 0.3
     assert scores["safety_score"] == 0.40

@@ -6396,31 +6396,97 @@ def _derive_next_action(
 
 
 @app.command("cost-status")
-def cost_status(project: str = typer.Option(..., "--project", help="Project name")):
-    typer.echo(f"Cost status for {project}")
+def cost_status(project: str = typer.Option(..., "--project", help="Project name"), format: str = typer.Option("text", "--format")):
+    from agent_runtime.costs.spend_ledger import load_spend_ledger
+    from agent_runtime.costs.attribution import attribute_spend
+    import yaml
+    ledger = load_spend_ledger(_PROJECT_ROOT / "memory" / project / "spend_ledger.yml")
+    if ledger.project != project: ledger.project = project
+    attr = attribute_spend(ledger)
+    if format == "json":
+        import json
+        typer.echo(json.dumps(attr, indent=2))
+    elif format == "yaml":
+        typer.echo(yaml.safe_dump(attr, sort_keys=False))
+    else:
+        from agent_runtime.costs.attribution import generate_attribution_report
+        typer.echo(generate_attribution_report(attr))
 
 @app.command("cost-estimate")
-def cost_estimate(task_packet: str = typer.Option(..., "--task-packet", help="Path to task packet")):
-    typer.echo(f"Cost estimate for {task_packet}")
+def cost_estimate(task_packet: str = typer.Option(..., "--task-packet", help="Path to task packet"), format: str = typer.Option("text", "--format")):
+    import yaml
+    from agent_runtime.costs.estimator import estimate_cost
+    from agent_runtime.costs.renderer import render_cost_estimate
+    try:
+        packet = yaml.safe_load(Path(task_packet).read_text(encoding="utf-8")) or {}
+    except Exception as e:
+        typer.echo(f"Error loading task packet: {e}")
+        raise typer.Exit(1)
+    est = estimate_cost(packet, _PROJECT_ROOT)
+    typer.echo(render_cost_estimate(est, format_type=format))
 
 @app.command("cost-alerts")
-def cost_alerts(project: str = typer.Option(..., "--project", help="Project name")):
-    typer.echo(f"Cost alerts for {project}")
+def cost_alerts(project: str = typer.Option(..., "--project", help="Project name"), format: str = typer.Option("text", "--format")):
+    import yaml
+    from agent_runtime.costs.spend_ledger import load_spend_ledger
+    from agent_runtime.costs.budget_policy import load_budget_policy
+    from agent_runtime.costs.alerts import check_alerts
+    ledger = load_spend_ledger(_PROJECT_ROOT / "memory" / project / "spend_ledger.yml")
+    policy = load_budget_policy(_PROJECT_ROOT)
+    alerts = check_alerts(policy, ledger)
+    if format == "json":
+        import json
+        typer.echo(json.dumps(alerts, indent=2))
+    elif format == "yaml":
+        typer.echo(yaml.safe_dump(alerts, sort_keys=False))
+    else:
+        if not alerts:
+            typer.echo("No alerts.")
+        for a in alerts:
+            typer.echo(f"[{a['level'].upper()}] {a['type']}: {a['message']}")
 
 @app.command("cost-efficiency-review")
-def cost_efficiency_review(project: str = typer.Option(..., "--project", help="Project name")):
-    typer.echo(f"Cost efficiency review for {project}")
+def cost_efficiency_review(project: str = typer.Option(..., "--project", help="Project name"), out: str = typer.Option(..., "--out")):
+    from agent_runtime.costs.spend_ledger import load_spend_ledger
+    from agent_runtime.costs.efficiency_review import generate_efficiency_review
+    ledger = load_spend_ledger(_PROJECT_ROOT / "memory" / project / "spend_ledger.yml")
+    if ledger.project != project: ledger.project = project
+    report = generate_efficiency_review(ledger, {})
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text(report, encoding="utf-8")
+    typer.echo(f"Wrote {out}")
 
 @app.command("approvals")
-def approvals():
-    typer.echo("Approvals list")
+def approvals(project: str = typer.Option(..., "--project", help="Project name"), format: str = typer.Option("text", "--format")):
+    from agent_runtime.approvals.approval_ledger import load_approval_ledger
+    from agent_runtime.approvals.renderer import render_pending_approvals
+    ledger = load_approval_ledger(_PROJECT_ROOT / "memory" / project / "approval_ledger.yml")
+    pending = ledger.list_pending()
+    typer.echo(render_pending_approvals(pending, format_type=format))
 
 @app.command("approve")
-def approve(decision_card: str = typer.Option(..., "--decision-card", help="Decision card ID")):
-    typer.echo(f"Approved {decision_card}")
+def approve(decision_id: str = typer.Option(..., "--decision-id", help="Decision ID"), actor: str = typer.Option(..., "--actor"), reason: str = typer.Option(..., "--reason"), project: str = typer.Option("AgentLab", "--project")):
+    from agent_runtime.approvals.approval_ledger import load_approval_ledger, write_approval_ledger
+    path = _PROJECT_ROOT / "memory" / project / "approval_ledger.yml"
+    ledger = load_approval_ledger(path)
+    if ledger.approve_decision(decision_id, actor, reason):
+        write_approval_ledger(ledger, path)
+        typer.echo(f"Approved {decision_id}")
+    else:
+        typer.echo(f"Decision {decision_id} not found.")
+        raise typer.Exit(1)
 
 @app.command("reject")
-def reject(decision_card: str = typer.Option(..., "--decision-card", help="Decision card ID")):
-    typer.echo(f"Rejected {decision_card}")
+def reject(decision_id: str = typer.Option(..., "--decision-id", help="Decision ID"), actor: str = typer.Option(..., "--actor"), reason: str = typer.Option(..., "--reason"), project: str = typer.Option("AgentLab", "--project")):
+    from agent_runtime.approvals.approval_ledger import load_approval_ledger, write_approval_ledger
+    path = _PROJECT_ROOT / "memory" / project / "approval_ledger.yml"
+    ledger = load_approval_ledger(path)
+    if ledger.reject_decision(decision_id, actor, reason):
+        write_approval_ledger(ledger, path)
+        typer.echo(f"Rejected {decision_id}")
+    else:
+        typer.echo(f"Decision {decision_id} not found.")
+        raise typer.Exit(1)
+
 if __name__ == '__main__':
     app()

@@ -35,7 +35,7 @@ def test_activation_cost_serialization():
         "hidden_costs": ["context_duplication"],
         "confidence": "high"
     }
-    
+
     cost = ActivationCost.from_dict(cost_dict)
     assert cost.worker_id == "test_worker"
     assert cost.fixed_startup_cost.raw_prompt_tokens == 1000
@@ -43,7 +43,7 @@ def test_activation_cost_serialization():
     assert cost.variable_cost.context_tokens_per_kb == 10
     assert cost.non_token_costs.coordination_cost == "medium"
     assert "context_duplication" in cost.hidden_costs
-    
+
     serialized = cost.to_dict()
     assert serialized["worker_id"] == "test_worker"
     assert serialized["fixed_startup_cost"]["raw_prompt_tokens"] == 1000

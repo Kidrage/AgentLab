@@ -49,15 +49,15 @@ def _executor_result_dir(path: Path) -> Path:
 def test_executor_review_and_acceptance(tmp_path: Path) -> None:
     phase_plan = _phase(tmp_path / "phase_plan.yml")
     create_task_packet(phase_plan, "claude_code_handoff", tmp_path / "packet")
-    
+
     result_dir = _executor_result_dir(tmp_path / "result")
     ingest_dir = tmp_path / "ingest"
-    
+
     ingest_phase_executor_result(result_dir, tmp_path / "packet" / "task_packet.yml", ingest_dir)
-    
+
     review_dir = tmp_path / "review"
     review = review_phase_executor_result(ingest_dir / "ingested_result.yml", phase_plan, review_dir)
-    
+
     # Assertions
     assert review["phase_id"] == "phase_001"
     assert review["executor_result_status"] == "PASS"

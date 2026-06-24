@@ -18,14 +18,14 @@ def test_write_phase_summary(tmp_path: Path):
         "risks": ["unresolved_auth_dependency"],
         "next_action": "next_phase",
     }
-    
+
     # Generate summary
     out_file = write_phase_summary(tmp_path, "phase_01", summary_data)
-    
+
     assert out_file.is_file()
     assert (tmp_path / "phase_summaries" / "phase_01.md").is_file()
     assert (tmp_path / "phase_summaries" / "phase_01_summary.md").is_file()
-    
+
     content = out_file.read_text(encoding="utf-8")
     assert "# Phase Summary: phase_01" in content
     assert "verdict: PASS" in content
@@ -34,7 +34,7 @@ def test_write_phase_summary(tmp_path: Path):
 
 def test_compact_project_memory(tmp_path: Path):
     decision_log_path = tmp_path / "decision_log.yml"
-    
+
     # Write duplicate decision entries
     duplicate_data = {
         "entries": [
@@ -44,10 +44,10 @@ def test_compact_project_memory(tmp_path: Path):
         ]
     }
     yaml.dump(duplicate_data, decision_log_path.open("w", encoding="utf-8"))
-    
+
     res = compact_project_memory(tmp_path)
     assert res["status"] == "memory_compacted"
-    
+
     # Check that duplicates were removed
     compacted = yaml.safe_load(decision_log_path.read_text(encoding="utf-8"))
     assert len(compacted["entries"]) == 2

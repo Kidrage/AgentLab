@@ -58,7 +58,7 @@ platform linux -- Python 3.11.13, pytest-8.4.2, pluggy-1.6.0
 rootdir: <CLOUD_WORKSPACE>
 configfile: pytest.ini
 plugins: langsmith-0.8.18, anyio-4.14.0
-collecting ... collected 6 items                                                              
+collecting ... collected 6 items
 
 tests/test_m2_capability_schema.py ..                                    [ 33%]
 tests/test_m2_role_requirements.py ..                                    [ 66%]

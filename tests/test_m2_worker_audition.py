@@ -13,7 +13,7 @@ def test_audition_sandbox_creation() -> None:
     with AuditionSandbox() as sandbox:
         assert sandbox.path is not None
         assert sandbox.path.exists()
-        
+
         repo_dir = sandbox.path / "mock_repo"
         assert repo_dir.exists()
         assert (repo_dir / "main.py").exists()
@@ -29,7 +29,7 @@ def test_mock_audition_runner(tmp_path: Path) -> None:
         real_execute=False,
         project_root=tmp_path
     )
-    
+
     assert res["worker_id"] == "claude_code"
     assert res["role"] == "Coder"
     assert res["verdict"] == "pass"
@@ -48,7 +48,7 @@ def test_mock_audition_runner(tmp_path: Path) -> None:
 
 def test_audition_cli_smoke() -> None:
     runner = CliRunner()
-    
+
     # 1. Test worker-audition single
     result1 = runner.invoke(app, ["worker-audition", "--worker", "claude_code", "--role", "Coder", "--level", "quick"])
     assert result1.exit_code == 0

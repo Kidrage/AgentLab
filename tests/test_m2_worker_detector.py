@@ -11,7 +11,7 @@ from agent_runtime.workers.detector import scan_workers
 def test_probe_command():
     with patch("shutil.which", return_value="/usr/bin/git"):
         assert probe_command("git") is True
-        
+
     with patch("shutil.which", return_value=None):
         assert probe_command("nonexistent_binary") is False
 
@@ -20,7 +20,7 @@ def test_probe_version_success():
     mock_run.returncode = 0
     mock_run.stdout = "git version 2.34.1"
     mock_run.stderr = ""
-    
+
     with patch("subprocess.run", return_value=mock_run):
         assert probe_version("git") == "2.34.1"
 
@@ -32,7 +32,7 @@ def test_probe_auth_yes():
     # Deterministic tools always return yes
     assert probe_auth("git") == "yes"
     assert probe_auth("rg") == "yes"
-    
+
     # API key present in env
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-123456"}):
         assert probe_auth("claude") == "yes"
@@ -45,7 +45,7 @@ def test_probe_health():
     with patch("agent_runtime.workers.health_probe.probe_command", return_value=True), \
          patch("agent_runtime.workers.health_probe.probe_auth", return_value="yes"):
         assert probe_health("git", "git") == "healthy"
-        
+
     with patch("agent_runtime.workers.health_probe.probe_command", return_value=False):
         assert probe_health("git", "git") == "unhealthy"
 
@@ -59,7 +59,7 @@ def test_scan_workers():
             assert card.installed is True
             assert card.version == "1.0.0"
             assert card.authenticated == "yes"
-            
+
             # High risk workers must require approval
             if card.risk_level == "high":
                 assert card.approval_required is True

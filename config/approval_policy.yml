@@ -1,6 +1,15 @@
 approval_policy:
   require_approval_for_unknown_cli_cost: true
   require_approval_for_risky_capabilities: true
+  require_approval_above_usd: 0.50
   risky_capabilities:
     - shell_execution
     - network_access
+    - filesystem_write
+    - external_execution
+    - browser_fetch
+  critical_capabilities:
+    - secrets_access
+    - private_path_access
+    - destructive_shell
+  default_expiry_minutes: 1440

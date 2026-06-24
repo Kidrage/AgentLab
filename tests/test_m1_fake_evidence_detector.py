@@ -20,7 +20,7 @@ def test_fake_evidence_detector_success():
             }
         ]
     }
-    
+
     res = detect_fake_evidence(evidence_ledger)
     assert res["verdict"] == "pass"
     assert res["hard_fail"] is False
@@ -32,7 +32,7 @@ def test_fake_evidence_detector_missing_sources():
     evidence_ledger = {
         "sources": []
     }
-    
+
     res = detect_fake_evidence(evidence_ledger)
     assert res["verdict"] == "fail"
     assert res["hard_fail"] is True
@@ -48,7 +48,7 @@ def test_fake_evidence_detector_missing_metadata():
             }
         ]
     }
-    
+
     res = detect_fake_evidence(evidence_ledger)
     assert res["verdict"] == "fail"
     assert res["hard_fail"] is True
@@ -65,7 +65,7 @@ def test_summarize_evidence_issues():
             "facts_allowed_without_sources",
         ]
     }
-    
+
     summary = summarize_evidence_issues(report)
     assert summary["issue_count"] == 3
     assert summary["source_issue_count"] == 2

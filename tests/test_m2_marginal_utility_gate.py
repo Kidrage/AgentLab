@@ -14,13 +14,13 @@ def test_marginal_utility_gate():
     dec, verd, reasons = evaluate_marginal_utility(cost, {})
     assert dec == "require_approval"
     assert verd == "unknown_requires_approval"
-    
+
     # 2. Deterministic tools are cheap and low risk
     cost_rg = ActivationCost.from_dict({"worker_id": "rg"})
     dec, verd, reasons = evaluate_marginal_utility(cost_rg, {})
     assert dec == "satisfy_by_deterministic"
     assert verd == "justified"
-    
+
     # 3. High risk low benefit skipping
     cost_high_risk = ActivationCost.from_dict({
         "worker_id": "claude_code",

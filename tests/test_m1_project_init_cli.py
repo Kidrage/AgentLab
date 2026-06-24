@@ -25,7 +25,7 @@ def test_project_init_cli_with_contracts():
         "required_capabilities": [{"capability": "local_search"}],
         "risk_flags": ["regression_risk"]
     }
-    
+
     plan_data = {
         "project_id": "CLIDemo",
         "template_id": "codebase_build_workflow",
@@ -41,15 +41,15 @@ def test_project_init_cli_with_contracts():
             }
         ]
     }
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
         contract_path = tmp_path / "mission.yml"
         plan_path = tmp_path / "plan.yml"
-        
+
         contract_path.write_text(yaml.safe_dump(contract_data), encoding="utf-8")
         plan_path.write_text(yaml.safe_dump(plan_data), encoding="utf-8")
-        
+
         result = runner.invoke(app, [
             "project-init",
             "--mission-contract", str(contract_path),
@@ -57,13 +57,13 @@ def test_project_init_cli_with_contracts():
             "--project", "CLIDemo",
             "--root", str(tmp_path)
         ])
-        
+
         assert result.exit_code == 0, f"Command failed: {result.output}"
-        
+
         project_root = tmp_path / "projects" / "CLIDemo"
         assert project_root.exists()
         assert (project_root / "project.yml").exists()
-        
+
         # Verify project_brain directory and files
         brain_root = project_root / "project_brain"
         assert brain_root.exists()
@@ -73,7 +73,7 @@ def test_project_init_cli_with_contracts():
         assert (brain_root / "milestone_graph.yml").exists()
         assert (brain_root / "current_phase.yml").exists()
         assert (brain_root / "phase_plan.yml").exists()
-        
+
         # Verify other directories
         assert (project_root / "artifacts").exists()
         assert (project_root / "evidence").exists()

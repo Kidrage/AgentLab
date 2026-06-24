@@ -81,6 +81,6 @@ Verdict: PASS
 1010 passed, 2 skipped in 96.33s (0:01:36)
 
 === CLI ===
-                                                                                
- Usage: run_task.py [OPTIONS] COMMAND [ARGS]...                                 
-                                                                                
+
+ Usage: run_task.py [OPTIONS] COMMAND [ARGS]...
+

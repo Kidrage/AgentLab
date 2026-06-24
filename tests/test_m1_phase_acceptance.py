@@ -129,7 +129,7 @@ def test_accept_phase_end_to_end(tmp_path: Path):
     assert res["accepted"] is True
     assert res["verdict"] == "PASS"
     assert res["verdict_details"] == "accept"
-    
+
     assert (out_dir / "phase_acceptance.yml").is_file()
     assert (out_dir / "phase_acceptance.md").is_file()
 

@@ -20,6 +20,6 @@ Listing 'agent_runtime/skills'...
 1038 passed, 2 skipped in 95.00s (0:01:35)
 
 === CLI ===
-                                                                                
- Usage: run_task.py [OPTIONS] COMMAND [ARGS]...                                 
-                                                                                
+
+ Usage: run_task.py [OPTIONS] COMMAND [ARGS]...
+
