@@ -24,7 +24,7 @@
       "codegraph",
       "init",
       "-i",
-      "/Users/saintpeter/Desktop/AgentLab/tests/fixtures/p1_closure/fake_repo"
+      "/Users/<LOCAL_USER>/Desktop/AgentLab/tests/fixtures/p1_closure/fake_repo"
     ],
     "exit_code": null,
     "index_size_mb": null,

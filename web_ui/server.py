@@ -218,7 +218,7 @@ def handle_get_system_status(project: str = "AgentLab", task_id: str = ""):
         "backup": backup,
         "truenas": truenas,
         "webUi": {
-            "host": "0.0.0.0",
+            "host": os.getenv("AGENTLAB_WEB_UI_BIND", "127.0.0.1"),
             "port": int(os.getenv("AGENTLAB_PORT", "8765")),
             "authTokenEnv": "AGENTLAB_WEB_UI_TOKEN",
             "authTokenConfigured": bool(os.getenv("AGENTLAB_WEB_UI_TOKEN")),

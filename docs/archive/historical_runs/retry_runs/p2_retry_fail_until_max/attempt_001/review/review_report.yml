@@ -1,14 +1,14 @@
 target:
   task_id: p2_retry_fail_until_max
-  target_dir: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input
-  handoff_path: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input/external_handoff.md
-  report_path: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input/p1_acceptance_report.md
+  target_dir: /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input
+  handoff_path: /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input/external_handoff.md
+  report_path: /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input/p1_acceptance_report.md
   changed_files: []
   claimed_tests:
   - python -m pytest -q tests/test_p2_retry_manager.py
 summary:
   task_id: p2_retry_fail_until_max
-  target_dir: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input
+  target_dir: /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input
   artifacts:
   - path: external_handoff.md
     exists: true
@@ -112,7 +112,7 @@ summary:
       - NEEDS_REVISION
 
       '
-  output_path: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review/explore_summary.yml
+  output_path: /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review/explore_summary.yml
 findings:
 - finding_id: changed-files-missing
   severity: medium
@@ -129,7 +129,7 @@ verdict:
   required_actions:
   - Provide the changed_files list for review.
 retry_handoff:
-  path: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review/retry_handoff.md
+  path: /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review/retry_handoff.md
   failed_findings:
   - finding_id: changed-files-missing
     severity: medium
@@ -144,7 +144,7 @@ retry_handoff:
   reproduction_commands:
   - python -m compileall agent_runtime agentlab_app.py
   - python -m pytest -q
-  - python scripts/p2_review_check.py --target /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input
+  - python scripts/p2_review_check.py --target /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review_input
   acceptance_criteria:
   - All required artifacts are present.
   - All required report sections include concrete evidence.

@@ -18,4 +18,4 @@ safety_attestation:
   private_urls_accessed: false
   secrets_exposed: false
   third_party_source_copied: false
-review_target_dir: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_then_pass/attempt_001/review_input
+review_target_dir: /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_then_pass/attempt_001/review_input

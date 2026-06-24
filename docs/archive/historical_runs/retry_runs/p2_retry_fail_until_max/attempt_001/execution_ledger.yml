@@ -40,8 +40,8 @@ entries:
   reason:
   - P2-A 3E review executed
   artifacts:
-  - /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review/review_report.md
-  - /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review/review_report.yml
+  - /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review/review_report.md
+  - /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review/review_report.yml
   created_at: '2026-06-13T12:39:34.731981+00:00'
 - event: review_failed
   provider_id: agentlab.mock_patch
@@ -51,5 +51,5 @@ entries:
   reason:
   - 'MEDIUM scope: Report appears to claim modified files, but changed_files is empty.'
   artifacts:
-  - /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review/retry_handoff.md
+  - /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_until_max/attempt_001/review/retry_handoff.md
   created_at: '2026-06-13T12:39:34.737621+00:00'

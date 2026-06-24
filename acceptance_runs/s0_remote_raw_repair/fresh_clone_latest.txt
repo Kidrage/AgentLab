@@ -17,8 +17,8 @@ ____________ test_acceptance_artifacts_have_no_local_absolute_paths ____________
             text = path.read_text(encoding="utf-8")
             match = local_path_pattern.search(text)
 >           assert match is None, f"{_relative(path)} contains local absolute path {match.group(0)}"
-E           AssertionError: acceptance_runs/s0_remote_raw_repair/report.md contains local absolute path /Users/saintpeter/Desktop/AgentLab
-E           assert <re.Match object; span=(4343, 4377), match='/Users/saintpeter/Desktop/AgentLab'> is None
+E           AssertionError: acceptance_runs/s0_remote_raw_repair/report.md contains local absolute path /Users/<LOCAL_USER>/Desktop/AgentLab
+E           assert <re.Match object; span=(4343, 4377), match='/Users/<LOCAL_USER>/Desktop/AgentLab'> is None
 
 tests/test_repository_text_integrity.py:180: AssertionError
 =========================== short test summary info ============================
@@ -250,13 +250,13 @@ ____________ test_acceptance_artifacts_have_no_local_absolute_paths ____________
             text = path.read_text(encoding="utf-8")
             match = local_path_pattern.search(text)
 >           assert match is None, f"{_relative(path)} contains local absolute path {match.group(0)}"
-E           AssertionError: acceptance_runs/s0_remote_raw_repair/report.md contains local absolute path /Users/saintpeter/Desktop/AgentLab
-E           assert <re.Match object; span=(4343, 4377), match='/Users/saintpeter/Desktop/AgentLab'> is None
+E           AssertionError: acceptance_runs/s0_remote_raw_repair/report.md contains local absolute path /Users/<LOCAL_USER>/Desktop/AgentLab
+E           assert <re.Match object; span=(4343, 4377), match='/Users/<LOCAL_USER>/Desktop/AgentLab'> is None
 
 tests/test_repository_text_integrity.py:180: AssertionError
 __________________________ test_skill_draft_cli_flow ___________________________
 
-tmp_path = PosixPath('/private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-31/test_skill_draft_cli_flow0')
+tmp_path = PosixPath('/private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-31/test_skill_draft_cli_flow0')
 
     def test_skill_draft_cli_flow(tmp_path: Path) -> None:
         project = "CliDemo"

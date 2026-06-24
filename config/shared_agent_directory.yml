@@ -34,12 +34,12 @@ endpoints:
     role: source_of_truth_development
     workspace: ~/AgentLab
     writable_scopes: [source, config, protocols, tests, projects]
-    sync_out: [git, truenas_rsync]
+    sync_out: [git, relay_rsync]
     peer_awareness_required: true
   relay_hub:
-    display_name: TrueNAS Relay Hub
+    display_name: Relay Hub
     role: mirror_and_exchange_only
-    workspace: /mnt/hdd2/AgentLab_WorkSpace
+    workspace: <RELAY_WORKSPACE>
     writable_scopes: [workspace_mirror, agent_namespaces, shared_state]
     execution_allowed: false
     peer_awareness_required: true

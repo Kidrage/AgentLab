@@ -8,21 +8,21 @@
 version: 1
 
 targets:
-  truenas:
+  relay:
     # ─── SSH transport credentials ───
-    # Fill in your TrueNAS SSH connection details.
+    # Fill in your relay hub SSH connection details.
     ssh:
-      host: "192.168.1.100"                    # TrueNAS IP or hostname
-      port: 22                                  # SSH port (default 22)
-      user: agentlab                            # SSH username
-      identity_file: "~/.ssh/agentlab_truenas"  # Path to SSH private key
-      # remote_base_path: the dataset mount path on TrueNAS
+      host: "<RELAY_HOST>"                        # Relay hub IP or hostname
+      port: "<RELAY_SSH_PORT>"                    # SSH port
+      user: "<RELAY_SSH_USER>"                    # SSH username
+      identity_file: "<RELAY_SSH_KEY>"            # Path to SSH private key
+      # remote_base_path: the workspace path on relay hub
       # Find it with: ssh user@host "ls -1 /mnt/"
-      remote_base_path: "/mnt/tank/AgentLab_WorkSpace"
+      remote_base_path: "<RELAY_WORKSPACE>"
 
     # ─── Legacy SMB mount config (only needed if transport: smb_mount) ───
-    protocol_url: "smb://192.168.1.100/AgentLab_WorkSpace"
-    mount_path: "/Volumes/AgentLab_WorkSpace"
+    protocol_url: "smb://<RELAY_HOST>/AgentLab_WorkSpace"
+    mount_path: "<LOCAL_MOUNT_PATH>"
 
   github:
     # GitHub backup credentials come from environment variables:

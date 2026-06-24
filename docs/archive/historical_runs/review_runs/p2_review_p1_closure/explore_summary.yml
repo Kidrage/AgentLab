@@ -1,5 +1,5 @@
 task_id: p1_closure
-target_dir: /Users/saintpeter/Desktop/AgentLab/acceptance_runs/p1_closure
+target_dir: /Users/<LOCAL_USER>/Desktop/AgentLab/acceptance_runs/p1_closure
 artifacts:
 - path: external_handoff.md
   exists: true
@@ -20,7 +20,7 @@ artifacts:
 - path: external_skill_inventory.json
   exists: true
   kind: artifact
-  summary: '{ "source": "ecc", "source_path": "/Users/saintpeter/Desktop/AgentLab/tests/fixtures/p1_closure/fake_ecc",
+  summary: '{ "source": "ecc", "source_path": "/Users/<LOCAL_USER>/Desktop/AgentLab/tests/fixtures/p1_closure/fake_ecc",
     "scan_mode": "static_inventory_only", "found": true, "warnings": [], "agents":
     [ { "id": "ecc.planner", "name": "planner", "type": "agent", "source_file": "AGENTS.md",
     "capabilities": [ "cod...'
@@ -233,7 +233,7 @@ text_evidence:
     \ null\n  evidence_artifacts:\n  - internal_skill_candidates.yml\n  created_at:\
     \ '2026-06-13T11:36:51.926439+00:00'\n"
   external_skill_inventory.json: "{\n  \"source\": \"ecc\",\n  \"source_path\": \"\
-    /Users/saintpeter/Desktop/AgentLab/tests/fixtures/p1_closure/fake_ecc\",\n  \"\
+    /Users/<LOCAL_USER>/Desktop/AgentLab/tests/fixtures/p1_closure/fake_ecc\",\n  \"\
     scan_mode\": \"static_inventory_only\",\n  \"found\": true,\n  \"warnings\": [],\n\
     \  \"agents\": [\n    {\n      \"id\": \"ecc.planner\",\n      \"name\": \"planner\"\
     ,\n      \"type\": \"agent\",\n      \"source_file\": \"AGENTS.md\",\n      \"\

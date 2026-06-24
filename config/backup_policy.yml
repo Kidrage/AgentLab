@@ -2,13 +2,13 @@
 # AgentLab Backup Policy — v3
 #
 # Controls automated and manual backup of project memory, task artifacts,
-# and configuration to TrueNAS (primary, SSH) and GitHub (secondary, code/config).
+# and configuration to relay hub (primary, SSH) and GitHub (secondary, code/config).
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # REMOTE LAYOUT ON TRUENAS
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# <remote_base_path>/                        e.g. /mnt/hdd2/AgentLab_WorkSpace/
+# <remote_base_path>/                        e.g. <RELAY_WORKSPACE>/
 # ├── memory/                                记忆仓库备份区
 # │   ├── projects/<Project>/agent_docs/     项目记忆快照
 # │   ├── global/config/                     全局配置记忆
@@ -272,7 +272,7 @@ sync_frequency:
 targets:
   truenas:
     enabled: true
-    description: "TrueNAS backup — SSH rsync transport (primary backup target)"
+    description: "Relay Hub backup — SSH rsync transport (primary backup target)"
     transport: ssh
 
     # SSH credentials in backup_policy.local.yml (gitignored)
@@ -455,7 +455,7 @@ retention:
 # ═══════════════════════════════════════════════════════════════════════════════
 triggers:
   on_file_change:
-    description: "Silent background sync to TrueNAS on file write"
+    description: "Silent background sync to relay hub on file write"
     targets: [truenas]
     silent: true
     log_errors_to: agent_docs/10_SYNC_LEDGER.yml
@@ -494,7 +494,7 @@ recovery:
       - "cp -a /tmp/agentlab-recovery/skills/ <project>/../skills/"
 
   from_truenas:
-    description: "Restore from TrueNAS — SSH rsync pull"
+    description: "Restore from relay hub — SSH rsync pull"
     steps_memory:
       - "ssh <user>@<host> -p <port> -i <identity_file> 'ls <remote_base_path>/memory/'"
       - "rsync -avz -e '<ssh_opts>' <user>@<host>:<remote_base_path>/memory/projects/<Project>/agent_docs/ <local_project>/agent_docs/"
@@ -504,7 +504,7 @@ recovery:
     steps_full:
       - "rsync -avz --ignore-existing -e '<ssh_opts>' <user>@<host>:<remote_base_path>/ /tmp/agentlab-full-recovery/"
 
-# Skill Vault backup: local-first rsync mirror to user-provided SSH/TrueNAS config.
+# Skill Vault backup: local-first rsync mirror to user-provided SSH/relay config.
 skill_vault_backup:
   enabled: true
   source: memory/global/skills

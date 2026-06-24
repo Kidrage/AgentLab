@@ -54,7 +54,7 @@ Output:
 ```text
 ============================= test session starts ==============================
 platform linux -- Python 3.11.13, pytest-8.4.2, pluggy-1.6.0
-rootdir: /home/admin/AgentLab
+rootdir: <CLOUD_WORKSPACE>
 configfile: pytest.ini
 plugins: langsmith-0.8.18, anyio-4.14.0
 collecting ... collected 7 items                                                              

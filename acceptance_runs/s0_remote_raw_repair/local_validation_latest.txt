@@ -4,28 +4,28 @@ $ python -m compileall -x "**/.venv/**" agent_runtime agentlab_app.py scripts te
 Traceback (most recent call last):
   File "<frozen runpy>", line 198, in _run_module_as_main
   File "<frozen runpy>", line 88, in _run_code
-  File "/Users/saintpeter/anaconda3/lib/python3.11/compileall.py", line 462, in <module>
+  File "/Users/<LOCAL_USER>/anaconda3/lib/python3.11/compileall.py", line 462, in <module>
     exit_status = int(not main())
                           ^^^^^^
-  File "/Users/saintpeter/anaconda3/lib/python3.11/compileall.py", line 384, in main
+  File "/Users/<LOCAL_USER>/anaconda3/lib/python3.11/compileall.py", line 384, in main
     args.rx = re.compile(args.rx)
               ^^^^^^^^^^^^^^^^^^^
-  File "/Users/saintpeter/anaconda3/lib/python3.11/re/__init__.py", line 227, in compile
+  File "/Users/<LOCAL_USER>/anaconda3/lib/python3.11/re/__init__.py", line 227, in compile
     return _compile(pattern, flags)
            ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saintpeter/anaconda3/lib/python3.11/re/__init__.py", line 294, in _compile
+  File "/Users/<LOCAL_USER>/anaconda3/lib/python3.11/re/__init__.py", line 294, in _compile
     p = _compiler.compile(pattern, flags)
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saintpeter/anaconda3/lib/python3.11/re/_compiler.py", line 743, in compile
+  File "/Users/<LOCAL_USER>/anaconda3/lib/python3.11/re/_compiler.py", line 743, in compile
     p = _parser.parse(p, flags)
         ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saintpeter/anaconda3/lib/python3.11/re/_parser.py", line 982, in parse
+  File "/Users/<LOCAL_USER>/anaconda3/lib/python3.11/re/_parser.py", line 982, in parse
     p = _parse_sub(source, state, flags & SRE_FLAG_VERBOSE, 0)
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saintpeter/anaconda3/lib/python3.11/re/_parser.py", line 457, in _parse_sub
+  File "/Users/<LOCAL_USER>/anaconda3/lib/python3.11/re/_parser.py", line 457, in _parse_sub
     itemsappend(_parse(source, state, verbose, nested + 1,
                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saintpeter/anaconda3/lib/python3.11/re/_parser.py", line 684, in _parse
+  File "/Users/<LOCAL_USER>/anaconda3/lib/python3.11/re/_parser.py", line 684, in _parse
     raise source.error("nothing to repeat",
 re.error: nothing to repeat at position 0
 $ python -m pytest -q tests/test_repository_text_integrity.py
@@ -225,10 +225,10 @@ $ ./agentlab.sh skill-vault-backup --dry-run
 {
     'dry_run': True,
     'ready': False,
-    'source': '/Users/saintpeter/Desktop/AgentLab/memory/global/skills',
+    'source': '/Users/<LOCAL_USER>/Desktop/AgentLab/memory/global/skills',
     'remote': '',
     'command': "rsync -av --delete --dry-run 
-/Users/saintpeter/Desktop/AgentLab/memory/global/skills/ 
+/Users/<LOCAL_USER>/Desktop/AgentLab/memory/global/skills/ 
 '<missing-ssh-config>'",
     'error': 'Missing SSH backup config. Set AGENTLAB_SKILL_VAULT_BACKUP_REMOTE 
 or AGENTLAB_BACKUP_SSH_USER, AGENTLAB_BACKUP_SSH_HOST, and 
@@ -246,8 +246,8 @@ TrueNAS Sync: dry_run_completed
   Skipped existing: 129
   Failed: 0
 Report: 
-/Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015/truenas_sync
+/Users/<LOCAL_USER>/Desktop/AgentLab/projects/AgentLab/runs/task_0015/truenas_sync
 _report.yml
 Manifest: 
-/Users/saintpeter/Desktop/AgentLab/projects/AgentLab/runs/task_0015/truenas_mani
+/Users/<LOCAL_USER>/Desktop/AgentLab/projects/AgentLab/runs/task_0015/truenas_mani
 fest.yml

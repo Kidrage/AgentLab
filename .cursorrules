@@ -1,11 +1,11 @@
 # Codex / Cursor Agent Rules
 
 ## Dual-End Collaboration and Sync Protocol (双端协作与同步协议)
-Local development on this Mac takes priority. The remote SSH workspace on TrueNAS (`<PRIVATE_RELAY_HOST>`) acts as the central resource relay hub, and the cloud server (`<PRIVATE_CLOUD_RUNTIME>`) acts as the run/deployment target.
+Local development takes priority. The remote relay hub (`<RELAY_HOST>`) acts as the central resource exchange, and the cloud runtime (`<CLOUD_RUNTIME_HOST>`) acts as the run/deployment target.
 
-*   **Local Mac -> TrueNAS (`<PRIVATE_RELAY_HOST>`)**: Push local changes to configs, skills, memory snapshots using:
-    `./agentlab.sh truenas-sync --execute`
+*   **Local -> Relay Hub**: Push local changes to configs, skills, memory snapshots using:
+    `./agentlab.sh relay-sync --execute`
     Or manual rsync:
-    `rsync -avz -e "ssh -p <PRIVATE_RELAY_SSH_PORT>" --exclude '__pycache__' --exclude '.pytest_cache' /path/to/AgentLab/ agentlab@<PRIVATE_RELAY_HOST>:/mnt/hdd2/AgentLab_WorkSpace/`
-*   **TrueNAS (`<PRIVATE_RELAY_HOST>`) -> Cloud Runtime (`<PRIVATE_CLOUD_RUNTIME>`)**: Remote agents on `<PRIVATE_CLOUD_RUNTIME>` pull workspace/skills/MCP updates from `<PRIVATE_RELAY_HOST>` using:
-    `ssh admin@<PRIVATE_CLOUD_RUNTIME> "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' truenas:/mnt/hdd2/AgentLab_WorkSpace/ /home/admin/AgentLab/"`
+    `rsync -avz -e "ssh -p <RELAY_SSH_PORT>" --exclude '__pycache__' --exclude '.pytest_cache' /path/to/AgentLab/ <RELAY_SSH_USER>@<RELAY_HOST>:<RELAY_WORKSPACE>/`
+*   **Relay Hub -> Cloud Runtime**: Remote agents on `<CLOUD_RUNTIME_HOST>` pull workspace/skills/MCP updates from `<RELAY_HOST>` using:
+    `ssh <CLOUD_SSH_USER>@<CLOUD_RUNTIME_HOST> "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' <RELAY_HOST>:<RELAY_WORKSPACE>/ <CLOUD_WORKSPACE>/"`

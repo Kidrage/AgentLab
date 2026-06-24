@@ -4,7 +4,7 @@
 > `config/repository_handoff_policy.yml`，存放在 `.agentlab/HandOff.md` 并镜像到
 > `memory/repositories/<repository_id>/HandOff.md`。
 
-> **位置**: `truenas:/mnt/hdd2/AgentLab_WorkSpace/_shared/AGENT_HANDOFF.md`
+> **位置**: `<RELAY_HOST>:<RELAY_WORKSPACE>/_shared/AGENT_HANDOFF.md`
 > 本文件是所有 agent 的共享能力清单。新 agent 加入或现有 agent 更新能力时，更新本文件。
 > 配合 `_shared/AGENT_PROTOCOL.md` 使用。
 
@@ -13,12 +13,12 @@
 ## 1. 环境总览
 
 ```
-主机: Mac (saintpeter), Darwin 21.6.0
-工作区: ~/Desktop/AgentLab/
-远端: truenas (10.147.17.61:2222) /mnt/hdd2/AgentLab_WorkSpace/ (11TB)
+主机: <LOCAL_WORKSTATION>, Darwin
+工作区: ~/AgentLab/
+远端: <RELAY_HOST>:<RELAY_SSH_PORT> <RELAY_WORKSPACE>/
 Shell: zsh
-Node: ~/.hermes/node/bin/node
-Python: ~/anaconda3/bin/python3
+Node: <install_path>/node/bin/node
+Python: <install_path>/bin/python3
 包管理: brew, npm, pip
 ```
 
@@ -228,7 +228,7 @@ Agy 支持插件系统（`agy plugin`），但当前无独立 skills 目录。�
 ### 6.1 AgentLab Config（远端共享）
 
 ```
-truenas:/mnt/hdd2/AgentLab_WorkSpace/config/
+<RELAY_HOST>:<RELAY_WORKSPACE>/config/
 ├── agent_model_profiles.yml    # 模型 profile 定义
 ├── agent_registry.yml          # Agent 注册表
 ├── auto_sync_policy.yml        # 自动同步策略
@@ -266,9 +266,9 @@ truenas:/mnt/hdd2/AgentLab_WorkSpace/config/
 
 | 文件 | 位置 | 用途 |
 |------|------|------|
-| **AGENT_PROTOCOL.md** | `truenas:_shared/AGENT_PROTOCOL.md` | 唯一权威跨 agent 协议 |
-| **AGENT_HANDOFF.md** | `truenas:_shared/AGENT_HANDOFF.md` | 本文件 — 共享能力清单 |
-| AGENT_COORDINATION_PROTOCOL.md | `truenas:shared_protocols/` | ⚠ 已废弃 → 指针指向 AGENT_PROTOCOL.md |
+| **AGENT_PROTOCOL.md** | `<RELAY_HOST>:_shared/AGENT_PROTOCOL.md` | 唯一权威跨 agent 协议 |
+| **AGENT_HANDOFF.md** | `<RELAY_HOST>:_shared/AGENT_HANDOFF.md` | 本文件 — 共享能力清单 |
+| AGENT_COORDINATION_PROTOCOL.md | `<RELAY_HOST>:shared_protocols/` | ⚠ 已废弃 → 指针指向 AGENT_PROTOCOL.md |
 
 ---
 
@@ -302,10 +302,10 @@ truenas:/mnt/hdd2/AgentLab_WorkSpace/config/
 
 新 agent CLI 加入本环境时：
 
-1. [ ] 在 `~/.ssh/config` 中确认 truenas SSH 可用
+1. [ ] 在 `~/.ssh/config` 中确认 relay hub SSH 可用
 2. [ ] 创建本地指令文件（参考第 7 节协议模板）
-3. [ ] 在 `truenas:agents/<name>/` 创建命名空间
-4. [ ] 在 `truenas:shared_protocols/agent_states/` 创建初始状态 JSON
+3. [ ] 在 `<RELAY_HOST>:agents/<name>/` 创建命名空间
+4. [ ] 在 `<RELAY_HOST>:shared_protocols/agent_states/` 创建初始状态 JSON
 5. [ ] 配置 `codebase-memory-mcp`（如适用）
 6. [ ] 配置 token guard hook（如适用）
 7. [ ] 更新本文件的 Agent 清单和 skills 表
@@ -316,10 +316,10 @@ truenas:/mnt/hdd2/AgentLab_WorkSpace/config/
 ## 10. 维护信息
 
 ```
-最后更新: 2026-06-20
-维护者: Claude Code (saintpeter)
+最后更新: 2026-06-23
+维护者: Claude Code
 相关协议: _shared/AGENT_PROTOCOL.md (v3)
-truenas commit: 待提交
+relay commit: pending
 ```
 
 ### 更新日志

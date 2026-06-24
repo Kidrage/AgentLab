@@ -699,7 +699,7 @@ const AgentLab = {
     const harnessPolicy = this._configData?.harness_policy || {};
     this.$("configHarness", `<pre>${this.esc(JSON.stringify(harnessPolicy, null, 2))}</pre>`);
 
-    this.$("configEnv", `<div><pre id="configEnvPre">AGENTLAB_ROOT=/Users/saintpeter/AgentLab\nDEFAULT_PROJECT=AgentLab\nLLM_PROVIDER=deepseek\nDEEPSEEK_MODEL=deepseek-v4-pro\nDEEPSEEK_API_KEY=sk-65f6... (已脱敏)\nQWEN_API_KEY=sk-92d4... (已脱敏)</pre></div>`);
+    this.$("configEnv", `<div><pre id="configEnvPre">AGENTLAB_ROOT=$HOME/AgentLab\nDEFAULT_PROJECT=AgentLab\nLLM_PROVIDER=deepseek\nDEEPSEEK_MODEL=deepseek-v4-pro\nDEEPSEEK_API_KEY=sk-xxxx... (已脱敏)\nQWEN_API_KEY=sk-xxxx... (已脱敏)</pre></div>`);
   },
 
   editConfig() {

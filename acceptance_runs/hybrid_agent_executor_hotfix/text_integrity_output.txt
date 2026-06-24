@@ -1,4 +1,4 @@
-Markdown report written to /Users/saintpeter/Desktop/AgentLab/acceptance_runs/stabilization/text_integrity_audit.md
+Markdown report written to /Users/<LOCAL_USER>/Desktop/AgentLab/acceptance_runs/stabilization/text_integrity_audit.md
 
 Total files scanned: 801
 Suspicious files: 12

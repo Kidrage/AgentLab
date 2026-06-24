@@ -178,9 +178,9 @@ CI steps: Text integrity audit → Compile Python → Run tests → S10 generali
 
 | Check | Result |
 |---|---|
-| `10.147.17.61` in public docs | **CLEAN** — 0 occurrences |
-| `10.147.17.250` in public docs | **CLEAN** — 0 occurrences |
-| `:2222` port in public docs | **CLEAN** — 0 occurrences |
+| private relay IP in public docs | **CLEAN** — 0 occurrences |
+| private cloud runtime IP in public docs | **CLEAN** — 0 occurrences |
+| non-standard SSH port in public docs | **CLEAN** — 0 occurrences |
 | `config/local_private_topology.example.yml` | **CREATED** — template only, real values excluded |
 | `config/local_private_topology.yml` in .gitignore | **ADDED** |
 

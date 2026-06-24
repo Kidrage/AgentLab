@@ -17,11 +17,11 @@ This file defines the canonical domain terminology for AgentLab as an Agent Corp
 *   **Definition**: The centralized directory inside the AgentLab workspace (`.agents/workspaces/`) where all local Agent CLI configurations, state records, and session history are stored. 
 *   **Mechanism**: Symbolic links are placed in the user's home directory pointing to the Workstation directories to ensure seamless CLI operations while keeping state inside the sync-ready codebase.
 
-### 3. Relay Hub (61 中转站)
-*   **Definition**: The central information exchange relay server located at IP `10.147.17.61` (TrueNAS host). It acts as the central git and asset sync repository, anchoring the truth across nodes.
+### 3. Relay Hub (中转站)
+*   **Definition**: The central information exchange relay server (reachable at `<RELAY_HOST>:<RELAY_SSH_PORT>`). It acts as the central git and asset sync repository, anchoring the truth across nodes.
 
-### 4. Cloud Office (250 云端办公区)
-*   **Definition**: The Cloud Runtime execution environment hosted at IP `10.147.17.250`. It runs heavy test suites, deployments, and containerized executions, syncing its state with the Relay Hub (61).
+### 4. Cloud Office (云端办公区)
+*   **Definition**: The Cloud Runtime execution environment (reachable at `<CLOUD_RUNTIME_HOST>`). It runs heavy test suites, deployments, and containerized executions, syncing its state with the Relay Hub.
 
 ### 5. Task Sandbox (任务沙箱)
 *   **Definition**: An isolated execution directory spawned per task (`projects/<ProjectName>/runs/<task_id>/`) where tool executions and experimental edits take place.

@@ -50,7 +50,7 @@ rollback:
   # Where checkpoints are stored
   checkpoint_storage:
     local_path: .agentlab_checkpoints/     # Local git-ignored directory
-    truenas_path: /Volumes/ao/AgentLab/checkpoints/  # TrueNAS SMB mirror
+    relay_path: <RELAY_CHECKPOINT_PATH>/  # relay hub checkpoint mirror
     retention:
       keep_all_checkpoints: false
       keep_last_n: 20
@@ -102,4 +102,4 @@ git:
 # ### Changed
 # - Added backup_policy.yml and version_policy.yml (Codex, task_0014_backup-version-rules)
 # - Upgraded task naming to support human-readable slugs (Codex, task_0014_backup-version-rules)
-# - Added TrueNAS SMB symlink integration (Codex, task_0013_truenas-integration)
+# - Added relay hub symlink integration (Codex, task_0013_relay-integration)

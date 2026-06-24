@@ -9,6 +9,7 @@ mocked so the dispatch logic is tested in isolation.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -452,8 +453,11 @@ class TestTextIntegrityMinimums:
 class TestPublicDocSanitization:
     """Verify public docs do not contain private network IPs or ports."""
 
-    PRIVATE_IPS = ["10.147.17.61", "10.147.17.250"]
-    PRIVATE_PORTS = ["2222"]
+    # Regex patterns that match private/leaked IPs and ports in public docs.
+    # Concrete IPs must never appear in tracking; use generic patterns instead.
+    PRIVATE_IP_RE = re.compile(r"\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b")
+    # Check for non-standard SSH ports (e.g. :2222) in docs
+    PRIVATE_PORT_RE = re.compile(r":(?:2[2-9]\d\d|[3-9]\d{3,})\b|\s-p\s*(?:2[2-9]\d\d|[3-9]\d{3,})\b")
 
     PUBLIC_FILES = [
         "README.md",
@@ -471,13 +475,12 @@ class TestPublicDocSanitization:
             if not fpath.exists():
                 continue
             content = fpath.read_text()
-            for ip in self.PRIVATE_IPS:
-                if ip in content:
-                    violations.append(f"{fname}: contains {ip}")
+            if self.PRIVATE_IP_RE.search(content):
+                violations.append(f"{fname}: contains private IP pattern")
         assert not violations, f"Private IPs found: {violations}"
 
     def test_public_docs_no_private_ports(self):
-        """No public-facing doc contains private SSH port."""
+        """No public-facing doc contains non-standard SSH port."""
         root = Path(__file__).parent.parent
         violations = []
         for fname in self.PUBLIC_FILES:
@@ -485,7 +488,6 @@ class TestPublicDocSanitization:
             if not fpath.exists():
                 continue
             content = fpath.read_text()
-            for port in self.PRIVATE_PORTS:
-                if f":{port}" in content or f" -p {port}" in content or f"-p{port}" in content:
-                    violations.append(f"{fname}: contains port {port}")
+            if self.PRIVATE_PORT_RE.search(content):
+                violations.append(f"{fname}: contains private port pattern")
         assert not violations, f"Private ports found: {violations}"

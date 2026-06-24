@@ -223,10 +223,10 @@ Commands:
 AgentLab operates across a dual-end execution link layout to enable remote running / deployment while maintaining synchronized agent capabilities:
 
 1.  **Architecture**:
-    *   **Local Mac (<USER>)**: Primary development environment and source of truth.
-    *   **Relay Hub (TrueNAS at `<RELAY_IP>:<PORT>`)**: Shared repository and exchange relay station.
-    *   **Cloud Runtime (Server at `<CLOUD_IP>`)**: Run/deployment server. Connected to `<RELAY_IP>` and directly accessible from Local Mac via SSH (`admin@<CLOUD_IP>`).
+    *   **Local Workstation**: Primary development environment and source of truth.
+    *   **Relay Hub** (`<RELAY_HOST>:<RELAY_SSH_PORT>`): Shared repository and exchange relay station.
+    *   **Cloud Runtime** (`<CLOUD_RUNTIME_HOST>`): Run/deployment server. Connected to Relay Hub and directly accessible from local workstation via SSH.
 2.  **Sync Workflow**:
-    *   **Local Mac -> Relay Hub**: Local pushes workspace changes (skills, configs, memory snapshots) to TrueNAS (`<RELAY_IP>`) using `./agentlab.sh truenas-sync --execute` or manual rsync.
-    *   **Relay Hub -> Cloud Runtime**: Remote agents on `<CLOUD_IP>` pull workspace/skills/MCP updates from `<RELAY_IP>` using `rsync` over SSH.
-    *   **Cloud Runtime -> Relay Hub -> Local Mac**: Task execution logs and agent memory produced on `<CLOUD_IP>` sync back to TrueNAS (`<RELAY_IP>`), then pull to local Mac, maintaining synchronized memory and skills.
+    *   **Local Workstation -> Relay Hub**: Local pushes workspace changes (skills, configs, memory snapshots) to Relay Hub using `./agentlab.sh relay-sync --execute` or manual rsync.
+    *   **Relay Hub -> Cloud Runtime**: Remote agents on Cloud Runtime pull workspace/skills/MCP updates from Relay Hub using `rsync` over SSH.
+    *   **Cloud Runtime -> Relay Hub -> Local Workstation**: Task execution logs and agent memory produced on Cloud Runtime sync back to Relay Hub, then pull to local workstation, maintaining synchronized memory and skills.

@@ -20,47 +20,47 @@
 ...........................                                              [100%]
 =============================== warnings summary ===============================
 tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_build_index_handles_missi0/agent_runtime (category=repo_files)
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_build_index_handles_missi0/agent_runtime (category=repo_files)
     warnings.warn(
 
 tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_build_index_handles_missi0/docs (category=docs)
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_build_index_handles_missi0/docs (category=docs)
     warnings.warn(
 
 tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_build_index_handles_missi0/config (category=config)
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_build_index_handles_missi0/config (category=config)
     warnings.warn(
 
 tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_build_index_handles_missi0/agent_runtime/skills (category=skills)
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_build_index_handles_missi0/agent_runtime/skills (category=skills)
     warnings.warn(
 
 tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_build_index_handles_missi0/tests (category=tests)
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_build_index_handles_missi0/tests (category=tests)
     warnings.warn(
 
 tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_build_index_handles_missi0/scripts (category=scripts)
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_build_index_handles_missi0/scripts (category=scripts)
     warnings.warn(
 
 tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_build_index_handles_missi0/acceptance_runs (category=acceptance_runs)
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_build_index_handles_missi0/acceptance_runs (category=acceptance_runs)
     warnings.warn(
 
 tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_build_index_handles_missi0/projects (category=recovery_history)
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_build_index_handles_missi0/projects (category=recovery_history)
     warnings.warn(
 
 tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_build_index_handles_missi0/projects (category=closure_feedback)
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_build_index_handles_missi0/projects (category=closure_feedback)
     warnings.warn(
 
 tests/test_r3_local_search.py::test_build_index_handles_missing_dirs
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_build_index_handles_missi0/projects (category=project_brain)
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/indexer.py:250: UserWarning: build_index: skipping missing directory: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_build_index_handles_missi0/projects (category=project_brain)
     warnings.warn(
 
 tests/test_r3_local_search.py::test_load_missing_index_returns_empty
-  /Users/saintpeter/Desktop/AgentLab/agent_runtime/local_search/storage.py:36: UserWarning: load_index: index file not found: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-66/test_load_missing_index_return0/nonexistent.jsonl
+  /Users/<LOCAL_USER>/Desktop/AgentLab/agent_runtime/local_search/storage.py:36: UserWarning: load_index: index file not found: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-66/test_load_missing_index_return0/nonexistent.jsonl
     warnings.warn(f"load_index: index file not found: {path}")
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

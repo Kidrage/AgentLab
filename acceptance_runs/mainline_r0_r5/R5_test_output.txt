@@ -18,7 +18,7 @@ Listing 'agent_runtime/skills'...
 49 passed in 0.20s
 
 === python -m pytest -q ===
-  <HOME>/Desktop/AgentLab/agent_runtime/local_search/storage.py:36: UserWarning: load_index: index file not found: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-saintpeter/pytest-79/test_load_missing_index_return0/nonexistent.jsonl
+  <HOME>/Desktop/AgentLab/agent_runtime/local_search/storage.py:36: UserWarning: load_index: index file not found: /private/var/folders/7g/pnj8hvqx62vc_vbdkjwqjfy00000gn/T/pytest-of-<LOCAL_USER>/pytest-79/test_load_missing_index_return0/nonexistent.jsonl
     warnings.warn(f"load_index: index file not found: {path}")
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

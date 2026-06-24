@@ -1,5 +1,5 @@
 task_id: p2_retry_fail_then_pass
-target_dir: /Users/saintpeter/Desktop/AgentLab/retry_runs/p2_retry_fail_then_pass/attempt_002/review_input
+target_dir: /Users/<LOCAL_USER>/Desktop/AgentLab/retry_runs/p2_retry_fail_then_pass/attempt_002/review_input
 artifacts:
 - path: external_handoff.md
   exists: true

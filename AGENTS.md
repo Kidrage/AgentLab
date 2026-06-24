@@ -114,12 +114,12 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
 ## Dual-End Collaboration Protocol (双端协作协约)
 
 - **Network Topology / Link Layout**:
-  - **Local Mac**: Primary development environment and source of truth.
-  - **Relay Hub (TrueNAS at `<RELAY_IP>:<PORT>`)**: Resource exchange relay station and backup.
-  - **Cloud Runtime (Server at `<CLOUD_IP>`)**: Running / deployment environment. Directly accessible via SSH from Local Mac and connected to the TrueNAS repository.
+  - **Local Workstation**: Primary development environment and source of truth.
+  - **Relay Hub** (`<RELAY_HOST>:<RELAY_SSH_PORT>`): Resource exchange relay station and backup.
+  - **Cloud Runtime** (`<CLOUD_RUNTIME_HOST>`): Running / deployment environment. Directly accessible via SSH from local workstation and connected to the Relay Hub repository.
 - **Sync Workflow**:
-  - Local Mac pushes skills, configs, memory snapshots to `<RELAY_IP>` using `./agentlab.sh truenas-sync --execute`.
-  - Cloud Runtime (`<CLOUD_IP>`) pulls updates from `<RELAY_IP>` using `rsync` to synchronize `skills`, `mcp`, and task status.
+  - Local workstation pushes skills, configs, memory snapshots to Relay Hub using `./agentlab.sh relay-sync --execute`.
+  - Cloud Runtime pulls updates from Relay Hub using `rsync` to synchronize `skills`, `mcp`, and task status.
   - Cloud Runtime execution results are pushed back to `<RELAY_IP>` and then pulled to Local Mac to ensure all memory capabilities are synchronized.
 
 ## Useful Commands
