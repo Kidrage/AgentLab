@@ -72,11 +72,13 @@ search_app = typer.Typer(help="Search provider adapter commands.", no_args_is_he
 repo_index_app = typer.Typer(help="Repo indexer adapter commands.", no_args_is_help=True)
 external_projects_app = typer.Typer(help="M1 external project registry commands.", no_args_is_help=True)
 mission_compiler_app = typer.Typer(help="M1-2 mission compiler v2 commands.", no_args_is_help=True)
+from agent_runtime.config_center.cli import app as config_app
 app.add_typer(external_skills_app, name="external-skills")
 app.add_typer(search_app, name="search")
 app.add_typer(repo_index_app, name="repo-index")
 app.add_typer(external_projects_app, name="external-projects")
 app.add_typer(mission_compiler_app, name="mission-compiler")
+app.add_typer(config_app, name="config")
 console = Console()
 
 

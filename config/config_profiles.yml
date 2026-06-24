@@ -1,0 +1,48 @@
+# M2-5 Config Center — Named configuration profiles
+# Each profile provides overrides for one or more config keys.
+# The active profile is set in config_center.yml → active_profile.
+
+profiles:
+  dev:
+    _description: Development profile — verbose, permissive, uncapped
+    routing_policy:
+      default_mode: full_cli
+      allow_automatic_fallback: true
+    execution_policy:
+      require_explicit_execute: false
+    budget_policy:
+      max_tokens_per_task: 500000
+    harness_policy:
+      require_validation_gate: false
+
+  prod:
+    _description: Production profile — strict, cost-conscious, validated
+    routing_policy:
+      default_mode: brain_allocated
+      allow_automatic_fallback: false
+    execution_policy:
+      require_explicit_execute: true
+    budget_policy:
+      max_tokens_per_task: 200000
+    harness_policy:
+      require_validation_gate: true
+
+  frugal:
+    _description: Frugal profile — minimum cost, smallest models, strict budgets
+    routing_policy:
+      default_mode: furgal
+    budget_policy:
+      max_tokens_per_task: 50000
+    model_profiles:
+      default_budget_mode: furgal
+
+  max_quality:
+    _description: Maximum quality — best models, highest budgets, all validation gates
+    routing_policy:
+      default_mode: max_quality
+    budget_policy:
+      max_tokens_per_task: 1000000
+    model_profiles:
+      default_budget_mode: max_quality
+    harness_policy:
+      require_validation_gate: true

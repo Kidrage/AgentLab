@@ -1,0 +1,58 @@
+# M2-5 Config Center — UI schema
+# Controls how config keys are displayed in the Control Panel / TUI / WebUI.
+
+groups:
+  routing:
+    label: Routing
+    icon: route
+    order: 1
+    description: Task-to-agent routing policy settings
+
+  execution:
+    label: Execution
+    icon: play
+    order: 2
+    description: Coder agent execution mode and controls
+
+  budget:
+    label: Budget & Tokens
+    icon: coin
+    order: 3
+    description: Token budget thresholds and cost controls
+
+  model:
+    label: Model Selection
+    icon: cpu
+    order: 4
+    description: Model profile and budget mode selection
+
+  credentials:
+    label: API Credentials
+    icon: key
+    order: 5
+    description: API keys and authentication — values are redacted in UI
+    redact_all: true
+
+  worker:
+    label: Worker Pool
+    icon: users
+    order: 6
+    description: Worker concurrency and availability settings
+
+  harness:
+    label: Harness & Validation
+    icon: shield-check
+    order: 7
+    description: Validation gates and output quality controls
+
+  sync:
+    label: Sync & Relay
+    icon: refresh
+    order: 8
+    description: Truenas relay hub and cross-endpoint sync settings
+
+  general:
+    label: General
+    icon: settings
+    order: 99
+    description: Uncategorized configuration
