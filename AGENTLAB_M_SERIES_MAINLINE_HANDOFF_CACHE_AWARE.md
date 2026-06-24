@@ -321,6 +321,7 @@ M2 Operator OS / Local Agent Company Control Plane
   M2-10 TUI
   M2-11 WebUI
   M2-12 Operator Acceptance Demo
+  M2-12.5 Goal / Mainline Command Bridge
 ↓
 M3 Project-to-Revenue OS
   M3-1 Business Contract
@@ -1686,6 +1687,8 @@ M2-10 TUI
 M2-11 WebUI
 ↓
 M2-12 Operator Acceptance Demo
+↓
+M2-12.5 Goal / Mainline Command Bridge
 ```
 
 Reason for the reorder:
@@ -4313,6 +4316,154 @@ M2 fully passes if:
 ```
 
 
+# 6.16.5 M2-12.5 — Goal / Mainline Command Bridge
+
+## Goal
+
+Add Codex-like `/goal` user-facing slash-command syntax that unifies task direction across all operator surfaces (CLI, TUI, WebUI, Assistant, MCP, frontdesk/OpenClaw), while internally compiling goals into project-level mainline program governance.
+
+AgentLab's `/goal` is not a single-agent goal mode. It is a project-level goal compiler:
+
+```text
+/goal <rough requirement>
+→ goal_contract.yml
+→ mission_contract.yml
+→ workflow_plan.yml
+→ mainline_program.yml
+→ mainline_acceptance_contract.yml
+→ scenario_validation_plan.yml
+→ mainline_progress.yml
+→ mainline_completion_report.md
+```
+
+## Required Principle
+
+```text
+User-facing slash syntax stays close to common agent slash-command patterns:
+  /goal, /goal status, /goal plan, /goal progress,
+  /goal validate, /goal report, /goal pause, /goal resume, /goal close
+
+But internally AgentLab preserves its own governance model:
+  goal → mission → workflow → mainline series → stages
+  → task packets → executor routing → evidence
+  → phase acceptance → scenario validation → completion rollup
+```
+
+## Scope
+
+M2-12.5 adds:
+
+- Goal command grammar (deterministic parser, no LLM, no external execution)
+- Mainline program compiler with template-based program selection
+- Stage-level acceptance contracts
+- Scenario validation plan
+- Progress rollup and completion reporting
+- Integration into CLI, Assistant, TUI, WebUI, and MCP/frontdesk command surfaces
+- Chinese alias support (`/目标`, `/计划`, `/进度`, `/验收`, `/报告`)
+
+## Non-Goals
+
+M2-12.5 does NOT implement:
+
+```text
+- Real commercial revenue loop
+- Business contract, asset registry/lineage, production pipeline
+- Market/channel intelligence, analytics/revenue ledger, CRM
+- Real external executor auto-dispatch
+- Platform posting, social scraping
+- New autonomous browser/web/media execution
+- Unsafe shell execution, automatic skill installation
+- Any M3 business/revenue features
+```
+
+Future reserved M3 stages may be referenced in the mainline program template but must not count as M2 blocking acceptance.
+
+## Mainline Program Templates
+
+Required templates:
+
+```text
+agentlab_self_repair
+operator_os_goal_management
+codebase_build
+longform_creation
+research_archive
+video_generation
+document_knowledgebase
+local_automation
+unknown_large_project
+```
+
+The `agentlab_self_repair` template includes three mainline series:
+
+1. **project_governance_kernel** — M1 stages (mission compiler, workflow templates, project brain, executor connector, phase acceptance, recovery/replanning, context compression, generalization demo)
+2. **operator_os** — M2 stages (worker registry, invocation contracts, execution economy, capability broker, role matrix, worker audition, assignment router, config center, cost/risk/approval, observability, control panel, assistant modes, TUI, WebUI, operator acceptance demo, **goal/mainline bridge**)
+3. **p2r_os_future** — M3 future reserved line (business contract, asset registry, production pipeline, analytics/revenue). Status: `future_reserved`. Must not block M2 closure.
+
+## Integration Surfaces
+
+All control surfaces share one goal command grammar:
+
+- **CLI**: `./agentlab.sh goal set/plan/status/progress/validate/report/pause/resume/close`
+- **Assistant**: slash-command parser produces structured `assistant_goal_action`
+- **TUI**: command parser routes `/goal ...` into the same action model
+- **WebUI**: lightweight endpoints (`POST /api/goals`, `GET /api/goals/<id>`, `GET /api/projects/<id>/goal-status`, `GET /api/projects/<id>/mainline-progress`)
+- **MCP / Frontdesk / OpenClaw**: JSON command contract (`{"command": "/goal", "text": "...", "source": "openclaw"}` → `{"goal_id": "...", "created_artifacts": [...], "next_action": "/goal plan"}`)
+
+## Project Brain Integration
+
+When a goal attaches to a project, write:
+
+```text
+projects/<project>/project_brain/goal_contract.yml
+projects/<project>/project_brain/mainline_program.yml
+projects/<project>/project_brain/mainline_acceptance_contract.yml
+projects/<project>/project_brain/scenario_validation_plan.yml
+projects/<project>/project_brain/mainline_progress.yml
+projects/<project>/project_brain/mainline_completion_report.md
+```
+
+Update `next_actions.yml`, `decision_log.yml`, and `acceptance_history.yml`.
+
+## CLI
+
+```bash
+./agentlab.sh goal set --text "..."
+./agentlab.sh goal set --prompt-file path/to/prompt.md
+./agentlab.sh goal plan --goal-id <id> --out <dir>
+./agentlab.sh goal status --project <project>
+./agentlab.sh goal progress --project <project>
+./agentlab.sh goal validate --project <project>
+./agentlab.sh goal report --project <project>
+./agentlab.sh goal pause --project <project>
+./agentlab.sh goal resume --project <project>
+./agentlab.sh goal close --project <project>
+```
+
+## Acceptance
+
+M2-12.5 passes if:
+
+```text
+- /goal slash syntax is parsed deterministically (no LLM, no shell execution)
+- Chinese aliases map to canonical English commands
+- goal set creates goal_contract.yml
+- goal plan creates mainline_program.yml and .md
+- goal progress creates mainline_progress.yml
+- goal validate creates scenario validation output
+- goal report creates mainline_completion_report.md
+- AgentLab self-repair goal maps to agentlab_self_repair template
+- every stage has artifacts, evidence, and gates
+- missing evidence blocks acceptance
+- scenario validation is required for PASS
+- future M3 reserved stages do not block M2 closure
+- CLI/TUI/WebUI/Assistant/MCP/frontdesk share one command action schema
+- Project Brain stores goal/mainline artifacts
+- next actions reflect goal/mainline progress
+- no external tools, network calls, skill installs, or real executor dispatch introduced
+```
+
+
 # 7. M3 — Project-to-Revenue OS
 
 ## 7.1 M3 Objective
@@ -5309,6 +5460,7 @@ Implement M2 in this order:
 - M2-10 TUI skeleton
 - M2-11 WebUI skeleton
 - M2-12 Operator Acceptance Demo
+- M2-12.5 Goal / Mainline Command Bridge
 
 All UI must be optional. CLI core must work without UI.
 All worker discovery, invocation contract validation, provider discovery, and audition tests must be mock-first.
