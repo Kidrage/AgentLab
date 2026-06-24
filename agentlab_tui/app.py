@@ -1,18 +1,22 @@
-from rich.console import Console
+import sys
+from .snapshot_renderer import render_tui_snapshot
 
-console = Console()
-
-class AgentLabTUI:
-    def __init__(self):
-        self.running = False
+def run_tui():
+    """Start the interactive TUI, or print fallback if unsupported."""
+    try:
+        import rich
+    except ImportError:
+        print("Optional dependency 'rich' or 'textual' not found.")
+        print("Falling back to snapshot overview...")
+        print(render_tui_snapshot(project=None, view="overview"))
+        sys.exit(0)
         
-    def run(self):
-        self.running = True
-        console.print("[bold green]AgentLab TUI started.[/bold green]")
-        # In a real implementation, this would start the event loop.
+    try:
+        import textual
+    except ImportError:
+        print("Optional dependency 'textual' not found. Cannot launch interactive UI.")
+        print("Falling back to snapshot overview...")
+        print(render_tui_snapshot(project=None, view="overview"))
+        sys.exit(0)
         
-    def show_project_list(self):
-        console.print("Loading Project List...")
-        
-    def show_worker_registry(self):
-        console.print("Loading Worker Registry...")
+    print("Launching full interactive TUI (stub for testing)...")

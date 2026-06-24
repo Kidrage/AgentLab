@@ -1,69 +1,62 @@
 import json
-from pathlib import Path
 import yaml
+from pathlib import Path
+from .models import AssistantStateSnapshot
 
-def explain_phase(project: str, phase: str) -> str:
+def read_project_state(project_id: str) -> AssistantStateSnapshot:
     from agent_runtime.run_task import _PROJECT_ROOT
-    project_dir = _PROJECT_ROOT / "projects" / project
-    task_dir = project_dir / "tasks" / phase
-    state_path = task_dir / "state.yml"
-    plan_path = task_dir / "workflow_plan.yml"
-    
-    if not state_path.exists():
-        return f"Could not find state for phase '{phase}' in project '{project}'. Path {state_path} does not exist."
-    
-    state_data = yaml.safe_load(state_path.read_text()) or {}
-    
-    status = state_data.get("status", "unknown")
-    current_agent = state_data.get("current_agent", "none")
-    last_event = state_data.get("last_event", "none")
-    
-    explanation = f"# Phase Explanation: {phase}\n\n"
-    explanation += f"**Status**: {status}\n"
-    explanation += f"**Current Agent**: {current_agent}\n"
-    explanation += f"**Last Event**: {last_event}\n\n"
-    
-    if plan_path.exists():
-        plan_data = yaml.safe_load(plan_path.read_text()) or {}
-        route = plan_data.get("route", {})
-        if route:
-            explanation += "**Planned Agents**:\n"
-            for agent in route.get("agents", []):
-                explanation += f"- {agent}\n"
-    else:
-        explanation += "_No workflow_plan.yml found._\n"
-        
-    return explanation
+    project_dir = _PROJECT_ROOT / "projects" / project_id
 
-def explain_cost(project: str) -> str:
-    from agent_runtime.run_task import _PROJECT_ROOT
-    project_dir = _PROJECT_ROOT / "projects" / project
-    timeline_path = project_dir / "observability" / "timeline.jsonl"
-    
-    if not timeline_path.exists():
-        return f"No cost records found for project '{project}'. Timeline {timeline_path} does not exist."
-        
-    total_cost = 0.0
-    cost_events = []
-    
-    with open(timeline_path, "r") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            try:
-                event = json.loads(line)
-                if event.get("event_type") == "cost_estimated":
-                    cost = float(event.get("cost_usd", 0.0))
-                    total_cost += cost
-                    cost_events.append(event)
-            except Exception:
-                pass
-                
-    explanation = f"# Cost Explanation: {project}\n\n"
-    explanation += f"**Total Estimated Cost (USD)**: ${total_cost:.4f}\n\n"
-    if cost_events:
-        explanation += "### Breakdown by task:\n"
-        for evt in cost_events:
-            explanation += f"- Task {evt.get('task_id', 'unknown')}: ${evt.get('cost_usd', 0.0):.4f}\n"
-            
-    return explanation
+    snapshot = AssistantStateSnapshot(
+        project_id=project_id,
+        known=project_dir.exists()
+    )
+
+    if not snapshot.known:
+        snapshot.warnings.append(f"Project directory {project_dir} not found.")
+        return snapshot
+
+    tasks_dir = project_dir / "tasks"
+    if tasks_dir.exists():
+        snapshot.source_files.append(str(tasks_dir))
+        for phase_dir in tasks_dir.iterdir():
+            if phase_dir.is_dir():
+                state_file = phase_dir / "state.yml"
+                if state_file.exists():
+                    snapshot.source_files.append(str(state_file))
+                    try:
+                        data = yaml.safe_load(state_file.read_text()) or {}
+                        snapshot.phase_statuses[phase_dir.name] = data.get("status", "unknown")
+                        # Simplified checks for mock
+                        if data.get("status") == "blocked":
+                            snapshot.blocked_items.append(phase_dir.name)
+                        if data.get("status") == "running":
+                            snapshot.current_phase = phase_dir.name
+                    except Exception as e:
+                        snapshot.warnings.append(f"Failed to read {state_file}: {e}")
+
+    obs_dir = project_dir / "observability"
+    timeline_file = obs_dir / "timeline.jsonl"
+    if timeline_file.exists():
+        snapshot.source_files.append(str(timeline_file))
+        total_cost = 0.0
+        try:
+            with open(timeline_file, "r") as f:
+                for line in f:
+                    if not line.strip(): continue
+                    try:
+                        event = json.loads(line)
+                        if event.get("event_type") == "cost_estimated":
+                            total_cost += float(event.get("cost_usd", 0.0))
+                    except Exception:
+                        pass
+            snapshot.cost_summary = total_cost
+        except Exception as e:
+            snapshot.warnings.append(f"Failed to read timeline: {e}")
+
+    # Mocking reading from missing directories for other fields
+    approvals_dir = project_dir / "approvals"
+    if approvals_dir.exists():
+        snapshot.source_files.append(str(approvals_dir))
+
+    return snapshot

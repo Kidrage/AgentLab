@@ -83,18 +83,15 @@ external_projects_app = typer.Typer(help="M1 external project registry commands.
 mission_compiler_app = typer.Typer(help="M1-2 mission compiler v2 commands.", no_args_is_help=True)
 
 @app.command("tui")
-def tui_cmd():
+def tui_cmd(headless: bool = typer.Option(False, "--headless", help="Run in headless mode"),
+            view: str = typer.Option("overview", "--view", help="View to display in headless mode"),
+            project: str = typer.Option(None, "--project", help="Project to inspect")):
     """Start the AgentLab Terminal User Interface."""
-    run_tui()
-
-@app.command("webui")
-def webui_cmd(host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"), port: int = typer.Option(8765, "--port", help="Port to bind to")):
-    """Start the AgentLab Web User Interface."""
-    try:
-        from agentlab_app.dashboard.app import run_server
-        run_server(host=host, port=port)
-    except ImportError as e:
-        print(f"Failed to load WebUI module: {e}")
+    if headless:
+        from agentlab_tui.snapshot_renderer import render_tui_snapshot
+        print(render_tui_snapshot(project=project, view=view))
+    else:
+        run_tui()
 
 from agent_runtime.config_center.cli import app as config_app
 from agent_runtime.assistant.cli import register_assistant_commands
@@ -104,7 +101,14 @@ app.add_typer(repo_index_app, name="repo-index")
 app.add_typer(external_projects_app, name="external-projects")
 app.add_typer(mission_compiler_app, name="mission-compiler")
 app.add_typer(config_app, name="config")
-register_assistant_commands(app)
+
+assistant_app = typer.Typer(
+    help="M2-9 AgentLab Assistant commands.",
+    no_args_is_help=True,
+)
+register_assistant_commands(assistant_app)
+app.add_typer(assistant_app, name="assistant")
+
 console = Console()
 
 
