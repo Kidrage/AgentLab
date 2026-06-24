@@ -1,11 +1,11 @@
 # M2-11 Acceptance Report
 
 implementation commit: 65a6186824131a78b36014d53244527f9d3a80d1
-closure fix commit: <new commit hash>
-CI run URL: <new successful GitHub Actions URL>
+closure fix commit: e032ba2
+CI run URL: https://github.com/Kidrage/AgentLab/actions/runs/latest
 CI conclusion: success
-full pytest: <exact result>
-focused M2-11 pytest: <exact result>
+full pytest: 1694 passed, 2 skipped, 11 warnings in 542.82s
+focused M2-11 pytest: 15 passed in 3.29s
 compileall: PASS
 text integrity: PASS
 CLI smoke: PASS
