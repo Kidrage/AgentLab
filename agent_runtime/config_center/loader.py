@@ -152,6 +152,7 @@ def load_layered_config(
     *,
     project_name: str | None = None,
     runtime_overrides: dict[str, Any] | None = None,
+    profile_override: str | None = None,
 ) -> dict[ConfigLayer, dict[str, Any]]:
     """Load config snapshots at every layer, returning {layer: config_dict}.
 
@@ -165,7 +166,7 @@ def load_layered_config(
     layers[ConfigLayer.GLOBAL_DEFAULTS] = _load_all_yamls(config_dir)
 
     # Layer 2: Environment profile
-    env_profile_name = _load_yaml(config_dir / "config_center.yml").get("active_profile")
+    env_profile_name = profile_override or _load_yaml(config_dir / "config_center.yml").get("active_profile")
     if env_profile_name:
         profiles = _load_yaml(config_dir / "config_profiles.yml")
         env_data = profiles.get("profiles", {}).get(env_profile_name, {})
@@ -229,6 +230,7 @@ def resolve_merged_config(
     *,
     project_name: str | None = None,
     runtime_overrides: dict[str, Any] | None = None,
+    profile_override: str | None = None,
 ) -> dict[str, Any]:
     """Return the fully merged config with all layers applied.
 
@@ -239,6 +241,7 @@ def resolve_merged_config(
         agentlab_root,
         project_name=project_name,
         runtime_overrides=runtime_overrides,
+        profile_override=profile_override,
     )
     merged: dict[str, Any] = {}
     for layer in ConfigLayer:

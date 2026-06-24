@@ -100,10 +100,11 @@ def config_diff(
 @app.command("config-validate")
 def config_validate(
     project: Optional[str] = typer.Option(None, "--project", help="Project name to validate"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="Profile name to validate"),
 ) -> None:
     """Validate the resolved config against the schema."""
     root = _agentlab_root()
-    errors = validate_config_dry(root, project_name=project)
+    errors = validate_config_dry(root, project_name=project, profile_override=profile)
     if errors:
         render_validation(errors)
         raise typer.Exit(code=1)

@@ -67,6 +67,16 @@ def resolve_key(
             found_layer = layer
 
     if found_layer is None:
+        if schema_keys and key in schema_keys:
+            key_schema = schema_keys[key]
+            if key_schema.default is not None:
+                return ConfigValue(
+                    key=key,
+                    value=key_schema.default,
+                    layer=ConfigLayer.GLOBAL_DEFAULTS,
+                    overridden_from=[],
+                    is_secret=key_schema.secret,
+                )
         return None
 
     return ConfigValue(

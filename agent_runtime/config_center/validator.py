@@ -43,6 +43,27 @@ def load_schema(schema_path: Path) -> ConfigSchema:
     return schema
 
 
+def validate_profile_keys(
+    profile_data: dict[str, Any],
+    schema_keys: dict[str, Any],
+    prefix: str = "",
+) -> list[str]:
+    """Recursively identify all keys present in profile_data but not defined in schema_keys."""
+    errors: list[str] = []
+    for k, v in profile_data.items():
+        if k.startswith("_"):
+            continue
+        key_path = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            if key_path in schema_keys:
+                continue
+            errors.extend(validate_profile_keys(v, schema_keys, key_path))
+        else:
+            if key_path not in schema_keys:
+                errors.append(f"error: unknown key '{key_path}'")
+    return errors
+
+
 def validate_config(
     config: dict[str, Any],
     schema: ConfigSchema,
@@ -81,6 +102,7 @@ def validate_config_dry(
     agentlab_root: Path,
     *,
     project_name: str | None = None,
+    profile_override: str | None = None,
 ) -> list[str]:
     """Validate the fully resolved config for a project.
 
@@ -88,5 +110,23 @@ def validate_config_dry(
     """
     schema_path = agentlab_root / "config" / "config_center.yml"
     schema = load_schema(schema_path)
-    config = resolve_merged_config(agentlab_root, project_name=project_name)
-    return validate_config(config, schema)
+    config = resolve_merged_config(
+        agentlab_root,
+        project_name=project_name,
+        profile_override=profile_override,
+    )
+    errors = validate_config(config, schema)
+
+    # Load layered config to check the specific active environment profile layer for unknown keys
+    from agent_runtime.config_center.loader import load_layered_config, ConfigLayer
+    layers = load_layered_config(
+        agentlab_root,
+        project_name=project_name,
+        profile_override=profile_override,
+    )
+    env_profile = layers.get(ConfigLayer.ENVIRONMENT_PROFILE, {})
+    if env_profile:
+        profile_errors = validate_profile_keys(env_profile, schema.keys)
+        errors.extend(profile_errors)
+
+    return errors

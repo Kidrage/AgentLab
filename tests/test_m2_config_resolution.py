@@ -170,7 +170,7 @@ def test_dev_profile_makes_permissive() -> None:
     profiles = load_profiles(ROOT)
     dev = profiles["dev"]
     assert "routing_policy" in dev
-    assert dev["routing_policy"]["default_mode"] == "full_cli"
+    assert dev["routing_policy"]["default_budget"] == "balanced"
     assert dev["routing_policy"]["allow_automatic_fallback"] is True
 
 
