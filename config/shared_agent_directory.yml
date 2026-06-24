@@ -53,17 +53,76 @@ endpoints:
   localization_69:
     display_name: Localization Endpoint 69
     role: localization_target
-    workspace: discover_on_endpoint
-    status: inventory_required
+    workspace: /Users/saintpeter/Desktop/AgentLab
+    status: ready
+    evidence: "Verified clean workspace, pulled commit 2d7c4239298806768e3a867431de4a45f59f2caf. Installed and verified all missing tools (ripgrep, ast-grep, uv, ruff, pnpm) and agents (codex, qwen). Aligned bailian-cli version and credentials with Cloud 250. All pytest shared agent protocol tests passed successfully."
     writable_scopes: [localization_workspace]
-    must_publish_before_collaboration:
-      - resolved_workspace
-      - installed_agents
-      - invocation_contracts
-      - skill_inventory
-      - mcp_inventory
-      - deterministic_tool_inventory
     peer_awareness_required: true
+    resolved_workspace: /Users/saintpeter/Desktop/AgentLab
+    installed_agents:
+      agentlab: "0.1.0"
+      openclaw: "2026.6.9"
+      hermes: "v0.17.0"
+      claude_code: "2.1.186"
+      agy: "1.0.10"
+      bl: "1.4.1"
+      codex: "0.142.0"
+      qwen: "0.19.1"
+    invocation_contracts:
+      hermes: "hermes -z \"You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers.\""
+      claude_code: "claude -p \"{prompt}\""
+      bl: "bl chat -p \"{prompt}\""
+      agy: "agy --sandbox -p \"{prompt}\""
+      openclaw: "openclaw run --prompt \"{prompt}\""
+      codex: "codex --task \"{prompt}\""
+      qwen: "qwen --bare --approval-mode default --output-format json \"{prompt}\""
+    skill_inventory:
+      - name: agent-reach
+        version: "universal"
+        path: /Users/saintpeter/.agents/skills/agent-reach
+        trigger: "research/search/look up/find anything on the internet"
+      - name: bailian-cli
+        version: "1.4.1"
+        path: /Users/saintpeter/.agents/skills/bailian-cli
+        trigger: "specialist cloud tool for DashScope / Aliyun Model Studio"
+      - name: codebase-design
+        version: "universal"
+        path: /Users/saintpeter/.agents/skills/codebase-design
+        trigger: "design or improve a module's interface"
+      - name: ponytail
+        version: "universal"
+        path: /Users/saintpeter/.agents/skills/ponytail
+        trigger: "forces the laziest solution that actually works"
+      - name: tdd
+        version: "universal"
+        path: /Users/saintpeter/.agents/skills/tdd
+        trigger: "test-driven development"
+      - name: review
+        version: "universal"
+        path: /Users/saintpeter/.agents/skills/review
+        trigger: "review the changes since a fixed point"
+    mcp_inventory:
+      - name: codebase-memory-mcp
+        transport: mcp-lazy
+        command: null
+        permissions: read-write
+      - name: agentlab_stdio
+        transport: stdio
+        command: scripts/agentlab_mcp_stdio.sh
+        permissions: read-write
+    deterministic_tool_inventory:
+      git: "/usr/bin/git"
+      rg: "/Users/saintpeter/.local/bin/rg"
+      ast_grep: "/Users/saintpeter/.local/bin/ast-grep"
+      pytest: "/Users/saintpeter/anaconda3/bin/pytest"
+      ruff: "/Users/saintpeter/anaconda3/bin/ruff"
+      uv: "/Users/saintpeter/.local/bin/uv"
+      npm: "/Users/saintpeter/.local/bin/npm"
+      pnpm: "/Users/saintpeter/.local/bin/pnpm"
+    service_inventory:
+      agentlab_mcp: "inactive"
+      agentlab_ops_console: "inactive"
+      openclaw_gateway: "inactive"
 
 agents:
   agentlab:

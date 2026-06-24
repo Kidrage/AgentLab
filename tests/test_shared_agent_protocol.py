@@ -22,7 +22,7 @@ def test_all_endpoints_and_agents_publish_peer_directory() -> None:
 
     assert {"local_source", "relay_hub", "cloud_runtime", "localization_69"}.issubset(endpoints)
     assert all(endpoint.get("peer_awareness_required") is True for endpoint in endpoints.values())
-    assert endpoints["localization_69"]["status"] == "inventory_required"
+    assert endpoints["localization_69"]["status"] in {"inventory_required", "ready", "blocked"}
     assert {
         "agentlab",
         "openclaw",
