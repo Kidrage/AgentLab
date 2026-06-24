@@ -10,7 +10,7 @@ def _redact_secrets(data):
     if isinstance(data, dict):
         new_data = {}
         for k, v in data.items():
-            if "api_key" in k.lower() or "secret" in k.lower() or "password" in k.lower() or "token" in k.lower():
+            if "api_key" in k.lower() or "secret" in k.lower() or "password" in k.lower() or "token" in k.lower() or "authorization" in k.lower():
                 new_data[k] = "[REDACTED]"
             else:
                 new_data[k] = _redact_secrets(v)

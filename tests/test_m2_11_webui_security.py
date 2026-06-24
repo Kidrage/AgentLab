@@ -35,3 +35,20 @@ def test_webui_json_response_applies_redaction():
     resp = json_response(secret_data)
     body = json.loads(resp["body"])
     assert body["auth_token"] == "[REDACTED]"
+
+from agentlab_app.dashboard.app import validate_dashboard_host
+
+def test_validate_dashboard_host_localhost():
+    assert validate_dashboard_host("127.0.0.1") == "127.0.0.1"
+    assert validate_dashboard_host("localhost") == "localhost"
+    assert validate_dashboard_host("LOCALHOST ") == "localhost"
+
+def test_validate_dashboard_host_rejects_remote():
+    with pytest.raises(ValueError, match="local-only"):
+        validate_dashboard_host("0.0.0.0")
+
+    with pytest.raises(ValueError, match="local-only"):
+        validate_dashboard_host("::")
+
+    with pytest.raises(ValueError, match="local-only"):
+        validate_dashboard_host("192.168.1.10")

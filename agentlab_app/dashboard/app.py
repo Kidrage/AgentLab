@@ -14,13 +14,25 @@ class DashboardHandler(BaseHTTPRequestHandler):
         # Silence logging
         pass
 
+ALLOWED_LOCAL_HOSTS = {"127.0.0.1", "localhost"}
+
+def validate_dashboard_host(host: str) -> str:
+    normalized = (host or "").strip().lower()
+
+    if normalized not in ALLOWED_LOCAL_HOSTS:
+        raise ValueError(
+            "M2-11 WebUI is local-only. "
+            "Use --host 127.0.0.1 or --host localhost."
+        )
+
+    return normalized
+
 def run_server(host="127.0.0.1", port=8765):
-    if host != "127.0.0.1":
-        print(f"WARNING: Binding to non-localhost {host} is restricted.")
+    validated_host = validate_dashboard_host(host)
     
-    server_address = (host, port)
+    server_address = (validated_host, port)
     httpd = HTTPServer(server_address, DashboardHandler)
-    print(f"AgentLab WebUI started on http://{host}:{port}/dashboard")
+    print(f"AgentLab WebUI started on http://{validated_host}:{port}/dashboard")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

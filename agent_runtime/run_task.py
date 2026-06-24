@@ -99,6 +99,9 @@ def webui_cmd(host: str = typer.Option("127.0.0.1", "--host", help="Host to bind
     try:
         from agentlab_app.dashboard.app import run_server
         run_server(host=host, port=port)
+    except ValueError as e:
+        print(f"Error: {e}")
+        raise typer.Exit(1)
     except ImportError as e:
         print(f"Failed to load WebUI module: {e}")
 
