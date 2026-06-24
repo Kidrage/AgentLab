@@ -180,5 +180,23 @@ Python stdlib HTTP server (`server.py`) + vanilla JS SPA (`app.js`, `index.html`
     - **Relay Hub -> Cloud Runtime**: Remote agents on `<CLOUD_RUNTIME_HOST>` pull workspace/skills/MCP updates from Relay Hub to `<CLOUD_WORKSPACE>/AgentLab/` using:
       `ssh <CLOUD_SSH_USER>@<CLOUD_RUNTIME_HOST> "rsync -avz --exclude '__pycache__' --exclude '.pytest_cache' <RELAY_HOST>:<RELAY_WORKSPACE>/AgentLab/ <CLOUD_WORKSPACE>/AgentLab/"`
     - **Cloud Runtime -> Relay Hub -> Local**: Tasks executed on Cloud Runtime sync run logs back to Relay Hub first, which then can be pulled to local, maintaining synchronized memory capabilities.
+  * **GitHub CLI (gh) — 双端通用规则**:
+    - **版本**: gh >= 2.95.0, 双端均已安装。
+    - **认证**: 双端 GitHub 均配置 SSH (`git@github.com:Kidrage/AgentLab.git`)，git push/pull 畅通。
+      gh API 调用（如 `gh run list`, `gh pr`）需要额外 token 认证。首次使用执行 `gh auth login` 交互登录，
+      或设置 `GITHUB_TOKEN` / `GH_TOKEN` 环境变量。推荐使用 classic PAT with `repo` + `read:org` scope。
+    - **Git 协议**: `gh config set git_protocol ssh`（与 SSH remote 一致）。
+    - **常用命令**:
+      ```bash
+      gh run list --repo Kidrage/AgentLab --branch main --limit 5   # CI 运行历史
+      gh run view --repo Kidrage/AgentLab <run_id> --log             # 查看 CI 日志
+      gh pr list --repo Kidrage/AgentLab                             # PR 列表
+      gh pr create --repo Kidrage/AgentLab --base main --title "..." # 创建 PR
+      ```
+    - **远端执行**: 可通过 SSH 在 Cloud Runtime 上运行 gh 命令：
+      `ssh <CLOUD_SSH_USER>@<CLOUD_RUNTIME_HOST> "cd <CLOUD_WORKSPACE>/AgentLab && gh run list --repo Kidrage/AgentLab --branch main"`
+    - **提交规则**: 所有 commit 末尾附 `Co-Authored-By: Claude <noreply@anthropic.com>`。不直接 push 到 main 除非明确要求。
+    - **CI 验收准则**: 每次 push main 后通过 `gh run list` 确认最新 CI 绿色。若 CI 失败，在下一轮修复中优先处理。
+    - **禁止**: 禁止在 commit message 中泄露 API key / token / 密码 / 内网 IP。gh token 仅存储在本地 `~/.config/gh/` 或安全环境变量中，不提交。
 
 
