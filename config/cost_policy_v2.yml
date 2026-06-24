@@ -1,0 +1,5 @@
+cost_policy:
+  version: 2.0
+  hard_limit_usd: 10.0
+  soft_limit_usd: 5.0
+  currency: USD

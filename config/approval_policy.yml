@@ -1,0 +1,6 @@
+approval_policy:
+  require_approval_for_unknown_cli_cost: true
+  require_approval_for_risky_capabilities: true
+  risky_capabilities:
+    - shell_execution
+    - network_access

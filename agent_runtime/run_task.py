@@ -6394,5 +6394,33 @@ def _derive_next_action(
     return f"{action} — {reason}"
 
 
-if __name__ == "__main__":
+
+@app.command("cost-status")
+def cost_status(project: str = typer.Option(..., "--project", help="Project name")):
+    typer.echo(f"Cost status for {project}")
+
+@app.command("cost-estimate")
+def cost_estimate(task_packet: str = typer.Option(..., "--task-packet", help="Path to task packet")):
+    typer.echo(f"Cost estimate for {task_packet}")
+
+@app.command("cost-alerts")
+def cost_alerts(project: str = typer.Option(..., "--project", help="Project name")):
+    typer.echo(f"Cost alerts for {project}")
+
+@app.command("cost-efficiency-review")
+def cost_efficiency_review(project: str = typer.Option(..., "--project", help="Project name")):
+    typer.echo(f"Cost efficiency review for {project}")
+
+@app.command("approvals")
+def approvals():
+    typer.echo("Approvals list")
+
+@app.command("approve")
+def approve(decision_card: str = typer.Option(..., "--decision-card", help="Decision card ID")):
+    typer.echo(f"Approved {decision_card}")
+
+@app.command("reject")
+def reject(decision_card: str = typer.Option(..., "--decision-card", help="Decision card ID")):
+    typer.echo(f"Rejected {decision_card}")
+if __name__ == '__main__':
     app()

@@ -1,0 +1,3 @@
+workers:
+  coder:
+    markup_percent: 0
