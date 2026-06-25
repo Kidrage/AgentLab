@@ -1,0 +1,45 @@
+route_decision:
+  project_id: AgentLab
+  phase_id: m2_12_operator_acceptance_demo
+  task_id: task_m2_12_operator_demo
+  role: Coder
+  selected_worker: claude_code
+  selected_command: mock_execute_task_packet
+  selection_reason:
+  - M2-12 deterministic demo route
+  - no external executor dispatch
+  rejected_workers:
+  - worker: external.auto_dispatch
+    reason: real external execution is out of scope
+  required_capabilities:
+  - file_edit
+  - patch_generation
+  - test_execution
+  risk_level: medium
+  approval_required: true
+  approval_reasons:
+  - demo route includes write-capable role
+  - operator acceptance requires explicit control
+  activation_decision: require_approval
+  mode: hybrid_local_company
+  tier: performance
+  cost_estimate:
+    known: true
+    policy: mock_local_only
+    tier: free
+  fallback_workers:
+  - mock.local_worker
+  constraints:
+    allowed_files:
+    - acceptance_runs/m2_operator_demo/**
+    forbidden_files:
+    - secrets/**
+    - .env
+    - agent_runtime/.env
+    commands_allowed:
+    - pytest
+    - agentlab.sh * --dry-run
+    commands_forbidden:
+    - rm -rf
+    - external auto-dispatch
+  evidence_paths: []

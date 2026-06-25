@@ -1,0 +1,140 @@
+version: 1
+project: AgentLab
+task_id: ''
+created_at: '2026-06-25T03:38:33.149110+00:00'
+status: pass
+summary:
+  pass: 19
+  warn: 0
+  fail: 0
+checks:
+- id: migration_profile
+  status: pass
+  message: migration_profile.yml loaded
+  details:
+    path: /home/admin/AgentLab/config/migration_profile.yml
+- id: python.version
+  status: pass
+  message: Python 3.11.13 against >=3.10
+  details:
+    executable: /home/admin/AgentLab/agent_runtime/.venv/bin/python
+- id: dir.agent_runtime
+  status: pass
+  message: agent_runtime exists
+  details:
+    path: /home/admin/AgentLab/agent_runtime
+- id: dir.agent_templates
+  status: pass
+  message: agent_templates exists
+  details:
+    path: /home/admin/AgentLab/agent_templates
+- id: dir.config
+  status: pass
+  message: config exists
+  details:
+    path: /home/admin/AgentLab/config
+- id: dir.projects
+  status: pass
+  message: projects exists
+  details:
+    path: /home/admin/AgentLab/projects
+- id: dir.web_ui
+  status: pass
+  message: web_ui exists
+  details:
+    path: /home/admin/AgentLab/web_ui
+- id: project.root
+  status: pass
+  message: project AgentLab exists
+  details:
+    path: /home/admin/AgentLab/projects/AgentLab
+- id: env.DEEPSEEK_API_KEY
+  status: pass
+  message: DEEPSEEK_API_KEY configured
+  details:
+    required: true
+    purpose: Supervisor / brain / review
+- id: env.DASHSCOPE_API_KEY
+  status: pass
+  message: DASHSCOPE_API_KEY configured
+  details:
+    required: true
+    purpose: Qwen perception / coder / audit
+- id: env.OPENAI_API_KEY
+  status: pass
+  message: OPENAI_API_KEY optional and not configured
+  details:
+    required: false
+    purpose: optional provider
+- id: env.GITHUB_TOKEN
+  status: pass
+  message: GITHUB_TOKEN not required for current GitHub SSH/project backup configuration
+  details:
+    required: false
+    purpose: GitHub guarded backup
+- id: github.backup.disabled
+  status: pass
+  message: Project AgentLab has GitHub backup disabled; GITHUB_TOKEN is not required.
+- id: git.remote.origin
+  status: pass
+  message: git origin remote configured
+  details:
+    remote: git@github.com:Kidrage/AgentLab.git
+- id: smb.truenas
+  status: pass
+  message: SSH connected, remote path exists; write probe skipped
+  details:
+    mount_path: /mnt/hdd2/AgentLab_WorkSpace
+    protocol_url: smb://10.147.17.61/AgentLab_WorkSpace
+    writable: null
+    free_bytes: 11410816892928
+- id: web_ui.port
+  status: pass
+  message: Web UI port 8765
+  details:
+    port_env: AGENTLAB_PORT
+    port: 8765
+- id: env.AGENTLAB_WEB_UI_TOKEN
+  status: pass
+  message: AGENTLAB_WEB_UI_TOKEN configured
+  details:
+    required: true
+    purpose: Web UI local access control
+- id: cache.root
+  status: pass
+  message: cache root exists
+  details:
+    path: /home/admin/AgentLab/.agentlab_runtime/cache
+    parent_exists: true
+- id: local.disk
+  status: pass
+  message: local disk usage readable
+  details:
+    total_bytes: 41881894912
+    free_bytes: 15892856832
+warnings: []
+blocking_reasons: []
+paths:
+  agentlab_root: /home/admin/AgentLab
+  project_root: /home/admin/AgentLab/projects/AgentLab
+  migration_profile: /home/admin/AgentLab/config/migration_profile.yml
+truenas_status:
+  version: 1
+  target: truenas
+  status: pass
+  message: SSH connected, remote path exists; write probe skipped
+  created_at: '2026-06-25T03:38:33.148862+00:00'
+  enabled: true
+  transport: ssh
+  protocol_url: smb://10.147.17.61/AgentLab_WorkSpace
+  ssh_host: 10.147.17.61
+  ssh_user: agentlab
+  mount_path: /mnt/hdd2/AgentLab_WorkSpace
+  remote_base_path: /mnt/hdd2/AgentLab_WorkSpace
+  mounted: true
+  writable: null
+  write_probe: false
+  probe_error: ''
+  total_bytes: 11412447035392
+  free_bytes: 11410816892928
+backup_policy_loaded: true

@@ -1,0 +1,5 @@
+phase_id: m2_12_operator_acceptance_demo
+status: pass
+required_evidence_present: true
+missing_evidence: []
+scenario_validation_required: false

@@ -79,6 +79,37 @@ class MigrationDoctorTests(TestCase):
             self.assertIn(report["status"], {"pass", "warn"})
             self.assertNotIn("secret-token-value", text)
 
+    def test_project_disabled_github_backup_does_not_require_token(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "root"
+            remote = Path(td) / "remote"
+            remote.mkdir(parents=True)
+            create_root(root, remote)
+            write_yaml(root / "projects" / "Demo" / "project_config.yml", {"github": {"backup": {"enabled": False}}})
+            write_yaml(
+                root / "config" / "backup_policy.yml",
+                {
+                    "targets": {
+                        "github": {"enabled": True},
+                        "truenas": {
+                            "enabled": True,
+                            "protocol_url": "smb://example/AgentLab_WorkSpace",
+                            "mount_path": str(remote),
+                        },
+                    }
+                },
+            )
+            old = os.environ.pop("GITHUB_TOKEN", None)
+            try:
+                report = run_migration_doctor(root, "Demo", write_probe=True)
+            finally:
+                if old is not None:
+                    os.environ["GITHUB_TOKEN"] = old
+
+            token_check = next(item for item in report["checks"] if item["id"] == "env.GITHUB_TOKEN")
+            self.assertEqual(token_check["status"], "pass")
+            self.assertNotIn("GITHUB_TOKEN missing", report["blocking_reasons"])
+
 
 class TrueNASSyncTests(TestCase):
     def test_dry_run_does_not_write_remote_file(self) -> None:

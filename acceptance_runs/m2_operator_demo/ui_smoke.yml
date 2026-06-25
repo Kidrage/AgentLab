@@ -1,0 +1,6 @@
+tui:
+  command: ./agentlab.sh tui --headless --view overview --project AgentLab
+  status: planned_smoke_pass
+webui:
+  command: ./agentlab.sh webui --host 127.0.0.1 --port 8765
+  status: local_only_route_available

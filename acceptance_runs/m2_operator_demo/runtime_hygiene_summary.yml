@@ -1,0 +1,106 @@
+agentlab_root: /home/admin/AgentLab
+profiles_dir: .agents/profiles
+workspaces_dir: .agents/workspaces
+bridges_dir: .agents/bridges
+logs_dir: .agents/logs
+runtime_dir: .agents/runtime
+profile_entries:
+- name: claude
+  path: .agents/profiles/claude
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  risk_flags: []
+- name: codex
+  path: .agents/profiles/codex
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  risk_flags: []
+- name: qwen
+  path: .agents/profiles/qwen
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  risk_flags: []
+- name: hermes
+  path: .agents/profiles/hermes
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  risk_flags: []
+- name: gemini
+  path: .agents/profiles/gemini
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  risk_flags: []
+- name: bailian
+  path: .agents/profiles/bailian
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  risk_flags: []
+- name: openclaw
+  path: .agents/profiles/openclaw
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  risk_flags: []
+workspace_entries:
+- name: claude
+  path: .agents/workspaces/claude
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  cleanable: true
+  risk_flags: []
+- name: codex
+  path: .agents/workspaces/codex
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  cleanable: true
+  risk_flags: []
+- name: qwen
+  path: .agents/workspaces/qwen
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  cleanable: true
+  risk_flags: []
+- name: hermes
+  path: .agents/workspaces/hermes
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  cleanable: true
+  risk_flags: []
+- name: openclaw
+  path: .agents/workspaces/openclaw
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  cleanable: true
+  risk_flags: []
+- name: generic_cli
+  path: .agents/workspaces/generic_cli
+  exists: false
+  symlink: false
+  target: null
+  git_tracked: false
+  cleanable: true
+  risk_flags: []
+warnings: []

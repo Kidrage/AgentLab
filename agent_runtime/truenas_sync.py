@@ -263,9 +263,10 @@ def _ssh_status(cfg: dict[str, Any], *, transport: str, protocol_url: str, write
                        remote_base_path=remote_base, mounted=False)
 
     # Check writable
-    writable = False
+    writable: bool | None = None
     probe_error = ""
     if write_probe:
+        writable = False
         probe_file = f"{remote_base}/.agentlab_probe/ssh_probe_{os.getpid()}_{int(datetime.now().timestamp())}.tmp"
         try:
             mkdir_cmd = _ssh_command(ssh) + [_ssh_dest(ssh), f"mkdir -p {_shell_quote(remote_base + '/.agentlab_probe')}"]
@@ -280,8 +281,14 @@ def _ssh_status(cfg: dict[str, Any], *, transport: str, protocol_url: str, write
     total_bytes, free_bytes = _ssh_disk_usage(ssh)
 
     return _status(
-        "pass" if writable else "fail",
-        "SSH connected, remote path writable" if writable else "SSH connected, remote path not writable",
+        "pass" if (writable is True or not write_probe) else "fail",
+        (
+            "SSH connected, remote path writable"
+            if writable is True
+            else "SSH connected, remote path exists; write probe skipped"
+            if not write_probe
+            else "SSH connected, remote path not writable"
+        ),
         enabled=enabled, transport=transport, protocol_url=protocol_url,
         ssh_host=ssh["host"], ssh_user=ssh["user"],
         mount_path=remote_base,

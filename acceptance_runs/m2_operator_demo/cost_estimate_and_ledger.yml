@@ -1,0 +1,10 @@
+task_id: task_m2_12_operator_demo
+estimated_total_usd: 0.0
+cost_mode: mock_local_only
+ledger_entries:
+- kind: worker_scan
+  estimated_usd: 0.0
+- kind: mock_audition
+  estimated_usd: 0.0
+- kind: route_decision
+  estimated_usd: 0.0

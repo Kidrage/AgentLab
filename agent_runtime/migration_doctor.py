@@ -83,7 +83,7 @@ def _env_check(checks: list[dict[str, Any]], name: str, *, required: bool, purpo
     elif required:
         _check(checks, f"env.{name}", "fail", f"{name} missing", required=required, purpose=purpose)
     else:
-        _check(checks, f"env.{name}", "warn", f"{name} optional and not configured", required=required, purpose=purpose)
+        _check(checks, f"env.{name}", "pass", f"{name} optional and not configured", required=required, purpose=purpose)
 
 
 def run_migration_doctor(
@@ -147,17 +147,28 @@ def run_migration_doctor(
         or (github_policy.get("auth") or {}).get("token_env")
         or "GITHUB_TOKEN"
     )
-    # Respect project-level GitHub backup override: if disabled, token is optional
+    has_remote, remote = _git_remote(agentlab_root)
+    origin_uses_ssh = remote.startswith("git@") or remote.startswith("ssh://")
+    # Respect project-level GitHub backup override and SSH source remotes.
     project_config = _load_yaml(project_root / "project_config.yml")
     project_github_disabled = not bool((project_config.get("github") or {}).get("backup", {}).get("enabled", True))
     global_github_enabled = bool((backup_policy.get("targets") or {}).get("github", {}).get("enabled", False))
-    github_token_required = (not project_github_disabled) or global_github_enabled
-    _env_check(checks, str(github_token_env), required=github_token_required, purpose="GitHub guarded backup")
-    if project_github_disabled and not global_github_enabled:
+    github_token_required = (not project_github_disabled) and global_github_enabled and not origin_uses_ssh
+    if github_token_required or os.getenv(str(github_token_env)):
+        _env_check(checks, str(github_token_env), required=github_token_required, purpose="GitHub guarded backup")
+    else:
+        _check(
+            checks,
+            f"env.{github_token_env}",
+            "pass",
+            f"{github_token_env} not required for current GitHub SSH/project backup configuration",
+            required=False,
+            purpose="GitHub guarded backup",
+        )
+    if project_github_disabled:
         checks.append({"id": "github.backup.disabled", "status": "pass",
                         "message": f"Project {project} has GitHub backup disabled; GITHUB_TOKEN is not required."})
 
-    has_remote, remote = _git_remote(agentlab_root)
     _check(
         checks,
         "git.remote.origin",

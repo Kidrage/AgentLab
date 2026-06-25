@@ -9,6 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
+import truenas_sync as truenas_sync_module
 from truenas_sync import (
     DEFAULT_EXCLUDES,
     _build_memory_sync_items,
@@ -89,6 +90,37 @@ def test_get_truenas_status_ssh_no_config(tmp_path: Path) -> None:
     )
     status = get_truenas_status(tmp_path, write_probe=False)
     assert status["status"] == "fail"
+
+
+def test_get_truenas_status_ssh_no_write_probe_passes_when_path_exists(tmp_path: Path, monkeypatch) -> None:
+    key = tmp_path / "id_ed25519"
+    key.write_text("fake-key", encoding="utf-8")
+    _write_policy(
+        tmp_path,
+        "version: 1\n"
+        "targets:\n"
+        "  truenas:\n"
+        "    enabled: true\n"
+        "    transport: ssh\n"
+        "    ssh:\n"
+        "      host: truenas.local\n"
+        "      port: 22\n"
+        "      user: testuser\n"
+        f"      identity_file: {key}\n"
+        "      remote_base_path: /mnt/pool/agentlab\n",
+    )
+
+    class Result:
+        returncode = 0
+
+    monkeypatch.setattr(truenas_sync_module, "_check_ssh_reachable", lambda ssh: (True, "ok"))
+    monkeypatch.setattr(truenas_sync_module, "_ssh_disk_usage", lambda ssh: (100, 50))
+    monkeypatch.setattr(truenas_sync_module.subprocess, "run", lambda *args, **kwargs: Result())
+
+    status = get_truenas_status(tmp_path, write_probe=False)
+    assert status["status"] == "pass"
+    assert status["writable"] is None
+    assert status["write_probe"] is False
 
 
 def test_get_truenas_status_smb_no_mount(tmp_path: Path) -> None:

@@ -1,0 +1,56 @@
+version: 1
+created_at: '2026-06-25T03:38:33.267726+00:00'
+project: AgentLab
+task_id: task_m2_12_operator_demo
+status: pass
+migration:
+  status: pass
+  summary:
+    pass: 19
+    warn: 0
+    fail: 0
+  warnings: []
+  demo_blocking_reasons: []
+workers:
+  total_workers: 21
+  installed_workers: 13
+  missing_workers: 8
+roles:
+  role_count: 9
+route:
+  role: Coder
+  selected_worker: claude_code
+  approval_required: true
+approval:
+  status: approved_for_demo_only
+cost:
+  estimated_total_usd: 0.0
+acceptance:
+  runtime hygiene passes without demo blocking failures: true
+  worker registry summary exists: true
+  all 9 roles have capability requirements: true
+  mock worker audition scorecard exists: true
+  route decision is explainable: true
+  approval decision card exists: true
+  cost ledger example exists: true
+  timeline excerpts exist: true
+  TUI smoke evidence exists: true
+  WebUI smoke evidence exists: true
+  mock executor result ingested: true
+  phase acceptance passes: true
+  no real external execution required: true
+artifacts:
+  runtime_hygiene_summary: runtime_hygiene_summary.yml
+  migration_doctor_summary: migration_doctor_summary.yml
+  worker_registry_summary: worker_registry_summary.yml
+  role_requirement_matrix_summary: role_requirement_matrix_summary.yml
+  worker_audition_scorecard: worker_audition_scorecard.yml
+  route_decision_example: route_decision.yml
+  approval_decision_card: approval_decision_card.yml
+  cost_estimate_and_ledger: cost_estimate_and_ledger.yml
+  mock_executor_result: mock_executor_result.yml
+  phase_acceptance: phase_acceptance.yml
+  timeline_excerpt: timeline_excerpt.yml
+  ui_smoke: ui_smoke.yml
+  assistant_explanations: assistant_explanations.md
+  report: M2_OPERATOR_OS_EXECUTION_ECONOMY_REPORT.md

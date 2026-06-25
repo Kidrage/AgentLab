@@ -1,0 +1,63 @@
+suite: m2_12_mock_operator_demo
+real_execution: false
+results:
+- worker_id: claude_code
+  display_name: Claude Code
+  mock: true
+  role: Coder
+  verdict: pass
+  scores:
+    role_fit_score: 0.82
+    cost_score: 0.9
+    safety_score: 0.95
+  reason: local worker detected
+- worker_id: codex
+  display_name: Codex Code
+  mock: true
+  role: Coder
+  verdict: pass
+  scores:
+    role_fit_score: 0.82
+    cost_score: 0.9
+    safety_score: 0.95
+  reason: local worker detected
+- worker_id: aider
+  display_name: Aider
+  mock: true
+  role: Coder
+  verdict: blocked
+  scores:
+    role_fit_score: 0.25
+    cost_score: 0.9
+    safety_score: 0.5
+  reason: worker binary missing in local PATH
+- worker_id: hermes
+  display_name: Hermes CLI
+  mock: true
+  role: Verifier
+  verdict: pass
+  scores:
+    role_fit_score: 0.82
+    cost_score: 0.9
+    safety_score: 0.95
+  reason: local worker detected
+- worker_id: qwen
+  display_name: Qwen CLI
+  mock: true
+  role: Verifier
+  verdict: pass
+  scores:
+    role_fit_score: 0.82
+    cost_score: 0.9
+    safety_score: 0.95
+  reason: local worker detected
+- worker_id: gemini
+  display_name: Gemini CLI
+  mock: true
+  role: Verifier
+  verdict: blocked
+  scores:
+    role_fit_score: 0.25
+    cost_score: 0.9
+    safety_score: 0.5
+  reason: worker binary missing in local PATH

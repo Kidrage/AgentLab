@@ -709,6 +709,19 @@ def document_contract(
     console.print(f"wrote {path}")
 
 
+@app.command("m2-operator-demo")
+def m2_operator_demo_cmd(
+    out: Path = typer.Option(Path("acceptance_runs/m2_operator_demo"), "--out"),
+    project: str = typer.Option("AgentLab", "--project"),
+) -> None:
+    """Run the deterministic M2-12 operator acceptance demo."""
+    from agent_runtime.m2_operator_demo import run_m2_operator_demo
+
+    summary = run_m2_operator_demo(_PROJECT_ROOT, out, project=project)
+    console.print(f"M2-12 operator demo status: {summary['status']}")
+    console.print(f"Report written to {(Path(out) if Path(out).is_absolute() else _PROJECT_ROOT / out) / 'M2_OPERATOR_OS_EXECUTION_ECONOMY_REPORT.md'}")
+
+
 @app.command("runtime-doctor")
 def runtime_doctor(
     out: Path = typer.Option(Path("acceptance_runs/m2_runtime_hygiene"), "--out"),

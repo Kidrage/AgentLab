@@ -1,0 +1,7 @@
+decision_id: m2_12_demo_approval_001
+task_id: task_m2_12_operator_demo
+decision_type: route_activation
+status: approved_for_demo_only
+requires_operator: true
+safe_to_execute: false
+reason: Demonstrates approval/retry control surface without real executor dispatch.

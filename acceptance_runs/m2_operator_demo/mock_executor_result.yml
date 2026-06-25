@@ -1,0 +1,6 @@
+task_id: task_m2_12_operator_demo
+executor: claude_code
+mock: true
+status: finished
+result: operator demo evidence generated
+accepted_by_phase_gate: true
