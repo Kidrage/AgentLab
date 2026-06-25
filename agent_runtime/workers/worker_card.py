@@ -24,6 +24,7 @@ class WorkerCard:
     worker_id: str
     display_name: str
     command: str
+    command_candidates: Optional[list[str]] = None
     installed: bool = False
     version: Optional[str] = None
     authenticated: str = "unknown"  # "yes" | "no" | "unknown"

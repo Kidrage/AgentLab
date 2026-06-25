@@ -23,7 +23,7 @@ modes:
         researcher:
           executor_type: cli_agent
           cli_agent: claude_code
-          cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_command: 'ccs --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_6_plus_dashscope
         prompt_engineer:
           executor_type: cli_agent
@@ -33,7 +33,7 @@ modes:
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
-          cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_command: 'ccs --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_coder_plus_dashscope
           external_ide_allowed: true
         tester_auditor:
@@ -70,7 +70,7 @@ modes:
         researcher:
           executor_type: cli_agent
           cli_agent: claude_code
-          cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_command: 'ccs --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_6_flash_dashscope
         prompt_engineer:
           executor_type: cli_agent
@@ -80,7 +80,7 @@ modes:
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
-          cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_command: 'ccs --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_coder_plus_dashscope
           external_ide_allowed: true
         tester_auditor:
@@ -119,7 +119,7 @@ modes:
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
-          cli_command: 'claude --effort low --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_command: 'ccs --effort low --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_coder_next_dashscope
           external_ide_allowed: false
         tester_auditor:
@@ -308,3 +308,18 @@ modes:
           default: deepseek_v4_flash
         verifier: skip
         archivist: skip
+  trusted_headless_cli:
+    notes: Explicit opt-in profile for trusted local-only headless CLI automation. Requires env gate and human approval.
+    safety:
+      requires_env:
+        AGENTLAB_ALLOW_DANGEROUS_CCS: "1"
+      requires_human_approval: true
+      never_default: true
+    tiers:
+      full:
+        coder:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          cli_command: 'ccs --output-format json --allow-dangerously-skip-permissions -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          default: qwen3_coder_plus_dashscope
+          external_ide_allowed: true

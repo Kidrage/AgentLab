@@ -12,7 +12,8 @@ DEFAULT_CANDIDATES = [
     {
         "worker_id": "claude_code",
         "display_name": "Claude Code",
-        "command": "claude",
+        "command_candidates": ["ccs", "claude"],
+        "command": "ccs",
         "category": WorkerCategory.CODING_AGENT,
         "cost_tier": "high",
         "risk_level": "high",
@@ -230,8 +231,19 @@ def scan_workers() -> list[WorkerCard]:
     """Scan and probe all default candidates on the system."""
     cards = []
     for c in DEFAULT_CANDIDATES:
-        installed = probe_command(c["command"])
-        version = probe_version(c["command"]) if installed else None
+        actual_command = c["command"]
+        installed = False
+        
+        if "command_candidates" in c:
+            for cmd in c["command_candidates"]:
+                if probe_command(cmd):
+                    actual_command = cmd
+                    installed = True
+                    break
+        else:
+            installed = probe_command(actual_command)
+
+        version = probe_version(actual_command) if installed else None
         authenticated = probe_auth(c["worker_id"]) if installed else "no"
         
         # High risk workers default to approval_required = True
@@ -242,7 +254,7 @@ def scan_workers() -> list[WorkerCard]:
         card = WorkerCard(
             worker_id=c["worker_id"],
             display_name=c["display_name"],
-            command=c["command"],
+            command=actual_command,
             installed=installed,
             version=version,
             authenticated=authenticated,

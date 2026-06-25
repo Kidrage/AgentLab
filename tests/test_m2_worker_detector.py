@@ -37,9 +37,10 @@ def test_probe_auth_yes():
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-123456"}):
         assert probe_auth("claude") == "yes"
 
-def test_probe_auth_no():
+def test_probe_auth_no(tmp_path):
     with patch.dict(os.environ, {}, clear=True):
-        assert probe_auth("claude") == "no"
+        with patch("os.path.expanduser", return_value=str(tmp_path)):
+            assert probe_auth("claude") == "no"
 
 def test_probe_health():
     with patch("agent_runtime.workers.health_probe.probe_command", return_value=True), \

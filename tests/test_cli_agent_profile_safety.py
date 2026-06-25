@@ -1,0 +1,40 @@
+import pytest
+import yaml
+from pathlib import Path
+from agent_runtime.workers.cli_command_policy import validate_cli_agent_profiles, DANGEROUS_FLAGS
+
+def load_profiles():
+    p = Path("config/agent_model_profiles.yml")
+    return yaml.safe_load(p.read_text(encoding="utf-8"))
+
+def test_agent_model_profiles_yaml_loads():
+    data = load_profiles()
+    assert data is not None
+
+def test_default_profiles_do_not_use_dangerous_ccs_permission_skip():
+    data = load_profiles()
+    findings = validate_cli_agent_profiles(data)
+    assert len(findings) == 0, f"Found safety violations: {findings}"
+
+def test_trusted_headless_profile_may_use_dangerous_skip_with_env_gate():
+    data = load_profiles()
+    trusted = data.get("modes", {}).get("trusted_headless_cli")
+    assert trusted is not None
+    safety = trusted.get("safety", {})
+    assert safety.get("requires_env", {}).get("AGENTLAB_ALLOW_DANGEROUS_CCS") == "1"
+    assert safety.get("requires_human_approval") is True
+    
+    cmd = trusted["tiers"]["full"]["coder"]["cli_command"]
+    assert any(flag in cmd for flag in DANGEROUS_FLAGS)
+
+def test_trusted_headless_profile_is_never_default():
+    data = load_profiles()
+    trusted = data.get("modes", {}).get("trusted_headless_cli")
+    assert trusted.get("safety", {}).get("never_default") is True
+    assert data.get("default_mode") != "trusted_headless_cli"
+
+def test_all_claude_code_profiles_keep_approval_required():
+    from agent_runtime.workers.detector import scan_workers
+    workers = scan_workers()
+    claude = next(w for w in workers if w.worker_id == "claude_code")
+    assert claude.approval_required is True

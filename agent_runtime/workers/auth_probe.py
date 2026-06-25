@@ -40,6 +40,13 @@ def probe_auth(worker_id: str) -> str:
     if not keys:
         return "unknown"
         
+    if clean_id == "claude":
+        # Safe detection of CCS config files without reading or leaking content
+        provider_dir = os.path.expanduser("~/.claude-provider")
+        if os.path.isfile(os.path.join(provider_dir, "active")) or \
+           os.path.isfile(os.path.join(provider_dir, "config")):
+            return "yes"
+        
     for k in keys:
         if os.environ.get(k):
             return "yes"
