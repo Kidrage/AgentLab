@@ -121,6 +121,11 @@ assistant_app = typer.Typer(
 register_assistant_commands(assistant_app)
 app.add_typer(assistant_app, name="assistant")
 
+goal_app = typer.Typer(help="M2-12.5 Goal / Mainline Command Bridge", no_args_is_help=True)
+from agent_runtime.goals.cli import register_goal_commands
+register_goal_commands(goal_app)
+app.add_typer(goal_app, name="goal")
+
 console = Console()
 
 
