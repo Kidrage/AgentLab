@@ -38,3 +38,24 @@ def test_all_claude_code_profiles_keep_approval_required():
     workers = scan_workers()
     claude = next(w for w in workers if w.worker_id == "claude_code")
     assert claude.approval_required is True
+
+def test_profile_safety_validator_flags_dangerous_default_profile():
+    bad_profile = {
+        "modes": {
+            "bad_mode": {
+                "tiers": {
+                    "full": {
+                        "coder": {
+                            "executor_type": "cli_agent",
+                            "cli_command": "ccs --allow-dangerously-skip-permissions"
+                        }
+                    }
+                }
+            }
+        }
+    }
+    findings = validate_cli_agent_profiles(bad_profile)
+    assert len(findings) == 1
+    assert findings[0].severity == "error"
+    assert findings[0].profile == "bad_mode"
+    assert findings[0].flag == "--allow-dangerously-skip-permissions"

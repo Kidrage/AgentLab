@@ -1,7 +1,7 @@
 version: 1
 project: AgentLab
 task_id: ''
-created_at: '2026-06-25T03:38:33.149110+00:00'
+created_at: '2026-06-25T04:05:37.453161+00:00'
 status: pass
 summary:
   pass: 19
@@ -111,7 +111,7 @@ checks:
   message: local disk usage readable
   details:
     total_bytes: 41881894912
-    free_bytes: 15892856832
+    free_bytes: 15883980800
 warnings: []
 blocking_reasons: []
 paths:
@@ -123,7 +123,7 @@ truenas_status:
   target: truenas
   status: pass
   message: SSH connected, remote path exists; write probe skipped
-  created_at: '2026-06-25T03:38:33.148862+00:00'
+  created_at: '2026-06-25T04:05:37.452901+00:00'
   enabled: true
   transport: ssh
   protocol_url: smb://10.147.17.61/AgentLab_WorkSpace

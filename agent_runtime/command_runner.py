@@ -12,6 +12,7 @@ import hashlib
 import os
 import shlex
 import subprocess
+import sys
 
 import yaml
 
@@ -362,9 +363,13 @@ def run_logged_command(
     stderr = ""
     status = "success"
 
+    exec_argv = list(argv)
+    if Path(exec_argv[0]).name == "python":
+        exec_argv[0] = sys.executable
+
     try:
         completed = subprocess.run(
-            argv,
+            exec_argv,
             cwd=str(resolved_cwd),
             capture_output=True,
             text=True,
@@ -388,7 +393,7 @@ def run_logged_command(
         "node": node,
         "agent": agent,
         "command": command_text,
-        "argv": argv,
+        "argv": exec_argv,
         "cwd": str(resolved_cwd),
         "exit_code": exit_code,
         "timed_out": timed_out,
@@ -404,7 +409,7 @@ def run_logged_command(
     return {
         "command_id": command_id,
         "command": command_text,
-        "argv": argv,
+        "argv": exec_argv,
         "cwd": str(resolved_cwd),
         "exit_code": exit_code,
         "timed_out": timed_out,

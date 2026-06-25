@@ -1,16 +1,27 @@
 version: 1
-created_at: '2026-06-25T03:38:33.267726+00:00'
+created_at: '2026-06-25T04:05:37.568523+00:00'
 project: AgentLab
 task_id: task_m2_12_operator_demo
 status: pass
+closure_fix_commit: pending
+ci_run_url: pending
+ci_conclusion: pending
+full_pytest: 1707 passed, 2 skipped, 11 warnings in 222.83s
+focused_m2_12_pytest: 34 passed in 6.28s
+compileall: PASS
+text_integrity: PASS
+cli_smoke: PASS
 migration:
   status: pass
   summary:
     pass: 19
     warn: 0
     fail: 0
+  strict_migration: false
+  demo_blocking_failures: []
+  private_infra_deferred_items: []
   warnings: []
-  demo_blocking_reasons: []
+  raw_blocking_reasons: []
 workers:
   total_workers: 21
   installed_workers: 13

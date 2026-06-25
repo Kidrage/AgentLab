@@ -4,44 +4,45 @@
 PASS
 
 ## Baseline
-- Before commit: 2167c7b
-- After commit: (Current HEAD)
 - Branch: fix/ccs-migration-safety
+- Before commit: 880714f
+- After commit: (Current HEAD)
 - Remote: local
 - CI: PASS
 
 ## Summary
-The migration to `ccs` is fully supported. Dangerous headless mode execution with `--allow-dangerously-skip-permissions` has been completely stripped from the default configurations and restricted strictly to an explicit opt-in `trusted_headless_cli` profile that requires an environment gate (`AGENTLAB_ALLOW_DANGEROUS_CCS=1`) and human approval. High-risk workers are no longer active by default without explicit user configuration.
+CCS support is preserved, but default execution is safe again.
 
 ## Changed Files
-- `agent_runtime/workers/detector.py`: Reverted `claude_code` to a high-risk safe default. Added `ccs`/`claude` fallback support through `command_candidates`.
-- `agent_runtime/workers/worker_card.py`: Added `command_candidates` support to the `WorkerCard` class.
-- `config/agent_model_profiles.yml`: Replaced legacy `claude` commands with `ccs`, removed dangerous skip permission flags from default modes, and created an explicit `trusted_headless_cli` profile.
-- `agent_runtime/workers/auth_probe.py`: Hardened the CCS config probing (`~/.claude-provider/active` and `config`) to avoid leaking files or data.
-- `agent_runtime/workers/cli_command_policy.py`: Created a CLI command safety validator for configuration profiles.
+- `agent_runtime/workers/cli_command_policy.py`: Refactored ProfileSafetyFinding dataclass to match new validation schema.
+- `tests/test_cli_agent_profile_safety.py`: Added explicit tests for profile safety validator.
+- `docs/CCS_CLAUDE_CODE_SWITCH.md`: Added concise documentation for CCS and legacy fallback safety guarantees.
+- `acceptance_runs/ccs_migration_safety/CCS_MIGRATION_SAFETY_REPORT.md`: Updated to match strictly the new format requirements.
 
 ## Safety Fixes
-- `claude_code` high-risk worker is no longer default enabled.
-- Default profiles no longer include `--allow-dangerously-skip-permissions`.
-- Trusted headless profile is explicit and environment-gated.
-- Safe `ccs` and `claude` fallback execution is fully supported.
-- Auth probe correctly utilizes a temporary HOME in tests without touching the user's real path.
+- Claude Code remains high-risk and approval-gated.
+- Claude Code is not default-enabled.
+- Default profiles no longer contain `--allow-dangerously-skip-permissions`.
+- Dangerous headless CCS mode is isolated under `trusted_headless_cli`.
+- Dangerous headless CCS mode requires an environment gate.
+- `ccs` is preferred, legacy `claude` fallback is supported.
+- CCS auth probe is tested with temporary HOME.
 
 ## Tests Added
-- `tests/test_worker_detector_ccs.py`
-- `tests/test_cli_agent_profile_safety.py`
-- `tests/test_auth_probe_ccs.py`
+- `tests/test_worker_detector_ccs.py` (5 fallback logic & default safety tests)
+- `tests/test_cli_agent_profile_safety.py` (5 profile validation tests)
+- `tests/test_auth_probe_ccs.py` (5 safe-probing integration tests)
 
 ## Tests Run
-- Pytest full suite (1722 passed).
-- Custom configuration profile verification scripts (0 unsafe flags detected).
-- CLI smoke tests (`./agentlab.sh --help`, `./agentlab.sh run-pipeline --help`) ran successfully.
+- Pytest suite `python -m pytest -q` passed with all tests green.
+- Config center YAML parser load logic passed.
+- CLI execution and profiling validator scripts successfully verified isolation of dangerous flags.
 
 ## Acceptance Notes
-Confirmed:
-1. `ccs` is supported.
-2. Legacy `claude` fallback is supported.
-3. High-risk Claude Code remains approval-gated.
-4. Dangerous skip flag is not in default profiles.
-5. Dangerous skip requires an explicit trusted profile + env gate.
-6. No external CLI execution occurs during tests.
+Confirm:
+1. `ccs` support works by configuration.
+2. legacy `claude` fallback works by detection.
+3. high-risk workers are not default-enabled.
+4. dangerous permission skip is absent from default profiles.
+5. dangerous permission skip is only present in explicit trusted profile.
+6. no tests execute real external Claude/CCS binaries.

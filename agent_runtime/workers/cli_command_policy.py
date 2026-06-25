@@ -8,11 +8,12 @@ DANGEROUS_FLAGS = {
 
 @dataclass
 class ProfileSafetyFinding:
-    profile_name: str
-    tier_name: str
-    role_name: str
-    issue: str
-    level: str  # "error" or "warning"
+    severity: str
+    profile: str
+    tier: str | None
+    role: str | None
+    flag: str
+    message: str
 
 def validate_cli_agent_profiles(profile_config: dict) -> list[ProfileSafetyFinding]:
     """Validate that dangerous CLI flags are only used in trusted profiles with env gates."""
@@ -40,11 +41,12 @@ def validate_cli_agent_profiles(profile_config: dict) -> list[ProfileSafetyFindi
                             if not is_trusted:
                                 findings.append(
                                     ProfileSafetyFinding(
-                                        profile_name=mode_name,
-                                        tier_name=tier_name,
-                                        role_name=role_name,
-                                        issue=f"Dangerous flag {dangerous_flag} found in non-trusted profile.",
-                                        level="error"
+                                        severity="error",
+                                        profile=mode_name,
+                                        tier=tier_name,
+                                        role=role_name,
+                                        flag=dangerous_flag,
+                                        message=f"Dangerous flag {dangerous_flag} found in non-trusted profile."
                                     )
                                 )
     return findings
