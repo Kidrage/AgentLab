@@ -34,10 +34,12 @@ def test_trusted_headless_profile_is_never_default():
     assert data.get("default_mode") != "trusted_headless_cli"
 
 def test_all_claude_code_profiles_keep_approval_required():
-    from agent_runtime.workers.detector import scan_workers
-    workers = scan_workers()
-    claude = next(w for w in workers if w.worker_id == "claude_code")
-    assert claude.approval_required is True
+    from agent_runtime.workers.detector import DEFAULT_CANDIDATES
+
+    claude = next(c for c in DEFAULT_CANDIDATES if c["worker_id"] == "claude_code")
+    assert claude.get("approval_required") is True
+    assert claude.get("risk_level") == "high"
+    assert claude.get("default_enabled") is False
 
 def test_profile_safety_validator_flags_dangerous_default_profile():
     bad_profile = {
