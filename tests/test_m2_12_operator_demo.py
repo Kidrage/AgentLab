@@ -32,4 +32,9 @@ def test_m2_operator_demo_cli_writes_report(tmp_path):
 def test_m2_operator_demo_cli_strict_flag_is_exposed():
     result = runner.invoke(app, ["m2-operator-demo", "--help"])
     assert result.exit_code == 0
-    assert "--strict-migration" in result.output
+    # Strip ANSI escape sequences so substring checks work in CI
+    # (Rich may emit color codes that break contiguous flag strings).
+    import re
+
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "--strict-migration" in plain
