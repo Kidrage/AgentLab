@@ -1,8 +1,20 @@
 # M2 Operator OS Execution Economy Report
 
-created_at: 2026-06-25T03:38:33.267726+00:00
+created_at: 2026-06-25T04:05:37.568523+00:00
 project: AgentLab
 status: pass
+
+## CI Evidence
+
+implementation commit: 2167c7b2953b6a689058330abba33c7b43a3709d
+closure fix commit: pending
+CI run URL: pending
+CI conclusion: pending
+full pytest: 1707 passed, 2 skipped, 11 warnings in 222.83s
+focused M2-12 pytest: 34 passed in 6.28s
+compileall: PASS
+text integrity: PASS
+CLI smoke: PASS
 
 ## Summary
 
@@ -29,6 +41,24 @@ status: pass
 - ui_smoke: `ui_smoke.yml`
 - assistant_explanations: `assistant_explanations.md`
 - report: `M2_OPERATOR_OS_EXECUTION_ECONOMY_REPORT.md`
+
+## Migration Readiness vs Demo Acceptance
+
+M2-12 operator demo is CI-safe and local-only.
+Private infrastructure checks are recorded but do not block the demo unless `--strict-migration` is enabled.
+
+- strict_migration: false
+- demo_blocking_failures: 0
+- private_infra_deferred_items: 0
+- migration_readiness_warnings: 0
+
+Deferred private infrastructure:
+- TrueNAS/SSH/SMB
+- WebUI auth token
+- model API keys
+- GitHub backup token when backup is disabled / source remote is SSH
+
+- none
 
 ## Acceptance Checklist
 

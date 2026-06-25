@@ -1,7 +1,7 @@
 events:
-- event_id: 070b2ecb-2bf8-4d19-9d67-e99b9eb2750c
+- event_id: e050b79d-1d80-4021-9e29-fb476d757e9b
   event_type: executor_finished
-  timestamp: '2026-06-25T03:38:14.354133+00:00'
+  timestamp: '2026-06-25T04:04:45.990182+00:00'
   project_id: AgentLab
   details:
     mock: true
@@ -13,9 +13,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: ccd3cecf-2449-4b24-afea-925f12644fd4
+- event_id: b271abc9-2ba2-43c0-a66c-4a1cafe14d64
   event_type: phase_accepted
-  timestamp: '2026-06-25T03:38:14.357393+00:00'
+  timestamp: '2026-06-25T04:04:45.991643+00:00'
   project_id: AgentLab
   details:
     phase_id: m2_12_operator_acceptance_demo
@@ -27,9 +27,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 8deac120-d404-4fc8-a8fe-8cb5db7982f7
+- event_id: 1791c2a2-eeb1-4c96-a168-da74224dbbcc
   event_type: worker_detected
-  timestamp: '2026-06-25T03:38:16.743097+00:00'
+  timestamp: '2026-06-25T04:04:46.097133+00:00'
   project_id: AgentLab
   details:
     total_workers: 21
@@ -41,9 +41,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 12ae0a25-7e21-4dbb-9d77-6d77da55702e
+- event_id: 0405a599-e552-4091-9abc-28ef916c9ee8
   event_type: worker_auditioned
-  timestamp: '2026-06-25T03:38:16.744484+00:00'
+  timestamp: '2026-06-25T04:04:46.098510+00:00'
   project_id: AgentLab
   details:
     suite: m2_12_mock_operator_demo
@@ -55,9 +55,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: e49dfe57-3b73-451f-8314-088b42ed2e46
+- event_id: 633f63ee-860a-489b-8472-df08685a99e3
   event_type: task_packet_created
-  timestamp: '2026-06-25T03:38:16.745749+00:00'
+  timestamp: '2026-06-25T04:04:46.099838+00:00'
   project_id: AgentLab
   details:
     task_id: task_m2_12_operator_demo
@@ -69,9 +69,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: c5f0f6db-700c-4c9f-972a-89f0fc468b6c
+- event_id: 0f967959-175c-4108-a9fb-fa109c36b366
   event_type: cost_estimated
-  timestamp: '2026-06-25T03:38:16.746246+00:00'
+  timestamp: '2026-06-25T04:04:46.100359+00:00'
   project_id: AgentLab
   details:
     estimated_total_usd: 0.0
@@ -82,9 +82,9 @@ events:
   role_id: null
   cost_usd: 0.0
   schema_version: m2.7.1
-- event_id: 63c29cce-e9d5-4712-8c98-ad730df090a5
+- event_id: 2aefddfc-3421-416b-ae8e-d4e09825a574
   event_type: route_decision_created
-  timestamp: '2026-06-25T03:38:16.747420+00:00'
+  timestamp: '2026-06-25T04:04:46.101562+00:00'
   project_id: AgentLab
   details:
     selected_worker: claude_code
@@ -96,9 +96,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: cb9c56b7-de28-4d9c-95a9-ffa9f49fe21b
+- event_id: f2272fb5-eeee-4ab3-b2bf-bea02223543f
   event_type: approval_requested
-  timestamp: '2026-06-25T03:38:16.748989+00:00'
+  timestamp: '2026-06-25T04:04:46.102807+00:00'
   project_id: AgentLab
   details:
     decision_id: m2_12_demo_approval_001
@@ -109,9 +109,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 283ef1b3-2c15-4ea3-ab12-24222a072056
+- event_id: 5bdff106-4b0d-42d9-b10a-3bd955dc66a8
   event_type: approval_accepted
-  timestamp: '2026-06-25T03:38:16.750233+00:00'
+  timestamp: '2026-06-25T04:04:46.104164+00:00'
   project_id: AgentLab
   details:
     decision_id: m2_12_demo_approval_001
@@ -123,9 +123,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 36bb37f8-55aa-4693-97b5-c9e306b0e2ab
+- event_id: e4a6daaf-3bd8-411a-91ca-84abc77dba01
   event_type: executor_finished
-  timestamp: '2026-06-25T03:38:16.751512+00:00'
+  timestamp: '2026-06-25T04:04:46.105484+00:00'
   project_id: AgentLab
   details:
     mock: true
@@ -137,9 +137,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 519d296a-5a3a-46ab-a10c-91836040323e
+- event_id: 01f1f962-7924-4c3d-84cb-44213accc3f5
   event_type: phase_accepted
-  timestamp: '2026-06-25T03:38:16.752757+00:00'
+  timestamp: '2026-06-25T04:04:46.106815+00:00'
   project_id: AgentLab
   details:
     phase_id: m2_12_operator_acceptance_demo
@@ -151,9 +151,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 4965ef5e-590e-4d9a-a575-7a9628beea0f
+- event_id: a0fd878b-a8fb-4c04-ab54-45179dee515f
   event_type: worker_detected
-  timestamp: '2026-06-25T03:38:33.194233+00:00'
+  timestamp: '2026-06-25T04:05:37.498483+00:00'
   project_id: AgentLab
   details:
     total_workers: 21
@@ -165,9 +165,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 3a4de149-28f9-4a8b-b4e0-5534543bf107
+- event_id: 3fee3911-de17-43a9-9768-cfad30e67bea
   event_type: worker_auditioned
-  timestamp: '2026-06-25T03:38:33.197002+00:00'
+  timestamp: '2026-06-25T04:05:37.501530+00:00'
   project_id: AgentLab
   details:
     suite: m2_12_mock_operator_demo
@@ -179,9 +179,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 91c3ed7f-b6fe-4c44-bde7-9229c63eb4cc
+- event_id: 9a83df99-9341-49e7-996e-5ba1cefd208d
   event_type: task_packet_created
-  timestamp: '2026-06-25T03:38:33.198344+00:00'
+  timestamp: '2026-06-25T04:05:37.502809+00:00'
   project_id: AgentLab
   details:
     task_id: task_m2_12_operator_demo
@@ -193,9 +193,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 840c69d5-fc83-4d62-93c2-453462bab14d
+- event_id: 032e289f-09a1-4908-80d2-8b14048e4f64
   event_type: cost_estimated
-  timestamp: '2026-06-25T03:38:33.198831+00:00'
+  timestamp: '2026-06-25T04:05:37.503473+00:00'
   project_id: AgentLab
   details:
     estimated_total_usd: 0.0
@@ -206,9 +206,9 @@ events:
   role_id: null
   cost_usd: 0.0
   schema_version: m2.7.1
-- event_id: f8cf9fd0-8e41-4957-9394-996b8b069a3a
+- event_id: 2a174706-14dd-482e-b359-0f146852fbbc
   event_type: route_decision_created
-  timestamp: '2026-06-25T03:38:33.200093+00:00'
+  timestamp: '2026-06-25T04:05:37.504714+00:00'
   project_id: AgentLab
   details:
     selected_worker: claude_code
@@ -220,9 +220,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 4c0fbea2-6c83-450a-92bb-e1d107a12e33
+- event_id: 6697415a-68d3-40e1-b8bd-018fe82411f1
   event_type: approval_requested
-  timestamp: '2026-06-25T03:38:33.201680+00:00'
+  timestamp: '2026-06-25T04:05:37.506138+00:00'
   project_id: AgentLab
   details:
     decision_id: m2_12_demo_approval_001
@@ -233,9 +233,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 80d68513-2f91-4450-80c0-f315133693da
+- event_id: 202d818a-e782-413e-b606-c0fb237a777d
   event_type: approval_accepted
-  timestamp: '2026-06-25T03:38:33.203080+00:00'
+  timestamp: '2026-06-25T04:05:37.507548+00:00'
   project_id: AgentLab
   details:
     decision_id: m2_12_demo_approval_001
@@ -247,9 +247,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 00c0d649-e449-4a6b-b187-9f1b2c3cc734
+- event_id: e135ae18-ed83-41fc-9ca6-b6200dfa4404
   event_type: executor_finished
-  timestamp: '2026-06-25T03:38:33.204508+00:00'
+  timestamp: '2026-06-25T04:05:37.509080+00:00'
   project_id: AgentLab
   details:
     mock: true
@@ -261,9 +261,9 @@ events:
   role_id: null
   cost_usd: null
   schema_version: m2.7.1
-- event_id: 0c1a985f-ac8c-41cd-a74d-405a6a4e5274
+- event_id: 91243b1d-91f5-43e1-a117-566b6834cf82
   event_type: phase_accepted
-  timestamp: '2026-06-25T03:38:33.205862+00:00'
+  timestamp: '2026-06-25T04:05:37.510468+00:00'
   project_id: AgentLab
   details:
     phase_id: m2_12_operator_acceptance_demo

@@ -48,7 +48,7 @@ pytest -q tests/test_m2_12_operator_demo.py tests/test_migration_backup.py tests
 
 Observed verification before handoff:
 
-- focused tests: `25 passed`
+- focused M2-12/migration tests: `34 passed in 6.28s`
 - migration-doctor: `pass`, `19 pass / 0 warn / 0 fail`
 - TrueNAS write probe: `pass`
 - M2-12 demo: `pass`
@@ -64,3 +64,9 @@ Scope reminder:
 - integrate CLI, Assistant, TUI, WebUI, MCP/frontdesk action schema
 - keep M3 business/revenue features future-reserved and non-blocking
 - do not introduce real external executor dispatch, network model calls, unsafe shell automation, or automatic skill installation
+
+## Closure Fix Validation
+
+Full pytest after CI-safe closure fix: `1707 passed, 2 skipped, 11 warnings in 222.83s`.
+
+CI URL remains pending until the pushed repair commit completes on GitHub Actions.
