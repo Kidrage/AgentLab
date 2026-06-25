@@ -1,6 +1,7 @@
 """Auth probe to safely detect if required API keys are configured."""
 
 import os
+from pathlib import Path
 
 def probe_auth(worker_id: str) -> str:
     """Safe authentication probe that never leaks keys."""
@@ -42,6 +43,13 @@ def probe_auth(worker_id: str) -> str:
         
     for k in keys:
         if os.environ.get(k):
+            return "yes"
+    
+    # CCS (Claude Code Switch) uses a local config file instead of env vars
+    if worker_id in ("claude_code", "claude"):
+        ccs_active = Path.home() / ".claude-provider" / "active"
+        ccs_config = Path.home() / ".claude-provider" / "config"
+        if ccs_active.exists() or ccs_config.exists():
             return "yes"
             
     return "no"
