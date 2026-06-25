@@ -36,6 +36,8 @@ class MainlineProgram:
     template_id: str
     series: List[str] = field(default_factory=list)
     stages: List[MainlineStage] = field(default_factory=list)
+    evidence: List[str] = field(default_factory=list)
+    gates: Dict[str, bool] = field(default_factory=dict)
 
 @dataclass
 class MainlineAcceptanceContract:
@@ -53,6 +55,8 @@ class MainlineProgress:
     completed_stages: List[str] = field(default_factory=list)
     pending_stages: List[str] = field(default_factory=list)
     blocked_stages: List[str] = field(default_factory=list)
+    evidence: List[str] = field(default_factory=list)
+    gates: Dict[str, bool] = field(default_factory=dict)
 
 @dataclass
 class GoalCommandResult:

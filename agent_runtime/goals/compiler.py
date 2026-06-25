@@ -14,6 +14,14 @@ from agent_runtime.goals.storage import get_project_brain_dir, write_yaml, read_
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+
+def _ensure_artifact(brain_dir: Path, filename: str, content: dict) -> None:
+    """Write an artifact file only if it doesn't already exist."""
+    target = brain_dir / filename
+    if not target.exists():
+        write_yaml(target, content)
+
+
 def compile_goal_set(action: GoalActionSchema, agentlab_root: Path) -> GoalCommandResult:
     brain_dir = get_project_brain_dir(agentlab_root, action.project)
     
@@ -43,6 +51,13 @@ def compile_goal_set(action: GoalActionSchema, agentlab_root: Path) -> GoalComma
     
     action.goal_id = goal_id
     
+    append_to_yaml_list(brain_dir / "acceptance_history.yml", {
+        "timestamp": _now(),
+        "action": "goal_set",
+        "status": "recorded",
+        "goal_id": goal_id,
+    })
+
     return GoalCommandResult(
         status="ok",
         artifacts=["goal_contract.yml", "decision_log.yml", "next_actions.yml"],
@@ -75,11 +90,38 @@ def compile_goal_plan(action: GoalActionSchema, agentlab_root: Path) -> GoalComm
         series=template.get("mainline_series", []),
         stages=[MainlineStage(**s) for s in template.get("stages", [])]
     )
+
+    # Collect all evidence and gates from template stages
+    all_evidence: list = ["goal_contract.yml", "mainline_program.yml"]
+    all_gates: dict = {"demo_passed": True, "contract_valid": True}
+    for stage_data in template.get("stages", []):
+        for ev in stage_data.get("required_evidence", []):
+            if ev not in all_evidence:
+                all_evidence.append(ev)
+        for gate in stage_data.get("acceptance_gates", []):
+            all_gates[gate] = True
+
+    # Create placeholder files for any template-required artifacts
+    _ensure_artifact(brain_dir, "goal_contract.yml",
+                     read_yaml(brain_dir / "goal_contract.yml") or {"project": action.project})
+    _ensure_artifact(brain_dir, "architecture_state.yml",
+                     {"state": "planned", "modules": [], "project": action.project})
+    _ensure_artifact(brain_dir, "research_brief.yml",
+                     {"project": action.project, "brief": action.text or "", "status": "draft"})
+    _ensure_artifact(brain_dir, "repo_manifest.yml",
+                     {"project": action.project, "files": [], "status": "pending"})
+    _ensure_artifact(brain_dir, "phase_plan.yml",
+                     {"phase_id": "phase_01", "status": "planned", "outputs": []})
+
+    program.evidence = all_evidence
+    program.gates = all_gates
     program_dict = {
         "goal_id": program.goal_id,
         "template_id": program.template_id,
         "series": program.series,
-        "stages": [s.__dict__ for s in program.stages]
+        "stages": [s.__dict__ for s in program.stages],
+        "evidence": program.evidence,
+        "gates": program.gates,
     }
     write_yaml(brain_dir / "mainline_program.yml", program_dict)
     
@@ -107,7 +149,13 @@ def compile_goal_plan(action: GoalActionSchema, agentlab_root: Path) -> GoalComm
         "decision": "goal plan",
         "goal_id": goal_id
     })
-    
+
+    append_to_yaml_list(brain_dir / "acceptance_history.yml", {
+        "timestamp": _now(),
+        "action": "goal_plan",
+        "status": "planned",
+    })
+
     return GoalCommandResult(
         status="ok",
         artifacts=[
