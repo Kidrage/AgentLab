@@ -727,6 +727,61 @@ def m2_operator_demo_cmd(
     console.print(f"Report written to {(Path(out) if Path(out).is_absolute() else _PROJECT_ROOT / out) / 'M2_OPERATOR_OS_EXECUTION_ECONOMY_REPORT.md'}")
 
 
+@app.command("goal")
+def goal_cmd(
+    action: str = typer.Argument("set", help="Action: set, plan, progress, validate, report"),
+    text: str = typer.Argument("", help="Goal description text"),
+    project: str = typer.Option("AgentLab", "--project", "-p", help="Project name"),
+    out: Path = typer.Option(Path("acceptance_runs/m2_12_5_goal_mainline_bridge"), "--out", help="Output directory"),
+) -> None:
+    """M2-12.5 Goal / Mainline Command Bridge — deterministic, local-only.
+
+    Parse /goal or /目标 commands, compile Project Brain artifacts, and
+    validate acceptance criteria without LLM, network, or subprocess calls.
+    """
+    from agent_runtime.goals.parser import parse_goal_command, GoalActionSchema
+    from agent_runtime.goals.compiler import (
+        compile_goal_set,
+        compile_goal_plan,
+        compile_goal_progress,
+        compile_goal_validate,
+        compile_goal_report,
+    )
+
+    raw = f"{action} {text}".strip()
+    parsed = parse_goal_command(raw)
+    if project and not parsed.project:
+        parsed.project = project
+
+    effective_project = parsed.project or project
+    effective_action = parsed.action or action
+
+    out.mkdir(parents=True, exist_ok=True)
+
+    if effective_action == "set":
+        result = compile_goal_set(parsed, _PROJECT_ROOT, effective_project, out_dir=out)
+        console.print(f"[green]goal set: {result.get('artifact')} written[/green]")
+    elif effective_action in ("plan", "规划", "计划"):
+        result = compile_goal_plan(parsed, _PROJECT_ROOT, effective_project, out_dir=out)
+        console.print(f"[green]goal plan: {len(result.get('artifacts', []))} artifacts written[/green]")
+    elif effective_action in ("progress", "进展", "进度"):
+        result = compile_goal_progress(parsed, _PROJECT_ROOT, effective_project, out_dir=out)
+        console.print(f"[green]goal progress: {result.get('artifact')} written[/green]")
+    elif effective_action in ("validate", "验证", "校验"):
+        result = compile_goal_validate(parsed, _PROJECT_ROOT, effective_project, out_dir=out)
+        if result.get("status") == "pass":
+            console.print(f"[green]goal validate: pass[/green]")
+        else:
+            console.print(f"[red]goal validate: blocked[/red]")
+            for reason in result.get("blocking_reasons", []):
+                console.print(f"  - {reason}")
+    elif effective_action in ("report", "报告", "报表"):
+        result = compile_goal_report(parsed, _PROJECT_ROOT, effective_project, out_dir=out)
+        console.print(f"[green]goal report: {result.get('artifact')} written (verdict: {result.get('verdict')})[/green]")
+    else:
+        console.print(f"[yellow]Unknown goal action: {effective_action}. Use set/plan/progress/validate/report.[/yellow]")
+
+
 @app.command("runtime-doctor")
 def runtime_doctor(
     out: Path = typer.Option(Path("acceptance_runs/m2_runtime_hygiene"), "--out"),

@@ -59,6 +59,7 @@ jobs:
           ./agentlab.sh run-pipeline --help
           ./agentlab.sh p2-closure --help
           ./agentlab.sh p2-capability-map --help
+          ./agentlab.sh goal --help
       - name: Check forbidden tracked files
         run: |
           bash scripts/check_forbidden_tracked_files.sh
