@@ -10,23 +10,35 @@ root_policy:
     - pytest.ini
     - tox.ini
     - mypy.ini
+    - .env
+    - atomic_io.py
+    - state_store.py
   allowed_root_dirs:
     - .git
     - .github
     - .agentlab
+    - .agents
+    - .clinerules
     - .pytest_cache
     - .venv
     - __pycache__
+    - _shared
     - acceptance_runs
     - agent_runtime
+    - agent_templates
+    - agentlab_app
+    - agentlab_tui
     - config
     - docs
     - examples
     - memory
+    - observability
     - projects
     - scripts
+    - shared_protocols
     - skills
     - tests
+    - web_ui
   ignored_runtime_dirs:
     - .agentlab
     - .venv
