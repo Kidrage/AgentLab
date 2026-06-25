@@ -1,14 +1,16 @@
 # AgentLab CCS Migration Safety Repair Report
 
 ## Verdict
-PASS
+FAIL
 
 ## Baseline
-- Branch: fix/ccs-migration-safety
-- Before commit: 880714f
-- After commit: (Current HEAD)
-- Remote: local
-- CI: PASS
+- Branch: main
+- Before commit: 493e746880f235fb62431828bddb14813beae857
+- Repair commit: 3822640859eed74b9eb8a029ddf05cabfd71321b
+- Remote: origin/main
+- CI run URL: https://github.com/Kidrage/AgentLab/actions/runs/28161289713
+- CI job URL: https://github.com/Kidrage/AgentLab/actions/runs/28161289713/job/83402172858
+- CI conclusion: failure
 
 ## Summary
 CCS support is preserved, but default execution is safe again.
