@@ -336,6 +336,154 @@ def _iter_config_role_groups(data: dict):
             yield f"{mode_name}.{tier_name}", tier or {}
 
 
+# ── Schema v4 dispatch tests ──────────────────────────────────────────────
+
+
+def _schema_v4_configs() -> dict:
+    """Return a minimal config set with schema v4 agent_model_profiles."""
+    return {
+        "agent_model_profiles": {
+            "schema_version": 4.0,
+            "default_mode": "full_cli",
+            "modes": {
+                "full_cli": {
+                    "tiers": {
+                        "full": {
+                            "supervisor": {
+                                "executor_type": "cli_agent",
+                                "cli_agent": "hermes",
+                                "cli_command": 'hermes -z "Read {task_packet_path}"',
+                                "default": "deepseek_v4_pro",
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        "agent_registry": {"agents": {}},
+        "model_providers": {"providers": {}, "defaults": {}},
+        "model_profiles": {"profiles": {}},
+        "model_catalog": {},
+    }
+
+
+class TestAgentRunnerSchemaV4Dispatch:
+    """Prove agent_runner dispatches CLI for schema v4 configs."""
+
+    def test_cli_attempted_before_api_for_schema_v4(self, tmp_path, monkeypatch):
+        """With schema v4 full_cli/full/supervisor, run_cli_agent is called before API."""
+        plan = _make_plan(tmp_path, budget_mode="full")
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+
+        monkeypatch.setattr(
+            "agent_runner.load_agentlab_configs",
+            lambda _: _schema_v4_configs(),
+        )
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *a, **kw: None,
+        )
+        monkeypatch.setattr(
+            "agent_runner.resolve_agent_settings",
+            lambda *a, **kw: (
+                SimpleNamespace(
+                    provider="deepseek", provider_type="openai_compatible",
+                    model="deepseek_v4_pro", base_url=None,
+                    api_key_configured=False, temperature=0.2, top_p=1.0,
+                    max_output_tokens=2000, profile_name="",
+                ),
+                {},
+            ),
+        )
+        monkeypatch.setattr(
+            "agent_runner.compose_agent_messages",
+            lambda *a, **kw: [{"role": "user", "content": "test"}],
+        )
+        monkeypatch.setattr(
+            "brain_governor.evaluate_token_status",
+            lambda *a, **kw: {},
+        )
+
+        with patch(
+            "agent_runner.run_cli_agent",
+            return_value=_cli_success_result(),
+        ) as mock_cli, patch(
+            "agent_runner.generate_text",
+            return_value=_api_fallback_result(),
+        ) as mock_api:
+            from agent_runner import run_agent_model
+
+            output = run_dir / "test_output.md"
+            result = run_agent_model(tmp_path, plan, "Supervisor", output, apply_patches=False)
+
+            mock_cli.assert_called_once()
+            mock_api.assert_not_called()
+            assert result.status == "completed"
+            # Audit metadata must show CLI was used
+            assert result.raw_usage.get("usage_source") == "cli_agent"
+            assert result.raw_usage.get("executor_type") == "cli_agent"
+            assert result.raw_usage.get("api_fallback_used") is False
+            assert result.raw_usage.get("resolved_schema") == "modes_v4"
+
+    def test_cli_unavailable_produces_api_fallback_with_metadata(self, tmp_path, monkeypatch):
+        """When CLI is unavailable, API fallback records reason in result metadata."""
+        plan = _make_plan(tmp_path, budget_mode="full")
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+
+        monkeypatch.setattr(
+            "agent_runner.load_agentlab_configs",
+            lambda _: _schema_v4_configs(),
+        )
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *a, **kw: None,
+        )
+        monkeypatch.setattr(
+            "agent_runner.resolve_agent_settings",
+            lambda *a, **kw: (
+                SimpleNamespace(
+                    provider="deepseek", provider_type="openai_compatible",
+                    model="deepseek_v4_pro", base_url=None,
+                    api_key_configured=False, temperature=0.2, top_p=1.0,
+                    max_output_tokens=2000, profile_name="",
+                ),
+                {},
+            ),
+        )
+        monkeypatch.setattr(
+            "agent_runner.compose_agent_messages",
+            lambda *a, **kw: [{"role": "user", "content": "test"}],
+        )
+        monkeypatch.setattr(
+            "brain_governor.evaluate_token_status",
+            lambda *a, **kw: {},
+        )
+
+        with patch(
+            "agent_runner.run_cli_agent",
+            return_value=_cli_not_available(),
+        ) as mock_cli, patch(
+            "agent_runner.generate_text",
+            return_value=_api_fallback_result(),
+        ) as mock_api:
+            from agent_runner import run_agent_model
+
+            output = run_dir / "test_output.md"
+            result = run_agent_model(tmp_path, plan, "Supervisor", output, apply_patches=False)
+
+            mock_cli.assert_called_once()
+            mock_api.assert_called_once()
+            assert result.status == "completed"
+            # Audit metadata must document the CLI→API fallback
+            assert result.raw_usage.get("usage_source") == "api_usage"
+            assert result.raw_usage.get("executor_type") == "cli_agent_fallback"
+            assert result.raw_usage.get("api_fallback_used") is True
+            assert result.raw_usage.get("configured_cli_agent") == "hermes"
+            assert "binary_not_found" in str(result.raw_usage.get("fallback_reason", ""))
+
+
 # ── Config profile tests ───────────────────────────────────────────────────
 
 

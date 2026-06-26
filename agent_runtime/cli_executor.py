@@ -71,26 +71,126 @@ def budget_mode_to_tier(budget_mode: str) -> str:
 
 def resolve_cli_profile(
     agent_model_profiles: dict[str, Any],
-    profile_name: str,
     agent_role: str,
+    profile_name: str | None = None,
+    budget_mode: str | None = None,
+    mode: str | None = None,
 ) -> dict[str, Any] | None:
-    """Return the profile config for *agent_role* inside *profile_name*.
+    """Return the CLI profile config for *agent_role*.
 
-    Returns ``None`` if the profile or role is not found, or if
-    ``executor_type`` is not ``cli_agent``.
+    Supports both schema v4 (``modes`` → tiers → role) and legacy
+    (``profiles`` → role) config layouts.  Returns ``None`` when:
+
+    - the profile or role is not found,
+    - ``executor_type`` is not ``cli_agent``,
+    - the role is configured as ``"skip"``, or
+    - the role config is a plain string (not a dict).
 
     Args:
         agent_model_profiles: Parsed contents of ``config/agent_model_profiles.yml``.
-        profile_name: e.g. ``"balanced"``, ``"max_quality"``, ``"frugal"``.
-        agent_role: Lower-cased role key inside the profile, e.g. ``"supervisor"``,
-            ``"coder"``.
+        agent_role: Lower-cased role key, e.g. ``"supervisor"``, ``"coder"``.
+        profile_name: Legacy profile name e.g. ``"balanced"`` — used only when
+            the config has the old ``profiles`` key.
+        budget_mode: Budget mode string (``"full"``, ``"performance"``, ``"low"``,
+            ``"frugal"``, ``"balanced"``, ``"max_quality"``, …).  Mapped to tier.
+        mode: Execution mode override (``"full_cli"``, ``"full_api"``, …).
+            Falls back to ``AGENTLAB_MODE`` env var, then ``default_mode``,
+            then ``"full_cli"``.
     """
+    # ── Schema v4: modes → tiers → role ─────────────────────────────────
+    modes = agent_model_profiles.get("modes", {}) or {}
+    if modes:
+        import os
+
+        # Resolve mode
+        resolved_mode: str | None = mode
+        if not resolved_mode:
+            resolved_mode = os.getenv("AGENTLAB_MODE")
+        if not resolved_mode:
+            resolved_mode = agent_model_profiles.get("default_mode", "full_cli")
+        resolved_mode = str(resolved_mode or "full_cli").strip().lower()
+
+        # Resolve tier
+        resolved_tier = budget_mode_to_tier(budget_mode or os.getenv("AGENTLAB_BUDGET_MODE", "performance"))
+
+        # Traverse: modes → mode_cfg → tiers → tier_cfg → role_cfg
+        mode_cfg = modes.get(resolved_mode, {}) or {}
+        tiers = mode_cfg.get("tiers", {}) or {}
+        tier_cfg = tiers.get(resolved_tier, {}) or {}
+        role_cfg_raw = tier_cfg.get(agent_role)
+
+        # String "skip" → None
+        if isinstance(role_cfg_raw, str):
+            if role_cfg_raw.strip().lower() in {"skip", "skip_unless_required"}:
+                return None
+            return None  # other plain string: not a valid CLI profile
+
+        if not isinstance(role_cfg_raw, dict):
+            return None
+
+        role_cfg = role_cfg_raw
+
+        # Safety gate: trusted_headless_cli requires explicit env opt-in
+        if resolved_mode == "trusted_headless_cli":
+            safety = mode_cfg.get("safety", {}) or {}
+            requires_env = safety.get("requires_env", {}) or {}
+            for env_key, env_val in requires_env.items():
+                if os.getenv(env_key) != str(env_val):
+                    return None  # gate not satisfied
+            if safety.get("never_default") and not mode:
+                # Only allow when explicitly requested via mode arg, not from env or default
+                if not (os.getenv("AGENTLAB_MODE") == "trusted_headless_cli"):
+                    return None
+
+        if role_cfg.get("executor_type") != "cli_agent":
+            return None
+
+        return {
+            "executor_type": "cli_agent",
+            "cli_agent": role_cfg.get("cli_agent", ""),
+            "cli_command": role_cfg.get("cli_command", ""),
+            "default": role_cfg.get("default", ""),
+            "fallback": role_cfg.get("fallback", role_cfg.get("default", "")),
+            "external_ide_allowed": role_cfg.get("external_ide_allowed", False),
+            "resolved_mode": resolved_mode,
+            "resolved_tier": resolved_tier,
+            "resolved_schema": "modes_v4",
+            # Pass through any extra keys (provider, temperature overrides, etc.)
+            **{k: v for k, v in role_cfg.items()
+               if k not in {"executor_type", "cli_agent", "cli_command",
+                             "default", "fallback", "external_ide_allowed"}},
+        }
+
+    # ── Legacy schema: profiles → role ──────────────────────────────────
     profiles = agent_model_profiles.get("profiles", {}) or {}
-    profile = profiles.get(profile_name, {}) or {}
+    legacy_name = profile_name or budget_mode or "balanced"
+    # Normalize budget_mode style names to legacy profile names
+    _legacy_map = {
+        "full": "max_quality",
+        "performance": "balanced",
+        "low": "frugal",
+    }
+    legacy_lookup = _legacy_map.get(legacy_name, legacy_name)
+    profile = profiles.get(legacy_lookup, {}) or {}
     role_cfg = profile.get(agent_role, {}) or {}
+    if not isinstance(role_cfg, dict):
+        return None
     if role_cfg.get("executor_type") != "cli_agent":
         return None
-    return role_cfg
+    return {
+        "executor_type": "cli_agent",
+        "cli_agent": role_cfg.get("cli_agent", ""),
+        "cli_command": role_cfg.get("cli_command", ""),
+        "default": role_cfg.get("default", ""),
+        "fallback": role_cfg.get("fallback", role_cfg.get("default", "")),
+        "external_ide_allowed": role_cfg.get("external_ide_allowed", False),
+        "resolved_mode": legacy_lookup,
+        "resolved_tier": "legacy",
+        "resolved_schema": "legacy_profiles",
+        **{k: v for k, v in role_cfg.items()
+           if k not in {"executor_type", "cli_agent", "cli_command",
+                         "default", "fallback", "external_ide_allowed"}},
+    }
 
 
 def _write_task_packet(run_dir: Path, agent_name: str, plan: WorkflowPlan) -> Path:

@@ -79,7 +79,7 @@ class TestResolveCliProfile:
         from cli_executor import resolve_cli_profile
 
         profiles = _sample_profiles("cli_agent")
-        result = resolve_cli_profile(profiles, "balanced", "supervisor")
+        result = resolve_cli_profile(profiles, agent_role="supervisor", profile_name="balanced")
         assert result is not None
         assert result["cli_agent"] == "hermes"
 
@@ -89,7 +89,7 @@ class TestResolveCliProfile:
         from cli_executor import resolve_cli_profile
 
         profiles = _sample_profiles("direct_api")
-        result = resolve_cli_profile(profiles, "balanced", "supervisor")
+        result = resolve_cli_profile(profiles, agent_role="supervisor", profile_name="balanced")
         assert result is None
 
     def test_returns_none_for_frugal_direct_api(self):
@@ -98,7 +98,7 @@ class TestResolveCliProfile:
         from cli_executor import resolve_cli_profile
 
         profiles = _sample_profiles()
-        result = resolve_cli_profile(profiles, "frugal", "supervisor")
+        result = resolve_cli_profile(profiles, agent_role="supervisor", profile_name="frugal")
         assert result is None
 
     def test_returns_none_for_unknown_profile(self):
@@ -106,8 +106,188 @@ class TestResolveCliProfile:
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import resolve_cli_profile
 
-        result = resolve_cli_profile({}, "nonexistent", "supervisor")
+        result = resolve_cli_profile({}, agent_role="supervisor", profile_name="nonexistent")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# resolve_cli_profile — schema v4 (modes)
+# ---------------------------------------------------------------------------
+
+
+def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
+    """Return a minimal schema v4 agent_model_profiles dict."""
+    return {
+        "schema_version": 4.0,
+        "default_mode": "full_cli",
+        "modes": {
+            "full_cli": {
+                "tiers": {
+                    "full": {
+                        "supervisor": {
+                            "executor_type": executor_type,
+                            "cli_agent": "hermes",
+                            "cli_command": 'hermes -z "Read {task_packet_path}"',
+                            "default": "deepseek_v4_pro",
+                        },
+                        "coder": {
+                            "executor_type": executor_type,
+                            "cli_agent": "claude_code",
+                            "cli_command": "ccs --output-format json -p \"Read {task_packet_path}\"",
+                            "default": "qwen3_coder_plus_dashscope",
+                        },
+                    },
+                    "performance": {
+                        "supervisor": {
+                            "executor_type": executor_type,
+                            "cli_agent": "hermes",
+                            "cli_command": 'hermes -z "Read {task_packet_path}"',
+                            "default": "deepseek_v4_pro",
+                        },
+                    },
+                    "low": {
+                        "supervisor": {
+                            "executor_type": executor_type,
+                            "cli_agent": "hermes",
+                            "cli_command": 'hermes -z "Read {task_packet_path}"',
+                            "default": "deepseek_v4_flash",
+                        },
+                        "interface_mapper": "skip",
+                        "researcher": "skip",
+                        "verifier": "skip",
+                    },
+                },
+            },
+            "full_api": {
+                "tiers": {
+                    "full": {
+                        "supervisor": {
+                            "executor_type": "direct_api",
+                            "default": "deepseek_v4_pro",
+                        },
+                    },
+                },
+            },
+            "hybrid_ide": {
+                "tiers": {
+                    "full": {
+                        "coder": {
+                            "executor_type": "special",
+                            "provider": "external_ide_ai",
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+
+class TestResolveCliProfileSchemaV4:
+    """Prove resolve_cli_profile supports schema v4 modes/tiers layout."""
+
+    def test_full_cli_full_supervisor_resolves_cli(self):
+        """Schema v4 full_cli/full/supervisor returns CLI profile with hermes."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import resolve_cli_profile
+
+        profiles = _sample_modes_v4("cli_agent")
+        result = resolve_cli_profile(
+            profiles, agent_role="supervisor", budget_mode="full", mode="full_cli"
+        )
+        assert result is not None, "full_cli/full/supervisor should resolve to CLI"
+        assert result["cli_agent"] == "hermes"
+        assert "hermes" in result["cli_command"]
+        assert result["default"] == "deepseek_v4_pro"
+        assert result["resolved_schema"] == "modes_v4"
+        assert result["resolved_mode"] == "full_cli"
+        assert result["resolved_tier"] == "full"
+
+    def test_performance_tier_resolves_correct_cli(self):
+        """Schema v4 full_cli/performance/supervisor resolves from performance tier."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import resolve_cli_profile
+
+        profiles = _sample_modes_v4("cli_agent")
+        result = resolve_cli_profile(
+            profiles, agent_role="supervisor", budget_mode="performance", mode="full_cli"
+        )
+        assert result is not None, "performance tier supervisor should resolve to CLI"
+        assert result["cli_agent"] == "hermes"
+        assert result["resolved_tier"] == "performance"
+
+    def test_low_tier_skip_returns_none(self):
+        """Schema v4 low tier with interface_mapper: skip returns None."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import resolve_cli_profile
+
+        profiles = _sample_modes_v4("cli_agent")
+        result = resolve_cli_profile(
+            profiles, agent_role="interface_mapper", budget_mode="low", mode="full_cli"
+        )
+        assert result is None, "interface_mapper: skip should return None"
+
+    def test_direct_api_role_does_not_become_cli(self):
+        """Schema v4 full_api/full/supervisor (executor_type: direct_api) returns None."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import resolve_cli_profile
+
+        profiles = _sample_modes_v4("cli_agent")
+        result = resolve_cli_profile(
+            profiles, agent_role="supervisor", budget_mode="full", mode="full_api"
+        )
+        assert result is None, "direct_api role should NOT become CLI"
+
+    def test_legacy_profiles_still_work(self):
+        """Old profiles schema still resolves with profile_name kwarg."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import resolve_cli_profile
+
+        profiles = _sample_profiles("cli_agent")
+        result = resolve_cli_profile(
+            profiles, agent_role="supervisor", profile_name="balanced"
+        )
+        assert result is not None
+        assert result["cli_agent"] == "hermes"
+        assert result["resolved_schema"] == "legacy_profiles"
+
+    def test_no_auto_model_injection_into_cli_command(self):
+        """CLI command does NOT contain -m or --model unless template has it."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import resolve_cli_profile
+
+        profiles = _sample_modes_v4("cli_agent")
+        result = resolve_cli_profile(
+            profiles, agent_role="supervisor", budget_mode="full", mode="full_cli"
+        )
+        assert result is not None
+        cli_command = result["cli_command"]
+        # Must NOT contain auto-injected -m or --model
+        assert "-m deepseek_v4_pro" not in cli_command, (
+            f"CLI command must not auto-inject -m: {cli_command}"
+        )
+        assert "--model deepseek_v4_pro" not in cli_command, (
+            f"CLI command must not auto-inject --model: {cli_command}"
+        )
+
+    def test_budget_mode_frugal_maps_to_low_tier(self):
+        """budget_mode='frugal' maps to 'low' tier via budget_mode_to_tier."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import resolve_cli_profile
+
+        profiles = _sample_modes_v4("cli_agent")
+        result = resolve_cli_profile(
+            profiles, agent_role="supervisor", budget_mode="frugal", mode="full_cli"
+        )
+        assert result is not None
+        assert result["resolved_tier"] == "low"
+        assert result["default"] == "deepseek_v4_flash"
 
 
 # ---------------------------------------------------------------------------

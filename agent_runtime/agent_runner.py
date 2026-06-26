@@ -225,19 +225,41 @@ def run_agent_model(
         "researcher": "researcher",
         "interfacemapper": "interface_mapper",
         "coder": "coder",
-        "promptengineer": "execution_prompt_engineer",
+        "promptengineer": "prompt_engineer",
         "testerauditor": "tester_auditor",
         "verifier": "verifier",
         "archivist": "archivist",
     }
     agent_role_key = _role_key_map.get(agent_name.lower(), agent_name.lower())
-    cli_role_profile = resolve_cli_profile(agent_model_profiles, budget_mode, agent_role_key)
+
+    import os as _os
+    cli_mode = _os.getenv("AGENTLAB_MODE", agent_model_profiles.get("default_mode", "full_cli"))
+    cli_role_profile = resolve_cli_profile(
+        agent_model_profiles,
+        agent_role=agent_role_key,
+        budget_mode=budget_mode,
+        mode=cli_mode,
+    )
+
+    # Track execution source for auditability
+    cli_fallback_reason: str | None = None
+    cli_configured_agent: str | None = None
+    cli_attempted: bool = False
+
     if cli_role_profile is not None:
+        cli_configured_agent = cli_role_profile.get("cli_agent", "")
+        cli_attempted = True
         cli_result = run_cli_agent(plan, agent_name, cli_role_profile)
         if not isinstance(cli_result, CliAgentNotAvailable):
-            # CLI agent ran (success or failure) — return without touching API.
+            # CLI agent ran (success or failure) — annotate and return.
+            _audit_annotate_cli_result(cli_result, cli_role_profile, "cli_executed")
             return cli_result
-        # Binary absent: fall through to direct API path below.
+        # Binary absent or CLI unavailable: record reason, fall through to API.
+        cli_fallback_reason = (
+            f"{cli_result.reason}: {cli_result.detail[:300]}"
+            if hasattr(cli_result, "detail") and cli_result.detail
+            else getattr(cli_result, "reason", "cli_unavailable")
+        )
     # ─────────────────────────────────────────────────────────────────────────
 
     settings, configs = resolve_agent_settings(
@@ -282,6 +304,17 @@ def run_agent_model(
         role=_role_for_agent(agent_name),
         route=getattr(plan.route, "agents", []),
     )
+
+    # ── Audit annotation: record execution source metadata ──────────────────
+    if cli_attempted and cli_fallback_reason:
+        # Case 2: CLI configured but fell back to API
+        _audit_annotate_api_fallback_result(
+            result, cli_configured_agent, cli_fallback_reason
+        )
+    elif cli_role_profile is None and not cli_attempted:
+        # Case 3/4: Direct API or special/skipped — annotate accordingly
+        _audit_annotate_api_result_source(result, agent_model_profiles, agent_role_key, cli_mode, budget_mode)
+    # ─────────────────────────────────────────────────────────────────────────
 
     # Apply file edits only when policy explicitly allows direct mutation.
     if _patch_application_enabled(configs, agent_name, apply_patches) and result.status == "completed" and result.content:
@@ -364,6 +397,80 @@ def _role_for_agent(agent_name: str) -> str:
         "Researcher": "researcher",
         "Archivist": "archivist",
     }.get(agent_name, agent_name.lower())
+
+
+# ── Audit helpers for execution-source transparency ───────────────────────
+
+
+def _audit_annotate_cli_result(
+    result: "LLMCallResult",
+    role_profile: dict,
+    disposition: str,
+) -> None:
+    """Annotate a CLI-executed result with audit metadata."""
+    result.raw_usage = {
+        **(result.raw_usage or {}),
+        "usage_source": "cli_agent",
+        "executor_type": "cli_agent",
+        "cli_agent": role_profile.get("cli_agent", ""),
+        "resolved_mode": role_profile.get("resolved_mode", ""),
+        "resolved_tier": role_profile.get("resolved_tier", ""),
+        "resolved_schema": role_profile.get("resolved_schema", ""),
+        "api_fallback_used": False,
+        "disposition": disposition,
+    }
+
+
+def _audit_annotate_api_fallback_result(
+    result: "LLMCallResult",
+    configured_cli_agent: str | None,
+    fallback_reason: str,
+) -> None:
+    """Annotate an API result that was reached via CLI-fallback path."""
+    result.raw_usage = {
+        **(result.raw_usage or {}),
+        "usage_source": "api_usage",
+        "executor_type": "cli_agent_fallback",
+        "configured_cli_agent": configured_cli_agent or "unknown",
+        "api_fallback_used": True,
+        "fallback_reason": fallback_reason,
+        "fallback_model": result.model,
+    }
+
+
+def _audit_annotate_api_result_source(
+    result: "LLMCallResult",
+    agent_model_profiles: dict,
+    agent_role_key: str,
+    mode: str,
+    tier: str,
+) -> None:
+    """Annotate a direct-API result with config-source metadata."""
+    modes = agent_model_profiles.get("modes", {}) or {}
+    source_type = "direct_api"
+    role_cfg = {}
+    if modes:
+        mode_cfg = modes.get(mode, {}) or {}
+        tiers = mode_cfg.get("tiers", {}) or {}
+        tier_cfg = tiers.get(tier, {}) or {}
+        role_cfg_raw = tier_cfg.get(agent_role_key)
+        if isinstance(role_cfg_raw, str) and role_cfg_raw.lower() in {"skip", "skip_unless_required"}:
+            source_type = "skip"
+        elif isinstance(role_cfg_raw, dict):
+            role_cfg = role_cfg_raw
+            if role_cfg.get("executor_type") == "special":
+                source_type = "special"
+            elif role_cfg.get("executor_type") == "direct_api":
+                source_type = "direct_api"
+    result.raw_usage = {
+        **(result.raw_usage or {}),
+        "usage_source": "api_usage" if source_type != "skip" else "skipped",
+        "executor_type": source_type,
+        "api_fallback_used": False,
+        "resolved_mode": mode,
+        "resolved_tier": tier,
+        "resolved_schema": "modes_v4" if modes else "legacy_profiles",
+    }
 
 
 def _patch_application_enabled(configs: dict, agent_name: str, requested: bool) -> bool:
