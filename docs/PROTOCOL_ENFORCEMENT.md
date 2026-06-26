@@ -18,6 +18,7 @@ Rules that exist only in prose are not considered fully enforced.
 - frontdesk session
 - role session
 - role-worker binding
+- ArtifactTask contract and ArtifactProducer routing
 - explicit delegation relay-only behavior
 - repository handoff gate
 - Git and validation evidence discipline
@@ -26,12 +27,15 @@ Rules that exist only in prose are not considered fully enforced.
 
 ```bash
 ./agentlab.sh protocol-doctor
+./agentlab.sh artifact-doctor
 ./agentlab.sh frontdesk-doctor --agent <agent_id>
 ./agentlab.sh role-doctor --role <Role> --worker <worker>
 ```
 
 `protocol-doctor` fails when required docs/configs are missing, frontdesk-only
 workers are configured as task-packet executors, or a role has unbound workers.
+`artifact-doctor` fails when ArtifactProducer lacks policy, provider routing,
+or worker-role bindings.
 
 ## Boundary
 

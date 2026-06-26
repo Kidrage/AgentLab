@@ -14,6 +14,9 @@ strong_rules:
   role_binding:
     enabled: true
     doctor_severity: fail
+  artifact_task_contract:
+    enabled: true
+    doctor_severity: fail
   explicit_delegation_relay_only:
     enabled: true
     doctor_severity: fail
@@ -27,12 +30,14 @@ required_protocol_docs:
   - docs/WORKSPACE_ENTRY_PROTOCOL.md
   - docs/FRONTDESK_PROTOCOL.md
   - docs/ROLE_SESSION_PROTOCOL.md
+  - docs/ARTIFACT_PRODUCER_PROTOCOL.md
   - docs/PROTOCOL_ENFORCEMENT.md
   - docs/CLI_ENTRYPOINT_BOOTSTRAP.md
 required_configs:
   - config/workspace_entry_policy.yml
   - config/frontdesk_policy.yml
   - config/agent_role_bindings.yml
+  - config/artifact_task_policy.yml
   - config/protocol_enforcement.yml
   - config/cli_entrypoint_policy.yml
 doctor_fail_on:

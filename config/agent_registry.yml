@@ -13,6 +13,7 @@ version: 2
 #   T2 感知: InterfaceMapper      → perception_interface (qwen3.6-plus)
 #   T2 感知: Researcher           → perception_research (qwen3.6-flash)
 #   T3 执行: Coder                → execution_coder_api (qwen3-coder-next)
+#   T3 执行: ArtifactProducer     → execution_artifact_producer (capability-routed)
 #                                   execution_coder_maxq (deepseek-v4-pro)
 #                                   execution_coder_local (本地 LLM)
 #   T3 执行: CodexPromptGenerator → execution_codex_prompt (qwen3.6-flash)
@@ -194,6 +195,39 @@ agents:
       - external_ide          # 外部 IDE AI — 需激活信号
     required_outputs:
       - runs/task_xxxx/implementation_report.md
+
+  ArtifactProducer:
+    template_path: agent_templates/artifact_producer.md
+    role: >
+      泛化产物执行层。只接收 ArtifactTask 结构化合同，负责文本、图片、视频、
+      音频、表格、演示文稿和混合交付的生成、落盘、校验与失败转派。
+      不替代 Coder；涉及源码或自动化实现时必须由 Coder 承担代码变更。
+    model_profile: execution_artifact_producer
+    model_tier: T3
+    profile_mapping:
+      brain_allocated:
+        any: execution_artifact_producer
+      max_quality:
+        any: execution_artifact_producer_maxq
+      frugal:
+        any: execution_artifact_producer_fallback
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: artifact_contract_outputs_only
+    shell_policy: artifact_validation_only
+    execution_owner: capability_router
+    allowed_backends:
+      - codex_high_cli
+      - agy_cli
+      - qwen_37max_api
+    required_inputs:
+      - runs/task_xxxx/artifact_task.yml
+      - runs/task_xxxx/user_request.md
+      - runs/task_xxxx/workflow_plan.yml
+    required_outputs:
+      - runs/task_xxxx/artifact_producer_report.md
+      - runs/task_xxxx/outputs/
 
   PromptEngineer:
     template_path: agent_templates/prompt_engineer.md

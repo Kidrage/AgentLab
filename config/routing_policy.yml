@@ -32,6 +32,11 @@ size_thresholds:
     typical: 加 CLI 参数、修函数 bug、补单元测试
     route: [Supervisor, RepoScout, Coder, TesterAuditor]
 
+  artifact_production:
+    label: ArtifactProduction
+    typical: 文本、图片、视频、音频、表格、演示文稿或混合产物生成
+    route: [Supervisor, ArtifactProducer, TesterAuditor, Verifier, Archivist]
+
   S2:
     label: Medium
     files_max: 20
@@ -172,6 +177,7 @@ agent_order:
   - Researcher
   - InterfaceMapper
   - Coder
+  - ArtifactProducer
   - TesterAuditor
   - Verifier
   - Archivist

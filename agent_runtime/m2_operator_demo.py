@@ -423,7 +423,7 @@ def run_m2_operator_demo(
     acceptance = {
         "runtime hygiene passes without demo blocking failures": not demo_blocking_failures,
         "worker registry summary exists": workers["total_workers"] >= 0,
-        "all 9 roles have capability requirements": roles["role_count"] == 9,
+        "all roles have capability requirements": roles["role_count"] >= 10,
         "mock worker audition scorecard exists": bool(auditions["results"]),
         "route decision is explainable": bool(route_decision.selection_reason),
         "approval decision card exists": approval["requires_operator"],

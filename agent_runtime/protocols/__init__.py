@@ -15,6 +15,14 @@ from .cli_entrypoint import (
     install_cli_entrypoints,
     scan_cli_entrypoints,
 )
+from .artifact_task import (
+    ARTIFACT_PRODUCER_ROLE,
+    build_artifact_task_contract,
+    infer_artifact_type,
+    load_artifact_task_for_run,
+    route_artifact_provider,
+    run_artifact_task_doctor,
+)
 
 __all__ = [
     "build_frontdesk_context",
@@ -28,4 +36,10 @@ __all__ = [
     "doctor_cli_entrypoints",
     "install_cli_entrypoints",
     "scan_cli_entrypoints",
+    "ARTIFACT_PRODUCER_ROLE",
+    "build_artifact_task_contract",
+    "infer_artifact_type",
+    "load_artifact_task_for_run",
+    "route_artifact_provider",
+    "run_artifact_task_doctor",
 ]

@@ -11,6 +11,11 @@ from typing import Any
 
 from schemas import AgentRoute
 
+try:
+    from protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
+except ImportError:  # pragma: no cover - package import path
+    from agent_runtime.protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
+
 
 # ── Implementation intent signals ─────────────────────────────────────────
 # Strong keywords that indicate the user wants code changes, not just analysis.
@@ -97,6 +102,25 @@ IMPLEMENTATION_EXECUTORS: frozenset[str] = frozenset({
 })
 
 
+ARTIFACT_PRODUCTION_ACTION_HINTS: tuple[str, ...] = (
+    "generate",
+    "create",
+    "draft",
+    "write",
+    "make",
+    "produce",
+    "export",
+    "render",
+    "生成",
+    "创建",
+    "制作",
+    "写",
+    "输出",
+    "导出",
+    "渲染",
+)
+
+
 def _detect_implementation_intent(text: str) -> bool:
     """Return True if *text* contains strong implementation signals.
 
@@ -121,6 +145,18 @@ def _detect_implementation_intent(text: str) -> bool:
 def _has_implementation_executor(agents: list[str]) -> bool:
     """Return True if *agents* contains at least one implementation executor."""
     return bool(set(agents) & IMPLEMENTATION_EXECUTORS)
+
+
+def _detect_artifact_production_intent(text: str) -> tuple[bool, str | None]:
+    """Return whether text asks for a non-code deliverable to be produced."""
+    lowered = text.lower()
+    artifact_type = infer_artifact_type(text)
+    if not artifact_type:
+        return False, None
+    if artifact_type == "text" and "implementation report" in lowered:
+        return False, None
+    has_action = any(hint.lower() in lowered for hint in ARTIFACT_PRODUCTION_ACTION_HINTS)
+    return has_action, artifact_type if has_action else None
 
 
 RESEARCH_HINTS = (
@@ -266,6 +302,7 @@ def recommend_route(
     # Detect implementation intent from the ORIGINAL text (preserving case
     # so Chinese characters match correctly).
     wants_implementation = _detect_implementation_intent(task_text)
+    wants_artifact, artifact_type = _detect_artifact_production_intent(task_text)
 
     wants_evaluation = any(hint in text for hint in evaluation_hints)
     wants_research = any(hint in text for hint in research_hints)
@@ -277,6 +314,7 @@ def recommend_route(
     fallback_medium = ["Supervisor", "RepoScout", "Coder", "TesterAuditor", "Verifier", "Archivist"]
     fallback_interface = ["Supervisor", "RepoScout", "InterfaceMapper", "Coder", "TesterAuditor", "Verifier", "Archivist"]
     fallback_research = ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier"]
+    fallback_artifact = ["Supervisor", ARTIFACT_PRODUCER_ROLE, "TesterAuditor", "Verifier", "Archivist"]
     fallback_evaluation = [
         "Supervisor",
         "RepoScout",
@@ -332,7 +370,14 @@ def recommend_route(
                 agents.insert(1, "Coder")
                 if "TesterAuditor" not in agents:
                     agents.insert(2, "TesterAuditor")
+        if wants_artifact and ARTIFACT_PRODUCER_ROLE not in agents:
+            insert_at = agents.index("Coder") + 1 if "Coder" in agents else len(agents)
+            agents.insert(insert_at, ARTIFACT_PRODUCER_ROLE)
 
+    elif wants_artifact:
+        route_key = "artifact_production_task"
+        task_size = "medium" if artifact_type == "mixed" or looks_medium else "small"
+        agents = _configured_route(routing_config, route_key, fallback_artifact)
     elif wants_evaluation:
         route_key = "evaluation_task"
         task_size = _configured_route_size(routing_config, route_key, "large")
@@ -365,7 +410,7 @@ def recommend_route(
         hint.lower() in text for hint in EXPLICIT_ANALYSIS_ONLY_HINTS
     )
     if _wants_explicit_analysis_only and not wants_implementation:
-        agents = [a for a in agents if a not in IMPLEMENTATION_EXECUTORS]
+        agents = [a for a in agents if a not in IMPLEMENTATION_EXECUTORS and a != ARTIFACT_PRODUCER_ROLE]
         # If Coder was removed, also remove TesterAuditor (analysis-only
         # doesn't need test execution)
         if "Coder" not in agents:
@@ -386,8 +431,15 @@ def recommend_route(
             "Implementation intent detected; route includes an implementation "
             "executor for code changes."
         )
+    elif wants_artifact:
+        rationale.append(
+            f"Artifact production intent detected ({artifact_type}); route includes "
+            f"{ARTIFACT_PRODUCER_ROLE} with an ArtifactTask contract."
+        )
     if "Coder" in agents:
         rationale.append("Coder and Tester/Auditor are required for implementation and verification.")
+    if ARTIFACT_PRODUCER_ROLE in agents:
+        rationale.append("ArtifactProducer owns non-code and mixed deliverables; Coder remains scoped to code/automation work.")
     elif wants_implementation:
         rationale.append(
             "Implementation required but Coder not in route — "
@@ -416,7 +468,9 @@ def recommend_route(
         "Researcher",
         "InterfaceMapper",
         "Coder",
+        ARTIFACT_PRODUCER_ROLE,
         "TesterAuditor",
+        "Verifier",
         "Archivist",
     ])
     skipped = sorted(all_agents.difference(agents))

@@ -215,6 +215,8 @@ def resolve_profile_config(
         "researcher": "researcher",
         "interfacemapper": "interface_mapper",
         "coder": "coder",
+        "artifactproducer": "artifact_producer",
+        "artifact_producer": "artifact_producer",
         "promptengineer": "prompt_engineer",
         "testerauditor": "tester_auditor",
         "verifier": "verifier",
@@ -261,7 +263,7 @@ def resolve_profile_config(
 
     runtime_provider = runtime_provider_for_catalog_model(model_entry, agent_name=agent_name)
     max_output = int(model_entry.get("max_output") or 4096)
-    temperature = 0.1 if agent_name in {"Coder", "RepoScout", "InterfaceMapper", "TesterAuditor", "Verifier", "Archivist"} else 0.2
+    temperature = 0.1 if agent_name in {"Coder", "ArtifactProducer", "RepoScout", "InterfaceMapper", "TesterAuditor", "Verifier", "Archivist"} else 0.2
     return {
         "profile": profile_name,
         "catalog_key": catalog_key,
@@ -363,6 +365,7 @@ def _tier_for_agent(agent_name: str) -> str:
         "Researcher": "T2",
         "InterfaceMapper": "T2",
         "Coder": "T3",
+        "ArtifactProducer": "T3",
         "PromptEngineer": "T3",
         "TesterAuditor": "T4",
         "Verifier": "T4",

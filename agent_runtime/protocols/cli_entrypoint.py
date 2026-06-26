@@ -188,7 +188,7 @@ def _role_wrapper(root: Path, agent_id: str, command_template: str) -> str:
 set -euo pipefail
 AGENTLAB_ROOT={str(root)!r}
 cd "$AGENTLAB_ROOT"
-: "${{AGENTLAB_ROLE:?Set AGENTLAB_ROLE to one of the 9 AgentLab roles.}}"
+: "${{AGENTLAB_ROLE:?Set AGENTLAB_ROLE to a bound AgentLab role.}}"
 : "${{AGENTLAB_TASK_ID:?Set AGENTLAB_TASK_ID to the target task id.}}"
 AGENTLAB_PROJECT="${{AGENTLAB_PROJECT:-AgentLab}}"
 ./agentlab.sh protocol-doctor >/dev/null

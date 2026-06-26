@@ -6,6 +6,7 @@ roles:
   Researcher: [bl, claude_code]
   PromptEngineer: [hermes, claude_code]
   Coder: [claude_code, codex, aider]
+  ArtifactProducer: [codex, agy, qwen]
   TesterAuditor: [pytest, claude_code, codex]
   Verifier: [ruff, mypy, eslint, claude_code]
   Archivist: [git, claude_code]

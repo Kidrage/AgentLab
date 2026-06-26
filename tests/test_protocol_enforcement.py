@@ -23,7 +23,8 @@ def test_workspace_entry_binds_agy_as_frontdesk_not_worker():
 
     assert packet["packet_type"] == "agentlab_workspace_entry"
     assert packet["allowed_profiles"]["frontdesk_capable"] is True
-    assert packet["allowed_profiles"]["worker_capable"] is False
+    assert packet["allowed_profiles"]["worker_capable"] is True
+    assert packet["allowed_profiles"]["allowed_roles"] == ["ArtifactProducer"]
     assert "rediscover_agentlab_by_full_repo_scan" in packet["forbidden_actions"]
 
 
@@ -46,11 +47,14 @@ def test_frontdesk_doctor_accepts_agy_frontdesk_contract():
 def test_role_binding_rejects_agy_as_coder_and_allows_codex():
     agy_allowed, agy_reason = check_role_binding(ROOT, "agy", "Coder")
     codex_allowed, codex_reason = check_role_binding(ROOT, "codex", "Coder")
+    artifact_allowed, artifact_reason = check_role_binding(ROOT, "agy", "ArtifactProducer")
 
     assert agy_allowed is False
-    assert "frontdesk-only" in agy_reason
+    assert "forbidden" in agy_reason
     assert codex_allowed is True
     assert codex_reason == "role binding allowed"
+    assert artifact_allowed is True
+    assert artifact_reason == "role binding allowed"
 
 
 def test_role_session_reports_binding_verdicts():
@@ -82,7 +86,7 @@ def test_cli_role_session_exits_nonzero_for_invalid_frontdesk_worker():
     result = runner.invoke(app, ["role-session", "--role", "Coder", "--worker", "agy"])
 
     assert result.exit_code == 1
-    assert "frontdesk-only" in result.output
+    assert "forbidden" in result.output
 
 
 def test_cli_protocol_doctor_passes():

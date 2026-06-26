@@ -186,15 +186,15 @@ agents:
     high_risk: true
   agy:
     display_name: Antigravity
-    class: frontdesk_chat_assistant
-    primary_roles: [user_intake, agentlab_command_translation, status_explanation, handoff_dispatch]
+    class: frontdesk_and_artifact_cli
+    primary_roles: [user_intake, agentlab_command_translation, status_explanation, handoff_dispatch, artifact_production]
     invocation:
       command: agy
       frontdesk_session: >-
         agy --sandbox -p "$(./agentlab.sh frontdesk-session --agent agy)"
     explicit_named_delegation_mode: relay_only
     may_edit_task_files_when_relaying: false
-    may_execute_agentlab_roles_directly: false
+    may_execute_agentlab_roles_directly: [ArtifactProducer]
     high_risk: medium
   bl:
     display_name: Bailian CLI

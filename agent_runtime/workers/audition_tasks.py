@@ -82,6 +82,12 @@ class AuditionTask:
                 base_cost,
                 base_latency
             )
+        elif self.task_type == "artifact_production_task":
+            return (
+                "Produced artifact outputs/report.md and validated file_exists.",
+                base_cost,
+                base_latency
+            )
         
         return "Generic task completed successfully.", base_cost, base_latency
 
@@ -94,6 +100,7 @@ AUDITION_TASKS = {
     "researcher": AuditionTask("research_summary_task", "Researcher", "Summarize structural definitions"),
     "prompt_engineer": AuditionTask("handoff_generation_task", "PromptEngineer", "Construct prompt packages for Coder"),
     "coder": AuditionTask("small_patch_task", "Coder", "Modify summing calculation to support multiplier"),
+    "artifact_producer": AuditionTask("artifact_production_task", "ArtifactProducer", "Produce a non-code artifact from an ArtifactTask contract"),
     "tester_auditor": AuditionTask("test_runner_task", "TesterAuditor", "Run test assertions in the sandbox"),
     "verifier": AuditionTask("lint_review_task", "Verifier", "Analyze codebase style and violations"),
     "archivist": AuditionTask("archive_task", "Archivist", "Perform task packaging and archive artifacts")

@@ -12,9 +12,9 @@ def test_role_requirements_loads_correctly() -> None:
     roles_path = Path(__file__).resolve().parent.parent / "config" / "agent_role_requirements.yml"
     registry = RoleRequirementsRegistry.load_from_file(roles_path)
 
-    # 9 roles defined
+    # 10 roles defined
     roles = registry.list_roles()
-    assert len(roles) == 9
+    assert len(roles) == 10
 
     # Inspect Coder
     coder_req = registry.get_role_requirements("Coder")
@@ -22,6 +22,11 @@ def test_role_requirements_loads_correctly() -> None:
     assert "file_edit" in coder_req.required_capabilities
     assert "patch_generation" in coder_req.required_capabilities
     assert coder_req.default_risk_ceiling == "high"
+
+    artifact_req = registry.get_role_requirements("ArtifactProducer")
+    assert artifact_req is not None
+    assert "artifact_task_contract" in artifact_req.required_capabilities
+    assert "write_artifact_file" in artifact_req.required_capabilities
 
     # Test normalization case-insensitive lookup
     supervisor_req = registry.get_role_requirements("supervisor")
@@ -40,6 +45,7 @@ def test_role_cli_commands() -> None:
     assert result1.exit_code == 0
     assert "coder" in result1.stdout.lower()
     assert "supervisor" in result1.stdout.lower()
+    assert "artifact" in result1.stdout.lower()
 
     # 2. role-inspect Coder command
     result2 = runner.invoke(app, ["role-inspect", "--role", "Coder"])

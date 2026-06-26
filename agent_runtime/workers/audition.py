@@ -33,10 +33,10 @@ def run_all_auditions(
     # Map worker category to reasonable audition roles
     from agent_runtime.workers.worker_card import WorkerCategory
     category_role_map = {
-        WorkerCategory.CODING_AGENT: ["Coder", "TesterAuditor"],
+        WorkerCategory.CODING_AGENT: ["Coder", "ArtifactProducer", "TesterAuditor"],
         WorkerCategory.PLANNING_AGENT: ["Supervisor"],
         WorkerCategory.FRONTDESK_AGENT: ["Archivist"],
-        WorkerCategory.MULTIMODAL_CLOUD_TOOL: ["Coder", "Researcher"],
+        WorkerCategory.MULTIMODAL_CLOUD_TOOL: ["ArtifactProducer", "Researcher"],
         WorkerCategory.DETERMINISTIC_REPO_TOOL: ["RepoScout"],
         WorkerCategory.DETERMINISTIC_AST_TOOL: ["InterfaceMapper"],
         WorkerCategory.TEST_RUNNER: ["TesterAuditor"],

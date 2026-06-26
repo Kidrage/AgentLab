@@ -62,6 +62,10 @@ wrapper must:
 - run `role-doctor` for role workers
 - pass the generated packet to the external CLI
 
+For `ArtifactProducer`, the role wrapper is still the hard path. The worker must
+also receive an `ArtifactTask` contract from `artifact_task.yml`; project-local
+entrypoint files alone are not enough.
+
 ## Safety
 
 Bootstrap only updates AgentLab managed blocks in project-local files. It does

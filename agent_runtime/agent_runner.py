@@ -20,6 +20,7 @@ DEFAULT_REPORT_BY_AGENT = {
     "InterfaceMapper": "04_interface_map.md",
     "PromptEngineer": "05_coder_prompt.md",
     "Coder": "06_implementation_report.md",
+    "ArtifactProducer": "artifact_producer_report.md",
     "TesterAuditor": "08_audit_report.md",
     "Verifier": "verification_report.md",
     "Archivist": "09_archive_update.md",
@@ -32,6 +33,7 @@ LEGACY_REPORT_BY_AGENT = {
     "InterfaceMapper": "interface_map.md",
     "PromptEngineer": "coder_prompt.md",
     "Coder": "implementation_report.md",
+    "ArtifactProducer": "artifact_producer_report.md",
     "TesterAuditor": "audit_report.md",
     "Archivist": "archive_update.md",
 }

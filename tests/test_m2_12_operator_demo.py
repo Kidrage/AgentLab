@@ -18,7 +18,7 @@ def test_m2_operator_demo_module_writes_report(tmp_path):
     assert "warnings" in summary["migration"]
     assert (tmp_path / "demo" / "M2_OPERATOR_OS_EXECUTION_ECONOMY_REPORT.md").is_file()
     assert (tmp_path / "demo" / "route_decision.yml").is_file()
-    assert summary["acceptance"]["all 9 roles have capability requirements"] is True
+    assert summary["acceptance"]["all roles have capability requirements"] is True
 
 
 def test_m2_operator_demo_cli_writes_report(tmp_path):

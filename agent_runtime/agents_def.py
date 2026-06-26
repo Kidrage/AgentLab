@@ -20,6 +20,7 @@ def build_agent_specs(agentlab_root: Path) -> list[AgentSpec]:
         AgentSpec("Supervisor", "Plans and coordinates the task", templates / "supervisor.md"),
         AgentSpec("RepoScout", "Maps repository context", templates / "reposcout.md"),
         AgentSpec("Coder", "Proposes minimal implementation changes", templates / "coder.md"),
+        AgentSpec("ArtifactProducer", "Produces non-code and mixed artifacts from ArtifactTask contracts", templates / "artifact_producer.md"),
         AgentSpec("PromptEngineer", "Generates stable, scoped coder handoff prompts", templates / "prompt_engineer.md"),
         AgentSpec("TesterAuditor", "Validates and audits results", templates / "tester_auditor.md"),
         AgentSpec("Archivist", "Updates run records and project memory, generates project docs, archives completed tasks", templates / "archivist.md"),

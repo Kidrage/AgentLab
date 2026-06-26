@@ -58,7 +58,7 @@ def test_scan_recognizes_configurable_agents(tmp_path, monkeypatch):
 
     result = scan_cli_entrypoints(root)
 
-    assert result["recognized"]["agy"]["profiles"] == ["frontdesk"]
+    assert result["recognized"]["agy"]["profiles"] == ["frontdesk", "worker"]
     assert "worker" in result["recognized"]["codex"]["profiles"]
     assert result["recognized"]["claude_code"]["command"] == "claude"
     assert result["ignored"]["bl"]["reason"] == "specialist_cloud_tool_not_entrypoint"
@@ -84,8 +84,9 @@ def test_install_writes_managed_entrypoints_and_wrappers(tmp_path, monkeypatch):
     codex_role = root / ".agentlab" / "cli_entrypoints" / "wrappers" / "workers" / "codex-role-agentlab"
 
     assert agy_frontdesk.exists()
-    assert not agy_role.exists()
+    assert agy_role.exists()
     assert codex_role.exists()
+    assert "ArtifactProducer" not in agy_role.read_text(encoding="utf-8")
     assert "protocol-doctor" in codex_role.read_text(encoding="utf-8")
     assert "role-doctor" in codex_role.read_text(encoding="utf-8")
     assert "role-session" in codex_role.read_text(encoding="utf-8")

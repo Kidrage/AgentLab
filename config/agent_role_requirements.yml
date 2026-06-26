@@ -68,6 +68,23 @@ roles:
     forbidden_capabilities: []
     default_risk_ceiling: high
 
+  artifact_producer:
+    required_capabilities:
+      - artifact_task_contract
+      - write_artifact_file
+      - validate_artifact_contract
+    preferred_capabilities:
+      - write_text_artifact
+      - generate_image
+      - generate_video
+      - generate_audio
+      - create_spreadsheet
+      - create_presentation
+    forbidden_capabilities:
+      - unapproved_source_edit
+      - silent_provider_fallback
+    default_risk_ceiling: high
+
   tester_auditor:
     required_capabilities:
       - test_execution

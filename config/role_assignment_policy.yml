@@ -12,6 +12,8 @@ roles:
     candidates: [hermes, claude_code]
   Coder:
     candidates: [claude_code, codex, aider]
+  ArtifactProducer:
+    candidates: [codex, agy, qwen]
   TesterAuditor:
     candidates: [pytest, claude_code, codex]
   Verifier:

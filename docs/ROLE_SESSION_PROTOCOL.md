@@ -2,7 +2,7 @@
 
 Authority: `_shared/AGENT_PROTOCOL.md`
 
-AgentLab's 9 logical roles are not implied by CLI names. A worker becomes a
+AgentLab's logical roles are not implied by CLI names. A worker becomes a
 Supervisor, Coder, Verifier, or any other role only after AgentLab generates a
 role session packet and the worker-role binding passes policy.
 
@@ -14,6 +14,7 @@ role session packet and the worker-role binding passes policy.
 - InterfaceMapper
 - PromptEngineer
 - Coder
+- ArtifactProducer
 - TesterAuditor
 - Verifier
 - Archivist
@@ -31,6 +32,7 @@ The packet includes:
 - task state
 - required input artifacts
 - required outputs
+- ArtifactTask contract when role is `ArtifactProducer`
 - source write policy
 - shell policy
 - forbidden actions
@@ -42,6 +44,8 @@ The packet includes:
 - A worker cannot execute a role unless `config/agent_role_bindings.yml` allows
   both directions: worker allows role, and role allows worker.
 - Generated role sessions are required for AgentLab-managed worker invocation.
+- `ArtifactProducer` must receive `artifact_task.yml` before producing non-code
+  or mixed deliverables.
 - A worker must stay inside the assigned role and report evidence.
 
 ## Verification

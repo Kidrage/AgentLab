@@ -23,6 +23,7 @@ AGENTLAB_ROLES = [
     "InterfaceMapper",
     "PromptEngineer",
     "Coder",
+    "ArtifactProducer",
     "TesterAuditor",
     "Verifier",
     "Archivist",
@@ -324,6 +325,27 @@ def build_role_session(
             "artifact_paths",
         ],
     }
+    if canonical_role == "ArtifactProducer":
+        from agent_runtime.protocols.artifact_task import load_artifact_task_for_run
+
+        artifact_task = load_artifact_task_for_run(root, project, task_id)
+        packet["artifact_task"] = artifact_task or {
+            "status": "missing",
+            "required": True,
+            "expected_path": str((run_dir / "artifact_task.yml").relative_to(root)),
+            "message": "Supervisor must provide an ArtifactTask contract before ArtifactProducer executes.",
+        }
+        packet["forbidden_actions"].extend([
+            "produce_non_code_artifact_without_artifact_task",
+            "silently_change_output_format",
+            "claim_generated_artifact_without_file_evidence",
+        ])
+        packet["exit_report_must_include"].extend([
+            "produced_artifacts",
+            "artifact_type",
+            "provider_used",
+            "fallback_status",
+        ])
     return packet
 
 
@@ -368,6 +390,7 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
     contracts = _load_policy(root, "worker_invocation_contracts.yml")
     collaboration = _load_policy(root, "agent_collaboration.yml").get("agent_collaboration", {})
     shared_directory = _load_policy(root, "shared_agent_directory.yml")
+    artifact_policy = _load_policy(root, "artifact_task_policy.yml")
     checks: list[ProtocolCheck] = []
 
     for rel in enforcement.get("required_protocol_docs") or []:
@@ -410,6 +433,12 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
         _check("workspace-entry" in str(session_contracts.get("workspace_entry_command", "")), "workspace_entry_command_registered", "workspace entry command is registered"),
         _check("frontdesk-session" in str(session_contracts.get("frontdesk_session_command", "")), "frontdesk_session_command_registered", "frontdesk session command is registered"),
         _check("role-session" in str(session_contracts.get("role_session_command", "")), "role_session_command_registered", "role session command is registered"),
+        _check("artifact-task-plan" in str(session_contracts.get("artifact_task_plan_command", "")), "artifact_task_plan_command_registered", "artifact task plan command is registered"),
+    ])
+
+    checks.extend([
+        _check(bool(artifact_policy), "artifact_task_policy_present", "artifact task policy is present"),
+        _check("ArtifactProducer" in (bindings.get("roles") or {}), "artifact_producer_role_bound", "ArtifactProducer role is bound"),
     ])
 
     roles = bindings.get("roles") or {}
@@ -435,8 +464,12 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
 
     agy_info = ((shared_directory.get("agents") or {}).get("agy") or {})
     checks.extend([
-        _check(agy_info.get("class") == "frontdesk_chat_assistant", "agy_registered_as_frontdesk", "agy is registered as frontdesk_chat_assistant"),
-        _check(agy_info.get("may_execute_agentlab_roles_directly") is False, "agy_cannot_execute_roles_directly", "agy cannot execute AgentLab roles directly"),
+        _check(agy_info.get("class") in {"frontdesk_chat_assistant", "frontdesk_and_artifact_cli"}, "agy_registered_as_frontdesk", "agy is registered as a frontdesk-capable agent"),
+        _check(
+            agy_info.get("may_execute_agentlab_roles_directly") in (False, ["ArtifactProducer"]),
+            "agy_cannot_execute_general_roles_directly",
+            "agy cannot execute general AgentLab roles directly",
+        ),
     ])
 
     return _doctor_result("protocol_doctor", checks)

@@ -42,6 +42,11 @@ modes:
           cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_coder_plus_dashscope
           external_ide_allowed: true
+        artifact_producer:
+          executor_type: cli_agent
+          cli_agent: codex
+          cli_command: 'codex exec "Read task packet {task_packet_path}; perform only the ArtifactProducer role and return produced artifacts, validation, and fallback status."'
+          default: qwen3_7_max_dashscope
         tester_auditor:
           executor_type: cli_agent
           cli_agent: agy
@@ -95,6 +100,11 @@ modes:
           cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_coder_plus_dashscope
           external_ide_allowed: true
+        artifact_producer:
+          executor_type: cli_agent
+          cli_agent: agy
+          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the ArtifactProducer role and report produced artifacts, validation, and fallback status."'
+          default: qwen3_6_plus_dashscope
         tester_auditor:
           executor_type: cli_agent
           cli_agent: agy
@@ -137,6 +147,11 @@ modes:
           cli_command: 'claude --effort low --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_coder_next_dashscope
           external_ide_allowed: false
+        artifact_producer:
+          executor_type: cli_agent
+          cli_agent: agy
+          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the ArtifactProducer role and report concise artifact evidence."'
+          default: qwen3_6_flash_dashscope
         tester_auditor:
           executor_type: cli_agent
           cli_agent: agy
@@ -176,6 +191,10 @@ modes:
           executor_type: direct_api
           default: qwen3_coder_plus_dashscope
           fallback: deepseek_v4_pro
+        artifact_producer:
+          executor_type: direct_api
+          default: qwen3_7_max_dashscope
+          fallback: qwen3_6_plus_dashscope
         tester_auditor:
           executor_type: direct_api
           default: qwen3_7_max_dashscope
@@ -212,6 +231,10 @@ modes:
           executor_type: direct_api
           default: qwen3_coder_plus_dashscope
           fallback: deepseek_v4_flash
+        artifact_producer:
+          executor_type: direct_api
+          default: qwen3_6_plus_dashscope
+          fallback: qwen3_6_flash_dashscope
         tester_auditor:
           executor_type: direct_api
           default: qwen3_6_plus_dashscope
@@ -240,6 +263,9 @@ modes:
           executor_type: direct_api
           default: qwen3_coder_next_dashscope
           fallback: deepseek_v4_flash
+        artifact_producer:
+          executor_type: direct_api
+          default: qwen3_6_flash_dashscope
         tester_auditor:
           executor_type: direct_api
           default: deepseek_v4_flash
@@ -270,6 +296,9 @@ modes:
         coder:
           executor_type: special
           provider: external_ide_ai
+        artifact_producer:
+          executor_type: direct_api
+          default: qwen3_7_max_dashscope
         tester_auditor:
           executor_type: direct_api
           default: qwen3_7_max_dashscope
@@ -296,6 +325,9 @@ modes:
         coder:
           executor_type: special
           provider: external_ide_ai
+        artifact_producer:
+          executor_type: direct_api
+          default: qwen3_6_plus_dashscope
         tester_auditor:
           executor_type: direct_api
           default: qwen3_6_plus_dashscope
@@ -318,6 +350,9 @@ modes:
         coder:
           executor_type: special
           provider: external_ide_ai
+        artifact_producer:
+          executor_type: direct_api
+          default: qwen3_6_flash_dashscope
         tester_auditor:
           executor_type: direct_api
           default: deepseek_v4_flash

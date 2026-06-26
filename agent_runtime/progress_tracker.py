@@ -20,6 +20,7 @@ DEFAULT_AGENT_WEIGHTS = {
     "Researcher": 15,
     "InterfaceMapper": 15,
     "Coder": 25,
+    "ArtifactProducer": 20,
     "TesterAuditor": 20,
     "Verifier": 10,
     "Archivist": 10,

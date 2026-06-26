@@ -201,7 +201,7 @@ def frontdesk_session_cmd(
 
 @app.command("role-session")
 def role_session_cmd(
-    role: str = typer.Option(..., "--role", help="AgentLab 9-role name, e.g. Coder."),
+    role: str = typer.Option(..., "--role", help="AgentLab role name, e.g. Coder or ArtifactProducer."),
     worker: str = typer.Option(..., "--worker", help="CLI worker id to bind to this role."),
     project: str = typer.Option("AgentLab", "--project"),
     task_id: str = typer.Option("task_0001", "--task-id"),
@@ -230,7 +230,7 @@ def frontdesk_doctor_cmd(
 
 @app.command("role-doctor")
 def role_doctor_cmd(
-    role: str = typer.Option(..., "--role", help="AgentLab 9-role name, e.g. Coder."),
+    role: str = typer.Option(..., "--role", help="AgentLab role name, e.g. Coder or ArtifactProducer."),
     worker: str = typer.Option(..., "--worker", help="CLI worker id."),
 ) -> None:
     """Validate a worker-role binding and role-session generation."""
@@ -248,6 +248,49 @@ def protocol_doctor_cmd() -> None:
     from agent_runtime.protocols import run_protocol_doctor
 
     result = run_protocol_doctor(_PROJECT_ROOT)
+    console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+    if result.get("status") != "pass":
+        raise typer.Exit(code=1)
+
+
+@app.command("artifact-task-plan")
+def artifact_task_plan_cmd(
+    task_text: str = typer.Option(..., "--task-text", help="User-facing artifact request text."),
+    artifact_type: Optional[str] = typer.Option(None, "--artifact-type", help="Override inferred artifact type."),
+    output_path: Optional[str] = typer.Option(None, "--output-path", help="Expected artifact output path."),
+    preferred_provider: Optional[str] = typer.Option(None, "--provider", help="Preferred provider id from artifact_task_policy.yml."),
+    project: str = typer.Option("AgentLab", "--project", help="AgentLab project name."),
+    task_id: str = typer.Option("task_0001", "--task-id", help="AgentLab task id."),
+    write: bool = typer.Option(False, "--write", help="Write projects/<project>/runs/<task_id>/artifact_task.yml."),
+) -> None:
+    """Build a structured ArtifactTask contract for ArtifactProducer."""
+    from agent_runtime.protocols import build_artifact_task_contract
+
+    packet = build_artifact_task_contract(
+        _PROJECT_ROOT,
+        task_text,
+        artifact_type=artifact_type,
+        output_path=output_path,
+        project=project,
+        task_id=task_id,
+        preferred_provider=preferred_provider,
+    )
+    if write:
+        out = _PROJECT_ROOT / "projects" / project / "runs" / task_id / "artifact_task.yml"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(yaml.safe_dump(packet, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        packet["written_to"] = str(out)
+    console.print(yaml.safe_dump(packet, sort_keys=False, allow_unicode=True).rstrip())
+    if packet.get("routing", {}).get("status") != "routed":
+        raise typer.Exit(code=1)
+
+
+@app.command("artifact-doctor")
+def artifact_doctor_cmd() -> None:
+    """Validate ArtifactProducer policy, provider routing, and role bindings."""
+    from agent_runtime.protocols import run_artifact_task_doctor
+
+    result = run_artifact_task_doctor(_PROJECT_ROOT)
     console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
     if result.get("status") != "pass":
         raise typer.Exit(code=1)
@@ -662,7 +705,7 @@ def capabilities() -> None:
 
 @app.command("role-requirements")
 def role_requirements() -> None:
-    """List all 9 AgentLab roles and a summary of their capability requirements."""
+    """List all AgentLab roles and a summary of their capability requirements."""
     from agent_runtime.capabilities.role_requirements import RoleRequirementsRegistry
     from agent_runtime.capabilities.renderer import render_role_requirements_table
 

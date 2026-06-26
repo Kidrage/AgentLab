@@ -1,0 +1,94 @@
+schema_version: 1
+policy_id: artifact_task_policy
+authority: _shared/AGENT_PROTOCOL.md
+summary: >
+  Non-code and mixed deliverables are executed through ArtifactProducer with a
+  structured ArtifactTask contract. Coder remains the code and automation role.
+role: ArtifactProducer
+contract:
+  packet_type: agentlab_artifact_task
+  required_fields:
+    - artifact_type
+    - output.path
+    - output.format
+    - requirements
+    - validation
+    - routing
+  failure_statuses:
+    - capability_mismatch
+    - needs_fallback
+    - validation_failed
+artifact_types:
+  text:
+    output_formats: [markdown, txt, docx]
+    required_capabilities: [write_text_artifact, write_artifact_file]
+  image:
+    output_formats: [png, jpg, webp]
+    required_capabilities: [generate_image, write_artifact_file]
+  video:
+    output_formats: [mp4, mov]
+    required_capabilities: [generate_video, write_artifact_file]
+  audio:
+    output_formats: [wav, mp3]
+    required_capabilities: [generate_audio, write_artifact_file]
+  spreadsheet:
+    output_formats: [xlsx, csv]
+    required_capabilities: [create_spreadsheet, write_artifact_file]
+  presentation:
+    output_formats: [pptx, pdf]
+    required_capabilities: [create_presentation, write_artifact_file]
+  mixed:
+    output_formats: [directory]
+    required_capabilities: [produce_mixed_artifacts, write_artifact_file, validate_artifact_contract]
+providers:
+  codex_high_cli:
+    worker: codex
+    provider_type: cli
+    priority: 100
+    fallback: false
+    handles: [text, image, video, audio, spreadsheet, presentation, mixed]
+    capabilities:
+      - write_text_artifact
+      - generate_image
+      - generate_video
+      - generate_audio
+      - create_spreadsheet
+      - create_presentation
+      - produce_mixed_artifacts
+      - write_artifact_file
+      - validate_artifact_contract
+  agy_cli:
+    worker: agy
+    provider_type: cli
+    priority: 70
+    fallback: false
+    handles: [text, image, spreadsheet, presentation, mixed]
+    capabilities:
+      - write_text_artifact
+      - generate_image
+      - create_spreadsheet
+      - create_presentation
+      - produce_mixed_artifacts
+      - write_artifact_file
+      - validate_artifact_contract
+  qwen_37max_api:
+    worker: qwen
+    provider_type: api
+    priority: 10
+    fallback: true
+    handles: [text, image, video, audio, spreadsheet, presentation, mixed]
+    capabilities:
+      - write_text_artifact
+      - generate_image
+      - generate_video
+      - generate_audio
+      - create_spreadsheet
+      - create_presentation
+      - produce_mixed_artifacts
+      - write_artifact_file
+      - validate_artifact_contract
+failure_contract:
+  capability_mismatch:
+    required_fields: [missing_capability, recommended_provider, recommended_role]
+  needs_fallback:
+    required_fields: [reason, attempted_provider, recommended_provider]

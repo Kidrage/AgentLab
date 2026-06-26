@@ -167,6 +167,7 @@ agent_order:
   - Researcher
   - InterfaceMapper
   - Coder
+  - ArtifactProducer
   - TesterAuditor
   - Verifier
   - Archivist
@@ -199,6 +200,16 @@ routes:
       - Supervisor    # brain_coordinator_l1 → qwen3.6-plus
       - Coder          # execution_coder_api → qwen3-coder-next
       # TesterAuditor 可选，由 Supervisor 决定
+
+  artifact_production_task:
+    size: L2
+    description: 文本/图片/视频/音频/表格/演示文稿/混合产物生成
+    agents:
+      - Supervisor
+      - ArtifactProducer
+      - TesterAuditor
+      - Verifier
+      - Archivist
 
   # ── L2 标准项目 — 基础版 (无接口/无外部资料需求) ──────────────────
   medium_task:

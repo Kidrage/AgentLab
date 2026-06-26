@@ -74,6 +74,7 @@ agent_collaboration:
     workspace_entry_command: ./agentlab.sh workspace-entry --agent "{agent_id}"
     frontdesk_session_command: ./agentlab.sh frontdesk-session --agent "{agent_id}"
     role_session_command: ./agentlab.sh role-session --role "{role}" --worker "{worker}" --project "{project}" --task-id "{task_id}"
+    artifact_task_plan_command: ./agentlab.sh artifact-task-plan --task-text "{task_text}" --project "{project}" --task-id "{task_id}" --write
     protocol_doctor_command: ./agentlab.sh protocol-doctor
     strong_rule: >
       AgentLab-managed CLI agents must enter through generated workspace,
