@@ -8,6 +8,8 @@ REQUIRED_RULES = [
     ".claude/",
     ".codex/",
     ".hermes/",
+    ".agy/",
+    ".openclaw/",
     ".gemini/",
     ".qwen/",
     ".claude.json",

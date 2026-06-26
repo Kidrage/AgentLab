@@ -10,6 +10,11 @@ from .enforcement import (
     run_protocol_doctor,
     run_role_doctor,
 )
+from .cli_entrypoint import (
+    doctor_cli_entrypoints,
+    install_cli_entrypoints,
+    scan_cli_entrypoints,
+)
 
 __all__ = [
     "build_frontdesk_context",
@@ -20,4 +25,7 @@ __all__ = [
     "run_frontdesk_doctor",
     "run_protocol_doctor",
     "run_role_doctor",
+    "doctor_cli_entrypoints",
+    "install_cli_entrypoints",
+    "scan_cli_entrypoints",
 ]

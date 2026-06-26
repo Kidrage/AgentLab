@@ -253,6 +253,73 @@ def protocol_doctor_cmd() -> None:
         raise typer.Exit(code=1)
 
 
+@app.command("cli-entrypoint-scan")
+def cli_entrypoint_scan_cmd() -> None:
+    """Scan recognized local agent CLIs that can receive AgentLab entrypoints."""
+    from agent_runtime.protocols import scan_cli_entrypoints
+
+    result = scan_cli_entrypoints(_PROJECT_ROOT)
+    console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+
+@app.command("cli-entrypoint-bootstrap")
+def cli_entrypoint_bootstrap_cmd(
+    write: bool = typer.Option(False, "--write", help="Create project-local entrypoint files and wrappers."),
+) -> None:
+    """Plan or install all project-local CLI entrypoints and wrappers."""
+    from agent_runtime.protocols import install_cli_entrypoints
+
+    result = install_cli_entrypoints(_PROJECT_ROOT, write=write)
+    console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+
+@app.command("cli-entrypoint-install")
+def cli_entrypoint_install_cmd(
+    agent: Optional[str] = typer.Option(None, "--agent", help="Install one agent; omit with --all to install all."),
+    all_agents: bool = typer.Option(False, "--all", help="Install all recognized configurable agents."),
+    write: bool = typer.Option(False, "--write", help="Actually write files; otherwise print a plan."),
+) -> None:
+    """Install project-local entrypoint and wrapper for one or all CLI agents."""
+    from agent_runtime.protocols import install_cli_entrypoints
+
+    if not agent and not all_agents:
+        console.print("[red]Error: specify --agent <id> or --all[/red]")
+        raise typer.Exit(code=1)
+    result = install_cli_entrypoints(_PROJECT_ROOT, agent=agent if not all_agents else None, write=write)
+    console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+
+@app.command("cli-entrypoint-doctor")
+def cli_entrypoint_doctor_cmd(
+    agent: Optional[str] = typer.Option(None, "--agent", help="Check one agent; omit to check all planned entrypoints."),
+) -> None:
+    """Validate project-local CLI entrypoints and wrappers."""
+    from agent_runtime.protocols import doctor_cli_entrypoints
+
+    result = doctor_cli_entrypoints(_PROJECT_ROOT, agent=agent)
+    console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+    if result.get("status") != "pass":
+        raise typer.Exit(code=1)
+
+
+@app.command("cli-entrypoint-status")
+def cli_entrypoint_status_cmd() -> None:
+    """Show installed CLI entrypoint inventory and install report if present."""
+    policy_path = _PROJECT_ROOT / "config" / "cli_entrypoint_policy.yml"
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8")) if policy_path.exists() else {}
+    inventory_path = _PROJECT_ROOT / str(policy.get("inventory_path", ".agentlab/cli_entrypoints/inventory.yml"))
+    report_path = _PROJECT_ROOT / str(policy.get("install_report_path", ".agentlab/cli_entrypoints/install_report.yml"))
+    result = {
+        "inventory_path": str(inventory_path),
+        "inventory_exists": inventory_path.exists(),
+        "install_report_path": str(report_path),
+        "install_report_exists": report_path.exists(),
+        "inventory": yaml.safe_load(inventory_path.read_text(encoding="utf-8")) if inventory_path.exists() else {},
+        "install_report": yaml.safe_load(report_path.read_text(encoding="utf-8")) if report_path.exists() else {},
+    }
+    console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+
 def _run_external_skills_cli(args: list[str]) -> None:
     from external_skills_cli import main as external_skills_main
 

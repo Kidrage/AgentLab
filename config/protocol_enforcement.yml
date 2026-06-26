@@ -28,11 +28,13 @@ required_protocol_docs:
   - docs/FRONTDESK_PROTOCOL.md
   - docs/ROLE_SESSION_PROTOCOL.md
   - docs/PROTOCOL_ENFORCEMENT.md
+  - docs/CLI_ENTRYPOINT_BOOTSTRAP.md
 required_configs:
   - config/workspace_entry_policy.yml
   - config/frontdesk_policy.yml
   - config/agent_role_bindings.yml
   - config/protocol_enforcement.yml
+  - config/cli_entrypoint_policy.yml
 doctor_fail_on:
   - missing_required_doc
   - missing_required_config

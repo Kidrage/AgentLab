@@ -1,0 +1,84 @@
+schema_version: 1
+policy_id: cli_entrypoint_bootstrap
+authority: _shared/AGENT_PROTOCOL.md
+summary: >
+  Project-local CLI entrypoints help external agent CLIs discover AgentLab's
+  enforced workspace, frontdesk, and role-session protocols. Wrappers are the
+  reliable execution path; project-local entrypoint files are advisory unless a
+  CLI natively auto-reads them.
+managed_block:
+  start_marker: "<!-- AGENTLAB_MANAGED_START"
+  end_marker: "<!-- AGENTLAB_MANAGED_END -->"
+local_state_root: .agentlab/cli_entrypoints
+inventory_path: .agentlab/cli_entrypoints/inventory.yml
+install_report_path: .agentlab/cli_entrypoints/install_report.yml
+wrapper_root: .agentlab/cli_entrypoints/wrappers
+agents:
+  agy:
+    enabled: true
+    command: agy
+    project_dir: .agy
+    entrypoint_file: AGENTLAB_ENTRYPOINT.md
+    default_profile: frontdesk
+    wrapper_kind: frontdesk
+    auto_read_confidence: unknown
+    invocation:
+      frontdesk: agy --sandbox -p "$AGENTLAB_SESSION_TEXT"
+  openclaw:
+    enabled: true
+    command: openclaw
+    project_dir: .openclaw
+    entrypoint_file: AGENTLAB_ENTRYPOINT.md
+    default_profile: frontdesk
+    wrapper_kind: frontdesk
+    auto_read_confidence: unknown
+    invocation:
+      frontdesk: openclaw agent --message "$AGENTLAB_SESSION_TEXT"
+  codex:
+    enabled: true
+    command: codex
+    project_dir: .codex
+    entrypoint_file: AGENTLAB_ENTRYPOINT.md
+    default_profile: frontdesk_or_worker
+    wrapper_kind: both
+    auto_read_confidence: unknown
+    invocation:
+      frontdesk: codex exec "$AGENTLAB_SESSION_TEXT"
+      role: codex exec "$AGENTLAB_SESSION_TEXT"
+  qwen:
+    enabled: true
+    command: qwen
+    project_dir: .qwen
+    entrypoint_file: AGENTLAB_ENTRYPOINT.md
+    default_profile: frontdesk_or_worker
+    wrapper_kind: both
+    auto_read_confidence: unknown
+    invocation:
+      frontdesk: qwen --bare "$AGENTLAB_SESSION_TEXT"
+      role: qwen --bare "$AGENTLAB_SESSION_TEXT"
+  claude_code:
+    enabled: true
+    command_candidates: [ccs, claude]
+    project_dir: .claude
+    entrypoint_file: AGENTLAB_ENTRYPOINT.md
+    default_profile: worker
+    wrapper_kind: role
+    auto_read_confidence: unknown
+    invocation:
+      role: claude --output-format json -p "$AGENTLAB_SESSION_TEXT"
+  hermes:
+    enabled: true
+    command: hermes
+    project_dir: .hermes
+    entrypoint_file: AGENTLAB_ENTRYPOINT.md
+    default_profile: worker
+    wrapper_kind: role
+    auto_read_confidence: unknown
+    invocation:
+      role: hermes -z "$AGENTLAB_SESSION_TEXT"
+ignored_known_agents:
+  bl: specialist_cloud_tool_not_entrypoint
+  rg: deterministic_tool_not_agent_cli
+  git: deterministic_tool_not_agent_cli
+  pytest: deterministic_tool_not_agent_cli
+  ruff: deterministic_tool_not_agent_cli

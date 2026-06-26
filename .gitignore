@@ -113,6 +113,10 @@ memory/repositories/
 .codex
 .hermes/
 .hermes
+.agy/
+.agy
+.openclaw/
+.openclaw
 .gemini/
 .gemini
 .qwen/
