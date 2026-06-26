@@ -219,8 +219,37 @@ def evaluate_harness_status(plan: WorkflowPlan, agentlab_root: Path) -> dict[str
             recommendations.append(f"Review stale project memory: {rel}.")
 
     for rel in feedback_rules.get("required_task_artifacts", []):
-        if rel in {"06_implementation_report.md", "implementation_report.md"} and "Coder" not in route_agents:
-            continue
+        # Implementation artifacts (implementation_report) require an
+        # implementation executor.  If none is selected, flag the
+        # contradiction instead of silently skipping the check.
+        if rel in {"06_implementation_report.md", "implementation_report.md"}:
+            _impl_executors = {"Coder", "external_ide_ai", "manual_patch_submitter", "claude_code"}
+            if not (route_agents & _impl_executors):
+                # No implementation executor selected — check whether the
+                # task *should* have one by looking at the route rationale.
+                route_rationale = " ".join(getattr(plan.route, "rationale", []) or [])
+                impl_intent_hints = ("implementation intent", "implementation required")
+                if any(h in route_rationale for h in impl_intent_hints):
+                    # Task requires implementation but has no executor.
+                    # Don't silently skip — flag the gap.
+                    checks.append({
+                        "scope": "task",
+                        "path": rel,
+                        "state": "warn",
+                        "reason": (
+                            "implementation_report required by task intent but "
+                            "no implementation executor in route. "
+                            "Route agents: " + ", ".join(sorted(route_agents))
+                        ),
+                    })
+                    recommendations.append(
+                        "Route lacks an implementation executor. Add Coder, "
+                        "external_ide_ai, or manual_patch_submitter to the route "
+                        "if the task requires code changes."
+                    )
+                    continue
+                # Genuinely analysis-only — safe to skip.
+                continue
         add_check("task", rel, run_dir / rel, missing_state="pending")
 
     user_decision_path = run_dir / "USER_DECISION_REQUIRED.md"

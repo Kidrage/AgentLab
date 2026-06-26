@@ -575,3 +575,195 @@ class TestRunCliAgentMissingConfig:
 
         result = run_cli_agent(plan, "Supervisor", role_profile)
         assert isinstance(result, CliAgentNotAvailable)
+
+
+# ---------------------------------------------------------------------------
+# _resolve_binary_candidate unit tests
+# ---------------------------------------------------------------------------
+
+class TestResolveBinaryCandidate:
+    def test_returns_first_available(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _resolve_binary_candidate
+
+        with patch("cli_executor.shutil.which", side_effect=lambda x: {
+            "claude": None,
+            "ccs": "/usr/bin/ccs",
+            "other": "/usr/bin/other",
+        }.get(x)):
+            result = _resolve_binary_candidate(["claude", "ccs", "other"])
+            assert result == "ccs"
+
+    def test_returns_none_when_none_available(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _resolve_binary_candidate
+
+        with patch("cli_executor.shutil.which", return_value=None):
+            result = _resolve_binary_candidate(["claude", "ccs"])
+            assert result is None
+
+    def test_empty_candidates_returns_none(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _resolve_binary_candidate
+
+        result = _resolve_binary_candidate([])
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# binary_candidates resolution in run_cli_agent
+# ---------------------------------------------------------------------------
+
+class TestBinaryCandidateResolution:
+    """Tests for binary_candidates field in role profiles."""
+
+    def _mock_proc(self, returncode: int, stdout: str = "", stderr: str = ""):
+        proc = MagicMock()
+        proc.returncode = returncode
+        proc.stdout = stdout
+        proc.stderr = stderr
+        return proc
+
+    def test_canonical_claude_resolved_first(self, tmp_path):
+        """When claude is available, argv[0] is claude, not ccs."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        (tmp_path / "projects" / "TestProject" / "runs" / "task_test_001").mkdir(parents=True, exist_ok=True)
+
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "claude_code",
+            "binary_candidates": ["claude", "ccs"],
+            "cli_command": 'claude -p "Read {task_packet_path}" --output-format json',
+            "default": "qwen3_coder_plus_dashscope",
+        }
+
+        mock_proc = self._mock_proc(0, stdout="# Done")
+
+        with patch("cli_executor.shutil.which", side_effect=lambda x: {
+            "claude": "/usr/local/bin/claude",
+            "ccs": "/usr/local/bin/ccs",
+        }.get(x)), patch("cli_executor.subprocess.run", return_value=mock_proc) as mock_run:
+            result = run_cli_agent(plan, "Coder", role_profile)
+
+        assert result.status == "completed"
+        called_argv = mock_run.call_args[0][0]
+        assert called_argv[0] == "claude"
+        assert result.raw_usage.get("binary") == "claude"
+        assert result.raw_usage.get("binary_candidate_used") == "claude"
+
+    def test_legacy_ccs_fallback_when_claude_absent(self, tmp_path):
+        """When claude is missing but ccs exists, fall back to ccs."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        (tmp_path / "projects" / "TestProject" / "runs" / "task_test_001").mkdir(parents=True, exist_ok=True)
+
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "claude_code",
+            "binary_candidates": ["claude", "ccs"],
+            "cli_command": 'claude -p "Read {task_packet_path}" --output-format json',
+            "default": "qwen3_coder_plus_dashscope",
+        }
+
+        mock_proc = self._mock_proc(0, stdout="# Done via ccs")
+
+        with patch("cli_executor.shutil.which", side_effect=lambda x: {
+            "claude": None,
+            "ccs": "/usr/local/bin/ccs",
+        }.get(x)), patch("cli_executor.subprocess.run", return_value=mock_proc) as mock_run:
+            result = run_cli_agent(plan, "Coder", role_profile)
+
+        assert result.status == "completed"
+        called_argv = mock_run.call_args[0][0]
+        assert called_argv[0] == "ccs"
+        assert result.raw_usage.get("binary") == "ccs"
+        assert result.raw_usage.get("binary_candidate_used") == "ccs"
+
+    def test_no_candidates_available_returns_not_available(self, tmp_path):
+        """When neither claude nor ccs is found, return CliAgentNotAvailable."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import CliAgentNotAvailable, run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        (tmp_path / "projects" / "TestProject" / "runs" / "task_test_001").mkdir(parents=True, exist_ok=True)
+
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "claude_code",
+            "binary_candidates": ["claude", "ccs"],
+            "cli_command": 'claude -p "Read {task_packet_path}" --output-format json',
+            "default": "qwen3_coder_plus_dashscope",
+        }
+
+        with patch("cli_executor.shutil.which", return_value=None):
+            result = run_cli_agent(plan, "Coder", role_profile)
+
+        assert isinstance(result, CliAgentNotAvailable)
+        assert result.reason == "binary_not_found"
+        assert "claude" in result.detail
+        assert "ccs" in result.detail
+
+    def test_hermes_unaffected_by_candidates(self, tmp_path):
+        """Hermes roles with no binary_candidates still work as before."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        (tmp_path / "projects" / "TestProject" / "runs" / "task_test_001").mkdir(parents=True, exist_ok=True)
+
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "hermes",
+            "cli_command": 'hermes -z "test"',
+            "default": "deepseek_v4_pro",
+        }
+
+        mock_proc = self._mock_proc(0, stdout="# Supervisor Report")
+
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/hermes"), \
+             patch("cli_executor.subprocess.run", return_value=mock_proc) as mock_run:
+            result = run_cli_agent(plan, "Supervisor", role_profile)
+
+        assert result.status == "completed"
+        called_argv = mock_run.call_args[0][0]
+        assert called_argv[0] == "hermes"
+        assert "binary_candidate_used" not in result.raw_usage
+
+    def test_agy_unaffected_by_candidates(self, tmp_path):
+        """Agy roles with no binary_candidates still work as before."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        (tmp_path / "projects" / "TestProject" / "runs" / "task_test_001").mkdir(parents=True, exist_ok=True)
+
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "cli_command": 'agy --sandbox -p "test"',
+            "default": "qwen3_6_plus_dashscope",
+        }
+
+        mock_proc = self._mock_proc(0, stdout="# Done")
+
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), \
+             patch("cli_executor.subprocess.run", return_value=mock_proc) as mock_run:
+            result = run_cli_agent(plan, "Reposcout", role_profile)
+
+        assert result.status == "completed"
+        called_argv = mock_run.call_args[0][0]
+        assert called_argv[0] == "agy"
+        assert "binary_candidate_used" not in result.raw_usage

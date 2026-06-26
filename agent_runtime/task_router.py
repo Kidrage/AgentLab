@@ -5,7 +5,122 @@ This module only recommends which agent roles should participate. It does not
 execute agents or modify source files.
 """
 
+from __future__ import annotations
+
+from typing import Any
+
 from schemas import AgentRoute
+
+
+# ── Implementation intent signals ─────────────────────────────────────────
+# Strong keywords that indicate the user wants code changes, not just analysis.
+IMPLEMENTATION_HINTS: tuple[str, ...] = (
+    "implement",
+    "patch",
+    "modify",
+    "edit",
+    "create file",
+    "add test",
+    "add tests",
+    "fix",
+    "wire",
+    "integrate",
+    "generate code",
+    "write module",
+    "update config",
+    "run pytest",
+    "make ci pass",
+    "produce implementation report",
+    "implementation report",
+    "change code",
+    "write code",
+    "code change",
+    "apply patch",
+    "make change",
+    "commit",
+    "push",
+    "pull request",
+    # Chinese equivalents / 中文等价信号
+    "实现",
+    "修复",
+    "改代码",
+    "写补丁",
+    "创建文件",
+    "加测试",
+    "接入",
+    "落地",
+    "过ci",
+    "过 ci",
+    "生成实现报告",
+    "修改代码",
+    "写代码",
+    "应用补丁",
+    "提交",
+    "合并请求",
+    "实现补丁",
+    "改仓库",
+    "修改仓库",
+    "增加测试",
+    "生成实现",
+)
+
+
+# ── Explicit analysis-only override signals ──────────────────────────────
+# When these appear, the user *explicitly* wants analysis without implementation,
+# even if the prompt also contains implementation-sounding keywords.
+EXPLICIT_ANALYSIS_ONLY_HINTS: tuple[str, ...] = (
+    "analysis only",
+    "planning only",
+    "do not modify files",
+    "no implementation",
+    "只分析",
+    "只规划",
+    "不要改代码",
+    "不要落地",
+    "不实现",
+    "仅分析",
+    "仅评估",
+    "仅规划",
+    "analysis-only",
+    "design only",
+    "do not implement",
+    "don't implement",
+)
+
+
+# ── Implementation executor agent names ──────────────────────────────────
+IMPLEMENTATION_EXECUTORS: frozenset[str] = frozenset({
+    "Coder",
+    "external_ide_ai",
+    "manual_patch_submitter",
+    "claude_code",
+})
+
+
+def _detect_implementation_intent(text: str) -> bool:
+    """Return True if *text* contains strong implementation signals.
+
+    Explicit analysis-only overrides take precedence — if the user says
+    "analysis only" or "不要改代码", we return False even when implementation
+    keywords are present.
+    """
+    lowered = text.lower()
+
+    # Explicit override wins
+    for hint in EXPLICIT_ANALYSIS_ONLY_HINTS:
+        if hint.lower() in lowered:
+            return False
+
+    for hint in IMPLEMENTATION_HINTS:
+        if hint.lower() in lowered:
+            return True
+
+    return False
+
+
+def _has_implementation_executor(agents: list[str]) -> bool:
+    """Return True if *agents* contains at least one implementation executor."""
+    return bool(set(agents) & IMPLEMENTATION_EXECUTORS)
 
 
 RESEARCH_HINTS = (
@@ -131,7 +246,12 @@ def recommend_route(
     routing_config: dict | None = None,
     known_agents: list[str] | None = None,
 ) -> AgentRoute:
-    """Return a conservative route based on task wording."""
+    """Return a conservative route based on task wording.
+
+    Implementation intent (keywords like ``implement``, ``patch``, ``fix``)
+    takes precedence over evaluation hints.  An explicit "analysis only"
+    override suppresses implementation routing.
+    """
     text = task_text.lower()
     thresholds = (routing_config or {}).get("task_size_thresholds", {})
     medium_chars = int(thresholds.get("medium_characters", 800))
@@ -141,6 +261,11 @@ def recommend_route(
     evaluation_hints = _configured_hints(routing_config, "evaluation", EVALUATION_HINTS)
     interface_hints = _configured_hints(routing_config, "interface", INTERFACE_HINTS)
     large_hints = _configured_hints(routing_config, "large_or_risky", LARGE_HINTS)
+
+    # ── Intent detection ──────────────────────────────────────────────────
+    # Detect implementation intent from the ORIGINAL text (preserving case
+    # so Chinese characters match correctly).
+    wants_implementation = _detect_implementation_intent(task_text)
 
     wants_evaluation = any(hint in text for hint in evaluation_hints)
     wants_research = any(hint in text for hint in research_hints)
@@ -172,7 +297,43 @@ def recommend_route(
         "Archivist",
     ]
 
-    if wants_evaluation:
+    # ── Route selection ───────────────────────────────────────────────────
+    # Implementation intent overrides evaluation route — if the user asks to
+    # implement code AND evaluate it, implementation wins.
+    if wants_implementation:
+        # Implementation-required: pick the right-sized route that includes
+        # an implementation executor (Coder).
+        if looks_large:
+            route_key = "large_or_risky_task"
+            task_size = _configured_route_size(routing_config, route_key, "large")
+            agents = _configured_route(routing_config, route_key, fallback_large)
+        elif touches_interfaces:
+            route_key = "interface_sensitive_task"
+            task_size = _configured_route_size(routing_config, route_key, "medium")
+            agents = _configured_route(routing_config, route_key, fallback_interface)
+        elif wants_research:
+            route_key = "research_sensitive_task"
+            task_size = _configured_route_size(routing_config, route_key, "medium")
+            agents = _configured_route(routing_config, route_key, fallback_research)
+        elif looks_medium:
+            route_key = "medium_task"
+            task_size = _configured_route_size(routing_config, route_key, "medium")
+            agents = _configured_route(routing_config, route_key, fallback_medium)
+        else:
+            route_key = "small_task"
+            task_size = _configured_route_size(routing_config, route_key, "small")
+            agents = _configured_route(routing_config, route_key, fallback_small)
+
+        # Safety net: if the selected route still lacks an implementation
+        # executor (e.g. config overrides removed Coder), inject Coder.
+        if not _has_implementation_executor(agents):
+            # Insert Coder after Supervisor (index 0)
+            if "Coder" in set(known_agents or (routing_config or {}).get("agent_order", [])):
+                agents.insert(1, "Coder")
+                if "TesterAuditor" not in agents:
+                    agents.insert(2, "TesterAuditor")
+
+    elif wants_evaluation:
         route_key = "evaluation_task"
         task_size = _configured_route_size(routing_config, route_key, "large")
         agents = _configured_route(routing_config, route_key, fallback_evaluation)
@@ -197,18 +358,53 @@ def recommend_route(
         task_size = _configured_route_size(routing_config, route_key, "small")
         agents = _configured_route(routing_config, route_key, fallback_small)
 
-    rationale = [
+    # ── Explicit analysis-only: strip implementation executors ────────────
+    # If the user explicitly asked for analysis-only, remove Coder even when
+    # the route template includes it (e.g. small_task defaults to Coder).
+    _wants_explicit_analysis_only = any(
+        hint.lower() in text for hint in EXPLICIT_ANALYSIS_ONLY_HINTS
+    )
+    if _wants_explicit_analysis_only and not wants_implementation:
+        agents = [a for a in agents if a not in IMPLEMENTATION_EXECUTORS]
+        # If Coder was removed, also remove TesterAuditor (analysis-only
+        # doesn't need test execution)
+        if "Coder" not in agents:
+            agents = [a for a in agents if a != "TesterAuditor"]
+
+    # ── Build rationale ───────────────────────────────────────────────────
+    rationale: list[str] = [
         "Supervisor always defines scope, token budget, and stop rules.",
         f"Route selected by {route_key} using smallest_safe_route rules.",
     ]
+    if _wants_explicit_analysis_only:
+        rationale.append(
+            "Explicit analysis-only signal detected; "
+            "implementation executors removed from route."
+        )
+    elif wants_implementation:
+        rationale.append(
+            "Implementation intent detected; route includes an implementation "
+            "executor for code changes."
+        )
     if "Coder" in agents:
         rationale.append("Coder and Tester/Auditor are required for implementation and verification.")
+    elif wants_implementation:
+        rationale.append(
+            "Implementation required but Coder not in route — "
+            "check executor availability."
+        )
     else:
         rationale.append("Analysis-only route selected; Coder is skipped because no source implementation is requested.")
     if wants_research:
         rationale.append("Research hints detected; include Researcher when route requires current or external facts.")
     if wants_evaluation:
-        rationale.append("Evaluation hints detected; use analysis-only L3 route and skip Coder by default.")
+        if wants_implementation:
+            rationale.append(
+                "Evaluation hints detected but implementation intent overrides; "
+                "Coder is included for code changes."
+            )
+        else:
+            rationale.append("Evaluation hints detected; use analysis-only L3 route and skip Coder by default.")
     if touches_interfaces:
         rationale.append("Interface hints detected; include InterfaceMapper for boundaries and contracts.")
     if looks_large:

@@ -245,6 +245,19 @@ def _render_command(cli_command_template: str, task_packet_path: Path) -> list[s
     return shlex.split(rendered)
 
 
+def _resolve_binary_candidate(candidates: list[str]) -> str | None:
+    """Return the first available binary from *candidates*, or ``None``.
+
+    Each candidate is checked via :func:`shutil.which`.  The first match
+    wins; order matters — put the canonical binary first and legacy
+    aliases later.
+    """
+    for candidate in candidates:
+        if shutil.which(candidate):
+            return candidate
+    return None
+
+
 def _binary_available(argv: list[str]) -> bool:
     """Return True if the first token of *argv* resolves to an executable."""
     if not argv:
@@ -310,6 +323,33 @@ def run_cli_agent(
 
     packet_path = _write_task_packet(run_dir, agent_name, plan)
     argv = _render_command(cli_command_template, packet_path)
+
+    # ── Binary candidate resolution ────────────────────────────────────────
+    # If the role profile defines ``binary_candidates``, resolve the first
+    # available binary and patch argv[0].  This allows the config to list a
+    # canonical binary (e.g. ``claude``) while keeping legacy aliases
+    # (e.g. ``ccs``) as fallbacks.
+    binary_candidates: list[str] | None = role_profile.get("binary_candidates")
+    candidate_used: str | None = None
+    if binary_candidates:
+        resolved = _resolve_binary_candidate(binary_candidates)
+        if resolved is None:
+            return CliAgentNotAvailable(
+                cli_agent=cli_agent_name,
+                reason="binary_not_found",
+                detail=(
+                    f"None of the configured binary candidates "
+                    f"{binary_candidates!r} for CLI agent "
+                    f"`{cli_agent_name}` were found in PATH. "
+                    f"AgentLab will route this agent call through the direct "
+                    f"API (configured fallback: "
+                    f"`{role_profile.get('default', 'unset')}`). "
+                    f"To enable the CLI agent, install `{cli_agent_name}` "
+                    f"and ensure its binary is on PATH."
+                ),
+            )
+        argv[0] = resolved
+        candidate_used = resolved
 
     if not _binary_available(argv):
         return CliAgentNotAvailable(
@@ -427,10 +467,12 @@ def run_cli_agent(
         error=result_error,
         raw_usage={
             "cli_agent": cli_agent_name,
+            "binary": argv[0],
             "exit_code": proc.returncode,
             "duration_s": duration_s,
             "stdout_bytes": len(proc.stdout),
             "stderr_bytes": len(proc.stderr),
             "task_packet_path": str(packet_path),
+            **({"binary_candidate_used": candidate_used} if candidate_used else {}),
         },
     )

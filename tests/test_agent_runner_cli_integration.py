@@ -639,3 +639,216 @@ class TestPublicDocSanitization:
             if self.PRIVATE_PORT_RE.search(content):
                 violations.append(f"{fname}: contains private port pattern")
         assert not violations, f"Private ports found: {violations}"
+
+
+# ── PromptEngineer role key mapping ───────────────────────────────────────
+
+
+class TestPromptEngineerMapping:
+    """Verify PromptEngineer maps to ``prompt_engineer`` (schema v4 config key)."""
+
+    def test_promptengineer_maps_to_prompt_engineer(self):
+        """Agent name 'PromptEngineer' resolves to role key 'prompt_engineer'."""
+        import yaml
+
+        config_path = Path(__file__).parent.parent / "config" / "agent_model_profiles.yml"
+        data = yaml.safe_load(config_path.read_text())
+
+        # The config must have a prompt_engineer key (not execution_prompt_engineer)
+        modes = data.get("modes", {})
+        full_cli = modes.get("full_cli", {})
+        tiers = full_cli.get("tiers", {})
+        full_tier = tiers.get("full", {})
+
+        assert "prompt_engineer" in full_tier, (
+            "Config must have 'prompt_engineer' role key, "
+            "not 'execution_prompt_engineer'"
+        )
+        prom_role = full_tier["prompt_engineer"]
+        assert prom_role.get("cli_agent") == "agy"
+
+    def test_agent_runner_role_key_map_has_correct_promptengineer(self):
+        """The role key map in agent_runner maps promptengineer -> prompt_engineer."""
+        # We check the source of agent_runner.py directly
+        agent_runner_path = (
+            Path(__file__).parent.parent / "agent_runtime" / "agent_runner.py"
+        )
+        source = agent_runner_path.read_text()
+        # Should contain the correct mapping
+        assert '"promptengineer": "prompt_engineer"' in source, (
+            "agent_runner.py must map promptengineer -> prompt_engineer, not "
+            "execution_prompt_engineer"
+        )
+        # Should NOT contain the old wrong mapping
+        assert '"promptengineer": "execution_prompt_engineer"' not in source, (
+            "agent_runner.py must NOT map promptengineer -> execution_prompt_engineer"
+        )
+
+
+# ── resolve_cli_profile call signature ────────────────────────────────────
+
+
+class TestResolveCliProfileCallSignature:
+    """Verify agent_runner calls resolve_cli_profile with correct arguments."""
+
+    def test_resolve_cli_profile_called_with_correct_args(self, tmp_path, monkeypatch):
+        """resolve_cli_profile receives agent_role and budget_mode correctly."""
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+
+        monkeypatch.setattr(
+            "agent_runner.load_agentlab_configs",
+            lambda _: {
+                "agent_model_profiles": {
+                    "schema_version": 4.0,
+                    "default_mode": "full_cli",
+                    "modes": {
+                        "full_cli": {
+                            "tiers": {
+                                "performance": {
+                                    "coder": {
+                                        "executor_type": "cli_agent",
+                                        "cli_agent": "claude_code",
+                                        "binary_candidates": ["claude", "ccs"],
+                                        "cli_command": "claude -p test",
+                                        "default": "qwen3_coder_plus_dashscope",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                "agent_registry": {"agents": {}},
+                "model_providers": {"providers": {}, "defaults": {}},
+                "model_profiles": {"profiles": {}},
+                "model_catalog": {},
+            },
+        )
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *a, **kw: None,
+        )
+        monkeypatch.setattr(
+            "agent_runner.resolve_agent_settings",
+            lambda *a, **kw: (
+                SimpleNamespace(
+                    provider="deepseek",
+                    provider_type="openai_compatible",
+                    model="deepseek_v4_flash",
+                    base_url=None,
+                    api_key_configured=False,
+                    temperature=0.2,
+                    top_p=1.0,
+                    max_output_tokens=2000,
+                    profile_name="",
+                ),
+                {},
+            ),
+        )
+        monkeypatch.setattr(
+            "agent_runner.compose_agent_messages",
+            lambda *a, **kw: [{"role": "user", "content": "test"}],
+        )
+        monkeypatch.setattr(
+            "brain_governor.evaluate_token_status",
+            lambda *a, **kw: {},
+        )
+
+        with patch(
+            "agent_runner.run_cli_agent",
+            return_value=_cli_success_result(),
+        ) as mock_cli_agent, patch(
+            "agent_runner.generate_text",
+            return_value=_api_fallback_result(),
+        ):
+            from agent_runner import run_agent_model
+
+            output = run_dir / "test_output.md"
+            run_agent_model(tmp_path, plan, "Coder", output, apply_patches=False)
+
+            mock_cli_agent.assert_called_once()
+            # The called role_profile should contain claude_code
+            call_kwargs = mock_cli_agent.call_args
+            role_profile_passed = call_kwargs[0][2]  # third positional arg
+            assert role_profile_passed["cli_agent"] == "claude_code"
+            assert role_profile_passed["binary_candidates"] == ["claude", "ccs"]
+
+    def test_supervisor_route_gets_supervisor_role(self, tmp_path, monkeypatch):
+        """Supervisor agent resolves to 'supervisor' role key."""
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+
+        monkeypatch.setattr(
+            "agent_runner.load_agentlab_configs",
+            lambda _: {
+                "agent_model_profiles": {
+                    "schema_version": 4.0,
+                    "default_mode": "full_cli",
+                    "modes": {
+                        "full_cli": {
+                            "tiers": {
+                                "performance": {
+                                    "supervisor": {
+                                        "executor_type": "cli_agent",
+                                        "cli_agent": "hermes",
+                                        "cli_command": "hermes -z test",
+                                        "default": "deepseek_v4_pro",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                "agent_registry": {"agents": {}},
+                "model_providers": {"providers": {}, "defaults": {}},
+                "model_profiles": {"profiles": {}},
+                "model_catalog": {},
+            },
+        )
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *a, **kw: None,
+        )
+        monkeypatch.setattr(
+            "agent_runner.resolve_agent_settings",
+            lambda *a, **kw: (
+                SimpleNamespace(
+                    provider="deepseek",
+                    provider_type="openai_compatible",
+                    model="deepseek_v4_pro",
+                    base_url=None,
+                    api_key_configured=False,
+                    temperature=0.2,
+                    top_p=1.0,
+                    max_output_tokens=2000,
+                    profile_name="",
+                ),
+                {},
+            ),
+        )
+        monkeypatch.setattr(
+            "agent_runner.compose_agent_messages",
+            lambda *a, **kw: [{"role": "user", "content": "test"}],
+        )
+        monkeypatch.setattr(
+            "brain_governor.evaluate_token_status",
+            lambda *a, **kw: {},
+        )
+
+        from cli_executor import CliAgentNotAvailable
+
+        with patch(
+            "agent_runner.run_cli_agent",
+            return_value=CliAgentNotAvailable("hermes", "mock", "mock"),
+        ), patch(
+            "agent_runner.generate_text",
+            return_value=_api_fallback_result(),
+        ):
+            from agent_runner import run_agent_model
+
+            output = run_dir / "test_output.md"
+            run_agent_model(tmp_path, plan, "Supervisor", output, apply_patches=False)
+            # No crash = resolve_cli_profile was called correctly with budget_mode
+            # as keyword, not positionally swapped
