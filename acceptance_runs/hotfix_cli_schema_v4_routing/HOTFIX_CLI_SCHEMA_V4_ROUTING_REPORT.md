@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | **Branch** | `main` |
-| **Commit** | (to be created) |
+| **Commit** | `37f28cd` |
 | **Date** | 2026-06-26 |
 | **Schema version** | 4.0 |
 | **Default mode** | `full_cli` |
