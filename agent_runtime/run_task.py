@@ -161,6 +161,98 @@ def repository_handoff_cmd(
     console.print(yaml.safe_dump(result, allow_unicode=True, sort_keys=False).rstrip())
 
 
+@app.command("workspace-entry")
+def workspace_entry_cmd(
+    agent: str = typer.Option(..., "--agent", help="CLI agent id entering the AgentLab workspace."),
+    project: str = typer.Option("AgentLab", "--project", help="Project whose task state should ground the entry packet."),
+    task_id: Optional[str] = typer.Option(None, "--task-id", help="Optional task id to ground the entry packet."),
+) -> None:
+    """Print the enforced AgentLab workspace entry packet for a CLI agent."""
+    from agent_runtime.protocols import build_workspace_entry
+
+    packet = build_workspace_entry(_PROJECT_ROOT, agent, project=project, task_id=task_id)
+    console.print(yaml.safe_dump(packet, sort_keys=False, allow_unicode=True).rstrip())
+
+
+@app.command("frontdesk-context")
+def frontdesk_context_cmd(
+    agent: str = typer.Option(..., "--agent", help="Frontdesk-capable CLI agent id."),
+    project: str = typer.Option("AgentLab", "--project"),
+    task_id: Optional[str] = typer.Option(None, "--task-id"),
+) -> None:
+    """Print deterministic frontdesk context for a user-facing chat assistant."""
+    from agent_runtime.protocols import build_frontdesk_context
+
+    packet = build_frontdesk_context(_PROJECT_ROOT, agent, project=project, task_id=task_id)
+    console.print(yaml.safe_dump(packet, sort_keys=False, allow_unicode=True).rstrip())
+
+
+@app.command("frontdesk-session")
+def frontdesk_session_cmd(
+    agent: str = typer.Option(..., "--agent", help="Frontdesk-capable CLI agent id."),
+    project: str = typer.Option("AgentLab", "--project"),
+    task_id: Optional[str] = typer.Option(None, "--task-id"),
+) -> None:
+    """Print a ready-to-inject frontdesk session prompt for any supported CLI."""
+    from agent_runtime.protocols import build_frontdesk_session
+
+    console.print(build_frontdesk_session(_PROJECT_ROOT, agent, project=project, task_id=task_id))
+
+
+@app.command("role-session")
+def role_session_cmd(
+    role: str = typer.Option(..., "--role", help="AgentLab 9-role name, e.g. Coder."),
+    worker: str = typer.Option(..., "--worker", help="CLI worker id to bind to this role."),
+    project: str = typer.Option("AgentLab", "--project"),
+    task_id: str = typer.Option("task_0001", "--task-id"),
+) -> None:
+    """Print the enforced role session packet for a worker-role assignment."""
+    from agent_runtime.protocols import build_role_session
+
+    packet = build_role_session(_PROJECT_ROOT, role, worker, project=project, task_id=task_id)
+    console.print(yaml.safe_dump(packet, sort_keys=False, allow_unicode=True).rstrip())
+    if not packet.get("binding", {}).get("allowed"):
+        raise typer.Exit(code=1)
+
+
+@app.command("frontdesk-doctor")
+def frontdesk_doctor_cmd(
+    agent: str = typer.Option(..., "--agent", help="Frontdesk-capable CLI agent id."),
+) -> None:
+    """Validate a CLI agent against the enforced frontdesk protocol."""
+    from agent_runtime.protocols import run_frontdesk_doctor
+
+    result = run_frontdesk_doctor(_PROJECT_ROOT, agent)
+    console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+    if result.get("status") != "pass":
+        raise typer.Exit(code=1)
+
+
+@app.command("role-doctor")
+def role_doctor_cmd(
+    role: str = typer.Option(..., "--role", help="AgentLab 9-role name, e.g. Coder."),
+    worker: str = typer.Option(..., "--worker", help="CLI worker id."),
+) -> None:
+    """Validate a worker-role binding and role-session generation."""
+    from agent_runtime.protocols import run_role_doctor
+
+    result = run_role_doctor(_PROJECT_ROOT, role, worker)
+    console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+    if result.get("status") != "pass":
+        raise typer.Exit(code=1)
+
+
+@app.command("protocol-doctor")
+def protocol_doctor_cmd() -> None:
+    """Validate runtime-enforced AgentLab collaboration protocol wiring."""
+    from agent_runtime.protocols import run_protocol_doctor
+
+    result = run_protocol_doctor(_PROJECT_ROOT)
+    console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+    if result.get("status") != "pass":
+        raise typer.Exit(code=1)
+
+
 def _run_external_skills_cli(args: list[str]) -> None:
     from external_skills_cli import main as external_skills_main
 

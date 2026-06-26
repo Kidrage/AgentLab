@@ -97,10 +97,21 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
 
 ## Front-Desk Operator & Tool Call Responsibilities (前端接线员与底层AI调用分工)
 
+- **Frontdesk Protocol (`frontdesk_*`)**:
+  - **权威协议**：`docs/FRONTDESK_PROTOCOL.md`，继承 `_shared/AGENT_PROTOCOL.md`。
+  - **强制入口**：任何 AgentLab-managed 前台聊天助手都必须通过
+    `./agentlab.sh frontdesk-session --agent <agent_id>` 获得会话包；进入仓库时先用
+    `./agentlab.sh workspace-entry --agent <agent_id>` 获取最小上下文，禁止靠全仓库重读
+    重新理解 AgentLab。
+  - **角色边界**：frontdesk 只做用户沟通、状态解释、任务创建/准备、审批展示、handoff、
+    调用登记 agent、监控与结果回传；不得自行实现任务或编辑目标文件。
+  - **职责绑定**：CLI 名字不等于 AgentLab 角色。9 大 AgentLab 角色必须通过
+    `./agentlab.sh role-session --role <Role> --worker <worker> --project <P> --task-id <T>`
+    生成强绑定会话包；`./agentlab.sh protocol-doctor` 是强规定自检入口。
 - **OpenClaw (`openclaw`)**:
   - **角色与司职**：前端接线员 (Front-desk Operator)。
   - **主要职责**：负责对接与用户的自然语言沟通（如微信 wechat-mp-bot/wechat-ai-bot、Telegram 或 Web UI 交互），接收原始 prompt，展示计划门禁/审批流（如 Dry-Run vs Execute），并在必要时将任务推送到后端 AgentLab 公司系统中处理成资产。
-  - **连接机制**：通过 `agy-bridge` (FastAPI 包装的 OpenAI 兼容端点 `/v1/chat/completions`) 调用底座 `agy -p` 命令，进而驱动 Hermes / Antigravity 大脑层。
+  - **连接机制**：通过登记的 frontdesk session / bridge 调用底座 CLI（如 `agy -p`），再由 AgentLab 生成 handoff 或 role session 驱动后端 worker。
   - **显式委派边界**：用户明确点名调用其他 Agent 时，OpenClaw 只做 handoff、
     调用、监控和证据化报告，不得自行执行任务或编辑目标文件；目标不可用时停止并
     报告，不得静默 fallback。

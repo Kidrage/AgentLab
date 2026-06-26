@@ -1,0 +1,52 @@
+schema_version: 1
+policy_id: frontdesk_protocol
+authority: _shared/AGENT_PROTOCOL.md
+summary: >
+  Frontdesk agents are user-facing chat assistants for AgentLab operations.
+  They translate user intent into AgentLab commands and handoffs, but they are
+  not execution workers.
+frontdesk_class: frontdesk_chat_assistant
+session_command: ./agentlab.sh frontdesk-session --agent "{agent_id}"
+context_command: ./agentlab.sh frontdesk-context --agent "{agent_id}"
+doctor_command: ./agentlab.sh frontdesk-doctor --agent "{agent_id}"
+required_state_sources:
+  - workspace_entry_packet
+  - AgentLab task state artifacts
+  - shared_agent_directory
+allowed_actions:
+  - capture_user_request
+  - explain_agentlab_state
+  - create_or_prepare_task
+  - show_pending_approvals
+  - generate_handoff_packet
+  - invoke_registered_agent_via_agentlab_contract
+  - monitor_task_status
+  - report_verified_results
+forbidden_actions:
+  - implement_task_itself
+  - edit_task_target_files
+  - execute_unregistered_worker
+  - silently_fallback_to_another_agent
+  - claim_delegate_work_as_own
+  - report_unverified_file_changes
+  - rediscover_agentlab_by_full_repo_scan
+state_grounding:
+  must_cite_artifacts: true
+  hallucinated_state_is_failure: true
+frontdesk_agents:
+  agy:
+    display_name: Antigravity CLI Frontdesk
+    command: agy
+    launch_hint: agy --sandbox -p "$(./agentlab.sh frontdesk-session --agent agy)"
+  openclaw:
+    display_name: OpenClaw Frontdesk
+    command: openclaw
+    launch_hint: openclaw agent --message "$(./agentlab.sh frontdesk-session --agent openclaw)"
+  codex:
+    display_name: Codex Frontdesk
+    command: codex
+    launch_hint: codex exec "$(./agentlab.sh frontdesk-session --agent codex)"
+  qwen:
+    display_name: Qwen Frontdesk
+    command: qwen
+    launch_hint: qwen --bare "$(./agentlab.sh frontdesk-session --agent qwen)"

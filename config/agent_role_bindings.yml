@@ -1,0 +1,121 @@
+schema_version: 1
+policy_id: agent_role_bindings
+authority: _shared/AGENT_PROTOCOL.md
+summary: >
+  Worker CLI identities are not AgentLab roles by themselves. AgentLab must
+  bind a worker to either a frontdesk profile or one of the 9 role session
+  contracts before invoking it.
+enforcement:
+  require_workspace_entry_packet: true
+  require_frontdesk_session_for_frontdesk_agents: true
+  require_role_session_for_worker_roles: true
+  forbid_frontdesk_profile_as_worker: true
+  forbid_unbound_worker_role_assignment: true
+roles:
+  Supervisor:
+    allowed_workers: [hermes, qwen, claude_code]
+    required_session: true
+  RepoScout:
+    allowed_workers: [rg, claude_code, codex]
+    required_session: true
+  Researcher:
+    allowed_workers: [bl, claude_code, qwen]
+    required_session: true
+  InterfaceMapper:
+    allowed_workers: [ast_grep, claude_code, codex]
+    required_session: true
+  PromptEngineer:
+    allowed_workers: [hermes, claude_code, qwen]
+    required_session: true
+  Coder:
+    allowed_workers: [claude_code, codex, aider]
+    required_session: true
+  TesterAuditor:
+    allowed_workers: [pytest, claude_code, codex]
+    required_session: true
+  Verifier:
+    allowed_workers: [ruff, mypy, eslint, claude_code, codex]
+    required_session: true
+  Archivist:
+    allowed_workers: [git, claude_code]
+    required_session: true
+workers:
+  agy:
+    frontdesk_capable: true
+    worker_capable: false
+    frontdesk_profiles: [local_chat_gateway]
+    allowed_roles: []
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist]
+  openclaw:
+    frontdesk_capable: true
+    worker_capable: false
+    frontdesk_profiles: [public_chat_gateway]
+    allowed_roles: []
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist]
+  codex:
+    frontdesk_capable: true
+    worker_capable: true
+    frontdesk_profiles: [local_chat_gateway]
+    allowed_roles: [RepoScout, InterfaceMapper, Coder, TesterAuditor, Verifier]
+    forbidden_roles: [Archivist]
+  claude_code:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist]
+    forbidden_roles: []
+  hermes:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [Supervisor, PromptEngineer]
+    forbidden_roles: [Coder]
+  qwen:
+    frontdesk_capable: true
+    worker_capable: true
+    frontdesk_profiles: [local_chat_gateway]
+    allowed_roles: [Supervisor, Researcher, PromptEngineer]
+    forbidden_roles: [Coder]
+  bl:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [Researcher]
+    forbidden_roles: [Coder, Archivist]
+  rg:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [RepoScout]
+    forbidden_roles: []
+  ast_grep:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [InterfaceMapper]
+    forbidden_roles: []
+  pytest:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [TesterAuditor]
+    forbidden_roles: []
+  ruff:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [Verifier]
+    forbidden_roles: []
+  mypy:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [Verifier]
+    forbidden_roles: []
+  eslint:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [Verifier]
+    forbidden_roles: []
+  git:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [Archivist]
+    forbidden_roles: []
+  aider:
+    frontdesk_capable: false
+    worker_capable: true
+    allowed_roles: [Coder]
+    forbidden_roles: []

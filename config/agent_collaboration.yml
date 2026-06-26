@@ -3,6 +3,10 @@ agent_collaboration:
   directory: config/shared_agent_directory.yml
   capability_routing_policy: config/capability_routing_policy.yml
   repository_handoff_policy: config/repository_handoff_policy.yml
+  workspace_entry_policy: config/workspace_entry_policy.yml
+  frontdesk_policy: config/frontdesk_policy.yml
+  role_binding_policy: config/agent_role_bindings.yml
+  protocol_enforcement_policy: config/protocol_enforcement.yml
   packet_max_context_budget_tokens_default: 1200
   packet_max_context_budget_tokens_hard_limit: 4000
   require_must_read_artifacts: true
@@ -65,3 +69,13 @@ agent_collaboration:
       - actual_diff_summary
       - validation_results
       - unresolved_risks
+  enforced_session_contracts:
+    enabled: true
+    workspace_entry_command: ./agentlab.sh workspace-entry --agent "{agent_id}"
+    frontdesk_session_command: ./agentlab.sh frontdesk-session --agent "{agent_id}"
+    role_session_command: ./agentlab.sh role-session --role "{role}" --worker "{worker}" --project "{project}" --task-id "{task_id}"
+    protocol_doctor_command: ./agentlab.sh protocol-doctor
+    strong_rule: >
+      AgentLab-managed CLI agents must enter through generated workspace,
+      frontdesk, or role session packets. A CLI binary name never implies an
+      AgentLab role by itself.

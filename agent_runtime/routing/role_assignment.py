@@ -19,6 +19,7 @@ from agent_runtime.routing.route_decision import (
     RouteConstraints,
     RouteDecision,
 )
+from agent_runtime.protocols import check_role_binding
 from agent_runtime.workers.detector import DEFAULT_CANDIDATES
 from agent_runtime.workers.performance_ledger import PerformanceLedger
 from agent_runtime.workers.registry import WorkerRegistry
@@ -137,6 +138,10 @@ class RoleAssignmentEngine:
             card = self.worker_cards.get(worker_id)
             if not card:
                 rejected.append(RejectedWorker(worker_id, "worker is not registered"))
+                continue
+            binding_allowed, binding_reason = check_role_binding(self.root, worker_id, role)
+            if not binding_allowed:
+                rejected.append(RejectedWorker(worker_id, f"protocol binding rejected: {binding_reason}"))
                 continue
             if worker_id not in available:
                 rejected.append(RejectedWorker(worker_id, "worker is unavailable"))

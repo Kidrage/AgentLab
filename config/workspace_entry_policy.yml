@@ -1,0 +1,33 @@
+schema_version: 1
+policy_id: workspace_entry_protocol
+authority: _shared/AGENT_PROTOCOL.md
+summary: >
+  Every AgentLab-managed CLI session must start from a generated workspace
+  entry packet instead of rediscovering the repository from scratch.
+required_entry_command: ./agentlab.sh workspace-entry --agent "{agent_id}"
+max_packet_chars: 12000
+state_sources:
+  - .agentlab/HandOff.md
+  - projects/<Project>/runs/<task_id>/state.yml
+  - projects/<Project>/runs/<task_id>/task_card.yml
+  - projects/<Project>/runs/<task_id>/lifecycle.yml
+  - projects/<Project>/runs/<task_id>/artifact_manifest.yml
+must_include:
+  - workspace_root
+  - git_head
+  - git_branch
+  - agent_id
+  - allowed_profiles
+  - forbidden_actions
+  - recent_task_state
+forbidden_actions:
+  - reread_full_repository_before_entry_packet
+  - infer_agentlab_purpose_from_raw_repo_scan
+  - ignore_existing_task_state
+  - overwrite_unrelated_workspace_files
+  - bypass_agentlab_role_or_frontdesk_session
+doctor:
+  missing_policy: fail
+  missing_handoff: warn
+  dirty_worktree: warn
+  detached_head: warn

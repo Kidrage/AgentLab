@@ -186,14 +186,16 @@ agents:
     high_risk: true
   agy:
     display_name: Antigravity
-    class: lightweight_agent
-    primary_roles: [fast_exploration, lightweight_analysis, prompt_handoff]
+    class: frontdesk_chat_assistant
+    primary_roles: [user_intake, agentlab_command_translation, status_explanation, handoff_dispatch]
     invocation:
       command: agy
-      noninteractive: >-
-        agy --sandbox -p "Read the task packet at {task_packet_path}; perform only the
-        assigned role and report findings and actual changes."
-    high_risk: true
+      frontdesk_session: >-
+        agy --sandbox -p "$(./agentlab.sh frontdesk-session --agent agy)"
+    explicit_named_delegation_mode: relay_only
+    may_edit_task_files_when_relaying: false
+    may_execute_agentlab_roles_directly: false
+    high_risk: medium
   bl:
     display_name: Bailian CLI
     class: specialist_cloud_tool

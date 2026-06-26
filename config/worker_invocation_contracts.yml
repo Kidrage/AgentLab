@@ -177,14 +177,14 @@ contracts:
 
   agy:
     worker_id: agy
-    display_name: Antigravity CLI
+    display_name: Antigravity CLI Frontdesk
     command: agy
-    invocation_style: task_packet_prompt
+    invocation_style: frontdesk_session_prompt
     template: >-
-      agy --sandbox -p "Read the task packet at {task_packet_path}; perform only the
-      assigned role and report findings and actual changes."
+      agy --sandbox -p "Read the AgentLab frontdesk session packet at
+      '{frontdesk_session_path}'; act only as the user-facing AgentLab frontdesk."
     required_placeholders:
-      - task_packet_path
+      - frontdesk_session_path
     safe_probe: [agy, --help]
     expected_parse:
       argv_prefix: [agy, --sandbox, -p]

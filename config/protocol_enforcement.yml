@@ -1,0 +1,41 @@
+schema_version: 1
+policy_id: protocol_enforcement
+authority: _shared/AGENT_PROTOCOL.md
+strong_rules:
+  workspace_entry:
+    enabled: true
+    doctor_severity: fail
+  frontdesk_session:
+    enabled: true
+    doctor_severity: fail
+  role_session:
+    enabled: true
+    doctor_severity: fail
+  role_binding:
+    enabled: true
+    doctor_severity: fail
+  explicit_delegation_relay_only:
+    enabled: true
+    doctor_severity: fail
+  repository_handoff_gate:
+    enabled: true
+    doctor_severity: warn
+  git_discipline:
+    enabled: true
+    doctor_severity: warn
+required_protocol_docs:
+  - docs/WORKSPACE_ENTRY_PROTOCOL.md
+  - docs/FRONTDESK_PROTOCOL.md
+  - docs/ROLE_SESSION_PROTOCOL.md
+  - docs/PROTOCOL_ENFORCEMENT.md
+required_configs:
+  - config/workspace_entry_policy.yml
+  - config/frontdesk_policy.yml
+  - config/agent_role_bindings.yml
+  - config/protocol_enforcement.yml
+doctor_fail_on:
+  - missing_required_doc
+  - missing_required_config
+  - frontdesk_worker_has_task_packet_invocation
+  - unbound_worker_role
+  - role_without_allowed_worker

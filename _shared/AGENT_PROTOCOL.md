@@ -214,6 +214,21 @@
 实际变更文件、diff 摘要、验证结果与剩余风险。文件变化必须由调用前后快照或 Git
 证据确认，不能只相信 Agent 自述。
 
+#### 6.7.1 AgentLab 托管会话强执行入口
+
+AgentLab 工作区内的 frontdesk / worker CLI 会话不得只靠裸 CLI prompt 自行理解职责。
+AgentLab 托管调用必须使用生成式会话包：
+
+- 工作区入口：`./agentlab.sh workspace-entry --agent <agent_id>`
+- 前台接线层：`./agentlab.sh frontdesk-session --agent <agent_id>`
+- 9 大角色执行层：`./agentlab.sh role-session --role <Role> --worker <worker> --project <P> --task-id <T>`
+- 协议自检：`./agentlab.sh protocol-doctor`
+
+CLI 二进制名称不等于 AgentLab 角色。具体强执行配置与可交接文档位于
+`docs/WORKSPACE_ENTRY_PROTOCOL.md`、`docs/FRONTDESK_PROTOCOL.md`、
+`docs/ROLE_SESSION_PROTOCOL.md`、`docs/PROTOCOL_ENFORCEMENT.md` 及
+`config/*protocol*.yml` / `config/agent_role_bindings.yml`。
+
 ### 6.8 归属与证据
 
 - 每个产出记录 `requested_agent`、`invoked_agent`、`reporting_agent`。
