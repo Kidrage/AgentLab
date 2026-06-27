@@ -32,7 +32,7 @@ endpoints:
   local_source:
     display_name: Local Source Workstation
     role: source_of_truth_development
-    workspace: ~/AgentLab
+    workspace: /Users/saintpeter/Desktop/AgentLab
     writable_scopes: [source, config, protocols, tests, projects]
     sync_out: [git, relay_rsync]
     peer_awareness_required: true
