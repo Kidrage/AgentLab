@@ -13,6 +13,7 @@ class ProjectBrief:
     required_capabilities: list[str] = field(default_factory=list)
     risk_flags: list[str] = field(default_factory=list)
     artifact_targets: list[str] = field(default_factory=list)
+    long_project_governance: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

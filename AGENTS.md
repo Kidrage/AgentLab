@@ -16,6 +16,9 @@ Keep detailed policy in `config/*.yml` and long-lived project memory in
 - Project memory lives in `projects/<ProjectName>/agent_docs/`.
 - Task state lives in `projects/<ProjectName>/runs/<task_id>/`.
 - Runtime policy lives in `config/*.yml`.
+- Hermes model-group routing lives in `config/hermes_brain_model_groups.yml`.
+- Long-project constitutions, must-read artifact rules, and dispatch gates live in
+  `config/long_project_governance.yml`.
 - Coder handoffs and external executor rules live in `DRIVER_PROTOCOL.md` and
   `OPERATING_MODEL.md`.
 
@@ -43,6 +46,8 @@ To keep the project clean, all agents must strictly adhere to the following **th
 ## Brain Layer Rules
 
 - Hermes (local/remote agent) owns Supervisor/Brain Layer, planning, review, routing, and policy decisions, with direct LLM APIs (DeepSeek/Qwen) as low-cost/deterministic fallback.
+- Hermes must use durable Plan Mode for long projects: draft the plan, check gaps,
+  revise, self-check, then dispatch task packets with `must_read_artifacts`.
 - Claude Code (local/remote agent) owns Coder execution and local file edits, with direct LLM APIs (qwen3-coder-plus / deepseek-v4-flash) as fallback.
 - Before execution, publish route, budget, editable scope, and validation gates.
 - Prefer the smallest safe route; include agents only when their function is
@@ -105,6 +110,8 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
     重新理解 AgentLab。
   - **角色边界**：frontdesk 只做用户沟通、状态解释、任务创建/准备、审批展示、handoff、
     调用登记 agent、监控与结果回传；不得自行实现任务或编辑目标文件。
+  - **长期任务边界**：后续批次必须引用现有 plan handoff、revision log 和
+    `must_read_artifacts`；不得为小说、工程、视频等长期项目重新发明 prompt。
   - **职责绑定**：CLI 名字不等于 AgentLab 角色。9 大 AgentLab 角色必须通过
     `./agentlab.sh role-session --role <Role> --worker <worker> --project <P> --task-id <T>`
     生成强绑定会话包；`./agentlab.sh protocol-doctor` 是强规定自检入口。

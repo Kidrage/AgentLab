@@ -57,6 +57,11 @@ def build_project_brain(
                 "status": "planned",
                 "expected_artifacts": phase.get("expected_artifacts", []),
                 "acceptance_gates": phase.get("acceptance_gates", []),
+                "must_read_artifacts": phase.get("must_read_artifacts", []),
+                "missing_facts": phase.get("missing_facts", []),
+                "plan_status": phase.get("plan_status", "draft"),
+                "self_check": phase.get("self_check", {}),
+                "revision_log": phase.get("revision_log", []),
             })
         roadmap = {
             "project": project,

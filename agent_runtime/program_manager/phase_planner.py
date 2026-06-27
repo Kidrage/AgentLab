@@ -33,6 +33,27 @@ def build_phase_plan(project_brief: dict, roadmap: dict, phase_id: str | None = 
     )
     data = to_plain_data(phase)
     data["project"] = project_brief.get("project")
+    long_governance = project_brief.get("long_project_governance") or {}
+    data["plan_status"] = selected.get("plan_status") or ("needs_revision" if long_governance.get("missing_facts") else "ready")
+    data["missing_facts"] = selected.get("missing_facts") or long_governance.get("missing_facts") or []
+    data["must_read_artifacts"] = selected.get("must_read_artifacts") or long_governance.get("must_read_artifacts") or []
+    data["dispatch_units"] = selected.get("dispatch_units") or [
+        {
+            "phase_id": data["phase_id"],
+            "goal": data["goal"],
+            "recommended_skills": data.get("recommended_skills") or [],
+        }
+    ]
+    data["self_check"] = selected.get("self_check") or {
+        "passed": not bool(data["missing_facts"]),
+        "checks": [
+            "phase_goal_clear",
+            "must_read_artifacts_listed",
+            "missing_facts_reviewed",
+            "revision_log_preserved",
+        ],
+    }
+    data["revision_log"] = selected.get("revision_log") or long_governance.get("revision_log") or []
     return data
 
 

@@ -66,6 +66,15 @@ domain_keywords:
       - novel series
       - fanfiction
       - creative writing
+      - 长篇小说
+      - 小说
+      - 写书
+      - 章节
+      - 人物设定
+      - 角色设定
+      - 世界观
+      - 势力
+      - 大纲
 
   video_generation:
     keywords:
@@ -196,6 +205,14 @@ project_type_keywords:
     - long-form content
     - creative writing project
     - manuscript
+    - 长篇小说
+    - 写本长篇小说
+    - 写小说
+    - 小说蓝图
+    - 章节大纲
+    - 人物设定
+    - 角色设定
+    - 世界观
 
   video_generation_project:
     - video project

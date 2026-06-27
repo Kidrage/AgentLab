@@ -16,6 +16,11 @@ class PhasePlan(BaseModel):
     failure_recovery: List[str] = Field(default_factory=list)
     asset_registry_updates: List[str] = Field(default_factory=list)
     next_phase_conditions: List[str] = Field(default_factory=list)
+    must_read_artifacts: List[str] = Field(default_factory=list)
+    missing_facts: List[Dict[str, Any]] = Field(default_factory=list)
+    plan_status: str = "draft"
+    self_check: Dict[str, Any] = Field(default_factory=dict)
+    revision_log: List[Dict[str, Any]] = Field(default_factory=list)
 
 class ProjectWorkflowPlan(BaseModel):
     project_id: Optional[str] = None

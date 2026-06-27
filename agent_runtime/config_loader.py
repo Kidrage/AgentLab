@@ -30,6 +30,8 @@ CONFIG_FILES = {
     "budget_policy": "budget_policy.yml",
     "context_governance": "context_governance.yml",
     "context_budget_policy": "context_budget_policy.yml",
+    "hermes_brain_model_groups": "hermes_brain_model_groups.yml",
+    "long_project_governance": "long_project_governance.yml",
     "compression_policy": "compression_policy.yml",
     "repo_ingestion_policy": "repo_ingestion_policy.yml",
     "repo_indexing": "repo_indexing.yml",

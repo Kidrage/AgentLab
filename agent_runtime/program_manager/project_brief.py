@@ -19,5 +19,6 @@ def build_project_brief_data(project: str, contract: dict) -> dict:
         required_capabilities=normalize_capabilities(contract.get("required_capabilities")),
         risk_flags=[str(item) for item in contract.get("risk_flags") or []],
         artifact_targets=[str(item) for item in artifacts],
+        long_project_governance=contract.get("long_project_governance") or {},
     )
     return to_plain_data(brief)

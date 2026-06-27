@@ -27,6 +27,9 @@ def create_project_workflow_plan(
     project_type = contract.get("project_type", "unknown_project")
     task_id = contract.get("task_id", "")
     p_id = project_id or contract.get("project_id", "")
+    long_governance = contract.get("long_project_governance") or {}
+    must_read_artifacts = long_governance.get("must_read_artifacts") or []
+    missing_facts = long_governance.get("missing_facts") or []
 
     # Load templates
     templates_config = load_workflow_templates(agentlab_root)
@@ -89,6 +92,18 @@ def create_project_workflow_plan(
             failure_recovery=p_data.get("failure_recovery", []),
             asset_registry_updates=p_data.get("asset_registry_updates", []),
             next_phase_conditions=p_data.get("next_phase_conditions", []),
+            must_read_artifacts=must_read_artifacts,
+            missing_facts=missing_facts,
+            plan_status="needs_revision" if missing_facts else "ready",
+            self_check={
+                "passed": not bool(missing_facts),
+                "checks": [
+                    "required_artifacts_resolved",
+                    "must_read_artifacts_listed",
+                    "revision_log_preserved",
+                ],
+            },
+            revision_log=contract.get("revision_log") or [],
         )
         phases.append(phase)
 

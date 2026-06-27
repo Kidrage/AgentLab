@@ -40,8 +40,12 @@ def create_task_packet(phase_plan_path: Path, executor_type: str, out_dir: Path)
         raise ValueError(f"Unauthorized executor type: {executor_type}")
 
     phase = yaml.safe_load(phase_plan_path.read_text(encoding="utf-8")) or {}
+    from agent_runtime.long_project_governance import assert_dispatch_allowed, plan_self_check
+
+    assert_dispatch_allowed(phase)
     project_name = phase.get("project", "AgentLab")
     phase_id = phase.get("phase_id", "unknown")
+    self_check = plan_self_check(phase)
     
     packet = {
         "task_packet": {
@@ -55,6 +59,18 @@ def create_task_packet(phase_plan_path: Path, executor_type: str, out_dir: Path)
             "forbidden_files": phase.get("forbidden_files") or [".env", "agent_runtime/.env", ".git/**"],
             "required_outputs": phase.get("outputs") or [],
             "acceptance_criteria": phase.get("acceptance_criteria") or [],
+            "plan_status": phase.get("plan_status", "legacy_ready"),
+            "missing_facts": phase.get("missing_facts") or [],
+            "must_read_artifacts": phase.get("must_read_artifacts") or [],
+            "dispatch_units": phase.get("dispatch_units") or [
+                {
+                    "phase_id": phase_id,
+                    "objective": phase.get("goal"),
+                    "executor_type": executor_type,
+                }
+            ],
+            "self_check": self_check,
+            "revision_log": phase.get("revision_log") or [],
             "commands_allowed": phase.get("commands_allowed") or ["compileall", "pytest", "agentlab_help"],
             "commands_forbidden": phase.get("commands_forbidden") or ["rm -rf", "git push", "curl", "wget"],
             "evidence_required": phase.get("evidence_required") or [],

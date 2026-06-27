@@ -75,10 +75,14 @@ project_types:
     artifact_targets:
       - content_constitution
       - world_or_topic_bible
+      - character_bible
+      - faction_bible
+      - relationship_map
       - chapter_outline
       - scene_or_section_cards
       - draft_manuscript
       - continuity_ledger
+      - chapter_ledger
       - revision_notes
       - final_package
     external_executor_recommended: false

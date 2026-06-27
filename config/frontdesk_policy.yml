@@ -15,6 +15,7 @@ required_state_sources:
   - shared_agent_directory
 allowed_actions:
   - capture_user_request
+  - register_user_change_request
   - explain_agentlab_state
   - create_or_prepare_task
   - show_pending_approvals
@@ -30,6 +31,19 @@ forbidden_actions:
   - claim_delegate_work_as_own
   - report_unverified_file_changes
   - rediscover_agentlab_by_full_repo_scan
+  - rewrite_long_project_prompt_for_later_batches
+  - bypass_plan_handoff_revision_log
+long_project_rules:
+  intake_only_after_initial_plan: true
+  user_changes_enter_plan_revision: true
+  subsequent_batches_must_reference:
+    - plan_handoff
+    - revision_log
+    - must_read_artifacts
+  forbidden_batch_behavior:
+    - regenerate_prompt_from_chat_memory
+    - ignore_project_bible_or_continuity_ledger
+    - dispatch_executor_without_self_check
 state_grounding:
   must_cite_artifacts: true
   hallucinated_state_is_failure: true

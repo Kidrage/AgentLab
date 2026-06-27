@@ -213,6 +213,19 @@ def build_workflow_plan(
     else:
         notes.append("Project config missing or empty.")
 
+    long_project_governance = {}
+    try:
+        from agent_runtime.brain.mission_contract import build_mission_contract
+        from agent_runtime.long_project_governance import build_project_governance_pack
+
+        mission = build_mission_contract(task_text, project_id=project_name, task_id=task_id, agentlab_root=agentlab_root)
+        project_type = mission.get("project_type", "unknown_project")
+        if mission.get("is_long_project"):
+            long_project_governance = build_project_governance_pack(agentlab_root, project_type, paths["project_root"])
+            notes.append(f"Long-project governance enabled for {project_type}.")
+    except Exception as exc:
+        long_project_governance = {"enabled": False, "error": f"{type(exc).__name__}: {exc}"}
+
     try:
         from skill_injector import build_skill_plan
         skills = build_skill_plan(
@@ -252,6 +265,7 @@ def build_workflow_plan(
         memory_policy=configs.get("memory_policy", {}),
         execution_policy=execution_policy,
         harness_policy=configs.get("harness_policy", {}),
+        long_project_governance=long_project_governance,
         missing_inputs=sorted(set(missing_inputs)),
         aider_plan=aider_plan,
         notes=notes,

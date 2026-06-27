@@ -1,0 +1,173 @@
+schema_version: 1
+policy_id: long_project_governance
+summary: >
+  Durable planning governance for long AgentLab projects. Hermes must create,
+  revise, self-check, and dispatch from a stable plan handoff instead of sending
+  rough frontdesk prompts directly to executors.
+
+hermes_brain_workflow:
+  - intake
+  - plan_draft
+  - gap_check
+  - user_clarification_if_needed
+  - plan_revision
+  - self_check
+  - task_packet_dispatch
+  - execution_review
+  - plan_update
+
+handoff_contract_fields:
+  - plan_status
+  - missing_facts
+  - must_read_artifacts
+  - dispatch_units
+  - self_check
+  - revision_log
+
+dispatch_gates:
+  - plan_status_must_be_ready_or_approved
+  - self_check_must_pass
+  - missing_facts_must_be_empty_or_explicitly_deferred
+  - must_read_artifacts_must_be_nonempty_for_long_projects
+  - revision_log_must_be_preserved
+
+frontdesk_rules:
+  - Frontdesk captures intake and user change requests only.
+  - Subsequent batches must reference the current plan handoff and revision log.
+  - Frontdesk must not rewrite durable prompts for later execution batches.
+  - User changes to roles, world, architecture, assets, or chapter direction enter plan revision first.
+
+project_constitutions:
+  longform_text_project:
+    constitution_id: narrative_project_bible
+    required_artifacts:
+      - artifact_id: project_bible
+        patterns:
+          - project_brain/project_bible.yml
+          - project_brain/mission_contract.yml
+          - 设定/**/*.md
+        gate: required_before_drafting
+        missing_reason: Create or reference a project bible with genre, style bans, world, roles, factions, and continuity rules.
+      - artifact_id: outline
+        patterns:
+          - 大纲/**/*.md
+          - project_brain/outline.yml
+          - project_brain/workflow_plan.yml
+        gate: required_before_drafting
+        missing_reason: Create or reference a chapter/volume outline before drafting more chapters.
+      - artifact_id: scene_cards
+        patterns:
+          - project_brain/scene_cards.yml
+          - project_brain/chapter_cards.yml
+          - 大纲/**/*卡*.md
+        gate: required_before_batch_dispatch
+        missing_reason: Create scene or chapter cards for the next writing batch.
+      - artifact_id: continuity_ledger
+        patterns:
+          - project_brain/continuity_ledger.yml
+          - project_brain/chapter_ledger.yml
+          - 追踪/**/*.yml
+          - 追踪/**/*.md
+        gate: required_before_batch_dispatch
+        missing_reason: Create a continuity ledger tracking events, character state, foreshadowing, power changes, relationships, and unresolved issues.
+      - artifact_id: revision_log
+        patterns:
+          - project_brain/revision_log.yml
+          - project_brain/decision_log.yml
+          - v2_rewrite/**/*.md
+        gate: required_before_revision
+        missing_reason: Preserve user changes and prior prompt decisions in a revision log.
+    must_read_patterns:
+      - project_brain/mission_contract.yml
+      - project_brain/workflow_plan.yml
+      - project_brain/chapter_ledger.yml
+      - 设定/**/*.md
+      - 大纲/**/*.md
+      - 正文/第0*.md
+      - v2_rewrite/rewrite_blueprint_v2.md
+    continuity_acceptance:
+      - no_placeholder_story_state
+      - roles_world_factions_relationships_referenced
+      - chapter_batch_reads_previous_chapter_cards
+      - unresolved_threads_and_power_changes_updated
+
+  codebase_build_project:
+    constitution_id: engineering_project_constitution
+    required_artifacts:
+      - artifact_id: mission_contract
+        patterns:
+          - project_brain/mission_contract.yml
+          - project_brain/goal_contract.yml
+        gate: required_before_patch
+        missing_reason: Compile a goal contract before implementation.
+      - artifact_id: architecture_constraints
+        patterns:
+          - project_brain/architecture_state.yml
+          - docs/architecture*.md
+          - .codex/REPO_GUIDE.md
+        gate: required_before_patch
+        missing_reason: Capture architecture constraints and repository guide.
+      - artifact_id: task_breakdown
+        patterns:
+          - project_brain/workflow_plan.yml
+          - project_brain/roadmap.yml
+          - project_brain/phase_plan.yml
+        gate: required_before_dispatch
+        missing_reason: Create a phase plan with small executable task packets.
+      - artifact_id: risk_test_strategy
+        patterns:
+          - project_brain/known_risks.yml
+          - project_brain/test_strategy.yml
+          - tests/**
+        gate: required_before_acceptance
+        missing_reason: Track risks and test strategy before acceptance.
+    must_read_patterns:
+      - AGENTS.md
+      - .codex/REPO_GUIDE.md
+      - project_brain/*.yml
+    continuity_acceptance:
+      - architecture_constraints_preserved
+      - interface_map_or_repo_guide_referenced
+      - tests_or_explicit_test_gap_recorded
+
+  video_generation_project:
+    constitution_id: video_production_constitution
+    required_artifacts:
+      - artifact_id: audience_style_brief
+        patterns:
+          - project_brain/audience_style_brief.yml
+          - project_brain/platform_brief.yml
+        gate: required_before_script
+        missing_reason: Define audience, platform, duration, tone, and format constraints.
+      - artifact_id: script
+        patterns:
+          - project_brain/script.md
+          - scripts/**/*.md
+        gate: required_before_storyboard
+        missing_reason: Create or reference a timed script before tool handoff.
+      - artifact_id: shot_list
+        patterns:
+          - project_brain/shot_list.yml
+          - project_brain/storyboard.yml
+        gate: required_before_asset_generation
+        missing_reason: Create shot list or storyboard with visual intent.
+      - artifact_id: asset_manifest
+        patterns:
+          - project_brain/asset_manifest.yml
+          - assets/manifest.yml
+        gate: required_before_render
+        missing_reason: Track visual/audio assets and generation parameters.
+      - artifact_id: render_qa
+        patterns:
+          - project_brain/qa_report.yml
+          - project_brain/render_qc.yml
+        gate: required_before_delivery
+        missing_reason: Record render and quality-control evidence.
+    must_read_patterns:
+      - project_brain/*.yml
+      - project_brain/script.md
+      - assets/manifest.yml
+    continuity_acceptance:
+      - asset_manifest_matches_script_and_shot_list
+      - style_board_or_reference_preserved
+      - render_qc_recorded_before_delivery

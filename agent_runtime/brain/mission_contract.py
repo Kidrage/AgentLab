@@ -89,6 +89,13 @@ def build_mission_contract(
 
     # Step 10: Assemble mission contract
     is_long = bool(typedef.get("is_long_project", False))
+    from agent_runtime.long_project_governance import build_project_governance_pack
+
+    long_governance = (
+        build_project_governance_pack(root, project_type)
+        if is_long
+        else {"enabled": False, "project_type": project_type}
+    )
 
     contract: dict[str, Any] = {
         "schema_version": 2,
@@ -107,6 +114,7 @@ def build_mission_contract(
         "assumptions": _build_assumptions(project_type, typedef),
         "required_capabilities": cap_reqs["required"],
         "required_artifacts": artifact_targets,
+        "long_project_governance": long_governance,
         "acceptance_gates": [gate.get("gate_id", "") for gate in acceptance_gates],
         "risk_flags": risks["risk_flags"],
         "external_executor_needed": bool(typedef.get("external_executor_recommended", False)),

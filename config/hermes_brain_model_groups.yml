@@ -1,0 +1,112 @@
+schema_version: 1
+policy_id: hermes_brain_model_groups
+summary: >
+  Hermes is the brain/supervisor layer. It owns model routing, durable plan
+  handoffs, feedback interpretation, budget-aware escalation, and fallback
+  selection before execution-layer agents receive task packets.
+
+default_recommendation:
+  model_mix: deepseek_plus_qwen_multimodal
+  rationale:
+    - DeepSeek handles low-cost search, deep reasoning, and small code patches.
+    - Qwen provides broad fallback coverage and multimodal variants for visual tasks.
+    - Codex GPT-5.5 High is reserved for high-difficulty full-stack work with quota planning.
+    - Grok/xAI owns image/audio/video generation or transformation routes when configured.
+
+providers:
+  deepseek:
+    role: low_cost_reasoning
+    strengths:
+      - search_planning
+      - deep_text_reasoning
+      - small_code_patch
+      - critique_and_review
+    default_models:
+      - deepseek_v4_pro
+      - deepseek_flash
+    multimodal: false
+  qwen:
+    role: fallback_and_multimodal_coverage
+    strengths:
+      - codex_fallback
+      - text_reasoning
+      - vision_understanding
+      - broad_model_selection
+    default_models:
+      - qwen3.7_max_text
+      - qwen3.7_plus_multimodal
+    multimodal: mixed
+  codex:
+    role: premium_full_stack_solver
+    strengths:
+      - large_codebase_changes
+      - hard_debugging
+      - architecture_refactor
+      - tool_heavy_execution
+    default_models:
+      - gpt5.5_high
+    quota_policy:
+      refresh_window_hours: 5
+      use_only_for:
+        - super_hard_full_stack_task
+        - failed_low_cost_recovery
+        - architecture_or_data_loss_risk
+  grok_xai:
+    role: multimodal_generation_processing
+    strengths:
+      - image_generation
+      - image_editing
+      - audio_generation
+      - video_generation_or_processing
+    multimodal: true
+
+brain_layouts:
+  recommended:
+    name: deepseek_plus_qwen_multimodal
+    brain_chain:
+      planner: deepseek_v4_pro
+      reviewer: deepseek_v4_pro
+      coder_fallback: qwen3.7_max_text
+      multimodal_support: qwen3.7_plus_multimodal
+    execution_rule: >
+      Hermes keeps plan ownership and routes only verified task packets to
+      execution agents. Qwen multimodal handles visual understanding when the
+      task needs it.
+  single_multimodal_brain:
+    name: local_multimodal_brain_with_qwen_fallback
+    examples:
+      - agy_cli_gemini_3.5_flash
+      - agy_cli_gemini_3.1_pro
+      - qwen3.7_plus_api
+    collaboration_mode: >
+      The single multimodal model may own plan draft and review, but it must
+      still emit the standard Hermes handoff contract and preserve revision logs.
+      Qwen Max/Plus API acts as text or multimodal fallback.
+  pure_api_lowest_tier:
+    name: deepseek_qwen_text_only
+    examples:
+      - deepseek_v4_pro
+      - deepseek_flash
+      - qwen3.7_max_api
+    multimodal_gap_policy: >
+      These brain models do not process media directly. When multimodal evidence
+      is required, Hermes must request execution-layer multimodal tools or
+      workers to produce observations, captions, transcripts, embeddings, or QA
+      reports, then reason over those returned artifacts.
+
+handoff_requirements:
+  - plan_status
+  - missing_facts
+  - must_read_artifacts
+  - dispatch_units
+  - self_check
+  - revision_log
+
+feedback_interpretation:
+  hermes_must_extract:
+    - blocked_reason
+    - artifact_paths
+    - test_or_review_evidence
+    - cost_or_quota_signal
+    - suggested_plan_revision
+  update_plan_before_retry: true

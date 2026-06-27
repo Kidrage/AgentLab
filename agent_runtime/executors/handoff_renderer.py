@@ -26,6 +26,35 @@ def render_handoff(task_packet: dict, out_dir: Path) -> Path:
     for f in packet.get("forbidden_files") or []:
         lines.append(f"- {f}")
     lines.append("")
+
+    lines.append("## Plan Contract")
+    lines.append(f"- plan_status: {packet.get('plan_status', 'legacy_ready')}")
+    lines.append("- self_check: " + ("passed" if (packet.get("self_check") or {}).get("passed") else "not_passed"))
+    lines.append("")
+    lines.append("## Must Read Artifacts")
+    for ref in packet.get("must_read_artifacts") or []:
+        lines.append(f"- {ref}")
+    if not packet.get("must_read_artifacts"):
+        lines.append("- None listed")
+    lines.append("")
+    lines.append("## Missing Facts")
+    for fact in packet.get("missing_facts") or []:
+        if isinstance(fact, dict):
+            lines.append(f"- {fact.get('fact')}: {fact.get('reason')}")
+        else:
+            lines.append(f"- {fact}")
+    if not packet.get("missing_facts"):
+        lines.append("- None")
+    lines.append("")
+    lines.append("## Revision Log")
+    for item in packet.get("revision_log") or []:
+        if isinstance(item, dict):
+            lines.append(f"- {item.get('date', 'undated')}: {item.get('change', item)}")
+        else:
+            lines.append(f"- {item}")
+    if not packet.get("revision_log"):
+        lines.append("- None")
+    lines.append("")
     
     lines.append("## Required Outputs")
     for out in packet.get("required_outputs") or []:
