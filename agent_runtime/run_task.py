@@ -6611,12 +6611,12 @@ def configure_agent_cmd(
     tier: Optional[str] = typer.Option(None, "--tier", help="Tier to update: full, performance, or low. If omitted, applies to all tiers."),
     executor_type: Optional[str] = typer.Option(None, "--executor-type", help="Executor type: cli_agent, direct_api, or special."),
     cli_agent: Optional[str] = typer.Option(None, "--cli-agent", help="CLI agent binary name (e.g. hermes, claude_code)."),
-    cli_command: Optional[str] = typer.Option(None, "--cli-command", help="Shell command pattern to execute."),
+    invocation_contract: Optional[str] = typer.Option(None, "--invocation-contract", help="Worker invocation contract key from config/worker_invocation_contracts.yml."),
     default_model: Optional[str] = typer.Option(None, "--default-model", help="Default fallback model ID from catalog."),
     skip: bool = typer.Option(False, "--skip", help="Whether to skip/disable this agent in the specified tier."),
     project: Optional[str] = typer.Option(None, help="Project name, only used to resolve root."),
 ) -> None:
-    """Manually configure an Agent's execution type, CLI parameters, or model mappings."""
+    """Manually configure an Agent's execution type, worker contract, or model mapping."""
     agentlab_root, _ = runtime_context(project)
     profiles_path = agentlab_root / "config" / "agent_model_profiles.yml"
 
@@ -6667,8 +6667,8 @@ def configure_agent_cmd(
                     agent_cfg["executor_type"] = executor_type.lower()
                 if cli_agent is not None:
                     agent_cfg["cli_agent"] = cli_agent
-                if cli_command is not None:
-                    agent_cfg["cli_command"] = cli_command
+                if invocation_contract is not None:
+                    agent_cfg["invocation_contract"] = invocation_contract
                 if default_model is not None:
                     agent_cfg["default"] = default_model
                 tier_cfg[role_key] = agent_cfg

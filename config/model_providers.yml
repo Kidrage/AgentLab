@@ -17,8 +17,9 @@ version: 2
 #  本地算力: Frugal 模式下优先使用本地 LLM (Ollama/vLLM)
 #  DeepSeek 75%折扣 2026-05-31 到期 → 价格大幅调整，策略重评估
 #
-#  外部IDE窗口: Coder 默认为 external_ide_ai，AgentLab 生成完整 handoff
-#  引导 prompt，外部 AI (Codex/Claude/Cline) 接收后直接执行，无需自行规划。
+#  外部IDE窗口: external_ide_ai 只是可选 provider 事实。
+#  Coder 默认后端由 config/agent_model_profiles.yml 决定。
+#  需要外部 IDE 接管时，选择 hybrid_ide mode 或显式激活 handoff。
 # ──────────────────────────────────────────────────────────────────────────
 
 defaults:
@@ -196,7 +197,8 @@ providers:
     display_name: External IDE AI (Coder Window)
     default_model: External AI
     notes:
-      - Coder 默认执行者：外部 IDE AI (Codex, Claude, Cline 等)。
+      - Optional Coder provider for hybrid_ide or explicit handoff mode.
+      - This provider entry is not the default backend decision source.
       - AgentLab 大脑层完成所有规划后，生成完整 handoff prompt + 上下文包。
       - 外部 AI 只需执行编码，无需自行规划/分析架构/确定范围。
       - 为外部 AI 节省大量 token（规划推理开销由 AgentLab 承担）。

@@ -1,4 +1,13 @@
 schema_version: 1
+authority:
+  purpose: advisory_worker_preferences
+  runtime_decision_source: config/agent_model_profiles.yml
+  command_template_source: config/worker_invocation_contracts.yml
+  may_override_agent_backend: false
+  notes:
+    - This file ranks preferred workers for planning and audits only.
+    - Runtime agent backend selection must come from agent_model_profiles.yml.
+    - CLI command templates must come from worker_invocation_contracts.yml.
 modes:
   single_cli_company:
     role_preferences:

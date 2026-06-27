@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Validate CLI binary alias configuration in ``config/agent_model_profiles.yml``.
+"""Validate CLI worker alias configuration.
 
 Checks:
 1. Every ``cli_agent: claude_code`` role has ``binary_candidates`` containing
    ``claude``.
 2. No ``cli_agent: claude_code`` role uses ``ccs`` as the primary command binary
    without ``claude`` as a candidate.
-3. ``cli_command`` is non-empty for every ``cli_agent`` role.
-4. ``cli_command`` parses cleanly.
+3. Every normal ``cli_agent`` role references an ``invocation_contract``.
+4. The referenced contract template parses cleanly.
 5. Unknown ``cli_agent`` values that lack explicit ``binary_candidates`` are
    flagged.
 6. Known canonical mappings are validated.
@@ -77,6 +77,14 @@ def _check_config(config_path: Path) -> list[str]:
     except Exception as exc:
         return [f"Cannot load config: {exc}"]
 
+    try:
+        contracts_data = yaml.safe_load(
+            (config_path.parent / "worker_invocation_contracts.yml").read_text(encoding="utf-8")
+        ) or {}
+    except Exception as exc:
+        return [f"Cannot load worker invocation contracts: {exc}"]
+    contracts = contracts_data.get("contracts", {}) or {}
+
     if not isinstance(data, dict):
         return ["Config root is not a dict."]
 
@@ -119,8 +127,11 @@ def _check_config(config_path: Path) -> list[str]:
 
                 total_roles += 1
                 cli_agent = role_cfg.get("cli_agent", "<missing>")
+                invocation_contract = role_cfg.get("invocation_contract")
                 cli_command = role_cfg.get("cli_command", "")
-                binary = _parse_binary(cli_command)
+                contract_template = (contracts.get(invocation_contract) or {}).get("template", "")
+                command_template = cli_command or contract_template
+                binary = _parse_binary(command_template)
                 binary_candidates = role_cfg.get("binary_candidates")
 
                 agent_info = KNOWN_CLI_AGENTS.get(cli_agent)
@@ -147,6 +158,7 @@ def _check_config(config_path: Path) -> list[str]:
                 print(
                     f"  [{mode_name}/{tier_name}] {role_name:20s} "
                     f"agent={cli_agent:15s} "
+                    f"contract={str(invocation_contract):10s} "
                     f"binary={binary:12s} "
                     f"canonical={canonical:12s} "
                     f"candidates={binary_candidates!r} "
@@ -179,17 +191,28 @@ def _check_config(config_path: Path) -> list[str]:
                             f"binary_candidates."
                         )
 
-                # Rule 3: empty cli_command
-                if not cli_command.strip():
+                # Rule 3: missing command source
+                if not invocation_contract and not cli_command.strip():
                     errors.append(
-                        f"{role_path}: cli_command is empty."
+                        f"{role_path}: missing invocation_contract. "
+                        "Direct cli_command is reserved for explicit safety-gated profiles."
+                    )
+                if invocation_contract and invocation_contract not in contracts:
+                    errors.append(
+                        f"{role_path}: invocation_contract={invocation_contract!r} "
+                        "is not defined in worker_invocation_contracts.yml."
                     )
 
                 # Rule 4: parse failure
+                if not command_template.strip():
+                    errors.append(
+                        f"{role_path}: command template is empty after resolving "
+                        "invocation_contract/cli_command."
+                    )
                 if binary == "<parse_error>":
                     errors.append(
-                        f"{role_path}: cli_command failed to parse: "
-                        f"{cli_command!r}"
+                        f"{role_path}: command template failed to parse: "
+                        f"{command_template!r}"
                     )
 
                 # Rule 5: unknown cli_agent without explicit binary_candidates

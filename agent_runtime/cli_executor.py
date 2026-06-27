@@ -32,15 +32,24 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shlex
 import shutil
 import subprocess
 import textwrap
+import yaml
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from schemas import LLMCallResult, WorkflowPlan
+
+
+_CLI_CONTRACT_ALIASES = {
+    "claude_code": "claude",
+}
+_PLACEHOLDER_RE = re.compile(r"\{([a-zA-Z0-9_]+)\}")
 
 
 # ── Sentinel: binary not installed, caller should use API fallback ────────────
@@ -229,20 +238,67 @@ def _write_task_packet(run_dir: Path, agent_name: str, plan: WorkflowPlan) -> Pa
     return packet_path
 
 
-def _render_command(cli_command_template: str, task_packet_path: Path) -> list[str]:
+def _render_command(
+    cli_command_template: str,
+    task_packet_path: Path,
+    *,
+    workspace_path: Path | None = None,
+) -> list[str]:
     """Expand the CLI command template and split into argv tokens.
 
-    Supported placeholder: ``{task_packet_path}``.
+    Supported placeholders: ``{task_packet_path}``, ``{workspace_path}``.
     Falls back to appending the packet path if no placeholder is present.
     """
-    rendered = cli_command_template.replace(
-        "{task_packet_path}", str(task_packet_path)
-    )
+    replacements = {
+        "task_packet_path": str(task_packet_path),
+        "workspace_path": str(workspace_path or task_packet_path.parent),
+    }
+    rendered = cli_command_template
+    for key, value in replacements.items():
+        rendered = rendered.replace(f"{{{key}}}", value)
+
+    unresolved = sorted(set(_PLACEHOLDER_RE.findall(rendered)))
+    if unresolved:
+        raise ValueError(
+            "Unsupported CLI command placeholder(s): "
+            + ", ".join(f"{{{name}}}" for name in unresolved)
+        )
+
     if str(task_packet_path) not in rendered:
         rendered = rendered.rstrip() + f" {task_packet_path}"
     # Split respecting simple quoting (no shell glob expansion needed here)
     import shlex
     return shlex.split(rendered)
+
+
+def _resolve_invocation_contract_template(
+    role_profile: dict[str, Any],
+    agentlab_root: str | Path,
+) -> str:
+    """Resolve a CLI template from the central worker invocation contract.
+
+    ``agent_model_profiles.yml`` decides *which* worker handles a role.
+    ``worker_invocation_contracts.yml`` owns the actual command template.
+    Existing ``cli_command`` values are still accepted as a compatibility
+    fallback for older profiles and safety-gated special profiles.
+    """
+    explicit_template = str(role_profile.get("cli_command") or "")
+    contract_name = str(role_profile.get("invocation_contract") or "").strip()
+    cli_agent = str(role_profile.get("cli_agent") or "").strip()
+    contract_key = contract_name or _CLI_CONTRACT_ALIASES.get(cli_agent, cli_agent)
+
+    if not contract_key:
+        return explicit_template
+
+    config_path = Path(agentlab_root) / "config" / "worker_invocation_contracts.yml"
+    try:
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return explicit_template
+
+    contract = (data.get("contracts") or {}).get(contract_key) or {}
+    template = str(contract.get("template") or "")
+    return template or explicit_template
 
 
 def _resolve_binary_candidate(candidates: list[str]) -> str | None:
@@ -263,6 +319,56 @@ def _binary_available(argv: list[str]) -> bool:
     if not argv:
         return False
     return shutil.which(argv[0]) is not None
+
+
+def _coerce_process_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _append_cli_execution_record(
+    run_dir: Path,
+    *,
+    agent_name: str,
+    cli_agent_name: str,
+    argv: list[str],
+    cwd: str | Path,
+    exit_code: int | None,
+    timed_out: bool,
+    timeout_sec: int,
+    status: str,
+    stdout: str,
+    stderr: str,
+    started_at: datetime,
+    finished_at: datetime,
+) -> str | None:
+    try:
+        from execution_log import append_command_record
+
+        return append_command_record(
+            run_dir,
+            {
+                "node": agent_name,
+                "agent": agent_name,
+                "cli_agent": cli_agent_name,
+                "command": shlex.join(argv),
+                "argv": argv,
+                "cwd": str(cwd),
+                "exit_code": exit_code,
+                "timed_out": timed_out,
+                "timeout_sec": timeout_sec,
+                "status": status,
+                "stdout": stdout,
+                "stderr": stderr,
+                "started_at": started_at.isoformat(),
+                "completed_at": finished_at.isoformat(),
+            },
+        )
+    except Exception:
+        return None
 
 
 def _looks_like_cli_usage_error(stderr_text: str) -> bool:
@@ -309,20 +415,37 @@ def run_cli_agent(
           back to the direct API path.
     """
     cli_agent_name: str = role_profile.get("cli_agent", "")
-    cli_command_template: str = role_profile.get("cli_command", "")
+    cli_command_template: str = _resolve_invocation_contract_template(
+        role_profile,
+        plan.agentlab_root,
+    )
 
     if not cli_agent_name or not cli_command_template:
         return CliAgentNotAvailable(
             cli_agent=cli_agent_name or "unknown",
             reason="missing_config",
-            detail="Profile is missing cli_agent or cli_command.",
+            detail=(
+                "Profile is missing cli_agent or a resolvable "
+                "invocation_contract/cli_command."
+            ),
         )
 
     run_dir = Path(plan.run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
 
     packet_path = _write_task_packet(run_dir, agent_name, plan)
-    argv = _render_command(cli_command_template, packet_path)
+    try:
+        argv = _render_command(
+            cli_command_template,
+            packet_path,
+            workspace_path=Path(plan.agentlab_root),
+        )
+    except ValueError as exc:
+        return CliAgentNotAvailable(
+            cli_agent=cli_agent_name,
+            reason="invalid_cli_template",
+            detail=str(exc),
+        )
 
     # ── Binary candidate resolution ────────────────────────────────────────
     # If the role profile defines ``binary_candidates``, resolve the first
@@ -377,7 +500,28 @@ def run_cli_agent(
             timeout=effective_timeout,
             cwd=plan.agentlab_root,
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
+        finished_at = datetime.now(timezone.utc)
+        command_id = _append_cli_execution_record(
+            run_dir,
+            agent_name=agent_name,
+            cli_agent_name=cli_agent_name,
+            argv=argv,
+            cwd=plan.agentlab_root,
+            exit_code=None,
+            timed_out=True,
+            timeout_sec=effective_timeout,
+            status="timeout",
+            stdout=_coerce_process_output(exc.stdout),
+            stderr=_coerce_process_output(exc.stderr),
+            started_at=started_at,
+            finished_at=finished_at,
+        )
+        evidence = (
+            f"\n\nEvidence: command_id {command_id} in execution_log.yml"
+            if command_id
+            else ""
+        )
         return LLMCallResult(
             provider="agentlab-cli-executor",
             model=cli_agent_name,
@@ -386,10 +530,15 @@ def run_cli_agent(
                 f"Process `{argv[0]}` did not complete within {effective_timeout}s.\n\n"
                 f"**Action required**: Check whether `{cli_agent_name}` is stuck, "
                 f"then rerun or switch to API fallback."
+                f"{evidence}"
             ),
             status="blocked_user_decision",
             error=f"CLI agent timed out after {effective_timeout}s.",
-            raw_usage={"cli_agent": cli_agent_name, "timeout": effective_timeout},
+            raw_usage={
+                "cli_agent": cli_agent_name,
+                "timeout": effective_timeout,
+                **({"command_id": command_id} if command_id else {}),
+            },
         )
     except FileNotFoundError:
         return CliAgentNotAvailable(
@@ -404,6 +553,21 @@ def run_cli_agent(
     # ── Determine success ─────────────────────────────────────────────────────
     stdout_text = proc.stdout.strip()
     stderr_text = proc.stderr.strip()
+    command_id = _append_cli_execution_record(
+        run_dir,
+        agent_name=agent_name,
+        cli_agent_name=cli_agent_name,
+        argv=argv,
+        cwd=plan.agentlab_root,
+        exit_code=proc.returncode,
+        timed_out=False,
+        timeout_sec=effective_timeout,
+        status="success" if proc.returncode == 0 else "failed",
+        stdout=proc.stdout or "",
+        stderr=proc.stderr or "",
+        started_at=started_at,
+        finished_at=finished_at,
+    )
 
     # Exit 127 means "command not found" in sh-style shells.
     if proc.returncode == 127:
@@ -434,10 +598,11 @@ def run_cli_agent(
 
         - **Task**: {plan.task_id}
         - **Project**: {plan.project}
-        - **CLI command**: `{' '.join(argv)}`
+        - **CLI command**: `{shlex.join(argv)}`
         - **Exit code**: {proc.returncode}
         - **Duration**: {duration_s:.1f}s
         - **Started**: {started_at.isoformat()}
+        - **Evidence**: {f'command_id {command_id} in execution_log.yml' if command_id else 'execution_log unavailable'}
     """)
 
     body = stdout_text if stdout_text else "(no stdout output)"
@@ -473,6 +638,7 @@ def run_cli_agent(
             "stdout_bytes": len(proc.stdout),
             "stderr_bytes": len(proc.stderr),
             "task_packet_path": str(packet_path),
+            **({"command_id": command_id} if command_id else {}),
             **({"binary_candidate_used": candidate_used} if candidate_used else {}),
         },
     )

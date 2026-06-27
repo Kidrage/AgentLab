@@ -9,11 +9,16 @@ executor configuration.
 
 ## Key Concepts
 
-- **`cli_agent`** means AgentLab invokes a local CLI command template
-  (e.g. `hermes -z "..."`, `ccs --output-format json -p "..."`).
+- **`cli_agent`** means AgentLab invokes a local CLI worker selected by
+  `config/agent_model_profiles.yml`.
+- **`invocation_contract`** points to the command template in
+  `config/worker_invocation_contracts.yml`.
+- Runtime role profiles may reference only contracts renderable from a task
+  packet: `{task_packet_path}` and, when needed, `{workspace_path}`. Frontdesk
+  session contracts are not valid role-runner contracts.
 - **`default`** / **`fallback`** model fields are API fallback/default metadata.
   They are NOT automatically injected into CLI commands as `-m` or `--model`
-  flags unless the `cli_command` template explicitly includes them.
+  flags.
 - **AgentLab must not silently claim CLI usage when it fell back to API.**
   Transparent fallback recording is mandatory.
 - **Codex / Hermes / Claude Code** shell commands and their API model
@@ -29,7 +34,8 @@ schema v4 config
 → role_cfg = modes[mode].tiers[tier][role]
 → if executor_type == "cli_agent":
     → create task packet
-    → run configured cli_command
+    → resolve invocation_contract from worker_invocation_contracts.yml
+    → run configured worker command template
     → return provider/model source as CLI executor result
 → if CLI binary unavailable or CLI execution explicitly fails:
     → record transparent fallback reason

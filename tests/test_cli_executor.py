@@ -289,6 +289,34 @@ class TestResolveCliProfileSchemaV4:
         assert result["resolved_tier"] == "low"
         assert result["default"] == "deepseek_v4_flash"
 
+    def test_invocation_contract_resolves_cli_template(self, tmp_path):
+        """CLI profiles can reference worker_invocation_contracts.yml."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _resolve_invocation_contract_template
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            """
+contracts:
+  hermes:
+    template: 'hermes -z "Read {task_packet_path}"'
+""",
+            encoding="utf-8",
+        )
+
+        template = _resolve_invocation_contract_template(
+            {
+                "executor_type": "cli_agent",
+                "cli_agent": "hermes",
+                "invocation_contract": "hermes",
+            },
+            tmp_path,
+        )
+
+        assert template == 'hermes -z "Read {task_packet_path}"'
+
 
 # ---------------------------------------------------------------------------
 # _write_task_packet
@@ -347,6 +375,32 @@ class TestRenderCommand:
 
         argv = _render_command("agent-cli --task", tmp_path / "pkt.json")
         assert str(tmp_path / "pkt.json") in argv
+
+    def test_substitutes_workspace_path(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _render_command
+
+        workspace = tmp_path / "workspace"
+        argv = _render_command(
+            'codex exec -C "{workspace_path}" "Read {task_packet_path}"',
+            tmp_path / "pkt.json",
+            workspace_path=workspace,
+        )
+
+        assert str(workspace) in argv
+        assert any(str(tmp_path / "pkt.json") in arg for arg in argv)
+
+    def test_rejects_unresolved_placeholders(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _render_command
+
+        with pytest.raises(ValueError, match="frontdesk_session_path"):
+            _render_command(
+                'agy --sandbox -p "Read {frontdesk_session_path}"',
+                tmp_path / "pkt.json",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -411,11 +465,13 @@ class TestRunCliAgentSubprocess:
 
     def test_completed_on_exit_0(self, tmp_path):
         import sys
+        import yaml
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import run_cli_agent
 
         plan = _make_plan(tmp_path)
-        (tmp_path / "projects" / "TestProject" / "runs" / "task_test_001").mkdir(parents=True, exist_ok=True)
+        run_dir = tmp_path / "projects" / "TestProject" / "runs" / "task_test_001"
+        run_dir.mkdir(parents=True, exist_ok=True)
 
         role_profile = {
             "executor_type": "cli_agent",
@@ -434,6 +490,11 @@ class TestRunCliAgentSubprocess:
         assert result.provider == "agentlab-cli-executor"
         assert result.model == "hermes"
         assert "Supervisor Report" in result.content
+        assert "command_id" in result.raw_usage
+        assert f"command_id {result.raw_usage['command_id']}" in result.content
+        execution_log = yaml.safe_load((run_dir / "execution_log.yml").read_text(encoding="utf-8"))
+        assert execution_log["commands"][0]["command_id"] == result.raw_usage["command_id"]
+        assert execution_log["commands"][0]["exit_code"] == 0
 
     def test_blocked_on_nonzero_exit(self, tmp_path):
         import sys
@@ -575,6 +636,35 @@ class TestRunCliAgentMissingConfig:
 
         result = run_cli_agent(plan, "Supervisor", role_profile)
         assert isinstance(result, CliAgentNotAvailable)
+
+    def test_unrenderable_invocation_contract_returns_not_available(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import CliAgentNotAvailable, run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        (tmp_path / "projects" / "TestProject" / "runs" / "task_test_001").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "config").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "config" / "worker_invocation_contracts.yml").write_text(
+            """
+contracts:
+  agy:
+    template: 'agy --sandbox -p "Read {frontdesk_session_path}"'
+""",
+            encoding="utf-8",
+        )
+
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "invocation_contract": "agy",
+        }
+
+        result = run_cli_agent(plan, "RepoScout", role_profile)
+
+        assert isinstance(result, CliAgentNotAvailable)
+        assert result.reason == "invalid_cli_template"
+        assert "frontdesk_session_path" in result.detail
 
 
 # ---------------------------------------------------------------------------

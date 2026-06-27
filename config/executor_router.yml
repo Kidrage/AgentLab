@@ -1,6 +1,14 @@
 executor_router:
   enabled: true
   default_mode: dry_run
+  authority:
+    purpose: task_level_external_executor_routing
+    runtime_agent_backend_source: config/agent_model_profiles.yml
+    may_override_agent_backend: false
+    notes:
+      - This router is for external/manual/mock task execution requests.
+      - It does not select Supervisor/RepoScout/Coder/etc. default backends.
+      - Agent role backend selection lives in agent_model_profiles.yml.
 
   routing:
     require_approval_for_external: true

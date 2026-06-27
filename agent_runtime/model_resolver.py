@@ -205,7 +205,7 @@ def resolve_profile_config(
         budget_mode = profile_name
 
     tier = budget_mode_to_tier(budget_mode)
-    mode = os.getenv("AGENTLAB_MODE", agent_model_profiles.get("default_mode", "full_api")).lower()
+    mode = os.getenv("AGENTLAB_MODE", agent_model_profiles.get("default_mode", "full_cli")).lower()
 
     # 3. Resolve role key from agent name
     role_key = agent_name.lower().replace(" ", "_")

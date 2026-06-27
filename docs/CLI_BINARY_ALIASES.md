@@ -14,16 +14,26 @@ worker identity**. It names the agent system (e.g. `claude_code`, `hermes`,
 - `hermes` → Hermes CLI agent
 - `agy` → Agy CLI agent
 
-### `cli_command` — Executable Command Template
+### `invocation_contract` — Executable Command Template Reference
 
-The `cli_command` field is the **shell command template** that AgentLab renders
-and executes.  It supports the placeholder `{task_packet_path}` which is
-replaced with the path to the JSON task packet.
+The normal runtime profile field is `invocation_contract`. It points to
+`config/worker_invocation_contracts.yml`, which owns the shell command template
+that AgentLab renders and executes. Contract templates support the placeholder
+`{task_packet_path}`, which is replaced with the path to the JSON task packet;
+role-runner contracts may also use `{workspace_path}`. Contracts requiring
+frontdesk-only placeholders are not valid in normal role profiles.
 
 Example:
 ```yaml
-cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+coder:
+  executor_type: cli_agent
+  cli_agent: claude_code
+  invocation_contract: claude
+  binary_candidates: [claude, ccs]
 ```
+
+Direct `cli_command` in `agent_model_profiles.yml` is reserved for explicit
+safety-gated profiles such as `trusted_headless_cli`.
 
 ### `binary_candidates` — Environment-Specific Binary Resolution
 
@@ -38,10 +48,10 @@ updated.
 Example:
 ```yaml
 cli_agent: claude_code
+invocation_contract: claude
 binary_candidates:
   - claude      # canonical — tried first
   - ccs         # legacy alias — fallback
-cli_command: 'claude -p "..." --output-format json'
 ```
 
 ## Known Mappings
@@ -56,12 +66,13 @@ cli_command: 'claude -p "..." --output-format json'
 
 ## Resolution Logic
 
-1. Render `cli_command` template → `argv` list.
-2. If `binary_candidates` is defined:
+1. Resolve `invocation_contract` to a command template.
+2. Render command template → `argv` list.
+3. If `binary_candidates` is defined:
    a. Iterate candidates in order, check each via `shutil.which()`.
    b. First match → replace `argv[0]` with that binary.
    c. No matches → return `CliAgentNotAvailable` with all candidates listed.
-3. If no `binary_candidates`:
+4. If no `binary_candidates`:
    a. Check `argv[0]` via `shutil.which()` (existing behavior).
    b. Not found → return `CliAgentNotAvailable`.
 
@@ -75,8 +86,8 @@ to the direct API path.
 coder:
   executor_type: cli_agent
   cli_agent: claude_code
+  invocation_contract: claude
   binary_candidates: [claude, ccs]
-  cli_command: 'claude -p "..." --output-format json'
   default: qwen3_coder_plus_dashscope   # ← API fallback, NOT injected into CLI command
 ```
 
@@ -85,11 +96,11 @@ AgentLab **never** injects `default` into the CLI command as `--model`.
 ## Trusted Headless CLI
 
 A "trusted headless" profile uses `--allow-dangerously-skip-permissions` in the
-CLI command.  This is **not the default** — it must be explicitly opted into via
-an environment gate or human-approval policy.
+command template. This is **not the default** — it must be explicitly opted into
+via an environment gate or human-approval policy.
 
 ```yaml
-# Example only — NOT active by default
+# Example only — NOT active by default; direct cli_command is only allowed here.
 cli_command: 'claude -p "..." --output-format json --allow-dangerously-skip-permissions'
 ```
 
@@ -104,7 +115,8 @@ python scripts/check_cli_binary_aliases.py
 This checks:
 - Every `claude_code` role has `binary_candidates` with `claude`.
 - No `ccs`-only configs.
-- `cli_command` is non-empty and parses correctly.
+- Normal CLI profiles reference a valid `invocation_contract`.
+- Resolved command templates parse correctly.
 - Unknown `cli_agent` values have explicit `binary_candidates`.
 
 The script validates **config shape**, not local binary availability.

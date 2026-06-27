@@ -665,7 +665,8 @@ class TestPromptEngineerMapping:
             "not 'execution_prompt_engineer'"
         )
         prom_role = full_tier["prompt_engineer"]
-        assert prom_role.get("cli_agent") == "agy"
+        assert prom_role.get("cli_agent") == "hermes"
+        assert prom_role.get("invocation_contract") == "hermes"
 
     def test_agent_runner_role_key_map_has_correct_promptengineer(self):
         """The role key map in agent_runner maps promptengineer -> prompt_engineer."""

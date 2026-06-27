@@ -1,16 +1,39 @@
+schema_version: 2
+authority:
+  purpose: driver_mode_selection
+  owns:
+    - workflow_driver
+    - codex_full_driver_permission
+    - driver_to_agent_backend_mode_mapping
+  does_not_own:
+    - tier_role_executor
+    - cli_command_templates
+    - model_provider_facts
+  agent_backend_source: config/agent_model_profiles.yml
+  notes:
+    - Driver modes decide who leads the workflow.
+    - Agent backend modes decide how each AgentLab role is executed.
+    - Do not add per-agent model or CLI command defaults here.
 execution_modes:
   api_native:
     description: "AgentLab agents run through configured API providers."
+    driver_scope: agentlab_orchestrated
+    agent_backend_mode: full_api
     artifact_required: true
     allow_codex_full_driver: false
 
   codex_coder_only:
     description: "API agents plan/review; Codex only edits code and runs commands."
+    driver_scope: codex_coder_stage_only
+    agent_backend_mode: hybrid_ide
+    coder_provider: external_ide_ai
     artifact_required: true
     allow_codex_full_driver: false
 
   codex_full_driver:
     description: "Codex emulates all AgentLab roles while writing all standard artifacts."
+    driver_scope: codex_all_roles
+    agent_backend_mode: external_driver
     artifact_required: true
     allow_codex_full_driver: true
     requires_user_confirmation: true

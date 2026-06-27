@@ -1,170 +1,200 @@
 schema_version: 4.0
 default_mode: full_cli
+authority:
+  purpose: canonical_agent_backend_selection
+  owns:
+    - agent_backend_mode
+    - tier_role_executor
+    - default_model_key
+  does_not_own:
+    - cli_command_templates
+    - model_provider_facts
+    - task_level_manual_executor_priority
+  command_template_source: config/worker_invocation_contracts.yml
+  model_fact_source: config/model_catalog.yml
+  provider_fact_source: config/model_providers.yml
+  external_executor_router_source: config/executor_router.yml
+  notes:
+    - This file is the single runtime source for selecting each AgentLab role backend.
+    - CLI command strings are resolved from invocation_contract keys, not duplicated here.
+    - trusted_headless_cli is an explicit safety-gated exception and must never be default.
+tier_policy:
+  default_tier: performance
+  tiers:
+    full:
+      budget_aliases: [max_quality, full]
+      intent: highest_quality_local_or_api_execution
+    performance:
+      budget_aliases: [balanced, performance, brain_allocated]
+      intent: balanced_quality_cost_default
+    low:
+      budget_aliases: [frugal, low, low_cost]
+      intent: cheapest_safe_execution_with_optional_roles_skipped
 modes:
   full_cli:
-    notes: 全 Agents CLI 模式。所有可用角色都通过本地命令行智能体拉起。
+    notes: Canonical local CLI company mode. This mode selects local CLI workers; command templates are loaded from config/worker_invocation_contracts.yml.
     tiers:
       full:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
-          cli_command: 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."'
+          invocation_contract: hermes
           default: deepseek_v4_pro
         reposcout:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_7_max_dashscope
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_7_max_dashscope
         researcher:
           executor_type: cli_agent
           cli_agent: claude_code
+          invocation_contract: claude
           binary_candidates:
             - claude
             - ccs
-          cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_6_plus_dashscope
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_7_max_dashscope
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
+          invocation_contract: claude
           binary_candidates:
             - claude
             - ccs
-          cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_coder_plus_dashscope
           external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
           cli_agent: codex
-          cli_command: 'codex exec "Read task packet {task_packet_path}; perform only the ArtifactProducer role and return produced artifacts, validation, and fallback status."'
+          invocation_contract: codex
           default: qwen3_7_max_dashscope
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_7_max_dashscope
         verifier:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: deepseek_v4_pro
         archivist:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_plus_dashscope
       performance:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
-          cli_command: 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."'
+          invocation_contract: hermes
           default: deepseek_v4_pro
         reposcout:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_plus_dashscope
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_plus_dashscope
         researcher:
           executor_type: cli_agent
           cli_agent: claude_code
+          invocation_contract: claude
           binary_candidates:
             - claude
             - ccs
-          cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_6_flash_dashscope
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_plus_dashscope
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
+          invocation_contract: claude
           binary_candidates:
             - claude
             - ccs
-          cli_command: 'claude --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_coder_plus_dashscope
           external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the ArtifactProducer role and report produced artifacts, validation, and fallback status."'
+          cli_agent: codex
+          invocation_contract: codex
           default: qwen3_6_plus_dashscope
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_plus_dashscope
         verifier:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_flash_dashscope
         archivist:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_plus_dashscope
       low:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
-          cli_command: 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."'
+          invocation_contract: hermes
           default: deepseek_v4_flash
         reposcout:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report concise actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_flash_dashscope
         interface_mapper: skip
         researcher: skip
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report concise actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_flash_dashscope
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
+          invocation_contract: claude
           binary_candidates:
             - claude
             - ccs
-          cli_command: 'claude --effort low --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_coder_next_dashscope
           external_ide_allowed: false
         artifact_producer:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the ArtifactProducer role and report concise artifact evidence."'
+          cli_agent: codex
+          invocation_contract: codex
           default: qwen3_6_flash_dashscope
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report concise actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: deepseek_v4_flash
         verifier: skip
         archivist:
           executor_type: cli_agent
-          cli_agent: agy
-          cli_command: 'agy --sandbox -p "Read task packet {task_packet_path}; perform only the assigned role and report concise actual changes."'
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_flash_dashscope
   full_api:
-    notes: 纯 API 模式。根据环境中的 API 密钥及能力动态选配，或回退至静态降级链。
+    notes: Canonical direct API mode. This mode owns API model selection only; provider facts live in config/model_providers.yml.
     tiers:
       full:
         supervisor:

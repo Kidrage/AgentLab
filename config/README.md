@@ -5,9 +5,11 @@ This folder is the control panel for your local AgentLab workflow.
 Edit these files first when you want to change how agents behave:
 
 - `agent_registry.yml`: agent capabilities, permissions, templates, and required outputs.
-- `model_providers.yml`: provider API keys, base URLs, and default model env mappings.
+- `model_providers.yml`: provider API keys, base URLs, and provider facts.
 - `model_catalog.yml`: model facts, catalog provider labels, capabilities, and pricing notes.
-- `agent_model_profiles.yml`: budget/size/risk model selection policy.
+- `agent_model_profiles.yml`: canonical agent backend mode and tier selection policy.
+- `execution_modes.yml`: workflow driver mode selection; maps driver modes to agent backend modes.
+- `worker_invocation_contracts.yml`: canonical CLI worker command templates.
 - `routing_rules.yml`: when each agent route is selected.
 - `budget_profiles.yml`: token budgets, warning thresholds, and stop rules.
 - `brain_governance.yml`: token governance, traversal approvals, loop detection, and yes/no decision rules.
@@ -28,11 +30,22 @@ for policy, routing, model, budget, and permission changes.
 
 For model switching:
 
-- Change provider defaults in `model_providers.yml`.
+- Change agent backend defaults in `agent_model_profiles.yml`.
 - Change model facts in `model_catalog.yml`.
-- Change per-agent route/profile references in `agent_registry.yml`.
+- Change provider facts in `model_providers.yml`.
+- Change CLI worker commands in `worker_invocation_contracts.yml`.
+- Keep normal CLI role contracts renderable from `{task_packet_path}` and
+  optional `{workspace_path}`; frontdesk session contracts are not role profiles.
 - Override one run from the CLI with `--provider` or `--model`.
 - Run `./agentlab.sh model-doctor` after model changes.
+
+For agent execution mode switching:
+
+- Use `AGENTLAB_MODE=full_cli` for local CLI-backed agents.
+- Use `AGENTLAB_MODE=full_api` for direct API-backed agents.
+- Use `AGENTLAB_MODE=hybrid_ide` when AgentLab plans/reviews and external IDE AI handles Coder.
+- Use `AGENTLAB_BUDGET_MODE=max_quality|balanced|frugal` to select the `full|performance|low` tier.
+- `trusted_headless_cli` is never default and requires its explicit env gate and human approval.
 
 For language switching:
 
@@ -47,4 +60,5 @@ Current policy:
 - DeepSeek official API is available for high-quality brain/review work when configured.
 - Qwen models must use DashScope (`DASHSCOPE_API_KEY`) by default. OpenRouter is not assumed.
 - `Coder` defaults to `qwen-coder`/DashScope in API mode; `external_ide_ai` is a deliberate handoff/fallback, not the default.
+- In `full_cli` mode, `Coder` is CLI-backed through the configured worker contract.
 - Provider failures block or request user decision; external IDE AI must not silently simulate API agents.
