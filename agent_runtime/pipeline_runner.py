@@ -448,10 +448,14 @@ def _append_dry_run_cost_entry(
         "provider": "fake_provider",
         "model": "deterministic-dry-run",
         "dry_run": True,
+        "usage_source": "no_llm_call",
+        "exact_usage_available": True,
         "input_tokens": 0,
         "output_tokens": 0,
         "total_tokens": 0,
         "estimated_cost": 0.0,
+        "exact_cost_available": True,
+        "pricing_confidence": "high",
         "notes": "No paid LLM API call was made; deterministic dry-run evidence only.",
     }
     append_cost_ledgers(agentlab_root / "projects" / project, run_dir, entry)
@@ -962,6 +966,7 @@ def run_next_node(
 
         # Record token usage to cost_ledger
         from cost_tracker import append_cost_ledgers, usage_entry
+        raw_usage = result.raw_usage or {}
         append_cost_ledgers(
             agentlab_root / "projects" / project,
             run_dir,
@@ -970,6 +975,11 @@ def run_next_node(
                 result.provider, result.model, result.status,
                 result.input_tokens, result.output_tokens, result.total_tokens,
                 "API usage from pipeline executor.",
+                agentlab_root=agentlab_root,
+                usage_source=raw_usage.get("usage_source"),
+                token_estimation_method=raw_usage.get("token_estimation_method"),
+                exact_usage_available=raw_usage.get("exact_usage_available"),
+                raw_usage=raw_usage,
             ),
         )
         gate_issues = artifact_content_issues(report_path.name, report_content, run_dir)

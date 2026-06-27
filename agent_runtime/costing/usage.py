@@ -5,7 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import Any
 
-USAGE_SOURCES = {"api_usage", "local_estimate", "manual_entry", "unknown"}
+USAGE_SOURCES = {
+    "api_usage",
+    "external_cli_reported",
+    "external_cli_estimate",
+    "local_estimate",
+    "manual_entry",
+    "no_llm_call",
+    "unknown",
+}
 
 
 def _token_value(raw: dict[str, Any], *keys: str) -> int:

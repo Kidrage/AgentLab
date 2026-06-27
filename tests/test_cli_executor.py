@@ -493,6 +493,7 @@ class TestRunCliAgentSubprocess:
         assert result.output_tokens is not None
         assert result.total_tokens == result.input_tokens + result.output_tokens
         assert result.raw_usage["usage_source"] == "external_cli_estimate"
+        assert result.raw_usage["exact_usage_available"] is False
         assert result.raw_usage["exact_cost_available"] is False
         assert result.raw_usage["token_estimation_method"] == "chars_div_4_packet_command_stdout_stderr"
         assert "Supervisor Report" in result.content
@@ -501,6 +502,50 @@ class TestRunCliAgentSubprocess:
         execution_log = yaml.safe_load((run_dir / "execution_log.yml").read_text(encoding="utf-8"))
         assert execution_log["commands"][0]["command_id"] == result.raw_usage["command_id"]
         assert execution_log["commands"][0]["exit_code"] == 0
+
+    def test_completed_uses_reported_usage_sidecar(self, tmp_path):
+        import json
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        run_dir = tmp_path / "projects" / "TestProject" / "runs" / "task_test_001"
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "hermes",
+            "cli_command": 'hermes -z "task {task_packet_path}"',
+            "default": "deepseek_v4_pro",
+        }
+        mock_proc = self._mock_proc(0, stdout="# Supervisor Report\n\nAll good.")
+
+        def _write_usage(*args, **kwargs):
+            (run_dir / "usage_supervisor.json").write_text(
+                json.dumps({
+                    "agentlab_usage": {
+                        "input_tokens": 111,
+                        "output_tokens": 22,
+                        "total_tokens": 133,
+                        "estimated_cost": 0.0042,
+                        "currency": "USD",
+                    }
+                }),
+                encoding="utf-8",
+            )
+            return mock_proc
+
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/hermes"), \
+             patch("cli_executor.subprocess.run", side_effect=_write_usage):
+            result = run_cli_agent(plan, "Supervisor", role_profile)
+
+        assert result.input_tokens == 111
+        assert result.output_tokens == 22
+        assert result.total_tokens == 133
+        assert result.raw_usage["usage_source"] == "external_cli_reported"
+        assert result.raw_usage["exact_usage_available"] is True
+        assert result.raw_usage["estimated_cost"] == 0.0042
 
     def test_blocked_on_nonzero_exit(self, tmp_path):
         import sys

@@ -65,6 +65,20 @@ def _resolve_model_entry(models: dict, provider: str | None, model: str) -> tupl
     return None, None
 
 
+def _coerce_optional_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "y"}:
+            return True
+        if lowered in {"false", "0", "no", "n"}:
+            return False
+    return bool(value)
+
+
 def estimate_cost(
     agentlab_root: Path,
     model: str,
@@ -145,14 +159,31 @@ def usage_entry(
     agentlab_root: Path | None = None,
     usage_source: str | None = None,
     token_estimation_method: str | None = None,
+    exact_usage_available: bool | None = None,
+    reported_estimated_cost: float | None = None,
+    reported_cost_currency: str | None = None,
+    reported_exact_cost_available: bool | None = None,
+    raw_usage: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a usage-entry dict for cost_ledger append.
 
     When *agentlab_root* is supplied, resolves estimated cost via
     config/model_pricing.yml.
     """
+    raw_usage = raw_usage or {}
+    if input_tokens is None:
+        input_tokens = raw_usage.get("input_tokens") or raw_usage.get("prompt_tokens")
+    if output_tokens is None:
+        output_tokens = raw_usage.get("output_tokens") or raw_usage.get("completion_tokens")
+    if total_tokens is None:
+        total_tokens = raw_usage.get("total_tokens")
+    if total_tokens is None and (input_tokens is not None or output_tokens is not None):
+        total_tokens = int(input_tokens or 0) + int(output_tokens or 0)
+
     external_cli = provider == "agentlab-cli-executor"
     resolved_usage_source = usage_source
+    if resolved_usage_source is None:
+        resolved_usage_source = raw_usage.get("usage_source")
     if resolved_usage_source is None:
         if external_cli and total_tokens is not None:
             resolved_usage_source = "external_cli_estimate"
@@ -160,27 +191,64 @@ def usage_entry(
             resolved_usage_source = "api_usage"
         else:
             resolved_usage_source = "unknown"
+    if exact_usage_available is None:
+        raw_exact_usage = raw_usage.get("exact_usage_available")
+        if raw_exact_usage is not None:
+            exact_usage_available = _coerce_optional_bool(raw_exact_usage)
+        elif resolved_usage_source in {"api_usage", "external_cli_reported", "no_llm_call"}:
+            exact_usage_available = total_tokens is not None
+        else:
+            exact_usage_available = False
 
-    if agentlab_root is not None and not external_cli:
+    if reported_estimated_cost is None and raw_usage.get("estimated_cost") is not None:
+        try:
+            reported_estimated_cost = float(raw_usage["estimated_cost"])
+        except (TypeError, ValueError):
+            reported_estimated_cost = None
+    if reported_cost_currency is None:
+        reported_cost_currency = raw_usage.get("cost_currency") or raw_usage.get("currency")
+    if reported_exact_cost_available is None and raw_usage.get("exact_cost_available") is not None:
+        reported_exact_cost_available = _coerce_optional_bool(raw_usage.get("exact_cost_available"))
+
+    if reported_estimated_cost is not None:
+        estimated_cost = reported_estimated_cost
+        if reported_cost_currency:
+            cost_currency = reported_cost_currency
+        elif agentlab_root is not None:
+            cost_currency = load_pricing(agentlab_root).get("currency")
+        else:
+            cost_currency = None
+        exact_cost_available = reported_exact_cost_available if reported_exact_cost_available is not None else bool(exact_usage_available)
+        pricing_source = raw_usage.get("pricing_source") or "reported_usage"
+        pricing_confidence = raw_usage.get("pricing_confidence") or ("high" if exact_cost_available else "medium")
+    elif agentlab_root is not None and not external_cli:
         cost_info = estimate_cost(
             agentlab_root, model, input_tokens, output_tokens, provider=provider,
         )
         estimated_cost = cost_info["estimated_cost"]
         cost_currency = cost_info["cost_currency"]
-        exact_cost_available = cost_info["exact_cost_available"]
+        exact_cost_available = bool(cost_info["exact_cost_available"] and exact_usage_available)
         pricing_source = cost_info["pricing_source"]
         pricing_confidence = cost_info.get("pricing_confidence", "none")
     else:
         # Legacy path – keep backward-compatible None values
         estimated_cost = None
         cost_currency = load_pricing(agentlab_root).get("currency") if agentlab_root is not None else None
-        exact_cost_available = (
-            provider not in {"codex_plus_manual", "agentlab-cli-executor"}
-            and resolved_usage_source == "api_usage"
-            and total_tokens is not None
-        )
+        exact_cost_available = False
         pricing_source = None
         pricing_confidence = "none"
+
+    if reported_exact_cost_available is not None and reported_estimated_cost is None:
+        exact_cost_available = bool(reported_exact_cost_available)
+
+    unpriced_reason = None
+    if estimated_cost is None:
+        if not exact_usage_available:
+            unpriced_reason = "usage_not_exact"
+        elif pricing_source is None:
+            unpriced_reason = "price_not_available"
+        else:
+            unpriced_reason = "cost_not_available"
 
     return {
         "timestamp": utc_now(),
@@ -193,6 +261,7 @@ def usage_entry(
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "total_tokens": total_tokens,
+        "exact_usage_available": exact_usage_available,
         "exact_cost_available": exact_cost_available,
         "estimated_cost": estimated_cost,
         "cost_currency": cost_currency,
@@ -200,6 +269,7 @@ def usage_entry(
         "pricing_confidence": pricing_confidence,
         "usage_source": resolved_usage_source,
         **({"token_estimation_method": token_estimation_method} if token_estimation_method else {}),
+        **({"unpriced_reason": unpriced_reason} if unpriced_reason else {}),
         "notes": notes,
     }
 
@@ -230,9 +300,13 @@ def _call_from_legacy_entry(entry: dict[str, Any]) -> CostCall:
         image_input_tokens=int(entry.get("image_input_tokens") or 0),
         audio_input_tokens=int(entry.get("audio_input_tokens") or 0),
         usage_source=entry.get("usage_source") or ("api_usage" if entry.get("input_tokens") is not None else "unknown"),
+        exact_usage_available=bool(_coerce_optional_bool(entry.get("exact_usage_available", entry.get("usage_source") in {"api_usage", "external_cli_reported", "no_llm_call"}))),
         price_source=entry.get("pricing_source") or "unknown",
         estimated_cost_usd=entry.get("estimated_cost"),
+        exact_cost_available=bool(_coerce_optional_bool(entry.get("exact_cost_available", entry.get("estimated_cost") is not None))),
         pricing_confidence=entry.get("pricing_confidence") or ("high" if entry.get("exact_cost_available") else "none"),
+        token_estimation_method=entry.get("token_estimation_method"),
+        unpriced_reason=entry.get("unpriced_reason"),
         started_at=entry.get("started_at") or entry.get("timestamp"),
         finished_at=entry.get("finished_at"),
     )

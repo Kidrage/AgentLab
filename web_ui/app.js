@@ -619,15 +619,20 @@ const AgentLab = {
   renderCost() {
     const snap = state.snapshot;
     const agents = snap.agents || [];
+    const ledger = snap.costLedger || [];
     const totals = agents.reduce((t,a)=>{ t.used+=a.usedTokens||0; t.budget+=a.budgetTokens||0; return t;},{used:0,budget:0});
     const remaining = totals.budget - totals.used;
-    // DeepSeek v4-pro approx: $0.14/1M input, $0.28/1M output. Rough estimate
-    const estCost = (totals.used * 0.0000002).toFixed(3);
+    const knownCost = ledger.reduce((sum,l)=>{
+      const value = l.estimated_cost ?? l.estimatedCost;
+      return value === null || value === undefined || value === "" ? sum : sum + Number(value || 0);
+    }, 0);
+    const hasUnknownCost = ledger.some(l => (l.estimated_cost ?? l.estimatedCost) === null || (l.estimated_cost ?? l.estimatedCost) === undefined);
+    const costText = ledger.length === 0 ? "unknown" : (hasUnknownCost ? `$${knownCost.toFixed(3)} + unknown` : `$${knownCost.toFixed(3)}`);
 
     this.$("costTotalBudget", this.fmt(totals.budget));
     this.$("costTotalUsed", this.fmt(totals.used));
     this.$("costRemaining", this.fmt(remaining));
-    this.$("costEstimate", `$${estCost}`);
+    this.$("costEstimate", costText);
 
     // 水平条形图
     const maxUsed = Math.max(...agents.map(a=>a.usedTokens||0), 1);
@@ -645,18 +650,24 @@ const AgentLab = {
     const breakdown = this.$("costBreakdown");
     if (breakdown) {
       const byProvider = {};
-      agents.forEach(a => { const p = a.provider||"Unknown"; byProvider[p] = (byProvider[p]||0) + (a.usedTokens||0); });
+      ledger.forEach(l => {
+        const p = l.provider||"Unknown";
+        const value = l.estimated_cost ?? l.estimatedCost;
+        if (!byProvider[p]) byProvider[p] = {tokens:0, cost:0, unknown:false};
+        byProvider[p].tokens += Number(l.total_tokens ?? l.totalTokens ?? 0);
+        if (value === null || value === undefined || value === "") byProvider[p].unknown = true;
+        else byProvider[p].cost += Number(value || 0);
+      });
       breakdown.innerHTML = Object.entries(byProvider).map(([p,t]) => `
-        <div class="cost-row"><span>${p}</span><strong>${this.fmt(t)} tokens</strong><span class="text-muted">~$${(t*0.0000002).toFixed(3)}</span></div>`
+        <div class="cost-row"><span>${p}</span><strong>${this.fmt(t.tokens)} tokens</strong><span class="text-muted">${t.unknown ? `$${t.cost.toFixed(3)} + unknown` : `$${t.cost.toFixed(3)}`}</span></div>`
       ).join("");
     }
 
     // 成本日志表
     const table = this.$("costTable")?.querySelector("tbody");
     if (table) {
-      const ledger = snap.costLedger || [];
       table.innerHTML = ledger.map(l => `
-        <tr><td>${l.time}</td><td>${l.agent}</td><td>${l.provider}</td><td>${l.model}</td><td>${this.fmt(l.inputTokens||0)}</td><td>${this.fmt(l.outputTokens||0)}</td><td>${this.fmt(l.totalTokens||0)}</td><td>${l.status}</td></tr>`
+        <tr><td>${l.time||l.timestamp||""}</td><td>${l.agent}</td><td>${l.provider}</td><td>${l.model}</td><td>${this.fmt(l.input_tokens??l.inputTokens??0)}</td><td>${this.fmt(l.output_tokens??l.outputTokens??0)}</td><td>${this.fmt(l.total_tokens??l.totalTokens??0)}</td><td>${l.status}</td></tr>`
       ).join("") || '<tr><td colspan="8" class="text-muted">暂无成本数据</td></tr>';
     }
   },

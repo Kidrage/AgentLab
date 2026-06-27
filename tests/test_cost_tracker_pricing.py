@@ -120,9 +120,50 @@ class CostTrackerPricingTests(TestCase):
         )
         self.assertEqual(entry["usage_source"], "external_cli_estimate")
         self.assertEqual(entry["token_estimation_method"], "chars_div_4_packet_command_stdout_stderr")
+        self.assertFalse(entry["exact_usage_available"])
         self.assertFalse(entry["exact_cost_available"])
         self.assertIsNone(entry["estimated_cost"])
         self.assertEqual(entry["cost_currency"], "USD")
+
+    def test_reported_external_cli_cost_can_be_exact(self) -> None:
+        entry = usage_entry(
+            "Demo", "task_001", "Supervisor",
+            "agentlab-cli-executor", "hermes", "completed",
+            raw_usage={
+                "usage_source": "external_cli_reported",
+                "exact_usage_available": True,
+                "input_tokens": 1000,
+                "output_tokens": 200,
+                "total_tokens": 1200,
+                "estimated_cost": 0.0123,
+                "currency": "USD",
+                "exact_cost_available": True,
+            },
+            agentlab_root=self.root,
+        )
+        self.assertEqual(entry["usage_source"], "external_cli_reported")
+        self.assertTrue(entry["exact_usage_available"])
+        self.assertTrue(entry["exact_cost_available"])
+        self.assertEqual(entry["estimated_cost"], 0.0123)
+        self.assertEqual(entry["cost_currency"], "USD")
+
+    def test_reported_external_cli_string_false_stays_false(self) -> None:
+        entry = usage_entry(
+            "Demo", "task_001", "Supervisor",
+            "agentlab-cli-executor", "hermes", "completed",
+            raw_usage={
+                "usage_source": "external_cli_reported",
+                "exact_usage_available": "false",
+                "input_tokens": 1000,
+                "output_tokens": 200,
+                "estimated_cost": 0.0123,
+                "currency": "USD",
+                "exact_cost_available": "false",
+            },
+            agentlab_root=self.root,
+        )
+        self.assertFalse(entry["exact_usage_available"])
+        self.assertFalse(entry["exact_cost_available"])
 
     def test_pricing_config_missing_returns_empty_cache(self) -> None:
         _clear_price_cache()

@@ -274,6 +274,9 @@ def generate_text(
 
     content = response.choices[0].message.content or ""
     usage = response.usage.model_dump() if response.usage else {}
+    if usage:
+        usage.setdefault("usage_source", "api_usage")
+        usage.setdefault("exact_usage_available", True)
 
     report_names = {
         "Supervisor": "01_supervisor_plan.md",

@@ -265,8 +265,107 @@ def _external_cli_usage_estimate(
         "total_tokens": input_tokens + output_tokens,
         "usage_source": "external_cli_estimate",
         "token_estimation_method": "chars_div_4_packet_command_stdout_stderr",
+        "exact_usage_available": False,
         "exact_cost_available": False,
     }
+
+
+def _coerce_usage_payload(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    payload = raw.get("agentlab_usage", raw)
+    if not isinstance(payload, dict):
+        return None
+    usage: dict[str, Any] = {}
+    for target, aliases in {
+        "input_tokens": ("input_tokens", "prompt_tokens"),
+        "output_tokens": ("output_tokens", "completion_tokens"),
+        "total_tokens": ("total_tokens",),
+    }.items():
+        for alias in aliases:
+            if payload.get(alias) is None:
+                continue
+            try:
+                usage[target] = max(int(payload[alias]), 0)
+            except (TypeError, ValueError):
+                pass
+            break
+    if "total_tokens" not in usage and ("input_tokens" in usage or "output_tokens" in usage):
+        usage["total_tokens"] = int(usage.get("input_tokens", 0)) + int(usage.get("output_tokens", 0))
+    if not usage:
+        return None
+    for key in (
+        "estimated_cost",
+        "cost_currency",
+        "currency",
+        "pricing_source",
+        "pricing_confidence",
+        "exact_cost_available",
+        "token_estimation_method",
+    ):
+        if payload.get(key) is not None:
+            usage[key] = payload[key]
+    usage["usage_source"] = payload.get("usage_source") or "external_cli_reported"
+    exact_usage = payload.get("exact_usage_available", True)
+    if isinstance(exact_usage, str):
+        usage["exact_usage_available"] = exact_usage.strip().lower() not in {"false", "0", "no", "n"}
+    else:
+        usage["exact_usage_available"] = bool(exact_usage)
+    return usage
+
+
+def _load_cli_usage_sidecar(packet_path: Path, agent_name: str, cli_agent_name: str) -> dict[str, Any] | None:
+    candidates = [
+        packet_path.with_suffix(".usage.json"),
+        packet_path.parent / f"usage_{agent_name.lower()}.json",
+        packet_path.parent / f"usage_{cli_agent_name.lower()}.json",
+    ]
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        usage = _coerce_usage_payload(payload)
+        if usage:
+            usage["usage_report_path"] = str(path)
+            return usage
+    return None
+
+
+def _extract_cli_usage_from_output(stdout: str, stderr: str) -> dict[str, Any] | None:
+    for line in reversed((stdout + "\n" + stderr).splitlines()):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("AGENTLAB_USAGE:"):
+            stripped = stripped.split(":", 1)[1].strip()
+        elif "agentlab_usage" not in stripped:
+            continue
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        usage = _coerce_usage_payload(payload)
+        if usage:
+            return usage
+    return None
+
+
+def _external_cli_usage(
+    packet_path: Path,
+    argv: list[str],
+    agent_name: str,
+    cli_agent_name: str,
+    stdout: str = "",
+    stderr: str = "",
+) -> dict[str, Any]:
+    return (
+        _load_cli_usage_sidecar(packet_path, agent_name, cli_agent_name)
+        or _extract_cli_usage_from_output(stdout, stderr)
+        or _external_cli_usage_estimate(packet_path, argv, stdout, stderr)
+    )
 
 
 def _render_command(
@@ -535,9 +634,11 @@ def run_cli_agent(
         finished_at = datetime.now(timezone.utc)
         stdout_text = _coerce_process_output(exc.stdout)
         stderr_text = _coerce_process_output(exc.stderr)
-        usage_estimate = _external_cli_usage_estimate(
+        usage_estimate = _external_cli_usage(
             packet_path,
             argv,
+            agent_name,
+            cli_agent_name,
             stdout_text,
             stderr_text,
         )
@@ -596,9 +697,11 @@ def run_cli_agent(
     # ── Determine success ─────────────────────────────────────────────────────
     stdout_text = proc.stdout.strip()
     stderr_text = proc.stderr.strip()
-    usage_estimate = _external_cli_usage_estimate(
+    usage_estimate = _external_cli_usage(
         packet_path,
         argv,
+        agent_name,
+        cli_agent_name,
         proc.stdout or "",
         proc.stderr or "",
     )

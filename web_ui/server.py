@@ -724,6 +724,10 @@ def handle_post_decision(data: dict):
         "model": "N/A",
         "status": "ok",
         "total_tokens": 0,
+        "usage_source": "manual_entry",
+        "exact_usage_available": True,
+        "exact_cost_available": True,
+        "estimated_cost": 0.0,
         "notes": event_text,
     })
     cost["entries"] = entries
@@ -818,6 +822,11 @@ def handle_run_agent(data: dict):
         "agent_name": agent_name,
         "provider": "manual",
         "status": status_map.get(action, action),
+        "total_tokens": 0,
+        "usage_source": "manual_entry",
+        "exact_usage_available": True,
+        "exact_cost_available": True,
+        "estimated_cost": 0.0,
         "notes": f"用户操作: {action}",
     })
     cost["entries"] = entries

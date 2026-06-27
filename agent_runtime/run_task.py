@@ -3937,6 +3937,8 @@ def run_agent(
                 agentlab_root=Path(plan.agentlab_root),
                 usage_source=raw_usage.get("usage_source"),
                 token_estimation_method=raw_usage.get("token_estimation_method"),
+                exact_usage_available=raw_usage.get("exact_usage_available"),
+                raw_usage=raw_usage,
             ),
         )
         console.print("[yellow]User decision required before continuing[/yellow]")
@@ -3984,6 +3986,8 @@ def run_agent(
                 agentlab_root=Path(plan.agentlab_root),
                 usage_source=raw_usage.get("usage_source"),
                 token_estimation_method=raw_usage.get("token_estimation_method"),
+                exact_usage_available=raw_usage.get("exact_usage_available"),
+                raw_usage=raw_usage,
             ),
         )
         console.print("[yellow]Codex Plus handoff written[/yellow]")
@@ -4030,6 +4034,8 @@ def run_agent(
                 agentlab_root=Path(plan.agentlab_root),
                 usage_source=raw_usage.get("usage_source"),
                 token_estimation_method=raw_usage.get("token_estimation_method"),
+                exact_usage_available=raw_usage.get("exact_usage_available"),
+                raw_usage=raw_usage,
             ),
         )
         console.print("[yellow]Artifact gate blocked completion[/yellow]")
@@ -4058,6 +4064,8 @@ def run_agent(
             agentlab_root=Path(plan.agentlab_root),
             usage_source=raw_usage.get("usage_source"),
             token_estimation_method=raw_usage.get("token_estimation_method"),
+            exact_usage_available=raw_usage.get("exact_usage_available"),
+            raw_usage=raw_usage,
         ),
     )
 
