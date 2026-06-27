@@ -143,13 +143,25 @@ def usage_entry(
     notes: str = "",
     *,
     agentlab_root: Path | None = None,
+    usage_source: str | None = None,
+    token_estimation_method: str | None = None,
 ) -> dict[str, Any]:
     """Build a usage-entry dict for cost_ledger append.
 
     When *agentlab_root* is supplied, resolves estimated cost via
     config/model_pricing.yml.
     """
-    if agentlab_root is not None:
+    external_cli = provider == "agentlab-cli-executor"
+    resolved_usage_source = usage_source
+    if resolved_usage_source is None:
+        if external_cli and total_tokens is not None:
+            resolved_usage_source = "external_cli_estimate"
+        elif input_tokens is not None or output_tokens is not None or total_tokens is not None:
+            resolved_usage_source = "api_usage"
+        else:
+            resolved_usage_source = "unknown"
+
+    if agentlab_root is not None and not external_cli:
         cost_info = estimate_cost(
             agentlab_root, model, input_tokens, output_tokens, provider=provider,
         )
@@ -161,8 +173,12 @@ def usage_entry(
     else:
         # Legacy path – keep backward-compatible None values
         estimated_cost = None
-        cost_currency = None
-        exact_cost_available = provider not in {"codex_plus_manual"} and total_tokens is not None
+        cost_currency = load_pricing(agentlab_root).get("currency") if agentlab_root is not None else None
+        exact_cost_available = (
+            provider not in {"codex_plus_manual", "agentlab-cli-executor"}
+            and resolved_usage_source == "api_usage"
+            and total_tokens is not None
+        )
         pricing_source = None
         pricing_confidence = "none"
 
@@ -182,6 +198,8 @@ def usage_entry(
         "cost_currency": cost_currency,
         "pricing_source": pricing_source,
         "pricing_confidence": pricing_confidence,
+        "usage_source": resolved_usage_source,
+        **({"token_estimation_method": token_estimation_method} if token_estimation_method else {}),
         "notes": notes,
     }
 

@@ -50,6 +50,7 @@ _CLI_CONTRACT_ALIASES = {
     "claude_code": "claude",
 }
 _PLACEHOLDER_RE = re.compile(r"\{([a-zA-Z0-9_]+)\}")
+_APPROX_CHARS_PER_TOKEN = 4
 
 
 # ── Sentinel: binary not installed, caller should use API fallback ────────────
@@ -236,6 +237,36 @@ def _write_task_packet(run_dir: Path, agent_name: str, plan: WorkflowPlan) -> Pa
     packet_path = run_dir / f"task_packet_{agent_name.lower()}.json"
     packet_path.write_text(json.dumps(packet, indent=2, ensure_ascii=False), encoding="utf-8")
     return packet_path
+
+
+def _estimate_text_tokens(*texts: str) -> int:
+    """Approximate tokenizer usage when an external CLI hides provider telemetry."""
+    chars = sum(len(text or "") for text in texts)
+    if chars <= 0:
+        return 0
+    return max(1, (chars + _APPROX_CHARS_PER_TOKEN - 1) // _APPROX_CHARS_PER_TOKEN)
+
+
+def _external_cli_usage_estimate(
+    packet_path: Path,
+    argv: list[str],
+    stdout: str = "",
+    stderr: str = "",
+) -> dict[str, Any]:
+    try:
+        packet_text = packet_path.read_text(encoding="utf-8")
+    except OSError:
+        packet_text = ""
+    input_tokens = _estimate_text_tokens(packet_text, shlex.join(argv))
+    output_tokens = _estimate_text_tokens(stdout, stderr)
+    return {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": input_tokens + output_tokens,
+        "usage_source": "external_cli_estimate",
+        "token_estimation_method": "chars_div_4_packet_command_stdout_stderr",
+        "exact_cost_available": False,
+    }
 
 
 def _render_command(
@@ -502,6 +533,14 @@ def run_cli_agent(
         )
     except subprocess.TimeoutExpired as exc:
         finished_at = datetime.now(timezone.utc)
+        stdout_text = _coerce_process_output(exc.stdout)
+        stderr_text = _coerce_process_output(exc.stderr)
+        usage_estimate = _external_cli_usage_estimate(
+            packet_path,
+            argv,
+            stdout_text,
+            stderr_text,
+        )
         command_id = _append_cli_execution_record(
             run_dir,
             agent_name=agent_name,
@@ -512,8 +551,8 @@ def run_cli_agent(
             timed_out=True,
             timeout_sec=effective_timeout,
             status="timeout",
-            stdout=_coerce_process_output(exc.stdout),
-            stderr=_coerce_process_output(exc.stderr),
+            stdout=stdout_text,
+            stderr=stderr_text,
             started_at=started_at,
             finished_at=finished_at,
         )
@@ -534,9 +573,13 @@ def run_cli_agent(
             ),
             status="blocked_user_decision",
             error=f"CLI agent timed out after {effective_timeout}s.",
+            input_tokens=usage_estimate["input_tokens"],
+            output_tokens=usage_estimate["output_tokens"],
+            total_tokens=usage_estimate["total_tokens"],
             raw_usage={
                 "cli_agent": cli_agent_name,
                 "timeout": effective_timeout,
+                **usage_estimate,
                 **({"command_id": command_id} if command_id else {}),
             },
         )
@@ -553,6 +596,12 @@ def run_cli_agent(
     # ── Determine success ─────────────────────────────────────────────────────
     stdout_text = proc.stdout.strip()
     stderr_text = proc.stderr.strip()
+    usage_estimate = _external_cli_usage_estimate(
+        packet_path,
+        argv,
+        proc.stdout or "",
+        proc.stderr or "",
+    )
     command_id = _append_cli_execution_record(
         run_dir,
         agent_name=agent_name,
@@ -630,6 +679,9 @@ def run_cli_agent(
         content=full_content,
         status=result_status,
         error=result_error,
+        input_tokens=usage_estimate["input_tokens"],
+        output_tokens=usage_estimate["output_tokens"],
+        total_tokens=usage_estimate["total_tokens"],
         raw_usage={
             "cli_agent": cli_agent_name,
             "binary": argv[0],
@@ -638,6 +690,7 @@ def run_cli_agent(
             "stdout_bytes": len(proc.stdout),
             "stderr_bytes": len(proc.stderr),
             "task_packet_path": str(packet_path),
+            **usage_estimate,
             **({"command_id": command_id} if command_id else {}),
             **({"binary_candidate_used": candidate_used} if candidate_used else {}),
         },

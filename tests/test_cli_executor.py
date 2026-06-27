@@ -489,6 +489,12 @@ class TestRunCliAgentSubprocess:
         assert result.status == "completed"
         assert result.provider == "agentlab-cli-executor"
         assert result.model == "hermes"
+        assert result.input_tokens is not None
+        assert result.output_tokens is not None
+        assert result.total_tokens == result.input_tokens + result.output_tokens
+        assert result.raw_usage["usage_source"] == "external_cli_estimate"
+        assert result.raw_usage["exact_cost_available"] is False
+        assert result.raw_usage["token_estimation_method"] == "chars_div_4_packet_command_stdout_stderr"
         assert "Supervisor Report" in result.content
         assert "command_id" in result.raw_usage
         assert f"command_id {result.raw_usage['command_id']}" in result.content

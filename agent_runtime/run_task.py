@@ -3096,6 +3096,7 @@ Commands run: {commands_run or "none recorded"}
         model=model,
         status="manual_logged",
         notes=summary,
+        agentlab_root=agentlab_root,
     )
     append_cost_ledgers(project_root, run_dir, entry)
     console.print("[green]Logged AgentLab event[/green]")
@@ -3897,6 +3898,7 @@ def run_agent(
                 release_lock(agentlab_root, project_name, task_id)
             except Exception:
                 pass
+    raw_usage = result.raw_usage or {}
     if result.status == "blocked_user_decision":
         blocked_path = Path(plan.run_dir) / f"blocked_{agent_name}.md"
         blocked_path.write_text(result.content, encoding="utf-8")
@@ -3932,6 +3934,9 @@ def run_agent(
                 result.output_tokens,
                 result.total_tokens,
                 result.error or "User decision required.",
+                agentlab_root=Path(plan.agentlab_root),
+                usage_source=raw_usage.get("usage_source"),
+                token_estimation_method=raw_usage.get("token_estimation_method"),
             ),
         )
         console.print("[yellow]User decision required before continuing[/yellow]")
@@ -3976,6 +3981,9 @@ def run_agent(
                 result.output_tokens,
                 result.total_tokens,
                 result.error or "Codex Plus handoff.",
+                agentlab_root=Path(plan.agentlab_root),
+                usage_source=raw_usage.get("usage_source"),
+                token_estimation_method=raw_usage.get("token_estimation_method"),
             ),
         )
         console.print("[yellow]Codex Plus handoff written[/yellow]")
@@ -4019,6 +4027,9 @@ def run_agent(
                 result.output_tokens,
                 result.total_tokens,
                 "API usage recorded before artifact gate blocked completion.",
+                agentlab_root=Path(plan.agentlab_root),
+                usage_source=raw_usage.get("usage_source"),
+                token_estimation_method=raw_usage.get("token_estimation_method"),
             ),
         )
         console.print("[yellow]Artifact gate blocked completion[/yellow]")
@@ -4044,10 +4055,12 @@ def run_agent(
             result.output_tokens,
             result.total_tokens,
             "API usage recorded from provider telemetry when available.",
+            agentlab_root=Path(plan.agentlab_root),
+            usage_source=raw_usage.get("usage_source"),
+            token_estimation_method=raw_usage.get("token_estimation_method"),
         ),
     )
 
-    raw_usage = result.raw_usage or {}
     if "patch_applied" in raw_usage:
         applied = raw_usage.get("patch_applied", 0)
         failed = raw_usage.get("patch_failed", 0)

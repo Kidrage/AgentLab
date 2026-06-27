@@ -109,6 +109,21 @@ class CostTrackerPricingTests(TestCase):
         self.assertIsNone(entry["estimated_cost"])
         self.assertIsNone(entry["cost_currency"])
 
+    def test_external_cli_estimate_is_not_exact_cost(self) -> None:
+        entry = usage_entry(
+            "Demo", "task_001", "Supervisor",
+            "agentlab-cli-executor", "hermes", "completed",
+            input_tokens=1000, output_tokens=200, total_tokens=1200,
+            agentlab_root=self.root,
+            usage_source="external_cli_estimate",
+            token_estimation_method="chars_div_4_packet_command_stdout_stderr",
+        )
+        self.assertEqual(entry["usage_source"], "external_cli_estimate")
+        self.assertEqual(entry["token_estimation_method"], "chars_div_4_packet_command_stdout_stderr")
+        self.assertFalse(entry["exact_cost_available"])
+        self.assertIsNone(entry["estimated_cost"])
+        self.assertEqual(entry["cost_currency"], "USD")
+
     def test_pricing_config_missing_returns_empty_cache(self) -> None:
         _clear_price_cache()
         with tempfile.TemporaryDirectory() as tmp2:
