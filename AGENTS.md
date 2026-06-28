@@ -26,6 +26,11 @@ Keep detailed policy in `config/*.yml` and long-lived project memory in
 
 To keep the project clean, all agents must strictly adhere to the following **three-tier artifact structure** when executing tasks (e.g., writing novels, compiling data, writing code):
 
+Machine-readable project artifact governance lives in `docs/PROJECT_ARTIFACT_STEWARD.md`.
+For long-running deliverable tasks, completion requires `artifact_lineage.yml`,
+`artifact_promotion_plan.yml`, `archive_receipt.yml`, and an updated
+`project_artifact_index.yml`; `09_archive_update.md` is only the human summary.
+
 1. **Task Sandbox Area (工作进行区)**
    * **Path**: `projects/<ProjectName>/runs/<task_id>/`
    * **Purpose**: Task execution details, temporary diffs (`diffs/`), tool/command outputs (`command_logs/`), and step-by-step agent handoff reports (`01_supervisor_plan.md`, `06_implementation_report.md`, etc.). This contains the execution noise and gets archived/purged regularly.

@@ -77,7 +77,12 @@ REQUIRED_ARTIFACTS_BY_ROUTE = {
     "coder": ["06_implementation_report.md"],
     "tester_auditor": ["07_validation_report.md", "08_audit_report.md"],
     "verifier": ["verification_report.md"],
-    "archivist": ["09_archive_update.md"],
+    "archivist": [
+        "09_archive_update.md",
+        "artifact_lineage.yml",
+        "artifact_promotion_plan.yml",
+        "archive_receipt.yml",
+    ],
     "codex_prompt_generator": ["05_coder_prompt.md"],
     "self_check": ["self_check_report.yml"],
     "sync": ["sync_report.yml"],
@@ -214,6 +219,13 @@ def validate_artifacts(run_dir: Path) -> dict:
                 issues.append({"file": "task_snapshot.yml", "issue": f"drift detected: {', '.join(drift_items[:5])}"})
         except Exception:
             pass
+
+    governance_issues = _project_artifact_governance_issues(run_dir)
+    if governance_issues:
+        issues.extend(
+            {"file": "project_artifact_governance", "issue": issue}
+            for issue in governance_issues
+        )
 
     pass_rate = artifacts_passed / max(artifacts_checked, 1)
     return {
@@ -397,6 +409,26 @@ def _load_route(run_dir: Path) -> list[str]:
     if isinstance(route, list):
         return list(route)
     return []
+
+
+def _project_artifact_governance_issues(run_dir: Path) -> list[str]:
+    if run_dir.parent.name != "runs":
+        return []
+    project_root = run_dir.parent.parent
+    if project_root.parent.name != "projects":
+        return []
+    agentlab_root = project_root.parent.parent
+    try:
+        from project_artifact_steward import validate_project_artifact_governance
+
+        return validate_project_artifact_governance(
+            agentlab_root,
+            project_root.name,
+            run_dir.name,
+            run_dir=run_dir,
+        )
+    except Exception as exc:
+        return [f"Project Artifact Steward validation failed: {type(exc).__name__}: {exc}"]
 
 
 def write_artifact_manifest(run_dir: Path, result: dict) -> None:

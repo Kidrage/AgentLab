@@ -1600,7 +1600,9 @@ def load_or_build_plan(
 ):
     plan_path = agentlab_root / "projects" / project_name / "runs" / task_id / "workflow_plan.yml"
     if plan_path.exists() and user_request is None and budget_mode is None:
-        data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
+        from project_artifact_steward import ensure_workflow_artifact_intent
+
+        data = ensure_workflow_artifact_intent(agentlab_root, project_name, task_id, plan_path)
         from schemas import WorkflowPlan
 
         return WorkflowPlan(**data)
@@ -4086,7 +4088,16 @@ def run_agent(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(result.content, encoding="utf-8")
-    gate_issues = artifact_content_issues(output_path.name, result.content or "", Path(plan.run_dir))
+    gate_issues = []
+    if agent_name == "Archivist":
+        try:
+            from project_artifact_steward import apply_archive_protocol
+
+            receipt = apply_archive_protocol(Path(plan.agentlab_root), project_name, task_id)
+            gate_issues.extend(f"archive_receipt error: {error}" for error in receipt.get("errors") or [])
+        except Exception as exc:
+            gate_issues.append(f"Project Artifact Steward failed: {type(exc).__name__}: {exc}")
+    gate_issues.extend(artifact_content_issues(output_path.name, result.content or "", Path(plan.run_dir)))
     if gate_issues:
         block_path = write_agent_artifact_gate_block(
             Path(plan.run_dir), project_name, task_id, agent_name, output_path, gate_issues

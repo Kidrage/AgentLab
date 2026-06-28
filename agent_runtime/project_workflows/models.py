@@ -21,6 +21,7 @@ class PhasePlan(BaseModel):
     plan_status: str = "draft"
     self_check: Dict[str, Any] = Field(default_factory=dict)
     revision_log: List[Dict[str, Any]] = Field(default_factory=list)
+    artifact_intent: Dict[str, Any] = Field(default_factory=dict)
 
 class ProjectWorkflowPlan(BaseModel):
     project_id: Optional[str] = None

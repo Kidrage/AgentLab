@@ -93,6 +93,9 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
         run_dir / DEFAULT_REPORT_BY_AGENT.get("Coder", "06_implementation_report.md"),
         run_dir / DEFAULT_REPORT_BY_AGENT.get("TesterAuditor", "08_audit_report.md"),
         run_dir / "verification_report.md",
+        run_dir / "artifact_lineage.yml",
+        run_dir / "artifact_promotion_plan.yml",
+        run_dir / "archive_receipt.yml",
     ]
 
     context_sections = []
@@ -119,6 +122,13 @@ Hard execution rules:
 - After any material project change and before final reporting, refresh both the local
   and shared-memory HandOff copies.
 - Write a report only; do not claim source files were changed unless they actually were.
+- Follow `workflow_plan.yml` `artifact_intent`: Coder and ArtifactProducer may write
+  candidate deliverables only under the declared candidate directory unless the
+  plan declares a production path. If an undeclared production path is needed,
+  stop and request a plan revision.
+- Archivist must use artifact_lineage.yml and artifact_promotion_plan.yml, archive
+  existing production files before replacement, update project_artifact_index.yml,
+  and leave archive_receipt.yml as machine-readable evidence.
 - Do not invent command results.
 - If information is missing, state what is missing and what should happen next.
 - Keep the report concise, auditable, and scoped to this task.

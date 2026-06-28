@@ -32,6 +32,9 @@ def render_markdown(plan: ProjectWorkflowPlan) -> str:
             lines.append(f"- **Recommended Executors**: {', '.join(phase.recommended_executors)}")
         if phase.expected_artifacts:
             lines.append(f"- **Expected Artifacts**: {', '.join(phase.expected_artifacts)}")
+        if phase.artifact_intent:
+            lines.append(f"- **Candidate Directory**: `{phase.artifact_intent.get('candidate_dir', '')}`")
+            lines.append(f"- **Production Directory**: `{phase.artifact_intent.get('production_dir', '')}`")
         if phase.acceptance_gates:
             lines.append(f"- **Acceptance Gates**: {', '.join(phase.acceptance_gates)}")
         lines.append(f"")

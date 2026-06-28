@@ -38,10 +38,17 @@ class CodexArtifactValidatorTests(TestCase):
                 "workflow_plan.yml",
                 "state.yml",
                 "progress.yml",
+                "artifact_lineage.yml",
+                "artifact_promotion_plan.yml",
+                "archive_receipt.yml",
                 "artifact_manifest.yml",
                 "lifecycle.yml",
             ]:
                 (run_dir / name).write_text("version: 1\n", encoding="utf-8")
+            (project_root / "project_artifact_index.yml").write_text(
+                "version: 1\nproject: Demo\nartifacts: []\n",
+                encoding="utf-8",
+            )
 
             (run_dir / "handoff_packet.yml").write_text(
                 yaml.safe_dump(

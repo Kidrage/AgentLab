@@ -504,6 +504,24 @@ def _record_dry_run_node_evidence(
         _write_artifact_alias(run_dir, report_name)
     return command_id
 
+
+def _apply_archive_steward_if_needed(
+    agentlab_root: Path,
+    run_dir: Path,
+    project: str,
+    task_id: str,
+    node_id: str,
+) -> list[str]:
+    if node_id != "ARCHIVE":
+        return []
+    try:
+        from project_artifact_steward import apply_archive_protocol
+
+        receipt = apply_archive_protocol(agentlab_root, project, task_id)
+    except Exception as exc:
+        return [f"Project Artifact Steward failed: {type(exc).__name__}: {exc}"]
+    return [f"archive_receipt error: {error}" for error in receipt.get("errors") or []]
+
 def run_next_node(
     agentlab_root: Path, project: str, task_id: str, *,
     fake_provider: bool = False, simulate_quota_failure_at: Optional[str] = None,
@@ -645,6 +663,10 @@ def run_next_node(
             route_agents = plan.route.agents
         else:
             plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
+            if "artifact_intent" not in plan_data:
+                from project_artifact_steward import ensure_workflow_artifact_intent
+
+                plan_data = ensure_workflow_artifact_intent(agentlab_root, project, task_id, plan_path)
             route_agents = plan_data.get("route", {}).get("agents", [])
         from skill_injector import inject_skills_into_workflow_plan
         inject_skills_into_workflow_plan(
@@ -856,7 +878,10 @@ def run_next_node(
                 output = output.rstrip() + f"\n\nEvidence: command_id {command_id}\n"
                 report_path.write_text(output, encoding="utf-8")
                 _write_artifact_alias(run_dir, report_file)
-            gate_issues = artifact_content_issues(report_path.name, output, run_dir)
+            gate_issues = _apply_archive_steward_if_needed(
+                agentlab_root, run_dir, project, task_id, nid
+            )
+            gate_issues.extend(artifact_content_issues(report_path.name, output, run_dir))
             if gate_issues:
                 return _block_on_artifact_gate(
                     agentlab_root, run_dir, project, task_id, nid, agent, gate_issues,
@@ -982,7 +1007,10 @@ def run_next_node(
                 raw_usage=raw_usage,
             ),
         )
-        gate_issues = artifact_content_issues(report_path.name, report_content, run_dir)
+        gate_issues = _apply_archive_steward_if_needed(
+            agentlab_root, run_dir, project, task_id, nid
+        )
+        gate_issues.extend(artifact_content_issues(report_path.name, report_content, run_dir))
         if gate_issues:
             return _block_on_artifact_gate(
                 agentlab_root, run_dir, project, task_id, nid, agent, gate_issues,
@@ -1011,7 +1039,10 @@ def run_next_node(
                 output = output.rstrip() + f"\n\nEvidence: command_id {command_id}\n"
                 report_path.write_text(output, encoding="utf-8")
                 _write_artifact_alias(run_dir, report_file)
-            gate_issues = artifact_content_issues(report_path.name, output, run_dir)
+            gate_issues = _apply_archive_steward_if_needed(
+                agentlab_root, run_dir, project, task_id, nid
+            )
+            gate_issues.extend(artifact_content_issues(report_path.name, output, run_dir))
             if gate_issues:
                 return _block_on_artifact_gate(
                     agentlab_root, run_dir, project, task_id, nid, agent or nid, gate_issues,

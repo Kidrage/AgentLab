@@ -51,7 +51,12 @@ NODE_REQUIRED_OUTPUTS = {
     "VALIDATION": ["07_validation_report.md"],
     "AUDIT": ["08_audit_report.md"],
     "VERIFY": ["verification_report.md"],
-    "ARCHIVE": ["09_archive_update.md"],
+    "ARCHIVE": [
+        "09_archive_update.md",
+        "artifact_lineage.yml",
+        "artifact_promotion_plan.yml",
+        "archive_receipt.yml",
+    ],
     "SELF_CHECK": ["self_check_report.yml"],
     "SYNC_OPTIONAL": ["sync_report.yml"],
     "FINALIZE": ["task_card.yml", "artifact_manifest.yml"],

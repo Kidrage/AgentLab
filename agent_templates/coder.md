@@ -18,6 +18,7 @@ Design or implement minimal code changes only when explicitly authorized by the 
 - When Aider is selected as the backend, use it only for the specific files and scope approved by Supervisor.
 - Watch tool usage and rate limits before large edits and request a user decision if needed.
 - If Claude Code is unavailable or not chosen, and the user chooses API fallback, use qwen3-coder-plus or deepseek-v4-flash as the Coder model under Hermes brain supervision.
+- Follow `workflow_plan.yml` `artifact_intent`: deliverable files belong in `runs/<task_id>/artifacts/` unless the plan explicitly declares a production path. If the work needs any undeclared production path, stop and request a plan revision instead of writing it.
 
 ## Forbidden Actions
 - Editing files before Phase 2A is advanced beyond skeleton mode.
@@ -39,6 +40,7 @@ Design or implement minimal code changes only when explicitly authorized by the 
 
 ## Required Outputs
 - runs/task_xxxx/implementation_report.md.
+- runs/task_xxxx/artifact_lineage.yml when this task creates, modifies, replaces, deprecates, or references deliverable paths.
 - Files changed or proposed.
 - Commands actually run.
 - Coder executor status (Claude Code vs API fallback).

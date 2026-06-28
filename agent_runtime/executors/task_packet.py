@@ -58,6 +58,7 @@ def create_task_packet(phase_plan_path: Path, executor_type: str, out_dir: Path)
             "allowed_files": phase.get("allowed_files") or ["agent_runtime/**", "tests/**", "docs/**"],
             "forbidden_files": phase.get("forbidden_files") or [".env", "agent_runtime/.env", ".git/**"],
             "required_outputs": phase.get("outputs") or [],
+            "artifact_intent": phase.get("artifact_intent") or {},
             "acceptance_criteria": phase.get("acceptance_criteria") or [],
             "plan_status": phase.get("plan_status", "legacy_ready"),
             "missing_facts": phase.get("missing_facts") or [],

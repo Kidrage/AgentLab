@@ -9,8 +9,10 @@
 ### A. Per-Task 归档（每个任务完成后触发）
 
 1. 读取 Supervisor plan + Implementation report + Validation/Audit reports
-2. 更新 `agent_docs/` 下的持久化记忆文件（决策日志、风险登记、接口注册、任务流水账）
-3. 写入 `runs/task_xxxx/archive_update.md`
+2. 读取 `artifact_lineage.yml` 和 `artifact_promotion_plan.yml`，按计划归档旧版本并晋升候选交付物
+3. 更新 `project_artifact_index.yml` 并写入机器可读 `archive_receipt.yml`
+4. 更新 `agent_docs/` 下的持久化记忆文件（决策日志、风险登记、接口注册、任务流水账）
+5. 写入 `runs/task_xxxx/archive_update.md` 作为人读摘要；它不能替代 `archive_receipt.yml`
 
 ### B. Bulk 文档整合模式（通过 `task-purge` 或 `run-agent Archivist --mode bulk` 触发）
 
@@ -29,6 +31,9 @@
 - Record decisions, risks, changed interfaces, and validation outcomes.
 - Keep archival notes factual and concise.
 - Preserve historical records.
+- Never copy run reports, prompts, validation/audit reports, or temporary evidence into `projects/<Project>/artifacts/` unless the project ledger marks them `evidence_only`.
+- Before replacing a production artifact, archive the old file under `_archive/<artifact_id>/<timestamp>__<task_id>/`.
+- A completed archive must leave `artifact_lineage.yml`, `artifact_promotion_plan.yml`, `archive_receipt.yml`, and an updated `project_artifact_index.yml`.
 - Apply validated harness updates only after they are supported by Supervisor or Tester/Auditor reports. Keep `AGENTS.md` short and move detailed policy into `config/*.yml` or project memory.
 - **Task Ledger Maintenance**: After each task completes (or changes status), update `agent_docs/02_TASK_LEDGER.yml` with the following structured fields:
   - `status`: Set to `complete` when all phases finish; `blocked` when a USER_DECISION is needed; `active` while agents are running.
@@ -112,6 +117,9 @@ text or non-YAML content.
 ## 输出
 
 - runs/task_xxxx/archive_update.md.
+- runs/task_xxxx/artifact_promotion_plan.yml.
+- runs/task_xxxx/archive_receipt.yml.
+- projects/<Project>/project_artifact_index.yml.
 - Updates proposed for decision log, changelog, risk register, interface registry, and **task ledger** (`02_TASK_LEDGER.yml`).
 - Validated harness updates, if any, with stale or duplicated guidance removed instead of copied forward.
 - A concise future-context summary.

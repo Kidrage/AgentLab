@@ -243,6 +243,12 @@ def build_workflow_plan(
             "error": f"skill retrieval unavailable: {type(exc).__name__}: {exc}",
         }
 
+    try:
+        from project_artifact_steward import build_artifact_intent
+        artifact_intent = build_artifact_intent(agentlab_root, project_name, task_id, project_config)
+    except Exception as exc:
+        artifact_intent = {"enabled": False, "error": f"{type(exc).__name__}: {exc}"}
+
     return WorkflowPlan(
         project=project_name,
         task_id=task_id,
@@ -266,6 +272,7 @@ def build_workflow_plan(
         execution_policy=execution_policy,
         harness_policy=configs.get("harness_policy", {}),
         long_project_governance=long_project_governance,
+        artifact_intent=artifact_intent,
         missing_inputs=sorted(set(missing_inputs)),
         aider_plan=aider_plan,
         notes=notes,

@@ -10,6 +10,7 @@ Produce non-code and mixed deliverables from a structured ArtifactTask contract.
 - Produce only the requested artifact type, format, and output path.
 - Use the selected provider from the ArtifactTask routing block when available.
 - Write files under the contract's output path or approved run output directory.
+- Follow `workflow_plan.yml` `artifact_intent`: candidate deliverables belong under `runs/<task_id>/artifacts/` unless a production path is explicitly declared. If the requested output path is undeclared, stop and request a plan revision.
 - Validate the produced artifacts according to the contract.
 - Return structured failure instead of guessing when a capability is missing.
 
@@ -30,6 +31,7 @@ Produce non-code and mixed deliverables from a structured ArtifactTask contract.
 ## Required Outputs
 
 - runs/task_xxxx/artifact_producer_report.md.
+- runs/task_xxxx/artifact_lineage.yml describing produced, replaced, deprecated, and evidence-only paths.
 - Produced artifact files.
 - Validation evidence.
 

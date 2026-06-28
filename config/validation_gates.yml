@@ -66,3 +66,16 @@ gates:
     evidence:
       - archive_update.md
       - proposed updates to agent_docs
+
+  - id: project_artifact_stewardship
+    owner: Archivist
+    required_for_routes:
+      - medium_task
+      - interface_sensitive_task
+      - large_or_risky_task
+    description: Promote candidate deliverables only through artifact intent, lineage, promotion plan, archive receipt, and project artifact index.
+    evidence:
+      - artifact_lineage.yml
+      - artifact_promotion_plan.yml
+      - archive_receipt.yml
+      - project_artifact_index.yml

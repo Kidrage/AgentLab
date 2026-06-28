@@ -73,11 +73,13 @@ def build_handoff_packet(
     else:
         percent = 0
 
-    # Load route from workflow_plan if not provided
+    # Load route and artifact intent from workflow_plan.
+    plan_data = {}
+    plan_path = run_dir / "workflow_plan.yml"
+    if plan_path.exists():
+        plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
     if route_agents is None:
-        plan_path = run_dir / "workflow_plan.yml"
-        if plan_path.exists():
-            plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
+        if plan_data:
             route_agents = plan_data.get("route", {}).get("agents", [])
         else:
             route_agents = []
@@ -111,6 +113,9 @@ def build_handoff_packet(
         "validation_report": "07_validation_report.md",
         "audit_report": "08_audit_report.md",
         "archive_update": "09_archive_update.md",
+        "artifact_lineage": "artifact_lineage.yml",
+        "artifact_promotion_plan": "artifact_promotion_plan.yml",
+        "archive_receipt": "archive_receipt.yml",
     }
     for key, filename in artifact_map.items():
         p = run_dir / filename
@@ -140,6 +145,7 @@ def build_handoff_packet(
         "next_agent": next_agent,
         "resume_available": status != "completed",
         "artifacts": artifacts,
+        "artifact_intent": plan_data.get("artifact_intent") or {},
         "code_state": {
             "branch": branch,
             "base_commit": base_commit or "unknown",

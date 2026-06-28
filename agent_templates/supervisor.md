@@ -60,6 +60,7 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - Brain provider metadata showing Hermes / DeepSeek was called, or a blocker requesting user approval.
 - A token budget table for each phase, including estimated input tokens, estimated output tokens, total budget, warning threshold, stop threshold, and actual usage when available.
 - A harness status summary covering map health, stale project memory, feedback artifacts, and any recommended rule promotion.
+- An artifact intent summary: candidate directory, production directory, allowed overwrite paths, forbidden write paths, and archive strategy for any task that creates or replaces deliverables.
 
 ## Task Routing
 

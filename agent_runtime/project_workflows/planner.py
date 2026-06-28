@@ -30,6 +30,16 @@ def create_project_workflow_plan(
     long_governance = contract.get("long_project_governance") or {}
     must_read_artifacts = long_governance.get("must_read_artifacts") or []
     missing_facts = long_governance.get("missing_facts") or []
+    artifact_intent = {}
+    if p_id:
+        try:
+            from agent_runtime.project_artifact_steward import build_artifact_intent
+        except ImportError:
+            from project_artifact_steward import build_artifact_intent
+        try:
+            artifact_intent = build_artifact_intent(agentlab_root, p_id, task_id)
+        except Exception as exc:
+            artifact_intent = {"enabled": False, "error": f"{type(exc).__name__}: {exc}"}
 
     # Load templates
     templates_config = load_workflow_templates(agentlab_root)
@@ -104,6 +114,7 @@ def create_project_workflow_plan(
                 ],
             },
             revision_log=contract.get("revision_log") or [],
+            artifact_intent=artifact_intent,
         )
         phases.append(phase)
 

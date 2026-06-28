@@ -35,6 +35,9 @@ REQUIRED_CODER_REPORTS = [
     "07_validation_report.md",
     "08_audit_report.md",
     "09_archive_update.md",
+    "artifact_lineage.yml",
+    "artifact_promotion_plan.yml",
+    "archive_receipt.yml",
 ]
 
 REQUIRED_ARTIFACT_GROUPS = [
@@ -117,6 +120,7 @@ def validate_artifacts(
         "yaml_files_parse": {},
         "handoff_packet_valid": False,
         "handoff_packet_issues": [],
+        "project_artifact_governance_issues": [],
         "report_sequence_ok": True,
         "can_resume": False,
         "resume_from_agent": None,
@@ -192,6 +196,24 @@ def validate_artifacts(
         if not matching:
             result["report_sequence_ok"] = False
 
+    # ── 7. Project artifact governance ─────────────────────────────────
+    if project_root.parent.name == "projects":
+        agentlab_root = project_root.parent.parent
+        try:
+            from project_artifact_steward import validate_project_artifact_governance
+
+            governance_issues = validate_project_artifact_governance(
+                agentlab_root,
+                project_root.name,
+                task_id,
+                run_dir=run_dir,
+            )
+        except Exception as exc:
+            governance_issues = [f"Project Artifact Steward validation failed: {type(exc).__name__}: {exc}"]
+        result["project_artifact_governance_issues"] = governance_issues
+        if governance_issues:
+            result["result"] = "fail"
+
     return result
 
 
@@ -234,6 +256,9 @@ def print_validation_report(result: dict) -> None:
     # Resume
     if result["can_resume"]:
         console.print(f"[green]Can resume from: {result['resume_from_agent']}[/green]")
+
+    for issue in result.get("project_artifact_governance_issues") or []:
+        console.print(f"[red]Artifact governance: {issue}[/red]")
 
     # Final
     status_color = "green" if result["result"] == "pass" else "red"
