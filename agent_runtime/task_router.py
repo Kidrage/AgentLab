@@ -121,6 +121,31 @@ ARTIFACT_PRODUCTION_ACTION_HINTS: tuple[str, ...] = (
 )
 
 
+CREATIVE_WRITING_HINTS: tuple[str, ...] = (
+    "write novel",
+    "write story",
+    "write fiction",
+    "write chapter",
+    "chapter",
+    "scene",
+    "novel",
+    "fiction",
+    "manuscript",
+    "prose",
+    "worldbuilding",
+    "character arc",
+    "crown of ash",
+    "creative writing",
+    "小说",
+    "章节",
+    "写小说",
+    "长篇小说",
+    "人物设定",
+    "角色设定",
+    "世界观",
+)
+
+
 def _detect_implementation_intent(text: str) -> bool:
     """Return True if *text* contains strong implementation signals.
 
@@ -157,6 +182,11 @@ def _detect_artifact_production_intent(text: str) -> tuple[bool, str | None]:
         return False, None
     has_action = any(hint.lower() in lowered for hint in ARTIFACT_PRODUCTION_ACTION_HINTS)
     return has_action, artifact_type if has_action else None
+
+
+def _detect_creative_writing_domain(text: str) -> bool:
+    lowered = text.lower()
+    return any(hint.lower() in lowered for hint in CREATIVE_WRITING_HINTS)
 
 
 RESEARCH_HINTS = (
@@ -303,6 +333,7 @@ def recommend_route(
     # so Chinese characters match correctly).
     wants_implementation = _detect_implementation_intent(task_text)
     wants_artifact, artifact_type = _detect_artifact_production_intent(task_text)
+    is_creative_writing = _detect_creative_writing_domain(task_text)
 
     wants_evaluation = any(hint in text for hint in evaluation_hints)
     wants_research = any(hint in text for hint in research_hints)
@@ -315,6 +346,7 @@ def recommend_route(
     fallback_interface = ["Supervisor", "RepoScout", "InterfaceMapper", "Coder", "TesterAuditor", "Verifier", "Archivist"]
     fallback_research = ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier"]
     fallback_artifact = ["Supervisor", ARTIFACT_PRODUCER_ROLE, "TesterAuditor", "Verifier", "Archivist"]
+    fallback_fiction = ["Supervisor", "Writer", "Reviewer", "Scribe", "Verifier", "Archivist"]
     fallback_evaluation = [
         "Supervisor",
         "RepoScout",
@@ -338,7 +370,11 @@ def recommend_route(
     # ── Route selection ───────────────────────────────────────────────────
     # Implementation intent overrides evaluation route — if the user asks to
     # implement code AND evaluate it, implementation wins.
-    if wants_implementation:
+    if is_creative_writing and not wants_implementation:
+        route_key = "fiction_chapter_pipeline"
+        task_size = _configured_route_size(routing_config, route_key, "medium")
+        agents = _configured_route(routing_config, route_key, fallback_fiction)
+    elif wants_implementation:
         # Implementation-required: pick the right-sized route that includes
         # an implementation executor (Coder).
         if looks_large:
@@ -421,6 +457,11 @@ def recommend_route(
         "Supervisor always defines scope, token budget, and stop rules.",
         f"Route selected by {route_key} using smallest_safe_route rules.",
     ]
+    if is_creative_writing and not wants_implementation:
+        rationale.append(
+            "Creative writing domain detected; use fiction_chapter_pipeline instead "
+            "of generic artifact, interface, or large-risk routes."
+        )
     if _wants_explicit_analysis_only:
         rationale.append(
             "Explicit analysis-only signal detected; "

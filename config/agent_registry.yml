@@ -230,6 +230,63 @@ agents:
       - runs/task_xxxx/artifact_producer_report.md
       - runs/task_xxxx/outputs/
 
+  Writer:
+    template_path: agent_templates/writer.md
+    role: >
+      Creative writing execution alias. Drafts prose or chapter material from
+      the approved fiction brief while preserving voice, POV, continuity, and
+      word-count constraints.
+    model_profile: execution_artifact_producer
+    model_tier: T3
+    role_alias_of: ArtifactProducer
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: false
+    source_write_policy: artifact_contract_outputs_only
+    required_inputs:
+      - runs/task_xxxx/mission_contract.yml
+      - runs/task_xxxx/user_request.md
+    required_outputs:
+      - runs/task_xxxx/fiction_draft.md
+
+  Reviewer:
+    template_path: agent_templates/fiction_reviewer.md
+    role: >
+      Creative writing review alias. Checks chapter drafts for continuity,
+      character state, timeline, POV walls, foreshadowing, item tracking, style
+      drift, and acceptance gates.
+    model_profile: audit_verifier
+    model_tier: T4
+    role_alias_of: Verifier
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: false
+    source_write_policy: never
+    required_inputs:
+      - runs/task_xxxx/fiction_draft.md
+      - runs/task_xxxx/mission_contract.yml
+    required_outputs:
+      - runs/task_xxxx/fiction_review.md
+
+  Scribe:
+    template_path: agent_templates/scribe.md
+    role: >
+      Creative writing ledger alias. Updates continuity, character, timeline,
+      item, relationship, foreshadowing, and style ledgers after review.
+    model_profile: archive_archivist
+    model_tier: T5
+    role_alias_of: Archivist
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: true
+    source_write_policy: artifact_contract_outputs_only
+    required_inputs:
+      - runs/task_xxxx/fiction_draft.md
+      - runs/task_xxxx/fiction_review.md
+      - runs/task_xxxx/mission_contract.yml
+    required_outputs:
+      - runs/task_xxxx/continuity_ledger.yml
+
   PromptEngineer:
     template_path: agent_templates/prompt_engineer.md
     role: >

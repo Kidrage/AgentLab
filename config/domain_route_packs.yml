@@ -1,0 +1,110 @@
+schema_version: 1
+
+domain_packs:
+  creative_writing:
+    legacy_domains:
+      - creative_longform
+    artifact_type: longform_text
+    recommended_route: fiction_chapter_pipeline
+    forbidden_fallback_routes:
+      - interface_sensitive_task
+      - large_or_risky_task
+      - artifact_production_task
+    route_proposal:
+      route_key: fiction_chapter_pipeline
+      agents:
+        - Writer
+        - Reviewer
+        - Scribe
+      rationale:
+        - Writer drafts prose against the current chapter brief.
+        - Reviewer checks continuity, POV, character state, timeline, and style drift.
+        - Scribe records ledger updates for future chapters.
+    memory_contract:
+      - continuity_ledger
+      - character_state
+      - timeline
+      - foreshadowing_register
+      - item_ledger
+      - relationship_map
+      - style_guide
+    quality_gates:
+      - continuity
+      - character_state
+      - pov_wall
+      - foreshadowing
+      - item_tracking
+      - timeline
+      - style_drift
+      - word_count
+
+  research_reading:
+    legacy_domains:
+      - research
+    artifact_type: cited_report
+    recommended_route: research_sensitive_task
+    memory_contract:
+      - source_manifest
+      - claim_table
+      - citation_index
+    quality_gates:
+      - source_quality
+      - citation_accuracy
+      - claim_traceability
+
+  audio_dsp_experiment:
+    legacy_domains:
+      - audio_music
+    artifact_type: audio_experiment_report
+    recommended_route: artifact_production_task
+    memory_contract:
+      - signal_chain_notes
+      - parameter_ledger
+      - render_manifest
+    quality_gates:
+      - reproducibility
+      - clipping_check
+      - parameter_traceability
+
+  video_generation:
+    legacy_domains:
+      - video_generation
+    artifact_type: video_plan
+    recommended_route: artifact_production_task
+    memory_contract:
+      - script
+      - storyboard
+      - asset_manifest
+      - render_notes
+    quality_gates:
+      - script_approved
+      - storyboard_complete
+      - asset_rights
+      - delivery_format
+
+  business_delivery:
+    legacy_domains: []
+    artifact_type: business_document
+    recommended_route: artifact_production_task
+    memory_contract:
+      - stakeholder_brief
+      - decision_log
+      - deliverable_index
+    quality_gates:
+      - audience_fit
+      - actionability
+      - factual_consistency
+
+  automation_ops:
+    legacy_domains:
+      - local_ops
+    artifact_type: operational_runbook
+    recommended_route: medium_task
+    memory_contract:
+      - runbook
+      - dry_run_log
+      - rollback_plan
+    quality_gates:
+      - dry_run_before_live
+      - rollback_ready
+      - scope_limited

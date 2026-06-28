@@ -1,11 +1,15 @@
 """Mission contract builder — compiles a rough prompt into mission_contract.yml.
 
-This is the top-level entry point for M1-2 Mission Compiler v2.
-All components are deterministic, rule-based, no LLM calls.
+This is the top-level entry point for M1-2 Mission Compiler v2. The default
+path is deterministic and rule-based. An optional Hermes/LLM draft can assist
+classification, but deterministic validation owns the final contract and falls
+back to rules on any failure.
 """
 
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +20,8 @@ def build_mission_contract(
     task_id: str | None = None,
     *,
     agentlab_root: Path | None = None,
+    use_llm_assist: bool = False,
+    llm_generate: Any | None = None,
 ) -> dict[str, Any]:
     """Compile a rough user prompt into a structured mission contract v2.
 
@@ -30,11 +36,19 @@ def build_mission_contract(
     """
     root = agentlab_root or Path(__file__).resolve().parents[2]
 
+    # Step 0: optionally ask Hermes for a structured draft. This never becomes
+    # authoritative until validated and normalized below.
+    llm_draft = (
+        _try_compile_llm_mission_draft(prompt, root, llm_generate)
+        if use_llm_assist
+        else None
+    )
+
     # Step 1: Classify domain
     from agent_runtime.brain.domain_classifier import classify_domain, load_domain_keywords
 
     domain_keywords = load_domain_keywords(root / "config" / "mission_compiler_v2.yml")
-    domain = classify_domain(prompt, domain_keywords)
+    domain = _validated_legacy_domain(llm_draft) or classify_domain(prompt, domain_keywords)
 
     # Step 2: Classify project type
     from agent_runtime.brain.project_type_classifier import (
@@ -45,7 +59,7 @@ def build_mission_contract(
     )
 
     pt_keywords = load_project_type_keywords(root / "config" / "mission_compiler_v2.yml")
-    project_type = classify_project_type(prompt, domain, pt_keywords)
+    project_type = _validated_project_type(llm_draft) or classify_project_type(prompt, domain, pt_keywords)
     project_types = load_project_types(root / "config" / "project_type_classifier.yml")
     typedef = get_project_type_definition(project_type, project_types)
 
@@ -97,13 +111,27 @@ def build_mission_contract(
         else {"enabled": False, "project_type": project_type}
     )
 
+    domain_pack = _select_domain_pack(domain, project_type, root)
+    mission_domain = _mission_domain(domain, domain_pack)
+    artifact_type = _artifact_type(domain, project_type, domain_pack, llm_draft)
+    route_decision = _build_route_decision(mission_domain, domain_pack, root)
+
     contract: dict[str, Any] = {
         "schema_version": 2,
+        "mission_flow": [
+            "MISSION_INTAKE",
+            "DOMAIN_CLASSIFICATION",
+            "TASK_CONTRACT_COMPILE",
+            "ROUTE_SELECTION_OR_SYNTHESIS",
+            "PIPELINE_EXECUTION",
+        ],
         "task_id": task_id,
         "project_id": project_id,
         "user_goal": _extract_first_sentence(prompt),
         "intent_summary": _summarize_prompt(prompt),
         "task_type": domain,
+        "task_domain": mission_domain,
+        "artifact_type": artifact_type,
         "project_type": project_type,
         "is_long_project": is_long,
         "estimated_scale": scale,
@@ -121,8 +149,258 @@ def build_mission_contract(
         "asset_registry_recommended": bool(typedef.get("asset_registry_recommended", False)),
         "human_approval_required": True,
         "decision_cards": [card.get("decision_id", "") for card in decision_cards],
+        "memory_contract": _memory_contract(domain_pack),
+        "quality_gates": _quality_gates(domain_pack),
+        "route_decision": route_decision,
+        "route_proposal": route_decision.get("route_proposal", {}),
+        "compiler_source": "llm_assisted" if llm_draft else "rule_based",
     }
     return contract
+
+
+_KNOWN_LEGACY_DOMAINS = {
+    "coding",
+    "creative_longform",
+    "video_generation",
+    "research",
+    "document_processing",
+    "audio_music",
+    "multimodal",
+    "local_ops",
+    "unknown",
+}
+
+_TASK_DOMAIN_TO_LEGACY_DOMAIN = {
+    "creative_writing": "creative_longform",
+    "coding": "coding",
+    "research_reading": "research",
+    "video_generation": "video_generation",
+    "audio_dsp_experiment": "audio_music",
+    "automation_ops": "local_ops",
+    "unknown": "unknown",
+}
+
+
+def _try_compile_llm_mission_draft(
+    prompt: str,
+    root: Path,
+    llm_generate: Any | None = None,
+) -> dict[str, Any] | None:
+    """Ask Hermes/brain for a structured draft; return None on any failure."""
+    messages = _mission_draft_messages(prompt)
+    try:
+        if llm_generate is not None:
+            raw = llm_generate(messages)
+            content = raw.content if hasattr(raw, "content") else str(raw)
+        else:
+            from agent_runtime.config_loader import load_agentlab_configs
+            from agent_runtime.llm_provider import generate_text, resolve_llm_settings
+
+            configs = load_agentlab_configs(root)
+            settings = resolve_llm_settings(
+                agent_name="Supervisor",
+                agent_registry=configs.get("agent_registry", {}).get("agents", {}),
+                model_providers=configs.get("model_providers", {}),
+                model_profiles=configs.get("model_profiles", {}),
+                model_catalog=configs.get("model_catalog", {}),
+            )
+            if not settings.api_key_configured:
+                return None
+            result = generate_text(settings, configs.get("model_providers", {}), messages)
+            content = result.content
+        parsed = _parse_json_object(content)
+    except Exception:
+        return None
+    return _validate_llm_mission_draft(parsed)
+
+
+def _mission_draft_messages(prompt: str) -> list[dict[str, str]]:
+    schema = {
+        "task_domain": "creative_writing|coding|research_reading|video_generation|audio_dsp_experiment|business_delivery|automation_ops|unknown",
+        "legacy_domain": "creative_longform|coding|research|video_generation|document_processing|audio_music|local_ops|unknown",
+        "project_type": "longform_text_project|codebase_build_project|research_archive_project|video_generation_project|document_knowledgebase_project|local_automation_project|unknown_project",
+        "artifact_type": "longform_text|code_patch|cited_report|video_plan|audio_experiment_report|business_document|operational_runbook|unknown",
+        "quality_gates": ["string"],
+        "memory_contract": ["string"],
+        "route_proposal": {"route_key": "string", "agents": ["string"]},
+    }
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are Hermes mission intake. Return only compact JSON. "
+                "Classify the user's requested work into the provided schema. "
+                "Do not invent executable route keys beyond a route_proposal."
+            ),
+        },
+        {
+            "role": "user",
+            "content": f"Schema:\n{json.dumps(schema, ensure_ascii=True)}\n\nPrompt:\n{prompt}",
+        },
+    ]
+
+
+def _parse_json_object(text: str) -> dict[str, Any]:
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    data = json.loads(text)
+    if not isinstance(data, dict):
+        raise ValueError("mission draft must be a JSON object")
+    return data
+
+
+def _validate_llm_mission_draft(data: dict[str, Any]) -> dict[str, Any] | None:
+    legacy = data.get("legacy_domain")
+    project_type = data.get("project_type")
+    if legacy is not None and legacy not in _KNOWN_LEGACY_DOMAINS:
+        return None
+    if project_type is not None and not isinstance(project_type, str):
+        return None
+    draft: dict[str, Any] = {}
+    for key in ("task_domain", "legacy_domain", "project_type", "artifact_type"):
+        if isinstance(data.get(key), str):
+            draft[key] = data[key]
+    for key in ("quality_gates", "memory_contract"):
+        if isinstance(data.get(key), list) and all(isinstance(item, str) for item in data[key]):
+            draft[key] = data[key]
+    route = data.get("route_proposal")
+    if isinstance(route, dict):
+        agents = route.get("agents", [])
+        if isinstance(route.get("route_key"), str) and isinstance(agents, list) and all(isinstance(a, str) for a in agents):
+            draft["route_proposal"] = {"route_key": route["route_key"], "agents": agents}
+    return draft
+
+
+def _validated_legacy_domain(draft: dict[str, Any] | None) -> str | None:
+    if not draft:
+        return None
+    domain = draft.get("legacy_domain")
+    if domain in _KNOWN_LEGACY_DOMAINS:
+        return domain
+    task_domain = draft.get("task_domain")
+    mapped = _TASK_DOMAIN_TO_LEGACY_DOMAIN.get(str(task_domain))
+    return mapped if mapped in _KNOWN_LEGACY_DOMAINS else None
+
+
+def _validated_project_type(draft: dict[str, Any] | None) -> str | None:
+    if not draft:
+        return None
+    project_type = draft.get("project_type")
+    return project_type if isinstance(project_type, str) and project_type.endswith("_project") else None
+
+
+def _load_domain_packs(root: Path) -> dict[str, Any]:
+    path = root / "config" / "domain_route_packs.yml"
+    if not path.exists():
+        return {}
+    import yaml
+
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    packs = data.get("domain_packs", {}) if isinstance(data, dict) else {}
+    return packs if isinstance(packs, dict) else {}
+
+
+def _select_domain_pack(domain: str, project_type: str, root: Path) -> dict[str, Any]:
+    packs = _load_domain_packs(root)
+    for name, pack in packs.items():
+        if not isinstance(pack, dict):
+            continue
+        if domain == name or domain in pack.get("legacy_domains", []):
+            return {"name": name, **pack}
+    if project_type == "longform_text_project":
+        return {"name": "creative_writing", **packs.get("creative_writing", {})}
+    return {}
+
+
+def _mission_domain(domain: str, domain_pack: dict[str, Any]) -> str:
+    if domain_pack.get("name"):
+        return str(domain_pack["name"])
+    aliases = {
+        "creative_longform": "creative_writing",
+        "research": "research_reading",
+        "audio_music": "audio_dsp_experiment",
+        "local_ops": "automation_ops",
+    }
+    return aliases.get(domain, domain)
+
+
+def _artifact_type(
+    domain: str,
+    project_type: str,
+    domain_pack: dict[str, Any],
+    draft: dict[str, Any] | None,
+) -> str:
+    if draft and isinstance(draft.get("artifact_type"), str):
+        return draft["artifact_type"]
+    if isinstance(domain_pack.get("artifact_type"), str):
+        return domain_pack["artifact_type"]
+    defaults = {
+        "coding": "code_patch",
+        "creative_longform": "longform_text",
+        "video_generation": "video_plan",
+        "research": "cited_report",
+        "document_processing": "knowledge_base",
+        "audio_music": "audio_experiment_report",
+        "local_ops": "operational_runbook",
+    }
+    return defaults.get(domain, project_type.replace("_project", "") or "unknown")
+
+
+def _memory_contract(domain_pack: dict[str, Any]) -> list[str]:
+    values = domain_pack.get("memory_contract", [])
+    return [str(item) for item in values] if isinstance(values, list) else []
+
+
+def _quality_gates(domain_pack: dict[str, Any]) -> list[str]:
+    values = domain_pack.get("quality_gates", [])
+    return [str(item) for item in values] if isinstance(values, list) else []
+
+
+def _build_route_decision(
+    mission_domain: str,
+    domain_pack: dict[str, Any],
+    root: Path,
+) -> dict[str, Any]:
+    route_key = str(domain_pack.get("recommended_route") or "")
+    if mission_domain != "creative_writing":
+        return {
+            "action": "select_existing_route" if route_key else "propose_new_route",
+            "selected_route": route_key or None,
+            "reason": "domain_pack_recommendation" if route_key else "no_domain_route_available",
+        }
+
+    proposal = domain_pack.get("route_proposal") or {
+        "route_key": "fiction_chapter_pipeline",
+        "agents": ["Writer", "Reviewer", "Scribe"],
+    }
+    if route_key and _route_exists(root, route_key):
+        return {
+            "action": "select_existing_route",
+            "selected_route": route_key,
+            "forbidden_routes": domain_pack.get("forbidden_fallback_routes", []),
+            "route_proposal": proposal,
+            "reason": "creative_writing_requires_fiction_pipeline",
+        }
+    return {
+        "action": "refuse_current_route",
+        "selected_route": None,
+        "refused_routes": domain_pack.get("forbidden_fallback_routes", []),
+        "route_proposal": proposal,
+        "reason": "creative_writing_route_missing",
+    }
+
+
+def _route_exists(root: Path, route_key: str) -> bool:
+    path = root / "config" / "routing_rules.yml"
+    if not path.exists():
+        return False
+    import yaml
+
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    routes = data.get("routes", {}) if isinstance(data, dict) else {}
+    return isinstance(routes, dict) and route_key in routes
 
 
 def _estimate_scale(prompt: str) -> str:

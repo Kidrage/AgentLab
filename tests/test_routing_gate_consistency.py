@@ -153,6 +153,32 @@ class TestRouteRecommendation:
         rationale_text = " ".join(route.rationale)
         assert "implementation intent overrides" in rationale_text
 
+    def test_creative_writing_routes_to_fiction_pipeline(self):
+        from task_router import recommend_route
+
+        route = recommend_route(
+            "Write chapter 7 of Crown of Ash. Preserve continuity, character "
+            "state, timeline, foreshadowing, item tracking, POV, and style."
+        )
+        assert route.route_key == "fiction_chapter_pipeline"
+        assert route.agents == ["Supervisor", "Writer", "Reviewer", "Scribe", "Verifier", "Archivist"]
+
+    def test_creative_writing_does_not_use_generic_artifact_route(self):
+        from task_router import recommend_route
+
+        route = recommend_route("Write a fiction chapter with a full continuity ledger.")
+        assert route.route_key != "artifact_production_task"
+
+    def test_creative_writing_does_not_use_interface_or_large_routes(self):
+        from task_router import recommend_route
+
+        route = recommend_route(
+            "Write a novel chapter about a secret route through the city, "
+            "with a character interface ritual and a large timeline reveal."
+        )
+        assert route.route_key != "interface_sensitive_task"
+        assert route.route_key != "large_or_risky_task"
+
 
 # ── Route–gate consistency validation ──────────────────────────────────────
 

@@ -211,6 +211,17 @@ routes:
       - Verifier
       - Archivist
 
+  fiction_chapter_pipeline:
+    size: L2
+    description: 小说章节/长篇创作路线，带连续性、角色状态、伏笔和风格审查
+    agents:
+      - Supervisor
+      - Writer
+      - Reviewer
+      - Scribe
+      - Verifier
+      - Archivist
+
   # ── L2 标准项目 — 基础版 (无接口/无外部资料需求) ──────────────────
   medium_task:
     size: L2

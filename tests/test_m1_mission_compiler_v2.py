@@ -60,6 +60,13 @@ PROMPT_LOCAL_AUTO = (
 
 PROMPT_EMPTY = ""
 
+PROMPT_CROWN_OF_ASH = (
+    "Write chapter 7 of Crown of Ash. Keep the protagonist in close third POV, "
+    "respect the prior continuity ledger, update character state, track the "
+    "silver key item, preserve the foreshadowing about the burned chapel, and "
+    "hit 2500 words."
+)
+
 
 # ── Domain classification tests ────────────────────────────────────
 
@@ -92,6 +99,78 @@ class TestDomainClassification:
     def test_empty_prompt_returns_unknown(self):
         contract = build_mission_contract(PROMPT_EMPTY)
         assert contract["task_type"] == "unknown"
+
+
+# ── Domain-aware mission route tests ─────────────────────────────────
+
+
+class TestDomainAwareMissionCompiler:
+    def test_creative_writing_normalizes_domain_but_preserves_legacy_task_type(self):
+        contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
+        assert contract["task_type"] == "creative_longform"
+        assert contract["task_domain"] == "creative_writing"
+        assert contract["artifact_type"] == "longform_text"
+
+    def test_crown_of_ash_selects_fiction_chapter_pipeline(self):
+        contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
+        decision = contract["route_decision"]
+        assert decision["action"] == "select_existing_route"
+        assert decision["selected_route"] == "fiction_chapter_pipeline"
+
+    def test_creative_writing_memory_contract_includes_continuity_ledger(self):
+        contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
+        assert "continuity_ledger" in contract["memory_contract"]
+        assert "character_state" in contract["memory_contract"]
+
+    def test_creative_writing_route_forbids_generic_fallbacks(self):
+        contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
+        forbidden = contract["route_decision"]["forbidden_routes"]
+        assert "interface_sensitive_task" in forbidden
+        assert "large_or_risky_task" in forbidden
+        assert "artifact_production_task" in forbidden
+
+    def test_creative_writing_missing_route_refuses_and_proposes_pipeline(self):
+        import shutil
+
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "config").mkdir()
+            shutil.copy(repo_root / "config" / "mission_compiler_v2.yml", root / "config" / "mission_compiler_v2.yml")
+            shutil.copy(repo_root / "config" / "project_type_classifier.yml", root / "config" / "project_type_classifier.yml")
+            shutil.copy(repo_root / "config" / "domain_route_packs.yml", root / "config" / "domain_route_packs.yml")
+            (root / "config" / "routing_rules.yml").write_text("version: 2\nroutes: {}\n", encoding="utf-8")
+            contract = build_mission_contract(PROMPT_CROWN_OF_ASH, agentlab_root=root)
+        decision = contract["route_decision"]
+        assert decision["action"] == "refuse_current_route"
+        assert decision["route_proposal"]["route_key"] == "fiction_chapter_pipeline"
+        assert decision["route_proposal"]["agents"] == ["Writer", "Reviewer", "Scribe"]
+
+    def test_invalid_llm_assisted_compiler_output_falls_back_to_rules(self):
+        def bad_generate(_messages):
+            return "{not valid json"
+
+        contract = build_mission_contract(
+            PROMPT_CROWN_OF_ASH,
+            use_llm_assist=True,
+            llm_generate=bad_generate,
+        )
+        assert contract["compiler_source"] == "rule_based"
+        assert contract["task_domain"] == "creative_writing"
+        assert contract["route_decision"]["selected_route"] == "fiction_chapter_pipeline"
+
+    def test_llm_assisted_compiler_accepts_new_task_domain_alias(self):
+        def good_generate(_messages):
+            return '{"task_domain": "creative_writing", "project_type": "longform_text_project", "artifact_type": "longform_text"}'
+
+        contract = build_mission_contract(
+            "Draft the next Crown of Ash scene.",
+            use_llm_assist=True,
+            llm_generate=good_generate,
+        )
+        assert contract["compiler_source"] == "llm_assisted"
+        assert contract["task_type"] == "creative_longform"
+        assert contract["task_domain"] == "creative_writing"
 
 
 # ── Project type classification tests ──────────────────────────────
