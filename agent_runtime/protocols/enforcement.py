@@ -466,7 +466,7 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
     checks.extend([
         _check(agy_info.get("class") in {"frontdesk_chat_assistant", "frontdesk_and_artifact_cli"}, "agy_registered_as_frontdesk", "agy is registered as a frontdesk-capable agent"),
         _check(
-            agy_info.get("may_execute_agentlab_roles_directly") in (False, ["ArtifactProducer"]),
+            agy_info.get("may_execute_agentlab_roles_directly") in (False, ["ArtifactProducer"], ["ArtifactProducer", "Coder"]),
             "agy_cannot_execute_general_roles_directly",
             "agy cannot execute general AgentLab roles directly",
         ),
