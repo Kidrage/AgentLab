@@ -82,7 +82,8 @@ CHAPTERS_INFO = {
     }
 }
 
-PROJECT_ROOT = "/Users/saintpeter/Desktop/AgentLab/projects/Crown_of_Ash"
+_AGENTLAB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.join(_AGENTLAB_ROOT, "projects", "Crown_of_Ash")
 
 def get_must_read_files(ch_num):
     files = [
@@ -107,7 +108,7 @@ def get_must_read_files(ch_num):
 
 def run_cmd(args):
     print(f"Running: {' '.join(args)}")
-    result = subprocess.run(args, capture_output=True, text=True, cwd="/Users/saintpeter/Desktop/AgentLab")
+    result = subprocess.run(args, capture_output=True, text=True, cwd=_AGENTLAB_ROOT)
     return result
 
 def merge_all_chapters():

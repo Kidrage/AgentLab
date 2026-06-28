@@ -4,7 +4,8 @@ import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import sys
 
-PROJECT_ROOT = "/Users/saintpeter/Desktop/AgentLab/projects/Crown_of_Ash"
+_AGENTLAB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.join(_AGENTLAB_ROOT, "projects", "Crown_of_Ash")
 
 HTML_CONTENT = """<!DOCTYPE html>
 <html lang="zh-CN">
