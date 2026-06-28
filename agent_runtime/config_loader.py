@@ -3,9 +3,15 @@
 from pathlib import Path
 from typing import Any
 
-import yaml
+try:
+    from policies import assert_path_allowed
+except ImportError:  # pragma: no cover - package import path
+    from agent_runtime.policies import assert_path_allowed
 
-from policies import assert_path_allowed
+try:
+    from atomic_io import safe_read_yaml
+except ImportError:  # pragma: no cover - package import path
+    from agent_runtime.atomic_io import safe_read_yaml
 
 
 CONFIG_FILES = {
@@ -49,8 +55,8 @@ CONFIG_FILES = {
 def load_yaml(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return data or {}
+    data = safe_read_yaml(path, default={})
+    return data if isinstance(data, dict) else {}
 
 
 def load_agentlab_configs(agentlab_root: Path) -> dict[str, dict[str, Any]]:

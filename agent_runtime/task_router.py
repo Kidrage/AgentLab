@@ -13,8 +13,10 @@ from schemas import AgentRoute
 
 try:
     from protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
+    from routing.route_catalog import RouteCatalog
 except ImportError:  # pragma: no cover - package import path
     from agent_runtime.protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
+    from agent_runtime.routing.route_catalog import RouteCatalog
 
 
 # ── Implementation intent signals ─────────────────────────────────────────
@@ -274,37 +276,16 @@ def _configured_hints(routing_config: dict | None, key: str, fallback: tuple[str
 
 
 def _configured_route(routing_config: dict | None, key: str, fallback: list[str]) -> list[str]:
-    if not routing_config:
-        return fallback
-    routes = routing_config.get("routes", {})
-    route_entry = routes.get(key)
-    if isinstance(route_entry, dict):
-        configured_agents = route_entry.get("agents")
-    else:
-        configured_agents = route_entry
-    agents = list(configured_agents or fallback)
-    if "Coder" in agents and "TesterAuditor" not in agents:
-        insert_at = agents.index("Coder") + 1
-        agents.insert(insert_at, "TesterAuditor")
-    return agents
+    agents = RouteCatalog.from_config(routing_config).agents_for(key)
+    return agents or fallback
 
 
 def _configured_route_size(routing_config: dict | None, key: str, fallback: str) -> str:
-    if not routing_config:
+    catalog = RouteCatalog.from_config(routing_config)
+    if not catalog.has_route(key):
         return fallback
-    route_entry = routing_config.get("routes", {}).get(key)
-    configured_size = route_entry.get("size") if isinstance(route_entry, dict) else None
-    size_map = {
-        "L1": "small",
-        "L2": "medium",
-        "L3": "large",
-        "S0": "small",
-        "S1": "small",
-        "S2": "medium",
-        "S3": "large",
-        "S4": "large",
-    }
-    return size_map.get(str(configured_size), fallback)
+    catalog_size = catalog.size_for(key)
+    return catalog_size or fallback
 
 
 def recommend_route(
@@ -341,62 +322,38 @@ def recommend_route(
     looks_large = any(hint in text for hint in large_hints) or len(text) > large_chars
     looks_medium = len(text) > medium_chars
 
-    fallback_small = ["Supervisor", "Coder", "TesterAuditor", "Verifier"]
-    fallback_medium = ["Supervisor", "RepoScout", "Coder", "TesterAuditor", "Verifier", "Archivist"]
-    fallback_interface = ["Supervisor", "RepoScout", "InterfaceMapper", "Coder", "TesterAuditor", "Verifier", "Archivist"]
-    fallback_research = ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier"]
-    fallback_artifact = ["Supervisor", ARTIFACT_PRODUCER_ROLE, "TesterAuditor", "Verifier", "Archivist"]
-    fallback_fiction = ["Supervisor", "Writer", "Reviewer", "Scribe", "Verifier", "Archivist"]
-    fallback_evaluation = [
-        "Supervisor",
-        "RepoScout",
-        "Researcher",
-        "InterfaceMapper",
-        "TesterAuditor",
-        "Verifier",
-        "Archivist",
-    ]
-    fallback_large = [
-        "Supervisor",
-        "RepoScout",
-        "Researcher",
-        "InterfaceMapper",
-        "Coder",
-        "TesterAuditor",
-        "Verifier",
-        "Archivist",
-    ]
+    route_catalog = RouteCatalog.from_config(routing_config)
 
     # ── Route selection ───────────────────────────────────────────────────
     # Implementation intent overrides evaluation route — if the user asks to
     # implement code AND evaluate it, implementation wins.
     if is_creative_writing and not wants_implementation:
         route_key = "fiction_chapter_pipeline"
-        task_size = _configured_route_size(routing_config, route_key, "medium")
-        agents = _configured_route(routing_config, route_key, fallback_fiction)
+        task_size = route_catalog.size_for(route_key)
+        agents = route_catalog.agents_for(route_key)
     elif wants_implementation:
         # Implementation-required: pick the right-sized route that includes
         # an implementation executor (Coder).
         if looks_large:
             route_key = "large_or_risky_task"
-            task_size = _configured_route_size(routing_config, route_key, "large")
-            agents = _configured_route(routing_config, route_key, fallback_large)
+            task_size = route_catalog.size_for(route_key)
+            agents = route_catalog.agents_for(route_key)
         elif touches_interfaces:
             route_key = "interface_sensitive_task"
-            task_size = _configured_route_size(routing_config, route_key, "medium")
-            agents = _configured_route(routing_config, route_key, fallback_interface)
+            task_size = route_catalog.size_for(route_key)
+            agents = route_catalog.agents_for(route_key)
         elif wants_research:
             route_key = "research_sensitive_task"
-            task_size = _configured_route_size(routing_config, route_key, "medium")
-            agents = _configured_route(routing_config, route_key, fallback_research)
+            task_size = route_catalog.size_for(route_key)
+            agents = route_catalog.agents_for(route_key)
         elif looks_medium:
             route_key = "medium_task"
-            task_size = _configured_route_size(routing_config, route_key, "medium")
-            agents = _configured_route(routing_config, route_key, fallback_medium)
+            task_size = route_catalog.size_for(route_key)
+            agents = route_catalog.agents_for(route_key)
         else:
             route_key = "small_task"
-            task_size = _configured_route_size(routing_config, route_key, "small")
-            agents = _configured_route(routing_config, route_key, fallback_small)
+            task_size = route_catalog.size_for(route_key)
+            agents = route_catalog.agents_for(route_key)
 
         # Safety net: if the selected route still lacks an implementation
         # executor (e.g. config overrides removed Coder), inject Coder.
@@ -413,31 +370,31 @@ def recommend_route(
     elif wants_artifact:
         route_key = "artifact_production_task"
         task_size = "medium" if artifact_type == "mixed" or looks_medium else "small"
-        agents = _configured_route(routing_config, route_key, fallback_artifact)
+        agents = route_catalog.agents_for(route_key)
     elif wants_evaluation:
         route_key = "evaluation_task"
-        task_size = _configured_route_size(routing_config, route_key, "large")
-        agents = _configured_route(routing_config, route_key, fallback_evaluation)
+        task_size = route_catalog.size_for(route_key)
+        agents = route_catalog.agents_for(route_key)
     elif looks_large:
         route_key = "large_or_risky_task"
-        task_size = _configured_route_size(routing_config, route_key, "large")
-        agents = _configured_route(routing_config, route_key, fallback_large)
+        task_size = route_catalog.size_for(route_key)
+        agents = route_catalog.agents_for(route_key)
     elif touches_interfaces:
         route_key = "interface_sensitive_task"
-        task_size = _configured_route_size(routing_config, route_key, "medium")
-        agents = _configured_route(routing_config, route_key, fallback_interface)
+        task_size = route_catalog.size_for(route_key)
+        agents = route_catalog.agents_for(route_key)
     elif wants_research:
         route_key = "research_sensitive_task"
-        task_size = _configured_route_size(routing_config, route_key, "medium")
-        agents = _configured_route(routing_config, route_key, fallback_research)
+        task_size = route_catalog.size_for(route_key)
+        agents = route_catalog.agents_for(route_key)
     elif looks_medium:
         route_key = "medium_task"
-        task_size = _configured_route_size(routing_config, route_key, "medium")
-        agents = _configured_route(routing_config, route_key, fallback_medium)
+        task_size = route_catalog.size_for(route_key)
+        agents = route_catalog.agents_for(route_key)
     else:
         route_key = "small_task"
-        task_size = _configured_route_size(routing_config, route_key, "small")
-        agents = _configured_route(routing_config, route_key, fallback_small)
+        task_size = route_catalog.size_for(route_key)
+        agents = route_catalog.agents_for(route_key)
 
     # ── Explicit analysis-only: strip implementation executors ────────────
     # If the user explicitly asked for analysis-only, remove Coder even when

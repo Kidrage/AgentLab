@@ -293,11 +293,9 @@ def _validated_project_type(draft: dict[str, Any] | None) -> str | None:
 
 def _load_domain_packs(root: Path) -> dict[str, Any]:
     path = root / "config" / "domain_route_packs.yml"
-    if not path.exists():
-        return {}
-    import yaml
+    from agent_runtime.config_loader import load_yaml
 
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    data = load_yaml(path)
     packs = data.get("domain_packs", {}) if isinstance(data, dict) else {}
     return packs if isinstance(packs, dict) else {}
 
@@ -393,14 +391,9 @@ def _build_route_decision(
 
 
 def _route_exists(root: Path, route_key: str) -> bool:
-    path = root / "config" / "routing_rules.yml"
-    if not path.exists():
-        return False
-    import yaml
+    from agent_runtime.routing.route_catalog import RouteCatalog
 
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    routes = data.get("routes", {}) if isinstance(data, dict) else {}
-    return isinstance(routes, dict) and route_key in routes
+    return RouteCatalog.from_file(root / "config" / "routing_rules.yml").has_configured_route(route_key)
 
 
 def _estimate_scale(prompt: str) -> str:
