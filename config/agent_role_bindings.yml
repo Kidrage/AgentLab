@@ -28,7 +28,7 @@ roles:
     allowed_workers: [hermes, claude_code, qwen]
     required_session: true
   Coder:
-    allowed_workers: [claude_code, codex, aider]
+    allowed_workers: [claude_code, agy, aider]
     required_session: true
   ArtifactProducer:
     allowed_workers: [codex, agy, qwen]
@@ -47,8 +47,8 @@ workers:
     frontdesk_capable: true
     worker_capable: true
     frontdesk_profiles: [local_chat_gateway]
-    allowed_roles: [ArtifactProducer]
-    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist]
+    allowed_roles: [ArtifactProducer, Coder]
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, TesterAuditor, Verifier, Archivist]
   openclaw:
     frontdesk_capable: true
     worker_capable: false
@@ -59,8 +59,8 @@ workers:
     frontdesk_capable: true
     worker_capable: true
     frontdesk_profiles: [local_chat_gateway]
-    allowed_roles: [RepoScout, InterfaceMapper, Coder, ArtifactProducer, TesterAuditor, Verifier]
-    forbidden_roles: [Archivist]
+    allowed_roles: [RepoScout, InterfaceMapper, ArtifactProducer, TesterAuditor, Verifier]
+    forbidden_roles: [Archivist, Coder]
   claude_code:
     frontdesk_capable: false
     worker_capable: true

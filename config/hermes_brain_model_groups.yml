@@ -93,6 +93,29 @@ brain_layouts:
       is required, Hermes must request execution-layer multimodal tools or
       workers to produce observations, captions, transcripts, embeddings, or QA
       reports, then reason over those returned artifacts.
+  premium_codex_brain:
+    name: codex_gpt55_full_stack
+    brain_chain:
+      planner: codex-gpt5.5-high
+      reviewer: codex-gpt5.5-high
+      coder_fallback: qwen3.7_max_text
+      multimodal_support: qwen3.7_plus_multimodal
+    execution_rule: >
+      Codex GPT 5.5 High acts as the Hermes brain for premium full-stack
+      work: large codebase changes, hard debugging, architecture refactors,
+      and tool-heavy execution. Use only when the deepseek_plus_qwen_multimodal
+      layout is insufficient for planning complexity. Must emit the standard
+      Hermes handoff contract (plan_status, missing_facts, must_read_artifacts,
+      dispatch_units, self_check, revision_log). Execution-layer coding is
+      delegated to Coder workers (agy, claude_code, aider) — codex does
+      NOT execute code directly in this layout. The multimodal gap is handled
+      through execution-layer tools (qwen3.7_plus_multimodal).
+    quota_policy:
+      refresh_window_hours: 5
+      use_only_for:
+        - super_hard_full_stack_task
+        - failed_low_cost_recovery
+        - architecture_or_data_loss_risk
 
 handoff_requirements:
   - plan_status

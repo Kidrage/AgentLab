@@ -11,7 +11,7 @@ roles:
   PromptEngineer:
     candidates: [hermes, claude_code]
   Coder:
-    candidates: [claude_code, codex, aider]
+    candidates: [claude_code, agy, aider]
   ArtifactProducer:
     candidates: [codex, agy, qwen]
   TesterAuditor:

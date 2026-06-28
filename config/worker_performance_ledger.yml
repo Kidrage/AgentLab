@@ -6,16 +6,16 @@ worker_performance:
     cost_score: 0.3
     safety_score: 0.4
     last_audition:
-      timestamp: '2026-06-25T20:10:54.141116'
+      timestamp: '2026-06-28T19:29:42.841928'
       suite: quick
       verdict: pass
     historical_runs:
-      total: 18
-      success: 18
+      total: 21
+      success: 21
       failed: 0
   codex:
     role_scores:
-      coder: 0.73
+      coder: 0.73           # DEPRECATED: codex no longer assigned Coder role (2026-06-28)
       testerauditor: 0.73
     cost_score: 0.3
     safety_score: 0.4
@@ -95,8 +95,9 @@ worker_performance:
       failed: 0
   agy:
     role_scores:
+      coder: 0.65          # Gemini Flash moderate quality; refine after real runs
       archivist: 0.85
-    cost_score: 0.6
+    cost_score: 0.8        # Generous Gemini quota + Claude Sonnet fallback
     safety_score: 0.7
     last_audition:
       timestamp: '2026-06-22T17:47:34.497200'

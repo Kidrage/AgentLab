@@ -43,7 +43,7 @@ contracts:
     command: claude
     invocation_style: one_shot_prompt
     template: >-
-      claude --output-format json -p "Read the task packet at {task_packet_path};
+      claude --permission-mode bypassPermissions --output-format json -p "Read the task packet at {task_packet_path};
       perform only the assigned work and report actual changed files and validation."
     required_placeholders:
       - task_packet_path
@@ -53,6 +53,8 @@ contracts:
     expected_parse:
       argv_prefix:
         - claude
+        - --permission-mode
+        - bypassPermissions
         - --output-format
         - json
         - -p
@@ -185,6 +187,29 @@ contracts:
       '{frontdesk_session_path}'; act only as the user-facing AgentLab frontdesk."
     required_placeholders:
       - frontdesk_session_path
+    safe_probe: [agy, --help]
+    expected_parse:
+      argv_prefix: [agy, --sandbox, -p]
+    validation:
+      shlex_parse_required: true
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+
+  agy_coder:
+    worker_id: agy
+    display_name: Antigravity CLI Coder
+    command: agy
+    invocation_style: task_packet_prompt
+    template: >-
+      agy --sandbox -p "Read the AgentLab task packet at
+      {task_packet_path}; perform only the assigned coding role.
+      Prefer Gemini Flash for routine changes; use Claude Sonnet
+      fallback for complex refactors. Report all changed files,
+      executed commands, and validation results. Your output will
+      be reviewed by TesterAuditor."
+    required_placeholders:
+      - task_packet_path
     safe_probe: [agy, --help]
     expected_parse:
       argv_prefix: [agy, --sandbox, -p]

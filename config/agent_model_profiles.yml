@@ -176,7 +176,7 @@ modes:
             - claude
             - ccs
           default: qwen3_coder_next_dashscope
-          external_ide_allowed: false
+          external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
           cli_agent: codex

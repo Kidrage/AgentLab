@@ -60,7 +60,7 @@ providers:
   agy_cli:
     worker: agy
     provider_type: cli
-    priority: 70
+    priority: 85
     fallback: false
     handles: [text, image, spreadsheet, presentation, mixed]
     capabilities:

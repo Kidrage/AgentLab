@@ -24,7 +24,7 @@ def test_workspace_entry_binds_agy_as_frontdesk_not_worker():
     assert packet["packet_type"] == "agentlab_workspace_entry"
     assert packet["allowed_profiles"]["frontdesk_capable"] is True
     assert packet["allowed_profiles"]["worker_capable"] is True
-    assert packet["allowed_profiles"]["allowed_roles"] == ["ArtifactProducer"]
+    assert packet["allowed_profiles"]["allowed_roles"] == ["ArtifactProducer", "Coder"]
     assert "rediscover_agentlab_by_full_repo_scan" in packet["forbidden_actions"]
 
 
@@ -44,32 +44,32 @@ def test_frontdesk_doctor_accepts_agy_frontdesk_contract():
     assert any(c["id"] == "frontdesk_not_task_packet_worker" for c in result["checks"])
 
 
-def test_role_binding_rejects_agy_as_coder_and_allows_codex():
+def test_role_binding_allows_agy_as_coder_and_rejects_codex():
     agy_allowed, agy_reason = check_role_binding(ROOT, "agy", "Coder")
     codex_allowed, codex_reason = check_role_binding(ROOT, "codex", "Coder")
     artifact_allowed, artifact_reason = check_role_binding(ROOT, "agy", "ArtifactProducer")
 
-    assert agy_allowed is False
-    assert "forbidden" in agy_reason
-    assert codex_allowed is True
-    assert codex_reason == "role binding allowed"
+    assert agy_allowed is True
+    assert agy_reason == "role binding allowed"
+    assert codex_allowed is False
+    assert "forbidden" in codex_reason
     assert artifact_allowed is True
     assert artifact_reason == "role binding allowed"
 
 
 def test_role_session_reports_binding_verdicts():
-    rejected = build_role_session(ROOT, "Coder", "agy", project="AgentLab", task_id="task_missing")
-    accepted = build_role_session(ROOT, "Coder", "codex", project="AgentLab", task_id="task_missing")
+    accepted = build_role_session(ROOT, "Coder", "agy", project="AgentLab", task_id="task_missing")
+    rejected = build_role_session(ROOT, "Coder", "codex", project="AgentLab", task_id="task_missing")
 
-    assert rejected["binding"]["allowed"] is False
     assert accepted["binding"]["allowed"] is True
+    assert rejected["binding"]["allowed"] is False
     assert accepted["packet_type"] == "agentlab_role_session"
     assert "validation_results" in accepted["exit_report_must_include"]
 
 
 def test_role_doctor_fails_invalid_binding_and_passes_valid_binding():
-    bad = run_role_doctor(ROOT, "Coder", "agy")
-    good = run_role_doctor(ROOT, "Coder", "codex")
+    bad = run_role_doctor(ROOT, "Supervisor", "agy")
+    good = run_role_doctor(ROOT, "Coder", "agy")
 
     assert bad["status"] == "fail"
     assert good["status"] == "pass"
@@ -83,7 +83,7 @@ def test_protocol_doctor_passes_repository_protocol_wiring():
 
 
 def test_cli_role_session_exits_nonzero_for_invalid_frontdesk_worker():
-    result = runner.invoke(app, ["role-session", "--role", "Coder", "--worker", "agy"])
+    result = runner.invoke(app, ["role-session", "--role", "Supervisor", "--worker", "agy"])
 
     assert result.exit_code == 1
     assert "forbidden" in result.output
