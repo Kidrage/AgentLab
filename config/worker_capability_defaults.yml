@@ -101,6 +101,20 @@ workers:
       - diff_review
       - secret_scan
 
+  agy:
+    supported_capabilities:
+      - planning
+      - task_decomposition
+      - context_assembly
+      - prompt_handoff
+      - file_edit
+      - patch_generation
+      - shell_execution
+      - test_execution
+      - diff_review
+      - lint_check
+      - read_only_repo_search
+
   eslint:
     supported_capabilities:
       - lint_check

@@ -194,8 +194,8 @@ agents:
         agy --sandbox -p "$(./agentlab.sh frontdesk-session --agent agy)"
     explicit_named_delegation_mode: relay_only
     may_edit_task_files_when_relaying: false
-    may_execute_agentlab_roles_directly: [ArtifactProducer]
-    high_risk: medium
+    may_execute_agentlab_roles_directly: [ArtifactProducer, Coder]
+    high_risk: true
   bl:
     display_name: Bailian CLI
     class: specialist_cloud_tool
