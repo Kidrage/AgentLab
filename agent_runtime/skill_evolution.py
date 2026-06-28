@@ -86,6 +86,10 @@ def skill_active_dir(agentlab_root: Path) -> Path:
     return agentlab_root / "skills" / "active"
 
 
+def agent_skill_dir(agentlab_root: Path) -> Path:
+    return agentlab_root / ".agents" / "skills"
+
+
 def skill_retired_dir(agentlab_root: Path) -> Path:
     return agentlab_root / "skills" / "retired"
 
@@ -135,6 +139,75 @@ def ensure_skill_registry(agentlab_root: Path) -> Path:
     if not path.exists():
         save_skill_registry(agentlab_root, default_skill_registry())
     return path
+
+
+REQUIRED_REGISTRY_FIELDS = {
+    "skill_id",
+    "category",
+    "source_project",
+    "source_task_id",
+    "approval_status",
+    "safety_review_status",
+    "generalization_notes",
+    "triggers",
+    "evidence_paths",
+}
+
+
+def validate_skill_registry(agentlab_root: Path) -> dict[str, Any]:
+    """Validate reusable skill registry records and filesystem pointers."""
+    registry = load_skill_registry(agentlab_root)
+    errors: list[str] = []
+    warnings: list[str] = []
+    seen: set[str] = set()
+
+    for section in ("skills", "retired_skills"):
+        entries = registry.get(section, [])
+        if not isinstance(entries, list):
+            errors.append(f"{section} must be a list.")
+            continue
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                errors.append(f"{section}[{index}] must be a mapping.")
+                continue
+            skill_id = str(entry.get("skill_id", "")).strip()
+            if not skill_id:
+                errors.append(f"{section}[{index}] missing skill_id.")
+                continue
+            if skill_id in seen:
+                errors.append(f"duplicate skill_id: {skill_id}")
+            seen.add(skill_id)
+            if section == "skills":
+                missing = sorted(field for field in REQUIRED_REGISTRY_FIELDS if not entry.get(field))
+                if missing:
+                    errors.append(f"{skill_id} missing required field(s): {', '.join(missing)}")
+                skill_path = entry.get("path")
+                if skill_path:
+                    path = Path(str(skill_path))
+                    if not path.is_absolute():
+                        path = agentlab_root / path
+                    try:
+                        path.relative_to(agentlab_root)
+                    except ValueError:
+                        errors.append(f"{skill_id} path escapes repo: {path}")
+                    if not path.exists():
+                        errors.append(f"{skill_id} path does not exist: {path}")
+                else:
+                    warnings.append(f"{skill_id} has no path field.")
+                if entry.get("approval_status") != "approved":
+                    errors.append(f"{skill_id} approval_status must be approved.")
+                if entry.get("safety_review_status") not in {"passed", "needs_review"}:
+                    errors.append(f"{skill_id} safety_review_status must be passed or needs_review.")
+
+    return {
+        "valid": not errors,
+        "error_count": len(errors),
+        "warning_count": len(warnings),
+        "errors": errors,
+        "warnings": warnings,
+        "skill_count": len(registry.get("skills", [])) if isinstance(registry.get("skills"), list) else 0,
+        "retired_skill_count": len(registry.get("retired_skills", [])) if isinstance(registry.get("retired_skills"), list) else 0,
+    }
 
 
 # ── request paths ────────────────────────────────────────────────
@@ -731,6 +804,106 @@ def build_trace_skill_candidate(
         "estimated_future_value": estimated_future_value,
         "status": "pending_review",
     }
+
+
+def register_approved_skill_candidate(
+    agentlab_root: Path,
+    candidate: dict[str, Any],
+    *,
+    category: str = "trace_to_skill",
+    safety_review_status: str = "passed",
+    generalization_notes: str = "",
+) -> dict[str, Any]:
+    """Register an approved trace-to-skill candidate as a reusable local skill."""
+    candidate_id = str(candidate.get("id", "")).strip()
+    if not candidate_id:
+        raise ValueError("Candidate is missing id.")
+
+    project = str(candidate.get("project", "")).strip()
+    task_id = str(candidate.get("created_from_task", "")).strip()
+    name = str(candidate.get("name", candidate_id)).strip() or candidate_id
+    skill_slug = _slug(name).replace("-", "_")
+    category_slug = _slug(category).replace("-", "_")
+    proposed = candidate.get("proposed_skill", {}) or {}
+    triggers = [str(proposed.get("trigger", "")).strip()]
+    triggers = [item for item in triggers if item]
+    evidence = [str(item) for item in candidate.get("evidence", []) if str(item).strip()]
+
+    if not project or not task_id:
+        raise ValueError("Candidate must include project and created_from_task.")
+    if not triggers:
+        raise ValueError("Candidate must include at least one trigger.")
+    if not evidence:
+        raise ValueError("Candidate must include at least one evidence item.")
+
+    skill_id = f"{category_slug}/{skill_slug}"
+    skill_dir = agent_skill_dir(agentlab_root) / category_slug / skill_slug
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_path = skill_dir / "SKILL.md"
+    steps = [str(step).strip() for step in proposed.get("steps", []) if str(step).strip()]
+    if not steps:
+        steps = ["Review the task evidence.", "Apply the reusable procedure.", "Record validation evidence."]
+
+    skill_md = [
+        f"# {name}",
+        "",
+        f"Skill ID: {skill_id}",
+        "",
+        "## Trigger",
+        "",
+        triggers[0],
+        "",
+        "## Steps",
+        "",
+        *[f"{index}. {step}" for index, step in enumerate(steps, start=1)],
+        "",
+        "## Input",
+        "",
+        "- Project name",
+        "- Task id",
+        "- Relevant task evidence paths or event summaries",
+        "",
+        "## Output",
+        "",
+        "- A concise task-specific procedure or repair plan",
+        "- Validation evidence paths",
+        "",
+        "## Safety Boundary",
+        "",
+        "Use only for generalized workflow, debugging, validation, or artifact-repair procedures. Do not encode a single-project plot, character, private secret, or unsafe content template as a reusable skill.",
+        "",
+        "## Evidence",
+        "",
+        *[f"- {item}" for item in evidence],
+        "",
+    ]
+    skill_path.write_text("\n".join(skill_md), encoding="utf-8")
+
+    entry = {
+        "skill_id": skill_id,
+        "skill_name": name,
+        "name": name,
+        "category": category_slug,
+        "status": "active",
+        "source_project": project,
+        "source_task_id": task_id,
+        "source_candidate_id": candidate_id,
+        "approval_status": "approved",
+        "safety_review_status": safety_review_status,
+        "generalization_notes": generalization_notes
+        or "Registered from a trace-to-skill candidate after explicit approval.",
+        "triggers": triggers,
+        "evidence_paths": evidence,
+        "path": str(skill_path.relative_to(agentlab_root)),
+        "registered_at": utc_now(),
+    }
+
+    registry = load_skill_registry(agentlab_root)
+    registry.setdefault("skills", [])
+    registry["skills"] = [item for item in registry["skills"] if item.get("skill_id") != skill_id]
+    registry["skills"].append(entry)
+    write_skill_registry(agentlab_root, registry)
+    return entry
 
 
 def write_trace_skill_candidate(agentlab_root: Path, candidate: dict[str, Any]) -> Path:

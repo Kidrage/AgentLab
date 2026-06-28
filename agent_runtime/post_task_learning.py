@@ -6,7 +6,13 @@ from pathlib import Path
 from typing import Any
 
 from atomic_io import atomic_write_yaml, safe_read_yaml
-from skill_evolution import build_skill_adoption_request, skill_candidate_dir, write_skill_adoption_request, write_trace_skill_candidate
+from skill_evolution import (
+    build_skill_adoption_request,
+    register_approved_skill_candidate,
+    skill_candidate_dir,
+    write_skill_adoption_request,
+    write_trace_skill_candidate,
+)
 from state_store import utc_now
 from task_events import load_task_events
 
@@ -166,6 +172,25 @@ def list_skill_candidates(agentlab_root: Path, project: str, task_id: str) -> li
     return candidates
 
 
+def list_all_skill_candidates(agentlab_root: Path, project: str | None = None) -> list[dict[str, Any]]:
+    projects_root = agentlab_root / "projects"
+    if not projects_root.exists():
+        return []
+    candidates: list[dict[str, Any]] = []
+    project_dirs = [projects_root / project] if project else sorted(path for path in projects_root.iterdir() if path.is_dir())
+    for project_dir in project_dirs:
+        runs_dir = project_dir / "runs"
+        if not runs_dir.exists():
+            continue
+        for candidate_dir in sorted(runs_dir.glob("*/skill_candidates")):
+            for path in sorted(candidate_dir.glob("*.yml")):
+                data = safe_read_yaml(path, default={}) or {}
+                if isinstance(data, dict):
+                    data.setdefault("_path", str(path))
+                    candidates.append(data)
+    return candidates
+
+
 def _load_candidate(agentlab_root: Path, project: str, task_id: str, candidate_id: str) -> tuple[dict[str, Any], Path]:
     for candidate in list_skill_candidates(agentlab_root, project, task_id):
         if candidate.get("id") == candidate_id:
@@ -173,8 +198,65 @@ def _load_candidate(agentlab_root: Path, project: str, task_id: str, candidate_i
     raise FileNotFoundError(f"Skill candidate not found: {candidate_id}")
 
 
-def approve_skill_candidate(agentlab_root: Path, project: str, task_id: str, candidate_id: str) -> dict[str, Any]:
+def load_skill_candidate_by_id(
+    agentlab_root: Path,
+    candidate_id: str,
+    *,
+    project: str | None = None,
+    task_id: str | None = None,
+) -> tuple[dict[str, Any], Path]:
+    if project and task_id:
+        return _load_candidate(agentlab_root, project, task_id, candidate_id)
+    matches = [item for item in list_all_skill_candidates(agentlab_root, project=project) if item.get("id") == candidate_id]
+    if not matches:
+        raise FileNotFoundError(f"Skill candidate not found: {candidate_id}")
+    if len(matches) > 1:
+        raise ValueError(f"Multiple skill candidates match id: {candidate_id}")
+    return matches[0], Path(matches[0]["_path"])
+
+
+PROHIBITED_SKILL_TERMS = {
+    "性化未成年人",
+    "未成年人性化",
+    "萝莉性化",
+    "loli",
+    "lolicon",
+    "强迫性性暴力",
+    "强奸",
+    "露骨羞辱",
+    "性虐待",
+}
+
+
+def safety_review_skill_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
+    text = " ".join(
+        [
+            str(candidate.get("name", "")),
+            " ".join(str(item) for item in candidate.get("evidence", [])),
+            str((candidate.get("proposed_skill") or {}).get("trigger", "")),
+            " ".join(str(item) for item in (candidate.get("proposed_skill") or {}).get("steps", [])),
+        ]
+    ).lower()
+    hits = sorted(term for term in PROHIBITED_SKILL_TERMS if term.lower() in text)
+    return {
+        "status": "blocked" if hits else "passed",
+        "blocked_terms": hits,
+        "notes": "Candidate is limited to generalized, non-explicit reusable procedure content." if not hits else "Candidate contains prohibited reusable-skill content.",
+    }
+
+
+def approve_skill_candidate(
+    agentlab_root: Path,
+    project: str,
+    task_id: str,
+    candidate_id: str,
+    *,
+    category: str = "trace_to_skill",
+) -> dict[str, Any]:
     candidate, path = _load_candidate(agentlab_root, project, task_id, candidate_id)
+    safety = safety_review_skill_candidate(candidate)
+    if safety["status"] != "passed":
+        raise ValueError(f"Skill candidate failed safety review: {', '.join(safety['blocked_terms'])}")
     proposed = candidate.get("proposed_skill", {}) or {}
     request = build_skill_adoption_request(
         agentlab_root,
@@ -193,11 +275,21 @@ def approve_skill_candidate(agentlab_root: Path, project: str, task_id: str, can
     request["permissions"] = {"can_read_repo": True, "can_modify_files": False, "can_run_shell": False}
     request["confidence"] = 0.5
     request_path = write_skill_adoption_request(agentlab_root, request)
+    registry_entry = register_approved_skill_candidate(
+        agentlab_root,
+        candidate,
+        category=category,
+        safety_review_status=safety["status"],
+        generalization_notes=safety["notes"],
+    )
 
     candidate["status"] = "approved"
     candidate["approved_at"] = utc_now()
     candidate["skill_request_id"] = request["id"]
     candidate["skill_request_path"] = str(request_path)
+    candidate["registered_skill_id"] = registry_entry["skill_id"]
+    candidate["registered_skill_path"] = registry_entry["path"]
+    candidate["safety_review_status"] = safety["status"]
     atomic_write_yaml(path, candidate)
     return candidate
 

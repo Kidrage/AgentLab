@@ -2872,48 +2872,138 @@ def skill_candidates_cmd(
 
 @app.command("skill-candidate-approve")
 def skill_candidate_approve_cmd(
-    candidate_id: str = typer.Option(..., "--candidate-id", help="Skill candidate id to approve."),
-    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    candidate_id_arg: Optional[str] = typer.Argument(None, help="Skill candidate id to approve."),
+    candidate_id: Optional[str] = typer.Option(None, "--candidate-id", help="Skill candidate id to approve."),
+    task_id: Optional[str] = typer.Option(None, "--task-id", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
+    category: str = typer.Option("trace_to_skill", "--category", help="Reusable skill category."),
 ) -> None:
     """Approve a Trace-to-Skill candidate and create a self_learned skill request."""
-    ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
-    from post_task_learning import approve_skill_candidate
+    from post_task_learning import approve_skill_candidate, load_skill_candidate_by_id
 
+    selected_id = candidate_id_arg or candidate_id
+    if not selected_id:
+        console.print("[red]Error: candidate id is required.[/red]")
+        raise typer.Exit(code=1)
     try:
-        result = approve_skill_candidate(agentlab_root, project_name, task_id, candidate_id)
+        if task_id:
+            ensure_safe_task_id(task_id)
+            result = approve_skill_candidate(agentlab_root, project_name, task_id, selected_id, category=category)
+        else:
+            candidate, _path = load_skill_candidate_by_id(agentlab_root, selected_id, project=project)
+            result = approve_skill_candidate(
+                agentlab_root,
+                str(candidate["project"]),
+                str(candidate["created_from_task"]),
+                selected_id,
+                category=category,
+            )
     except (FileNotFoundError, ValueError) as exc:
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(code=1)
     console.print("[green]Skill candidate approved[/green]")
     console.print({
-        "candidate_id": candidate_id,
+        "candidate_id": selected_id,
         "status": result.get("status"),
         "skill_request_id": result.get("skill_request_id"),
         "skill_request_path": result.get("skill_request_path"),
+        "registered_skill_id": result.get("registered_skill_id"),
+        "registered_skill_path": result.get("registered_skill_path"),
     })
 
 
 @app.command("skill-candidate-reject")
 def skill_candidate_reject_cmd(
-    candidate_id: str = typer.Option(..., "--candidate-id", help="Skill candidate id to reject."),
-    task_id: str = typer.Option(..., "--task-id", help="Task run id."),
+    candidate_id_arg: Optional[str] = typer.Argument(None, help="Skill candidate id to reject."),
+    candidate_id: Optional[str] = typer.Option(None, "--candidate-id", help="Skill candidate id to reject."),
+    task_id: Optional[str] = typer.Option(None, "--task-id", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
     reason: str = typer.Option("Rejected by user.", "--reason", help="Reason for rejection."),
 ) -> None:
     """Reject a Trace-to-Skill candidate."""
-    ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
-    from post_task_learning import reject_skill_candidate
+    from post_task_learning import load_skill_candidate_by_id, reject_skill_candidate
 
+    selected_id = candidate_id_arg or candidate_id
+    if not selected_id:
+        console.print("[red]Error: candidate id is required.[/red]")
+        raise typer.Exit(code=1)
     try:
-        result = reject_skill_candidate(agentlab_root, project_name, task_id, candidate_id, reason)
+        if task_id:
+            ensure_safe_task_id(task_id)
+            result = reject_skill_candidate(agentlab_root, project_name, task_id, selected_id, reason)
+        else:
+            candidate, _path = load_skill_candidate_by_id(agentlab_root, selected_id, project=project)
+            result = reject_skill_candidate(
+                agentlab_root,
+                str(candidate["project"]),
+                str(candidate["created_from_task"]),
+                selected_id,
+                reason,
+            )
     except (FileNotFoundError, ValueError) as exc:
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(code=1)
     console.print("[yellow]Skill candidate rejected[/yellow]")
-    console.print({"candidate_id": candidate_id, "status": result.get("status"), "reason": result.get("rejection_reason")})
+    console.print({"candidate_id": selected_id, "status": result.get("status"), "reason": result.get("rejection_reason")})
+
+
+@app.command("skill-candidate-list")
+def skill_candidate_list_cmd(
+    project: Optional[str] = typer.Option(None, help="Optional project filter."),
+) -> None:
+    """List all Trace-to-Skill candidates across task runs."""
+    agentlab_root, _project_name = runtime_context(project)
+    from post_task_learning import list_all_skill_candidates
+
+    candidates = list_all_skill_candidates(agentlab_root, project=project)
+    console.print("[bold]Skill Candidates[/bold]")
+    console.print({"project": project or "*", "count": len(candidates)})
+    table = Table("Candidate", "Project", "Task", "Status", "Pattern", "Trigger")
+    for item in candidates:
+        proposed = item.get("proposed_skill", {}) or {}
+        table.add_row(
+            item.get("id", ""),
+            item.get("project", ""),
+            item.get("created_from_task", ""),
+            item.get("status", ""),
+            item.get("pattern_type", ""),
+            str(proposed.get("trigger", ""))[:80],
+        )
+    console.print(table)
+
+
+@app.command("skill-candidate-show")
+def skill_candidate_show_cmd(
+    candidate_id: str = typer.Argument(..., help="Skill candidate id to show."),
+    project: Optional[str] = typer.Option(None, help="Optional project filter."),
+) -> None:
+    """Show a Trace-to-Skill candidate by id."""
+    agentlab_root, _project_name = runtime_context(project)
+    from post_task_learning import load_skill_candidate_by_id
+
+    try:
+        candidate, path = load_skill_candidate_by_id(agentlab_root, candidate_id, project=project)
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1)
+    candidate = dict(candidate)
+    candidate["_path"] = str(path)
+    console.print(candidate)
+
+
+@app.command("skill-registry-validate")
+def skill_registry_validate_cmd() -> None:
+    """Validate reusable skill registry entries and filesystem paths."""
+    agentlab_root, _project_name = runtime_context(None)
+    from skill_evolution import ensure_skill_registry, validate_skill_registry
+
+    ensure_skill_registry(agentlab_root)
+    result = validate_skill_registry(agentlab_root)
+    console.print(result)
+    if not result.get("valid"):
+        raise typer.Exit(code=1)
 
 
 @app.command("policy-status")

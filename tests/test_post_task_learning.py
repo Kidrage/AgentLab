@@ -12,9 +12,10 @@ import cost_tracker
 from post_task_learning import (
     approve_skill_candidate,
     list_skill_candidates,
+    reject_skill_candidate,
     run_learning_review,
 )
-from skill_evolution import load_skill_requests
+from skill_evolution import load_skill_registry, load_skill_requests, validate_skill_registry
 from task_events import append_task_event
 
 
@@ -96,3 +97,60 @@ def test_candidate_approval_creates_self_learned_skill_request(tmp_path: Path) -
     assert len(requests) == 1
     assert requests[0]["source"]["type"] == "self_learned"
     assert requests[0]["created_from_candidate"] == candidate["id"]
+    registry = load_skill_registry(tmp_path)
+    entry = registry["skills"][0]
+    assert entry["source_project"] == "Demo"
+    assert entry["source_task_id"] == "task_0001_learning"
+    assert entry["approval_status"] == "approved"
+    assert entry["safety_review_status"] == "passed"
+    assert entry["triggers"]
+    assert entry["evidence_paths"]
+    assert (tmp_path / entry["path"]).exists()
+
+
+def test_candidate_reject_does_not_update_registry(tmp_path: Path) -> None:
+    run_dir = _run_dir(tmp_path)
+    append_task_event(run_dir, "NODE_BLOCKED", status="FAILED_RECOVERABLE", severity="BLOCKED", message="Blocked by approval.")
+    run_learning_review(tmp_path, "Demo", "task_0001_learning")
+    candidate = list_skill_candidates(tmp_path, "Demo", "task_0001_learning")[0]
+
+    rejected = reject_skill_candidate(tmp_path, "Demo", "task_0001_learning", candidate["id"], "Too narrow.")
+
+    assert rejected["status"] == "rejected"
+    assert load_skill_registry(tmp_path)["skills"] == []
+
+
+def test_registry_validate_detects_required_field_duplicate_and_bad_path(tmp_path: Path) -> None:
+    (tmp_path / "skills").mkdir(parents=True)
+    (tmp_path / "skills" / "registry.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "skills": [
+                    {
+                        "skill_id": "trace_to_skill/demo",
+                        "category": "trace_to_skill",
+                        "source_project": "Demo",
+                        "source_task_id": "task_0001_learning",
+                        "approval_status": "approved",
+                        "safety_review_status": "passed",
+                        "generalization_notes": "ok",
+                        "triggers": ["When blocked."],
+                        "evidence_paths": ["task_events.jsonl"],
+                        "path": ".agents/skills/missing/SKILL.md",
+                    },
+                    {"skill_id": "trace_to_skill/demo"},
+                ],
+                "retired_skills": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_skill_registry(tmp_path)
+
+    assert result["valid"] is False
+    assert any("duplicate skill_id" in item for item in result["errors"])
+    assert any("missing required field" in item for item in result["errors"])
+    assert any("path does not exist" in item for item in result["errors"])
