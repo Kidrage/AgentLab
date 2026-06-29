@@ -211,6 +211,16 @@ routes:
       - Verifier
       - Archivist
 
+  media_generation_task:
+    size: L2
+    description: 图像/视频生成与编辑路线，先生成媒体合同、后端选择、审批卡、生成台账和验收门
+    agents:
+      - Supervisor
+      - ArtifactProducer
+      - TesterAuditor
+      - Verifier
+      - Archivist
+
   fiction_chapter_pipeline:
     size: L2
     description: 小说章节/长篇创作路线，带连续性、角色状态、伏笔和风格审查

@@ -40,6 +40,15 @@ PROMPT_VIDEO = (
     "asset plans."
 )
 
+PROMPT_IMAGE = (
+    "Generate image: a cinematic hero image for a new synth plugin, 16:9, "
+    "polished and high quality."
+)
+
+PROMPT_SIMPLE_IMAGE = "Quick simple generate image of a clean app icon."
+
+PROMPT_BATCH_DRAFT = "Generate 20 draft image variations for concept exploration."
+
 PROMPT_RESEARCH = (
     "I need to conduct a systematic literature review on RAG systems for enterprise "
     "knowledge management. I need to search academic databases, ingest papers, "
@@ -83,6 +92,10 @@ class TestDomainClassification:
     def test_video_generation_domain_detected(self):
         contract = build_mission_contract(PROMPT_VIDEO)
         assert contract["task_type"] == "video_generation"
+
+    def test_image_generation_domain_detected(self):
+        contract = build_mission_contract(PROMPT_IMAGE)
+        assert contract["task_type"] == "image_generation"
 
     def test_research_domain_detected(self):
         contract = build_mission_contract(PROMPT_RESEARCH)
@@ -188,6 +201,10 @@ class TestProjectTypeClassification:
     def test_video_generation_project_type(self):
         contract = build_mission_contract(PROMPT_VIDEO)
         assert contract["project_type"] == "video_generation_project"
+
+    def test_image_generation_project_type(self):
+        contract = build_mission_contract(PROMPT_IMAGE)
+        assert contract["project_type"] == "media_generation_project"
 
     def test_research_archive_project_type(self):
         contract = build_mission_contract(PROMPT_RESEARCH)
@@ -317,6 +334,13 @@ class TestArtifactTargets:
         artifacts = contract["required_artifacts"]
         assert len(artifacts) >= 3
 
+    def test_image_generation_has_media_artifacts(self):
+        contract = build_mission_contract(PROMPT_IMAGE)
+        artifacts = contract["required_artifacts"]
+        assert "media_generation_contract.yml" in artifacts
+        assert "generation_ledger.yml" in artifacts
+        assert "media_qc_report.yml" in artifacts
+
     def test_unknown_has_minimal_artifacts(self):
         contract = build_mission_contract(PROMPT_EMPTY)
         assert "mission_contract" in contract["required_artifacts"]
@@ -343,7 +367,110 @@ class TestAcceptanceGates:
     def test_video_has_specific_gates(self):
         contract = build_mission_contract(PROMPT_VIDEO)
         gates = contract["acceptance_gates"]
-        assert "script_approved" in gates or "storyboard_complete" in gates
+        assert "generation_ledger_written" in gates
+
+    def test_image_generation_has_harness_gates(self):
+        contract = build_mission_contract(PROMPT_IMAGE)
+        gates = contract["quality_gates"]
+        assert "capability_auth_quota_preflight" in gates
+        assert "qa_or_human_acceptance_before_project_artifact_promotion" in gates
+
+
+# ── Media generation routing tests ─────────────────────────────────
+
+
+class TestMediaGenerationRouting:
+    def test_generate_image_selects_hermes_grok_oauth(self):
+        contract = build_mission_contract(PROMPT_IMAGE, project_id="AgentLab", task_id="task_media")
+        media = contract["media_generation_contract"]
+        assert contract["task_domain"] == "image_generation"
+        assert contract["artifact_type"] == "media_generation_contract"
+        assert contract["route_decision"]["selected_route"] == "media_generation_task"
+        assert media["selected_backend"] == "hermes_grok_oauth"
+        assert media["fallback_chain"][:3] == ["hermes_grok_oauth", "grok_direct", "bailian_cli"]
+        assert media["executable"] is True
+
+    def test_simple_image_selects_grok_direct(self):
+        contract = build_mission_contract(PROMPT_SIMPLE_IMAGE)
+        media = contract["media_generation_contract"]
+        assert media["backend_policy"] == "fast_simple"
+        assert media["selected_backend"] == "grok_direct"
+
+    def test_draft_batch_selects_agy_harness_and_marks_draft_only(self):
+        contract = build_mission_contract(PROMPT_BATCH_DRAFT)
+        media = contract["media_generation_contract"]
+        assert media["backend_policy"] == "draft_batch"
+        assert media["selected_backend"] == "agy_media"
+        assert any("draft candidates only" in rule for rule in media["harness_rules"])
+
+    def test_ark_pending_is_not_executable_backend(self):
+        contract = build_mission_contract("Generate a commercial final image for client delivery.")
+        media = contract["media_generation_contract"]
+        assert media["selected_backend"] == "hermes_grok_oauth"
+        assert {"backend": "ark_cli", "auth_state": "pending_activation"} in media["pending_backends"]
+
+    def test_bailian_first_ready_backend_creates_approval_card(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "config").mkdir()
+            for name in [
+                "mission_compiler_v2.yml",
+                "project_type_classifier.yml",
+                "domain_route_packs.yml",
+                "routing_rules.yml",
+            ]:
+                (root / "config" / name).write_text(
+                    (repo_root / "config" / name).read_text(encoding="utf-8"),
+                    encoding="utf-8",
+                )
+            media_config = yaml.safe_load((repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8"))
+            media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "missing_auth"
+            media_config["backends"]["grok_direct"]["auth_state"] = "missing_auth"
+            (root / "config" / "media_generation_backends.yml").write_text(
+                yaml.safe_dump(media_config, sort_keys=False),
+                encoding="utf-8",
+            )
+
+            contract = build_mission_contract(PROMPT_IMAGE, agentlab_root=root)
+
+        media = contract["media_generation_contract"]
+        assert media["selected_backend"] == "bailian_cli"
+        assert media["approval_required"] is True
+        assert media["executable"] is False
+        assert media["approval_card"]["status"] == "approval_required"
+        assert media["backend_contracts"]["bailian_cli"]["command_contract"]["image_generation"] == "bl image generate"
+        assert "bl text chat" in media["backend_contracts"]["bailian_cli"]["forbidden_command_contracts"]
+
+    def test_no_ready_media_backend_generates_proposal_only(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "config").mkdir()
+            for name in [
+                "mission_compiler_v2.yml",
+                "project_type_classifier.yml",
+                "domain_route_packs.yml",
+                "routing_rules.yml",
+            ]:
+                (root / "config" / name).write_text(
+                    (repo_root / "config" / name).read_text(encoding="utf-8"),
+                    encoding="utf-8",
+                )
+            media_config = yaml.safe_load((repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8"))
+            for backend in media_config["backends"].values():
+                backend["auth_state"] = "missing_auth"
+            (root / "config" / "media_generation_backends.yml").write_text(
+                yaml.safe_dump(media_config, sort_keys=False),
+                encoding="utf-8",
+            )
+
+            contract = build_mission_contract(PROMPT_IMAGE, agentlab_root=root)
+
+        media = contract["media_generation_contract"]
+        assert media["selected_backend"] is None
+        assert media["executable"] is False
+        assert media["no_backend_fallback"]["do_not_fabricate_artifact"] is True
 
 
 # ── Decision card tests ────────────────────────────────────────────
@@ -480,6 +607,18 @@ class TestRenderer:
             md = (out_dir / "intent_summary.md").read_text(encoding="utf-8")
             assert md.startswith("# Intent Summary")
             assert "coding" in md
+
+    def test_renders_media_generation_contract(self):
+        from agent_runtime.brain.renderer import render_mission_contract_outputs
+
+        contract = build_mission_contract(PROMPT_IMAGE)
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            written = render_mission_contract_outputs(contract, out_dir)
+            assert (out_dir / "media_generation_contract.yml").exists()
+            assert "media_generation_contract" in written
+            media = yaml.safe_load((out_dir / "media_generation_contract.yml").read_text(encoding="utf-8"))
+            assert media["selected_backend"] == "hermes_grok_oauth"
 
 
 # ── External executor recommendation tests ─────────────────────────

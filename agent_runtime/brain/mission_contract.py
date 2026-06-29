@@ -115,6 +115,13 @@ def build_mission_contract(
     mission_domain = _mission_domain(domain, domain_pack)
     artifact_type = _artifact_type(domain, project_type, domain_pack, llm_draft)
     route_decision = _build_route_decision(mission_domain, domain_pack, root)
+    media_generation_contract = _media_generation_contract(
+        prompt=prompt,
+        mission_domain=mission_domain,
+        project_id=project_id,
+        task_id=task_id,
+        root=root,
+    )
 
     contract: dict[str, Any] = {
         "schema_version": 2,
@@ -155,13 +162,18 @@ def build_mission_contract(
         "route_proposal": route_decision.get("route_proposal", {}),
         "compiler_source": "llm_assisted" if llm_draft else "rule_based",
     }
+    if media_generation_contract:
+        contract["media_generation_contract"] = media_generation_contract
     return contract
 
 
 _KNOWN_LEGACY_DOMAINS = {
     "coding",
     "creative_longform",
+    "image_generation",
+    "image_editing",
     "video_generation",
+    "video_editing",
     "research",
     "document_processing",
     "audio_music",
@@ -174,7 +186,11 @@ _TASK_DOMAIN_TO_LEGACY_DOMAIN = {
     "creative_writing": "creative_longform",
     "coding": "coding",
     "research_reading": "research",
+    "image_generation": "image_generation",
+    "image_editing": "image_editing",
     "video_generation": "video_generation",
+    "video_editing": "video_editing",
+    "multimodal_asset_generation": "multimodal",
     "audio_dsp_experiment": "audio_music",
     "automation_ops": "local_ops",
     "unknown": "unknown",
@@ -216,10 +232,10 @@ def _try_compile_llm_mission_draft(
 
 def _mission_draft_messages(prompt: str) -> list[dict[str, str]]:
     schema = {
-        "task_domain": "creative_writing|coding|research_reading|video_generation|audio_dsp_experiment|business_delivery|automation_ops|unknown",
-        "legacy_domain": "creative_longform|coding|research|video_generation|document_processing|audio_music|local_ops|unknown",
-        "project_type": "longform_text_project|codebase_build_project|research_archive_project|video_generation_project|document_knowledgebase_project|local_automation_project|unknown_project",
-        "artifact_type": "longform_text|code_patch|cited_report|video_plan|audio_experiment_report|business_document|operational_runbook|unknown",
+        "task_domain": "creative_writing|coding|research_reading|image_generation|image_editing|video_generation|video_editing|multimodal_asset_generation|audio_dsp_experiment|business_delivery|automation_ops|unknown",
+        "legacy_domain": "creative_longform|coding|research|image_generation|image_editing|video_generation|video_editing|document_processing|audio_music|multimodal|local_ops|unknown",
+        "project_type": "longform_text_project|codebase_build_project|research_archive_project|video_generation_project|media_generation_project|document_knowledgebase_project|multimodal_content_project|local_automation_project|unknown_project",
+        "artifact_type": "longform_text|code_patch|cited_report|video_plan|media_generation_contract|audio_experiment_report|business_document|operational_runbook|unknown",
         "quality_gates": ["string"],
         "memory_contract": ["string"],
         "route_proposal": {"route_key": "string", "agents": ["string"]},
@@ -320,6 +336,7 @@ def _mission_domain(domain: str, domain_pack: dict[str, Any]) -> str:
         "research": "research_reading",
         "audio_music": "audio_dsp_experiment",
         "local_ops": "automation_ops",
+        "multimodal": "multimodal_asset_generation",
     }
     return aliases.get(domain, domain)
 
@@ -337,7 +354,11 @@ def _artifact_type(
     defaults = {
         "coding": "code_patch",
         "creative_longform": "longform_text",
-        "video_generation": "video_plan",
+        "image_generation": "media_generation_contract",
+        "image_editing": "media_generation_contract",
+        "video_generation": "media_generation_contract",
+        "video_editing": "media_generation_contract",
+        "multimodal": "media_generation_contract",
         "research": "cited_report",
         "document_processing": "knowledge_base",
         "audio_music": "audio_experiment_report",
@@ -363,11 +384,15 @@ def _build_route_decision(
 ) -> dict[str, Any]:
     route_key = str(domain_pack.get("recommended_route") or "")
     if mission_domain != "creative_writing":
-        return {
+        decision = {
             "action": "select_existing_route" if route_key else "propose_new_route",
             "selected_route": route_key or None,
             "reason": "domain_pack_recommendation" if route_key else "no_domain_route_available",
         }
+        if route_key == "media_generation_task":
+            decision["route_proposal"] = domain_pack.get("route_proposal", {})
+            decision["reason"] = "media_generation_requires_backend_contract_and_harness"
+        return decision
 
     proposal = domain_pack.get("route_proposal") or {
         "route_key": "fiction_chapter_pipeline",
@@ -394,6 +419,30 @@ def _route_exists(root: Path, route_key: str) -> bool:
     from agent_runtime.routing.route_catalog import RouteCatalog
 
     return RouteCatalog.from_file(root / "config" / "routing_rules.yml").has_configured_route(route_key)
+
+
+def _media_generation_contract(
+    *,
+    prompt: str,
+    mission_domain: str,
+    project_id: str | None,
+    task_id: str | None,
+    root: Path,
+) -> dict[str, Any] | None:
+    from agent_runtime.brain.media_generation_router import (
+        build_media_generation_contract,
+        is_media_generation_domain,
+    )
+
+    if not is_media_generation_domain(mission_domain):
+        return None
+    return build_media_generation_contract(
+        prompt=prompt,
+        mission_domain=mission_domain,
+        project_id=project_id,
+        task_id=task_id,
+        root=root,
+    )
 
 
 def _estimate_scale(prompt: str) -> str:

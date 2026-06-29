@@ -31,6 +31,7 @@ DEFAULT_ROUTE_AGENTS: dict[str, list[str]] = {
     ],
     "research_sensitive_task": ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier"],
     "artifact_production_task": ["Supervisor", "ArtifactProducer", "TesterAuditor", "Verifier", "Archivist"],
+    "media_generation_task": ["Supervisor", "ArtifactProducer", "TesterAuditor", "Verifier", "Archivist"],
     "fiction_chapter_pipeline": ["Supervisor", "Writer", "Reviewer", "Scribe", "Verifier", "Archivist"],
     "evaluation_task": [
         "Supervisor",
@@ -72,6 +73,7 @@ DEFAULT_ROUTE_SIZE: dict[str, str] = {
     "interface_sensitive_task": "medium",
     "research_sensitive_task": "medium",
     "artifact_production_task": "medium",
+    "media_generation_task": "medium",
     "fiction_chapter_pipeline": "medium",
     "evaluation_task": "large",
     "large_or_risky_task": "large",

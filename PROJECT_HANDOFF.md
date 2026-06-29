@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-29T08:28:56.685501+00:00`
+- Generated at: `2026-06-29T09:25:23.150148+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `d8b958b`
-- Indexed paths: 1463
+- HEAD: `2e8ff83`
+- Indexed paths: 1465
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -42,11 +42,11 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 449 |
+| `agent_runtime` | 450 |
 | `tests` | 390 |
 | `docs` | 202 |
 | `acceptance_runs` | 176 |
-| `config` | 135 |
+| `config` | 136 |
 | `docs/archive` | 126 |
 | `tests/fixtures` | 94 |
 | `agent_templates` | 25 |
@@ -67,13 +67,13 @@
 | `agent_runtime/execution_economy` | 12 |
 | `agent_runtime/goals` | 12 |
 | `_shared/novel-moon-in-seal` | 11 |
+| `agent_runtime/brain` | 11 |
 | `agent_runtime/capability_broker` | 11 |
 | `agent_runtime/costs` | 11 |
 | `agent_runtime/skills` | 11 |
 | `acceptance_runs/e2e_minimal_task` | 10 |
 | `acceptance_runs/p2_provider_governance` | 10 |
 | `acceptance_runs/s0_remote_raw_repair` | 10 |
-| `agent_runtime/brain` | 10 |
 | `agent_runtime/config_center` | 10 |
 | `agent_runtime/intelligence` | 10 |
 | `agent_runtime/router_update` | 10 |
@@ -88,15 +88,15 @@
 ### Categories
 
 - audio: 1 files, 9086516 bytes
-- code: 786 files, 4281888 bytes
-- literature: 300 files, 1219000 bytes
+- code: 787 files, 4302118 bytes
+- literature: 300 files, 1218970 bytes
 - other: 10 files, 74902 bytes
-- structured_data: 366 files, 1218453 bytes
+- structured_data: 367 files, 1229692 bytes
 
 ### Common Extensions
 
-- `.py`: 780
-- `.yml`: 350
+- `.py`: 781
+- `.yml`: 351
 - `.md`: 261
 - `.txt`: 39
 - `.json`: 13
@@ -208,6 +208,7 @@
 
 ## Change History
 
+- `2e8ff83 2026-06-29 Add root project handoff generation`
 - `d8b958b 2026-06-29 Add project handoff for AgentLab repair`
 - `e3fb07e 2026-06-29 Extract worker CLI commands`
 - `0c5ed2e 2026-06-29 Extract runtime hygiene CLI commands`
@@ -227,27 +228,24 @@
 - `476c930 2026-06-28 Keep Crown QA report local`
 - `89f1645 2026-06-28 Harden skill candidate lifecycle`
 - `ff89ffc 2026-06-28 Enforce auditable usage telemetry for agents`
-- `f8bd1c3 2026-06-28 Track external CLI usage estimates`
 
 ## Current Changes
 
 - `## main...origin/main`
-- ` M AGENTS.md`
-- ` M DRIVER_PROTOCOL.md`
 - ` M PROJECT_HANDOFF.md`
-- ` M _shared/AGENT_PROTOCOL.md`
-- ` M agent_runtime/agent_runner.py`
-- ` M agent_runtime/artifact_contract.py`
-- ` M agent_runtime/cli/protocol.py`
-- ` M agent_runtime/cli_executor.py`
-- ` M agent_runtime/executors/task_packet.py`
-- ` M agent_runtime/repository_handoff.py`
-- ` M config/agent_collaboration.yml`
-- ` M config/repository_handoff_policy.yml`
-- ` M config/shared_agent_directory.yml`
-- ` M config/workspace_entry_policy.yml`
-- ` M tests/test_repository_handoff.py`
-- ` M tests/test_shared_agent_protocol.py`
+- ` M agent_runtime/brain/mission_contract.py`
+- ` M agent_runtime/brain/project_type_classifier.py`
+- ` M agent_runtime/brain/renderer.py`
+- ` M agent_runtime/config_loader.py`
+- ` M agent_runtime/routing/route_catalog.py`
+- ` M config/domain_route_packs.yml`
+- ` M config/mission_compiler_v2.yml`
+- ` M config/project_acceptance_gates.yml`
+- ` M config/project_type_classifier.yml`
+- ` M config/routing_rules.yml`
+- ` M tests/test_m1_mission_compiler_v2.py`
+- `?? agent_runtime/brain/media_generation_router.py`
+- `?? config/media_generation_backends.yml`
 
 ## Related Repositories
 

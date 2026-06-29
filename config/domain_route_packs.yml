@@ -69,18 +69,91 @@ domain_packs:
   video_generation:
     legacy_domains:
       - video_generation
-    artifact_type: video_plan
-    recommended_route: artifact_production_task
+    artifact_type: media_generation_contract
+    recommended_route: media_generation_task
     memory_contract:
-      - script
+      - media_generation_contract
       - storyboard
       - asset_manifest
-      - render_notes
+      - generation_ledger
+      - media_qc_report
     quality_gates:
-      - script_approved
-      - storyboard_complete
-      - asset_rights
-      - delivery_format
+      - capability_auth_quota_preflight
+      - generation_ledger_written
+      - media_qc_report_written
+      - qa_or_human_acceptance_before_project_artifact_promotion
+
+  image_generation:
+    legacy_domains:
+      - image_generation
+    artifact_type: media_generation_contract
+    recommended_route: media_generation_task
+    memory_contract:
+      - media_generation_contract
+      - reference_asset_manifest
+      - generation_ledger
+      - media_qc_report
+    quality_gates:
+      - capability_auth_quota_preflight
+      - prompt_and_parameters_recorded
+      - artifact_manifest_written
+      - generation_ledger_written
+      - media_qc_report_written
+      - qa_or_human_acceptance_before_project_artifact_promotion
+
+  image_editing:
+    legacy_domains:
+      - image_editing
+    artifact_type: media_generation_contract
+    recommended_route: media_generation_task
+    memory_contract:
+      - media_generation_contract
+      - source_asset_manifest
+      - edit_ledger
+      - media_qc_report
+    quality_gates:
+      - capability_auth_quota_preflight
+      - source_asset_recorded
+      - artifact_manifest_written
+      - generation_ledger_written
+      - media_qc_report_written
+      - qa_or_human_acceptance_before_project_artifact_promotion
+
+  video_editing:
+    legacy_domains:
+      - video_editing
+    artifact_type: media_generation_contract
+    recommended_route: media_generation_task
+    memory_contract:
+      - media_generation_contract
+      - source_asset_manifest
+      - edit_ledger
+      - media_qc_report
+    quality_gates:
+      - capability_auth_quota_preflight
+      - source_asset_recorded
+      - artifact_manifest_written
+      - generation_ledger_written
+      - media_qc_report_written
+      - qa_or_human_acceptance_before_project_artifact_promotion
+
+  multimodal_asset_generation:
+    legacy_domains:
+      - multimodal
+    artifact_type: media_generation_contract
+    recommended_route: media_generation_task
+    memory_contract:
+      - media_generation_contract
+      - asset_manifest
+      - generation_ledger
+      - media_qc_report
+    quality_gates:
+      - capability_auth_quota_preflight
+      - cross_modal_consistency
+      - artifact_manifest_written
+      - generation_ledger_written
+      - media_qc_report_written
+      - qa_or_human_acceptance_before_project_artifact_promotion
 
   business_delivery:
     legacy_domains: []

@@ -1,0 +1,165 @@
+schema_version: 1
+
+defaults:
+  cost_policy: free_first
+  paid_api_policy: approval_required
+  final_promotion_requires: qa_or_human_acceptance
+  run_artifact_dir: runs/<task_id>/artifacts/
+  production_artifact_dir: projects/<Project>/artifacts/
+  required_ledgers:
+    - artifact_manifest.yml
+    - generation_ledger.yml
+    - media_qc_report.yml
+  refresh_handoff_after_material_change: true
+
+backends:
+  hermes_grok_oauth:
+    display_name: Hermes + Grok OAuth
+    capabilities:
+      - orchestration
+      - prompt_refinement
+      - reference_asset_management
+      - multi_turn_image_editing
+      - video_generation_handoff
+    modalities:
+      - image
+      - video
+      - image_to_video
+      - mixed
+    quality_tier: high
+    cost_tier: subscription_or_quota
+    quota_policy: prefer_for_high_quality_single_or_short_media
+    auth_state: ready
+    auth_probe: hermes_oauth_session
+    execution_mode: orchestrated_worker
+    approval_required: false
+    fallback_rank: 10
+
+  grok_direct:
+    display_name: Grok Direct
+    capabilities:
+      - direct_prompt_to_image
+      - direct_prompt_to_video
+    modalities:
+      - image
+      - video
+    quality_tier: standard
+    cost_tier: subscription_or_quota
+    quota_policy: use_for_simple_fast_direct_outputs
+    auth_state: ready
+    auth_probe: grok_direct_env_or_session
+    execution_mode: direct_provider
+    approval_required: false
+    fallback_rank: 20
+
+  bailian_cli:
+    display_name: Bailian CLI
+    capabilities:
+      - image_generate
+      - image_edit
+      - video_generate
+      - video_edit
+      - reference_video
+    modalities:
+      - image
+      - video
+      - reference_video
+      - mixed
+    quality_tier: high
+    cost_tier: paid_api
+    quota_policy: approval_required_before_paid_generation
+    auth_state: ready
+    auth_probe: bl_profile
+    execution_mode: local_cli
+    approval_required: true
+    command_contract:
+      image_generation: bl image generate
+      image_editing: bl image edit
+      video_generation: bl video generate
+      video_editing: bl video edit
+      reference_video: bl video ref
+    forbidden_command_contracts:
+      - bl text chat
+    fallback_rank: 30
+
+  ark_cli:
+    display_name: Ark CLI
+    capabilities:
+      - image_generate
+      - video_generate
+      - premium_model_selection
+    modalities:
+      - image
+      - video
+      - mixed
+    quality_tier: premium
+    cost_tier: paid_api
+    quota_policy: pending_activation_then_approval_required
+    auth_state: pending_activation
+    auth_probe: ark_profile_and_endpoint
+    execution_mode: local_cli
+    approval_required: true
+    command_contract:
+      preflight:
+        - arkcli resources list
+        - arkcli models get supported_params
+      execute: arkcli +gen
+      poll: arkcli gen get
+    fallback_rank: 40
+
+  agy_media:
+    display_name: Agy Media Harness
+    capabilities:
+      - prompt_batch_exploration
+      - low_cost_draft_candidates
+      - lightweight_media_handoff
+    modalities:
+      - image
+      - video
+      - mixed
+    quality_tier: draft
+    cost_tier: low_or_quota
+    quota_policy: high_quota_draft_only
+    auth_state: ready
+    auth_probe: agy_cli
+    execution_mode: harness_route
+    approval_required: false
+    final_artifact_allowed: false
+    fallback_rank: 50
+
+policies:
+  high_quality_single_or_short:
+    description: High-quality single image or short video.
+    backend_chain:
+      - hermes_grok_oauth
+      - grok_direct
+      - bailian_cli
+      - ark_cli
+
+  fast_simple:
+    description: Simple prompt to image or video direct output.
+    backend_chain:
+      - grok_direct
+      - hermes_grok_oauth
+      - bailian_cli
+
+  draft_batch:
+    description: Batch prompt exploration or low-cost draft media.
+    backend_chain:
+      - agy_media
+      - grok_direct
+      - bailian_cli
+
+  commercial_final:
+    description: Commercial or final delivery quality target.
+    backend_chain:
+      - hermes_grok_oauth
+      - bailian_cli
+      - ark_cli
+
+  commercial_final_after_ark_activation:
+    description: Future route when Ark activation is complete.
+    backend_chain:
+      - ark_cli
+      - hermes_grok_oauth
+      - bailian_cli

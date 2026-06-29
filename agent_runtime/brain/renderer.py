@@ -79,6 +79,18 @@ def render_mission_contract_outputs(contract: dict[str, Any], out_dir: Path) -> 
     dc_dir.mkdir(exist_ok=True)
     written["decision_cards_dir"] = dc_dir
 
+    media_contract = contract.get("media_generation_contract")
+    if isinstance(media_contract, dict):
+        media_path = out_dir / "media_generation_contract.yml"
+        atomic_write_yaml(media_path, media_contract)
+        written["media_generation_contract"] = media_path
+
+        approval_card = media_contract.get("approval_card")
+        if isinstance(approval_card, dict):
+            approval_path = out_dir / "approval_required.yml"
+            atomic_write_yaml(approval_path, approval_card)
+            written["approval_required"] = approval_path
+
     return written
 
 
@@ -115,5 +127,15 @@ def _render_intent_summary_md(contract: dict[str, Any]) -> str:
     lines.append("## Decision Cards")
     for dc in contract.get("decision_cards", []):
         lines.append(f"- {dc}")
+    media_contract = contract.get("media_generation_contract")
+    if isinstance(media_contract, dict):
+        lines.extend([
+            "",
+            "## Media Generation",
+            f"- **Backend policy:** {media_contract.get('backend_policy', 'unknown')}",
+            f"- **Selected backend:** {media_contract.get('selected_backend') or 'none'}",
+            f"- **Approval required:** {media_contract.get('approval_required', False)}",
+            f"- **Executable:** {media_contract.get('executable', False)}",
+        ])
     lines.append("")
     return "\n".join(lines) + "\n"

@@ -138,6 +138,48 @@ project_types:
       - before_video_tool_handoff
       - before_delivery
 
+  media_generation_project:
+    display_name: Media Generation Project
+    description: Image/video generation or editing with backend routing, cost controls, ledgers, and QA.
+    is_long_project: false
+    estimated_scale: medium
+    canonical_phases:
+      - compile_mission
+      - compile_media_generation_contract
+      - capability_auth_quota_preflight
+      - approval_gate_if_paid
+      - generate_or_write_tool_handoff
+      - media_qc_review
+      - artifact_promotion_after_acceptance
+      - refresh_project_handoff
+    required_capabilities:
+      - filesystem_read
+      - filesystem_write
+    optional_capabilities:
+      - image_understanding
+      - video_understanding
+      - local_cli_generic
+      - external_media_generation
+    risk_flags:
+      - external_tool_dependency
+      - paid_api_cost_risk
+      - asset_quality_risk
+      - provenance_gap_risk
+    artifact_targets:
+      - media_generation_contract.yml
+      - artifact_manifest.yml
+      - generation_ledger.yml
+      - media_qc_report.yml
+      - approval_required.yml
+      - tool_handoff_packet
+      - delivery_package
+    external_executor_recommended: true
+    asset_registry_recommended: true
+    human_approval_points:
+      - before_paid_api_generation
+      - before_final_artifact_promotion
+      - before_delivery
+
   research_archive_project:
     display_name: Research / Archive Project
     description: Academic or professional research, literature review, or knowledge archive.

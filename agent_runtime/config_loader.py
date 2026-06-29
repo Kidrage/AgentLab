@@ -49,6 +49,7 @@ CONFIG_FILES = {
     "version_policy": "version_policy.yml",
     "memory_policy": "memory_policy.yml",
     "migration_profile": "migration_profile.yml",
+    "media_generation_backends": "media_generation_backends.yml",
 }
 
 

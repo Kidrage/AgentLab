@@ -84,7 +84,6 @@ domain_keywords:
       - short video
       - film
       - animation
-      - edit video
       - produce video
       - generate video
       - render video
@@ -96,6 +95,53 @@ domain_keywords:
       - short-form video
       - content creator
       - vlog
+
+  image_generation:
+    keywords:
+      - generate image
+      - create image
+      - make image
+      - draw image
+      - image generation
+      - prompt to image
+      - text to image
+      - hero image
+      - final image
+      - image variations
+      - poster
+      - illustration
+      - concept art
+      - logo image
+      - product render
+      - photorealistic image
+      - 生成图片
+      - 生图
+      - 画图
+
+  image_editing:
+    keywords:
+      - edit image
+      - image edit
+      - modify image
+      - retouch image
+      - remove background
+      - inpaint
+      - outpaint
+      - upscale image
+      - 修图
+      - 改图
+
+  video_editing:
+    keywords:
+      - edit video
+      - video edit
+      - modify video
+      - cut video
+      - reference video
+      - image to video
+      - image-to-video
+      - 视频编辑
+      - 改视频
 
   research:
     keywords:
@@ -164,6 +210,9 @@ domain_keywords:
       - cross-modal
       - vision and language
       - multi-format
+      - mixed media assets
+      - image and video
+      - generate assets
 
   local_ops:
     keywords:
@@ -246,6 +295,22 @@ project_type_keywords:
     - mixed media project
     - multimedia content
     - cross-media project
+    - image and video
+    - mixed media assets
+
+  media_generation_project:
+    - generate image
+    - create image
+    - image generation
+    - text to image
+    - prompt to image
+    - edit image
+    - generate video
+    - create video
+    - video generation
+    - edit video
+    - image to video
+    - reference video
 
   local_automation_project:
     - automate task

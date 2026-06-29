@@ -96,6 +96,52 @@ project_type_gates:
       severity: critical
       check: qa_checklist_check
 
+    - gate_id: generation_ledger_written
+      description: Media generation ledger records backend, prompt, parameters, timestamp, and cost/quota estimate.
+      severity: critical
+      check: generation_ledger_check
+
+    - gate_id: media_qc_report_written
+      description: Media QC report exists before any final promotion.
+      severity: critical
+      check: media_qc_report_check
+
+    - gate_id: qa_or_human_acceptance_before_project_artifact_promotion
+      description: Final media artifacts are not promoted until QA or human acceptance passes.
+      severity: critical
+      check: artifact_promotion_gate
+
+  media_generation_project:
+    - gate_id: capability_auth_quota_preflight
+      description: Selected media backend passed capability, auth, and quota preflight before execution.
+      severity: critical
+      check: media_backend_preflight_check
+
+    - gate_id: prompt_and_parameters_recorded
+      description: Prompt, reference assets, style constraints, dimensions, duration, and backend parameters are recorded.
+      severity: critical
+      check: generation_contract_check
+
+    - gate_id: artifact_manifest_written
+      description: Generated media artifacts are listed with source backend and artifact paths.
+      severity: critical
+      check: artifact_manifest_check
+
+    - gate_id: generation_ledger_written
+      description: Media generation ledger records backend, prompt, parameters, timestamp, and cost/quota estimate.
+      severity: critical
+      check: generation_ledger_check
+
+    - gate_id: media_qc_report_written
+      description: Media QC report exists before any final promotion.
+      severity: critical
+      check: media_qc_report_check
+
+    - gate_id: qa_or_human_acceptance_before_project_artifact_promotion
+      description: Final media artifacts are not promoted until QA or human acceptance passes.
+      severity: critical
+      check: artifact_promotion_gate
+
   research_archive_project:
     - gate_id: sources_cited
       description: All factual claims have source citations.
