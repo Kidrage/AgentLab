@@ -37,6 +37,44 @@ AgentLab already has the long-project governance foundation from the P-series an
 
 Practical status: AgentLab is in the M-series alignment stage. Many S-series foundations are implemented, especially S7/S8, but M0/M1 acceptance should still be consolidated before moving to M2 and M3.
 
+## Current Baseline (2026-06-29)
+
+- Branch: `main`, local working root: `Desktop/AgentLab`
+- Recent mainline commits: `9c65d95` (media generation routing layer), `2e8ff83` (root `PROJECT_HANDOFF.md` generation)
+- Test baseline: `1906 passed, 2 skipped` (full pytest)
+- Root project handoff: `./agentlab.sh repository-handoff --repo <path> --write` generates `PROJECT_HANDOFF.md`, `.agentlab/HandOff.md`, and the shared mirror
+
+### Recent Updates
+
+- **Media generation routing layer**: `media_generation_router.py` + `config/media_generation_backends.yml` for deterministic backend routing on video/image tasks.
+- **Domain-aware creative routing**: `config/domain_route_packs.yml` provides dedicated route packs and quality gates for longform fiction, research reading, and codebase work.
+- **CLI modularization**: worker, runtime hygiene, capability contract, routing, external project, protocol, and role capability subcommands were extracted from the monolithic CLI.
+- **Project artifact governance**: `project_artifact_index.yml`, per-project `PROJECT_HANDOFF.md`, and artifact stewardship gates for creative projects such as Crown_of_Ash.
+- **Executor binding refresh**: `agy` as Coder executor, expanded Hermes model groups, and synchronized worker invocation contracts.
+
+### Active Creative Projects (Local, Not on GitHub)
+
+These project assets sync internally through TrueNAS (`10.147.17.61`) and the 250 office runtime (`10.147.17.250`). They are not pushed to public GitHub:
+
+| Project | Path | Notes |
+|---|---|---|
+| Crown_of_Ash | `projects/Crown_of_Ash/` | Fantasy longform: chapters, outlines, runs, project_brain |
+| NovelGen | `projects/NovelGen/` | Novel generation pipeline and chapter output |
+| novel-moon-in-seal | `projects/novel-moon-in-seal/` + `_shared/novel-moon-in-seal/` | Longform fiction plus audio-drama assets |
+
+### Three-End Collaboration Topology
+
+```text
+Local Mac (development source)
+  ├─ Git → GitHub (framework/code, excludes commercial projects/ assets)
+  └─ rsync/truenas-sync → TrueNAS 61 (relay hub)
+        └─ SSH/rsync → 250 office runtime (execution workspace)
+```
+
+- **Scheme A (Git)**: framework code such as `agent_runtime/`, `config/`, and `tests/` goes through GitHub.
+- **Scheme B (Rsync)**: creative assets under `projects/` and `.agentlab/` runtime state sync through internal NAS/250 paths.
+- 250 remote repository: `ssh://admin@10.147.17.250:/home/admin/AgentLab`
+
 ## Implemented Capabilities
 
 ### Core Runtime And Governance

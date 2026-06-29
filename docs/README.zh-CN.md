@@ -37,6 +37,44 @@ AgentLab 已经通过 P 系列和 S 系列工作具备长期项目治理底座�
 
 实际状态：AgentLab 正处在 M-series 对齐阶段。S7/S8 等底座能力已经实现很多，但在进入 M2/M3 之前，仍应先完成 M0/M1 的正式验收收敛。
 
+## 当前基线（2026-06-29）
+
+- 分支：`main`，本地工作根：`Desktop/AgentLab`
+- 最近主线提交：`9c65d95`（媒体生成路由层）、`2e8ff83`（根级 `PROJECT_HANDOFF.md` 生成）
+- 测试基线：`1906 passed, 2 skipped`（全量 pytest）
+- 根级项目交接：`./agentlab.sh repository-handoff --repo <path> --write` 生成 `PROJECT_HANDOFF.md`、`.agentlab/HandOff.md` 与共享镜像
+
+### 近期更新
+
+- **媒体生成路由层**：`media_generation_router.py` + `config/media_generation_backends.yml`，为视频/图像类任务提供确定性后端路由。
+- **领域感知创作路由**：`config/domain_route_packs.yml` 为长篇小说、研究阅读、代码库等任务提供专用 route pack 与质量门禁。
+- **CLI 模块化拆分**：worker、runtime hygiene、capability contract、routing、external project、protocol、role capability 等子命令已从单体 CLI 拆出。
+- **项目产物治理**：`project_artifact_index.yml`、项目级 `PROJECT_HANDOFF.md`、Crown_of_Ash 等创作项目的 artifact stewardship gate。
+- **执行器绑定更新**：`agy` 作为 Coder 执行器，Hermes 扩展模型组，worker invocation contracts 同步。
+
+### 活跃创作项目（本地，不入 GitHub）
+
+这些项目资产通过 TrueNAS（`10.147.17.61`）与 250 办公区（`10.147.17.250`）内部同步，不推送到公开 GitHub：
+
+| 项目 | 路径 | 说明 |
+|---|---|---|
+| Crown_of_Ash | `projects/Crown_of_Ash/` | 奇幻长篇，正文 + 大纲 + runs + project_brain |
+| NovelGen | `projects/NovelGen/` | 小说生成管线与章节产出 |
+| novel-moon-in-seal | `projects/novel-moon-in-seal/` + `_shared/novel-moon-in-seal/` | 《月印封》长篇与音频剧素材 |
+
+### 三端协作拓扑
+
+```text
+本地 Mac（开发源）
+  ├─ Git → GitHub（框架/代码，不含 projects/ 商业资产）
+  └─ rsync/truenas-sync → TrueNAS 61（中转站）
+        └─ SSH/rsync → 250 办公区（运行时工作区）
+```
+
+- **Scheme A（Git）**：`agent_runtime/`、`config/`、`tests/` 等框架代码走 GitHub。
+- **Scheme B（Rsync）**：`projects/` 创作资产、`.agentlab/` 运行时状态走内部 NAS/250 同步。
+- 250 远端仓库：`ssh://admin@10.147.17.250:/home/admin/AgentLab`
+
 ## 已实现能力
 
 ### 核心运行时与治理

@@ -4,82 +4,166 @@
 > [English](docs/README.en-US.md) |
 > [中文](docs/README.zh-CN.md)
 >
-> Switchable standalone guides are available in both languages:
-> [English guide](docs/README.en-US.md) and
-> [中文说明](docs/README.zh-CN.md).
+> Standalone guides / 独立说明：
+> [English guide](docs/README.en-US.md) ·
+> [中文说明](docs/README.zh-CN.md)
 
-AgentLab is a local-first, semi-managed development workflow for personal agentic software work.
-In cloud self-hosting, it is intended to run beside a public chat gateway such as
-OpenClaw, not as a public SaaS API.
+AgentLab is a local-first AI Production OS and Project-to-Revenue OS under active development.
+It is **not** a replacement for Codex, Claude Code, Cline, Hermes, OpenClaw, or other executor/front-end agents.
+AgentLab is the backend truth source that keeps long-running projects governed, inspectable, recoverable, and evidence-backed.
 
-AgentLab 是一个本地优先、半托管的个人 Agentic 软件开发工作流。
+AgentLab 是一个本地优先的 AI Production OS / Project-to-Revenue OS，仍在持续开发中。
+它不是 Codex、Claude Code、Cline、Hermes、OpenClaw 或其他前端执行器的替代品。
+AgentLab 的定位是后端事实源：让长期项目保持可治理、可检查、可恢复、可审计，并用证据闭环。
 
-Language preference is configurable through `config/language_policy.yml` or the
-`AGENTLAB_LANGUAGE` environment variable. Use `en-US` for English-facing
-operator text or `zh-CN` for Chinese-facing operator text; machine-readable
-command names, event names, YAML keys, and JSON keys stay in English.
+Repository / 仓库：`https://github.com/Kidrage/AgentLab` · branch `main`
 
-语言偏好可通过 `config/language_policy.yml` 或 `AGENTLAB_LANGUAGE` 环境变量配置。
-使用 `en-US` 输出英文操作文案，使用 `zh-CN` 输出中文操作文案；命令名、事件名、
-YAML key 和 JSON key 等机器可读标识保持英文稳定不变。
-
-The goal is to make model-assisted development cheaper, more transparent, and more controllable than one long chat:
-
-目标是让模型辅助开发比"一个长聊天"更便宜、更透明、更可控：
-
-- Store task state and project memory locally. / 本地存储任务状态和项目记忆。
-- Route only the agents needed for the task. / 仅路由任务所需的 Agent。
-- Publish token budgets before work starts. / 工作开始前公开发布 Token 预算。
-- Keep implementation, validation, audit, and archival evidence separate. / 实现、验证、审计、归档证据分离。
-- Preserve long-running project direction through explicit memory files. / 通过显式记忆文件保持长期项目方向。
+Language preference / 语言偏好：`config/language_policy.yml` or `AGENTLAB_LANGUAGE` (`en-US` / `zh-CN`).
 
 ---
 
-## Local OpenClaw Deployment / 本地 OpenClaw 部署
+## What AgentLab Does / AgentLab 做什么
 
 ```text
-Public Internet
-  ↓
-OpenClaw public chat endpoint
-  ↓ local CLI / MCP stdio
-AgentLab local AgentOps kernel
-  ↓ local webhook / event queue
-OpenClaw local receiver
+user requirement / 用户需求
+-> mission / task contract
+-> project roadmap / 项目路线图
+-> phase plan / 阶段计划
+-> task packet / 任务包
+-> local or external executor handoff / 本地或外部执行器交接
+-> artifact and evidence ingestion / 产物与证据摄入
+-> review / retry / recovery
+-> phase acceptance / 阶段验收
+-> project memory update / 项目记忆更新
+-> delivery package / 交付包
+-> future asset, production, revenue, and SOP loops
 ```
 
-Do not expose AgentLab directly to the public internet. OpenClaw should be the
-only public user-facing service; AgentLab should stay on localhost, the same
-machine, or a private Docker network.
+Default design is local-first and approval-gated. Real external execution, skill installation, network access, platform posting, and public server exposure stay disabled unless policy and explicit user approval allow them.
 
-Guide: `docs/OPENCLAW_LOCAL_INTEGRATION.md`
+默认设计是本地优先、审批门控。真实外部执行、技能安装、网络访问、平台发布和公开服务绑定默认关闭，只有策略允许且用户明确批准后才可执行。
 
 ---
 
-## Operating Model / 运行模型
+## Current Baseline / 当前基线（2026-06-29）
 
-AgentLab uses a hybrid agent-executor operating model with custom CLI agents and dynamic API fallbacks:
+| Item / 项 | Value / 值 |
+|---|---|
+| Branch / 分支 | `main` |
+| Local root / 本地根目录 | `Desktop/AgentLab` |
+| Latest mainline / 最近主线 | `9c65d95` media generation routing · `2e8ff83` root project handoff |
+| Test baseline / 测试基线 | `1906 passed, 2 skipped` (full pytest) |
+| Product stage / 产品阶段 | M-series alignment (M0/M1 consolidation before M2/M3) |
+
+### Recent Updates / 近期更新
+
+- **Media generation routing / 媒体生成路由**：`media_generation_router.py` + `config/media_generation_backends.yml`
+- **Domain-aware creative routing / 领域感知创作路由**：`config/domain_route_packs.yml` for longform fiction, research, codebase, and media tasks
+- **CLI modularization / CLI 模块化**：worker, hygiene, capability, routing, external project, protocol, and role capability commands extracted
+- **Repository handoff / 仓库级交接**：`./agentlab.sh repository-handoff --repo <path> --write` → `PROJECT_HANDOFF.md`
+- **Executor refresh / 执行器更新**：`agy` as Coder, expanded Hermes model groups, updated worker invocation contracts
+- **Creative project governance / 创作项目治理**：`project_artifact_index.yml`, per-project handoff, artifact stewardship gates
+
+### Active Creative Projects / 活跃创作项目（本地，不入 GitHub）
+
+| Project | Path | Notes |
+|---|---|---|
+| Crown_of_Ash | `projects/Crown_of_Ash/` | Fantasy longform: chapters, outlines, runs, project_brain |
+| NovelGen | `projects/NovelGen/` | Novel generation pipeline and chapter output |
+| novel-moon-in-seal | `projects/novel-moon-in-seal/` + `_shared/novel-moon-in-seal/` | Longform fiction + audio-drama assets |
+
+These assets sync internally via TrueNAS and the 250 office runtime. They are **not** pushed to public GitHub.
+
+这些项目资产通过 TrueNAS 与 250 办公区内部同步，不推送到公开 GitHub。
+
+---
+
+## Three-End Topology / 三端协作拓扑
 
 ```text
-T1 大脑层  (Brain):    Supervisor          → Hermes (Default cli_agent) / DeepSeek API Fallback
-T2 感知层  (Perception): RepoScout, Researcher, InterfaceMapper → Qwen3.6+/Qwen3.7-Max
-T3 执行层  (Execution): Coder, PromptEngineer → Claude Code (Default cli_agent) / Qwen3 Coder Plus Fallback
-T4 审核层  (Audit):     TesterAuditor, Verifier → Qwen3.6-Flash/Plus / DeepSeek API Fallback
-T5 归档层  (Archive):   Archivist → Qwen3.6-Plus / Qwen3.7-Max
+Local Mac (development source / 开发源)
+  ├─ Git → GitHub (framework/code only / 仅框架代码)
+  └─ rsync / truenas-sync → TrueNAS 10.147.17.61 (relay / 中转站)
+        └─ SSH/rsync → 250 office 10.147.17.250 (runtime workspace / 运行时工作区)
 ```
 
-Three budget modes control model/executor selection per task:
-- 🧠 **brain_allocated** (default): cost-optimized tier matching by project size (L1/L2/L3)
-- ⚡ **max_quality**: best available CLI agents and models at every tier
-- 💰 **frugal**: lightweight models, skip optional agents, direct API/local LLM support
+- **Scheme A (Git)**：`agent_runtime/`, `config/`, `tests/`, docs, acceptance fixtures
+- **Scheme B (Rsync)**：`projects/` creative assets, `.agentlab/` runtime state, agent workspaces
+- 250 remote / 250 远端：`ssh://admin@10.147.17.250:/home/admin/AgentLab`
 
-Coder supports hybrid execution backends:
-- `claude_code` — Claude Code CLI executor (Default)
-- `api_qwen_coder_plus` — Qwen3-Coder-Plus (direct API fallback)
-- `api_deepseek_flash` — DeepSeek V4 Flash (frugal API fallback)
-- `local_llm` — Ollama/vLLM (frugal mode)
-- `external_ide` — external IDE AI handoff (Codex/Claude/Cline)
+Commercial project assets and credentials must never be pushed to external GitHub.
 
-See `config/agent_model_profiles.yml`, `config/agent_registry.yml`, `config/model_catalog.yml`, and `OPERATING_MODEL.md`.
+商业项目资产与凭证不得推送到外部 GitHub。
+
+---
+
+## M-Series Roadmap / M 系列路线图
+
+AgentLab already has the P-series and S-series governance foundation. The next product mainline is M-series:
+
+AgentLab 已通过 P 系列和 S 系列具备长期项目治理底座。下一条产品主线是 M 系列：
+
+| Phase | Goal / 目标 |
+|---|---|
+| **M1** Project Governance Kernel | Long-running project governance + local CLI executor coordination / 长期项目治理与本地 CLI 执行器协作 |
+| **M2** Operator OS | Transparent CLI/TUI/WebUI/assistant control plane / 透明操作控制面 |
+| **M3** Project-to-Revenue OS | Business contracts, assets, production, revenue, CRM, SOP / 商业契约、资产、生产、收入、CRM、SOP |
+
+Practical status: M-series alignment stage. Consolidate M0/M1 acceptance before M2/M3.
+
+实际状态：M 系列对齐阶段。进入 M2/M3 前应先完成 M0/M1 验收收敛。
+
+---
+
+## 9-Agent Operating Model / 9 智能体运行模型
+
+```text
+T1 Brain / 大脑层:       Supervisor → Hermes (default) / DeepSeek API fallback
+T2 Perception / 感知层:  RepoScout, Researcher, InterfaceMapper → Qwen
+T3 Execution / 执行层:   Coder (agy / Claude Code), PromptEngineer → Qwen Coder
+T4 Audit / 审核层:       TesterAuditor, Verifier → Qwen Flash/Plus / DeepSeek
+T5 Archive / 归档层:     Archivist → Qwen Plus
+```
+
+Budget modes / 预算模式: `brain_allocated` (default), `max_quality`, `frugal`
+
+Route profiles / 路由配置: `small_task`, `medium_task`, `interface_sensitive_task`, `research_sensitive_task`, `large_or_risky_task`, plus domain packs (`fiction_chapter_pipeline`, etc.)
+
+Config / 配置：`config/agent_registry.yml`, `config/model_catalog.yml`, `config/domain_route_packs.yml`, `OPERATING_MODEL.md`
+
+---
+
+## Implemented Capabilities / 已实现能力
+
+### Core Runtime / 核心运行时
+
+- Local-first task state, project memory, run directories, evidence artifacts / 本地任务状态、项目记忆、运行目录、证据产物
+- 14-node lifecycle with checkpoint/resume / 14 节点生命周期与检查点恢复
+- Brain governance: token budgets, loop detection, provider failover / 大脑治理：预算、循环检测、故障切换
+- Artifact evidence gate, CostLedger v2, BudgetGate / 产物证据门禁、成本账本、预算门
+- Guard system: atomic I/O, file locks, heartbeats, crash recovery / 守护：原子 IO、锁、心跳、崩溃恢复
+- Task index, discovery, resume, repository handoff / 任务索引、发现、恢复、仓库级交接
+
+### P/S-Series Foundations / P/S 系列底座
+
+- **P0**: CostLedger, RepoManifest, CloneGuard, ResourceLedger, Pipeline Runner
+- **P1**: External skill registry (disabled by default), ECC scan-only, external agent handoff
+- **P2**: 3E Reviewer, Retry Manager, Context Governance, Failure Recovery stack
+- **S7**: Long project orchestrator (`project-brain-init`, `project-plan`, `project-next`, `phase-accept`)
+- **S8**: Executor connector loop (task packets, evidence ingestion, phase acceptance)
+- **S9**: Capability fabric (mock-first, permission-gated)
+- **S10**: Offline generalization eval suite + CI gates
+- **S11**: Ops console snapshot (read-only, local-only)
+- **S12**: Service factory planning (quote, timeline, delivery skeleton)
+
+### Skills, Feedback, Integration / 技能、反馈、集成
+
+- Skill lifecycle MVP + Skill Vault + Trace-to-Skill learning / 技能生命周期 + 技能库 + 轨迹学习
+- Feedback loop: `task_events.jsonl`, decision cards, watchdog, webhooks / 反馈闭环
+- MCP stdio tool server, Cline STDIO wrapper / MCP 工具服务
+- Static Web UI status board + task details / 静态 Web UI 看板
+
+Full capability list / 完整能力列表：see [`docs/README.zh-CN.md`](docs/README.zh-CN.md) or [`docs/README.en-US.md`](docs/README.en-US.md)
 
 ---
 
@@ -87,634 +171,109 @@ See `config/agent_model_profiles.yml`, `config/agent_registry.yml`, `config/mode
 
 ```text
 AgentLab/
-├── agent_runtime/          # Core runtime: CLI, lifecycle graph, guard, progress tracker,
-│                           # brain governor, task router, provider failover, LLM provider,
-│                           # task index, terminal chat, evaluation suite, task snapshot,
-│                           # memory writer, artifact contract, pipeline runner, state store
-│                           # 核心运行时：CLI、生命周期图、守护、进度追踪、
-│                           # 大脑治理、任务路由、提供者故障切换、LLM 提供者、
-│                           # 任务索引、终端聊天、评估套件、任务快照、
-│                           # 记忆写入器、产物契约、管线运行器、状态存储
-├── agent_templates/        # 9 agent role prompts + Codex Full-Driver templates
-│                           # 9 个 Agent 角色提示词 + Codex 全驱动模板
-├── config/                 # YAML policies: routing, budget, models, validation gates,
-│                           # guard, backup, auto-sync, evaluation, execution modes, etc.
-│                           # YAML 策略：路由、预算、模型、验证门禁、
-│                           # 守护、备份、自动同步、评估、执行模式等
-├── skills/                 # Local skill lifecycle registry and staged/active/retired packages
-│                           # 本地技能生命周期注册表，以及 staging/active/retired 技能包
-├── projects/               # Per-project memory docs and task run records
-│   ├── AgentLab/           #   AgentLab self-tracking project
-│   └── AO-SpatialAuthoring-Modular/  # AO spatial audio authoring project
-│                           # 每个项目的记忆文档和任务运行记录
-├── tests/                  # Integration tests: artifact gates, task closure
-│                           # 集成测试：产物门禁、任务闭环
-├── web_ui/                 # Static status dashboard with task details panel
-│                           # 静态状态看板（含任务详情面板）
-├── scripts/                # Git hooks and automation
-│                           # Git 钩子和自动化脚本
-├── docs/                   # Specs: Codex Full-Driver Operation Chain
-│                           # 规范：Codex 全驱动操作链
-├── agentlab.sh             # One-command CLI entrypoint
-│                           # 一键 CLI 入口
-├── DRIVER_PROTOCOL.md      # Protocol for external AIs to drive AgentLab
-│                           # 外部 AI 驱动 AgentLab 的协议
-├── OPERATING_MODEL.md      # Multi-tier operating rules
-│                           # 分层运行规则
-└── CLI_ROADMAP.md          # CLI evolution roadmap
-                            # CLI 演进路线图
+├── agent_runtime/       # Core runtime / 核心运行时
+├── agent_templates/     # 9 agent role prompts / 9 个 Agent 提示词
+├── config/              # YAML policies / YAML 策略
+├── skills/              # Skill lifecycle registry / 技能生命周期
+├── projects/            # Per-project memory + runs (local-only assets) / 项目记忆与运行
+├── _shared/             # Shared creative assets (e.g. novel-moon-in-seal) / 共享创作资产
+├── tests/               # Integration + acceptance tests / 集成与验收测试
+├── acceptance_runs/     # Offline acceptance artifacts / 离线验收产物
+├── web_ui/              # Static status dashboard / 静态状态看板
+├── docs/                # Specs and standalone READMEs / 规范与独立说明
+├── agentlab.sh          # One-command CLI entrypoint / 一键 CLI 入口
+├── PROJECT_HANDOFF.md   # Root project status dashboard / 根级项目状态看板
+├── DRIVER_PROTOCOL.md   # External AI driver protocol / 外部 AI 驱动协议
+└── OPERATING_MODEL.md   # Multi-tier operating rules / 分层运行规则
 ```
 
 ---
 
-## 9 Agents / 9 个智能体
-
-| Agent / 智能体 | Tier | Role / 角色 | Permissions / 权限 |
-|---|---|---|---|
-| **Supervisor** | T1 | 任务规划、路由决策、范围锁定、Token 预算、预算模式选择 | 只读 |
-| **RepoScout** | T2 | 仓库结构扫描和上下文映射 | 只读 + shell 检查 |
-| **Researcher** | T2 | 外部信息/文档研究 | 只读 + 可浏览 |
-| **InterfaceMapper** | T2 | 接口、契约、边界映射 | 只读 + shell 检查 |
-| **PromptEngineer** | T3 | 稳定生成 Coder 执行提示词，拼接 scope + context + contracts | 只读 |
-| **Coder** | T3 | 代码编辑、文件变更、项目命令（API/本地/外部IDE） | 可写源码 + 可执行 |
-| **TesterAuditor** | T4 | Diff 审查、验证解读、风险发现、行为校验 | shell 验证命令 |
-| **Verifier** | T4 | 输出匹配检查、行为完整性验证、Agent 交接缺口检测 | 只读 + shell 检查 |
-| **Archivist** | T5 | 项目记忆维护 + 跨任务文档整合 + 任务归档清理 | 可写 agent_docs |
-
-Configuration / 配置入口: `config/agent_registry.yml` | Templates / 模板: `agent_templates/*.md`
-
-Budget modes and project sizes (L1/L2/L3) dynamically select which model profile each agent uses — see `config/model_catalog.yml`.
-
----
-
-## Task Routing / 任务路由
-
-5 route profiles based on task content + project size heuristics:
-
-| Route / 路由 | Trigger / 触发条件 | Agents / 智能体 |
-|---|---|---|
-| `small_task` | Default / 默认 (<800 chars) | Supervisor → Coder → TesterAuditor |
-| `medium_task` | >800 chars / 字符 | +RepoScout +Archivist |
-| `interface_sensitive_task` | api/schema/protocol/db/ui 等 | +InterfaceMapper |
-| `research_sensitive_task` | latest/docs/pricing/regulation 等 | +Researcher |
-| `large_or_risky_task` | architecture/refactor/security 或 >2500 chars | 全 9 个 agent / all 9 agents |
-
-Principle: **smallest safe route** / 原则：**最小安全路线**。
-
-Verifier runs on L2+ tasks; skipped on L1 frugal mode.
-
----
-
-## Lifecycle State Machine / 生命周期状态机
-
-Every task follows a canonical 14-node lifecycle with checkpoint tracking and resume support:
-
-```text
-INIT_TASK → PREPARE_PLAN → SUPERVISOR_PLAN → REPO_CONTEXT
-  → RESEARCH_OPTIONAL → INTERFACE_OPTIONAL → CODER_IMPLEMENTATION
-  → VALIDATION → AUDIT → VERIFY → ARCHIVE → SELF_CHECK
-  → SYNC_OPTIONAL → FINALIZE
-```
-
-Task states: `new` → `planned` → `in_progress` → `paused`/`blocked`/`recoverable` → `validating` → `auditing` → `archiving` → `syncing` → `completed`/`failed`
-
-Each task tracks progress via `progress.yml` with per-agent weights, token accounting, provider status, and incident tracking. Both CLI and Web UI consume this single source of truth.
-
----
-
-## AgentLab Guard / 守护系统
-
-Concurrent safety and crash recovery for multi-agent workflows:
-
-- **Atomic I/O**: all state writes use atomic write-then-rename (`atomic_io.py`)
-- **File locks**: exclusive per-task locks prevent concurrent writes by multiple agents
-- **Heartbeats**: periodic heartbeat files detect stale/crashed processes (120s timeout)
-- **Crash recovery**: auto-detect stale locks and offer guided recovery
-- **Transaction tracking**: every lock acquisition creates an auditable transaction record
-
-Run `./agentlab.sh guard-status --project <Project> --task-id <task_id>` to inspect lock state.
-
----
-
-## Provider Failover / 提供者故障切换
-
-When a provider API fails, AgentLab can pause and switch to a fallback:
-
-- Detects provider failures and records incidents in `progress.yml`
-- Pauses task state with `paused_for_provider` flag
-- Supports manual provider override to resume with a different model
-- Incident history recorded for post-task review
-
----
-
-## Codex Full-Driver Mode / Codex 全驱动模式
-
-Codex can temporarily execute ALL AgentLab roles as an external driver while still writing every standard artifact locally. This allows consuming Codex quota without losing the ability to resume via API agents later.
-
-Key artifact: `handoff_packet.yml` — machine-readable resume state for any model or human.
-
-Three safe transitions: **Codex → Codex**, **Codex → API agents**, **Codex → human manual**.
-
-Full spec: `docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md`
-
----
-
-## Task Discovery & Resume Index / 任务发现与恢复索引
-
-Global task index with searchable metadata:
-
-- `task_index.yml` — searchable registry of all tasks across all projects
-- `task_card.yml` — per-task summary: status, route, cost, key decisions
-- Task search by status, agent, risk level, budget mode
-- Resume support: find paused/blocked tasks and continue from last checkpoint
-
-CLI: `./agentlab.sh task-search --status paused`, `./agentlab.sh task-resume --project <P> --task-id <T>`
-
----
-
-## Skill Lifecycle MVP / 技能生命周期 MVP
-
-AgentLab now implements a local closed-loop skill lifecycle, active skill retrieval/injection, and post-task Trace-to-Skill candidate generation:
-
-### Lifecycle States
-
-```
-pending_user_approval → approved → staging → validated → active → retired
-                      ↘ rejected
-```
-
-### Filesystem Layout
-
-```
-skills/
-  registry.yml          # Skill registry (status: local_lifecycle_mvp)
-  staging/<skill_id>/   # Staged skills awaiting validation
-    metadata.yml
-    adapted_skill.md
-    validation_plan.yml
-    sandbox_report.yml
-  active/<skill_id>/    # Active (promoted) skills
-    SKILL.md
-    metadata.yml
-    validation_report.yml
-    usage_ledger.yml
-  retired/<skill_id>/   # Retired skills
-    SKILL.md
-    metadata.yml
-    retired_at.yml
-```
-
-### CLI Commands
-
-```
-./agentlab.sh skill-list --project AgentLab
-./agentlab.sh skill-request --project AgentLab --name demo --source manual://demo --purpose "test"
-./agentlab.sh skill-approve --project AgentLab --request-id <id>
-./agentlab.sh skill-reject --project AgentLab --request-id <id> --reason "..."
-./agentlab.sh skill-stage --project AgentLab --request-id <id>
-./agentlab.sh skill-validate --skill-id <id> --fake-sandbox
-./agentlab.sh skill-promote --skill-id <id>
-./agentlab.sh skill-retire --skill-id <id> --reason "obsolete"
-./agentlab.sh skill-match --project AgentLab --task-id <task_id>
-./agentlab.sh skill-inject --project AgentLab --task-id <task_id>
-./agentlab.sh skill-usage --project AgentLab --task-id <task_id>
-./agentlab.sh skill-import-url \
-  --project AgentLab \
-  --url "https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md" \
-  --allow-network
-./agentlab.sh learning-review --project AgentLab --task-id <task_id>
-./agentlab.sh skill-candidates --project AgentLab --task-id <task_id>
-./agentlab.sh skill-candidate-approve --project AgentLab --task-id <task_id> --candidate-id <id>
-```
-
-### Active Skill Injection
-
-`prepare --write-plan` and pipeline `PREPARE_PLAN` retrieve active skills from `skills/active/<skill_id>/metadata.yml`, record selected/rejected skills in `workflow_plan.yml`, write task-level `skill_usage.yml`, and append each selected active skill's `usage_ledger.yml`.
-
-### Trace-to-Skill Learning
-
-Pipeline completion and `learning-review` inspect task events and reports for reusable patterns such as blocked/resolved decisions, validation failures, recovery actions, repeated approvals, repo-specific repair procedures, and artifact contract workarounds. Matching patterns create `skill_candidates/*.yml`; approving a candidate creates a `self_learned` Skill Adoption Request that follows the same lifecycle.
-
-### Implemented
-
-- ✅ local skill lifecycle
-- ✅ skill retrieval/injection MVP
-- ✅ skill usage ledger
-- ✅ post-task learning review
-- ✅ skill candidate generation
-- ✅ external raw `SKILL.md` import MVP
-- ✅ allowlisted URL import
-- ✅ source snapshot
-- ✅ no-network fixture test
-- ✅ optional live external skill smoke test
-- ✅ external skill lifecycle: request → approve → stage → fake validate → active
-- ✅ active imported skill retrieval/injection into a task
-
-### Not Yet Implemented
-
-- ❌ full GitHub skill repo search
-- ❌ multi-file external skill package parser
-- ❌ real sandbox execution
-- ❌ automatic unapproved external skill learning
-- ❌ production-grade supply-chain risk scanner
-- ❌ full skill ROI/conflict/retirement automation
-- ❌ real OpenClaw/Hermes/Telegram adapter
-- ❌ production daemon service manager
-
-The canonical live external skill URL:
-`https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md`
-
-Fallback URL candidates (documented only; AgentLab does not automatically fetch them):
-- `https://raw.githubusercontent.com/openclaw/skills/main/skills/bowen31337/create-agent-skills/SKILL.md`
-- `https://raw.githubusercontent.com/openclaw/skills/main/skills/gitgoodordietrying/skill-writer/SKILL.md`
-
----
-
-## Feedback Loop Scaffold / 反馈闭环骨架
-
-AgentLab has an MVP real-time feedback loop for event-driven task feedback and human intervention. Pipeline blocks produce decision cards and task events; the Web UI Decision Center reads those cards, exposes approve/reject/resume controls, and receives task events through Server-Sent Events with polling fallback.
-
-- `task_events.jsonl` is the per-task event timeline.
-- `decision_cards/*.yml` is the per-task pending approval queue.
-- `config/feedback_policy.yml` defines fine-grained statuses, notification levels, and watchdog thresholds.
-- `config/watchdog_policy.yml` defines stale-running, stale-event, waiting-approval, and stale-lock thresholds.
-- `web_ui/server.py` exposes `/api/tasks/<task_id>/events`, `/events/stream`, `/decisions`, decision approve/reject, and task resume/pause/stop endpoints.
-- `watchdog-scan` marks stale running tasks with `STALE_RUNNING`, refreshes `feedback_status.json`, and can create a recovery decision card.
-
-CLI: `./agentlab.sh feedback-status --project AgentLab`, `./agentlab.sh task-event --project AgentLab --task-id <T> --event TASK_CREATED`, `./agentlab.sh watchdog-scan --project AgentLab`, `./agentlab.sh watchdog-status --project AgentLab --task-id <T>`
-
-### Webhook Notifications
-
-AgentLab can optionally push action-required and lifecycle events to same-host chat gateways such as OpenClaw or Hermes. Webhooks are disabled by default; endpoint URLs and signing secrets are read only from environment variables. AgentLab dispatches outbound events; OpenClaw receives them locally through localhost, a private Docker network, or a local event queue.
-
-- `config/webhook_policy.yml` controls enabled endpoints, event allow-lists, retry count, signing, and redaction.
-- Delivery logs are written to `projects/<Project>/runs/<task_id>/webhook_delivery_log.yml` or `projects/<Project>/webhook_delivery_log.yml` for project-level skill events.
-- Dispatchable events include `ACTION_REQUIRED`, `BLOCKED`, `BUDGET_WARNING`, `STALE_RUNNING`, `FAILED_RECOVERABLE`, `COMPLETED`, `SKILL_REQUEST_PENDING`, `SKILL_CANDIDATE_READY`, and `SKILL_PROMOTED`.
-
-CLI: `./agentlab.sh webhook-test --event ACTION_REQUIRED --project AgentLab --task-id <T>`, `./agentlab.sh webhook-status --project AgentLab --task-id <T>`, `./agentlab.sh webhook-redeliver --project AgentLab --task-id <T>`
-
-Guide: `docs/WEBHOOK_INTEGRATION.md`
-
-### MCP Tool Server
-
-AgentLab exposes a thin optional MCP-style stdio tool server for external agents running in the same environment that need structured task, decision, skill, webhook, and watchdog operations.
-
-- `agent_runtime/mcp_server.py` defines tool schemas, structured handlers, resources, and a minimal stdio JSON-RPC loop.
-- `config/mcp_policy.yml` gates task creation, decision approval, skill approval, and stop-task operations.
-- Tools include task status/events/report, decision approve/reject/resume, skill request/approval, active skill usage, webhook status, and watchdog scan.
-- Recommended OpenClaw transport is direct CLI or MCP stdio; do not expose MCP over public HTTP without a separate authenticated gateway.
-- Cline local STDIO setup uses `scripts/agentlab_mcp_stdio.sh`; see `docs/CLINE_MCP_SETUP.md` and `examples/cline/`.
-
-Smoke: `python -m agent_runtime.mcp_server --list-tools`
-
-Guide: `docs/MCP_INTEGRATION.md`
-
-### Implemented
-
-- ✅ task_events.jsonl
-- ✅ decision_cards
-- ✅ feedback_status
-- ✅ Web UI Decision Center MVP
-- ✅ SSE/polling real-time feedback MVP
-- ✅ watchdog scan MVP
-- ✅ webhook dispatcher MVP
-- ✅ MCP-style tool server MVP
-- ✅ Cline local STDIO MCP wrapper and config examples
-
-### Not Yet Implemented
-
-- ❌ chat-native OpenClaw/Hermes/Telegram adapter
-- ❌ Cline Marketplace packaging
-- ❌ remote HTTP/SSE hosted MCP
-- ❌ full production MCP SDK certification
-- ❌ long-running daemon hardening
-- ❌ real GitHub skill discovery
-- ❌ real sandbox execution
-- ❌ external skill package parser
-- ❌ production-grade daemon service manager
-
-Roadmap: `docs/AGENTLAB_SKILL_FEEDBACK_ROADMAP.md`
-
----
-
-## Terminal Chat / 终端对话
-
-Direct CLI chat interface for quick agent interactions without a full task run:
+## Important Commands / 常用命令
 
 ```bash
-./agentlab.sh chat --agent Supervisor --project <Project>
-```
-
-Supports single-turn queries with any configured agent/model, with cost tracking.
-
----
-
-## Evaluation Suite / 评估套件
-
-Built-in evaluation framework for validating AgentLab's own behavior:
-
-- **Modes**: offline_first, mock_provider, api_smoke, full_api
-- **Audits**: system audit, artifact completeness (≥90%), lifecycle pass rate (≥85%), recovery pass rate (≥80%), budget savings (≥30% vs monolithic), secret leak detection
-- **Token estimation**: char/4 fallback with optional tiktoken
-- **Cost tracking**: config-based pricing with override support
-
-Run: `cd agent_runtime/evaluation && python eval_all.py`
-
----
-
-## One-Command CLI / 一键 CLI
-
-From the AgentLab root / 从 AgentLab 根目录：
-
-```bash
-# Initialize a new task / 初始化新任务
-./agentlab.sh init-task --project <Project> --task-id task_0007
-
-# Build workflow plan / 生成工作流计划
-./agentlab.sh prepare --project <Project> --task-id task_0007 --write-plan
-
-# Check task status / 查看任务状态
-./agentlab.sh status --project <Project> --task-id task_0007
-
-# Run a brain agent (dry-run by default, --execute to call API) / 运行大脑层 Agent
-./agentlab.sh run-agent Supervisor --project <Project> --task-id task_0007 --execute
-
-# Check brain governance / 查看大脑治理状态
-./agentlab.sh brain-status --project <Project> --task-id task_0007
-
-# Migration / backup readiness / 迁移与备份就绪检查
-./agentlab.sh migration-doctor --project <Project>
-./agentlab.sh migration-init --project <Project>
-./agentlab.sh truenas-status --project <Project>
-./agentlab.sh truenas-sync --project <Project> --task-id task_0007 --dry-run
-./agentlab.sh backup-status --project <Project> --task-id task_0007
-
-# List configured models/providers / 列出已配置的模型/提供者
+# Health / 健康检查
+./agentlab.sh doctor
+./agentlab.sh policy-status --project AgentLab
 ./agentlab.sh models
 
-# View execution policy / 查看执行策略
-./agentlab.sh policy-status --project <Project>
+# Task lifecycle / 任务生命周期
+./agentlab.sh init-task --project <Project> --task-id task_0007
+./agentlab.sh prepare --project <Project> --task-id task_0007 --write-plan
+./agentlab.sh run-pipeline --project <Project> --task-id task_0007 --dry-run
+./agentlab.sh status --project <Project> --task-id task_0007
 
-# Log an event to ledgers / 记录事件
-./agentlab.sh log-event --project <Project> --task-id task_0007 --agent Coder --summary "..." --files-changed "..."
+# Long project / 长期项目
+./agentlab.sh project-brain-init --project <Project>
+./agentlab.sh project-next --project <Project>
+./agentlab.sh phase-accept --project <Project>
 
-# Request traversal permission / 请求遍历权限
-./agentlab.sh request-traversal RepoScout --project <Project> --task-id task_0007 --scope full_repo --full-repo --reason "Need initial repo map"
+# Handoff / 交接
+./agentlab.sh repository-handoff --repo . --write
 
-# Request coder quota decision / 请求 Coder 配额决策
-./agentlab.sh request-coder-quota --project <Project> --task-id task_0007 --reason "Codex quota may be insufficient"
+# Sync / 同步
+./agentlab.sh migration-doctor --project AgentLab
+./agentlab.sh truenas-status --project AgentLab
+./agentlab.sh truenas-sync --project AgentLab --task-id <task_id> --dry-run
 
-# Check guard status / 查看守护状态
-./agentlab.sh guard-status --project <Project> --task-id task_0007
+# Skills / 技能
+./agentlab.sh skill-list --project AgentLab
+./agentlab.sh capability-list
 
-# Scan stale locks / 扫描过期锁
-./agentlab.sh guard-scan --project <Project>
-
-# Search tasks / 搜索任务
-./agentlab.sh task-search --project <Project> --status paused
-
-# Resume a paused task / 恢复暂停的任务
-./agentlab.sh task-resume --project <Project> --task-id task_0007
-
-# System health check / 系统健康检查
-./agentlab.sh doctor
-
-# Terminal chat / 终端对话
-./agentlab.sh chat --agent Supervisor --project <Project>
-
-# Task purge + project docs / 任务清理 + 项目文档
-./agentlab.sh task-purge --project <Project> --keep-days 7 --dry-run
-./agentlab.sh task-purge --project <Project> --keep-days 7
-
-# Codex full-driver commands / Codex 全驱动命令
-./agentlab.sh codex-start --project <Project> --task-id task_0007 --mode full-driver
-./agentlab.sh codex-handoff --project <Project> --task-id task_0007
-
-# Local closure verification / 本地闭环验证
-./agentlab.sh init-task --project AgentLab --task-id task_9999 --request-text "Demo"
-./agentlab.sh prepare --project AgentLab --task-id task_9999 --write-plan
-./agentlab.sh run-pipeline --project AgentLab --task-id task_9999 --dry-run
-./agentlab.sh check --project AgentLab --task-id task_9999
-./agentlab.sh ui
+# Evaluation / 评估
+./agentlab.sh eval-generalization --out acceptance_runs/s10_generalization_eval
+./agentlab.sh ops-console-status --project AgentLab --out acceptance_runs/s11_dashboard
 ```
 
-`run-agent` is dry-run by default. It calls the configured model API only when you pass `--execute`.
-
-`run-agent` 默认 dry-run，仅当传入 `--execute` 时才调用模型 API。
-
----
-
-## Driver Protocol / 驱动协议
-
-Any external AI (Codex Plus, Claude, IDE assistants) can drive AgentLab as a thin relay.
-Read `DRIVER_PROTOCOL.md` for the full 7-step protocol.
-
-任何外部 AI（Codex Plus、Claude、IDE 助手）都可以作为轻量中继驱动 AgentLab。完整 7 步协议见 `DRIVER_PROTOCOL.md`。
-
-Two execution modes for external AIs:
-- **Coder-Only**: external AI only edits code and runs commands; AgentLab API agents handle planning, review, archiving
-- **Full-Driver** (Codex): external AI emulates all 9 roles while writing all standard artifacts; resumable by API agents later
-
-The key rule / 核心规则：
-- **External AIs do NOT think — AgentLab's brain does.** / **外部 AI 不思考 — AgentLab 的大脑来思考。**
-- External AIs only transcribe user requests, execute the Coder phase, and relay decisions. / 外部 AI 仅转录用户请求、执行 Coder 阶段、中继决策。
-- If brain models are unavailable, AgentLab blocks and asks the user — no silent simulation. / 如果大脑模型不可用，AgentLab 阻止并询问用户——不允许静默模拟。
+`run-agent` is dry-run by default; pass `--execute` to call model APIs.
+`run-agent` 默认 dry-run，传入 `--execute` 才调用模型 API。
 
 ---
 
-## Brain Governance / 大脑治理
+## Safety Model / 安全模型
 
-- Token budgets per agent phase (warning at 90%, stop at 115%) / 每个 Agent 阶段的 Token 预算（90% 警告，115% 停止）
-- Full-repo traversal requires explicit approval / 全仓库遍历需要显式批准
-- Loop detection: 3+ repeated similar decisions → stop and replan / 循环检测：3 次以上重复相似决策 → 停止并重新规划
-- Budget mode selection: brain_allocated / max_quality / frugal per task / 预算模式选择
-- Project size classification: L1 (轻量) / L2 (标准) / L3 (重型) determines model tier
-- Provider failover: auto-pause on API failure, record incident, allow manual resume with fallback model / 提供者故障切换
-- Guard system: atomic I/O, file locks, heartbeats, crash recovery / 守护系统
-- Harness status checks verify `AGENTS.md`, project memory freshness, task feedback artifacts, and repeated-feedback promotion points. / Harness 状态检查
-- All decisions written to `brain_decisions.yml` / 所有决策写入 `brain_decisions.yml`
-- User decisions written to `USER_DECISION_REQUIRED.md` / 用户决策写入 `USER_DECISION_REQUIRED.md`
+AgentLab stays conservative by default / AgentLab 默认保持保守：
 
-Policy configs live in `config/`. Run:
-
-```text
-./agentlab.sh harness-status --project <Project> --task-id task_0007
-./agentlab.sh guard-status --project <Project> --task-id task_0007
-```
-
----
-
-## Audit Trail Per Task / 每条任务的审计追踪
-
-```
-runs/task_xxxx/
-├── user_request.md          # User's natural-language task / 用户自然语言任务
-├── workflow_plan.yml        # Route + token budgets + validation gates / 路由 + 预算 + 门禁
-├── lifecycle.yml            # Canonical lifecycle state machine / 规范生命周期状态机
-├── progress.yml             # Per-agent progress, tokens, provider status / 各Agent进度
-├── state.yml                # Task state machine / 任务状态机
-├── task_card.yml            # Searchable task summary / 可搜索的任务摘要
-├── supervisor_plan.md       # Scope, route, budget table, risks / 范围、路由、预算表、风险
-├── reposcout_report.md      # Repository context / 仓库上下文
-├── research_notes.md        # External research findings / 外部研究结果
-├── interface_map.md         # Interface boundaries / 接口边界
-├── codex_prompt.md          # Coder handoff prompt / Coder 交接提示词
-├── implementation_report.md # Changed files, commands, backend / 变更文件、命令、后端
-├── validation_report.md     # Tester/Auditor validation / 测试/审计验证
-├── audit_report.md          # Diff audit findings / Diff 审计发现
-├── verification_report.md   # Verifier completeness check / Verifier 完整性检查
-├── archive_update.md        # Project memory updates / 项目记忆更新
-├── brain_decisions.yml      # All governance decisions / 所有治理决策
-├── cost_ledger.yml          # Token cost accounting / Token 成本记账
-├── provider_incidents.yml   # Provider failure records / 提供者故障记录
-├── handoff_packet.yml       # Machine-readable resume state / 可机读的恢复状态
-├── self_check_report.yml    # Self-check before push / 推送前自查
-├── artifact_manifest.yml    # Final artifact inventory / 最终产物清单
-├── USER_DECISION_REQUIRED.md  # When user must decide / 需要用户决策时
-├── task_snapshot.yml        # Task snapshot for checkpoint recovery / 任务快照用于检查点恢复
-├── diffs/                   # Pre/post coder diffs / Coder 前后差异
-├── checkpoints/             # Recovery checkpoints / 恢复检查点
-├── command_logs/            # Commands run and outputs / 执行命令和输出
-└── sync/                    # GitHub/Truenas sync reports / 同步报告
-```
-
----
-
-## Local Status UI / 本地状态界面
-
-AgentLab has a dependency-free static status board / AgentLab 有一个零依赖的静态状态看板：
-
-```text
-web_ui/index.html
-```
-
-Shows agent state, route, provider, ownership, edit rights, token budget, progress percentage, lifecycle stage, provider status, and recent events. Task details panel links to code layer.
-
-显示 Agent 状态、路由、提供者、所有权、编辑权限、Token 预算、进度百分比、生命周期阶段、提供者状态和最近事件。任务详情面板与代码层关联。
-
----
-
-## GitHub Private Backup & Auto-Sync / GitHub 私有备份与自动同步
-
-AgentLab supports guarded GitHub auto-sync with self-check before push:
-
-- Private repository backup via `config/github_policy.yml`
-- Pre-push rule self-check (`rule_self_check.py`) blocks push if artifacts are incomplete
-- Sync history recorded in `agent_docs/10_SYNC_LEDGER.yml`
-- TrueNAS silent merge backup support
-- Post-commit auto-push hook (safe: blocked if `.env` or secrets staged)
-
----
-
-## Agent Corporation & Multi-End Sync / Agent 公司化与三端多端同步
-
-AgentLab supports transforming the workspace into an **Agent Corporation (Agent OS)** framework to synchronize configurations and histories across local and remote environments:
-
-- **Centralized Workstations / 集中管理工作站**: All agent workspace settings (such as `.claude`, `.gemini`, `.hermes`, `.qwen`, `.codex`) are stored in `AgentLab/.agents/workspaces/` to ensure they are synchronized. Local symlinks are automatically established from home directories for seamless execution.
-- **Three-End Multi-Party Topology / 三端多方协作**:
-  - *Local Mac* acts as the primary development source of truth.
-  - *<RELAY_IP> (Relay Hub 中转站)* acts as the central information and workspace relay station.
-  - *<CLOUD_IP> (Cloud Office 250办公区)* pulls updates from the Relay Hub via SSH/rsync to align runtime memory and execution history.
-- **Double-Track Sync / 双轨同步**: 
-  - *Scheme A (Git)*: Used for framework/structure code changes (in `agent_runtime/`, `config/`), pushed to git repositories.
-  - *Scheme B (Rsync / truenas-sync)*: Used for daily workspace databases, runtime histories, and Agent local states, pushed to <RELAY_IP>.
-- **Strict Data Security / 资产安全防泄漏**: Commercial project assets (under `projects/`) and API keys/credentials must *never* be pushed to external GitHub. They are exclusively synced internally to the 61 TrueNAS Relay Hub.
-- **Cost & Quality Governance (Trial Run) / 财务与质量网关（试运营）**:
-  - *Cost Ledger & Budget Grill*: A unified `cost_ledger.yml` in the task sandbox tracks API tokens, with a conversational `Budget Grill` triggered by the Supervisor to handle overruns, leaving budget headroom for future department expansions.
-  - *Dual-Gate Acceptance*: Closures require both automated tests (e.g. `pytest`) and peer-review audits (`ponytail-review` by TesterAuditor/Verifier) to verify correctness and prevent over-engineering.
-- **Workspace Cleanup / 工作区清理规则**: Old runs older than 7 days are cleaned up across all three ends (Local Mac, 61 TrueNAS, 250 Cloud Runtime) while preserving active running tasks (such as `task_0001`, `task_0009`, `task_0010`, `task_0035`, and `task_p2g_*`).
-
----
-
-## Task Purge & Project Documentation / 任务清理与项目文档
-
-Archivist (T5) 的 bulk 文档整合模式提供自动任务归档和项目文档生成:
-
-Archivist bulk mode provides automatic task archival and project documentation generation:
-
-**Task Archival / 任务归档:**
-- Auto-archive completed tasks older than `keep_days` (default 7 days) to `archive/`
-- `keep: true` flag in `state.yml` protects tasks from archival
-- Dry-run mode previews what would be archived without moving files
-
-**Project Documentation / 项目文档生成:**
-- `development_process.md` — 开发流程文档（整合所有任务的实现报告）
-- `usage_guide.md` — 使用指南（CLI 命令参考、常见工作流）
-- `CHANGELOG.md` — 项目更新日志（按任务自动维护）
-- `task_index.md` — 任务索引（所有任务的状态和路由一览）
-
-CLI / 命令行:
-```bash
-# Preview archival (dry-run) / 预览归档内容
-./agentlab.sh task-purge --project <Project> --keep-days 7 --dry-run
-
-# Execute archival + generate docs / 执行归档并生成文档
-./agentlab.sh task-purge --project <Project> --keep-days 7
-```
-
-Generated docs are written to `projects/<Project>/docs/`. The archival report is saved as `runs/task_purge_report.yml`.
-
-生成的文档写入 `projects/<Project>/docs/`。归档报告保存为 `runs/task_purge_report.yml`。
-
----
-
-## Integration Tests / 集成测试
-
-Two test suites validate AgentLab's own pipeline integrity:
-
-| Test | Purpose |
-|---|---|
-| `test_artifact_gate.py` | Validates artifact completeness: verifies all required fields exist in workflow plan, progress, state, lifecycle, and audit reports |
-| `test_task_closure.py` | End-to-end task closure test: init → prepare → pipeline dry-run → check final state |
-
-Run with:
-```bash
-cd tests
-python -m pytest test_artifact_gate.py test_task_closure.py -v
-```
-
-两份测试套件验证 AgentLab 自身管线完整性：产物门禁验证和任务闭环测试。
+- No automatic external tool execution / 不自动执行外部工具
+- No automatic skill installation / 不自动安装技能
+- No automatic MCP server launch / 不自动启动 MCP 服务
+- No automatic web crawling or platform posting / 不自动爬网或平台发布
+- No public bind by default / 默认不公开绑定服务
+- No credentials in project memory or handoffs / 不在记忆或交接中记录凭证
+- No accepting external results without evidence and review / 无证据与审查不接受外部结果
 
 ---
 
 ## Version Control / 版本控制
 
-This repo is version-controlled on GitHub / 本仓库在 GitHub 上进行版本控制：
-
 ```text
 https://github.com/Kidrage/AgentLab
 ```
 
-Auto-push via post-commit hook / 通过 post-commit 钩子自动推送：
+Auto-push via post-commit hook. Check `git status` before committing — never stage `.env` or credentials.
 
-```bash
-git add -A
-git commit -m "描述此次修改 / Describe your change"
-# → auto-pushes to origin main / 自动推送到 origin main
-```
-
-Use `git status` before committing to ensure no sensitive files (`.env`, credentials) are staged.
-
-提交前用 `git status` 确认没有暂存敏感文件（`.env`、凭证）。
+通过 post-commit 钩子自动推送。提交前检查 `git status`，不要暂存 `.env` 或凭证。
 
 ---
 
 ## Changelog / 更新日志
 
-| Version / 版本 | Date / 日期 | Changes / 变更 |
+| Version | Date | Changes |
 |---|---|---|
-| 2.3 | 2026-06-06 | Operational upload & evaluation hardening; Task Snapshot (`task_snapshot.py`) for checkpoint-based recovery; Memory Writer (`memory_writer.py`) for structured agent memory persistence; AO-SpatialAuthoring-Modular project docs (12 agent_docs + 2 task runs); Artifact Gate tests (`test_artifact_gate.py`) and Task Closure tests (`test_task_closure.py`); Web UI `server.py` refactor; sync report enhancements / 操作上传与评估强化；基于检查点的任务快照系统（`task_snapshot.py`）；结构化 Agent 记忆持久化（`memory_writer.py`）；AO-SpatialAuthoring-Modular 项目文档（12 agent_docs + 2 task runs）；Artifact Gate 测试（`test_artifact_gate.py`）与 Task Closure 测试（`test_task_closure.py`）；Web UI `server.py` 重构；同步报告增强 |
-| 2.2 | 2026-06-05 | Closure hardening — doctor command, canonical artifacts, cockpit API; Pipeline runner refactor (`pipeline_runner.py`); Artifact contract system (`artifact_contract.py`); Lifecycle graph state machine (`lifecycle_graph.py`); Progress tracker with per-agent weighting (`progress_tracker.py`); State store with atomic writes (`state_store.py`); Task index with searchable metadata (`task_index.py`); Bug report template; Evaluation runs for lifecycle, provider failover, self-check sync, system audit / 闭环加固 — doctor 命令、规范产物、Cockpit API；管线运行器重构（`pipeline_runner.py`）；产物契约系统（`artifact_contract.py`）；生命周期图状态机（`lifecycle_graph.py`）；带 Agent 权重的进度追踪器（`progress_tracker.py`）；原子写入的状态存储（`state_store.py`）；可搜索元数据的任务索引（`task_index.py`）；Bug 报告模板；生命周期、提供者故障切换、自查同步、系统审计评估运行 |
-| 2.1 | 2026-06-01 | Agent refactoring: CodexPromptGenerator → PromptEngineer (qwen3.6-plus, stable coder handoff prompts); DocManager merged into Archivist (qwen3.6-plus, per-task archiving + bulk doc generation + task purge); 9-agent clean architecture with rationalized model assignments / Agent 重构：CodexPromptGenerator→PromptEngineer（qwen3.6-plus，稳定生成 Coder 执行提示词）；DocManager 合并入 Archivist（qwen3.6-plus，单任务归档+批量文档整合+任务清理）；9 Agent 精简架构，模型分配合理化 |
-| 2.0 | 2026-05-31 | 9-agent tiered architecture (T1-T5), Model Tier v3 with Size×Risk×Budget routing, AgentLab Guard (atomic I/O + locks + heartbeat + crash recovery), Provider Failover with pause/resume, Lifecycle State Machine (14-node graph + checkpoints), Progress Tracker (progress.yml), Verifier agent, Codex Full-Driver Operation Chain, Task Discovery & Resume Index, Terminal Chat, Evaluation Suite, Rule Self-Check + Guarded GitHub Auto-Sync, Web UI task details panel, 22 config policies, 40+ runtime modules / 9 Agent 分层架构（T1-T5）、Model Tier v3 尺寸×风险×预算路由、AgentLab 守护（原子 IO + 锁 + 心跳 + 崩溃恢复）、提供者故障切换与暂停/恢复、生命周期状态机（14节点图 + 检查点）、进度追踪、Verifier 智能体、Codex 全驱动操作链、任务发现与恢复索引、终端对话、评估套件、规则自查 + 守卫式 GitHub 自动同步、Web UI 任务详情面板、22 个配置策略、40+ 运行时模块 |
-| 1.0 | 2026-05-30 | Initial release: 8-agent multi-agent workflow, split-brain architecture (DeepSeek + Codex Plus), 5 route profiles, token budget governance, brain governor, loop detection, local status UI, driver protocol for external AI, auto-push git hook / 初始发布：8 Agent 多智能体工作流、双脑架构（DeepSeek + Codex Plus）、5 种路由配置、Token 预算治理、大脑治理、循环检测、本地状态界面、外部 AI 驱动协议、自动推送 Git 钩子 |
+| **3.0** | 2026-06-29 | M-series alignment README refresh; media generation routing; domain-aware creative writing routes; CLI modularization; root `PROJECT_HANDOFF.md`; repository handoff command; three-end sync docs; creative project governance / M 系列对齐 README 刷新；媒体生成路由；领域感知创作路由；CLI 模块化；根级项目交接；三端同步文档；创作项目治理 |
+| 2.3 | 2026-06-06 | Task snapshot, memory writer, artifact gate tests, Web UI refactor |
+| 2.2 | 2026-06-05 | Closure hardening: doctor, lifecycle graph, artifact contract, task index |
+| 2.1 | 2026-06-01 | 9-agent refactor: PromptEngineer + Archivist consolidation |
+| 2.0 | 2026-05-31 | 9-agent tiered architecture, Guard, Provider Failover, Codex Full-Driver |
+| 1.0 | 2026-05-30 | Initial 8-agent workflow, split-brain architecture, driver protocol |
 
+---
 
-## Skill Distillation and Discovery Safety
+## Source Documents / 来源文档
 
-- Project Memory → Skill Draft: see [docs/SKILL_DISTILLATION.md](docs/SKILL_DISTILLATION.md).
-- External skill discovery remains disabled/manual approval only: see [docs/SKILL_DISCOVERY_ROADMAP.md](docs/SKILL_DISCOVERY_ROADMAP.md).
-
-### Skill Vault lifecycle
-
-AgentLab uses a local central Skill Vault for self-learned skills: Project Memory → SkillDistiller → `memory/global/skills/drafts` → manual approval → approved/staging/active lifecycle. Project task runs keep only lightweight pointers. Runtime vault contents are ignored by git and can be backed up with `./agentlab.sh skill-vault-backup --dry-run` followed by explicit `--execute`. External skill discovery, automatic import, automatic execution, and automatic promotion remain disabled by default.
+- Standalone READMEs / 独立说明：[`docs/README.zh-CN.md`](docs/README.zh-CN.md) · [`docs/README.en-US.md`](docs/README.en-US.md)
+- Mainline status / 主线状态：[`docs/MAINLINE_BASELINE_STATUS.md`](docs/MAINLINE_BASELINE_STATUS.md)
+- M-series handoff / M 系列交接：[`docs/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md`](docs/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md)
+- Driver protocol / 驱动协议：[`DRIVER_PROTOCOL.md`](DRIVER_PROTOCOL.md)
+- OpenClaw integration / OpenClaw 集成：[`docs/OPENCLAW_LOCAL_INTEGRATION.md`](docs/OPENCLAW_LOCAL_INTEGRATION.md)
+- Skill distillation / 技能蒸馏：[`docs/SKILL_DISTILLATION.md`](docs/SKILL_DISTILLATION.md)
