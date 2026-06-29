@@ -143,6 +143,9 @@ register_routing_commands(app, lambda: _PROJECT_ROOT, console)
 from agent_runtime.cli.capability_contracts import register_capability_contract_commands
 register_capability_contract_commands(app, console)
 
+from agent_runtime.cli.runtime_hygiene import register_runtime_hygiene_commands
+register_runtime_hygiene_commands(app, lambda: _PROJECT_ROOT, console)
+
 def _run_external_skills_cli(args: list[str]) -> None:
     from external_skills_cli import main as external_skills_main
 
@@ -349,75 +352,6 @@ def write_yaml_if_allowed(path: Path, data: dict, overwrite: bool = False) -> bo
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     return True
-
-
-@app.command("m2-operator-demo")
-def m2_operator_demo_cmd(
-    out: Path = typer.Option(Path("acceptance_runs/m2_operator_demo"), "--out"),
-    project: str = typer.Option("AgentLab", "--project"),
-    strict_migration: bool = typer.Option(False, "--strict-migration"),
-) -> None:
-    """Run the deterministic M2-12 operator acceptance demo."""
-    from agent_runtime.m2_operator_demo import run_m2_operator_demo
-
-    summary = run_m2_operator_demo(_PROJECT_ROOT, out, project=project, strict_migration=strict_migration)
-    console.print(f"M2-12 operator demo status: {summary['status']}")
-    if strict_migration and summary["migration"].get("demo_blocking_failures"):
-        console.print("Strict migration failures:")
-        for item in summary["migration"]["demo_blocking_failures"]:
-            console.print(f"- {item.get('id')}: {item.get('message')}")
-    console.print(f"Report written to {(Path(out) if Path(out).is_absolute() else _PROJECT_ROOT / out) / 'M2_OPERATOR_OS_EXECUTION_ECONOMY_REPORT.md'}")
-
-
-@app.command("runtime-doctor")
-def runtime_doctor(
-    out: Path = typer.Option(Path("acceptance_runs/m2_runtime_hygiene"), "--out"),
-) -> None:
-    """Run layout scan, symlink audit, gitignore audit, and secret scan. Render Markdown/YAML reports."""
-    from agent_runtime.runtime_hygiene.layout import scan_layout
-    from agent_runtime.runtime_hygiene.symlink_audit import audit_symlinks
-    from agent_runtime.runtime_hygiene.gitignore_audit import audit_gitignore
-    from agent_runtime.runtime_hygiene.secret_scan import scan_secrets
-    from agent_runtime.runtime_hygiene.renderer import render_layout_markdown, render_layout_yaml
-
-    layout_report = scan_layout(_PROJECT_ROOT)
-    symlink_audit = audit_symlinks(_PROJECT_ROOT)
-    gitignore_audit = audit_gitignore(_PROJECT_ROOT)
-    secret_scan = scan_secrets(_PROJECT_ROOT)
-
-    out.mkdir(parents=True, exist_ok=True)
-    md_content = render_layout_markdown(layout_report, symlink_audit, gitignore_audit, secret_scan)
-    yaml_content = render_layout_yaml(layout_report, symlink_audit, gitignore_audit, secret_scan)
-
-    (out / "M2_RUNTIME_HYGIENE_REPORT.md").write_text(md_content, encoding="utf-8")
-    (out / "M2_RUNTIME_HYGIENE_REPORT.yml").write_text(yaml_content, encoding="utf-8")
-
-    console.print(f"Hygiene audit finished. Reports written to {out}")
-    console.print(md_content)
-
-
-@app.command("runtime-layout")
-def runtime_layout() -> None:
-    """Scan and print the runtime layout."""
-    from agent_runtime.runtime_hygiene.layout import scan_layout
-    layout_report = scan_layout(_PROJECT_ROOT)
-    console.print(yaml.safe_dump(layout_report.to_dict(), sort_keys=False, allow_unicode=True))
-
-
-@app.command("runtime-audit-symlinks")
-def runtime_audit_symlinks() -> None:
-    """Audit all symlinks and print the results."""
-    from agent_runtime.runtime_hygiene.symlink_audit import audit_symlinks
-    symlink_audit = audit_symlinks(_PROJECT_ROOT)
-    console.print(yaml.safe_dump(symlink_audit.to_dict(), sort_keys=False, allow_unicode=True))
-
-
-@app.command("runtime-secret-scan")
-def runtime_secret_scan() -> None:
-    """Scan for secrets and print findings."""
-    from agent_runtime.runtime_hygiene.secret_scan import scan_secrets
-    secret_scan = scan_secrets(_PROJECT_ROOT)
-    console.print(yaml.safe_dump(secret_scan.to_dict(), sort_keys=False, allow_unicode=True))
 
 
 @app.command("worker-scan")
