@@ -134,6 +134,9 @@ register_role_capability_commands(app, _PROJECT_ROOT, console)
 from agent_runtime.cli.protocol import register_protocol_commands
 register_protocol_commands(app, _PROJECT_ROOT, console)
 
+from agent_runtime.cli.external_projects import register_external_project_commands
+register_external_project_commands(external_projects_app, _PROJECT_ROOT, console)
+
 def _run_external_skills_cli(args: list[str]) -> None:
     from external_skills_cli import main as external_skills_main
 
@@ -156,68 +159,6 @@ def _run_repo_index_cli(args: list[str]) -> None:
     code = repo_index_main(args)
     if code:
         raise typer.Exit(code=code)
-
-
-@external_projects_app.command("list")
-def external_projects_list() -> None:
-    """List registered external projects without executing external code."""
-    from agent_runtime.external_projects import load_external_project_registry
-
-    registry = load_external_project_registry(_PROJECT_ROOT)
-    table = Table(title="AgentLab External Projects")
-    table.add_column("project_id")
-    table.add_column("role")
-    table.add_column("enabled")
-    table.add_column("stage")
-    table.add_column("risk")
-    for project in registry.to_sorted_projects():
-        table.add_row(
-            project.project_id,
-            project.role,
-            str(project.default_enabled).lower(),
-            project.integration_stage,
-            project.risk.level,
-        )
-    console.print(table)
-
-
-@external_projects_app.command("inspect")
-def external_projects_inspect(project: str = typer.Option(..., "--project")) -> None:
-    """Inspect one external project registry record."""
-    from agent_runtime.external_projects import load_external_project_registry
-
-    registry = load_external_project_registry(_PROJECT_ROOT)
-    record = registry.get(project)
-    console.print(yaml.safe_dump(record.to_dict(), sort_keys=False))
-
-
-@external_projects_app.command("capability-map")
-def external_projects_capability_map(
-    capability: str | None = typer.Option(None, "--capability"),
-) -> None:
-    """Show external projects mapped to a capability."""
-    from agent_runtime.external_projects import load_external_project_registry
-
-    registry = load_external_project_registry(_PROJECT_ROOT)
-    if capability:
-        providers = [project.project_id for project in registry.providers_for_capability(capability)]
-        console.print(yaml.safe_dump({"capability": capability, "providers": providers}, sort_keys=False))
-        return
-    console.print(yaml.safe_dump({"capabilities": registry.capability_map()}, sort_keys=False))
-
-
-@external_projects_app.command("risk-report")
-def external_projects_risk_report(out: Path = typer.Option(..., "--out")) -> None:
-    """Write a registry-only external project risk report."""
-    from agent_runtime.external_projects import (
-        load_external_project_registry,
-        write_external_project_risk_report,
-    )
-
-    registry = load_external_project_registry(_PROJECT_ROOT)
-    yaml_path, md_path = write_external_project_risk_report(registry, out)
-    console.print(f"wrote {yaml_path}")
-    console.print(f"wrote {md_path}")
 
 
 @mission_compiler_app.command("compile")
