@@ -5,6 +5,7 @@ enabled: true
 discovery:
   always_before_repository_read: true
   filenames:
+    - PROJECT_HANDOFF.md
     - .agentlab/HandOff.md
     - agent_docs/HandOff.md
     - HandOff.md
@@ -13,12 +14,15 @@ discovery:
   missing_action: create_or_request_immediately
 
 placement:
+  project_root_visible: PROJECT_HANDOFF.md
   repository_local: .agentlab/HandOff.md
   compatible_project_memory: agent_docs/HandOff.md
   shared_memory: memory/repositories/{repository_id}/HandOff.md
   always_write_shared_copy: true
+  always_write_project_root_visible_copy: true
+  always_write_compatible_project_memory_copy: true
   read_only_repository_fallback: shared_memory
-  root_level_handoff_forbidden_when_hygiene_policy_forbids_it: true
+  root_level_handoff_forbidden_when_hygiene_policy_forbids_it: false
 
 safe_scan:
   principle: complete_path_and_metadata_inventory_without_bulk_content_read
@@ -61,6 +65,8 @@ safe_scan:
 required_sections:
   - repository_identity
   - current_state
+  - project_progress_dashboard
+  - active_work_and_pending_items
   - directory_routes
   - data_and_file_structure
   - key_entrypoints

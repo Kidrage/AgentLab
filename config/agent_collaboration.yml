@@ -31,7 +31,9 @@ agent_collaboration:
     discover_before_repository_read: true
     missing_blocks_deep_read: true
     deterministic_command: ./agentlab.sh repository-handoff --repo "{repository_path}" --write
+    project_root_visible_path: PROJECT_HANDOFF.md
     local_path: .agentlab/HandOff.md
+    compatible_project_memory_path: agent_docs/HandOff.md
     shared_memory_root: memory/repositories
     refresh_after_material_change: true
     refresh_before_final_report: true

@@ -64,9 +64,10 @@ For long-running deliverable tasks, completion requires `artifact_lineage.yml`,
 
 - Before reading project content, run `./agentlab.sh repository-handoff --repo <path>`;
   if missing, rerun with `--write` before deep reading. This safely inventories all
-  paths/metadata without bulk-reading contents and writes `.agentlab/HandOff.md` plus
-  the shared `memory/repositories/` mirror.
-- Refresh both HandOff copies after every material repository/project change and
+  paths/metadata without bulk-reading contents and writes root-visible
+  `PROJECT_HANDOFF.md`, `.agentlab/HandOff.md`, `agent_docs/HandOff.md`, plus the
+  shared `memory/repositories/` mirror.
+- Refresh all HandOff copies after every material repository/project change and
   before final reporting. This applies to every Agent and every code, literature,
   image, audio, or mixed-data project.
 - Use existing patterns and helpers before adding new abstractions.

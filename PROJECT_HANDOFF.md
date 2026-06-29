@@ -1,271 +1,347 @@
-# AgentLab Project Handoff
-
-Last updated: 2026-06-29
-Owner context: Codex local coding agent
-Repository: `/Users/saintpeter/Desktop/AgentLab`
-Branch: `main`
-Current status: active long-running repair and cleanup
-
-## Purpose
-
-This file is the explicit project-root handoff for the current AgentLab repair effort. It is meant to be read first by any human, frontdesk role, brain/planning layer, or non-AgentLab agent that needs to understand what is happening in this repository without reconstructing state from scattered run folders, commits, or agent-to-agent notes.
-
-AgentLab already has several narrower handoff mechanisms:
-
-- repository inventory handoff: `.agentlab/HandOff.md`, `agent_docs/HandOff.md`, `HandOff.md`
-- executor/run handoffs: `projects/<Project>/runs/<task_id>/...`
-- external-agent handoffs: `external_handoff.md` / `external_handoff.yml`
-- Codex/API continuation handoffs: `handoff_packet.yml`
-
-Those are useful, but not direct enough as a project dashboard. This file records the active project direction, progress, decisions, remaining work, validation evidence, and next entry point.
-
-## Current Goal
-
-Original long-running goal:
-
-```text
-Complete the domain-aware mission compiler plan, verify with real demos that the system is not broken, ensure generalized tasks execute smoothly, commit to main, and confirm CI.
-```
-
-Updated goal change on 2026-06-29:
-
-```text
-Remove the shutdown requirement. Before final completion, implement a first-class explicit project-root handoff mechanism for AgentLab projects.
-```
-
-The final state is not achieved yet. Do not mark the active goal complete until all remaining requirements below are implemented and verified.
-
-## Latest Product Requirement: Project Root Handoff
-
-Every time AgentLab creates a project or materially changes a project, AgentLab must leave an explicit handoff file in the project root. The handoff must make the project immediately understandable and transferable.
-
-Required readers:
-
-- any non-AgentLab coding agent taking over the repository
-- AgentLab frontdesk role
-- AgentLab brain/planning layer
-- human operator requesting a progress report
-- future executor looking for a safe starting point
-
-Required content:
-
-- current project progress
-- changes already made
-- primary direction and project intent
-- persistent memory and important context
-- what is being worked on now
-- rough remaining work / completion estimate
-- pending decisions
-- pending files to modify
-- plans still needing confirmation
-- artifacts still needing acceptance
-- validation evidence and CI status
-- safe next commands
-- known risks and non-goals
-
-Implementation expectation:
-
-- The file should be project-root-visible, not buried only under `.agentlab/` or `projects/<Project>/runs/...`.
-- It should preserve a manual notes section across automated refreshes.
-- It should be updated after material changes and before final reports.
-- It should be deterministic where possible and not leak secrets.
-- It should integrate with existing repository handoff policy instead of creating an unrelated one-off mechanism.
-
-Candidate canonical filename:
-
-```text
-PROJECT_HANDOFF.md
-```
-
-Compatibility discovery should continue to recognize:
-
-```text
-HandOff.md
-HANDOFF.md
-.agentlab/HandOff.md
-agent_docs/HandOff.md
-```
-
-## Work Completed So Far
-
-Mission compiler and domain-aware routing:
-
-- `4de7dec Add domain-aware creative writing mission routing`
-- Added mission contract fields for mission flow, task domain, artifact type, memory contract, quality gates, route decision, and route proposal.
-- Added `creative_writing` domain pack and `fiction_chapter_pipeline`.
-- Added Writer / Reviewer / Scribe role aliases and templates.
-- Added route guardrails so creative writing does not silently fall into generic software/artifact routes.
-
-Cleanup/refactor slices:
-
-- `98a675c Start cleanup with route catalog and config inventory`
-- `d8568de Extract role capability CLI commands`
-- `166f8e3 Extract protocol CLI commands`
-- `8c1e97a Extract external project CLI commands`
-- `7b084ec Extract routing CLI commands`
-- `9bcc6b9 Extract capability contract CLI commands`
-- `0c5ed2e Extract runtime hygiene CLI commands`
-- `e3fb07e Extract worker CLI commands`
-
-Current cleanup result:
-
-- `agent_runtime/run_task.py` reduced from roughly 7063 lines to 6169 lines.
-- New root CLI command modules live under `agent_runtime/cli/`.
-- Each slice was verified with targeted tests, three demo commands, full pytest, push to `main`, and GitHub Actions success.
-
-Latest known CI evidence:
-
-- `Extract worker CLI commands` passed CI: run `28346262894`
-- Previous 7 `main` CI runs also passed at the time this handoff was written.
-
-## Current Repository State
-
-Known current worktree state at handoff creation:
-
-```text
-git status --short
- M agent_runtime/artifact_contract.py
-?? PROJECT_HANDOFF.md
-```
-
-`agent_runtime/artifact_contract.py` was already dirty while this handoff was being written. It appears to add a mock manifest fallback in `_check_repo_analysis_evidence`. Do not include or revert that change unless the current task explicitly owns artifact evidence behavior.
-
-Latest local history at handoff creation:
-
-```text
-e3fb07e Extract worker CLI commands
-0c5ed2e Extract runtime hygiene CLI commands
-9bcc6b9 Extract capability contract CLI commands
-7b084ec Extract routing CLI commands
-8c1e97a Extract external project CLI commands
-166f8e3 Extract protocol CLI commands
-d8568de Extract role capability CLI commands
-98a675c Start cleanup with route catalog and config inventory
-4de7dec Add domain-aware creative writing mission routing
-```
-
-## Validation Commands Used Repeatedly
-
-Targeted examples:
-
-```bash
-python3 -m py_compile agent_runtime/run_task.py agent_runtime/cli/<module>.py
-python3 -m pytest -q tests/test_m2_worker_cli.py tests/test_m2_worker_audition.py
-python3 -m pytest -q tests/test_s9_capability_fabric.py
-python3 -m pytest -q tests/test_m2_role_assignment_router.py tests/test_m2_7_pipeline_observability_smoke.py
-```
-
-Demo gates:
-
-```bash
-./agentlab.sh eval-generalization --out /private/tmp/<run>
-./agentlab.sh m1-demo --out /private/tmp/<run>
-./agentlab.sh m2-operator-demo --out /private/tmp/<run> --project AgentLab
-```
-
-Full verification:
-
-```bash
-python3 -m pytest -q
-gh run list --branch main --limit 8
-gh run view <run_id> --json status,conclusion,url,headSha
-```
-
-Known test side effect:
-
-```text
-python3 -m pytest -q modifies config/worker_performance_ledger.yml.
-Restore the timestamp/count/comment-only changes before committing unless the task intentionally changes worker performance state.
-```
-
-## Remaining Work
-
-Immediate next implementation slice:
-
-1. Implement first-class project-root handoff support.
-2. Update `agent_runtime/repository_handoff.py` / policy so project-root `PROJECT_HANDOFF.md` is a canonical write target or explicit project-level companion.
-3. Add CLI support such as `project-handoff`, `project-handoff-refresh`, or extend `repository-handoff`.
-4. Ensure the writer preserves manual notes.
-5. Ensure project creation and material project changes can refresh the file.
-6. Add tests for root handoff creation, discovery, update preservation, and required sections.
-
-Continuing cleanup after handoff mechanism:
-
-- Continue splitting remaining `run_task.py` command groups.
-- Centralize scattered YAML/config reads through existing config loader/safe IO helpers.
-- Consolidate registry/config source-of-truth boundaries.
-- Classify tracked runtime artifacts and legacy paths.
-- Add cleanup invariants where the system has repeated side effects.
-- Run final requirement-by-requirement audit before marking complete.
-
-## Pending Decisions
-
-- Canonical filename: use `PROJECT_HANDOFF.md` or `HandOff.md` for project-root visibility.
-  - Current recommendation: `PROJECT_HANDOFF.md`, while continuing discovery compatibility with `HandOff.md` / `HANDOFF.md`.
-- Whether AgentLab should update the root handoff automatically on every material project mutation or require explicit refresh plus gate enforcement.
-  - Current recommendation: deterministic refresh on project creation, after accepted material changes, and before final report.
-- Whether handoff should live in every external project root or only AgentLab-managed project directories.
-  - Current recommendation: every AgentLab-managed project root; external repositories get a compatible root handoff only when AgentLab has write permission and user policy allows it.
-
-## Files Likely To Modify Next
-
-Likely:
-
-- `agent_runtime/repository_handoff.py`
-- `config/repository_handoff_policy.yml`
-- `agent_runtime/cli/protocol.py`
-- `agent_runtime/run_task.py` if command registration is needed
-- tests around repository handoff / protocol enforcement
-- this file: `PROJECT_HANDOFF.md`
-
-Possibly:
-
-- `agent_runtime/protocols/*`
-- `agent_runtime/project_workflows/*`
-- `agent_runtime/task_index.py`
-- `.codex/MAINLINE.md`
-
-## Open Risks
-
-- The existing handoff system is repository-inventory oriented, while the new requirement is project-progress oriented. The implementation should not overload inventory facts with planning/state memory in a way that makes the file noisy or stale.
-- Root-level files may conflict with repository hygiene preferences. Policy must be explicit.
-- Automatic updates must not erase manual notes.
-- A handoff writer must avoid copying secrets, raw prompts with credentials, or large run logs.
-- Tests currently mutate `config/worker_performance_ledger.yml`; avoid committing that side effect.
-
-## Suggested Next Steps For A New Agent
-
-1. Run:
-
-```bash
-git status --short
-git log -5 --oneline
-gh run list --branch main --limit 5
-```
-
-2. Read:
-
-```text
-PROJECT_HANDOFF.md
-AGENTS.md
-.codex/MAINLINE.md
-config/repository_handoff_policy.yml
-agent_runtime/repository_handoff.py
-agent_runtime/cli/protocol.py
-```
-
-3. Implement project-root handoff mechanism as a narrow slice.
-4. Run targeted repository handoff tests and protocol tests.
-5. Run the three demo gates and full pytest.
-6. Restore `config/worker_performance_ledger.yml` if full pytest mutates it.
-7. Commit, push, confirm CI.
-
-## Manual Notes
+# Project Handoff
+
+> Deterministically generated repository/project memory for cross-agent handoff.
+> Update after every material project change and before final reporting.
+
+## Repository Identity
+
+- Repository ID: `AgentLab-de62d90289e0`
+- Working root: `/Users/saintpeter/Desktop/AgentLab`
+- Git repository: `true`
+- Generated at: `2026-06-29T08:28:56.685501+00:00`
+
+## Current State
+
+- Branch: `main`
+- HEAD: `d8b958b`
+- Indexed paths: 1463
+- Inventory truncated: `false`
+- Inaccessible paths: 0
+- Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
+
+## Project Progress Dashboard
+
+- Current progress: derive from branch, HEAD, current changes, and manual Agent Notes below.
+- Work already changed: see Change History and Current Changes.
+- Active work: any dirty Git status entries listed under Current Changes.
+- Remaining work / ETA: maintain in Agent Notes when it cannot be inferred deterministically.
+- Pending decisions: maintain in Agent Notes and refresh before final reporting.
+- Pending files / plans / acceptance artifacts: maintain in Agent Notes and task run ledgers.
+- Fast reporting source: this root file plus the shared `memory/repositories/` mirror.
+
+## Active Work and Pending Items
+
+- In progress: inspect Current Changes and Agent Notes.
+- Pending decisions: record durable choices in Agent Notes before handoff.
+- Pending files to modify: record intended paths in Agent Notes before dispatch.
+- Pending plans to confirm: link task/run plans in Agent Notes.
+- Pending acceptance artifacts: link deliverables and validation evidence in Agent Notes.
+- Next safe entry point: run `./agentlab.sh repository-handoff --repo <path>` before deep work.
+
+## Directory Routes
+
+| Route | Files |
+|---|---:|
+| `agent_runtime` | 449 |
+| `tests` | 390 |
+| `docs` | 202 |
+| `acceptance_runs` | 176 |
+| `config` | 135 |
+| `docs/archive` | 126 |
+| `tests/fixtures` | 94 |
+| `agent_templates` | 25 |
+| `scripts` | 22 |
+| `agent_runtime/recovery` | 21 |
+| `agent_runtime/workers` | 21 |
+| `acceptance_runs/mainline_r0_r5` | 20 |
+| `agent_runtime/context_governance` | 20 |
+| `.` | 17 |
+| `agent_runtime/executors` | 17 |
+| `agent_runtime/program_manager` | 17 |
+| `acceptance_runs/m2_operator_demo` | 16 |
+| `agent_runtime/capabilities` | 15 |
+| `agent_runtime/ingestion` | 15 |
+| `_shared` | 13 |
+| `acceptance_runs/p2_closure` | 12 |
+| `acceptance_runs/s10_generalization_eval` | 12 |
+| `agent_runtime/execution_economy` | 12 |
+| `agent_runtime/goals` | 12 |
+| `_shared/novel-moon-in-seal` | 11 |
+| `agent_runtime/capability_broker` | 11 |
+| `agent_runtime/costs` | 11 |
+| `agent_runtime/skills` | 11 |
+| `acceptance_runs/e2e_minimal_task` | 10 |
+| `acceptance_runs/p2_provider_governance` | 10 |
+| `acceptance_runs/s0_remote_raw_repair` | 10 |
+| `agent_runtime/brain` | 10 |
+| `agent_runtime/config_center` | 10 |
+| `agent_runtime/intelligence` | 10 |
+| `agent_runtime/router_update` | 10 |
+| `agent_templates/codex_full_driver` | 10 |
+| `acceptance_runs/s12_productization` | 9 |
+| `agent_runtime/control_panel` | 9 |
+| `agent_runtime/routing` | 9 |
+| `examples` | 9 |
+
+## Data and File Structure
+
+### Categories
+
+- audio: 1 files, 9086516 bytes
+- code: 786 files, 4281888 bytes
+- literature: 300 files, 1219000 bytes
+- other: 10 files, 74902 bytes
+- structured_data: 366 files, 1218453 bytes
+
+### Common Extensions
+
+- `.py`: 780
+- `.yml`: 350
+- `.md`: 261
+- `.txt`: 39
+- `.json`: 13
+- `[no extension]`: 5
+- `.sh`: 5
+- `.mp3`: 1
+- `.diff`: 1
+- `.ini`: 1
+- `.jsonl`: 1
+- `.log`: 1
+- `.csv`: 1
+- `.toml`: 1
+- `.js`: 1
+- `.html`: 1
+- `.css`: 1
+
+### Schema / Model / Interface Candidates
+
+- `OPERATING_MODEL.md`
+- `acceptance_runs/ccs_migration_safety/CCS_MIGRATION_SAFETY_REPORT.md`
+- `acceptance_runs/hotfix_cli_schema_v4_routing/HOTFIX_CLI_SCHEMA_V4_ROUTING_REPORT.md`
+- `acceptance_runs/m2_operator_demo/migration_doctor_summary.yml`
+- `acceptance_runs/m2_worker_invocation_contracts/classified_cli_failures.yml`
+- `acceptance_runs/m2_worker_invocation_contracts/invalid_templates.yml`
+- `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.md`
+- `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.yml`
+- `agent_runtime/artifact_contract.py`
+- `agent_runtime/assistant/models.py`
+- `agent_runtime/brain/artifact_contract_builder.py`
+- `agent_runtime/brain/mission_contract.py`
+- `agent_runtime/capabilities/audio_contract.py`
+- `agent_runtime/capabilities/capability_contract.py`
+- `agent_runtime/capabilities/capability_schema.py`
+- `agent_runtime/capabilities/document_contract.py`
+- `agent_runtime/capabilities/vision_contract.py`
+- `agent_runtime/cli/capability_contracts.py`
+- `agent_runtime/config_center/schema.py`
+- `agent_runtime/context_governance/schemas.py`
+- `agent_runtime/costs/model_cost_profile.py`
+- `agent_runtime/executors/connector_contract.py`
+- `agent_runtime/executors/models.py`
+- `agent_runtime/external_projects/adapter_contract.py`
+- `agent_runtime/external_projects/models.py`
+- `agent_runtime/goals/action_schema.py`
+- `agent_runtime/goals/models.py`
+- `agent_runtime/governance/models.py`
+- `agent_runtime/ingestion/ingestion_contract.py`
+- `agent_runtime/langgraph_schema.py`
+- `agent_runtime/migration_doctor.py`
+- `agent_runtime/model_resolver.py`
+- `agent_runtime/p2_closure/models.py`
+- `agent_runtime/program_manager/acceptance_contract.py`
+- `agent_runtime/program_manager/models.py`
+- `agent_runtime/project_ops/models.py`
+- `agent_runtime/project_workflows/models.py`
+- `agent_runtime/retry/models.py`
+- `agent_runtime/review/models.py`
+- `agent_runtime/router_update/models.py`
+- `agent_runtime/schemas.py`
+- `agent_runtime/workers/invocation_contract.py`
+- `agent_templates/codex_full_driver/04_INTERFACE_MAPPER.md`
+- `agent_templates/interface_mapper.md`
+- `agentlab_tui/models.py`
+- `config/agent_model_profiles.yml`
+- `config/capability_schema.yml`
+- `config/config_ui_schema.yml`
+- `config/hermes_brain_model_groups.yml`
+- `config/migration_profile.yml`
+- `config/model_catalog.yml`
+- `config/model_cost_profiles.yml`
+- `config/model_pricing.yml`
+- `config/model_providers.yml`
+- `config/project_artifact_contracts.yml`
+- `config/worker_invocation_contracts.yml`
+- `docs/AGENTLAB_COMPANY_MODEL.md`
+- `docs/AGENT_PACKET_CONTRACT.md`
+- `docs/CLI_AGENT_ROUTING_SCHEMA_V4.md`
+- `docs/S9_VISION_AUDIO_DOCUMENT_CONTRACTS.md`
+- `docs/SERVICE_FACTORY_MODEL.md`
+- `scripts/check_cli_schema_v4_routing.py`
+- `tests/test_cli_contract.py`
+- `tests/test_m1_ingestion_contracts.py`
+- `tests/test_m2_10_tui_models.py`
+- `tests/test_m2_12_operator_demo_migration_classification.py`
+- `tests/test_m2_9_assistant_models.py`
+- `tests/test_m2_capability_schema.py`
+- `tests/test_m2_route_decision_schema.py`
+- `tests/test_m2_worker_card_schema.py`
+- `tests/test_m2_worker_invocation_contract.py`
+- `tests/test_mcp_server_contract.py`
+- `tests/test_migration_backup.py`
+- `tests/test_skill_vault_migration.py`
+
+## Key Entrypoints and Guides
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `agent_runtime/README.md`
+- `agent_runtime/requirements.txt`
+- `config/README.md`
+- `docs/README.en-US.md`
+- `docs/README.zh-CN.md`
+- `projects/README.md`
+- `requirements.txt`
+- `tests/fixtures/p1_closure/fake_ecc/AGENTS.md`
+- `tests/fixtures/p1_closure/fake_repo/pyproject.toml`
+- `web_ui/README.md`
+
+## Change History
+
+- `d8b958b 2026-06-29 Add project handoff for AgentLab repair`
+- `e3fb07e 2026-06-29 Extract worker CLI commands`
+- `0c5ed2e 2026-06-29 Extract runtime hygiene CLI commands`
+- `9bcc6b9 2026-06-29 Extract capability contract CLI commands`
+- `7b084ec 2026-06-29 Extract routing CLI commands`
+- `8c1e97a 2026-06-29 Extract external project CLI commands`
+- `166f8e3 2026-06-29 Extract protocol CLI commands`
+- `d8568de 2026-06-29 Extract role capability CLI commands`
+- `98a675c 2026-06-29 Start cleanup with route catalog and config inventory`
+- `4de7dec 2026-06-29 Add domain-aware creative writing mission routing`
+- `14e6168 2026-06-28 Allow agy Coder role in protocol doctor enforcement check`
+- `3fa3434 2026-06-28 Register agy capabilities and Coder role in shared agent directory`
+- `331ab6f 2026-06-28 Sync role-assignment and fallback tests to new Coder bindings`
+- `0cfa8e0 2026-06-28 Fix hardcoded absolute paths in Crown of Ash scripts`
+- `e1d5172 2026-06-28 Reassign role bindings: agy as Coder, expand Hermes model groups, update worker contracts`
+- `8e6f511 2026-06-28 Add project artifact stewardship gate`
+- `476c930 2026-06-28 Keep Crown QA report local`
+- `89f1645 2026-06-28 Harden skill candidate lifecycle`
+- `ff89ffc 2026-06-28 Enforce auditable usage telemetry for agents`
+- `f8bd1c3 2026-06-28 Track external CLI usage estimates`
+
+## Current Changes
+
+- `## main...origin/main`
+- ` M AGENTS.md`
+- ` M DRIVER_PROTOCOL.md`
+- ` M PROJECT_HANDOFF.md`
+- ` M _shared/AGENT_PROTOCOL.md`
+- ` M agent_runtime/agent_runner.py`
+- ` M agent_runtime/artifact_contract.py`
+- ` M agent_runtime/cli/protocol.py`
+- ` M agent_runtime/cli_executor.py`
+- ` M agent_runtime/executors/task_packet.py`
+- ` M agent_runtime/repository_handoff.py`
+- ` M config/agent_collaboration.yml`
+- ` M config/repository_handoff_policy.yml`
+- ` M config/shared_agent_directory.yml`
+- ` M config/workspace_entry_policy.yml`
+- ` M tests/test_repository_handoff.py`
+- ` M tests/test_shared_agent_protocol.py`
+
+## Related Repositories
+
+### Remotes
+
+- `250 ssh://10.147.17.250/home/admin/AgentLab (fetch)`
+- `250 ssh://10.147.17.250/home/admin/AgentLab (push)`
+- `origin github.com:Kidrage/AgentLab.git (fetch)`
+- `origin github.com:Kidrage/AgentLab.git (push)`
+
+### Submodules
+
+- None detected.
+
+## Media and Literature Routes
+
+### literature
+
+- `.clinerules/sync-rules.md`
+- `AGENTLAB_M_SERIES_MAINLINE_HANDOFF_CACHE_AWARE.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `CLI_ROADMAP.md`
+- `CONTEXT.md`
+- `DRIVER_PROTOCOL.md`
+- `OPERATING_MODEL.md`
+- `PROJECT_HANDOFF.md`
+- `README.md`
+- `USAGE_PLAN.md`
+- `_shared/AGENT_HANDOFF.md`
+- `_shared/AGENT_PROTOCOL.md`
+- `_shared/novel-moon-in-seal/project_brain/product_vision.md`
+- `_shared/novel-moon-in-seal/project_brain/发展路线.md`
+- `acceptance_runs/ccs_migration_safety/CCS_MIGRATION_SAFETY_REPORT.md`
+- `acceptance_runs/e2e_minimal_task/final_delivery_report.md`
+- `acceptance_runs/e2e_minimal_task/input_task.md`
+- `acceptance_runs/e2e_minimal_task/revision_packet.md`
+- `acceptance_runs/hotfix_cli_binary_aliases/CLI_COMMAND_INVENTORY.md`
+
+### image
+
+- None detected.
+
+### audio
+
+- `_shared/novel-moon-in-seal/audio-drama/001-第一章-一枚偏烫的旧玉.mp3`
+
+### video
+
+- None detected.
+
+### structured_data
+
+- `.github/workflows/ci.yml`
+- `_shared/novel-moon-in-seal/project_brain/acceptance_history.yml`
+- `_shared/novel-moon-in-seal/project_brain/architecture_state.yml`
+- `_shared/novel-moon-in-seal/project_brain/decision_log.yml`
+- `_shared/novel-moon-in-seal/project_brain/known_risks.yml`
+- `_shared/novel-moon-in-seal/project_brain/memory_index.yml`
+- `_shared/novel-moon-in-seal/project_brain/next_actions.yml`
+- `_shared/novel-moon-in-seal/project_brain/roadmap.yml`
+- `_shared/novel-moon-in-seal/project_brain/unresolved_questions.yml`
+- `acceptance_runs/e2e_minimal_task/check.yml`
+- `acceptance_runs/e2e_minimal_task/init_task.yml`
+- `acceptance_runs/e2e_minimal_task/provider_feedback.yml`
+- `acceptance_runs/e2e_minimal_task/review_verdict.yml`
+- `acceptance_runs/e2e_minimal_task/router_feedback.yml`
+- `acceptance_runs/e2e_minimal_task/run_pipeline_dry_run.yml`
+- `acceptance_runs/e2e_minimal_task/task_plan.yml`
+- `acceptance_runs/m1_external_projects/external_project_risk_report.yml`
+- `acceptance_runs/m1_generalization_demo/m1_demo_results.yml`
+- `acceptance_runs/m2_operator_demo/approval_decision_card.yml`
+- `acceptance_runs/m2_operator_demo/cost_estimate_and_ledger.yml`
+
+## Validation and Risks
+
+- This inventory records paths and metadata, not semantic correctness.
+- Binary/media payloads and secrets were not read.
+- Validate current branch, tests, and interfaces before modifying files.
+
+## Agent Notes
 
 <!-- AGENT_NOTES_START -->
-
 - User explicitly requested this file because existing handoff artifacts are too scattered and not usable enough as a project-level status dashboard.
 - Shutdown is no longer part of the final objective.
-- This handoff is currently hand-written as the first explicit root handoff. The next implementation should make AgentLab able to generate and refresh equivalent files automatically.
-
+- This handoff started as a hand-written root handoff and is now generated by `./agentlab.sh repository-handoff --repo <path> --write`.
+- Implemented slice: `repository_handoff` treats `PROJECT_HANDOFF.md` as the root-visible canonical handoff and still writes `.agentlab/HandOff.md`, `agent_docs/HandOff.md`, and shared `memory/repositories/{repository_id}/HandOff.md`.
+- Protocol/config/context updates are implemented: repository handoff policy, shared agent directory, agent collaboration config, workspace entry policy, shared protocol, driver protocol, agent runner context, CLI executor packets, and external task packets now point at the root-visible handoff.
+- Verification passed for this slice: handoff/protocol tests, executor packet tests, CLI executor tests, three demo gates, and full pytest (`1906 passed, 2 skipped`).
+- Pre-existing dirty file `agent_runtime/artifact_contract.py` broke full pytest by suppressing missing `repo_manifest.json` evidence. It was adjusted to preserve the fallback structure while still enforcing missing-manifest errors.
+- Remaining before final completion: commit/push and GitHub Actions confirmation. No shutdown.
 <!-- AGENT_NOTES_END -->
+
+## Mandatory Update Rule
+
+Refresh this Project Handoff after branch, commit, file, directory, schema, interface,
+related-repository, or material project-state changes, and before final handoff.

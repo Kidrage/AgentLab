@@ -1,4 +1,4 @@
-"""Deterministic repository memory and HandOff.md generation.
+"""Deterministic repository memory and project handoff generation.
 
 The scanner inventories paths and filesystem/Git metadata across a repository
 without bulk-reading file contents. It deliberately ignores dependency caches,
@@ -18,7 +18,10 @@ import re
 import subprocess
 
 
+ROOT_PROJECT_HANDOFF = Path("PROJECT_HANDOFF.md")
+
 HANDOFF_NAMES = (
+    ROOT_PROJECT_HANDOFF,
     Path(".agentlab/HandOff.md"),
     Path("agent_docs/HandOff.md"),
     Path("HandOff.md"),
@@ -285,9 +288,9 @@ def render_handoff(snapshot: dict[str, Any], *, existing: str = "") -> str:
     git = snapshot["git"]
     scan = snapshot["scan"]
     lines = [
-        "# Repository HandOff",
+        "# Project Handoff",
         "",
-        "> Deterministically generated repository memory for cross-agent handoff.",
+        "> Deterministically generated repository/project memory for cross-agent handoff.",
         "> Update after every material project change and before final reporting.",
         "",
         "## Repository Identity",
@@ -305,6 +308,25 @@ def render_handoff(snapshot: dict[str, Any], *, existing: str = "") -> str:
         f"- Inventory truncated: `{str(scan['truncated']).lower()}`",
         f"- Inaccessible paths: {scan['inaccessible_paths']}",
         "- Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.",
+        "",
+        "## Project Progress Dashboard",
+        "",
+        "- Current progress: derive from branch, HEAD, current changes, and manual Agent Notes below.",
+        "- Work already changed: see Change History and Current Changes.",
+        "- Active work: any dirty Git status entries listed under Current Changes.",
+        "- Remaining work / ETA: maintain in Agent Notes when it cannot be inferred deterministically.",
+        "- Pending decisions: maintain in Agent Notes and refresh before final reporting.",
+        "- Pending files / plans / acceptance artifacts: maintain in Agent Notes and task run ledgers.",
+        "- Fast reporting source: this root file plus the shared `memory/repositories/` mirror.",
+        "",
+        "## Active Work and Pending Items",
+        "",
+        "- In progress: inspect Current Changes and Agent Notes.",
+        "- Pending decisions: record durable choices in Agent Notes before handoff.",
+        "- Pending files to modify: record intended paths in Agent Notes before dispatch.",
+        "- Pending plans to confirm: link task/run plans in Agent Notes.",
+        "- Pending acceptance artifacts: link deliverables and validation evidence in Agent Notes.",
+        "- Next safe entry point: run `./agentlab.sh repository-handoff --repo <path>` before deep work.",
         "",
         "## Directory Routes",
         "",
@@ -352,7 +374,7 @@ def render_handoff(snapshot: dict[str, Any], *, existing: str = "") -> str:
         "",
         "## Mandatory Update Rule",
         "",
-        "Refresh this HandOff after branch, commit, file, directory, schema, interface,",
+        "Refresh this Project Handoff after branch, commit, file, directory, schema, interface,",
         "related-repository, or material project-state changes, and before final handoff.",
         "",
     ])
@@ -411,7 +433,9 @@ def update_handoffs(root: Path, shared_memory_root: Path) -> dict[str, Any]:
     shared_memory_root = Path(shared_memory_root).expanduser().resolve()
     existing_path = discover_handoff(root, shared_memory_root)
     snapshot = scan_repository(root)
+    root_path = root / ROOT_PROJECT_HANDOFF
     local_path = root / ".agentlab" / "HandOff.md"
+    compatible_path = root / "agent_docs" / "HandOff.md"
     shared_path = shared_memory_root / snapshot["repository_id"] / "HandOff.md"
 
     existing = ""
@@ -425,10 +449,20 @@ def update_handoffs(root: Path, shared_memory_root: Path) -> dict[str, Any]:
     written: list[str] = []
     local_error = ""
     try:
+        _atomic_write(root_path, content)
+        written.append(str(root_path))
+    except OSError as exc:
+        local_error = str(exc)
+    try:
         _atomic_write(local_path, content)
         written.append(str(local_path))
     except OSError as exc:
-        local_error = str(exc)
+        local_error = local_error or str(exc)
+    try:
+        _atomic_write(compatible_path, content)
+        written.append(str(compatible_path))
+    except OSError as exc:
+        local_error = local_error or str(exc)
     _atomic_write(shared_path, content)
     written.append(str(shared_path))
     return {

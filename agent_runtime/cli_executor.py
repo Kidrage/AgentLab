@@ -224,6 +224,7 @@ def _write_task_packet(run_dir: Path, agent_name: str, plan: WorkflowPlan) -> Pa
         "repository_handoff": {
             "policy": str(Path(plan.agentlab_root) / "config" / "repository_handoff_policy.yml"),
             "project_local_candidates": [
+                str(Path(plan.project_root) / "PROJECT_HANDOFF.md"),
                 str(Path(plan.project_root) / ".agentlab" / "HandOff.md"),
                 str(Path(plan.project_root) / "agent_docs" / "HandOff.md"),
             ],

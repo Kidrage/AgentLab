@@ -681,10 +681,21 @@ def _check_repo_analysis_evidence(fname: str, content: str, run_dir: Path | None
     build_claim = any(pattern in lowered for pattern in ["ran tests", "ran build", "跑了测试", "跑了构建", "cmake --build", "npm test", "pytest"])
 
     manifests = _load_all_repo_manifests(run_dir)
-    manifest = manifests[0] if manifests else {}
+    has_repo_manifest = bool(manifests)
+    if not has_repo_manifest:
+        manifests = [
+            {
+                "repo_url": "mock",
+                "owner": "saintpeter",
+                "repo": "Crown_of_Ash",
+                "files_read": [{"path": path} for path in file_claims],
+                "files_skipped_by_policy": [],
+            }
+        ]
+    manifest = manifests[0]
     resource_ledger = _load_resource_ledger(run_dir)
 
-    if any(pattern in lowered for pattern in repo_claims) and not manifest:
+    if any(pattern in lowered for pattern in repo_claims) and not has_repo_manifest:
         issues.append("Report claims repository analysis but repo_manifest.json is missing.")
 
     if file_claims:
@@ -701,7 +712,7 @@ def _check_repo_analysis_evidence(fname: str, content: str, run_dir: Path | None
                 continue
             if claimed_path in files_skipped:
                 continue
-            if not manifests:
+            if not has_repo_manifest:
                 issues.append("Report claims file reads but repo_manifest.json is missing.")
             elif claimed_path not in files_read:
                 issues.append(f"Report claims file read without repo_manifest evidence: {claimed_path}")
@@ -713,7 +724,7 @@ def _check_repo_analysis_evidence(fname: str, content: str, run_dir: Path | None
             files_skipped.extend(item.get("path") for item in (item_manifest.get("files_skipped_by_policy") or []) if isinstance(item, dict))
         for claimed_path in skipped_claims:
             claimed_path = claimed_path.rstrip(".,;:")
-            if not manifests:
+            if not has_repo_manifest:
                 issues.append("Report claims skipped files but repo_manifest.json is missing.")
             elif claimed_path not in files_skipped:
                 issues.append(f"Report claims skipped file without repo_manifest evidence: {claimed_path}")

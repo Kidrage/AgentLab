@@ -78,9 +78,11 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
     context_files = [
         agentlab_root / "AGENTS.md",
         agentlab_root / "config" / "repository_handoff_policy.yml",
+        agentlab_root / "PROJECT_HANDOFF.md",
         agentlab_root / ".agentlab" / "HandOff.md",
         agentlab_root / "config" / "harness_policy.yml",
         project_root / "project_config.yml",
+        project_root / "PROJECT_HANDOFF.md",
         project_root / ".agentlab" / "HandOff.md",
         project_root / "agent_docs" / "HandOff.md",
         project_root / "agent_docs" / "00_CONTEXT_PACK.md",
@@ -119,8 +121,8 @@ Hard execution rules:
   create it with `./agentlab.sh repository-handoff --repo <path> --write` before deep read.
 - Safe full path/metadata inventory is required; bulk content reads, binary/secret reads,
   symlink-directory traversal, and dependency-cache scans are forbidden.
-- After any material project change and before final reporting, refresh both the local
-  and shared-memory HandOff copies.
+- After any material project change and before final reporting, refresh the root-visible,
+  local, compatible, and shared-memory HandOff copies.
 - Write a report only; do not claim source files were changed unless they actually were.
 - Follow `workflow_plan.yml` `artifact_intent`: Coder and ArtifactProducer may write
   candidate deliverables only under the declared candidate directory unless the

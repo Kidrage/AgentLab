@@ -83,6 +83,7 @@ def test_authoritative_protocol_points_to_structured_policies() -> None:
     assert "config/shared_agent_directory.yml" in protocol
     assert "config/capability_routing_policy.yml" in protocol
     assert "config/repository_handoff_policy.yml" in protocol
+    assert "PROJECT_HANDOFF.md" in protocol
     assert "relay_only" in protocol
     assert "Localization 69" in protocol
     assert "repository-handoff --repo <path> --write" in protocol
@@ -93,7 +94,10 @@ def test_repository_handoff_is_mandatory_for_every_agent() -> None:
     collaboration = _yaml("agent_collaboration.yml")["agent_collaboration"]
     directory = _yaml("shared_agent_directory.yml")
 
+    assert "PROJECT_HANDOFF.md" in policy["discovery"]["filenames"]
     assert policy["discovery"]["always_before_repository_read"] is True
+    assert policy["placement"]["project_root_visible"] == "PROJECT_HANDOFF.md"
+    assert policy["placement"]["always_write_project_root_visible_copy"] is True
     assert policy["enforcement"]["all_agents_required"] is True
     assert policy["enforcement"]["missing_handoff_blocks_deep_read"] is True
     assert policy["placement"]["always_write_shared_copy"] is True

@@ -6,6 +6,8 @@
 > `config/worker_invocation_contracts.yml`、`config/capability_routing_policy.yml` 为准。
 > 所有仓库读取前必须执行 `config/repository_handoff_policy.yml` 的 HandOff 门禁；
 > 缺失时先运行 `./agentlab.sh repository-handoff --repo <path> --write`。
+> 该命令必须写入项目根目录 `PROJECT_HANDOFF.md`，并同步 `.agentlab/HandOff.md`、
+> `agent_docs/HandOff.md` 和共享 `memory/repositories/` 镜像。
 > **你的角色**：外部 IDE 调度与验收层——收取自然语言任务 → 写入 AgentLab task → 启动 AgentLab 自驱链路 → 验收结果 → 查漏补缺
 > **目标**：让 AgentLab 自己完成规划、感知、执行、审计和归档；外部 IDE AI 不伪装成 AgentLab 多 agent/API 执行结果
 > **注意**：Codex Plus、Cline、Claude、DeepSeek Chat 等外部 IDE/聊天 AI 默认只负责调度与验收。只有当 AgentLab Coder 阶段被显式切到 `external_ide_ai`，或用户明确授权手动接管时，外部 AI 才能编辑文件。

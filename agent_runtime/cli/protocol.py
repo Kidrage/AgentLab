@@ -20,7 +20,7 @@ def register_protocol_commands(app: typer.Typer, project_root: Path, console: Co
             "--shared-memory-root",
             help="Shared repository-memory root; defaults to AgentLab memory/repositories.",
         ),
-        write: bool = typer.Option(False, "--write", help="Create or refresh both HandOff copies."),
+        write: bool = typer.Option(False, "--write", help="Create or refresh root, local, compatible, and shared HandOff copies."),
     ) -> None:
         """Discover or safely refresh repository memory without bulk content reads."""
         from repository_handoff import discover_handoff, scan_repository, update_handoffs

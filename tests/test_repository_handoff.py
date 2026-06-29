@@ -51,14 +51,18 @@ def test_update_writes_local_and_shared_handoff_and_preserves_notes(tmp_path: Pa
     shared = tmp_path / "shared-memory"
     first = update_handoffs(root, shared)
 
+    root_handoff = root / "PROJECT_HANDOFF.md"
     local = root / ".agentlab" / "HandOff.md"
+    compatible = root / "agent_docs" / "HandOff.md"
     mirror = shared / first["repository_id"] / "HandOff.md"
-    assert set(first["handoff_paths"]) == {str(local), str(mirror)}
-    assert local.is_file() and mirror.is_file()
-    content = local.read_text(encoding="utf-8")
+    assert set(first["handoff_paths"]) == {str(root_handoff), str(local), str(compatible), str(mirror)}
+    assert root_handoff.is_file() and local.is_file() and compatible.is_file() and mirror.is_file()
+    content = root_handoff.read_text(encoding="utf-8")
     for heading in (
         "## Repository Identity",
         "## Current State",
+        "## Project Progress Dashboard",
+        "## Active Work and Pending Items",
         "## Directory Routes",
         "## Data and File Structure",
         "## Change History",
@@ -66,13 +70,13 @@ def test_update_writes_local_and_shared_handoff_and_preserves_notes(tmp_path: Pa
     ):
         assert heading in content
 
-    local.write_text(content.replace(
+    root_handoff.write_text(content.replace(
         "- Add durable decisions, constraints, or cross-agent context here.",
         "- Durable manual decision.",
     ), encoding="utf-8")
     (root / "src" / "new.py").write_text("VALUE = 1\n", encoding="utf-8")
     update_handoffs(root, shared)
-    refreshed = local.read_text(encoding="utf-8")
+    refreshed = root_handoff.read_text(encoding="utf-8")
     assert "Durable manual decision" in refreshed
     assert "src/new.py" in refreshed
 
@@ -100,4 +104,5 @@ def test_repository_handoff_cli_reports_missing_then_writes(tmp_path: Path) -> N
     ])
     assert write.exit_code == 0, write.output
     assert "status: updated" in write.output
+    assert (root / "PROJECT_HANDOFF.md").is_file()
     assert (root / ".agentlab" / "HandOff.md").is_file()

@@ -25,7 +25,9 @@ repository_memory:
   policy: config/repository_handoff_policy.yml
   discover_command: ./agentlab.sh repository-handoff --repo "{repository_path}"
   refresh_command: ./agentlab.sh repository-handoff --repo "{repository_path}" --write
+  project_root_visible_path: PROJECT_HANDOFF.md
   local_path: .agentlab/HandOff.md
+  compatible_project_memory_path: agent_docs/HandOff.md
   shared_path: memory/repositories/{repository_id}/HandOff.md
 
 endpoints:
