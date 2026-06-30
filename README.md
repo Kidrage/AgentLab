@@ -83,13 +83,13 @@ These assets sync internally via TrueNAS and the 250 office runtime. They are **
 ```text
 Local Mac (development source / 开发源)
   ├─ Git → GitHub (framework/code only / 仅框架代码)
-  └─ rsync / truenas-sync → TrueNAS 10.147.17.61 (relay / 中转站)
-        └─ SSH/rsync → 250 office 10.147.17.250 (runtime workspace / 运行时工作区)
+  └─ rsync / truenas-sync → TrueNAS 10.147.17.hub (relay / 中转站)
+        └─ SSH/rsync → 250 office 10.147.17.node (runtime workspace / 运行时工作区)
 ```
 
 - **Scheme A (Git)**：`agent_runtime/`, `config/`, `tests/`, docs, acceptance fixtures
 - **Scheme B (Rsync)**：`projects/` creative assets, `.agentlab/` runtime state, agent workspaces
-- 250 remote / 250 远端：`ssh://admin@10.147.17.250:/home/admin/AgentLab`
+- 250 remote / 250 远端：`ssh://admin@10.147.17.node:/home/admin/AgentLab`
 
 Commercial project assets and credentials must never be pushed to external GitHub.
 
@@ -219,6 +219,7 @@ AgentLab/
 # Skills / 技能
 ./agentlab.sh skill-list --project AgentLab
 ./agentlab.sh capability-list
+./agentlab.sh skill-import-url --project AgentLab --url "https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md" --allow-network
 
 # Evaluation / 评估
 ./agentlab.sh eval-generalization --out acceptance_runs/s10_generalization_eval
