@@ -1,0 +1,20 @@
+task_packet_id: RepoRepair_phase_2_patch_packet_task
+executor_id: generic_contractor
+source: contractor_dropbox
+status: FAIL
+summary: Contractor fixture submitted scoped changes but test evidence failed.
+changed_files:
+  - tests/test_executor_result_contract_fixtures.py
+test_results:
+  passed: false
+  total_count: 3
+  failed_count: 1
+output_artifacts:
+  - failing_test_evidence.yml
+  - contractor_notes.md
+safety_attestation:
+  secrets_exposed: false
+  external_network_used: false
+  private_paths_redacted: true
+risk_notes:
+  - Failing test requires retry before phase close.

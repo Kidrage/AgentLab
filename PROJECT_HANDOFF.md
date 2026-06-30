@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-30T10:04:22.246173+00:00`
+- Generated at: `2026-06-30T10:14:05.355167+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `fb98413`
-- Indexed paths: 1484
+- HEAD: `68321d2`
+- Indexed paths: 1497
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,12 +43,12 @@
 | Route | Files |
 |---|---:|
 | `agent_runtime` | 455 |
-| `tests` | 391 |
+| `tests` | 404 |
 | `docs` | 205 |
 | `acceptance_runs` | 196 |
 | `config` | 137 |
 | `docs/archive` | 126 |
-| `tests/fixtures` | 94 |
+| `tests/fixtures` | 106 |
 | `acceptance_runs/s10_generalization_eval` | 32 |
 | `agent_templates` | 25 |
 | `scripts` | 22 |
@@ -87,16 +87,16 @@
 
 ### Categories
 
-- code: 793 files, 4367151 bytes
-- literature: 301 files, 1223881 bytes
+- code: 794 files, 4370398 bytes
+- literature: 302 files, 1225258 bytes
 - other: 10 files, 74969 bytes
-- structured_data: 380 files, 1296222 bytes
+- structured_data: 391 files, 1299293 bytes
 
 ### Common Extensions
 
-- `.py`: 787
-- `.yml`: 364
-- `.md`: 262
+- `.py`: 788
+- `.yml`: 375
+- `.md`: 263
 - `.txt`: 39
 - `.json`: 13
 - `[no extension]`: 5
@@ -178,7 +178,11 @@
 - `docs/S9_VISION_AUDIO_DOCUMENT_CONTRACTS.md`
 - `docs/SERVICE_FACTORY_MODEL.md`
 - `scripts/check_cli_schema_v4_routing.py`
+- `tests/fixtures/executor_results/generic_contractor_fail/contractor_notes.md`
+- `tests/fixtures/executor_results/generic_contractor_fail/execution_result_envelope.yml`
+- `tests/fixtures/executor_results/generic_contractor_fail/failing_test_evidence.yml`
 - `tests/test_cli_contract.py`
+- `tests/test_executor_result_contract_fixtures.py`
 - `tests/test_m1_ingestion_contracts.py`
 - `tests/test_m2_10_tui_models.py`
 - `tests/test_m2_12_operator_demo_migration_classification.py`
@@ -189,7 +193,6 @@
 - `tests/test_m2_worker_invocation_contract.py`
 - `tests/test_mcp_server_contract.py`
 - `tests/test_migration_backup.py`
-- `tests/test_skill_vault_migration.py`
 
 ## Key Entrypoints and Guides
 
@@ -209,6 +212,7 @@
 
 ## Change History
 
+- `68321d2 2026-06-30 Expand M2 generalization governance fixtures`
 - `fb98413 2026-06-30 Require project brain consumption for long tasks`
 - `6972214 2026-06-30 Require executor supporting evidence for phase acceptance`
 - `4dc823e 2026-06-30 Harden M2 executor result acceptance`
@@ -228,25 +232,15 @@
 - `8c1e97a 2026-06-29 Extract external project CLI commands`
 - `166f8e3 2026-06-29 Extract protocol CLI commands`
 - `d8568de 2026-06-29 Extract role capability CLI commands`
-- `98a675c 2026-06-29 Start cleanup with route catalog and config inventory`
 
 ## Current Changes
 
 - `## main...origin/main`
-- ` M acceptance_runs/s10_generalization_eval/S10_GENERALIZATION_EVAL_REPORT.md`
-- ` M acceptance_runs/s10_generalization_eval/generalization_results.yml`
 - ` M acceptance_runs/stabilization/text_integrity_audit.json`
 - ` M acceptance_runs/stabilization/text_integrity_audit.md`
-- ` M agent_runtime/evaluation/generalization_suite.py`
-- ` M config/generalization_fixtures.yml`
 - ` M docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
-- ` M docs/S10_GENERALIZATION_EVAL_SUITE.md`
-- ` M tests/test_s10_generalization_eval.py`
-- `?? acceptance_runs/s10_generalization_eval/fixtures/codebase_repair_governance/`
-- `?? acceptance_runs/s10_generalization_eval/fixtures/document_ingestion_governance/`
-- `?? acceptance_runs/s10_generalization_eval/fixtures/longform_novel_governance/`
-- `?? acceptance_runs/s10_generalization_eval/fixtures/research_archive_governance/`
-- `?? acceptance_runs/s10_generalization_eval/fixtures/video_story_skeleton_governance/`
+- `?? tests/fixtures/executor_results/`
+- `?? tests/test_executor_result_contract_fixtures.py`
 
 ## Related Repositories
 

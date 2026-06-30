@@ -94,6 +94,11 @@ Current evidence:
 
 - S8 can create phase-aware task packets.
 - External executors are represented as approval-gated actors.
+- 2026-06-30 update: repository fixtures now cover `codex_local_pass`,
+  `claude_code_pass`, `hermes_pass`, and `generic_contractor_fail` under
+  `tests/fixtures/executor_results/`. Tests ingest these real fixture files,
+  validate the result contract, bridge them through phase acceptance, and prove
+  that the failing contractor result cannot close a phase.
 
 Gap:
 
@@ -111,6 +116,8 @@ Required work:
 Acceptance:
 
 - `pytest` covers all fixtures.
+- Implemented locally on 2026-06-30 for Codex-local, Claude Code, Hermes, and a
+  failing generic contractor fixture.
 - One local smoke run creates a task packet, executes or simulates a real CLI
   result format, ingests it, rejects/accepts it correctly, and writes the
   acceptance history.

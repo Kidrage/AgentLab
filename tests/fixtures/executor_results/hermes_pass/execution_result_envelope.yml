@@ -1,0 +1,16 @@
+task_id: RepoRepair_phase_2_patch_packet_task
+provider_id: hermes_handoff
+source: hermes_cli
+status: PASS
+summary: Hermes fixture produced a scoped handoff result with supporting evidence.
+changed_files:
+  - tests/test_executor_result_contract_fixtures.py
+test_status: PASS
+evidence_artifacts:
+  - hermes_evidence.yml
+  - handoff_receipt.yml
+safety_attestation:
+  secrets_exposed: false
+  external_network_used: false
+handoff_metadata:
+  session_id: fixture-hermes-pass

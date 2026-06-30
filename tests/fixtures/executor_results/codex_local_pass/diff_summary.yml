@@ -1,0 +1,3 @@
+changed_files:
+  - tests/test_executor_result_contract_fixtures.py
+scope_verdict: PASS

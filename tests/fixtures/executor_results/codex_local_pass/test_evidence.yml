@@ -1,0 +1,4 @@
+passed: true
+total_count: 1
+failed_count: 0
+command: python -m pytest -q tests/test_executor_result_contract_fixtures.py

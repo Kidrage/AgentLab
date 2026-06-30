@@ -1,0 +1,16 @@
+task_packet_id: RepoRepair_phase_2_patch_packet_task
+executor_id: codex_local
+source: codex_cli
+status: PASS
+summary: Codex local fixture completed the scoped patch and tests.
+changed_files:
+  - tests/test_executor_result_contract_fixtures.py
+claimed_tests:
+  - python -m pytest -q tests/test_executor_result_contract_fixtures.py
+output_artifacts:
+  - test_evidence.yml
+  - diff_summary.yml
+safety_attestation:
+  secrets_exposed: false
+  external_network_used: false
+risk_notes: []

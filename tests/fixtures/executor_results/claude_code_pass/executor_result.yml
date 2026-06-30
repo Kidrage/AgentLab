@@ -1,0 +1,19 @@
+executor_result:
+  task_packet_id: RepoRepair_phase_2_patch_packet_task
+  executor_id: claude_code
+  source: claude_code_cli
+  status: PASS
+  summary: Claude Code fixture completed the assigned local-only implementation.
+  changed_files:
+    - tests/test_executor_result_contract_fixtures.py
+  test_results:
+    passed: true
+    total_count: 1
+    failed_count: 0
+  artifacts:
+    - acceptance_report.yml
+    - test_evidence.yml
+  safety_attestation:
+    secrets_exposed: false
+    external_network_used: false
+  risk_notes: []
