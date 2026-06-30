@@ -124,6 +124,10 @@ Current evidence:
 - 2026-06-30 update: `ask_user` is no longer mapped to `PASS`. Human-review
   gates and scope-drift review states now produce `NEEDS_HUMAN_REVIEW` with
   `accepted: false`; the policy records `human_review_blocks_acceptance: true`.
+- 2026-06-30 update: executor-backed phase acceptance now requires supporting
+  evidence beyond the result envelope itself. A ledger that contains only
+  `executor_result.yml` or `execution_result_envelope.yml` records
+  `executor_result_supporting_evidence` as missing and cannot close the phase.
 
 Gap:
 
@@ -144,6 +148,8 @@ Required work:
 Acceptance:
 
 - A phase cannot close with missing evidence.
+- An executor result cannot close a phase with only the result envelope and no
+  supporting evidence file. Implemented locally on 2026-06-30.
 - A phase cannot close with only human-review-needed status. Implemented locally
   on 2026-06-30 for direct phase acceptance and S8 executor review.
 - A phase cannot close if changed files are outside the task packet scope unless

@@ -162,3 +162,60 @@ def test_accept_phase_human_gate_needs_review_not_acceptance(tmp_path: Path):
     assert res["verdict"] == "NEEDS_HUMAN_REVIEW"
     assert res["verdict_details"] == "ask_user"
     assert res["policy"]["human_review_blocks_acceptance"] is True
+
+
+def test_accept_phase_rejects_executor_result_without_supporting_evidence(tmp_path: Path):
+    phase_plan_path = tmp_path / "phase_plan.yml"
+    phase_plan_path.write_text(
+        yaml.safe_dump({
+            "project": "TestProject",
+            "phase_id": "phase_executor_evidence",
+            "goal": "Verify executor evidence",
+            "outputs": ["app.py"],
+            "evidence_required": ["evidence.txt"],
+            "human_decision_points": [],
+        }),
+        encoding="utf-8"
+    )
+
+    result_dir = tmp_path / "result"
+    result_dir.mkdir()
+    (result_dir / "execution_result_envelope.yml").write_text(
+        yaml.safe_dump({
+            "task_packet_id": "phase_executor_evidence",
+            "executor_id": "fixture_executor",
+            "source": "fixture",
+            "status": "PASS",
+            "summary": "Claims success without supporting evidence.",
+            "changed_files": ["app.py"],
+            "artifacts": ["evidence.txt"],
+            "test_results": {"passed": True},
+            "safety_attestation": {"secrets_exposed": False},
+        }),
+        encoding="utf-8"
+    )
+
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    (evidence_dir / "evidence.txt").write_text("claimed: true\n", encoding="utf-8")
+    (evidence_dir / "evidence_ledger.yml").write_text(
+        yaml.safe_dump({
+            "result_dir": str(result_dir),
+            "files": [
+                {
+                    "path": "execution_result_envelope.yml",
+                    "sha256": "fixture",
+                    "bytes": 1,
+                    "line_count": 1,
+                }
+            ],
+            "evidence_count": 1,
+        }),
+        encoding="utf-8"
+    )
+
+    res = accept_phase(phase_plan_path, evidence_dir, tmp_path / "out")
+    assert res["accepted"] is False
+    assert res["verdict"] == "NEEDS_EVIDENCE"
+    assert "executor_result_supporting_evidence" in res["missing_evidence"]
+    assert res["executor_evidence_status"]["has_supporting_evidence"] is False

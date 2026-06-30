@@ -8,12 +8,12 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-30T09:34:26.528529+00:00`
+- Generated at: `2026-06-30T09:46:42.597166+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `64f95e1`
+- HEAD: `4dc823e`
 - Indexed paths: 1464
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -87,8 +87,8 @@
 
 ### Categories
 
-- code: 793 files, 4359751 bytes
-- literature: 301 files, 1221982 bytes
+- code: 793 files, 4363063 bytes
+- literature: 301 files, 1222766 bytes
 - other: 10 files, 74969 bytes
 - structured_data: 360 files, 1278009 bytes
 
@@ -208,6 +208,7 @@
 
 ## Change History
 
+- `4dc823e 2026-06-30 Harden M2 executor result acceptance`
 - `64f95e1 2026-06-30 Document M2 stabilization and M3 upgrade plan`
 - `752b378 2026-06-30 Fix config inventory test for local runtime ledger`
 - `f2388dd 2026-06-30 Tighten content project governance`
@@ -227,22 +228,14 @@
 - `98a675c 2026-06-29 Start cleanup with route catalog and config inventory`
 - `4de7dec 2026-06-29 Add domain-aware creative writing mission routing`
 - `14e6168 2026-06-28 Allow agy Coder role in protocol doctor enforcement check`
-- `3fa3434 2026-06-28 Register agy capabilities and Coder role in shared agent directory`
 
 ## Current Changes
 
 - `## main...origin/main`
 - ` M acceptance_runs/stabilization/text_integrity_audit.json`
-- ` M acceptance_runs/stabilization/text_integrity_audit.md`
-- ` M agent_runtime/executors/phase_connector.py`
 - ` M agent_runtime/program_manager/phase_acceptance.py`
 - ` M docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
-- ` M tests/test_m1_executor_result_ingestion.py`
-- ` M tests/test_m1_executor_review.py`
 - ` M tests/test_m1_phase_acceptance.py`
-- ` M tests/test_s7_long_project_orchestrator.py`
-- ` M tests/test_s8_executor_connector.py`
-- `?? agent_runtime/executors/result_contract.py`
 
 ## Related Repositories
 

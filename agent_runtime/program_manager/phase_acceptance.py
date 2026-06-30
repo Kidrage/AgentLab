@@ -22,6 +22,11 @@ def accept_phase(phase_plan_path: Path, evidence_dir: Path, out_dir: Path) -> di
     # 2. Extract changed_files and test_results from evidence_ledger or result files
     changed_files = []
     test_results = None
+    executor_evidence_status = {
+        "required": False,
+        "has_supporting_evidence": True,
+        "supporting_evidence_files": [],
+    }
 
     ledger_path = evidence_dir / "evidence_ledger.yml"
     if ledger_path.exists():
@@ -29,6 +34,17 @@ def accept_phase(phase_plan_path: Path, evidence_dir: Path, out_dir: Path) -> di
             ledger = yaml.safe_load(ledger_path.read_text(encoding="utf-8")) or {}
             result_dir_str = ledger.get("result_dir")
             if result_dir_str:
+                ledger_files = [str((item or {}).get("path") or "") for item in ledger.get("files") or []]
+                supporting_files = [
+                    item
+                    for item in ledger_files
+                    if item not in ("executor_result.yml", "execution_result_envelope.yml")
+                ]
+                executor_evidence_status = {
+                    "required": True,
+                    "has_supporting_evidence": bool(supporting_files),
+                    "supporting_evidence_files": supporting_files,
+                }
                 result_dir = Path(result_dir_str)
                 envelope = load_executor_result_envelope(result_dir)
                 
@@ -53,6 +69,11 @@ def accept_phase(phase_plan_path: Path, evidence_dir: Path, out_dir: Path) -> di
         evidence_status["has_missing"] = True
         evidence_status.setdefault("missing_evidence", [])
         evidence_status["missing_evidence"] = list(evidence_status["missing_evidence"]) + ["project_fact_state_validated"]
+    if executor_evidence_status["required"] and not executor_evidence_status["has_supporting_evidence"]:
+        evidence_status = dict(evidence_status)
+        evidence_status["has_missing"] = True
+        evidence_status.setdefault("missing_evidence", [])
+        evidence_status["missing_evidence"] = list(evidence_status["missing_evidence"]) + ["executor_result_supporting_evidence"]
 
     # 4. Decide verdict
     decide_res = decide_verdict(
@@ -89,6 +110,7 @@ def accept_phase(phase_plan_path: Path, evidence_dir: Path, out_dir: Path) -> di
         "human_approval_required": contract["human_approval_required"],
         "scope_status": scope_status,
         "evidence_status": evidence_status,
+        "executor_evidence_status": executor_evidence_status,
         "state_transition_status": state_status,
         "test_results": test_results,
         "policy": {
