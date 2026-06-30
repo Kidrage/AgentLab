@@ -227,6 +227,8 @@ Required views:
 - continuity warnings,
 - chapter batch status,
 - promotion readiness.
+- archive receipts and replaced-production lineage,
+- phase acceptance state-transition application status.
 
 Acceptance:
 
@@ -235,6 +237,10 @@ Acceptance:
   consumed.
 - Multiple-current artifacts or unregistered legacy roots are visible as blocking
   hygiene errors.
+- The operator can inspect the same Crown-style promotion chain covered by
+  `tests/test_content_project_long_chain.py`: candidate artifact, lineage,
+  state transition proposal, archive receipt, updated artifact index, and updated
+  fact snapshot.
 
 ### M3-8: Assistant Modes
 
@@ -306,4 +312,3 @@ TUI and can:
 - export a handoff,
 - receive grounded assistant explanations,
 - pass local full pytest and CI.
-

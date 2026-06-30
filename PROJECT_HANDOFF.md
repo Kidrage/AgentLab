@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-30T10:14:05.355167+00:00`
+- Generated at: `2026-06-30T10:25:22.087007+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `68321d2`
-- Indexed paths: 1497
+- HEAD: `ad4d374`
+- Indexed paths: 1498
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,7 +43,7 @@
 | Route | Files |
 |---|---:|
 | `agent_runtime` | 455 |
-| `tests` | 404 |
+| `tests` | 405 |
 | `docs` | 205 |
 | `acceptance_runs` | 196 |
 | `config` | 137 |
@@ -87,14 +87,14 @@
 
 ### Categories
 
-- code: 794 files, 4370398 bytes
-- literature: 302 files, 1225258 bytes
+- code: 795 files, 4378813 bytes
+- literature: 302 files, 1225784 bytes
 - other: 10 files, 74969 bytes
-- structured_data: 391 files, 1299293 bytes
+- structured_data: 391 files, 1299855 bytes
 
 ### Common Extensions
 
-- `.py`: 788
+- `.py`: 789
 - `.yml`: 375
 - `.md`: 263
 - `.txt`: 39
@@ -212,6 +212,7 @@
 
 ## Change History
 
+- `ad4d374 2026-06-30 Add external executor result fixtures`
 - `68321d2 2026-06-30 Expand M2 generalization governance fixtures`
 - `fb98413 2026-06-30 Require project brain consumption for long tasks`
 - `6972214 2026-06-30 Require executor supporting evidence for phase acceptance`
@@ -231,7 +232,6 @@
 - `7b084ec 2026-06-29 Extract routing CLI commands`
 - `8c1e97a 2026-06-29 Extract external project CLI commands`
 - `166f8e3 2026-06-29 Extract protocol CLI commands`
-- `d8568de 2026-06-29 Extract role capability CLI commands`
 
 ## Current Changes
 
@@ -239,8 +239,8 @@
 - ` M acceptance_runs/stabilization/text_integrity_audit.json`
 - ` M acceptance_runs/stabilization/text_integrity_audit.md`
 - ` M docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
-- `?? tests/fixtures/executor_results/`
-- `?? tests/test_executor_result_contract_fixtures.py`
+- ` M docs/M3_UPGRADE_PLAN_REVIEW.md`
+- `?? tests/test_content_project_long_chain.py`
 
 ## Related Repositories
 

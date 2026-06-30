@@ -208,6 +208,12 @@ Current evidence:
   default.
 - Tests reject active content tasks that modify canon without
   `artifact_lineage.yml` and `state_transition_proposal.yml`.
+- 2026-06-30 update: `tests/test_content_project_long_chain.py` now runs a
+  Crown-style long-chain regression that promotes a candidate chapter into
+  `production/`, archives the replaced production chapter, updates
+  `project_artifact_index.yml`, applies `state_transition_proposal.yml` into
+  `project_fact_snapshot.yml`, and verifies artifact governance has no fatal
+  issues.
 
 Gap:
 
@@ -233,6 +239,9 @@ Acceptance:
   `project_brain/project_fact_snapshot.yml`.
 - Any root-level `*_rebuild`, `v2_*`, or `legacy` fact directory outside the
   index triggers a hygiene warning or failure.
+- A Crown-style candidate promotion can update production, archive the replaced
+  production artifact, and apply durable fact-state changes in one verified
+  regression. Implemented locally on 2026-06-30.
 
 ### M2-fix-6: Generalization Eval Expansion
 
