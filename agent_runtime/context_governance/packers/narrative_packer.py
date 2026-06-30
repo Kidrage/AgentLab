@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
+import fnmatch
 
 from agent_runtime.long_project_governance import build_project_governance_pack, infer_project_root_from_run_dir
 
@@ -18,11 +19,29 @@ class NarrativePacker:
             if agentlab_root
             else {}
         )
-        setting_refs = _collect(project_root, ["设定/**/*.md"], limit=12)
-        outline_refs = _collect(project_root, ["大纲/**/*.md"], limit=8)
-        brain_refs = _collect(project_root, ["project_brain/*.yml"], limit=12)
-        state_refs = _collect(project_root, ["project_brain/project_fact_snapshot.yml", "project_brain/project_state_contract.yml"], limit=4)
-        chapter_refs = _collect(project_root, ["正文/第0*.md"], limit=30)
+        setting_refs = _collect(project_root, ["production/bible/**/*.md"], limit=12)
+        outline_refs = _collect(project_root, ["production/outlines/**/*.md"], limit=8)
+        brain_refs = _collect(
+            project_root,
+            [
+                "project_brain/artifact_version_policy.yml",
+                "project_brain/chapter_cards.yml",
+                "project_brain/chapter_ledger.yml",
+                "project_brain/workflow_plan.yml",
+            ],
+            limit=12,
+        )
+        state_refs = _collect(
+            project_root,
+            [
+                "project_artifact_index.yml",
+                "project_brain/project_fact_snapshot.yml",
+                "project_brain/project_state_contract.yml",
+            ],
+            limit=6,
+        )
+        chapter_refs = _collect(project_root, ["production/manuscript/第0*.md"], limit=30)
+        hygiene_warnings = _legacy_fact_warnings(project_root)
 
         sections = [
             section(
@@ -60,6 +79,7 @@ class NarrativePacker:
         warnings = []
         if governance.get("missing_facts"):
             warnings.append("narrative context has missing long-project artifacts; see long_project_gaps")
+        warnings.extend(hygiene_warnings)
         return make_pack(
             profile,
             budget,
@@ -91,6 +111,22 @@ def _collect(project_root: Path | None, patterns: Iterable[str], limit: int) -> 
             if path.is_file():
                 found.append(str(path.relative_to(project_root)))
     return found
+
+
+def _legacy_fact_warnings(project_root: Path | None) -> list[str]:
+    if project_root is None or not project_root.exists():
+        return []
+    legacy_patterns = ("*_rebuild", "v[0-9]*_*", "*legacy*", "archive_v*", "_archive")
+    ignored_formal_roots = {"candidates", "archive", "runs"}
+    warnings: list[str] = []
+    for path in sorted(project_root.iterdir()):
+        if not path.is_dir():
+            continue
+        if path.name in ignored_formal_roots or any(fnmatch.fnmatch(path.name, pattern) for pattern in legacy_patterns):
+            warnings.append(
+                f"{path.name} is not a formal narrative fact source; reference it only through project_artifact_index.yml"
+            )
+    return warnings
 
 
 def _render_refs(intro: str, refs: list[str]) -> str:

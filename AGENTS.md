@@ -13,6 +13,15 @@ Keep detailed policy in `config/*.yml` and long-lived project memory in
 - Repository-safe inventory and durable memory rules live in
   `config/repository_handoff_policy.yml`.
 - Workspace projects live as siblings under `projects/<ProjectName>/`.
+- Active longform content projects are configured in `config/content_project_governance.yml`;
+  the default active set is `NovelGen` and `Crown_of_Ash`.
+- Content project memory and facts are index-driven: `project_artifact_index.yml`
+  selects current artifacts and `project_brain/project_fact_snapshot.yml` selects
+  durable world/role/timeline facts.
+- `projects/<ProjectName>/production/` is the only formal current content source.
+  `candidates/`, `runs/`, `archive/`, `_archive/`, `*_rebuild`, `v2_*`, and
+  `legacy` paths are not formal fact sources unless explicitly referenced by
+  `project_artifact_index.yml`.
 - Project memory lives in `projects/<ProjectName>/agent_docs/`.
 - Task state lives in `projects/<ProjectName>/runs/<task_id>/`.
 - Runtime policy lives in `config/*.yml`.
@@ -38,8 +47,12 @@ For long-running deliverable tasks, completion requires `artifact_lineage.yml`,
    * **Path**: `projects/<ProjectName>/runs/<task_id>/artifacts/`
    * **Purpose**: The immediate deliverables completed *by this specific task* (e.g., Chapter 3 draft, revised outlines, specific script outputs) for verification.
 3. **Project Production Area (项目级/最终交付区)**
-   * **Path**: `projects/<ProjectName>/artifacts/`
+   * **Path**: `projects/<ProjectName>/production/`
    * **Purpose**: The official, clean, project-level repository for all finalized deliverables. During the `ARCHIVE` phase, the **Archivist** agent extracts verified assets from the *Task Artifact Capture* area, copies them here, and maintains a clean index. Users can inspect this single directory for all completed deliverables without wading through runs or logs.
+   * **Index Gate**: For content projects, `project_artifact_index.yml` decides
+     the current version and `project_brain/project_fact_snapshot.yml` decides
+     durable narrative facts. Content-changing tasks must emit
+     `artifact_lineage.yml` and `state_transition_proposal.yml`.
 
 ## Scope Rules
 

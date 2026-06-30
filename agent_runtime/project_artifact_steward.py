@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import fnmatch
 import re
 import shutil
 from typing import Any
@@ -99,6 +100,81 @@ def _run_dir(agentlab_root: Path, project: str, task_id: str) -> Path:
 def _load_workflow_plan(run_dir: Path) -> dict:
     data = _read_yaml(run_dir / "workflow_plan.yml", {})
     return data if isinstance(data, dict) else {}
+
+
+def _load_content_governance(agentlab_root: Path) -> dict[str, Any]:
+    data = _read_yaml(agentlab_root / "config" / "content_project_governance.yml", {})
+    return data if isinstance(data, dict) else {}
+
+
+def _is_active_content_project(agentlab_root: Path, project: str) -> bool:
+    policy = _load_content_governance(agentlab_root)
+    return project in {str(item) for item in policy.get("active_projects") or []}
+
+
+def _content_governance_issues(agentlab_root: Path, project_root: Path, project: str, index: dict, run_dir: Path) -> list[str]:
+    policy = _load_content_governance(agentlab_root)
+    issues: list[str] = []
+    forbidden_roots = {
+        *[str(item) for item in policy.get("candidate_roots") or []],
+        *[str(item) for item in policy.get("archive_roots") or []],
+        "runs",
+    }
+    formal_roots = {str(item) for item in policy.get("formal_fact_roots") or ["production", "project_brain"]}
+    legacy_patterns = [str(item) for item in policy.get("legacy_fact_dir_patterns") or []]
+
+    for child in sorted(project_root.iterdir()) if project_root.exists() else []:
+        if not child.is_dir():
+            continue
+        if any(fnmatch.fnmatch(child.name, pattern) for pattern in legacy_patterns):
+            policy_path = project_root / "project_brain" / "artifact_version_policy.yml"
+            if not _legacy_dir_registered(policy_path, child.name):
+                issues.append(
+                    f"active content project has unregistered parallel fact directory: {child.name}"
+                )
+
+    for record in index.get("artifacts") or []:
+        if not isinstance(record, dict) or record.get("status") != "current":
+            continue
+        artifact_id = str(record.get("artifact_id") or "")
+        production_path = str(record.get("production_path") or "")
+        path_parts = Path(production_path).parts
+        if path_parts and path_parts[0] not in formal_roots:
+            issues.append(
+                f"current content artifact {artifact_id} must point under production/ or project_brain/: {production_path}"
+            )
+        if path_parts and path_parts[0] in forbidden_roots:
+            issues.append(
+                f"current content artifact {artifact_id} points at non-production fact root: {production_path}"
+            )
+        if any(fnmatch.fnmatch(part, pattern) for part in path_parts for pattern in legacy_patterns):
+            issues.append(
+                f"current content artifact {artifact_id} points at legacy/candidate directory: {production_path}"
+            )
+
+    promotion_plan_exists = (run_dir / "artifact_promotion_plan.yml").exists()
+    archive_claimed = _archive_completed_or_claimed(run_dir)
+    if promotion_plan_exists or archive_claimed:
+        required_outputs = [str(item) for item in policy.get("required_content_task_outputs") or []]
+        for filename in required_outputs:
+            if not (run_dir / filename).exists():
+                issues.append(f"content task missing required output {filename}")
+    return issues
+
+
+def _legacy_dir_registered(policy_path: Path, dirname: str) -> bool:
+    policy = _read_yaml(policy_path, {})
+    if not isinstance(policy, dict):
+        return False
+    for key in ("legacy_dirs", "archive_dirs", "candidate_dirs"):
+        for item in policy.get(key) or []:
+            if isinstance(item, dict):
+                raw = item.get("path") or item.get("dir")
+            else:
+                raw = item
+            if Path(str(raw)).parts[:1] == (dirname,) or str(raw).rstrip("/") == dirname:
+                return True
+    return False
 
 
 def _prompt_summary(run_dir: Path, max_chars: int = 180) -> str:
@@ -639,6 +715,9 @@ def validate_project_artifact_governance(
     for artifact_id, records in current_by_id.items():
         if len(records) > 1:
             issues.append(f"artifact {artifact_id} has multiple current versions")
+
+    if _is_active_content_project(agentlab_root, project):
+        issues.extend(_content_governance_issues(agentlab_root, project_root, project, index, run_dir))
 
     receipt_path = run_dir / "archive_receipt.yml"
     archive_claimed = _archive_completed_or_claimed(run_dir)

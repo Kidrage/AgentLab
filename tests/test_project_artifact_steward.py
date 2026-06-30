@@ -152,6 +152,71 @@ class ProjectArtifactStewardTests(TestCase):
 
             self.assertTrue(any("completed task missing archive_receipt.yml" in issue for issue in issues))
 
+    def test_active_content_current_artifact_must_use_production_fact_root(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "config").mkdir()
+            _write_yaml(
+                root / "config" / "content_project_governance.yml",
+                {
+                    "active_projects": ["NovelGen"],
+                    "formal_fact_roots": ["production", "project_brain"],
+                    "candidate_roots": ["candidates", "runs"],
+                    "archive_roots": ["archive", "_archive"],
+                    "legacy_fact_dir_patterns": ["*_rebuild", "v[0-9]*_*", "*legacy*"],
+                },
+            )
+            self._make_run(root, project="NovelGen")
+            _write_yaml(
+                root / "projects" / "NovelGen" / "project_artifact_index.yml",
+                {
+                    "version": 1,
+                    "project": "NovelGen",
+                    "artifacts": [
+                        {
+                            "artifact_id": "world_bible",
+                            "status": "current",
+                            "production_path": "v2_rewrite/rewrite_blueprint_v2.md",
+                            "source_task": "task_0001",
+                            "source_run_artifact": "artifacts/rewrite_blueprint_v2.md",
+                        }
+                    ],
+                },
+            )
+
+            issues = validate_project_artifact_governance(root, "NovelGen", "task_0001")
+
+            self.assertTrue(any("must point under production/" in issue for issue in issues))
+            self.assertTrue(any("legacy/candidate directory" in issue for issue in issues))
+
+    def test_active_content_task_requires_lineage_and_state_transition(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "config").mkdir()
+            _write_yaml(
+                root / "config" / "content_project_governance.yml",
+                {
+                    "active_projects": ["Crown_of_Ash"],
+                    "formal_fact_roots": ["production", "project_brain"],
+                    "required_content_task_outputs": ["artifact_lineage.yml", "state_transition_proposal.yml"],
+                },
+            )
+            run_dir = self._make_run(root, project="Crown_of_Ash")
+            _write_yaml(
+                run_dir / "artifact_promotion_plan.yml",
+                {
+                    "version": 1,
+                    "project": "Crown_of_Ash",
+                    "task_id": "task_0001",
+                    "promotions": [],
+                },
+            )
+
+            issues = validate_project_artifact_governance(root, "Crown_of_Ash", "task_0001")
+
+            self.assertTrue(any("content task missing required output artifact_lineage.yml" in issue for issue in issues))
+            self.assertTrue(any("content task missing required output state_transition_proposal.yml" in issue for issue in issues))
+
 
 if __name__ == "__main__":
     main()

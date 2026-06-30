@@ -55,7 +55,10 @@ def build_phase_plan(
             if ref not in data["must_read_artifacts"]:
                 data["must_read_artifacts"].append(ref)
         if state_plan.get("state_affecting_outputs"):
-            data["state_outputs_required"] = [state_plan["transition_artifact"]]
+            data["state_outputs_required"] = ["artifact_lineage.yml", state_plan["transition_artifact"]]
+            for required_output in data["state_outputs_required"]:
+                if required_output not in data["outputs"]:
+                    data["outputs"].append(required_output)
             data.setdefault("artifact_intent", {})
             data["artifact_intent"]["project_fact_state"] = (
                 "Submit state_transition_proposal.yml when this phase changes durable project facts."

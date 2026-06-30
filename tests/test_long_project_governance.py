@@ -29,7 +29,9 @@ def test_chinese_novel_request_gets_longform_governance() -> None:
     assert "outline" in governance["required_plan_artifacts"]
     assert "scene_cards" in governance["required_plan_artifacts"]
     assert governance["must_read_artifacts"]
-    assert "设定/**/*.md" in governance["must_read_artifacts"]
+    assert "project_artifact_index.yml" in governance["must_read_artifacts"]
+    assert "project_brain/project_fact_snapshot.yml" in governance["must_read_artifacts"]
+    assert "production/bible/**/*.md" in governance["must_read_artifacts"]
     assert "must_read_artifacts_must_be_nonempty_for_long_projects" in governance["dispatch_gates"]
 
 
@@ -38,16 +40,18 @@ def test_narrative_packer_uses_real_refs_and_gap_cards(tmp_path: Path) -> None:
     config_dir = agentlab_root / "config"
     project_root = agentlab_root / "projects" / "NovelDemo"
     run_dir = project_root / "runs" / "task_001"
-    (project_root / "设定" / "角色").mkdir(parents=True)
-    (project_root / "大纲").mkdir(parents=True)
+    (project_root / "production" / "bible" / "角色").mkdir(parents=True)
+    (project_root / "production" / "outlines").mkdir(parents=True)
+    (project_root / "设定").mkdir(parents=True)
     run_dir.mkdir(parents=True)
     (config_dir).mkdir()
     (config_dir / "long_project_governance.yml").write_text(
         (ROOT / "config" / "long_project_governance.yml").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
-    (project_root / "设定" / "角色" / "主角.md").write_text("# 主角\n冷静，目标清晰。\n", encoding="utf-8")
-    (project_root / "大纲" / "大纲.md").write_text("# 第一卷\n逃亡与觉醒。\n", encoding="utf-8")
+    (project_root / "production" / "bible" / "角色" / "主角.md").write_text("# 主角\n冷静，目标清晰。\n", encoding="utf-8")
+    (project_root / "production" / "outlines" / "大纲.md").write_text("# 第一卷\n逃亡与觉醒。\n", encoding="utf-8")
+    (project_root / "设定" / "旧设定.md").write_text("# 旧设定\n", encoding="utf-8")
     (run_dir / "user_request.md").write_text("继续写下一批章节。", encoding="utf-8")
 
     pack = NarrativePacker().pack(
@@ -59,8 +63,9 @@ def test_narrative_packer_uses_real_refs_and_gap_cards(tmp_path: Path) -> None:
 
     dumped = yaml.safe_dump(pack, allow_unicode=True)
     assert "placeholder" not in dumped.lower()
-    assert "设定/角色/主角.md" in dumped
-    assert "大纲/大纲.md" in dumped
+    assert "production/bible/角色/主角.md" in dumped
+    assert "production/outlines/大纲.md" in dumped
+    assert "设定/旧设定.md" not in dumped
     assert "missing_scene_cards" in dumped
     assert "missing_continuity_ledger" in dumped
 

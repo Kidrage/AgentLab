@@ -139,10 +139,32 @@ def _task_state(root: Path, project: str, task_id: str | None = None) -> dict[st
 
 
 def _project_names(root: Path) -> list[str]:
+    content_policy = _load_policy(root, "content_project_governance.yml")
+    active_projects = content_policy.get("active_projects") or []
+    if active_projects:
+        return sorted(str(project) for project in active_projects)
     projects_dir = root / "projects"
     if not projects_dir.is_dir():
         return []
     return sorted([p.name for p in projects_dir.iterdir() if p.is_dir()])
+
+
+def _frontdesk_project_state_sources(root: Path) -> dict[str, list[str]]:
+    content_policy = _load_policy(root, "content_project_governance.yml")
+    active_projects = [str(project) for project in content_policy.get("active_projects") or []]
+    source_templates = [
+        str(source)
+        for source in content_policy.get("frontdesk_allowed_state_sources") or []
+    ]
+    sources: dict[str, list[str]] = {}
+    for project in active_projects:
+        project_root = root / "projects" / project
+        sources[project] = [
+            str((project_root / source).relative_to(root))
+            for source in source_templates
+            if (project_root / source).exists()
+        ]
+    return sources
 
 
 def check_role_binding(root: Path, worker: str, role: str) -> tuple[bool, str]:
@@ -201,6 +223,10 @@ def build_workspace_entry(
             "frontdesk_profiles": worker_cfg.get("frontdesk_profiles") or [],
         },
         "known_projects": _project_names(root),
+        "content_project_governance": {
+            "active_projects": _project_names(root),
+            "version_source_of_truth": "project_artifact_index.yml and project_brain/project_fact_snapshot.yml",
+        },
         "recent_task_state": task,
         "required_next_step": "Use frontdesk-session for user-facing chat or role-session for assigned AgentLab work.",
         "forbidden_actions": list(dict.fromkeys([
@@ -223,6 +249,7 @@ def build_frontdesk_context(
     bindings = _load_policy(root, "agent_role_bindings.yml")
     worker_cfg = ((bindings.get("workers") or {}).get(agent_id) or {})
     entry = build_workspace_entry(root, agent_id, project=project, task_id=task_id)
+    content_policy = _load_policy(root, "content_project_governance.yml")
     return {
         "packet_type": "agentlab_frontdesk_context",
         "schema_version": 1,
@@ -234,6 +261,12 @@ def build_frontdesk_context(
         "allowed_actions": frontdesk_policy.get("allowed_actions") or [],
         "forbidden_actions": frontdesk_policy.get("forbidden_actions") or [],
         "state_grounding": frontdesk_policy.get("state_grounding") or {},
+        "active_project_state_sources": _frontdesk_project_state_sources(root),
+        "forbidden_project_sources": {
+            "candidate_roots": content_policy.get("candidate_roots") or [],
+            "archive_roots": content_policy.get("archive_roots") or [],
+            "legacy_fact_dir_patterns": content_policy.get("legacy_fact_dir_patterns") or [],
+        },
         "workspace_entry": entry,
         "canonical_commands": {
             "status": "./agentlab.sh status --project <Project> --task-id <task_id>",

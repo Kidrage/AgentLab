@@ -1,0 +1,47 @@
+schema_version: 1
+policy_id: content_project_governance
+active_projects:
+  - NovelGen
+  - Crown_of_Ash
+archived_projects:
+  - demo_research_archive
+  - demo_longform_text
+  - DemoProject
+  - demo_codebase_build
+  - demo_video_generation
+  - novel-moon-in-seal
+canonical_layout:
+  project_brain:
+    - project_state_contract.yml
+    - project_fact_events.jsonl
+    - project_fact_snapshot.yml
+    - artifact_version_policy.yml
+  production:
+    - manuscript/
+    - bible/
+    - outlines/
+    - media/
+  candidates: candidates/<task_id>/
+  archive: archive/<artifact_id>/<version>/
+  runs: runs/<task_id>/
+frontdesk_allowed_state_sources:
+  - PROJECT_HANDOFF.md
+  - project_artifact_index.yml
+  - project_brain/project_fact_snapshot.yml
+formal_fact_roots:
+  - production
+  - project_brain
+candidate_roots:
+  - candidates
+  - runs
+archive_roots:
+  - archive
+  - _archive
+legacy_fact_dir_patterns:
+  - "*_rebuild"
+  - "v[0-9]*_*"
+  - "*legacy*"
+  - "archive_v*"
+required_content_task_outputs:
+  - artifact_lineage.yml
+  - state_transition_proposal.yml

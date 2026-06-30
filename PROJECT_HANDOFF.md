@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-30T04:56:58.679251+00:00`
+- Generated at: `2026-06-30T06:38:57.381420+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `7367a9a`
-- Indexed paths: 1472
+- HEAD: `86a0625`
+- Indexed paths: 1461
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -61,12 +61,10 @@
 | `acceptance_runs/m2_operator_demo` | 16 |
 | `agent_runtime/capabilities` | 15 |
 | `agent_runtime/ingestion` | 15 |
-| `_shared` | 13 |
 | `acceptance_runs/p2_closure` | 12 |
 | `acceptance_runs/s10_generalization_eval` | 12 |
 | `agent_runtime/execution_economy` | 12 |
 | `agent_runtime/goals` | 12 |
-| `_shared/novel-moon-in-seal` | 11 |
 | `agent_runtime/brain` | 11 |
 | `agent_runtime/capability_broker` | 11 |
 | `agent_runtime/costs` | 11 |
@@ -82,27 +80,27 @@
 | `agent_runtime/control_panel` | 9 |
 | `agent_runtime/routing` | 9 |
 | `examples` | 9 |
+| `acceptance_runs/p1_closure` | 8 |
+| `agent_runtime/assistant` | 8 |
 
 ## Data and File Structure
 
 ### Categories
 
-- audio: 1 files, 9086516 bytes
-- code: 792 files, 4340776 bytes
-- literature: 301 files, 1202619 bytes
-- other: 10 files, 74902 bytes
-- structured_data: 368 files, 1236460 bytes
+- code: 792 files, 4353968 bytes
+- literature: 299 files, 1200327 bytes
+- other: 10 files, 74969 bytes
+- structured_data: 360 files, 1223294 bytes
 
 ### Common Extensions
 
 - `.py`: 786
-- `.yml`: 352
-- `.md`: 262
+- `.yml`: 344
+- `.md`: 260
 - `.txt`: 39
 - `.json`: 13
 - `[no extension]`: 5
 - `.sh`: 5
-- `.mp3`: 1
 - `.diff`: 1
 - `.ini`: 1
 - `.jsonl`: 1
@@ -209,6 +207,8 @@
 
 ## Change History
 
+- `86a0625 2026-06-30 Fix README public doc gates`
+- `0a8c298 2026-06-30 Add project fact state machine`
 - `7367a9a 2026-06-29 Refresh bilingual README for M-series baseline and Jun 29 state`
 - `9c65d95 2026-06-29 Add media generation routing layer`
 - `2e8ff83 2026-06-29 Add root project handoff generation`
@@ -227,27 +227,35 @@
 - `331ab6f 2026-06-28 Sync role-assignment and fallback tests to new Coder bindings`
 - `0cfa8e0 2026-06-28 Fix hardcoded absolute paths in Crown of Ash scripts`
 - `e1d5172 2026-06-28 Reassign role bindings: agy as Coder, expand Hermes model groups, update worker contracts`
-- `8e6f511 2026-06-28 Add project artifact stewardship gate`
-- `476c930 2026-06-28 Keep Crown QA report local`
 
 ## Current Changes
 
 - `## main...origin/main`
-- ` M PROJECT_HANDOFF.md`
-- ` M README.md`
+- ` M .gitignore`
+- ` M AGENTS.md`
+- `D  "_shared/novel-moon-in-seal/audio-drama/001-\347\254\254\344\270\200\347\253\240-\344\270\200\346\236\232\345\201\217\347\203\253\347\232\204\346\227\247\347\216\211.mp3"`
+- `D  _shared/novel-moon-in-seal/project_brain/acceptance_history.yml`
+- `D  _shared/novel-moon-in-seal/project_brain/architecture_state.yml`
+- `D  _shared/novel-moon-in-seal/project_brain/decision_log.yml`
+- `D  _shared/novel-moon-in-seal/project_brain/known_risks.yml`
+- `D  _shared/novel-moon-in-seal/project_brain/memory_index.yml`
+- `D  _shared/novel-moon-in-seal/project_brain/next_actions.yml`
+- `D  _shared/novel-moon-in-seal/project_brain/product_vision.md`
+- `D  _shared/novel-moon-in-seal/project_brain/roadmap.yml`
+- `D  _shared/novel-moon-in-seal/project_brain/unresolved_questions.yml`
+- `D  "_shared/novel-moon-in-seal/project_brain/\345\217\221\345\261\225\350\267\257\347\272\277.md"`
 - ` M agent_runtime/context_governance/packers/narrative_packer.py`
-- ` M agent_runtime/executors/task_packet.py`
-- ` M agent_runtime/program_manager/phase_acceptance.py`
 - ` M agent_runtime/program_manager/phase_planner.py`
-- ` M agent_runtime/program_manager/project_brain.py`
-- ` M config/worker_performance_ledger.yml`
-- `?? agent_runtime/program_manager/project_fact_state.py`
-- `?? agent_runtime/program_manager/project_state_contract.py`
-- `?? agent_runtime/program_manager/state_template_evolution.py`
-- `?? agent_runtime/program_manager/state_transition_validator.py`
-- `?? config/project_state_templates.yml`
-- `?? docs/PROJECT_FACT_STATE_EPIC_CHRONICLE.md`
-- `?? tests/test_project_fact_state_machine.py`
+- ` M agent_runtime/project_artifact_steward.py`
+- ` M agent_runtime/protocols/enforcement.py`
+- ` M config/long_project_governance.yml`
+- `D  config/worker_performance_ledger.yml`
+- ` M projects/README.md`
+- ` M tests/test_long_project_governance.py`
+- ` M tests/test_p2g_context_packers.py`
+- ` M tests/test_project_artifact_steward.py`
+- ` M tests/test_protocol_enforcement.py`
+- `?? config/content_project_governance.yml`
 
 ## Related Repositories
 
@@ -279,13 +287,13 @@
 - `USAGE_PLAN.md`
 - `_shared/AGENT_HANDOFF.md`
 - `_shared/AGENT_PROTOCOL.md`
-- `_shared/novel-moon-in-seal/project_brain/product_vision.md`
-- `_shared/novel-moon-in-seal/project_brain/发展路线.md`
 - `acceptance_runs/ccs_migration_safety/CCS_MIGRATION_SAFETY_REPORT.md`
 - `acceptance_runs/e2e_minimal_task/final_delivery_report.md`
 - `acceptance_runs/e2e_minimal_task/input_task.md`
 - `acceptance_runs/e2e_minimal_task/revision_packet.md`
 - `acceptance_runs/hotfix_cli_binary_aliases/CLI_COMMAND_INVENTORY.md`
+- `acceptance_runs/hotfix_cli_binary_aliases/HOTFIX_CLI_BINARY_ALIASES_REPORT.md`
+- `acceptance_runs/hotfix_cli_schema_v4_routing/HOTFIX_CLI_SCHEMA_V4_ROUTING_REPORT.md`
 
 ### image
 
@@ -293,7 +301,7 @@
 
 ### audio
 
-- `_shared/novel-moon-in-seal/audio-drama/001-第一章-一枚偏烫的旧玉.mp3`
+- None detected.
 
 ### video
 
@@ -302,14 +310,6 @@
 ### structured_data
 
 - `.github/workflows/ci.yml`
-- `_shared/novel-moon-in-seal/project_brain/acceptance_history.yml`
-- `_shared/novel-moon-in-seal/project_brain/architecture_state.yml`
-- `_shared/novel-moon-in-seal/project_brain/decision_log.yml`
-- `_shared/novel-moon-in-seal/project_brain/known_risks.yml`
-- `_shared/novel-moon-in-seal/project_brain/memory_index.yml`
-- `_shared/novel-moon-in-seal/project_brain/next_actions.yml`
-- `_shared/novel-moon-in-seal/project_brain/roadmap.yml`
-- `_shared/novel-moon-in-seal/project_brain/unresolved_questions.yml`
 - `acceptance_runs/e2e_minimal_task/check.yml`
 - `acceptance_runs/e2e_minimal_task/init_task.yml`
 - `acceptance_runs/e2e_minimal_task/provider_feedback.yml`
@@ -321,6 +321,14 @@
 - `acceptance_runs/m1_generalization_demo/m1_demo_results.yml`
 - `acceptance_runs/m2_operator_demo/approval_decision_card.yml`
 - `acceptance_runs/m2_operator_demo/cost_estimate_and_ledger.yml`
+- `acceptance_runs/m2_operator_demo/m2_operator_demo_summary.yml`
+- `acceptance_runs/m2_operator_demo/migration_doctor_summary.yml`
+- `acceptance_runs/m2_operator_demo/mock_executor_result.yml`
+- `acceptance_runs/m2_operator_demo/phase_acceptance.yml`
+- `acceptance_runs/m2_operator_demo/role_requirement_matrix_summary.yml`
+- `acceptance_runs/m2_operator_demo/route_decision.yml`
+- `acceptance_runs/m2_operator_demo/runtime_hygiene_summary.yml`
+- `acceptance_runs/m2_operator_demo/timeline_excerpt.yml`
 
 ## Validation and Risks
 

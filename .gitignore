@@ -64,6 +64,8 @@ projects/*/tasks/*/tmp/
 **/*.bak/
 
 # Runtime artifacts
+/_shared/novel-moon-in-seal/
+/config/worker_performance_ledger.yml
 external_skill_inventory.json
 internal_skill_candidates.yml
 skill_incubation_report.md

@@ -43,15 +43,14 @@ project_constitutions:
     required_artifacts:
       - artifact_id: project_bible
         patterns:
-          - project_brain/project_bible.yml
-          - project_brain/mission_contract.yml
-          - 设定/**/*.md
+          - project_brain/project_fact_snapshot.yml
+          - project_brain/project_state_contract.yml
+          - production/bible/**/*.md
         gate: required_before_drafting
         missing_reason: Create or reference a project bible with genre, style bans, world, roles, factions, and continuity rules.
       - artifact_id: outline
         patterns:
-          - 大纲/**/*.md
-          - project_brain/outline.yml
+          - production/outlines/**/*.md
           - project_brain/workflow_plan.yml
         gate: required_before_drafting
         missing_reason: Create or reference a chapter/volume outline before drafting more chapters.
@@ -59,32 +58,33 @@ project_constitutions:
         patterns:
           - project_brain/scene_cards.yml
           - project_brain/chapter_cards.yml
-          - 大纲/**/*卡*.md
+          - production/outlines/**/*卡*.md
         gate: required_before_batch_dispatch
         missing_reason: Create scene or chapter cards for the next writing batch.
       - artifact_id: continuity_ledger
         patterns:
           - project_brain/continuity_ledger.yml
           - project_brain/chapter_ledger.yml
-          - 追踪/**/*.yml
-          - 追踪/**/*.md
+          - project_brain/project_fact_events.jsonl
         gate: required_before_batch_dispatch
         missing_reason: Create a continuity ledger tracking events, character state, foreshadowing, power changes, relationships, and unresolved issues.
       - artifact_id: revision_log
         patterns:
           - project_brain/revision_log.yml
           - project_brain/decision_log.yml
-          - v2_rewrite/**/*.md
+          - project_brain/artifact_version_policy.yml
         gate: required_before_revision
         missing_reason: Preserve user changes and prior prompt decisions in a revision log.
     must_read_patterns:
-      - project_brain/mission_contract.yml
+      - PROJECT_HANDOFF.md
+      - project_artifact_index.yml
+      - project_brain/project_fact_snapshot.yml
+      - project_brain/artifact_version_policy.yml
       - project_brain/workflow_plan.yml
       - project_brain/chapter_ledger.yml
-      - 设定/**/*.md
-      - 大纲/**/*.md
-      - 正文/第0*.md
-      - v2_rewrite/rewrite_blueprint_v2.md
+      - production/bible/**/*.md
+      - production/outlines/**/*.md
+      - production/manuscript/第0*.md
     continuity_acceptance:
       - no_placeholder_story_state
       - roles_world_factions_relationships_referenced

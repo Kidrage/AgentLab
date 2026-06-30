@@ -26,6 +26,8 @@ def test_workspace_entry_binds_agy_as_frontdesk_not_worker():
     assert packet["allowed_profiles"]["worker_capable"] is True
     assert packet["allowed_profiles"]["allowed_roles"] == ["ArtifactProducer", "Coder"]
     assert "rediscover_agentlab_by_full_repo_scan" in packet["forbidden_actions"]
+    assert packet["known_projects"] == ["Crown_of_Ash", "NovelGen"]
+    assert packet["content_project_governance"]["active_projects"] == ["Crown_of_Ash", "NovelGen"]
 
 
 def test_frontdesk_context_is_grounded_and_forbids_execution():
@@ -35,6 +37,12 @@ def test_frontdesk_context_is_grounded_and_forbids_execution():
     assert packet["role"] == "AgentLab Frontdesk / Chat Assistant Layer"
     assert "implement_task_itself" in packet["forbidden_actions"]
     assert packet["workspace_entry"]["agent_id"] == "agy"
+    assert "candidate_roots" in packet["forbidden_project_sources"]
+    for sources in packet["active_project_state_sources"].values():
+        assert all(
+            source.endswith(("PROJECT_HANDOFF.md", "project_artifact_index.yml", "project_fact_snapshot.yml"))
+            for source in sources
+        )
 
 
 def test_frontdesk_doctor_accepts_agy_frontdesk_contract():

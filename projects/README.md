@@ -8,6 +8,27 @@
 `evaluation_runs/`, `task_index.yml` 等）均为**本地项目记忆**，
 **不提交到 Git**，不在仓库间共享。
 
+## Active content project protocol
+
+长期内容项目的当前 active set 由 `config/content_project_governance.yml`
+声明。当前只应默认发现：
+
+- `NovelGen`
+- `Crown_of_Ash`
+
+这些项目内部使用统一事实源布局：
+
+- `production/`: 唯一正式当前内容区。
+- `project_artifact_index.yml`: 决定 artifact 的 current 版本。
+- `project_brain/project_fact_snapshot.yml`: 决定世界观、角色、时间线等 durable facts。
+- `candidates/<task_id>/`: 候选产物，默认 context pack 不读取为正式事实。
+- `archive/`: 旧版本，只能通过 index 显式引用。
+- `runs/<task_id>/`: 执行证据、日志、报告、任务包。
+
+`*_rebuild`, `v2_*`, `legacy`, `_archive`, `archive_v*` 等并列目录不能靠目录名
+成为事实源；必须在 `project_artifact_index.yml` 或
+`project_brain/artifact_version_policy.yml` 中登记。
+
 这些文件包含：
 - 任务运行记录（`runs/`）
 - 项目记忆文档（`agent_docs/`）
