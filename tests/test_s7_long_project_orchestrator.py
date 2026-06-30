@@ -9,6 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from agent_runtime.program_manager.phase_acceptance import accept_phase
+from agent_runtime.executors.task_packet import create_task_packet
 from agent_runtime.program_manager.project_brain import build_project_brain, build_project_next_actions, build_project_plan
 from run_task import app
 
@@ -46,6 +47,23 @@ def test_project_plan_has_acceptance_and_context_summary(tmp_path: Path) -> None
     assert phase["phase_id"] == "phase_1_repo_context"
     assert "all_required_outputs_have_evidence" in phase["acceptance_criteria"]
     assert (tmp_path / "brain" / "phase_summaries" / "phase_1_repo_context.md").is_file()
+
+
+def test_task_packet_records_project_brain_consumption(tmp_path: Path) -> None:
+    build_project_brain(_mission(tmp_path / "mission.yml", "coding"), "RepoRepair", tmp_path / "brain")
+    build_project_plan(tmp_path / "brain", tmp_path / "plan")
+
+    packet = create_task_packet(tmp_path / "plan" / "phase_plan.yml", "mock_executor", tmp_path / "packet")
+    consumption = packet["task_packet"]["project_brain_consumption"]
+
+    assert consumption["required"] is True
+    consumed = "\n".join(consumption["consumed_files"])
+    assert "project_brief.yml" in consumed
+    assert "roadmap.yml" in consumed
+    assert "acceptance_history.yml" in consumed
+    assert "next_actions.yml" in consumed
+    assert "project_fact_snapshot.yml" in consumed
+    assert "project_state_contract.yml" in consumed
 
 
 def test_phase_acceptance_requires_named_evidence(tmp_path: Path) -> None:

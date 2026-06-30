@@ -109,3 +109,24 @@ def test_task_packet_allows_only_ready_or_approved_plan_status(tmp_path: Path) -
 
     with pytest.raises(ValueError, match="cannot be dispatched"):
         create_task_packet(phase, "claude_code_handoff", tmp_path / "out")
+
+
+def test_task_packet_requires_project_brain_for_long_project_phase(tmp_path: Path) -> None:
+    phase = tmp_path / "phase_plan.yml"
+    phase.write_text(
+        yaml.safe_dump(
+            {
+                "project": "NovelDemo",
+                "phase_id": "draft_batch",
+                "goal": "Draft chapters 31-35",
+                "project_type": "longform_text_project",
+                "plan_status": "ready",
+                "self_check": {"passed": True},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="project_brain_dir"):
+        create_task_packet(phase, "claude_code_handoff", tmp_path / "out")

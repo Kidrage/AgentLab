@@ -162,6 +162,10 @@ Current evidence:
 
 - S7 writes project brief, roadmap, milestone graph, phase summaries, snapshots,
   acceptance history, and next actions.
+- 2026-06-30 update: `create_task_packet` now enforces Project Brain consumption
+  for long-running phases. A long-project phase without `project_brain_dir` is
+  rejected, an incomplete brain is rejected, and valid task packets record
+  `project_brain_consumption` with the exact consumed brain files.
 
 Gap:
 
@@ -179,10 +183,12 @@ Required work:
 
 Acceptance:
 
-- Missing Project Brain blocks long-project task creation.
+- Missing Project Brain blocks long-project task creation. Implemented locally
+  on 2026-06-30 for longform/codebase/video project phase dispatch.
 - Next actions cannot be generated from scratch when prior acceptance history
   exists.
-- Task packets list the exact Project Brain inputs used.
+- Task packets list the exact Project Brain inputs used. Implemented locally on
+  2026-06-30 through `project_brain_consumption`.
 
 ### M2-fix-5: Content Project Governance Long-Chain Regression
 

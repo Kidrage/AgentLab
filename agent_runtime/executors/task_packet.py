@@ -8,6 +8,14 @@ from agent_runtime.atomic_io import atomic_write_yaml
 from agent_runtime.executors.connector_contract import build_connector_contract
 
 
+REQUIRED_PROJECT_BRAIN_FILES = (
+    "project_brief.yml",
+    "roadmap.yml",
+    "acceptance_history.yml",
+    "next_actions.yml",
+)
+
+
 def create_task_packet(phase_plan_path: Path, executor_type: str, out_dir: Path) -> dict:
     # 1. Enforce executor permission policy
     from agent_runtime.executors.policy import load_executor_router_policy
@@ -46,6 +54,7 @@ def create_task_packet(phase_plan_path: Path, executor_type: str, out_dir: Path)
     project_name = phase.get("project", "AgentLab")
     phase_id = phase.get("phase_id", "unknown")
     self_check = plan_self_check(phase)
+    project_brain_consumption = _build_project_brain_consumption(phase, phase_plan_path)
     
     packet = {
         "task_packet": {
@@ -73,6 +82,7 @@ def create_task_packet(phase_plan_path: Path, executor_type: str, out_dir: Path)
             "self_check": self_check,
             "revision_log": phase.get("revision_log") or [],
             "project_brain_dir": phase.get("project_brain_dir"),
+            "project_brain_consumption": project_brain_consumption,
             "state_contract": phase.get("state_contract") or {},
             "state_outputs_required": phase.get("state_outputs_required") or [],
             "commands_allowed": phase.get("commands_allowed") or ["compileall", "pytest", "agentlab_help"],
@@ -102,3 +112,55 @@ def create_task_packet(phase_plan_path: Path, executor_type: str, out_dir: Path)
     render_handoff(packet, out_dir)
     
     return packet
+
+
+def _build_project_brain_consumption(phase: dict, phase_plan_path: Path) -> dict:
+    project_brain_raw = phase.get("project_brain_dir")
+    requires_brain = _requires_project_brain(phase)
+    if not project_brain_raw:
+        if requires_brain:
+            raise ValueError("Long-running project dispatch requires project_brain_dir.")
+        return {"required": False, "consumed_files": [], "missing_files": []}
+
+    project_brain_dir = Path(str(project_brain_raw))
+    if not project_brain_dir.is_absolute():
+        project_brain_dir = (phase_plan_path.parent / project_brain_dir).resolve()
+    if not project_brain_dir.exists():
+        raise ValueError(f"project_brain_dir does not exist: {project_brain_dir}")
+
+    required = list(REQUIRED_PROJECT_BRAIN_FILES)
+    if (project_brain_dir / "project_fact_snapshot.yml").exists():
+        required.append("project_fact_snapshot.yml")
+    if (project_brain_dir / "project_state_contract.yml").exists():
+        required.append("project_state_contract.yml")
+
+    consumed_files: list[str] = []
+    missing_files: list[str] = []
+    for relative in required:
+        path = project_brain_dir / relative
+        if path.exists():
+            consumed_files.append(str(path))
+        else:
+            missing_files.append(relative)
+
+    if missing_files:
+        raise ValueError(f"Project Brain is incomplete; missing: {', '.join(missing_files)}")
+
+    return {
+        "required": True,
+        "project_brain_dir": str(project_brain_dir),
+        "consumed_files": consumed_files,
+        "missing_files": [],
+    }
+
+
+def _requires_project_brain(phase: dict) -> bool:
+    if phase.get("long_project_governance_required"):
+        return True
+    if phase.get("project_type") in {"longform_text_project", "codebase_build_project", "video_generation_project"}:
+        return True
+    if phase.get("plan_status") and phase.get("plan_status") != "legacy_ready":
+        return True
+    if phase.get("must_read_artifacts") or phase.get("missing_facts"):
+        return True
+    return bool(phase.get("state_contract", {}).get("transition_proposal_required"))
