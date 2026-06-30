@@ -19,7 +19,7 @@ def test_s10_fixtures_cover_required_domains_without_external_execution() -> Non
     fixtures = load_generalization_fixtures(root)
 
     assert {fixture.domain for fixture in fixtures} == REQUIRED_FIXTURE_DOMAINS
-    assert len(fixtures) >= 6
+    assert len(fixtures) >= 11
     for fixture in fixtures:
         assert fixture.offline_only is True
         assert fixture.allow_external_execution is False

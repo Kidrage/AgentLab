@@ -8,8 +8,8 @@ S10 is additive on top of S9 Capability Fabric. The suite is offline-only and us
 
 ## Summary
 
-- Total fixtures: 6
-- Passed: 6
+- Total fixtures: 11
+- Passed: 11
 - Failed: 0
 - Offline only: true
 - External execution: blocked
@@ -44,10 +44,31 @@ S10 is additive on top of S9 Capability Fabric. The suite is offline-only and us
 - Score: 1.0
 - Pass: True
 
+### codebase_repair_governance
+
+- Domain: codebase_repair
+- Expected route: large_or_risky_task
+- Score: 1.0
+- Pass: True
+
 ### docs_only_release_note
 
 - Domain: docs
 - Expected route: small_task
+- Score: 1.0
+- Pass: True
+
+### document_ingestion_governance
+
+- Domain: document_ingestion
+- Expected route: research_sensitive_task
+- Score: 1.0
+- Pass: True
+
+### longform_novel_governance
+
+- Domain: longform_novel
+- Expected route: large_or_risky_task
 - Score: 1.0
 - Pass: True
 
@@ -65,10 +86,24 @@ S10 is additive on top of S9 Capability Fabric. The suite is offline-only and us
 - Score: 1.0
 - Pass: True
 
+### research_archive_governance
+
+- Domain: research_archive
+- Expected route: research_sensitive_task
+- Score: 1.0
+- Pass: True
+
 ### search_repo_mock
 
 - Domain: search_repo_mock
 - Expected route: research_sensitive_task
+- Score: 1.0
+- Pass: True
+
+### video_story_skeleton_governance
+
+- Domain: video_story_skeleton
+- Expected route: evaluation_task
 - Score: 1.0
 - Pass: True
 

@@ -14,6 +14,11 @@ The suite covers these required domains:
 - recovery
 - project_brain
 - search_repo_mock
+- longform_novel
+- research_archive
+- codebase_repair
+- video_story_skeleton
+- document_ingestion
 
 Fixtures live in:
 

@@ -53,3 +53,58 @@ fixtures:
       - provider_policy.yml
     offline_only: true
     allow_external_execution: false
+  - fixture_id: longform_novel_governance
+    domain: longform_novel
+    request: Plan a long novel batch using only production facts, artifact index, and Project Brain state.
+    expected_route: large_or_risky_task
+    required_artifacts:
+      - project_brain_summary.yml
+      - artifact_lineage.yml
+      - state_transition_proposal.yml
+      - continuity_gate_report.yml
+    offline_only: true
+    allow_external_execution: false
+  - fixture_id: research_archive_governance
+    domain: research_archive
+    request: Ingest a research archive and produce a source-indexed reading plan without web access.
+    expected_route: research_sensitive_task
+    required_artifacts:
+      - source_index.yml
+      - citation_policy.yml
+      - research_gap_cards.yml
+      - archive_context_pack.yml
+    offline_only: true
+    allow_external_execution: false
+  - fixture_id: codebase_repair_governance
+    domain: codebase_repair
+    request: Repair a codebase through task packet, diff evidence, tests, and phase acceptance.
+    expected_route: large_or_risky_task
+    required_artifacts:
+      - task_packet.yml
+      - executor_result.yml
+      - diff_scope_report.yml
+      - phase_acceptance.yml
+    offline_only: true
+    allow_external_execution: false
+  - fixture_id: video_story_skeleton_governance
+    domain: video_story_skeleton
+    request: Plan a long video/story project while blocking unsupported media verification.
+    expected_route: evaluation_task
+    required_artifacts:
+      - production_plan.yml
+      - capability_gap_decision_card.yml
+      - evidence_contract.yml
+      - continuity_checklist.yml
+    offline_only: true
+    allow_external_execution: false
+  - fixture_id: document_ingestion_governance
+    domain: document_ingestion
+    request: Ingest a local document bundle into project memory with provenance and privacy guardrails.
+    expected_route: research_sensitive_task
+    required_artifacts:
+      - ingestion_manifest.yml
+      - provenance_ledger.yml
+      - redaction_report.yml
+      - context_pack_summary.yml
+    offline_only: true
+    allow_external_execution: false

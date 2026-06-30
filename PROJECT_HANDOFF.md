@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-30T09:56:00.619677+00:00`
+- Generated at: `2026-06-30T10:04:22.246173+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `6972214`
-- Indexed paths: 1464
+- HEAD: `fb98413`
+- Indexed paths: 1484
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -45,10 +45,11 @@
 | `agent_runtime` | 455 |
 | `tests` | 391 |
 | `docs` | 205 |
-| `acceptance_runs` | 176 |
+| `acceptance_runs` | 196 |
 | `config` | 137 |
 | `docs/archive` | 126 |
 | `tests/fixtures` | 94 |
+| `acceptance_runs/s10_generalization_eval` | 32 |
 | `agent_templates` | 25 |
 | `scripts` | 22 |
 | `agent_runtime/program_manager` | 21 |
@@ -62,7 +63,6 @@
 | `agent_runtime/capabilities` | 15 |
 | `agent_runtime/ingestion` | 15 |
 | `acceptance_runs/p2_closure` | 12 |
-| `acceptance_runs/s10_generalization_eval` | 12 |
 | `agent_runtime/execution_economy` | 12 |
 | `agent_runtime/goals` | 12 |
 | `agent_runtime/brain` | 11 |
@@ -87,15 +87,15 @@
 
 ### Categories
 
-- code: 793 files, 4367027 bytes
-- literature: 301 files, 1222855 bytes
+- code: 793 files, 4367151 bytes
+- literature: 301 files, 1223881 bytes
 - other: 10 files, 74969 bytes
-- structured_data: 360 files, 1278009 bytes
+- structured_data: 380 files, 1296222 bytes
 
 ### Common Extensions
 
 - `.py`: 787
-- `.yml`: 344
+- `.yml`: 364
 - `.md`: 262
 - `.txt`: 39
 - `.json`: 13
@@ -121,6 +121,7 @@
 - `acceptance_runs/m2_worker_invocation_contracts/invalid_templates.yml`
 - `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.md`
 - `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.yml`
+- `acceptance_runs/s10_generalization_eval/fixtures/video_story_skeleton_governance/evidence_contract.yml`
 - `agent_runtime/artifact_contract.py`
 - `agent_runtime/assistant/models.py`
 - `agent_runtime/brain/artifact_contract_builder.py`
@@ -208,6 +209,7 @@
 
 ## Change History
 
+- `fb98413 2026-06-30 Require project brain consumption for long tasks`
 - `6972214 2026-06-30 Require executor supporting evidence for phase acceptance`
 - `4dc823e 2026-06-30 Harden M2 executor result acceptance`
 - `64f95e1 2026-06-30 Document M2 stabilization and M3 upgrade plan`
@@ -227,16 +229,24 @@
 - `166f8e3 2026-06-29 Extract protocol CLI commands`
 - `d8568de 2026-06-29 Extract role capability CLI commands`
 - `98a675c 2026-06-29 Start cleanup with route catalog and config inventory`
-- `4de7dec 2026-06-29 Add domain-aware creative writing mission routing`
 
 ## Current Changes
 
 - `## main...origin/main`
+- ` M acceptance_runs/s10_generalization_eval/S10_GENERALIZATION_EVAL_REPORT.md`
+- ` M acceptance_runs/s10_generalization_eval/generalization_results.yml`
 - ` M acceptance_runs/stabilization/text_integrity_audit.json`
-- ` M agent_runtime/executors/task_packet.py`
+- ` M acceptance_runs/stabilization/text_integrity_audit.md`
+- ` M agent_runtime/evaluation/generalization_suite.py`
+- ` M config/generalization_fixtures.yml`
 - ` M docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
-- ` M tests/test_long_project_governance.py`
-- ` M tests/test_s7_long_project_orchestrator.py`
+- ` M docs/S10_GENERALIZATION_EVAL_SUITE.md`
+- ` M tests/test_s10_generalization_eval.py`
+- `?? acceptance_runs/s10_generalization_eval/fixtures/codebase_repair_governance/`
+- `?? acceptance_runs/s10_generalization_eval/fixtures/document_ingestion_governance/`
+- `?? acceptance_runs/s10_generalization_eval/fixtures/longform_novel_governance/`
+- `?? acceptance_runs/s10_generalization_eval/fixtures/research_archive_governance/`
+- `?? acceptance_runs/s10_generalization_eval/fixtures/video_story_skeleton_governance/`
 
 ## Related Repositories
 

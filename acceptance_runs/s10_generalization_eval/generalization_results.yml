@@ -1,10 +1,10 @@
 stage: S10
 suite: generalization_eval
-started_at: '2026-06-19T14:42:13.765527+00:00'
+started_at: '2026-06-30T10:00:58.417456+00:00'
 offline_only: true
 external_execution: blocked
-total: 6
-passed: 6
+total: 11
+passed: 11
 failed: 0
 verdict: PASS
 results:
@@ -32,6 +32,23 @@ results:
   - validation_summary.yml
   score: 1.0
   pass: true
+- fixture_id: codebase_repair_governance
+  domain: codebase_repair
+  expected_route: large_or_risky_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - diff_scope_report.yml
+  - executor_result.yml
+  - phase_acceptance.yml
+  - task_packet.yml
+  required_artifacts:
+  - diff_scope_report.yml
+  - executor_result.yml
+  - phase_acceptance.yml
+  - task_packet.yml
+  score: 1.0
+  pass: true
 - fixture_id: docs_only_release_note
   domain: docs
   expected_route: small_task
@@ -43,6 +60,40 @@ results:
   required_artifacts:
   - docs_update.md
   - workflow_plan.yml
+  score: 1.0
+  pass: true
+- fixture_id: document_ingestion_governance
+  domain: document_ingestion
+  expected_route: research_sensitive_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - context_pack_summary.yml
+  - ingestion_manifest.yml
+  - provenance_ledger.yml
+  - redaction_report.yml
+  required_artifacts:
+  - context_pack_summary.yml
+  - ingestion_manifest.yml
+  - provenance_ledger.yml
+  - redaction_report.yml
+  score: 1.0
+  pass: true
+- fixture_id: longform_novel_governance
+  domain: longform_novel
+  expected_route: large_or_risky_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - artifact_lineage.yml
+  - continuity_gate_report.yml
+  - project_brain_summary.yml
+  - state_transition_proposal.yml
+  required_artifacts:
+  - artifact_lineage.yml
+  - continuity_gate_report.yml
+  - project_brain_summary.yml
+  - state_transition_proposal.yml
   score: 1.0
   pass: true
 - fixture_id: project_brain_status
@@ -69,6 +120,23 @@ results:
   - root_cause_notes.md
   score: 1.0
   pass: true
+- fixture_id: research_archive_governance
+  domain: research_archive
+  expected_route: research_sensitive_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - archive_context_pack.yml
+  - citation_policy.yml
+  - research_gap_cards.yml
+  - source_index.yml
+  required_artifacts:
+  - archive_context_pack.yml
+  - citation_policy.yml
+  - research_gap_cards.yml
+  - source_index.yml
+  score: 1.0
+  pass: true
 - fixture_id: search_repo_mock
   domain: search_repo_mock
   expected_route: research_sensitive_task
@@ -82,4 +150,21 @@ results:
   - search_results.yml
   score: 1.0
   pass: true
-completed_at: '2026-06-19T14:42:13.765801+00:00'
+- fixture_id: video_story_skeleton_governance
+  domain: video_story_skeleton
+  expected_route: evaluation_task
+  offline_only: true
+  external_execution: blocked
+  artifacts_present:
+  - capability_gap_decision_card.yml
+  - continuity_checklist.yml
+  - evidence_contract.yml
+  - production_plan.yml
+  required_artifacts:
+  - capability_gap_decision_card.yml
+  - continuity_checklist.yml
+  - evidence_contract.yml
+  - production_plan.yml
+  score: 1.0
+  pass: true
+completed_at: '2026-06-30T10:00:58.417579+00:00'

@@ -233,6 +233,10 @@ Current evidence:
 
 - S10 has six offline fixtures: docs, cli, capability_gap, recovery,
   project_brain, and search_repo_mock.
+- 2026-06-30 update: S10 required fixture domains now include longform novel,
+  research archive, codebase repair, video/story skeleton, and document
+  ingestion governance fixtures. The suite remains offline-only and
+  external-execution-blocked.
 
 Gap:
 
