@@ -8,12 +8,12 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-30T06:38:57.381420+00:00`
+- Generated at: `2026-06-30T06:47:22.897639+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `86a0625`
+- HEAD: `f2388dd`
 - Indexed paths: 1461
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -87,8 +87,8 @@
 
 ### Categories
 
-- code: 792 files, 4353968 bytes
-- literature: 299 files, 1200327 bytes
+- code: 792 files, 4354116 bytes
+- literature: 299 files, 1200969 bytes
 - other: 10 files, 74969 bytes
 - structured_data: 360 files, 1223294 bytes
 
@@ -207,6 +207,7 @@
 
 ## Change History
 
+- `f2388dd 2026-06-30 Tighten content project governance`
 - `86a0625 2026-06-30 Fix README public doc gates`
 - `0a8c298 2026-06-30 Add project fact state machine`
 - `7367a9a 2026-06-29 Refresh bilingual README for M-series baseline and Jun 29 state`
@@ -226,36 +227,11 @@
 - `3fa3434 2026-06-28 Register agy capabilities and Coder role in shared agent directory`
 - `331ab6f 2026-06-28 Sync role-assignment and fallback tests to new Coder bindings`
 - `0cfa8e0 2026-06-28 Fix hardcoded absolute paths in Crown of Ash scripts`
-- `e1d5172 2026-06-28 Reassign role bindings: agy as Coder, expand Hermes model groups, update worker contracts`
 
 ## Current Changes
 
 - `## main...origin/main`
-- ` M .gitignore`
-- ` M AGENTS.md`
-- `D  "_shared/novel-moon-in-seal/audio-drama/001-\347\254\254\344\270\200\347\253\240-\344\270\200\346\236\232\345\201\217\347\203\253\347\232\204\346\227\247\347\216\211.mp3"`
-- `D  _shared/novel-moon-in-seal/project_brain/acceptance_history.yml`
-- `D  _shared/novel-moon-in-seal/project_brain/architecture_state.yml`
-- `D  _shared/novel-moon-in-seal/project_brain/decision_log.yml`
-- `D  _shared/novel-moon-in-seal/project_brain/known_risks.yml`
-- `D  _shared/novel-moon-in-seal/project_brain/memory_index.yml`
-- `D  _shared/novel-moon-in-seal/project_brain/next_actions.yml`
-- `D  _shared/novel-moon-in-seal/project_brain/product_vision.md`
-- `D  _shared/novel-moon-in-seal/project_brain/roadmap.yml`
-- `D  _shared/novel-moon-in-seal/project_brain/unresolved_questions.yml`
-- `D  "_shared/novel-moon-in-seal/project_brain/\345\217\221\345\261\225\350\267\257\347\272\277.md"`
-- ` M agent_runtime/context_governance/packers/narrative_packer.py`
-- ` M agent_runtime/program_manager/phase_planner.py`
-- ` M agent_runtime/project_artifact_steward.py`
-- ` M agent_runtime/protocols/enforcement.py`
-- ` M config/long_project_governance.yml`
-- `D  config/worker_performance_ledger.yml`
-- ` M projects/README.md`
-- ` M tests/test_long_project_governance.py`
-- ` M tests/test_p2g_context_packers.py`
-- ` M tests/test_project_artifact_steward.py`
-- ` M tests/test_protocol_enforcement.py`
-- `?? config/content_project_governance.yml`
+- ` M tests/test_cleanup_refactor_invariants.py`
 
 ## Related Repositories
 

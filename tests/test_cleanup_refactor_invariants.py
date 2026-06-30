@@ -45,7 +45,9 @@ def test_config_inventory_classifies_cleanup_categories() -> None:
 
     assert by_path["config/routing_rules.yml"].category == "source"
     assert by_path["config/generalization_fixtures.yml"].category == "fixture"
-    assert by_path["config/worker_performance_ledger.yml"].category == "runtime"
+    assert by_path["config/local_private_topology.example.yml"].category == "runtime"
+    if "config/worker_performance_ledger.yml" in by_path:
+        assert by_path["config/worker_performance_ledger.yml"].category == "runtime"
 
 
 def test_config_inventory_payload_has_counts() -> None:
