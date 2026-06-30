@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-30T06:47:22.897639+00:00`
+- Generated at: `2026-06-30T09:21:28.350937+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `f2388dd`
-- Indexed paths: 1461
+- HEAD: `752b378`
+- Indexed paths: 1463
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -44,7 +44,7 @@
 |---|---:|
 | `agent_runtime` | 454 |
 | `tests` | 391 |
-| `docs` | 203 |
+| `docs` | 205 |
 | `acceptance_runs` | 176 |
 | `config` | 137 |
 | `docs/archive` | 126 |
@@ -88,15 +88,15 @@
 ### Categories
 
 - code: 792 files, 4354116 bytes
-- literature: 299 files, 1200969 bytes
+- literature: 301 files, 1220998 bytes
 - other: 10 files, 74969 bytes
-- structured_data: 360 files, 1223294 bytes
+- structured_data: 360 files, 1277445 bytes
 
 ### Common Extensions
 
 - `.py`: 786
 - `.yml`: 344
-- `.md`: 260
+- `.md`: 262
 - `.txt`: 39
 - `.json`: 13
 - `[no extension]`: 5
@@ -207,6 +207,7 @@
 
 ## Change History
 
+- `752b378 2026-06-30 Fix config inventory test for local runtime ledger`
 - `f2388dd 2026-06-30 Tighten content project governance`
 - `86a0625 2026-06-30 Fix README public doc gates`
 - `0a8c298 2026-06-30 Add project fact state machine`
@@ -226,12 +227,15 @@
 - `14e6168 2026-06-28 Allow agy Coder role in protocol doctor enforcement check`
 - `3fa3434 2026-06-28 Register agy capabilities and Coder role in shared agent directory`
 - `331ab6f 2026-06-28 Sync role-assignment and fallback tests to new Coder bindings`
-- `0cfa8e0 2026-06-28 Fix hardcoded absolute paths in Crown of Ash scripts`
 
 ## Current Changes
 
 - `## main...origin/main`
-- ` M tests/test_cleanup_refactor_invariants.py`
+- ` M acceptance_runs/stabilization/text_integrity_audit.json`
+- ` M acceptance_runs/stabilization/text_integrity_audit.md`
+- ` M docs/M_SERIES_SCOPE.md`
+- `?? docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
+- `?? docs/M3_UPGRADE_PLAN_REVIEW.md`
 
 ## Related Repositories
 

@@ -1,9 +1,18 @@
 # M-Series Scope
 
-Last updated: 2026-06-20
+Last updated: 2026-06-30
 
 This document freezes the M-series repair scope so future stages can advance
 without mixing governance, operator control, and business/productization work.
+
+Current handoff note: the latest planning discussion uses M2 for the remaining
+long-project governance hardening, M3 for Operator OS / Transparent Control
+Plane, and M4 for Project-to-Revenue OS. See:
+
+- `docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
+- `docs/M3_UPGRADE_PLAN_REVIEW.md`
+
+The older labels below remain as historical repository milestone names.
 
 ## Positioning
 
