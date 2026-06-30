@@ -54,6 +54,11 @@ Current evidence:
   directory and bridge it into phase acceptance.
 - S8 tests use a mock executor fixture and explicitly keep external auto
   execution disabled.
+- 2026-06-30 update: `agent_runtime/executors/result_contract.py` now validates
+  executor result envelopes before ingestion. Ingested reports include
+  `contract_validation`, malformed results fail before phase acceptance, and
+  executor fixtures now use explicit task identity, executor identity, source,
+  status, test evidence summary, artifact evidence, and safety attestation.
 
 Gap:
 
@@ -76,7 +81,8 @@ Required work:
 
 Acceptance:
 
-- A malformed result fails before phase acceptance.
+- A malformed result fails before phase acceptance. Implemented locally on
+  2026-06-30 for missing executor identity and related required fields.
 - A result without evidence cannot close a phase.
 - A no-change result must include a reviewer-readable rationale and evidence.
 - The same contract works for at least one real local Codex result fixture and
@@ -115,6 +121,9 @@ Current evidence:
 
 - `phase_acceptance.py` reads evidence ledgers and result directories.
 - It can apply state transitions when a proposal is accepted.
+- 2026-06-30 update: `ask_user` is no longer mapped to `PASS`. Human-review
+  gates and scope-drift review states now produce `NEEDS_HUMAN_REVIEW` with
+  `accepted: false`; the policy records `human_review_blocks_acceptance: true`.
 
 Gap:
 
@@ -135,7 +144,8 @@ Required work:
 Acceptance:
 
 - A phase cannot close with missing evidence.
-- A phase cannot close with only human-review-needed status.
+- A phase cannot close with only human-review-needed status. Implemented locally
+  on 2026-06-30 for direct phase acceptance and S8 executor review.
 - A phase cannot close if changed files are outside the task packet scope unless
   the scope expansion is explicitly approved.
 - Acceptance history records which evidence was consumed.
@@ -338,4 +348,3 @@ M2 can be called stable only when all of the following are true:
 - Text integrity and forbidden tracked-file gates pass locally and in CI.
 - Full pytest passes.
 - CI passes on the pushed mainline.
-

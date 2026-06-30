@@ -32,8 +32,10 @@ def _executor_result_dir(path: Path) -> Path:
     path.mkdir()
     result = {
         "executor_result": {
-            "packet_id": "DemoProject_phase_001_task",
-            "executor_type": "claude_code_handoff",
+            "task_packet_id": "DemoProject_phase_001_task",
+            "executor_id": "claude_code_handoff",
+            "source": "fixture_executor",
+            "status": "PASS",
             "summary": "Mock task execution succeeded.",
             "changed_files": ["tests/test_file.py"],
             "artifacts": ["evidence.yml"],
@@ -44,6 +46,7 @@ def _executor_result_dir(path: Path) -> Path:
             "unresolved_issues": [],
             "evidence_paths": ["/tmp/result/evidence.yml"],
             "proposed_next_action": "Proceed to next phase",
+            "safety_attestation": {"secrets_exposed": False},
         }
     }
     (path / "executor_result.yml").write_text(yaml.safe_dump(result), encoding="utf-8")
@@ -65,6 +68,7 @@ def test_executor_result_ingestion(tmp_path: Path) -> None:
     assert report["result_status"] == "PASS"
     assert report["changed_files"] == ["tests/test_file.py"]
     assert report["artifacts"] == ["evidence.yml"]
+    assert report["contract_validation"]["valid"] is True
     assert report["accepted_without_review"] is False
     assert (ingest_dir / "ingested_result.yml").is_file()
     assert (ingest_dir / "phase_evidence" / "evidence_ledger.yml").is_file()
@@ -72,7 +76,6 @@ def test_executor_result_ingestion(tmp_path: Path) -> None:
     loaded = yaml.safe_load((ingest_dir / "ingested_result.yml").read_text(encoding="utf-8"))
     assert loaded["changed_files"] == ["tests/test_file.py"]
     assert loaded["artifacts"] == ["evidence.yml"]
-    assert loaded["phase_acceptance"]["verdict"] == "PASS"
-
-
+    assert loaded["phase_acceptance"]["verdict"] == "NEEDS_HUMAN_REVIEW"
+    assert loaded["phase_acceptance"]["accepted"] is False
 

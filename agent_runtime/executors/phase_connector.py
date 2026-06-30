@@ -8,6 +8,10 @@ from agent_runtime.atomic_io import atomic_write_text, atomic_write_yaml
 from agent_runtime.executors.diff_inspector import inspect_changed_files
 from agent_runtime.executors.evidence_collector import collect_phase_evidence
 from agent_runtime.executors.executor_ledger import append_executor_event
+from agent_runtime.executors.result_contract import (
+    load_executor_result_envelope,
+    validate_executor_result_envelope,
+)
 from agent_runtime.program_manager.phase_acceptance import accept_phase
 
 
@@ -15,19 +19,20 @@ def ingest_phase_executor_result(result_dir: Path, task_packet_path: Path, out_d
     packet_data = yaml.safe_load(task_packet_path.read_text(encoding="utf-8")) or {}
     packet = packet_data.get("task_packet") or packet_data
     
-    # 1. Load result from executor_result.yml or execution_result_envelope.yml
-    envelope_path = result_dir / "execution_result_envelope.yml"
-    result_path = result_dir / "executor_result.yml"
-    envelope = {}
-    if result_path.exists():
-        raw = yaml.safe_load(result_path.read_text(encoding="utf-8")) or {}
-        envelope = raw.get("executor_result") or raw
-    elif envelope_path.exists():
-        raw = yaml.safe_load(envelope_path.read_text(encoding="utf-8")) or {}
-        envelope = raw.get("executor_result") or raw
+    # 1. Load and validate result from executor_result.yml or execution_result_envelope.yml
+    envelope = load_executor_result_envelope(result_dir)
+    contract_validation = validate_executor_result_envelope(envelope)
         
     changed_files = [str(item) for item in envelope.get("changed_files") or []]
-    artifacts = [str(item) for item in (envelope.get("artifacts") or envelope.get("output_artifacts") or [])]
+    artifacts = [
+        str(item)
+        for item in (
+            envelope.get("artifacts")
+            or envelope.get("output_artifacts")
+            or envelope.get("evidence_artifacts")
+            or []
+        )
+    ]
     
     diff_report = inspect_changed_files(
         changed_files,
@@ -64,6 +69,7 @@ def ingest_phase_executor_result(result_dir: Path, task_packet_path: Path, out_d
         "diff_report": diff_report,
         "changed_files": changed_files,
         "artifacts": artifacts,
+        "contract_validation": contract_validation,
         "evidence_ledger": "phase_evidence/evidence_ledger.yml",
         "phase_acceptance": acceptance,
         "accepted_without_review": False,

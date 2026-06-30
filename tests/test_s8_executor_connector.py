@@ -6,6 +6,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 import yaml
+import pytest
 from typer.testing import CliRunner
 
 from agent_runtime.executors.phase_connector import ingest_phase_executor_result, review_phase_executor_result
@@ -62,6 +63,7 @@ def test_result_ingest_collects_evidence_and_does_not_accept(tmp_path: Path) -> 
     assert packet["connector_contract"]["auto_execute"] is True
     result = ingest_phase_executor_result(_result_dir(tmp_path / "result"), tmp_path / "packet" / "task_packet.yml", tmp_path / "ingest")
     assert result["accepted_without_review"] is False
+    assert result["contract_validation"]["valid"] is True
     assert result["diff_report"]["verdict"] == "PASS"
     assert (tmp_path / "ingest" / "phase_evidence" / "evidence_ledger.yml").is_file()
     assert (tmp_path / "ingest" / "executor_result_ledger.yml").is_file()
@@ -72,7 +74,8 @@ def test_executor_review_uses_phase_acceptance(tmp_path: Path) -> None:
     create_task_packet(phase, "mock_executor", tmp_path / "packet")
     ingest_phase_executor_result(_result_dir(tmp_path / "result"), tmp_path / "packet" / "task_packet.yml", tmp_path / "ingest")
     review = review_phase_executor_result(tmp_path / "ingest" / "ingested_result.yml", phase, tmp_path / "review")
-    assert review["accepted"] is True
+    assert review["accepted"] is False
+    assert review["phase_acceptance"]["verdict"] == "NEEDS_HUMAN_REVIEW"
     assert review["external_auto_execution_allowed"] is False
 
 
@@ -85,6 +88,26 @@ def test_forbidden_changed_file_blocks_review(tmp_path: Path) -> None:
     assert review["accepted"] is False
 
 
+def test_malformed_executor_result_is_rejected_before_acceptance(tmp_path: Path) -> None:
+    create_task_packet(_phase(tmp_path / "phase.yml"), "mock_executor", tmp_path / "packet")
+    result_dir = tmp_path / "result"
+    result_dir.mkdir()
+    (result_dir / "execution_result_envelope.yml").write_text(
+        yaml.safe_dump(
+            {
+                "task_id": "phase_2_patch_packet",
+                "source": "mock_executor",
+                "status": "PASS",
+                "changed_files": ["tests/test_s8_executor_connector.py"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="executor identity"):
+        ingest_phase_executor_result(result_dir, tmp_path / "packet" / "task_packet.yml", tmp_path / "ingest")
+
+
 def test_s8_cli_packet_ingest_review(tmp_path: Path) -> None:
     runner = CliRunner()
     phase = _phase(tmp_path / "phase.yml")
@@ -93,4 +116,5 @@ def test_s8_cli_packet_ingest_review(tmp_path: Path) -> None:
     ingest = runner.invoke(app, ["executor-result-ingest", "--result-dir", str(_result_dir(tmp_path / "result")), "--task-packet", str(tmp_path / "packet" / "task_packet.yml"), "--out", str(tmp_path / "ingest")])
     assert ingest.exit_code == 0, ingest.output
     review = runner.invoke(app, ["executor-review", "--ingested-result", str(tmp_path / "ingest" / "ingested_result.yml"), "--phase-plan", str(phase), "--out", str(tmp_path / "review")])
-    assert review.exit_code == 0, review.output
+    assert review.exit_code == 1, review.output
+    assert "NEEDS_HUMAN_REVIEW" in review.output

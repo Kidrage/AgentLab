@@ -32,12 +32,15 @@ def _executor_result_dir(path: Path) -> Path:
     path.mkdir()
     result = {
         "executor_result": {
-            "packet_id": "DemoProject_phase_001_task",
-            "executor_type": "claude_code_handoff",
+            "task_packet_id": "DemoProject_phase_001_task",
+            "executor_id": "claude_code_handoff",
+            "source": "fixture_executor",
+            "status": "PASS",
             "summary": "Mock task execution succeeded.",
             "changed_files": ["tests/test_file.py"],
             "artifacts": ["evidence.yml"],
             "test_results": {"passed": True},
+            "safety_attestation": {"secrets_exposed": False},
         }
     }
     (path / "executor_result.yml").write_text(yaml.safe_dump(result), encoding="utf-8")

@@ -57,7 +57,8 @@ def test_phase_acceptance_requires_named_evidence(tmp_path: Path) -> None:
     for name in phase["evidence_required"]:
         (evidence / name).write_text("ok: true\n", encoding="utf-8")
     result = accept_phase(phase_path, evidence, tmp_path / "accepted")
-    assert result["accepted"] is True
+    assert result["accepted"] is False
+    assert result["verdict"] == "NEEDS_HUMAN_REVIEW"
     assert result["human_approval_required"] is True
 
 

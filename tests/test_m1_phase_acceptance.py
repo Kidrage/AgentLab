@@ -137,3 +137,28 @@ def test_accept_phase_end_to_end(tmp_path: Path):
     report_text = (out_dir / "phase_acceptance.md").read_text(encoding="utf-8")
     assert "# AgentLab Phase Acceptance Report: phase_001" in report_text
     assert "✅ **PASS**" in report_text or "✅ **ACCEPT**" in report_text
+
+
+def test_accept_phase_human_gate_needs_review_not_acceptance(tmp_path: Path):
+    phase_plan_path = tmp_path / "phase_plan.yml"
+    phase_plan_path.write_text(
+        yaml.safe_dump({
+            "project": "TestProject",
+            "phase_id": "phase_human_gate",
+            "goal": "Verify human gate",
+            "outputs": ["app.py"],
+            "evidence_required": ["evidence.txt"],
+            "human_decision_points": ["approve_phase_close"],
+        }),
+        encoding="utf-8"
+    )
+
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    (evidence_dir / "evidence.txt").write_text("evidence data", encoding="utf-8")
+
+    res = accept_phase(phase_plan_path, evidence_dir, tmp_path / "out")
+    assert res["accepted"] is False
+    assert res["verdict"] == "NEEDS_HUMAN_REVIEW"
+    assert res["verdict_details"] == "ask_user"
+    assert res["policy"]["human_review_blocks_acceptance"] is True

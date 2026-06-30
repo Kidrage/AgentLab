@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-30T09:21:28.350937+00:00`
+- Generated at: `2026-06-30T09:34:26.528529+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `752b378`
-- Indexed paths: 1463
+- HEAD: `64f95e1`
+- Indexed paths: 1464
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -42,7 +42,7 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 454 |
+| `agent_runtime` | 455 |
 | `tests` | 391 |
 | `docs` | 205 |
 | `acceptance_runs` | 176 |
@@ -56,8 +56,8 @@
 | `agent_runtime/workers` | 21 |
 | `acceptance_runs/mainline_r0_r5` | 20 |
 | `agent_runtime/context_governance` | 20 |
+| `agent_runtime/executors` | 18 |
 | `.` | 17 |
-| `agent_runtime/executors` | 17 |
 | `acceptance_runs/m2_operator_demo` | 16 |
 | `agent_runtime/capabilities` | 15 |
 | `agent_runtime/ingestion` | 15 |
@@ -87,14 +87,14 @@
 
 ### Categories
 
-- code: 792 files, 4354116 bytes
-- literature: 301 files, 1220998 bytes
+- code: 793 files, 4359751 bytes
+- literature: 301 files, 1221982 bytes
 - other: 10 files, 74969 bytes
-- structured_data: 360 files, 1277445 bytes
+- structured_data: 360 files, 1278009 bytes
 
 ### Common Extensions
 
-- `.py`: 786
+- `.py`: 787
 - `.yml`: 344
 - `.md`: 262
 - `.txt`: 39
@@ -136,6 +136,7 @@
 - `agent_runtime/costs/model_cost_profile.py`
 - `agent_runtime/executors/connector_contract.py`
 - `agent_runtime/executors/models.py`
+- `agent_runtime/executors/result_contract.py`
 - `agent_runtime/external_projects/adapter_contract.py`
 - `agent_runtime/external_projects/models.py`
 - `agent_runtime/goals/action_schema.py`
@@ -207,6 +208,7 @@
 
 ## Change History
 
+- `64f95e1 2026-06-30 Document M2 stabilization and M3 upgrade plan`
 - `752b378 2026-06-30 Fix config inventory test for local runtime ledger`
 - `f2388dd 2026-06-30 Tighten content project governance`
 - `86a0625 2026-06-30 Fix README public doc gates`
@@ -226,16 +228,21 @@
 - `4de7dec 2026-06-29 Add domain-aware creative writing mission routing`
 - `14e6168 2026-06-28 Allow agy Coder role in protocol doctor enforcement check`
 - `3fa3434 2026-06-28 Register agy capabilities and Coder role in shared agent directory`
-- `331ab6f 2026-06-28 Sync role-assignment and fallback tests to new Coder bindings`
 
 ## Current Changes
 
 - `## main...origin/main`
 - ` M acceptance_runs/stabilization/text_integrity_audit.json`
 - ` M acceptance_runs/stabilization/text_integrity_audit.md`
-- ` M docs/M_SERIES_SCOPE.md`
-- `?? docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
-- `?? docs/M3_UPGRADE_PLAN_REVIEW.md`
+- ` M agent_runtime/executors/phase_connector.py`
+- ` M agent_runtime/program_manager/phase_acceptance.py`
+- ` M docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
+- ` M tests/test_m1_executor_result_ingestion.py`
+- ` M tests/test_m1_executor_review.py`
+- ` M tests/test_m1_phase_acceptance.py`
+- ` M tests/test_s7_long_project_orchestrator.py`
+- ` M tests/test_s8_executor_connector.py`
+- `?? agent_runtime/executors/result_contract.py`
 
 ## Related Repositories
 
