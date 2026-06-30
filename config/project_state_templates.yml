@@ -1,0 +1,151 @@
+schema_version: 1
+
+universal_kernel:
+  template_id: universal_project_fact_state
+  entity_fields: ["entity_id", "entity_type", "status", "facts", "evidence_refs"]
+  artifact_fields: ["artifact_id", "artifact_type", "status", "facts", "evidence_refs"]
+  event_fields: ["event_id", "event_type", "target_kind", "target_type", "target_id", "to_status", "evidence_refs"]
+  statuses: ["planned", "active", "blocked", "resolved", "deprecated", "retired"]
+  invariants:
+    - invariant_id: evidence_required_for_state_change
+      description: Every durable fact transition must cite at least one evidence reference.
+    - invariant_id: retired_target_cannot_be_reactivated_without_restore_event
+      description: Retired or deprecated facts cannot become active without an explicit restore event.
+
+presets:
+  epic_chronicle_project:
+    preset_id: epic_chronicle_state
+    aliases: ["epic chronicle", "epic saga", "worldbuilding chronicle", "epic", "chronicle", "saga", "worldbuilding", "world bible", "史诗编年史", "世界观编年史", "编年史", "史诗", "世界观"]
+    entity_types:
+      - character
+      - faction
+      - location
+      - item
+      - relationship
+      - era
+      - timeline_event
+      - timeline_branch
+      - cosmic_force
+      - power_stage
+      - covenant
+      - mystery_thread
+      - volume_arc
+      - chapter_arc
+    artifact_types:
+      - world_chronicle
+      - world_bible
+      - character_bible
+      - faction_bible
+      - magic_system
+      - relationship_map
+      - volume_outline
+      - chapter_route
+      - continuity_ledger
+      - draft_batch
+    event_types:
+      - create
+      - revise
+      - retire
+      - restore
+      - resolve_thread
+      - establish_continuity
+      - branch_timeline
+      - echo
+      - advance_power_stage
+      - seal_covenant
+      - reveal_truth
+    state_affecting_outputs:
+      - world_chronicle
+      - world_bible
+      - character_bible
+      - faction_bible
+      - magic_system
+      - relationship_map
+      - volume_outline
+      - chapter_route
+      - continuity_ledger
+      - draft_batch
+    dimensions:
+      chronology: ["era", "timeline_event", "timeline_branch", "volume_arc", "chapter_arc"]
+      ontology: ["cosmic_force", "magic_system", "power_stage", "covenant"]
+      continuity: ["character", "faction", "location", "item", "relationship", "mystery_thread"]
+    status_sequences:
+      power_stage: ["seeded", "awakened", "erosion", "burning", "abyssal", "ashen", "crowned", "spent"]
+      mystery_thread: ["seeded", "active", "revealed", "resolved", "deferred"]
+      chapter_arc: ["planned", "drafting", "reviewed", "accepted", "archived"]
+    invariants:
+      - invariant_id: dead_character_requires_restore_event
+        target_type: character
+        blocked_from_statuses: ["dead", "retired"]
+        allowed_events: ["restore"]
+      - invariant_id: timeline_echo_requires_source_branch
+        event_types: ["echo"]
+        required_event_fields: ["facts.source_branch_id"]
+      - invariant_id: covenant_requires_named_parties
+        event_types: ["seal_covenant"]
+        required_event_fields: ["facts.parties"]
+
+  longform_text_project:
+    preset_id: longform_text_state
+    aliases: ["creative_longform", "creative", "novel", "narrative"]
+    entity_types: ["character", "location", "faction", "item", "relationship", "timeline_event"]
+    artifact_types: ["story_bible", "chapter_outline", "scene_card", "draft_batch", "continuity_ledger"]
+    event_types: ["create", "revise", "retire", "restore", "resolve_thread", "establish_continuity"]
+    state_affecting_outputs: ["story_bible", "character_bible", "chapter_outline", "scene_cards", "continuity_ledger", "draft_batch"]
+    invariants:
+      - invariant_id: dead_character_requires_restore_event
+        target_type: character
+        blocked_from_statuses: ["dead", "retired"]
+        allowed_events: ["restore"]
+
+  video_generation_project:
+    preset_id: video_generation_state
+    aliases: ["video", "short_drama", "short_video"]
+    entity_types: ["episode", "scene", "shot", "character_asset", "audio_asset", "visual_asset"]
+    artifact_types: ["script", "storyboard", "asset_manifest", "tool_handoff_packet", "qa_report"]
+    event_types: ["create", "revise", "retire", "restore", "render", "approve_cut"]
+    state_affecting_outputs: ["script", "storyboard", "asset_manifest", "tool_handoff_packet", "qa_report"]
+    invariants:
+      - invariant_id: retired_asset_cannot_be_referenced
+        target_type: character_asset
+        blocked_from_statuses: ["retired", "deprecated"]
+        allowed_events: ["restore"]
+
+  codebase_build_project:
+    preset_id: codebase_build_state
+    aliases: ["coding", "software", "repo", "codebase"]
+    entity_types: ["module", "api", "dependency", "test_suite", "risk"]
+    artifact_types: ["repo_context", "architecture_doc", "patch_plan", "task_packet", "test_evidence", "acceptance_report"]
+    event_types: ["create", "revise", "retire", "restore", "migrate", "verify"]
+    state_affecting_outputs: ["repo_context", "architecture_doc", "patch_plan", "task_packet", "test_evidence", "acceptance_report"]
+    invariants:
+      - invariant_id: retired_api_requires_migration_to_reuse
+        target_type: api
+        blocked_from_statuses: ["retired", "deprecated"]
+        allowed_events: ["restore", "migrate"]
+
+  algorithm_prototype_project:
+    preset_id: algorithm_prototype_state
+    aliases: ["algorithm", "prototype", "experiment", "research_model", "ml_model"]
+    entity_types: ["hypothesis", "dataset", "experiment", "metric", "model_version", "baseline"]
+    artifact_types: ["experiment_plan", "dataset_manifest", "run_report", "metric_report", "model_card"]
+    event_types: ["create", "revise", "retire", "restore", "run_experiment", "promote_baseline"]
+    state_affecting_outputs: ["experiment_plan", "dataset_manifest", "run_report", "metric_report", "model_card"]
+    invariants:
+      - invariant_id: failed_hypothesis_requires_new_evidence_before_baseline
+        target_type: hypothesis
+        blocked_from_statuses: ["failed", "rejected"]
+        allowed_events: ["restore", "run_experiment"]
+
+  modeling_app_project:
+    preset_id: modeling_app_state
+    aliases: ["modeling_app", "modeling app", "3d_app", "3d app", "asset_pipeline", "asset pipeline", "cad", "app_build"]
+    entity_types: ["module", "schema", "asset_pipeline", "export_format", "ux_flow", "compatibility_contract"]
+    artifact_types: ["product_spec", "schema_doc", "pipeline_plan", "prototype", "compatibility_report"]
+    event_types: ["create", "revise", "retire", "restore", "migrate", "verify"]
+    state_affecting_outputs: ["product_spec", "schema_doc", "pipeline_plan", "prototype", "compatibility_report"]
+    invariants:
+      - invariant_id: removed_schema_requires_migration
+        target_type: schema
+        blocked_from_statuses: ["removed", "retired", "deprecated"]
+        allowed_events: ["restore", "migrate"]

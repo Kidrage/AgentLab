@@ -21,9 +21,16 @@ class NarrativePacker:
         setting_refs = _collect(project_root, ["设定/**/*.md"], limit=12)
         outline_refs = _collect(project_root, ["大纲/**/*.md"], limit=8)
         brain_refs = _collect(project_root, ["project_brain/*.yml"], limit=12)
+        state_refs = _collect(project_root, ["project_brain/project_fact_snapshot.yml", "project_brain/project_state_contract.yml"], limit=4)
         chapter_refs = _collect(project_root, ["正文/第0*.md"], limit=30)
 
         sections = [
+            section(
+                "project_fact_state_refs",
+                "Project Fact State References",
+                _render_refs("Machine-readable project fact snapshot and state contract", state_refs),
+                state_refs,
+            ),
             section(
                 "project_bible_refs",
                 "Project Bible References",

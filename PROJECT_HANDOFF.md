@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-29T09:25:23.150148+00:00`
+- Generated at: `2026-06-30T04:56:58.679251+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `2e8ff83`
-- Indexed paths: 1465
+- HEAD: `7367a9a`
+- Indexed paths: 1472
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -42,22 +42,22 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 450 |
-| `tests` | 390 |
-| `docs` | 202 |
+| `agent_runtime` | 454 |
+| `tests` | 391 |
+| `docs` | 203 |
 | `acceptance_runs` | 176 |
-| `config` | 136 |
+| `config` | 137 |
 | `docs/archive` | 126 |
 | `tests/fixtures` | 94 |
 | `agent_templates` | 25 |
 | `scripts` | 22 |
+| `agent_runtime/program_manager` | 21 |
 | `agent_runtime/recovery` | 21 |
 | `agent_runtime/workers` | 21 |
 | `acceptance_runs/mainline_r0_r5` | 20 |
 | `agent_runtime/context_governance` | 20 |
 | `.` | 17 |
 | `agent_runtime/executors` | 17 |
-| `agent_runtime/program_manager` | 17 |
 | `acceptance_runs/m2_operator_demo` | 16 |
 | `agent_runtime/capabilities` | 15 |
 | `agent_runtime/ingestion` | 15 |
@@ -88,16 +88,16 @@
 ### Categories
 
 - audio: 1 files, 9086516 bytes
-- code: 787 files, 4302118 bytes
-- literature: 300 files, 1218970 bytes
+- code: 792 files, 4340776 bytes
+- literature: 301 files, 1202619 bytes
 - other: 10 files, 74902 bytes
-- structured_data: 367 files, 1229692 bytes
+- structured_data: 368 files, 1236460 bytes
 
 ### Common Extensions
 
-- `.py`: 781
-- `.yml`: 351
-- `.md`: 261
+- `.py`: 786
+- `.yml`: 352
+- `.md`: 262
 - `.txt`: 39
 - `.json`: 13
 - `[no extension]`: 5
@@ -150,6 +150,7 @@
 - `agent_runtime/p2_closure/models.py`
 - `agent_runtime/program_manager/acceptance_contract.py`
 - `agent_runtime/program_manager/models.py`
+- `agent_runtime/program_manager/project_state_contract.py`
 - `agent_runtime/project_ops/models.py`
 - `agent_runtime/project_workflows/models.py`
 - `agent_runtime/retry/models.py`
@@ -208,6 +209,8 @@
 
 ## Change History
 
+- `7367a9a 2026-06-29 Refresh bilingual README for M-series baseline and Jun 29 state`
+- `9c65d95 2026-06-29 Add media generation routing layer`
 - `2e8ff83 2026-06-29 Add root project handoff generation`
 - `d8b958b 2026-06-29 Add project handoff for AgentLab repair`
 - `e3fb07e 2026-06-29 Extract worker CLI commands`
@@ -226,26 +229,25 @@
 - `e1d5172 2026-06-28 Reassign role bindings: agy as Coder, expand Hermes model groups, update worker contracts`
 - `8e6f511 2026-06-28 Add project artifact stewardship gate`
 - `476c930 2026-06-28 Keep Crown QA report local`
-- `89f1645 2026-06-28 Harden skill candidate lifecycle`
-- `ff89ffc 2026-06-28 Enforce auditable usage telemetry for agents`
 
 ## Current Changes
 
 - `## main...origin/main`
 - ` M PROJECT_HANDOFF.md`
-- ` M agent_runtime/brain/mission_contract.py`
-- ` M agent_runtime/brain/project_type_classifier.py`
-- ` M agent_runtime/brain/renderer.py`
-- ` M agent_runtime/config_loader.py`
-- ` M agent_runtime/routing/route_catalog.py`
-- ` M config/domain_route_packs.yml`
-- ` M config/mission_compiler_v2.yml`
-- ` M config/project_acceptance_gates.yml`
-- ` M config/project_type_classifier.yml`
-- ` M config/routing_rules.yml`
-- ` M tests/test_m1_mission_compiler_v2.py`
-- `?? agent_runtime/brain/media_generation_router.py`
-- `?? config/media_generation_backends.yml`
+- ` M README.md`
+- ` M agent_runtime/context_governance/packers/narrative_packer.py`
+- ` M agent_runtime/executors/task_packet.py`
+- ` M agent_runtime/program_manager/phase_acceptance.py`
+- ` M agent_runtime/program_manager/phase_planner.py`
+- ` M agent_runtime/program_manager/project_brain.py`
+- ` M config/worker_performance_ledger.yml`
+- `?? agent_runtime/program_manager/project_fact_state.py`
+- `?? agent_runtime/program_manager/project_state_contract.py`
+- `?? agent_runtime/program_manager/state_template_evolution.py`
+- `?? agent_runtime/program_manager/state_transition_validator.py`
+- `?? config/project_state_templates.yml`
+- `?? docs/PROJECT_FACT_STATE_EPIC_CHRONICLE.md`
+- `?? tests/test_project_fact_state_machine.py`
 
 ## Related Repositories
 

@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from agent_runtime.program_manager.models import PhasePlan, to_plain_data
+from agent_runtime.program_manager.project_state_contract import build_phase_state_contract
 
 
-def build_phase_plan(project_brief: dict, roadmap: dict, phase_id: str | None = None) -> dict:
+def build_phase_plan(
+    project_brief: dict,
+    roadmap: dict,
+    phase_id: str | None = None,
+    project_brain_dir: Path | None = None,
+    state_contract: dict | None = None,
+) -> dict:
     milestones = roadmap.get("milestones") or []
     selected = next((item for item in milestones if item.get("phase_id") == phase_id), None)
     if selected is None and milestones:
@@ -33,10 +42,24 @@ def build_phase_plan(project_brief: dict, roadmap: dict, phase_id: str | None = 
     )
     data = to_plain_data(phase)
     data["project"] = project_brief.get("project")
+    if project_brain_dir is not None:
+        data["project_brain_dir"] = str(project_brain_dir)
     long_governance = project_brief.get("long_project_governance") or {}
     data["plan_status"] = selected.get("plan_status") or ("needs_revision" if long_governance.get("missing_facts") else "ready")
     data["missing_facts"] = selected.get("missing_facts") or long_governance.get("missing_facts") or []
     data["must_read_artifacts"] = selected.get("must_read_artifacts") or long_governance.get("must_read_artifacts") or []
+    if state_contract:
+        state_plan = build_phase_state_contract(project_brain_dir or Path("."), data, state_contract)
+        data["state_contract"] = state_plan
+        for ref in (state_plan["contract_ref"], state_plan["snapshot_ref"]):
+            if ref not in data["must_read_artifacts"]:
+                data["must_read_artifacts"].append(ref)
+        if state_plan.get("state_affecting_outputs"):
+            data["state_outputs_required"] = [state_plan["transition_artifact"]]
+            data.setdefault("artifact_intent", {})
+            data["artifact_intent"]["project_fact_state"] = (
+                "Submit state_transition_proposal.yml when this phase changes durable project facts."
+            )
     data["dispatch_units"] = selected.get("dispatch_units") or [
         {
             "phase_id": data["phase_id"],

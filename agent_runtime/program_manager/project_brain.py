@@ -9,7 +9,9 @@ from agent_runtime.program_manager.context_compressor import write_phase_summary
 from agent_runtime.program_manager.milestone import build_milestone_graph
 from agent_runtime.program_manager.phase_planner import build_phase_plan
 from agent_runtime.program_manager.project_brief import build_project_brief_data
+from agent_runtime.program_manager.project_fact_state import initialize_project_fact_state
 from agent_runtime.program_manager.project_goal import load_mission_contract
+from agent_runtime.program_manager.project_state_contract import compile_project_state_contract, load_project_state_templates
 from agent_runtime.program_manager.replanner import recommend_next_action
 from agent_runtime.program_manager.roadmap import build_roadmap
 
@@ -77,10 +79,25 @@ def build_project_brain(
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "phase_summaries").mkdir(exist_ok=True)
     (out_dir / "snapshots").mkdir(exist_ok=True)
+    agentlab_root = Path(__file__).resolve().parents[2]
+    state_templates = load_project_state_templates(agentlab_root)
+    state_contract = compile_project_state_contract(brief, contract, workflow_plan, state_templates)
     atomic_write_text(out_dir / "product_vision.md", _render_product_vision(brief))
     atomic_write_yaml(out_dir / "project_brief.yml", brief)
     atomic_write_yaml(out_dir / "roadmap.yml", roadmap)
     atomic_write_yaml(out_dir / "milestone_graph.yml", graph)
+    atomic_write_yaml(out_dir / "project_state_contract.yml", state_contract)
+    atomic_write_yaml(
+        out_dir / "state_template_lineage.yml",
+        {
+            "schema_version": 1,
+            "project": project,
+            "selected_preset": state_contract.get("selected_preset"),
+            "selected_templates": state_contract.get("selected_templates") or [],
+            "active_contract": "project_state_contract.yml",
+        },
+    )
+    initialize_project_fact_state(out_dir, project)
     atomic_write_yaml(out_dir / "decision_log.yml", {"entries": []})
     atomic_write_yaml(out_dir / "acceptance_history.yml", {"entries": []})
     atomic_write_yaml(out_dir / "unresolved_questions.yml", {"questions": []})
@@ -97,7 +114,7 @@ def build_project_brain(
     atomic_write_yaml(out_dir / "current_phase.yml", current_phase)
     
     # Write phase_plan.yml
-    first_phase = build_phase_plan(brief, roadmap, first_phase_id)
+    first_phase = build_phase_plan(brief, roadmap, first_phase_id, project_brain_dir=out_dir, state_contract=state_contract)
     atomic_write_yaml(out_dir / "phase_plan.yml", first_phase)
 
     next_actions = recommend_next_action({"entries": []}, roadmap)
@@ -109,7 +126,11 @@ def build_project_brain(
 def build_project_plan(project_brain_dir: Path, out_dir: Path, phase_id: str | None = None) -> dict:
     brief = yaml.safe_load((project_brain_dir / "project_brief.yml").read_text(encoding="utf-8")) or {}
     roadmap = yaml.safe_load((project_brain_dir / "roadmap.yml").read_text(encoding="utf-8")) or {}
-    phase = build_phase_plan(brief, roadmap, phase_id=phase_id)
+    state_contract = {}
+    state_contract_path = project_brain_dir / "project_state_contract.yml"
+    if state_contract_path.exists():
+        state_contract = yaml.safe_load(state_contract_path.read_text(encoding="utf-8")) or {}
+    phase = build_phase_plan(brief, roadmap, phase_id=phase_id, project_brain_dir=project_brain_dir, state_contract=state_contract)
     out_dir.mkdir(parents=True, exist_ok=True)
     atomic_write_yaml(out_dir / "phase_plan.yml", phase)
     atomic_write_yaml(out_dir / "roadmap.yml", roadmap)

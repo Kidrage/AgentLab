@@ -9,6 +9,8 @@ from agent_runtime.program_manager.scope_checker import check_scope
 from agent_runtime.program_manager.evidence_checker import check_evidence
 from agent_runtime.program_manager.next_action_decider import decide_verdict
 from agent_runtime.program_manager.acceptance_renderer import render_markdown_report
+from agent_runtime.program_manager.project_fact_state import apply_state_transition_proposal, load_project_fact_snapshot
+from agent_runtime.program_manager.state_transition_validator import load_state_transition_proposal, validate_state_transition_proposal
 
 
 def accept_phase(phase_plan_path: Path, evidence_dir: Path, out_dir: Path) -> dict:
@@ -52,6 +54,12 @@ def accept_phase(phase_plan_path: Path, evidence_dir: Path, out_dir: Path) -> di
     # 3. Perform scope and evidence checks
     scope_status = check_scope(phase_plan, changed_files)
     evidence_status = check_evidence(phase_plan, evidence_dir)
+    state_status = _check_project_fact_state(phase_plan, phase_plan_path, evidence_dir)
+    if not state_status.get("valid", True):
+        evidence_status = dict(evidence_status)
+        evidence_status["has_missing"] = True
+        evidence_status.setdefault("missing_evidence", [])
+        evidence_status["missing_evidence"] = list(evidence_status["missing_evidence"]) + ["project_fact_state_validated"]
 
     # 4. Decide verdict
     decide_res = decide_verdict(
@@ -83,6 +91,7 @@ def accept_phase(phase_plan_path: Path, evidence_dir: Path, out_dir: Path) -> di
         "human_approval_required": contract["human_approval_required"],
         "scope_status": scope_status,
         "evidence_status": evidence_status,
+        "state_transition_status": state_status,
         "test_results": test_results,
         "policy": {
             "external_auto_execution_allowed": False,
@@ -93,8 +102,62 @@ def accept_phase(phase_plan_path: Path, evidence_dir: Path, out_dir: Path) -> di
     # 5. Write acceptance artifacts (YAML and Markdown)
     out_dir.mkdir(parents=True, exist_ok=True)
     atomic_write_yaml(out_dir / "phase_acceptance.yml", result)
-    
+    if result["accepted"] and state_status.get("proposal_supplied") and state_status.get("project_brain_dir"):
+        apply_result = apply_state_transition_proposal(
+            Path(state_status["project_brain_dir"]),
+            state_status.get("proposal") or {},
+            result,
+        )
+        state_status["applied"] = True
+        state_status["applied_event_ids"] = apply_result.get("event_ids") or []
+        result["state_transition_status"] = state_status
+        atomic_write_yaml(out_dir / "phase_acceptance.yml", result)
+
     report_md = render_markdown_report(result)
     atomic_write_text(out_dir / "phase_acceptance.md", report_md)
 
     return result
+
+
+def _check_project_fact_state(phase_plan: dict, phase_plan_path: Path, evidence_dir: Path) -> dict:
+    plan = phase_plan.get("task_packet") or phase_plan
+    state_contract_ref = plan.get("state_contract") or {}
+    project_brain_dir = _infer_project_brain_dir(plan, phase_plan_path)
+    artifact_name = state_contract_ref.get("transition_artifact") or "state_transition_proposal.yml"
+    proposal = load_state_transition_proposal(evidence_dir, artifact_name)
+    required = bool(state_contract_ref.get("transition_proposal_required"))
+    if project_brain_dir is None:
+        return {
+            "valid": proposal is None and not required,
+            "proposal_supplied": proposal is not None,
+            "errors": ["project brain directory is required for state transition validation"] if proposal is not None or required else [],
+            "warnings": ["project fact state contract unavailable"],
+        }
+    contract_path = project_brain_dir / str(state_contract_ref.get("contract_ref") or "project_state_contract.yml")
+    if not contract_path.exists():
+        return {
+            "valid": proposal is None and not required,
+            "proposal_supplied": proposal is not None,
+            "project_brain_dir": str(project_brain_dir),
+            "errors": ["project_state_contract.yml is required for state transition validation"] if proposal is not None or required else [],
+            "warnings": ["project fact state contract unavailable"],
+        }
+    state_contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    snapshot = load_project_fact_snapshot(project_brain_dir)
+    verdict = validate_state_transition_proposal(state_contract, snapshot, proposal, required=required)
+    verdict["proposal_supplied"] = proposal is not None
+    verdict["proposal"] = proposal
+    verdict["project_brain_dir"] = str(project_brain_dir)
+    return verdict
+
+
+def _infer_project_brain_dir(plan: dict, phase_plan_path: Path) -> Path | None:
+    state_contract = plan.get("state_contract") or {}
+    for raw in (state_contract.get("project_brain_dir"), plan.get("project_brain_dir")):
+        if raw:
+            path = Path(str(raw))
+            if path.exists():
+                return path
+    if (phase_plan_path.parent / "project_state_contract.yml").exists():
+        return phase_plan_path.parent
+    return None
