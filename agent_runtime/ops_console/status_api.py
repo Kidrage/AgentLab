@@ -9,6 +9,7 @@ import re
 import yaml
 
 from agent_runtime.capabilities import create_builtin_registry
+from agent_runtime.operator_os import build_operator_action_catalog, build_operator_state
 
 _SECRET_RE = re.compile(r"(?i)(api[_-]?key|token|secret|password|bearer)\s*[:=]\s*[^\s]+")
 _PRIVATE_PATH_RE = re.compile(r"/" + r"Users/[^/\s]+")
@@ -103,6 +104,8 @@ def build_ops_console_snapshot(root: Path, project: str = "AgentLab") -> dict[st
             "ui_failure_is_non_blocking": policy["ui_failure_is_non_blocking"],
         },
         "project": _project_status(root, project),
+        "operator_state": build_operator_state(root, project),
+        "operator_actions": build_operator_action_catalog(),
         "roadmap": {
             "visible_sections": ["Project Overview", "Project Brain", "Roadmap / Milestones", "Phase Status", "Task Packets"],
         },

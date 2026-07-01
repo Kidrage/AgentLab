@@ -50,6 +50,34 @@ The skeleton is useful, but it is not yet a complete Operator OS:
 
 ## M3 Workstreams
 
+### M3-0: Operator OS Alignment
+
+Goal:
+
+- Make M3 executable by lower-intelligence coding agents without letting them
+  confuse Operator OS with Project-to-Revenue work.
+
+Implemented alignment contracts:
+
+- `docs/M3_0_OPERATOR_OS_ALIGNMENT.md` is the entry document for M3 coding
+  agents.
+- `agent_runtime.operator_os.stage_scope` freezes current repair labels:
+  M2 = Long-Project Governance Stable Baseline, M3 = Operator OS, M4 =
+  Project-to-Revenue OS.
+- `agent_runtime.operator_os.state_model.build_operator_state()` defines the
+  single read model for UI, TUI, CLI status, ops console, and assistant modes.
+- `agent_runtime.operator_os.action_contract` defines supported operator
+  actions and forbidden effects.
+
+Acceptance:
+
+- Lower-intelligence agents may work on read-only rendering and simple wiring
+  against Operator State.
+- Lower-intelligence agents must not change acceptance, evidence, Project Brain,
+  or mutation rules.
+- M3 UI/TUI/assistant progress must be derived from
+  `acceptance_history.yml` and `next_actions.yml`, not raw directory layout.
+
 ### M3-1: Operator State Model
 
 Goal:

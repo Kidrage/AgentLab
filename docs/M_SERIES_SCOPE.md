@@ -10,9 +10,18 @@ long-project governance hardening, M3 for Operator OS / Transparent Control
 Plane, and M4 for Project-to-Revenue OS. See:
 
 - `docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
+- `docs/M3_0_OPERATOR_OS_ALIGNMENT.md`
 - `docs/M3_UPGRADE_PLAN_REVIEW.md`
 
 The older labels below remain as historical repository milestone names.
+
+Active repair labels:
+
+| Label | Current repair meaning |
+| --- | --- |
+| M2 | Long-Project Governance Stable Baseline |
+| M3 | Operator OS / Transparent Control Plane |
+| M4 | Project-to-Revenue OS |
 
 ## Positioning
 
