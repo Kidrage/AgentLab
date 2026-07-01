@@ -10,7 +10,8 @@ from agent_runtime.program_manager.scope_checker import check_scope
 from agent_runtime.program_manager.evidence_checker import check_evidence
 from agent_runtime.program_manager.next_action_decider import decide_verdict
 from agent_runtime.program_manager.acceptance_renderer import render_markdown_report
-from agent_runtime.program_manager.project_fact_state import apply_state_transition_proposal, load_project_fact_snapshot
+from agent_runtime.program_manager.project_fact_state import apply_state_transition_proposal, load_project_fact_snapshot, utc_now
+from agent_runtime.program_manager.replanner import recommend_next_action
 from agent_runtime.program_manager.state_transition_validator import load_state_transition_proposal, validate_state_transition_proposal
 
 
@@ -134,6 +135,14 @@ def accept_phase(phase_plan_path: Path, evidence_dir: Path, out_dir: Path) -> di
         result["state_transition_status"] = state_status
         atomic_write_yaml(out_dir / "phase_acceptance.yml", result)
 
+    result["acceptance_history_status"] = _record_project_brain_acceptance(
+        result,
+        phase_plan,
+        phase_plan_path,
+        out_dir,
+    )
+    atomic_write_yaml(out_dir / "phase_acceptance.yml", result)
+
     report_md = render_markdown_report(result)
     atomic_write_text(out_dir / "phase_acceptance.md", report_md)
 
@@ -179,6 +188,70 @@ def _infer_project_brain_dir(plan: dict, phase_plan_path: Path) -> Path | None:
             path = Path(str(raw))
             if path.exists():
                 return path
+            if not path.is_absolute():
+                relative_path = (phase_plan_path.parent / path).resolve()
+                if relative_path.exists():
+                    return relative_path
     if (phase_plan_path.parent / "project_state_contract.yml").exists():
         return phase_plan_path.parent
     return None
+
+
+def _record_project_brain_acceptance(
+    result: dict,
+    phase_plan: dict,
+    phase_plan_path: Path,
+    out_dir: Path,
+) -> dict:
+    plan = phase_plan.get("task_packet") or phase_plan
+    project_brain_dir = _infer_project_brain_dir(plan, phase_plan_path)
+    if project_brain_dir is None:
+        return {
+            "recorded": False,
+            "reason": "project_brain_unavailable",
+        }
+
+    history_path = project_brain_dir / "acceptance_history.yml"
+    history = {}
+    if history_path.exists():
+        loaded = yaml.safe_load(history_path.read_text(encoding="utf-8")) or {}
+        if isinstance(loaded, dict):
+            history = loaded
+    entries = list(history.get("entries") or [])
+    state_status = result.get("state_transition_status") or {}
+    entry = {
+        "phase_id": result.get("phase_id"),
+        "accepted": bool(result.get("accepted")),
+        "verdict": result.get("verdict"),
+        "verdict_details": result.get("verdict_details"),
+        "recommended_next_action": result.get("recommended_next_action"),
+        "rationale": result.get("rationale"),
+        "missing_evidence": result.get("missing_evidence") or [],
+        "evidence_files": result.get("evidence_files") or [],
+        "human_approval_required": bool(result.get("human_approval_required")),
+        "state_transition": {
+            "proposal_supplied": bool(state_status.get("proposal_supplied")),
+            "applied": bool(state_status.get("applied")),
+            "applied_event_ids": state_status.get("applied_event_ids") or [],
+        },
+        "acceptance_artifact": str((out_dir / "phase_acceptance.yml").resolve()),
+        "recorded_at": utc_now(),
+    }
+    entries.append(entry)
+    atomic_write_yaml(history_path, {"entries": entries})
+
+    status = {
+        "recorded": True,
+        "project_brain_dir": str(project_brain_dir),
+        "history_path": str(history_path),
+        "entry_count": len(entries),
+        "next_actions_updated": False,
+    }
+    roadmap_path = project_brain_dir / "roadmap.yml"
+    if roadmap_path.exists():
+        roadmap = yaml.safe_load(roadmap_path.read_text(encoding="utf-8")) or {}
+        next_actions = recommend_next_action({"entries": entries}, roadmap)
+        atomic_write_yaml(project_brain_dir / "next_actions.yml", next_actions)
+        status["next_actions_updated"] = True
+        status["next_actions"] = next_actions
+    return status

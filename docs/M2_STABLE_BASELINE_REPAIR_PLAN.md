@@ -161,7 +161,10 @@ Acceptance:
   on 2026-06-30 for direct phase acceptance and S8 executor review.
 - A phase cannot close if changed files are outside the task packet scope unless
   the scope expansion is explicitly approved.
-- Acceptance history records which evidence was consumed.
+- Acceptance history records which evidence was consumed. Implemented locally on
+  2026-07-01: `accept_phase()` now appends Project Brain
+  `acceptance_history.yml` entries and refreshes `next_actions.yml` when a
+  phase has a valid `project_brain_dir`.
 
 ### M2-fix-4: Project Brain Mandatory Consumption
 
@@ -193,7 +196,10 @@ Acceptance:
 - Missing Project Brain blocks long-project task creation. Implemented locally
   on 2026-06-30 for longform/codebase/video project phase dispatch.
 - Next actions cannot be generated from scratch when prior acceptance history
-  exists.
+  exists. Implemented locally on 2026-07-01 for phase acceptance: accepted
+  phases advance the Project Brain next action through
+  `acceptance_history.yml`, while blocked/human-review phases remain
+  auditable history without closing the milestone.
 - Task packets list the exact Project Brain inputs used. Implemented locally on
   2026-06-30 through `project_brain_consumption`.
 

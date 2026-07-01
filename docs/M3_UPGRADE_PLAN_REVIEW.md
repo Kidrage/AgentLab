@@ -1,6 +1,6 @@
 # M3 Upgrade Plan Review
 
-Last updated: 2026-06-30
+Last updated: 2026-07-01
 Depends on: `docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
 
 ## Scope
@@ -30,6 +30,9 @@ Useful M3 skeletons already exist:
 - `agent_runtime/ops_console/` can generate deterministic read-only operations
   snapshots.
 - `agent_runtime/costing/` has budget, ledger, pricing, and usage modules.
+- M2 phase acceptance now writes Project Brain `acceptance_history.yml` and
+  refreshes `next_actions.yml`, giving M3 a durable source for phase progress
+  and next safe action.
 - Existing M2/M3 docs describe assistant modes, control panels, observability,
   and local-only UI safety boundaries.
 
@@ -61,6 +64,7 @@ Required state:
 - task queue,
 - executor packets and results,
 - phase acceptance status,
+- Project Brain acceptance history and derived next action,
 - approvals,
 - recovery plans,
 - capability gaps,
@@ -74,6 +78,8 @@ Acceptance:
 - WebUI, TUI, CLI status, and assistant modes read the same normalized state.
 - State records distinguish `accepted`, `rejected`, `needs_human_review`,
   `needs_evidence`, `paused`, `blocked`, and `retryable`.
+- Phase progress is derived from Project Brain acceptance history, not from UI
+  local state or raw directory layout.
 
 ### M3-2: WebUI Operator Console
 
@@ -198,6 +204,8 @@ Required event classes:
 - executor result received,
 - evidence consumed,
 - phase acceptance verdict,
+- Project Brain acceptance-history entry written,
+- next action recalculated from acceptance history,
 - state transition proposed/applied/rejected,
 - approval requested/resolved,
 - capability gap raised,
@@ -262,6 +270,9 @@ Acceptance:
 
 - Answers cite Project Brain, phase acceptance, executor result, evidence,
   timeline, cost ledger, or config records.
+- "Next safe action" answers cite `acceptance_history.yml` and
+  `next_actions.yml`; they do not infer progress from candidate/archive
+  directories or loose artifacts.
 - If the relevant record is missing, the assistant says it is missing and points
   to the required evidence or command.
 

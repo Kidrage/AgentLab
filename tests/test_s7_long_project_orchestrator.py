@@ -88,6 +88,29 @@ def test_project_next_uses_acceptance_history(tmp_path: Path) -> None:
     assert next_actions["next_phase_id"] == "phase_2_patch_packet"
 
 
+def test_phase_acceptance_records_project_history_and_advances_next_action(tmp_path: Path) -> None:
+    build_project_brain(_mission(tmp_path / "mission.yml", "coding"), "RepoRepair", tmp_path / "brain")
+    phase = build_project_plan(tmp_path / "brain", tmp_path / "plan")
+    phase["human_decision_points"] = []
+    phase_path = tmp_path / "plan" / "phase_plan.yml"
+    phase_path.write_text(yaml.safe_dump(phase, sort_keys=False), encoding="utf-8")
+
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    for name in phase["evidence_required"]:
+        (evidence / name).write_text("ok: true\n", encoding="utf-8")
+
+    result = accept_phase(phase_path, evidence, tmp_path / "accepted")
+
+    assert result["accepted"] is True
+    assert result["acceptance_history_status"]["recorded"] is True
+    history = yaml.safe_load((tmp_path / "brain" / "acceptance_history.yml").read_text(encoding="utf-8"))
+    assert history["entries"][-1]["phase_id"] == "phase_1_repo_context"
+    assert history["entries"][-1]["accepted"] is True
+    next_actions = yaml.safe_load((tmp_path / "brain" / "next_actions.yml").read_text(encoding="utf-8"))
+    assert next_actions["next_phase_id"] == "phase_2_patch_packet"
+
+
 def test_s7_cli_project_brain_and_plan(tmp_path: Path) -> None:
     runner = CliRunner()
     mission = _mission(tmp_path / "mission.yml", "coding")
