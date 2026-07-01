@@ -34,4 +34,4 @@ python -m pytest -q
 - Focused v1 guard suite: passed.
 - Operator State / Timeline / Cost / WebUI / TUI / content governance / text integrity target suite: 74 passed.
 - Full local pytest: 2015 passed, 2 skipped, 11 warnings.
-- CI verification: pending push/remote CI.
+- CI verification: passed on run 28500440976 for commit 95d975d.
