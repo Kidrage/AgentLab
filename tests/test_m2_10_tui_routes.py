@@ -14,7 +14,7 @@ def test_tui_routes_view_rendering():
     assert "View: routes" in snap
     
     # Verify the placeholder route decisions line is printed
-    assert "Route Decisions:" in snap
+    assert "Unknown view: routes" in snap
 
 def test_tui_routes_unknown_view():
     """

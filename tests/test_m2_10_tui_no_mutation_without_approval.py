@@ -1,28 +1,42 @@
+"""M2-10 TUI no-mutation-without-approval — updated for M3-3 wired handlers."""
+
 import pytest
 from agentlab_tui.command_handlers import handle_approve, handle_retry
 
+
 def test_no_mutation_without_approval():
     """
-    Test that command handlers explicitly enforce approval and
-    never silently mutate state in the skeleton.
+    M3-3: Command handlers enforce approval (actor+reason) and pass through
+    the Operator Action contract. Mutations are now wired, not dry_run.
     """
+    # With actor+reason, approve should succeed through the contract
     res = handle_approve("card_1", actor="admin", reason="looks good")
-    
+
     # Must enforce approval flag
     assert res.requires_approval is True
-    
-    # Must explicitly declare no state was mutated
-    assert res.mutated_state is False
-    
-    # Must include a warning that real ledger integration is missing
-    assert len(res.warnings) > 0
-    assert any("Real ledger integration unavailable" in w.message for w in res.warnings)
+
+    # M3-3: mutations now go through operator action contract — mutated_state=True
+    assert res.mutated_state is True
+    assert res.status == "ok"
+
+    # Without actor+reason, mutation must be blocked
+    res_blocked = handle_approve("card_1", actor=None, reason=None)
+    assert res_blocked.status == "error"
+    assert res_blocked.mutated_state is False
+    assert "Missing actor" in res_blocked.message
+
 
 def test_retry_requires_approval():
     """
-    Test that potentially destructive operations like retry
-    also enforce approval policies.
+    M3-3: Retry enforces approval. With valid actor+reason, mutation proceeds.
+    Without auth, it's blocked.
     """
     res = handle_retry("task_1", actor="admin", reason="stuck")
     assert res.requires_approval is True
-    assert res.mutated_state is False
+    assert res.mutated_state is True
+    assert res.status == "ok"
+
+    # blocked without auth
+    res_blocked = handle_retry("task_1", actor=None, reason=None)
+    assert res_blocked.status == "error"
+    assert res_blocked.mutated_state is False
