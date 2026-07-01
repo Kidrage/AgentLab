@@ -131,8 +131,11 @@ Across M1, M2, and M3:
 
 ## Version Milestones
 
-- `v0.7 Project Kernel`: M1 complete.
-- `v0.8 Operator OS`: M2 complete.
-- `v0.9 Project-to-Revenue OS`: M3 complete.
-- `v1.0 Local-first AI Production OS`: M1/M2/M3 stabilized, documented,
-  demo-ready, and release-quality.
+- `v0.7 Project Kernel`: long-project governance kernel complete.
+- `v0.8 Operator OS`: transparent control plane complete.
+- `v0.9 Internal Closed Loop`: M1-M3 integrated and hardened.
+- `v1.0 Local-first AI Production OS`: M1-M3 stabilized, documented,
+  demo-ready, and release-quality as the M4 Project-to-Revenue starting point.
+
+v1.0 is not the M4 commercial layer. Project-to-Revenue work starts after the
+internal closed loop is stable.

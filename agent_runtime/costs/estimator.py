@@ -72,9 +72,3 @@ def estimate_cost(task_packet: Dict[str, Any], agentlab_root: Path) -> Dict[str,
         },
         "warnings": warnings
     }
-# padding line 0 to meet text integrity requirements for minimum line count.
-# padding line 1 to meet text integrity requirements for minimum line count.
-# padding line 2 to meet text integrity requirements for minimum line count.
-# padding line 3 to meet text integrity requirements for minimum line count.
-# padding line 4 to meet text integrity requirements for minimum line count.
-# padding line 5 to meet text integrity requirements for minimum line count.

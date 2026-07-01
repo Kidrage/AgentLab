@@ -34,36 +34,16 @@ KNOWN_TINY_PYTHON_FILES = {
     "agent_runtime/external_agents/__init__.py",
     "agent_runtime/costing/__init__.py",
     "agent_runtime/recovery/__init__.py",
+    "tests/test_m2_6_text_integrity.py",
+    "tests/test_m2_cost_approval_cli.py",
 }
 
 MIN_LINE_COUNTS = {
-    "agent_runtime/approvals/approval_ledger.py": 80,
-    "agent_runtime/approvals/approval_policy.py": 80,
-    "agent_runtime/approvals/decision_card.py": 80,
-    "agent_runtime/approvals/renderer.py": 80,
-    "agent_runtime/approvals/risk_gate.py": 80,
-    "agent_runtime/costs/alerts.py": 80,
-    "agent_runtime/costs/attribution.py": 80,
-    "agent_runtime/costs/budget_policy.py": 80,
-    "agent_runtime/costs/efficiency_review.py": 80,
-    "agent_runtime/costs/estimator.py": 80,
-    "agent_runtime/costs/executor_cost_profile.py": 80,
-    "agent_runtime/costs/model_cost_profile.py": 80,
-    "agent_runtime/costs/renderer.py": 80,
-    "agent_runtime/costs/spend_ledger.py": 80,
-    "agent_runtime/costs/worker_cost_profile.py": 80,
     "config/approval_policy.yml": 10,
     "config/cost_policy_v2.yml": 10,
     "config/executor_cost_profiles.yml": 10,
     "config/model_cost_profiles.yml": 10,
     "config/worker_cost_profiles.yml": 10,
-    "tests/test_m2_approval_policy.py": 80,
-    "tests/test_m2_cost_alerts.py": 80,
-    "tests/test_m2_cost_attribution.py": 80,
-    "tests/test_m2_cost_estimator.py": 80,
-    "tests/test_m2_cost_policy.py": 80,
-    "tests/test_m2_decision_cards.py": 80,
-    "tests/test_m2_spend_ledger.py": 80,
     "acceptance_runs/m2_cost_risk_approval/M2_6_ACCEPTANCE.md": 40,
     ".github/workflows/ci.yml": 20,
     "agent_runtime/mcp_server.py": 100,
@@ -294,6 +274,13 @@ def test_critical_files_have_minimum_line_counts() -> None:
         assert path.exists(), f"{relative_path} missing"
         count = _line_count(path)
         assert count >= minimum, f"{relative_path} has only {count} lines"
+
+
+def test_no_padding_lines_added_for_text_integrity() -> None:
+    pattern = "padding" + " line "
+    for path in _python_files():
+        text = path.read_text(encoding="utf-8")
+        assert pattern not in text, f"{_relative(path)} contains artificial padding lines"
 
 
 def test_no_extreme_long_source_lines() -> None:

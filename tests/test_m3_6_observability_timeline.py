@@ -63,6 +63,19 @@ def _make_timeline_fixture(root: Path) -> Path:
         "next_phase_id": "phase_2",
         "next_action": "await_operator_approval",
     })
+    _write_yaml(brain / "operator_action_ledger.yml", {
+        "schema_version": 1,
+        "entries": [
+            {
+                "recorded_at": "2026-07-01T02:45:00Z",
+                "action": "approve",
+                "target_type": "decision_card",
+                "target_id": "approve_ch2",
+                "actor": "operator",
+                "source_surface": "web_ui",
+            }
+        ],
+    })
 
     # task_001: passing executor result + evidence
     t1 = runs / "task_001"
@@ -147,9 +160,9 @@ def _make_timeline_fixture(root: Path) -> Path:
     return proj
 
 
-def test_all_18_event_types_defined() -> None:
-    """The SUPPORTED_EVENT_TYPES set must cover all 18 event types."""
-    assert len(SUPPORTED_EVENT_TYPES) == 18
+def test_all_19_event_types_defined() -> None:
+    """The SUPPORTED_EVENT_TYPES set must cover all v1 operator event types."""
+    assert len(SUPPORTED_EVENT_TYPES) == 19
     required = {
         "task_packet_created", "executor_assigned", "executor_result_received",
         "evidence_consumed", "phase_acceptance_verdict", "acceptance_history_written",
@@ -157,7 +170,7 @@ def test_all_18_event_types_defined() -> None:
         "state_transition_applied", "state_transition_rejected",
         "approval_requested", "approval_resolved", "capability_gap_raised",
         "recovery_started", "recovery_resolved", "budget_warning",
-        "artifact_promoted", "artifact_archived",
+        "artifact_promoted", "artifact_archived", "operator_action_recorded",
     }
     assert SUPPORTED_EVENT_TYPES == required
 
@@ -187,6 +200,7 @@ def test_build_timeline_covers_all_source_types() -> None:
         assert "capability_gap_raised" in event_types
         assert "artifact_promoted" in event_types
         assert "artifact_archived" in event_types
+        assert "operator_action_recorded" in event_types
 
 
 def test_timeline_sorted_correctly() -> None:

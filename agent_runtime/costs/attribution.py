@@ -61,20 +61,3 @@ def generate_attribution_report(attribution: Dict[str, Any]) -> str:
             lines.append(f"- **{k}**: ${v:.2f}")
         lines.append("")
     return "\n".join(lines)
-# padding line 0 to meet text integrity requirements for minimum line count.
-# padding line 1 to meet text integrity requirements for minimum line count.
-# padding line 2 to meet text integrity requirements for minimum line count.
-# padding line 3 to meet text integrity requirements for minimum line count.
-# padding line 4 to meet text integrity requirements for minimum line count.
-# padding line 5 to meet text integrity requirements for minimum line count.
-# padding line 6 to meet text integrity requirements for minimum line count.
-# padding line 7 to meet text integrity requirements for minimum line count.
-# padding line 8 to meet text integrity requirements for minimum line count.
-# padding line 9 to meet text integrity requirements for minimum line count.
-# padding line 10 to meet text integrity requirements for minimum line count.
-# padding line 11 to meet text integrity requirements for minimum line count.
-# padding line 12 to meet text integrity requirements for minimum line count.
-# padding line 13 to meet text integrity requirements for minimum line count.
-# padding line 14 to meet text integrity requirements for minimum line count.
-# padding line 15 to meet text integrity requirements for minimum line count.
-# padding line 16 to meet text integrity requirements for minimum line count.

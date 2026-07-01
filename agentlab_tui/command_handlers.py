@@ -7,9 +7,12 @@ from typing import Optional
 
 try:
     from agent_runtime.operator_os.action_contract import validate_operator_action
+    from agent_runtime.operator_os.action_runtime import execute_operator_action
 except ImportError:
     def validate_operator_action(request):
         return {"status": "blocked", "errors": ["operator_os_unavailable"]}
+    def execute_operator_action(root, request):
+        return {"success": False, "status": "blocked", "validation": validate_operator_action(request), "errors": ["operator_os_unavailable"], "mutated_state": False}
 
 
 def _require_auth(actor: Optional[str], reason: Optional[str]) -> Optional[TUICommandResult]:
@@ -43,13 +46,36 @@ def _validate_and_log(
     return validation
 
 
+def _execute_and_log(
+    action: str,
+    target_type: str,
+    target_id: str,
+    actor: Optional[str],
+    reason: Optional[str],
+    project: Optional[str] = None,
+    requested_effects: Optional[list[str]] = None,
+) -> dict:
+    request = {
+        "action": action,
+        "target_type": target_type,
+        "target_id": target_id,
+        "actor": actor,
+        "reason": reason,
+        "project": project,
+        "requested_effects": requested_effects or [],
+        "source_surface": "tui",
+    }
+    return execute_operator_action(None, request)
+
+
 # ── M3 operator actions (wired to contract) ───────────────────────────────
 
 def handle_approve(card_id: str, actor: Optional[str], reason: Optional[str], project: Optional[str] = None) -> TUICommandResult:
     err = _require_auth(actor, reason)
     if err:
         return err
-    validation = _validate_and_log("approve", "phase_acceptance", card_id, actor, reason)
+    execution = _execute_and_log("approve", "phase_acceptance", card_id, actor, reason, project)
+    validation = execution["validation"]
     if validation["status"] == "blocked":
         return TUICommandResult(
             action="approve",
@@ -64,7 +90,7 @@ def handle_approve(card_id: str, actor: Optional[str], reason: Optional[str], pr
         status="ok",
         message=f"Approval recorded for {card_id} by {actor}.",
         requires_approval=True,
-        mutated_state=True,
+        mutated_state=bool(execution.get("mutated_state")),
         evidence_path=f"projects/{project}/project_brain/acceptance_history.yml" if project else None,
         warnings=[],
     )
@@ -74,7 +100,8 @@ def handle_reject(card_id: str, actor: Optional[str], reason: Optional[str], pro
     err = _require_auth(actor, reason)
     if err:
         return err
-    validation = _validate_and_log("reject", "phase_acceptance", card_id, actor, reason)
+    execution = _execute_and_log("reject", "phase_acceptance", card_id, actor, reason, project)
+    validation = execution["validation"]
     if validation["status"] == "blocked":
         return TUICommandResult(
             action="reject",
@@ -89,7 +116,7 @@ def handle_reject(card_id: str, actor: Optional[str], reason: Optional[str], pro
         status="ok",
         message=f"Rejection recorded for {card_id} by {actor}.",
         requires_approval=True,
-        mutated_state=True,
+        mutated_state=bool(execution.get("mutated_state")),
         evidence_path=f"projects/{project}/project_brain/acceptance_history.yml" if project else None,
         warnings=[],
     )
@@ -99,7 +126,8 @@ def handle_pause(project: str, actor: Optional[str], reason: Optional[str]) -> T
     err = _require_auth(actor, reason)
     if err:
         return err
-    validation = _validate_and_log("pause", "project", project, actor, reason)
+    execution = _execute_and_log("pause", "project", project, actor, reason, project)
+    validation = execution["validation"]
     if validation["status"] == "blocked":
         return TUICommandResult(
             action="pause",
@@ -114,7 +142,7 @@ def handle_pause(project: str, actor: Optional[str], reason: Optional[str]) -> T
         status="ok",
         message=f"Pause requested for {project} by {actor}.",
         requires_approval=True,
-        mutated_state=True,
+        mutated_state=bool(execution.get("mutated_state")),
         warnings=[],
     )
 
@@ -123,7 +151,8 @@ def handle_resume(project: str, actor: Optional[str], reason: Optional[str]) -> 
     err = _require_auth(actor, reason)
     if err:
         return err
-    validation = _validate_and_log("resume", "project", project, actor, reason)
+    execution = _execute_and_log("resume", "project", project, actor, reason, project)
+    validation = execution["validation"]
     if validation["status"] == "blocked":
         return TUICommandResult(
             action="resume",
@@ -138,7 +167,7 @@ def handle_resume(project: str, actor: Optional[str], reason: Optional[str]) -> 
         status="ok",
         message=f"Resume requested for {project} by {actor}.",
         requires_approval=True,
-        mutated_state=True,
+        mutated_state=bool(execution.get("mutated_state")),
         warnings=[],
     )
 
@@ -147,7 +176,8 @@ def handle_retry(task_id: str, actor: Optional[str], reason: Optional[str]) -> T
     err = _require_auth(actor, reason)
     if err:
         return err
-    validation = _validate_and_log("retry", "task", task_id, actor, reason)
+    execution = _execute_and_log("retry", "task", task_id, actor, reason)
+    validation = execution["validation"]
     if validation["status"] == "blocked":
         return TUICommandResult(
             action="retry",
@@ -162,7 +192,7 @@ def handle_retry(task_id: str, actor: Optional[str], reason: Optional[str]) -> T
         status="ok",
         message=f"Retry requested for {task_id} by {actor}.",
         requires_approval=True,
-        mutated_state=True,
+        mutated_state=bool(execution.get("mutated_state")),
         warnings=[],
     )
 

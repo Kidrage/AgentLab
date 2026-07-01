@@ -27,6 +27,7 @@ SUPPORTED_EVENT_TYPES = frozenset({
     "budget_warning",
     "artifact_promoted",
     "artifact_archived",
+    "operator_action_recorded",
 })
 
 UI_LINK_PREFIX = "/api/tasks"
@@ -44,6 +45,7 @@ def build_timeline(project_root: Path) -> list[dict[str, Any]]:
     - runs/*/capability_gaps/*.yml → capability gap events
     - runs/*/recovery/*.yml → recovery events
     - runs/*/phase_acceptance.yml → artifact promotion events
+    - project_brain/operator_action_ledger.yml → UI/TUI operator actions
     """
     timeline: list[dict[str, Any]] = []
     brain_dir = project_root / "project_brain"
@@ -101,6 +103,22 @@ def build_timeline(project_root: Path) -> list[dict[str, Any]]:
                     "event_id": event.get("event_id"),
                     "source": "project_brain/project_fact_snapshot.yml",
                 }))
+
+    # ── operator action audit events ───────────────────────────────────
+    oal = _load_yaml(brain_dir / "operator_action_ledger.yml", {})
+    action_entries = oal.get("entries") if isinstance(oal, dict) else []
+    action_entries = action_entries if isinstance(action_entries, list) else []
+    for entry in action_entries:
+        if not isinstance(entry, dict):
+            continue
+        timeline.append(_event("operator_action_recorded", str(entry.get("recorded_at") or ""), {
+            "action": entry.get("action"),
+            "target_type": entry.get("target_type"),
+            "target_id": entry.get("target_id"),
+            "actor": entry.get("actor"),
+            "source_surface": entry.get("source_surface"),
+            "source": "project_brain/operator_action_ledger.yml",
+        }))
 
     # ── run directory events ───────────────────────────────────────────
     if runs_dir.exists():

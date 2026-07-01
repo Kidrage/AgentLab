@@ -72,9 +72,3 @@ def write_approval_ledger(ledger: ApprovalLedger, path: Path):
     temp_path = path.with_suffix(".tmp")
     temp_path.write_text(yaml.safe_dump(ledger.to_dict(), sort_keys=False), encoding="utf-8")
     temp_path.replace(path)
-# padding line 0 to meet text integrity requirements for minimum line count.
-# padding line 1 to meet text integrity requirements for minimum line count.
-# padding line 2 to meet text integrity requirements for minimum line count.
-# padding line 3 to meet text integrity requirements for minimum line count.
-# padding line 4 to meet text integrity requirements for minimum line count.
-# padding line 5 to meet text integrity requirements for minimum line count.

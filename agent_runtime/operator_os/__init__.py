@@ -4,6 +4,7 @@ from agent_runtime.operator_os.action_contract import (
     build_operator_action_catalog,
     validate_operator_action,
 )
+from agent_runtime.operator_os.action_runtime import execute_operator_action
 from agent_runtime.operator_os.state_model import (
     PHASE_STATUS_ENUM,
     TASK_STATUS_ENUM,

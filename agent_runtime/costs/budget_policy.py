@@ -55,26 +55,3 @@ def load_budget_policy(agentlab_root: Path) -> BudgetPolicy:
         return BudgetPolicy.from_dict(data)
     except yaml.YAMLError as e:
         raise ValueError(f"Invalid cost policy YAML: {e}")
-# padding line 0 to meet text integrity requirements for minimum line count.
-# padding line 1 to meet text integrity requirements for minimum line count.
-# padding line 2 to meet text integrity requirements for minimum line count.
-# padding line 3 to meet text integrity requirements for minimum line count.
-# padding line 4 to meet text integrity requirements for minimum line count.
-# padding line 5 to meet text integrity requirements for minimum line count.
-# padding line 6 to meet text integrity requirements for minimum line count.
-# padding line 7 to meet text integrity requirements for minimum line count.
-# padding line 8 to meet text integrity requirements for minimum line count.
-# padding line 9 to meet text integrity requirements for minimum line count.
-# padding line 10 to meet text integrity requirements for minimum line count.
-# padding line 11 to meet text integrity requirements for minimum line count.
-# padding line 12 to meet text integrity requirements for minimum line count.
-# padding line 13 to meet text integrity requirements for minimum line count.
-# padding line 14 to meet text integrity requirements for minimum line count.
-# padding line 15 to meet text integrity requirements for minimum line count.
-# padding line 16 to meet text integrity requirements for minimum line count.
-# padding line 17 to meet text integrity requirements for minimum line count.
-# padding line 18 to meet text integrity requirements for minimum line count.
-# padding line 19 to meet text integrity requirements for minimum line count.
-# padding line 20 to meet text integrity requirements for minimum line count.
-# padding line 21 to meet text integrity requirements for minimum line count.
-# padding line 22 to meet text integrity requirements for minimum line count.

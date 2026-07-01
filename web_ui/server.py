@@ -24,6 +24,8 @@ AGENTLAB_RUNTIME = AGENTLAB_ROOT / "agent_runtime"
 if str(AGENTLAB_RUNTIME) not in sys.path:
     sys.path.insert(0, str(AGENTLAB_RUNTIME))
 
+from agent_runtime.operator_os.action_runtime import execute_operator_action
+
 
 # ────────── helpers ──────────
 
@@ -691,84 +693,24 @@ def handle_post_decision(data: dict):
     if not run_dir.exists():
         return {"error": "Task not found", "success": False}
 
-    # Read the decision file
-    decision_path = run_dir / "USER_DECISION_REQUIRED.md"
-    decision_text = read_text(decision_path)
-
-    # Record the decision in brain_decisions
-    brain_path = run_dir / "brain_decisions.yml"
-    brain = load_yaml_safe(brain_path)
-    decisions = brain.get("decisions", [])
-    if decisions:
-        decisions[-1]["decision"] = "approved" if action == "yes" else ("deferred" if action == "later" else "rejected")
-        decisions[-1]["user_resolution"] = action
-    brain["decisions"] = decisions
-
-    try:
-        import yaml
-        brain_path.write_text(yaml.safe_dump(brain, sort_keys=False), encoding="utf-8")
-    except Exception:
-        pass
-
-    # Append to events
-    event_text = f"用户{'批准' if action == 'yes' else ('推迟' if action == 'later' else '拒绝')}了决策"
-    timestamp = utc_now_iso()
-    cost_path = run_dir / "cost_ledger.yml"
-    cost = load_yaml_safe(cost_path)
-    entries = cost.get("entries", [])
-    entries.append({
-        "timestamp": timestamp,
-        "agent": "User",
-        "agent_name": "User",
-        "provider": "manual",
-        "model": "N/A",
-        "status": "ok",
-        "total_tokens": 0,
-        "usage_source": "manual_entry",
-        "exact_usage_available": True,
-        "exact_cost_available": True,
-        "estimated_cost": 0.0,
-        "notes": event_text,
+    operator_action = "approve" if action == "yes" else ("pause" if action == "later" else "reject")
+    target_type = "decision_card" if operator_action in {"approve", "reject"} else "task"
+    result = execute_operator_action(AGENTLAB_ROOT, {
+        "action": operator_action,
+        "target_type": target_type,
+        "target_id": task_id,
+        "project": project,
+        "actor": data.get("actor") or "web_ui",
+        "reason": data.get("reason") or f"web_ui_decision_{action}",
+        "source_surface": "web_ui",
     })
-    cost["entries"] = entries
-    try:
-        import yaml
-        cost_path.write_text(yaml.safe_dump(cost, sort_keys=False), encoding="utf-8")
-    except Exception:
-        pass
-
-    # If user approved, try to re-run the blocked agent
-    action_result = ""
-    if action == "yes":
-        # Find which agent is blocked
-        blocked_files = list(run_dir.glob("blocked_*.md"))
-        for bf in blocked_files:
-            agent_name = bf.stem.replace("blocked_", "")
-            try:
-                result = subprocess.run(
-                    [
-                        sys.executable, str(AGENTLAB_ROOT / "agent_runtime" / "run_task.py"),
-                        "run-agent", agent_name,
-                        "--task-id", task_id,
-                        "--project", project,
-                        "--execute", "--overwrite-report",
-                    ],
-                    capture_output=True, text=True, timeout=30,
-                    cwd=str(AGENTLAB_ROOT),
-                )
-                action_result += f"\n{agent_name}: {result.stdout[:200]}"
-                if result.returncode != 0:
-                    action_result += f"\nError: {result.stderr[:200]}"
-            except subprocess.TimeoutExpired:
-                action_result += f"\n{agent_name}: 命令超时"
-            except Exception as e:
-                action_result += f"\n{agent_name}: {str(e)}"
-
+    event_text = f"用户{'批准' if action == 'yes' else ('推迟' if action == 'later' else '拒绝')}了决策"
     return {
-        "success": True,
+        "success": bool(result["success"]),
         "action": action,
         "message": event_text,
-        "actionResult": action_result.strip() if action_result else "",
+        "actionResult": result.get("runtime_status", ""),
+        "operator_action": result,
     }
 
 
@@ -782,65 +724,43 @@ def handle_run_agent(data: dict):
         return {"success": False, "agentName": agent_name, "error": "taskId is required"}
 
     if action == "execute":
-        # Actual API execution via CLI
-        try:
-            result = subprocess.run(
-                [
-                    sys.executable, str(AGENTLAB_ROOT / "agent_runtime" / "run_task.py"),
-                    "run-agent", agent_name,
-                    "--task-id", task_id,
-                    "--project", project,
-                    "--execute", "--overwrite-report",
-                ],
-                capture_output=True, text=True, timeout=60,
-                cwd=str(AGENTLAB_ROOT),
-            )
-            return {
-                "success": result.returncode == 0,
-                "agentName": agent_name,
-                "action": action,
-                "stdout": result.stdout[:500],
-                "stderr": result.stderr[:500],
-            }
-        except subprocess.TimeoutExpired:
-            return {"success": False, "agentName": agent_name, "error": "执行超时"}
-        except Exception as e:
-            return {"success": False, "agentName": agent_name, "error": str(e)}
+        result = execute_operator_action(AGENTLAB_ROOT, {
+            "action": "retry",
+            "target_type": "task",
+            "target_id": task_id,
+            "project": project,
+            "actor": data.get("actor") or "web_ui",
+            "reason": data.get("reason") or f"web_ui_execute_requested:{agent_name}",
+            "requested_effects": ["external_executor_enablement"],
+            "source_surface": "web_ui",
+        })
+        return {
+            "success": False,
+            "agentName": agent_name,
+            "action": action,
+            "error": "; ".join(result.get("errors") or ["external execution blocked"]),
+            "operator_action": result,
+        }
 
-    # Manual status update
-    run_dir = AGENTLAB_ROOT / "projects" / project / "runs" / task_id
-    timestamp = utc_now_iso()
-
-    # Log the action
-    cost_path = run_dir / "cost_ledger.yml"
-    cost = load_yaml_safe(cost_path)
-    entries = cost.get("entries", [])
-    status_map = {"run": "active", "pause": "waiting", "stop": "blocked"}
-    entries.append({
-        "timestamp": timestamp,
-        "agent": agent_name,
-        "agent_name": agent_name,
-        "provider": "manual",
-        "status": status_map.get(action, action),
-        "total_tokens": 0,
-        "usage_source": "manual_entry",
-        "exact_usage_available": True,
-        "exact_cost_available": True,
-        "estimated_cost": 0.0,
-        "notes": f"用户操作: {action}",
+    mapped_action = {"run": "resume", "pause": "pause", "stop": "pause"}.get(action)
+    if not mapped_action:
+        return {"success": False, "agentName": agent_name, "error": f"Unsupported action: {action}"}
+    result = execute_operator_action(AGENTLAB_ROOT, {
+        "action": mapped_action,
+        "target_type": "task",
+        "target_id": task_id,
+        "project": project,
+        "actor": data.get("actor") or "web_ui",
+        "reason": data.get("reason") or f"web_ui_agent_action:{action}:{agent_name}",
+        "source_surface": "web_ui",
     })
-    cost["entries"] = entries
-    try:
-        import yaml
-        cost_path.write_text(yaml.safe_dump(cost, sort_keys=False), encoding="utf-8")
-    except Exception:
-        pass
 
     return {
-        "success": True,
+        "success": bool(result["success"]),
         "agentName": agent_name,
         "action": action,
         "message": f"Agent {agent_name} {action}",
+        "operator_action": result,
     }
 
 
