@@ -485,6 +485,29 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
     project_root = _project_root(agentlab_root, project)
     run_dir = _run_dir(agentlab_root, project, task_id)
     run_dir.mkdir(parents=True, exist_ok=True)
+    readiness_errors = validate_content_promotion_readiness(
+        agentlab_root,
+        project,
+        task_id,
+        run_dir,
+        require_archive_receipt=False,
+    )
+    if readiness_errors:
+        receipt = {
+            "version": 1,
+            "project": project,
+            "task_id": task_id,
+            "status": "blocked",
+            "created_at": _utc_now(),
+            "artifact_promotion_plan": "artifact_promotion_plan.yml",
+            "artifact_lineage": "artifact_lineage.yml",
+            "project_artifact_index": "project_artifact_index.yml",
+            "promotions_applied": [],
+            "archived_paths": [],
+            "errors": readiness_errors,
+        }
+        atomic_write_yaml(run_dir / "archive_receipt.yml", receipt)
+        return receipt
     lineage = ensure_artifact_lineage(agentlab_root, project, task_id)
     plan = ensure_artifact_promotion_plan(agentlab_root, project, task_id)
     intent = _artifact_intent(agentlab_root, project, task_id, run_dir)
@@ -576,6 +599,37 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
     }
     atomic_write_yaml(run_dir / "archive_receipt.yml", receipt)
     return receipt
+
+
+def validate_content_promotion_readiness(
+    agentlab_root: Path,
+    project: str,
+    task_id: str,
+    run_dir: Path | None = None,
+    *,
+    require_archive_receipt: bool,
+) -> list[str]:
+    """Return hard readiness failures for active content artifact promotion."""
+    if not _is_active_content_project(agentlab_root, project):
+        return []
+    project_root = _project_root(agentlab_root, project)
+    run_dir = run_dir or _run_dir(agentlab_root, project, task_id)
+    issues: list[str] = []
+    for filename in ("artifact_lineage.yml", "state_transition_proposal.yml"):
+        if not (run_dir / filename).exists():
+            issues.append(f"content promotion readiness missing {filename}")
+    if require_archive_receipt and not (run_dir / "archive_receipt.yml").exists():
+        issues.append("content promotion readiness missing archive_receipt.yml")
+    index = _load_index(project_root, project) if (project_root / "project_artifact_index.yml").exists() else {"artifacts": []}
+    current_by_id: dict[str, int] = {}
+    for record in index.get("artifacts") or []:
+        if isinstance(record, dict) and record.get("status") == "current":
+            artifact_id = str(record.get("artifact_id") or "")
+            current_by_id[artifact_id] = current_by_id.get(artifact_id, 0) + 1
+    for artifact_id, count in current_by_id.items():
+        if count > 1:
+            issues.append(f"content promotion readiness failed single-current invariant for {artifact_id}")
+    return issues
 
 
 def _task_completed(run_dir: Path) -> bool:
@@ -718,6 +772,13 @@ def validate_project_artifact_governance(
 
     if _is_active_content_project(agentlab_root, project):
         issues.extend(_content_governance_issues(agentlab_root, project_root, project, index, run_dir))
+        issues.extend(validate_content_promotion_readiness(
+            agentlab_root,
+            project,
+            task_id,
+            run_dir,
+            require_archive_receipt=_task_completed(run_dir) or _archive_completed_or_claimed(run_dir),
+        ))
 
     receipt_path = run_dir / "archive_receipt.yml"
     archive_claimed = _archive_completed_or_claimed(run_dir)

@@ -26,7 +26,7 @@
 | agent_runtime/context_governance/packers/image_context_packer.py | 11 | 367 | 1084 | OK |
 | acceptance_runs/m2_12_5_goal_mainline_bridge/M2_12_5_GOAL_MAINLINE_BRIDGE_REPORT.md | 62 | 365 | 3078 | OK |
 | docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md | 1397 | 365 | 29633 | OK |
-| agent_runtime/run_task.py | 6169 | 361 | 273661 | OK |
+| agent_runtime/run_task.py | 6179 | 361 | 274101 | OK |
 | acceptance_runs/stabilization/S0_STABILIZATION_REPORT.md | 134 | 338 | 5803 | OK |
 | docs/README.en-US.md | 352 | 330 | 16611 | OK |
 | acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md | 212 | 329 | 8302 | OK |

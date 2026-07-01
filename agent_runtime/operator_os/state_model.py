@@ -52,8 +52,9 @@ def build_operator_state(root: Path, project: str = "AgentLab") -> dict[str, Any
     project_root = root / "projects" / project
     brain_dir = project_root / "project_brain"
     runs_dir = project_root / "runs"
+    read_errors: list[dict[str, str]] = []
 
-    acceptance_history = _load_yaml(brain_dir / "acceptance_history.yml", {"entries": []})
+    acceptance_history = _load_yaml(brain_dir / "acceptance_history.yml", {"entries": []}, root, read_errors)
     history_entries = acceptance_history.get("entries") if isinstance(acceptance_history, dict) else []
     history_entries = history_entries if isinstance(history_entries, list) else []
     accepted_phase_ids = [
@@ -65,22 +66,22 @@ def build_operator_state(root: Path, project: str = "AgentLab") -> dict[str, Any
         (entry for entry in reversed(history_entries) if isinstance(entry, dict)),
         None,
     )
-    next_action = _load_yaml(brain_dir / "next_actions.yml", {})
-    fact_snapshot = _load_yaml(brain_dir / "project_fact_snapshot.yml", {})
-    artifact_index = _load_yaml(project_root / "project_artifact_index.yml", {})
+    next_action = _load_yaml(brain_dir / "next_actions.yml", {}, root, read_errors)
+    fact_snapshot = _load_yaml(brain_dir / "project_fact_snapshot.yml", {}, root, read_errors)
+    artifact_index = _load_yaml(project_root / "project_artifact_index.yml", {}, root, read_errors)
     missing_brain_files = [
         name
         for name in REQUIRED_PROJECT_BRAIN_FILES
         if not _brain_file_path(project_root, brain_dir, name).exists()
     ]
 
-    executor_results = _read_executor_results(runs_dir)
-    approvals = _read_approvals(history_entries, runs_dir)
-    recovery_plans = _read_recovery_plans(runs_dir)
-    capability_gaps = _read_capability_gaps(runs_dir)
-    evidence_ledgers = _read_evidence_ledgers(runs_dir)
+    executor_results = _read_executor_results(runs_dir, root, read_errors)
+    approvals = _read_approvals(history_entries, runs_dir, root, read_errors)
+    recovery_plans = _read_recovery_plans(runs_dir, root, read_errors)
+    capability_gaps = _read_capability_gaps(runs_dir, root, read_errors)
+    evidence_ledgers = _read_evidence_ledgers(runs_dir, root, read_errors)
     cost_state = build_cost_state(project_root, accepted_phase_ids=accepted_phase_ids)
-    phase_statuses = _classify_phase_statuses(history_entries, brain_dir)
+    phase_statuses = _classify_phase_statuses(history_entries, brain_dir, root, read_errors)
 
     return {
         "schema_version": 2,
@@ -131,7 +132,8 @@ def build_operator_state(root: Path, project: str = "AgentLab") -> dict[str, Any
         "capability_gaps": capability_gaps,
         "evidence_ledgers": evidence_ledgers,
         "cost_state": cost_state,
-        "timeline": build_timeline(project_root),
+        "timeline": build_timeline(project_root, read_errors),
+        "read_errors": read_errors,
         "safety": {
             "ui_may_infer_progress_from_directories": False,
             "ui_may_write_production_content": False,
@@ -142,11 +144,24 @@ def build_operator_state(root: Path, project: str = "AgentLab") -> dict[str, Any
 
 # ── helper: YAML loader ──────────────────────────────────────────────────
 
-def _load_yaml(path: Path, default: Any) -> Any:
+def _load_yaml(
+    path: Path,
+    default: Any,
+    root: Path | None = None,
+    read_errors: list[dict[str, str]] | None = None,
+) -> Any:
     if not path.exists():
         return default
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return data if data is not None else default
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        return data if data is not None else default
+    except Exception as exc:
+        if read_errors is not None:
+            read_errors.append({
+                "path": _relative_or_name(root or path.parent, path),
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+        return default
 
 
 def _brain_file_path(project_root: Path, brain_dir: Path, name: str) -> Path:
@@ -187,6 +202,8 @@ def _compact_acceptance(entry: dict[str, Any] | None) -> dict[str, Any] | None:
 def _classify_phase_statuses(
     history_entries: list[dict[str, Any]],
     brain_dir: Path,
+    root: Path | None = None,
+    read_errors: list[dict[str, str]] | None = None,
 ) -> dict[str, str]:
     """Derive per-phase status from acceptance history.
 
@@ -194,7 +211,7 @@ def _classify_phase_statuses(
     accepted, rejected, needs_human_review, needs_evidence, paused, blocked, retryable.
     """
     statuses: dict[str, str] = {}
-    current_phase = _load_yaml(brain_dir / "current_phase.yml", {})
+    current_phase = _load_yaml(brain_dir / "current_phase.yml", {}, root, read_errors)
     if isinstance(current_phase, dict) and current_phase.get("phase_id"):
         pid = str(current_phase["phase_id"])
         raw_status = str(current_phase.get("status") or "")
@@ -233,7 +250,11 @@ def _classify_phase_statuses(
 
 # ── M3-1: executor results reader ─────────────────────────────────────────
 
-def _read_executor_results(runs_dir: Path) -> list[dict[str, Any]]:
+def _read_executor_results(
+    runs_dir: Path,
+    root: Path | None = None,
+    read_errors: list[dict[str, str]] | None = None,
+) -> list[dict[str, Any]]:
     """Collect executor result envelopes from all task run directories."""
     results: list[dict[str, Any]] = []
     if not runs_dir.exists():
@@ -246,7 +267,7 @@ def _read_executor_results(runs_dir: Path) -> list[dict[str, Any]]:
         source = result_path if result_path.exists() else envelope_path
         if not source.exists():
             continue
-        data = _load_yaml(source, {})
+        data = _load_yaml(source, {}, root, read_errors)
         if not isinstance(data, dict):
             continue
         envelope = data.get("executor_result") or data
@@ -272,6 +293,8 @@ def _read_executor_results(runs_dir: Path) -> list[dict[str, Any]]:
 def _read_approvals(
     history_entries: list[dict[str, Any]],
     runs_dir: Path,
+    root: Path | None = None,
+    read_errors: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Extract pending and resolved approvals from acceptance history and decision cards."""
     approvals: list[dict[str, Any]] = []
@@ -296,7 +319,7 @@ def _read_approvals(
             if not dc_dir.is_dir():
                 continue
             for card_path in sorted(dc_dir.glob("*.yml")):
-                card = _load_yaml(card_path, {})
+                card = _load_yaml(card_path, {}, root, read_errors)
                 if isinstance(card, dict):
                     approvals.append({
                         "task_id": task_dir.name,
@@ -311,7 +334,11 @@ def _read_approvals(
 
 # ── M3-1: recovery plans reader ───────────────────────────────────────────
 
-def _read_recovery_plans(runs_dir: Path) -> list[dict[str, Any]]:
+def _read_recovery_plans(
+    runs_dir: Path,
+    root: Path | None = None,
+    read_errors: list[dict[str, str]] | None = None,
+) -> list[dict[str, Any]]:
     """Collect recovery plans from task run directories."""
     plans: list[dict[str, Any]] = []
     if not runs_dir.exists():
@@ -334,7 +361,7 @@ def _read_recovery_plans(runs_dir: Path) -> list[dict[str, Any]]:
         })
         diag_path = recovery_dir / "failure_diagnosis.yml"
         if diag_path.exists():
-            diag = _load_yaml(diag_path, {})
+            diag = _load_yaml(diag_path, {}, root, read_errors)
             if isinstance(diag, dict):
                 plans[-1]["failure_category"] = diag.get("failure_category")
                 plans[-1]["confidence"] = diag.get("confidence")
@@ -344,7 +371,11 @@ def _read_recovery_plans(runs_dir: Path) -> list[dict[str, Any]]:
 
 # ── M3-1: capability gaps reader ──────────────────────────────────────────
 
-def _read_capability_gaps(runs_dir: Path) -> list[dict[str, Any]]:
+def _read_capability_gaps(
+    runs_dir: Path,
+    root: Path | None = None,
+    read_errors: list[dict[str, str]] | None = None,
+) -> list[dict[str, Any]]:
     """Collect capability gap records from task run directories."""
     gaps: list[dict[str, Any]] = []
     if not runs_dir.exists():
@@ -355,7 +386,7 @@ def _read_capability_gaps(runs_dir: Path) -> list[dict[str, Any]]:
         gap_dir = task_dir / "capability_gaps"
         if gap_dir.is_dir():
             for gap_path in sorted(gap_dir.glob("*.yml")):
-                gap = _load_yaml(gap_path, {})
+                gap = _load_yaml(gap_path, {}, root, read_errors)
                 if isinstance(gap, dict):
                     gaps.append({
                         "task_id": task_dir.name,
@@ -367,7 +398,7 @@ def _read_capability_gaps(runs_dir: Path) -> list[dict[str, Any]]:
         dc_dir = task_dir / "decision_cards"
         if dc_dir.is_dir():
             for card_path in sorted(dc_dir.glob("*capability*.yml")):
-                card = _load_yaml(card_path, {})
+                card = _load_yaml(card_path, {}, root, read_errors)
                 if isinstance(card, dict):
                     gaps.append({
                         "task_id": task_dir.name,
@@ -381,7 +412,11 @@ def _read_capability_gaps(runs_dir: Path) -> list[dict[str, Any]]:
 
 # ── M3-1: evidence ledger reader ──────────────────────────────────────────
 
-def _read_evidence_ledgers(runs_dir: Path) -> list[dict[str, Any]]:
+def _read_evidence_ledgers(
+    runs_dir: Path,
+    root: Path | None = None,
+    read_errors: list[dict[str, str]] | None = None,
+) -> list[dict[str, Any]]:
     """Collect evidence ledger summaries from task run directories."""
     ledgers: list[dict[str, Any]] = []
     if not runs_dir.exists():
@@ -392,7 +427,7 @@ def _read_evidence_ledgers(runs_dir: Path) -> list[dict[str, Any]]:
         ledger_path = task_dir / "evidence_ledger.yml"
         if not ledger_path.exists():
             continue
-        ledger = _load_yaml(ledger_path, {})
+        ledger = _load_yaml(ledger_path, {}, root, read_errors)
         if not isinstance(ledger, dict):
             continue
         ledgers.append({

@@ -582,15 +582,25 @@ def provider_trust_report() -> None:
 @app.command("eval-generalization")
 def eval_generalization(
     out: Path = typer.Option(Path("acceptance_runs/s10_generalization_eval"), "--out"),
+    replay_pipeline: bool = typer.Option(False, "--replay-pipeline", help="Run S10 route/task/acceptance/Project Brain replay."),
 ) -> None:
     """Run the S10 offline generalization evaluation suite."""
-    from agent_runtime.evaluation.generalization_suite import run_generalization_suite
+    from agent_runtime.evaluation.generalization_suite import (
+        load_generalization_fixtures,
+        run_generalization_suite,
+        run_pipeline_replay,
+    )
 
     summary = run_generalization_suite(_PROJECT_ROOT, out)
+    replay = None
+    if replay_pipeline:
+        replay = run_pipeline_replay(_PROJECT_ROOT, out, load_generalization_fixtures(_PROJECT_ROOT)[0])
+        summary["pipeline_replay"] = replay
     console.print(yaml.safe_dump({
         "verdict": summary["verdict"],
         "passed": summary["passed"],
         "total": summary["total"],
+        "pipeline_replay": replay,
         "out": str(out),
     }, sort_keys=False))
 

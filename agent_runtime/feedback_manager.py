@@ -6,8 +6,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from atomic_io import atomic_write_json, atomic_write_text, atomic_write_yaml, safe_read_yaml
-from task_events import append_task_event, build_decision_card, load_task_events
+try:
+    from agent_runtime.atomic_io import atomic_write_json, atomic_write_text, atomic_write_yaml, safe_read_yaml
+    from agent_runtime.task_events import append_task_event, build_decision_card, load_task_events
+except ImportError:
+    from atomic_io import atomic_write_json, atomic_write_text, atomic_write_yaml, safe_read_yaml
+    from task_events import append_task_event, build_decision_card, load_task_events
 
 
 def decision_cards_dir(run_dir: Path) -> Path:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from .models import TUICommandResult, TUIWarning
 from typing import Optional
 
@@ -55,17 +57,19 @@ def _execute_and_log(
     project: Optional[str] = None,
     requested_effects: Optional[list[str]] = None,
 ) -> dict:
+    root = Path(os.getenv("AGENTLAB_ROOT", Path.cwd())).resolve()
+    resolved_project = project or os.getenv("AGENTLAB_TUI_PROJECT") or "AgentLab"
     request = {
         "action": action,
         "target_type": target_type,
         "target_id": target_id,
         "actor": actor,
         "reason": reason,
-        "project": project,
+        "project": resolved_project,
         "requested_effects": requested_effects or [],
         "source_surface": "tui",
     }
-    return execute_operator_action(None, request)
+    return execute_operator_action(root, request)
 
 
 # ── M3 operator actions (wired to contract) ───────────────────────────────
@@ -172,11 +176,11 @@ def handle_resume(project: str, actor: Optional[str], reason: Optional[str]) -> 
     )
 
 
-def handle_retry(task_id: str, actor: Optional[str], reason: Optional[str]) -> TUICommandResult:
+def handle_retry(task_id: str, actor: Optional[str], reason: Optional[str], project: Optional[str] = None) -> TUICommandResult:
     err = _require_auth(actor, reason)
     if err:
         return err
-    execution = _execute_and_log("retry", "task", task_id, actor, reason)
+    execution = _execute_and_log("retry", "task", task_id, actor, reason, project)
     validation = execution["validation"]
     if validation["status"] == "blocked":
         return TUICommandResult(

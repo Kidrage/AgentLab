@@ -695,10 +695,28 @@ def handle_post_decision(data: dict):
 
     operator_action = "approve" if action == "yes" else ("pause" if action == "later" else "reject")
     target_type = "decision_card" if operator_action in {"approve", "reject"} else "task"
+    target_id = task_id
+    decision_id = data.get("decisionId") or data.get("decision_id")
+    option_id = data.get("option") or data.get("option_id")
+    if target_type == "decision_card":
+        if not decision_id:
+            from feedback_manager import load_pending_decision_cards
+
+            pending = load_pending_decision_cards(run_dir)
+            if len(pending) == 1:
+                decision_id = pending[0].get("id")
+            elif len(pending) > 1:
+                return {"error": "decisionId is required when multiple decision cards are pending", "success": False}
+            else:
+                return {"error": "No pending decision card found", "success": False}
+        target_id = str(decision_id)
     result = execute_operator_action(AGENTLAB_ROOT, {
         "action": operator_action,
         "target_type": target_type,
-        "target_id": task_id,
+        "target_id": target_id,
+        "task_id": task_id,
+        "decision_id": decision_id,
+        "option_id": option_id,
         "project": project,
         "actor": data.get("actor") or "web_ui",
         "reason": data.get("reason") or f"web_ui_decision_{action}",
@@ -863,43 +881,36 @@ def handle_natural_language_task(data: dict):
     except Exception as e:
         return {"success": False, "taskId": task_id, "error": f"prepare exception: {str(e)}", "stage": "inited"}
 
-    # Step 3: Run Supervisor (brain agent) if auto-execute
-    supervisor_result = ""
+    # Step 3: autoExecute records an Operator OS dispatch request only.
+    # External executor dispatch must stay behind the shared operator gate.
+    operator_result = None
     if auto_execute:
-        try:
-            result = subprocess.run(
-                [
-                    sys.executable, str(AGENTLAB_ROOT / "agent_runtime" / "run_task.py"),
-                    "run-agent", "Supervisor",
-                    "--task-id", task_id,
-                    "--project", project,
-                    "--execute", "--overwrite-report",
-                ],
-                capture_output=True, text=True, timeout=90,
-                cwd=str(AGENTLAB_ROOT),
-            )
-            supervisor_result = result.stdout[:500]
-            if "blocked_user_decision" in result.stdout:
-                return {
-                    "success": True,
-                    "taskId": task_id,
-                    "project": project,
-                    "stage": "awaiting_decision",
-                    "message": f"任务 {task_id} 已创建，Supervisor 执行后需要用户决策",
-                    "supervisorOutput": supervisor_result,
-                }
-        except subprocess.TimeoutExpired:
-            supervisor_result = "Supervisor 执行超时（>90s）"
-        except Exception as e:
-            supervisor_result = f"Supervisor error: {str(e)}"
+        operator_result = execute_operator_action(AGENTLAB_ROOT, {
+            "action": "retry",
+            "target_type": "task",
+            "target_id": task_id,
+            "project": project,
+            "actor": data.get("actor") or "web_ui",
+            "reason": data.get("reason") or "natural_language_task_auto_execute_request",
+            "source_surface": "web_ui",
+        })
+        if not operator_result.get("success"):
+            return {
+                "success": False,
+                "taskId": task_id,
+                "project": project,
+                "stage": "operator_action_blocked",
+                "error": "; ".join(operator_result.get("errors") or ["operator action blocked"]),
+                "operator_action": operator_result,
+            }
 
     return {
         "success": True,
         "taskId": task_id,
         "project": project,
-        "stage": "supervisor_completed" if "completed" in supervisor_result else "task_created",
-        "message": f"任务 {task_id} 已创建并开始执行",
-        "supervisorOutput": supervisor_result,
+        "stage": "execution_requested" if auto_execute else "task_created",
+        "message": f"任务 {task_id} 已创建" + ("，执行请求已进入 Operator OS" if auto_execute else ""),
+        "operator_action": operator_result,
     }
 
 

@@ -33,6 +33,9 @@ def _make_project_fixture(root: Path) -> Path:
     _write_yaml(brain_dir / "acceptance_history.yml", {"entries": []})
     _write_yaml(brain_dir / "next_actions.yml", {"next_phase_id": "phase_1", "next_action": "prepare_task"})
     _write_yaml(brain_dir / "current_phase.yml", {"phase_id": "phase_1", "status": "in_progress"})
+    run_dir = root / "projects" / "TestProject" / "runs" / "task_001"
+    _write_yaml(run_dir / "state.yml", {"status": "blocked"})
+    _write_yaml(run_dir / "progress.yml", {"status": "blocked"})
     return root
 
 
@@ -43,15 +46,22 @@ def test_tui_approve_requires_actor() -> None:
     assert "Missing actor" in result.message
 
 
-def test_tui_approve_with_valid_input() -> None:
+def test_tui_approve_with_valid_input(tmp_path: Path, monkeypatch) -> None:
     """TUI approve with actor+reason should succeed."""
+    _make_project_fixture(tmp_path)
+    monkeypatch.setenv("AGENTLAB_ROOT", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     result = handle_approve("card_1", "operator", "evidence reviewed", "TestProject")
     assert result.status == "ok"
     assert result.mutated_state is True
+    assert (tmp_path / "projects/TestProject/project_brain/operator_action_ledger.yml").exists()
 
 
-def test_tui_reject_with_valid_input() -> None:
+def test_tui_reject_with_valid_input(tmp_path: Path, monkeypatch) -> None:
     """TUI reject with actor+reason should succeed."""
+    _make_project_fixture(tmp_path)
+    monkeypatch.setenv("AGENTLAB_ROOT", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     result = handle_reject("card_1", "operator", "evidence insufficient", "TestProject")
     assert result.status == "ok"
     assert result.mutated_state is True
@@ -64,19 +74,26 @@ def test_tui_pause_resume_requires_actor() -> None:
         assert result.status == "error"
 
 
-def test_tui_pause_resume_with_valid_input() -> None:
+def test_tui_pause_resume_with_valid_input(tmp_path: Path, monkeypatch) -> None:
     """TUI pause/resume with actor+reason should succeed."""
+    _make_project_fixture(tmp_path)
+    monkeypatch.setenv("AGENTLAB_ROOT", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     result = handle_pause("TestProject", "operator", "budget review")
     assert result.status == "ok"
     result = handle_resume("TestProject", "operator", "budget approved")
     assert result.status == "ok"
 
 
-def test_tui_retry_with_valid_input() -> None:
+def test_tui_retry_with_valid_input(tmp_path: Path, monkeypatch) -> None:
     """TUI retry with actor+reason should succeed."""
-    result = handle_retry("task_001", "operator", "fixed missing evidence")
+    _make_project_fixture(tmp_path)
+    monkeypatch.setenv("AGENTLAB_ROOT", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    result = handle_retry("task_001", "operator", "fixed missing evidence", "TestProject")
     assert result.status == "ok"
     assert result.mutated_state is True
+    assert yaml.safe_load((tmp_path / "projects/TestProject/runs/task_001/state.yml").read_text())["status"] == "retryable"
 
 
 def test_tui_readonly_actions_no_actor() -> None:
@@ -94,8 +111,11 @@ def test_tui_readonly_actions_no_actor() -> None:
     assert result.mutated_state is False
 
 
-def test_tui_mutation_returns_evidence_path() -> None:
+def test_tui_mutation_returns_evidence_path(tmp_path: Path, monkeypatch) -> None:
     """TUI mutations should return evidence_path pointing to project brain."""
+    _make_project_fixture(tmp_path)
+    monkeypatch.setenv("AGENTLAB_ROOT", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     result = handle_approve("card_1", "operator", "done", "TestProject")
     assert result.status == "ok"
     assert result.evidence_path is not None

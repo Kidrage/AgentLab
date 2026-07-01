@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 from project_artifact_steward import (
     apply_archive_protocol,
     build_artifact_intent,
+    validate_content_promotion_readiness,
     validate_project_artifact_governance,
 )
 
@@ -216,6 +217,74 @@ class ProjectArtifactStewardTests(TestCase):
 
             self.assertTrue(any("content task missing required output artifact_lineage.yml" in issue for issue in issues))
             self.assertTrue(any("content task missing required output state_transition_proposal.yml" in issue for issue in issues))
+            self.assertTrue(any("content promotion readiness missing artifact_lineage.yml" in issue for issue in issues))
+            self.assertTrue(any("content promotion readiness missing state_transition_proposal.yml" in issue for issue in issues))
+
+    def test_active_content_archive_protocol_blocks_without_readiness_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "config").mkdir()
+            _write_yaml(
+                root / "config" / "content_project_governance.yml",
+                {"active_projects": ["Crown_of_Ash"]},
+            )
+            run_dir = self._make_run(root, project="Crown_of_Ash")
+            candidate = run_dir / "artifacts" / "chapter_01.md"
+            candidate.parent.mkdir(parents=True)
+            candidate.write_text("new chapter\n", encoding="utf-8")
+            _write_yaml(
+                run_dir / "artifact_promotion_plan.yml",
+                {
+                    "version": 1,
+                    "project": "Crown_of_Ash",
+                    "task_id": "task_0001",
+                    "promotions": [
+                        {
+                            "artifact_id": "chapter_01",
+                            "source_run_artifact": "artifacts/chapter_01.md",
+                            "production_path": "production/manuscript/chapter_01.md",
+                        }
+                    ],
+                },
+            )
+
+            receipt = apply_archive_protocol(root, "Crown_of_Ash", "task_0001")
+
+            self.assertEqual(receipt["status"], "blocked")
+            self.assertTrue(any("content promotion readiness missing artifact_lineage.yml" in err for err in receipt["errors"]))
+            self.assertFalse((root / "projects/Crown_of_Ash/production/manuscript/chapter_01.md").exists())
+
+    def test_content_promotion_readiness_checks_archive_receipt_and_single_current(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "config").mkdir()
+            _write_yaml(
+                root / "config" / "content_project_governance.yml",
+                {"active_projects": ["Crown_of_Ash"]},
+            )
+            run_dir = self._make_run(root, project="Crown_of_Ash")
+            _write_yaml(run_dir / "artifact_lineage.yml", {"modified": ["production/manuscript/chapter_01.md"]})
+            _write_yaml(run_dir / "state_transition_proposal.yml", {"events": []})
+            _write_yaml(
+                root / "projects" / "Crown_of_Ash" / "project_artifact_index.yml",
+                {
+                    "artifacts": [
+                        {"artifact_id": "chapter_01", "status": "current", "production_path": "production/manuscript/chapter_01.md"},
+                        {"artifact_id": "chapter_01", "status": "current", "production_path": "production/manuscript/chapter_01_v2.md"},
+                    ]
+                },
+            )
+
+            issues = validate_content_promotion_readiness(
+                root,
+                "Crown_of_Ash",
+                "task_0001",
+                run_dir,
+                require_archive_receipt=True,
+            )
+
+            self.assertTrue(any("missing archive_receipt.yml" in issue for issue in issues))
+            self.assertTrue(any("single-current invariant" in issue for issue in issues))
 
 
 if __name__ == "__main__":

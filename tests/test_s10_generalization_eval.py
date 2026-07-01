@@ -10,6 +10,7 @@ from agent_runtime.evaluation.generalization_suite import (
     evaluate_fixture,
     load_generalization_fixtures,
     run_generalization_suite,
+    run_pipeline_replay,
 )
 from agent_runtime.run_task import app
 
@@ -83,3 +84,30 @@ def test_s10_cli_runs_generalization_and_ci_gates(tmp_path: Path) -> None:
     assert gates_result.exit_code == 0
     assert "eval-generalization" in gates_result.stdout
     assert "pytest" in gates_result.stdout
+
+
+def test_s10_pipeline_replay_generates_required_artifacts_through_agentlab_chain(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    fixture = load_generalization_fixtures(root)[0]
+
+    replay = run_pipeline_replay(root, tmp_path, fixture)
+
+    assert replay["pass"] is True
+    assert replay["external_execution"] == "blocked"
+    assert replay["artifacts_present"] == replay["required_artifacts"]
+    assert replay["generated_by_agentlab_chain"] == [
+        "create_task_packet",
+        "route_task_packet",
+        "accept_phase",
+        "project_brain_acceptance_writeback",
+    ]
+
+
+def test_s10_cli_can_run_pipeline_replay_mode(tmp_path: Path) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["eval-generalization", "--out", str(tmp_path / "eval"), "--replay-pipeline"])
+
+    assert result.exit_code == 0
+    assert "pipeline_replay" in result.stdout
+    assert (tmp_path / "eval" / "pipeline_replay").exists()

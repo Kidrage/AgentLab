@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import shutil
 from typing import Any
 
 import yaml
@@ -129,6 +130,111 @@ def run_generalization_suite(agentlab_root: Path, out_dir: Path) -> dict[str, An
     _write_yaml(out_dir / "generalization_results.yml", summary)
     (out_dir / "S10_GENERALIZATION_EVAL_REPORT.md").write_text(render_report(summary), encoding="utf-8")
     return summary
+
+
+def run_pipeline_replay(agentlab_root: Path, out_dir: Path, fixture: GeneralizationFixture) -> dict[str, Any]:
+    """Replay route -> task packet -> phase acceptance -> Project Brain writeback."""
+    replay_root = out_dir / "pipeline_replay" / fixture.fixture_id
+    if replay_root.exists():
+        shutil.rmtree(replay_root)
+    (replay_root / "projects").mkdir(parents=True, exist_ok=True)
+    shutil.copytree(agentlab_root / "config", replay_root / "config")
+
+    project = "S10Replay"
+    phase_id = "phase_1"
+    task_id = "task_0001"
+    project_root = replay_root / "projects" / project
+    brain_dir = project_root / "project_brain"
+    run_dir = project_root / "runs" / task_id
+    brain_dir.mkdir(parents=True, exist_ok=True)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    _write_yaml(brain_dir / "project_brief.yml", {"project_name": project, "request": fixture.request})
+    _write_yaml(brain_dir / "roadmap.yml", {"milestones": [{"phase_id": phase_id, "title": fixture.domain}]})
+    _write_yaml(brain_dir / "acceptance_history.yml", {"entries": []})
+    _write_yaml(brain_dir / "next_actions.yml", {"next_action": "prepare_phase"})
+    _write_yaml(brain_dir / "project_fact_snapshot.yml", {"project": project, "event_count": 0, "events": []})
+
+    phase_plan_path = run_dir / "phase_plan.yml"
+    phase_plan = {
+        "project": project,
+        "project_type": "codebase_build_project",
+        "phase_id": phase_id,
+        "goal": fixture.request,
+        "context_summary": f"S10 replay for {fixture.domain}",
+        "long_project_governance_required": True,
+        "project_brain_dir": str(brain_dir),
+        "allowed_files": ["docs", "agent_runtime", "tests"],
+        "forbidden_files": [".env", ".git"],
+        "outputs": ["evidence.yml"],
+        "evidence_required": ["evidence.yml"],
+        "acceptance_criteria": ["evidence present"],
+        "roles": ["Coder"],
+        "available_workers": ["codex"],
+        "approved_workers": ["codex"],
+        "commands_allowed": ["pytest"],
+        "commands_forbidden": ["rm -rf", "curl", "wget"],
+    }
+    _write_yaml(phase_plan_path, phase_plan)
+
+    from agent_runtime.executors.task_packet import create_task_packet
+    from agent_runtime.program_manager.phase_acceptance import accept_phase
+    from agent_runtime.routing.worker_router import route_task_packet
+
+    packet = create_task_packet(phase_plan_path, "codex_handoff", run_dir)
+    route = route_task_packet(run_dir / "task_packet.yml", replay_root)
+
+    _write_yaml(run_dir / "executor_result.yml", {
+        "task_id": task_id,
+        "executor_id": "codex",
+        "source": "s10_pipeline_replay",
+        "status": "PASS",
+        "summary": "Replay evidence generated through AgentLab acceptance path.",
+        "changed_files": ["docs/s10_replay.md"],
+        "test_results": {"passed": True},
+        "artifacts": [{"path": "evidence.yml"}],
+        "safety_attestation": {"secrets_exposed": False},
+    })
+    _write_yaml(run_dir / "evidence_ledger.yml", {
+        "result_dir": str(run_dir),
+        "files": [{"path": "executor_result.yml"}, {"path": "evidence.yml"}],
+        "evidence_count": 2,
+    })
+    (run_dir / "evidence.yml").write_text("passed: true\n", encoding="utf-8")
+
+    acceptance = accept_phase(run_dir / "task_packet.yml", run_dir, run_dir)
+    artifacts = [
+        run_dir / "task_packet.yml",
+        replay_root / "projects" / project / "runs" / "S10Replay_phase_1_task" / "routing" / "route_plan.yml",
+        run_dir / "phase_acceptance.yml",
+        brain_dir / "acceptance_history.yml",
+        brain_dir / "next_actions.yml",
+    ]
+    present = [str(path.relative_to(replay_root)) for path in artifacts if path.exists()]
+    required = [str(path.relative_to(replay_root)) for path in artifacts]
+    passes = (
+        len(present) == len(required)
+        and bool(packet.get("task_packet"))
+        and bool(route.get("route_plan"))
+        and acceptance.get("accepted") is True
+        and acceptance.get("acceptance_history_status", {}).get("recorded") is True
+    )
+    return {
+        "fixture_id": fixture.fixture_id,
+        "mode": "pipeline_replay",
+        "pass": passes,
+        "score": 1.0 if passes else 0.0,
+        "generated_by_agentlab_chain": [
+            "create_task_packet",
+            "route_task_packet",
+            "accept_phase",
+            "project_brain_acceptance_writeback",
+        ],
+        "required_artifacts": required,
+        "artifacts_present": present,
+        "external_execution": "blocked",
+        "project_root": str(project_root),
+    }
 
 
 def render_report(summary: dict[str, Any]) -> str:
