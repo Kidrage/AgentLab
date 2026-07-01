@@ -74,35 +74,14 @@ def _is_exempt_from_local_path_check(rel: str) -> bool:
             return True
     return False
 
-# Minimum line counts for critical files
+# Minimum line counts for critical files. Keep this list for real compressed
+# artifacts; do not add small compatibility modules that would need padding.
 MIN_LINE_COUNTS = {
-    "agent_runtime/approvals/approval_ledger.py": 80,
-    "agent_runtime/approvals/approval_policy.py": 80,
-    "agent_runtime/approvals/decision_card.py": 80,
-    "agent_runtime/approvals/renderer.py": 80,
-    "agent_runtime/approvals/risk_gate.py": 80,
-    "agent_runtime/costs/alerts.py": 80,
-    "agent_runtime/costs/attribution.py": 80,
-    "agent_runtime/costs/budget_policy.py": 80,
-    "agent_runtime/costs/efficiency_review.py": 80,
-    "agent_runtime/costs/estimator.py": 80,
-    "agent_runtime/costs/executor_cost_profile.py": 80,
-    "agent_runtime/costs/model_cost_profile.py": 80,
-    "agent_runtime/costs/renderer.py": 80,
-    "agent_runtime/costs/spend_ledger.py": 80,
-    "agent_runtime/costs/worker_cost_profile.py": 80,
     "config/approval_policy.yml": 10,
     "config/cost_policy_v2.yml": 10,
     "config/executor_cost_profiles.yml": 10,
     "config/model_cost_profiles.yml": 10,
     "config/worker_cost_profiles.yml": 10,
-    "tests/test_m2_approval_policy.py": 80,
-    "tests/test_m2_cost_alerts.py": 80,
-    "tests/test_m2_cost_attribution.py": 80,
-    "tests/test_m2_cost_estimator.py": 80,
-    "tests/test_m2_cost_policy.py": 80,
-    "tests/test_m2_decision_cards.py": 80,
-    "tests/test_m2_spend_ledger.py": 80,
     "acceptance_runs/m2_cost_risk_approval/M2_6_ACCEPTANCE.md": 40,
     ".github/workflows/ci.yml": 20,
     "agent_runtime/mcp_server.py": 80,
@@ -407,6 +386,10 @@ def _check_python(path: Path, root: Path) -> FileAudit:
         issues.append("contains local absolute /Users path")
     if ast_ok is False:
         suspicious = True
+
+    if ("padding" + " line ") in content:
+        suspicious = True
+        issues.append("contains artificial padding lines")
 
     # Critical file minimum line counts
     if rel in MIN_LINE_COUNTS and line_count < MIN_LINE_COUNTS[rel]:
