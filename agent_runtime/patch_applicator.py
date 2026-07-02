@@ -310,6 +310,56 @@ def apply_edit_block(
     )
 
 
+def _strip_optional_fence(content: str) -> str:
+    text = content.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if len(lines) >= 2 and lines[-1].strip() == "```":
+            return "\n".join(lines[1:-1]).strip()
+    return text
+
+
+def apply_content_block(
+    file_path: str,
+    content: str,
+    allowed_root: Path,
+    allowed_files: set[str] | None = None,
+) -> AppliedEdit:
+    """Write a complete HTML-style AGENTLAB_EDIT content block."""
+    from policies import assert_path_allowed
+
+    normalized_path = file_path.lstrip("/")
+    if allowed_files is not None and normalized_path not in allowed_files:
+        return AppliedEdit(
+            path=normalized_path,
+            success=False,
+            error=f"File not in Supervisor-approved scope: {normalized_path}. Allowed: {sorted(allowed_files)}",
+        )
+
+    try:
+        target = assert_path_allowed(allowed_root / normalized_path, allowed_root)
+    except Exception as exc:
+        return AppliedEdit(path=normalized_path, success=False, error=str(exc))
+
+    new_content = _strip_optional_fence(content).rstrip() + "\n"
+    original_text = target.read_text(encoding="utf-8") if target.exists() else ""
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(new_content, encoding="utf-8")
+    except Exception as exc:
+        return AppliedEdit(path=normalized_path, success=False, error=f"Write error: {exc}")
+
+    _save_patch_evidence(target, original_text, new_content, normalized_path, 1, [])
+    return AppliedEdit(
+        path=normalized_path,
+        success=True,
+        line_start=1,
+        line_end=len(new_content.splitlines()),
+        matched_count=1,
+    )
+
+
 def apply_all_patches(
     llm_output: str,
     project_root: Path,
@@ -335,12 +385,20 @@ def apply_all_patches(
     results: list[AppliedEdit] = []
 
     for block in blocks:
-        result = apply_edit_block(
-            file_path=block["path"],
-            search_replace_pairs=block["search_replace_pairs"],
-            allowed_root=project_root,
-            allowed_files=allowed_files,
-        )
+        if "html_block_content" in block:
+            result = apply_content_block(
+                file_path=block["path"],
+                content=block["html_block_content"],
+                allowed_root=project_root,
+                allowed_files=allowed_files,
+            )
+        else:
+            result = apply_edit_block(
+                file_path=block["path"],
+                search_replace_pairs=block["search_replace_pairs"],
+                allowed_root=project_root,
+                allowed_files=allowed_files,
+            )
         results.append(result)
 
     return results

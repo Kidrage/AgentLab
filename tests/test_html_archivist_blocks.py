@@ -1,6 +1,6 @@
 """Verify HTML-style AGENTLAB_EDIT blocks are parsed and merged correctly."""
 from pathlib import Path
-from agent_runtime.patch_applicator import parse_edit_blocks, strip_edit_blocks_from_report
+from agent_runtime.patch_applicator import apply_all_patches, parse_edit_blocks, strip_edit_blocks_from_report
 
 
 def test_html_block_parsed():
@@ -47,6 +47,47 @@ def test_strip_removes_both_styles():
     assert "<<<" not in cleaned
     assert "AGENTLAB_EDIT" not in cleaned
     assert "Hello" in cleaned
+
+
+def test_html_block_applies_full_file_with_optional_fence(tmp_path: Path):
+    llm_output = """Draft done.
+
+<!-- AGENTLAB_EDIT: drafts/chapter.md -->
+```markdown
+# Chapter
+
+New prose.
+```
+<!-- END AGENTLAB_EDIT -->
+"""
+
+    results = apply_all_patches(
+        llm_output=llm_output,
+        project_root=tmp_path,
+        allowed_files={"drafts/chapter.md"},
+    )
+
+    assert len(results) == 1
+    assert results[0].success is True
+    assert (tmp_path / "drafts" / "chapter.md").read_text(encoding="utf-8") == "# Chapter\n\nNew prose.\n"
+    assert (tmp_path / "drafts" / "after_diff_drafts_chapter.md.patch").exists()
+
+
+def test_html_block_respects_allowed_files(tmp_path: Path):
+    llm_output = """<!-- AGENTLAB_EDIT: drafts/chapter.md -->
+Not allowed.
+<!-- END AGENTLAB_EDIT -->"""
+
+    results = apply_all_patches(
+        llm_output=llm_output,
+        project_root=tmp_path,
+        allowed_files={"drafts/other.md"},
+    )
+
+    assert len(results) == 1
+    assert results[0].success is False
+    assert "Supervisor-approved scope" in (results[0].error or "")
+    assert not (tmp_path / "drafts" / "chapter.md").exists()
 
 
 def test_real_task_0032_archivist_output():

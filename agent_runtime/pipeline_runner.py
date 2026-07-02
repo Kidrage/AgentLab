@@ -57,6 +57,9 @@ NODE_TO_AGENT = {
     "REPO_CONTEXT": "RepoScout",
     "RESEARCH_OPTIONAL": "Researcher",
     "INTERFACE_OPTIONAL": "InterfaceMapper",
+    "WRITER_DRAFT": "Writer",
+    "FICTION_REVIEW": "Reviewer",
+    "SCRIBE_LEDGER": "Scribe",
     "CODER_IMPLEMENTATION": "Coder",
     "VALIDATION": "TesterAuditor",
     "AUDIT": "TesterAuditor",
@@ -69,6 +72,9 @@ NODE_TO_REPORT = {
     "REPO_CONTEXT": "02_reposcout_report.md",
     "RESEARCH_OPTIONAL": "03_research_notes.md",
     "INTERFACE_OPTIONAL": "04_interface_map.md",
+    "WRITER_DRAFT": "fiction_draft.md",
+    "FICTION_REVIEW": "fiction_review.md",
+    "SCRIBE_LEDGER": "continuity_ledger.yml",
     "CODER_IMPLEMENTATION": "06_implementation_report.md",
     "VALIDATION": "07_validation_report.md",
     "AUDIT": "08_audit_report.md",
@@ -83,6 +89,7 @@ NODE_TO_PROGRESS = {
     "CONTEXT_BUDGET": "context_budget", "CONTEXT_PACK": "context_pack", "PREPARE_PLAN": "planning",
     "SUPERVISOR_PLAN": "planning", "REPO_CONTEXT": "scouting",
     "RESEARCH_OPTIONAL": "research", "INTERFACE_OPTIONAL": "interfacing",
+    "WRITER_DRAFT": "writing", "FICTION_REVIEW": "reviewing", "SCRIBE_LEDGER": "ledgering",
     "CODER_IMPLEMENTATION": "implementation", "VALIDATION": "validation",
     "AUDIT": "audit", "VERIFY": "verifying", "ARCHIVE": "archiving",
     "SELF_CHECK": "checking", "SYNC_OPTIONAL": "syncing", "FINALIZE": "completing",
@@ -92,6 +99,7 @@ NODE_TO_PCT = {
     "INIT_TASK": 5, "CONTEXT_PROFILE": 7, "CONTEXT_BUDGET": 8, "CONTEXT_PACK": 9,
     "PREPARE_PLAN": 10, "SUPERVISOR_PLAN": 20,
     "REPO_CONTEXT": 30, "RESEARCH_OPTIONAL": 35, "INTERFACE_OPTIONAL": 40,
+    "WRITER_DRAFT": 45, "FICTION_REVIEW": 50, "SCRIBE_LEDGER": 53,
     "CODER_IMPLEMENTATION": 55, "VALIDATION": 70, "AUDIT": 78,
     "VERIFY": 82, "ARCHIVE": 86, "SELF_CHECK": 90, "SYNC_OPTIONAL": 95, "FINALIZE": 100,
 }
@@ -682,6 +690,9 @@ def run_next_node(
             optional_requirements = {
                 "RESEARCH_OPTIONAL": "Researcher",
                 "INTERFACE_OPTIONAL": "InterfaceMapper",
+                "WRITER_DRAFT": "Writer",
+                "FICTION_REVIEW": "Reviewer",
+                "SCRIBE_LEDGER": "Scribe",
                 "CODER_IMPLEMENTATION": "Coder",
                 "VERIFY": "Verifier",
             }
@@ -903,7 +914,7 @@ def run_next_node(
         try:
             result = run_agent_model(
                 agentlab_root, plan, agent, report_path,
-                apply_patches=(agent == "Coder" and allow_patches),
+                apply_patches=(agent in {"Coder", "Writer", "Scribe"} and allow_patches),
             )
         except Exception as exc:
             blocked_path = run_dir / f"blocked_{agent or nid}_exception.md"
@@ -1459,6 +1470,12 @@ def _ensure_lifecycle_shape(run_dir: Path) -> None:
             skip_reason = "Route does not include Researcher"
         elif node_id == "INTERFACE_OPTIONAL" and "InterfaceMapper" not in route:
             skip_reason = "Route does not include InterfaceMapper"
+        elif node_id == "WRITER_DRAFT" and "Writer" not in route:
+            skip_reason = "Route does not include Writer"
+        elif node_id == "FICTION_REVIEW" and "Reviewer" not in route:
+            skip_reason = "Route does not include Reviewer"
+        elif node_id == "SCRIBE_LEDGER" and "Scribe" not in route:
+            skip_reason = "Route does not include Scribe"
         elif node_id == "CODER_IMPLEMENTATION" and "Coder" not in route:
             skip_reason = "Route does not include Coder"
         elif node_id == "VERIFY" and "Verifier" not in route:

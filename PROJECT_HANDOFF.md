@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-02T10:40:50.631352+00:00`
+- Generated at: `2026-07-02T12:17:29.200319+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `a93841e`
-- Indexed paths: 1524
+- HEAD: `90f63b3`
+- Indexed paths: 1525
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,7 +43,7 @@
 | Route | Files |
 |---|---:|
 | `agent_runtime` | 468 |
-| `tests` | 415 |
+| `tests` | 416 |
 | `docs` | 207 |
 | `acceptance_runs` | 197 |
 | `config` | 137 |
@@ -87,14 +87,14 @@
 
 ### Categories
 
-- code: 818 files, 4459791 bytes
-- literature: 305 files, 1071439 bytes
+- code: 819 files, 4469483 bytes
+- literature: 305 files, 1072125 bytes
 - other: 10 files, 74969 bytes
 - structured_data: 391 files, 1328627 bytes
 
 ### Common Extensions
 
-- `.py`: 812
+- `.py`: 813
 - `.yml`: 375
 - `.md`: 266
 - `.txt`: 39
@@ -212,6 +212,7 @@
 
 ## Change History
 
+- `90f63b3 2026-07-02 Add Qwen token plan CLI mode`
 - `a93841e 2026-07-02 Update AgentLab full CLI role profiles`
 - `adb7e59 2026-07-01 fix(m3): harden operator action closure`
 - `19839d9 2026-07-01 docs(v1): record stable CI acceptance`
@@ -231,21 +232,19 @@
 - `752b378 2026-06-30 Fix config inventory test for local runtime ledger`
 - `f2388dd 2026-06-30 Tighten content project governance`
 - `86a0625 2026-06-30 Fix README public doc gates`
-- `0a8c298 2026-06-30 Add project fact state machine`
 
 ## Current Changes
 
 - `## main...origin/main`
 - ` M AGENTLAB_M_SERIES_MAINLINE_HANDOFF_CACHE_AWARE.md`
-- ` M agent_runtime/run_task.py`
-- ` M config/README.md`
-- ` M config/agent_model_profiles.yml`
-- ` M config/config_center.yml`
-- ` M config/model_catalog.yml`
-- ` M config/model_providers.yml`
+- ` M agent_runtime/agent_runner.py`
+- ` M agent_runtime/lifecycle_graph.py`
+- ` M agent_runtime/patch_applicator.py`
+- ` M agent_runtime/pipeline_runner.py`
+- ` M agent_templates/writer.md`
 - ` M docs/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md`
-- ` M docs/CLI_AGENT_ROUTING_SCHEMA_V4.md`
-- ` M tests/test_execution_config_consolidation.py`
+- ` M tests/test_html_archivist_blocks.py`
+- `?? tests/test_writer_pipeline_nodes.py`
 
 ## Related Repositories
 

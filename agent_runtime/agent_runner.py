@@ -21,6 +21,9 @@ DEFAULT_REPORT_BY_AGENT = {
     "PromptEngineer": "05_coder_prompt.md",
     "Coder": "06_implementation_report.md",
     "ArtifactProducer": "artifact_producer_report.md",
+    "Writer": "fiction_draft.md",
+    "Reviewer": "fiction_review.md",
+    "Scribe": "continuity_ledger.yml",
     "TesterAuditor": "08_audit_report.md",
     "Verifier": "verification_report.md",
     "Archivist": "09_archive_update.md",
@@ -67,6 +70,23 @@ def load_text_if_exists(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _mission_contract_context_files(project_root: Path, run_dir: Path) -> list[Path]:
+    contract_path = run_dir / "mission_contract.yml"
+    if not contract_path.exists():
+        return []
+    try:
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return []
+    files: list[Path] = []
+    for key in ("must_read", "must_read_artifacts"):
+        for item in contract.get(key) or []:
+            rel = str(item).strip()
+            if rel:
+                files.append(project_root / rel)
+    return files
+
+
 def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: str, output_path: Path) -> list[dict[str, str]]:
     configs = load_agentlab_configs(agentlab_root)
     registry = configs.get("agent_registry", {}).get("agents", {})
@@ -75,47 +95,50 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
     project_root = Path(plan.project_root)
     run_dir = Path(plan.run_dir)
 
-    context_files = [
-        agentlab_root / "AGENTS.md",
-        agentlab_root / "config" / "repository_handoff_policy.yml",
-        agentlab_root / "PROJECT_HANDOFF.md",
-        agentlab_root / ".agentlab" / "HandOff.md",
-        agentlab_root / "config" / "harness_policy.yml",
-        project_root / "project_config.yml",
-        project_root / "PROJECT_HANDOFF.md",
-        project_root / ".agentlab" / "HandOff.md",
-        project_root / "agent_docs" / "HandOff.md",
-        project_root / "agent_docs" / "00_CONTEXT_PACK.md",
-        project_root / "agent_docs" / "01_REPO_MAP.md",
-        Path(plan.user_request_path),
-        run_dir / "workflow_plan.yml",
-        run_dir / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
-        run_dir / DEFAULT_REPORT_BY_AGENT.get("RepoScout", "02_reposcout_report.md"),
-        run_dir / DEFAULT_REPORT_BY_AGENT.get("InterfaceMapper", "04_interface_map.md"),
-        run_dir / DEFAULT_REPORT_BY_AGENT.get("Coder", "06_implementation_report.md"),
-        run_dir / DEFAULT_REPORT_BY_AGENT.get("TesterAuditor", "08_audit_report.md"),
-        run_dir / "verification_report.md",
-        run_dir / "artifact_lineage.yml",
-        run_dir / "artifact_promotion_plan.yml",
-        run_dir / "archive_receipt.yml",
-    ]
+    if agent_name in {"Writer", "Reviewer", "Scribe"}:
+        context_files = [
+            Path(plan.user_request_path),
+            run_dir / "workflow_plan.yml",
+            run_dir / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
+            run_dir / DEFAULT_REPORT_BY_AGENT.get("RepoScout", "02_reposcout_report.md"),
+            run_dir / "mission_contract.yml",
+            run_dir / "fiction_draft.md",
+            run_dir / "fiction_review.md",
+            run_dir / "continuity_ledger.yml",
+        ]
+        context_files.extend(_mission_contract_context_files(project_root, run_dir))
+    else:
+        context_files = [
+            agentlab_root / "AGENTS.md",
+            agentlab_root / "config" / "repository_handoff_policy.yml",
+            agentlab_root / "PROJECT_HANDOFF.md",
+            agentlab_root / ".agentlab" / "HandOff.md",
+            agentlab_root / "config" / "harness_policy.yml",
+            project_root / "project_config.yml",
+            project_root / "PROJECT_HANDOFF.md",
+            project_root / ".agentlab" / "HandOff.md",
+            project_root / "agent_docs" / "HandOff.md",
+            project_root / "agent_docs" / "00_CONTEXT_PACK.md",
+            project_root / "agent_docs" / "01_REPO_MAP.md",
+            Path(plan.user_request_path),
+            run_dir / "workflow_plan.yml",
+            run_dir / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
+            run_dir / DEFAULT_REPORT_BY_AGENT.get("RepoScout", "02_reposcout_report.md"),
+            run_dir / DEFAULT_REPORT_BY_AGENT.get("InterfaceMapper", "04_interface_map.md"),
+            run_dir / DEFAULT_REPORT_BY_AGENT.get("Coder", "06_implementation_report.md"),
+            run_dir / DEFAULT_REPORT_BY_AGENT.get("TesterAuditor", "08_audit_report.md"),
+            run_dir / "verification_report.md",
+            run_dir / "artifact_lineage.yml",
+            run_dir / "artifact_promotion_plan.yml",
+            run_dir / "archive_receipt.yml",
+        ]
 
     context_sections = []
     for path in context_files:
         if path.exists():
             context_sections.append(f"## {path.name}\n\n{load_text_if_exists(path)}")
 
-    system = f"""
-You are the AgentLab {agent_name} agent.
-
-Follow this role template exactly:
-
-{load_text_if_exists(template_path)}
-
-Agent registry settings:
-
-{yaml.safe_dump(agent_config, sort_keys=False)}
-
+    hard_rules = """
 Hard execution rules:
 - Before reading repository/project content, discover and read its HandOff. If missing,
   create it with `./agentlab.sh repository-handoff --repo <path> --write` before deep read.
@@ -134,6 +157,30 @@ Hard execution rules:
 - Do not invent command results.
 - If information is missing, state what is missing and what should happen next.
 - Keep the report concise, auditable, and scoped to this task.
+"""
+    if agent_name in {"Writer", "Reviewer", "Scribe"}:
+        hard_rules = """
+Creative writing execution rules:
+- Do not request tools, shell commands, file listings, browser access, or repository scans.
+- Use only the injected context, mission contract, and story authority files.
+- Writer and Scribe may emit AGENTLAB_EDIT blocks only for files listed in mission_contract.yml.
+- Reviewer writes a review report only.
+- Do not output DSML/tool-call markup.
+- If context is incomplete, make the narrowest canon-preserving assumption and continue.
+"""
+
+    system = f"""
+You are the AgentLab {agent_name} agent.
+
+Follow this role template exactly:
+
+{load_text_if_exists(template_path)}
+
+Agent registry settings:
+
+{yaml.safe_dump(agent_config, sort_keys=False)}
+
+{hard_rules}
 """
 
     if agent_name == "Archivist":
@@ -399,6 +446,19 @@ def _extract_allowed_files(plan: WorkflowPlan) -> set[str] | None:
     """Extract Supervisor-approved file paths from the plan, if available."""
     included = plan.included_agents or {}
     coder_config = included.get("Coder", {}) or plan.included_agents.get("Coder", {})
+    allowed_from_contract: set[str] = set()
+    contract_path = Path(plan.run_dir) / "mission_contract.yml"
+    if contract_path.exists():
+        try:
+            contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+            for key in ("allowed_output_files", "allowed_edit_files"):
+                values = contract.get(key) or []
+                if isinstance(values, list):
+                    allowed_from_contract.update(str(item) for item in values)
+        except Exception:
+            pass
+    if allowed_from_contract:
+        return allowed_from_contract
     if not coder_config:
         return None
     allowed = coder_config.get("allowed_files") or coder_config.get("editable_files")
@@ -490,7 +550,11 @@ def _audit_annotate_api_result_source(
 
 
 def _patch_application_enabled(configs: dict, agent_name: str, requested: bool) -> bool:
-    if not requested or agent_name != "Coder":
+    if not requested:
+        return False
+    if agent_name in {"Writer", "Scribe"}:
+        return True
+    if agent_name != "Coder":
         return False
     execution_policy = configs.get("execution_policy", {})
     tier_policy = execution_policy.get("execution_policy", {})

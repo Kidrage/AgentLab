@@ -26,6 +26,9 @@ LIFECYCLE_NODES = [
     "REPO_CONTEXT",
     "RESEARCH_OPTIONAL",
     "INTERFACE_OPTIONAL",
+    "WRITER_DRAFT",
+    "FICTION_REVIEW",
+    "SCRIBE_LEDGER",
     "CODER_IMPLEMENTATION",
     "VALIDATION",
     "AUDIT",
@@ -47,6 +50,9 @@ NODE_REQUIRED_OUTPUTS = {
     "REPO_CONTEXT": ["02_reposcout_report.md"],
     "RESEARCH_OPTIONAL": ["03_research_notes.md"],
     "INTERFACE_OPTIONAL": ["04_interface_map.md"],
+    "WRITER_DRAFT": ["fiction_draft.md"],
+    "FICTION_REVIEW": ["fiction_review.md"],
+    "SCRIBE_LEDGER": ["continuity_ledger.yml"],
     "CODER_IMPLEMENTATION": ["06_implementation_report.md"],
     "VALIDATION": ["07_validation_report.md"],
     "AUDIT": ["08_audit_report.md"],
@@ -65,6 +71,9 @@ NODE_REQUIRED_OUTPUTS = {
 OPTIONAL_NODES = {
     "RESEARCH_OPTIONAL",
     "INTERFACE_OPTIONAL",
+    "WRITER_DRAFT",
+    "FICTION_REVIEW",
+    "SCRIBE_LEDGER",
     "CODER_IMPLEMENTATION",
     "VERIFY",
     "SYNC_OPTIONAL",
@@ -104,6 +113,12 @@ def create_lifecycle(run_dir: Path, workflow_plan: dict) -> dict:
             skip_reason = "Route does not include Researcher"
         elif node_id == "INTERFACE_OPTIONAL" and "InterfaceMapper" not in route:
             skip_reason = "Route does not include InterfaceMapper"
+        elif node_id == "WRITER_DRAFT" and "Writer" not in route:
+            skip_reason = "Route does not include Writer"
+        elif node_id == "FICTION_REVIEW" and "Reviewer" not in route:
+            skip_reason = "Route does not include Reviewer"
+        elif node_id == "SCRIBE_LEDGER" and "Scribe" not in route:
+            skip_reason = "Route does not include Scribe"
         elif node_id == "CODER_IMPLEMENTATION" and "Coder" not in route:
             skip_reason = "Route does not include Coder"
         elif node_id == "VERIFY" and "Verifier" not in route:
