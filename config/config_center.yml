@@ -90,6 +90,22 @@ keys:
     description: API key for Aliyun DashScope (Qwen models)
     secret: true
 
+  model_providers.qwen_token_plan_api_key:
+    type: str
+    required: false
+    ui_group: credentials
+    ui_label: Qwen Token Plan API Key
+    description: API key for the Qwen Token Plan provider
+    secret: true
+
+  model_providers.qwen_token_plan_base_url:
+    type: str
+    required: false
+    ui_group: credentials
+    ui_label: Qwen Token Plan Base URL
+    description: OpenAI-compatible base URL for the Qwen Token Plan provider
+    secret: true
+
   # ── Worker ──
   worker_registry.max_concurrent:
     type: int

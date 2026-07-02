@@ -20,7 +20,7 @@ def test_agent_backend_modes_have_three_canonical_tiers() -> None:
     assert set(profiles["tier_policy"]["tiers"]) == {"full", "performance", "low"}
 
     modes = profiles["modes"]
-    for mode_name in ("full_cli", "full_api", "hybrid_ide"):
+    for mode_name in ("full_cli", "qwen_token_plan_cli", "full_api", "hybrid_ide"):
         assert mode_name in modes
         assert set(modes[mode_name]["tiers"]) == {"full", "performance", "low"}
 
@@ -79,6 +79,11 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["interface_mapper"]["default"] == "qwen3_7_max_dashscope"
     assert tier["interface_mapper"]["fallback"] == "deepseek_v4_pro"
 
+    assert tier["researcher"]["cli_agent"] == "agy"
+    assert tier["researcher"]["default"] == "deepseek_v4_flash"
+    assert tier["researcher"]["fallback_cli_agent"] == "claude_code"
+    assert tier["researcher"]["fallback"] == "deepseek_v4_flash"
+
     assert tier["prompt_engineer"]["cli_agent"] == "codex"
     assert tier["prompt_engineer"]["fallback_cli_agent"] == "hermes"
     assert tier["prompt_engineer"]["fallback"] == "qwen3_7_max_dashscope"
@@ -105,6 +110,54 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["writer"]["cli_agent"] == "agy"
     assert tier["writer"]["fallback_cli_agent"] == "claude_code"
     assert tier["writer"]["default"] == "deepseek_v4_flash"
+
+
+def test_qwen_token_plan_cli_preserves_original_cli_allocation() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
+    tier = profiles["modes"]["qwen_token_plan_cli"]["tiers"]["performance"]
+
+    assert tier["supervisor"]["cli_agent"] == "hermes"
+    assert tier["supervisor"]["default"] == "deepseek_v4_pro"
+    assert tier["reposcout"]["cli_agent"] == "hermes"
+    assert tier["reposcout"]["default"] == "qwen3_6_plus_tokenplan"
+    assert tier["interface_mapper"]["cli_agent"] == "hermes"
+    assert tier["interface_mapper"]["default"] == "qwen3_6_plus_tokenplan"
+    assert tier["prompt_engineer"]["cli_agent"] == "hermes"
+    assert tier["prompt_engineer"]["default"] == "qwen3_6_plus_tokenplan"
+    assert tier["coder"]["cli_agent"] == "claude_code"
+    assert tier["coder"]["default"] == "qwen3_coder_plus_tokenplan"
+    assert tier["artifact_producer"]["cli_agent"] == "codex"
+    assert tier["artifact_producer"]["default"] == "qwen3_6_plus_tokenplan"
+    assert tier["tester_auditor"]["cli_agent"] == "hermes"
+    assert tier["tester_auditor"]["default"] == "qwen3_6_plus_tokenplan"
+    assert tier["verifier"]["cli_agent"] == "hermes"
+    assert tier["verifier"]["default"] == "qwen3_6_flash_tokenplan"
+    assert tier["archivist"]["cli_agent"] == "hermes"
+    assert tier["archivist"]["default"] == "qwen3_6_plus_tokenplan"
+    assert tier["writer"]["executor_type"] == "direct_api"
+    assert tier["writer"]["default"] == "deepseek_v4_flash"
+    assert tier["writer"]["fallback"] == "qwen3_6_plus_tokenplan"
+
+
+def test_qwen_token_plan_models_route_to_tokenplan_provider() -> None:
+    catalog = _load_config("model_catalog.yml")
+    providers = _load_config("model_providers.yml")["providers"]
+
+    tokenplan_keys = [
+        "qwen3_7_max_tokenplan",
+        "qwen3_6_plus_tokenplan",
+        "qwen3_6_flash_tokenplan",
+        "qwen3_coder_next_tokenplan",
+        "qwen3_coder_plus_tokenplan",
+    ]
+    for key in tokenplan_keys:
+        model = catalog["models"][key]
+        assert model["provider"] == "qwen_token_plan"
+        assert model["runtime_provider"] == "tokenplan-qwen"
+
+    provider = providers["tokenplan-qwen"]
+    assert provider["api_key"] == "env:QWEN_TOKEN_PLAN_API_KEY"
+    assert provider["base_url"] == "env:QWEN_TOKEN_PLAN_BASE_URL"
 
 
 def test_driver_modes_map_to_agent_backend_modes_without_role_defaults() -> None:

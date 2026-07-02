@@ -3,7 +3,8 @@
 ## Overview
 
 `config/agent_model_profiles.yml` schema v4 uses `modes` → `tiers` → `role`
-layout. Each mode (e.g. `full_cli`, `full_api`, `hybrid_ide`) defines three
+layout. Each mode (e.g. `full_cli`, `qwen_token_plan_cli`, `full_api`,
+`hybrid_ide`) defines three
 tiers (`full`, `performance`, `low`), and each tier maps agent roles to their
 executor configuration.
 
@@ -45,6 +46,11 @@ schema v4 config
 → if executor_type == "special" or role config is "skip":
     → do not invoke CLI
 ```
+
+`qwen_token_plan_cli` is an explicit opt-in mode that preserves the older
+`full_cli` role allocation while routing Qwen model defaults through the
+`tokenplan-qwen` provider. It requires `QWEN_TOKEN_PLAN_API_KEY` and
+`QWEN_TOKEN_PLAN_BASE_URL`.
 
 ## Execution Source Auditability
 

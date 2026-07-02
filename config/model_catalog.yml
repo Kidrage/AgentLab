@@ -119,6 +119,78 @@ models:
       DashScope/OpenAI-compatible 千问 Coder Plus。作为 MaxQ API Coder，
       替代不可用或不稳定的 OpenRouter Qwen Coder 路由。
 
+  qwen3_7_max_tokenplan:
+    provider: qwen_token_plan
+    runtime_provider: tokenplan-qwen
+    model_id: qwen3.7-max
+    context_window: 1000000
+    strengths: [repo_understanding, coding_agents, chinese, long_context]
+    weaknesses: [expensive_without_plan, verbose_output]
+    suitable_agents: [reposcout_large, interface_mapper_large, perception_maxq]
+    pricing:
+      currency: token_plan
+      billing_source: qwen_token_plan
+    notes: >
+      Qwen Token Plan 入口。需要 QWEN_TOKEN_PLAN_API_KEY 与
+      QWEN_TOKEN_PLAN_BASE_URL，由用户提供，不落盘保存明文密钥。
+
+  qwen3_6_plus_tokenplan:
+    provider: qwen_token_plan
+    runtime_provider: tokenplan-qwen
+    model_id: qwen3.6-plus
+    context_window: 1000000
+    strengths: [balanced, repo_understanding, chinese, interface_analysis]
+    weaknesses: [not_top_tier_reasoning]
+    suitable_agents: [reposcout, interface_mapper, researcher, auditor_balanced]
+    pricing:
+      currency: token_plan
+      billing_source: qwen_token_plan
+    notes: >
+      Qwen Token Plan 入口。用于保留原 full_cli balanced 配置时消耗
+      token plan，而不是默认 DashScope API 计费链路。
+
+  qwen3_6_flash_tokenplan:
+    provider: qwen_token_plan
+    runtime_provider: tokenplan-qwen
+    model_id: qwen3.6-flash
+    context_window: 1000000
+    strengths: [fast, cheap, batch, summary, light_audit]
+    weaknesses: [weak_reasoning, no_deep_planning]
+    suitable_agents: [frugal_reposcout, frugal_interface, researcher_light, archivist_light]
+    pricing:
+      currency: token_plan
+      billing_source: qwen_token_plan
+    notes: >
+      Qwen Token Plan flash 入口。用于低档和轻量 verifier/archive 路线。
+
+  qwen3_coder_next_tokenplan:
+    provider: qwen_token_plan
+    runtime_provider: tokenplan-qwen
+    model_id: qwen3-coder-next
+    context_window: 262000
+    strengths: [coding_agent, cheap_coder, code_generation]
+    weaknesses: [shorter_context, no_planning, no_multimodal]
+    suitable_agents: [coder, frugal_coder]
+    pricing:
+      currency: token_plan
+      billing_source: qwen_token_plan
+    notes: >
+      Qwen Token Plan coder-next 入口。用于原配置 low Coder。
+
+  qwen3_coder_plus_tokenplan:
+    provider: qwen_token_plan
+    runtime_provider: tokenplan-qwen
+    model_id: qwen3-coder-plus
+    context_window: 1000000
+    strengths: [coding_agent, code_generation, code_review, larger_context]
+    weaknesses: [higher_cost_than_next]
+    suitable_agents: [coder_maxq, code_review]
+    pricing:
+      currency: token_plan
+      billing_source: qwen_token_plan
+    notes: >
+      Qwen Token Plan coder-plus 入口。用于原配置 performance/full Coder。
+
 # ── Provider 配置 ──────────────────────────────────────────────────────
 
 providers:
@@ -144,3 +216,12 @@ providers:
     base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
     auth: env:DASHSCOPE_API_KEY
     notes: 备用。无免费额度，适合非中国内地部署。
+
+  qwen_token_plan:
+    display: Qwen Token Plan
+    currency: token_plan
+    base_url: env:QWEN_TOKEN_PLAN_BASE_URL
+    auth: env:QWEN_TOKEN_PLAN_API_KEY
+    notes: >
+      用户购买的 Qwen Token Plan 专用入口。当前仓库没有现成 key，
+      需要用户提供 API key 和 OpenAI-compatible base URL 后启用。

@@ -5845,7 +5845,7 @@ def recovery_feedback_cmd(
 @app.command("configure-agent")
 def configure_agent_cmd(
     agent: str = typer.Option(..., "--agent", help="Canonical agent name (e.g. Supervisor, Coder, RepoScout, etc.)."),
-    mode: Optional[str] = typer.Option(None, "--mode", help="Mode to update: full_cli, full_api, or hybrid_ide. If omitted, applies to all modes."),
+    mode: Optional[str] = typer.Option(None, "--mode", help="Mode to update: full_cli, qwen_token_plan_cli, full_api, or hybrid_ide. If omitted, applies to all modes."),
     tier: Optional[str] = typer.Option(None, "--tier", help="Tier to update: full, performance, or low. If omitted, applies to all tiers."),
     executor_type: Optional[str] = typer.Option(None, "--executor-type", help="Executor type: cli_agent, direct_api, or special."),
     cli_agent: Optional[str] = typer.Option(None, "--cli-agent", help="CLI agent binary name (e.g. hermes, claude_code)."),
@@ -5876,14 +5876,16 @@ def configure_agent_cmd(
         "researcher": "researcher",
         "interfacemapper": "interface_mapper",
         "coder": "coder",
+        "artifactproducer": "artifact_producer",
         "promptengineer": "prompt_engineer",
         "testerauditor": "tester_auditor",
         "verifier": "verifier",
         "archivist": "archivist",
+        "writer": "writer",
     }
     role_key = _role_key_map.get(role_key, role_key)
 
-    modes_to_update = [mode.lower()] if mode else ["full_cli", "full_api", "hybrid_ide"]
+    modes_to_update = [mode.lower()] if mode else ["full_cli", "qwen_token_plan_cli", "full_api", "hybrid_ide"]
     tiers_to_update = [tier.lower()] if tier else ["full", "performance", "low"]
 
     modes_data = data.setdefault("modes", {})

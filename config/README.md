@@ -42,6 +42,9 @@ For model switching:
 For agent execution mode switching:
 
 - Use `AGENTLAB_MODE=full_cli` for local CLI-backed agents.
+- Use `AGENTLAB_MODE=qwen_token_plan_cli` to use the preserved pre-2026-07-02
+  full CLI role allocation with Qwen defaults routed through
+  `QWEN_TOKEN_PLAN_API_KEY` / `QWEN_TOKEN_PLAN_BASE_URL`.
 - Use `AGENTLAB_MODE=full_api` for direct API-backed agents.
 - Use `AGENTLAB_MODE=hybrid_ide` when AgentLab plans/reviews and external IDE AI handles Coder.
 - Use `AGENTLAB_BUDGET_MODE=max_quality|balanced|frugal` to select the `full|performance|low` tier.
@@ -59,6 +62,8 @@ Current policy:
 - External IDE AI dispatches tasks, verifies artifacts, and fills gaps only when explicitly authorized.
 - DeepSeek official API is available for high-quality brain/review work when configured.
 - Qwen models must use DashScope (`DASHSCOPE_API_KEY`) by default. OpenRouter is not assumed.
+- Qwen Token Plan is available only through explicit `qwen_token_plan_cli`
+  mode and requires user-provided token plan API credentials.
 - `Coder` defaults to `qwen-coder`/DashScope in API mode; `external_ide_ai` is a deliberate handoff/fallback, not the default.
 - In `full_cli` mode, `Coder` is CLI-backed through the configured worker contract.
 - Provider failures block or request user decision; external IDE AI must not silently simulate API agents.

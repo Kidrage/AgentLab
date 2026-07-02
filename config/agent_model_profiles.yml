@@ -56,13 +56,15 @@ modes:
           fallback: qwen3_7_max_dashscope
         researcher:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          binary_candidates:
+          cli_agent: agy
+          invocation_contract: agy_coder
+          default: deepseek_v4_flash
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback_binary_candidates:
             - claude
             - ccs
-          default: deepseek_v4_pro
-          fallback: qwen3_coder_plus_dashscope
+          fallback: deepseek_v4_flash
         prompt_engineer:
           executor_type: cli_agent
           cli_agent: codex
@@ -139,13 +141,15 @@ modes:
           fallback: deepseek_v4_pro
         researcher:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          binary_candidates:
+          cli_agent: agy
+          invocation_contract: agy_coder
+          default: deepseek_v4_flash
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback_binary_candidates:
             - claude
             - ccs
-          default: deepseek_v4_flash
-          fallback: qwen3_coder_plus_dashscope
+          fallback: deepseek_v4_flash
         prompt_engineer:
           executor_type: cli_agent
           cli_agent: codex
@@ -271,6 +275,185 @@ modes:
           fallback_cli_agent: claude_code
           fallback_invocation_contract: claude
           fallback: qwen3_6_flash_dashscope
+  qwen_token_plan_cli:
+    notes: Preserves the pre-2026-07-02 full_cli role allocation while routing Qwen model defaults through the user's Qwen Token Plan provider.
+    billing:
+      source: qwen_token_plan
+      provider: tokenplan-qwen
+      requires_env:
+        - QWEN_TOKEN_PLAN_API_KEY
+        - QWEN_TOKEN_PLAN_BASE_URL
+    tiers:
+      full:
+        supervisor:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: deepseek_v4_pro
+        reposcout:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_7_max_tokenplan
+        interface_mapper:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_7_max_tokenplan
+        researcher:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude
+          binary_candidates:
+            - claude
+            - ccs
+          default: qwen3_6_plus_tokenplan
+        prompt_engineer:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_7_max_tokenplan
+        coder:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude
+          binary_candidates:
+            - claude
+            - ccs
+          default: qwen3_coder_plus_tokenplan
+          external_ide_allowed: true
+        artifact_producer:
+          executor_type: cli_agent
+          cli_agent: codex
+          invocation_contract: codex
+          default: qwen3_7_max_tokenplan
+        tester_auditor:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_7_max_tokenplan
+        verifier:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: deepseek_v4_pro
+        archivist:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_6_plus_tokenplan
+        writer:
+          executor_type: direct_api
+          default: qwen3_6_plus_tokenplan
+          fallback: deepseek_v4_flash
+      performance:
+        supervisor:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: deepseek_v4_pro
+        reposcout:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_6_plus_tokenplan
+        interface_mapper:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_6_plus_tokenplan
+        researcher:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude
+          binary_candidates:
+            - claude
+            - ccs
+          default: qwen3_6_flash_tokenplan
+        prompt_engineer:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_6_plus_tokenplan
+        coder:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude
+          binary_candidates:
+            - claude
+            - ccs
+          default: qwen3_coder_plus_tokenplan
+          external_ide_allowed: true
+        artifact_producer:
+          executor_type: cli_agent
+          cli_agent: codex
+          invocation_contract: codex
+          default: qwen3_6_plus_tokenplan
+        tester_auditor:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_6_plus_tokenplan
+        verifier:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_6_flash_tokenplan
+        archivist:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_6_plus_tokenplan
+        writer:
+          executor_type: direct_api
+          default: deepseek_v4_flash
+          fallback: qwen3_6_plus_tokenplan
+      low:
+        supervisor:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: deepseek_v4_flash
+        reposcout:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_6_flash_tokenplan
+        interface_mapper: skip
+        researcher: skip
+        prompt_engineer:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_6_flash_tokenplan
+        coder:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude
+          binary_candidates:
+            - claude
+            - ccs
+          default: qwen3_coder_next_tokenplan
+          external_ide_allowed: true
+        artifact_producer:
+          executor_type: cli_agent
+          cli_agent: codex
+          invocation_contract: codex
+          default: qwen3_6_flash_tokenplan
+        tester_auditor:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: deepseek_v4_flash
+        verifier: skip
+        archivist:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_6_flash_tokenplan
+        writer:
+          executor_type: direct_api
+          default: deepseek_v4_flash
   full_api:
     notes: Canonical direct API mode. This mode owns API model selection only; provider facts live in config/model_providers.yml.
     tiers:

@@ -8,12 +8,12 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-02T10:04:17.823250+00:00`
+- Generated at: `2026-07-02T10:40:50.631352+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `adb7e59`
+- HEAD: `a93841e`
 - Indexed paths: 1524
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -87,10 +87,10 @@
 
 ### Categories
 
-- code: 818 files, 4457105 bytes
-- literature: 305 files, 1070595 bytes
+- code: 818 files, 4459791 bytes
+- literature: 305 files, 1071439 bytes
 - other: 10 files, 74969 bytes
-- structured_data: 391 files, 1318302 bytes
+- structured_data: 391 files, 1328627 bytes
 
 ### Common Extensions
 
@@ -212,6 +212,7 @@
 
 ## Change History
 
+- `a93841e 2026-07-02 Update AgentLab full CLI role profiles`
 - `adb7e59 2026-07-01 fix(m3): harden operator action closure`
 - `19839d9 2026-07-01 docs(v1): record stable CI acceptance`
 - `95d975d 2026-07-01 fix(ci): align text integrity audit with v1 hygiene`
@@ -231,16 +232,19 @@
 - `f2388dd 2026-06-30 Tighten content project governance`
 - `86a0625 2026-06-30 Fix README public doc gates`
 - `0a8c298 2026-06-30 Add project fact state machine`
-- `7367a9a 2026-06-29 Refresh bilingual README for M-series baseline and Jun 29 state`
 
 ## Current Changes
 
 - `## main...origin/main`
 - ` M AGENTLAB_M_SERIES_MAINLINE_HANDOFF_CACHE_AWARE.md`
-- ` M agent_runtime/agent_runner.py`
+- ` M agent_runtime/run_task.py`
+- ` M config/README.md`
 - ` M config/agent_model_profiles.yml`
+- ` M config/config_center.yml`
+- ` M config/model_catalog.yml`
+- ` M config/model_providers.yml`
 - ` M docs/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md`
-- ` M tests/test_agent_runner_cli_integration.py`
+- ` M docs/CLI_AGENT_ROUTING_SCHEMA_V4.md`
 - ` M tests/test_execution_config_consolidation.py`
 
 ## Related Repositories
