@@ -665,8 +665,8 @@ class TestPromptEngineerMapping:
             "not 'execution_prompt_engineer'"
         )
         prom_role = full_tier["prompt_engineer"]
-        assert prom_role.get("cli_agent") == "hermes"
-        assert prom_role.get("invocation_contract") == "hermes"
+        assert prom_role.get("cli_agent") == "codex"
+        assert prom_role.get("invocation_contract") == "codex"
 
     def test_agent_runner_role_key_map_has_correct_promptengineer(self):
         """The role key map in agent_runner maps promptengineer -> prompt_engineer."""
@@ -679,6 +679,9 @@ class TestPromptEngineerMapping:
         assert '"promptengineer": "prompt_engineer"' in source, (
             "agent_runner.py must map promptengineer -> prompt_engineer, not "
             "execution_prompt_engineer"
+        )
+        assert '"artifactproducer": "artifact_producer"' in source, (
+            "agent_runner.py must map artifactproducer -> artifact_producer"
         )
         # Should NOT contain the old wrong mapping
         assert '"promptengineer": "execution_prompt_engineer"' not in source, (

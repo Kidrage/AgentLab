@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-06-30T10:25:22.087007+00:00`
+- Generated at: `2026-07-02T10:04:17.823250+00:00`
 
 ## Current State
 
 - Branch: `main`
-- HEAD: `ad4d374`
-- Indexed paths: 1498
+- HEAD: `adb7e59`
+- Indexed paths: 1524
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -42,10 +42,10 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 455 |
-| `tests` | 405 |
-| `docs` | 205 |
-| `acceptance_runs` | 196 |
+| `agent_runtime` | 468 |
+| `tests` | 415 |
+| `docs` | 207 |
+| `acceptance_runs` | 197 |
 | `config` | 137 |
 | `docs/archive` | 126 |
 | `tests/fixtures` | 106 |
@@ -62,6 +62,7 @@
 | `acceptance_runs/m2_operator_demo` | 16 |
 | `agent_runtime/capabilities` | 15 |
 | `agent_runtime/ingestion` | 15 |
+| `agent_runtime/config_center` | 13 |
 | `acceptance_runs/p2_closure` | 12 |
 | `agent_runtime/execution_economy` | 12 |
 | `agent_runtime/goals` | 12 |
@@ -72,7 +73,6 @@
 | `acceptance_runs/e2e_minimal_task` | 10 |
 | `acceptance_runs/p2_provider_governance` | 10 |
 | `acceptance_runs/s0_remote_raw_repair` | 10 |
-| `agent_runtime/config_center` | 10 |
 | `agent_runtime/intelligence` | 10 |
 | `agent_runtime/router_update` | 10 |
 | `agent_templates/codex_full_driver` | 10 |
@@ -87,16 +87,16 @@
 
 ### Categories
 
-- code: 795 files, 4378813 bytes
-- literature: 302 files, 1225784 bytes
+- code: 818 files, 4457105 bytes
+- literature: 305 files, 1070595 bytes
 - other: 10 files, 74969 bytes
-- structured_data: 391 files, 1299855 bytes
+- structured_data: 391 files, 1318302 bytes
 
 ### Common Extensions
 
-- `.py`: 789
+- `.py`: 812
 - `.yml`: 375
-- `.md`: 263
+- `.md`: 266
 - `.txt`: 39
 - `.json`: 13
 - `[no extension]`: 5
@@ -147,6 +147,8 @@
 - `agent_runtime/langgraph_schema.py`
 - `agent_runtime/migration_doctor.py`
 - `agent_runtime/model_resolver.py`
+- `agent_runtime/operator_os/action_contract.py`
+- `agent_runtime/operator_os/state_model.py`
 - `agent_runtime/p2_closure/models.py`
 - `agent_runtime/program_manager/acceptance_contract.py`
 - `agent_runtime/program_manager/models.py`
@@ -191,8 +193,6 @@
 - `tests/test_m2_route_decision_schema.py`
 - `tests/test_m2_worker_card_schema.py`
 - `tests/test_m2_worker_invocation_contract.py`
-- `tests/test_mcp_server_contract.py`
-- `tests/test_migration_backup.py`
 
 ## Key Entrypoints and Guides
 
@@ -212,6 +212,15 @@
 
 ## Change History
 
+- `adb7e59 2026-07-01 fix(m3): harden operator action closure`
+- `19839d9 2026-07-01 docs(v1): record stable CI acceptance`
+- `95d975d 2026-07-01 fix(ci): align text integrity audit with v1 hygiene`
+- `a3523bc 2026-07-01 feat(v1): harden internal closed loop baseline`
+- `29a28cd 2026-07-01 feat(m3): complete M3 Stage C+D — Observability Timeline, Content Surface, Assistant Modes`
+- `45dd06a 2026-07-01 feat(m3): complete M3 Stage A+B — Operator State Model, WebUI contracts, TUI wiring, Config Center, Cost System v2`
+- `9219236 2026-07-01 Add M3 operator alignment contracts`
+- `a4fe3e3 2026-07-01 Record phase acceptance history`
+- `bb21c8d 2026-06-30 Add Crown content governance long-chain regression`
 - `ad4d374 2026-06-30 Add external executor result fixtures`
 - `68321d2 2026-06-30 Expand M2 generalization governance fixtures`
 - `fb98413 2026-06-30 Require project brain consumption for long tasks`
@@ -223,24 +232,16 @@
 - `86a0625 2026-06-30 Fix README public doc gates`
 - `0a8c298 2026-06-30 Add project fact state machine`
 - `7367a9a 2026-06-29 Refresh bilingual README for M-series baseline and Jun 29 state`
-- `9c65d95 2026-06-29 Add media generation routing layer`
-- `2e8ff83 2026-06-29 Add root project handoff generation`
-- `d8b958b 2026-06-29 Add project handoff for AgentLab repair`
-- `e3fb07e 2026-06-29 Extract worker CLI commands`
-- `0c5ed2e 2026-06-29 Extract runtime hygiene CLI commands`
-- `9bcc6b9 2026-06-29 Extract capability contract CLI commands`
-- `7b084ec 2026-06-29 Extract routing CLI commands`
-- `8c1e97a 2026-06-29 Extract external project CLI commands`
-- `166f8e3 2026-06-29 Extract protocol CLI commands`
 
 ## Current Changes
 
 - `## main...origin/main`
-- ` M acceptance_runs/stabilization/text_integrity_audit.json`
-- ` M acceptance_runs/stabilization/text_integrity_audit.md`
-- ` M docs/M2_STABLE_BASELINE_REPAIR_PLAN.md`
-- ` M docs/M3_UPGRADE_PLAN_REVIEW.md`
-- `?? tests/test_content_project_long_chain.py`
+- ` M AGENTLAB_M_SERIES_MAINLINE_HANDOFF_CACHE_AWARE.md`
+- ` M agent_runtime/agent_runner.py`
+- ` M config/agent_model_profiles.yml`
+- ` M docs/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md`
+- ` M tests/test_agent_runner_cli_integration.py`
+- ` M tests/test_execution_config_consolidation.py`
 
 ## Related Repositories
 

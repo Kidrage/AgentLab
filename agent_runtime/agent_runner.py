@@ -239,10 +239,12 @@ def run_agent_model(
         "researcher": "researcher",
         "interfacemapper": "interface_mapper",
         "coder": "coder",
+        "artifactproducer": "artifact_producer",
         "promptengineer": "prompt_engineer",
         "testerauditor": "tester_auditor",
         "verifier": "verifier",
         "archivist": "archivist",
+        "writer": "writer",
     }
     agent_role_key = _role_key_map.get(agent_name.lower(), agent_name.lower())
 

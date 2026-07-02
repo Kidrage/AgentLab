@@ -37,19 +37,23 @@ modes:
       full:
         supervisor:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
+          cli_agent: codex
+          invocation_contract: codex
           default: deepseek_v4_pro
+          fallback_cli_agent: hermes
+          fallback_invocation_contract: hermes
+          fallback: deepseek_v4_pro
         reposcout:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
-          default: qwen3_7_max_dashscope
+          default: deepseek_v4_pro
         interface_mapper:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
-          default: qwen3_7_max_dashscope
+          default: deepseek_v4_pro
+          fallback: qwen3_7_max_dashscope
         researcher:
           executor_type: cli_agent
           cli_agent: claude_code
@@ -57,57 +61,82 @@ modes:
           binary_candidates:
             - claude
             - ccs
-          default: qwen3_6_plus_dashscope
+          default: deepseek_v4_pro
+          fallback: qwen3_coder_plus_dashscope
         prompt_engineer:
-          executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
-          default: qwen3_7_max_dashscope
-        coder:
-          executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
-          binary_candidates:
-            - claude
-            - ccs
-          default: qwen3_coder_plus_dashscope
-          external_ide_allowed: true
-        artifact_producer:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
           default: qwen3_7_max_dashscope
+          fallback_cli_agent: hermes
+          fallback_invocation_contract: hermes
+          fallback: qwen3_7_max_dashscope
+        coder:
+          executor_type: cli_agent
+          cli_agent: codex
+          invocation_contract: codex
+          default: qwen3_coder_plus_dashscope
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          external_ide_allowed: true
+        artifact_producer:
+          executor_type: cli_agent
+          cli_agent: hermes
+          invocation_contract: hermes
+          default: qwen3_7_max_dashscope
+          artifact_backend: hermes_grok_oauth
+          fallback_cli_agent: agy
+          fallback_invocation_contract: agy_coder
+          fallback_artifact_backend: agy_cli
+          fallback: qwen3_6_plus_dashscope
         tester_auditor:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
           default: qwen3_7_max_dashscope
+          fallback: deepseek_v4_pro
         verifier:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
-          default: deepseek_v4_pro
+          cli_agent: agy
+          invocation_contract: agy_coder
+          default: qwen3_6_flash_dashscope
+          fallback_cli_agent: hermes
+          fallback_invocation_contract: hermes
+          fallback: deepseek_v4_flash
         archivist:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
+          default: qwen3_7_max_dashscope
+          fallback: deepseek_v4_pro
+        writer:
+          executor_type: cli_agent
+          cli_agent: agy
+          invocation_contract: agy_coder
           default: qwen3_6_plus_dashscope
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback: deepseek_v4_flash
       performance:
         supervisor:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
+          cli_agent: codex
+          invocation_contract: codex
           default: deepseek_v4_pro
+          fallback_cli_agent: hermes
+          fallback_invocation_contract: hermes
+          fallback: deepseek_v4_pro
         reposcout:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
-          default: qwen3_6_plus_dashscope
+          default: deepseek_v4_pro
         interface_mapper:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
-          default: qwen3_6_plus_dashscope
+          default: qwen3_7_max_dashscope
+          fallback: deepseek_v4_pro
         researcher:
           executor_type: cli_agent
           cli_agent: claude_code
@@ -115,12 +144,16 @@ modes:
           binary_candidates:
             - claude
             - ccs
-          default: qwen3_6_flash_dashscope
+          default: deepseek_v4_flash
+          fallback: qwen3_coder_plus_dashscope
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
+          cli_agent: codex
+          invocation_contract: codex
           default: qwen3_6_plus_dashscope
+          fallback_cli_agent: hermes
+          fallback_invocation_contract: hermes
+          fallback: qwen3_7_max_dashscope
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
@@ -129,33 +162,56 @@ modes:
             - claude
             - ccs
           default: qwen3_coder_plus_dashscope
+          fallback_cli_agent: codex
+          fallback_invocation_contract: codex
           external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_plus_dashscope
+          artifact_backend: hermes_grok_oauth
+          fallback_cli_agent: agy
+          fallback_invocation_contract: agy_coder
+          fallback_artifact_backend: agy_cli
+          fallback: qwen3_6_flash_dashscope
         tester_auditor:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
-          default: qwen3_6_plus_dashscope
+          default: deepseek_v4_pro
+          fallback: qwen3_7_max_dashscope
         verifier:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
-          default: qwen3_6_flash_dashscope
+          cli_agent: agy
+          invocation_contract: agy_coder
+          default: deepseek_v4_flash
+          fallback_cli_agent: hermes
+          fallback_invocation_contract: hermes
+          fallback: qwen3_6_flash_dashscope
         archivist:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
-          default: qwen3_6_plus_dashscope
+          default: deepseek_v4_pro
+          fallback: qwen3_7_max_dashscope
+        writer:
+          executor_type: cli_agent
+          cli_agent: agy
+          invocation_contract: agy_coder
+          default: deepseek_v4_flash
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback: qwen3_6_plus_dashscope
       low:
         supervisor:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
+          cli_agent: codex
+          invocation_contract: codex
           default: deepseek_v4_flash
+          fallback_cli_agent: hermes
+          fallback_invocation_contract: hermes
+          fallback: deepseek_v4_flash
         reposcout:
           executor_type: cli_agent
           cli_agent: hermes
@@ -165,9 +221,12 @@ modes:
         researcher: skip
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
+          cli_agent: codex
+          invocation_contract: codex
           default: qwen3_6_flash_dashscope
+          fallback_cli_agent: hermes
+          fallback_invocation_contract: hermes
+          fallback: qwen3_6_plus_dashscope
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
@@ -179,20 +238,39 @@ modes:
           external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
+          cli_agent: hermes
+          invocation_contract: hermes
           default: qwen3_6_flash_dashscope
+          artifact_backend: hermes_grok_oauth
+          fallback_cli_agent: agy
+          fallback_invocation_contract: agy_coder
+          fallback_artifact_backend: agy_cli
         tester_auditor:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
           default: deepseek_v4_flash
-        verifier: skip
+        verifier:
+          executor_type: cli_agent
+          cli_agent: agy
+          invocation_contract: agy_coder
+          default: deepseek_v4_flash
+          fallback_cli_agent: hermes
+          fallback_invocation_contract: hermes
+          fallback: qwen3_6_flash_dashscope
         archivist:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
           default: qwen3_6_flash_dashscope
+        writer:
+          executor_type: cli_agent
+          cli_agent: agy
+          invocation_contract: agy_coder
+          default: deepseek_v4_flash
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback: qwen3_6_flash_dashscope
   full_api:
     notes: Canonical direct API mode. This mode owns API model selection only; provider facts live in config/model_providers.yml.
     tiers:
@@ -237,6 +315,10 @@ modes:
           executor_type: direct_api
           default: qwen3_6_plus_dashscope
           fallback: qwen3_6_flash_dashscope
+        writer:
+          executor_type: direct_api
+          default: qwen3_6_plus_dashscope
+          fallback: deepseek_v4_flash
       performance:
         supervisor:
           executor_type: direct_api
@@ -276,6 +358,10 @@ modes:
           executor_type: direct_api
           default: qwen3_6_plus_dashscope
           fallback: qwen3_6_flash_dashscope
+        writer:
+          executor_type: direct_api
+          default: deepseek_v4_flash
+          fallback: qwen3_6_plus_dashscope
       low:
         supervisor:
           executor_type: direct_api
@@ -303,6 +389,9 @@ modes:
         archivist:
           executor_type: direct_api
           default: qwen3_6_flash_dashscope
+        writer:
+          executor_type: direct_api
+          default: deepseek_v4_flash
   hybrid_ide:
     notes: 外部 IDE 协作模式。内部使用便宜的大脑流转与测试审计，核心编码交由外部接管。
     tiers:
@@ -338,6 +427,10 @@ modes:
         archivist:
           executor_type: direct_api
           default: qwen3_6_plus_dashscope
+        writer:
+          executor_type: direct_api
+          default: qwen3_6_plus_dashscope
+          fallback: deepseek_v4_flash
       performance:
         supervisor:
           executor_type: direct_api
@@ -365,6 +458,10 @@ modes:
         archivist:
           executor_type: direct_api
           default: qwen3_6_flash_dashscope
+        writer:
+          executor_type: direct_api
+          default: deepseek_v4_flash
+          fallback: qwen3_6_plus_dashscope
       low:
         supervisor:
           executor_type: direct_api
@@ -388,6 +485,9 @@ modes:
           default: deepseek_v4_flash
         verifier: skip
         archivist: skip
+        writer:
+          executor_type: direct_api
+          default: deepseek_v4_flash
   trusted_headless_cli:
     notes: Explicit opt-in profile for trusted local-only headless CLI automation. Requires env gate and human approval.
     safety:

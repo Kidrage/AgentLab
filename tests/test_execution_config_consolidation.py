@@ -64,6 +64,49 @@ def test_cli_profiles_reference_worker_invocation_contracts() -> None:
                 )
 
 
+def test_full_cli_performance_defaults_match_role_policy() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
+    tier = profiles["modes"]["full_cli"]["tiers"]["performance"]
+
+    assert tier["supervisor"]["cli_agent"] == "codex"
+    assert tier["supervisor"]["fallback_cli_agent"] == "hermes"
+    assert tier["supervisor"]["default"] == "deepseek_v4_pro"
+
+    assert tier["reposcout"]["cli_agent"] == "hermes"
+    assert tier["reposcout"]["default"] == "deepseek_v4_pro"
+
+    assert tier["interface_mapper"]["cli_agent"] == "hermes"
+    assert tier["interface_mapper"]["default"] == "qwen3_7_max_dashscope"
+    assert tier["interface_mapper"]["fallback"] == "deepseek_v4_pro"
+
+    assert tier["prompt_engineer"]["cli_agent"] == "codex"
+    assert tier["prompt_engineer"]["fallback_cli_agent"] == "hermes"
+    assert tier["prompt_engineer"]["fallback"] == "qwen3_7_max_dashscope"
+
+    assert tier["coder"]["cli_agent"] == "claude_code"
+    assert tier["coder"]["default"] == "qwen3_coder_plus_dashscope"
+    assert tier["coder"]["fallback_cli_agent"] == "codex"
+
+    assert tier["artifact_producer"]["cli_agent"] == "hermes"
+    assert tier["artifact_producer"]["artifact_backend"] == "hermes_grok_oauth"
+    assert tier["artifact_producer"]["fallback_cli_agent"] == "agy"
+    assert tier["artifact_producer"]["fallback_artifact_backend"] == "agy_cli"
+
+    assert tier["tester_auditor"]["cli_agent"] == "hermes"
+    assert tier["tester_auditor"]["default"] == "deepseek_v4_pro"
+
+    assert tier["verifier"]["cli_agent"] == "agy"
+    assert tier["verifier"]["fallback_cli_agent"] == "hermes"
+    assert tier["verifier"]["default"] == "deepseek_v4_flash"
+
+    assert tier["archivist"]["cli_agent"] == "hermes"
+    assert tier["archivist"]["default"] == "deepseek_v4_pro"
+
+    assert tier["writer"]["cli_agent"] == "agy"
+    assert tier["writer"]["fallback_cli_agent"] == "claude_code"
+    assert tier["writer"]["default"] == "deepseek_v4_flash"
+
+
 def test_driver_modes_map_to_agent_backend_modes_without_role_defaults() -> None:
     execution_modes = _load_config("execution_modes.yml")
     backend_modes = set(_load_config("agent_model_profiles.yml")["modes"])
