@@ -23,9 +23,32 @@ allowed_actions:
   - invoke_registered_agent_via_agentlab_contract
   - monitor_task_status
   - report_verified_results
+direct_proposal_files:
+  - change_request.yml
+  - patch_proposal.diff
+  - frontdesk_notes.md
+micro_doc_write_patterns:
+  - "projects/*/agent_docs/*.md"
+  - "projects/*/runs/*/*.md"
+  - "projects/*/runs/*/*.yml"
+protected_write_paths:
+  - config/agent_model_profiles.yml
+  - config/model_catalog.yml
+  - config/agent_role_bindings.yml
+  - agent_runtime/**
+  - production/**
+revision_governance_required_for:
+  - setting_change
+  - role_change
+  - outline_change
+  - style_change
+  - production_content_change
 forbidden_actions:
   - implement_task_itself
   - edit_task_target_files
+  - edit_core_config_directly
+  - write_production_artifacts_directly
+  - create_rebuild_fact_source
   - execute_unregistered_worker
   - silently_fallback_to_another_agent
   - claim_delegate_work_as_own

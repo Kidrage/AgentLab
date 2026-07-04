@@ -109,6 +109,21 @@ def register_protocol_commands(app: typer.Typer, project_root: Path, console: Co
         if result.get("status") != "pass":
             raise typer.Exit(code=1)
 
+    @app.command("frontdesk-write-gate")
+    def frontdesk_write_gate_cmd(
+        agent: str = typer.Option(..., "--agent", help="Frontdesk-capable CLI agent id."),
+        path: str = typer.Option(..., "--path", help="Repository-relative target path to classify."),
+    ) -> None:
+        """Classify whether a frontdesk worker may write a target path."""
+        from agent_runtime.protocols import evaluate_frontdesk_write_gate
+
+        result = evaluate_frontdesk_write_gate(project_root, agent, path)
+        result["agent"] = agent
+        result["path"] = path
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        if result.get("status") == "blocked":
+            raise typer.Exit(code=1)
+
     @app.command("role-doctor")
     def role_doctor_cmd(
         role: str = typer.Option(..., "--role", help="AgentLab role name, e.g. Coder or ArtifactProducer."),

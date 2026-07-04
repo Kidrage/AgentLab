@@ -29,6 +29,25 @@ AGENTLAB_ROLES = [
     "Archivist",
 ]
 
+CORE_CONFIG_PATHS = {
+    "config/agent_model_profiles.yml",
+    "config/model_catalog.yml",
+    "config/agent_role_bindings.yml",
+}
+
+CORE_RUNTIME_PREFIXES = (
+    "agent_runtime/",
+    "agentlab_app/",
+    "agentlab_tui/",
+    "web_ui/",
+)
+
+FRONTDESK_PROPOSAL_FILENAMES = {
+    "change_request.yml",
+    "patch_proposal.diff",
+    "frontdesk_notes.md",
+}
+
 
 @dataclass
 class ProtocolCheck:
@@ -86,6 +105,81 @@ def _normalize_role(role: str) -> str:
         if canonical.replace("_", "").replace("-", "").lower() == text:
             return canonical
     return str(role or "")
+
+
+def worker_capabilities(worker_cfg: dict[str, Any]) -> list[str]:
+    """Return explicit capability identities, with compatibility fallbacks."""
+    explicit = [str(item) for item in worker_cfg.get("worker_capabilities") or []]
+    if explicit:
+        return explicit
+    capabilities: list[str] = []
+    if worker_cfg.get("frontdesk_capable"):
+        capabilities.append("frontdesk_gateway")
+    if worker_cfg.get("worker_capable"):
+        capabilities.append("role_worker")
+    return capabilities
+
+
+def evaluate_frontdesk_write_gate(root: Path, agent_id: str, target_path: str) -> dict[str, Any]:
+    """Classify whether a frontdesk-capable worker may touch a path directly."""
+    root = Path(root)
+    bindings = _load_policy(root, "agent_role_bindings.yml")
+    frontdesk_policy = _load_policy(root, "frontdesk_policy.yml")
+    worker_cfg = ((bindings.get("workers") or {}).get(agent_id) or {})
+    capabilities = set(worker_capabilities(worker_cfg))
+    target = target_path.replace("\\", "/").lstrip("/")
+    path = Path(target)
+    parts = path.parts
+    name = path.name
+
+    if target in CORE_CONFIG_PATHS or target.startswith(CORE_RUNTIME_PREFIXES):
+        return {
+            "status": "blocked",
+            "requires": "core_config_editor",
+            "reason": "core config/runtime paths require an AgentLab-owned confirmed config command",
+        }
+    if "/production/" in f"/{target}/" or (parts and parts[0] == "production"):
+        return {
+            "status": "blocked",
+            "requires": "revision_governance_lane",
+            "reason": "production artifacts cannot be changed directly by frontdesk sessions",
+        }
+    if name in FRONTDESK_PROPOSAL_FILENAMES:
+        return {
+            "status": "proposal_allowed",
+            "requires": "frontdesk_gateway",
+            "reason": "frontdesk may create bounded change proposals",
+        }
+    if any(part in {"runs", "candidates"} for part in parts):
+        if "candidate_artifact_worker" in capabilities:
+            return {
+                "status": "candidate_allowed",
+                "requires": "candidate_artifact_worker",
+                "reason": "candidate artifacts may be written under runs/ or candidates/",
+            }
+        return {
+            "status": "blocked",
+            "requires": "candidate_artifact_worker",
+            "reason": "only candidate artifact workers may write candidate outputs",
+        }
+    micro_patterns = [str(item) for item in frontdesk_policy.get("micro_doc_write_patterns") or []]
+    if name.endswith((".md", ".yml", ".yaml")) and any(path.match(pattern) for pattern in micro_patterns):
+        if "micro_doc_editor" in capabilities:
+            return {
+                "status": "gate_required",
+                "requires": "agentlab_write_gate",
+                "reason": "micro document edits must pass the AgentLab write gate",
+            }
+        return {
+            "status": "blocked",
+            "requires": "micro_doc_editor",
+            "reason": "worker lacks micro_doc_editor capability",
+        }
+    return {
+        "status": "blocked",
+        "requires": "change_request",
+        "reason": "frontdesk sessions default to proposal-only writes",
+    }
 
 
 def _task_state(root: Path, project: str, task_id: str | None = None) -> dict[str, Any]:
@@ -175,11 +269,17 @@ def check_role_binding(root: Path, worker: str, role: str) -> tuple[bool, str]:
     allowed_by_worker = worker_cfg.get("allowed_roles") or []
     forbidden_by_worker = worker_cfg.get("forbidden_roles") or []
     allowed_by_role = role_cfg.get("allowed_workers") or []
+    capabilities = set(worker_capabilities(worker_cfg))
 
     if not worker_cfg:
         return False, f"worker '{worker}' is not bound in config/agent_role_bindings.yml"
     if worker_cfg.get("frontdesk_capable") and not worker_cfg.get("worker_capable"):
         return False, f"worker '{worker}' is frontdesk-only and cannot execute AgentLab role '{canonical_role}'"
+    if canonical_role == "ArtifactProducer":
+        if not ({"candidate_artifact_worker", "role_worker"} & capabilities):
+            return False, f"worker '{worker}' lacks candidate_artifact_worker or role_worker capability"
+    elif "role_worker" not in capabilities:
+        return False, f"worker '{worker}' lacks role_worker capability for AgentLab role '{canonical_role}'"
     if canonical_role in forbidden_by_worker:
         return False, f"worker '{worker}' is explicitly forbidden for role '{canonical_role}'"
     if canonical_role not in allowed_by_worker:
@@ -219,6 +319,7 @@ def build_workspace_entry(
         "allowed_profiles": {
             "frontdesk_capable": bool(worker_cfg.get("frontdesk_capable")),
             "worker_capable": bool(worker_cfg.get("worker_capable")),
+            "worker_capabilities": worker_capabilities(worker_cfg),
             "allowed_roles": worker_cfg.get("allowed_roles") or [],
             "frontdesk_profiles": worker_cfg.get("frontdesk_profiles") or [],
         },
@@ -255,6 +356,7 @@ def build_frontdesk_context(
         "schema_version": 1,
         "agent_id": agent_id,
         "frontdesk_capable": bool(worker_cfg.get("frontdesk_capable")),
+        "worker_capabilities": worker_capabilities(worker_cfg),
         "frontdesk_profile": (worker_cfg.get("frontdesk_profiles") or ["unbound"])[0],
         "role": "AgentLab Frontdesk / Chat Assistant Layer",
         "meaning": "Talk with the user, translate intent into AgentLab operations, and report grounded state.",
@@ -266,6 +368,14 @@ def build_frontdesk_context(
             "candidate_roots": content_policy.get("candidate_roots") or [],
             "archive_roots": content_policy.get("archive_roots") or [],
             "legacy_fact_dir_patterns": content_policy.get("legacy_fact_dir_patterns") or [],
+        },
+        "write_gate": {
+            "default": "proposal_only",
+            "direct_proposal_files": sorted(FRONTDESK_PROPOSAL_FILENAMES),
+            "protected_paths": sorted(CORE_CONFIG_PATHS),
+            "protected_prefixes": list(CORE_RUNTIME_PREFIXES),
+            "micro_doc_write_patterns": frontdesk_policy.get("micro_doc_write_patterns") or [],
+            "revision_governance_required_for": frontdesk_policy.get("revision_governance_required_for") or [],
         },
         "workspace_entry": entry,
         "canonical_commands": {
@@ -397,6 +507,14 @@ def run_frontdesk_doctor(root: Path, agent_id: str) -> dict[str, Any]:
         _check(bool(frontdesk), "frontdesk_policy_present", "frontdesk policy is present"),
         _check(bool(worker_cfg), "agent_binding_present", f"agent '{agent_id}' has a role binding"),
         _check(bool(worker_cfg.get("frontdesk_capable")), "frontdesk_capable", f"agent '{agent_id}' is frontdesk-capable"),
+        _check("frontdesk_gateway" in worker_capabilities(worker_cfg), "frontdesk_gateway_capability", f"agent '{agent_id}' declares frontdesk_gateway capability"),
+        _check("core_config_editor" not in worker_capabilities(worker_cfg), "frontdesk_no_core_config_editor", "frontdesk agents must not own core_config_editor"),
+        _check("Coder" not in (worker_cfg.get("allowed_roles") or []) or "role_worker" in worker_capabilities(worker_cfg), "frontdesk_not_implicit_coder", "frontdesk Coder binding requires explicit role_worker capability"),
+        _check(
+            evaluate_frontdesk_write_gate(root, agent_id, "config/agent_model_profiles.yml")["status"] == "blocked",
+            "frontdesk_blocks_core_model_config",
+            "frontdesk write gate blocks core model config",
+        ),
         _check(
             not (worker_cfg.get("frontdesk_capable") and not worker_cfg.get("worker_capable") and contract.get("invocation_style") == "task_packet_prompt"),
             "frontdesk_not_task_packet_worker",

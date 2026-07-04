@@ -106,10 +106,11 @@ brain_layouts:
       and tool-heavy execution. Use only when the deepseek_plus_qwen_multimodal
       layout is insufficient for planning complexity. Must emit the standard
       Hermes handoff contract (plan_status, missing_facts, must_read_artifacts,
-      dispatch_units, self_check, revision_log). Execution-layer coding is
-      delegated to Coder workers (agy, claude_code, aider) — codex does
-      NOT execute code directly in this layout. The multimodal gap is handled
-      through execution-layer tools (qwen3.7_plus_multimodal).
+      dispatch_units, self_check, revision_log). Coder execution must be
+      dispatched through role-session to claude_code, codex, or aider. Agy is
+      limited to frontdesk/micro-doc/candidate artifact work by default. The
+      multimodal gap is handled through execution-layer tools
+      (qwen3.7_plus_multimodal).
     quota_policy:
       refresh_window_hours: 5
       use_only_for:

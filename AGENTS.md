@@ -28,6 +28,11 @@ Keep detailed policy in `config/*.yml` and long-lived project memory in
 - Hermes model-group routing lives in `config/hermes_brain_model_groups.yml`.
 - Long-project constitutions, must-read artifact rules, and dispatch gates live in
   `config/long_project_governance.yml`.
+- Frontdesk capability identities and role binding rules live in
+  `config/agent_role_bindings.yml`; never infer write or role authority from a
+  CLI name alone.
+- User-readable model routing and proposal/apply flow live under
+  `./agentlab.sh models ...`.
 - Coder handoffs and external executor rules live in `DRIVER_PROTOCOL.md` and
   `OPERATING_MODEL.md`.
 
@@ -134,6 +139,9 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
   - **职责绑定**：CLI 名字不等于 AgentLab 角色。9 大 AgentLab 角色必须通过
     `./agentlab.sh role-session --role <Role> --worker <worker> --project <P> --task-id <T>`
     生成强绑定会话包；`./agentlab.sh protocol-doctor` 是强规定自检入口。
+  - **写入边界**：frontdesk 只能直接生成 `change_request.yml`、
+    `patch_proposal.diff`、`frontdesk_notes.md` 等提案；核心配置、runtime、
+    production 正式产物必须由 AgentLab gate 或修订治理流程应用。
 - **OpenClaw (`openclaw`)**:
   - **角色与司职**：前端接线员 (Front-desk Operator)。
   - **主要职责**：负责对接与用户的自然语言沟通（如微信 wechat-mp-bot/wechat-ai-bot、Telegram 或 Web UI 交互），接收原始 prompt，展示计划门禁/审批流（如 Dry-Run vs Execute），并在必要时将任务推送到后端 AgentLab 公司系统中处理成资产。
@@ -167,4 +175,7 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
 - `./agentlab.sh brain-status --project AgentLab --task-id task_0009`
 - `./agentlab.sh harness-status --project AgentLab --task-id task_0009`
 - `./agentlab.sh policy-status --project AgentLab`
+- `./agentlab.sh models show --role Writer`
+- `./agentlab.sh models doctor`
+- `./agentlab.sh governance doctor --project Crown_of_Ash`
 - `./agentlab.sh log-event --project AgentLab --task-id task_0009 --agent Coder --summary "..."`

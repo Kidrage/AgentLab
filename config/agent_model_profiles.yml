@@ -137,8 +137,8 @@ modes:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
-          default: qwen3_7_max_dashscope
-          fallback: deepseek_v4_pro
+          default: deepseek_v4_pro
+          fallback: qwen3_7_max_dashscope
         researcher:
           executor_type: cli_agent
           cli_agent: agy
@@ -154,10 +154,10 @@ modes:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: qwen3_6_plus_dashscope
+          default: deepseek_v4_flash
           fallback_cli_agent: hermes
           fallback_invocation_contract: hermes
-          fallback: qwen3_7_max_dashscope
+          fallback: deepseek_v4_pro
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
@@ -173,7 +173,7 @@ modes:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes
-          default: qwen3_6_plus_dashscope
+          default: deepseek_v4_flash
           artifact_backend: hermes_grok_oauth
           fallback_cli_agent: agy
           fallback_invocation_contract: agy_coder
@@ -206,7 +206,7 @@ modes:
           default: deepseek_v4_flash
           fallback_cli_agent: claude_code
           fallback_invocation_contract: claude
-          fallback: qwen3_6_plus_dashscope
+          fallback: deepseek_v4_flash
       low:
         supervisor:
           executor_type: cli_agent

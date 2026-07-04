@@ -191,7 +191,7 @@ agents:
     allowed_backends:
       - api_qwen_coder        # qwen3-coder-next — 默认主力
       - api_deepseek_coder    # deepseek-v4-pro — 全量模式
-      - agy_coder_cli         # agy (Gemini Flash / Claude Sonnet) — 中/低 tier
+      - codex_role_worker     # Codex role-session — 受控 Coder worker
       - local_llm             # 本地 Ollama/vLLM — Frugal 模式
       - external_ide          # 外部 IDE AI — 需激活信号
     required_outputs:

@@ -22,12 +22,12 @@ def test_role_preferences_and_coder_fallback() -> None:
     verifier = engine.assign("Verifier", available_workers=["ruff", "claude_code"])
     assert verifier.selected_worker == "ruff"
 
-    primary_coder = engine.assign("Coder", available_workers=["claude_code", "agy", "aider"])
+    primary_coder = engine.assign("Coder", available_workers=["claude_code", "codex", "aider"])
     assert primary_coder.selected_worker == "claude_code"
-    assert primary_coder.fallback_workers == ["agy", "aider"]
+    assert primary_coder.fallback_workers == ["codex", "aider"]
 
-    coder = engine.assign("Coder", available_workers=["agy", "aider"])
-    assert coder.selected_worker == "agy"
+    coder = engine.assign("Coder", available_workers=["codex", "aider"])
+    assert coder.selected_worker == "codex"
     assert "aider" in coder.fallback_workers
     assert coder.approval_required is True
     assert any(item.worker == "claude_code" for item in coder.rejected_workers)
@@ -44,13 +44,13 @@ def test_route_task_writes_explainable_evidence(tmp_path: Path) -> None:
             "phase_id": "phase1",
             "packet_id": "task_route_1",
             "role": "Coder",
-            "available_workers": ["agy", "aider"],
+            "available_workers": ["codex", "aider"],
             "allowed_files": ["agent_runtime/**"],
         }
     }), encoding="utf-8")
     result = route_task_packet(packet, root)
     decision = result["route_plan"]["decisions"][0]
-    assert decision["selected_worker"] == "agy"
+    assert decision["selected_worker"] == "codex"
     evidence = Path(decision["evidence_paths"][0])
     assert evidence.exists()
     assert "claude_code" in evidence.read_text(encoding="utf-8")
@@ -59,10 +59,10 @@ def test_route_task_writes_explainable_evidence(tmp_path: Path) -> None:
 def test_router_cli_smoke(tmp_path: Path) -> None:
     runner = CliRunner()
     assigned = runner.invoke(app, [
-        "assign-role", "--role", "Coder", "--available-worker", "agy", "--available-worker", "aider",
+        "assign-role", "--role", "Coder", "--available-worker", "codex", "--available-worker", "aider",
     ])
     assert assigned.exit_code == 0
-    assert "selected_worker: agy" in assigned.stdout
+    assert "selected_worker: codex" in assigned.stdout
 
     decision = tmp_path / "decision.yml"
     payload = RoleAssignmentEngine(ROOT).assign("RepoScout", available_workers=["rg"])

@@ -13,7 +13,7 @@ modes:
     role_preferences:
       Supervisor: [claude_code, hermes]
       PromptEngineer: [claude_code, hermes]
-      Coder: [claude_code, agy, aider]
+      Coder: [claude_code, codex, aider]
       ArtifactProducer: [codex, agy, qwen]
   hybrid_local_company:
     role_preferences:
@@ -26,7 +26,7 @@ modes:
     role_preferences:
       RepoScout: [rg]
       InterfaceMapper: [ast_grep]
-      Coder: [agy, claude_code]
+      Coder: [codex, claude_code]
       TesterAuditor: [pytest]
       Verifier: [ruff, mypy, eslint]
       Archivist: [git]

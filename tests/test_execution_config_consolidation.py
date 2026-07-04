@@ -76,8 +76,8 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["reposcout"]["default"] == "deepseek_v4_pro"
 
     assert tier["interface_mapper"]["cli_agent"] == "hermes"
-    assert tier["interface_mapper"]["default"] == "qwen3_7_max_dashscope"
-    assert tier["interface_mapper"]["fallback"] == "deepseek_v4_pro"
+    assert tier["interface_mapper"]["default"] == "deepseek_v4_pro"
+    assert tier["interface_mapper"]["fallback"] == "qwen3_7_max_dashscope"
 
     assert tier["researcher"]["cli_agent"] == "agy"
     assert tier["researcher"]["default"] == "deepseek_v4_flash"
@@ -85,14 +85,16 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["researcher"]["fallback"] == "deepseek_v4_flash"
 
     assert tier["prompt_engineer"]["cli_agent"] == "codex"
+    assert tier["prompt_engineer"]["default"] == "deepseek_v4_flash"
     assert tier["prompt_engineer"]["fallback_cli_agent"] == "hermes"
-    assert tier["prompt_engineer"]["fallback"] == "qwen3_7_max_dashscope"
+    assert tier["prompt_engineer"]["fallback"] == "deepseek_v4_pro"
 
     assert tier["coder"]["cli_agent"] == "claude_code"
     assert tier["coder"]["default"] == "qwen3_coder_plus_dashscope"
     assert tier["coder"]["fallback_cli_agent"] == "codex"
 
     assert tier["artifact_producer"]["cli_agent"] == "hermes"
+    assert tier["artifact_producer"]["default"] == "deepseek_v4_flash"
     assert tier["artifact_producer"]["artifact_backend"] == "hermes_grok_oauth"
     assert tier["artifact_producer"]["fallback_cli_agent"] == "agy"
     assert tier["artifact_producer"]["fallback_artifact_backend"] == "agy_cli"
@@ -110,6 +112,7 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["writer"]["cli_agent"] == "agy"
     assert tier["writer"]["fallback_cli_agent"] == "claude_code"
     assert tier["writer"]["default"] == "deepseek_v4_flash"
+    assert tier["writer"]["fallback"] == "deepseek_v4_flash"
 
 
 def test_qwen_token_plan_cli_preserves_original_cli_allocation() -> None:
