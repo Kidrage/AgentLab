@@ -177,5 +177,8 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
 - `./agentlab.sh policy-status --project AgentLab`
 - `./agentlab.sh models show --role Writer`
 - `./agentlab.sh models doctor`
+- `./agentlab.sh governance revision-intake --project <Project> --task-id <Task> --prompt "..."`
+- `./agentlab.sh governance check-revision --project <Project> --task-id <Task>`
+- `./agentlab.sh governance apply-revision --project <Project> --task-id <Task> --accept`
 - `./agentlab.sh governance doctor --project Crown_of_Ash`
 - `./agentlab.sh log-event --project AgentLab --task-id task_0009 --agent Coder --summary "..."`

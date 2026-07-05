@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 import fnmatch
@@ -12,6 +11,14 @@ import typer
 import yaml
 from rich.console import Console
 
+from agent_runtime.revision_governance import (
+    apply_revision,
+    build_revision_intake_artifacts,
+    revision_dispatch_status,
+    validate_revision,
+    write_revision_intake,
+)
+
 
 FORMAL_FACT_ROOTS = {"production", "project_brain"}
 
@@ -20,11 +27,6 @@ def _read_yaml(path: Path, default: Any = None) -> Any:
     if not path.exists():
         return default
     return yaml.safe_load(path.read_text(encoding="utf-8")) or default
-
-
-def _write_yaml(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
 def _content_policy(root: Path) -> dict[str, Any]:
@@ -114,38 +116,7 @@ def run_governance_doctor(root: Path, project: str) -> dict[str, Any]:
 
 
 def build_revision_intake(project: str, task_id: str, prompt: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    now = datetime.now(timezone.utc).isoformat()
-    lines = [line.strip("- *\t ") for line in prompt.splitlines() if line.strip()]
-    items = [{"id": f"change_{idx:03d}", "text": line, "status": "proposed"} for idx, line in enumerate(lines or [prompt.strip()], start=1)]
-    change_request = {
-        "schema_version": 1,
-        "project": project,
-        "task_id": task_id,
-        "created_at": now,
-        "source": "user_prompt",
-        "raw_prompt": prompt,
-        "change_items": items,
-    }
-    transition = {
-        "schema_version": 1,
-        "project": project,
-        "task_id": task_id,
-        "created_at": now,
-        "status": "proposed",
-        "source_change_request": "change_request.yml",
-        "events": [
-            {
-                "event_id": item["id"],
-                "op": "propose",
-                "path": "pending.user_change",
-                "value": item["text"],
-            }
-            for item in items
-        ],
-        "requires_conflict_check": True,
-        "requires_acceptance_before_merge": True,
-    }
-    return change_request, transition
+    return build_revision_intake_artifacts(project, task_id, prompt)
 
 
 def register_governance_commands(app: typer.Typer, project_root: Path, console: Console) -> None:
@@ -179,9 +150,52 @@ def register_governance_commands(app: typer.Typer, project_root: Path, console: 
             raise typer.Exit(code=1)
         change_request, transition = build_revision_intake(project, task_id, prompt_text)
         if write:
-            run_dir = project_root / "projects" / project / "runs" / task_id
-            _write_yaml(run_dir / "change_request.yml", change_request)
-            _write_yaml(run_dir / "state_transition_proposal.yml", transition)
+            result = write_revision_intake(project_root, project, task_id, prompt_text)
+            console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+            return
         console.print(yaml.safe_dump({"change_request": change_request, "state_transition_proposal": transition}, sort_keys=False, allow_unicode=True).rstrip())
+
+    @governance_app.command("check-revision")
+    def check_revision(
+        project: str = typer.Option(..., "--project", help="Project name under projects/."),
+        task_id: str = typer.Option(..., "--task-id", help="Run id under projects/<Project>/runs/."),
+    ) -> None:
+        """Validate a pending revision proposal and run conflict checks."""
+        result = validate_revision(project_root, project, task_id)
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        if not result.get("valid"):
+            raise typer.Exit(code=1)
+
+    @governance_app.command("apply-revision")
+    def apply_revision_cmd(
+        project: str = typer.Option(..., "--project", help="Project name under projects/."),
+        task_id: str = typer.Option(..., "--task-id", help="Run id under projects/<Project>/runs/."),
+        accepted_by: str = typer.Option("system", "--accepted-by", help="Reviewer/operator identity."),
+        accept: bool = typer.Option(False, "--accept", help="Required explicit acceptance flag."),
+    ) -> None:
+        """Accept a revision proposal and merge it into project fact events/snapshot."""
+        if not accept:
+            result = {
+                "status": "needs_acceptance",
+                "applied": False,
+                "reason": "rerun with --accept to merge project facts",
+            }
+            console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+            raise typer.Exit(code=1)
+        result = apply_revision(project_root, project, task_id, accepted_by=accepted_by)
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        if not result.get("applied"):
+            raise typer.Exit(code=1)
+
+    @governance_app.command("dispatch-status")
+    def dispatch_status(
+        project: str = typer.Option(..., "--project", help="Project name under projects/."),
+        task_id: str = typer.Option(..., "--task-id", help="Run id under projects/<Project>/runs/."),
+    ) -> None:
+        """Report whether Writer/Coder dispatch is blocked by pending revisions."""
+        result = revision_dispatch_status(project_root, project, task_id)
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        if result.get("blocked"):
+            raise typer.Exit(code=1)
 
     app.add_typer(governance_app, name="governance")

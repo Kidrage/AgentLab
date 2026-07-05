@@ -11,6 +11,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 from agent_runtime.cli.governance import build_revision_intake, run_governance_doctor
+from agent_runtime.program_manager.project_fact_state import append_project_fact_events, rebuild_project_fact_snapshot
+from agent_runtime.protocols import build_role_session
+from agent_runtime.pipeline_runner import run_full_pipeline
+from agent_runtime.revision_governance import (
+    apply_revision,
+    check_revision_conflicts,
+    revision_dispatch_status,
+    validate_revision,
+    write_revision_intake,
+)
 from agent_runtime.run_task import app
 
 
@@ -25,6 +35,8 @@ def _copy_config_root(tmp_path: Path) -> Path:
         "model_catalog.yml",
         "model_providers.yml",
         "agent_registry.yml",
+        "agent_role_bindings.yml",
+        "frontdesk_policy.yml",
         "content_project_governance.yml",
     ]:
         shutil.copy(ROOT / "config" / name, root / "config" / name)
@@ -96,5 +108,87 @@ def test_revision_intake_builds_change_request_and_transition():
     change_request, transition = build_revision_intake("Crown_of_Ash", "task_1", "Revise role motive\nAdjust chapter 3 outline")
 
     assert change_request["change_items"][0]["text"] == "Revise role motive"
-    assert transition["source_change_request"] == "change_request.yml"
-    assert transition["requires_conflict_check"] is True
+    body = transition["state_transition_proposal"]
+    assert body["source_change_request"] == "change_request.yml"
+    assert body["requires_conflict_check"] is True
+    assert body["events"][0]["event_type"] == "propose_revision"
+
+
+def test_revision_apply_merges_events_and_unblocks_dispatch(tmp_path):
+    root = _copy_config_root(tmp_path)
+    write_revision_intake(root, "NovelGen", "task_revision", "Revise role motive")
+
+    pending = revision_dispatch_status(root, "NovelGen", "task_revision")
+    validation = validate_revision(root, "NovelGen", "task_revision")
+
+    assert pending["blocked"] is True
+    assert validation["valid"] is True
+
+    result = apply_revision(root, "NovelGen", "task_revision", accepted_by="pytest")
+    ready = revision_dispatch_status(root, "NovelGen", "task_revision")
+
+    assert result["applied"] is True
+    assert ready["blocked"] is False
+    assert (root / "projects" / "NovelGen" / "project_brain" / "project_fact_events.jsonl").exists()
+    assert (root / "projects" / "NovelGen" / "project_brain" / "revision_log.jsonl").exists()
+
+
+def test_revision_conflict_checker_detects_snapshot_fact_conflict(tmp_path):
+    root = _copy_config_root(tmp_path)
+    brain = root / "projects" / "NovelGen" / "project_brain"
+    append_project_fact_events(
+        brain,
+        [
+            {
+                "event_type": "create",
+                "target_kind": "entity",
+                "target_type": "character",
+                "target_id": "hero",
+                "to_status": "active",
+                "facts": {"motive": "revenge"},
+                "evidence_refs": ["chapter_01.md"],
+            }
+        ],
+    )
+    snapshot = rebuild_project_fact_snapshot(brain, project="NovelGen")
+    proposal = {
+        "events": [
+            {
+                "event_type": "revise",
+                "target_kind": "entity",
+                "target_type": "character",
+                "target_id": "hero",
+                "to_status": "active",
+                "facts": {"motive": "mercy"},
+                "evidence_refs": ["change_request.yml"],
+            }
+        ]
+    }
+
+    result = check_revision_conflicts(snapshot, proposal)
+
+    assert result["valid"] is False
+    assert "conflicts with current snapshot" in result["conflicts"][0]["message"]
+
+
+def test_pending_revision_blocks_coder_role_session(tmp_path):
+    root = _copy_config_root(tmp_path)
+    write_revision_intake(root, "NovelGen", "task_revision", "Revise role motive")
+
+    blocked = build_role_session(root, "Coder", "codex", project="NovelGen", task_id="task_revision")
+    apply_revision(root, "NovelGen", "task_revision", accepted_by="pytest")
+    allowed = build_role_session(root, "Coder", "codex", project="NovelGen", task_id="task_revision")
+
+    assert blocked["binding"]["allowed"] is False
+    assert "revision governance blocks Coder dispatch" in blocked["binding"]["reason"]
+    assert allowed["binding"]["allowed"] is True
+
+
+def test_pending_revision_blocks_execute_pipeline_direct_call(tmp_path):
+    root = _copy_config_root(tmp_path)
+    write_revision_intake(root, "NovelGen", "task_revision", "Revise role motive")
+
+    result = run_full_pipeline(root, "NovelGen", "task_revision", dry_run=False, fake_provider=False, max_steps=1)
+
+    assert result["success"] is False
+    assert result["blocked_type"] == "revision_governance"

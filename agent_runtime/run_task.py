@@ -3349,6 +3349,13 @@ def run_pipeline(
     if execute:
         console.print("[yellow]⚠ EXECUTE mode: real LLM API calls will be made. Token costs apply.[/yellow]")
         console.print()
+        from agent_runtime.revision_governance import revision_dispatch_status
+
+        dispatch = revision_dispatch_status(agentlab_root, project_name, task_id)
+        if dispatch.get("blocked"):
+            console.print("[red]Revision governance blocks execution.[/red]")
+            console.print(yaml.safe_dump(dispatch, sort_keys=False, allow_unicode=True).rstrip())
+            raise typer.Exit(code=1)
 
     from pipeline_runner import run_full_pipeline
     from agent_runtime.observability.api import emit_event

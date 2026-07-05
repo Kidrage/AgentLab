@@ -1148,6 +1148,47 @@ def run_full_pipeline(
     seen_signatures = set()
     mode = _resolve_execution_mode(dry_run, fake_provider)
     ensure_repo_manifest_for_run(agentlab_root, project, task_id)
+    if mode["execution_mode"] == "execute":
+        from agent_runtime.revision_governance import revision_dispatch_status
+
+        dispatch = revision_dispatch_status(agentlab_root, project, task_id)
+        if dispatch.get("blocked"):
+            reason = f"Revision governance blocks execution: {dispatch.get('reason')}"
+            incident_path = _write_pipeline_incident(
+                run_dir,
+                incident_type="revision_governance_blocked",
+                reason=reason,
+                node_id="PIPELINE",
+                max_steps=max_steps,
+            )
+            blocked = _block_task(
+                agentlab_root,
+                run_dir,
+                project,
+                task_id,
+                "PIPELINE",
+                agent=None,
+                reason=reason,
+                stage="blocked_revision_governance",
+                report_path=incident_path,
+                user_action_required=True,
+                block_type="revision_governance",
+                execution_mode=mode["execution_mode"],
+                mark_lifecycle=False,
+            )
+            return {
+                "success": False,
+                "final_status": "paused",
+                "terminal": False,
+                "requires_user_action": True,
+                "execution_mode": mode["execution_mode"],
+                "step": 0,
+                "history": history,
+                "blocked_reason": blocked.get("message"),
+                "blocked_type": blocked.get("block_type"),
+                "started_at": started_at,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
     effective_max_steps = max_steps
     if simulate_quota_failure_at:
         effective_max_steps += len([n for n in LIFECYCLE_NODES if n.startswith("CONTEXT_")])

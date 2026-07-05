@@ -420,6 +420,18 @@ def build_role_session(
     root = Path(root)
     canonical_role = _normalize_role(role)
     allowed, reason = check_role_binding(root, worker, canonical_role)
+    if canonical_role in {"Coder", "Writer"}:
+        try:
+            from agent_runtime.revision_governance import revision_dispatch_status
+
+            dispatch = revision_dispatch_status(root, project, task_id)
+            if dispatch.get("blocked"):
+                allowed = False
+                reason = f"revision governance blocks {canonical_role} dispatch: {dispatch.get('reason')}"
+        except Exception:
+            dispatch = {"blocked": False, "reason": "revision governance unavailable"}
+    else:
+        dispatch = {"blocked": False, "reason": "not a writer/coder role"}
     agent_registry = _load_policy(root, "agent_registry.yml")
     role_cfg = ((agent_registry.get("agents") or {}).get(canonical_role) or {})
     run_dir = root / "projects" / project / "runs" / task_id
@@ -434,6 +446,7 @@ def build_role_session(
             "allowed": allowed,
             "reason": reason,
         },
+        "revision_dispatch": dispatch,
         "project": project,
         "task_id": task_id,
         "task_state": task,
