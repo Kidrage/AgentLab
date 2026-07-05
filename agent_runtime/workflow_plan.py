@@ -9,7 +9,7 @@ from budget_planner import build_token_budgets, normalize_budget_mode, select_bu
 from config_loader import load_agentlab_configs, load_project_config
 from model_resolver import resolve_profile_config
 from policies import assert_path_allowed
-from routing.route_catalog import RouteCatalog
+from routing.route_catalog import RouteCatalog, route_size_suffix
 from schemas import AgentRoute, WorkflowPlan
 from task_router import recommend_route
 
@@ -73,10 +73,6 @@ def _project_paths(agentlab_root: Path, project_name: str, task_id: str, project
         "repo_map": docs_path / "01_REPO_MAP.md",
         "user_request": run_dir / "user_request.md",
     }
-
-
-def _route_size_suffix(task_size: str) -> str:
-    return {"small": "L1", "medium": "L2", "large": "L3"}.get(task_size, "L2")
 
 
 def _profile_for_agent(agent_config: dict, route_size: str, budget_mode: str) -> str:
@@ -436,7 +432,7 @@ def build_workflow_plan(
         resolved_budget_mode = "balanced"
     token_budgets = build_token_budgets(route, configs.get("budget_profiles", {}), resolved_budget_mode)
     budget_profile = select_budget_profile_key(route, configs.get("budget_profiles", {}), resolved_budget_mode)
-    route_size = _route_size_suffix(route.task_size)
+    route_size = route_size_suffix(route.task_size)
     included_agents = _included_agents_for_route(agent_registry, route)
     model_profiles = {
         name: resolve_profile_config(

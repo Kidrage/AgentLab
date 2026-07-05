@@ -35,6 +35,51 @@ def test_fiction_route_enables_writer_reviewer_scribe_nodes(tmp_path: Path):
     assert NODE_TO_REPORT["SCRIBE_LEDGER"] == "continuity_ledger.yml"
 
 
+def test_narrative_light_route_skips_heavy_lifecycle_nodes(tmp_path: Path):
+    workflow = {
+        "route": {
+            "agents": ["Supervisor", "Writer"],
+        },
+    }
+
+    lifecycle = create_lifecycle(tmp_path, workflow)
+
+    assert lifecycle["nodes"]["WRITER_DRAFT"]["status"] == "waiting"
+    for node_id, agent_name in {
+        "FICTION_REVIEW": "Reviewer",
+        "SCRIBE_LEDGER": "Scribe",
+        "VALIDATION": "TesterAuditor",
+        "AUDIT": "TesterAuditor",
+        "VERIFY": "Verifier",
+        "ARCHIVE": "Archivist",
+    }.items():
+        assert lifecycle["nodes"][node_id]["status"] == "skipped", node_id
+        assert lifecycle["nodes"][node_id]["skip_reason"] == f"Route does not include {agent_name}"
+
+
+def test_article_light_route_skips_code_and_heavy_lifecycle_nodes(tmp_path: Path):
+    workflow = {
+        "route": {
+            "agents": ["Supervisor", "ArtifactProducer"],
+        },
+    }
+
+    lifecycle = create_lifecycle(tmp_path, workflow)
+
+    for node_id, agent_name in {
+        "WRITER_DRAFT": "Writer",
+        "FICTION_REVIEW": "Reviewer",
+        "SCRIBE_LEDGER": "Scribe",
+        "CODER_IMPLEMENTATION": "Coder",
+        "VALIDATION": "TesterAuditor",
+        "AUDIT": "TesterAuditor",
+        "VERIFY": "Verifier",
+        "ARCHIVE": "Archivist",
+    }.items():
+        assert lifecycle["nodes"][node_id]["status"] == "skipped", node_id
+        assert lifecycle["nodes"][node_id]["skip_reason"] == f"Route does not include {agent_name}"
+
+
 def test_nonfiction_route_skips_writer_reviewer_scribe_nodes(tmp_path: Path):
     workflow = {
         "route": {

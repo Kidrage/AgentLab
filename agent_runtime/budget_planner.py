@@ -2,6 +2,11 @@
 
 from schemas import AgentRoute, TokenBudget
 
+try:
+    from routing.route_catalog import route_size_suffix as _route_size_suffix
+except ImportError:  # pragma: no cover - package import path
+    from agent_runtime.routing.route_catalog import route_size_suffix as _route_size_suffix
+
 
 BUDGET_ALIASES = {
     "": "balanced",
@@ -21,7 +26,7 @@ def normalize_budget_mode(value: str | None) -> str:
 
 
 def route_size_suffix(route: AgentRoute) -> str:
-    return {"small": "L1", "medium": "L2", "large": "L3"}.get(route.task_size, "L2")
+    return _route_size_suffix(route.task_size)
 
 
 def select_budget_profile_key(route: AgentRoute, budget_config: dict, budget_mode: str | None = None) -> str:

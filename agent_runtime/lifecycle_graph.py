@@ -75,7 +75,10 @@ OPTIONAL_NODES = {
     "FICTION_REVIEW",
     "SCRIBE_LEDGER",
     "CODER_IMPLEMENTATION",
+    "VALIDATION",
+    "AUDIT",
     "VERIFY",
+    "ARCHIVE",
     "SYNC_OPTIONAL",
 }
 
@@ -121,8 +124,12 @@ def create_lifecycle(run_dir: Path, workflow_plan: dict) -> dict:
             skip_reason = "Route does not include Scribe"
         elif node_id == "CODER_IMPLEMENTATION" and "Coder" not in route:
             skip_reason = "Route does not include Coder"
+        elif node_id in {"VALIDATION", "AUDIT"} and "TesterAuditor" not in route:
+            skip_reason = "Route does not include TesterAuditor"
         elif node_id == "VERIFY" and "Verifier" not in route:
             skip_reason = "Route does not include Verifier"
+        elif node_id == "ARCHIVE" and "Archivist" not in route:
+            skip_reason = "Route does not include Archivist"
 
         nodes[node_id] = {
             "status": "skipped" if skip_reason else "waiting",

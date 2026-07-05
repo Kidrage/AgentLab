@@ -70,6 +70,11 @@ ROUTE_SIZE_MAP: dict[str, str] = {
 }
 
 
+def route_size_suffix(task_size: str) -> str:
+    """Return the budget/profile suffix for a canonical route size."""
+    return {"small": "L1", "medium": "L2", "large": "L3"}.get(str(task_size), "L2")
+
+
 DEFAULT_ROUTE_SIZE: dict[str, str] = {
     "small_task": "small",
     "medium_task": "medium",

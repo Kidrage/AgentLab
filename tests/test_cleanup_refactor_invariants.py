@@ -11,6 +11,7 @@ from agent_runtime.routing.route_catalog import (
     DEFAULT_ROUTE_SIZE,
     ROUTE_SIZE_MAP,
     RouteCatalog,
+    route_size_suffix,
 )
 
 
@@ -46,6 +47,13 @@ def test_task_router_uses_route_catalog_without_behavior_change() -> None:
 
     assert route.route_key == "small_task"
     assert route.agents == RouteCatalog.from_config(routing_config).agents_for("small_task")
+
+
+def test_route_size_suffix_uses_canonical_route_catalog_mapping() -> None:
+    assert route_size_suffix("small") == "L1"
+    assert route_size_suffix("medium") == "L2"
+    assert route_size_suffix("large") == "L3"
+    assert route_size_suffix("unknown") == "L2"
 
 
 def test_config_loader_safely_ignores_non_mapping_yaml(tmp_path: Path) -> None:

@@ -1,8 +1,8 @@
 schema_version: 3
 
-# ─── AgentLab Routing Policy v3 — Size × Risk × Budget 三轴路由 ────────
-# 替代 v2 的 routing_rules.yml
-# 路由流程: user_request → classify Size + Risk → select Budget → route Agents
+# ─── AgentLab Routing Policy v3 — Size × Risk × Budget 三轴策略 ────────
+# 补充 routing_rules.yml：本文件负责风险/预算策略，route agent 事实源仍是 routing_rules.yml。
+# 路由流程: user_request → routing_rules route → classify Risk → select Budget
 # ────────────────────────────────────────────────────────────────────────
 
 default_budget: balanced
