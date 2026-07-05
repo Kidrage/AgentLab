@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+import types
 from pathlib import Path
 
 import typer
@@ -13,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 from agent_runtime.cli.narrative_eval import register_narrative_eval_commands
-from agent_runtime.narrative_eval import run_narrative_eval
+from agent_runtime.narrative_eval import _write_live_chapter_outputs, run_narrative_eval
 
 
 runner = CliRunner()
@@ -173,3 +174,102 @@ def test_narrative_eval_cli_run_on_temp_root(tmp_path: Path) -> None:
     assert result.exit_code == 0
     data = yaml.safe_load(result.output)
     assert data["acceptance_run_dir"] == "acceptance_runs/narrative_eval/Crown_of_Ash/crown_reset_acceptance_v1/20260705T030000Z"
+
+
+def test_live_narrative_eval_stops_before_reviewer_when_writer_fails(tmp_path: Path, monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
+        calls.append(agent_name)
+        return types.SimpleNamespace(
+            status="blocked_user_decision",
+            content="# blocked",
+            error="writer cli failed",
+            provider="agentlab-cli-executor",
+            model="agy",
+        )
+
+    monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+
+    _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
+
+    assert calls == ["Writer"]
+    assert not (run_dir / "fiction_draft.md").exists()
+    error = yaml.safe_load((run_dir / "live_generation_error.yml").read_text(encoding="utf-8"))
+    assert error["agent"] == "Writer"
+    assert error["result_status"] == "blocked_user_decision"
+
+
+def test_live_narrative_eval_report_includes_writer_failure_summary(tmp_path: Path, monkeypatch) -> None:
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
+        return types.SimpleNamespace(
+            status="blocked_user_decision",
+            content="",
+            error="writer cli failed",
+            provider="agentlab-cli-executor",
+            model="agy",
+        )
+
+    monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+    root = _copy_config_root(tmp_path)
+    _make_crown_project(root)
+
+    result = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="live",
+        chapters=[1],
+        timestamp="20260705T040000Z",
+    )
+
+    assert result["status"] == "fail"
+    chapter = result["layers"]["L2_real_chapter_sample"]["chapters"][0]
+    assert chapter["live_generation_error"]["agent"] == "Writer"
+    assert chapter["live_generation_error"]["result_status"] == "blocked_user_decision"
+    assert chapter["live_generation_error"]["path"].endswith("/live_generation_error.yml")
+
+
+def test_live_narrative_eval_writes_outputs_only_after_writer_and_reviewer_complete(tmp_path: Path, monkeypatch) -> None:
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
+        content = "# Draft\n\n" + ("正文段落。" * 900) if agent_name == "Writer" else "verdict: pass\n"
+        return types.SimpleNamespace(
+            status="completed",
+            content=content,
+            error=None,
+            provider="test",
+            model="test",
+        )
+
+    monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+
+    _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
+
+    assert not (run_dir / "live_generation_error.yml").exists()
+    assert (run_dir / "fiction_draft.md").exists()
+    assert (run_dir / "fiction_review.yml").exists()
+    assert (run_dir / "continuity_ledger.yml").exists()
+    assert (run_dir / "state_transition_proposal.yml").exists()
+    assert (run_dir / "narrative_delivery_receipt.yml").exists()

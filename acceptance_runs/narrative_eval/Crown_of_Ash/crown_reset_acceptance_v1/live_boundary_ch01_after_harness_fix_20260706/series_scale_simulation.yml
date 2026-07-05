@@ -1,0 +1,13 @@
+suite: crown_reset_acceptance_v1
+chapter_count: 1500
+status: pass
+timeline_monotonic: true
+foreshadowing_statuses_valid: true
+character_arcs_have_phase_changes: true
+worldline_has_phase_progression: true
+ledgers:
+  series_arc: series_arc_ledger.yml
+  chapter_state_plan: chapter_state_plan.yml
+  foreshadowing: foreshadowing_ledger.yml
+  character_arc: character_arc_ledger.yml
+  timeline_worldline: timeline_worldline_ledger.yml

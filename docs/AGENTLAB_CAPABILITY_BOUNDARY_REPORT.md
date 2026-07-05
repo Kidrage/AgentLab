@@ -1,7 +1,7 @@
 # AgentLab Capability Boundary Report
 
-Generated for the current mainline after the routing, lifecycle, artifact, and
-evaluation-harness fixes through commit `0421ce51bafee566f20e09de3deb95398be23658`.
+Generated for the current mainline after the routing, lifecycle, artifact,
+evaluation-harness, and live narrative failure-reporting fixes.
 
 This report separates what is proved by current deterministic evidence from
 what remains unproved. It should not be read as a promise about live LLM output
@@ -11,11 +11,12 @@ quality unless a live execution test is listed as evidence.
 
 | Area | Evidence | Result | Scope |
 |---|---|---:|---|
-| Full Python test suite | `python -m pytest -q` | `2073 passed, 2 skipped, 11 warnings` | Unit/integration regression coverage |
-| GitHub CI | run `28748843693` | `success` | Mainline CI after lifecycle route fix |
+| Full Python test suite | `python -m pytest -q` | `2078 passed, 2 skipped, 11 warnings` | Unit/integration regression coverage |
+| GitHub CI | run `28749380554` | `success` | Mainline CI after capability report update |
 | Capability scorecard | `python agent_runtime/evaluation/eval_all.py --root .` | `100%`, `Production-like` | Local deterministic system checks; execute smoke not run |
 | Performance eval | `./agentlab.sh performance-eval --project AgentLab --task-id task_capability_boundary_20260706` | `96.5/100`, route `evaluation_task` | Local deterministic routing/config/lifecycle/command/artifact check |
 | Narrative eval | `./agentlab.sh narrative-eval run --project Crown_of_Ash --mode mock --chapters 1-3 --timestamp capability_boundary_20260706` | `warn`; L2 sample `pass`; L3 simulation `pass` | Mock longform governance, not live prose quality |
+| Live narrative eval | `./agentlab.sh narrative-eval run --project Crown_of_Ash --mode live --chapters 1 --timestamp live_boundary_ch01_after_harness_fix_20260706` | `fail`; Writer blocked before draft | Live generation did not complete in current CLI environment |
 
 ## Coding Capability Boundary
 
@@ -35,6 +36,9 @@ quality unless a live execution test is listed as evidence.
 - Performance scoring now includes artifact completeness. The latest local
   performance evaluation scores `96.5/100`, not `100/100`, because artifact
   pass rate is `0.77`.
+- Live narrative evaluation now stops at the failing agent and records
+  `live_generation_error.yml` instead of continuing to downstream Reviewer
+  checks after Writer has failed.
 
 ### Not Guaranteed Yet
 
@@ -86,6 +90,10 @@ Current non-guarantee:
   chapters quality-guaranteed by current evidence**. The system can guarantee
   the governance envelope and candidate artifact contract, not the literary
   quality of live generated prose.
+- The latest live one-chapter attempt failed at Writer before draft creation:
+  provider `agentlab-cli-executor`, model `agy`, status
+  `blocked_user_decision`, error `CLI agent exited 1.` The harness now reports
+  that failure directly instead of hiding it behind missing artifact checks.
 
 ## Narrative Risks Found By Evaluation
 

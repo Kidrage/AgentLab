@@ -257,6 +257,44 @@ def _write_mock_chapter_outputs(run_dir: Path, project: str, chapter: int, previ
     _write_structured_delivery_files(run_dir, chapter=chapter, previous=previous, created_by="narrative-eval mock harness")
 
 
+def _write_live_generation_error(run_dir: Path, *, agent: str, result: Any) -> None:
+    _write_yaml(
+        run_dir / "live_generation_error.yml",
+        {
+            "schema_version": 1,
+            "status": "blocked",
+            "agent": agent,
+            "result_status": getattr(result, "status", "unknown"),
+            "provider": getattr(result, "provider", None),
+            "model": getattr(result, "model", None),
+            "error": getattr(result, "error", None) or "agent did not produce the required output",
+        },
+    )
+
+
+def _write_completed_agent_content(result: Any, output_path: Path) -> bool:
+    if getattr(result, "status", None) != "completed":
+        return False
+    content = getattr(result, "content", "") or ""
+    if not content.strip():
+        return False
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(content, encoding="utf-8")
+    return True
+
+
+def _load_live_generation_error(run_dir: Path, root: Path) -> dict[str, Any] | None:
+    error_path = run_dir / "live_generation_error.yml"
+    if not error_path.exists():
+        return None
+    try:
+        data = yaml.safe_load(error_path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:
+        data = {"status": "blocked", "error": f"could not parse live generation error: {exc}"}
+    data["path"] = _rel(error_path, root)
+    return data
+
+
 def _write_live_chapter_outputs(root: Path, run_dir: Path, project: str, task_id: str, chapter: int, previous: list[str]) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     _write_yaml(
@@ -281,15 +319,22 @@ def _write_live_chapter_outputs(root: Path, run_dir: Path, project: str, task_id
         from workflow_plan import build_workflow_plan
 
         plan = build_workflow_plan(root, project, task_id, user_request_path=run_dir / "user_request.md", budget_mode="balanced")
-        run_agent_model(root, plan, "Writer", run_dir / "fiction_draft.md", apply_patches=False)
-        run_agent_model(root, plan, "Reviewer", run_dir / "fiction_review.yml", apply_patches=False)
-        if (run_dir / "fiction_draft.md").exists():
-            _write_structured_delivery_files(
-                run_dir,
-                chapter=chapter,
-                previous=previous,
-                created_by="narrative-eval live harness",
-            )
+        writer_result = run_agent_model(root, plan, "Writer", run_dir / "fiction_draft.md", apply_patches=False)
+        if not _write_completed_agent_content(writer_result, run_dir / "fiction_draft.md"):
+            _write_live_generation_error(run_dir, agent="Writer", result=writer_result)
+            return
+
+        reviewer_result = run_agent_model(root, plan, "Reviewer", run_dir / "fiction_review.yml", apply_patches=False)
+        if not _write_completed_agent_content(reviewer_result, run_dir / "fiction_review.yml"):
+            _write_live_generation_error(run_dir, agent="Reviewer", result=reviewer_result)
+            return
+
+        _write_structured_delivery_files(
+            run_dir,
+            chapter=chapter,
+            previous=previous,
+            created_by="narrative-eval live harness",
+        )
     except Exception as exc:
         _write_yaml(
             run_dir / "live_generation_error.yml",
@@ -347,6 +392,9 @@ def _generate_chapters(
             "delivery": delivery,
             "production_modified": False,
         }
+        live_error = _load_live_generation_error(run_dir, root)
+        if live_error:
+            record["live_generation_error"] = live_error
         generated.append(record)
         if delivery.get("valid"):
             previous_sources.extend([

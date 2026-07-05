@@ -1,0 +1,24 @@
+suite: crown_reset_acceptance_v1
+blocking_failures:
+- chapter: 1
+  issues:
+  - severity: error
+    check: delivery_file_present
+    file: fiction_draft.md
+    message: missing fiction_draft.md
+  - severity: error
+    check: delivery_file_present
+    file: continuity_ledger.yml
+    message: missing continuity_ledger.yml
+  - severity: error
+    check: delivery_file_present
+    file: state_transition_proposal.yml
+    message: missing state_transition_proposal.yml
+  - severity: error
+    check: delivery_file_present
+    file: fiction_review.yml
+    message: missing fiction_review.yml
+  - severity: error
+    check: delivery_file_present
+    file: artifact_lineage.yml
+    message: missing artifact_lineage.yml
