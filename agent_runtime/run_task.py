@@ -155,6 +155,9 @@ register_model_commands(app, _PROJECT_ROOT, console)
 from agent_runtime.cli.governance import register_governance_commands
 register_governance_commands(app, _PROJECT_ROOT, console)
 
+from agent_runtime.cli.narrative import register_narrative_commands
+register_narrative_commands(app, _PROJECT_ROOT, console)
+
 def _run_external_skills_cli(args: list[str]) -> None:
     from external_skills_cli import main as external_skills_main
 

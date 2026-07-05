@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from datetime import datetime, timezone
 import fnmatch
 import re
 
@@ -85,6 +86,114 @@ def _write_governance_report(root: Path, project: str, result: dict[str, Any]) -
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(yaml.safe_dump(result, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return report_path
+
+
+def _migration_proposal_dir(root: Path) -> Path:
+    return root / ".agentlab" / "governance_migration_proposals"
+
+
+def _migration_proposal_id(project: str) -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", project).strip("_") or "project"
+    return f"migration_{slug}_{stamp}"
+
+
+def _write_yaml(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def propose_migration(root: Path, project: str) -> dict[str, Any]:
+    """Create a review-first migration proposal from governance doctor findings."""
+    root = Path(root)
+    doctor = run_governance_doctor(root, project)
+    proposal_id = _migration_proposal_id(project)
+    actions = list(doctor.get("remediation_plan") or [])
+    proposal = {
+        "schema_version": 1,
+        "proposal_id": proposal_id,
+        "status": "pending",
+        "project": project,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "source_doctor_status": doctor.get("status"),
+        "source_issue_count": doctor.get("issue_count", 0),
+        "destructive": False,
+        "requires_accept": True,
+        "actions": actions,
+        "notes": [
+            "Proposal creation does not edit production artifacts.",
+            "Only apply with explicit --accept after reviewing actions.",
+        ],
+    }
+    _write_yaml(_migration_proposal_dir(root) / f"{proposal_id}.yml", proposal)
+    project_brain = root / "projects" / project / "project_brain"
+    if project_brain.exists():
+        _write_yaml(project_brain / "migration_proposal.yml", proposal)
+    return proposal
+
+
+def _task_id_from_action(action: dict[str, Any]) -> str | None:
+    target = str(action.get("target") or "")
+    if "/runs/" in target:
+        return Path(target).name
+    action_id = str(action.get("action_id") or "")
+    prefix = "intake_revision_"
+    if action_id.startswith(prefix):
+        return action_id[len(prefix):]
+    return None
+
+
+def apply_migration_proposal(
+    root: Path,
+    proposal_id: str,
+    *,
+    accept: bool,
+    accepted_by: str = "system",
+) -> dict[str, Any]:
+    root = Path(root)
+    path = _migration_proposal_dir(root) / f"{proposal_id}.yml"
+    proposal = _read_yaml(path, {}) or {}
+    if not proposal or proposal.get("proposal_id") != proposal_id:
+        return {"applied": False, "status": "unknown_proposal", "proposal_id": proposal_id}
+    if not accept:
+        return {"applied": False, "status": "needs_acceptance", "proposal_id": proposal_id}
+    if proposal.get("status") != "pending":
+        return {"applied": False, "status": "not_pending", "proposal_id": proposal_id}
+
+    project = str(proposal.get("project") or "")
+    applied_actions: list[dict[str, Any]] = []
+    skipped_actions: list[dict[str, Any]] = []
+    for action in proposal.get("actions") or []:
+        if not isinstance(action, dict):
+            continue
+        if not str(action.get("action_id") or "").startswith("intake_revision_"):
+            skipped_actions.append({"action_id": action.get("action_id"), "reason": "manual review action"})
+            continue
+        task_id = _task_id_from_action(action)
+        prompt_path = root / "projects" / project / "runs" / str(task_id) / "user_request.md" if task_id else None
+        if not task_id or prompt_path is None or not prompt_path.exists():
+            skipped_actions.append({"action_id": action.get("action_id"), "reason": "missing user_request.md"})
+            continue
+        prompt = prompt_path.read_text(encoding="utf-8", errors="replace")
+        result = write_revision_intake(root, project, task_id, prompt)
+        applied_actions.append({"action_id": action.get("action_id"), "task_id": task_id, "result": result})
+
+    proposal["status"] = "applied"
+    proposal["applied_at"] = datetime.now(timezone.utc).isoformat()
+    proposal["accepted_by"] = accepted_by
+    proposal["applied_actions"] = applied_actions
+    proposal["skipped_actions"] = skipped_actions
+    _write_yaml(path, proposal)
+    project_brain = root / "projects" / project / "project_brain"
+    if project_brain.exists():
+        _write_yaml(project_brain / "migration_proposal.yml", proposal)
+    return {
+        "applied": True,
+        "status": "applied",
+        "proposal_id": proposal_id,
+        "applied_action_count": len(applied_actions),
+        "skipped_action_count": len(skipped_actions),
+    }
 
 
 def run_governance_doctor(root: Path, project: str) -> dict[str, Any]:
@@ -357,6 +466,26 @@ def register_governance_commands(app: typer.Typer, project_root: Path, console: 
             result["report_path"] = str(report_path.relative_to(project_root))
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result.get("status") != "pass":
+            raise typer.Exit(code=1)
+
+    @governance_app.command("propose-migration")
+    def propose_migration_cmd(
+        project: str = typer.Option(..., "--project", help="Project name under projects/."),
+    ) -> None:
+        """Create a review-first migration proposal from governance doctor findings."""
+        result = propose_migration(project_root, project)
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @governance_app.command("apply-migration")
+    def apply_migration_cmd(
+        proposal: str = typer.Option(..., "--proposal", help="Migration proposal id."),
+        accepted_by: str = typer.Option("system", "--accepted-by", help="Reviewer/operator identity."),
+        accept: bool = typer.Option(False, "--accept", help="Required explicit acceptance flag."),
+    ) -> None:
+        """Apply accepted safe migration actions such as revision intake reconstruction."""
+        result = apply_migration_proposal(project_root, proposal, accept=accept, accepted_by=accepted_by)
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        if not result.get("applied"):
             raise typer.Exit(code=1)
 
     @governance_app.command("revision-intake")

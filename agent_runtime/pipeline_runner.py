@@ -523,6 +523,21 @@ def _apply_archive_steward_if_needed(
     if node_id != "ARCHIVE":
         return []
     try:
+        from agent_runtime.narrative_delivery import validate_narrative_delivery
+
+        delivery = validate_narrative_delivery(run_dir)
+        if not delivery.get("skipped") and not delivery.get("valid"):
+            return [
+                "Narrative delivery gate failed: "
+                + "; ".join(
+                    f"{issue.get('check')}: {issue.get('message')}"
+                    for issue in delivery.get("issues", [])
+                    if issue.get("severity") == "error"
+                )
+            ]
+    except Exception as exc:
+        return [f"Narrative delivery gate failed: {type(exc).__name__}: {exc}"]
+    try:
         from project_artifact_steward import apply_archive_protocol
 
         receipt = apply_archive_protocol(agentlab_root, project, task_id)
