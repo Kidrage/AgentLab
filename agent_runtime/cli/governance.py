@@ -34,8 +34,20 @@ def _content_policy(root: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _issue(severity: str, check: str, message: str, path: str = "") -> dict[str, str]:
-    return {"severity": severity, "check": check, "message": message, "path": path}
+def _issue(
+    severity: str,
+    check: str,
+    message: str,
+    path: str = "",
+    recommendation: str = "",
+    command: str = "",
+) -> dict[str, str]:
+    issue = {"severity": severity, "check": check, "message": message, "path": path}
+    if recommendation:
+        issue["recommendation"] = recommendation
+    if command:
+        issue["command"] = command
+    return issue
 
 
 def _revision_keywords(text: str) -> bool:
@@ -46,6 +58,35 @@ def _revision_keywords(text: str) -> bool:
     ))
 
 
+def _remediation_action(
+    action_id: str,
+    severity: str,
+    target: str,
+    reason: str,
+    recommendation: str,
+    command: str = "",
+) -> dict[str, Any]:
+    action: dict[str, Any] = {
+        "action_id": action_id,
+        "severity": severity,
+        "target": target,
+        "reason": reason,
+        "recommendation": recommendation,
+        "requires_review": True,
+        "destructive": False,
+    }
+    if command:
+        action["command"] = command
+    return action
+
+
+def _write_governance_report(root: Path, project: str, result: dict[str, Any]) -> Path:
+    report_path = root / "projects" / project / "project_brain" / "governance_migration_report.yml"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(yaml.safe_dump(result, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    return report_path
+
+
 def run_governance_doctor(root: Path, project: str) -> dict[str, Any]:
     root = Path(root)
     policy = _content_policy(root)
@@ -54,13 +95,52 @@ def run_governance_doctor(root: Path, project: str) -> dict[str, Any]:
     legacy_patterns = [str(item) for item in policy.get("legacy_fact_dir_patterns") or ["*_rebuild", "*legacy*"]]
     formal_roots = {str(item) for item in policy.get("formal_fact_roots") or FORMAL_FACT_ROOTS}
     issues: list[dict[str, str]] = []
+    remediation_plan: list[dict[str, Any]] = []
+    migration_report: dict[str, Any] = {
+        "safe_by_default": True,
+        "project_root": str(project_root.relative_to(root)) if project_root.exists() else str(project_root),
+        "legacy_directories": [],
+        "current_artifact_groups": [],
+        "pending_revision_runs": [],
+        "missing_fact_files": [],
+        "notes": [
+            "This report proposes migration work only; it does not delete or move project artifacts.",
+            "Canonical facts remain project_fact_events.jsonl, project_fact_snapshot.yml, project_artifact_index.yml, and production/**.",
+        ],
+    }
 
     if not project_root.exists():
-        issues.append(_issue("error", "project_exists", f"project does not exist: {project}", str(project_root)))
-        return {"status": "fail", "project": project, "active_content_project": active, "issue_count": len(issues), "issues": issues}
+        issues.append(_issue(
+            "error",
+            "project_exists",
+            f"project does not exist: {project}",
+            str(project_root),
+            "Create the project or rerun the doctor with the intended project name.",
+        ))
+        return {
+            "status": "fail",
+            "project": project,
+            "active_content_project": active,
+            "issue_count": len(issues),
+            "issues": issues,
+            "migration_report": migration_report,
+            "remediation_plan": remediation_plan,
+        }
 
     if not active:
-        issues.append(_issue("warning", "active_content_project", "project is not listed as active content governance project"))
+        issues.append(_issue(
+            "warning",
+            "active_content_project",
+            "project is not listed as active content governance project",
+            recommendation="Add the project to config/content_project_governance.yml before treating doctor output as authoritative.",
+        ))
+        remediation_plan.append(_remediation_action(
+            "register_active_content_project",
+            "warning",
+            "config/content_project_governance.yml",
+            "Project is not covered by active long-project governance policy.",
+            "Review the project and add it to active_projects if it should be governed.",
+        ))
 
     policy_path = project_root / "project_brain" / "artifact_version_policy.yml"
     version_policy = _read_yaml(policy_path, {}) or {}
@@ -73,12 +153,45 @@ def run_governance_doctor(root: Path, project: str) -> dict[str, Any]:
         if not child.is_dir():
             continue
         if any(fnmatch.fnmatch(child.name, pattern) for pattern in legacy_patterns) and child.name not in registered_legacy:
-            issues.append(_issue("warning", "legacy_fact_dir", f"unregistered legacy/rebuild directory: {child.name}", str(child.relative_to(root))))
+            rel = str(child.relative_to(root))
+            migration_report["legacy_directories"].append({
+                "path": rel,
+                "registered": False,
+                "risk": "directory may be mistaken for canonical project facts",
+            })
+            issues.append(_issue(
+                "warning",
+                "legacy_fact_dir",
+                f"unregistered legacy/rebuild directory: {child.name}",
+                rel,
+                "Register it as legacy/archive/candidate material or promote selected facts through project_artifact_index.yml.",
+            ))
+            remediation_plan.append(_remediation_action(
+                f"review_legacy_dir_{child.name}",
+                "warning",
+                rel,
+                "Unregistered rebuild/legacy directory exists beside canonical project sources.",
+                "Inventory useful files, promote only accepted artifacts to production/**, and register the old directory as legacy evidence.",
+            ))
 
     index_path = project_root / "project_artifact_index.yml"
     index = _read_yaml(index_path, {}) or {}
     if not index_path.exists():
-        issues.append(_issue("warning", "artifact_index_present", "project_artifact_index.yml is missing", str(index_path.relative_to(root))))
+        rel = str(index_path.relative_to(root))
+        issues.append(_issue(
+            "warning",
+            "artifact_index_present",
+            "project_artifact_index.yml is missing",
+            rel,
+            "Create a project_artifact_index.yml before promoting or replacing formal artifacts.",
+        ))
+        remediation_plan.append(_remediation_action(
+            "create_artifact_index",
+            "warning",
+            rel,
+            "No artifact index exists, so current production artifacts cannot be audited reliably.",
+            "Create project_artifact_index.yml with exactly one current entry per artifact_id.",
+        ))
 
     current_by_id: dict[str, list[dict[str, Any]]] = {}
     for record in index.get("artifacts") or []:
@@ -89,17 +202,75 @@ def run_governance_doctor(root: Path, project: str) -> dict[str, Any]:
         production_path = str(record.get("production_path") or "")
         first_part = Path(production_path).parts[:1]
         if first_part and first_part[0] not in formal_roots:
-            issues.append(_issue("error", "current_formal_fact_root", f"current artifact points outside formal fact roots: {artifact_id}", production_path))
+            issues.append(_issue(
+                "error",
+                "current_formal_fact_root",
+                f"current artifact points outside formal fact roots: {artifact_id}",
+                production_path,
+                "Move or re-promote the current artifact into a formal root before dispatching Writer/Coder work.",
+            ))
+            remediation_plan.append(_remediation_action(
+                f"rehome_current_artifact_{artifact_id}",
+                "error",
+                production_path,
+                "A current artifact points outside production/** or project_brain/**.",
+                "Create an artifact promotion plan that archives the old current path and promotes a formal production path.",
+            ))
         if any(fnmatch.fnmatch(part, pattern) for part in Path(production_path).parts for pattern in legacy_patterns):
-            issues.append(_issue("error", "current_legacy_fact_root", f"current artifact points at legacy/rebuild path: {artifact_id}", production_path))
+            issues.append(_issue(
+                "error",
+                "current_legacy_fact_root",
+                f"current artifact points at legacy/rebuild path: {artifact_id}",
+                production_path,
+                "Do not use rebuild or legacy directories as current truth; re-promote the accepted artifact into production/**.",
+            ))
+            remediation_plan.append(_remediation_action(
+                f"retire_legacy_current_artifact_{artifact_id}",
+                "error",
+                production_path,
+                "A current artifact still points at a rebuild or legacy path.",
+                "Promote the accepted content into a stable production/** path and mark the legacy path archived or superseded.",
+            ))
     for artifact_id, records in current_by_id.items():
+        migration_report["current_artifact_groups"].append({
+            "artifact_id": artifact_id,
+            "current_count": len(records),
+            "production_paths": [str(record.get("production_path") or "") for record in records],
+        })
         if len(records) > 1:
-            issues.append(_issue("error", "single_current_artifact", f"artifact has multiple current versions: {artifact_id}"))
+            issues.append(_issue(
+                "error",
+                "single_current_artifact",
+                f"artifact has multiple current versions: {artifact_id}",
+                recommendation="Choose one current artifact, archive/supersede the others, then update project_artifact_index.yml.",
+            ))
+            remediation_plan.append(_remediation_action(
+                f"dedupe_current_artifact_{artifact_id}",
+                "error",
+                "project_artifact_index.yml",
+                f"Artifact {artifact_id} has {len(records)} current entries.",
+                "Pick the accepted current version and mark older versions superseded or archived with lineage.",
+            ))
 
     brain = project_root / "project_brain"
     for filename in ("project_fact_events.jsonl", "project_fact_snapshot.yml"):
         if not (brain / filename).exists():
-            issues.append(_issue("warning", "fact_state_present", f"missing project_brain/{filename}", str((brain / filename).relative_to(root))))
+            rel = str((brain / filename).relative_to(root))
+            migration_report["missing_fact_files"].append(rel)
+            issues.append(_issue(
+                "warning",
+                "fact_state_present",
+                f"missing project_brain/{filename}",
+                rel,
+                "Initialize fact events and snapshot before relying on revision governance.",
+            ))
+            remediation_plan.append(_remediation_action(
+                f"initialize_{Path(filename).stem}",
+                "warning",
+                rel,
+                f"Canonical fact state file is missing: {filename}.",
+                "Initialize project fact state, then replay or approve accepted fact events through the revision lane.",
+            ))
 
     runs_dir = project_root / "runs"
     if runs_dir.exists():
@@ -107,12 +278,64 @@ def run_governance_doctor(root: Path, project: str) -> dict[str, Any]:
             prompt_path = run_dir / "user_request.md"
             prompt = prompt_path.read_text(encoding="utf-8", errors="replace") if prompt_path.exists() else ""
             if _revision_keywords(prompt) and not (run_dir / "change_request.yml").exists():
-                issues.append(_issue("warning", "revision_change_request", "revision-like prompt has no change_request.yml", str(run_dir.relative_to(root))))
+                rel = str(run_dir.relative_to(root))
+                command = (
+                    f"./agentlab.sh governance revision-intake --project {project} "
+                    f"--task-id {run_dir.name} --prompt-file {rel}/user_request.md --write"
+                )
+                migration_report["pending_revision_runs"].append({
+                    "task_id": run_dir.name,
+                    "path": rel,
+                    "missing": "change_request.yml",
+                })
+                issues.append(_issue(
+                    "warning",
+                    "revision_change_request",
+                    "revision-like prompt has no change_request.yml",
+                    rel,
+                    "Run revision-intake so the user change request enters the governance lane.",
+                    command,
+                ))
+                remediation_plan.append(_remediation_action(
+                    f"intake_revision_{run_dir.name}",
+                    "warning",
+                    rel,
+                    "A revision-like prompt has not been converted into a change request.",
+                    "Generate change_request.yml and state_transition_proposal.yml from the original prompt.",
+                    command,
+                ))
             if (run_dir / "change_request.yml").exists() and not (run_dir / "state_transition_proposal.yml").exists():
-                issues.append(_issue("warning", "state_transition_proposal", "change_request.yml has no state_transition_proposal.yml", str(run_dir.relative_to(root))))
+                rel = str(run_dir.relative_to(root))
+                migration_report["pending_revision_runs"].append({
+                    "task_id": run_dir.name,
+                    "path": rel,
+                    "missing": "state_transition_proposal.yml",
+                })
+                issues.append(_issue(
+                    "warning",
+                    "state_transition_proposal",
+                    "change_request.yml has no state_transition_proposal.yml",
+                    rel,
+                    "Regenerate the transition proposal before dispatching Writer/Coder work.",
+                ))
+                remediation_plan.append(_remediation_action(
+                    f"complete_revision_proposal_{run_dir.name}",
+                    "warning",
+                    rel,
+                    "A change request exists without its matching state transition proposal.",
+                    "Rebuild the state_transition_proposal.yml from the accepted change_request.yml.",
+                ))
 
     status = "fail" if any(issue["severity"] == "error" for issue in issues) else "pass"
-    return {"status": status, "project": project, "active_content_project": active, "issue_count": len(issues), "issues": issues}
+    return {
+        "status": status,
+        "project": project,
+        "active_content_project": active,
+        "issue_count": len(issues),
+        "issues": issues,
+        "migration_report": migration_report,
+        "remediation_plan": remediation_plan,
+    }
 
 
 def build_revision_intake(project: str, task_id: str, prompt: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -125,9 +348,13 @@ def register_governance_commands(app: typer.Typer, project_root: Path, console: 
     @governance_app.command("doctor")
     def doctor(
         project: str = typer.Option(..., "--project", help="Project name under projects/."),
+        write_report: bool = typer.Option(False, "--write-report", help="Write project_brain/governance_migration_report.yml."),
     ) -> None:
         """Audit long-project revision and fact-source governance."""
         result = run_governance_doctor(project_root, project)
+        if write_report and (project_root / "projects" / project).exists():
+            report_path = _write_governance_report(project_root, project, result)
+            result["report_path"] = str(report_path.relative_to(project_root))
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result.get("status") != "pass":
             raise typer.Exit(code=1)

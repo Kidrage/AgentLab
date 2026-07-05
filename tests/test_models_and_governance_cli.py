@@ -102,6 +102,51 @@ def test_governance_doctor_detects_legacy_and_multiple_current(tmp_path):
     assert any(issue["check"] == "legacy_fact_dir" for issue in result["issues"])
     assert any(issue["check"] == "single_current_artifact" for issue in result["issues"])
     assert any(issue["check"] == "current_formal_fact_root" for issue in result["issues"])
+    assert result["migration_report"]["safe_by_default"] is True
+    assert result["migration_report"]["legacy_directories"][0]["path"] == "projects/NovelGen/foo_rebuild"
+    assert result["migration_report"]["current_artifact_groups"][0]["current_count"] == 2
+    assert any(action["action_id"] == "dedupe_current_artifact_bible" for action in result["remediation_plan"])
+    assert any(action["action_id"] == "retire_legacy_current_artifact_bible" for action in result["remediation_plan"])
+
+
+def test_governance_doctor_reports_revision_migration_actions(tmp_path):
+    root = _copy_config_root(tmp_path)
+    run_dir = root / "projects" / "NovelGen" / "runs" / "task_revision"
+    run_dir.mkdir(parents=True)
+    (run_dir / "user_request.md").write_text("Please revise the character motive.", encoding="utf-8")
+
+    result = run_governance_doctor(root, "NovelGen")
+
+    assert result["status"] == "pass"
+    assert result["migration_report"]["pending_revision_runs"] == [
+        {
+            "task_id": "task_revision",
+            "path": "projects/NovelGen/runs/task_revision",
+            "missing": "change_request.yml",
+        }
+    ]
+    issue = next(item for item in result["issues"] if item["check"] == "revision_change_request")
+    assert issue["command"].startswith("./agentlab.sh governance revision-intake --project NovelGen")
+    assert any(action["action_id"] == "intake_revision_task_revision" for action in result["remediation_plan"])
+
+
+def test_governance_doctor_write_report(tmp_path):
+    import typer
+    from rich.console import Console
+    from agent_runtime.cli.governance import register_governance_commands
+
+    root = _copy_config_root(tmp_path)
+    (root / "projects" / "NovelGen").mkdir(parents=True)
+    local_app = typer.Typer()
+    register_governance_commands(local_app, root, Console(width=120))
+
+    result = runner.invoke(local_app, ["governance", "doctor", "--project", "NovelGen", "--write-report"])
+
+    assert result.exit_code == 0
+    report_path = root / "projects" / "NovelGen" / "project_brain" / "governance_migration_report.yml"
+    assert report_path.exists()
+    report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+    assert report["migration_report"]["safe_by_default"] is True
 
 
 def test_revision_intake_builds_change_request_and_transition():
