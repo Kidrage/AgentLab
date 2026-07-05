@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover - package import path
 
 
 DEFAULT_ROUTE_AGENTS: dict[str, list[str]] = {
-    "small_task": ["Supervisor", "Coder", "TesterAuditor", "Verifier"],
+    "small_task": ["Supervisor", "Coder"],
     "medium_task": ["Supervisor", "RepoScout", "Coder", "TesterAuditor", "Verifier", "Archivist"],
     "interface_sensitive_task": [
         "Supervisor",
@@ -29,7 +29,7 @@ DEFAULT_ROUTE_AGENTS: dict[str, list[str]] = {
         "Verifier",
         "Archivist",
     ],
-    "research_sensitive_task": ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier"],
+    "research_sensitive_task": ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier", "Archivist"],
     "artifact_production_task": ["Supervisor", "ArtifactProducer", "TesterAuditor", "Verifier", "Archivist"],
     "media_generation_task": ["Supervisor", "ArtifactProducer", "TesterAuditor", "Verifier", "Archivist"],
     "narrative_light_chapter": ["Supervisor", "Writer"],

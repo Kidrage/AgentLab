@@ -9,6 +9,7 @@ if str(AGENT_RUNTIME) not in sys.path:
 
 from agent_runtime.lifecycle_graph import NODE_REQUIRED_OUTPUTS, create_lifecycle
 from agent_runtime.pipeline_runner import NODE_TO_AGENT, NODE_TO_REPORT
+from agent_runtime.agent_runner import DEFAULT_REPORT_BY_AGENT
 
 
 def test_fiction_route_enables_writer_reviewer_scribe_nodes(tmp_path: Path):
@@ -49,3 +50,27 @@ def test_nonfiction_route_skips_writer_reviewer_scribe_nodes(tmp_path: Path):
     assert lifecycle["nodes"]["FICTION_REVIEW"]["skip_reason"] == "Route does not include Reviewer"
     assert lifecycle["nodes"]["SCRIBE_LEDGER"]["status"] == "skipped"
     assert lifecycle["nodes"]["SCRIBE_LEDGER"]["skip_reason"] == "Route does not include Scribe"
+
+
+def test_lifecycle_node_reports_match_agent_report_contracts():
+    nodes_by_agent = {}
+    for node_id, agent_name in NODE_TO_AGENT.items():
+        nodes_by_agent.setdefault(agent_name, []).append(node_id)
+        if node_id in NODE_REQUIRED_OUTPUTS:
+            assert NODE_TO_REPORT[node_id] in NODE_REQUIRED_OUTPUTS[node_id], node_id
+            if len(NODE_REQUIRED_OUTPUTS[node_id]) == 1:
+                assert NODE_REQUIRED_OUTPUTS[node_id] == [NODE_TO_REPORT[node_id]], node_id
+
+    for agent_name, node_ids in nodes_by_agent.items():
+        if agent_name in DEFAULT_REPORT_BY_AGENT and len(node_ids) == 1:
+            node_id = node_ids[0]
+            assert NODE_TO_REPORT[node_id] == DEFAULT_REPORT_BY_AGENT[agent_name], node_id
+
+    assert {NODE_TO_REPORT["VALIDATION"], NODE_TO_REPORT["AUDIT"]} == {
+        "07_validation_report.md",
+        "08_audit_report.md",
+    }
+    assert DEFAULT_REPORT_BY_AGENT["TesterAuditor"] in {
+        NODE_TO_REPORT["VALIDATION"],
+        NODE_TO_REPORT["AUDIT"],
+    }

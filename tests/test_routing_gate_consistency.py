@@ -328,8 +328,7 @@ class TestRouteGateConsistency:
         # a gate config issue, not a route issue — the gate should accept
         # claude_code as implementation executor.  The implementation_report
         # gate check looks for any impl executor in route.
-        impl_exec_code = "implementation_required_but_no_executor"
-        assert impl_exec_code not in {e.code for e in errors}
+        assert errors == []
 
     def test_empty_gates_is_consistent(self):
         from route_gate_consistency import validate_route_gate_consistency

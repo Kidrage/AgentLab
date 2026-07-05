@@ -97,12 +97,12 @@ def validate_route_gate_consistency(
 
         # ── Rule 1: implementation_report gate requires an impl executor ─
         if gate_id in {"implementation_report"} and required:
-            if owner in IMPLEMENTATION_EXECUTORS and owner not in route_set:
+            if owner in IMPLEMENTATION_EXECUTORS and not (route_set & IMPLEMENTATION_EXECUTORS):
                 errors.append(RouteGateConsistencyError(
                     code="implementation_report_requires_missing_executor",
                     message=(
-                        f"Gate '{gate_id}' requires owner '{owner}' but "
-                        f"'{owner}' is not in the selected route. "
+                        f"Gate '{gate_id}' requires implementation owner '{owner}' but "
+                        f"no implementation executor is in the selected route. "
                         f"Route agents: {route_agents}. "
                         f"Either add an implementation executor or downgrade "
                         f"the gate to analysis-only."

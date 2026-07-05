@@ -6,7 +6,12 @@ import yaml
 
 from agent_runtime.config_inventory import build_config_inventory, config_inventory_payload
 from agent_runtime.config_loader import load_yaml
-from agent_runtime.routing.route_catalog import RouteCatalog
+from agent_runtime.routing.route_catalog import (
+    DEFAULT_ROUTE_AGENTS,
+    DEFAULT_ROUTE_SIZE,
+    ROUTE_SIZE_MAP,
+    RouteCatalog,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +25,17 @@ def test_route_catalog_loads_all_configured_routes() -> None:
         assert catalog.has_route(route_key), route_key
         assert catalog.agents_for(route_key), route_key
         assert catalog.size_for(route_key) in {"small", "medium", "large"}
+
+
+def test_route_catalog_defaults_match_configured_routes() -> None:
+    routing_config = load_yaml(ROOT / "config" / "routing_rules.yml")
+    configured_routes = routing_config["routes"]
+
+    for route_key, default_agents in DEFAULT_ROUTE_AGENTS.items():
+        configured = configured_routes.get(route_key)
+        assert configured is not None, route_key
+        assert configured.get("agents") == default_agents, route_key
+        assert ROUTE_SIZE_MAP.get(str(configured.get("size"))) == DEFAULT_ROUTE_SIZE[route_key], route_key
 
 
 def test_task_router_uses_route_catalog_without_behavior_change() -> None:
