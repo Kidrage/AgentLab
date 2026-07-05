@@ -13,7 +13,7 @@ quality unless a live execution test is listed as evidence.
 |---|---|---:|---|
 | Full Python test suite | `python -m pytest -q` | `2073 passed, 2 skipped, 11 warnings` | Unit/integration regression coverage |
 | GitHub CI | run `28748843693` | `success` | Mainline CI after lifecycle route fix |
-| Capability scorecard | `python agent_runtime/evaluation/eval_all.py --root /Users/saintpeter/Desktop/AgentLab` | `100%`, `Production-like` | Local deterministic system checks; execute smoke not run |
+| Capability scorecard | `python agent_runtime/evaluation/eval_all.py --root .` | `100%`, `Production-like` | Local deterministic system checks; execute smoke not run |
 | Performance eval | `./agentlab.sh performance-eval --project AgentLab --task-id task_capability_boundary_20260706` | `96.5/100`, route `evaluation_task` | Local deterministic routing/config/lifecycle/command/artifact check |
 | Narrative eval | `./agentlab.sh narrative-eval run --project Crown_of_Ash --mode mock --chapters 1-3 --timestamp capability_boundary_20260706` | `warn`; L2 sample `pass`; L3 simulation `pass` | Mock longform governance, not live prose quality |
 
