@@ -1,0 +1,19 @@
+schema_version: 1
+suite: crown_reset_acceptance_v1
+chapter_count: 1500
+parts:
+- part: 1
+  chapters:
+  - 1
+  - 500
+  phase: survival_and_discovery
+- part: 2
+  chapters:
+  - 501
+  - 1000
+  phase: war_and_cost
+- part: 3
+  chapters:
+  - 1001
+  - 1500
+  phase: reckoning_and_rebuild

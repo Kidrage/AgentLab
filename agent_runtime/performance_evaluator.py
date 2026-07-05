@@ -75,6 +75,8 @@ def run_performance_evaluation(agentlab_root: Path, project: str, task_id: str) 
     final_artifacts = validate_artifacts(run_dir)
     write_artifact_manifest(run_dir, final_artifacts)
     metrics["artifacts"] = final_artifacts
+    metrics["score"] = score(metrics)
+    write_reports(agentlab_root, project_root, run_dir, plan.model_dump(mode="json"), metrics)
     (run_dir / REPORT).write_text(render_performance_report(metrics), encoding="utf-8")
     _refresh_validation_reports(run_dir, metrics)
     final_artifacts = validate_artifacts(run_dir)
@@ -211,12 +213,13 @@ def evaluate_commands(agentlab_root: Path, project: str, task_id: str) -> dict[s
 
 
 def score(metrics: dict[str, Any]) -> dict[str, Any]:
-    routing = metrics["routing"]["pass_rate"] * 30
-    config = (1.0 if metrics["configuration"]["pass"] else 0.5) * 20
+    routing = metrics["routing"]["pass_rate"] * 25
+    config = (1.0 if metrics["configuration"]["pass"] else 0.5) * 15
     lifecycle = (1.0 if metrics["lifecycle"]["node_count"] == metrics["lifecycle"]["expected_node_count"] else 0.5) * 20
     analysis_skip = (1.0 if metrics["lifecycle"]["analysis_route_skips_coder"] else 0.0) * 10
-    commands = (metrics["commands"]["passed"] / max(metrics["commands"]["total"], 1)) * 20
-    total = round(routing + config + lifecycle + analysis_skip + commands, 1)
+    commands = (metrics["commands"]["passed"] / max(metrics["commands"]["total"], 1)) * 15
+    artifact = float(metrics.get("artifacts", {}).get("pass_rate", 0.0) or 0.0) * 15
+    total = round(routing + config + lifecycle + analysis_skip + commands + artifact, 1)
     return {
         "total": total,
         "grade": "A" if total >= 90 else "B" if total >= 80 else "C" if total >= 70 else "D",
@@ -226,6 +229,7 @@ def score(metrics: dict[str, Any]) -> dict[str, Any]:
             "lifecycle": round(lifecycle, 1),
             "analysis_skip": round(analysis_skip, 1),
             "commands": round(commands, 1),
+            "artifacts": round(artifact, 1),
         },
     }
 
@@ -428,6 +432,9 @@ def render_audit(metrics: dict[str, Any]) -> str:
         findings.append("Configuration consistency issues detected.")
     if not metrics["lifecycle"]["analysis_route_skips_coder"]:
         findings.append("Analysis-only route did not skip Coder.")
+    artifact_rate = float(metrics.get("artifacts", {}).get("pass_rate", 0.0) or 0.0)
+    if artifact_rate < 0.80:
+        findings.append(f"Artifact completeness below threshold: {artifact_rate:.2f}.")
     if not findings:
         findings.append("No blocking findings.")
     return "# Audit Report\n\n" + "\n".join(f"- {finding}" for finding in findings) + "\n\nFinal decision: PASS\n"

@@ -11,6 +11,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+RUNTIME_DIR = Path(__file__).resolve().parents[1]
+if str(RUNTIME_DIR) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_DIR))
+
 # ─── Helpers ──────────────────────────────────────────────────────────────
 
 def _utc_now() -> str:
@@ -123,7 +127,7 @@ def eval_lifecycle(agentlab_root: Path) -> dict:
         task_ids.append(task_id)
         task_errors = []
 
-        rc, out = _run(f"./agentlab.sh init-task --project AgentLab --task-id {task_id} --request-text 'eval: {task_name}' --auto-slug false 2>&1", cwd=agentlab_root)
+        rc, out = _run(f"./agentlab.sh init-task --project AgentLab --task-id {task_id} --request-text 'eval: {task_name}' --no-auto-slug 2>&1", cwd=agentlab_root)
         if rc != 0:
             task_errors.append(f"init failed: {out[:100]}")
 

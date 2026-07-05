@@ -1,0 +1,17 @@
+suite: crown_reset_acceptance_v1
+chapters:
+- chapter: 1
+  task_id: narrative_eval_ch01_capability_boundary_20260706
+  status: pass
+  blocking_issue_count: 0
+  production_modified: false
+- chapter: 2
+  task_id: narrative_eval_ch02_capability_boundary_20260706
+  status: pass
+  blocking_issue_count: 0
+  production_modified: false
+- chapter: 3
+  task_id: narrative_eval_ch03_capability_boundary_20260706
+  status: pass
+  blocking_issue_count: 0
+  production_modified: false
