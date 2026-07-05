@@ -266,7 +266,7 @@ agents:
       - runs/task_xxxx/fiction_draft.md
       - runs/task_xxxx/mission_contract.yml
     required_outputs:
-      - runs/task_xxxx/fiction_review.md
+      - runs/task_xxxx/fiction_review.yml
 
   Scribe:
     template_path: agent_templates/scribe.md
@@ -282,7 +282,7 @@ agents:
     source_write_policy: artifact_contract_outputs_only
     required_inputs:
       - runs/task_xxxx/fiction_draft.md
-      - runs/task_xxxx/fiction_review.md
+      - runs/task_xxxx/fiction_review.yml
       - runs/task_xxxx/mission_contract.yml
     required_outputs:
       - runs/task_xxxx/continuity_ledger.yml

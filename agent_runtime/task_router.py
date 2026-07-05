@@ -7,7 +7,6 @@ execute agents or modify source files.
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from schemas import AgentRoute
@@ -15,9 +14,11 @@ from schemas import AgentRoute
 try:
     from protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
     from routing.route_catalog import RouteCatalog
+    from narrative_intent import classify_narrative_intent
 except ImportError:  # pragma: no cover - package import path
     from agent_runtime.protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
     from agent_runtime.routing.route_catalog import RouteCatalog
+    from agent_runtime.narrative_intent import classify_narrative_intent
 
 
 # ── Implementation intent signals ─────────────────────────────────────────
@@ -124,65 +125,6 @@ ARTIFACT_PRODUCTION_ACTION_HINTS: tuple[str, ...] = (
 )
 
 
-CREATIVE_WRITING_HINTS: tuple[str, ...] = (
-    "write novel",
-    "write story",
-    "write fiction",
-    "write chapter",
-    "chapter",
-    "scene",
-    "novel",
-    "fiction",
-    "manuscript",
-    "prose",
-    "worldbuilding",
-    "character arc",
-    "crown",
-    "crown of ash",
-    "crown_of_ash",
-    "creative writing",
-    "小说",
-    "章节",
-    "写小说",
-    "长篇小说",
-    "人物设定",
-    "角色设定",
-    "世界观",
-    "灰烬王冠",
-    "角色圣经",
-    "重构蓝图",
-    "续写",
-    "正文",
-)
-
-
-NARRATIVE_HEAVY_AUDIT_HINTS: tuple[str, ...] = (
-    "audit",
-    "review all",
-    "comprehensive review",
-    "acceptance",
-    "promotion",
-    "before promotion",
-    "narrative-eval",
-    "quality dispute",
-    "blocking continuity",
-    "highest quality",
-    "full check",
-    "check the first",
-    "审计",
-    "验收",
-    "全面检查",
-    "检查前",
-    "前置检查",
-    "promotion",
-    "晋升前",
-    "质量争议",
-    "阻塞连续性",
-    "最高质量",
-    "1500章",
-)
-
-
 ARTICLE_LIGHT_HINTS: tuple[str, ...] = (
     "article",
     "essay",
@@ -194,6 +136,9 @@ ARTICLE_LIGHT_HINTS: tuple[str, ...] = (
     "产品说明",
     "写文章",
     "短文",
+    "分析文章",
+    "市场分析",
+    "analysis article",
 )
 
 
@@ -253,28 +198,6 @@ def _detect_artifact_production_intent(text: str) -> tuple[bool, str | None]:
         return False, None
     has_action = any(hint.lower() in lowered for hint in ARTIFACT_PRODUCTION_ACTION_HINTS)
     return has_action, artifact_type if has_action else None
-
-
-def _detect_creative_writing_domain(text: str) -> bool:
-    lowered = text.lower()
-    if any(hint.lower() in lowered for hint in CREATIVE_WRITING_HINTS):
-        return True
-    chapter_marker = re.search(r"第\s*[\d一二三四五六七八九十百千]+\s*章", text)
-    creative_markers = ("角色圣经", "重构蓝图", "卷纲", "章节", "正文", "故事", "小说")
-    writing_actions = ("写", "撰写", "续写", "重写", "修改")
-    if chapter_marker and (
-        any(action in text for action in writing_actions)
-        or any(marker in text for marker in creative_markers)
-    ):
-        return True
-    return any(action in text for action in writing_actions) and any(marker in text for marker in creative_markers)
-
-
-def _detect_narrative_heavy_audit_intent(text: str) -> bool:
-    lowered = text.lower()
-    if any(hint.lower() in lowered for hint in NARRATIVE_HEAVY_AUDIT_HINTS):
-        return True
-    return bool(re.search(r"(audit|review|check|审计|验收|检查).{0,24}(chapter|chapters|章|章节)", text, re.I))
 
 
 def _detect_article_light_intent(text: str, artifact_type: str | None) -> bool:
@@ -412,7 +335,8 @@ def recommend_route(
     # so Chinese characters match correctly).
     wants_implementation = _detect_implementation_intent(task_text)
     wants_artifact, artifact_type = _detect_artifact_production_intent(task_text)
-    is_creative_writing = _detect_creative_writing_domain(task_text)
+    narrative_intent = classify_narrative_intent(task_text)
+    is_creative_writing = narrative_intent.is_narrative
 
     wants_evaluation = any(hint in text for hint in evaluation_hints)
     wants_research = any(hint in text for hint in research_hints)
@@ -426,7 +350,7 @@ def recommend_route(
     # Implementation intent overrides evaluation route — if the user asks to
     # implement code AND evaluate it, implementation wins.
     if is_creative_writing and not _detect_code_implementation_context(task_text):
-        route_key = "narrative_heavy_audit" if _detect_narrative_heavy_audit_intent(task_text) else "narrative_light_chapter"
+        route_key = "narrative_heavy_audit" if narrative_intent.kind == "audit" else "narrative_light_chapter"
         task_size = route_catalog.size_for(route_key)
         agents = route_catalog.agents_for(route_key)
     elif wants_implementation:

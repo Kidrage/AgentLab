@@ -282,7 +282,7 @@ def _write_live_chapter_outputs(root: Path, run_dir: Path, project: str, task_id
 
         plan = build_workflow_plan(root, project, task_id, user_request_path=run_dir / "user_request.md", budget_mode="balanced")
         run_agent_model(root, plan, "Writer", run_dir / "fiction_draft.md", apply_patches=False)
-        run_agent_model(root, plan, "Reviewer", run_dir / "fiction_review.md", apply_patches=False)
+        run_agent_model(root, plan, "Reviewer", run_dir / "fiction_review.yml", apply_patches=False)
         if (run_dir / "fiction_draft.md").exists():
             _write_structured_delivery_files(
                 run_dir,

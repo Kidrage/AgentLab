@@ -285,7 +285,7 @@ def _validation_gates_for_route(configs: dict, route: AgentRoute) -> list[dict]:
             "owner": "Reviewer",
             "required": True,
             "description": "Review the draft for continuity, POV, character state, timeline, and style drift.",
-            "evidence": ["fiction_review.md"],
+            "evidence": ["fiction_review.yml"],
         },
         {
             "id": "continuity_update",
@@ -374,7 +374,7 @@ def _included_agents_for_route(agent_registry: dict, route: AgentRoute) -> dict[
             "runs/task_xxxx/supervisor_plan.md",
             "runs/task_xxxx/mission_contract.yml",
             "runs/task_xxxx/fiction_draft.md",
-            "runs/task_xxxx/fiction_review.md",
+            "runs/task_xxxx/fiction_review.yml",
             "runs/task_xxxx/continuity_ledger.yml",
         ]
         included["Verifier"]["required_outputs"] = ["runs/task_xxxx/verification_report.md"]
@@ -383,7 +383,7 @@ def _included_agents_for_route(agent_registry: dict, route: AgentRoute) -> dict[
         included["Archivist"]["required_inputs"] = [
             "runs/task_xxxx/supervisor_plan.md",
             "runs/task_xxxx/fiction_draft.md",
-            "runs/task_xxxx/fiction_review.md",
+            "runs/task_xxxx/fiction_review.yml",
             "runs/task_xxxx/continuity_ledger.yml",
             "runs/task_xxxx/verification_report.md",
             "project_config.yml (bulk mode)",

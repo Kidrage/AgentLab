@@ -109,3 +109,35 @@ def test_workflow_plan_routes_plain_article_to_article_light_path(tmp_path: Path
     assert plan.route.agents == ["Supervisor", "ArtifactProducer"]
     gate_ids = {gate["id"] for gate in plan.validation_gates}
     assert {"article_draft", "article_structure_check"} <= gate_ids
+
+
+def test_workflow_plan_keeps_fiction_market_article_out_of_narrative_path(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    request = tmp_path / "user_request.md"
+    request.write_text("写一篇关于小说市场的分析文章。", encoding="utf-8")
+
+    plan = build_workflow_plan(
+        root,
+        "Crown_of_Ash",
+        "task_fiction_market_article",
+        user_request_path=request,
+    )
+
+    assert plan.route.route_key == "article_light_draft"
+    assert "Writer" not in plan.route.agents
+
+
+def test_workflow_plan_routes_short_chapter_check_to_heavy_audit(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    request = tmp_path / "user_request.md"
+    request.write_text("检查前10章连续性。", encoding="utf-8")
+
+    plan = build_workflow_plan(
+        root,
+        "Crown_of_Ash",
+        "task_short_continuity_check",
+        user_request_path=request,
+    )
+
+    assert plan.route.route_key == "narrative_heavy_audit"
+    assert plan.route.agents == ["Supervisor", "Reviewer", "Scribe", "Verifier"]

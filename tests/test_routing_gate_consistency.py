@@ -217,6 +217,27 @@ class TestRouteRecommendation:
         assert route.route_key == "article_light_draft"
         assert route.agents == ["Supervisor", "ArtifactProducer"]
 
+    def test_article_about_fiction_market_does_not_route_to_chapter_writer(self):
+        from task_router import recommend_route
+
+        route = recommend_route("写一篇关于小说市场的分析文章。")
+        assert route.route_key == "article_light_draft"
+        assert route.agents == ["Supervisor", "ArtifactProducer"]
+
+    def test_article_about_the_crown_tv_show_does_not_route_to_chapter_writer(self):
+        from task_router import recommend_route
+
+        route = recommend_route("Write an article about The Crown TV show.")
+        assert route.route_key == "article_light_draft"
+        assert route.agents == ["Supervisor", "ArtifactProducer"]
+
+    def test_chinese_chapter_continuity_check_routes_to_heavy_audit(self):
+        from task_router import recommend_route
+
+        route = recommend_route("检查前10章连续性。")
+        assert route.route_key == "narrative_heavy_audit"
+        assert route.agents == ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+
 
 # ── Route–gate consistency validation ──────────────────────────────────────
 

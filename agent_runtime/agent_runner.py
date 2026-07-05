@@ -22,7 +22,7 @@ DEFAULT_REPORT_BY_AGENT = {
     "Coder": "06_implementation_report.md",
     "ArtifactProducer": "artifact_producer_report.md",
     "Writer": "fiction_draft.md",
-    "Reviewer": "fiction_review.md",
+    "Reviewer": "fiction_review.yml",
     "Scribe": "continuity_ledger.yml",
     "TesterAuditor": "08_audit_report.md",
     "Verifier": "verification_report.md",
@@ -103,7 +103,7 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             run_dir / DEFAULT_REPORT_BY_AGENT.get("RepoScout", "02_reposcout_report.md"),
             run_dir / "mission_contract.yml",
             run_dir / "fiction_draft.md",
-            run_dir / "fiction_review.md",
+            run_dir / "fiction_review.yml",
             run_dir / "continuity_ledger.yml",
         ]
         context_files.extend(_mission_contract_context_files(project_root, run_dir))

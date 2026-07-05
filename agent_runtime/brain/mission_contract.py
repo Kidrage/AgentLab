@@ -46,9 +46,16 @@ def build_mission_contract(
 
     # Step 1: Classify domain
     from agent_runtime.brain.domain_classifier import classify_domain, load_domain_keywords
+    from agent_runtime.narrative_intent import classify_narrative_intent
 
+    narrative_intent = classify_narrative_intent(
+        prompt,
+        active_longform_project=_is_active_longform_content_project(project_id, root),
+    )
     domain_keywords = load_domain_keywords(root / "config" / "mission_compiler_v2.yml")
     domain = _validated_legacy_domain(llm_draft) or classify_domain(prompt, domain_keywords)
+    if narrative_intent.kind == "article" and domain == "creative_longform":
+        domain = "unknown"
 
     # Step 2: Classify project type
     from agent_runtime.brain.project_type_classifier import (
@@ -60,7 +67,7 @@ def build_mission_contract(
 
     pt_keywords = load_project_type_keywords(root / "config" / "mission_compiler_v2.yml")
     project_type = _validated_project_type(llm_draft) or classify_project_type(prompt, domain, pt_keywords)
-    if _looks_like_longform_writing_prompt(prompt, project_id, root):
+    if narrative_intent.is_narrative:
         domain = "creative_longform"
         project_type = "longform_text_project"
     project_types = load_project_types(root / "config" / "project_type_classifier.yml")
@@ -198,35 +205,6 @@ _TASK_DOMAIN_TO_LEGACY_DOMAIN = {
     "automation_ops": "local_ops",
     "unknown": "unknown",
 }
-
-
-def _looks_like_longform_writing_prompt(prompt: str, project_id: str | None, root: Path) -> bool:
-    text = prompt or ""
-    lowered = text.lower()
-    chapter_marker = re.search(r"第\s*[\d一二三四五六七八九十百千]+\s*章", text)
-    writing_action = any(term in text for term in ("写", "撰写", "续写", "重写", "修改", "正文"))
-    continuation_action = any(term in text for term in ("续写", "日更", "继续写", "下一章"))
-    story_marker = any(
-        term in text
-        for term in (
-            "灰烬王冠",
-            "角色圣经",
-            "重构蓝图",
-            "章节",
-            "小说",
-            "故事",
-            "世界观",
-            "卷纲",
-            "人物弧线",
-        )
-    )
-    if "crown of ash" in lowered or "crown_of_ash" in lowered or ("crown" in lowered and chapter_marker):
-        return True
-    if chapter_marker and (writing_action or story_marker):
-        return True
-    if writing_action and story_marker:
-        return True
-    return _is_active_longform_content_project(project_id, root) and bool(chapter_marker or story_marker or continuation_action)
 
 
 def _is_active_longform_content_project(project_id: str | None, root: Path) -> bool:
@@ -425,41 +403,14 @@ def _quality_gates(domain_pack: dict[str, Any]) -> list[str]:
     return [str(item) for item in values] if isinstance(values, list) else []
 
 
-_NARRATIVE_AUDIT_RE = re.compile(
-    r"(audit|review|check|acceptance|promotion|narrative-eval|审计|验收|检查|晋升前).{0,32}"
-    r"(chapter|chapters|fiction|narrative|章|章节|正文|小说)",
-    re.I,
-)
+def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any], root: Path) -> tuple[str, str, dict[str, Any]]:
+    from agent_runtime.narrative_intent import classify_narrative_intent
 
-
-def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any]) -> tuple[str, str, dict[str, Any]]:
-    text = prompt or ""
-    lowered = text.lower()
-    heavy_terms = (
-        "audit",
-        "comprehensive review",
-        "acceptance",
-        "promotion",
-        "before promotion",
-        "narrative-eval",
-        "quality dispute",
-        "blocking continuity",
-        "highest quality",
-        "full check",
-        "审计",
-        "验收",
-        "全面检查",
-        "检查前",
-        "晋升前",
-        "质量争议",
-        "阻塞连续性",
-        "最高质量",
-        "1500章",
-    )
-    if any(term in lowered for term in heavy_terms) or _NARRATIVE_AUDIT_RE.search(text):
+    intent = classify_narrative_intent(prompt, active_longform_project=True)
+    if intent.kind == "audit":
         return (
             str(domain_pack.get("audit_route") or "narrative_heavy_audit"),
-            "creative_writing_heavy_audit_requested",
+            intent.reason,
             domain_pack.get("audit_route_proposal") or {
                 "route_key": "narrative_heavy_audit",
                 "agents": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
@@ -467,7 +418,7 @@ def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any]) -> 
         )
     return (
         str(domain_pack.get("recommended_route") or "narrative_light_chapter"),
-        "creative_writing_light_chapter_default",
+        intent.reason if intent.kind == "chapter" else "creative_writing_light_chapter_default",
         domain_pack.get("route_proposal") or {
             "route_key": "narrative_light_chapter",
             "agents": ["Supervisor", "Writer"],
@@ -493,7 +444,7 @@ def _build_route_decision(
             decision["reason"] = "media_generation_requires_backend_contract_and_harness"
         return decision
 
-    selected_route, reason, proposal = _creative_route_key_for_prompt(prompt, domain_pack)
+    selected_route, reason, proposal = _creative_route_key_for_prompt(prompt, domain_pack, root)
     if selected_route and _route_exists(root, selected_route):
         return {
             "action": "select_existing_route",

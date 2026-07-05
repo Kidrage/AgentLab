@@ -156,6 +156,23 @@ class TestDomainAwareMissionCompiler:
         assert contract["task_domain"] == "creative_writing"
         assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
 
+    def test_article_about_fiction_market_is_not_longform_chapter(self):
+        contract = build_mission_contract(
+            "写一篇关于小说市场的分析文章。",
+            project_id="Crown_of_Ash",
+            task_id="task_article_probe",
+        )
+        assert contract["route_decision"]["selected_route"] != "narrative_light_chapter"
+
+    def test_chinese_chapter_continuity_check_selects_heavy_audit(self):
+        contract = build_mission_contract(
+            "检查前10章连续性。",
+            project_id="Crown_of_Ash",
+            task_id="task_crown_audit_short",
+        )
+        assert contract["task_domain"] == "creative_writing"
+        assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
+
     def test_creative_writing_memory_contract_includes_continuity_ledger(self):
         contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
         assert "continuity_ledger" in contract["memory_contract"]

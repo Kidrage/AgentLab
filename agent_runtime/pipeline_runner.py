@@ -73,7 +73,7 @@ NODE_TO_REPORT = {
     "RESEARCH_OPTIONAL": "03_research_notes.md",
     "INTERFACE_OPTIONAL": "04_interface_map.md",
     "WRITER_DRAFT": "fiction_draft.md",
-    "FICTION_REVIEW": "fiction_review.md",
+    "FICTION_REVIEW": "fiction_review.yml",
     "SCRIBE_LEDGER": "continuity_ledger.yml",
     "CODER_IMPLEMENTATION": "06_implementation_report.md",
     "VALIDATION": "07_validation_report.md",

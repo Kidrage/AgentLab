@@ -24,13 +24,13 @@ def test_fiction_route_enables_writer_reviewer_scribe_nodes(tmp_path: Path):
     assert lifecycle["nodes"]["FICTION_REVIEW"]["status"] == "waiting"
     assert lifecycle["nodes"]["SCRIBE_LEDGER"]["status"] == "waiting"
     assert NODE_REQUIRED_OUTPUTS["WRITER_DRAFT"] == ["fiction_draft.md"]
-    assert NODE_REQUIRED_OUTPUTS["FICTION_REVIEW"] == ["fiction_review.md"]
+    assert NODE_REQUIRED_OUTPUTS["FICTION_REVIEW"] == ["fiction_review.yml"]
     assert NODE_REQUIRED_OUTPUTS["SCRIBE_LEDGER"] == ["continuity_ledger.yml"]
     assert NODE_TO_AGENT["WRITER_DRAFT"] == "Writer"
     assert NODE_TO_AGENT["FICTION_REVIEW"] == "Reviewer"
     assert NODE_TO_AGENT["SCRIBE_LEDGER"] == "Scribe"
     assert NODE_TO_REPORT["WRITER_DRAFT"] == "fiction_draft.md"
-    assert NODE_TO_REPORT["FICTION_REVIEW"] == "fiction_review.md"
+    assert NODE_TO_REPORT["FICTION_REVIEW"] == "fiction_review.yml"
     assert NODE_TO_REPORT["SCRIBE_LEDGER"] == "continuity_ledger.yml"
 
 
