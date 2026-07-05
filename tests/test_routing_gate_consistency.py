@@ -153,15 +153,39 @@ class TestRouteRecommendation:
         rationale_text = " ".join(route.rationale)
         assert "implementation intent overrides" in rationale_text
 
-    def test_creative_writing_routes_to_fiction_pipeline(self):
+    def test_creative_writing_routes_to_light_chapter_path(self):
         from task_router import recommend_route
 
         route = recommend_route(
             "Write chapter 7 of Crown of Ash. Preserve continuity, character "
             "state, timeline, foreshadowing, item tracking, POV, and style."
         )
-        assert route.route_key == "fiction_chapter_pipeline"
-        assert route.agents == ["Supervisor", "Writer", "Reviewer", "Scribe", "Verifier", "Archivist"]
+        assert route.route_key == "narrative_light_chapter"
+        assert route.agents == ["Supervisor", "Writer"]
+
+    def test_chinese_crown_chapter_routes_to_fiction_pipeline(self):
+        from task_router import recommend_route
+
+        route = recommend_route(
+            "按照《灰烬王冠》重构蓝图及角色圣经，撰写第10章_小规模追击。"
+            "具体情节：第一次小规模冲突。"
+        )
+        assert route.route_key == "narrative_light_chapter"
+        assert "Writer" in route.agents
+        assert "Coder" not in route.agents
+
+    def test_short_crown_chapter_routes_to_light_chapter_path(self):
+        from task_router import recommend_route
+
+        route = recommend_route("写 Crown 第 1 章")
+        assert route.route_key == "narrative_light_chapter"
+        assert route.agents == ["Supervisor", "Writer"]
+
+    def test_chinese_report_writing_does_not_route_to_fiction_pipeline(self):
+        from task_router import recommend_route
+
+        route = recommend_route("请撰写一份项目状态报告，整理当前风险和下一步计划。")
+        assert route.route_key != "narrative_light_chapter"
 
     def test_creative_writing_does_not_use_generic_artifact_route(self):
         from task_router import recommend_route
@@ -178,6 +202,20 @@ class TestRouteRecommendation:
         )
         assert route.route_key != "interface_sensitive_task"
         assert route.route_key != "large_or_risky_task"
+
+    def test_narrative_audit_routes_to_heavy_audit_path(self):
+        from task_router import recommend_route
+
+        route = recommend_route("审计 Crown_of_Ash 前 10 章，检查连续性和 promotion 前验收。")
+        assert route.route_key == "narrative_heavy_audit"
+        assert route.agents == ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+
+    def test_plain_article_routes_to_article_light_path(self):
+        from task_router import recommend_route
+
+        route = recommend_route("写一篇产品说明文章，介绍 AgentLab 的轻量写作路径。")
+        assert route.route_key == "article_light_draft"
+        assert route.agents == ["Supervisor", "ArtifactProducer"]
 
 
 # ── Route–gate consistency validation ──────────────────────────────────────

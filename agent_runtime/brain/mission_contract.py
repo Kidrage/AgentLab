@@ -60,6 +60,9 @@ def build_mission_contract(
 
     pt_keywords = load_project_type_keywords(root / "config" / "mission_compiler_v2.yml")
     project_type = _validated_project_type(llm_draft) or classify_project_type(prompt, domain, pt_keywords)
+    if _looks_like_longform_writing_prompt(prompt, project_id, root):
+        domain = "creative_longform"
+        project_type = "longform_text_project"
     project_types = load_project_types(root / "config" / "project_type_classifier.yml")
     typedef = get_project_type_definition(project_type, project_types)
 
@@ -114,7 +117,7 @@ def build_mission_contract(
     domain_pack = _select_domain_pack(domain, project_type, root)
     mission_domain = _mission_domain(domain, domain_pack)
     artifact_type = _artifact_type(domain, project_type, domain_pack, llm_draft)
-    route_decision = _build_route_decision(mission_domain, domain_pack, root)
+    route_decision = _build_route_decision(prompt, mission_domain, domain_pack, root)
     media_generation_contract = _media_generation_contract(
         prompt=prompt,
         mission_domain=mission_domain,
@@ -195,6 +198,51 @@ _TASK_DOMAIN_TO_LEGACY_DOMAIN = {
     "automation_ops": "local_ops",
     "unknown": "unknown",
 }
+
+
+def _looks_like_longform_writing_prompt(prompt: str, project_id: str | None, root: Path) -> bool:
+    text = prompt or ""
+    lowered = text.lower()
+    chapter_marker = re.search(r"第\s*[\d一二三四五六七八九十百千]+\s*章", text)
+    writing_action = any(term in text for term in ("写", "撰写", "续写", "重写", "修改", "正文"))
+    continuation_action = any(term in text for term in ("续写", "日更", "继续写", "下一章"))
+    story_marker = any(
+        term in text
+        for term in (
+            "灰烬王冠",
+            "角色圣经",
+            "重构蓝图",
+            "章节",
+            "小说",
+            "故事",
+            "世界观",
+            "卷纲",
+            "人物弧线",
+        )
+    )
+    if "crown of ash" in lowered or "crown_of_ash" in lowered or ("crown" in lowered and chapter_marker):
+        return True
+    if chapter_marker and (writing_action or story_marker):
+        return True
+    if writing_action and story_marker:
+        return True
+    return _is_active_longform_content_project(project_id, root) and bool(chapter_marker or story_marker or continuation_action)
+
+
+def _is_active_longform_content_project(project_id: str | None, root: Path) -> bool:
+    if not project_id:
+        return False
+    try:
+        from agent_runtime.config_loader import load_yaml
+
+        content_policy = load_yaml(root / "config" / "content_project_governance.yml")
+        active = content_policy.get("active_projects", []) if isinstance(content_policy, dict) else []
+        if project_id in active:
+            return True
+        project_contract = load_yaml(root / "projects" / project_id / ".agentlab" / "mission_contract.yml")
+        return project_contract.get("task_type") == "creative_longform"
+    except Exception:
+        return False
 
 
 def _try_compile_llm_mission_draft(
@@ -377,7 +425,58 @@ def _quality_gates(domain_pack: dict[str, Any]) -> list[str]:
     return [str(item) for item in values] if isinstance(values, list) else []
 
 
+_NARRATIVE_AUDIT_RE = re.compile(
+    r"(audit|review|check|acceptance|promotion|narrative-eval|审计|验收|检查|晋升前).{0,32}"
+    r"(chapter|chapters|fiction|narrative|章|章节|正文|小说)",
+    re.I,
+)
+
+
+def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any]) -> tuple[str, str, dict[str, Any]]:
+    text = prompt or ""
+    lowered = text.lower()
+    heavy_terms = (
+        "audit",
+        "comprehensive review",
+        "acceptance",
+        "promotion",
+        "before promotion",
+        "narrative-eval",
+        "quality dispute",
+        "blocking continuity",
+        "highest quality",
+        "full check",
+        "审计",
+        "验收",
+        "全面检查",
+        "检查前",
+        "晋升前",
+        "质量争议",
+        "阻塞连续性",
+        "最高质量",
+        "1500章",
+    )
+    if any(term in lowered for term in heavy_terms) or _NARRATIVE_AUDIT_RE.search(text):
+        return (
+            str(domain_pack.get("audit_route") or "narrative_heavy_audit"),
+            "creative_writing_heavy_audit_requested",
+            domain_pack.get("audit_route_proposal") or {
+                "route_key": "narrative_heavy_audit",
+                "agents": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
+            },
+        )
+    return (
+        str(domain_pack.get("recommended_route") or "narrative_light_chapter"),
+        "creative_writing_light_chapter_default",
+        domain_pack.get("route_proposal") or {
+            "route_key": "narrative_light_chapter",
+            "agents": ["Supervisor", "Writer"],
+        },
+    )
+
+
 def _build_route_decision(
+    prompt: str,
     mission_domain: str,
     domain_pack: dict[str, Any],
     root: Path,
@@ -394,17 +493,14 @@ def _build_route_decision(
             decision["reason"] = "media_generation_requires_backend_contract_and_harness"
         return decision
 
-    proposal = domain_pack.get("route_proposal") or {
-        "route_key": "fiction_chapter_pipeline",
-        "agents": ["Writer", "Reviewer", "Scribe"],
-    }
-    if route_key and _route_exists(root, route_key):
+    selected_route, reason, proposal = _creative_route_key_for_prompt(prompt, domain_pack)
+    if selected_route and _route_exists(root, selected_route):
         return {
             "action": "select_existing_route",
-            "selected_route": route_key,
+            "selected_route": selected_route,
             "forbidden_routes": domain_pack.get("forbidden_fallback_routes", []),
             "route_proposal": proposal,
-            "reason": "creative_writing_requires_fiction_pipeline",
+            "reason": reason,
         }
     return {
         "action": "refuse_current_route",

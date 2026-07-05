@@ -221,9 +221,33 @@ routes:
       - Verifier
       - Archivist
 
+  narrative_light_chapter:
+    size: L1
+    description: 长篇小说单章/续写/日更轻路径，只生成候选章节和最小连续性闭环
+    agents:
+      - Supervisor
+      - Writer
+
+  article_light_draft:
+    size: L1
+    description: 普通文章/短文/说明文轻路径，生成正文和简单结构检查
+    agents:
+      - Supervisor
+      - ArtifactProducer
+
+  narrative_heavy_audit:
+    size: L3
+    description: 长篇小说阶段审计/验收/质量争议路径，审计已产出文本而不默认生成正文
+    analysis_only: true
+    agents:
+      - Supervisor
+      - Reviewer
+      - Scribe
+      - Verifier
+
   fiction_chapter_pipeline:
     size: L2
-    description: 小说章节/长篇创作路线，带连续性、角色状态、伏笔和风格审查
+    description: 兼容旧小说章节全流程路线；新任务默认使用 narrative_light_chapter 或 narrative_heavy_audit
     agents:
       - Supervisor
       - Writer

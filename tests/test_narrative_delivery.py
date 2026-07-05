@@ -72,7 +72,13 @@ def test_prepare_chapter_packet_uses_current_story_sources(tmp_path: Path) -> No
     assert "project_brain/project_fact_snapshot.yml" in packet["must_read"]
     assert "project_artifact_index.yml" in packet["must_read"]
     assert packet["previous_chapters"] == ["production/manuscript/第01章_灰谷镇的灰.md"]
-    assert {"fiction_draft.md", "fiction_review.yml", "continuity_ledger.yml"} <= set(packet["required_outputs"])
+    assert {
+        "fiction_draft.md",
+        "continuity_ledger.yml",
+        "state_transition_proposal.yml",
+        "narrative_delivery_receipt.yml",
+    } <= set(packet["required_outputs"])
+    assert "fiction_review.yml" not in packet["required_outputs"]
     assert written["path"] == "projects/Crown_of_Ash/runs/task_ch02/chapter_packet.yml"
 
 

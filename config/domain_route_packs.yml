@@ -5,29 +5,43 @@ domain_packs:
     legacy_domains:
       - creative_longform
     artifact_type: longform_text
-    recommended_route: fiction_chapter_pipeline
+    recommended_route: narrative_light_chapter
+    audit_route: narrative_heavy_audit
     forbidden_fallback_routes:
       - interface_sensitive_task
       - large_or_risky_task
       - artifact_production_task
+      - fiction_chapter_pipeline
     route_proposal:
-      route_key: fiction_chapter_pipeline
+      route_key: narrative_light_chapter
       agents:
+        - Supervisor
         - Writer
+      rationale:
+        - Writer drafts the candidate chapter against chapter packet, fact snapshot, artifact index, and previous continuity ledger.
+        - Writer emits fiction_draft.md, continuity_ledger.yml, state_transition_proposal.yml, and narrative_delivery_receipt.yml.
+        - Reviewer/Scribe/Verifier are reserved for narrative_heavy_audit, promotion, or blocking continuity issues.
+    audit_route_proposal:
+      route_key: narrative_heavy_audit
+      agents:
+        - Supervisor
         - Reviewer
         - Scribe
+        - Verifier
       rationale:
-        - Writer drafts prose against the current chapter brief.
-        - Reviewer checks continuity, POV, character state, timeline, and style drift.
-        - Scribe records ledger updates for future chapters.
+        - Reviewer checks already-produced drafts and ledgers for continuity, POV, character state, timeline, and style drift.
+        - Scribe records structured audit findings and state transition proposals.
+        - Verifier confirms audit gates before promotion or rewrite decisions.
     memory_contract:
+      - project_fact_snapshot
+      - project_artifact_index
+      - chapter_packet
       - continuity_ledger
       - character_state
       - timeline
       - foreshadowing_register
-      - item_ledger
-      - relationship_map
-      - style_guide
+      - state_transition_proposal
+      - revision_log
     quality_gates:
       - continuity
       - character_state

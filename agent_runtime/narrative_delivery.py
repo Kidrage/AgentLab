@@ -21,14 +21,20 @@ REQUIRED_REVIEW_GATES = [
     "word_count",
 ]
 
-REQUIRED_DELIVERY_FILES = [
+LIGHT_CHAPTER_DELIVERY_FILES = [
     "chapter_packet.yml",
     "fiction_draft.md",
-    "fiction_review.yml",
     "continuity_ledger.yml",
     "state_transition_proposal.yml",
+]
+
+HEAVY_CHAPTER_DELIVERY_FILES = [
+    *LIGHT_CHAPTER_DELIVERY_FILES,
+    "fiction_review.yml",
     "artifact_lineage.yml",
 ]
+
+REQUIRED_DELIVERY_FILES = LIGHT_CHAPTER_DELIVERY_FILES
 
 
 def _read_yaml(path: Path, default: Any = None) -> Any:
@@ -81,10 +87,21 @@ def _chapter_number(path: Path) -> int | None:
 
 def _is_fiction_route(route: dict[str, Any]) -> bool:
     route_data = route.get("route") if isinstance(route.get("route"), dict) else route
-    if route_data.get("route_key") == "fiction_chapter_pipeline":
+    if route_data.get("route_key") in {"narrative_light_chapter", "fiction_chapter_pipeline"}:
         return True
     agents = route_data.get("agents") or []
     return all(agent in agents for agent in ("Writer", "Reviewer", "Scribe"))
+
+
+def _delivery_files_for_run(run_dir: Path) -> list[str]:
+    workflow = _read_yaml(run_dir / "workflow_plan.yml", {}) or {}
+    route_data = workflow.get("route") if isinstance(workflow.get("route"), dict) else workflow
+    if isinstance(route_data, dict) and route_data.get("route_key") == "fiction_chapter_pipeline":
+        return HEAVY_CHAPTER_DELIVERY_FILES
+    agents = route_data.get("agents") if isinstance(route_data, dict) else []
+    if isinstance(agents, list) and all(agent in agents for agent in ("Writer", "Reviewer", "Scribe")):
+        return HEAVY_CHAPTER_DELIVERY_FILES
+    return LIGHT_CHAPTER_DELIVERY_FILES
 
 
 def _is_revision_like(text: str) -> bool:
@@ -150,17 +167,13 @@ def build_chapter_packet(
         },
         "previous_chapters": resolved_previous_chapters[-3:],
         "deprecated_sources": list(deprecated_sources or []),
-        "required_outputs": list(REQUIRED_DELIVERY_FILES) + [
-            "fiction_review.md",
-            "narrative_delivery_receipt.yml",
-        ],
+        "required_outputs": list(LIGHT_CHAPTER_DELIVERY_FILES) + ["narrative_delivery_receipt.yml"],
         "quality_gates": list(REQUIRED_REVIEW_GATES),
         "allowed_output_files": [
             f"{run_rel}/fiction_draft.md",
-            f"{run_rel}/fiction_review.yml",
             f"{run_rel}/continuity_ledger.yml",
             f"{run_rel}/state_transition_proposal.yml",
-            f"{run_rel}/artifact_lineage.yml",
+            f"{run_rel}/narrative_delivery_receipt.yml",
         ],
     }
     return packet
@@ -196,7 +209,8 @@ def validate_narrative_delivery(run_dir: Path) -> dict[str, Any]:
         return {"valid": True, "skipped": True, "reason": "not a narrative run", "issues": []}
 
     issues: list[dict[str, str]] = []
-    for filename in REQUIRED_DELIVERY_FILES:
+    required_files = _delivery_files_for_run(run_dir)
+    for filename in required_files:
         if not (run_dir / filename).exists():
             issues.append({"severity": "error", "check": "delivery_file_present", "file": filename, "message": f"missing {filename}"})
 
@@ -228,7 +242,7 @@ def validate_narrative_delivery(run_dir: Path) -> dict[str, Any]:
         "valid": not any(issue["severity"] == "error" for issue in issues),
         "skipped": False,
         "issues": issues,
-        "required_files": REQUIRED_DELIVERY_FILES,
+        "required_files": required_files,
     }
 
 

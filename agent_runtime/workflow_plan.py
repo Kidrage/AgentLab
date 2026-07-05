@@ -1,5 +1,6 @@
 """Build transparent AgentLab workflow plans without executing agents."""
 
+import copy
 import os
 import re
 from pathlib import Path
@@ -8,7 +9,8 @@ from budget_planner import build_token_budgets, normalize_budget_mode, select_bu
 from config_loader import load_agentlab_configs, load_project_config
 from model_resolver import resolve_profile_config
 from policies import assert_path_allowed
-from schemas import WorkflowPlan
+from routing.route_catalog import RouteCatalog
+from schemas import AgentRoute, WorkflowPlan
 from task_router import recommend_route
 
 
@@ -131,6 +133,266 @@ def _classify_risk(task_text: str, routing_policy: dict) -> str:
     return "R1" if text.strip() else "R0"
 
 
+def _route_from_mission_contract(mission: dict, routing_config: dict | None) -> AgentRoute | None:
+    route_decision = mission.get("route_decision", {}) if isinstance(mission, dict) else {}
+    if not isinstance(route_decision, dict):
+        return None
+    if route_decision.get("action") not in {"select_existing_route", "use_existing_route"}:
+        return None
+    route_key = route_decision.get("selected_route")
+    if not route_key:
+        return None
+    catalog = RouteCatalog.from_config(routing_config)
+    if not catalog.has_route(str(route_key)):
+        return None
+    return AgentRoute(
+        task_size=catalog.size_for(str(route_key)),
+        agents=catalog.agents_for(str(route_key)),
+        route_key=str(route_key),
+        rationale=[
+            "Mission contract selected an existing route before legacy task routing.",
+            f"Route selected by mission_contract route_decision: {route_key}.",
+        ],
+    )
+
+
+def _skill_injection_agents_for_route(route: AgentRoute) -> list[str] | None:
+    creative_agents = [agent for agent in ("Writer", "Reviewer", "Scribe") if agent in route.agents]
+    return creative_agents or None
+
+
+def _light_chapter_gates() -> list[dict]:
+    return [
+        {
+            "id": "fiction_draft",
+            "owner": "Writer",
+            "required": True,
+            "description": "Draft the candidate chapter from chapter packet, fact snapshot, artifact index, and prior continuity ledger.",
+            "evidence": ["fiction_draft.md"],
+        },
+        {
+            "id": "continuity_ledger",
+            "owner": "Writer",
+            "required": True,
+            "description": "Record plot, character, relationship/worldline, foreshadowing, and timeline updates for the chapter candidate.",
+            "evidence": ["continuity_ledger.yml"],
+        },
+        {
+            "id": "state_transition_proposal",
+            "owner": "Writer",
+            "required": True,
+            "description": "Propose candidate fact events and state transitions; do not directly promote facts to production.",
+            "evidence": ["state_transition_proposal.yml"],
+        },
+        {
+            "id": "narrative_delivery_receipt",
+            "owner": "Writer",
+            "required": True,
+            "description": "Self-report local deterministic checks and candidate-only delivery status.",
+            "evidence": ["narrative_delivery_receipt.yml"],
+        },
+    ]
+
+
+def _article_light_gates() -> list[dict]:
+    return [
+        {
+            "id": "article_draft",
+            "owner": "ArtifactProducer",
+            "required": True,
+            "description": "Draft the requested article or explanatory text.",
+            "evidence": ["article_draft.md"],
+        },
+        {
+            "id": "article_structure_check",
+            "owner": "ArtifactProducer",
+            "required": True,
+            "description": "Run a simple local structure check for title, sections, audience fit, and unresolved placeholders.",
+            "evidence": ["article_structure_check.yml"],
+        },
+    ]
+
+
+def _narrative_heavy_audit_gates() -> list[dict]:
+    return [
+        {
+            "id": "fiction_review",
+            "owner": "Reviewer",
+            "required": True,
+            "description": "Audit existing narrative drafts and ledgers for continuity, character state, POV, timeline, and style drift.",
+            "evidence": ["fiction_review.yml"],
+        },
+        {
+            "id": "continuity_failure_report",
+            "owner": "Reviewer",
+            "required": True,
+            "description": "Report blocking and non-blocking continuity failures without directly rewriting draft prose.",
+            "evidence": ["continuity_failure_report.yml"],
+        },
+        {
+            "id": "state_transition_proposal",
+            "owner": "Scribe",
+            "required": True,
+            "description": "Propose structured fact-state changes needed after audit.",
+            "evidence": ["state_transition_proposal.yml"],
+        },
+        {
+            "id": "revision_or_rewrite_proposal",
+            "owner": "Verifier",
+            "required": True,
+            "description": "Emit a rewrite proposal only when blocking issues require it; do not directly alter the draft.",
+            "evidence": ["revision_or_rewrite_proposal.yml"],
+        },
+    ]
+
+
+def _validation_gates_for_route(configs: dict, route: AgentRoute) -> list[dict]:
+    validation_gates = []
+    for gate in configs.get("validation_gates", {}).get("gates", []):
+        route_keys = gate.get("required_for_routes")
+        if not route_keys or route.route_key in route_keys:
+            validation_gates.append(gate)
+
+    if route.route_key == "narrative_light_chapter":
+        return _light_chapter_gates()
+
+    if route.route_key == "article_light_draft":
+        return _article_light_gates()
+
+    if route.route_key == "narrative_heavy_audit":
+        return _narrative_heavy_audit_gates()
+
+    if route.route_key != "fiction_chapter_pipeline":
+        return validation_gates
+
+    route_agents = set(route.agents)
+    shared_gates = [
+        gate
+        for gate in validation_gates
+        if gate.get("owner") in route_agents
+        and gate.get("id") not in {"implementation_report", "validation_evidence", "feedback_promotion"}
+    ]
+    return shared_gates + [
+        {
+            "id": "fiction_draft",
+            "owner": "Writer",
+            "required": True,
+            "description": "Draft the requested chapter or prose artifact from the approved longform brief.",
+            "evidence": ["fiction_draft.md"],
+        },
+        {
+            "id": "fiction_review",
+            "owner": "Reviewer",
+            "required": True,
+            "description": "Review the draft for continuity, POV, character state, timeline, and style drift.",
+            "evidence": ["fiction_review.md"],
+        },
+        {
+            "id": "continuity_update",
+            "owner": "Scribe",
+            "required": True,
+            "description": "Record continuity, character, timeline, relationship, and foreshadowing updates.",
+            "evidence": ["continuity_ledger.yml"],
+        },
+        {
+            "id": "final_verification",
+            "owner": "Verifier",
+            "required": True,
+            "description": "Verify requested writing outputs and long-project governance gates.",
+            "evidence": ["verification_report.md"],
+        },
+    ]
+
+
+def _included_agents_for_route(agent_registry: dict, route: AgentRoute) -> dict[str, dict]:
+    included = {
+        name: copy.deepcopy(agent_registry.get(name, {}))
+        for name in route.agents
+    }
+
+    if route.route_key == "narrative_light_chapter" and "Writer" in included:
+        included["Writer"]["required_inputs"] = [
+            "runs/task_xxxx/mission_contract.yml",
+            "runs/task_xxxx/user_request.md",
+            "runs/task_xxxx/chapter_packet.yml",
+            "project_brain/project_fact_snapshot.yml",
+            "project_artifact_index.yml",
+            "previous continuity_ledger.yml when available",
+        ]
+        included["Writer"]["required_outputs"] = [
+            "runs/task_xxxx/fiction_draft.md",
+            "runs/task_xxxx/continuity_ledger.yml",
+            "runs/task_xxxx/state_transition_proposal.yml",
+            "runs/task_xxxx/narrative_delivery_receipt.yml",
+        ]
+        return included
+
+    if route.route_key == "article_light_draft" and "ArtifactProducer" in included:
+        included["ArtifactProducer"]["required_inputs"] = [
+            "runs/task_xxxx/mission_contract.yml",
+            "runs/task_xxxx/user_request.md",
+        ]
+        included["ArtifactProducer"]["required_outputs"] = [
+            "runs/task_xxxx/article_draft.md",
+            "runs/task_xxxx/article_structure_check.yml",
+        ]
+        return included
+
+    if route.route_key == "narrative_heavy_audit":
+        if "Reviewer" in included:
+            included["Reviewer"]["required_inputs"] = [
+                "runs/task_xxxx/fiction_draft.md",
+                "runs/task_xxxx/continuity_ledger.yml",
+                "runs/task_xxxx/state_transition_proposal.yml",
+                "project_brain/project_fact_snapshot.yml",
+                "project_artifact_index.yml",
+            ]
+            included["Reviewer"]["required_outputs"] = [
+                "runs/task_xxxx/fiction_review.yml",
+                "runs/task_xxxx/continuity_failure_report.yml",
+            ]
+        if "Scribe" in included:
+            included["Scribe"]["required_inputs"] = [
+                "runs/task_xxxx/fiction_review.yml",
+                "runs/task_xxxx/continuity_failure_report.yml",
+            ]
+            included["Scribe"]["required_outputs"] = ["runs/task_xxxx/state_transition_proposal.yml"]
+        if "Verifier" in included:
+            included["Verifier"]["required_inputs"] = [
+                "runs/task_xxxx/fiction_review.yml",
+                "runs/task_xxxx/continuity_failure_report.yml",
+                "runs/task_xxxx/state_transition_proposal.yml",
+            ]
+            included["Verifier"]["required_outputs"] = ["runs/task_xxxx/revision_or_rewrite_proposal.yml"]
+        return included
+
+    if route.route_key != "fiction_chapter_pipeline":
+        return included
+
+    if "Verifier" in included:
+        included["Verifier"]["required_inputs"] = [
+            "runs/task_xxxx/supervisor_plan.md",
+            "runs/task_xxxx/mission_contract.yml",
+            "runs/task_xxxx/fiction_draft.md",
+            "runs/task_xxxx/fiction_review.md",
+            "runs/task_xxxx/continuity_ledger.yml",
+        ]
+        included["Verifier"]["required_outputs"] = ["runs/task_xxxx/verification_report.md"]
+
+    if "Archivist" in included:
+        included["Archivist"]["required_inputs"] = [
+            "runs/task_xxxx/supervisor_plan.md",
+            "runs/task_xxxx/fiction_draft.md",
+            "runs/task_xxxx/fiction_review.md",
+            "runs/task_xxxx/continuity_ledger.yml",
+            "runs/task_xxxx/verification_report.md",
+            "project_config.yml (bulk mode)",
+        ]
+        included["Archivist"]["required_outputs"] = ["runs/task_xxxx/archive_update.md"]
+
+    return included
+
+
 def build_workflow_plan(
     agentlab_root: Path,
     project_name: str,
@@ -148,7 +410,20 @@ def build_workflow_plan(
     agent_registry = configs.get("agent_registry", {}).get("agents", {})
     known_agents = list(agent_registry.keys()) or None
 
-    route = recommend_route(
+    mission = {}
+    long_project_governance = {}
+    try:
+        from agent_runtime.brain.mission_contract import build_mission_contract
+        from agent_runtime.long_project_governance import build_project_governance_pack
+
+        mission = build_mission_contract(task_text, project_id=project_name, task_id=task_id, agentlab_root=agentlab_root)
+        project_type = mission.get("project_type", "unknown_project")
+        if mission.get("is_long_project"):
+            long_project_governance = build_project_governance_pack(agentlab_root, project_type, paths["project_root"])
+    except Exception as exc:
+        long_project_governance = {"enabled": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    route = _route_from_mission_contract(mission, configs.get("routing_rules", {})) or recommend_route(
         task_text,
         routing_config=configs.get("routing_rules", {}),
         known_agents=known_agents,
@@ -162,10 +437,7 @@ def build_workflow_plan(
     token_budgets = build_token_budgets(route, configs.get("budget_profiles", {}), resolved_budget_mode)
     budget_profile = select_budget_profile_key(route, configs.get("budget_profiles", {}), resolved_budget_mode)
     route_size = _route_size_suffix(route.task_size)
-    included_agents = {
-        name: agent_registry.get(name, {})
-        for name in route.agents
-    }
+    included_agents = _included_agents_for_route(agent_registry, route)
     model_profiles = {
         name: resolve_profile_config(
             _profile_for_agent(config, route_size, resolved_budget_mode),
@@ -176,11 +448,7 @@ def build_workflow_plan(
         for name, config in included_agents.items()
     }
 
-    validation_gates = []
-    for gate in configs.get("validation_gates", {}).get("gates", []):
-        route_keys = gate.get("required_for_routes")
-        if not route_keys or route.route_key in route_keys:
-            validation_gates.append(gate)
+    validation_gates = _validation_gates_for_route(configs, route)
 
     missing_inputs = [
         str(path)
@@ -213,18 +481,8 @@ def build_workflow_plan(
     else:
         notes.append("Project config missing or empty.")
 
-    long_project_governance = {}
-    try:
-        from agent_runtime.brain.mission_contract import build_mission_contract
-        from agent_runtime.long_project_governance import build_project_governance_pack
-
-        mission = build_mission_contract(task_text, project_id=project_name, task_id=task_id, agentlab_root=agentlab_root)
-        project_type = mission.get("project_type", "unknown_project")
-        if mission.get("is_long_project"):
-            long_project_governance = build_project_governance_pack(agentlab_root, project_type, paths["project_root"])
-            notes.append(f"Long-project governance enabled for {project_type}.")
-    except Exception as exc:
-        long_project_governance = {"enabled": False, "error": f"{type(exc).__name__}: {exc}"}
+    if mission.get("is_long_project"):
+        notes.append(f"Long-project governance enabled for {mission.get('project_type', 'unknown_project')}.")
 
     try:
         from skill_injector import build_skill_plan
@@ -234,6 +492,7 @@ def build_workflow_plan(
             task_id=task_id,
             run_dir=paths["run_dir"],
             task_text=task_text,
+            injected_agents=_skill_injection_agents_for_route(route),
             record_usage=False,
         )
     except Exception as exc:

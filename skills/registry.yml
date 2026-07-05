@@ -1,11 +1,82 @@
 schema_version: 1
-skills: []
+skills:
+- skill_id: skill_20260703174334298047_story-long-write
+  skill_name: story-long-write
+  name: story-long-write
+  status: source_reference
+  default_injection: false
+  triggers:
+  - story-long-write
+  - /story-long-write
+  - /写长篇
+  - 写长篇
+  - 帮我开书
+  - 写大纲
+  - 日更
+  - 续写
+  - 继续写
+  - 修改第X章
+  - 回炉
+  - 重写第X章
+  - 小说
+  - 长篇小说
+  - 章节
+  - 撰写第
+  - 灰烬王冠
+  - Crown_of_Ash
+  applies_to:
+  - creative_longform
+  - longform_text_project
+  - fiction_chapter_pipeline
+  - Crown_of_Ash
+  summary: 长篇网文写作。从大纲到正文，辅助长篇网络小说的创作，包括世界观、人物、情节线管理。触发方式：/story-long-write、/写长篇、「帮我开书」「写大纲」「日更」「续写」「继续写」「修改第X章」「回炉」「重写第X章」。
+  load_tokens: 7979
+  expected_saving_tokens: 8000
+  risk_level: low
+  permissions:
+    has_scripts: false
+    requires_network: false
+    modifies_files: false
+    permission_level: low
+  confidence: 0.85
+  promoted_at: '2026-07-03T17:43:55.725080+00:00'
+- skill_id: skill_agentlab_narrative_chapter_writer_lite
+  skill_name: narrative-chapter-writer-lite
+  name: narrative-chapter-writer-lite
+  status: active
+  triggers:
+  - narrative-chapter-writer-lite
+  - 日更
+  - 续写
+  - 继续写
+  - 写第
+  - 撰写第
+  - 小说章节
+  - 长篇小说
+  - 灰烬王冠
+  - Crown_of_Ash
+  applies_to:
+  - creative_longform
+  - longform_text_project
+  - narrative_light_chapter
+  - Writer
+  - Crown_of_Ash
+  summary: 轻量长篇章节 Writer 技能。只加载会写错的结构化记忆，输出候选正文、连续性台账、状态转换提案和本地交付回执，不默认注入 Reviewer/Scribe/Verifier。
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  risk_level: low
+  permissions:
+    has_scripts: false
+    requires_network: false
+    modifies_files: false
+    permission_level: low
+  confidence: 0.9
+  promoted_at: '2026-07-05T00:00:00+00:00'
 retired_skills: []
 metadata:
   owner: AgentLab
   status: local_lifecycle_mvp
-  notes: >
-    Skill local lifecycle MVP is implemented (pending_user_approval → approved →
-    staging → validated → active → retired).  Real GitHub search, real sandbox
-    execution, automatic package parsing, and skill injection are not yet
-    implemented.
+  notes: Skill local lifecycle MVP is implemented (pending_user_approval → approved
+    → staging → validated → active → retired).  Real GitHub search, real sandbox execution,
+    automatic package parsing, and skill injection are not yet implemented.
+  updated_at: '2026-07-03T17:43:55.725090+00:00'

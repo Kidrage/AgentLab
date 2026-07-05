@@ -76,6 +76,12 @@ PROMPT_CROWN_OF_ASH = (
     "hit 2500 words."
 )
 
+PROMPT_CHINESE_CROWN_CHAPTER = (
+    "按照《灰烬王冠》重构蓝图及角色圣经，撰写第10章_小规模追击。"
+    "具体情节：第一次小规模冲突。教团与教会圣光骑士团在外围发生摩擦，"
+    "凯恩在突袭中顺手救下一个虚弱的教团少年。"
+)
+
 
 # ── Domain classification tests ────────────────────────────────────
 
@@ -124,11 +130,31 @@ class TestDomainAwareMissionCompiler:
         assert contract["task_domain"] == "creative_writing"
         assert contract["artifact_type"] == "longform_text"
 
-    def test_crown_of_ash_selects_fiction_chapter_pipeline(self):
+    def test_crown_of_ash_selects_light_chapter_route(self):
         contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
         decision = contract["route_decision"]
         assert decision["action"] == "select_existing_route"
-        assert decision["selected_route"] == "fiction_chapter_pipeline"
+        assert decision["selected_route"] == "narrative_light_chapter"
+
+    def test_chinese_crown_chapter_selects_light_chapter_route(self):
+        contract = build_mission_contract(
+            PROMPT_CHINESE_CROWN_CHAPTER,
+            project_id="Crown_of_Ash",
+            task_id="task_crown_rewrite_ch10",
+        )
+        assert contract["task_type"] == "creative_longform"
+        assert contract["task_domain"] == "creative_writing"
+        assert contract["project_type"] == "longform_text_project"
+        assert contract["route_decision"]["selected_route"] == "narrative_light_chapter"
+
+    def test_crown_audit_selects_heavy_audit_route(self):
+        contract = build_mission_contract(
+            "审计 Crown_of_Ash 前 10 章，检查连续性并给出 promotion 前验收结论。",
+            project_id="Crown_of_Ash",
+            task_id="task_crown_audit_ch01_ch10",
+        )
+        assert contract["task_domain"] == "creative_writing"
+        assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
 
     def test_creative_writing_memory_contract_includes_continuity_ledger(self):
         contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
@@ -141,6 +167,7 @@ class TestDomainAwareMissionCompiler:
         assert "interface_sensitive_task" in forbidden
         assert "large_or_risky_task" in forbidden
         assert "artifact_production_task" in forbidden
+        assert "fiction_chapter_pipeline" in forbidden
 
     def test_creative_writing_missing_route_refuses_and_proposes_pipeline(self):
         import shutil
@@ -156,8 +183,8 @@ class TestDomainAwareMissionCompiler:
             contract = build_mission_contract(PROMPT_CROWN_OF_ASH, agentlab_root=root)
         decision = contract["route_decision"]
         assert decision["action"] == "refuse_current_route"
-        assert decision["route_proposal"]["route_key"] == "fiction_chapter_pipeline"
-        assert decision["route_proposal"]["agents"] == ["Writer", "Reviewer", "Scribe"]
+        assert decision["route_proposal"]["route_key"] == "narrative_light_chapter"
+        assert decision["route_proposal"]["agents"] == ["Supervisor", "Writer"]
 
     def test_invalid_llm_assisted_compiler_output_falls_back_to_rules(self):
         def bad_generate(_messages):
@@ -170,7 +197,7 @@ class TestDomainAwareMissionCompiler:
         )
         assert contract["compiler_source"] == "rule_based"
         assert contract["task_domain"] == "creative_writing"
-        assert contract["route_decision"]["selected_route"] == "fiction_chapter_pipeline"
+        assert contract["route_decision"]["selected_route"] == "narrative_light_chapter"
 
     def test_llm_assisted_compiler_accepts_new_task_domain_alias(self):
         def good_generate(_messages):

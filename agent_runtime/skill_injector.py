@@ -141,12 +141,16 @@ def build_skill_plan(
     run_dir: Path,
     task_text: str,
     policy: dict[str, Any] | None = None,
+    injected_agents: list[str] | None = None,
     record_usage: bool = True,
 ) -> dict[str, Any]:
     policy = policy or load_skill_injection_policy(agentlab_root)
     matches = match_active_skills(agentlab_root, task_text=task_text, policy=policy)
     selected = matches.get("selected", [])
     rejected = matches.get("rejected", [])
+    if injected_agents:
+        for item in selected:
+            item["injected_into"] = list(injected_agents)
     approval_cards = _create_high_risk_skill_approval_cards(
         agentlab_root,
         run_dir,
@@ -198,14 +202,25 @@ def inject_skills_into_workflow_plan(
     if not isinstance(data, dict):
         data = {}
     run_dir = workflow_plan_path.parent
+    injected_agents = _route_skill_injection_agents(data)
     skills = build_skill_plan(
         agentlab_root,
         project=project,
         task_id=task_id,
         run_dir=run_dir,
         task_text=task_text,
+        injected_agents=injected_agents,
         record_usage=record_usage,
     )
     data["skills"] = skills
     atomic_write_yaml(workflow_plan_path, data)
     return skills
+
+
+def _route_skill_injection_agents(workflow_plan: dict[str, Any]) -> list[str] | None:
+    route = workflow_plan.get("route", {})
+    agents = route.get("agents", []) if isinstance(route, dict) else []
+    if not isinstance(agents, list):
+        return None
+    creative_agents = [agent for agent in ("Writer", "Reviewer", "Scribe") if agent in agents]
+    return creative_agents or None

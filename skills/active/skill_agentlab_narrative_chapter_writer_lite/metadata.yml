@@ -1,0 +1,37 @@
+schema_version: 1
+skill_id: skill_agentlab_narrative_chapter_writer_lite
+skill_name: narrative-chapter-writer-lite
+name: narrative-chapter-writer-lite
+status: active
+source:
+  type: distilled_internal_reference
+  reference_skill_id: skill_20260703174334298047_story-long-write
+purpose: 轻量长篇章节 Writer 技能，用于 narrative_light_chapter 路线的单章候选生成。
+summary: 只加载会写错的结构化记忆，先声明 chapter_intent，再输出候选正文、连续性台账、状态转换提案和本地交付回执。
+triggers:
+- narrative-chapter-writer-lite
+- 日更
+- 续写
+- 继续写
+- 写第
+- 撰写第
+- 小说章节
+- 长篇小说
+- 灰烬王冠
+- Crown_of_Ash
+applies_to:
+- creative_longform
+- longform_text_project
+- narrative_light_chapter
+- Writer
+- Crown_of_Ash
+load_tokens: 1180
+expected_saving_tokens: 6800
+risk_level: low
+permissions:
+  has_scripts: false
+  requires_network: false
+  modifies_files: false
+  permission_level: low
+confidence: 0.9
+status_notes: story-long-write remains source_reference; this skill is the default light Writer injection.

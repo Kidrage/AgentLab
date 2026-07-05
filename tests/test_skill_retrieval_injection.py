@@ -125,6 +125,35 @@ def test_workflow_plan_records_selected_skills_and_usage_ledgers(tmp_path: Path)
     assert ledger["entries"][0]["task_id"] == "task_0001_skill"
 
 
+def test_writer_route_injects_skills_into_writer_roles(tmp_path: Path) -> None:
+    _write_policy(tmp_path)
+    _active_skill(tmp_path, "narrative_chapter_writer_lite", triggers=["灰烬王冠"], applies_to=["narrative_light_chapter"])
+    run_dir = tmp_path / "projects" / "Crown_of_Ash" / "runs" / "task_crown_rewrite_ch10"
+    run_dir.mkdir(parents=True)
+    plan_path = run_dir / "workflow_plan.yml"
+    plan_path.write_text(
+        yaml.safe_dump(
+            {"route": {"route_key": "narrative_light_chapter", "agents": ["Supervisor", "Writer"]}},
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = inject_skills_into_workflow_plan(
+        tmp_path,
+        plan_path,
+        project="Crown_of_Ash",
+        task_id="task_crown_rewrite_ch10",
+        task_text="按照《灰烬王冠》重构蓝图及角色圣经，撰写第10章。",
+        record_usage=True,
+    )
+
+    assert result["selected"][0]["skill_id"] == "narrative_chapter_writer_lite"
+    assert result["selected"][0]["injected_into"] == ["Writer"]
+    usage = yaml.safe_load((run_dir / "skill_usage.yml").read_text(encoding="utf-8"))
+    assert usage["selected"][0]["injected_into"] == ["Writer"]
+
+
 def test_high_risk_skill_requires_approval_if_policy_says_so(tmp_path: Path) -> None:
     _write_policy(tmp_path, high_risk_requires_approval=True)
     _active_skill(tmp_path, "dangerous_repair", triggers=["pytest"], risk_level="high")

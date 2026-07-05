@@ -7,6 +7,7 @@ execute agents or modify source files.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from schemas import AgentRoute
@@ -136,7 +137,9 @@ CREATIVE_WRITING_HINTS: tuple[str, ...] = (
     "prose",
     "worldbuilding",
     "character arc",
+    "crown",
     "crown of ash",
+    "crown_of_ash",
     "creative writing",
     "小说",
     "章节",
@@ -145,6 +148,72 @@ CREATIVE_WRITING_HINTS: tuple[str, ...] = (
     "人物设定",
     "角色设定",
     "世界观",
+    "灰烬王冠",
+    "角色圣经",
+    "重构蓝图",
+    "续写",
+    "正文",
+)
+
+
+NARRATIVE_HEAVY_AUDIT_HINTS: tuple[str, ...] = (
+    "audit",
+    "review all",
+    "comprehensive review",
+    "acceptance",
+    "promotion",
+    "before promotion",
+    "narrative-eval",
+    "quality dispute",
+    "blocking continuity",
+    "highest quality",
+    "full check",
+    "check the first",
+    "审计",
+    "验收",
+    "全面检查",
+    "检查前",
+    "前置检查",
+    "promotion",
+    "晋升前",
+    "质量争议",
+    "阻塞连续性",
+    "最高质量",
+    "1500章",
+)
+
+
+ARTICLE_LIGHT_HINTS: tuple[str, ...] = (
+    "article",
+    "essay",
+    "short article",
+    "product description",
+    "explainer",
+    "说明文章",
+    "说明文",
+    "产品说明",
+    "写文章",
+    "短文",
+)
+
+
+CODE_IMPLEMENTATION_CONTEXT_HINTS: tuple[str, ...] = (
+    "code",
+    "repo",
+    "repository",
+    "module",
+    "function",
+    "class",
+    "test",
+    "pytest",
+    "ci",
+    "代码",
+    "仓库",
+    "模块",
+    "函数",
+    "测试",
+    "接口",
+    "配置",
 )
 
 
@@ -188,7 +257,36 @@ def _detect_artifact_production_intent(text: str) -> tuple[bool, str | None]:
 
 def _detect_creative_writing_domain(text: str) -> bool:
     lowered = text.lower()
-    return any(hint.lower() in lowered for hint in CREATIVE_WRITING_HINTS)
+    if any(hint.lower() in lowered for hint in CREATIVE_WRITING_HINTS):
+        return True
+    chapter_marker = re.search(r"第\s*[\d一二三四五六七八九十百千]+\s*章", text)
+    creative_markers = ("角色圣经", "重构蓝图", "卷纲", "章节", "正文", "故事", "小说")
+    writing_actions = ("写", "撰写", "续写", "重写", "修改")
+    if chapter_marker and (
+        any(action in text for action in writing_actions)
+        or any(marker in text for marker in creative_markers)
+    ):
+        return True
+    return any(action in text for action in writing_actions) and any(marker in text for marker in creative_markers)
+
+
+def _detect_narrative_heavy_audit_intent(text: str) -> bool:
+    lowered = text.lower()
+    if any(hint.lower() in lowered for hint in NARRATIVE_HEAVY_AUDIT_HINTS):
+        return True
+    return bool(re.search(r"(audit|review|check|审计|验收|检查).{0,24}(chapter|chapters|章|章节)", text, re.I))
+
+
+def _detect_article_light_intent(text: str, artifact_type: str | None) -> bool:
+    if artifact_type != "text":
+        return False
+    lowered = text.lower()
+    return any(hint.lower() in lowered for hint in ARTICLE_LIGHT_HINTS)
+
+
+def _detect_code_implementation_context(text: str) -> bool:
+    lowered = text.lower()
+    return any(hint in lowered for hint in CODE_IMPLEMENTATION_CONTEXT_HINTS)
 
 
 RESEARCH_HINTS = (
@@ -327,8 +425,8 @@ def recommend_route(
     # ── Route selection ───────────────────────────────────────────────────
     # Implementation intent overrides evaluation route — if the user asks to
     # implement code AND evaluate it, implementation wins.
-    if is_creative_writing and not wants_implementation:
-        route_key = "fiction_chapter_pipeline"
+    if is_creative_writing and not _detect_code_implementation_context(task_text):
+        route_key = "narrative_heavy_audit" if _detect_narrative_heavy_audit_intent(task_text) else "narrative_light_chapter"
         task_size = route_catalog.size_for(route_key)
         agents = route_catalog.agents_for(route_key)
     elif wants_implementation:
@@ -368,8 +466,10 @@ def recommend_route(
             agents.insert(insert_at, ARTIFACT_PRODUCER_ROLE)
 
     elif wants_artifact:
-        route_key = "artifact_production_task"
+        route_key = "article_light_draft" if _detect_article_light_intent(task_text, artifact_type) else "artifact_production_task"
         task_size = "medium" if artifact_type == "mixed" or looks_medium else "small"
+        if route_key == "article_light_draft":
+            task_size = route_catalog.size_for(route_key)
         agents = route_catalog.agents_for(route_key)
     elif wants_evaluation:
         route_key = "evaluation_task"
@@ -414,11 +514,15 @@ def recommend_route(
         "Supervisor always defines scope, token budget, and stop rules.",
         f"Route selected by {route_key} using smallest_safe_route rules.",
     ]
-    if is_creative_writing and not wants_implementation:
+    if is_creative_writing and route_key in {"narrative_light_chapter", "narrative_heavy_audit"}:
         rationale.append(
-            "Creative writing domain detected; use fiction_chapter_pipeline instead "
-            "of generic artifact, interface, or large-risk routes."
+            f"Creative writing domain detected; use {route_key} instead of "
+            "generic artifact, interface, or large-risk routes."
         )
+        if route_key == "narrative_light_chapter":
+            rationale.append("Light chapter path selected; Reviewer/Scribe/Verifier are reserved for staged audits or promotion.")
+        else:
+            rationale.append("Heavy audit path selected; audit existing narrative artifacts instead of defaulting to chapter generation.")
     if _wants_explicit_analysis_only:
         rationale.append(
             "Explicit analysis-only signal detected; "
