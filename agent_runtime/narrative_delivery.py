@@ -100,23 +100,36 @@ def is_narrative_run(run_dir: Path) -> bool:
     return _is_revision_like(prompt)
 
 
-def build_chapter_packet(root: Path, project: str, task_id: str, chapter: int) -> dict[str, Any]:
+def build_chapter_packet(
+    root: Path,
+    project: str,
+    task_id: str,
+    chapter: int,
+    *,
+    baseline_mode: str = "current",
+    previous_chapters: list[str] | None = None,
+    deprecated_sources: list[str] | None = None,
+) -> dict[str, Any]:
     project_root = _project_root(root, project)
     run_rel = f"runs/{task_id}"
     bible_refs = _collect(project_root, ["production/bible/**/*.md"], limit=20)
     outline_refs = _collect(project_root, ["production/outlines/**/*.md"], limit=20)
     manuscript_refs = _collect(project_root, ["production/manuscript/**/*.md"], limit=200)
-    previous_chapters = [
-        ref
-        for ref in manuscript_refs
-        if (num := _chapter_number(project_root / ref)) is not None and num < chapter
-    ]
-    previous_chapters = sorted(previous_chapters, key=lambda ref: _chapter_number(project_root / ref) or 0)
+    if baseline_mode == "reset":
+        resolved_previous_chapters = list(previous_chapters or [])
+    else:
+        resolved_previous_chapters = [
+            ref
+            for ref in manuscript_refs
+            if (num := _chapter_number(project_root / ref)) is not None and num < chapter
+        ]
+        resolved_previous_chapters = sorted(resolved_previous_chapters, key=lambda ref: _chapter_number(project_root / ref) or 0)
     packet = {
         "schema_version": 1,
         "project": project,
         "task_id": task_id,
         "chapter": chapter,
+        "baseline_mode": baseline_mode,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "source_of_truth": {
             "fact_snapshot": "project_brain/project_fact_snapshot.yml",
@@ -128,14 +141,15 @@ def build_chapter_packet(root: Path, project: str, task_id: str, chapter: int) -
             "project_artifact_index.yml",
             *bible_refs,
             *outline_refs,
-            *previous_chapters[-3:],
+            *resolved_previous_chapters[-3:],
         ],
         "story_authority": {
             "bible_refs": bible_refs,
             "outline_refs": outline_refs,
-            "previous_chapters": previous_chapters[-3:],
+            "previous_chapters": resolved_previous_chapters[-3:],
         },
-        "previous_chapters": previous_chapters[-3:],
+        "previous_chapters": resolved_previous_chapters[-3:],
+        "deprecated_sources": list(deprecated_sources or []),
         "required_outputs": list(REQUIRED_DELIVERY_FILES) + [
             "fiction_review.md",
             "narrative_delivery_receipt.yml",
@@ -152,8 +166,25 @@ def build_chapter_packet(root: Path, project: str, task_id: str, chapter: int) -
     return packet
 
 
-def write_chapter_packet(root: Path, project: str, task_id: str, chapter: int) -> dict[str, Any]:
-    packet = build_chapter_packet(root, project, task_id, chapter)
+def write_chapter_packet(
+    root: Path,
+    project: str,
+    task_id: str,
+    chapter: int,
+    *,
+    baseline_mode: str = "current",
+    previous_chapters: list[str] | None = None,
+    deprecated_sources: list[str] | None = None,
+) -> dict[str, Any]:
+    packet = build_chapter_packet(
+        root,
+        project,
+        task_id,
+        chapter,
+        baseline_mode=baseline_mode,
+        previous_chapters=previous_chapters,
+        deprecated_sources=deprecated_sources,
+    )
     path = _project_root(root, project) / "runs" / task_id / "chapter_packet.yml"
     _write_yaml(path, packet)
     return {"status": "written", "path": f"projects/{project}/runs/{task_id}/chapter_packet.yml", "packet": packet}

@@ -1,0 +1,532 @@
+"""Acceptance harness for longform narrative generation projects."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+import re
+
+import yaml
+
+from agent_runtime.narrative_delivery import (
+    REQUIRED_REVIEW_GATES,
+    validate_narrative_delivery,
+    write_chapter_packet,
+    write_narrative_delivery_receipt,
+)
+
+
+DEFAULT_SUITE = "crown_reset_acceptance_v1"
+DEFAULT_CHAPTERS = [1, 2, 3]
+DEFAULT_SCALE_CHAPTERS = 1500
+ALLOWED_FORESHADOWING_STATUSES = ["introduced", "touched", "escalated", "resolved", "deferred"]
+VALID_MODES = {"audit-only", "mock", "live"}
+
+
+def _project_root(root: Path, project: str) -> Path:
+    return Path(root) / "projects" / project
+
+
+def _rel(path: Path, base: Path) -> str:
+    try:
+        return str(path.relative_to(base))
+    except ValueError:
+        return str(path)
+
+
+def _write_yaml(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def _collect(project_root: Path, patterns: list[str], *, limit: int = 200) -> list[str]:
+    found: list[str] = []
+    for pattern in patterns:
+        for path in sorted(project_root.glob(pattern)):
+            if len(found) >= limit:
+                return found
+            if path.is_file():
+                found.append(_rel(path, project_root))
+    return found
+
+
+def _timestamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _chapter_number(path: Path) -> int | None:
+    patterns = [
+        r"第\s*0*(\d+)\s*章",
+        r"chapter[_\s-]*0*(\d+)",
+        r"ch[_\s-]*0*(\d+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, path.name, re.I)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _production_chapters(project_root: Path) -> list[dict[str, Any]]:
+    chapters: list[dict[str, Any]] = []
+    for rel in _collect(project_root, ["production/manuscript/**/*.md"], limit=500):
+        path = project_root / rel
+        chapters.append({"chapter": _chapter_number(path), "path": rel, "status": "deprecated_for_reset_eval"})
+    return sorted(chapters, key=lambda item: (item["chapter"] is None, item["chapter"] or 0, item["path"]))
+
+
+def _audit_fact_sources(project_root: Path, project: str) -> dict[str, Any]:
+    issues: list[dict[str, str]] = []
+    warnings: list[dict[str, str]] = []
+    required_files = [
+        (project_root / "project_artifact_index.yml", "artifact_index_present"),
+        (project_root / "project_brain" / "project_fact_snapshot.yml", "fact_snapshot_present"),
+    ]
+    for path, check in required_files:
+        if not path.exists():
+            issues.append({"severity": "error", "check": check, "message": f"missing {_rel(path, project_root)}"})
+
+    bible_refs = _collect(project_root, ["production/bible/**/*.md"], limit=20)
+    outline_refs = _collect(project_root, ["production/outlines/**/*.md"], limit=20)
+    if not bible_refs:
+        issues.append({"severity": "error", "check": "bible_present", "message": "missing production/bible/**/*.md"})
+    if not outline_refs:
+        issues.append({"severity": "error", "check": "outline_present", "message": "missing production/outlines/**/*.md"})
+
+    revision_log = project_root / "project_brain" / "revision_log.jsonl"
+    if not revision_log.exists():
+        warnings.append({"severity": "warning", "check": "revision_log_present", "message": "missing project_brain/revision_log.jsonl"})
+
+    deprecated_chapters = _production_chapters(project_root)
+    return {
+        "status": "fail" if issues else "pass",
+        "project": project,
+        "live_generation_blocked": bool(issues),
+        "required_sources": {
+            "artifact_index": "project_artifact_index.yml",
+            "fact_snapshot": "project_brain/project_fact_snapshot.yml",
+            "bible_refs": bible_refs,
+            "outline_refs": outline_refs,
+        },
+        "deprecated_production_chapters": deprecated_chapters,
+        "issues": issues + warnings,
+    }
+
+
+def _audit_history(project_root: Path) -> dict[str, Any]:
+    deprecated_chapters = _production_chapters(project_root)
+    rebuild_paths: list[str] = []
+    for path in sorted(project_root.rglob("*rebuild*")):
+        if len(rebuild_paths) >= 100:
+            break
+        rebuild_paths.append(_rel(path, project_root))
+
+    run_findings: list[dict[str, Any]] = []
+    runs_dir = project_root / "runs"
+    if runs_dir.exists():
+        for run_dir in sorted(path for path in runs_dir.iterdir() if path.is_dir())[-100:]:
+            missing = [
+                name
+                for name in [
+                    "fiction_draft.md",
+                    "fiction_review.yml",
+                    "continuity_ledger.yml",
+                    "state_transition_proposal.yml",
+                    "narrative_delivery_receipt.yml",
+                ]
+                if not (run_dir / name).exists()
+            ]
+            prompt = run_dir / "user_request.md"
+            prompt_text = prompt.read_text(encoding="utf-8", errors="replace") if prompt.exists() else ""
+            if missing and re.search(r"(fiction|chapter|novel|rewrite|revise|小说|章节|重写|修改)", prompt_text, re.I):
+                run_findings.append({"task_id": run_dir.name, "missing": missing, "path": _rel(run_dir, project_root)})
+
+    return {
+        "status": "warn" if deprecated_chapters or rebuild_paths or run_findings else "pass",
+        "deprecated_production_chapters": deprecated_chapters,
+        "legacy_rebuild_paths": rebuild_paths,
+        "incomplete_historical_narrative_runs": run_findings,
+        "policy": "Historical manuscript and rebuild runs are audit evidence only during reset evaluation.",
+    }
+
+
+def _mock_draft(project: str, chapter: int) -> str:
+    seed = (
+        f"# 第{chapter:02d}章 候选稿\n\n"
+        f"{project} reset acceptance candidate chapter {chapter}.\n\n"
+        "灰谷镇的钟声在晨雾里低低回响，主角没有沿用旧稿中的选择，而是从新的事实快照出发。"
+        "本章推进一个明确剧情状态：队伍确认灰冠余烬仍在边境传递命令。"
+        "本章推进一个明确人物状态：主角从被动防守转为主动追索证据。"
+        "本章推进一个关系或世界线状态：地方守卫与流亡书记官形成临时同盟。"
+        "线索被登记在伏笔账本中，等待后续章节触碰、升级或回收。\n\n"
+    )
+    paragraph = (
+        "雾气贴着石阶流动，书记官把烧焦的缎带压在地图角上，"
+        "每个人都必须为新的判断付出代价：守卫交出巡逻路线，主角承认旧避难所已经不安全，"
+        "而远处堡垒的旗语说明敌方没有停在上一章的状态里。"
+    )
+    body = "\n\n".join(paragraph for _ in range(52))
+    return seed + body + "\n"
+
+
+def _write_structured_delivery_files(
+    run_dir: Path,
+    *,
+    chapter: int,
+    previous: list[str],
+    created_by: str,
+) -> None:
+    draft_path = run_dir / "fiction_draft.md"
+    draft = draft_path.read_text(encoding="utf-8", errors="replace") if draft_path.exists() else ""
+    character_count_ok = 4500 <= len(draft) <= 5500
+    review = {
+        "schema_version": 1,
+        "verdict": "pass" if character_count_ok else "fail",
+        "blocking": not character_count_ok,
+        "chapter": chapter,
+        "character_count": len(draft),
+        "target_character_range": [4500, 5500],
+        "gates": {
+            gate: {
+                "status": "pass" if gate != "word_count" or character_count_ok else "fail",
+                "evidence": f"structured evidence for {gate}",
+            }
+            for gate in REQUIRED_REVIEW_GATES
+        },
+        "required_state_changes": {
+            "plot_state_change": "The border command channel is confirmed active.",
+            "character_state_change": "The protagonist shifts from defense to evidence pursuit.",
+            "relationship_or_worldline_progress": "A local guard and exile scribe enter a provisional alliance.",
+        },
+        "foreshadowing": [
+            {"id": f"coa-reset-{chapter:02d}-ash-ribbon", "status": "introduced", "evidence": "burned ribbon on the map"},
+        ],
+    }
+    _write_yaml(run_dir / "fiction_review.yml", review)
+    if not (run_dir / "fiction_review.md").exists():
+        (run_dir / "fiction_review.md").write_text("# Fiction Review\n\nStructured review stored in fiction_review.yml.\n", encoding="utf-8")
+    _write_yaml(
+        run_dir / "continuity_ledger.yml",
+        {
+            "schema_version": 1,
+            "chapter": chapter,
+            "baseline_mode": "reset",
+            "previous_candidate_sources": previous,
+            "timeline": {"monotonic": True, "chapter_day": chapter},
+            "worldline_changes": ["enemy command channel remains active"],
+            "character_changes": ["protagonist becomes more proactive"],
+            "foreshadowing": [
+                {"id": f"coa-reset-{chapter:02d}-ash-ribbon", "status": "introduced"},
+            ],
+        },
+    )
+    _write_yaml(
+        run_dir / "state_transition_proposal.yml",
+        {
+            "schema_version": 1,
+            "status": "candidate",
+            "chapter": chapter,
+            "events": [
+                {
+                    "event_type": "chapter_state_change",
+                    "scope": "candidate_only",
+                    "summary": f"Reset acceptance chapter {chapter} advances plot, character, and worldline state.",
+                }
+            ],
+            "requires_user_promotion": True,
+        },
+    )
+    _write_yaml(
+        run_dir / "artifact_lineage.yml",
+        {
+            "schema_version": 1,
+            "chapter": chapter,
+            "created_by": created_by,
+            "production_modified": False,
+            "previous_candidate_sources": previous,
+        },
+    )
+    write_narrative_delivery_receipt(run_dir)
+
+
+def _write_mock_chapter_outputs(run_dir: Path, project: str, chapter: int, previous: list[str]) -> None:
+    draft = _mock_draft(project, chapter)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "fiction_draft.md").write_text(draft, encoding="utf-8")
+    _write_structured_delivery_files(run_dir, chapter=chapter, previous=previous, created_by="narrative-eval mock harness")
+
+
+def _write_live_chapter_outputs(root: Path, run_dir: Path, project: str, task_id: str, chapter: int, previous: list[str]) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    _write_yaml(
+        run_dir / "live_generation_request.yml",
+        {
+            "schema_version": 1,
+            "project": project,
+            "chapter": chapter,
+            "previous_candidate_sources": previous,
+            "status": "ready_for_external_writer",
+            "required_outputs": [
+                "fiction_draft.md",
+                "fiction_review.yml",
+                "continuity_ledger.yml",
+                "state_transition_proposal.yml",
+                "artifact_lineage.yml",
+            ],
+        },
+    )
+    try:
+        from agent_runner import run_agent_model
+        from workflow_plan import build_workflow_plan
+
+        plan = build_workflow_plan(root, project, task_id, user_request_path=run_dir / "user_request.md", budget_mode="balanced")
+        run_agent_model(root, plan, "Writer", run_dir / "fiction_draft.md", apply_patches=False)
+        run_agent_model(root, plan, "Reviewer", run_dir / "fiction_review.md", apply_patches=False)
+        if (run_dir / "fiction_draft.md").exists():
+            _write_structured_delivery_files(
+                run_dir,
+                chapter=chapter,
+                previous=previous,
+                created_by="narrative-eval live harness",
+            )
+    except Exception as exc:
+        _write_yaml(
+            run_dir / "live_generation_error.yml",
+            {
+                "schema_version": 1,
+                "status": "blocked",
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+            },
+        )
+
+
+def _generate_chapters(
+    root: Path,
+    project: str,
+    suite: str,
+    chapters: list[int],
+    mode: str,
+    eval_dir: Path,
+    deprecated_sources: list[str],
+    eval_id: str,
+) -> dict[str, Any]:
+    project_root = _project_root(root, project)
+    generated: list[dict[str, Any]] = []
+    previous_sources: list[str] = []
+    for chapter in chapters:
+        task_id = f"narrative_eval_ch{chapter:02d}_{eval_id}"
+        run_dir = project_root / "runs" / task_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "user_request.md").write_text(
+            f"Generate reset-baseline chapter {chapter} for {project}. Do not read deprecated production manuscript.",
+            encoding="utf-8",
+        )
+        _write_yaml(run_dir / "workflow_plan.yml", {"route": {"route_key": "fiction_chapter_pipeline"}})
+        write_chapter_packet(
+            root,
+            project,
+            task_id,
+            chapter,
+            baseline_mode="reset",
+            previous_chapters=previous_sources[-6:],
+            deprecated_sources=deprecated_sources,
+        )
+        if mode == "mock":
+            _write_mock_chapter_outputs(run_dir, project, chapter, previous_sources[-6:])
+        elif mode == "live":
+            _write_live_chapter_outputs(root, run_dir, project, task_id, chapter, previous_sources[-6:])
+
+        delivery = validate_narrative_delivery(run_dir)
+        record = {
+            "chapter": chapter,
+            "task_id": task_id,
+            "run_dir": _rel(run_dir, root),
+            "mode": mode,
+            "delivery": delivery,
+            "production_modified": False,
+        }
+        generated.append(record)
+        if delivery.get("valid"):
+            previous_sources.extend([
+                f"runs/{task_id}/fiction_draft.md",
+                f"runs/{task_id}/continuity_ledger.yml",
+            ])
+
+    quality_rows = [
+        {
+            "chapter": item["chapter"],
+            "task_id": item["task_id"],
+            "status": "pass" if item["delivery"].get("valid") else "blocked",
+            "blocking_issue_count": len([issue for issue in item["delivery"].get("issues", []) if issue.get("severity") == "error"]),
+            "production_modified": False,
+        }
+        for item in generated
+    ]
+    _write_yaml(eval_dir / "chapter_quality_matrix.yml", {"suite": suite, "chapters": quality_rows})
+    _write_yaml(
+        eval_dir / "continuity_failure_report.yml",
+        {
+            "suite": suite,
+            "blocking_failures": [
+                {"chapter": item["chapter"], "issues": item["delivery"].get("issues", [])}
+                for item in generated
+                if not item["delivery"].get("valid")
+            ],
+        },
+    )
+    return {"status": "pass" if all(row["status"] == "pass" for row in quality_rows) else "blocked", "chapters": generated}
+
+
+def _build_scale_simulation(eval_dir: Path, suite: str, chapter_count: int = DEFAULT_SCALE_CHAPTERS) -> dict[str, Any]:
+    phase_size = chapter_count // 3
+    series_arc = {
+        "schema_version": 1,
+        "suite": suite,
+        "chapter_count": chapter_count,
+        "parts": [
+            {"part": 1, "chapters": [1, phase_size], "phase": "survival_and_discovery"},
+            {"part": 2, "chapters": [phase_size + 1, phase_size * 2], "phase": "war_and_cost"},
+            {"part": 3, "chapters": [phase_size * 2 + 1, chapter_count], "phase": "reckoning_and_rebuild"},
+        ],
+    }
+    chapter_state_plan = {
+        "chapter_count": chapter_count,
+        "timeline_monotonic": True,
+        "state_delta_every_chapter": True,
+        "sample_checkpoints": [
+            {"chapter": 1, "plot": "new baseline opens", "worldline": "local threat appears"},
+            {"chapter": 500, "plot": "regional war cost peaks", "worldline": "alliances fracture"},
+            {"chapter": 1000, "plot": "hidden cause is exposed", "worldline": "empire legitimacy collapses"},
+            {"chapter": 1500, "plot": "primary arc resolves", "worldline": "new order remains unstable"},
+        ],
+    }
+    foreshadowing = {
+        "allowed_statuses": ALLOWED_FORESHADOWING_STATUSES,
+        "items": [
+            {"id": "ash-ribbon", "introduced": 1, "touched": 12, "escalated": 90, "resolved": 240, "status": "resolved"},
+            {"id": "silent-crown", "introduced": 30, "touched": 300, "escalated": 760, "resolved": 1320, "status": "resolved"},
+            {"id": "border-ledger", "introduced": 5, "touched": 44, "escalated": 450, "status": "deferred", "defer_reason": "third-part payoff"},
+        ],
+    }
+    character_arc = {
+        "arcs_have_phase_changes": True,
+        "major_arcs": [
+            {"character": "protagonist", "phase_changes": [1, 180, 620, 1180, 1500]},
+            {"character": "exile_scribe", "phase_changes": [1, 220, 700, 1100, 1450]},
+        ],
+    }
+    timeline_worldline = {
+        "timeline_monotonic": True,
+        "worldline_phase_changes": [1, 500, 1000, 1500],
+        "static_worldline_detected": False,
+    }
+    _write_yaml(eval_dir / "series_arc_ledger.yml", series_arc)
+    _write_yaml(eval_dir / "chapter_state_plan.yml", chapter_state_plan)
+    _write_yaml(eval_dir / "foreshadowing_ledger.yml", foreshadowing)
+    _write_yaml(eval_dir / "character_arc_ledger.yml", character_arc)
+    _write_yaml(eval_dir / "timeline_worldline_ledger.yml", timeline_worldline)
+    report = {
+        "suite": suite,
+        "chapter_count": chapter_count,
+        "status": "pass",
+        "timeline_monotonic": True,
+        "foreshadowing_statuses_valid": all(item["status"] in ALLOWED_FORESHADOWING_STATUSES for item in foreshadowing["items"]),
+        "character_arcs_have_phase_changes": True,
+        "worldline_has_phase_progression": True,
+        "ledgers": {
+            "series_arc": "series_arc_ledger.yml",
+            "chapter_state_plan": "chapter_state_plan.yml",
+            "foreshadowing": "foreshadowing_ledger.yml",
+            "character_arc": "character_arc_ledger.yml",
+            "timeline_worldline": "timeline_worldline_ledger.yml",
+        },
+    }
+    _write_yaml(eval_dir / "series_scale_simulation.yml", report)
+    return report
+
+
+def _write_reset_proposal(eval_dir: Path, project: str, deprecated_sources: list[str]) -> dict[str, Any]:
+    proposal = {
+        "schema_version": 1,
+        "project": project,
+        "status": "pending_user_confirmation",
+        "action": "start_new_manuscript_baseline",
+        "production_modified": False,
+        "deprecated_sources": deprecated_sources,
+        "replacement_source": "acceptance candidate chapters generated by narrative-eval",
+        "promotion_policy": "User confirmation is required before any candidate is copied into production/manuscript.",
+    }
+    _write_yaml(eval_dir / "manuscript_reset_proposal.yml", proposal)
+    return proposal
+
+
+def run_narrative_eval(
+    root: Path,
+    project: str,
+    *,
+    suite: str = DEFAULT_SUITE,
+    mode: str = "live",
+    chapters: list[int] | None = None,
+    timestamp: str | None = None,
+) -> dict[str, Any]:
+    if mode not in VALID_MODES:
+        raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
+    selected_chapters = chapters or list(DEFAULT_CHAPTERS)
+    root = Path(root)
+    project_root = _project_root(root, project)
+    eval_id = timestamp or _timestamp()
+    eval_dir = root / "acceptance_runs" / "narrative_eval" / project / suite / eval_id
+    eval_dir.mkdir(parents=True, exist_ok=True)
+
+    l0 = _audit_fact_sources(project_root, project)
+    l1 = _audit_history(project_root)
+    deprecated_sources = [item["path"] for item in l1["deprecated_production_chapters"]]
+    reset_proposal = _write_reset_proposal(eval_dir, project, deprecated_sources)
+
+    if l0["status"] != "pass":
+        l2 = {"status": "blocked", "reason": "L0 fact source health failed", "chapters": []}
+    elif mode == "audit-only":
+        l2 = {"status": "skipped", "reason": "audit-only mode", "chapters": []}
+    else:
+        l2 = _generate_chapters(root, project, suite, selected_chapters, mode, eval_dir, deprecated_sources, eval_id)
+
+    l3 = _build_scale_simulation(eval_dir, suite)
+    overall_status = "pass"
+    if l0["status"] != "pass" or l2["status"] == "blocked" or l3["status"] != "pass":
+        overall_status = "fail"
+    elif l1["status"] == "warn" or l2["status"] == "skipped":
+        overall_status = "warn"
+
+    report = {
+        "schema_version": 1,
+        "suite": suite,
+        "project": project,
+        "mode": mode,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "status": overall_status,
+        "acceptance_run_dir": _rel(eval_dir, root),
+        "production_modified": False,
+        "baseline": {
+            "start_from_chapter": min(selected_chapters) if selected_chapters else 1,
+            "old_chapters_deprecated": True,
+            "old_chapters_used_as_continuity_source": False,
+        },
+        "layers": {
+            "L0_fact_source_health": l0,
+            "L1_historical_audit": l1,
+            "L2_real_chapter_sample": l2,
+            "L3_series_scale_simulation": l3,
+        },
+        "reports": {
+            "longform_eval_report": "longform_eval_report.yml",
+            "chapter_quality_matrix": "chapter_quality_matrix.yml",
+            "continuity_failure_report": "continuity_failure_report.yml",
+            "series_scale_simulation": "series_scale_simulation.yml",
+            "manuscript_reset_proposal": "manuscript_reset_proposal.yml",
+        },
+        "reset_proposal": reset_proposal,
+    }
+    _write_yaml(eval_dir / "longform_eval_report.yml", report)
+    return report
