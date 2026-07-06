@@ -80,3 +80,13 @@ Gemini rough worker may be promoted from candidate to active only after:
 - Run live Gemini smoke test on 250.
 - Run one AgentLab role-session or task packet through `gemini` in read-only
   rough-work mode.
+
+After explicit approval, use:
+
+```bash
+scripts/activate_250_runtime.sh
+```
+
+The script prompts for the Clash subscription URL and Gemini API key without
+echoing them, writes only private remote env files, then attempts mihomo and
+Gemini smoke tests.
