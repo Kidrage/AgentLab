@@ -90,3 +90,20 @@ scripts/activate_250_runtime.sh
 The script prompts for the Clash subscription URL and Gemini API key without
 echoing them, writes only private remote env files, then attempts mihomo and
 Gemini smoke tests.
+
+For read-only status checks before or after activation, use:
+
+```bash
+scripts/activate_250_runtime.sh --status-only
+```
+
+Latest pre-activation status-only baseline:
+
+- 250 git head: `7ed77bca25ef5e09454f3a5d55b4e3e44bf62b0c`
+- 250 worktree: clean
+- `gemini`: present, `0.49.0`
+- `mihomod`: present
+- `mihomo`: missing
+- `mihomo` and `clash` user services: inactive
+- Gemini and Clash secret keys: not present in checked private env locations
+- `./agentlab.sh models doctor`: `status: pass`, `issue_count: 23`

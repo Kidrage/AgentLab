@@ -3,10 +3,11 @@ set -euo pipefail
 
 REMOTE="${AGENTLAB_250_REMOTE:-admin@10.147.17.250}"
 REMOTE_ROOT="${AGENTLAB_250_ROOT:-/home/admin/AgentLab}"
+STATUS_ONLY=0
 
 usage() {
   cat <<'EOF'
-Usage: scripts/activate_250_runtime.sh [--remote user@host] [--root /path/to/AgentLab]
+Usage: scripts/activate_250_runtime.sh [--remote user@host] [--root /path/to/AgentLab] [--status-only]
 
 Activates the 250 AgentLab runtime after explicit secret-write approval.
 No secrets are stored in this script. It prompts for:
@@ -19,6 +20,8 @@ The secrets are sent over SSH and written only to private files on the remote:
 - ~/.agentlab_secrets/env
 - ~/.gemini/.env
 - <AgentLab>/agent_runtime/.env
+
+Use --status-only for a read-only remote activation audit.
 
 EOF
 }
@@ -33,6 +36,10 @@ while [[ $# -gt 0 ]]; do
       REMOTE_ROOT="$2"
       shift 2
       ;;
+    --status-only)
+      STATUS_ONLY=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -44,6 +51,87 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$STATUS_ONLY" == "1" ]]; then
+  ssh "$REMOTE" "REMOTE_ROOT='$REMOTE_ROOT' python3.11 -" <<'PY'
+import json
+import os
+import pathlib
+import subprocess
+
+remote_root = pathlib.Path(os.environ["REMOTE_ROOT"])
+
+def run(cmd: list[str], *, cwd: pathlib.Path | None = None, timeout: int = 20) -> tuple[int, str]:
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(cwd) if cwd else None,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+        )
+        return proc.returncode, proc.stdout.strip()
+    except Exception as exc:
+        return 255, f"{type(exc).__name__}: {exc}"
+
+def command_version(command: str, *args: str) -> dict[str, object]:
+    code, path = run(["bash", "-lc", f"command -v {command}"])
+    if code != 0:
+        return {"present": False}
+    version_code, version = run([command, *args])
+    return {"present": True, "path": path.splitlines()[-1], "version": version.splitlines()[:2], "version_code": version_code}
+
+def env_keys(path: pathlib.Path, keys: list[str]) -> dict[str, bool]:
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    present = {}
+    for key in keys:
+        present[key] = any(line.startswith(f"{key}=") for line in text.splitlines())
+    return present
+
+head_code, head = run(["git", "rev-parse", "HEAD"], cwd=remote_root)
+status_code, status = run(["git", "status", "--short"], cwd=remote_root)
+doctor_code, doctor = run(["bash", "-lc", "./agentlab.sh models doctor"], cwd=remote_root, timeout=60)
+
+results = {
+    "remote_root": str(remote_root),
+    "git": {
+        "head": head if head_code == 0 else None,
+        "status_short": status.splitlines(),
+    },
+    "cli": {
+        "hermes": command_version("hermes", "--version"),
+        "gemini": command_version("gemini", "--version"),
+        "qwen": command_version("qwen", "--version"),
+        "agy": command_version("agy", "--version"),
+        "claude": command_version("claude", "--version"),
+        "codex": command_version("codex", "--version"),
+        "bl": command_version("bl", "--version"),
+        "openclaw": command_version("openclaw", "--version"),
+        "mihomod": command_version("mihomod", "--help"),
+        "mihomo": command_version("mihomo", "-v"),
+    },
+    "services": {
+        "mihomo_user_systemd": run(["bash", "-lc", "systemctl --user is-active mihomo 2>/dev/null || true"])[1] or "unknown",
+        "clash_user_systemd": run(["bash", "-lc", "systemctl --user is-active clash 2>/dev/null || true"])[1] or "unknown",
+    },
+    "proxy_env_keys": sorted([key for key in os.environ if "proxy" in key.lower()]),
+    "secret_key_presence": {
+        "~/.agentlab_secrets/env": env_keys(pathlib.Path.home() / ".agentlab_secrets/env", ["CLASH_SUBSCRIBE_URL", "GEMINI_API_KEY", "GOOGLE_API_KEY"]),
+        "~/.gemini/.env": env_keys(pathlib.Path.home() / ".gemini/.env", ["GEMINI_API_KEY", "GOOGLE_API_KEY"]),
+        "agent_runtime/.env": env_keys(remote_root / "agent_runtime/.env", ["CLASH_SUBSCRIBE_URL", "GEMINI_API_KEY", "GOOGLE_API_KEY"]),
+    },
+    "models_doctor": {
+        "code": doctor_code,
+        "status_line": next((line for line in doctor.splitlines() if line.startswith("status:")), None),
+        "issue_count_line": next((line for line in doctor.splitlines() if line.startswith("issue_count:")), None),
+    },
+}
+
+print(json.dumps(results, ensure_ascii=False, indent=2))
+PY
+  exit 0
+fi
 
 if [[ -z "${CLASH_SUBSCRIBE_URL:-}" ]]; then
   read -r -s -p "Clash subscription URL: " CLASH_SUBSCRIBE_URL
