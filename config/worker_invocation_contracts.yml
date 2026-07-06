@@ -177,6 +177,30 @@ contracts:
     fallback:
       on_binary_missing: stop_and_report
 
+  gemini:
+    worker_id: gemini
+    display_name: Gemini CLI
+    command: gemini
+    invocation_style: task_packet_prompt
+    template: >-
+      gemini --approval-mode plan --model gemini-2.5-flash --prompt "Read the
+      AgentLab task packet at {task_packet_path}; perform only low-risk rough
+      work such as summarization, first-pass classification, redundant log
+      scanning, candidate checklist generation, or disposable draft analysis.
+      Do not edit files or execute commands. Return concise findings,
+      confidence, and escalation points."
+    required_placeholders:
+      - task_packet_path
+    safe_probe: [gemini, --help]
+    expected_parse:
+      argv_prefix: [gemini, --approval-mode, plan]
+    validation:
+      shlex_parse_required: true
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: alternate_worker_or_direct_api
+      on_invalid_invocation: direct_api
+
   agy:
     worker_id: agy
     display_name: Antigravity CLI Frontdesk

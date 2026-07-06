@@ -24,7 +24,7 @@ modes:
       Archivist: [git]
   cost_saving_factory:
     role_preferences:
-      RepoScout: [rg]
+      RepoScout: [rg, gemini]
       InterfaceMapper: [ast_grep]
       Coder: [codex, claude_code]
       TesterAuditor: [pytest]
@@ -41,7 +41,7 @@ modes:
 tiers:
   low:
     cost_ceiling: low
-    preferred_workers: [agy, rg, ast_grep, pytest, ruff, eslint, mypy, git]
+    preferred_workers: [gemini, agy, rg, ast_grep, pytest, ruff, eslint, mypy, git]
   performance:
     cost_ceiling: high
     preferred_workers: []

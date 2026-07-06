@@ -186,6 +186,18 @@ agents:
         qwen --bare --approval-mode default --output-format json "Read the task packet at
         {task_packet_path}; perform only the assigned role and report actual changes."
     high_risk: true
+  gemini:
+    display_name: Gemini CLI
+    class: rough_work_agent
+    primary_roles: [summarization, first_pass_classification, log_scanning, checklist_generation, disposable_analysis]
+    invocation:
+      command: gemini
+      noninteractive: >-
+        gemini --approval-mode plan --model gemini-2.5-flash --prompt "Read the task packet at
+        {task_packet_path}; do read-only rough work only and report findings, confidence, and escalation points."
+    may_edit_project_files: false
+    may_execute_commands: false
+    high_risk: medium
   agy:
     display_name: Antigravity
     class: frontdesk_and_artifact_cli
