@@ -17,6 +17,8 @@
 - `./agentlab.sh models doctor` passes on 250 with existing non-blocking
   warnings: `status: pass`, `issue_count: 23`.
 - Gemini API and Gemini CLI live smoke tests pass through the 250 local proxy.
+- Hermes can use Gemini through the 250 local proxy when `HERMES_INFERENCE_PROVIDER=gemini`
+  and `HERMES_INFERENCE_MODEL=gemini-2.5-flash` are set.
 
 ## Network State
 
@@ -121,6 +123,8 @@ Latest live activation result:
 - `mihomo_start`: `code: 0`, direct process mode.
 - `gemini_api_smoke`: `code: 200`, response contains `OK`.
 - `gemini_cli_smoke`: `code: 0`.
+- `hermes --safe-mode --provider gemini -m gemini-2.5-flash -z ...` returns
+  `OK`.
 - `--status-only` reports `mihomo_direct_process: true` and
   `proxy_8123_listening: true`.
 - Read-only rough-work audition:

@@ -206,7 +206,8 @@ updates = {
     "GOOGLE_GENAI_USE_GCA": "false",
     "GOOGLE_GENAI_USE_VERTEXAI": "false",
     "GEMINI_CLI_TRUST_WORKSPACE": "true",
-    "HERMES_INFERENCE_MODEL": "gemini/gemini-2.5-flash",
+    "HERMES_INFERENCE_PROVIDER": "gemini",
+    "HERMES_INFERENCE_MODEL": "gemini-2.5-flash",
 }
 merge_env(pathlib.Path.home() / ".agentlab_secrets/env", updates)
 merge_env(

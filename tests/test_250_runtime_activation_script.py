@@ -61,6 +61,8 @@ def test_250_runtime_activation_hardens_remote_proxy_and_gemini_auth() -> None:
     assert '"GOOGLE_GENAI_USE_GCA": "false"' in text
     assert '"GOOGLE_GENAI_USE_VERTEXAI": "false"' in text
     assert '"GEMINI_CLI_TRUST_WORKSPACE": "true"' in text
+    assert '"HERMES_INFERENCE_PROVIDER": "gemini"' in text
+    assert '"HERMES_INFERENCE_MODEL": "gemini-2.5-flash"' in text
     assert '["selectedType"] = "gemini-api-key"' in text
     assert '"--skip-trust"' in text
 
