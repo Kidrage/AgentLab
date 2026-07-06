@@ -114,6 +114,8 @@ results = {
     "services": {
         "mihomo_user_systemd": run(["bash", "-lc", "systemctl --user is-active mihomo 2>/dev/null || true"])[1] or "unknown",
         "clash_user_systemd": run(["bash", "-lc", "systemctl --user is-active clash 2>/dev/null || true"])[1] or "unknown",
+        "mihomo_direct_process": bool(run(["bash", "-lc", "pgrep -af '/home/admin/.local/bin/mihomo -d /home/admin/.config/mihomo' || true"])[1]),
+        "proxy_8123_listening": bool(run(["bash", "-lc", "ss -ltn 2>/dev/null | grep ':8123 ' || true"])[1]),
     },
     "proxy_env_keys": sorted([key for key in os.environ if "proxy" in key.lower()]),
     "secret_key_presence": {
@@ -165,6 +167,7 @@ import base64
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import urllib.request
@@ -173,6 +176,10 @@ remote_root = pathlib.Path(os.environ["REMOTE_ROOT"])
 payload = json.loads(base64.b64decode(sys.stdin.read().strip()).decode())
 sub_url = payload["clash_subscribe_url"]
 gemini_key = payload["gemini_api_key"]
+
+def redact(text: str) -> str:
+    text = text.replace(sub_url, "<CLASH_SUBSCRIBE_URL>")
+    return re.sub(r"token=[A-Za-z0-9._-]+", "token=<redacted>", text)
 
 def merge_env(path: pathlib.Path, updates: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -196,11 +203,34 @@ updates = {
     "CLASH_SUBSCRIBE_URL": sub_url,
     "GEMINI_API_KEY": gemini_key,
     "GOOGLE_API_KEY": gemini_key,
+    "GOOGLE_GENAI_USE_GCA": "false",
+    "GOOGLE_GENAI_USE_VERTEXAI": "false",
+    "GEMINI_CLI_TRUST_WORKSPACE": "true",
     "HERMES_INFERENCE_MODEL": "gemini/gemini-2.5-flash",
 }
 merge_env(pathlib.Path.home() / ".agentlab_secrets/env", updates)
-merge_env(pathlib.Path.home() / ".gemini/.env", {"GEMINI_API_KEY": gemini_key, "GOOGLE_API_KEY": gemini_key})
+merge_env(
+    pathlib.Path.home() / ".gemini/.env",
+    {
+        "GEMINI_API_KEY": gemini_key,
+        "GOOGLE_API_KEY": gemini_key,
+        "GOOGLE_GENAI_USE_GCA": "false",
+        "GOOGLE_GENAI_USE_VERTEXAI": "false",
+        "GEMINI_CLI_TRUST_WORKSPACE": "true",
+    },
+)
 merge_env(remote_root / "agent_runtime/.env", updates)
+
+gemini_workspace_settings = remote_root / ".agents/workspaces/.gemini/settings.json"
+gemini_workspace_settings.parent.mkdir(parents=True, exist_ok=True)
+try:
+    gemini_settings = json.loads(gemini_workspace_settings.read_text(encoding="utf-8")) if gemini_workspace_settings.exists() else {}
+    if not isinstance(gemini_settings, dict):
+        gemini_settings = {}
+except json.JSONDecodeError:
+    gemini_settings = {}
+gemini_settings.setdefault("security", {}).setdefault("auth", {})["selectedType"] = "gemini-api-key"
+gemini_workspace_settings.write_text(json.dumps(gemini_settings, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 source_line = 'test -f "$HOME/.agentlab_secrets/env" && set -a && . "$HOME/.agentlab_secrets/env" && set +a'
 for name in (".bashrc", ".zshrc"):
@@ -210,23 +240,35 @@ for name in (".bashrc", ".zshrc"):
         profile.write_text(text.rstrip() + "\n" + source_line + "\n", encoding="utf-8")
 
 def run(cmd: list[str], *, timeout: int = 120, env: dict[str, str] | None = None) -> tuple[int, str]:
-    proc = subprocess.run(
-        cmd,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=timeout,
-        env=env,
-    )
-    return proc.returncode, proc.stdout.strip()
+    try:
+        proc = subprocess.run(
+            cmd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+            env=env,
+        )
+        return proc.returncode, redact(proc.stdout.strip())
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout or ""
+        if isinstance(output, bytes):
+            output = output.decode("utf-8", "replace")
+        return 124, redact(output.strip())
 
 base_env = os.environ.copy()
 base_env.pop("HTTP_PROXY", None)
 base_env.pop("HTTPS_PROXY", None)
 base_env.pop("http_proxy", None)
 base_env.pop("https_proxy", None)
+base_env.pop("ALL_PROXY", None)
+base_env.pop("all_proxy", None)
+base_env.pop("GOOGLE_GEMINI_BASE_URL", None)
 base_env["GEMINI_API_KEY"] = gemini_key
 base_env["GOOGLE_API_KEY"] = gemini_key
+base_env["GOOGLE_GENAI_USE_GCA"] = "false"
+base_env["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
+base_env["GEMINI_CLI_TRUST_WORKSPACE"] = "true"
 
 results: dict[str, object] = {"secret_files": "configured"}
 
@@ -239,10 +281,36 @@ results["mihomo_install"] = {"code": code, "output_tail": out.splitlines()[-5:]}
 if run(["bash", "-lc", "command -v mihomo >/dev/null"], env=base_env)[0] == 0:
     code, out = run(["mihomod", "config", sub_url, "--json"], timeout=60, env=base_env)
     results["mihomo_config"] = {"code": code, "output_tail": out.splitlines()[-5:]}
+    if code != 0:
+        try:
+            req = urllib.request.Request(sub_url, headers={"User-Agent": "clash-verge/v2.0.0"})
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            with opener.open(req, timeout=45) as resp:
+                config_text = resp.read().decode("utf-8", "replace")
+            config_text = re.sub(r"(?m)^mixed-port:\s*\d+\s*$", "mixed-port: 8123", config_text, count=1)
+            config_path = pathlib.Path.home() / ".config/mihomo/config.yaml"
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text(config_text, encoding="utf-8")
+            config_path.chmod(0o600)
+            results["mihomo_config_fallback"] = {"code": 0, "method": "clash-verge user-agent", "path": str(config_path)}
+        except Exception as exc:
+            results["mihomo_config_fallback"] = {"error": type(exc).__name__, "message": str(exc)}
+    run(["mihomod", "stop", "--json"], timeout=30, env=base_env)
+    run(["bash", "-lc", "pkill -f '/home/admin/.local/bin/mihomo -d /home/admin/.config/mihomo' || true"], timeout=30, env=base_env)
     code, out = run(["mihomod", "start", "--json"], timeout=60, env=base_env)
     results["mihomo_start"] = {"code": code, "output_tail": out.splitlines()[-5:]}
 else:
     results["mihomo_config"] = {"skipped": "mihomo binary is not installed"}
+
+proxy_env = base_env.copy()
+if results.get("mihomo_start", {}).get("code") == 0:
+    proxy_url = "http://127.0.0.1:8123"
+    proxy_env.update({
+        "HTTP_PROXY": proxy_url,
+        "HTTPS_PROXY": proxy_url,
+        "http_proxy": proxy_url,
+        "https_proxy": proxy_url,
+    })
 
 try:
     req = urllib.request.Request(
@@ -251,15 +319,21 @@ try:
         headers={"Content-Type": "application/json", "x-goog-api-key": gemini_key},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({
+        "http": proxy_env.get("http_proxy"),
+        "https": proxy_env.get("https_proxy"),
+    }))
+    with opener.open(req, timeout=30) as resp:
         results["gemini_api_smoke"] = {"code": resp.status, "body_prefix": resp.read(160).decode("utf-8", "replace")}
 except Exception as exc:
     results["gemini_api_smoke"] = {"error": type(exc).__name__, "message": str(exc)}
 
+cli_env = proxy_env.copy()
+cli_env.pop("GOOGLE_API_KEY", None)
 code, out = run(
-    ["gemini", "--approval-mode", "plan", "--model", "gemini-2.5-flash", "--prompt", "Reply with OK only.", "--output-format", "json"],
-    timeout=60,
-    env=base_env,
+    ["gemini", "--skip-trust", "--approval-mode", "plan", "--model", "gemini-2.5-flash", "--prompt", "Reply with OK only.", "--output-format", "json"],
+    timeout=120,
+    env=cli_env,
 )
 results["gemini_cli_smoke"] = {"code": code, "output_tail": out.splitlines()[-10:]}
 

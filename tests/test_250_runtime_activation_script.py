@@ -51,3 +51,59 @@ def test_250_runtime_status_only_runs_before_secret_prompts() -> None:
     assert status_pos < clash_prompt_pos
     assert status_pos < gemini_prompt_pos
     assert "secret_key_presence" in text[status_pos:clash_prompt_pos]
+
+
+def test_250_runtime_activation_hardens_remote_proxy_and_gemini_auth() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'base_env.pop("ALL_PROXY", None)' in text
+    assert 'base_env.pop("all_proxy", None)' in text
+    assert '"GOOGLE_GENAI_USE_GCA": "false"' in text
+    assert '"GOOGLE_GENAI_USE_VERTEXAI": "false"' in text
+    assert '"GEMINI_CLI_TRUST_WORKSPACE": "true"' in text
+    assert '["selectedType"] = "gemini-api-key"' in text
+    assert '"--skip-trust"' in text
+
+
+def test_250_runtime_activation_uses_started_proxy_for_gemini_smoke() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'proxy_url = "http://127.0.0.1:8123"' in text
+    assert 'urllib.request.ProxyHandler' in text
+    assert 'cli_env = proxy_env.copy()' in text
+    assert 'cli_env.pop("GOOGLE_API_KEY", None)' in text
+    assert "timeout=120" in text
+
+
+def test_250_runtime_activation_reports_smoke_timeouts_as_results() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "except subprocess.TimeoutExpired as exc:" in text
+    assert "return 124, redact(output.strip())" in text
+
+
+def test_250_runtime_activation_redacts_remote_command_output() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "def redact(text: str) -> str:" in text
+    assert 'text.replace(sub_url, "<CLASH_SUBSCRIBE_URL>")' in text
+    assert 'r"token=[A-Za-z0-9._-]+"' in text
+    assert "return proc.returncode, redact(proc.stdout.strip())" in text
+
+
+def test_250_runtime_status_reports_direct_mihomo_runtime() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "mihomo_direct_process" in text
+    assert "proxy_8123_listening" in text
+    assert "pgrep -af '/home/admin/.local/bin/mihomo -d /home/admin/.config/mihomo'" in text
+    assert "ss -ltn 2>/dev/null | grep ':8123 '" in text
+
+
+def test_250_runtime_activation_has_clash_user_agent_subscription_fallback() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert '"User-Agent": "clash-verge/v2.0.0"' in text
+    assert '"mixed-port: 8123"' in text
+    assert "mihomo_config_fallback" in text
+    assert "urllib.request.ProxyHandler({})" in text

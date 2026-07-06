@@ -3,8 +3,8 @@
 ## Current State
 
 - 250 workspace is `/home/admin/AgentLab`.
-- Initial verified 250 sync baseline was commit
-  `0ddda8fd5fdbf7c97438957006d23f94d6b40f9d`.
+- Latest verified 250 sync baseline before this activation patch was commit
+  `5ad88d0b88e0c568d4ac99d803c37d6676682bd5`.
 - 250 CLI inventory verified:
   - `hermes`
   - `gemini`
@@ -14,17 +14,24 @@
   - `codex`
   - `bl`
   - `openclaw`
-- AgentLab CLI executor/model tests passed on 250:
-  `69 passed`.
-- `./agentlab.sh models doctor` passed on 250 with existing non-blocking warnings.
+- `./agentlab.sh models doctor` passes on 250 with existing non-blocking
+  warnings: `status: pass`, `issue_count: 23`.
+- Gemini API and Gemini CLI live smoke tests pass through the 250 local proxy.
 
 ## Network State
 
 - 250 has proxy environment variables pointing at `127.0.0.1:8123`.
-- No Clash/mihomo service is currently active on that port.
-- Direct GitHub and Docker Hub access from 250 timed out.
-- npm registry access works when proxy variables are unset.
-- `mihomod` is installed, but mihomo core download timed out before completion.
+- `mihomo` is installed at `/home/admin/.local/bin/mihomo`.
+- `mihomod` is installed and can start `mihomo` in direct process mode.
+- `mihomo` listens on `127.0.0.1:8123`; systemd user services remain inactive
+  because this activation uses direct process mode.
+- 250 can reach GitHub API directly when stale proxy env variables are unset,
+  but GitHub release asset downloads may fail or hang from 250. The activation
+  used locally downloaded `mihomo`, `Country.mmdb`, and `GeoSite.dat` files.
+- The Clash subscription endpoint returns 404 with the default `mihomo`
+  subscription user-agent, but returns valid YAML with a Clash-compatible
+  user-agent. The activation script falls back to `clash-verge/v2.0.0` and
+  rewrites `mixed-port` to `8123`.
 
 ## Gemini Flash Worker Policy
 
@@ -74,12 +81,8 @@ Gemini rough worker may be promoted from candidate to active only after:
 
 ## 250 Remaining Activation Items
 
-- Configure Clash/mihomo subscription after explicit secret-write approval.
-- Start Clash/mihomo on `127.0.0.1:8123` to satisfy current proxy env.
-- Configure Gemini API key after explicit secret-write approval.
-- Run live Gemini smoke test on 250.
-- Run one AgentLab role-session or task packet through `gemini` in read-only
-  rough-work mode.
+- Investigate the existing `models doctor` warnings when they become relevant
+  to routing quality; they are non-blocking for Gemini rough-work activation.
 
 After explicit approval, use:
 
@@ -107,3 +110,22 @@ Latest pre-activation status-only baseline:
 - `mihomo` and `clash` user services: inactive
 - Gemini and Clash secret keys: not present in checked private env locations
 - `./agentlab.sh models doctor`: `status: pass`, `issue_count: 23`
+
+Latest live activation result:
+
+- Private env files configured without embedding secrets in the repository.
+- `mihomo_config` may report a 404 from the default subscription fetch; this is
+  expected for the current subscription service and is followed by the
+  `mihomo_config_fallback` path.
+- `mihomo_config_fallback`: `code: 0`, method `clash-verge user-agent`.
+- `mihomo_start`: `code: 0`, direct process mode.
+- `gemini_api_smoke`: `code: 200`, response contains `OK`.
+- `gemini_cli_smoke`: `code: 0`.
+- `--status-only` reports `mihomo_direct_process: true` and
+  `proxy_8123_listening: true`.
+- Read-only rough-work audition:
+  - Gemini CLI task-packet prompt reached API retry but timed out on longer
+    prompt; short CLI smoke remains healthy.
+  - Contract fallback via Gemini HTTP API returned `code: 200`.
+  - The audition produced findings, confidence, and escalation points from a
+    task packet without file edits or command execution.
