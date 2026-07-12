@@ -96,6 +96,15 @@ def _run_command(args: list[str], timeout_seconds: int, log_path: Path) -> subpr
     )
 
 
+def _resolve_command_path(command: str, command_runner: CommandRunner | None) -> str | None:
+    path = shutil.which(command)
+    if path:
+        return path
+    if command_runner is not None:
+        return f"<injected-runner:{command}>"
+    return None
+
+
 def _contract_template(root: Path) -> str:
     data = _read_yaml(root / "config" / "worker_invocation_contracts.yml")
     contract = ((data.get("contracts") or {}).get("agy_coder") or {})
@@ -248,7 +257,7 @@ def build_agy_cli_smoke_report(
         }
 
     first_args = command_variants[0]
-    first_path = shutil.which(first_args[0]) if first_args else None
+    first_path = _resolve_command_path(first_args[0], command_runner) if first_args else None
     report: dict[str, Any] = {
         "schema_version": 1,
         "report_type": "agentlab_agy_cli_session_smoke",
@@ -286,7 +295,7 @@ def build_agy_cli_smoke_report(
     for attempt, args in enumerate(command_variants):
         if not args:
             continue
-        command_path = shutil.which(args[0])
+        command_path = _resolve_command_path(args[0], command_runner)
         if not command_path:
             attempt_report = {
                 "attempt": attempt,

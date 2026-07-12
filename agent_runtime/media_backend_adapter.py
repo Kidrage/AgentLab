@@ -36,6 +36,7 @@ except ImportError:  # pragma: no cover - direct runtime import path
 HttpPost = Callable[[str, dict[str, str], dict[str, Any], int], dict[str, Any]]
 HttpGet = Callable[[str, dict[str, str], int], bytes | dict[str, Any]]
 CommandRunner = Callable[[list[str], int], subprocess.CompletedProcess[str]]
+CommandProbe = Callable[[dict[str, Any]], bool]
 
 LOCAL_GROK_CLI_ADAPTERS = {"local_grok_cli", "grok_cli_oauth"}
 SUPPORTED_ADAPTERS = {"xai_imagine_rest", *LOCAL_GROK_CLI_ADAPTERS}
@@ -77,7 +78,12 @@ def load_media_backends(agentlab_root: Path) -> dict[str, dict[str, Any]]:
     return backends if isinstance(backends, dict) else {}
 
 
-def preflight_media_contract(contract: dict[str, Any], agentlab_root: Path) -> dict[str, Any]:
+def preflight_media_contract(
+    contract: dict[str, Any],
+    agentlab_root: Path,
+    *,
+    command_probe: CommandProbe | None = None,
+) -> dict[str, Any]:
     """Return a deterministic execution readiness report for a media contract."""
     backends = load_media_backends(agentlab_root)
     backend_id = str(contract.get("selected_backend") or "")
@@ -103,7 +109,7 @@ def preflight_media_contract(contract: dict[str, Any], agentlab_root: Path) -> d
     api_key_env = str(backend.get("api_key_env") or "")
     accepted_env = _backend_api_key_env_names(backend)
     api_key_present = bool(_backend_api_key(backend))
-    command_available = _backend_command_available(backend)
+    command_available = (command_probe or _backend_command_available)(backend)
     approval_required = bool(backend.get("approval_required", False))
 
     check(adapter_state in {"configured", "ready"}, "adapter_configured", f"adapter_state is {adapter_state}")
@@ -168,7 +174,11 @@ def execute_media_contract(
     """
     out_dir = Path(out_dir).resolve(strict=False)
     out_dir.mkdir(parents=True, exist_ok=True)
-    preflight = preflight_media_contract(contract, agentlab_root)
+    preflight = preflight_media_contract(
+        contract,
+        agentlab_root,
+        command_probe=(lambda _backend: True) if command_runner is not None else None,
+    )
     runtime_backend = (
         load_media_backends(agentlab_root).get(str(preflight.get("backend_id") or ""), {})
         or preflight.get("backend")

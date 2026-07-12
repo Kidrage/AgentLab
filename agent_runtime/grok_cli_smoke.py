@@ -178,6 +178,15 @@ def _run_command(args: list[str], timeout_seconds: int) -> subprocess.CompletedP
     )
 
 
+def _resolve_command_path(command: str, command_runner: CommandRunner | None) -> str | None:
+    path = shutil.which(command)
+    if path:
+        return path
+    if command_runner is not None:
+        return f"<injected-runner:{command}>"
+    return None
+
+
 def _diagnostic_command(
     args: list[str],
     *,
@@ -329,7 +338,7 @@ def build_grok_cli_smoke_report(
     fallback_prompt = f"{command} -p <prompt> --output-format plain --max-turns 3"
     if not variants:
         variants.append(_parse_command_template(command, fallback_prompt))
-    command_path = shutil.which(variants[0][0]) if variants and variants[0] else None
+    command_path = _resolve_command_path(variants[0][0], command_runner) if variants and variants[0] else None
     max_turns = _arg_value(variants[0], "--max-turns") if variants and variants[0] else None
     report: dict[str, Any] = {
         "schema_version": 1,
@@ -403,7 +412,7 @@ def build_grok_cli_smoke_report(
     for attempt, args in enumerate(variants):
         if not args:
             continue
-        command_path = shutil.which(args[0])
+        command_path = _resolve_command_path(args[0], command_runner)
         if not command_path:
             attempt_report: dict[str, Any] = {
                 "attempt": attempt,

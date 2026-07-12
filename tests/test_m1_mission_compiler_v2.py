@@ -21,6 +21,10 @@ def strip_ansi(text: str) -> str:
     return ANSI_ESCAPE_RE.sub("", text)
 
 
+def local_hermes_command(command: str) -> str | None:
+    return command if command == "hermes" else None
+
+
 # ── Prompt fixtures ────────────────────────────────────────────────
 
 PROMPT_CODEBASE = (
@@ -470,7 +474,13 @@ class TestMediaGenerationRouting:
             return build_mission_contract(prompt, agentlab_root=root)
 
     def test_generate_image_selects_hermes_grok_when_local_cli_adapter_is_ready(self):
-        with patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False):
+        with (
+            patch(
+                "agent_runtime.brain.media_generation_router.shutil.which",
+                side_effect=local_hermes_command,
+            ),
+            patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False),
+        ):
             contract = build_mission_contract(PROMPT_IMAGE, project_id="AgentLab", task_id="task_media")
         media = contract["media_generation_contract"]
         assert contract["task_domain"] == "image_generation"
@@ -483,7 +493,13 @@ class TestMediaGenerationRouting:
         assert media["backend_contracts"]["hermes_grok_oauth"]["adapter_kind"] == "local_grok_cli"
 
     def test_simple_image_selects_local_grok_cli_by_default(self):
-        with patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False):
+        with (
+            patch(
+                "agent_runtime.brain.media_generation_router.shutil.which",
+                side_effect=local_hermes_command,
+            ),
+            patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False),
+        ):
             contract = build_mission_contract(PROMPT_SIMPLE_IMAGE)
         media = contract["media_generation_contract"]
         assert media["backend_policy"] == "fast_simple"
@@ -549,7 +565,11 @@ class TestMediaGenerationRouting:
         assert any("draft candidates only" in rule for rule in media["harness_rules"])
 
     def test_ark_pending_is_not_executable_backend(self):
-        contract = build_mission_contract("Generate a commercial final image for client delivery.")
+        with patch(
+            "agent_runtime.brain.media_generation_router.shutil.which",
+            side_effect=local_hermes_command,
+        ):
+            contract = build_mission_contract("Generate a commercial final image for client delivery.")
         media = contract["media_generation_contract"]
         assert media["selected_backend"] == "hermes_grok_oauth"
         assert media["executable"] is True
@@ -758,7 +778,11 @@ class TestRenderer:
     def test_renders_media_generation_contract(self):
         from agent_runtime.brain.renderer import render_mission_contract_outputs
 
-        contract = build_mission_contract(PROMPT_IMAGE)
+        with patch(
+            "agent_runtime.brain.media_generation_router.shutil.which",
+            side_effect=local_hermes_command,
+        ):
+            contract = build_mission_contract(PROMPT_IMAGE)
         with tempfile.TemporaryDirectory() as tmp:
             out_dir = Path(tmp)
             written = render_mission_contract_outputs(contract, out_dir)

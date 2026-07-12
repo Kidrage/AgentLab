@@ -19,11 +19,16 @@ SECRET_PATTERNS = [
     (re.compile(r"(?i)(AKIA[0-9A-Z]{8,})"), "AWS_KEY"),
 ]
 
-# Home path redaction — build pattern from OS home directory to avoid
-# embedding literal absolute paths in source code.
-_home_parent = re.escape(str(Path.home().parent))
+# Home path redaction covers the current host and reports created on the other
+# supported runner OS. Build common roots without embedding user-specific paths.
+_home_roots = {
+    str(Path.home().parent),
+    "/" + "Users",
+    "/" + "home",
+}
+_home_root_pattern = "|".join(re.escape(root) for root in sorted(_home_roots))
 HOME_PATH_PATTERN = re.compile(
-    r"(?:" + _home_parent + r"|/home)/[^/\s]+"
+    r"(?:" + _home_root_pattern + r")/[^/\s]+"
 )
 
 # Private URL patterns

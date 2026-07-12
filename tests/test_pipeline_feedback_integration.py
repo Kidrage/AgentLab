@@ -16,6 +16,7 @@ from feedback_manager import (
 from lifecycle_graph import create_lifecycle, load_lifecycle
 from pipeline_runner import _block_task
 from progress_tracker import create_progress, load_progress
+from recovery.redaction import redact_context_text
 from state_store import load_state
 from task_events import load_task_events
 
@@ -102,6 +103,17 @@ class PipelineFeedbackIntegrationTests(TestCase):
         self.assertNotIn("/" + "Users/private-user", decision)
         self.assertIn("[REDACTED_SECRET]", decision)
         self.assertNotIn("\napi_key", result["message"])
+
+    def test_context_redaction_covers_macos_and_linux_home_roots(self) -> None:
+        paths = (
+            "/" + "Users/private-user/project/error.log",
+            "/" + "home/private-user/project/error.log",
+        )
+
+        for path in paths:
+            redacted, warnings = redact_context_text(path)
+            self.assertEqual(redacted, "<HOME>/project/error.log")
+            self.assertTrue(any("absolute home path" in warning for warning in warnings))
 
     def test_resolve_decision_card_approves_and_clears_legacy_gate(self) -> None:
         result = _block_task(

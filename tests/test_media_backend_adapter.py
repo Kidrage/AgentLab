@@ -90,7 +90,7 @@ def test_preflight_blocks_grok_direct_with_grok_key_alias_until_explicit_approva
 
 
 def test_preflight_allows_local_grok_cli_without_api_key() -> None:
-    report = preflight_media_contract(_oauth_contract(), ROOT)
+    report = preflight_media_contract(_oauth_contract(), ROOT, command_probe=lambda _backend: True)
 
     assert report["status"] == "ready"
     assert report["adapter_kind"] == "local_grok_cli"
