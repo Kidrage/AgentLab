@@ -23,6 +23,11 @@ block for each approved output file required by the route. For
 - `state_transition_proposal.yml`
 - `narrative_delivery_receipt.yml`
 
+For `narrative_light_chapter`, the final response must contain exactly those
+four closed blocks in that order and no text outside them. Plan and self-check
+internally, and reserve response budget for the three YAML blocks before
+emitting the prose block.
+
 Use this HTML edit block format:
 
 <!-- AGENTLAB_EDIT: relative/path/from/project/root.md -->

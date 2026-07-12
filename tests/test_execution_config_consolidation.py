@@ -325,6 +325,27 @@ def test_agy_is_default_gemini_oauth_path_and_api_gemini_is_explicit_fallback() 
     assert _cost_source(api_model, {}) == "free-tier/api quota"
 
 
+def test_writer_light_contract_has_one_unambiguous_four_file_response() -> None:
+    registry = _load_config("agent_registry.yml")
+    writer = registry["agents"]["Writer"]
+    expected = [
+        "runs/task_xxxx/fiction_draft.md",
+        "runs/task_xxxx/continuity_ledger.yml",
+        "runs/task_xxxx/state_transition_proposal.yml",
+        "runs/task_xxxx/narrative_delivery_receipt.yml",
+    ]
+    assert writer["required_outputs"] == expected
+
+    root = Path(__file__).resolve().parents[1]
+    template = (root / "agent_templates" / "writer.md").read_text(encoding="utf-8")
+    skill = (
+        root / "skills" / "active" / "skill_agentlab_narrative_chapter_writer_lite" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "exactly those\nfour closed blocks" in template
+    assert "exactly these four closed `AGENTLAB_EDIT`" in skill
+    assert "no preamble" in skill
+
+
 def test_codex_gpt_55_high_is_registered_as_hermes_oauth_provider() -> None:
     catalog = _load_config("model_catalog.yml")
     providers = _load_config("model_providers.yml")["providers"]

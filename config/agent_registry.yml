@@ -248,6 +248,9 @@ agents:
       - runs/task_xxxx/user_request.md
     required_outputs:
       - runs/task_xxxx/fiction_draft.md
+      - runs/task_xxxx/continuity_ledger.yml
+      - runs/task_xxxx/state_transition_proposal.yml
+      - runs/task_xxxx/narrative_delivery_receipt.yml
 
   Reviewer:
     template_path: agent_templates/fiction_reviewer.md

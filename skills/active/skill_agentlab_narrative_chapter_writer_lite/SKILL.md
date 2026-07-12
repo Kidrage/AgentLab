@@ -1,6 +1,6 @@
 ---
 name: narrative-chapter-writer-lite
-version: 1.0.0
+version: 1.0.1
 description: "Lightweight longform chapter Writer rules for AgentLab narrative_light_chapter."
 ---
 
@@ -29,7 +29,8 @@ the chapter, but it does not override the authoritative fact snapshot.
 
 ## Chapter Intent First
 
-Start the Writer report with `chapter_intent`:
+Plan `chapter_intent` internally before drafting; do not emit a standalone
+Writer report or planning commentary:
 
 - emotional_target
 - plot_state_change
@@ -48,6 +49,12 @@ Write only candidate run artifacts, never production files:
 - `continuity_ledger.yml`
 - `state_transition_proposal.yml`
 - `narrative_delivery_receipt.yml`
+
+The final response must contain exactly these four closed `AGENTLAB_EDIT`
+blocks in the order above, with no preamble, progress commentary, checklist,
+or epilogue outside the blocks. Reserve enough response budget for all three
+YAML files before emitting the prose block; a response with fewer than four
+blocks is incomplete.
 
 `state_transition_proposal.yml` is mandatory for every new setting, revealed
 fact, character-state change, relationship change, timeline movement, item
@@ -101,7 +108,9 @@ Do not invent a new schema version or use synonyms such as `delivery_status` or
 
 ## Local Checks
 
-Before receipt, run deterministic self-checks in text:
+Before emitting the four blocks, perform these deterministic self-checks
+internally. Do not print a separate checklist; encode the results only in
+`narrative_delivery_receipt.yml`:
 
 - draft answers the requested chapter number and title
 - all required beats from `chapter_packet.yml` are represented or explicitly
