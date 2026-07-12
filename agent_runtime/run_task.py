@@ -5520,6 +5520,36 @@ def crown_scale_governance_audit_cmd(
         raise typer.Exit(code=1)
 
 
+@app.command("crown-completion-batch-audit")
+def crown_completion_batch_audit_cmd(
+    eval_id: str = typer.Option(..., "--eval-id", help="Stable narrative-eval id shared by the chapter runs."),
+    through_chapter: int = typer.Option(..., "--through-chapter", min=1, help="Audit chapters 1 through this chapter."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Audit a resumable local Crown candidate chapter chain without providers."""
+    agentlab_root, _project_name = runtime_context(None)
+    from crown_candidate_audit import write_crown_completion_batch_audit
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "narrative_eval"
+        / "Crown_of_Ash"
+        / "batch_audits"
+        / f"{eval_id}_ch01_ch{through_chapter:03d}.yml"
+    )
+    report = write_crown_completion_batch_audit(
+        agentlab_root,
+        report_out,
+        eval_id=eval_id,
+        through_chapter=through_chapter,
+    )
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
 @app.command("media-series-scaffold-audit")
 def media_series_scaffold_audit_cmd(
     out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),

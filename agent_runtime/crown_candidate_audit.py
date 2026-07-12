@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
+import re
 from typing import Any
 
 import yaml
@@ -19,6 +21,28 @@ except ImportError:  # pragma: no cover - package import path
 
 
 DEFAULT_CROWN_LIVE_RUN = "task_narrative_eval_ch01_live_ch01_20260707_cli_fallback"
+BATCH_REQUIRED_FILES = (
+    "chapter_packet.yml",
+    "fiction_draft.md",
+    "continuity_ledger.yml",
+    "state_transition_proposal.yml",
+    "narrative_delivery_receipt.yml",
+    "writer_output_contract.yml",
+)
+BATCH_LEDGER_LISTS = (
+    "plot_state_changes",
+    "character_changes",
+    "relationship_or_worldline_changes",
+    "foreshadowing",
+)
+BATCH_RECEIPT_CHECKS = (
+    "chapter_and_title",
+    "required_beats",
+    "continuity_outputs",
+    "production_untouched",
+    "deprecated_sources_excluded",
+)
+AGY_HIGH_MODEL_LABEL = "Gemini 3.5 Flash (High)"
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -164,5 +188,226 @@ def build_crown_live_candidate_audit(
 
 def write_crown_live_candidate_audit(root: Path, out: Path, *, task_id: str = DEFAULT_CROWN_LIVE_RUN) -> dict[str, Any]:
     report = build_crown_live_candidate_audit(root, task_id=task_id)
+    write_report_yaml(out, report, root)
+    return report
+
+
+def _completion_task_id(chapter: int, eval_id: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", eval_id).strip("_-") or "eval"
+    return f"task_narrative_eval_ch{chapter:02d}_{cleaned}"[:85]
+
+
+def _candidate_sources(task_id: str) -> list[str]:
+    return [
+        f"runs/{task_id}/fiction_draft.md",
+        f"runs/{task_id}/continuity_ledger.yml",
+        f"runs/{task_id}/state_transition_proposal.yml",
+    ]
+
+
+def _model_label(log_path: Path) -> str | None:
+    if not log_path.is_file():
+        return None
+    labels = re.findall(
+        r'Propagating selected model override to backend: label="([^"]+)"',
+        log_path.read_text(encoding="utf-8", errors="replace"),
+    )
+    return labels[-1] if labels else None
+
+
+def build_crown_completion_batch_audit(
+    root: Path,
+    *,
+    eval_id: str,
+    through_chapter: int,
+) -> dict[str, Any]:
+    """Audit one resumable Crown candidate chain without calling a provider."""
+    if through_chapter < 1:
+        raise ValueError("through_chapter must be at least 1")
+
+    root = root.resolve()
+    project_root = root / "projects" / "Crown_of_Ash"
+    runs_root = project_root / "runs"
+    issues: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    chapters: list[dict[str, Any]] = []
+    normalizations: list[dict[str, Any]] = []
+    retry_ledgers: list[dict[str, Any]] = []
+    local_recoveries: list[dict[str, Any]] = []
+    rejected_attempts: list[str] = []
+    seen_drafts: dict[str, int] = {}
+    cumulative_events = 0
+    fact_ledger_started = False
+
+    for chapter in range(1, through_chapter + 1):
+        task_id = _completion_task_id(chapter, eval_id)
+        run_dir = runs_root / task_id
+        missing = [name for name in BATCH_REQUIRED_FILES if not (run_dir / name).is_file()]
+        chapter_issues: list[str] = [f"missing:{name}" for name in missing]
+        if missing:
+            issues.extend(
+                {"chapter": chapter, "check": "required_file", "message": item}
+                for item in chapter_issues
+            )
+            chapters.append({"chapter": chapter, "task_id": task_id, "status": "fail", "issues": chapter_issues})
+            continue
+
+        packet = _read_yaml(run_dir / "chapter_packet.yml")
+        ledger = _read_yaml(run_dir / "continuity_ledger.yml")
+        proposal = _read_yaml(run_dir / "state_transition_proposal.yml")
+        receipt = _read_yaml(run_dir / "narrative_delivery_receipt.yml")
+        contract = _read_yaml(run_dir / "writer_output_contract.yml")
+        delivery = validate_narrative_delivery(run_dir)
+        draft = (run_dir / "fiction_draft.md").read_text(encoding="utf-8", errors="replace")
+        intent = packet.get("chapter_intent") if isinstance(packet.get("chapter_intent"), dict) else {}
+        hard_range = intent.get("hard_character_range") or [3000, 8000]
+        expected_baseline = "reset" if chapter == 1 else "continuation"
+        previous = packet.get("previous_candidate_sources")
+        if previous is None:
+            previous = packet.get("previous_chapters") or []
+        expected_previous = [] if chapter == 1 else _candidate_sources(
+            _completion_task_id(chapter - 1, eval_id)
+        )
+        events = proposal.get("events") if isinstance(proposal.get("events"), list) else []
+        checks = {
+            "delivery_valid": delivery.get("valid") is True,
+            "packet_chapter": packet.get("chapter") == chapter,
+            "baseline": packet.get("baseline_mode") == expected_baseline
+            and ledger.get("baseline_mode") == expected_baseline,
+            "previous_chain": previous == expected_previous,
+            "ledger_chapter": ledger.get("chapter") == chapter,
+            "ledger_lists": all(isinstance(ledger.get(name), list) and ledger.get(name) for name in BATCH_LEDGER_LISTS),
+            "contract": contract.get("status") == "pass",
+            "draft_range": isinstance(hard_range, list)
+            and len(hard_range) == 2
+            and all(isinstance(value, int) for value in hard_range)
+            and hard_range[0] <= len(draft) <= hard_range[1],
+            "draft_heading": next((line for line in draft.splitlines() if line.strip()), "").startswith("#"),
+            "proposal": proposal.get("chapter") == chapter
+            and proposal.get("status") == "candidate"
+            and proposal.get("requires_user_promotion") is True
+            and bool(events)
+            and all(isinstance(event, dict) and event.get("scope") == "candidate_only" for event in events),
+            "receipt": receipt.get("status") == "pass"
+            and receipt.get("candidate_only") is True
+            and all((receipt.get("checks") or {}).get(name) == "pass" for name in BATCH_RECEIPT_CHECKS),
+            "agy_high_model": _model_label(run_dir / "command_logs" / "agy_cli_agent.log") == AGY_HIGH_MODEL_LABEL,
+        }
+        draft_hash = hashlib.sha256(draft.encode("utf-8")).hexdigest()
+        checks["unique_draft"] = draft_hash not in seen_drafts
+        seen_drafts[draft_hash] = chapter
+
+        fact_path = run_dir / "candidate_fact_ledger.yml"
+        if fact_path.is_file():
+            fact_ledger_started = True
+            facts = _read_yaml(fact_path)
+            checks["candidate_fact_ledger"] = (
+                facts.get("through_chapter") == chapter - 1
+                and facts.get("event_count") == cumulative_events
+                and facts.get("promoted") is False
+            )
+        elif fact_ledger_started:
+            checks["candidate_fact_ledger"] = False
+        elif chapter > 1:
+            warnings.append(
+                {
+                    "chapter": chapter,
+                    "check": "candidate_fact_ledger",
+                    "message": "candidate fact ledger predates rolling-ledger activation",
+                }
+            )
+
+        for check, passed in checks.items():
+            if not passed:
+                chapter_issues.append(check)
+                issues.append({"chapter": chapter, "check": check, "message": "check failed"})
+
+        normalizations.extend(
+            {"chapter": chapter, **item}
+            for item in (contract.get("normalizations") or [])
+            if isinstance(item, dict)
+        )
+        retry_path = run_dir / "writer_retry_ledger.yml"
+        if retry_path.is_file():
+            retry = _read_yaml(retry_path)
+            retry_ledgers.append(
+                {
+                    "chapter": chapter,
+                    "status": retry.get("status"),
+                    "attempt_count": len(retry.get("attempts") or []),
+                }
+            )
+        recovery_path = run_dir / "local_materialization_recovery.yml"
+        if recovery_path.is_file():
+            recovery = _read_yaml(recovery_path)
+            local_recoveries.append(
+                {"chapter": chapter, "status": recovery.get("status"), "path": str(recovery_path.relative_to(project_root))}
+            )
+        rejected_attempts.extend(
+            str(path.relative_to(project_root))
+            for path in sorted((run_dir / "rejected_attempts").glob("*/rejection.yml"))
+        )
+        chapters.append(
+            {
+                "chapter": chapter,
+                "task_id": task_id,
+                "status": "pass" if not chapter_issues else "fail",
+                "draft_characters": len(draft),
+                "candidate_event_count": len(events),
+                "issues": chapter_issues,
+            }
+        )
+        cumulative_events += len(events)
+
+    production_files = _production_manuscript_files(project_root)
+    if production_files:
+        issues.append(
+            {
+                "chapter": None,
+                "check": "production_manuscript_not_modified",
+                "message": "candidate generation wrote production manuscript files",
+            }
+        )
+    lengths = [item["draft_characters"] for item in chapters if "draft_characters" in item]
+    return {
+        "schema_version": 1,
+        "report_type": "agentlab_crown_completion_batch_audit",
+        "project": "Crown_of_Ash",
+        "eval_id": eval_id,
+        "chapter_range": [1, through_chapter],
+        "status": "pass" if not issues else "fail",
+        "summary": {
+            "selected_chapter_count": through_chapter,
+            "valid_chapter_count": sum(item.get("status") == "pass" for item in chapters),
+            "total_candidate_events": cumulative_events,
+            "draft_character_range": [min(lengths), max(lengths)] if lengths else None,
+            "normalization_count": sum(int(item.get("count") or 0) for item in normalizations),
+            "retry_ledger_count": len(retry_ledgers),
+            "local_recovery_count": len(local_recoveries),
+            "rejected_attempt_count": len(rejected_attempts),
+            "production_manuscript_files": production_files,
+        },
+        "chapters": chapters,
+        "normalizations": normalizations,
+        "retry_ledgers": retry_ledgers,
+        "local_recoveries": local_recoveries,
+        "rejected_attempts": rejected_attempts,
+        "warnings": warnings,
+        "issues": issues,
+    }
+
+
+def write_crown_completion_batch_audit(
+    root: Path,
+    out: Path,
+    *,
+    eval_id: str,
+    through_chapter: int,
+) -> dict[str, Any]:
+    report = build_crown_completion_batch_audit(
+        root,
+        eval_id=eval_id,
+        through_chapter=through_chapter,
+    )
     write_report_yaml(out, report, root)
     return report
