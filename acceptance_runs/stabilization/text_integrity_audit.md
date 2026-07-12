@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Total files scanned: 1432
+- Total files scanned: 1401
 - Suspicious files: 0
 - Suspicious Python files: 0
 - Suspicious YAML files: 0
@@ -13,7 +13,7 @@
 
 | Path | Lines | Max Line | Size | Status |
 |------|-------|----------|------|--------|
-| docs/AGENTLAB_CAPABILITY_ACCEPTANCE_MATRIX.md | 220 | 1985 | 40880 | OK |
+| docs/AGENTLAB_CAPABILITY_ACCEPTANCE_MATRIX.md | 220 | 1985 | 40871 | OK |
 | docs/AGENTLAB_OPERATING_LOGIC.zh-CN.md | 343 | 780 | 35725 | OK |
 | acceptance_runs/agentlab_capability_acceptance/shell_sessions/returned_artifacts/promptengineer_findings.md | 136 | 706 | 5257 | OK |
 | acceptance_runs/agentlab_capability_acceptance/shell_sessions/returned_artifacts/supervisor_findings.md | 146 | 697 | 6636 | OK |
@@ -32,7 +32,7 @@
 | agent_runtime/context_governance/packers/image_context_packer.py | 11 | 367 | 1084 | OK |
 | acceptance_runs/m2_12_5_goal_mainline_bridge/M2_12_5_GOAL_MAINLINE_BRIDGE_REPORT.md | 62 | 365 | 3078 | OK |
 | docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md | 1397 | 365 | 29633 | OK |
-| agent_runtime/run_task.py | 7422 | 361 | 323997 | OK |
+| agent_runtime/run_task.py | 7486 | 361 | 326758 | OK |
 | acceptance_runs/stabilization/S0_STABILIZATION_REPORT.md | 134 | 338 | 5803 | OK |
 | docs/README.en-US.md | 352 | 330 | 16611 | OK |
 | acceptance_runs/p2_closure/P2_F_CLOSURE_REPORT.md | 212 | 329 | 8302 | OK |
@@ -40,6 +40,6 @@
 | agent_runtime/capabilities/registry.py | 80 | 325 | 6618 | OK |
 | acceptance_runs/hybrid_agent_executor_hotfix/HYBRID_AGENT_EXECUTOR_HOTFIX_REPORT.md | 230 | 325 | 10003 | OK |
 | docs/CLOSURE_MVP_REPORT.md | 81 | 324 | 4442 | OK |
-| config/shared_agent_directory.yml | 310 | 320 | 12178 | OK |
+| config/shared_agent_directory.yml | 310 | 320 | 12246 | OK |
 | acceptance_runs/agentlab_capability_acceptance/shell_sessions/returned_artifacts/coder_findings.md | 12 | 320 | 896 | OK |
 | acceptance_runs/s0_remote_raw_repair/report.md | 140 | 319 | 6083 | OK |

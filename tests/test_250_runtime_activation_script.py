@@ -13,6 +13,15 @@ def test_250_runtime_activation_script_is_valid_bash() -> None:
     subprocess.run(["bash", "-n", str(SCRIPT)], cwd=ROOT, check=True)
 
 
+def test_250_runtime_activation_embedded_python_is_valid() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    blocks = re.findall(r"<<'PY'\n(.*?)\nPY", text, re.DOTALL)
+
+    assert len(blocks) == 3
+    for index, block in enumerate(blocks):
+        compile(block, f"activate_250_runtime.sh:heredoc:{index}", "exec")
+
+
 def test_250_runtime_activation_help_documents_status_only() -> None:
     result = subprocess.run(
         [str(SCRIPT), "--help"],
@@ -23,8 +32,10 @@ def test_250_runtime_activation_help_documents_status_only() -> None:
     )
 
     assert "--status-only" in result.stdout
+    assert "--enable-gemini-api-fallback" in result.stdout
     assert "read-only remote activation audit" in result.stdout
     assert "No secrets are stored in this script" in result.stdout
+    assert "Agy with local Gemini OAuth" in result.stdout
 
 
 def test_250_runtime_activation_script_does_not_embed_live_secrets() -> None:
@@ -53,28 +64,47 @@ def test_250_runtime_status_only_runs_before_secret_prompts() -> None:
     assert "secret_key_presence" in text[status_pos:clash_prompt_pos]
 
 
-def test_250_runtime_activation_hardens_remote_proxy_and_gemini_auth() -> None:
+def test_250_runtime_activation_keeps_agy_oauth_as_default_gemini_path() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
 
     assert 'base_env.pop("ALL_PROXY", None)' in text
     assert 'base_env.pop("all_proxy", None)' in text
+    assert '"default_gemini_path": "agy_gemini_oauth"' in text
+    assert '"auth_mode": "local_gemini_oauth_session"' in text
+    assert 'results["agy_cli_safe_probe"]' in text
+    assert 'if gemini_api_fallback_enabled:' in text
     assert '"GOOGLE_GENAI_USE_GCA": "false"' in text
     assert '"GOOGLE_GENAI_USE_VERTEXAI": "false"' in text
     assert '"GEMINI_CLI_TRUST_WORKSPACE": "true"' in text
-    assert '"HERMES_INFERENCE_PROVIDER": "gemini"' in text
-    assert '"HERMES_INFERENCE_MODEL": "gemini-2.5-flash"' in text
+    assert '"HERMES_INFERENCE_PROVIDER": "gemini"' not in text
+    assert '"HERMES_INFERENCE_MODEL": "gemini-2.5-flash"' not in text
     assert '["selectedType"] = "gemini-api-key"' in text
     assert '"--skip-trust"' in text
 
 
-def test_250_runtime_activation_uses_started_proxy_for_gemini_smoke() -> None:
+def test_250_runtime_activation_uses_started_proxy_for_agy_and_optional_gemini_smoke() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
 
     assert 'proxy_url = "http://127.0.0.1:8123"' in text
+    assert '["./agentlab.sh", "worker-invocation-probe", "--worker", "agy"]' in text
+    assert 'cwd=remote_root' in text
     assert 'urllib.request.ProxyHandler' in text
     assert 'cli_env = proxy_env.copy()' in text
     assert 'cli_env.pop("GOOGLE_API_KEY", None)' in text
     assert "timeout=120" in text
+    assert '"status": "disabled_by_default"' in text
+
+
+def test_250_runtime_activation_removes_legacy_global_provider_override() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'legacy_default_keys = {' in text
+    assert '"HERMES_INFERENCE_PROVIDER"' in text
+    assert '"HERMES_INFERENCE_MODEL"' in text
+    assert 'remove_env_keys(home / ".agentlab_secrets/env", legacy_default_keys)' in text
+    assert 'remove_env_keys(remote_root / "agent_runtime/.env", legacy_default_keys)' in text
+    assert 'legacy_source_line = ' not in text
+    assert '.agentlab_runtime/network.env' in text
 
 
 def test_250_runtime_activation_reports_smoke_timeouts_as_results() -> None:
@@ -89,6 +119,7 @@ def test_250_runtime_activation_redacts_remote_command_output() -> None:
 
     assert "def redact(text: str) -> str:" in text
     assert 'text.replace(sub_url, "<CLASH_SUBSCRIBE_URL>")' in text
+    assert 'text.replace(gemini_key, "<GEMINI_API_KEY>")' in text
     assert 'r"token=[A-Za-z0-9._-]+"' in text
     assert "return proc.returncode, redact(proc.stdout.strip())" in text
 
