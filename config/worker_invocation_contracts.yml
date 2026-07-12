@@ -276,13 +276,13 @@ contracts:
     required_receipts:
       - frontdesk_session_receipt.yml
     template: >-
-      agy --sandbox --model gemini-3.5-flash-high -p "Read the AgentLab frontdesk session packet at
+      agy --sandbox --model "Gemini 3.5 Flash (High)" -p "Read the AgentLab frontdesk session packet at
       '{frontdesk_session_path}'; act only as the user-facing AgentLab frontdesk."
     required_placeholders:
       - frontdesk_session_path
     safe_probe: [agy, --help]
     expected_parse:
-      argv_prefix: [agy, --sandbox, --model, gemini-3.5-flash-high, -p]
+      argv_prefix: [agy, --sandbox, --model, Gemini 3.5 Flash (High), -p]
     validation:
       shlex_parse_required: true
       allow_unquoted_placeholders: true
@@ -306,7 +306,7 @@ contracts:
       - role_session_receipt.yml
       - generated_or_changed_artifacts.yml
     template: >-
-      agy --sandbox --model {model_id} -p "Read the AgentLab task packet at
+      agy --sandbox --model "{model_id}" -p "Read the AgentLab task packet at
       {task_packet_path}; perform only the assigned AgentLab role.
       Use the local Agy Gemini OAuth path as the default Gemini runtime
       (gemini-3.5-flash-high). Do not use GEMINI_API_KEY or the Gemini API
@@ -342,7 +342,7 @@ contracts:
       - outbound_context_manifest_writer.yml
       - narrative_delivery_receipt.yml
     template: >-
-      agy --sandbox --model {model_id} -p "Read only the sealed AgentLab Writer packet at
+      agy --sandbox --model "{model_id}" -p "Read only the sealed AgentLab Writer packet at
       {task_packet_path}. Use only its embedded messages; do not read any other
       file, run shell commands, browse, or scan the repository. Return only the
       required candidate AGENTLAB_EDIT blocks on stdout. Use the local Agy

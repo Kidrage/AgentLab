@@ -16,7 +16,7 @@ Examples:
 
 ```bash
 hermes --provider deepseek -m deepseek-v4-pro -z "$(./agentlab.sh frontdesk-session --agent hermes)"
-agy --sandbox --model gemini-3.5-flash-high -p "$(./agentlab.sh frontdesk-session --agent agy)"
+agy --sandbox --model 'Gemini 3.5 Flash (High)' -p "$(./agentlab.sh frontdesk-session --agent agy)"
 qwen --bare "$(./agentlab.sh frontdesk-session --agent qwen)"
 ```
 

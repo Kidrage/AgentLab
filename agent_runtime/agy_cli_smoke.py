@@ -115,7 +115,11 @@ def _contract_template(root: Path) -> str:
 def _default_model_id(root: Path) -> str:
     data = _read_yaml(root / "config" / "model_catalog.yml")
     provider = ((data.get("providers") or {}).get("agy_gemini_oauth") or {})
-    return str(provider.get("default_model") or DEFAULT_AGY_MODEL)
+    return str(
+        provider.get("cli_model_id")
+        or provider.get("default_model")
+        or DEFAULT_AGY_MODEL
+    )
 
 
 def _append_log_file(args: list[str], log_path: Path) -> list[str]:

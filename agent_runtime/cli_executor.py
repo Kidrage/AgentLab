@@ -585,7 +585,11 @@ def _model_invocation_values(
     if not model_entry:
         return values
 
-    values["model_id"] = str(model_entry.get("model_id") or values["model_id"])
+    values["model_id"] = str(
+        model_entry.get("cli_model_id")
+        or model_entry.get("model_id")
+        or values["model_id"]
+    )
     values["provider"] = _runtime_provider_for_catalog_model(model_entry)
     return values
 

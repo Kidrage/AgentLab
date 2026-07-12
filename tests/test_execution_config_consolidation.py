@@ -304,6 +304,7 @@ def test_agy_is_default_gemini_oauth_path_and_api_gemini_is_explicit_fallback() 
     agy_model = catalog["models"]["gemini_3_5_flash_high_agy_oauth"]
     assert agy_model["runtime_provider"] == "agy-gemini-oauth"
     assert agy_model["model_id"] == "gemini-3.5-flash-high"
+    assert agy_model["cli_model_id"] == "Gemini 3.5 Flash (High)"
     assert agy_model["pricing"]["billing_source"] == "agy_oauth"
 
     api_model = catalog["models"]["gemini_2_5_flash_high_api"]
@@ -312,13 +313,14 @@ def test_agy_is_default_gemini_oauth_path_and_api_gemini_is_explicit_fallback() 
 
     assert providers["agy-gemini-oauth"]["type"] == "oauth_cli"
     assert providers["agy-gemini-oauth"]["default_model"] == "gemini-3.5-flash-high"
+    assert catalog["providers"]["agy_gemini_oauth"]["cli_model_id"] == "Gemini 3.5 Flash (High)"
     assert providers["gemini-api"]["never_default"] is True
     assert providers["gemini-api"]["api_key"] == "env:GEMINI_API_KEY"
     assert "Do not use GEMINI_API_KEY" in contracts["agy_coder"]["template"]
-    assert "--model {model_id}" in contracts["agy_coder"]["template"]
+    assert '--model "{model_id}"' in contracts["agy_coder"]["template"]
     assert "Read only the sealed AgentLab Writer packet" in contracts["agy_writer"]["template"]
     assert "do not read any other" in contracts["agy_writer"]["template"]
-    assert "--model {model_id}" in contracts["agy_writer"]["template"]
+    assert '--model "{model_id}"' in contracts["agy_writer"]["template"]
     assert _cost_source(agy_model, {}) == "oauth/subscription quota"
     assert _cost_source(api_model, {}) == "free-tier/api quota"
 

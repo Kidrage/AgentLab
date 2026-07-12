@@ -508,6 +508,19 @@ class TestRenderCommand:
         assert argv[:5] == ["hermes", "--provider", "openai-codex", "-m", "gpt-5.5"]
         assert any(str(tmp_path / "pkt.json") in arg for arg in argv)
 
+    def test_agy_catalog_resolves_cli_display_label(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _model_invocation_values
+
+        root = Path(__file__).resolve().parents[1]
+        values = _model_invocation_values(
+            {"default": "gemini_3_5_flash_high_agy_oauth"},
+            root,
+        )
+
+        assert values["model_id"] == "Gemini 3.5 Flash (High)"
+
     def test_rejects_unresolved_placeholders(self, tmp_path):
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
