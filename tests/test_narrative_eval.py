@@ -616,6 +616,51 @@ def test_live_narrative_eval_retries_bounded_agy_transport_failure(
     assert retry["attempts"][1]["materialized"] is True
 
 
+def test_live_narrative_eval_does_not_retry_agy_quota_with_stale_eof_log(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+    log_path = run_dir / "command_logs" / "agy_cli_agent.log"
+    log_path.parent.mkdir()
+    log_path.write_text("userinfo request failed: EOF\n", encoding="utf-8")
+    calls: list[str] = []
+    delays: list[int] = []
+
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
+        calls.append(agent_name)
+        return types.SimpleNamespace(
+            status="blocked_user_decision",
+            content="",
+            error="CLI agent rate_limited (exit 1).",
+            provider="agentlab-cli-executor",
+            model="agy",
+            raw_usage={
+                "failure_class": "rate_limited",
+                "cli_log_path": str(log_path),
+                "command_id": "cmd_0001",
+            },
+        )
+
+    monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+    monkeypatch.setattr("agent_runtime.narrative_eval.time.sleep", delays.append)
+
+    _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 85, [])
+
+    assert calls == ["Writer"]
+    assert delays == []
+    assert not (run_dir / "writer_retry_ledger.yml").exists()
+    error = yaml.safe_load((run_dir / "live_generation_error.yml").read_text(encoding="utf-8"))
+    assert error["error"] == "CLI agent rate_limited (exit 1)."
+
+
 def test_live_narrative_eval_retries_one_full_contract_redo(
     tmp_path: Path,
     monkeypatch,

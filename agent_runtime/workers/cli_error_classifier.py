@@ -44,7 +44,7 @@ DEFAULT_RULES = [
     },
     {
         "error_class": CliErrorClass.RATE_LIMITED,
-        "patterns": ["rate limit", "quota exceeded", "too many requests", "429"]
+        "patterns": ["rate limit", "quota exceeded", "quota reached", "too many requests", "429"]
     }
 ]
 

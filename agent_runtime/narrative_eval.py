@@ -88,6 +88,8 @@ def _agy_writer_retry_reason(result: Any, run_dir: Path) -> tuple[str | None, Pa
     raw_usage = getattr(result, "raw_usage", None)
     raw_usage = raw_usage if isinstance(raw_usage, dict) else {}
     failure_class = str(raw_usage.get("failure_class") or "")
+    if failure_class in {"rate_limited", "quota_exhausted"}:
+        return None, None
     raw_log_path = str(raw_usage.get("cli_log_path") or "")
     log_path = Path(raw_log_path) if raw_log_path else None
     log_text = ""
