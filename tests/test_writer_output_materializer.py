@@ -60,6 +60,31 @@ def test_materializer_writes_all_writer_candidates_without_fences(
             "narrative_delivery_receipt.yml",
         ]
     )
+    assert contract["normalizations"] == []
+
+
+def test_materializer_normalizes_duplicate_end_token_and_records_it(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "runs" / "task_ch01"
+    malformed = _blocks().replace(
+        "<!-- END AGENTLAB_EDIT -->",
+        "<!-- END END AGENTLAB_EDIT -->",
+        1,
+    )
+
+    ok = materialize_writer_candidate_content(malformed, run_dir, "task_ch01")
+
+    assert ok is True
+    contract = yaml.safe_load(
+        (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
+    )
+    assert contract["status"] == "pass"
+    assert contract["normalizations"] == [
+        {"id": "duplicate_end_token", "count": 1}
+    ]
+    capture = (run_dir / "writer_role_session_capture.md").read_text(encoding="utf-8")
+    assert "<!-- END END AGENTLAB_EDIT -->" in capture
 
 
 def test_materializer_is_transactional_when_required_output_is_missing(

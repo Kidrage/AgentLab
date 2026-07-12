@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 import yaml
@@ -27,6 +28,9 @@ REQUIRED_CONTINUITY_LISTS = (
     "relationship_or_worldline_changes",
     "foreshadowing",
 )
+DUPLICATE_END_MARKER = re.compile(
+    r"<!--\s*END(?:\s+END)+\s+AGENTLAB_EDIT\s*-->",
+)
 
 
 def _strip_optional_code_fence(content: str) -> str:
@@ -38,6 +42,19 @@ def _strip_optional_code_fence(content: str) -> str:
     ):
         return "\n".join(lines[1:-1]).strip()
     return content.strip()
+
+
+def _normalize_writer_edit_markers(content: str) -> tuple[str, list[dict[str, Any]]]:
+    normalized, count = DUPLICATE_END_MARKER.subn(
+        "<!-- END AGENTLAB_EDIT -->",
+        content,
+    )
+    normalizations = (
+        [{"id": "duplicate_end_token", "count": count}]
+        if count
+        else []
+    )
+    return normalized, normalizations
 
 
 def _write_contract(run_dir: Path, data: dict[str, Any]) -> None:
@@ -157,7 +174,8 @@ def materialize_writer_candidate_content(
     run_dir.mkdir(parents=True, exist_ok=True)
     capture_path = run_dir / capture_name
     capture_path.write_text(content, encoding="utf-8")
-    blocks = parse_edit_blocks(content)
+    normalized_content, normalizations = _normalize_writer_edit_markers(content)
+    blocks = parse_edit_blocks(normalized_content)
     materialized: dict[str, str] = {}
     issues: list[str] = []
     for block in blocks:
@@ -201,6 +219,7 @@ def materialize_writer_candidate_content(
             "materialized_outputs": sorted(materialized) if not issues else [],
             "candidate_only": True,
             "harness_generated_story_state": False,
+            "normalizations": normalizations,
             "issues": issues,
         },
     )
