@@ -8,6 +8,7 @@ from typing import Any
 import os
 import re
 import subprocess
+import time
 
 import yaml
 
@@ -40,6 +41,7 @@ CHAPTER_ATTEMPT_OUTPUTS = (
     "live_generation_request.yml",
     "live_writer_cli_fallback.yml",
     "revision_or_rewrite_proposal.yml",
+    "writer_transport_retry.yml",
     "writer_cli_fallback_capture.md",
     "writer_output_contract.yml",
     "writer_role_session_capture.md",
@@ -66,6 +68,53 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
     """Remove stale candidate-derived files before a non-resumed attempt."""
     for filename in CHAPTER_ATTEMPT_OUTPUTS:
         (run_dir / filename).unlink(missing_ok=True)
+    for path in run_dir.glob("writer_transport_retry_attempt_*_agy.log"):
+        path.unlink(missing_ok=True)
+
+
+AGY_WRITER_RETRY_DELAYS_SECONDS = (5, 15)
+
+
+def _agy_writer_retry_reason(result: Any, run_dir: Path) -> tuple[str | None, Path | None]:
+    if (
+        getattr(result, "status", None) == "completed"
+        or getattr(result, "provider", None) != "agentlab-cli-executor"
+        or getattr(result, "model", None) != "agy"
+    ):
+        return None, None
+
+    raw_usage = getattr(result, "raw_usage", None)
+    raw_usage = raw_usage if isinstance(raw_usage, dict) else {}
+    failure_class = str(raw_usage.get("failure_class") or "")
+    raw_log_path = str(raw_usage.get("cli_log_path") or "")
+    log_path = Path(raw_log_path) if raw_log_path else None
+    log_text = ""
+    if log_path is not None:
+        try:
+            log_path.resolve().relative_to(run_dir.resolve())
+            log_text = log_path.read_text(encoding="utf-8", errors="replace").lower()
+        except (OSError, ValueError):
+            log_path = None
+
+    if "keyringauth: timed out" in log_text:
+        return "agy_keyring_timeout", log_path
+    if "userinfo" in log_text and "eof" in log_text:
+        return "agy_userinfo_eof", log_path
+    if "loadcodeassist" in log_text and "eof" in log_text:
+        return "agy_model_catalog_eof", log_path
+    if "neither planmodel nor requestedmodel specified" in log_text:
+        return "agy_model_resolution_transient", log_path
+    if failure_class == "network_required":
+        return "agy_network_required", log_path
+    return None, log_path
+
+
+def _snapshot_writer_retry_log(log_path: Path | None, run_dir: Path, attempt: int) -> str | None:
+    if log_path is None or not log_path.is_file():
+        return None
+    target = run_dir / f"writer_transport_retry_attempt_{attempt:02d}_agy.log"
+    target.write_bytes(log_path.read_bytes())
+    return target.name
 
 
 def _collect(project_root: Path, patterns: list[str], *, limit: int = 200) -> list[str]:
@@ -628,15 +677,62 @@ def _write_live_chapter_outputs(
         from workflow_plan import build_workflow_plan
 
         plan = build_workflow_plan(root, project, task_id, user_request_path=run_dir / "user_request.md", budget_mode="balanced")
-        writer_result = run_agent_model(
-            root,
-            plan,
-            "Writer",
-            run_dir / "writer_role_session_capture.md",
-            apply_patches=False,
-            allow_cli_api_fallback=False,
-        )
-        if not materialize_writer_candidate_result(writer_result, run_dir, task_id):
+        writer_result = None
+        writer_materialized = False
+        retry_attempts: list[dict[str, Any]] = []
+        max_attempts = len(AGY_WRITER_RETRY_DELAYS_SECONDS) + 1
+        for attempt in range(1, max_attempts + 1):
+            writer_result = run_agent_model(
+                root,
+                plan,
+                "Writer",
+                run_dir / "writer_role_session_capture.md",
+                apply_patches=False,
+                allow_cli_api_fallback=False,
+            )
+            writer_materialized = materialize_writer_candidate_result(
+                writer_result,
+                run_dir,
+                task_id,
+            )
+            retry_reason, log_path = _agy_writer_retry_reason(writer_result, run_dir)
+            raw_usage = getattr(writer_result, "raw_usage", None)
+            raw_usage = raw_usage if isinstance(raw_usage, dict) else {}
+            record = {
+                "attempt": attempt,
+                "result_status": getattr(writer_result, "status", None),
+                "failure_class": raw_usage.get("failure_class"),
+                "retry_reason": retry_reason,
+                "command_id": raw_usage.get("command_id"),
+                "materialized": writer_materialized,
+            }
+            if writer_materialized or retry_reason is None or attempt == max_attempts:
+                retry_attempts.append(record)
+                break
+            record["log_snapshot"] = _snapshot_writer_retry_log(
+                log_path,
+                run_dir,
+                attempt,
+            )
+            record["delay_seconds"] = AGY_WRITER_RETRY_DELAYS_SECONDS[attempt - 1]
+            retry_attempts.append(record)
+            time.sleep(AGY_WRITER_RETRY_DELAYS_SECONDS[attempt - 1])
+
+        if len(retry_attempts) > 1:
+            _write_yaml(
+                run_dir / "writer_transport_retry.yml",
+                {
+                    "schema_version": 1,
+                    "status": "recovered" if writer_materialized else "blocked",
+                    "provider_surface": "cli_agent:agy",
+                    "provider_changed": False,
+                    "fallback_used": False,
+                    "max_attempts": max_attempts,
+                    "attempts": retry_attempts,
+                },
+            )
+
+        if not writer_materialized:
             fallback_completed = (
                 allow_writer_cli_fallback
                 and _try_writer_cli_fallback(root, run_dir, project, task_id, writer_result)

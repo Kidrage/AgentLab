@@ -553,6 +553,69 @@ def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path
     assert request["supplementary_outputs"] == ["artifact_lineage.yml"]
 
 
+def test_live_narrative_eval_retries_bounded_agy_transport_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+    calls: list[str] = []
+    delays: list[int] = []
+
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
+        calls.append(agent_name)
+        if len(calls) == 1:
+            log_path = run_dir / "command_logs" / "agy_cli_agent.log"
+            log_path.parent.mkdir()
+            log_path.write_text(
+                "keyringAuth: timed out after 5s\nuserinfo request failed: EOF\n",
+                encoding="utf-8",
+            )
+            return types.SimpleNamespace(
+                status="blocked_user_decision",
+                content="",
+                error="CLI agent auth_required (exit 1).",
+                provider="agentlab-cli-executor",
+                model="agy",
+                raw_usage={
+                    "failure_class": "auth_required",
+                    "cli_log_path": str(log_path),
+                    "command_id": "cmd_0001",
+                },
+            )
+        return types.SimpleNamespace(
+            status="completed",
+            content=_writer_candidate_blocks("正文段落。" * 900),
+            error=None,
+            provider="agentlab-cli-executor",
+            model="agy",
+            raw_usage={"command_id": "cmd_0002"},
+        )
+
+    monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+    monkeypatch.setattr("agent_runtime.narrative_eval.time.sleep", delays.append)
+
+    _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
+
+    assert calls == ["Writer", "Writer"]
+    assert delays == [5]
+    assert (run_dir / "fiction_draft.md").exists()
+    assert not (run_dir / "live_generation_error.yml").exists()
+    retry = yaml.safe_load((run_dir / "writer_transport_retry.yml").read_text(encoding="utf-8"))
+    assert retry["status"] == "recovered"
+    assert retry["provider_changed"] is False
+    assert retry["fallback_used"] is False
+    assert retry["attempts"][0]["retry_reason"] == "agy_keyring_timeout"
+    assert retry["attempts"][0]["log_snapshot"] == "writer_transport_retry_attempt_01_agy.log"
+    assert retry["attempts"][1]["materialized"] is True
+
+
 def test_live_narrative_eval_failed_retry_cannot_reuse_stale_candidate_outputs(
     tmp_path: Path,
     monkeypatch,
