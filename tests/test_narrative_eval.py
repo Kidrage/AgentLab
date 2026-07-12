@@ -607,12 +607,60 @@ def test_live_narrative_eval_retries_bounded_agy_transport_failure(
     assert delays == [5]
     assert (run_dir / "fiction_draft.md").exists()
     assert not (run_dir / "live_generation_error.yml").exists()
-    retry = yaml.safe_load((run_dir / "writer_transport_retry.yml").read_text(encoding="utf-8"))
+    retry = yaml.safe_load((run_dir / "writer_retry_ledger.yml").read_text(encoding="utf-8"))
     assert retry["status"] == "recovered"
     assert retry["provider_changed"] is False
     assert retry["fallback_used"] is False
     assert retry["attempts"][0]["retry_reason"] == "agy_keyring_timeout"
-    assert retry["attempts"][0]["log_snapshot"] == "writer_transport_retry_attempt_01_agy.log"
+    assert retry["attempts"][0]["log_snapshot"] == "writer_retry_attempt_01_agy.log"
+    assert retry["attempts"][1]["materialized"] is True
+
+
+def test_live_narrative_eval_retries_one_full_contract_redo(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+    calls: list[str] = []
+    complete = _writer_candidate_blocks("正文段落。" * 900)
+    incomplete = complete.split(
+        "<!-- AGENTLAB_EDIT: narrative_delivery_receipt.yml -->",
+        1,
+    )[0]
+
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
+        calls.append(agent_name)
+        return types.SimpleNamespace(
+            status="completed",
+            content=incomplete if len(calls) == 1 else complete,
+            error=None,
+            provider="agentlab-cli-executor",
+            model="agy",
+            raw_usage={"command_id": f"cmd_{len(calls):04d}"},
+        )
+
+    monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+
+    _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
+
+    assert calls == ["Writer", "Writer"]
+    assert (run_dir / "fiction_draft.md").exists()
+    retry = yaml.safe_load((run_dir / "writer_retry_ledger.yml").read_text(encoding="utf-8"))
+    assert retry["status"] == "recovered"
+    assert retry["limits"]["full_contract_redos"] == 1
+    assert retry["attempts"][0]["retry_kind"] == "full_contract_redo"
+    assert "missing_writer_output:narrative_delivery_receipt.yml" in retry["attempts"][0]["contract_issues"]
+    assert retry["attempts"][0]["snapshots"] == {
+        "writer_role_session_capture.md": "writer_retry_attempt_01_capture.md",
+        "writer_output_contract.yml": "writer_retry_attempt_01_contract.yml",
+    }
     assert retry["attempts"][1]["materialized"] is True
 
 

@@ -41,6 +41,7 @@ CHAPTER_ATTEMPT_OUTPUTS = (
     "live_generation_request.yml",
     "live_writer_cli_fallback.yml",
     "revision_or_rewrite_proposal.yml",
+    "writer_retry_ledger.yml",
     "writer_transport_retry.yml",
     "writer_cli_fallback_capture.md",
     "writer_output_contract.yml",
@@ -68,11 +69,12 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
     """Remove stale candidate-derived files before a non-resumed attempt."""
     for filename in CHAPTER_ATTEMPT_OUTPUTS:
         (run_dir / filename).unlink(missing_ok=True)
-    for path in run_dir.glob("writer_transport_retry_attempt_*_agy.log"):
+    for path in run_dir.glob("writer_retry_attempt_*"):
         path.unlink(missing_ok=True)
 
 
 AGY_WRITER_RETRY_DELAYS_SECONDS = (5, 15)
+WRITER_MAX_CONTRACT_REDOS = 1
 
 
 def _agy_writer_retry_reason(result: Any, run_dir: Path) -> tuple[str | None, Path | None]:
@@ -112,9 +114,36 @@ def _agy_writer_retry_reason(result: Any, run_dir: Path) -> tuple[str | None, Pa
 def _snapshot_writer_retry_log(log_path: Path | None, run_dir: Path, attempt: int) -> str | None:
     if log_path is None or not log_path.is_file():
         return None
-    target = run_dir / f"writer_transport_retry_attempt_{attempt:02d}_agy.log"
+    target = run_dir / f"writer_retry_attempt_{attempt:02d}_agy.log"
     target.write_bytes(log_path.read_bytes())
     return target.name
+
+
+def _writer_contract_issues(run_dir: Path) -> list[str]:
+    path = run_dir / "writer_output_contract.yml"
+    if not path.is_file():
+        return []
+    try:
+        contract = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return ["invalid_writer_output_contract_yaml"]
+    issues = contract.get("issues") if isinstance(contract, dict) else []
+    return [str(issue) for issue in issues] if isinstance(issues, list) else []
+
+
+def _snapshot_writer_contract_attempt(run_dir: Path, attempt: int) -> dict[str, str]:
+    snapshots: dict[str, str] = {}
+    for source_name, suffix in (
+        ("writer_role_session_capture.md", "capture.md"),
+        ("writer_output_contract.yml", "contract.yml"),
+    ):
+        source = run_dir / source_name
+        if not source.is_file():
+            continue
+        target = run_dir / f"writer_retry_attempt_{attempt:02d}_{suffix}"
+        target.write_bytes(source.read_bytes())
+        snapshots[source_name] = target.name
+    return snapshots
 
 
 def _collect(project_root: Path, patterns: list[str], *, limit: int = 200) -> list[str]:
@@ -680,8 +709,17 @@ def _write_live_chapter_outputs(
         writer_result = None
         writer_materialized = False
         retry_attempts: list[dict[str, Any]] = []
-        max_attempts = len(AGY_WRITER_RETRY_DELAYS_SECONDS) + 1
+        transport_retries = 0
+        contract_redos = 0
+        max_attempts = (
+            1
+            + len(AGY_WRITER_RETRY_DELAYS_SECONDS)
+            + WRITER_MAX_CONTRACT_REDOS
+        )
         for attempt in range(1, max_attempts + 1):
+            if attempt > 1:
+                (run_dir / "writer_role_session_capture.md").unlink(missing_ok=True)
+                (run_dir / "writer_output_contract.yml").unlink(missing_ok=True)
             writer_result = run_agent_model(
                 root,
                 plan,
@@ -706,28 +744,59 @@ def _write_live_chapter_outputs(
                 "command_id": raw_usage.get("command_id"),
                 "materialized": writer_materialized,
             }
-            if writer_materialized or retry_reason is None or attempt == max_attempts:
+            if writer_materialized or attempt == max_attempts:
                 retry_attempts.append(record)
                 break
-            record["log_snapshot"] = _snapshot_writer_retry_log(
-                log_path,
-                run_dir,
-                attempt,
-            )
-            record["delay_seconds"] = AGY_WRITER_RETRY_DELAYS_SECONDS[attempt - 1]
+            if (
+                retry_reason is not None
+                and transport_retries < len(AGY_WRITER_RETRY_DELAYS_SECONDS)
+            ):
+                record["retry_kind"] = "transport"
+                record["log_snapshot"] = _snapshot_writer_retry_log(
+                    log_path,
+                    run_dir,
+                    attempt,
+                )
+                delay = AGY_WRITER_RETRY_DELAYS_SECONDS[transport_retries]
+                record["delay_seconds"] = delay
+                transport_retries += 1
+                retry_attempts.append(record)
+                time.sleep(delay)
+                continue
+
+            contract_issues = _writer_contract_issues(run_dir)
+            if (
+                getattr(writer_result, "status", None) == "completed"
+                and contract_issues
+                and contract_redos < WRITER_MAX_CONTRACT_REDOS
+            ):
+                record["retry_kind"] = "full_contract_redo"
+                record["contract_issues"] = contract_issues
+                record["snapshots"] = _snapshot_writer_contract_attempt(
+                    run_dir,
+                    attempt,
+                )
+                contract_redos += 1
+                retry_attempts.append(record)
+                continue
+
             retry_attempts.append(record)
-            time.sleep(AGY_WRITER_RETRY_DELAYS_SECONDS[attempt - 1])
+            break
 
         if len(retry_attempts) > 1:
             _write_yaml(
-                run_dir / "writer_transport_retry.yml",
+                run_dir / "writer_retry_ledger.yml",
                 {
                     "schema_version": 1,
                     "status": "recovered" if writer_materialized else "blocked",
                     "provider_surface": "cli_agent:agy",
                     "provider_changed": False,
                     "fallback_used": False,
-                    "max_attempts": max_attempts,
+                    "limits": {
+                        "transport_retries": len(AGY_WRITER_RETRY_DELAYS_SECONDS),
+                        "full_contract_redos": WRITER_MAX_CONTRACT_REDOS,
+                        "total_attempts": max_attempts,
+                    },
                     "attempts": retry_attempts,
                 },
             )
