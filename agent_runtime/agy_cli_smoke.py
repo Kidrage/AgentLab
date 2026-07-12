@@ -20,6 +20,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct script path
 CommandRunner = Callable[..., subprocess.CompletedProcess[str]]
 
 EXPECTED = "AGENTLAB_AGY_CLI_SMOKE_OK"
+DEFAULT_AGY_MODEL = "gemini-3.5-flash-high"
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -111,6 +112,12 @@ def _contract_template(root: Path) -> str:
     return str(contract.get("template") or "")
 
 
+def _default_model_id(root: Path) -> str:
+    data = _read_yaml(root / "config" / "model_catalog.yml")
+    provider = ((data.get("providers") or {}).get("agy_gemini_oauth") or {})
+    return str(provider.get("default_model") or DEFAULT_AGY_MODEL)
+
+
 def _append_log_file(args: list[str], log_path: Path) -> list[str]:
     return [*args, "--log-file", str(log_path)]
 
@@ -125,12 +132,16 @@ def _coalesce_variants(variants: list[list[str]]) -> list[list[str]]:
 
 def _command_variants(root: Path, task_packet: Path, log_path: Path) -> list[list[str]]:
     template = _contract_template(root)
+    model_id = _default_model_id(root)
     if not template:
-        template = "agy --sandbox -p {task_packet_path}"
+        template = "agy --sandbox --model {model_id} -p {task_packet_path}"
     try:
-        rendered = template.format(task_packet_path=str(task_packet))
+        rendered = template.format(
+            task_packet_path=str(task_packet),
+            model_id=model_id,
+        )
         parsed = shlex.split(rendered)
-    except ValueError:
+    except (KeyError, ValueError):
         parsed = []
 
     variants: list[list[str]] = []
@@ -145,7 +156,12 @@ def _command_variants(root: Path, task_packet: Path, log_path: Path) -> list[lis
             "perform only the assigned AgentLab role. "
             f"Reply exactly: {EXPECTED}."
         )
-        variants.append(_append_log_file(["agy", "-p", fallback_prompt], log_path))
+        variants.append(
+            _append_log_file(
+                ["agy", "--model", model_id, "-p", fallback_prompt],
+                log_path,
+            )
+        )
 
     return _coalesce_variants(variants)
 

@@ -74,7 +74,7 @@ endpoints:
       hermes: "hermes -z \"You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers.\""
       claude_code: "claude -p \"{prompt}\""
       bl: "bl chat -p \"{prompt}\""
-      agy: "agy --sandbox -p \"{prompt}\""
+      agy: "agy --sandbox --model gemini-3.5-flash-high -p \"{prompt}\""
       openclaw: "openclaw run --prompt \"{prompt}\""
       codex: "codex --task \"{prompt}\""
       qwen: "qwen --bare --approval-mode default --output-format json \"{prompt}\""
@@ -213,7 +213,7 @@ agents:
     invocation:
       command: agy
       frontdesk_session: >-
-        agy --sandbox -p "$(./agentlab.sh frontdesk-session --agent agy)"
+        agy --sandbox --model gemini-3.5-flash-high -p "$(./agentlab.sh frontdesk-session --agent agy)"
     default_model: gemini-3.5-flash-high
     auth: local_oauth_session
     billing: subscription_or_oauth_quota

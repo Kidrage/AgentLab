@@ -454,8 +454,8 @@ shells:
     command_families:
       print_mode:
         examples:
-          - agy --sandbox -p <prompt>
-          - agy --print <prompt>
+          - agy --sandbox --model gemini-3.5-flash-high -p <prompt>
+          - agy --model gemini-3.5-flash-high --print <prompt>
         agentlab_use: Gemini OAuth role/session execution and frontdesk packet handling
       plugins_and_models:
         examples:
