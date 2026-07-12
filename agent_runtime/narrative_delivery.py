@@ -315,6 +315,7 @@ def build_chapter_packet(
     baseline_mode: str = "current",
     previous_chapters: list[str] | None = None,
     deprecated_sources: list[str] | None = None,
+    candidate_fact_ledger: str | None = None,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     run_rel = f"runs/{task_id}"
@@ -355,12 +356,14 @@ def build_chapter_packet(
             "project_artifact_index.yml",
             *bible_refs,
             *outline_refs,
+            *([candidate_fact_ledger] if candidate_fact_ledger else []),
             *resolved_previous_chapters[-3:],
         ],
         "story_authority": {
             "bible_refs": bible_refs,
             "outline_refs": outline_refs,
             "previous_chapters": resolved_previous_chapters[-3:],
+            "candidate_fact_ledger": candidate_fact_ledger,
         },
         "previous_chapters": resolved_previous_chapters[-3:],
         "previous_candidate_sources": resolved_previous_chapters[-3:],
@@ -386,6 +389,7 @@ def write_chapter_packet(
     baseline_mode: str = "current",
     previous_chapters: list[str] | None = None,
     deprecated_sources: list[str] | None = None,
+    candidate_fact_ledger: str | None = None,
 ) -> dict[str, Any]:
     packet = build_chapter_packet(
         root,
@@ -395,6 +399,7 @@ def write_chapter_packet(
         baseline_mode=baseline_mode,
         previous_chapters=previous_chapters,
         deprecated_sources=deprecated_sources,
+        candidate_fact_ledger=candidate_fact_ledger,
     )
     path = _project_root(root, project) / "runs" / task_id / "chapter_packet.yml"
     _write_yaml(path, packet)

@@ -184,11 +184,26 @@ def test_narrative_eval_reset_mock_generates_candidate_chapters_without_producti
         "runs/task_narrative_eval_ch01_20260705T000000Z/continuity_ledger.yml",
         "runs/task_narrative_eval_ch01_20260705T000000Z/state_transition_proposal.yml",
     ]
+    assert ch2_packet["story_authority"]["candidate_fact_ledger"].endswith(
+        "/candidate_fact_ledger.yml"
+    )
+    ch2_candidate_facts = yaml.safe_load(
+        (root / l2_chapters[1]["run_dir"] / "candidate_fact_ledger.yml").read_text(encoding="utf-8")
+    )
+    assert ch2_candidate_facts["status"] == "candidate"
+    assert ch2_candidate_facts["promoted"] is False
+    assert ch2_candidate_facts["through_chapter"] == 1
+    assert ch2_candidate_facts["event_count"] == 1
     assert ch3_packet["previous_candidate_sources"] == [
         "runs/task_narrative_eval_ch02_20260705T000000Z/fiction_draft.md",
         "runs/task_narrative_eval_ch02_20260705T000000Z/continuity_ledger.yml",
         "runs/task_narrative_eval_ch02_20260705T000000Z/state_transition_proposal.yml",
     ]
+    ch3_candidate_facts = yaml.safe_load(
+        (root / l2_chapters[2]["run_dir"] / "candidate_fact_ledger.yml").read_text(encoding="utf-8")
+    )
+    assert ch3_candidate_facts["through_chapter"] == 2
+    assert ch3_candidate_facts["event_count"] == 2
     assert ch3_packet["chapter_intent"]["source_kind"] == "chapter_range_phase"
     ch2_ledger = yaml.safe_load(
         (root / l2_chapters[1]["run_dir"] / "continuity_ledger.yml").read_text(encoding="utf-8")

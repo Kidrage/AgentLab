@@ -76,6 +76,48 @@ def _candidate_chapter_sources(task_id: str) -> list[str]:
     ]
 
 
+def _candidate_events_from_run(run_dir: Path, chapter: int, task_id: str) -> list[dict[str, Any]]:
+    proposal_path = run_dir / "state_transition_proposal.yml"
+    if not proposal_path.is_file():
+        return []
+    try:
+        proposal = yaml.safe_load(proposal_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return []
+    events = proposal.get("events") if isinstance(proposal, dict) else []
+    return [
+        {
+            **event,
+            "source_chapter": chapter,
+            "source_task_id": task_id,
+            "event_index": index,
+        }
+        for index, event in enumerate(events or [], start=1)
+        if isinstance(event, dict)
+    ]
+
+
+def _write_candidate_fact_ledger(
+    run_dir: Path,
+    events: list[dict[str, Any]],
+) -> str | None:
+    if not events:
+        return None
+    path = run_dir / "candidate_fact_ledger.yml"
+    _write_yaml(
+        path,
+        {
+            "schema_version": 1,
+            "status": "candidate",
+            "promoted": False,
+            "through_chapter": max(int(event["source_chapter"]) for event in events),
+            "event_count": len(events),
+            "events": events,
+        },
+    )
+    return f"runs/{run_dir.name}/candidate_fact_ledger.yml"
+
+
 def _write_light_chapter_workflow_plan(root: Path, project: str, task_id: str, run_dir: Path) -> None:
     fallback = {
         "route": {
@@ -623,6 +665,7 @@ def _generate_chapters(
     project_root = _project_root(root, project)
     generated: list[dict[str, Any]] = []
     previous_sources: list[str] = []
+    candidate_fact_events: list[dict[str, Any]] = []
     for chapter in chapters:
         task_id = _safe_eval_task_id(chapter, eval_id)
         run_dir = project_root / "runs" / task_id
@@ -643,6 +686,7 @@ def _generate_chapters(
                 "resumed_existing": True,
             })
             previous_sources = _candidate_chapter_sources(task_id)
+            candidate_fact_events.extend(_candidate_events_from_run(run_dir, chapter, task_id))
             _write_generation_checkpoint(eval_dir, suite, chapters, generated)
             continue
         baseline_mode = "reset" if chapter == 1 else "continuation"
@@ -660,6 +704,7 @@ def _generate_chapters(
             encoding="utf-8",
         )
         _write_light_chapter_workflow_plan(root, project, task_id, run_dir)
+        candidate_fact_ledger = _write_candidate_fact_ledger(run_dir, candidate_fact_events)
         write_chapter_packet(
             root,
             project,
@@ -668,6 +713,7 @@ def _generate_chapters(
             baseline_mode=baseline_mode,
             previous_chapters=previous_sources,
             deprecated_sources=deprecated_sources,
+            candidate_fact_ledger=candidate_fact_ledger,
         )
         if mode == "mock":
             _write_mock_chapter_outputs(run_dir, project, chapter, previous_sources, baseline_mode)
@@ -718,6 +764,7 @@ def _generate_chapters(
         generated.append(record)
         if delivery.get("valid"):
             previous_sources = _candidate_chapter_sources(task_id)
+            candidate_fact_events.extend(_candidate_events_from_run(run_dir, chapter, task_id))
         _write_generation_checkpoint(eval_dir, suite, chapters, generated)
         if stop_on_block and not delivery.get("valid"):
             break

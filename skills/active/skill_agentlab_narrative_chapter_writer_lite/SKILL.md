@@ -16,12 +16,16 @@ Before drafting, read only the minimum authoritative memory:
 - `project_brain/project_fact_snapshot.yml`
 - `project_artifact_index.yml`
 - `chapter_packet.yml`
+- the run-local `candidate_fact_ledger.yml` when the packet names one
 - previous candidate `continuity_ledger.yml` when the packet names one
 - current outline or bible files explicitly listed by `chapter_packet.yml`
 
 Do not use `*_rebuild`, `legacy`, archived drafts, or deprecated Ch1-Ch10
 sources unless `project_artifact_index.yml` or `chapter_packet.yml` explicitly
 marks them current for this task.
+
+Treat the candidate fact ledger as unpromoted continuity memory. It may guide
+the chapter, but it does not override the authoritative fact snapshot.
 
 ## Chapter Intent First
 

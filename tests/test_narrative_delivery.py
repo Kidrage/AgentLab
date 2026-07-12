@@ -135,11 +135,14 @@ def test_candidate_chapter_packet_builds_intent_from_authoritative_route(tmp_pat
         12,
         baseline_mode="continuation",
         previous_chapters=previous,
+        candidate_fact_ledger="runs/task_ch12/candidate_fact_ledger.yml",
     )
 
     assert packet["baseline_mode"] == "continuation"
     assert packet["continuity_source_kind"] == "candidate_run"
     assert packet["previous_candidate_sources"] == previous
+    assert packet["story_authority"]["candidate_fact_ledger"] == "runs/task_ch12/candidate_fact_ledger.yml"
+    assert "runs/task_ch12/candidate_fact_ledger.yml" in packet["must_read"]
     assert not any(source.startswith("production/manuscript/") for source in packet["previous_chapters"])
     intent = packet["chapter_intent"]
     assert intent["source"] == "production/outlines/02_卷纲与章节路线.md"
