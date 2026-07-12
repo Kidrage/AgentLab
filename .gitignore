@@ -71,6 +71,7 @@ projects/*/tasks/*/tmp/
 /_shared/novel-moon-in-seal/
 /acceptance_runs/narrative_eval/Crown_of_Ash/crown_completion_*/
 /acceptance_runs/narrative_eval/Crown_of_Ash/batch_audits/
+/acceptance_runs/narrative_eval/Crown_of_Ash/heavy_audits/
 /config/worker_performance_ledger.yml
 external_skill_inventory.json
 internal_skill_candidates.yml

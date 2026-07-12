@@ -103,6 +103,55 @@ class DryRunNoRealCallTests(TestCase):
 
 
 class DryRunClosureEvidenceTests(TestCase):
+    def test_heavy_narrative_dry_run_materializes_four_audit_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            task_id = "task_heavy_audit_001"
+            run_dir = root / "projects" / "Crown_of_Ash" / "runs" / task_id
+            run_dir.mkdir(parents=True)
+            plan = {
+                "route": {
+                    "route_key": "narrative_heavy_audit",
+                    "agents": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
+                },
+                "production_pack": {
+                    "pack_id": "narrative_longform",
+                    "lifecycle_nodes": [
+                        "SUPERVISOR_PLAN",
+                        "FICTION_REVIEW",
+                        "SCRIBE_LEDGER",
+                        "VERIFY",
+                    ],
+                },
+            }
+            (run_dir / "workflow_plan.yml").write_text(
+                yaml.safe_dump(plan, sort_keys=False),
+                encoding="utf-8",
+            )
+            (run_dir / "user_request.md").write_text("审计 Crown 第 1-10 章。", encoding="utf-8")
+            create_lifecycle(run_dir, plan)
+            lifecycle = load_lifecycle(run_dir) or {}
+            for node_id, node in lifecycle.get("nodes", {}).items():
+                if node_id in {"FICTION_REVIEW", "SCRIBE_LEDGER", "VERIFY"}:
+                    node["status"] = "waiting"
+                else:
+                    node["status"] = "skipped"
+            save_lifecycle(run_dir, lifecycle)
+
+            for expected_node in ["FICTION_REVIEW", "SCRIBE_LEDGER", "VERIFY"]:
+                result = run_next_node(root, "Crown_of_Ash", task_id, fake_provider=True)
+                self.assertEqual(result["node"], expected_node)
+                self.assertEqual(result["status"], "completed")
+
+            for filename in [
+                "fiction_review.yml",
+                "continuity_failure_report.yml",
+                "state_transition_proposal.yml",
+                "revision_or_rewrite_proposal.yml",
+            ]:
+                self.assertTrue((run_dir / filename).exists(), filename)
+            self.assertFalse((run_dir / "fiction_draft.md").exists())
+
     def test_prepare_plan_reopens_audit_and_archive_nodes_from_existing_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

@@ -62,9 +62,9 @@ from policies import (
     resolve_agentlab_root,
 )
 try:
-    from agent_runtime.report_sanitizer import dump_report_yaml
+    from agent_runtime.report_sanitizer import dump_report_yaml, write_report_yaml
 except ModuleNotFoundError:  # pragma: no cover - direct script path
-    from report_sanitizer import dump_report_yaml
+    from report_sanitizer import dump_report_yaml, write_report_yaml
 from schemas import TaskRunRequest
 from state_store import load_state, mark_agent_completed, mark_planned, save_state, utc_now
 from workflow_plan import build_workflow_plan, write_mission_contract_artifacts
@@ -5547,6 +5547,40 @@ def crown_completion_batch_audit_cmd(
     console.print(f"wrote {report_out}")
     console.print(dump_report_yaml(report, agentlab_root).rstrip())
     if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("crown-heavy-audit-prepare")
+def crown_heavy_audit_prepare_cmd(
+    eval_id: str = typer.Option(..., "--eval-id", help="Stable narrative-eval id shared by candidate chapter runs."),
+    start_chapter: int = typer.Option(..., "--start-chapter", min=1, help="First candidate chapter to include."),
+    end_chapter: int = typer.Option(..., "--end-chapter", min=1, help="Last candidate chapter to include (maximum 20 per bundle)."),
+    task_id: Optional[str] = typer.Option(None, "--task-id", help="Optional fresh heavy-audit task id."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the preparation report."),
+) -> None:
+    """Prepare a fresh provider-free Crown heavy-audit input bundle."""
+    agentlab_root, _project_name = runtime_context(None)
+    from narrative_heavy_audit import prepare_crown_narrative_heavy_audit
+
+    report = prepare_crown_narrative_heavy_audit(
+        agentlab_root,
+        eval_id=eval_id,
+        start_chapter=start_chapter,
+        end_chapter=end_chapter,
+        task_id=task_id,
+    )
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "narrative_eval"
+        / "Crown_of_Ash"
+        / "heavy_audits"
+        / f"{report['task_id']}_prepare.yml"
+    )
+    write_report_yaml(report_out, report, agentlab_root)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") != "ready":
         raise typer.Exit(code=1)
 
 

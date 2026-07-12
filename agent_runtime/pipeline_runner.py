@@ -1705,6 +1705,10 @@ def run_next_node(
     # Agent output nodes
     agent = NODE_TO_AGENT.get(nid)
     report_file = NODE_TO_REPORT.get(nid)
+    workflow_plan_data = _workflow_plan_for_run(run_dir)
+    route_data = workflow_plan_data.get("route", {})
+    route_key = route_data.get("route_key") if isinstance(route_data, dict) else None
+    narrative_heavy_audit = route_key == "narrative_heavy_audit"
 
     # ── Supervisor gate ──
     if nid == "SUPERVISOR_PLAN" and not fake_provider and (run_dir / "USER_DECISION_REQUIRED.md").exists():
@@ -1718,6 +1722,75 @@ def run_next_node(
         )
 
     if fake_provider and agent:
+        if narrative_heavy_audit and agent in {"Reviewer", "Scribe", "Verifier"}:
+            from agent_runtime.narrative_heavy_audit import (
+                HEAVY_AUDIT_OUTPUTS_BY_AGENT,
+                fake_narrative_heavy_audit_content,
+                heavy_audit_primary_output,
+                materialize_narrative_heavy_audit_content,
+            )
+
+            content = fake_narrative_heavy_audit_content(agent)
+            if not materialize_narrative_heavy_audit_content(
+                content,
+                run_dir,
+                task_id,
+                agent,
+            ):
+                contract_path = run_dir / f"narrative_heavy_audit_{agent.lower()}_output_contract.yml"
+                contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+                return _block_on_artifact_gate(
+                    agentlab_root,
+                    run_dir,
+                    project,
+                    task_id,
+                    nid,
+                    agent,
+                    [str(issue) for issue in contract.get("issues", [])],
+                    report_path=contract_path,
+                )
+            primary = heavy_audit_primary_output(agent)
+            report_path = run_dir / str(primary)
+            command_id = _record_dry_run_node_evidence(
+                agentlab_root,
+                run_dir,
+                project,
+                task_id,
+                node_id=nid,
+                agent=agent,
+                report_name=report_path.name,
+                budget_mode=budget_mode,
+                execution_mode=effective_execution_mode,
+            )
+            gate_issues: list[str] = []
+            for name in HEAVY_AUDIT_OUTPUTS_BY_AGENT[agent]:
+                path = run_dir / name
+                gate_issues.extend(
+                    artifact_content_issues(
+                        name,
+                        path.read_text(encoding="utf-8", errors="replace"),
+                        run_dir,
+                    )
+                )
+            if gate_issues:
+                return _block_on_artifact_gate(
+                    agentlab_root,
+                    run_dir,
+                    project,
+                    task_id,
+                    nid,
+                    agent,
+                    gate_issues,
+                    report_path=report_path,
+                )
+            _mark_node_completed(run_dir, nid, str(report_path))
+            return {
+                "status": "completed",
+                "node": nid,
+                "report": str(report_path),
+                "command_id": command_id,
+                "heavy_audit_outputs": list(HEAVY_AUDIT_OUTPUTS_BY_AGENT[agent]),
+            }
         output = fake_output_for_agent(agent)
         pack_outputs: list[str] = []
         media_backend_outputs: list[str] = []
@@ -1797,6 +1870,10 @@ def run_next_node(
         from workflow_plan import build_workflow_plan
 
         plan = build_workflow_plan(agentlab_root, project, task_id, budget_mode=budget_mode)
+        plan_route = getattr(plan, "route", None)
+        narrative_heavy_audit = (
+            getattr(plan_route, "route_key", route_key) == "narrative_heavy_audit"
+        )
         production_pack = getattr(plan, "production_pack", {}) or {}
         pack_synthesis = (
             isinstance(production_pack, dict)
@@ -1806,6 +1883,8 @@ def run_next_node(
         report_path = run_dir / report_file if report_file else report_path_for_agent(plan, agent)
         if agent == "Writer":
             report_path = run_dir / "writer_role_session_capture.md"
+        elif narrative_heavy_audit and agent in {"Reviewer", "Scribe", "Verifier"}:
+            report_path = run_dir / f"{agent.lower()}_role_session_capture.md"
         report_before = _report_bytes(report_path)
 
         try:
@@ -1815,6 +1894,7 @@ def run_next_node(
                     agent in {"Coder", "ArtifactProducer", "Writer", "Scribe"}
                     and allow_patches
                     and not (agent == "ArtifactProducer" and pack_synthesis)
+                    and not narrative_heavy_audit
                 ),
             )
         except Exception as exc:
@@ -1878,6 +1958,7 @@ def run_next_node(
             agent,
         )
         production_pack_output_contract = None
+        heavy_audit_outputs: list[str] = []
         if agent == "Writer":
             try:
                 from agent_runtime.writer_output_materializer import materialize_writer_candidate_result
@@ -1905,6 +1986,39 @@ def run_next_node(
                     report_path=contract_path,
                 )
             report_path = run_dir / "fiction_draft.md"
+            report_content = report_path.read_text(encoding="utf-8", errors="replace")
+        elif narrative_heavy_audit and agent in {"Reviewer", "Scribe", "Verifier"}:
+            from agent_runtime.narrative_heavy_audit import (
+                HEAVY_AUDIT_OUTPUTS_BY_AGENT,
+                heavy_audit_primary_output,
+                materialize_narrative_heavy_audit_result,
+            )
+
+            if not materialize_narrative_heavy_audit_result(
+                result,
+                run_dir,
+                task_id,
+                agent,
+            ):
+                contract_path = run_dir / f"narrative_heavy_audit_{agent.lower()}_output_contract.yml"
+                contract = (
+                    yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+                    if contract_path.exists()
+                    else {}
+                )
+                return _block_on_artifact_gate(
+                    agentlab_root,
+                    run_dir,
+                    project,
+                    task_id,
+                    nid,
+                    agent,
+                    [str(issue) for issue in contract.get("issues", [])]
+                    or ["Narrative heavy-audit role did not return its required candidate blocks"],
+                    report_path=contract_path,
+                )
+            heavy_audit_outputs = list(HEAVY_AUDIT_OUTPUTS_BY_AGENT[agent])
+            report_path = run_dir / str(heavy_audit_primary_output(agent))
             report_content = report_path.read_text(encoding="utf-8", errors="replace")
         elif agent == "ArtifactProducer" and pack_synthesis:
             try:
@@ -2054,6 +2168,15 @@ def run_next_node(
                 source_status=result.status,
             )
         gate_issues.extend(artifact_content_issues(report_path.name, report_content, run_dir))
+        for name in heavy_audit_outputs[1:]:
+            path = run_dir / name
+            gate_issues.extend(
+                artifact_content_issues(
+                    name,
+                    path.read_text(encoding="utf-8", errors="replace"),
+                    run_dir,
+                )
+            )
         if gate_issues:
             return _block_on_artifact_gate(
                 agentlab_root, run_dir, project, task_id, nid, agent, gate_issues,
@@ -2069,6 +2192,8 @@ def run_next_node(
             result_payload["production_pack_verification_receipt"] = (
                 production_pack_verification_receipt
             )
+        if heavy_audit_outputs:
+            result_payload["heavy_audit_outputs"] = heavy_audit_outputs
         return result_payload
     else:
         output = f"# {nid} Report\n\nDry-run output.\n"

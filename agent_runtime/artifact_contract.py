@@ -532,6 +532,10 @@ def _route_from_workflow_plan(plan: dict) -> list[str]:
 
 def _required_artifacts_for_run(run_dir: Path, route: list[str], workflow_plan: dict) -> list[str]:
     required = required_artifacts_for_route(route)
+    route_data = workflow_plan.get("route", {}) if isinstance(workflow_plan, dict) else {}
+    route_key = route_data.get("route_key") if isinstance(route_data, dict) else None
+    if route_key == "narrative_heavy_audit":
+        required = [name for name in required if name != "verification_report.md"]
     required.extend(_route_required_outputs(workflow_plan))
     required.extend(_production_pack_required_outputs(workflow_plan, run_dir))
     skipped_files = _skipped_lifecycle_artifacts(run_dir)
@@ -548,6 +552,13 @@ def _route_required_outputs(workflow_plan: dict) -> list[str]:
             "batch_continuity_ledger.yml",
             "state_transition_proposal.yml",
             "narrative_batch_delivery_receipt.yml",
+        ]
+    if route_key == "narrative_heavy_audit":
+        return [
+            "fiction_review.yml",
+            "continuity_failure_report.yml",
+            "state_transition_proposal.yml",
+            "revision_or_rewrite_proposal.yml",
         ]
     return []
 

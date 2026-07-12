@@ -256,6 +256,7 @@ def mark_node_completed(run_dir: Path, node_id: str, report_path: Optional[str] 
         nodes[node_id] = {}
     nodes[node_id]["status"] = "completed"
     nodes[node_id]["completed_at"] = _utc_now()
+    nodes[node_id]["error"] = None
     if report_path:
         nodes[node_id]["report_path"] = report_path
     # Mark next node as waiting if it's waiting/skipped

@@ -8,7 +8,12 @@ from unittest import TestCase, main
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
-from lifecycle_graph import create_lifecycle, mark_node_completed
+from lifecycle_graph import (
+    create_lifecycle,
+    load_lifecycle,
+    mark_node_completed,
+    mark_node_failed,
+)
 from state_store import load_state, save_state
 from task_index import rebuild_index
 from task_snapshot import build_task_snapshot, write_task_snapshot
@@ -44,6 +49,20 @@ class TaskSnapshotTests(TestCase):
             self.assertTrue(path.exists())
             snapshot = build_task_snapshot(run_dir, project="Demo", task_id="task_0002")
             self.assertEqual(snapshot["lifecycle"]["completed_count"], 1)
+
+    def test_completed_recovery_clears_stale_lifecycle_error(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            run_dir = Path(td) / "projects" / "Demo" / "runs" / "task_0004"
+            run_dir.mkdir(parents=True)
+            create_lifecycle(run_dir, {"route": {"agents": ["Supervisor"]}})
+            mark_node_failed(run_dir, "FINALIZE", "old artifact gate failure")
+
+            mark_node_completed(run_dir, "FINALIZE")
+
+            lifecycle = load_lifecycle(run_dir) or {}
+            final_node = lifecycle["nodes"]["FINALIZE"]
+            self.assertEqual(final_node["status"], "completed")
+            self.assertIsNone(final_node["error"])
 
 
 class TaskIndexLedgerTests(TestCase):

@@ -412,6 +412,7 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
         and agent_name
         in {"Supervisor", "Researcher", "ArtifactProducer", "Verifier"}
     )
+    narrative_heavy_audit = plan.route.route_key == "narrative_heavy_audit"
 
     if agent_name == "Supervisor" and production_pack_role_session:
         context_files = [
@@ -426,6 +427,26 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             run_dir / "chapter_packet.yml",
         ]
         context_files.extend(_story_authority_context_files(project_root, run_dir))
+    elif narrative_heavy_audit and agent_name in {"Reviewer", "Scribe", "Verifier"}:
+        context_files = [
+            Path(plan.user_request_path),
+            run_dir / "workflow_plan.yml",
+            run_dir / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
+            run_dir / "mission_contract.yml",
+            run_dir / "narrative_audit_manifest.yml",
+            run_dir / "narrative_audit_context.md",
+            project_root / "project_brain" / "project_fact_snapshot.yml",
+            project_root / "project_artifact_index.yml",
+        ]
+        if agent_name in {"Scribe", "Verifier"}:
+            context_files.extend(
+                [
+                    run_dir / "fiction_review.yml",
+                    run_dir / "continuity_failure_report.yml",
+                ]
+            )
+        if agent_name == "Verifier":
+            context_files.append(run_dir / "state_transition_proposal.yml")
     elif agent_name in {"Reviewer", "Scribe"}:
         context_files = [
             Path(plan.user_request_path),
@@ -584,7 +605,19 @@ Hard execution rules:
 - If information is missing, state what is missing and what should happen next.
 - Keep the report concise, auditable, and scoped to this task.
 """
-    if agent_name in {"Writer", "Reviewer", "Scribe"}:
+    if narrative_heavy_audit and agent_name in {"Reviewer", "Scribe", "Verifier"}:
+        hard_rules = """
+Narrative heavy audit role-session rules:
+- Audit only the injected candidate drafts, ledgers, proposals, and authority memory.
+- Return complete full-file AGENTLAB_EDIT blocks for this role's required outputs.
+- Keep every output candidate_only: true and production_modified: false.
+- Do not emit or modify fiction_draft.md, production/manuscript, project memory, or authority files.
+- Reviewer reports findings and continuity failures; it does not rewrite prose.
+- Scribe proposes candidate fact-state events; it does not establish canon.
+- Verifier emits a revision/rewrite proposal only; it never edits the draft.
+- Do not output DSML/tool-call markup or claim unprovided evidence.
+"""
+    elif agent_name in {"Writer", "Reviewer", "Scribe"}:
         hard_rules = """
 Creative writing execution rules:
 - Do not request tools, shell commands, file listings, browser access, or repository scans.
@@ -736,7 +769,42 @@ Archivist durable-memory write rules:
 - If you cannot produce safe agent_docs edits, explain the blocker instead of writing a completed archive.
 """
 
-    if agent_name == "Supervisor" and production_pack_role_session:
+    if narrative_heavy_audit and agent_name in {"Reviewer", "Scribe", "Verifier"}:
+        from agent_runtime.narrative_heavy_audit import HEAVY_AUDIT_OUTPUTS_BY_AGENT
+
+        required_outputs = HEAVY_AUDIT_OUTPUTS_BY_AGENT[agent_name]
+        user = f"""
+Narrative heavy audit for:
+
+- project: {plan.project}
+- task_id: {plan.task_id}
+- role: {agent_name}
+- capture_report_path: {output_path.name}
+
+Output contract:
+
+- Do not write a prose wrapper or target capture_report_path.
+- Emit exactly one complete full-file AGENTLAB_EDIT block for each required output below and no other edit blocks.
+- Every YAML file must set schema_version: 1, candidate_only: true, and production_modified: false.
+- fiction_review.yml: status pass|warn|blocked and findings list.
+- continuity_failure_report.yml: status pass|warn|blocked, blocking_issue_count integer, and failures list.
+- state_transition_proposal.yml: status candidate, requires_user_promotion: true, and events list; every event scope is candidate_only.
+- revision_or_rewrite_proposal.yml: status not_required|proposed|blocked, rewrite_required boolean, direct_draft_edits: false, and proposals list.
+- Do not emit fiction_draft.md or directly rewrite any chapter.
+
+Required outputs:
+
+{yaml.safe_dump(list(required_outputs), sort_keys=False, allow_unicode=True)}
+
+Workflow plan summary:
+
+{yaml.safe_dump(_agent_plan_summary(plan, agent_name), sort_keys=False, allow_unicode=True)}
+
+Available task context:
+
+{chr(10).join(context_sections)}
+"""
+    elif agent_name == "Supervisor" and production_pack_role_session:
         user = f"""
 Produce the AgentLab production-pack synthesis Supervisor plan for:
 

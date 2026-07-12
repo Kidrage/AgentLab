@@ -211,6 +211,62 @@ must_read:
     assert "Prepare the AgentLab report" not in user_message
 
 
+def test_narrative_heavy_audit_prompts_require_exact_candidate_blocks(tmp_path: Path) -> None:
+    from agent_runner import compose_agent_messages
+
+    config_dir = tmp_path / "config"
+    template_dir = tmp_path / "agent_templates"
+    project_root = tmp_path / "projects" / "TestProject"
+    run_dir = project_root / "runs" / "task_test_001"
+    config_dir.mkdir(parents=True)
+    template_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (config_dir / "agent_registry.yml").write_text(
+        """
+agents:
+  Reviewer:
+    template_path: agent_templates/reviewer.md
+    role: Reviewer
+  Scribe:
+    template_path: agent_templates/scribe.md
+    role: Scribe
+  Verifier:
+    template_path: agent_templates/verifier.md
+    role: Verifier
+""".lstrip(),
+        encoding="utf-8",
+    )
+    for name in ["reviewer", "scribe", "verifier"]:
+        (template_dir / f"{name}.md").write_text(f"# {name.title()}\n", encoding="utf-8")
+    (run_dir / "user_request.md").write_text("审计 Crown 第 1-10 章。", encoding="utf-8")
+    (run_dir / "mission_contract.yml").write_text("task_domain: creative_writing\n", encoding="utf-8")
+    (run_dir / "narrative_audit_manifest.yml").write_text("chapter_range: [1, 10]\n", encoding="utf-8")
+    (run_dir / "narrative_audit_context.md").write_text("# Audit context\n", encoding="utf-8")
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "narrative_heavy_audit"
+    plan.route.agents = ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+
+    expected = {
+        "Reviewer": ["fiction_review.yml", "continuity_failure_report.yml"],
+        "Scribe": ["state_transition_proposal.yml"],
+        "Verifier": ["revision_or_rewrite_proposal.yml"],
+    }
+    for agent, outputs in expected.items():
+        messages = compose_agent_messages(
+            tmp_path,
+            plan,
+            agent,
+            run_dir / f"{agent.lower()}_role_session_capture.md",
+        )
+        text = "\n".join(message["content"] for message in messages)
+        assert "Narrative heavy audit" in text
+        assert "AGENTLAB_EDIT" in text
+        assert "production_modified: false" in text
+        for output in outputs:
+            assert output in text
+        assert "# Audit context" in text
+
+
 def test_coder_prompt_excludes_current_output_and_placeholder_reports(tmp_path: Path) -> None:
     from agent_runner import compose_agent_messages
 

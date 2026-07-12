@@ -61,6 +61,31 @@ def test_narrative_light_route_skips_heavy_lifecycle_nodes(tmp_path: Path):
         assert lifecycle["nodes"][node_id]["skip_reason"] == f"Route does not include {agent_name}"
 
 
+def test_heavy_audit_route_requires_complete_four_file_delivery() -> None:
+    from agent_runtime.artifact_contract import (
+        _required_artifacts_for_run,
+        _route_required_outputs,
+    )
+
+    workflow = {
+        "route": {
+            "route_key": "narrative_heavy_audit",
+            "agents": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
+        }
+    }
+    expected = [
+        "fiction_review.yml",
+        "continuity_failure_report.yml",
+        "state_transition_proposal.yml",
+        "revision_or_rewrite_proposal.yml",
+    ]
+    assert _route_required_outputs(workflow) == expected
+    required = _required_artifacts_for_run(Path("/nonexistent"), workflow["route"]["agents"], workflow)
+    assert "verification_report.md" not in required
+    for name in expected:
+        assert name in required
+
+
 def test_narrative_production_pack_excludes_code_shell_nodes(tmp_path: Path):
     workflow = {
         "route": {
