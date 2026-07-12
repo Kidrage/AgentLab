@@ -1,0 +1,28 @@
+schema_version: 1
+report_type: agentlab_frontdesk_runtime_private_context_rejection
+created_at: '2026-07-07T14:38:00Z'
+status: blocked_host_policy
+capability_id: crown_formal_live_narrative_eval
+project: Crown_of_Ash
+agentlab_role_owner: Writer
+assigned_worker: agy
+frontdesk_agent: codex
+attempted_command_kind: agentlab_writer_role_session_live_eval
+attempted_command:
+  redacted: true
+  summary: ./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp internal_writer_smoke_20260707_02 --writer-worker agy
+policy_decision:
+  source: host_codex_approval_layer
+  verdict: rejected
+  reason: private Crown_of_Ash writing context would be sent through agy/Gemini OAuth
+effects:
+  provider_called: false
+  generated_chapter: false
+  production_promoted: false
+safer_probe:
+  report: acceptance_runs/agentlab_capability_acceptance/agy_cli_print_smoke.yml
+  status: pass
+conclusion:
+  agentlab_internal_route_blocked: false
+  codex_frontdesk_runtime_blocked_for_private_live_execution: true
+  required_next_runtime: trusted AgentLab runner or user-operated terminal/session allowed to execute the internal role-session command with Crown context

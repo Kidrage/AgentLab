@@ -1,0 +1,33 @@
+schema_version: 1
+report_type: agentlab_external_policy_rejection
+status: blocked_external_policy
+attempted_at: '2026-07-07'
+attempt_id: approved_writer_role_session_20260707_01
+capability_id: crown_formal_live_narrative_eval
+project: Crown_of_Ash
+agentlab_role_owner: Writer
+assigned_worker: agy
+frontdesk_agent: codex
+attempted_command_kind: agentlab_writer_role_session_live_eval
+blocked_command:
+  redacted: true
+  summary: ./agentlab.sh narrative-eval run --project Crown_of_Ash --mode live --chapters 1 --writer-worker agy
+policy_decision:
+  source: host_sandbox_approval_layer
+  verdict: rejected
+  reason: tenant_policy_forbids_external_disclosure_of_private_workspace_context
+  applies_even_with_user_approval: true
+private_context_at_risk:
+  - Crown_of_Ash chapter packet
+  - project fact snapshot
+  - artifact index
+  - relevant story memory
+effects:
+  provider_called: false
+  generated_chapter: false
+  production_promoted: false
+  workaround_allowed: false
+notes:
+  - This is not an AgentLab Writer failure.
+  - This is not a role-session binding failure.
+  - Current external policy prevents completing formal Crown live Writer eval from this runtime.

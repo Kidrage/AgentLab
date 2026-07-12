@@ -1,5 +1,4 @@
 import subprocess
-import sys
 from pathlib import Path
 import yaml
 
@@ -31,3 +30,10 @@ def test_prepare_write_plan_includes_context_summary():
     plan = yaml.safe_load((run_dir / "workflow_plan.yml").read_text())
     assert "context_governance" in plan
     assert "Context Governance Summary" in plan["context_governance"]["summary"]
+    assert "mission_contract" not in plan
+    mission = yaml.safe_load((run_dir / "mission_contract.yml").read_text())
+    assert mission["task_id"] == task_id
+    assert mission["compiler_source"] == "rule_based"
+    assert (run_dir / "required_capabilities.yml").exists()
+    assert (run_dir / "artifact_contracts.yml").exists()
+    assert (run_dir / "acceptance_gates.yml").exists()

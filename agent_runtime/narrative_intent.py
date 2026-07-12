@@ -18,7 +18,7 @@ class NarrativeIntent:
 
     @property
     def is_narrative(self) -> bool:
-        return self.kind in {"chapter", "audit"}
+        return self.kind in {"chapter", "chapter_batch", "audit"}
 
 
 CHAPTER_RE = re.compile(
@@ -29,7 +29,10 @@ CHAPTER_RE = re.compile(
 CHAPTER_WORD_RE = re.compile(r"(chapter|章节|正文)", re.I)
 
 CHAPTER_RANGE_RE = re.compile(
-    r"(前\s*[\d一二三四五六七八九十百千]+\s*章|first\s+\d+\s+chapters)",
+    r"(前\s*[\d一二三四五六七八九十百千]+\s*章|"
+    r"第\s*[\d一二三四五六七八九十百千]+\s*章\s*(?:到|至|-|~)\s*第?\s*[\d一二三四五六七八九十百千]+\s*章|"
+    r"chapters?\s*\d+\s*(?:to|-|through)\s*\d+|"
+    r"first\s+\d+\s+chapters)",
     re.I,
 )
 
@@ -79,6 +82,9 @@ def classify_narrative_intent(text: str, *, active_longform_project: bool = Fals
 
     if has_article and has_article_action and not has_chapter and not has_continuation:
         return NarrativeIntent("article", "article_signal_without_chapter_scope")
+
+    if has_chapter_range and (has_story_marker or has_generic_story or active_longform_project):
+        return NarrativeIntent("chapter_batch", "chapter_range_with_story_scope")
 
     if "crown" in lowered and has_chapter:
         return NarrativeIntent("chapter", "crown_chapter_shorthand")

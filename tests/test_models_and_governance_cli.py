@@ -48,12 +48,13 @@ def _write_yaml(path: Path, data: dict) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
-def test_models_show_lists_writer_deepseek_default():
+def test_models_show_lists_writer_agy_gemini_oauth_default():
     result = runner.invoke(app, ["models", "show", "--role", "Writer"])
 
     assert result.exit_code == 0
     assert "writer" in result.output
-    assert "deepseek_v4_flash" in result.output
+    assert "agy" in result.output
+    assert "gemini_3_5_flash_high_agy_oauth" in result.output
 
 
 def test_model_proposal_round_trip_on_temp_root(tmp_path):
@@ -80,6 +81,57 @@ def test_model_proposal_round_trip_on_temp_root(tmp_path):
     assert applied.exit_code == 0
     proposal = yaml.safe_load((_proposal_dir(root) / f"{proposal_id}.yml").read_text(encoding="utf-8"))
     assert proposal["status"] == "applied"
+
+
+def test_models_doctor_allows_balanced_qwen_plus_but_not_qwen_max_or_low_plus(tmp_path):
+    from agent_runtime.cli.models import _doctor_issues
+
+    root = tmp_path / "AgentLab"
+    config = root / "config"
+    config.mkdir(parents=True)
+    _write_yaml(
+        config / "agent_model_profiles.yml",
+        {
+            "modes": {
+                "full_cli": {
+                    "tiers": {
+                        "performance": {
+                            "interface_mapper": {
+                                "default": "deepseek_v4_pro",
+                                "fallback": "qwen3_6_plus_dashscope",
+                            },
+                            "tester_auditor": {
+                                "default": "qwen3_7_max_dashscope",
+                            },
+                        },
+                        "low": {
+                            "writer": {
+                                "default": "qwen3_6_plus_dashscope",
+                            },
+                            "verifier": {
+                                "default": "qwen3_6_flash_dashscope",
+                            },
+                        },
+                        "full": {
+                            "prompt_engineer": {
+                                "default": "qwen3_7_max_dashscope",
+                            },
+                        },
+                    }
+                }
+            }
+        },
+    )
+
+    issues = _doctor_issues(root)
+    scopes = {issue["scope"] for issue in issues}
+
+    assert "full_cli.performance.interface_mapper.fallback" not in scopes
+    assert "full_cli.full.prompt_engineer.default" not in scopes
+    assert scopes == {
+        "full_cli.performance.tester_auditor.default",
+        "full_cli.low.writer.default",
+    }
 
 
 def test_governance_doctor_detects_legacy_and_multiple_current(tmp_path):

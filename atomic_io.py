@@ -7,6 +7,8 @@ from agent_runtime.atomic_io import (
     atomic_read_json,
     with_atomic_write,
     safe_read_yaml,
+    safe_read_json,
+    safe_read_text,
 )
 
 # Re-export everything from the agent_runtime module
@@ -20,4 +22,6 @@ __all__ = [
     "atomic_read_json",
     "with_atomic_write",
     "safe_read_yaml",
+    "safe_read_json",
+    "safe_read_text",
 ]

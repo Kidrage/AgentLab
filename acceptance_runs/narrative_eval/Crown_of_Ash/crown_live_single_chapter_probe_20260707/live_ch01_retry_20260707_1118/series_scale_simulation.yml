@@ -1,0 +1,45 @@
+suite: crown_live_single_chapter_probe_20260707
+chapter_count: 1500
+target_total_chapters: 1500
+status: pass
+simulation_scope: governance_ledger_only
+text_generation:
+  draft_chapters_generated: 0
+  draft_text_generated: false
+  reason: L3 validates longform governance capacity; it does not generate manuscript
+    prose.
+timeline_monotonic: true
+foreshadowing_statuses_valid: true
+character_arcs_have_phase_changes: true
+worldline_has_phase_progression: true
+governance_cadence:
+  chapter_ledger: every chapter
+  continuity_batch_audit: every 3 chapters
+  character_foreshadowing_timeline_audit: every 10 chapters
+  volume_heavy_audit: each part boundary
+  promotion_gate: before production promotion
+memory_contract:
+  required_inputs:
+  - project_fact_snapshot.yml
+  - project_artifact_index.yml
+  - chapter_packet.yml
+  - previous continuity_ledger.yml
+  candidate_outputs:
+  - fiction_draft.md
+  - continuity_ledger.yml
+  - state_transition_proposal.yml
+  - narrative_delivery_receipt.yml
+  promotion_requires:
+  - accepted state_transition_proposal.yml
+  - updated fact events or fact snapshot proposal
+  - narrative-eval or narrative_heavy_audit pass
+promotion_gates:
+- accepted state_transition_proposal.yml
+- updated fact events or fact snapshot proposal
+- narrative-eval or narrative_heavy_audit pass
+ledgers:
+  series_arc: series_arc_ledger.yml
+  chapter_state_plan: chapter_state_plan.yml
+  foreshadowing: foreshadowing_ledger.yml
+  character_arc: character_arc_ledger.yml
+  timeline_worldline: timeline_worldline_ledger.yml

@@ -127,7 +127,7 @@ T5 Archive / 归档层:     Archivist → Qwen Plus
 
 Budget modes / 预算模式: `brain_allocated` (default), `max_quality`, `frugal`
 
-Route profiles / 路由配置: `small_task`, `medium_task`, `interface_sensitive_task`, `research_sensitive_task`, `large_or_risky_task`, plus domain packs (`fiction_chapter_pipeline`, etc.)
+Route profiles / 路由配置: code factory routes (`small_task`, `medium_task`, `interface_sensitive_task`, `research_sensitive_task`, `large_or_risky_task`) plus governed production-pack routes such as `narrative_light_chapter`, `narrative_batch_chapters`, `narrative_heavy_audit`, `article_light_draft`, and `media_generation_task`.
 
 Config / 配置：`config/agent_registry.yml`, `config/model_catalog.yml`, `config/domain_route_packs.yml`, `OPERATING_MODEL.md`
 
@@ -277,4 +277,6 @@ Auto-push via post-commit hook. Check `git status` before committing — never s
 - M-series handoff / M 系列交接：[`docs/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md`](docs/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md)
 - Driver protocol / 驱动协议：[`DRIVER_PROTOCOL.md`](DRIVER_PROTOCOL.md)
 - OpenClaw integration / OpenClaw 集成：[`docs/OPENCLAW_LOCAL_INTEGRATION.md`](docs/OPENCLAW_LOCAL_INTEGRATION.md)
+- Full CLI model matrix / Full CLI 模型矩阵：[`docs/AGENTLAB_FULL_CLI_MATRIX.csv`](docs/AGENTLAB_FULL_CLI_MATRIX.csv)
+- CLI runtime requirements / CLI 运行需求：[`docs/AGENTLAB_CLI_REQUIREMENTS.csv`](docs/AGENTLAB_CLI_REQUIREMENTS.csv)
 - Skill distillation / 技能蒸馏：[`docs/SKILL_DISTILLATION.md`](docs/SKILL_DISTILLATION.md)

@@ -14,7 +14,10 @@ try:
 except ImportError:  # pragma: no cover
     from agent_runtime.atomic_io import atomic_write_yaml
 
-from schemas import TaskState
+try:
+    from agent_runtime.schemas import TaskState
+except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+    from schemas import TaskState
 
 
 def utc_now() -> str:

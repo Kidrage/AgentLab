@@ -1,0 +1,140 @@
+schema_version: 1
+report_type: agentlab_frontdesk_boundary_audit
+root: .
+frontdesk_agent: hermes
+status: pass
+conclusion: Hermes CLI with DeepSeek V4 Pro is the canonical FrontDesk for routed
+  intake, while declared pipelines may run directly without FrontDesk. Role execution
+  still requires role-session evidence. Registered CLI workflow-shell capabilities
+  are absorbed as bounded role-session execution shells, while AgentLab keeps ownership
+  of project memory, validation, receipts, and promotion.
+intended_chain:
+- 'hermes / DeepSeek V4 Pro: optional frontdesk-session for task intake and routing'
+- 'Direct closed loop: AgentLab pipeline or role-session without FrontDesk'
+- 'Supervisor: route and mission contract'
+- 'ArtifactProducer: media/artifact production role-session'
+- 'Writer: narrative live eval role-session'
+- 'Registered CLI workflow shells: native capability families inside bounded role
+  sessions'
+- 'hermes_grok_oauth: local Grok CLI backend behind ArtifactProducer'
+- 'TesterAuditor/Verifier: audit generated candidate artifacts'
+operator_boundary:
+  allowed:
+  - frontdesk-session
+  - prepare/create task
+  - inspect run artifacts
+  - read role receipts and error reports
+  external_runtime_boundary:
+  - request host sandbox approval when the local runtime requires it
+  - treat sandbox approval as outside AgentLab's production chain
+  not_allowed_as_frontdesk:
+  - implement task content directly
+  - execute live provider adapter commands as the production path
+  - claim backend output as AgentLab role output without a role-session receipt
+checks:
+- id: frontdesk_policy_declares_non_worker_boundary
+  status: pass
+  evidence:
+  - config/frontdesk_policy.yml
+  summary: frontdesk may invoke registered agents by contract but may not implement
+    tasks itself
+- id: configured_frontdesk_has_entrypoint
+  status: pass
+  evidence:
+  - config/frontdesk_policy.yml
+  - config/cli_entrypoint_policy.yml
+  summary: hermes has a frontdesk session entrypoint
+- id: hermes_deepseek_v4_pro_is_default_frontdesk
+  status: pass
+  evidence:
+  - config/frontdesk_policy.yml
+  - config/model_catalog.yml
+  summary: Hermes CLI with DeepSeek V4 Pro is the canonical AgentLab frontdesk
+- id: frontdesk_profile_is_separate_from_role_sessions
+  status: pass
+  evidence:
+  - config/agent_role_bindings.yml
+  summary: Hermes may be FrontDesk or a role worker, but never both in the same session
+- id: codex_is_external_worker_not_frontdesk
+  status: pass
+  evidence:
+  - config/frontdesk_policy.yml
+  - config/agent_role_bindings.yml
+  summary: Codex is an external AgentLab construction/audit worker, not an internal
+    FrontDesk
+- id: direct_closed_loop_does_not_require_frontdesk
+  status: pass
+  evidence:
+  - config/frontdesk_policy.yml
+  summary: AgentLab can validate a declared pipeline directly without creating a FrontDesk
+    session
+- id: sandbox_approval_is_external_runtime_boundary
+  status: pass
+  evidence:
+  - config/frontdesk_policy.yml
+  summary: host/Codex sandbox approval is not an AgentLab role or workflow node
+- id: media_live_role_owner_is_artifact_producer
+  status: pass
+  evidence:
+  - config/agent_role_bindings.yml
+  summary: ArtifactProducer is the media/artifact role owner and can be assigned to
+    grok
+- id: local_grok_cli_backend_is_registered_internal_backend
+  status: pass
+  evidence:
+  - config/media_generation_backends.yml
+  summary: Hermes/Grok is registered as an internal ArtifactProducer-owned local Grok
+    CLI backend
+- id: cli_workflow_shell_registry_covers_hermes_and_claude
+  status: pass
+  evidence:
+  - config/cli_workflow_shells.yml
+  summary: CLI workflow shell registry covers Hermes and Claude Code command families
+    while keeping AgentLab role/session/memory/promotion authority outside the shell
+- id: cli_workflow_shell_governance_covers_full_cli_mode
+  status: pass
+  evidence:
+  - config/cli_workflow_shells.yml
+  - config/agent_model_profiles.yml
+  summary: full_cli governs selected CLI shell capabilities/delivery instead of rebuilding
+    shell scaffolds; full_cli_shells=['agy', 'claude_code', 'codex', 'grok', 'hermes',
+    'qwen']
+- id: workflow_shell_workers_are_bounded_role_workers
+  status: pass
+  evidence:
+  - config/agent_role_bindings.yml
+  - config/cli_workflow_shells.yml
+  summary: Hermes and Claude Code remain bounded role-session shells; Hermes FrontDesk
+    is a separate profile
+- id: hermes_grok_backend_uses_workflow_shell_without_role_leakage
+  status: pass
+  evidence:
+  - config/media_generation_backends.yml
+  - config/cli_workflow_shells.yml
+  summary: Hermes workflow shell powers the Grok media backend, but ArtifactProducer/grok
+    remains the AgentLab role-worker owner
+- id: grok_cli_is_registered_as_internal_artifact_worker
+  status: pass
+  evidence:
+  - config/agent_role_bindings.yml
+  - config/worker_invocation_contracts.yml
+  summary: Grok is an internal ArtifactProducer-only media worker, not a general provider
+    or writing/coding agent
+- id: artifact_producer_profiles_bind_grok_oauth
+  status: pass
+  evidence:
+  - config/agent_model_profiles.yml
+  summary: 'artifact backend bindings for hermes_grok_oauth: 3'
+- id: raw_media_live_cli_requires_role_session
+  status: pass
+  evidence:
+  - agent_runtime/cli/capability_contracts.py
+  summary: raw media-backend-execute --live requires ArtifactProducer role-session
+    evidence
+- id: narrative_live_eval_requires_writer_role_session
+  status: pass
+  evidence:
+  - agent_runtime/cli/narrative_eval.py
+  - agent_runtime/narrative_eval.py
+  summary: narrative-eval live requires Writer role-session evidence
+issues: []

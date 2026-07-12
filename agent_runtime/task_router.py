@@ -9,16 +9,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from schemas import AgentRoute
-
 try:
-    from protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
-    from routing.route_catalog import RouteCatalog
-    from narrative_intent import classify_narrative_intent
-except ImportError:  # pragma: no cover - package import path
+    from agent_runtime.schemas import AgentRoute
     from agent_runtime.protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
     from agent_runtime.routing.route_catalog import RouteCatalog
     from agent_runtime.narrative_intent import classify_narrative_intent
+except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+    from schemas import AgentRoute
+    from protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
+    from routing.route_catalog import RouteCatalog
+    from narrative_intent import classify_narrative_intent
 
 
 # ── Implementation intent signals ─────────────────────────────────────────
@@ -162,6 +162,32 @@ CODE_IMPLEMENTATION_CONTEXT_HINTS: tuple[str, ...] = (
 )
 
 
+NON_CODE_PRODUCTION_SYSTEM_HINTS: tuple[str, ...] = (
+    "immersive",
+    "installation",
+    "exhibition",
+    "show control",
+    "lighting cue",
+    "sound cue",
+    "asset pipeline",
+    "scene state",
+    "生成系统",
+    "生产链路",
+    "生产线",
+    "沉浸式",
+    "装置",
+    "展览",
+    "展演",
+    "灯光cue",
+    "声音cue",
+    "声音角色",
+    "空间装置",
+    "场景状态",
+    "多轮渲染",
+    "长期维护",
+)
+
+
 def _detect_implementation_intent(text: str) -> bool:
     """Return True if *text* contains strong implementation signals.
 
@@ -210,6 +236,11 @@ def _detect_article_light_intent(text: str, artifact_type: str | None) -> bool:
 def _detect_code_implementation_context(text: str) -> bool:
     lowered = text.lower()
     return any(hint in lowered for hint in CODE_IMPLEMENTATION_CONTEXT_HINTS)
+
+
+def _detect_non_code_production_system_intent(text: str) -> bool:
+    lowered = text.lower()
+    return any(hint.lower() in lowered for hint in NON_CODE_PRODUCTION_SYSTEM_HINTS)
 
 
 RESEARCH_HINTS = (
@@ -335,6 +366,7 @@ def recommend_route(
     # so Chinese characters match correctly).
     wants_implementation = _detect_implementation_intent(task_text)
     wants_artifact, artifact_type = _detect_artifact_production_intent(task_text)
+    wants_non_code_production_system = _detect_non_code_production_system_intent(task_text)
     narrative_intent = classify_narrative_intent(task_text)
     is_creative_writing = narrative_intent.is_narrative
 
@@ -389,9 +421,9 @@ def recommend_route(
             insert_at = agents.index("Coder") + 1 if "Coder" in agents else len(agents)
             agents.insert(insert_at, ARTIFACT_PRODUCER_ROLE)
 
-    elif wants_artifact:
+    elif wants_artifact or wants_non_code_production_system:
         route_key = "article_light_draft" if _detect_article_light_intent(task_text, artifact_type) else "artifact_production_task"
-        task_size = "medium" if artifact_type == "mixed" or looks_medium else "small"
+        task_size = "medium" if artifact_type == "mixed" or looks_medium or wants_non_code_production_system else "small"
         if route_key == "article_light_draft":
             task_size = route_catalog.size_for(route_key)
         agents = route_catalog.agents_for(route_key)
@@ -457,21 +489,22 @@ def recommend_route(
             "Implementation intent detected; route includes an implementation "
             "executor for code changes."
         )
-    elif wants_artifact:
+    elif wants_artifact or wants_non_code_production_system:
+        artifact_label = artifact_type or "production_system"
         rationale.append(
-            f"Artifact production intent detected ({artifact_type}); route includes "
+            f"Artifact production intent detected ({artifact_label}); route includes "
             f"{ARTIFACT_PRODUCER_ROLE} with an ArtifactTask contract."
         )
     if "Coder" in agents:
         rationale.append("Coder and Tester/Auditor are required for implementation and verification.")
     if ARTIFACT_PRODUCER_ROLE in agents:
         rationale.append("ArtifactProducer owns non-code and mixed deliverables; Coder remains scoped to code/automation work.")
-    elif wants_implementation:
+    elif wants_implementation and not _has_implementation_executor(agents):
         rationale.append(
             "Implementation required but Coder not in route — "
             "check executor availability."
         )
-    else:
+    elif not wants_implementation:
         rationale.append("Analysis-only route selected; Coder is skipped because no source implementation is requested.")
     if wants_research:
         rationale.append("Research hints detected; include Researcher when route requires current or external facts.")

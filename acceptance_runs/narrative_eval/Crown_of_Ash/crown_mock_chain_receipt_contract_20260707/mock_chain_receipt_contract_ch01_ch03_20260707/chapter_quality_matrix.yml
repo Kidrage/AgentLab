@@ -1,0 +1,17 @@
+suite: crown_mock_chain_receipt_contract_20260707
+chapters:
+- chapter: 1
+  task_id: task_narrative_eval_ch01_mock_chain_receipt_contract_ch01_ch03_20260707
+  status: pass
+  blocking_issue_count: 0
+  production_modified: false
+- chapter: 2
+  task_id: task_narrative_eval_ch02_mock_chain_receipt_contract_ch01_ch03_20260707
+  status: pass
+  blocking_issue_count: 0
+  production_modified: false
+- chapter: 3
+  task_id: task_narrative_eval_ch03_mock_chain_receipt_contract_ch01_ch03_20260707
+  status: pass
+  blocking_issue_count: 0
+  production_modified: false

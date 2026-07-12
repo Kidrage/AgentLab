@@ -1,0 +1,80 @@
+schema_version: 1
+report_type: agentlab_crown_live_candidate_audit
+root: .
+project: Crown_of_Ash
+task_id: task_narrative_eval_ch01_live_ch01_20260707_cli_fallback
+run_dir: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback
+status: pass
+checks:
+- id: required_files_present
+  status: pass
+  missing: []
+- id: delivery_protocol_valid
+  status: pass
+  delivery:
+    valid: true
+    skipped: false
+    issues: []
+    required_files:
+    - chapter_packet.yml
+    - fiction_draft.md
+    - continuity_ledger.yml
+    - state_transition_proposal.yml
+    - narrative_delivery_receipt.yml
+- id: draft_substantial
+  status: pass
+  metrics:
+    exists: true
+    bytes: 28105
+    lines: 565
+    nonempty_lines: 425
+    word_like_tokens: 3979
+    has_heading: false
+- id: chapter_packet_reset_baseline
+  status: pass
+  chapter: 1
+  baseline_mode: reset
+  previous_chapters: []
+- id: continuity_ledger_candidate_scope
+  status: pass
+  chapter: 1
+  baseline_mode: reset
+  timeline:
+    monotonic: true
+    chapter_day: 1
+- id: state_transition_candidate_only
+  status: pass
+  proposal_status: candidate
+  requires_user_promotion: true
+  events:
+  - event_type: chapter_state_change
+    scope: candidate_only
+    summary: Reset acceptance chapter 1 advances plot, character, and worldline state.
+- id: receipt_passes
+  status: pass
+  receipt_status: pass
+  delivery_check:
+    valid: true
+    skipped: false
+    issues: []
+    required_files:
+    - chapter_packet.yml
+    - fiction_draft.md
+    - continuity_ledger.yml
+    - state_transition_proposal.yml
+- id: production_manuscript_not_modified
+  status: pass
+  production_manuscript_files: []
+evidence:
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/chapter_packet.yml
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/fiction_draft.md
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/continuity_ledger.yml
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/state_transition_proposal.yml
+- projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/narrative_delivery_receipt.yml
+summary:
+  draft_lines: 565
+  draft_bytes: 28105
+  candidate_chapter: 1
+  candidate_only: true
+  production_manuscript_files: []
+issues: []

@@ -1,0 +1,41 @@
+schema_version: 1
+status: ready
+executable: true
+backend_id: hermes_grok_oauth
+adapter_state: configured
+adapter_kind: local_grok_cli
+api_key_configured: false
+modality: video
+backend:
+  display_name: Hermes + Grok OAuth CLI
+  adapter_kind: local_grok_cli
+  adapter_state: configured
+  auth_probe: hermes_xai_oauth_session
+  command: hermes
+  command_contract:
+    session_smoke: hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z
+      <prompt>
+  execution_mode: orchestrated_worker
+  approval_required: false
+  final_artifact_allowed: false
+checks:
+- id: selected_backend_present
+  status: pass
+  message: media contract declares selected_backend
+- id: backend_config_present
+  status: pass
+  message: backend config exists for hermes_grok_oauth
+- id: adapter_configured
+  status: pass
+  message: adapter_state is configured
+- id: adapter_kind_supported
+  status: pass
+  message: adapter_kind is local_grok_cli
+- id: local_cli_available
+  status: pass
+  message: Local Grok CLI command hermes is available
+  command: hermes
+  auth_probe: hermes_xai_oauth_session
+- id: approval_not_required
+  status: pass
+  message: backend does not require user approval before live execution

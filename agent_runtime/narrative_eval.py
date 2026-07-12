@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import os
 import re
+import subprocess
 
 import yaml
 
@@ -14,6 +16,12 @@ from agent_runtime.narrative_delivery import (
     validate_narrative_delivery,
     write_chapter_packet,
     write_narrative_delivery_receipt,
+)
+from agent_runtime.policies import ensure_safe_task_id
+from agent_runtime.report_sanitizer import write_report_yaml
+from agent_runtime.writer_output_materializer import (
+    materialize_writer_candidate_content,
+    materialize_writer_candidate_result,
 )
 
 
@@ -53,6 +61,45 @@ def _collect(project_root: Path, patterns: list[str], *, limit: int = 200) -> li
 
 def _timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _safe_eval_task_id(chapter: int, eval_id: str) -> str:
+    cleaned_eval_id = re.sub(r"[^A-Za-z0-9_-]+", "_", str(eval_id)).strip("_-") or "eval"
+    return ensure_safe_task_id(f"task_narrative_eval_ch{chapter:02d}_{cleaned_eval_id}"[:85])
+
+
+def _write_light_chapter_workflow_plan(root: Path, project: str, task_id: str, run_dir: Path) -> None:
+    fallback = {
+        "route": {
+            "route_key": "narrative_light_chapter",
+            "agents": ["Supervisor", "Writer"],
+        },
+        "production_pack": {
+            "pack_id": "narrative_longform",
+            "mode": "light_chapter",
+            "candidate_only": True,
+        },
+    }
+    try:
+        from workflow_plan import build_workflow_plan
+
+        plan = build_workflow_plan(
+            root,
+            project,
+            task_id,
+            user_request_path=run_dir / "user_request.md",
+            budget_mode="balanced",
+        )
+        data = plan.model_dump(mode="json") if hasattr(plan, "model_dump") else fallback
+        route = data.setdefault("route", {})
+        if route.get("route_key") == "fiction_chapter_pipeline":
+            route["route_key"] = "narrative_light_chapter"
+        route.setdefault("route_key", "narrative_light_chapter")
+        route.setdefault("agents", ["Supervisor", "Writer"])
+        data.setdefault("production_pack", fallback["production_pack"])
+    except Exception:
+        data = fallback
+    _write_yaml(run_dir / "workflow_plan.yml", data)
 
 
 def _chapter_number(path: Path) -> int | None:
@@ -123,30 +170,39 @@ def _audit_history(project_root: Path) -> dict[str, Any]:
         rebuild_paths.append(_rel(path, project_root))
 
     run_findings: list[dict[str, Any]] = []
+    blocked_live_runs: list[dict[str, Any]] = []
     runs_dir = project_root / "runs"
     if runs_dir.exists():
         for run_dir in sorted(path for path in runs_dir.iterdir() if path.is_dir())[-100:]:
-            missing = [
-                name
-                for name in [
-                    "fiction_draft.md",
-                    "fiction_review.yml",
-                    "continuity_ledger.yml",
-                    "state_transition_proposal.yml",
-                    "narrative_delivery_receipt.yml",
-                ]
-                if not (run_dir / name).exists()
-            ]
             prompt = run_dir / "user_request.md"
             prompt_text = prompt.read_text(encoding="utf-8", errors="replace") if prompt.exists() else ""
-            if missing and re.search(r"(fiction|chapter|novel|rewrite|revise|小说|章节|重写|修改)", prompt_text, re.I):
-                run_findings.append({"task_id": run_dir.name, "missing": missing, "path": _rel(run_dir, project_root)})
+            if re.search(r"(fiction|chapter|novel|rewrite|revise|小说|章节|重写|修改)", prompt_text, re.I):
+                delivery = validate_narrative_delivery(run_dir)
+                missing = [
+                    str(issue.get("file"))
+                    for issue in delivery.get("issues", [])
+                    if issue.get("check") == "delivery_file_present" and issue.get("file")
+                ]
+                if missing:
+                    live_error = _load_live_generation_error(run_dir, project_root)
+                    if live_error:
+                        blocked_live_runs.append(
+                            {
+                                "task_id": run_dir.name,
+                                "missing": missing,
+                                "path": _rel(run_dir, project_root),
+                                "live_generation_error": live_error,
+                            }
+                        )
+                    else:
+                        run_findings.append({"task_id": run_dir.name, "missing": missing, "path": _rel(run_dir, project_root)})
 
     return {
-        "status": "warn" if deprecated_chapters or rebuild_paths or run_findings else "pass",
+        "status": "warn" if deprecated_chapters or rebuild_paths or run_findings or blocked_live_runs else "pass",
         "deprecated_production_chapters": deprecated_chapters,
         "legacy_rebuild_paths": rebuild_paths,
         "incomplete_historical_narrative_runs": run_findings,
+        "blocked_live_generation_runs": blocked_live_runs,
         "policy": "Historical manuscript and rebuild runs are audit evidence only during reset evaluation.",
     }
 
@@ -176,36 +232,38 @@ def _write_structured_delivery_files(
     chapter: int,
     previous: list[str],
     created_by: str,
+    include_review: bool = True,
 ) -> None:
     draft_path = run_dir / "fiction_draft.md"
     draft = draft_path.read_text(encoding="utf-8", errors="replace") if draft_path.exists() else ""
     character_count_ok = 4500 <= len(draft) <= 5500
-    review = {
-        "schema_version": 1,
-        "verdict": "pass" if character_count_ok else "fail",
-        "blocking": not character_count_ok,
-        "chapter": chapter,
-        "character_count": len(draft),
-        "target_character_range": [4500, 5500],
-        "gates": {
-            gate: {
-                "status": "pass" if gate != "word_count" or character_count_ok else "fail",
-                "evidence": f"structured evidence for {gate}",
-            }
-            for gate in REQUIRED_REVIEW_GATES
-        },
-        "required_state_changes": {
-            "plot_state_change": "The border command channel is confirmed active.",
-            "character_state_change": "The protagonist shifts from defense to evidence pursuit.",
-            "relationship_or_worldline_progress": "A local guard and exile scribe enter a provisional alliance.",
-        },
-        "foreshadowing": [
-            {"id": f"coa-reset-{chapter:02d}-ash-ribbon", "status": "introduced", "evidence": "burned ribbon on the map"},
-        ],
-    }
-    _write_yaml(run_dir / "fiction_review.yml", review)
-    if not (run_dir / "fiction_review.md").exists():
-        (run_dir / "fiction_review.md").write_text("# Fiction Review\n\nStructured review stored in fiction_review.yml.\n", encoding="utf-8")
+    if include_review:
+        review = {
+            "schema_version": 1,
+            "verdict": "pass" if character_count_ok else "fail",
+            "blocking": not character_count_ok,
+            "chapter": chapter,
+            "character_count": len(draft),
+            "target_character_range": [4500, 5500],
+            "gates": {
+                gate: {
+                    "status": "pass" if gate != "word_count" or character_count_ok else "fail",
+                    "evidence": f"structured evidence for {gate}",
+                }
+                for gate in REQUIRED_REVIEW_GATES
+            },
+            "required_state_changes": {
+                "plot_state_change": "The border command channel is confirmed active.",
+                "character_state_change": "The protagonist shifts from defense to evidence pursuit.",
+                "relationship_or_worldline_progress": "A local guard and exile scribe enter a provisional alliance.",
+            },
+            "foreshadowing": [
+                {"id": f"coa-reset-{chapter:02d}-ash-ribbon", "status": "introduced", "evidence": "burned ribbon on the map"},
+            ],
+        }
+        _write_yaml(run_dir / "fiction_review.yml", review)
+        if not (run_dir / "fiction_review.md").exists():
+            (run_dir / "fiction_review.md").write_text("# Fiction Review\n\nStructured review stored in fiction_review.yml.\n", encoding="utf-8")
     _write_yaml(
         run_dir / "continuity_ledger.yml",
         {
@@ -272,15 +330,166 @@ def _write_live_generation_error(run_dir: Path, *, agent: str, result: Any) -> N
     )
 
 
-def _write_completed_agent_content(result: Any, output_path: Path) -> bool:
-    if getattr(result, "status", None) != "completed":
+def _write_live_guard_error(run_dir: Path, *, agent: str, guard: dict[str, Any]) -> None:
+    _write_yaml(
+        run_dir / "live_generation_error.yml",
+        {
+            "schema_version": 1,
+            "status": "blocked",
+            "agent": agent,
+            "result_status": guard.get("status"),
+            "provider": None,
+            "model": None,
+            "error": guard.get("message") or guard.get("reason"),
+            "role_session_guard": guard,
+        },
+    )
+
+
+def validate_narrative_live_role_session(
+    project: str,
+    task_id: str,
+    role_session: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Validate Writer role-session evidence required by live narrative eval."""
+    if not role_session:
+        return {
+            "status": "blocked",
+            "reason": "missing_role_session",
+            "message": "live narrative eval requires an AgentLab Writer role-session packet",
+        }
+    checks: list[dict[str, Any]] = []
+
+    def check(ok: bool, check_id: str, message: str) -> None:
+        checks.append({"id": check_id, "status": "pass" if ok else "fail", "message": message})
+
+    binding = role_session.get("binding") if isinstance(role_session.get("binding"), dict) else {}
+    check(role_session.get("packet_type") == "agentlab_role_session", "packet_type", "packet is an AgentLab role-session")
+    check(role_session.get("role") == "Writer", "role_owner", "role-session belongs to Writer")
+    check(binding.get("allowed") is True, "binding_allowed", "role binding is allowed")
+    check(role_session.get("project") == project, "project_match", "role-session project matches narrative eval")
+    check(role_session.get("task_id") == task_id, "task_id_match", "role-session task_id matches chapter run")
+    failed = [item for item in checks if item["status"] != "pass"]
+    if failed:
+        return {
+            "status": "blocked",
+            "reason": "invalid_role_session",
+            "message": "live narrative eval must be owned by an allowed Writer role-session",
+            "checks": checks,
+        }
+    return {
+        "status": "pass",
+        "reason": None,
+        "checks": checks,
+        "role": role_session.get("role"),
+        "worker": role_session.get("worker"),
+        "project": role_session.get("project"),
+        "task_id": role_session.get("task_id"),
+    }
+
+
+def _try_writer_cli_fallback(
+    root: Path,
+    run_dir: Path,
+    project: str,
+    task_id: str,
+    result: Any,
+) -> bool:
+    if getattr(result, "error", None) == "writer_outbound_context_gate_blocked":
         return False
-    content = getattr(result, "content", "") or ""
-    if not content.strip():
+    script = Path(root) / "agentlab.sh"
+    if not script.exists():
         return False
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(content, encoding="utf-8")
-    return True
+
+    timeout = int(os.getenv("AGENTLAB_LIVE_WRITER_TIMEOUT_SECONDS", "300"))
+    attempts = max(1, int(os.getenv("AGENTLAB_LIVE_WRITER_CLI_ATTEMPTS", "2")))
+    command = [
+        str(script),
+        "run-agent",
+        "Writer",
+        "--project",
+        project,
+        "--task-id",
+        task_id,
+        "--execute",
+        "--force",
+        "--no-apply-patches",
+        "--overwrite-report",
+        "--output",
+        "writer_cli_fallback_capture.md",
+    ]
+    if getattr(result, "provider", None):
+        command.extend(["--provider", str(getattr(result, "provider"))])
+    if getattr(result, "model", None):
+        command.extend(["--model", str(getattr(result, "model"))])
+    started_at = datetime.now(timezone.utc).isoformat()
+    try:
+        attempt_records: list[dict[str, Any]] = []
+        status = "blocked"
+        for attempt in range(1, attempts + 1):
+            fallback_capture = run_dir / "writer_cli_fallback_capture.md"
+            fallback_capture.unlink(missing_ok=True)
+            completed = subprocess.run(
+                command,
+                cwd=root,
+                text=True,
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+            )
+            materialized = False
+            if completed.returncode == 0 and fallback_capture.is_file():
+                materialized = materialize_writer_candidate_content(
+                    fallback_capture.read_text(encoding="utf-8", errors="replace"),
+                    run_dir,
+                    task_id,
+                    capture_name="writer_cli_fallback_capture.md",
+                )
+            attempt_status = "completed" if materialized else "blocked"
+            attempt_records.append(
+                {
+                    "attempt": attempt,
+                    "status": attempt_status,
+                    "exit_code": completed.returncode,
+                    "stdout_tail": completed.stdout[-4000:],
+                    "stderr_tail": completed.stderr[-4000:],
+                }
+            )
+            status = attempt_status
+            if status == "completed":
+                break
+        _write_yaml(
+            run_dir / "live_writer_cli_fallback.yml",
+            {
+                "schema_version": 1,
+                "status": status,
+                "started_at": started_at,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "trigger_result_status": getattr(result, "status", None),
+                "trigger_provider": getattr(result, "provider", None),
+                "trigger_model": getattr(result, "model", None),
+                "trigger_error": getattr(result, "error", None),
+                "attempts": attempt_records,
+            },
+        )
+        return status == "completed"
+    except Exception as exc:
+        _write_yaml(
+            run_dir / "live_writer_cli_fallback.yml",
+            {
+                "schema_version": 1,
+                "status": "blocked",
+                "started_at": started_at,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "trigger_result_status": getattr(result, "status", None),
+                "trigger_provider": getattr(result, "provider", None),
+                "trigger_model": getattr(result, "model", None),
+                "trigger_error": getattr(result, "error", None),
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+            },
+        )
+        return False
 
 
 def _load_live_generation_error(run_dir: Path, root: Path) -> dict[str, Any] | None:
@@ -304,12 +513,17 @@ def _write_live_chapter_outputs(root: Path, run_dir: Path, project: str, task_id
             "project": project,
             "chapter": chapter,
             "previous_candidate_sources": previous,
-            "status": "ready_for_external_writer",
+            "status": "ready_for_internal_writer_role_session",
+            "execution_scope": "internal_agentlab_writer_role_session",
+            "candidate_only": True,
+            "writer_role_session_required": True,
             "required_outputs": [
                 "fiction_draft.md",
-                "fiction_review.yml",
                 "continuity_ledger.yml",
                 "state_transition_proposal.yml",
+                "narrative_delivery_receipt.yml",
+            ],
+            "supplementary_outputs": [
                 "artifact_lineage.yml",
             ],
         },
@@ -319,21 +533,29 @@ def _write_live_chapter_outputs(root: Path, run_dir: Path, project: str, task_id
         from workflow_plan import build_workflow_plan
 
         plan = build_workflow_plan(root, project, task_id, user_request_path=run_dir / "user_request.md", budget_mode="balanced")
-        writer_result = run_agent_model(root, plan, "Writer", run_dir / "fiction_draft.md", apply_patches=False)
-        if not _write_completed_agent_content(writer_result, run_dir / "fiction_draft.md"):
-            _write_live_generation_error(run_dir, agent="Writer", result=writer_result)
-            return
+        writer_result = run_agent_model(
+            root,
+            plan,
+            "Writer",
+            run_dir / "writer_role_session_capture.md",
+            apply_patches=False,
+        )
+        if not materialize_writer_candidate_result(writer_result, run_dir, task_id):
+            if not _try_writer_cli_fallback(root, run_dir, project, task_id, writer_result):
+                _write_live_generation_error(run_dir, agent="Writer", result=writer_result)
+                return
 
-        reviewer_result = run_agent_model(root, plan, "Reviewer", run_dir / "fiction_review.yml", apply_patches=False)
-        if not _write_completed_agent_content(reviewer_result, run_dir / "fiction_review.yml"):
-            _write_live_generation_error(run_dir, agent="Reviewer", result=reviewer_result)
-            return
-
-        _write_structured_delivery_files(
-            run_dir,
-            chapter=chapter,
-            previous=previous,
-            created_by="narrative-eval live harness",
+        _write_yaml(
+            run_dir / "artifact_lineage.yml",
+            {
+                "schema_version": 1,
+                "chapter": chapter,
+                "created_by": "AgentLab Writer role-session",
+                "production_modified": False,
+                "previous_candidate_sources": previous,
+                "writer_outputs_preserved": True,
+                "harness_generated_story_state": False,
+            },
         )
     except Exception as exc:
         _write_yaml(
@@ -356,19 +578,39 @@ def _generate_chapters(
     eval_dir: Path,
     deprecated_sources: list[str],
     eval_id: str,
+    writer_worker: str | None = None,
+    resume_valid: bool = False,
+    stop_on_block: bool = False,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     generated: list[dict[str, Any]] = []
     previous_sources: list[str] = []
     for chapter in chapters:
-        task_id = f"narrative_eval_ch{chapter:02d}_{eval_id}"
+        task_id = _safe_eval_task_id(chapter, eval_id)
         run_dir = project_root / "runs" / task_id
         run_dir.mkdir(parents=True, exist_ok=True)
+        existing_delivery = validate_narrative_delivery(run_dir)
+        if resume_valid and existing_delivery.get("valid"):
+            generated.append({
+                "chapter": chapter,
+                "task_id": task_id,
+                "run_dir": _rel(run_dir, root),
+                "mode": mode,
+                "delivery": existing_delivery,
+                "production_modified": False,
+                "resumed_existing": True,
+            })
+            previous_sources.extend([
+                f"runs/{task_id}/fiction_draft.md",
+                f"runs/{task_id}/continuity_ledger.yml",
+            ])
+            _write_generation_checkpoint(eval_dir, suite, chapters, generated)
+            continue
         (run_dir / "user_request.md").write_text(
             f"Generate reset-baseline chapter {chapter} for {project}. Do not read deprecated production manuscript.",
             encoding="utf-8",
         )
-        _write_yaml(run_dir / "workflow_plan.yml", {"route": {"route_key": "fiction_chapter_pipeline"}})
+        _write_light_chapter_workflow_plan(root, project, task_id, run_dir)
         write_chapter_packet(
             root,
             project,
@@ -381,7 +623,27 @@ def _generate_chapters(
         if mode == "mock":
             _write_mock_chapter_outputs(run_dir, project, chapter, previous_sources[-6:])
         elif mode == "live":
-            _write_live_chapter_outputs(root, run_dir, project, task_id, chapter, previous_sources[-6:])
+            role_session = None
+            if writer_worker:
+                try:
+                    from agent_runtime.protocols import build_role_session
+
+                    role_session = build_role_session(root, "Writer", writer_worker, project=project, task_id=task_id)
+                except Exception as exc:
+                    role_session = {
+                        "packet_type": "agentlab_role_session",
+                        "role": "Writer",
+                        "worker": writer_worker,
+                        "project": project,
+                        "task_id": task_id,
+                        "binding": {"allowed": False, "reason": f"role-session generation failed: {type(exc).__name__}: {exc}"},
+                    }
+            guard = validate_narrative_live_role_session(project, task_id, role_session)
+            _write_yaml(run_dir / "live_writer_role_session_guard.yml", guard)
+            if guard.get("status") == "pass":
+                _write_live_chapter_outputs(root, run_dir, project, task_id, chapter, previous_sources[-6:])
+            else:
+                _write_live_guard_error(run_dir, agent="Writer", guard=guard)
 
         delivery = validate_narrative_delivery(run_dir)
         record = {
@@ -401,7 +663,29 @@ def _generate_chapters(
                 f"runs/{task_id}/fiction_draft.md",
                 f"runs/{task_id}/continuity_ledger.yml",
             ])
+        _write_generation_checkpoint(eval_dir, suite, chapters, generated)
+        if stop_on_block and not delivery.get("valid"):
+            break
 
+    quality_rows = _write_generation_checkpoint(eval_dir, suite, chapters, generated)
+    completed_chapters = {item["chapter"] for item in generated if item["delivery"].get("valid")}
+    all_selected_completed = all(chapter in completed_chapters for chapter in chapters)
+    return {
+        "status": "pass" if all_selected_completed else "blocked",
+        "chapters": generated,
+        "selected_chapter_count": len(chapters),
+        "completed_chapter_count": len(completed_chapters),
+        "resume_valid": resume_valid,
+        "stop_on_block": stop_on_block,
+    }
+
+
+def _write_generation_checkpoint(
+    eval_dir: Path,
+    suite: str,
+    selected_chapters: list[int],
+    generated: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     quality_rows = [
         {
             "chapter": item["chapter"],
@@ -409,6 +693,7 @@ def _generate_chapters(
             "status": "pass" if item["delivery"].get("valid") else "blocked",
             "blocking_issue_count": len([issue for issue in item["delivery"].get("issues", []) if issue.get("severity") == "error"]),
             "production_modified": False,
+            "resumed_existing": bool(item.get("resumed_existing")),
         }
         for item in generated
     ]
@@ -424,31 +709,89 @@ def _generate_chapters(
             ],
         },
     )
-    return {"status": "pass" if all(row["status"] == "pass" for row in quality_rows) else "blocked", "chapters": generated}
+    completed = [row["chapter"] for row in quality_rows if row["status"] == "pass"]
+    attempted = {row["chapter"] for row in quality_rows}
+    next_chapter = next((chapter for chapter in selected_chapters if chapter not in attempted), None)
+    blocking_chapter = next((row["chapter"] for row in quality_rows if row["status"] == "blocked"), None)
+    _write_yaml(
+        eval_dir / "generation_checkpoint.yml",
+        {
+            "schema_version": 1,
+            "suite": suite,
+            "selected_chapters": selected_chapters,
+            "selected_chapter_count": len(selected_chapters),
+            "attempted_chapter_count": len(quality_rows),
+            "completed_chapters": completed,
+            "completed_chapter_count": len(completed),
+            "blocking_chapter": blocking_chapter,
+            "next_chapter": next_chapter,
+            "status": (
+                "blocked" if blocking_chapter is not None
+                else "complete" if len(completed) == len(selected_chapters)
+                else "in_progress"
+            ),
+            "production_modified": False,
+        },
+    )
+    return quality_rows
 
 
 def _build_scale_simulation(eval_dir: Path, suite: str, chapter_count: int = DEFAULT_SCALE_CHAPTERS) -> dict[str, Any]:
     phase_size = chapter_count // 3
+    second_checkpoint = max(1, phase_size)
+    third_checkpoint = max(1, phase_size * 2)
+    governance_cadence = {
+        "chapter_ledger": "every chapter",
+        "continuity_batch_audit": "every 3 chapters",
+        "character_foreshadowing_timeline_audit": "every 10 chapters",
+        "volume_heavy_audit": "each part boundary",
+        "promotion_gate": "before production promotion",
+    }
+    memory_contract = {
+        "required_inputs": [
+            "project_fact_snapshot.yml",
+            "project_artifact_index.yml",
+            "chapter_packet.yml",
+            "previous continuity_ledger.yml",
+        ],
+        "candidate_outputs": [
+            "fiction_draft.md",
+            "continuity_ledger.yml",
+            "state_transition_proposal.yml",
+            "narrative_delivery_receipt.yml",
+        ],
+        "promotion_requires": [
+            "accepted state_transition_proposal.yml",
+            "updated fact events or fact snapshot proposal",
+            "narrative-eval or narrative_heavy_audit pass",
+        ],
+    }
     series_arc = {
         "schema_version": 1,
         "suite": suite,
         "chapter_count": chapter_count,
+        "target_total_chapters": chapter_count,
+        "simulation_scope": "governance_ledger_only",
         "parts": [
             {"part": 1, "chapters": [1, phase_size], "phase": "survival_and_discovery"},
             {"part": 2, "chapters": [phase_size + 1, phase_size * 2], "phase": "war_and_cost"},
             {"part": 3, "chapters": [phase_size * 2 + 1, chapter_count], "phase": "reckoning_and_rebuild"},
         ],
+        "governance_cadence": governance_cadence,
     }
     chapter_state_plan = {
         "chapter_count": chapter_count,
+        "target_total_chapters": chapter_count,
+        "simulation_scope": "governance_ledger_only",
         "timeline_monotonic": True,
         "state_delta_every_chapter": True,
         "sample_checkpoints": [
             {"chapter": 1, "plot": "new baseline opens", "worldline": "local threat appears"},
-            {"chapter": 500, "plot": "regional war cost peaks", "worldline": "alliances fracture"},
-            {"chapter": 1000, "plot": "hidden cause is exposed", "worldline": "empire legitimacy collapses"},
-            {"chapter": 1500, "plot": "primary arc resolves", "worldline": "new order remains unstable"},
+            {"chapter": second_checkpoint, "plot": "regional war cost peaks", "worldline": "alliances fracture"},
+            {"chapter": third_checkpoint, "plot": "hidden cause is exposed", "worldline": "empire legitimacy collapses"},
+            {"chapter": chapter_count, "plot": "primary arc resolves", "worldline": "new order remains unstable"},
         ],
+        "governance_cadence": governance_cadence,
     }
     foreshadowing = {
         "allowed_statuses": ALLOWED_FORESHADOWING_STATUSES,
@@ -478,11 +821,21 @@ def _build_scale_simulation(eval_dir: Path, suite: str, chapter_count: int = DEF
     report = {
         "suite": suite,
         "chapter_count": chapter_count,
+        "target_total_chapters": chapter_count,
         "status": "pass",
+        "simulation_scope": "governance_ledger_only",
+        "text_generation": {
+            "draft_chapters_generated": 0,
+            "draft_text_generated": False,
+            "reason": "L3 validates longform governance capacity; it does not generate manuscript prose.",
+        },
         "timeline_monotonic": True,
         "foreshadowing_statuses_valid": all(item["status"] in ALLOWED_FORESHADOWING_STATUSES for item in foreshadowing["items"]),
         "character_arcs_have_phase_changes": True,
         "worldline_has_phase_progression": True,
+        "governance_cadence": governance_cadence,
+        "memory_contract": memory_contract,
+        "promotion_gates": list(memory_contract["promotion_requires"]),
         "ledgers": {
             "series_arc": "series_arc_ledger.yml",
             "chapter_state_plan": "chapter_state_plan.yml",
@@ -518,6 +871,9 @@ def run_narrative_eval(
     mode: str = "live",
     chapters: list[int] | None = None,
     timestamp: str | None = None,
+    writer_worker: str | None = None,
+    resume_valid: bool = False,
+    stop_on_block: bool = False,
 ) -> dict[str, Any]:
     if mode not in VALID_MODES:
         raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
@@ -538,7 +894,19 @@ def run_narrative_eval(
     elif mode == "audit-only":
         l2 = {"status": "skipped", "reason": "audit-only mode", "chapters": []}
     else:
-        l2 = _generate_chapters(root, project, suite, selected_chapters, mode, eval_dir, deprecated_sources, eval_id)
+        l2 = _generate_chapters(
+            root,
+            project,
+            suite,
+            selected_chapters,
+            mode,
+            eval_dir,
+            deprecated_sources,
+            eval_id,
+            writer_worker=writer_worker,
+            resume_valid=resume_valid,
+            stop_on_block=stop_on_block,
+        )
 
     l3 = _build_scale_simulation(eval_dir, suite)
     overall_status = "pass"
@@ -552,6 +920,9 @@ def run_narrative_eval(
         "suite": suite,
         "project": project,
         "mode": mode,
+        "writer_worker": writer_worker,
+        "resume_valid": resume_valid,
+        "stop_on_block": stop_on_block,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": overall_status,
         "acceptance_run_dir": _rel(eval_dir, root),
@@ -576,5 +947,5 @@ def run_narrative_eval(
         },
         "reset_proposal": reset_proposal,
     }
-    _write_yaml(eval_dir / "longform_eval_report.yml", report)
+    write_report_yaml(eval_dir / "longform_eval_report.yml", report, root)
     return report

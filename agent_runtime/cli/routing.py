@@ -19,6 +19,77 @@ def register_routing_commands(app: typer.Typer, project_root: ProjectRootProvide
     def current_project_root() -> Path:
         return project_root() if callable(project_root) else project_root
 
+    def production_pack_for_route(root: Path, route_key: str) -> str | None:
+        packs_path = root / "config" / "production_packs.yml"
+        if not packs_path.exists():
+            return None
+        data = yaml.safe_load(packs_path.read_text(encoding="utf-8")) or {}
+        for pack in data.get("packs", []) or []:
+            if route_key in (pack.get("routes") or []):
+                return str(pack.get("pack_id") or "")
+        return None
+
+    @app.command("route-probe")
+    def route_probe_cmd(
+        task_text: list[str] = typer.Argument(..., help="Natural-language task text to classify."),
+        project: str = typer.Option("AgentLab", "--project", help="Project id used for mission-contract probing."),
+        task_id: str = typer.Option("task_route_probe", "--task-id", help="Synthetic task id used for mission-contract probing."),
+    ) -> None:
+        """Probe task-domain routing from natural language without writing task evidence."""
+        from task_router import recommend_route
+
+        root = current_project_root()
+        text = " ".join(task_text).strip()
+        routing_config_path = root / "config" / "routing_rules.yml"
+        routing_config = (
+            yaml.safe_load(routing_config_path.read_text(encoding="utf-8"))
+            if routing_config_path.exists()
+            else {}
+        )
+        mission = {}
+        route = None
+        route_source = "task_router"
+        try:
+            from agent_runtime.brain.mission_contract import build_mission_contract
+            from agent_runtime.workflow_plan import _route_from_mission_contract
+
+            mission = build_mission_contract(text, project_id=project, task_id=task_id, agentlab_root=root)
+            route = _route_from_mission_contract(mission, routing_config if isinstance(routing_config, dict) else None)
+            if route is not None:
+                route_source = "mission_contract"
+        except Exception as exc:
+            mission = {"error": f"{type(exc).__name__}: {exc}"}
+            route = None
+
+        if route is None:
+            route = recommend_route(text, routing_config if isinstance(routing_config, dict) else None)
+
+        production_pack = None
+        try:
+            from config_loader import load_agentlab_configs
+            from agent_runtime.production_packs import build_production_pack
+            from agent_runtime.workflow_plan import _route_for_production_pack
+
+            configs = load_agentlab_configs(root)
+            production_pack = build_production_pack(root, mission if isinstance(mission, dict) else {}, route, configs)
+            route = _route_for_production_pack(route, production_pack)
+        except Exception as exc:
+            production_pack = {"error": f"{type(exc).__name__}: {exc}"}
+
+        payload = route.model_dump(mode="json")
+        payload["task_text"] = text
+        payload["route_source"] = route_source
+        payload["mission_route_decision"] = (mission or {}).get("route_decision") if isinstance(mission, dict) else None
+        payload["production_pack"] = (
+            production_pack.get("pack_id")
+            if isinstance(production_pack, dict) and production_pack.get("pack_id")
+            else production_pack_for_route(root, route.route_key)
+        )
+        payload["production_pack_status"] = production_pack.get("status") if isinstance(production_pack, dict) else None
+        payload["probe_only"] = True
+        payload["evidence_written"] = False
+        console.print(yaml.safe_dump({"route_probe": payload}, sort_keys=False, allow_unicode=True), soft_wrap=True)
+
     @app.command("assign-role")
     def assign_role_cmd(
         role: str = typer.Option(..., "--role", help="AgentLab role to assign."),

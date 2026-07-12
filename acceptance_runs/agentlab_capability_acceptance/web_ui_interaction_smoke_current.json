@@ -1,0 +1,67 @@
+{
+  "status": "pass",
+  "web_ui_dir": "projects/AgentLab/runs/task_live_code_ui_app_json_binding_20260707/artifacts/web_ui",
+  "missing": [],
+  "checks": [
+    {
+      "id": "interaction_execution",
+      "status": "pass",
+      "checks": {
+        "fetchedStatusJson": true,
+        "initialShowsAllPacks": true,
+        "blockedFilterWorks": true,
+        "lifecycleSelectionWorks": true,
+        "openEvidenceGatesTracked": true,
+        "workflowActionsRendered": true
+      },
+      "initialState": {
+        "packFilter": "all",
+        "selectedNode": "INIT_TASK",
+        "visiblePackIds": [
+          "code_factory",
+          "narrative_longform",
+          "media_series_production"
+        ],
+        "openEvidenceGates": [
+          "ui_interaction_workflow",
+          "grok_media_live"
+        ],
+        "lastActionStatus": "idle"
+      },
+      "filteredState": {
+        "packFilter": "blocked",
+        "selectedNode": "INIT_TASK",
+        "visiblePackIds": [
+          "media_series_production"
+        ],
+        "openEvidenceGates": [
+          "ui_interaction_workflow",
+          "grok_media_live"
+        ],
+        "lastActionStatus": "idle"
+      },
+      "selectedState": {
+        "packFilter": "blocked",
+        "selectedNode": "VALIDATION",
+        "visiblePackIds": [
+          "media_series_production"
+        ],
+        "openEvidenceGates": [
+          "ui_interaction_workflow",
+          "grok_media_live"
+        ],
+        "lastActionStatus": "idle"
+      },
+      "renderedLengths": {
+        "workflow-actions": 755,
+        "action-ledger": 72,
+        "production-packs": 303,
+        "lifecycle": 1139,
+        "selected-detail": 169,
+        "evidence-ledger": 197,
+        "provider-health": 82,
+        "project-memory": 95
+      }
+    }
+  ]
+}

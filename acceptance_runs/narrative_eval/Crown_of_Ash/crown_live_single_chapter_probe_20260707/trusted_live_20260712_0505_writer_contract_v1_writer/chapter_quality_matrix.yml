@@ -1,0 +1,7 @@
+suite: crown_live_single_chapter_probe_20260707
+chapters:
+- chapter: 1
+  task_id: task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer
+  status: pass
+  blocking_issue_count: 0
+  production_modified: false

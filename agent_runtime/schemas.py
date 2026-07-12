@@ -100,8 +100,10 @@ class WorkflowPlan(BaseModel):
     execution_policy: dict = Field(default_factory=dict)
     harness_policy: dict = Field(default_factory=dict)
     harness_status: dict = Field(default_factory=dict)
+    mission_contract: dict = Field(default_factory=dict, exclude=True)
     long_project_governance: dict = Field(default_factory=dict)
     artifact_intent: dict = Field(default_factory=dict)
+    production_pack: dict = Field(default_factory=dict)
     missing_inputs: list[str] = Field(default_factory=list)
     aider_plan: Optional[AiderInvocationPlan] = None
     notes: list[str] = Field(default_factory=list)

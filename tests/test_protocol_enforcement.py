@@ -25,12 +25,20 @@ def test_workspace_entry_binds_agy_as_frontdesk_not_worker():
     assert packet["packet_type"] == "agentlab_workspace_entry"
     assert packet["allowed_profiles"]["frontdesk_capable"] is True
     assert packet["allowed_profiles"]["worker_capable"] is True
-    assert packet["allowed_profiles"]["worker_capabilities"] == [
+    assert set(packet["allowed_profiles"]["worker_capabilities"]) == {
         "frontdesk_gateway",
         "micro_doc_editor",
         "candidate_artifact_worker",
+        "role_worker",
+        "workflow_shell",
+    }
+    assert packet["allowed_profiles"]["allowed_roles"] == [
+        "RepoScout",
+        "InterfaceMapper",
+        "ArtifactProducer",
+        "Archivist",
+        "Writer",
     ]
-    assert packet["allowed_profiles"]["allowed_roles"] == ["ArtifactProducer"]
     assert "rediscover_agentlab_by_full_repo_scan" in packet["forbidden_actions"]
     assert packet["known_projects"] == ["Crown_of_Ash", "NovelGen"]
     assert packet["content_project_governance"]["active_projects"] == ["Crown_of_Ash", "NovelGen"]
@@ -60,6 +68,25 @@ def test_frontdesk_doctor_accepts_agy_frontdesk_contract():
     assert any(c["id"] == "frontdesk_not_task_packet_worker" for c in result["checks"])
 
 
+def test_hermes_is_default_frontdesk_and_codex_is_external_worker():
+    context = build_frontdesk_context(ROOT, "hermes", project="AgentLab")
+    hermes_doctor = run_frontdesk_doctor(ROOT, "hermes")
+    codex_doctor = run_frontdesk_doctor(ROOT, "codex")
+
+    assert context["frontdesk_capable"] is True
+    assert context["is_default_frontdesk"] is True
+    assert context["default_frontdesk"] == {
+        "agent_id": "hermes",
+        "invocation_contract": "hermes",
+        "provider": "deepseek",
+        "model_key": "deepseek_v4_pro",
+        "model_id": "deepseek-v4-pro",
+    }
+    assert context["execution_paths"]["direct_closed_loop"]["frontdesk_required"] is False
+    assert hermes_doctor["status"] == "pass"
+    assert codex_doctor["status"] == "fail"
+
+
 def test_role_binding_rejects_agy_as_coder_and_allows_codex():
     agy_allowed, agy_reason = check_role_binding(ROOT, "agy", "Coder")
     codex_allowed, codex_reason = check_role_binding(ROOT, "codex", "Coder")
@@ -71,6 +98,19 @@ def test_role_binding_rejects_agy_as_coder_and_allows_codex():
     assert codex_reason == "role binding allowed"
     assert artifact_allowed is True
     assert artifact_reason == "role binding allowed"
+
+
+def test_grok_is_artifact_producer_only_internal_worker():
+    artifact_allowed, artifact_reason = check_role_binding(ROOT, "grok", "ArtifactProducer")
+    coder_allowed, coder_reason = check_role_binding(ROOT, "grok", "Coder")
+    writer_allowed, writer_reason = check_role_binding(ROOT, "grok", "Writer")
+
+    assert artifact_allowed is True
+    assert artifact_reason == "role binding allowed"
+    assert coder_allowed is False
+    assert "lacks role_worker" in coder_reason or "forbidden" in coder_reason
+    assert writer_allowed is False
+    assert "forbidden" in writer_reason
 
 
 def test_role_session_reports_binding_verdicts():

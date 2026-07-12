@@ -12,9 +12,11 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 from agent_runtime.cli.governance import apply_migration_proposal, propose_migration
 from agent_runtime.narrative_delivery import (
     build_chapter_packet,
+    is_narrative_run,
     run_narrative_doctor,
     validate_narrative_delivery,
     write_chapter_packet,
+    write_narrative_delivery_receipt,
 )
 from agent_runtime.pipeline_runner import _apply_archive_steward_if_needed
 
@@ -82,6 +84,27 @@ def test_prepare_chapter_packet_uses_current_story_sources(tmp_path: Path) -> No
     assert written["path"] == "projects/Crown_of_Ash/runs/task_ch02/chapter_packet.yml"
 
 
+def test_early_chapter_packet_uses_core_and_volume_one_outlines(tmp_path: Path) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    outlines = project_root / "production" / "outlines"
+    (outlines / "00_重构总纲.md").write_text("# Reset Plan\n", encoding="utf-8")
+    (outlines / "01_完整故事蓝图.md").write_text("# Story Blueprint\n", encoding="utf-8")
+    (outlines / "世界观设定.md").write_text("# World\n", encoding="utf-8")
+    (outlines / "卷纲_第一卷.md").write_text("# Volume One\n", encoding="utf-8")
+    (outlines / "卷纲_第二卷.md").write_text("# Volume Two\n", encoding="utf-8")
+    (outlines / "卷纲_第三卷.md").write_text("# Volume Three\n", encoding="utf-8")
+    (outlines / "04_续作钩子与未完结属性.md").write_text("# Future Hooks\n", encoding="utf-8")
+
+    packet = build_chapter_packet(root, "Crown_of_Ash", "task_ch01", 1)
+
+    outline_refs = packet["story_authority"]["outline_refs"]
+    assert "production/outlines/卷纲_第一卷.md" in outline_refs
+    assert "production/outlines/卷纲_第二卷.md" not in outline_refs
+    assert "production/outlines/卷纲_第三卷.md" not in outline_refs
+    assert "production/outlines/04_续作钩子与未完结属性.md" not in outline_refs
+
+
 def test_narrative_doctor_reports_missing_delivery_protocol(tmp_path: Path) -> None:
     root = _copy_config_root(tmp_path)
     project_root = _make_crown_project(root)
@@ -95,6 +118,70 @@ def test_narrative_doctor_reports_missing_delivery_protocol(tmp_path: Path) -> N
     assert result["status"] == "fail"
     assert any(issue["check"] == "chapter_packet_present" for issue in result["issues"])
     assert any(issue["check"] == "narrative_delivery_receipt" for issue in result["issues"])
+
+
+def test_code_workflow_with_chinese_modify_prompt_is_not_narrative(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / "task_code"
+    run_dir.mkdir(parents=True)
+    (run_dir / "user_request.md").write_text(
+        "请设计并实现 AgentLab 的网页端 UI，允许修改代码，不要修改 production。",
+        encoding="utf-8",
+    )
+    _write_yaml(
+        run_dir / "workflow_plan.yml",
+        {
+            "route": {
+                "route_key": "interface_sensitive_task",
+                "agents": ["Supervisor", "RepoScout", "InterfaceMapper", "Coder", "TesterAuditor"],
+            },
+            "production_pack": {"pack_id": "code_factory"},
+        },
+    )
+
+    assert is_narrative_run(run_dir) is False
+    assert validate_narrative_delivery(run_dir)["skipped"] is True
+
+
+def test_light_chapter_delivery_requires_receipt_for_external_validation(tmp_path: Path) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    run_dir = project_root / "runs" / "task_ch02"
+    run_dir.mkdir(parents=True)
+    _write_yaml(run_dir / "workflow_plan.yml", {"route": {"route_key": "narrative_light_chapter"}})
+    (run_dir / "chapter_packet.yml").write_text("chapter: 2\n", encoding="utf-8")
+    (run_dir / "fiction_draft.md").write_text("# Draft\n\nScene text.\n", encoding="utf-8")
+    _write_yaml(run_dir / "continuity_ledger.yml", {"chapter": 2})
+    _write_yaml(run_dir / "state_transition_proposal.yml", {"status": "candidate"})
+
+    delivery = validate_narrative_delivery(run_dir)
+
+    assert delivery["valid"] is False
+    assert "narrative_delivery_receipt.yml" in delivery["required_files"]
+    assert any(issue["file"] == "narrative_delivery_receipt.yml" for issue in delivery["issues"])
+
+
+def test_write_narrative_receipt_uses_preflight_then_external_validation_requires_receipt(
+    tmp_path: Path,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    run_dir = project_root / "runs" / "task_ch02"
+    run_dir.mkdir(parents=True)
+    _write_yaml(run_dir / "workflow_plan.yml", {"route": {"route_key": "narrative_light_chapter"}})
+    (run_dir / "chapter_packet.yml").write_text("chapter: 2\n", encoding="utf-8")
+    (run_dir / "fiction_draft.md").write_text("# Draft\n\nScene text.\n", encoding="utf-8")
+    _write_yaml(run_dir / "continuity_ledger.yml", {"chapter": 2})
+    _write_yaml(run_dir / "state_transition_proposal.yml", {"status": "candidate"})
+
+    receipt = write_narrative_delivery_receipt(run_dir)
+    delivery = validate_narrative_delivery(run_dir)
+
+    assert receipt["status"] == "pass"
+    assert (run_dir / "narrative_delivery_receipt.yml").exists()
+    assert delivery["valid"] is True
+    assert "narrative_delivery_receipt.yml" not in receipt["preflight_required_files"]
+    assert "narrative_delivery_receipt.yml" in receipt["external_required_files"]
+    assert "narrative_delivery_receipt.yml" in delivery["required_files"]
 
 
 def test_blocking_fiction_review_blocks_archive_gate(tmp_path: Path) -> None:

@@ -1,0 +1,376 @@
+schema_version: 1
+report_type: agentlab_cli_shell_coalescing_plan
+root: .
+status: pass
+mode: full_cli
+tier: performance
+source_configs:
+  agent_model_profiles: config/agent_model_profiles.yml
+  worker_invocation_contracts: config/worker_invocation_contracts.yml
+  cli_workflow_shells: config/cli_workflow_shells.yml
+  agent_role_bindings: config/agent_role_bindings.yml
+  model_catalog: config/model_catalog.yml
+  model_providers: config/model_providers.yml
+policy:
+  prefer_same_backend_coalescing: true
+  coalescing_requires_registered_native_surface: true
+  per_role_receipts_required: true
+  shell_state_is_not_project_memory: true
+  provider_calls_executed: false
+role_session_count: 11
+backend_group_count: 5
+eligible_group_count: 2
+groups:
+- backend: agy
+  command: agy
+  roles:
+  - ArtifactProducer
+  - Writer
+  worker_ids:
+  - agy
+  invocation_contracts:
+  - agy_coder
+  role_count: 2
+  surface:
+    native_subagent_surface: not_registered
+    board_surface: not_registered
+    can_delegate_with_subagents: false
+    can_coordinate_with_board: false
+    coalescing_supported: false
+    coalescing_mode: not_supported
+  coalescing_eligible: false
+  coalescing_mode: separate_role_sessions
+  role_receipts:
+  - role: ArtifactProducer
+    receipt_path: role_receipts/artifactproducer_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - generated_or_changed_artifacts.yml
+    validation_evidence_path: role_receipts/artifactproducer_validation_evidence.yml
+    model_route:
+      configured_model_key: gemini_3_5_flash_high_agy_oauth
+      provider: agy-gemini-oauth
+      model_id: gemini-3.5-flash-high
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+      fallback_worker: agy
+      fallback_invocation_contract: agy_coder
+      fallback_model_key: qwen3_6_flash_dashscope
+      fallback_provider: qwen-flash
+      fallback_model_id: qwen3.6-flash
+  - role: Writer
+    receipt_path: role_receipts/writer_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - generated_or_changed_artifacts.yml
+    validation_evidence_path: role_receipts/writer_validation_evidence.yml
+    model_route:
+      configured_model_key: gemini_3_5_flash_high_agy_oauth
+      provider: agy-gemini-oauth
+      model_id: gemini-3.5-flash-high
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+      fallback_worker: claude_code
+      fallback_invocation_contract: claude
+      fallback_model_key: deepseek_v4_flash
+      fallback_provider: deepseek
+      fallback_model_id: deepseek-v4-flash
+  single_shell_session_contract:
+    packet_path: shell_sessions/agy_full_cli_performance_coalesced_session.yml
+    must_return_one_receipt_per_role: true
+    shell_state_counts_as_project_memory: false
+    agentlab_validation_required_before_acceptance: true
+    production_promotion_allowed: false
+  blocked_reasons:
+  - backend_lacks_registered_subagent_or_board_surface
+- backend: claude_code
+  command: claude
+  roles:
+  - Coder
+  - Archivist
+  worker_ids:
+  - claude_code
+  invocation_contracts:
+  - claude
+  role_count: 2
+  surface:
+    native_subagent_surface: claude agents / --agent / --agents / --background
+    board_surface: not_declared_by_help
+    can_delegate_with_subagents: true
+    can_coordinate_with_board: false
+    coalescing_supported: true
+    coalescing_mode: native_subagents
+  coalescing_eligible: true
+  coalescing_mode: native_subagents
+  role_receipts:
+  - role: Coder
+    receipt_path: role_receipts/coder_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - changed_files_or_findings.yml
+    - validation_evidence.yml
+    validation_evidence_path: role_receipts/coder_validation_evidence.yml
+    model_route:
+      configured_model_key: qwen3_coder_plus_dashscope
+      provider: qwen-coder
+      model_id: qwen3-coder-plus
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+      fallback_worker: codex
+      fallback_invocation_contract: codex
+  - role: Archivist
+    receipt_path: role_receipts/archivist_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - changed_files_or_findings.yml
+    - validation_evidence.yml
+    validation_evidence_path: role_receipts/archivist_validation_evidence.yml
+    model_route:
+      configured_model_key: deepseek_v4_pro
+      provider: deepseek
+      model_id: deepseek-v4-pro
+      base_url: https://api.deepseek.com
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+      fallback_model_key: qwen3_6_flash_dashscope
+      fallback_provider: qwen-flash
+      fallback_model_id: qwen3.6-flash
+  single_shell_session_contract:
+    packet_path: shell_sessions/claude_code_full_cli_performance_coalesced_session.yml
+    must_return_one_receipt_per_role: true
+    shell_state_counts_as_project_memory: false
+    agentlab_validation_required_before_acceptance: true
+    production_promotion_allowed: false
+  blocked_reasons: []
+- backend: codex
+  command: codex
+  roles:
+  - RepoScout
+  - InterfaceMapper
+  - TesterAuditor
+  - Verifier
+  worker_ids:
+  - codex
+  invocation_contracts:
+  - codex
+  role_count: 4
+  surface:
+    native_subagent_surface: not_registered
+    board_surface: not_registered
+    can_delegate_with_subagents: false
+    can_coordinate_with_board: false
+    coalescing_supported: false
+    coalescing_mode: not_supported
+  coalescing_eligible: false
+  coalescing_mode: separate_role_sessions
+  role_receipts:
+  - role: RepoScout
+    receipt_path: role_receipts/reposcout_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - changed_files_or_findings.yml
+    - validation_evidence.yml
+    validation_evidence_path: role_receipts/reposcout_validation_evidence.yml
+    model_route:
+      configured_model_key: deepseek_v4_pro
+      provider: deepseek
+      model_id: deepseek-v4-pro
+      base_url: https://api.deepseek.com
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+  - role: InterfaceMapper
+    receipt_path: role_receipts/interfacemapper_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - changed_files_or_findings.yml
+    - validation_evidence.yml
+    validation_evidence_path: role_receipts/interfacemapper_validation_evidence.yml
+    model_route:
+      configured_model_key: deepseek_v4_pro
+      provider: deepseek
+      model_id: deepseek-v4-pro
+      base_url: https://api.deepseek.com
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+      fallback_model_key: qwen3_6_plus_dashscope
+      fallback_provider: qwen
+      fallback_model_id: qwen3.6-plus
+  - role: TesterAuditor
+    receipt_path: role_receipts/testerauditor_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - changed_files_or_findings.yml
+    - validation_evidence.yml
+    validation_evidence_path: role_receipts/testerauditor_validation_evidence.yml
+    model_route:
+      configured_model_key: deepseek_v4_pro
+      provider: deepseek
+      model_id: deepseek-v4-pro
+      base_url: https://api.deepseek.com
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+      fallback_model_key: qwen3_6_plus_dashscope
+      fallback_provider: qwen
+      fallback_model_id: qwen3.6-plus
+  - role: Verifier
+    receipt_path: role_receipts/verifier_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - changed_files_or_findings.yml
+    - validation_evidence.yml
+    validation_evidence_path: role_receipts/verifier_validation_evidence.yml
+    model_route:
+      configured_model_key: deepseek_v4_flash
+      provider: deepseek
+      model_id: deepseek-v4-flash
+      base_url: https://api.deepseek.com
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+      fallback_worker: claude_code
+      fallback_invocation_contract: claude
+      fallback_model_key: qwen3_6_flash_dashscope
+      fallback_provider: qwen-flash
+      fallback_model_id: qwen3.6-flash
+  single_shell_session_contract:
+    packet_path: shell_sessions/codex_full_cli_performance_coalesced_session.yml
+    must_return_one_receipt_per_role: true
+    shell_state_counts_as_project_memory: false
+    agentlab_validation_required_before_acceptance: true
+    production_promotion_allowed: false
+  blocked_reasons:
+  - backend_lacks_registered_subagent_or_board_surface
+- backend: hermes
+  command: hermes
+  roles:
+  - Supervisor
+  - PromptEngineer
+  worker_ids:
+  - hermes
+  invocation_contracts:
+  - hermes
+  role_count: 2
+  surface:
+    native_subagent_surface: not_declared_by_help
+    board_surface: hermes kanban
+    can_delegate_with_subagents: false
+    can_coordinate_with_board: true
+    coalescing_supported: true
+    coalescing_mode: board_mediated
+  coalescing_eligible: true
+  coalescing_mode: board_mediated
+  role_receipts:
+  - role: Supervisor
+    receipt_path: role_receipts/supervisor_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - tool_or_mcp_usage_ledger.yml
+    - artifact_manifest_or_findings.yml
+    validation_evidence_path: role_receipts/supervisor_validation_evidence.yml
+    model_route:
+      configured_model_key: codex_gpt_5_5_high_hermes_oauth
+      provider: openai-codex
+      model_id: gpt-5.5
+      reasoning_effort: high
+      base_url: https://chatgpt.com/backend-api/codex
+      applied_to_shell_invocation: true
+      shell_model_selection: explicit_catalog_route
+      fallback_worker: claude_code
+      fallback_invocation_contract: claude
+      fallback_model_key: deepseek_v4_pro
+      fallback_provider: deepseek
+      fallback_model_id: deepseek-v4-pro
+      workflow_shell_profile: agentlabsupervisor
+      required_profile_config:
+        model.provider: openai-codex
+        model.default: gpt-5.5
+        model.base_url: https://chatgpt.com/backend-api/codex
+        agent.reasoning_effort: high
+  - role: PromptEngineer
+    receipt_path: role_receipts/promptengineer_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - tool_or_mcp_usage_ledger.yml
+    - artifact_manifest_or_findings.yml
+    validation_evidence_path: role_receipts/promptengineer_validation_evidence.yml
+    model_route:
+      configured_model_key: deepseek_v4_flash
+      provider: deepseek
+      model_id: deepseek-v4-flash
+      base_url: https://api.deepseek.com
+      applied_to_shell_invocation: true
+      shell_model_selection: explicit_catalog_route
+      fallback_worker: hermes
+      fallback_invocation_contract: hermes
+      fallback_model_key: deepseek_v4_pro
+      fallback_provider: deepseek
+      fallback_model_id: deepseek-v4-pro
+      workflow_shell_profile: agentlabpromptengineer
+      required_profile_config:
+        model.provider: deepseek
+        model.default: deepseek-v4-flash
+        model.base_url: https://api.deepseek.com
+        agent.reasoning_effort: ''
+  single_shell_session_contract:
+    packet_path: shell_sessions/hermes_full_cli_performance_coalesced_session.yml
+    must_return_one_receipt_per_role: true
+    shell_state_counts_as_project_memory: false
+    agentlab_validation_required_before_acceptance: true
+    production_promotion_allowed: false
+  blocked_reasons: []
+- backend: qwen
+  command: qwen
+  roles:
+  - Researcher
+  worker_ids:
+  - qwen
+  invocation_contracts:
+  - qwen
+  role_count: 1
+  surface:
+    native_subagent_surface: not_registered
+    board_surface: not_registered
+    can_delegate_with_subagents: false
+    can_coordinate_with_board: false
+    coalescing_supported: false
+    coalescing_mode: not_supported
+  coalescing_eligible: false
+  coalescing_mode: separate_role_sessions
+  role_receipts:
+  - role: Researcher
+    receipt_path: role_receipts/researcher_role_session_receipt.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - structured_findings_or_artifacts.yml
+    validation_evidence_path: role_receipts/researcher_validation_evidence.yml
+    model_route:
+      configured_model_key: deepseek_v4_flash
+      provider: deepseek
+      model_id: deepseek-v4-flash
+      base_url: https://api.deepseek.com
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+      fallback_worker: claude_code
+      fallback_invocation_contract: claude
+      fallback_model_key: deepseek_v4_flash
+      fallback_provider: deepseek
+      fallback_model_id: deepseek-v4-flash
+  single_shell_session_contract:
+    packet_path: shell_sessions/qwen_full_cli_performance_coalesced_session.yml
+    must_return_one_receipt_per_role: true
+    shell_state_counts_as_project_memory: false
+    agentlab_validation_required_before_acceptance: true
+    production_promotion_allowed: false
+  blocked_reasons:
+  - needs_at_least_two_roles_for_same_backend
+  - backend_lacks_registered_subagent_or_board_surface
+acceptance_gate:
+  runtime_execution_not_performed: true
+  next_required_evidence:
+  - shell_subagent_delegation_receipt.yml
+  - one role_session_receipt.yml per delegated AgentLab role
+  - local validation evidence per role before AgentLab acceptance
+materialized_session_packets:
+- acceptance_runs/agentlab_capability_acceptance/shell_sessions/claude_code_full_cli_performance_coalesced_session.yml
+- acceptance_runs/agentlab_capability_acceptance/shell_sessions/hermes_full_cli_performance_coalesced_session.yml
+missing_session_packets: []

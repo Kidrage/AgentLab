@@ -1,10 +1,11 @@
 schema_version: 1
-enabled: false
+enabled: true
 allow_network_by_default: false
 allowed_hosts:
   - raw.githubusercontent.com
 allowed_url_prefixes:
   - https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md
+  - https://raw.githubusercontent.com/worldwonderer/oh-story-claudecode/main/skills/story-long-write/SKILL.md
 max_bytes: 200000
 timeout_seconds: 10
 store_source_snapshot: true

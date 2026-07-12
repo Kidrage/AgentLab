@@ -1,0 +1,129 @@
+schema_version: 1
+packet_type: agentlab_coalesced_cli_shell_session
+backend: claude_code
+command: claude
+mode: full_cli
+tier: performance
+coalescing_mode: native_subagents
+provider_calls_executed_by_packet_generation: false
+agentlab_authority:
+  project_memory_authoritative: true
+  shell_state_counts_as_project_memory: false
+  production_promotion_allowed: false
+task_contract:
+  task_kind: cli_shell_native_runtime_acceptance
+  objective: Use the registered native shell coordination surface to evaluate an embedded
+    synthetic fixture and return separate role evidence without reading AgentLab project
+    files.
+  acceptance_scope: synthetic_native_surface_smoke
+  private_project_context_loaded: false
+  synthetic_input_only: true
+  production_changes_allowed: false
+  agentlab_memory_remains_authoritative: true
+execution_contract:
+  trusted_runner_required: true
+  trusted_runner_env: AGENTLAB_TRUSTED_CLI_SHELL_RUNNER=1
+  frontdesk_role_invocations: 0
+  provider_invocation_count_claimed: false
+  receipts_materialized_by_agentlab_runner: true
+  acceptance_scope: synthetic_native_surface_smoke
+  isolated_execution_workspace_required: true
+  project_read_tools_allowed: false
+  native_surface: claude_inline_agents
+  coordination_semantics: single_top_level_shell_invocation
+  single_provider_session_claimed: false
+  command_spec:
+    entrypoint: claude
+    arguments:
+    - --print
+    - --output-format
+    - json
+    - --permission-mode
+    - plan
+    - --safe-mode
+    - --no-session-persistence
+    - --tools
+    - Agent
+    - --agents
+    - <rendered_inline_agent_json>
+    - --json-schema
+    - <role_result_schema>
+    - <rendered_session_prompt>
+    structured_result: one JSON result containing one section per delegated AgentLab
+      role
+delegated_roles:
+- role: Coder
+  receipt_path: role_receipts/coder_role_session_receipt.yml
+  validation_evidence_path: role_receipts/coder_validation_evidence.yml
+  required_outputs:
+  - role_session_receipt.yml
+  - changed_files_or_findings.yml
+  - validation_evidence.yml
+  model_route:
+    configured_model_key: qwen3_coder_plus_dashscope
+    provider: qwen-coder
+    model_id: qwen3-coder-plus
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    applied_to_shell_invocation: false
+    shell_model_selection: shell_native_default
+    fallback_worker: codex
+    fallback_invocation_contract: codex
+  task:
+    objective: Validate the synthetic packet invariants from the Coder role; do not
+      read any project files.
+    read_scope: []
+    write_scope:
+    - returned_artifacts/
+    private_project_context_loaded: false
+    model_file_writes_allowed: false
+    synthetic_fixture:
+      fixture_id: agentlab-cli-native-surface-smoke-v1
+      packet_state: candidate
+      project_context: absent
+      production_promotion: forbidden
+      receipt_policy: one_result_per_delegated_role
+      validation_policy: non_empty_findings_and_validation_per_role
+      delegated_role: Coder
+    production_changes_allowed: false
+    must_return_finding_artifact: true
+- role: Archivist
+  receipt_path: role_receipts/archivist_role_session_receipt.yml
+  validation_evidence_path: role_receipts/archivist_validation_evidence.yml
+  required_outputs:
+  - role_session_receipt.yml
+  - changed_files_or_findings.yml
+  - validation_evidence.yml
+  model_route:
+    configured_model_key: deepseek_v4_pro
+    provider: deepseek
+    model_id: deepseek-v4-pro
+    base_url: https://api.deepseek.com
+    applied_to_shell_invocation: false
+    shell_model_selection: shell_native_default
+    fallback_model_key: qwen3_6_flash_dashscope
+    fallback_provider: qwen-flash
+    fallback_model_id: qwen3.6-flash
+  task:
+    objective: Validate the synthetic receipt and promotion invariants from the Archivist
+      role; do not read any project files.
+    read_scope: []
+    write_scope:
+    - returned_artifacts/
+    private_project_context_loaded: false
+    model_file_writes_allowed: false
+    synthetic_fixture:
+      fixture_id: agentlab-cli-native-surface-smoke-v1
+      packet_state: candidate
+      project_context: absent
+      production_promotion: forbidden
+      receipt_policy: one_result_per_delegated_role
+      validation_policy: non_empty_findings_and_validation_per_role
+      delegated_role: Archivist
+    production_changes_allowed: false
+    must_return_finding_artifact: true
+acceptance_contract:
+  must_return_one_receipt_per_role: true
+  must_return_validation_evidence_per_role: true
+  agentlab_validation_required_before_acceptance: true
+  shell_subagent_or_board_state_is_operational_only: true
+source_plan: cli_shell_coalescing_plan.yml

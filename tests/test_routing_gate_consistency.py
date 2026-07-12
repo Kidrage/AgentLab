@@ -111,6 +111,15 @@ class TestRouteRecommendation:
         assert "Coder" in route.agents
         assert route.route_key != "evaluation_task"
 
+    def test_implementation_rationale_does_not_claim_coder_missing_when_present(self):
+        from task_router import recommend_route
+
+        route = recommend_route(
+            "Implement the AgentLab web UI shell, wire routes, add tests, and record the implementation report."
+        )
+        assert "Coder" in route.agents
+        assert not any("Coder not in route" in item for item in route.rationale)
+
     def test_chinese_implementation_prompt_routes_to_coder(self):
         from task_router import recommend_route
 
@@ -163,7 +172,7 @@ class TestRouteRecommendation:
         assert route.route_key == "narrative_light_chapter"
         assert route.agents == ["Supervisor", "Writer"]
 
-    def test_chinese_crown_chapter_routes_to_fiction_pipeline(self):
+    def test_chinese_crown_chapter_routes_to_light_chapter_path(self):
         from task_router import recommend_route
 
         route = recommend_route(

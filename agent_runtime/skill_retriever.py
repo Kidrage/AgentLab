@@ -51,6 +51,36 @@ def _contains_phrase(task_text: str, phrase: str) -> bool:
     return phrase in task_text.lower()
 
 
+NEGATION_MARKERS = (
+    "not",
+    "no",
+    "without",
+    "is not",
+    "isn't",
+    "不是",
+    "并非",
+    "非",
+    "不要",
+    "无需",
+    "不需要",
+    "不是一个",
+)
+
+
+def _contains_positive_phrase(task_text: str, phrase: str) -> bool:
+    phrase = str(phrase or "").strip().lower()
+    if not phrase:
+        return False
+    lowered = task_text.lower()
+    start = lowered.find(phrase)
+    while start != -1:
+        prefix = lowered[max(0, start - 16):start]
+        if not any(marker in prefix for marker in NEGATION_MARKERS):
+            return True
+        start = lowered.find(phrase, start + len(phrase))
+    return False
+
+
 def active_skill_root(agentlab_root: Path) -> Path:
     return agentlab_root / "skills" / "active"
 
@@ -114,13 +144,17 @@ def score_skill_for_task(skill: dict[str, Any], task_text: str, policy: dict[str
     for trigger in skill.get("triggers", []):
         trigger_text = str(trigger)
         trigger_tokens = _tokens(trigger_text)
-        if _contains_phrase(task_text, trigger_text) or task_tokens.intersection(trigger_tokens):
+        if _contains_positive_phrase(task_text, trigger_text) or (
+            task_tokens.intersection(trigger_tokens) and not _contains_phrase(task_text, trigger_text)
+        ):
             score += int(matching.get("trigger_weight", 3))
             reasons.append(f"matched trigger: {trigger_text}")
     for item in skill.get("applies_to", []):
         item_text = str(item)
         item_tokens = _tokens(item_text)
-        if _contains_phrase(task_text, item_text) or task_tokens.intersection(item_tokens):
+        if _contains_positive_phrase(task_text, item_text) or (
+            task_tokens.intersection(item_tokens) and not _contains_phrase(task_text, item_text)
+        ):
             score += int(matching.get("applies_to_weight", 2))
             reasons.append(f"matched applies_to: {item_text}")
     summary_tokens = _tokens(str(skill.get("summary", "")))
@@ -149,6 +183,13 @@ def match_active_skills(
     candidates = []
     rejected: list[dict[str, Any]] = []
     for skill in load_active_skills(agentlab_root):
+        if skill.get("default_injection") is False:
+            rejected.append({
+                "skill_id": skill["skill_id"],
+                "name": skill["name"],
+                "reason": "default_injection is false",
+            })
+            continue
         score, reasons = score_skill_for_task(skill, task_text, policy)
         if score <= 0:
             rejected.append({

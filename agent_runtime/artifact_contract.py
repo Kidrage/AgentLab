@@ -12,7 +12,10 @@ import re
 
 import yaml
 
-from execution_log import load_execution_log, has_successful_command, get_command_by_id
+try:
+    from agent_runtime.execution_log import load_execution_log, has_successful_command, get_command_by_id
+except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+    from execution_log import load_execution_log, has_successful_command, get_command_by_id
 
 TBD_PATTERNS = ["TBD", "tbd", "TODO", "FIXME", "# User Request\n\nDescribe the task here."]
 UNEXECUTED_TOOL_CALL_PATTERNS = [
@@ -67,6 +70,20 @@ USER_DECISION_CLAIM_PATTERNS = [
     "output: user_decision_required.md",
 ]
 
+PACK_METADATA_KEYS = {
+    "schema_version",
+    "version",
+    "project",
+    "task_id",
+    "production_pack",
+    "artifact",
+    "status",
+    "execution_mode",
+    "generated_by",
+    "candidate_only",
+    "production_modified",
+}
+
 REQUIRED_ARTIFACTS_BY_ROUTE = {
     "user_request": ["user_request.md"],
     "workflow_plan": ["workflow_plan.yml"],
@@ -75,6 +92,7 @@ REQUIRED_ARTIFACTS_BY_ROUTE = {
     "researcher": ["03_research_notes.md"],
     "interface_mapper": ["04_interface_map.md"],
     "coder": ["06_implementation_report.md"],
+    "artifact_producer": ["artifact_producer_report.md"],
     "tester_auditor": ["07_validation_report.md", "08_audit_report.md"],
     "verifier": ["verification_report.md"],
     "archivist": [
@@ -93,6 +111,27 @@ COMMON_ARTIFACTS = [
     "user_request.md", "workflow_plan.yml", "state.yml", "progress.yml",
     "task_snapshot.yml", "brain_decisions.yml", "cost_ledger.yml",
 ]
+
+NODE_ARTIFACTS = {
+    "REPO_CONTEXT": ["02_reposcout_report.md"],
+    "RESEARCH_OPTIONAL": ["03_research_notes.md"],
+    "INTERFACE_OPTIONAL": ["04_interface_map.md"],
+    "WRITER_DRAFT": ["fiction_draft.md"],
+    "FICTION_REVIEW": ["fiction_review.yml"],
+    "SCRIBE_LEDGER": ["continuity_ledger.yml"],
+    "CODER_IMPLEMENTATION": ["06_implementation_report.md"],
+    "ARTIFACT_PRODUCTION": ["artifact_producer_report.md"],
+    "VALIDATION": ["07_validation_report.md"],
+    "AUDIT": ["08_audit_report.md"],
+    "VERIFY": ["verification_report.md"],
+    "ARCHIVE": [
+        "09_archive_update.md",
+        "artifact_lineage.yml",
+        "artifact_promotion_plan.yml",
+        "archive_receipt.yml",
+    ],
+    "SYNC_OPTIONAL": ["sync_report.yml"],
+}
 
 SKIPPED_HEADER = "Status: skipped"
 
@@ -133,38 +172,24 @@ def validate_artifacts(run_dir: Path) -> dict:
     artifacts_checked = 0
     artifacts_passed = 0
 
-    route = _load_route(run_dir)
-    all_artifact_names = required_artifacts_for_route(route) + [
+    workflow_plan = _load_workflow_plan(run_dir)
+    route = _route_from_workflow_plan(workflow_plan)
+    all_artifact_names = _required_artifacts_for_run(run_dir, route, workflow_plan) + [
         "lifecycle.yml",
         "self_check_report.yml",
         "task_card.yml",
         "artifact_manifest.yml",
     ]
+    all_artifact_names = list(dict.fromkeys(all_artifact_names))
 
     for fname in all_artifact_names:
         path = run_dir / fname
         artifacts_checked += 1
 
         if not path.exists():
-            # Check if this is a skipped optional artifact
-            if fname in ("03_research_notes.md", "04_interface_map.md", "sync_report.yml"):
-                # Check lifecycle for skip reason
-                lc_path = run_dir / "lifecycle.yml"
-                if lc_path.exists():
-                    try:
-                        lc = yaml.safe_load(lc_path.read_text(encoding="utf-8"))
-                        nodes = lc.get("nodes", {})
-                        node_map = {
-                            "03_research_notes.md": "RESEARCH_OPTIONAL",
-                            "04_interface_map.md": "INTERFACE_OPTIONAL",
-                            "sync_report.yml": "SYNC_OPTIONAL",
-                        }
-                        node_id = node_map.get(fname)
-                        if node_id and nodes.get(node_id, {}).get("status") == "skipped":
-                            artifacts_passed += 1
-                            continue
-                    except Exception:
-                        pass
+            if _artifact_node_skipped(run_dir, fname):
+                artifacts_passed += 1
+                continue
             issues.append({"file": fname, "issue": "missing"})
             continue
 
@@ -241,6 +266,17 @@ def validate_artifacts(run_dir: Path) -> dict:
 
 def has_execution_placeholder(content: str) -> bool:
     lowered = content.lower()
+    if (
+        "commands run: none by this model call" in lowered
+        and ("direct_api" in lowered or "direct api" in lowered or "direct api text-generation" in lowered)
+        and (
+            "agentlab_edit" in lowered
+            or "candidate implementation" in lowered
+            or "candidate-only" in lowered
+            or "proposed validation commands" in lowered
+        )
+    ):
+        return False
     for pattern in EXECUTION_PLACEHOLDER_PATTERNS:
         if pattern.lower() in lowered:
             return True
@@ -334,6 +370,25 @@ def claims_missing_user_decision_file(content: str, run_dir: Path | None = None)
     return True
 
 
+def has_unclosed_structured_edit_block(content: str) -> bool:
+    html_starts = len(re.findall(r"<!--\s*AGENTLAB_EDIT\s*:", content, flags=re.IGNORECASE))
+    html_complete = len(
+        re.findall(
+            r"<!--\s*AGENTLAB_EDIT\s*:\s*.+?-->\s*\n.*?\n\s*<!--\s*END\s+AGENTLAB_EDIT\s*-->",
+            content,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+    )
+    if html_starts != html_complete:
+        return True
+
+    primary_starts = len(re.findall(r"<<<AGENTLAB_EDIT\b", content))
+    primary_complete = len(
+        re.findall(r"<<<AGENTLAB_EDIT\s+.+?\n.*?>>>", content, flags=re.DOTALL)
+    )
+    return primary_starts != primary_complete
+
+
 def artifact_content_issues(fname: str, content: str, run_dir: Path | None = None) -> list[str]:
     """Return semantic content issues for one artifact.
 
@@ -355,6 +410,11 @@ def artifact_content_issues(fname: str, content: str, run_dir: Path | None = Non
         issues.append("archivist memory update placeholder")
     if fname == "01_supervisor_plan.md" and claims_missing_user_decision_file(content, run_dir):
         issues.append("claims USER_DECISION_REQUIRED.md but file is missing")
+    if has_unclosed_structured_edit_block(content):
+        issues.append("unclosed structured edit block")
+    pack_issue = _production_pack_placeholder_issue(fname, content, run_dir)
+    if pack_issue:
+        issues.append(pack_issue)
 
     # ── P1-1: execution evidence gate ──
     execution_evidence_issue = _check_execution_evidence(fname, content, run_dir)
@@ -374,6 +434,54 @@ def artifact_content_is_valid(fname: str, content: str, run_dir: Path | None = N
     return not artifact_content_issues(fname, content, run_dir)
 
 
+def _production_pack_placeholder_issue(
+    fname: str,
+    content: str,
+    run_dir: Path | None = None,
+) -> str | None:
+    if run_dir is None or not fname.endswith((".yml", ".yaml")):
+        return None
+
+    workflow_plan = _load_workflow_plan(run_dir)
+    required_outputs = set(_production_pack_required_outputs(workflow_plan, run_dir))
+    if fname not in required_outputs:
+        return None
+
+    try:
+        data = yaml.safe_load(content) or {}
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    if _has_meaningful_pack_payload(data):
+        return None
+    return "production-pack candidate artifact has no meaningful payload beyond metadata"
+
+
+def _has_meaningful_pack_payload(data: dict) -> bool:
+    for key, value in data.items():
+        if key in PACK_METADATA_KEYS:
+            continue
+        if _value_has_meaningful_pack_content(value):
+            return True
+    return False
+
+
+def _value_has_meaningful_pack_content(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict):
+        return any(_value_has_meaningful_pack_content(v) for v in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_value_has_meaningful_pack_content(v) for v in value)
+    if isinstance(value, bool):
+        return value
+    return True
+
+
 def required_artifacts_for_route(route: list[str]) -> list[str]:
     """Determine required artifacts for a given agent route."""
     required = list(COMMON_ARTIFACTS)
@@ -383,6 +491,7 @@ def required_artifacts_for_route(route: list[str]) -> list[str]:
         "Researcher": "researcher",
         "InterfaceMapper": "interface_mapper",
         "Coder": "coder",
+        "ArtifactProducer": "artifact_producer",
         "TesterAuditor": "tester_auditor",
         "Verifier": "verifier",
         "Archivist": "archivist",
@@ -395,13 +504,23 @@ def required_artifacts_for_route(route: list[str]) -> list[str]:
     return list(dict.fromkeys(required))
 
 
-def _load_route(run_dir: Path) -> list[str]:
+def _load_workflow_plan(run_dir: Path) -> dict:
     plan_path = run_dir / "workflow_plan.yml"
     if not plan_path.exists():
-        return []
+        return {}
     try:
         plan = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
     except Exception:
+        return {}
+    return plan if isinstance(plan, dict) else {}
+
+
+def _load_route(run_dir: Path) -> list[str]:
+    return _route_from_workflow_plan(_load_workflow_plan(run_dir))
+
+
+def _route_from_workflow_plan(plan: dict) -> list[str]:
+    if not isinstance(plan, dict):
         return []
     route = plan.get("route", {})
     if isinstance(route, dict):
@@ -409,6 +528,87 @@ def _load_route(run_dir: Path) -> list[str]:
     if isinstance(route, list):
         return list(route)
     return []
+
+
+def _required_artifacts_for_run(run_dir: Path, route: list[str], workflow_plan: dict) -> list[str]:
+    required = required_artifacts_for_route(route)
+    required.extend(_route_required_outputs(workflow_plan))
+    required.extend(_production_pack_required_outputs(workflow_plan, run_dir))
+    skipped_files = _skipped_lifecycle_artifacts(run_dir)
+    return [name for name in required if name not in skipped_files]
+
+
+def _route_required_outputs(workflow_plan: dict) -> list[str]:
+    route = workflow_plan.get("route", {}) if isinstance(workflow_plan, dict) else {}
+    route_key = route.get("route_key") if isinstance(route, dict) else None
+    if route_key == "narrative_batch_chapters":
+        return [
+            "chapter_batch_plan.yml",
+            "chapters/chapter_001.md",
+            "batch_continuity_ledger.yml",
+            "state_transition_proposal.yml",
+            "narrative_batch_delivery_receipt.yml",
+        ]
+    return []
+
+
+def _production_pack_required_outputs(workflow_plan: dict, run_dir: Path) -> list[str]:
+    pack = workflow_plan.get("production_pack") if isinstance(workflow_plan, dict) else {}
+    if not isinstance(pack, dict):
+        return []
+    outputs = pack.get("required_outputs")
+    if not isinstance(outputs, list) or not outputs:
+        return []
+    if _lifecycle_node_status(run_dir, "ARTIFACT_PRODUCTION") == "skipped":
+        return []
+    names: list[str] = []
+    for output in outputs:
+        normalized = _normalize_run_artifact_name(str(output))
+        if normalized:
+            names.append(normalized)
+    return names
+
+
+def _normalize_run_artifact_name(raw: str) -> str | None:
+    text = raw.strip()
+    if not text:
+        return None
+    for prefix in ("runs/task_xxxx/", "runs/<task_id>/", "./"):
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+    path = Path(text)
+    if path.is_absolute() or ".." in path.parts:
+        return None
+    return path.as_posix()
+
+
+def _skipped_lifecycle_artifacts(run_dir: Path) -> set[str]:
+    skipped: set[str] = set()
+    for node_id, files in NODE_ARTIFACTS.items():
+        if _lifecycle_node_status(run_dir, node_id) == "skipped":
+            skipped.update(files)
+    return skipped
+
+
+def _artifact_node_skipped(run_dir: Path, fname: str) -> bool:
+    for node_id, files in NODE_ARTIFACTS.items():
+        if fname in files and _lifecycle_node_status(run_dir, node_id) == "skipped":
+            return True
+    return False
+
+
+def _lifecycle_node_status(run_dir: Path, node_id: str) -> str | None:
+    lc_path = run_dir / "lifecycle.yml"
+    if not lc_path.exists():
+        return None
+    try:
+        lifecycle = yaml.safe_load(lc_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return None
+    if not isinstance(lifecycle, dict):
+        return None
+    node = (lifecycle.get("nodes") or {}).get(node_id) or {}
+    return node.get("status") if isinstance(node, dict) else None
 
 
 def _project_artifact_governance_issues(run_dir: Path) -> list[str]:
@@ -419,7 +619,10 @@ def _project_artifact_governance_issues(run_dir: Path) -> list[str]:
         return []
     agentlab_root = project_root.parent.parent
     try:
-        from project_artifact_steward import validate_project_artifact_governance
+        try:
+            from agent_runtime.project_artifact_steward import validate_project_artifact_governance
+        except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+            from project_artifact_steward import validate_project_artifact_governance
 
         return validate_project_artifact_governance(
             agentlab_root,
@@ -443,7 +646,11 @@ def write_artifact_manifest(run_dir: Path, result: dict) -> None:
         "issues": result["issues"],
     }
     path = run_dir / "artifact_manifest.yml"
-    from atomic_io import atomic_write_text
+    try:
+        from agent_runtime.atomic_io import atomic_write_text
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from atomic_io import atomic_write_text
+
     atomic_write_text(path, yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 

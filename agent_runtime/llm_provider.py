@@ -10,11 +10,13 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
+from typing import Any
+from types import SimpleNamespace
 
 from incident_manager import record_incident
 from model_resolver import resolve_env_value, resolve_profile_config
 from progress_tracker import mark_agent_completed, mark_agent_paused, mark_agent_started
-from provider_guard import build_fallback_decision, classify_provider_error, write_user_decision_file
+from provider_guard import build_fallback_decision, classify_provider_error, is_retryable, write_user_decision_file
 from schemas import LLMCallResult, LLMSettings
 
 
@@ -72,6 +74,32 @@ def resolve_llm_settings(
 def _provider_secret(model_providers: dict, provider_name: str) -> str:
     provider_config = model_providers.get("providers", {}).get(provider_name, {})
     return resolve_env_value(provider_config.get("api_key"), "")
+
+
+def _consume_streaming_chat_completion(stream: Any) -> Any:
+    content_parts: list[str] = []
+    usage: dict[str, Any] = {}
+    finish_reason: str | None = None
+    for chunk in stream:
+        if getattr(chunk, "usage", None):
+            try:
+                usage = chunk.usage.model_dump()
+            except Exception:
+                usage = {}
+        choices = getattr(chunk, "choices", None) or []
+        if not choices:
+            continue
+        finish_reason = getattr(choices[0], "finish_reason", None) or finish_reason
+        delta = getattr(choices[0], "delta", None)
+        if delta is None:
+            continue
+        piece = getattr(delta, "content", None)
+        if piece:
+            content_parts.append(piece)
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="".join(content_parts)), finish_reason=finish_reason)],
+        usage=SimpleNamespace(model_dump=lambda: usage) if usage else None,
+    )
 
 
 def build_fallback_provider_chain(
@@ -168,20 +196,31 @@ def generate_text(
     if run_d and agent_name:
         mark_agent_started(run_d, agent_name, settings.provider, settings.model)
 
+    request_payload: dict[str, Any] = {
+        "model": settings.model,
+        "messages": messages,
+        "temperature": settings.temperature,
+        "top_p": settings.top_p,
+        "max_tokens": settings.max_output_tokens,
+    }
+    if settings.provider == "deepseek" and agent_name in {"Writer", "ArtifactProducer", "Scribe", "ProviderSmoke"}:
+        request_payload["extra_body"] = {"thinking": {"type": "disabled"}}
+        request_payload["stream"] = True
+
+    role_auto_fallback_allowed = role in ("repo_reader", "researcher", "archivist")
     for attempt in range(max_retries):
         try:
-            response = client.chat.completions.create(
-                model=settings.model,
-                messages=messages,
-                temperature=settings.temperature,
-                top_p=settings.top_p,
-                max_tokens=settings.max_output_tokens,
-            )
+            response = client.chat.completions.create(**request_payload)
+            if request_payload.get("stream"):
+                response = _consume_streaming_chat_completion(response)
             break
         except Exception as exc:
             last_reason = classify_provider_error(exc)
             last_error = str(exc)
-            if last_reason == "provider_error" and attempt < max_retries - 1:
+            retry_same_provider = last_reason == "provider_error" or (
+                is_retryable(last_reason) and not role_auto_fallback_allowed
+            )
+            if retry_same_provider and attempt < max_retries - 1:
                 time.sleep(retry_delays[min(attempt, len(retry_delays) - 1)])
                 continue
             # --- Provider guard: record incident + build fallback decision ---
@@ -202,7 +241,7 @@ def generate_text(
                     provider_key=settings.provider,
                     error_class=last_reason,
                     error_message=last_error,
-                    role_auto_fallback_allowed=role in ("repo_reader", "researcher", "archivist"),
+                    role_auto_fallback_allowed=role_auto_fallback_allowed,
                     risk_level=risk_level,
                     fallback_providers=fallback_providers,
                 )
@@ -272,11 +311,17 @@ def generate_text(
 
             return _fallback_or_raise(settings, model_providers, messages, last_reason, last_error)
 
-    content = response.choices[0].message.content or ""
+    choice = response.choices[0]
+    content = choice.message.content or ""
     usage = response.usage.model_dump() if response.usage else {}
+    finish_reason = getattr(choice, "finish_reason", None)
+    if finish_reason:
+        usage.setdefault("finish_reason", finish_reason)
     if usage:
         usage.setdefault("usage_source", "api_usage")
         usage.setdefault("exact_usage_available", True)
+    if request_payload.get("stream"):
+        usage.setdefault("streaming", True)
 
     report_names = {
         "Supervisor": "01_supervisor_plan.md",

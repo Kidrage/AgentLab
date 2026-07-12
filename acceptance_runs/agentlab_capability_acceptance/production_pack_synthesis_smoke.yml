@@ -1,0 +1,353 @@
+schema_version: 1
+report_type: agentlab_production_pack_synthesis_smoke
+root: .
+project: AgentLab
+task_id: task_production_pack_synthesis_smoke_20260707
+run_dir: projects/AgentLab/runs/task_production_pack_synthesis_smoke_20260707
+status: pass
+request: 设计一个沉浸式气味剧场装置生产流程，需要长期维护观众动线、气味提示、安全验收、场次状态和多轮生成产物。
+route_key: media_generation_task
+agents:
+- Supervisor
+- Researcher
+- ArtifactProducer
+- Verifier
+synthesis_shell:
+  schema_version: 1
+  status: synthesis_candidate
+  pack_id: pack_synthesis_candidate
+  name: Production Pack Synthesis Candidate
+  description: No configured production pack matched this non-code domain; synthesize
+    a reviewed pack before execution.
+  route_key: media_generation_task
+  project_type: multimodal_content_project
+  task_domain: multimodal_asset_generation
+  artifact_type: media_generation_contract
+  agents:
+  - Supervisor
+  - Researcher
+  - ArtifactProducer
+  - Verifier
+  core_runtime:
+  - task_run_state
+  - artifact_contract
+  - memory_policy
+  - cost_ledger
+  - validation_gates
+  - promotion_after_acceptance
+  lifecycle_nodes:
+  - INIT_TASK
+  - CONTEXT_PROFILE
+  - CONTEXT_BUDGET
+  - CONTEXT_PACK
+  - PREPARE_PLAN
+  - SUPERVISOR_PLAN
+  - RESEARCH_OPTIONAL
+  - ARTIFACT_PRODUCTION
+  - VERIFY
+  - SELF_CHECK
+  - FINALIZE
+  domain_phases:
+  - discover_domain_requirements
+  - research_domain_capabilities
+  - propose_pack
+  - approve_pack
+  memory_contract:
+  - domain_research_brief
+  - production_pack_proposal
+  - domain_memory_contract
+  - lifecycle_profile
+  quality_gates:
+  - domain_research_brief
+  - pack_proposal_reviewed
+  - approval_before_execution
+  synthesis_policy:
+    enabled: true
+    trigger: no_configured_pack_for_non_code_domain
+    required_outputs:
+    - production_pack_proposal.yml
+    - domain_memory_contract.yml
+    - lifecycle_profile.yml
+    approval_gate: user_or_supervisor_approval_before_execution
+  required_outputs:
+  - production_pack_proposal.yml
+  - domain_memory_contract.yml
+  - lifecycle_profile.yml
+production_pack:
+  schema_version: 1
+  status: synthesis_candidate
+  pack_id: pack_synthesis_candidate
+  name: Production Pack Synthesis Candidate
+  description: No configured production pack matched this non-code domain; synthesize
+    a reviewed pack before execution.
+  route_key: media_generation_task
+  project_type: multimodal_content_project
+  task_domain: multimodal_asset_generation
+  artifact_type: media_generation_contract
+  agents:
+  - Supervisor
+  - Researcher
+  - ArtifactProducer
+  - Verifier
+  core_runtime:
+  - task_run_state
+  - artifact_contract
+  - memory_policy
+  - cost_ledger
+  - validation_gates
+  - promotion_after_acceptance
+  lifecycle_nodes:
+  - INIT_TASK
+  - CONTEXT_PROFILE
+  - CONTEXT_BUDGET
+  - CONTEXT_PACK
+  - PREPARE_PLAN
+  - SUPERVISOR_PLAN
+  - RESEARCH_OPTIONAL
+  - ARTIFACT_PRODUCTION
+  - VERIFY
+  - SELF_CHECK
+  - FINALIZE
+  domain_phases:
+  - discover_domain_requirements
+  - research_domain_capabilities
+  - propose_pack
+  - approve_pack
+  memory_contract:
+  - domain_research_brief
+  - production_pack_proposal
+  - domain_memory_contract
+  - lifecycle_profile
+  quality_gates:
+  - domain_research_brief
+  - pack_proposal_reviewed
+  - approval_before_execution
+  synthesis_policy:
+    enabled: true
+    trigger: no_configured_pack_for_non_code_domain
+    required_outputs:
+    - production_pack_proposal.yml
+    - domain_memory_contract.yml
+    - lifecycle_profile.yml
+    approval_gate: user_or_supervisor_approval_before_execution
+  required_outputs:
+  - production_pack_proposal.yml
+  - domain_memory_contract.yml
+  - lifecycle_profile.yml
+validated_candidate_pack:
+  pack_id: synth_multimodal_asset_generation
+  name: Synthesized Multimodal Asset Generation Pack
+  description: Candidate production pack synthesized for an unconfigured non-code
+    domain. It must be reviewed and explicitly promoted before use.
+  routes:
+  - media_generation_task
+  project_types:
+  - multimodal_content_project
+  task_domains:
+  - multimodal_asset_generation
+  artifact_types:
+  - media_generation_contract
+  lifecycle_nodes:
+  - INIT_TASK
+  - CONTEXT_PROFILE
+  - CONTEXT_BUDGET
+  - CONTEXT_PACK
+  - PREPARE_PLAN
+  - SUPERVISOR_PLAN
+  - RESEARCH_OPTIONAL
+  - ARTIFACT_PRODUCTION
+  - VERIFY
+  - SELF_CHECK
+  - FINALIZE
+  domain_phases:
+  - domain_requirements_review
+  - state_contract_design
+  - artifact_generation
+  - quality_review
+  - acceptance_or_rewrite
+  required_outputs:
+  - domain_state_snapshot.yml
+  - artifact_index.yml
+  - generation_or_revision_ledger.yml
+  - delivery_receipt.yml
+  memory_contract:
+  - domain_state_snapshot
+  - artifact_index
+  - generation_or_revision_ledger
+  - delivery_receipt
+  resource_contract:
+    resource_discovery_required: true
+    allowed_sources:
+    - user_provided_files
+    - configured_local_tools
+    - registered_role_workers
+    - approved_external_research
+    authority_boundary: external research can inform candidate proposals but never
+      becomes authoritative memory
+    external_research_requires_approval: true
+    external_research_outputs:
+    - source_notes
+    - resource_evidence_ledger
+    external_research_may_not_write_project_memory: true
+    evidence_to_memory_promotion_requires_review: true
+    prefer_internal_workers: true
+    new_provider_requires_approval: true
+  quality_gates:
+  - domain_research_brief_reviewed
+  - resource_discovery_reviewed
+  - memory_contract_written
+  - candidate_fact_boundary_enforced
+  - delivery_receipt_written
+  - approval_before_promotion
+  promotion_policy:
+    candidate_only: true
+    auto_promote: false
+    production_modified: false
+    approval_required: human_or_supervisor_approval
+    candidate_facts_remain_run_local: true
+pack_identity_boundary:
+  status: pass
+  synthesis_shell_pack_id: pack_synthesis_candidate
+  synthesis_shell_status: synthesis_candidate
+  validated_candidate_pack_id: synth_multimodal_asset_generation
+  validated_candidate_has_governance_contracts: true
+  interpretation: production_pack is the generic synthesis shell; validated_candidate_pack
+    is the generated pack proposal that proves resource, memory, and promotion governance.
+generated_artifacts:
+  domain_research_brief: domain_research_brief.md
+  pack_outputs:
+  - production_pack_proposal.yml
+  - domain_memory_contract.yml
+  - lifecycle_profile.yml
+  required:
+  - domain_research_brief.md
+  - production_pack_proposal.yml
+  - domain_memory_contract.yml
+  - lifecycle_profile.yml
+  missing: []
+semantic_checks:
+- id: required_files_present
+  status: pass
+  detail: missing=[]
+- id: proposal_shape_valid
+  status: pass
+  detail: candidate proposal validates
+- id: research_brief_resource_contract
+  status: pass
+  detail: brief records resource discovery, evidence ledger, and authority boundary
+- id: research_brief_external_resource_boundary
+  status: pass
+  detail: brief records approved external research as informative evidence only
+- id: research_brief_promotion_boundary
+  status: pass
+  detail: brief records candidate-only promotion boundary
+- id: proposal_resource_contract
+  status: pass
+  detail: pack proposal requires resource discovery and prefers internal workers
+- id: proposal_external_resource_boundary
+  status: pass
+  detail: external research is allowed only as approved run-local evidence before
+    memory review
+- id: proposal_promotion_policy
+  status: pass
+  detail: pack proposal forbids automatic promotion
+- id: memory_contract_closed_loop
+  status: pass
+  detail: proposal and memory contract include the reusable state records
+- id: candidate_fact_boundary
+  status: pass
+  detail: new facts remain run-local until promotion
+- id: lifecycle_excludes_code_shell
+  status: pass
+  detail: non-code synthesis lifecycle includes production nodes and forbids coder
+    implementation
+- id: quality_gates_cover_governance
+  status: pass
+  detail: quality gates cover resource discovery, fact boundary, and promotion
+- id: proposal_candidate_only
+  status: pass
+  detail: proposal is candidate-only and does not modify production
+- id: pack_identity_boundary
+  status: pass
+  detail: report distinguishes the generic synthesis shell from the validated candidate
+    pack
+proposal_validation:
+  valid: true
+  proposal_path: projects/AgentLab/runs/task_production_pack_synthesis_smoke_20260707/production_pack_proposal.yml
+  pack_id: synth_multimodal_asset_generation
+  issues: []
+  warnings: []
+  pack:
+    pack_id: synth_multimodal_asset_generation
+    name: Synthesized Multimodal Asset Generation Pack
+    description: Candidate production pack synthesized for an unconfigured non-code
+      domain. It must be reviewed and explicitly promoted before use.
+    routes:
+    - media_generation_task
+    project_types:
+    - multimodal_content_project
+    task_domains:
+    - multimodal_asset_generation
+    artifact_types:
+    - media_generation_contract
+    lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - RESEARCH_OPTIONAL
+    - ARTIFACT_PRODUCTION
+    - VERIFY
+    - SELF_CHECK
+    - FINALIZE
+    domain_phases:
+    - domain_requirements_review
+    - state_contract_design
+    - artifact_generation
+    - quality_review
+    - acceptance_or_rewrite
+    required_outputs:
+    - domain_state_snapshot.yml
+    - artifact_index.yml
+    - generation_or_revision_ledger.yml
+    - delivery_receipt.yml
+    memory_contract:
+    - domain_state_snapshot
+    - artifact_index
+    - generation_or_revision_ledger
+    - delivery_receipt
+    resource_contract:
+      resource_discovery_required: true
+      allowed_sources:
+      - user_provided_files
+      - configured_local_tools
+      - registered_role_workers
+      - approved_external_research
+      authority_boundary: external research can inform candidate proposals but never
+        becomes authoritative memory
+      external_research_requires_approval: true
+      external_research_outputs:
+      - source_notes
+      - resource_evidence_ledger
+      external_research_may_not_write_project_memory: true
+      evidence_to_memory_promotion_requires_review: true
+      prefer_internal_workers: true
+      new_provider_requires_approval: true
+    quality_gates:
+    - domain_research_brief_reviewed
+    - resource_discovery_reviewed
+    - memory_contract_written
+    - candidate_fact_boundary_enforced
+    - delivery_receipt_written
+    - approval_before_promotion
+    promotion_policy:
+      candidate_only: true
+      auto_promote: false
+      production_modified: false
+      approval_required: human_or_supervisor_approval
+      candidate_facts_remain_run_local: true
+promotion:
+  attempted: false
+  reason: smoke validates candidate artifacts only; promotion requires explicit approval

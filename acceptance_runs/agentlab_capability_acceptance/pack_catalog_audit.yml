@@ -1,0 +1,152 @@
+schema_version: 1
+report_type: agentlab_production_pack_catalog_audit
+catalog_path: config/production_packs.yml
+status: pass
+pack_count: 6
+issues: []
+selector_overlaps:
+- route: media_generation_task
+  pack_ids:
+  - media_series_production
+  - media_generation
+  status: selector_disjoint
+  left_specificity: 13
+  right_specificity: 9
+  can_match_same_mission: false
+  disambiguated_by:
+  - project_types
+route_reference_audit:
+  status: pass
+  routing_path: config/routing_rules.yml
+  domain_route_packs_path: config/domain_route_packs.yml
+  known_route_count: 13
+  pack_route_references:
+  - pack_id: code_factory
+    route: small_task
+    exists: true
+  - pack_id: code_factory
+    route: medium_task
+    exists: true
+  - pack_id: code_factory
+    route: interface_sensitive_task
+    exists: true
+  - pack_id: code_factory
+    route: research_sensitive_task
+    exists: true
+  - pack_id: code_factory
+    route: large_or_risky_task
+    exists: true
+  - pack_id: code_factory
+    route: evaluation_task
+    exists: true
+  - pack_id: narrative_longform
+    route: narrative_light_chapter
+    exists: true
+  - pack_id: narrative_longform
+    route: narrative_batch_chapters
+    exists: true
+  - pack_id: narrative_longform
+    route: narrative_heavy_audit
+    exists: true
+  - pack_id: article_light
+    route: article_light_draft
+    exists: true
+  - pack_id: media_series_production
+    route: media_generation_task
+    exists: true
+  - pack_id: media_generation
+    route: media_generation_task
+    exists: true
+  - pack_id: generic_artifact
+    route: artifact_production_task
+    exists: true
+  domain_route_packs:
+  - domain: creative_writing
+    route_references:
+    - field: recommended_route
+      route: narrative_light_chapter
+      exists: true
+    - field: batch_route
+      route: narrative_batch_chapters
+      exists: true
+    - field: audit_route
+      route: narrative_heavy_audit
+      exists: true
+    - field: forbidden_fallback_routes
+      route: interface_sensitive_task
+      exists: true
+    - field: forbidden_fallback_routes
+      route: large_or_risky_task
+      exists: true
+    - field: forbidden_fallback_routes
+      route: artifact_production_task
+      exists: true
+    - field: forbidden_fallback_routes
+      route: fiction_chapter_pipeline
+      exists: true
+    forbidden_fallback_routes:
+    - interface_sensitive_task
+    - large_or_risky_task
+    - artifact_production_task
+    - fiction_chapter_pipeline
+  - domain: research_reading
+    route_references:
+    - field: recommended_route
+      route: research_sensitive_task
+      exists: true
+    forbidden_fallback_routes: []
+  - domain: production_pack_synthesis
+    route_references:
+    - field: recommended_route
+      route: artifact_production_task
+      exists: true
+    forbidden_fallback_routes: []
+  - domain: audio_dsp_experiment
+    route_references:
+    - field: recommended_route
+      route: artifact_production_task
+      exists: true
+    forbidden_fallback_routes: []
+  - domain: video_generation
+    route_references:
+    - field: recommended_route
+      route: media_generation_task
+      exists: true
+    forbidden_fallback_routes: []
+  - domain: image_generation
+    route_references:
+    - field: recommended_route
+      route: media_generation_task
+      exists: true
+    forbidden_fallback_routes: []
+  - domain: image_editing
+    route_references:
+    - field: recommended_route
+      route: media_generation_task
+      exists: true
+    forbidden_fallback_routes: []
+  - domain: video_editing
+    route_references:
+    - field: recommended_route
+      route: media_generation_task
+      exists: true
+    forbidden_fallback_routes: []
+  - domain: multimodal_asset_generation
+    route_references:
+    - field: recommended_route
+      route: media_generation_task
+      exists: true
+    forbidden_fallback_routes: []
+  - domain: business_delivery
+    route_references:
+    - field: recommended_route
+      route: artifact_production_task
+      exists: true
+    forbidden_fallback_routes: []
+  - domain: automation_ops
+    route_references:
+    - field: recommended_route
+      route: medium_task
+      exists: true
+    forbidden_fallback_routes: []
+  issues: []

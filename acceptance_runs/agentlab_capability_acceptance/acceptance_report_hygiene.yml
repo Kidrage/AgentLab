@@ -1,0 +1,107 @@
+schema_version: 1
+report_type: agentlab_acceptance_report_hygiene
+root: .
+status: pass
+canonical_report_count: 9
+canonical_reports:
+- path: acceptance_runs/agentlab_capability_acceptance/current.yml
+  exists: true
+  expected_report_type: agentlab_capability_acceptance
+  actual_report_type: agentlab_capability_acceptance
+- path: acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml
+  exists: true
+  expected_report_type: agentlab_objective_requirement_audit
+  actual_report_type: agentlab_objective_requirement_audit
+- path: acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml
+  exists: true
+  expected_report_type: agentlab_goal_completion_audit
+  actual_report_type: agentlab_goal_completion_audit
+- path: acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
+  exists: true
+  expected_report_type: agentlab_internal_live_readiness
+  actual_report_type: agentlab_internal_live_readiness
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+  exists: true
+  expected_report_type: agentlab_trusted_live_runner_request
+  actual_report_type: agentlab_trusted_live_runner_request
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_preflight.yml
+  exists: true
+  expected_report_type: agentlab_trusted_live_runner_preflight
+  actual_report_type: agentlab_trusted_live_runner_preflight
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_operator_handoff.yml
+  exists: true
+  expected_report_type: agentlab_trusted_live_runner_operator_handoff
+  actual_report_type: agentlab_trusted_live_runner_operator_handoff
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
+  exists: true
+  expected_report_type: agentlab_trusted_live_runner_status
+  actual_report_type: agentlab_trusted_live_runner_status
+- path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml
+  exists: true
+  expected_report_type: agentlab_trusted_live_runner_collect
+  actual_report_type: agentlab_trusted_live_runner_collect
+canonical_issues: []
+canonical_text_artifact_count: 2
+canonical_text_artifacts:
+- path: acceptance_runs/agentlab_capability_acceptance/role_session_acceptance_handoff.md
+  exists: true
+  required_markers:
+  - 'Canonical term: `private_role_session_acceptance_smoke`'
+  - 'Legacy shorthand: `private live smoke`'
+  - AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+  - missing_candidate_artifacts
+  - ready_for_internal_live_smoke
+  missing_markers: []
+  forbidden_markers:
+  - Paste this approval before asking Codex to run the private role-session acceptance
+    smoke
+  - 我批准 Codex 在本机 trusted runner 流程中
+  - task_narrative_eval_ch01_current_writer
+  - media_backend_live_internal_current_media
+  forbidden_marker_hits: []
+- path: acceptance_runs/agentlab_capability_acceptance/private_live_smoke_approval_handoff.md
+  exists: true
+  required_markers:
+  - 'Legacy path:'
+  - role_session_acceptance_handoff.md
+  - AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+  missing_markers: []
+  forbidden_markers:
+  - Paste this approval before asking Codex to run the private role-session acceptance
+    smoke
+  - 我批准 Codex 在本机 trusted runner 流程中
+  - task_narrative_eval_ch01_current_writer
+  - media_backend_live_internal_current_media
+  forbidden_marker_hits: []
+canonical_text_issues: []
+snapshot_policy: non_authoritative_snapshots_may_exist_but_must_not_carry_stale_current_state
+non_authoritative_snapshot_count: 2
+non_authoritative_snapshots:
+- grok_media_preflight_current.yml
+- provider_smoke_current.yml
+historical_snapshot_count: 0
+historical_snapshots: []
+stale_snapshot_count: 0
+stale_snapshots: []
+stale_marker_hits: []
+private_selected_command_policy: selected private role-session commands must include
+  AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+private_selected_command_scan_artifacts:
+- current.yml
+- goal_completion_audit.yml
+- internal_live_readiness.yml
+- live_unblock_plan.yml
+- objective_requirement_audit.yml
+- private_live_smoke_approval_handoff.md
+- role_session_acceptance_handoff.md
+- trusted_live_runner_collect.yml
+- trusted_live_runner_operator_handoff.yml
+- trusted_live_runner_preflight.yml
+- trusted_live_runner_request.yml
+- trusted_live_runner_status.yml
+stale_private_selected_command_hits: []
+consistency_issues: []
+notes:
+- This audit does not delete historical evidence or execute live commands.
+- Historical policy rejection files remain valid evidence; current-state snapshots
+  must not contradict canonical reports.

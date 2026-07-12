@@ -5,7 +5,9 @@ valid_until_days: 14
 # ─── AgentLab Model Catalog v3.1 ─────────────────────────────────────
 # 事实源：模型能力、定价、provider 信息集中管理。
 # 每 14 天由 runtime 或人工刷新。不在白皮书或注释中硬编码价格。
-# 当前可用 Provider：deepseek_official / dashscope_cn
+# 当前登记 Provider 包括 deepseek_official、dashscope_cn、hermes_codex_oauth、
+# agy_gemini_oauth、gemini_api_free_tier 等；实际默认选择由
+# config/agent_model_profiles.yml 决定。
 # (OpenRouter 已移除，替换为 DashScope 平替)
 # ──────────────────────────────────────────────────────────────────────
 
@@ -43,6 +45,59 @@ models:
     notes: >
       AgentLab L2/L3 Balanced 大脑层默认。MaxQ 模式规划+审查主力。
       BenchLM: Agentic 74, Coding 75.9 — 在 coding/agentic 维度优于 Qwen3.7-Max。
+
+  codex_gpt_5_5_high_hermes_oauth:
+    provider: hermes_codex_oauth
+    runtime_provider: openai-codex
+    cli_provider: openai-codex
+    model_id: gpt-5.5
+    reasoning_effort: high
+    context_window: 1000000
+    strengths: [oauth_cli, high_reasoning, supervision, planning, code_review, agentic_control]
+    weaknesses: [requires_hermes_oauth_session, subscription_or_oauth_quota, not_direct_api]
+    suitable_agents: [supervisor, max_quality_supervisor, brain_layer]
+    pricing:
+      currency: subscription_or_oauth_quota
+      billing_source: codex_oauth
+    notes: >
+      Codex GPT 5.5 High through the local Hermes OAuth provider. This is a
+      Hermes runtime provider registration, not the Codex CLI worker. AgentLab
+      should invoke it through Hermes with --provider openai-codex -m gpt-5.5;
+      high is the reasoning effort, not part of the model slug.
+
+  gemini_3_5_flash_high_agy_oauth:
+    provider: agy_gemini_oauth
+    runtime_provider: agy-gemini-oauth
+    model_id: gemini-3.5-flash-high
+    context_window: 1000000
+    strengths: [oauth_cli, fast, high_throughput, writing, artifact_generation, subscription_quota]
+    weaknesses: [requires_regional_network_access, cli_session_required]
+    suitable_agents: [writer, artifact_producer, frontdesk_gateway]
+    pricing:
+      currency: subscription_or_oauth_quota
+      billing_source: agy_oauth
+    notes: >
+      Agy/Antigravity 默认模型。Agy 接的是 Gemini 模型，走本地 OAuth
+      会话和地区网络条件，不使用 GEMINI_API_KEY，也不按本地 Gemini API
+      key 计费。默认要求 VPN/代理连到可用地区（如美国）。
+
+  gemini_2_5_flash_high_api:
+    provider: gemini_api_free_tier
+    runtime_provider: gemini-api
+    model_id: gemini-2.5-flash-high
+    context_window: 1000000
+    strengths: [free_tier, fast, rough_work, summarization]
+    weaknesses: [quota_limited, not_default, api_key_required]
+    suitable_agents: [rough_work_agent, disposable_analysis]
+    pricing:
+      currency: free_tier_limited
+      billing_source: gemini_api_key
+    usage_policy:
+      never_default: true
+      enable_only_when_explicitly_requested: true
+    notes: >
+      本地 Gemini API key 路径，仅作为显式启用的免费额度/有限次数备用通道。
+      不作为 AgentLab 默认 Gemini 路径；默认 Gemini 路径是 agy OAuth。
 
   qwen3_7_max_dashscope:
     provider: dashscope_cn
@@ -225,3 +280,37 @@ providers:
     notes: >
       用户购买的 Qwen Token Plan 专用入口。当前仓库没有现成 key，
       需要用户提供 API key 和 OpenAI-compatible base URL 后启用。
+
+  hermes_codex_oauth:
+    display: Hermes Codex OAuth
+    currency: subscription_or_oauth_quota
+    auth: local_hermes_oauth_session
+    command: hermes
+    base_url: https://chatgpt.com/backend-api/codex
+    runtime_provider: openai-codex
+    default_model: gpt-5.5
+    reasoning_effort: high
+    notes: >
+      Hermes 内部的 Codex OAuth provider。用于 Supervisor 等脑力层通过
+      hermes --provider openai-codex -m gpt-5.5 调用，并配置 high reasoning effort；
+      不等同于 Codex CLI worker。
+
+  agy_gemini_oauth:
+    display: Agy / Antigravity Gemini OAuth
+    currency: subscription_or_oauth_quota
+    auth: local_oauth_session
+    command: agy
+    region_requirement: vpn_or_proxy_to_supported_region
+    default_model: gemini-3.5-flash-high
+    notes: >
+      AgentLab 默认 Gemini 路径。Agy 通过本地 OAuth 会话调用 Gemini 模型，
+      不读取 GEMINI_API_KEY，不按本地 Gemini API key 计费。
+
+  gemini_api_free_tier:
+    display: Gemini API Free Tier
+    currency: free_tier_limited
+    auth: env:GEMINI_API_KEY
+    default_model: gemini-2.5-flash-high
+    never_default: true
+    notes: >
+      显式备用通道。免费 API 额度有限，只有用户明确开启时才使用。

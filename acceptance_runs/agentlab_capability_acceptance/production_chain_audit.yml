@@ -1,0 +1,915 @@
+schema_version: 1
+report_type: agentlab_production_chain_audit
+root: .
+status: pass
+pack_catalog_audit:
+  schema_version: 1
+  report_type: agentlab_production_pack_catalog_audit
+  catalog_path: config/production_packs.yml
+  status: pass
+  pack_count: 6
+  issues: []
+  selector_overlaps:
+  - route: media_generation_task
+    pack_ids:
+    - media_series_production
+    - media_generation
+    status: selector_disjoint
+    left_specificity: 13
+    right_specificity: 9
+    can_match_same_mission: false
+    disambiguated_by:
+    - project_types
+  route_reference_audit:
+    status: pass
+    routing_path: config/routing_rules.yml
+    domain_route_packs_path: config/domain_route_packs.yml
+    known_route_count: 13
+    pack_route_references:
+    - pack_id: code_factory
+      route: small_task
+      exists: true
+    - pack_id: code_factory
+      route: medium_task
+      exists: true
+    - pack_id: code_factory
+      route: interface_sensitive_task
+      exists: true
+    - pack_id: code_factory
+      route: research_sensitive_task
+      exists: true
+    - pack_id: code_factory
+      route: large_or_risky_task
+      exists: true
+    - pack_id: code_factory
+      route: evaluation_task
+      exists: true
+    - pack_id: narrative_longform
+      route: narrative_light_chapter
+      exists: true
+    - pack_id: narrative_longform
+      route: narrative_batch_chapters
+      exists: true
+    - pack_id: narrative_longform
+      route: narrative_heavy_audit
+      exists: true
+    - pack_id: article_light
+      route: article_light_draft
+      exists: true
+    - pack_id: media_series_production
+      route: media_generation_task
+      exists: true
+    - pack_id: media_generation
+      route: media_generation_task
+      exists: true
+    - pack_id: generic_artifact
+      route: artifact_production_task
+      exists: true
+    domain_route_packs:
+    - domain: creative_writing
+      route_references:
+      - field: recommended_route
+        route: narrative_light_chapter
+        exists: true
+      - field: batch_route
+        route: narrative_batch_chapters
+        exists: true
+      - field: audit_route
+        route: narrative_heavy_audit
+        exists: true
+      - field: forbidden_fallback_routes
+        route: interface_sensitive_task
+        exists: true
+      - field: forbidden_fallback_routes
+        route: large_or_risky_task
+        exists: true
+      - field: forbidden_fallback_routes
+        route: artifact_production_task
+        exists: true
+      - field: forbidden_fallback_routes
+        route: fiction_chapter_pipeline
+        exists: true
+      forbidden_fallback_routes:
+      - interface_sensitive_task
+      - large_or_risky_task
+      - artifact_production_task
+      - fiction_chapter_pipeline
+    - domain: research_reading
+      route_references:
+      - field: recommended_route
+        route: research_sensitive_task
+        exists: true
+      forbidden_fallback_routes: []
+    - domain: production_pack_synthesis
+      route_references:
+      - field: recommended_route
+        route: artifact_production_task
+        exists: true
+      forbidden_fallback_routes: []
+    - domain: audio_dsp_experiment
+      route_references:
+      - field: recommended_route
+        route: artifact_production_task
+        exists: true
+      forbidden_fallback_routes: []
+    - domain: video_generation
+      route_references:
+      - field: recommended_route
+        route: media_generation_task
+        exists: true
+      forbidden_fallback_routes: []
+    - domain: image_generation
+      route_references:
+      - field: recommended_route
+        route: media_generation_task
+        exists: true
+      forbidden_fallback_routes: []
+    - domain: image_editing
+      route_references:
+      - field: recommended_route
+        route: media_generation_task
+        exists: true
+      forbidden_fallback_routes: []
+    - domain: video_editing
+      route_references:
+      - field: recommended_route
+        route: media_generation_task
+        exists: true
+      forbidden_fallback_routes: []
+    - domain: multimodal_asset_generation
+      route_references:
+      - field: recommended_route
+        route: media_generation_task
+        exists: true
+      forbidden_fallback_routes: []
+    - domain: business_delivery
+      route_references:
+      - field: recommended_route
+        route: artifact_production_task
+        exists: true
+      forbidden_fallback_routes: []
+    - domain: automation_ops
+      route_references:
+      - field: recommended_route
+        route: medium_task
+        exists: true
+      forbidden_fallback_routes: []
+    issues: []
+scenarios:
+- scenario_id: code_factory_web_ui
+  status: pass
+  project: AgentLab
+  request: Implement an AgentLab web UI status dashboard and app shell.
+  route_key: interface_sensitive_task
+  agents:
+  - Supervisor
+  - RepoScout
+  - InterfaceMapper
+  - Coder
+  - TesterAuditor
+  - Verifier
+  - Archivist
+  skipped_agents:
+  - ArtifactProducer
+  - PromptEngineer
+  - Researcher
+  - Reviewer
+  - Scribe
+  - Writer
+  production_pack:
+    pack_id: code_factory
+    status: configured
+    task_domain: coding
+    lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - REPO_CONTEXT
+    - RESEARCH_OPTIONAL
+    - INTERFACE_OPTIONAL
+    - CODER_IMPLEMENTATION
+    - ARTIFACT_PRODUCTION
+    - VALIDATION
+    - AUDIT
+    - VERIFY
+    - ARCHIVE
+    - SELF_CHECK
+    - SYNC_OPTIONAL
+    - FINALIZE
+    effective_lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - REPO_CONTEXT
+    - INTERFACE_OPTIONAL
+    - CODER_IMPLEMENTATION
+    - VALIDATION
+    - AUDIT
+    - VERIFY
+    - ARCHIVE
+    - SELF_CHECK
+    - SYNC_OPTIONAL
+    - FINALIZE
+    inactive_route_lifecycle_nodes:
+    - RESEARCH_OPTIONAL
+    - ARTIFACT_PRODUCTION
+    required_outputs: []
+    memory_contract:
+    - repo_context
+    - architecture_constraints
+    - task_packet
+    - patch_plan
+    - test_results
+    - acceptance_report
+    quality_gates:
+    - implementation_report
+    - validation_evidence
+    - regression_risk
+    - artifact_promotion
+  state_governance:
+    status: pass
+    has_lifecycle_nodes: true
+    has_memory_contract: true
+    has_task_state_records: true
+    has_quality_gates: true
+    has_artifact_intent: true
+    issues: []
+  agent_lifecycle_coverage:
+    status: pass
+    coverage:
+      Supervisor:
+      - SUPERVISOR_PLAN
+      RepoScout:
+      - REPO_CONTEXT
+      InterfaceMapper:
+      - INTERFACE_OPTIONAL
+      Coder:
+      - CODER_IMPLEMENTATION
+      TesterAuditor:
+      - VALIDATION
+      - AUDIT
+      Verifier:
+      - VERIFY
+      Archivist:
+      - ARCHIVE
+    missing_agents: []
+  active_task_state:
+  - user_request.md
+  - supervisor_plan.md
+  - reposcout_report.md
+  - implementation_report.md
+  - validation_report.md
+  - audit_report.md
+  - archive_update.md
+  - workflow_plan.yml
+  - cost_ledger.yml
+  - brain_decisions.yml
+  - USER_DECISION_REQUIRED.md
+  validation_gate_ids:
+  - preflight_context
+  - route_and_budget
+  - harness_status
+  - scoped_edit_authorization
+  - implementation_report
+  - validation_evidence
+  - feedback_promotion
+  - memory_update
+  - project_artifact_stewardship
+  artifact_intent:
+    version: 1
+    project: AgentLab
+    task_id: task_chain_audit_code_factory_web_ui
+    candidate_dir: projects/AgentLab/runs/task_chain_audit_code_factory_web_ui/artifacts
+    production_dir: projects/AgentLab/artifacts
+    archive_dir: projects/AgentLab/artifacts/_archive
+    allowed_write_roots:
+    - projects/AgentLab/runs/task_chain_audit_code_factory_web_ui/artifacts
+    declared_production_paths: []
+    allowed_overwrite_paths: []
+    forbidden_write_roots:
+    - projects/AgentLab/artifacts/_archive
+    - projects/AgentLab/agent_docs
+    archive_strategy: copy_existing_before_replace
+    requires_plan_revision_for_undeclared_paths: true
+    rules:
+    - runs/<task_id>/ contains process evidence and reports
+    - runs/<task_id>/artifacts/ contains candidate deliverables only
+    - projects/<Project>/artifacts/ contains current production deliverables only
+    - existing production files must be archived before replacement
+  issues: []
+- scenario_id: narrative_light_chapter
+  status: pass
+  project: Crown_of_Ash
+  request: 写 Crown 第 1 章。
+  route_key: narrative_light_chapter
+  agents:
+  - Supervisor
+  - Writer
+  skipped_agents: []
+  production_pack:
+    pack_id: narrative_longform
+    status: configured
+    task_domain: creative_writing
+    lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - WRITER_DRAFT
+    - FICTION_REVIEW
+    - SCRIBE_LEDGER
+    - VERIFY
+    - SELF_CHECK
+    - FINALIZE
+    effective_lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - WRITER_DRAFT
+    - SELF_CHECK
+    - FINALIZE
+    inactive_route_lifecycle_nodes:
+    - FICTION_REVIEW
+    - SCRIBE_LEDGER
+    - VERIFY
+    required_outputs: []
+    memory_contract:
+    - project_fact_snapshot
+    - project_artifact_index
+    - chapter_packet
+    - continuity_ledger
+    - state_transition_proposal
+    - revision_log
+    quality_gates:
+    - continuity
+    - character_state
+    - timeline
+    - foreshadowing
+    - no_production_write_before_promotion
+  state_governance:
+    status: pass
+    has_lifecycle_nodes: true
+    has_memory_contract: true
+    has_task_state_records: true
+    has_quality_gates: true
+    has_artifact_intent: true
+    issues: []
+  agent_lifecycle_coverage:
+    status: pass
+    coverage:
+      Supervisor:
+      - SUPERVISOR_PLAN
+      Writer:
+      - WRITER_DRAFT
+    missing_agents: []
+  active_task_state:
+  - user_request.md
+  - mission_contract.yml
+  - supervisor_plan.md
+  - workflow_plan.yml
+  - cost_ledger.yml
+  - brain_decisions.yml
+  - USER_DECISION_REQUIRED.md
+  - chapter_packet.yml
+  - fiction_draft.md
+  - continuity_ledger.yml
+  - state_transition_proposal.yml
+  - narrative_delivery_receipt.yml
+  validation_gate_ids:
+  - fiction_draft
+  - continuity_ledger
+  - state_transition_proposal
+  - narrative_delivery_receipt
+  artifact_intent:
+    version: 1
+    project: Crown_of_Ash
+    task_id: task_chain_audit_narrative_light_chapter
+    candidate_dir: projects/Crown_of_Ash/runs/task_chain_audit_narrative_light_chapter/artifacts
+    production_dir: projects/Crown_of_Ash/production/manuscript
+    archive_dir: projects/Crown_of_Ash/production/manuscript/_archive
+    allowed_write_roots:
+    - projects/Crown_of_Ash/runs/task_chain_audit_narrative_light_chapter/artifacts
+    declared_production_paths: []
+    allowed_overwrite_paths: []
+    forbidden_write_roots:
+    - projects/Crown_of_Ash/artifacts/_archive
+    - projects/Crown_of_Ash/agent_docs
+    archive_strategy: copy_existing_before_replace
+    requires_plan_revision_for_undeclared_paths: true
+    rules:
+    - runs/<task_id>/ contains process evidence and reports
+    - runs/<task_id>/artifacts/ contains candidate deliverables only
+    - projects/<Project>/artifacts/ contains current production deliverables only
+    - existing production files must be archived before replacement
+  issues: []
+- scenario_id: article_light_draft
+  status: pass
+  project: AgentLab
+  request: 写一篇产品说明文章。
+  route_key: article_light_draft
+  agents:
+  - Supervisor
+  - ArtifactProducer
+  skipped_agents:
+  - Archivist
+  - Coder
+  - InterfaceMapper
+  - PromptEngineer
+  - RepoScout
+  - Researcher
+  - Reviewer
+  - Scribe
+  - TesterAuditor
+  - Verifier
+  - Writer
+  production_pack:
+    pack_id: article_light
+    status: configured
+    task_domain: unknown
+    lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - ARTIFACT_PRODUCTION
+    - SELF_CHECK
+    - FINALIZE
+    effective_lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - ARTIFACT_PRODUCTION
+    - SELF_CHECK
+    - FINALIZE
+    inactive_route_lifecycle_nodes: []
+    required_outputs:
+    - article_draft.md
+    - article_structure_check.yml
+    memory_contract:
+    - user_request
+    - local_style_notes
+    - article_draft
+    - article_structure_check
+    quality_gates:
+    - article_draft
+    - article_structure_check
+  state_governance:
+    status: pass
+    has_lifecycle_nodes: true
+    has_memory_contract: true
+    has_task_state_records: true
+    has_quality_gates: true
+    has_artifact_intent: true
+    issues: []
+  agent_lifecycle_coverage:
+    status: pass
+    coverage:
+      Supervisor:
+      - SUPERVISOR_PLAN
+      ArtifactProducer:
+      - ARTIFACT_PRODUCTION
+    missing_agents: []
+  active_task_state:
+  - user_request.md
+  - mission_contract.yml
+  - supervisor_plan.md
+  - workflow_plan.yml
+  - cost_ledger.yml
+  - brain_decisions.yml
+  - USER_DECISION_REQUIRED.md
+  - article_draft.md
+  - article_structure_check.yml
+  validation_gate_ids:
+  - article_draft
+  - article_structure_check
+  artifact_intent:
+    version: 1
+    project: AgentLab
+    task_id: task_chain_audit_article_light_draft
+    candidate_dir: projects/AgentLab/runs/task_chain_audit_article_light_draft/artifacts
+    production_dir: projects/AgentLab/artifacts
+    archive_dir: projects/AgentLab/artifacts/_archive
+    allowed_write_roots:
+    - projects/AgentLab/runs/task_chain_audit_article_light_draft/artifacts
+    declared_production_paths: []
+    allowed_overwrite_paths: []
+    forbidden_write_roots:
+    - projects/AgentLab/artifacts/_archive
+    - projects/AgentLab/agent_docs
+    archive_strategy: copy_existing_before_replace
+    requires_plan_revision_for_undeclared_paths: true
+    rules:
+    - runs/<task_id>/ contains process evidence and reports
+    - runs/<task_id>/artifacts/ contains candidate deliverables only
+    - projects/<Project>/artifacts/ contains current production deliverables only
+    - existing production files must be archived before replacement
+  issues: []
+- scenario_id: narrative_heavy_audit
+  status: pass
+  project: Crown_of_Ash
+  request: 审计 Crown 前 10 章的连续性、人物状态和时间线。
+  route_key: narrative_heavy_audit
+  agents:
+  - Supervisor
+  - Reviewer
+  - Scribe
+  - Verifier
+  skipped_agents: []
+  production_pack:
+    pack_id: narrative_longform
+    status: configured
+    task_domain: creative_writing
+    lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - WRITER_DRAFT
+    - FICTION_REVIEW
+    - SCRIBE_LEDGER
+    - VERIFY
+    - SELF_CHECK
+    - FINALIZE
+    effective_lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - FICTION_REVIEW
+    - SCRIBE_LEDGER
+    - VERIFY
+    - SELF_CHECK
+    - FINALIZE
+    inactive_route_lifecycle_nodes:
+    - WRITER_DRAFT
+    required_outputs: []
+    memory_contract:
+    - project_fact_snapshot
+    - project_artifact_index
+    - chapter_packet
+    - continuity_ledger
+    - state_transition_proposal
+    - revision_log
+    quality_gates:
+    - continuity
+    - character_state
+    - timeline
+    - foreshadowing
+    - no_production_write_before_promotion
+  state_governance:
+    status: pass
+    has_lifecycle_nodes: true
+    has_memory_contract: true
+    has_task_state_records: true
+    has_quality_gates: true
+    has_artifact_intent: true
+    issues: []
+  agent_lifecycle_coverage:
+    status: pass
+    coverage:
+      Supervisor:
+      - SUPERVISOR_PLAN
+      Reviewer:
+      - FICTION_REVIEW
+      Scribe:
+      - SCRIBE_LEDGER
+      Verifier:
+      - VERIFY
+    missing_agents: []
+  active_task_state:
+  - user_request.md
+  - mission_contract.yml
+  - supervisor_plan.md
+  - workflow_plan.yml
+  - cost_ledger.yml
+  - brain_decisions.yml
+  - USER_DECISION_REQUIRED.md
+  - fiction_draft.md
+  - continuity_ledger.yml
+  - state_transition_proposal.yml
+  - fiction_review.yml
+  - continuity_failure_report.yml
+  - revision_or_rewrite_proposal.yml
+  validation_gate_ids:
+  - fiction_review
+  - continuity_failure_report
+  - state_transition_proposal
+  - revision_or_rewrite_proposal
+  artifact_intent:
+    version: 1
+    project: Crown_of_Ash
+    task_id: task_chain_audit_narrative_heavy_audit
+    candidate_dir: projects/Crown_of_Ash/runs/task_chain_audit_narrative_heavy_audit/artifacts
+    production_dir: projects/Crown_of_Ash/production/manuscript
+    archive_dir: projects/Crown_of_Ash/production/manuscript/_archive
+    allowed_write_roots:
+    - projects/Crown_of_Ash/runs/task_chain_audit_narrative_heavy_audit/artifacts
+    declared_production_paths: []
+    allowed_overwrite_paths: []
+    forbidden_write_roots:
+    - projects/Crown_of_Ash/artifacts/_archive
+    - projects/Crown_of_Ash/agent_docs
+    archive_strategy: copy_existing_before_replace
+    requires_plan_revision_for_undeclared_paths: true
+    rules:
+    - runs/<task_id>/ contains process evidence and reports
+    - runs/<task_id>/artifacts/ contains candidate deliverables only
+    - projects/<Project>/artifacts/ contains current production deliverables only
+    - existing production files must be archived before replacement
+  issues: []
+- scenario_id: media_series_production
+  status: pass
+  project: Crown_of_Ash
+  request: 把 Crown of Ash 第一卷做成连续漫画、短视频和海报图册，需要保持角色视觉、场景资产和镜头连续性。
+  route_key: media_generation_task
+  agents:
+  - Supervisor
+  - ArtifactProducer
+  - TesterAuditor
+  - Verifier
+  skipped_agents: []
+  production_pack:
+    pack_id: media_series_production
+    status: configured
+    task_domain: video_generation
+    lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - RESEARCH_OPTIONAL
+    - ARTIFACT_PRODUCTION
+    - VALIDATION
+    - VERIFY
+    - SELF_CHECK
+    - FINALIZE
+    effective_lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - ARTIFACT_PRODUCTION
+    - VALIDATION
+    - VERIFY
+    - SELF_CHECK
+    - FINALIZE
+    inactive_route_lifecycle_nodes:
+    - RESEARCH_OPTIONAL
+    required_outputs:
+    - episode_plan.yml
+    - shot_list.yml
+    - character_visual_bible.yml
+    - asset_registry.yml
+    - prompt_pack.yml
+    - generation_ledger.yml
+    - media_continuity_ledger.yml
+    - media_qc_report.yml
+    - narrative_media_delivery_receipt.yml
+    memory_contract:
+    - source_script
+    - show_bible
+    - character_visual_bible
+    - scene_registry
+    - asset_registry
+    - shot_ledger
+    - prompt_pack
+    - generation_ledger
+    - media_qc_report
+    quality_gates:
+    - character_visual_consistency
+    - shot_continuity
+    - asset_provenance
+    - generation_ledger_written
+    - qa_or_human_acceptance_before_project_artifact_promotion
+  state_governance:
+    status: pass
+    has_lifecycle_nodes: true
+    has_memory_contract: true
+    has_task_state_records: true
+    has_quality_gates: true
+    has_artifact_intent: true
+    issues: []
+  agent_lifecycle_coverage:
+    status: pass
+    coverage:
+      Supervisor:
+      - SUPERVISOR_PLAN
+      ArtifactProducer:
+      - ARTIFACT_PRODUCTION
+      TesterAuditor:
+      - VALIDATION
+      Verifier:
+      - VERIFY
+    missing_agents: []
+  active_task_state:
+  - user_request.md
+  - mission_contract.yml
+  - supervisor_plan.md
+  - workflow_plan.yml
+  - cost_ledger.yml
+  - brain_decisions.yml
+  - USER_DECISION_REQUIRED.md
+  - episode_plan.yml
+  - shot_list.yml
+  - character_visual_bible.yml
+  - asset_registry.yml
+  - prompt_pack.yml
+  - generation_ledger.yml
+  - media_continuity_ledger.yml
+  - media_qc_report.yml
+  - narrative_media_delivery_receipt.yml
+  - validation_report.md
+  - audit_report.md
+  - verification_report.md
+  validation_gate_ids:
+  - preflight_context
+  - route_and_budget
+  - harness_status
+  - scoped_edit_authorization
+  - validation_evidence
+  - feedback_promotion
+  - episode_plan
+  - shot_list
+  - character_visual_bible
+  - asset_registry
+  - prompt_pack
+  - generation_ledger
+  - media_continuity_ledger
+  - media_qc_report
+  - narrative_media_delivery_receipt
+  artifact_intent:
+    version: 1
+    project: Crown_of_Ash
+    task_id: task_chain_audit_media_series_production
+    candidate_dir: projects/Crown_of_Ash/runs/task_chain_audit_media_series_production/artifacts
+    production_dir: projects/Crown_of_Ash/artifacts/media
+    archive_dir: projects/Crown_of_Ash/artifacts/media/_archive
+    allowed_write_roots:
+    - projects/Crown_of_Ash/runs/task_chain_audit_media_series_production/artifacts
+    declared_production_paths: []
+    allowed_overwrite_paths: []
+    forbidden_write_roots:
+    - projects/Crown_of_Ash/artifacts/_archive
+    - projects/Crown_of_Ash/agent_docs
+    archive_strategy: copy_existing_before_replace
+    requires_plan_revision_for_undeclared_paths: true
+    rules:
+    - runs/<task_id>/ contains process evidence and reports
+    - runs/<task_id>/artifacts/ contains candidate deliverables only
+    - projects/<Project>/artifacts/ contains current production deliverables only
+    - existing production files must be archived before replacement
+  issues: []
+- scenario_id: unknown_non_code_pack_synthesis
+  status: pass
+  project: AgentLab
+  request: 设计一个沉浸式气味剧场装置生产流程，需要观众动线、气味提示和安全验收。
+  route_key: media_generation_task
+  agents:
+  - Supervisor
+  - Researcher
+  - ArtifactProducer
+  - Verifier
+  skipped_agents: []
+  production_pack:
+    pack_id: pack_synthesis_candidate
+    status: synthesis_candidate
+    task_domain: multimodal_asset_generation
+    lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - RESEARCH_OPTIONAL
+    - ARTIFACT_PRODUCTION
+    - VERIFY
+    - SELF_CHECK
+    - FINALIZE
+    effective_lifecycle_nodes:
+    - INIT_TASK
+    - CONTEXT_PROFILE
+    - CONTEXT_BUDGET
+    - CONTEXT_PACK
+    - PREPARE_PLAN
+    - SUPERVISOR_PLAN
+    - RESEARCH_OPTIONAL
+    - ARTIFACT_PRODUCTION
+    - VERIFY
+    - SELF_CHECK
+    - FINALIZE
+    inactive_route_lifecycle_nodes: []
+    required_outputs:
+    - production_pack_proposal.yml
+    - domain_memory_contract.yml
+    - lifecycle_profile.yml
+    memory_contract:
+    - domain_research_brief
+    - production_pack_proposal
+    - domain_memory_contract
+    - lifecycle_profile
+    quality_gates:
+    - domain_research_brief
+    - pack_proposal_reviewed
+    - approval_before_execution
+  state_governance:
+    status: pass
+    has_lifecycle_nodes: true
+    has_memory_contract: true
+    has_task_state_records: true
+    has_quality_gates: true
+    has_artifact_intent: true
+    issues: []
+  agent_lifecycle_coverage:
+    status: pass
+    coverage:
+      Supervisor:
+      - SUPERVISOR_PLAN
+      Researcher:
+      - RESEARCH_OPTIONAL
+      ArtifactProducer:
+      - ARTIFACT_PRODUCTION
+      Verifier:
+      - VERIFY
+    missing_agents: []
+  active_task_state:
+  - user_request.md
+  - mission_contract.yml
+  - supervisor_plan.md
+  - workflow_plan.yml
+  - cost_ledger.yml
+  - brain_decisions.yml
+  - USER_DECISION_REQUIRED.md
+  - production_pack_proposal.yml
+  - domain_memory_contract.yml
+  - lifecycle_profile.yml
+  - domain_research_brief.md
+  - verification_report.md
+  validation_gate_ids:
+  - preflight_context
+  - route_and_budget
+  - harness_status
+  - scoped_edit_authorization
+  - domain_research_brief
+  - production_pack_proposal
+  - domain_memory_contract
+  - lifecycle_profile
+  artifact_intent:
+    version: 1
+    project: AgentLab
+    task_id: task_chain_audit_unknown_non_code_pack_synthesis
+    candidate_dir: projects/AgentLab/runs/task_chain_audit_unknown_non_code_pack_synthesis/artifacts
+    production_dir: projects/AgentLab/artifacts
+    archive_dir: projects/AgentLab/artifacts/_archive
+    allowed_write_roots:
+    - projects/AgentLab/runs/task_chain_audit_unknown_non_code_pack_synthesis/artifacts
+    declared_production_paths: []
+    allowed_overwrite_paths: []
+    forbidden_write_roots:
+    - projects/AgentLab/artifacts/_archive
+    - projects/AgentLab/agent_docs
+    archive_strategy: copy_existing_before_replace
+    requires_plan_revision_for_undeclared_paths: true
+    rules:
+    - runs/<task_id>/ contains process evidence and reports
+    - runs/<task_id>/artifacts/ contains candidate deliverables only
+    - projects/<Project>/artifacts/ contains current production deliverables only
+    - existing production files must be archived before replacement
+  issues: []
+invariants:
+- code tasks keep the code_factory shell and Coder path
+- known non-code tasks use configured production packs
+- unknown complex non-code tasks enter production-pack synthesis
+- narrative heavy audit uses Reviewer and Scribe without default prose generation
+- non-code active contracts do not inherit implementation reports, interface maps,
+  coder prompts, or repo maps
+- every representative chain has lifecycle nodes, memory contract, task-state records,
+  quality gates, and artifact intent
+- effective lifecycle nodes must respect route agents so audit-only routes do not
+  activate generation nodes
+- every route agent in a representative chain must own at least one effective lifecycle
+  node

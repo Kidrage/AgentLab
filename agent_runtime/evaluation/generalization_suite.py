@@ -7,7 +7,6 @@ calls model APIs, web providers, media backends, or external agents.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 import shutil
 from typing import Any
@@ -39,10 +38,6 @@ class GeneralizationFixture:
     required_artifacts: list[str]
     offline_only: bool
     allow_external_execution: bool
-
-
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _write_yaml(path: Path, data: dict[str, Any]) -> None:
@@ -117,7 +112,6 @@ def run_generalization_suite(agentlab_root: Path, out_dir: Path) -> dict[str, An
     summary = {
         "stage": "S10",
         "suite": "generalization_eval",
-        "started_at": _utc_now(),
         "offline_only": True,
         "external_execution": "blocked",
         "total": len(results),
@@ -125,7 +119,6 @@ def run_generalization_suite(agentlab_root: Path, out_dir: Path) -> dict[str, An
         "failed": len(results) - passed,
         "verdict": "PASS" if passed == len(results) else "FAIL",
         "results": results,
-        "completed_at": _utc_now(),
     }
     _write_yaml(out_dir / "generalization_results.yml", summary)
     (out_dir / "S10_GENERALIZATION_EVAL_REPORT.md").write_text(render_report(summary), encoding="utf-8")

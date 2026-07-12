@@ -8,10 +8,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
+
+if TYPE_CHECKING:
+    from agent_runtime.schemas import WorkflowPlan
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -185,6 +189,48 @@ def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
 class TestResolveCliProfileSchemaV4:
     """Prove resolve_cli_profile supports schema v4 modes/tiers layout."""
 
+    def test_real_default_full_cli_supervisor_resolves_to_hermes_codex(self):
+        """The real default mode/tier keeps Supervisor on Hermes Codex OAuth."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import resolve_cli_profile
+
+        root = Path(__file__).resolve().parents[1]
+        profiles = yaml.safe_load((root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8"))
+
+        result = resolve_cli_profile(profiles, agent_role="supervisor")
+
+        assert result is not None
+        assert result["resolved_mode"] == "full_cli"
+        assert result["resolved_tier"] == "performance"
+        assert result["cli_agent"] == "hermes"
+        assert result["invocation_contract"] == "hermes"
+        assert result["default"] == "codex_gpt_5_5_high_hermes_oauth"
+        assert result["fallback_cli_agent"] == "claude_code"
+        assert result["fallback_invocation_contract"] == "claude"
+        assert result["fallback"] == "deepseek_v4_pro"
+
+    def test_real_default_full_cli_writer_resolves_to_agy_gemini_oauth(self):
+        """The real default mode/tier keeps Writer on Agy Gemini OAuth."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import resolve_cli_profile
+
+        root = Path(__file__).resolve().parents[1]
+        profiles = yaml.safe_load((root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8"))
+
+        result = resolve_cli_profile(profiles, agent_role="writer")
+
+        assert result is not None
+        assert result["resolved_mode"] == "full_cli"
+        assert result["resolved_tier"] == "performance"
+        assert result["cli_agent"] == "agy"
+        assert result["invocation_contract"] == "agy_writer"
+        assert result["default"] == "gemini_3_5_flash_high_agy_oauth"
+        assert result["fallback_cli_agent"] == "claude_code"
+        assert result["fallback_invocation_contract"] == "claude"
+        assert result["fallback"] == "deepseek_v4_flash"
+
     def test_full_cli_full_supervisor_resolves_cli(self):
         """Schema v4 full_cli/full/supervisor returns CLI profile with hermes."""
         import sys
@@ -353,6 +399,61 @@ class TestWriteTaskPacket:
         path = _write_task_packet(run_dir, "Coder", plan)
         assert path.name == "task_packet_coder.json"
 
+    def test_writer_sealed_packet_omits_project_paths(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _write_task_packet
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+        messages = [
+            {"role": "system", "content": "Use only injected context."},
+            {"role": "user", "content": "Write the candidate chapter."},
+        ]
+
+        packet_path = _write_task_packet(run_dir, "Writer", plan, sealed_messages=messages)
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+
+        assert packet["packet_type"] == "agentlab_sealed_role_session"
+        assert packet["messages"] == messages
+        assert packet["context_policy"]["additional_file_reads_allowed"] is False
+        assert "agentlab_root" not in packet
+        assert "project_root" not in packet
+        assert "run_dir" not in packet
+        assert "user_request_path" not in packet
+
+    def test_production_pack_role_packet_is_bounded_to_embedded_contract(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _write_task_packet
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+        messages = [
+            {"role": "system", "content": "ArtifactProducer contract."},
+            {"role": "user", "content": "Return exactly three candidate files."},
+        ]
+
+        packet_path = _write_task_packet(
+            run_dir,
+            "ArtifactProducer",
+            plan,
+            task_messages=messages,
+        )
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+
+        assert packet["packet_type"] == "agentlab_production_pack_role_session"
+        assert packet["messages"] == messages
+        assert packet["context_policy"]["returned_artifacts_require_agentlab_materialization"] is True
+        assert packet["context_policy"]["read_scope"] == ["this_task_packet"]
+        assert packet["context_policy"]["additional_file_reads_allowed"] is False
+        assert "agentlab_root" not in packet
+        assert "project_root" not in packet
+        assert "run_dir" not in packet
+        assert "user_request_path" not in packet
+
 
 # ---------------------------------------------------------------------------
 # _render_command
@@ -389,6 +490,22 @@ class TestRenderCommand:
         )
 
         assert str(workspace) in argv
+        assert any(str(tmp_path / "pkt.json") in arg for arg in argv)
+
+    def test_substitutes_declared_model_placeholders(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _render_command
+
+        argv = _render_command(
+            'hermes --provider {provider} -m {model_id} -z "Read {task_packet_path}"',
+            tmp_path / "pkt.json",
+            provider="openai-codex",
+            model_id="gpt-5.5",
+            model_key="codex_gpt_5_5_high_hermes_oauth",
+        )
+
+        assert argv[:5] == ["hermes", "--provider", "openai-codex", "-m", "gpt-5.5"]
         assert any(str(tmp_path / "pkt.json") in arg for arg in argv)
 
     def test_rejects_unresolved_placeholders(self, tmp_path):
@@ -503,6 +620,212 @@ class TestRunCliAgentSubprocess:
         assert execution_log["commands"][0]["command_id"] == result.raw_usage["command_id"]
         assert execution_log["commands"][0]["exit_code"] == 0
 
+    def test_writer_cli_uses_sealed_packet_and_isolated_workspace(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        source = run_dir / "chapter_packet.yml"
+        source.write_text("chapter: 1\n", encoding="utf-8")
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "cli_command": 'agy --sandbox -p "Read only {task_packet_path}"',
+        }
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            packet_path = Path(kwargs["cwd"]) / "task_packet_writer.json"
+            observed["packet"] = json.loads(packet_path.read_text(encoding="utf-8"))
+            observed["workspace"] = Path(kwargs["cwd"])
+            observed["packet_path"] = packet_path
+            return self._mock_proc(0, stdout="writer output", stderr="")
+
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), \
+             patch("cli_executor.subprocess.run", side_effect=fake_run):
+            result = run_cli_agent(
+                plan,
+                "Writer",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "sealed chapter context"}],
+                outbound_source_paths=[source],
+            )
+
+        assert result.status == "completed"
+        assert result.raw_usage["sealed_context"] is True
+        assert result.raw_usage["execution_workspace_isolated"] is True
+        assert observed["workspace"] != Path(plan.agentlab_root)
+        assert observed["packet_path"].parent == observed["workspace"]
+        assert observed["packet"]["context_policy"]["read_scope"] == ["this_task_packet"]
+        assert not Path(observed["workspace"]).exists()
+        manifest = yaml.safe_load(
+            (run_dir / "outbound_context_manifest_writer.yml").read_text(encoding="utf-8")
+        )
+        assert manifest["status"] == "pass"
+        assert manifest["context_boundary"]["execution_workspace_isolated"] is True
+
+    def test_production_pack_cli_blocks_before_subprocess_without_scoped_approval(
+        self, tmp_path
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+        from outbound_context import PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        source = run_dir / "domain_research_brief.md"
+        source.write_text("# Domain research\n", encoding="utf-8")
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "cli_command": 'agy --sandbox -p "Read only {task_packet_path}"',
+        }
+
+        with patch.dict(
+            "os.environ",
+            {PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME: "0"},
+            clear=False,
+        ), patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), patch(
+            "cli_executor.subprocess.run"
+        ) as subprocess_run:
+            result = run_cli_agent(
+                plan,
+                "ArtifactProducer",
+                role_profile,
+                task_messages=[
+                    {"role": "user", "content": "Return candidate YAML blocks."}
+                ],
+                outbound_source_paths=[source],
+            )
+
+        assert result.status == "blocked_user_decision"
+        assert result.error == "artifactproducer_outbound_context_gate_blocked"
+        subprocess_run.assert_not_called()
+        assert not (run_dir / "task_packet_artifactproducer.json").exists()
+        manifest = yaml.safe_load(
+            (run_dir / "outbound_context_manifest_artifactproducer.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert manifest["status"] == "pending_approval"
+        assert manifest["authorization"]["approval_env_name"] == (
+            PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME
+        )
+
+    def test_approved_production_pack_cli_is_packet_only_and_isolated(
+        self, tmp_path
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+        from outbound_context import PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        source = run_dir / "domain_research_brief.md"
+        source.write_text("# Domain research\n", encoding="utf-8")
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "cli_command": 'agy --sandbox -p "Read only {task_packet_path}"',
+        }
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            packet_path = Path(kwargs["cwd"]) / "task_packet_artifactproducer.json"
+            observed["packet"] = json.loads(
+                packet_path.read_text(encoding="utf-8")
+            )
+            observed["workspace"] = Path(kwargs["cwd"])
+            return self._mock_proc(0, stdout="candidate blocks", stderr="")
+
+        with patch.dict(
+            "os.environ",
+            {PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME: "1"},
+            clear=False,
+        ), patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), patch(
+            "cli_executor.subprocess.run", side_effect=fake_run
+        ):
+            result = run_cli_agent(
+                plan,
+                "ArtifactProducer",
+                role_profile,
+                task_messages=[
+                    {"role": "user", "content": "Return candidate YAML blocks."}
+                ],
+                outbound_source_paths=[source],
+            )
+
+        assert result.status == "completed"
+        assert result.raw_usage["sealed_context"] is True
+        assert result.raw_usage["execution_workspace_isolated"] is True
+        assert observed["workspace"] != Path(plan.agentlab_root)
+        packet = observed["packet"]
+        assert isinstance(packet, dict)
+        assert packet["packet_type"] == "agentlab_production_pack_role_session"
+        assert packet["context_policy"]["read_scope"] == ["this_task_packet"]
+        assert "agentlab_root" not in packet
+        assert not Path(observed["workspace"]).exists()
+        manifest = yaml.safe_load(
+            (run_dir / "outbound_context_manifest_artifactproducer.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert manifest["status"] == "pass"
+        assert manifest["payload"]["kind"] == (
+            "production_pack_cli_role_session_packet"
+        )
+        assert manifest["source_inventory"]["count"] == 1
+
+    def test_production_pack_cli_blocks_secret_even_with_approval(
+        self, tmp_path
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+        from outbound_context import PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        source = run_dir / "domain_research_brief.md"
+        source.write_text("# Domain research\n", encoding="utf-8")
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "cli_command": 'agy --sandbox -p "Read only {task_packet_path}"',
+        }
+        secret = "sk-" + ("a" * 40)
+
+        with patch.dict(
+            "os.environ",
+            {PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME: "1"},
+            clear=False,
+        ), patch("cli_executor.subprocess.run") as subprocess_run:
+            result = run_cli_agent(
+                plan,
+                "Verifier",
+                role_profile,
+                task_messages=[
+                    {"role": "user", "content": f"credential: {secret}"}
+                ],
+                outbound_source_paths=[source],
+            )
+
+        assert result.status == "blocked_user_decision"
+        subprocess_run.assert_not_called()
+        manifest_text = (
+            run_dir / "outbound_context_manifest_verifier.yml"
+        ).read_text(encoding="utf-8")
+        assert "secret_pattern_detected" in manifest_text
+        assert secret not in manifest_text
+
     def test_completed_uses_reported_usage_sidecar(self, tmp_path):
         import json
         import sys
@@ -569,6 +892,34 @@ class TestRunCliAgentSubprocess:
 
         assert result.status == "blocked_user_decision"
         assert result.error is not None
+
+    def test_auth_failure_is_classified_without_raw_stderr_in_decision_reason(
+        self, tmp_path
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        (tmp_path / "projects" / "TestProject" / "runs" / "task_test_001").mkdir(
+            parents=True, exist_ok=True
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "cli_command": 'agy --sandbox -p "Read {task_packet_path}"',
+        }
+        stderr = "Authentication required. You are not logged into Antigravity."
+        mock_proc = self._mock_proc(1, stdout="", stderr=stderr)
+
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), \
+             patch("cli_executor.subprocess.run", return_value=mock_proc):
+            result = run_cli_agent(plan, "ArtifactProducer", role_profile)
+
+        assert result.status == "blocked_user_decision"
+        assert result.raw_usage["failure_class"] == "auth_required"
+        assert result.error == "CLI agent auth_required (exit 1)."
+        assert stderr not in result.error
 
     def test_blocked_on_timeout(self, tmp_path):
         import subprocess
@@ -907,4 +1258,45 @@ class TestBinaryCandidateResolution:
         assert result.status == "completed"
         called_argv = mock_run.call_args[0][0]
         assert called_argv[0] == "agy"
+        assert "--log-file" in called_argv
+        log_path = Path(called_argv[called_argv.index("--log-file") + 1])
+        assert log_path.name == "agy_cli_agent.log"
+        assert log_path.parent.name == "command_logs"
+        assert result.raw_usage.get("cli_log_path") == str(log_path)
         assert "binary_candidate_used" not in result.raw_usage
+
+    def test_agy_empty_stderr_uses_cli_log_excerpt(self, tmp_path):
+        """Agy can fail before stderr is wired; capture its local log as evidence."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        (tmp_path / "projects" / "TestProject" / "runs" / "task_test_001").mkdir(parents=True, exist_ok=True)
+
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "cli_command": 'agy --sandbox -p "test"',
+            "default": "qwen3_6_plus_dashscope",
+        }
+
+        def fake_run(argv, **_kwargs):
+            log_path = Path(argv[argv.index("--log-file") + 1])
+            log_path.write_text(
+                "CLI failed to start - listen tcp 127.0.0.1:0: bind: operation not permitted",
+                encoding="utf-8",
+            )
+            return self._mock_proc(1, stdout="", stderr="")
+
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), \
+             patch("cli_executor.subprocess.run", side_effect=fake_run):
+            result = run_cli_agent(plan, "Writer", role_profile)
+
+        assert result.status == "blocked_user_decision"
+        assert result.error is not None
+        assert result.error == "CLI agent permission_denied (exit 1)."
+        assert "listen tcp 127.0.0.1:0" not in result.error
+        assert result.raw_usage["failure_class"] == "permission_denied"
+        assert "agy_cli_agent.log" in result.content
+        assert result.raw_usage.get("cli_log_path", "").endswith("agy_cli_agent.log")

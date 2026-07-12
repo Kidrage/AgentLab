@@ -235,21 +235,41 @@ def install_cli_entrypoints(root: Path, *, agent: str | None = None, write: bool
 
         record = {
             "entrypoint_path": str(entrypoint_path),
+            "entrypoint_required": bool(cfg.get("entrypoint_required", True)),
             "wrappers": wrappers,
             "installed": bool(item.get("installed")),
             "profiles": item.get("profiles") or [],
+            "removed_wrappers": [],
         }
         planned[agent_id] = record
 
         if write:
             existing = entrypoint_path.read_text(encoding="utf-8") if entrypoint_path.exists() else ""
-            entrypoint_path.parent.mkdir(parents=True, exist_ok=True)
-            entrypoint_path.write_text(_replace_managed_block(existing, block, policy), encoding="utf-8")
+            try:
+                entrypoint_path.parent.mkdir(parents=True, exist_ok=True)
+                entrypoint_path.write_text(
+                    _replace_managed_block(existing, block, policy),
+                    encoding="utf-8",
+                )
+                record["entrypoint_status"] = "installed"
+            except OSError as exc:
+                record["entrypoint_status"] = "required_write_failed" if record["entrypoint_required"] else "optional_write_skipped"
+                record["entrypoint_error"] = f"{type(exc).__name__}: {exc}"
 
             if wrappers.get("frontdesk"):
                 _write_executable(Path(wrappers["frontdesk"]), _frontdesk_wrapper(root, agent_id, invocation["frontdesk"]))
             if wrappers.get("role"):
                 _write_executable(Path(wrappers["role"]), _role_wrapper(root, agent_id, invocation["role"]))
+
+            managed_wrapper_candidates = {
+                wrapper_root / "frontdesk" / f"{agent_id}-agentlab",
+                wrapper_root / "workers" / f"{agent_id}-role-agentlab",
+            }
+            expected_wrappers = {Path(path) for path in wrappers.values()}
+            for stale_wrapper in sorted(managed_wrapper_candidates - expected_wrappers):
+                if stale_wrapper.exists():
+                    stale_wrapper.unlink()
+                    record["removed_wrappers"].append(str(stale_wrapper))
 
             installed[agent_id] = record
 
@@ -290,17 +310,24 @@ def _file_contains(path: Path, parts: list[str]) -> bool:
 
 def doctor_cli_entrypoints(root: Path, *, agent: str | None = None) -> dict[str, Any]:
     root = Path(root)
-    policy = _load_policy(root)
     install_plan = install_cli_entrypoints(root, agent=agent, write=False)
     checks: list[EntrypointCheck] = []
 
     for agent_id, item in install_plan["planned"].items():
         entrypoint_path = Path(item["entrypoint_path"])
-        checks.append(_check(entrypoint_path.exists(), "entrypoint_exists", f"{agent_id} entrypoint exists: {entrypoint_path}"))
+        entrypoint_required = bool(item.get("entrypoint_required", True))
+        entrypoint_severity = "fail" if entrypoint_required else "warn"
+        checks.append(_check(
+            entrypoint_path.exists(),
+            "entrypoint_exists",
+            f"{agent_id} entrypoint exists: {entrypoint_path}",
+            severity=entrypoint_severity,
+        ))
         checks.append(_check(
             _file_contains(entrypoint_path, ["AGENTLAB_MANAGED_START", "workspace-entry", "frontdesk-session", "role-session", "protocol-doctor"]),
             "entrypoint_managed_block_valid",
             f"{agent_id} entrypoint managed block is present and complete",
+            severity=entrypoint_severity,
         ))
 
         wrappers = item.get("wrappers") or {}
@@ -323,12 +350,14 @@ def doctor_cli_entrypoints(root: Path, *, agent: str | None = None) -> dict[str,
             checks.append(_check("role" not in wrappers, "frontdesk_only_has_no_role_wrapper", f"{agent_id} frontdesk-only agent has no role wrapper"))
 
     failed = [c for c in checks if c.status != "pass" and c.severity == "fail"]
+    warnings = [c for c in checks if c.status != "pass" and c.severity == "warn"]
     return {
         "doctor": "cli_entrypoint_doctor",
         "status": "pass" if not failed else "fail",
         "summary": {
             "checks": len(checks),
             "failed": len(failed),
+            "warnings": len(warnings),
         },
         "checks": [c.to_dict() for c in checks],
         "policy": str(root / "config" / "cli_entrypoint_policy.yml"),

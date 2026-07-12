@@ -1,0 +1,126 @@
+schema_version: 1
+report_type: agentlab_production_pack_role_session_audit
+root: .
+project: AgentLab
+task_id: task_production_pack_role_session_live_20260710
+run_dir: projects/AgentLab/runs/task_production_pack_role_session_live_20260710
+status: candidate
+evidence_class: returned_internal_role_session_artifacts
+provider_calls_executed_by_audit: false
+run_exists: true
+required_files:
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/workflow_plan.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/mission_contract.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/lifecycle.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/01_supervisor_plan.md
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/domain_research_brief.md
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/production_pack_research_contract.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/production_pack_proposal.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/domain_memory_contract.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/lifecycle_profile.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/production_pack_output_contract.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/verification_report.md
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/production_pack_verification_receipt.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/outbound_context_manifest_supervisor.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/outbound_context_manifest_researcher.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/outbound_context_manifest_artifactproducer.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/outbound_context_manifest_verifier.yml
+missing:
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/mission_contract.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/production_pack_proposal.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/domain_memory_contract.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/lifecycle_profile.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/production_pack_output_contract.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/production_pack_verification_receipt.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/outbound_context_manifest_supervisor.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/outbound_context_manifest_researcher.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/outbound_context_manifest_artifactproducer.yml
+- projects/AgentLab/runs/task_production_pack_role_session_live_20260710/outbound_context_manifest_verifier.yml
+checks:
+- id: mission_contract_persisted
+  status: fail
+  detail: {}
+- id: synthesis_route_selected
+  status: pass
+  detail:
+    status: synthesis_candidate
+    pack_id: pack_synthesis_candidate
+- id: supervisor_role_session_returned
+  status: pass
+  detail:
+    report_exists: true
+    lifecycle_status: completed
+- id: researcher_role_session_returned
+  status: pass
+  detail:
+    status: pass
+    execution_mode: execute
+    source_provider: agentlab-cli-executor
+- id: artifact_producer_returned_exact_outputs
+  status: fail
+  detail:
+    source: {}
+- id: pack_registry_validation
+  status: fail
+  detail:
+    valid: false
+    proposal_path: projects/AgentLab/runs/task_production_pack_role_session_live_20260710/production_pack_proposal.yml
+    issues:
+    - proposal is missing or is not a YAML mapping
+    warnings: []
+- id: verifier_role_session_returned
+  status: fail
+  detail:
+    verifier: {}
+    issues: []
+- id: role_lifecycle_completed
+  status: fail
+  detail:
+    Supervisor: completed
+    Researcher: completed
+    ArtifactProducer: failed
+    Verifier: waiting
+- id: candidate_only_no_promotion
+  status: fail
+  detail:
+    output_contract: {}
+    verification_receipt: {}
+- id: supervisor_outbound_context_governed
+  status: fail
+  detail:
+    payload_sha256_present: false
+    sources_valid: false
+    issues: []
+- id: researcher_outbound_context_governed
+  status: fail
+  detail:
+    payload_sha256_present: false
+    sources_valid: false
+    issues: []
+- id: artifactproducer_outbound_context_governed
+  status: fail
+  detail:
+    payload_sha256_present: false
+    sources_valid: false
+    issues: []
+- id: verifier_outbound_context_governed
+  status: fail
+  detail:
+    payload_sha256_present: false
+    sources_valid: false
+    issues: []
+failed_checks:
+- mission_contract_persisted
+- artifact_producer_returned_exact_outputs
+- pack_registry_validation
+- verifier_role_session_returned
+- role_lifecycle_completed
+- candidate_only_no_promotion
+- supervisor_outbound_context_governed
+- researcher_outbound_context_governed
+- artifactproducer_outbound_context_governed
+- verifier_outbound_context_governed
+candidate_only: true
+production_modified: false
+promotion_attempted: false
+conclusion: Returned role-session evidence is not yet complete and accepted.

@@ -14,6 +14,23 @@ def probe_auth(worker_id: str) -> str:
     
     if clean_id in deterministic_tools:
         return "yes"
+
+    if clean_id == "agy":
+        oauth_session_markers = [
+            os.path.expanduser("~/Library/Application Support/Antigravity"),
+            os.path.expanduser("~/.agy"),
+        ]
+        if any(os.path.exists(path) for path in oauth_session_markers):
+            return "yes"
+        return "unknown"
+
+    if clean_id == "hermes":
+        oauth_session_markers = [
+            os.path.expanduser("~/.hermes"),
+            os.path.join(os.getcwd(), ".hermes"),
+        ]
+        if any(os.path.exists(path) for path in oauth_session_markers):
+            return "yes"
         
     # Map worker category to environment variables
     env_keys = {
@@ -26,7 +43,6 @@ def probe_auth(worker_id: str) -> str:
         "bailian": ["DASHSCOPE_API_KEY"],
         "qwen": ["QWEN_API_KEY", "DASHSCOPE_API_KEY"],
         "gemini": ["GEMINI_API_KEY"],
-        "agy": ["AGY_API_KEY", "GEMINI_API_KEY"]
     }
     
     keys = env_keys.get(clean_id)

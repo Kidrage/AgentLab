@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from collections import defaultdict
 from typing import Optional
+import json
 import os
 import sys
 
@@ -34,15 +35,14 @@ from agent_runner import (
     compose_agent_messages,
     is_placeholder_report,
     report_path_for_agent,
+    resolve_agent_execution_preview,
     resolve_agent_settings,
     run_agent_model,
 )
 from artifact_contract import artifact_content_issues
 from guard import (
     acquire_lock,
-    clear_stale_lock,
     release_lock,
-    scan_stale_locks,
     update_heartbeat,
 )
 from brain_governor import (
@@ -60,11 +60,14 @@ from policies import (
     ensure_safe_task_id,
     generate_slug_from_request,
     resolve_agentlab_root,
-    task_number,
 )
+try:
+    from agent_runtime.report_sanitizer import dump_report_yaml
+except ModuleNotFoundError:  # pragma: no cover - direct script path
+    from report_sanitizer import dump_report_yaml
 from schemas import TaskRunRequest
 from state_store import load_state, mark_agent_completed, mark_planned, save_state, utc_now
-from workflow_plan import build_workflow_plan
+from workflow_plan import build_workflow_plan, write_mission_contract_artifacts
 
 # -- M2-10 TUI Module Integration --
 def run_tui():
@@ -127,6 +130,66 @@ register_goal_commands(goal_app)
 app.add_typer(goal_app, name="goal")
 
 console = Console()
+
+INIT_BASE_TEMPLATES = {
+    "cost_ledger.yml": "entries: []\n",
+    "brain_decisions.yml": "decisions: []\n",
+}
+
+INIT_AGENT_TEMPLATES = {
+    "Supervisor": {
+        "01_supervisor_plan.md": "# Supervisor Plan\n\nTBD\n",
+    },
+    "RepoScout": {
+        "02_reposcout_report.md": "# RepoScout Report\n\nTBD\n",
+    },
+    "Researcher": {
+        "03_research_notes.md": "# Research Notes\n\nTBD\n",
+    },
+    "InterfaceMapper": {
+        "04_interface_map.md": "# Interface Map\n\nTBD\n",
+    },
+    "PromptEngineer": {
+        "05_coder_prompt.md": "# Coder Handoff Prompt\n\nTBD\n",
+    },
+    "Coder": {
+        "05_coder_prompt.md": "# Coder Handoff Prompt\n\nTBD\n",
+        "06_implementation_report.md": "# Implementation Report\n\nTBD\n",
+    },
+    "ArtifactProducer": {
+        "artifact_producer_report.md": "# Artifact Producer Report\n\nTBD\n",
+    },
+    "Writer": {
+        "fiction_draft.md": "# Fiction Draft\n\nTBD\n",
+    },
+    "Reviewer": {
+        "fiction_review.yml": "status: tbd\nfindings: []\n",
+    },
+    "Scribe": {
+        "continuity_ledger.yml": "status: tbd\nentries: []\n",
+    },
+    "TesterAuditor": {
+        "07_validation_report.md": "# Validation Report\n\nTBD\n",
+        "08_audit_report.md": "# Audit Report\n\nTBD\n",
+    },
+    "Verifier": {
+        "verification_report.md": "# Verification Report\n\nTBD\n",
+    },
+    "Archivist": {
+        "09_archive_update.md": "# Archive Update\n\nTBD\n",
+    },
+}
+
+LEGACY_INIT_AGENTS = [
+    "Supervisor",
+    "RepoScout",
+    "Researcher",
+    "InterfaceMapper",
+    "Coder",
+    "TesterAuditor",
+    "Verifier",
+    "Archivist",
+]
 
 from agent_runtime.cli.role_capability import register_role_capability_commands
 register_role_capability_commands(app, _PROJECT_ROOT, console)
@@ -744,6 +807,81 @@ def load_or_build_plan(
     )
 
 
+def _has_meaningful_init_request(user_request: str) -> bool:
+    stripped = user_request.strip()
+    return bool(stripped and stripped != "# User Request\n\nDescribe the task here.")
+
+
+def _init_agents_for_request(
+    user_request: str,
+    *,
+    agentlab_root: Path,
+    project_name: str,
+    task_id: str,
+) -> tuple[list[str], str | None]:
+    if not _has_meaningful_init_request(user_request):
+        return (list(LEGACY_INIT_AGENTS), "legacy_blank_request")
+
+    try:
+        from agent_runtime.brain.mission_contract import build_mission_contract
+        from agent_runtime.routing.route_catalog import RouteCatalog
+
+        contract = build_mission_contract(
+            user_request,
+            project_id=project_name,
+            task_id=task_id,
+            agentlab_root=agentlab_root,
+        )
+        route_decision = contract.get("route_decision") if isinstance(contract, dict) else {}
+        route_decision = route_decision if isinstance(route_decision, dict) else {}
+        route_proposal = route_decision.get("route_proposal") or contract.get("route_proposal") or {}
+        route_proposal = route_proposal if isinstance(route_proposal, dict) else {}
+        agents = list(route_proposal.get("agents") or [])
+        route_key = route_proposal.get("route_key") or route_decision.get("selected_route")
+        if not agents and route_key:
+            agents = RouteCatalog.from_file(agentlab_root / "config" / "routing_rules.yml").agents_for(str(route_key))
+        if agents:
+            return (agents, str(route_key or "mission_contract"))
+    except Exception:
+        pass
+
+    try:
+        from agent_runtime.routing.route_catalog import RouteCatalog
+        from task_router import recommend_route
+
+        routing_config_path = agentlab_root / "config" / "routing_rules.yml"
+        routing_config = yaml.safe_load(routing_config_path.read_text(encoding="utf-8")) if routing_config_path.exists() else {}
+        route = recommend_route(user_request, routing_config if isinstance(routing_config, dict) else None)
+        agents = list(route.agents or [])
+        if not agents and route.route_key:
+            agents = RouteCatalog.from_file(routing_config_path).agents_for(route.route_key)
+        if agents:
+            return (agents, route.route_key)
+    except Exception:
+        pass
+
+    return (list(LEGACY_INIT_AGENTS), "legacy_route_detection_failed")
+
+
+def _init_templates_for_agents(user_request: str, agents: list[str]) -> dict[str, str]:
+    if not agents or "Coder" in agents:
+        selected_agents = list(LEGACY_INIT_AGENTS)
+        for agent in agents:
+            if agent not in selected_agents:
+                selected_agents.append(agent)
+    else:
+        selected_agents = ["Supervisor"]
+        for agent in agents:
+            if agent not in selected_agents:
+                selected_agents.append(agent)
+
+    templates: dict[str, str] = {"user_request.md": user_request}
+    for agent in selected_agents:
+        templates.update(INIT_AGENT_TEMPLATES.get(agent, {}))
+    templates.update(INIT_BASE_TEMPLATES)
+    return templates
+
+
 @app.command("init-task")
 def init_task(
     task_id: str = typer.Option("task_0001", help="Task run id, such as task_0001 or task_0001_slug-name."),
@@ -779,21 +917,13 @@ def init_task(
 
     created = []
     skipped = []
-    templates = {
-        "user_request.md": user_request,
-        "01_supervisor_plan.md": "# Supervisor Plan\n\nTBD\n",
-        "02_reposcout_report.md": "# RepoScout Report\n\nTBD\n",
-        "03_research_notes.md": "# Research Notes\n\nTBD\n",
-        "04_interface_map.md": "# Interface Map\n\nTBD\n",
-        "05_coder_prompt.md": "# Coder Handoff Prompt\n\nTBD\n",
-        "06_implementation_report.md": "# Implementation Report\n\nTBD\n",
-        "07_validation_report.md": "# Validation Report\n\nTBD\n",
-        "08_audit_report.md": "# Audit Report\n\nTBD\n",
-        "verification_report.md": "# Verification Report\n\nTBD\n",
-        "09_archive_update.md": "# Archive Update\n\nTBD\n",
-        "cost_ledger.yml": "entries: []\n",
-        "brain_decisions.yml": "decisions: []\n",
-    }
+    init_agents, init_route_key = _init_agents_for_request(
+        user_request,
+        agentlab_root=agentlab_root,
+        project_name=project_name,
+        task_id=task_id,
+    )
+    templates = _init_templates_for_agents(user_request, init_agents)
     for name, text in templates.items():
         path = run_dir / name
         if write_text_if_missing(path, text):
@@ -807,7 +937,13 @@ def init_task(
     save_state(run_dir, state)
 
     console.print("[bold]Task initialized[/bold]")
-    console.print({"run_dir": str(run_dir), "created": created, "skipped_existing": skipped})
+    console.print({
+        "run_dir": str(run_dir),
+        "init_route_hint": init_route_key,
+        "init_agents": init_agents,
+        "created": created,
+        "skipped_existing": skipped,
+    })
 
 
 @app.command("task-clear")
@@ -1459,6 +1595,203 @@ def skill_retire_cmd(
         })
     except (FileNotFoundError, ValueError) as e:
         console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("pack-candidate-validate")
+def pack_candidate_validate_cmd(
+    proposal: Path = typer.Option(..., "--proposal", help="Path to production_pack_proposal.yml."),
+    catalog: Optional[Path] = typer.Option(None, "--catalog", help="Production pack catalog path."),
+    allow_replace: bool = typer.Option(False, "--allow-replace", help="Allow an existing pack_id."),
+) -> None:
+    """Validate a synthesized production-pack proposal before promotion."""
+    agentlab_root, _project_name = runtime_context(None)
+    from production_pack_registry import validate_pack_candidate
+
+    catalog_path = catalog or (agentlab_root / "config" / "production_packs.yml")
+    result = validate_pack_candidate(proposal, catalog_path, allow_replace=allow_replace)
+    console.print(result.as_dict())
+    if not result.valid:
+        raise typer.Exit(code=1)
+
+
+@app.command("pack-catalog-audit")
+def pack_catalog_audit_cmd(
+    catalog: Optional[Path] = typer.Option(None, "--catalog", help="Production pack catalog path."),
+    routing: Optional[Path] = typer.Option(None, "--routing", help="Routing rules path."),
+    domain_route_packs: Optional[Path] = typer.Option(None, "--domain-route-packs", help="Domain route packs path."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Audit the production-pack catalog for selector collisions and duplicate pack ids."""
+    agentlab_root, _project_name = runtime_context(None)
+    from production_pack_registry import audit_pack_catalog
+
+    catalog_path = catalog or (agentlab_root / "config" / "production_packs.yml")
+    routing_path = routing or (agentlab_root / "config" / "routing_rules.yml")
+    domain_route_packs_path = domain_route_packs or (agentlab_root / "config" / "domain_route_packs.yml")
+    report = audit_pack_catalog(catalog_path, routing_path, domain_route_packs_path)
+    text = dump_report_yaml(report, agentlab_root)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        console.print(f"wrote {out}")
+    else:
+        console.print(text.rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("pack-candidate-promote")
+def pack_candidate_promote_cmd(
+    proposal: Path = typer.Option(..., "--proposal", help="Path to production_pack_proposal.yml."),
+    catalog: Optional[Path] = typer.Option(None, "--catalog", help="Production pack catalog path."),
+    approved_by: str = typer.Option(..., "--approved-by", help="Human or Supervisor approval identity."),
+    allow_replace: bool = typer.Option(False, "--allow-replace", help="Replace an existing pack_id."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Validate and preview without writing catalog."),
+) -> None:
+    """Promote an approved synthesized production pack into the catalog."""
+    agentlab_root, _project_name = runtime_context(None)
+    from production_pack_registry import promote_pack_candidate
+
+    catalog_path = catalog or (agentlab_root / "config" / "production_packs.yml")
+    try:
+        result = promote_pack_candidate(
+            proposal,
+            catalog_path,
+            approved_by=approved_by,
+            allow_replace=allow_replace,
+            dry_run=dry_run,
+        )
+    except ValueError as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1)
+    console.print(result)
+    if result.get("status") == "invalid":
+        raise typer.Exit(code=1)
+
+
+@app.command("production-pack-synthesis-smoke")
+def production_pack_synthesis_smoke_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+    project: str = typer.Option("AgentLab", "--project", help="Project name for the smoke run."),
+    task_id: str = typer.Option(
+        "task_production_pack_synthesis_smoke_20260707",
+        "--task-id",
+        help="Task run id for the smoke run.",
+    ),
+) -> None:
+    """Generate and validate production-pack synthesis candidate artifacts offline."""
+    agentlab_root, _project_name = runtime_context(None)
+    from production_pack_synthesis_smoke import run_production_pack_synthesis_smoke
+
+    report = run_production_pack_synthesis_smoke(
+        agentlab_root,
+        project=project,
+        task_id=task_id,
+        out=out,
+    )
+    if out:
+        console.print(f"wrote {out}")
+    else:
+        console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("production-pack-role-session-request")
+def production_pack_role_session_request_cmd(
+    out: Optional[Path] = typer.Option(
+        None,
+        "--out",
+        help="Optional request YAML path; a sibling runner script is generated.",
+    ),
+    project: str = typer.Option(
+        "AgentLab",
+        "--project",
+        help="Project containing the source and target synthesis runs.",
+    ),
+    source_task_id: str = typer.Option(
+        "task_production_pack_role_session_live_20260710",
+        "--source-task-id",
+        help="Existing synthesis run whose user request is reused.",
+    ),
+    target_task_id: str = typer.Option(
+        "task_production_pack_role_session_governed_20260710_01",
+        "--target-task-id",
+        help="Fresh candidate run id; it must not already exist.",
+    ),
+) -> None:
+    """Build a four-role trusted-runner request without provider calls."""
+    agentlab_root, _project_name = runtime_context(None)
+    from production_pack_role_session_request import (
+        write_production_pack_role_session_request,
+    )
+
+    request_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "production_pack_role_session_request.yml"
+    )
+    report = write_production_pack_role_session_request(
+        agentlab_root,
+        request_out,
+        project=project,
+        source_task_id=source_task_id,
+        target_task_id=target_task_id,
+    )
+    console.print(f"wrote {request_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") != "ready_for_explicit_approval":
+        raise typer.Exit(code=1)
+
+
+@app.command("production-pack-role-session-audit")
+def production_pack_role_session_audit_cmd(
+    out: Optional[Path] = typer.Option(
+        None,
+        "--out",
+        help="Optional path to write the YAML report.",
+    ),
+    project: str = typer.Option(
+        "AgentLab",
+        "--project",
+        help="Project containing the synthesis run.",
+    ),
+    task_id: str = typer.Option(
+        "task_production_pack_role_session_live_20260710",
+        "--task-id",
+        help="Production-pack synthesis task run id.",
+    ),
+    require_pass: bool = typer.Option(
+        False,
+        "--require-pass",
+        help="Exit non-zero unless the returned role-session audit passes.",
+    ),
+) -> None:
+    """Audit returned production-pack role-session artifacts without provider calls."""
+    agentlab_root, _project_name = runtime_context(None)
+    from production_pack_role_session_audit import (
+        write_production_pack_role_session_audit,
+    )
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "production_pack_role_session_audit.yml"
+    )
+    report = write_production_pack_role_session_audit(
+        agentlab_root,
+        report_out,
+        project=project,
+        task_id=task_id,
+    )
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail" or (
+        require_pass and report.get("status") != "pass"
+    ):
         raise typer.Exit(code=1)
 
 
@@ -2360,8 +2693,30 @@ def prepare(
     console.print("[bold]AgentLab prepare[/bold]")
     console.print("No model calls, source edits, dependency installs, or validation commands were run.")
     console.print(request.model_dump())
-    console.print("[bold]Workflow plan[/bold]")
-    console.print(plan.model_dump())
+    console.print("[bold]Workflow plan summary[/bold]")
+    console.print({
+        "budget_mode": plan.budget_mode,
+        "budget_profile": plan.budget_profile,
+        "project_size": plan.project_size,
+        "risk_level": plan.risk_level,
+        "route": {
+            "route_key": plan.route.route_key,
+            "agents": plan.route.agents,
+            "skipped_agents": plan.route.skipped_agents,
+        },
+        "production_pack": {
+            "status": plan.production_pack.get("status"),
+            "pack_id": plan.production_pack.get("pack_id"),
+            "required_outputs": plan.production_pack.get("required_outputs", []),
+        },
+        "artifact_intent": {
+            "candidate_dir": plan.artifact_intent.get("candidate_dir"),
+            "production_dir": plan.artifact_intent.get("production_dir"),
+            "declared_production_paths": plan.artifact_intent.get("declared_production_paths", []),
+        },
+        "missing_inputs": plan.missing_inputs,
+        "write_plan": write_plan,
+    })
 
     if write_plan:
         plan_path = Path(plan.run_dir) / "workflow_plan.yml"
@@ -2376,6 +2731,11 @@ def prepare(
         })
         plan_data.setdefault("notes", list(plan_data.get("notes") or []))
         plan_data["notes"].append("Context governance: profile, budget, compression trace, and context pack are generated before agent execution.")
+        plan_data["notes"].append(
+            "Mission governance: mission_contract.yml and companion artifacts are "
+            "persisted from the same deterministic compiler output used for route "
+            "and production-pack selection."
+        )
         wrote = write_yaml_if_allowed(plan_path, plan_data, overwrite=overwrite_plan)
         if wrote:
             mark_planned(Path(plan.run_dir), project_name, task_id)
@@ -2384,8 +2744,20 @@ def prepare(
             from task_snapshot import safe_write_task_snapshot
             from skill_injector import inject_skills_into_workflow_plan
             run_dir = Path(plan.run_dir)
+            task_text = (
+                Path(plan.user_request_path).read_text(encoding="utf-8")
+                if Path(plan.user_request_path).exists()
+                else ""
+            )
+            written_mission = write_mission_contract_artifacts(
+                agentlab_root,
+                project_name,
+                task_id,
+                task_text,
+                run_dir,
+                mission_contract=plan.mission_contract,
+            )
             written_context = write_context_artifacts(agentlab_root, project_name, task_id)
-            task_text = Path(plan.user_request_path).read_text(encoding="utf-8") if Path(plan.user_request_path).exists() else ""
             inject_skills_into_workflow_plan(
                 agentlab_root,
                 plan_path,
@@ -2419,6 +2791,8 @@ def prepare(
                 mark_node_completed(run_dir, "PREPARE_PLAN")
             safe_write_task_snapshot(run_dir, project_name, task_id)
             console.print(f"[green]Wrote workflow plan:[/green] {plan_path}")
+            console.print("[green]Wrote mission contract artifacts:[/green]")
+            console.print({name: str(path) for name, path in written_mission.items()})
             console.print("[green]Wrote context governance artifacts:[/green]")
             console.print(written_context)
         else:
@@ -3027,6 +3401,9 @@ def run_agent(
             return
 
     output_path = assert_path_allowed(report_path_for_agent(plan, agent_name, output), agentlab_root)
+    model_output_path = output_path
+    if agent_name == "Writer" and output_path.name == "fiction_draft.md":
+        model_output_path = Path(plan.run_dir) / "writer_role_session_capture.md"
     settings, _ = resolve_agent_settings(
         agentlab_root,
         agent_name,
@@ -3034,7 +3411,14 @@ def run_agent(
         model,
         profile_config=(plan.model_profiles or {}).get(agent_name),
     )
-    messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
+    actual_executor = resolve_agent_execution_preview(
+        agentlab_root,
+        plan,
+        agent_name,
+        provider,
+        model,
+    )
+    messages = compose_agent_messages(agentlab_root, plan, agent_name, model_output_path)
 
     console.print("[bold]Agent run plan[/bold]")
     console.print(
@@ -3045,6 +3429,7 @@ def run_agent(
             "provider": settings.provider,
             "model": settings.model,
             "api_key_configured": settings.api_key_configured,
+            "actual_executor": actual_executor,
             "output": str(output_path),
             "execute": execute,
             "apply_patches": not no_apply_patches,
@@ -3100,7 +3485,15 @@ def run_agent(
         if output_path.exists() and not overwrite_report and not is_placeholder_report(output_path):
             raise typer.BadParameter(f"Report exists and is not a placeholder: {output_path}")
 
-        result = run_agent_model(agentlab_root, plan, agent_name, output_path, provider, model, apply_patches=not no_apply_patches)
+        result = run_agent_model(
+            agentlab_root,
+            plan,
+            agent_name,
+            model_output_path,
+            provider,
+            model,
+            apply_patches=not no_apply_patches,
+        )
     except Exception as exc:
         _handle_command_failure(
             agentlab_root=agentlab_root,
@@ -3214,9 +3607,40 @@ def run_agent(
         console.print({"output": str(fallback_path), "usage": result.model_dump(exclude={"content"})})
         return
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(result.content, encoding="utf-8")
     gate_issues = []
+    if agent_name == "Writer":
+        try:
+            from agent_runtime.writer_output_materializer import materialize_writer_candidate_result
+        except ModuleNotFoundError:  # pragma: no cover - direct script path
+            from writer_output_materializer import materialize_writer_candidate_result
+
+        materialized = materialize_writer_candidate_result(
+            result,
+            Path(plan.run_dir),
+            task_id,
+            capture_name=model_output_path.name,
+        )
+        if materialized:
+            output_path = Path(plan.run_dir) / "fiction_draft.md"
+            output_content = output_path.read_text(encoding="utf-8", errors="replace")
+        else:
+            contract_path = Path(plan.run_dir) / "writer_output_contract.yml"
+            contract = (
+                yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+                if contract_path.exists()
+                else {}
+            )
+            gate_issues.extend(
+                str(issue) for issue in contract.get("issues", [])
+            )
+            if not gate_issues:
+                gate_issues.append("Writer did not return the four required candidate output blocks")
+            output_path = contract_path
+            output_content = result.content or ""
+    else:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(result.content, encoding="utf-8")
+        output_content = result.content or ""
     if agent_name == "Archivist":
         try:
             from project_artifact_steward import apply_archive_protocol
@@ -3225,7 +3649,8 @@ def run_agent(
             gate_issues.extend(f"archive_receipt error: {error}" for error in receipt.get("errors") or [])
         except Exception as exc:
             gate_issues.append(f"Project Artifact Steward failed: {type(exc).__name__}: {exc}")
-    gate_issues.extend(artifact_content_issues(output_path.name, result.content or "", Path(plan.run_dir)))
+    if not gate_issues:
+        gate_issues.extend(artifact_content_issues(output_path.name, output_content, Path(plan.run_dir)))
     if gate_issues:
         block_path = write_agent_artifact_gate_block(
             Path(plan.run_dir), project_name, task_id, agent_name, output_path, gate_issues
@@ -4133,6 +4558,84 @@ def provider_test(
         console.print(f"[red]X Provider {provider} failed: {e}[/red]")
 
 
+@app.command("provider-smoke")
+def provider_smoke_cmd(
+    provider: str = typer.Option("deepseek", "--provider", help="Provider key to test."),
+    model: Optional[str] = typer.Option(None, "--model", help="Optional model override for this smoke."),
+    out: Optional[Path] = typer.Option(None, "--out", help="YAML report output path."),
+    live: bool = typer.Option(False, "--live", help="Execute a non-private live reachability prompt."),
+) -> None:
+    """Write a provider reachability smoke report without rendering secrets."""
+    agentlab_root, _ = runtime_context(None)
+    from provider_smoke import build_provider_smoke_report
+
+    report = build_provider_smoke_report(agentlab_root, provider=provider, model_override=model, live=live)
+    text = dump_report_yaml(report, agentlab_root)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        console.print(f"wrote {out}")
+    else:
+        console.print(text.rstrip())
+    if report.get("status") == "blocked":
+        raise typer.Exit(code=1)
+
+
+@app.command("grok-cli-smoke")
+def grok_cli_smoke_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="YAML report output path."),
+    live: bool = typer.Option(False, "--live", help="Execute a non-private Grok CLI reachability prompt."),
+    timeout_seconds: int = typer.Option(60, "--timeout-seconds", help="Live command timeout."),
+    diagnostics: bool = typer.Option(True, "--diagnostics/--no-diagnostics", help="On live failure, include non-private grok inspect/models diagnostics."),
+) -> None:
+    """Write a non-private Grok CLI session smoke report."""
+    agentlab_root, _ = runtime_context(None)
+    from grok_cli_smoke import build_grok_cli_smoke_report
+
+    report = build_grok_cli_smoke_report(
+        agentlab_root,
+        live=live,
+        timeout_seconds=timeout_seconds,
+        include_diagnostics=diagnostics,
+    )
+    text = dump_report_yaml(report, agentlab_root)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        console.print(f"wrote {out}")
+    else:
+        console.print(text.rstrip())
+    if report.get("status") == "blocked":
+        raise typer.Exit(code=1)
+
+
+@app.command("agy-cli-smoke")
+def agy_cli_smoke_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="YAML report output path."),
+    live: bool = typer.Option(False, "--live", help="Execute a non-private Agy CLI reachability prompt."),
+    timeout_seconds: int = typer.Option(60, "--timeout-seconds", help="Live command timeout."),
+) -> None:
+    """Write a non-private Agy CLI session smoke report."""
+    agentlab_root, _ = runtime_context(None)
+    from agy_cli_smoke import build_agy_cli_smoke_report
+
+    report = build_agy_cli_smoke_report(
+        agentlab_root,
+        live=live,
+        timeout_seconds=timeout_seconds,
+        smoke_dir=out.parent / out.stem if out else None,
+    )
+    text = dump_report_yaml(report, agentlab_root)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        console.print(f"wrote {out}")
+    else:
+        console.print(text.rstrip())
+    if report.get("status") == "blocked":
+        raise typer.Exit(code=1)
+
+
 # Task Discovery & Resume Index Commands
 
 @app.command("task-index")
@@ -4322,6 +4825,725 @@ def artifact_check_cmd(
         for iss in result['issues'][:10]:
             console.print(f"    - {iss.get('file', '?')}: {iss.get('issue', '?')}")
     console.print(f"  Manifest: {run_dir}/artifact_manifest.yml")
+
+
+@app.command("capability-acceptance")
+def capability_acceptance_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Aggregate local evidence for AgentLab's core capability acceptance matrix."""
+    agentlab_root, _project_name = runtime_context(None)
+    from capability_acceptance import build_capability_acceptance_report
+
+    report = build_capability_acceptance_report(agentlab_root)
+    text = dump_report_yaml(report, agentlab_root)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        console.print(f"wrote {out}")
+    else:
+        console.print(text.rstrip())
+    if report.get("overall_status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("frontdesk-boundary-audit")
+def frontdesk_boundary_audit_cmd(
+    agent: str = typer.Option("hermes", "--agent", help="Frontdesk agent id to audit."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Audit that frontdesk operation stays separate from role-worker execution."""
+    agentlab_root, _project_name = runtime_context(None)
+    from frontdesk_boundary_audit import build_frontdesk_boundary_audit
+
+    report = build_frontdesk_boundary_audit(agentlab_root, frontdesk_agent=agent)
+    text = dump_report_yaml(report, agentlab_root)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        console.print(f"wrote {out}")
+    else:
+        console.print(text.rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("web-ui-candidate-smoke")
+def web_ui_candidate_smoke_cmd(
+    web_ui_dir: Optional[Path] = typer.Option(None, "--web-ui-dir", help="Candidate web_ui artifact directory."),
+    out: Optional[Path] = typer.Option(None, "--out", help="JSON report output path."),
+) -> None:
+    """Run a local DOM/fetch smoke against a run-local Web UI candidate."""
+    agentlab_root, _project_name = runtime_context(None)
+    from ui_candidate_smoke import DEFAULT_WEB_UI_RUN, write_web_ui_candidate_smoke
+
+    report_out = out or (
+        agentlab_root
+        / "projects"
+        / "AgentLab"
+        / "runs"
+        / DEFAULT_WEB_UI_RUN
+        / "ui_candidate_smoke_report.json"
+    )
+    report = write_web_ui_candidate_smoke(agentlab_root, report_out, web_ui_dir=web_ui_dir)
+    console.print(f"wrote {report_out}")
+    console.print(report)
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("web-ui-browser-smoke")
+def web_ui_browser_smoke_cmd(
+    web_ui_dir: Optional[Path] = typer.Option(None, "--web-ui-dir", help="Candidate web_ui artifact directory."),
+    out: Optional[Path] = typer.Option(None, "--out", help="JSON report output path."),
+) -> None:
+    """Render a run-local Web UI candidate with headless Chrome and inspect the DOM."""
+    agentlab_root, _project_name = runtime_context(None)
+    from ui_candidate_smoke import DEFAULT_WEB_UI_RUN, write_web_ui_browser_smoke
+
+    report_out = out or (
+        agentlab_root
+        / "projects"
+        / "AgentLab"
+        / "runs"
+        / DEFAULT_WEB_UI_RUN
+        / "ui_browser_smoke_report.json"
+    )
+    report = write_web_ui_browser_smoke(agentlab_root, report_out, web_ui_dir=web_ui_dir)
+    console.print(f"wrote {report_out}")
+    console.print(report)
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("web-ui-interaction-smoke")
+def web_ui_interaction_smoke_cmd(
+    web_ui_dir: Optional[Path] = typer.Option(None, "--web-ui-dir", help="Candidate web_ui artifact directory."),
+    out: Optional[Path] = typer.Option(None, "--out", help="JSON report output path."),
+) -> None:
+    """Exercise run-local Web UI candidate operator interactions."""
+    agentlab_root, _project_name = runtime_context(None)
+    from ui_candidate_smoke import DEFAULT_WEB_UI_RUN, write_web_ui_interaction_smoke
+
+    report_out = out or (
+        agentlab_root
+        / "projects"
+        / "AgentLab"
+        / "runs"
+        / DEFAULT_WEB_UI_RUN
+        / "ui_interaction_smoke_report.json"
+    )
+    report = write_web_ui_interaction_smoke(agentlab_root, report_out, web_ui_dir=web_ui_dir)
+    console.print(f"wrote {report_out}")
+    console.print(report)
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("web-ui-api-smoke")
+def web_ui_api_smoke_cmd(
+    web_ui_dir: Optional[Path] = typer.Option(None, "--web-ui-dir", help="Candidate web_ui artifact directory."),
+    out: Optional[Path] = typer.Option(None, "--out", help="JSON report output path."),
+) -> None:
+    """Exercise a run-local Web UI candidate backing API write."""
+    agentlab_root, _project_name = runtime_context(None)
+    from ui_candidate_smoke import DEFAULT_WEB_UI_RUN, write_web_ui_api_smoke
+
+    report_out = out or (
+        agentlab_root
+        / "projects"
+        / "AgentLab"
+        / "runs"
+        / DEFAULT_WEB_UI_RUN
+        / "ui_api_smoke_report.json"
+    )
+    report = write_web_ui_api_smoke(agentlab_root, report_out, web_ui_dir=web_ui_dir)
+    console.print(f"wrote {report_out}")
+    console.print(report)
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("web-ui-visual-smoke")
+def web_ui_visual_smoke_cmd(
+    web_ui_dir: Optional[Path] = typer.Option(None, "--web-ui-dir", help="Candidate web_ui artifact directory."),
+    out: Optional[Path] = typer.Option(None, "--out", help="JSON report output path."),
+    screenshot: Optional[Path] = typer.Option(None, "--screenshot", help="Screenshot PNG output path."),
+) -> None:
+    """Capture a run-local Web UI candidate screenshot and run pixel-health checks."""
+    agentlab_root, _project_name = runtime_context(None)
+    from ui_candidate_smoke import DEFAULT_WEB_UI_RUN, write_web_ui_visual_smoke
+
+    run_dir = agentlab_root / "projects" / "AgentLab" / "runs" / DEFAULT_WEB_UI_RUN
+    report_out = out or (run_dir / "ui_visual_smoke_report.json")
+    screenshot_out = screenshot or (run_dir / "ui_visual_smoke.png")
+    report = write_web_ui_visual_smoke(
+        agentlab_root,
+        report_out,
+        web_ui_dir=web_ui_dir,
+        screenshot_path=screenshot_out,
+    )
+    console.print(f"wrote {report_out}")
+    console.print(report)
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("web-ui-responsive-smoke")
+def web_ui_responsive_smoke_cmd(
+    web_ui_dir: Optional[Path] = typer.Option(None, "--web-ui-dir", help="Candidate web_ui artifact directory."),
+    out: Optional[Path] = typer.Option(None, "--out", help="JSON report output path."),
+) -> None:
+    """Capture desktop/mobile screenshots and run responsive pixel-health checks."""
+    agentlab_root, _project_name = runtime_context(None)
+    from ui_candidate_smoke import DEFAULT_WEB_UI_RUN, write_web_ui_responsive_smoke
+
+    run_dir = agentlab_root / "projects" / "AgentLab" / "runs" / DEFAULT_WEB_UI_RUN
+    report_out = out or (run_dir / "ui_responsive_smoke_report.json")
+    report = write_web_ui_responsive_smoke(agentlab_root, report_out, web_ui_dir=web_ui_dir)
+    console.print(f"wrote {report_out}")
+    console.print(report)
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("production-chain-audit")
+def production_chain_audit_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Audit representative task types against AgentLab production chains."""
+    agentlab_root, _project_name = runtime_context(None)
+    from production_chain_audit import build_production_chain_audit
+
+    report = build_production_chain_audit(agentlab_root)
+    text = dump_report_yaml(report, agentlab_root)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        console.print(f"wrote {out}")
+    else:
+        console.print(text.rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("agent-role-chain-audit")
+def agent_role_chain_audit_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Audit role responsibilities, worker bindings, and production-chain agents."""
+    agentlab_root, _project_name = runtime_context(None)
+    from agent_role_chain_audit import build_agent_role_chain_audit
+
+    report = build_agent_role_chain_audit(agentlab_root)
+    text = dump_report_yaml(report, agentlab_root)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        console.print(f"wrote {out}")
+    else:
+        console.print(text.rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("live-unblock-plan")
+def live_unblock_plan_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Write the pending internal live role-session action plan."""
+    agentlab_root, _project_name = runtime_context(None)
+    from live_unblock_plan import build_live_unblock_plan
+
+    report = build_live_unblock_plan(agentlab_root)
+    text = dump_report_yaml(report, agentlab_root)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        console.print(f"wrote {out}")
+    else:
+        console.print(text.rstrip())
+
+
+@app.command("external-acceptance-readiness")
+def external_acceptance_readiness_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Legacy alias for internal live-smoke readiness."""
+    agentlab_root, _project_name = runtime_context(None)
+    from external_acceptance_readiness import write_external_acceptance_readiness
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "external_acceptance_readiness.yml"
+    )
+    report = write_external_acceptance_readiness(agentlab_root, report_out)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("internal-live-readiness")
+def internal_live_readiness_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Audit whether internal AgentLab live-smoke routes are ready."""
+    agentlab_root, _project_name = runtime_context(None)
+    from external_acceptance_readiness import write_internal_live_readiness
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "internal_live_readiness.yml"
+    )
+    report = write_internal_live_readiness(agentlab_root, report_out)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("frontdesk-live-handoff")
+def frontdesk_live_handoff_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+    agent: str = typer.Option("hermes", "--agent", help="Frontdesk agent id."),
+) -> None:
+    """Write a frontdesk-safe handoff for live AgentLab acceptance work."""
+    agentlab_root, _project_name = runtime_context(None)
+    from frontdesk_live_handoff import write_frontdesk_live_handoff
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "frontdesk_live_handoff.yml"
+    )
+    report = write_frontdesk_live_handoff(agentlab_root, report_out, frontdesk_agent=agent)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("cli-shell-coalescing-plan")
+def cli_shell_coalescing_plan_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+    mode: str = typer.Option("full_cli", "--mode", help="Agent model profile mode to inspect."),
+    tier: str = typer.Option("performance", "--tier", help="Agent model profile tier to inspect."),
+) -> None:
+    """Plan same-backend CLI workflow-shell role-session coalescing."""
+    agentlab_root, _project_name = runtime_context(None)
+    from cli_shell_coalescing import write_cli_shell_coalescing_plan
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "cli_shell_coalescing_plan.yml"
+    )
+    report = write_cli_shell_coalescing_plan(agentlab_root, report_out, mode=mode, tier=tier)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("cli-shell-coalescing-status")
+def cli_shell_coalescing_status_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+    plan: Optional[Path] = typer.Option(None, "--plan", help="Optional coalescing plan path to inspect."),
+) -> None:
+    """Validate returned artifacts from coalesced CLI workflow-shell sessions."""
+    agentlab_root, _project_name = runtime_context(None)
+    from cli_shell_coalescing_status import write_cli_shell_coalescing_status
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "cli_shell_coalescing_status.yml"
+    )
+    report = write_cli_shell_coalescing_status(agentlab_root, report_out, plan_path=plan)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("cli-shell-coalescing-runner-request")
+def cli_shell_coalescing_runner_request_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML request."),
+    plan: Optional[Path] = typer.Option(None, "--plan", help="Optional coalescing plan path to inspect."),
+    status: Optional[Path] = typer.Option(None, "--status", help="Optional coalescing status path to inspect."),
+) -> None:
+    """Write a trusted-runner request for coalesced CLI shell session receipts."""
+    agentlab_root, _project_name = runtime_context(None)
+    from cli_shell_coalescing_request import write_cli_shell_coalescing_runner_request
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "cli_shell_coalescing_runner_request.yml"
+    )
+    report = write_cli_shell_coalescing_runner_request(
+        agentlab_root,
+        report_out,
+        plan_path=plan,
+        status_path=status,
+    )
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "needs_attention":
+        raise typer.Exit(code=1)
+
+
+@app.command("cli-shell-coalescing-runner")
+def cli_shell_coalescing_runner_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the runner YAML report."),
+    request: Optional[Path] = typer.Option(None, "--request", help="Optional coalesced runner request path."),
+    backend: str = typer.Option("all", "--backend", help="Backend to run: all, claude_code, or hermes."),
+    execute: bool = typer.Option(False, "--execute", help="Execute trusted shell sessions instead of dry-run."),
+    provision_hermes_profiles: bool = typer.Option(
+        False,
+        "--provision-hermes-profiles",
+        help="Create/update isolated Hermes role profiles before trusted execution.",
+    ),
+    provision_only: bool = typer.Option(
+        False,
+        "--provision-only",
+        help="Provision Hermes role profiles without dispatching shell role work.",
+    ),
+    timeout: int = typer.Option(600, "--timeout", min=1, help="Per-run timeout in seconds."),
+) -> None:
+    """Plan or execute coalesced CLI shell sessions behind a trusted-runner gate."""
+    agentlab_root, _project_name = runtime_context(None)
+    from cli_shell_coalescing_runner import write_cli_shell_coalescing_runner_result
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "cli_shell_coalescing_runner_result.yml"
+    )
+    report = write_cli_shell_coalescing_runner_result(
+        agentlab_root,
+        report_out,
+        request_path=request,
+        backend=backend,
+        execute=execute,
+        provision_profiles=provision_hermes_profiles,
+        provision_only=provision_only,
+        timeout=timeout,
+    )
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") not in {"ready_for_trusted_runner", "pass"}:
+        raise typer.Exit(code=1)
+
+
+@app.command("cli-shell-coalescing-collect")
+def cli_shell_coalescing_collect_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+    plan: Optional[Path] = typer.Option(None, "--plan", help="Optional coalescing plan path to inspect."),
+    status: Optional[Path] = typer.Option(None, "--status", help="Optional coalescing status path to refresh."),
+    request: Optional[Path] = typer.Option(None, "--request", help="Optional runner request path to refresh."),
+) -> None:
+    """Collect coalesced shell receipts and refresh local acceptance reports."""
+    agentlab_root, _project_name = runtime_context(None)
+    from cli_shell_coalescing_collect import write_cli_shell_coalescing_collect
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "cli_shell_coalescing_collect.yml"
+    )
+    report = write_cli_shell_coalescing_collect(
+        agentlab_root,
+        report_out,
+        plan_path=plan,
+        status_path=status,
+        request_path=request,
+    )
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") not in {"pending_returned_artifacts", "pass"}:
+        raise typer.Exit(code=1)
+
+
+@app.command("trusted-live-runner-request")
+def trusted_live_runner_request_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML request."),
+    request_id: Optional[str] = typer.Option(None, "--request-id", help="Stable request id for repeatable scripts."),
+) -> None:
+    """Write a trusted-runner request for private internal live smokes."""
+    agentlab_root, _project_name = runtime_context(None)
+    from trusted_live_runner_request import write_trusted_live_runner_request
+
+    request_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_request.yml"
+    )
+    report = write_trusted_live_runner_request(agentlab_root, request_out, request_id=request_id)
+    console.print(f"wrote {request_out}")
+    if report.get("script_path"):
+        console.print(f"wrote {report['script_path']}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("trusted-live-runner-status")
+def trusted_live_runner_status_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML status report."),
+    request: Optional[Path] = typer.Option(None, "--request", help="Trusted runner request YAML to inspect."),
+) -> None:
+    """Check whether trusted runner live-smoke artifacts have returned."""
+    agentlab_root, _project_name = runtime_context(None)
+    from trusted_live_runner_status import write_trusted_live_runner_status
+
+    status_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_status.yml"
+    )
+    report = write_trusted_live_runner_status(agentlab_root, status_out, request_path=request)
+    console.print(f"wrote {status_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+
+
+@app.command("trusted-live-runner-operator-handoff")
+def trusted_live_runner_operator_handoff_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML handoff."),
+    request: Optional[Path] = typer.Option(None, "--request", help="Trusted runner request YAML to package."),
+) -> None:
+    """Write safe operator instructions for running and collecting trusted live smokes."""
+    agentlab_root, _project_name = runtime_context(None)
+    from trusted_live_runner_operator_handoff import write_trusted_live_runner_operator_handoff
+
+    handoff_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_operator_handoff.yml"
+    )
+    report = write_trusted_live_runner_operator_handoff(agentlab_root, handoff_out, request_path=request)
+    console.print(f"wrote {handoff_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "needs_attention":
+        raise typer.Exit(code=1)
+
+
+@app.command("trusted-live-runner-collect")
+def trusted_live_runner_collect_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML collection report."),
+    request: Optional[Path] = typer.Option(None, "--request", help="Trusted runner request YAML to collect."),
+    item: Optional[str] = typer.Option(None, "--item", help="Optional trusted runner item id to summarize."),
+) -> None:
+    """Refresh trusted-runner status and acceptance reports after a live run."""
+    agentlab_root, _project_name = runtime_context(None)
+    from trusted_live_runner_collect import selected_collect_path, write_trusted_live_runner_collect
+
+    canonical_collect = (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_collect.yml"
+    )
+    if out is not None:
+        collect_out = out
+        report = write_trusted_live_runner_collect(
+            agentlab_root,
+            collect_out,
+            request_path=request,
+            item_id=item,
+        )
+    elif item:
+        write_trusted_live_runner_collect(
+            agentlab_root,
+            canonical_collect,
+            request_path=request,
+            item_id=None,
+        )
+        collect_out = selected_collect_path(canonical_collect, item)
+        report = yaml.safe_load(collect_out.read_text(encoding="utf-8")) or {}
+    else:
+        collect_out = canonical_collect
+        report = write_trusted_live_runner_collect(
+            agentlab_root,
+            collect_out,
+            request_path=request,
+            item_id=None,
+        )
+    console.print(f"wrote {collect_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("trusted-live-runner-preflight")
+def trusted_live_runner_preflight_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML preflight report."),
+    request: Optional[Path] = typer.Option(None, "--request", help="Trusted runner request YAML to inspect."),
+) -> None:
+    """Check local trusted-runner prerequisites without provider calls."""
+    agentlab_root, _project_name = runtime_context(None)
+    from trusted_live_runner_preflight import write_trusted_live_runner_preflight
+
+    preflight_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_preflight.yml"
+    )
+    report = write_trusted_live_runner_preflight(agentlab_root, preflight_out, request_path=request)
+    console.print(f"wrote {preflight_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("acceptance-report-hygiene")
+def acceptance_report_hygiene_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Audit canonical acceptance reports and non-authoritative snapshot freshness."""
+    agentlab_root, _project_name = runtime_context(None)
+    from acceptance_report_hygiene import write_acceptance_report_hygiene
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "acceptance_report_hygiene.yml"
+    )
+    report = write_acceptance_report_hygiene(agentlab_root, report_out)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("goal-completion-audit")
+def goal_completion_audit_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Audit the current goal against proven evidence and live blockers."""
+    agentlab_root, _project_name = runtime_context(None)
+    from goal_completion_audit import build_goal_completion_audit
+
+    report = build_goal_completion_audit(agentlab_root)
+    text = dump_report_yaml(report, agentlab_root)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        console.print(f"wrote {out}")
+    else:
+        console.print(text.rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("objective-requirement-audit")
+def objective_requirement_audit_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Audit the active user objective as explicit requirements and evidence."""
+    agentlab_root, _project_name = runtime_context(None)
+    from objective_requirement_audit import write_objective_requirement_audit
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "objective_requirement_audit.yml"
+    )
+    report = write_objective_requirement_audit(agentlab_root, report_out)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("crown-live-candidate-audit")
+def crown_live_candidate_audit_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+    task_id: str = typer.Option(
+        "task_narrative_eval_ch01_live_ch01_20260707_cli_fallback",
+        "--task-id",
+        help="Crown run id to audit.",
+    ),
+) -> None:
+    """Audit the local Crown live chapter candidate without calling providers."""
+    agentlab_root, _project_name = runtime_context(None)
+    from crown_candidate_audit import write_crown_live_candidate_audit
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "crown_live_candidate_audit.yml"
+    )
+    report = write_crown_live_candidate_audit(agentlab_root, report_out, task_id=task_id)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("crown-scale-governance-audit")
+def crown_scale_governance_audit_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+) -> None:
+    """Audit Crown 1500-chapter governance-scale ledgers without generating prose."""
+    agentlab_root, _project_name = runtime_context(None)
+    from crown_scale_governance_audit import write_crown_scale_governance_audit
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "crown_scale_governance_audit.yml"
+    )
+    report = write_crown_scale_governance_audit(agentlab_root, report_out)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
+
+
+@app.command("media-series-scaffold-audit")
+def media_series_scaffold_audit_cmd(
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
+    task_id: str = typer.Option(
+        "task_probe_crown_comic_video_poster_series_scaffold_20260707",
+        "--task-id",
+        help="Crown media-series run id to audit.",
+    ),
+) -> None:
+    """Audit the local Crown media-series scaffold without calling providers."""
+    agentlab_root, _project_name = runtime_context(None)
+    from media_series_scaffold_audit import write_media_series_scaffold_audit
+
+    report_out = out or (
+        agentlab_root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "media_series_scaffold_audit.yml"
+    )
+    report = write_media_series_scaffold_audit(agentlab_root, report_out, task_id=task_id)
+    console.print(f"wrote {report_out}")
+    console.print(dump_report_yaml(report, agentlab_root).rstrip())
+    if report.get("status") == "fail":
+        raise typer.Exit(code=1)
 
 
 @app.command("run-next")

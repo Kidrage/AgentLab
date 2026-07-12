@@ -13,8 +13,12 @@ from typer.testing import CliRunner
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
-from agent_runtime.cli.narrative_eval import register_narrative_eval_commands
-from agent_runtime.narrative_eval import _write_live_chapter_outputs, run_narrative_eval
+from agent_runtime.cli.narrative_eval import register_narrative_eval_commands  # noqa: E402
+from agent_runtime.narrative_eval import (  # noqa: E402
+    _audit_history,
+    _write_live_chapter_outputs,
+    run_narrative_eval,
+)
 
 
 runner = CliRunner()
@@ -23,6 +27,48 @@ runner = CliRunner()
 def _write_yaml(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def _writer_candidate_blocks(draft: str) -> str:
+    outputs = {
+        "fiction_draft.md": f"# Draft\n\n{draft}\n",
+        "continuity_ledger.yml": yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "chapter": 1,
+                "baseline_mode": "reset",
+                "timeline": {"monotonic": True, "chapter_day": 1},
+                "writer_marker": "preserve_me",
+            },
+            sort_keys=False,
+            allow_unicode=True,
+        ),
+        "state_transition_proposal.yml": yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "candidate",
+                "events": [
+                    {
+                        "event_type": "chapter_state_change",
+                        "scope": "candidate_only",
+                        "summary": "writer-authored",
+                    }
+                ],
+                "requires_user_promotion": True,
+            },
+            sort_keys=False,
+            allow_unicode=True,
+        ),
+        "narrative_delivery_receipt.yml": yaml.safe_dump(
+            {"schema_version": 1, "status": "pass", "candidate_only": True},
+            sort_keys=False,
+            allow_unicode=True,
+        ),
+    }
+    return "\n\n".join(
+        f"<!-- AGENTLAB_EDIT: {name} -->\n{content}<!-- END AGENTLAB_EDIT -->"
+        for name, content in outputs.items()
+    )
 
 
 def _copy_config_root(tmp_path: Path) -> Path:
@@ -100,7 +146,10 @@ def test_narrative_eval_reset_mock_generates_candidate_chapters_without_producti
     for item in l2_chapters:
         run_dir = root / item["run_dir"]
         packet = yaml.safe_load((run_dir / "chapter_packet.yml").read_text(encoding="utf-8"))
+        workflow = yaml.safe_load((run_dir / "workflow_plan.yml").read_text(encoding="utf-8"))
         assert packet["baseline_mode"] == "reset"
+        assert item["task_id"].startswith("task_narrative_eval_ch")
+        assert workflow["route"]["route_key"] == "narrative_light_chapter"
         assert not any(source.startswith("production/manuscript/") for source in packet["previous_chapters"])
         assert item["delivery"]["valid"] is True
         assert (run_dir / "narrative_delivery_receipt.yml").exists()
@@ -108,7 +157,7 @@ def test_narrative_eval_reset_mock_generates_candidate_chapters_without_producti
     ch1_packet = yaml.safe_load((root / l2_chapters[0]["run_dir"] / "chapter_packet.yml").read_text(encoding="utf-8"))
     ch2_packet = yaml.safe_load((root / l2_chapters[1]["run_dir"] / "chapter_packet.yml").read_text(encoding="utf-8"))
     assert ch1_packet["previous_chapters"] == []
-    assert any("runs/narrative_eval_ch01_20260705T000000Z/fiction_draft.md" == source for source in ch2_packet["previous_chapters"])
+    assert any("runs/task_narrative_eval_ch01_20260705T000000Z/fiction_draft.md" == source for source in ch2_packet["previous_chapters"])
 
     production_after = {
         path.relative_to(project_root).as_posix(): path.read_text(encoding="utf-8")
@@ -127,8 +176,117 @@ def test_narrative_eval_blocks_generation_when_fact_snapshot_missing(tmp_path: P
     assert result["status"] == "fail"
     assert result["layers"]["L0_fact_source_health"]["live_generation_blocked"] is True
     assert result["layers"]["L2_real_chapter_sample"]["status"] == "blocked"
-    generated_runs = list((project_root / "runs").glob("narrative_eval_ch*")) if (project_root / "runs").exists() else []
+    generated_runs = list((project_root / "runs").glob("task_narrative_eval_ch*")) if (project_root / "runs").exists() else []
     assert generated_runs == []
+
+
+def test_narrative_eval_resume_reuses_valid_chapters_and_rebuilds_continuity_chain(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    _make_crown_project(root)
+    timestamp = "20260705T005000Z"
+
+    first = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[1, 2, 3],
+        timestamp=timestamp,
+    )
+    assert first["layers"]["L2_real_chapter_sample"]["status"] == "pass"
+
+    def fail_if_regenerated(*args, **kwargs):
+        raise AssertionError("valid chapter should have been resumed")
+
+    monkeypatch.setattr("agent_runtime.narrative_eval._write_mock_chapter_outputs", fail_if_regenerated)
+    resumed = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[1, 2, 3],
+        timestamp=timestamp,
+        resume_valid=True,
+        stop_on_block=True,
+    )
+
+    l2 = resumed["layers"]["L2_real_chapter_sample"]
+    assert l2["status"] == "pass"
+    assert l2["completed_chapter_count"] == 3
+    assert all(chapter["resumed_existing"] is True for chapter in l2["chapters"])
+    eval_dir = root / resumed["acceptance_run_dir"]
+    checkpoint = yaml.safe_load((eval_dir / "generation_checkpoint.yml").read_text(encoding="utf-8"))
+    assert checkpoint["status"] == "complete"
+    assert checkpoint["completed_chapters"] == [1, 2, 3]
+
+
+def test_narrative_eval_stop_on_block_prevents_later_chapter_generation(tmp_path: Path) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+
+    result = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="live",
+        chapters=[1, 2, 3],
+        timestamp="20260705T005500Z",
+        stop_on_block=True,
+    )
+
+    l2 = result["layers"]["L2_real_chapter_sample"]
+    assert l2["status"] == "blocked"
+    assert [chapter["chapter"] for chapter in l2["chapters"]] == [1]
+    assert not (project_root / "runs" / "task_narrative_eval_ch02_20260705T005500Z").exists()
+    checkpoint = yaml.safe_load(
+        (root / result["acceptance_run_dir"] / "generation_checkpoint.yml").read_text(encoding="utf-8")
+    )
+    assert checkpoint["status"] == "blocked"
+    assert checkpoint["blocking_chapter"] == 1
+    assert checkpoint["next_chapter"] == 2
+
+
+def test_history_audit_does_not_require_review_for_light_chapter_runs(tmp_path: Path) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    run_dir = project_root / "runs" / "task_light_chapter_complete"
+    run_dir.mkdir(parents=True)
+    (run_dir / "user_request.md").write_text("write Crown chapter 1", encoding="utf-8")
+    _write_yaml(run_dir / "workflow_plan.yml", {"route": {"route_key": "narrative_light_chapter", "agents": ["Supervisor", "Writer"]}})
+    _write_yaml(run_dir / "chapter_packet.yml", {"chapter": 1})
+    (run_dir / "fiction_draft.md").write_text("# Draft\n\n正文", encoding="utf-8")
+    _write_yaml(run_dir / "continuity_ledger.yml", {"chapter": 1})
+    _write_yaml(run_dir / "state_transition_proposal.yml", {"chapter": 1})
+    _write_yaml(run_dir / "narrative_delivery_receipt.yml", {"status": "pass"})
+
+    audit = _audit_history(project_root)
+
+    assert all(item["task_id"] != "task_light_chapter_complete" for item in audit["incomplete_historical_narrative_runs"])
+
+
+def test_history_audit_classifies_live_generation_error_separately(tmp_path: Path) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    run_dir = project_root / "runs" / "task_live_guard_blocked"
+    run_dir.mkdir(parents=True)
+    (run_dir / "user_request.md").write_text("write Crown chapter 1", encoding="utf-8")
+    _write_yaml(run_dir / "workflow_plan.yml", {"route": {"route_key": "narrative_light_chapter", "agents": ["Supervisor", "Writer"]}})
+    _write_yaml(run_dir / "chapter_packet.yml", {"chapter": 1})
+    _write_yaml(
+        run_dir / "live_generation_error.yml",
+        {
+            "schema_version": 1,
+            "status": "blocked",
+            "agent": "Writer",
+            "result_status": "blocked",
+            "error": "live narrative eval requires an AgentLab Writer role-session packet",
+        },
+    )
+
+    audit = _audit_history(project_root)
+
+    assert all(item["task_id"] != "task_live_guard_blocked" for item in audit["incomplete_historical_narrative_runs"])
+    assert any(item["task_id"] == "task_live_guard_blocked" for item in audit["blocked_live_generation_runs"])
 
 
 def test_narrative_eval_scale_simulation_has_1500_chapter_ledgers(tmp_path: Path) -> None:
@@ -140,9 +298,16 @@ def test_narrative_eval_scale_simulation_has_1500_chapter_ledgers(tmp_path: Path
     simulation = yaml.safe_load((eval_dir / "series_scale_simulation.yml").read_text(encoding="utf-8"))
 
     assert simulation["chapter_count"] == 1500
+    assert simulation["target_total_chapters"] == 1500
+    assert simulation["simulation_scope"] == "governance_ledger_only"
+    assert simulation["text_generation"]["draft_chapters_generated"] == 0
+    assert simulation["text_generation"]["draft_text_generated"] is False
     assert simulation["timeline_monotonic"] is True
     assert simulation["foreshadowing_statuses_valid"] is True
     assert simulation["character_arcs_have_phase_changes"] is True
+    assert simulation["governance_cadence"]["continuity_batch_audit"] == "every 3 chapters"
+    assert "project_fact_snapshot.yml" in simulation["memory_contract"]["required_inputs"]
+    assert "narrative-eval or narrative_heavy_audit pass" in simulation["promotion_gates"]
     for filename in simulation["ledgers"].values():
         assert (eval_dir / filename).exists()
 
@@ -234,6 +399,7 @@ def test_live_narrative_eval_report_includes_writer_failure_summary(tmp_path: Pa
         mode="live",
         chapters=[1],
         timestamp="20260705T040000Z",
+        writer_worker="agy",
     )
 
     assert result["status"] == "fail"
@@ -243,9 +409,38 @@ def test_live_narrative_eval_report_includes_writer_failure_summary(tmp_path: Pa
     assert chapter["live_generation_error"]["path"].endswith("/live_generation_error.yml")
 
 
-def test_live_narrative_eval_writes_outputs_only_after_writer_and_reviewer_complete(tmp_path: Path, monkeypatch) -> None:
+def test_live_narrative_eval_blocks_without_writer_role_session(tmp_path: Path, monkeypatch) -> None:
+    calls: list[str] = []
+
     def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
-        content = "# Draft\n\n" + ("正文段落。" * 900) if agent_name == "Writer" else "verdict: pass\n"
+        calls.append(agent_name)
+        return types.SimpleNamespace(status="completed", content="# Draft", error=None, provider="test", model="test")
+
+    monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
+    root = _copy_config_root(tmp_path)
+    _make_crown_project(root)
+
+    result = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="live",
+        chapters=[1],
+        timestamp="20260705T041000Z",
+    )
+
+    assert result["status"] == "fail"
+    assert calls == []
+    chapter = result["layers"]["L2_real_chapter_sample"]["chapters"][0]
+    assert chapter["live_generation_error"]["result_status"] == "blocked"
+    assert chapter["live_generation_error"]["role_session_guard"]["reason"] == "missing_role_session"
+
+
+def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path: Path, monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
+        calls.append(agent_name)
+        content = _writer_candidate_blocks("正文段落。" * 900) if agent_name == "Writer" else "verdict: pass\n"
         return types.SimpleNamespace(
             status="completed",
             content=content,
@@ -268,8 +463,67 @@ def test_live_narrative_eval_writes_outputs_only_after_writer_and_reviewer_compl
     _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
 
     assert not (run_dir / "live_generation_error.yml").exists()
+    assert calls == ["Writer"]
     assert (run_dir / "fiction_draft.md").exists()
-    assert (run_dir / "fiction_review.yml").exists()
+    assert not (run_dir / "fiction_review.yml").exists()
+    assert (run_dir / "continuity_ledger.yml").exists()
+    assert (run_dir / "state_transition_proposal.yml").exists()
+    assert (run_dir / "narrative_delivery_receipt.yml").exists()
+    contract = yaml.safe_load((run_dir / "writer_output_contract.yml").read_text(encoding="utf-8"))
+    assert contract["status"] == "pass"
+    assert contract["harness_generated_story_state"] is False
+    ledger = yaml.safe_load((run_dir / "continuity_ledger.yml").read_text(encoding="utf-8"))
+    assert ledger["writer_marker"] == "preserve_me"
+    request = yaml.safe_load((run_dir / "live_generation_request.yml").read_text(encoding="utf-8"))
+    assert request["status"] == "ready_for_internal_writer_role_session"
+    assert request["execution_scope"] == "internal_agentlab_writer_role_session"
+    assert request["candidate_only"] is True
+    assert request["writer_role_session_required"] is True
+    assert request["required_outputs"] == [
+        "fiction_draft.md",
+        "continuity_ledger.yml",
+        "state_transition_proposal.yml",
+        "narrative_delivery_receipt.yml",
+    ]
+    assert request["supplementary_outputs"] == ["artifact_lineage.yml"]
+
+
+def test_live_narrative_eval_cli_fallback_completes_light_outputs(tmp_path: Path, monkeypatch) -> None:
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
+        return types.SimpleNamespace(
+            status="blocked_user_decision",
+            content="",
+            error="Connection error.",
+            provider="deepseek",
+            model="deepseek-v4-flash",
+        )
+
+    def fake_subprocess_run(command, cwd, text, capture_output, timeout, check):
+        run_dir.joinpath("writer_cli_fallback_capture.md").write_text(
+            _writer_candidate_blocks("正文段落。" * 900),
+            encoding="utf-8",
+        )
+        return types.SimpleNamespace(returncode=0, stdout="Agent report written", stderr="")
+
+    monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+    monkeypatch.setattr("agent_runtime.narrative_eval.subprocess.run", fake_subprocess_run)
+
+    root = tmp_path
+    (root / "agentlab.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+
+    _write_live_chapter_outputs(root, run_dir, "Crown_of_Ash", "task_live", 1, [])
+
+    assert not (run_dir / "live_generation_error.yml").exists()
+    assert (run_dir / "live_writer_cli_fallback.yml").exists()
+    assert (run_dir / "fiction_draft.md").exists()
     assert (run_dir / "continuity_ledger.yml").exists()
     assert (run_dir / "state_transition_proposal.yml").exists()
     assert (run_dir / "narrative_delivery_receipt.yml").exists()

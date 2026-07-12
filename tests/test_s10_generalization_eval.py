@@ -61,6 +61,19 @@ def test_s10_suite_writes_results_and_report(tmp_path: Path) -> None:
     assert "token" not in results_path.read_text().lower()
 
 
+def test_s10_suite_results_are_reproducible(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+
+    run_generalization_suite(root, out_dir=first)
+    run_generalization_suite(root, out_dir=second)
+
+    assert (first / "generalization_results.yml").read_text(encoding="utf-8") == (
+        second / "generalization_results.yml"
+    ).read_text(encoding="utf-8")
+
+
 def test_s10_ci_gate_policy_includes_generalization_and_s9_checks() -> None:
     root = Path(__file__).resolve().parents[1]
     policy = yaml.safe_load((root / "config/ci_gate_policy.yml").read_text())

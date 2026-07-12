@@ -28,13 +28,30 @@ LIGHT_CHAPTER_DELIVERY_FILES = [
     "state_transition_proposal.yml",
 ]
 
-HEAVY_CHAPTER_DELIVERY_FILES = [
+LIGHT_CHAPTER_RECEIPT_FILES = [
+    *LIGHT_CHAPTER_DELIVERY_FILES,
+    "narrative_delivery_receipt.yml",
+]
+
+HEAVY_CHAPTER_PREFLIGHT_FILES = [
     *LIGHT_CHAPTER_DELIVERY_FILES,
     "fiction_review.yml",
     "artifact_lineage.yml",
 ]
 
+HEAVY_CHAPTER_DELIVERY_FILES = [
+    *LIGHT_CHAPTER_RECEIPT_FILES,
+    "fiction_review.yml",
+    "artifact_lineage.yml",
+]
+
 REQUIRED_DELIVERY_FILES = LIGHT_CHAPTER_DELIVERY_FILES
+
+EARLY_CHAPTER_OUTLINE_KEYWORDS = (
+    "00_重构总纲",
+    "02_卷纲与章节路线",
+    "卷纲_第一卷",
+)
 
 
 def _read_yaml(path: Path, default: Any = None) -> Any:
@@ -85,6 +102,17 @@ def _chapter_number(path: Path) -> int | None:
     return None
 
 
+def _select_outline_refs(outline_refs: list[str], chapter: int) -> list[str]:
+    if chapter <= 20:
+        selected = [
+            ref
+            for ref in outline_refs
+            if any(keyword in Path(ref).name for keyword in EARLY_CHAPTER_OUTLINE_KEYWORDS)
+        ]
+        return selected or outline_refs[:8]
+    return outline_refs
+
+
 def _is_fiction_route(route: dict[str, Any]) -> bool:
     route_data = route.get("route") if isinstance(route.get("route"), dict) else route
     if route_data.get("route_key") in {"narrative_light_chapter", "fiction_chapter_pipeline"}:
@@ -93,15 +121,15 @@ def _is_fiction_route(route: dict[str, Any]) -> bool:
     return all(agent in agents for agent in ("Writer", "Reviewer", "Scribe"))
 
 
-def _delivery_files_for_run(run_dir: Path) -> list[str]:
+def _delivery_files_for_run(run_dir: Path, *, include_receipt: bool = True) -> list[str]:
     workflow = _read_yaml(run_dir / "workflow_plan.yml", {}) or {}
     route_data = workflow.get("route") if isinstance(workflow.get("route"), dict) else workflow
     if isinstance(route_data, dict) and route_data.get("route_key") == "fiction_chapter_pipeline":
-        return HEAVY_CHAPTER_DELIVERY_FILES
+        return HEAVY_CHAPTER_DELIVERY_FILES if include_receipt else HEAVY_CHAPTER_PREFLIGHT_FILES
     agents = route_data.get("agents") if isinstance(route_data, dict) else []
     if isinstance(agents, list) and all(agent in agents for agent in ("Writer", "Reviewer", "Scribe")):
-        return HEAVY_CHAPTER_DELIVERY_FILES
-    return LIGHT_CHAPTER_DELIVERY_FILES
+        return HEAVY_CHAPTER_DELIVERY_FILES if include_receipt else HEAVY_CHAPTER_PREFLIGHT_FILES
+    return LIGHT_CHAPTER_RECEIPT_FILES if include_receipt else LIGHT_CHAPTER_DELIVERY_FILES
 
 
 def _is_revision_like(text: str) -> bool:
@@ -110,8 +138,10 @@ def _is_revision_like(text: str) -> bool:
 
 def is_narrative_run(run_dir: Path) -> bool:
     workflow = _read_yaml(run_dir / "workflow_plan.yml", {}) or {}
-    if isinstance(workflow, dict) and _is_fiction_route(workflow):
-        return True
+    if isinstance(workflow, dict):
+        route_data = workflow.get("route") if isinstance(workflow.get("route"), dict) else workflow
+        if isinstance(route_data, dict) and route_data.get("route_key"):
+            return _is_fiction_route(workflow)
     prompt_path = run_dir / "user_request.md"
     prompt = prompt_path.read_text(encoding="utf-8", errors="replace") if prompt_path.exists() else ""
     return _is_revision_like(prompt)
@@ -130,7 +160,7 @@ def build_chapter_packet(
     project_root = _project_root(root, project)
     run_rel = f"runs/{task_id}"
     bible_refs = _collect(project_root, ["production/bible/**/*.md"], limit=20)
-    outline_refs = _collect(project_root, ["production/outlines/**/*.md"], limit=20)
+    outline_refs = _select_outline_refs(_collect(project_root, ["production/outlines/**/*.md"], limit=20), chapter)
     manuscript_refs = _collect(project_root, ["production/manuscript/**/*.md"], limit=200)
     if baseline_mode == "reset":
         resolved_previous_chapters = list(previous_chapters or [])
@@ -203,13 +233,13 @@ def write_chapter_packet(
     return {"status": "written", "path": f"projects/{project}/runs/{task_id}/chapter_packet.yml", "packet": packet}
 
 
-def validate_narrative_delivery(run_dir: Path) -> dict[str, Any]:
+def validate_narrative_delivery(run_dir: Path, *, include_receipt: bool = True) -> dict[str, Any]:
     run_dir = Path(run_dir)
     if not is_narrative_run(run_dir):
         return {"valid": True, "skipped": True, "reason": "not a narrative run", "issues": []}
 
     issues: list[dict[str, str]] = []
-    required_files = _delivery_files_for_run(run_dir)
+    required_files = _delivery_files_for_run(run_dir, include_receipt=include_receipt)
     for filename in required_files:
         if not (run_dir / filename).exists():
             issues.append({"severity": "error", "check": "delivery_file_present", "file": filename, "message": f"missing {filename}"})
@@ -247,12 +277,15 @@ def validate_narrative_delivery(run_dir: Path) -> dict[str, Any]:
 
 
 def write_narrative_delivery_receipt(run_dir: Path) -> dict[str, Any]:
-    result = validate_narrative_delivery(run_dir)
+    result = validate_narrative_delivery(run_dir, include_receipt=False)
+    external_required_files = _delivery_files_for_run(Path(run_dir), include_receipt=True)
     receipt = {
         "schema_version": 1,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "pass" if result.get("valid") else "blocked",
         "delivery_check": result,
+        "preflight_required_files": result.get("required_files", []),
+        "external_required_files": external_required_files,
     }
     _write_yaml(Path(run_dir) / "narrative_delivery_receipt.yml", receipt)
     return receipt

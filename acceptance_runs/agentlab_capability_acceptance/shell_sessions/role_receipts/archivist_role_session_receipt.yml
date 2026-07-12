@@ -1,0 +1,10 @@
+schema_version: 1
+status: pass
+role: Archivist
+acceptance_scope: synthetic_native_surface_smoke
+private_project_context_loaded: false
+source_packet_sha256: 478c2208ba49c167affac38a69489908b1d26cecafaeb22bdea058895bff85e6
+returned_artifacts:
+- acceptance_runs/agentlab_capability_acceptance/shell_sessions/returned_artifacts/archivist_findings.md
+production_promotion_attempted: false
+production_promotion_allowed: false

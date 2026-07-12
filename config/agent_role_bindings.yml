@@ -16,130 +16,146 @@ capability_profiles:
   micro_doc_editor: submit small documentation edits through the AgentLab write gate
   candidate_artifact_worker: write bounded candidates under runs/ or candidates/
   role_worker: execute formal AgentLab roles only through role-session/task-packet
+  workflow_shell: expose reusable CLI-native workflow orchestration inside a bounded AgentLab role-session; AgentLab still owns memory, validation, and promotion
   core_config_editor: reserved for confirmed AgentLab config commands; no worker owns it by default
 roles:
   Supervisor:
     allowed_workers: [hermes, qwen, claude_code]
     required_session: true
   RepoScout:
-    allowed_workers: [rg, claude_code, codex]
+    allowed_workers: [rg, claude_code, codex, agy]
     required_session: true
   Researcher:
-    allowed_workers: [bl, claude_code, qwen]
+    allowed_workers: [bl, claude_code, qwen, hermes]
     required_session: true
   InterfaceMapper:
-    allowed_workers: [ast_grep, claude_code, codex]
+    allowed_workers: [ast_grep, claude_code, codex, agy]
     required_session: true
   PromptEngineer:
     allowed_workers: [hermes, claude_code, qwen]
     required_session: true
   Coder:
-    allowed_workers: [claude_code, codex, aider]
+    allowed_workers: [claude_code, codex, aider, hermes]
     required_session: true
   ArtifactProducer:
-    allowed_workers: [codex, agy, qwen]
+    allowed_workers: [codex, agy, grok, qwen]
+    required_session: true
+  Writer:
+    allowed_workers: [agy, qwen, claude_code]
+    required_session: true
+  Reviewer:
+    allowed_workers: [qwen, claude_code]
+    required_session: true
+  Scribe:
+    allowed_workers: [qwen, claude_code, codex]
     required_session: true
   TesterAuditor:
-    allowed_workers: [pytest, claude_code, codex]
+    allowed_workers: [pytest, claude_code, codex, hermes]
     required_session: true
   Verifier:
-    allowed_workers: [ruff, mypy, eslint, claude_code, codex]
+    allowed_workers: [ruff, mypy, eslint, claude_code, codex, hermes]
     required_session: true
   Archivist:
-    allowed_workers: [git, claude_code]
+    allowed_workers: [git, claude_code, agy, hermes]
     required_session: true
 workers:
   agy:
     frontdesk_capable: true
     worker_capable: true
-    worker_capabilities: [frontdesk_gateway, micro_doc_editor, candidate_artifact_worker]
+    worker_capabilities: [frontdesk_gateway, micro_doc_editor, candidate_artifact_worker, role_worker, workflow_shell]
     frontdesk_profiles: [local_chat_gateway]
+    allowed_roles: [RepoScout, InterfaceMapper, ArtifactProducer, Archivist, Writer]
+    forbidden_roles: [Supervisor, Researcher, PromptEngineer, Coder, Reviewer, Scribe, TesterAuditor, Verifier]
+  grok:
+    frontdesk_capable: false
+    worker_capable: true
+    worker_capabilities: [candidate_artifact_worker, workflow_shell]
     allowed_roles: [ArtifactProducer]
-    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist]
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
   openclaw:
     frontdesk_capable: true
     worker_capable: false
     worker_capabilities: [frontdesk_gateway]
     frontdesk_profiles: [public_chat_gateway]
     allowed_roles: []
-    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist]
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
   codex:
-    frontdesk_capable: true
+    frontdesk_capable: false
     worker_capable: true
-    worker_capabilities: [frontdesk_gateway, candidate_artifact_worker, role_worker]
-    frontdesk_profiles: [local_chat_gateway]
-    allowed_roles: [RepoScout, InterfaceMapper, Coder, ArtifactProducer, TesterAuditor, Verifier]
-    forbidden_roles: [Archivist]
+    worker_capabilities: [candidate_artifact_worker, role_worker, workflow_shell]
+    allowed_roles: [RepoScout, InterfaceMapper, Coder, ArtifactProducer, Scribe, TesterAuditor, Verifier]
+    forbidden_roles: [Supervisor, Researcher, PromptEngineer, Writer, Reviewer, Archivist]
   claude_code:
     frontdesk_capable: false
     worker_capable: true
-    worker_capabilities: [role_worker]
-    allowed_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist]
-    forbidden_roles: []
+    worker_capabilities: [role_worker, workflow_shell]
+    allowed_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
+    forbidden_roles: [ArtifactProducer]
   hermes:
-    frontdesk_capable: false
+    frontdesk_capable: true
     worker_capable: true
-    worker_capabilities: [role_worker]
-    allowed_roles: [Supervisor, PromptEngineer]
-    forbidden_roles: [Coder]
+    worker_capabilities: [frontdesk_gateway, role_worker, workflow_shell]
+    frontdesk_profiles: [internal_cli_gateway]
+    allowed_roles: [Supervisor, Researcher, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist]
+    forbidden_roles: [RepoScout, InterfaceMapper, ArtifactProducer, Writer, Reviewer, Scribe]
   qwen:
     frontdesk_capable: true
     worker_capable: true
-    worker_capabilities: [frontdesk_gateway, candidate_artifact_worker, role_worker]
+    worker_capabilities: [frontdesk_gateway, candidate_artifact_worker, role_worker, workflow_shell]
     frontdesk_profiles: [local_chat_gateway]
-    allowed_roles: [Supervisor, Researcher, PromptEngineer, ArtifactProducer]
-    forbidden_roles: [Coder]
+    allowed_roles: [Supervisor, Researcher, PromptEngineer, ArtifactProducer, Writer, Reviewer, Scribe]
+    forbidden_roles: [RepoScout, InterfaceMapper, Coder, TesterAuditor, Verifier, Archivist]
   bl:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [role_worker]
     allowed_roles: [Researcher]
-    forbidden_roles: [Coder, Archivist]
+    forbidden_roles: [Supervisor, RepoScout, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
   rg:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [role_worker]
     allowed_roles: [RepoScout]
-    forbidden_roles: []
+    forbidden_roles: [Supervisor, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
   ast_grep:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [role_worker]
     allowed_roles: [InterfaceMapper]
-    forbidden_roles: []
+    forbidden_roles: [Supervisor, RepoScout, Researcher, PromptEngineer, Coder, ArtifactProducer, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
   pytest:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [role_worker]
     allowed_roles: [TesterAuditor]
-    forbidden_roles: []
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Writer, Reviewer, Scribe, Verifier, Archivist]
   ruff:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [role_worker]
     allowed_roles: [Verifier]
-    forbidden_roles: []
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Writer, Reviewer, Scribe, TesterAuditor, Archivist]
   mypy:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [role_worker]
     allowed_roles: [Verifier]
-    forbidden_roles: []
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Writer, Reviewer, Scribe, TesterAuditor, Archivist]
   eslint:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [role_worker]
     allowed_roles: [Verifier]
-    forbidden_roles: []
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Writer, Reviewer, Scribe, TesterAuditor, Archivist]
   git:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [role_worker]
     allowed_roles: [Archivist]
-    forbidden_roles: []
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Writer, Reviewer, Scribe, TesterAuditor, Verifier]
   aider:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [role_worker]
     allowed_roles: [Coder]
-    forbidden_roles: []
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, ArtifactProducer, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]

@@ -1,0 +1,261 @@
+schema_version: 1
+
+core_runtime:
+  - task_run_state
+  - artifact_contract
+  - memory_policy
+  - cost_ledger
+  - validation_gates
+  - promotion_after_acceptance
+
+pack_synthesis_policy:
+  enabled: true
+  trigger: no_configured_pack_for_non_code_domain
+  required_outputs:
+    - production_pack_proposal.yml
+    - domain_memory_contract.yml
+    - lifecycle_profile.yml
+  approval_gate: user_or_supervisor_approval_before_execution
+
+packs:
+  - pack_id: code_factory
+    name: Code Factory
+    description: Strong default for codebase build, repair, refactor, testing, and architecture work.
+    routes:
+      - small_task
+      - medium_task
+      - interface_sensitive_task
+      - research_sensitive_task
+      - large_or_risky_task
+      - evaluation_task
+    project_types:
+      - codebase_build_project
+      - unknown_project
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - CONTEXT_BUDGET
+      - CONTEXT_PACK
+      - PREPARE_PLAN
+      - SUPERVISOR_PLAN
+      - REPO_CONTEXT
+      - RESEARCH_OPTIONAL
+      - INTERFACE_OPTIONAL
+      - CODER_IMPLEMENTATION
+      - ARTIFACT_PRODUCTION
+      - VALIDATION
+      - AUDIT
+      - VERIFY
+      - ARCHIVE
+      - SELF_CHECK
+      - SYNC_OPTIONAL
+      - FINALIZE
+    memory_contract:
+      - repo_context
+      - architecture_constraints
+      - task_packet
+      - patch_plan
+      - test_results
+      - acceptance_report
+    quality_gates:
+      - implementation_report
+      - validation_evidence
+      - regression_risk
+      - artifact_promotion
+
+  - pack_id: narrative_longform
+    name: Longform Narrative Production
+    description: Candidate-only longform fiction drafting and audit with structured continuity memory.
+    routes:
+      - narrative_light_chapter
+      - narrative_batch_chapters
+      - narrative_heavy_audit
+    project_types:
+      - longform_text_project
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - CONTEXT_BUDGET
+      - CONTEXT_PACK
+      - PREPARE_PLAN
+      - SUPERVISOR_PLAN
+      - WRITER_DRAFT
+      - FICTION_REVIEW
+      - SCRIBE_LEDGER
+      - VERIFY
+      - SELF_CHECK
+      - FINALIZE
+    domain_phases:
+      - load_authoritative_story_memory
+      - prepare_chapter_packet
+      - draft_candidate_chapter
+      - write_continuity_ledger
+      - propose_state_transitions
+      - staged_audit_or_promotion
+    memory_contract:
+      - project_fact_snapshot
+      - project_artifact_index
+      - chapter_packet
+      - continuity_ledger
+      - state_transition_proposal
+      - revision_log
+    quality_gates:
+      - continuity
+      - character_state
+      - timeline
+      - foreshadowing
+      - no_production_write_before_promotion
+
+  - pack_id: article_light
+    name: Article Light Draft
+    description: Short non-code prose production without long-project governance.
+    routes:
+      - article_light_draft
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - CONTEXT_BUDGET
+      - CONTEXT_PACK
+      - PREPARE_PLAN
+      - SUPERVISOR_PLAN
+      - ARTIFACT_PRODUCTION
+      - SELF_CHECK
+      - FINALIZE
+    domain_phases:
+      - clarify_audience_and_angle
+      - draft_article
+      - structure_check
+      - delivery_receipt
+    required_outputs:
+      - article_draft.md
+      - article_structure_check.yml
+    memory_contract:
+      - user_request
+      - local_style_notes
+      - article_draft
+      - article_structure_check
+    quality_gates:
+      - article_draft
+      - article_structure_check
+
+  - pack_id: media_series_production
+    name: Media Series Production
+    description: Multi-episode image/video production with persistent character, scene, shot, and asset continuity.
+    routes:
+      - media_generation_task
+    project_types:
+      - video_generation_project
+    task_domains:
+      - video_generation
+      - video_editing
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - CONTEXT_BUDGET
+      - CONTEXT_PACK
+      - PREPARE_PLAN
+      - SUPERVISOR_PLAN
+      - RESEARCH_OPTIONAL
+      - ARTIFACT_PRODUCTION
+      - VALIDATION
+      - VERIFY
+      - SELF_CHECK
+      - FINALIZE
+    domain_phases:
+      - script_breakdown
+      - episode_plan
+      - character_visual_bible
+      - scene_and_asset_registry
+      - shot_list
+      - prompt_pack
+      - generation_ledger
+      - continuity_qc
+      - promotion_after_acceptance
+    required_outputs:
+      - episode_plan.yml
+      - shot_list.yml
+      - character_visual_bible.yml
+      - asset_registry.yml
+      - prompt_pack.yml
+      - generation_ledger.yml
+      - media_continuity_ledger.yml
+      - media_qc_report.yml
+      - narrative_media_delivery_receipt.yml
+    memory_contract:
+      - source_script
+      - show_bible
+      - character_visual_bible
+      - scene_registry
+      - asset_registry
+      - shot_ledger
+      - prompt_pack
+      - generation_ledger
+      - media_qc_report
+    quality_gates:
+      - character_visual_consistency
+      - shot_continuity
+      - asset_provenance
+      - generation_ledger_written
+      - qa_or_human_acceptance_before_project_artifact_promotion
+
+  - pack_id: media_generation
+    name: Single Media Generation
+    description: Image/video generation or editing with backend routing, cost controls, generation ledger, and QC.
+    routes:
+      - media_generation_task
+    project_types:
+      - media_generation_project
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - CONTEXT_BUDGET
+      - CONTEXT_PACK
+      - PREPARE_PLAN
+      - SUPERVISOR_PLAN
+      - ARTIFACT_PRODUCTION
+      - VALIDATION
+      - VERIFY
+      - SELF_CHECK
+      - FINALIZE
+    required_outputs:
+      - generation_ledger.yml
+      - media_qc_report.yml
+      - media_delivery_receipt.yml
+    memory_contract:
+      - media_generation_contract
+      - reference_asset_manifest
+      - generation_ledger
+      - media_qc_report
+    quality_gates:
+      - capability_auth_quota_preflight
+      - generation_ledger_written
+      - media_qc_report_written
+
+  - pack_id: generic_artifact
+    name: Generic Artifact Production
+    description: Non-code artifact production when no richer domain pack is configured.
+    routes:
+      - artifact_production_task
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - CONTEXT_BUDGET
+      - CONTEXT_PACK
+      - PREPARE_PLAN
+      - SUPERVISOR_PLAN
+      - ARTIFACT_PRODUCTION
+      - VALIDATION
+      - VERIFY
+      - SELF_CHECK
+      - FINALIZE
+    required_outputs:
+      - artifact_producer_report.md
+      - delivery_receipt.yml
+    memory_contract:
+      - artifact_task
+      - artifact_manifest
+      - delivery_receipt
+    quality_gates:
+      - artifact_contract
+      - artifact_manifest
+      - delivery_receipt

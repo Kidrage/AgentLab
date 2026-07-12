@@ -64,6 +64,11 @@ SEARCH_REPLACE_PATTERN = re.compile(
     re.DOTALL,
 )
 
+FULL_FILE_REPLACE_PATTERN = re.compile(
+    r'^\s*=======\s*\n(.*?)\n\s*\+\+\+\+\+\+\+\s*REPLACE\s*$',
+    re.DOTALL,
+)
+
 
 def parse_edit_blocks(llm_output: str) -> list[dict]:
     """Parse AGENTLAB_EDIT blocks from LLM output text.
@@ -92,6 +97,15 @@ def parse_edit_blocks(llm_output: str) -> list[dict]:
             blocks.append({
                 "path": file_path,
                 "search_replace_pairs": sr_pairs,
+            })
+            continue
+
+        full_file_match = FULL_FILE_REPLACE_PATTERN.search(block_content)
+        if full_file_match:
+            blocks.append({
+                "path": file_path,
+                "search_replace_pairs": [],
+                "html_block_content": full_file_match.group(1),
             })
 
     # HTML comment style: <!-- AGENTLAB_EDIT: path --> content <!-- END AGENTLAB_EDIT -->
@@ -223,7 +237,7 @@ def apply_edit_block(
     from policies import assert_path_allowed
 
     normalized_path = file_path.lstrip("/")
-    if allowed_files is not None and normalized_path not in allowed_files:
+    if not _is_path_in_allowed_scope(normalized_path, allowed_files):
         return AppliedEdit(
             path=normalized_path,
             success=False,
@@ -310,6 +324,18 @@ def apply_edit_block(
     )
 
 
+def _is_path_in_allowed_scope(normalized_path: str, allowed_files: set[str] | None) -> bool:
+    if allowed_files is None:
+        return True
+    normalized_allowed = {item.lstrip("/") for item in allowed_files}
+    if normalized_path in normalized_allowed:
+        return True
+    return any(
+        item.endswith("/") and normalized_path.startswith(item)
+        for item in normalized_allowed
+    )
+
+
 def _strip_optional_fence(content: str) -> str:
     text = content.strip()
     if text.startswith("```"):
@@ -329,7 +355,7 @@ def apply_content_block(
     from policies import assert_path_allowed
 
     normalized_path = file_path.lstrip("/")
-    if allowed_files is not None and normalized_path not in allowed_files:
+    if not _is_path_in_allowed_scope(normalized_path, allowed_files):
         return AppliedEdit(
             path=normalized_path,
             success=False,

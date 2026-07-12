@@ -90,6 +90,46 @@ Not allowed.
     assert not (tmp_path / "drafts" / "chapter.md").exists()
 
 
+def test_html_block_allows_directory_scope_prefix(tmp_path: Path):
+    llm_output = """<!-- AGENTLAB_EDIT: runs/task_x/artifacts/web_ui/index.html -->
+<html>ok</html>
+<!-- END AGENTLAB_EDIT -->"""
+
+    results = apply_all_patches(
+        llm_output=llm_output,
+        project_root=tmp_path,
+        allowed_files={"runs/task_x/artifacts/"},
+    )
+
+    assert len(results) == 1
+    assert results[0].success is True
+    assert (tmp_path / "runs" / "task_x" / "artifacts" / "web_ui" / "index.html").exists()
+
+
+def test_primary_full_file_block_without_search_applies_candidate_file(tmp_path: Path):
+    llm_output = "\n".join([
+        "```text",
+        "<<<AGENTLAB_EDIT runs/task_x/artifacts/web_ui/index.html",
+        "=======",
+        "<html>ok</html>",
+        "+" * 7 + " REPLACE",
+        ">>>",
+        "```",
+    ])
+
+    results = apply_all_patches(
+        llm_output=llm_output,
+        project_root=tmp_path,
+        allowed_files={"runs/task_x/artifacts/"},
+    )
+
+    assert len(results) == 1
+    assert results[0].success is True
+    assert (
+        tmp_path / "runs" / "task_x" / "artifacts" / "web_ui" / "index.html"
+    ).read_text(encoding="utf-8") == "<html>ok</html>\n"
+
+
 def test_real_task_0032_archivist_output():
     agentlab_root = Path(__file__).resolve().parents[1]
     content = (agentlab_root / "tests/fixtures/html_archivist/blocked_Archivist.md").read_text()

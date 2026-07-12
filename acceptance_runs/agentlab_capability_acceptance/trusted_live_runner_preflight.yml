@@ -1,0 +1,57 @@
+schema_version: 1
+report_type: agentlab_trusted_live_runner_preflight
+root: .
+request_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+script_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+status_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
+request_id: trusted_live_20260712_0505_writer_contract_v1
+status: pass
+executes_provider_calls: false
+loads_private_project_context: false
+safe_scope: local binary/path preflight only
+private_context_runtime_guard:
+  exact_manifest_required: true
+  writer_sealed_context_required: true
+  media_prompt_digest_required: true
+  secret_pattern_gate_before_provider_call: true
+  provider_calls_remain_blocked_until_runtime_manifest_passes: true
+checks:
+- id: request_yaml
+  kind: file
+  path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+  status: pass
+- id: runner_script
+  kind: file
+  path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+  status: pass
+- id: agentlab_entrypoint
+  kind: file
+  path: agentlab.sh
+  status: pass
+- id: command:agy
+  kind: command
+  command: agy
+  status: pass
+  path: /usr/local/bin/agy
+- id: command:hermes
+  kind: command
+  command: hermes
+  status: pass
+  path: <local_path:hermes>
+- id: exact_outbound_context_manifest_required
+  kind: policy
+  status: pass
+  observed: true
+- id: writer_sealed_context_required
+  kind: policy
+  status: pass
+  observed: true
+- id: media_prompt_digest_required
+  kind: policy
+  status: pass
+  observed: true
+- id: secret_pattern_gate_before_provider_call
+  kind: policy
+  status: pass
+  observed: true
+issues: []

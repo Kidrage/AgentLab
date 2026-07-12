@@ -1,0 +1,25 @@
+allowed_statuses:
+- introduced
+- touched
+- escalated
+- resolved
+- deferred
+items:
+- id: ash-ribbon
+  introduced: 1
+  touched: 12
+  escalated: 90
+  resolved: 240
+  status: resolved
+- id: silent-crown
+  introduced: 30
+  touched: 300
+  escalated: 760
+  resolved: 1320
+  status: resolved
+- id: border-ledger
+  introduced: 5
+  touched: 44
+  escalated: 450
+  status: deferred
+  defer_reason: third-part payoff

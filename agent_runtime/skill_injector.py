@@ -7,13 +7,21 @@ from typing import Any
 
 import yaml
 
-from atomic_io import atomic_write_yaml
-from skill_retriever import load_skill_injection_policy, match_active_skills
-from skill_usage import record_skill_usage
+try:
+    from agent_runtime.atomic_io import atomic_write_yaml
+    from agent_runtime.skill_retriever import load_skill_injection_policy, match_active_skills
+    from agent_runtime.skill_usage import record_skill_usage
+except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+    from atomic_io import atomic_write_yaml
+    from skill_retriever import load_skill_injection_policy, match_active_skills
+    from skill_usage import record_skill_usage
 
 
 def _existing_skill_approval_cards(run_dir: Path) -> set[str]:
-    from atomic_io import safe_read_yaml
+    try:
+        from agent_runtime.atomic_io import safe_read_yaml
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from atomic_io import safe_read_yaml
 
     decision_dir = run_dir / "decision_cards"
     if not decision_dir.exists():
@@ -52,9 +60,14 @@ def _create_high_risk_skill_approval_cards(
     if not high_risk:
         return []
 
-    from atomic_io import atomic_write_yaml
-    from feedback_manager import create_decision_card
-    from task_events import append_task_event
+    try:
+        from agent_runtime.atomic_io import atomic_write_yaml
+        from agent_runtime.feedback_manager import create_decision_card
+        from agent_runtime.task_events import append_task_event
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from atomic_io import atomic_write_yaml
+        from feedback_manager import create_decision_card
+        from task_events import append_task_event
 
     existing = _existing_skill_approval_cards(run_dir)
     created: list[dict[str, Any]] = []
@@ -101,7 +114,10 @@ def _create_high_risk_skill_approval_cards(
             },
         )
         try:
-            from webhook_dispatcher import dispatch_event
+            try:
+                from agent_runtime.webhook_dispatcher import dispatch_event
+            except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+                from webhook_dispatcher import dispatch_event
 
             dispatch_event(
                 agentlab_root,
@@ -116,7 +132,10 @@ def _create_high_risk_skill_approval_cards(
             )
         except Exception as exc:
             try:
-                from webhook_dispatcher import record_webhook_failure
+                try:
+                    from agent_runtime.webhook_dispatcher import record_webhook_failure
+                except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+                    from webhook_dispatcher import record_webhook_failure
 
                 record_webhook_failure(
                     agentlab_root,

@@ -1,0 +1,32 @@
+schema_version: 1
+report_type: agentlab_hermes_frontdesk_provider_smoke
+status: pass
+executed_at: '2026-07-11T09:33:56Z'
+execution_surface: hermes_cli_one_shot
+working_directory: /private/tmp
+provider: deepseek
+model_key: deepseek_v4_pro
+model_id: deepseek-v4-pro
+auth_source: hermes_registered_deepseek_credential
+fallback_provider_configured: false
+provider_calls_executed: true
+context_scope: synthetic_non_private_smoke
+private_project_context_sent: false
+agentlab_project_context_sent: false
+crown_context_sent: false
+prompt_contract: fixed_marker_only
+expected_output: AGENTLAB_HERMES_DEEPSEEK_V4_PRO_FRONTDESK_OK
+observed_output: AGENTLAB_HERMES_DEEPSEEK_V4_PRO_FRONTDESK_OK
+exact_output_match: true
+command_shape:
+  binary: hermes
+  ignore_rules: true
+  provider_override: deepseek
+  model_override: deepseek-v4-pro
+  one_shot: true
+secret_values_rendered: false
+notes:
+- This smoke proves the real Hermes CLI, DeepSeek V4 Pro model selection, and registered
+  authentication path can return output.
+- It does not load the AgentLab FrontDesk packet and does not prove Crown Writer output
+  quality or private role-session acceptance.

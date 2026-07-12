@@ -1,0 +1,14 @@
+schema_version: 1
+skill_id: skill_20260703174334298047_story-long-write
+entries:
+- timestamp: '2026-07-03T17:45:08.046837+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_rewrite_ch10
+  skill_id: skill_20260703174334298047_story-long-write
+  name: story-long-write
+  reason: 'matched trigger: 撰写第; matched trigger: 灰烬王冠'
+  load_tokens: 7979
+  expected_saving_tokens: 8000
+  injected_into:
+  - Coder
+  - TesterAuditor

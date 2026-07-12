@@ -1,0 +1,19 @@
+schema_version: 1
+status: pass
+role: Archivist
+acceptance_scope: synthetic_native_surface_smoke
+private_project_context_loaded: false
+source_packet_sha256: 478c2208ba49c167affac38a69489908b1d26cecafaeb22bdea058895bff85e6
+checks:
+- 'receipt_policy invariant: one_result_per_delegated_role == one_result_per_delegated_role
+  PASS (receipt invariant held)'
+- 'production_promotion invariant: forbidden == forbidden PASS (promotion blocked)'
+- 'fixture_id invariant: agentlab-cli-native-surface-smoke-v1 == agentlab-cli-native-surface-smoke-v1
+  PASS'
+- 'packet_state invariant: candidate == candidate PASS'
+- 'project_context invariant: absent == absent PASS'
+- 'validation_policy invariant: non_empty_findings_and_validation_per_role == non_empty_findings_and_validation_per_role
+  PASS'
+- 'delegated_role invariant: Archivist == Archivist PASS'
+production_promotion_attempted: false
+production_promotion_allowed: false

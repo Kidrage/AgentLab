@@ -1,0 +1,171 @@
+schema_version: 1
+report_type: agentlab_trusted_live_runner_collect
+root: .
+status: pending_returned_artifacts
+source_request: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+refreshed_reports:
+  trusted_live_runner_status: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
+  trusted_live_runner_operator_handoff: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_operator_handoff.yml
+  live_unblock_plan: acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml
+  capability_acceptance: acceptance_runs/agentlab_capability_acceptance/current.yml
+  objective_requirement_audit: acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml
+  goal_completion_audit: acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml
+  acceptance_report_hygiene: acceptance_runs/agentlab_capability_acceptance/acceptance_report_hygiene.yml
+trusted_live_runner_status:
+  status: pending
+  pending_item_count: 1
+  stale_item_count: 0
+  artifact_qc_failure_count: 0
+acceptance_blockers:
+- missing_required_files
+acceptance_blocker_reasons:
+- missing_candidate_artifacts
+required_files_missing_count: 3
+returned_candidate_artifacts_accepted_count: 1
+inconsistent_pass_items: []
+pending_items:
+- id: run_crown_internal_media_smoke
+  expected_type: media_live_smoke
+  pending_reason: missing_candidate_artifacts
+  next_action: run_trusted_live_command_and_collect_required_artifacts
+  missing:
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/outbound_context_manifest_media.yml
+  required_files_exist: false
+  returned_candidate_artifacts_accepted: false
+  acceptance_blocker: missing_required_files
+acceptance_summary:
+  capability_overall_status: candidate
+  capability_status_counts:
+    pass: 27
+    candidate: 5
+  objective_status: complete
+  objective_status_counts:
+    pass: 11
+  goal_status: complete
+  goal_status_counts:
+    pass: 8
+  acceptance_report_hygiene_status: pass
+  acceptance_report_hygiene_canonical_text_artifact_count: 2
+  acceptance_report_hygiene_canonical_text_issue_count: 0
+  acceptance_report_hygiene_stale_private_selected_command_hit_count: 0
+operator_handoff_status: ready_for_trusted_runner
+next_action: scoped_acceptance_complete_deferred_media_pending
+active_selected_item_ids:
+- run_crown_internal_writer_eval
+deferred_selected_item_ids:
+- run_crown_internal_media_smoke
+recommended_selected_command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+  acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh --only
+  run_crown_internal_writer_eval
+secret_values_rendered: false
+notes:
+- This collector does not run private role-session acceptance commands.
+- It accepts returned role-session acceptance artifacts only through trusted-live-runner-status
+  structural QC.
+- Generated outputs remain run-local candidates until explicit promotion or human
+  acceptance.
+- The active acceptance scope runs Writer only; media live artifacts remain deferred.
+selected_item_summaries:
+  run_crown_internal_writer_eval:
+    selected_item_id: run_crown_internal_writer_eval
+    selected_item_collect_status: pass
+    selected_item_status: pass
+    selected_item_accepted: true
+    selected_item_expected_type: narrative_live_smoke
+    selected_item_required_files_exist: true
+    selected_item_returned_candidate_artifacts_accepted: true
+    selected_item_acceptance_blocker: none
+    selected_item_missing: []
+    selected_item_artifact_qc:
+      type: narrative_live_smoke
+      status: pass
+      checks:
+      - id: fiction_draft_substantive
+        status: pass
+        message: fiction draft contains chapter-scale substantive text
+        chars: 2284
+        minimum_chars: 1200
+      - id: fiction_draft_multiline_chapter
+        status: pass
+        message: fiction draft has multiple non-empty chapter lines
+        nonblank_lines: 51
+        minimum_nonblank_lines: 8
+      - id: fiction_draft_not_placeholder
+        status: pass
+        message: fiction draft is not placeholder text
+      - id: delivery_receipt_passed
+        status: pass
+        message: narrative delivery receipt passed
+        receipt_status: pass
+      - id: state_transition_candidate_only
+        status: pass
+        message: state transition proposal remains candidate-only and requires promotion
+        proposal_status: candidate
+      - id: state_transition_events_present
+        status: pass
+        message: state transition proposal records proposed events
+      - id: continuity_timeline_monotonic
+        status: pass
+        message: continuity ledger records a monotonic timeline
+        monotonic: true
+      - id: longform_eval_passed
+        status: pass
+        message: formal current-run longform evaluation layers passed
+        eval_status: warn
+        historical_warning_only: true
+      - id: longform_eval_matches_run_dir
+        status: pass
+        message: formal longform evaluation report references the returned narrative
+          run directory
+        expected_run_dir: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer
+        reported_run_dirs:
+        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer
+      - id: outbound_context_manifest_passed
+        status: pass
+        message: provider-bound context manifest passed before execution
+        manifest_status: pass
+      - id: outbound_context_role_matches
+        status: pass
+        message: outbound context manifest belongs to the expected AgentLab role
+        manifest_role: Writer
+        expected_role: Writer
+      - id: outbound_context_exact_and_sealed
+        status: pass
+        message: provider-bound context was sealed and exact-payload hashed
+      - id: outbound_context_secret_scan_clean
+        status: pass
+        message: provider-bound context contains no recognized secret pattern
+        secret_pattern_hit_count: 0
+      - id: outbound_context_digest_present
+        status: pass
+        message: provider-bound context has a non-empty SHA-256 digest
+      - id: outbound_context_approval_satisfied
+        status: pass
+        message: explicit approval was observed whenever this run required it
+        approval_required: true
+        approval_observed: true
+      - id: writer_output_contract_passed
+        status: pass
+        message: Writer returned and materialized every required candidate output
+          without harness-authored story state
+        writer_contract_status: pass
+  run_crown_internal_media_smoke:
+    selected_item_id: run_crown_internal_media_smoke
+    selected_item_collect_status: pending_selected_item
+    selected_item_status: pending
+    selected_item_accepted: false
+    selected_item_expected_type: media_live_smoke
+    selected_item_required_files_exist: false
+    selected_item_returned_candidate_artifacts_accepted: false
+    selected_item_acceptance_blocker: missing_required_files
+    selected_item_pending_reason: missing_candidate_artifacts
+    selected_item_next_action: run_trusted_live_command_and_collect_required_artifacts
+    selected_item_missing:
+    - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/media_backend_preflight.yml
+    - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/generation_ledger.yml
+    - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/outbound_context_manifest_media.yml
+selected_item_report_paths:
+  run_crown_internal_writer_eval: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml
+  run_crown_internal_media_smoke: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml

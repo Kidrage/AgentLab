@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -35,11 +37,12 @@ def build_media_generation_contract(
     policy_key = _policy_key(prompt, quality_target)
     configured_chain = _policy_chain(config, policy_key)
     fallback_chain = _filter_chain(configured_chain, backends, modality)
-    selected_backend = _select_executable_backend(fallback_chain, backends)
+    selected_backend = _select_ready_backend(fallback_chain, backends)
 
     approval = _approval_card(selected_backend, backends) if selected_backend else None
     pending = _pending_backends(fallback_chain, backends)
-    executable = selected_backend is not None and approval is None
+    execution_blocker = _execution_blocker(selected_backend, backends, approval)
+    executable = selected_backend is not None and execution_blocker is None
 
     artifact_root = (
         f"projects/{project_id}/runs/{task_id}/artifacts/"
@@ -64,6 +67,7 @@ def build_media_generation_contract(
         "backend_policy": policy_key,
         "selected_backend": selected_backend,
         "executable": executable,
+        "execution_blocker": execution_blocker,
         "fallback_chain": fallback_chain,
         "pending_backends": pending,
         "approval_required": approval is not None,
@@ -130,16 +134,122 @@ def _filter_chain(
     return filtered
 
 
-def _select_executable_backend(
+def _select_ready_backend(
     chain: list[str],
     backends: dict[str, dict[str, Any]],
 ) -> str | None:
+    first_ready: str | None = None
     for backend_id in chain:
         backend = backends.get(backend_id, {})
         if backend.get("auth_state") != "ready":
             continue
+        if first_ready is None:
+            first_ready = backend_id
+        if _adapter_state(backend) not in {"ready", "configured"}:
+            continue
+        if _missing_auth_envs(backend):
+            continue
+        if _missing_cli_commands(backend):
+            continue
         return backend_id
+    return first_ready
+
+
+def _execution_blocker(
+    selected_backend: str | None,
+    backends: dict[str, dict[str, Any]],
+    approval: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not selected_backend:
+        return {
+            "status": "no_ready_backend",
+            "reason": "No configured backend has ready authentication for this modality.",
+            "recommended_action": "write_tool_handoff_and_route_proposal",
+        }
+    if approval is not None:
+        return {
+            "status": "approval_required",
+            "backend": selected_backend,
+            "reason": approval.get("reason", "approval_required"),
+            "recommended_action": "request_user_approval_before_live_generation",
+        }
+    backend = backends.get(selected_backend, {})
+    adapter_state = _adapter_state(backend)
+    if adapter_state not in {"ready", "configured"}:
+        return {
+            "status": "adapter_unavailable",
+            "backend": selected_backend,
+            "adapter_state": adapter_state,
+            "reason": "Backend authentication is configured, but AgentLab has no verified execution adapter for this backend.",
+            "recommended_action": "bind_or_implement_backend_adapter_before_live_generation",
+        }
+    missing_commands = _missing_cli_commands(backend)
+    if missing_commands:
+        return {
+            "status": "missing_cli",
+            "backend": selected_backend,
+            "adapter_state": adapter_state,
+            "missing_command": missing_commands[0],
+            "reason": f"Local CLI command {missing_commands[0]} is required before live media generation.",
+            "recommended_action": "install_or_authenticate_local_cli_before_live_generation",
+        }
+    missing_envs = _missing_auth_envs(backend)
+    if missing_envs:
+        return {
+            "status": "missing_auth",
+            "backend": selected_backend,
+            "adapter_state": adapter_state,
+            "missing_env": missing_envs[0],
+            "accepted_env": missing_envs,
+            "reason": f"One of {', '.join(missing_envs)} is required before live media generation.",
+            "recommended_action": "configure_backend_api_key_before_live_generation",
+        }
     return None
+
+
+def _auth_env_names(backend: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+    env_name = str(backend.get("api_key_env") or "").strip()
+    if env_name:
+        names.append(env_name)
+    aliases = backend.get("api_key_env_aliases") or []
+    if isinstance(aliases, list):
+        names.extend(str(item).strip() for item in aliases if str(item).strip())
+    return list(dict.fromkeys(names))
+
+
+def _missing_auth_envs(backend: dict[str, Any]) -> list[str]:
+    env_names = _auth_env_names(backend)
+    if env_names and not any(os.getenv(name) for name in env_names):
+        return env_names
+    return []
+
+
+def _cli_command_names(backend: dict[str, Any]) -> list[str]:
+    if str(backend.get("adapter_kind") or "") not in {"local_grok_cli", "grok_cli_oauth"}:
+        return []
+    command = str(backend.get("command") or "").strip()
+    if command:
+        return [command]
+    command_contract = backend.get("command_contract") if isinstance(backend.get("command_contract"), dict) else {}
+    smoke = str(command_contract.get("session_smoke") or command_contract.get("oauth_smoke") or "").strip()
+    return [smoke.split()[0]] if smoke else ["grok"]
+
+
+def _missing_cli_commands(backend: dict[str, Any]) -> list[str]:
+    return [command for command in _cli_command_names(backend) if shutil.which(command) is None]
+
+
+def _adapter_state(backend: dict[str, Any]) -> str:
+    configured = str(backend.get("adapter_state") or "").strip()
+    if configured:
+        return configured
+    mode = str(backend.get("execution_mode") or "").strip()
+    if mode == "local_cli" and backend.get("command_contract"):
+        return "configured"
+    if mode == "harness_route":
+        return "configured"
+    return "missing"
 
 
 def _approval_card(selected_backend: str | None, backends: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
@@ -174,7 +284,15 @@ def _public_backend_contract(backend: dict[str, Any]) -> dict[str, Any]:
         "cost_tier",
         "quota_policy",
         "auth_state",
+        "adapter_state",
+        "adapter_kind",
+        "adapter_note",
+        "api_key_env",
+        "base_url",
+        "endpoints",
+        "models",
         "execution_mode",
+        "fallback_only",
         "approval_required",
         "command_contract",
         "forbidden_command_contracts",
@@ -268,6 +386,7 @@ def _delivery_constraints(prompt: str) -> dict[str, Any]:
 def _harness_rules(selected_backend: str | None, backends: dict[str, dict[str, Any]]) -> list[str]:
     rules = [
         "run capability/auth/quota preflight before real generation",
+        "do not treat a routing contract as generated media; a backend adapter must write the artifact files",
         "write all generated assets under runs/<task_id>/artifacts/",
         "record source, prompt, params, timestamp, backend, and cost/quota estimate",
         "do not promote final assets without QA or human acceptance",

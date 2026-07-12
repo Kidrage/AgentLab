@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import re
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -82,6 +84,8 @@ PROMPT_CHINESE_CROWN_CHAPTER = (
     "凯恩在突袭中顺手救下一个虚弱的教团少年。"
 )
 
+PROMPT_CHINESE_MEDIA_SERIES = "给Crown_of_Ash做一段连贯视频脚本和海报图册"
+
 
 # ── Domain classification tests ────────────────────────────────────
 
@@ -147,6 +151,16 @@ class TestDomainAwareMissionCompiler:
         assert contract["project_type"] == "longform_text_project"
         assert contract["route_decision"]["selected_route"] == "narrative_light_chapter"
 
+    def test_crown_chapter_range_selects_batch_route(self):
+        contract = build_mission_contract(
+            "按照 Crown_of_Ash 长篇规划，生成第1章到第20章候选稿，保持伏笔和时间线一致。",
+            project_id="Crown_of_Ash",
+            task_id="task_crown_batch_ch01_ch20",
+        )
+        assert contract["task_domain"] == "creative_writing"
+        assert contract["project_type"] == "longform_text_project"
+        assert contract["route_decision"]["selected_route"] == "narrative_batch_chapters"
+
     def test_crown_audit_selects_heavy_audit_route(self):
         contract = build_mission_contract(
             "审计 Crown_of_Ash 前 10 章，检查连续性并给出 promotion 前验收结论。",
@@ -172,6 +186,16 @@ class TestDomainAwareMissionCompiler:
         )
         assert contract["task_domain"] == "creative_writing"
         assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
+
+    def test_chinese_media_prompt_with_do_route_to_media_generation(self):
+        contract = build_mission_contract(
+            PROMPT_CHINESE_MEDIA_SERIES,
+            project_id="Crown_of_Ash",
+            task_id="task_crown_media_prompt",
+        )
+        assert contract["task_domain"] == "video_generation"
+        assert contract["project_type"] == "video_generation_project"
+        assert contract["route_decision"]["selected_route"] == "media_generation_task"
 
     def test_creative_writing_memory_contract_includes_continuity_ledger(self):
         contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
@@ -424,8 +448,30 @@ class TestAcceptanceGates:
 
 
 class TestMediaGenerationRouting:
-    def test_generate_image_selects_hermes_grok_oauth(self):
-        contract = build_mission_contract(PROMPT_IMAGE, project_id="AgentLab", task_id="task_media")
+    def _contract_with_media_config(self, prompt: str, media_config: dict) -> dict:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "config").mkdir()
+            for name in [
+                "mission_compiler_v2.yml",
+                "project_type_classifier.yml",
+                "domain_route_packs.yml",
+                "routing_rules.yml",
+            ]:
+                (root / "config" / name).write_text(
+                    (repo_root / "config" / name).read_text(encoding="utf-8"),
+                    encoding="utf-8",
+                )
+            (root / "config" / "media_generation_backends.yml").write_text(
+                yaml.safe_dump(media_config, sort_keys=False),
+                encoding="utf-8",
+            )
+            return build_mission_contract(prompt, agentlab_root=root)
+
+    def test_generate_image_selects_hermes_grok_when_local_cli_adapter_is_ready(self):
+        with patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False):
+            contract = build_mission_contract(PROMPT_IMAGE, project_id="AgentLab", task_id="task_media")
         media = contract["media_generation_contract"]
         assert contract["task_domain"] == "image_generation"
         assert contract["artifact_type"] == "media_generation_contract"
@@ -433,12 +479,67 @@ class TestMediaGenerationRouting:
         assert media["selected_backend"] == "hermes_grok_oauth"
         assert media["fallback_chain"][:3] == ["hermes_grok_oauth", "grok_direct", "bailian_cli"]
         assert media["executable"] is True
+        assert media["execution_blocker"] is None
+        assert media["backend_contracts"]["hermes_grok_oauth"]["adapter_kind"] == "local_grok_cli"
 
-    def test_simple_image_selects_grok_direct(self):
-        contract = build_mission_contract(PROMPT_SIMPLE_IMAGE)
+    def test_simple_image_selects_local_grok_cli_by_default(self):
+        with patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False):
+            contract = build_mission_contract(PROMPT_SIMPLE_IMAGE)
         media = contract["media_generation_contract"]
         assert media["backend_policy"] == "fast_simple"
-        assert media["selected_backend"] == "grok_direct"
+        assert media["selected_backend"] == "hermes_grok_oauth"
+        assert media["fallback_chain"][:3] == ["hermes_grok_oauth", "grok_direct", "bailian_cli"]
+        assert media["executable"] is True
+        assert media["execution_blocker"] is None
+
+    def test_grok_direct_is_not_auto_selected_when_xai_key_is_present(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        media_config = yaml.safe_load((repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8"))
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "missing_auth"
+        with patch.dict(os.environ, {"XAI_API_KEY": "test-key", "GROK_API_KEY": ""}, clear=False):
+            contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
+        media = contract["media_generation_contract"]
+        assert media["selected_backend"] == "bailian_cli"
+        assert media["executable"] is False
+        assert media["execution_blocker"]["status"] == "approval_required"
+        assert media["backend_contracts"]["grok_direct"]["fallback_only"] is True
+        assert media["backend_contracts"]["grok_direct"]["approval_required"] is True
+
+    def test_grok_direct_is_not_auto_selected_when_grok_key_alias_is_present(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        media_config = yaml.safe_load((repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8"))
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "missing_auth"
+        with patch.dict(os.environ, {"XAI_API_KEY": "", "GROK_API_KEY": "test-key"}, clear=False):
+            contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
+        media = contract["media_generation_contract"]
+        assert media["selected_backend"] == "bailian_cli"
+        assert media["executable"] is False
+        assert media["execution_blocker"]["status"] == "approval_required"
+        assert media["backend_contracts"]["grok_direct"]["fallback_only"] is True
+        assert media["backend_contracts"]["grok_direct"]["approval_required"] is True
+
+    def test_missing_local_grok_cli_does_not_auto_fall_through_to_direct_api_when_key_is_present(self):
+        with (
+            patch("agent_runtime.brain.media_generation_router.shutil.which", return_value=None),
+            patch.dict(os.environ, {"XAI_API_KEY": "test-key", "GROK_API_KEY": ""}, clear=False),
+        ):
+            contract = build_mission_contract(PROMPT_SIMPLE_IMAGE)
+        media = contract["media_generation_contract"]
+        assert media["selected_backend"] == "bailian_cli"
+        assert media["executable"] is False
+        assert media["execution_blocker"]["status"] == "approval_required"
+        assert media["backend_contracts"]["grok_direct"]["fallback_only"] is True
+
+    def test_missing_direct_api_key_falls_through_instead_of_blocking_default_route(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        media_config = yaml.safe_load((repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8"))
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "missing_auth"
+        with patch.dict(os.environ, {"XAI_API_KEY": "", "GROK_API_KEY": ""}, clear=False):
+            contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
+        media = contract["media_generation_contract"]
+        assert media["selected_backend"] == "bailian_cli"
+        assert media["executable"] is False
+        assert media["execution_blocker"]["status"] == "approval_required"
 
     def test_draft_batch_selects_agy_harness_and_marks_draft_only(self):
         contract = build_mission_contract(PROMPT_BATCH_DRAFT)
@@ -451,6 +552,7 @@ class TestMediaGenerationRouting:
         contract = build_mission_contract("Generate a commercial final image for client delivery.")
         media = contract["media_generation_contract"]
         assert media["selected_backend"] == "hermes_grok_oauth"
+        assert media["executable"] is True
         assert {"backend": "ark_cli", "auth_state": "pending_activation"} in media["pending_backends"]
 
     def test_bailian_first_ready_backend_creates_approval_card(self):
@@ -482,6 +584,7 @@ class TestMediaGenerationRouting:
         assert media["selected_backend"] == "bailian_cli"
         assert media["approval_required"] is True
         assert media["executable"] is False
+        assert media["execution_blocker"]["status"] == "approval_required"
         assert media["approval_card"]["status"] == "approval_required"
         assert media["backend_contracts"]["bailian_cli"]["command_contract"]["image_generation"] == "bl image generate"
         assert "bl text chat" in media["backend_contracts"]["bailian_cli"]["forbidden_command_contracts"]

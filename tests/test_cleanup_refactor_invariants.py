@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 from agent_runtime.config_inventory import build_config_inventory, config_inventory_payload
 from agent_runtime.config_loader import load_yaml
@@ -14,8 +18,7 @@ from agent_runtime.routing.route_catalog import (
     route_size_suffix,
 )
 
-
-ROOT = Path(__file__).resolve().parents[1]
+LEGACY_COMPATIBILITY_ROUTES = {"fiction_chapter_pipeline"}
 
 
 def test_route_catalog_loads_all_configured_routes() -> None:
@@ -37,6 +40,31 @@ def test_route_catalog_defaults_match_configured_routes() -> None:
         assert configured is not None, route_key
         assert configured.get("agents") == default_agents, route_key
         assert ROUTE_SIZE_MAP.get(str(configured.get("size"))) == DEFAULT_ROUTE_SIZE[route_key], route_key
+
+
+def test_active_configured_routes_have_default_fallbacks() -> None:
+    routing_config = load_yaml(ROOT / "config" / "routing_rules.yml")
+    configured_routes = routing_config["routes"]
+
+    for route_key, configured in configured_routes.items():
+        if route_key in LEGACY_COMPATIBILITY_ROUTES:
+            continue
+        assert route_key in DEFAULT_ROUTE_AGENTS, route_key
+        assert route_key in DEFAULT_ROUTE_SIZE, route_key
+        assert DEFAULT_ROUTE_AGENTS[route_key] == configured.get("agents"), route_key
+        assert ROUTE_SIZE_MAP.get(str(configured.get("size"))) == DEFAULT_ROUTE_SIZE[route_key], route_key
+
+
+def test_legacy_compatibility_routes_are_not_default_fallbacks() -> None:
+    routing_config = load_yaml(ROOT / "config" / "routing_rules.yml")
+    catalog = RouteCatalog.from_config(routing_config)
+
+    for route_key in LEGACY_COMPATIBILITY_ROUTES:
+        assert route_key in routing_config["routes"], route_key
+        assert route_key not in DEFAULT_ROUTE_AGENTS, route_key
+        assert route_key not in DEFAULT_ROUTE_SIZE, route_key
+        assert catalog.has_configured_route(route_key), route_key
+        assert catalog.agents_for(route_key) == routing_config["routes"][route_key]["agents"], route_key
 
 
 def test_task_router_uses_route_catalog_without_behavior_change() -> None:

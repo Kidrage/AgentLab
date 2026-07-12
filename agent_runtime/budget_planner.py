@@ -1,11 +1,11 @@
 """Token budget planning helpers."""
 
-from schemas import AgentRoute, TokenBudget
-
 try:
-    from routing.route_catalog import route_size_suffix as _route_size_suffix
-except ImportError:  # pragma: no cover - package import path
+    from agent_runtime.schemas import AgentRoute, TokenBudget
     from agent_runtime.routing.route_catalog import route_size_suffix as _route_size_suffix
+except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+    from schemas import AgentRoute, TokenBudget
+    from routing.route_catalog import route_size_suffix as _route_size_suffix
 
 
 BUDGET_ALIASES = {

@@ -168,6 +168,9 @@ agent_order:
   - InterfaceMapper
   - Coder
   - ArtifactProducer
+  - Writer
+  - Reviewer
+  - Scribe
   - TesterAuditor
   - Verifier
   - Archivist
@@ -224,6 +227,13 @@ routes:
   narrative_light_chapter:
     size: L1
     description: 长篇小说单章/续写/日更轻路径，只生成候选章节和最小连续性闭环
+    agents:
+      - Supervisor
+      - Writer
+
+  narrative_batch_chapters:
+    size: L2
+    description: 长篇小说多章节候选批次路径，生成批次计划、章节候选目录、批次连续性账本和交付回执
     agents:
       - Supervisor
       - Writer

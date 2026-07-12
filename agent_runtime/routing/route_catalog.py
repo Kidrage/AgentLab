@@ -1,8 +1,8 @@
 """Route catalog helpers.
 
-The catalog is the read-only authority for route templates. It keeps the
-historical fallback routes in one place so routing code does not duplicate
-agent lists while config migration is still in progress.
+The catalog is the read-only authority for active route templates. Deprecated
+compatibility routes may still be loaded from config, but they are deliberately
+not part of the default fallback catalog.
 """
 
 from __future__ import annotations
@@ -33,9 +33,9 @@ DEFAULT_ROUTE_AGENTS: dict[str, list[str]] = {
     "artifact_production_task": ["Supervisor", "ArtifactProducer", "TesterAuditor", "Verifier", "Archivist"],
     "media_generation_task": ["Supervisor", "ArtifactProducer", "TesterAuditor", "Verifier", "Archivist"],
     "narrative_light_chapter": ["Supervisor", "Writer"],
+    "narrative_batch_chapters": ["Supervisor", "Writer"],
     "article_light_draft": ["Supervisor", "ArtifactProducer"],
     "narrative_heavy_audit": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
-    "fiction_chapter_pipeline": ["Supervisor", "Writer", "Reviewer", "Scribe", "Verifier", "Archivist"],
     "evaluation_task": [
         "Supervisor",
         "RepoScout",
@@ -83,9 +83,9 @@ DEFAULT_ROUTE_SIZE: dict[str, str] = {
     "artifact_production_task": "medium",
     "media_generation_task": "medium",
     "narrative_light_chapter": "small",
+    "narrative_batch_chapters": "medium",
     "article_light_draft": "small",
     "narrative_heavy_audit": "large",
-    "fiction_chapter_pipeline": "medium",
     "evaluation_task": "large",
     "large_or_risky_task": "large",
 }

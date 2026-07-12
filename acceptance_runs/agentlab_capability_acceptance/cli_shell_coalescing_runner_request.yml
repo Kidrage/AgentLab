@@ -1,0 +1,383 @@
+schema_version: 1
+report_type: agentlab_cli_shell_coalescing_runner_request
+status: accepted
+root: .
+source_plan: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_plan.yml
+source_status: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_status.yml
+runner_boundary:
+  frontdesk_agent_executes_shell_sessions: false
+  trusted_shell_runner_required: true
+  provider_calls_executed_by_request_generation: false
+  shell_state_counts_as_project_memory: false
+  production_promotion_allowed: false
+  agentlab_memory_remains_authoritative: true
+  acceptance_scope: synthetic_native_surface_smoke
+  private_project_context_loaded: false
+  isolated_execution_workspace_required: true
+  project_read_tools_allowed: false
+status_summary:
+  current_status: pass
+  expected_packet_count: 2
+  packet_count: 2
+  accepted_packet_count: 2
+  delegated_role_count: 4
+  accepted_role_count: 4
+  missing_returned_files_count: 0
+  stale_returned_files_count: 0
+  failure_count: 0
+packets:
+- packet_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/claude_code_full_cli_performance_coalesced_session.yml
+  source_packet_sha256: 478c2208ba49c167affac38a69489908b1d26cecafaeb22bdea058895bff85e6
+  backend: claude_code
+  command: claude
+  coalescing_mode: native_subagents
+  task_contract:
+    task_kind: cli_shell_native_runtime_acceptance
+    objective: Use the registered native shell coordination surface to evaluate an
+      embedded synthetic fixture and return separate role evidence without reading
+      AgentLab project files.
+    acceptance_scope: synthetic_native_surface_smoke
+    private_project_context_loaded: false
+    synthetic_input_only: true
+    production_changes_allowed: false
+    agentlab_memory_remains_authoritative: true
+  execution_contract:
+    trusted_runner_required: true
+    trusted_runner_env: AGENTLAB_TRUSTED_CLI_SHELL_RUNNER=1
+    frontdesk_role_invocations: 0
+    provider_invocation_count_claimed: false
+    receipts_materialized_by_agentlab_runner: true
+    acceptance_scope: synthetic_native_surface_smoke
+    isolated_execution_workspace_required: true
+    project_read_tools_allowed: false
+    native_surface: claude_inline_agents
+    coordination_semantics: single_top_level_shell_invocation
+    single_provider_session_claimed: false
+    command_spec:
+      entrypoint: claude
+      arguments:
+      - --print
+      - --output-format
+      - json
+      - --permission-mode
+      - plan
+      - --safe-mode
+      - --no-session-persistence
+      - --tools
+      - Agent
+      - --agents
+      - <rendered_inline_agent_json>
+      - --json-schema
+      - <role_result_schema>
+      - <rendered_session_prompt>
+      structured_result: one JSON result containing one section per delegated AgentLab
+        role
+  provider_calls_executed_by_request_generation: false
+  session_receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/shell_subagent_delegation_receipt.yml
+  session_receipt_acceptance_rule: shell-level receipt must pass and describe the
+    native subagent or board-mediated delegation used for this bounded AgentLab shell
+    session
+  delegated_roles:
+  - role: Coder
+    receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/coder_role_session_receipt.yml
+    validation_evidence_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/coder_validation_evidence.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - changed_files_or_findings.yml
+    - validation_evidence.yml
+    task:
+      objective: Validate the synthetic packet invariants from the Coder role; do
+        not read any project files.
+      read_scope: []
+      write_scope:
+      - returned_artifacts/
+      private_project_context_loaded: false
+      model_file_writes_allowed: false
+      synthetic_fixture:
+        fixture_id: agentlab-cli-native-surface-smoke-v1
+        packet_state: candidate
+        project_context: absent
+        production_promotion: forbidden
+        receipt_policy: one_result_per_delegated_role
+        validation_policy: non_empty_findings_and_validation_per_role
+        delegated_role: Coder
+      production_changes_allowed: false
+      must_return_finding_artifact: true
+    model_route:
+      configured_model_key: qwen3_coder_plus_dashscope
+      provider: qwen-coder
+      model_id: qwen3-coder-plus
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+      fallback_worker: codex
+      fallback_invocation_contract: codex
+    acceptance_rule: receipt and validation evidence must both pass, match the delegated
+      role, and must not attempt production promotion
+  - role: Archivist
+    receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/archivist_role_session_receipt.yml
+    validation_evidence_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/archivist_validation_evidence.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - changed_files_or_findings.yml
+    - validation_evidence.yml
+    task:
+      objective: Validate the synthetic receipt and promotion invariants from the
+        Archivist role; do not read any project files.
+      read_scope: []
+      write_scope:
+      - returned_artifacts/
+      private_project_context_loaded: false
+      model_file_writes_allowed: false
+      synthetic_fixture:
+        fixture_id: agentlab-cli-native-surface-smoke-v1
+        packet_state: candidate
+        project_context: absent
+        production_promotion: forbidden
+        receipt_policy: one_result_per_delegated_role
+        validation_policy: non_empty_findings_and_validation_per_role
+        delegated_role: Archivist
+      production_changes_allowed: false
+      must_return_finding_artifact: true
+    model_route:
+      configured_model_key: deepseek_v4_pro
+      provider: deepseek
+      model_id: deepseek-v4-pro
+      base_url: https://api.deepseek.com
+      applied_to_shell_invocation: false
+      shell_model_selection: shell_native_default
+      fallback_model_key: qwen3_6_flash_dashscope
+      fallback_provider: qwen-flash
+      fallback_model_id: qwen3.6-flash
+    acceptance_rule: receipt and validation evidence must both pass, match the delegated
+      role, and must not attempt production promotion
+  current_status: pass
+  accepted: true
+  missing: []
+  failures: []
+- packet_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/hermes_full_cli_performance_coalesced_session.yml
+  source_packet_sha256: 111e63561182231134ccbbbe740f9db107c590794e8e5eb6d10e0df82c20e09b
+  backend: hermes
+  command: hermes
+  coalescing_mode: board_mediated
+  task_contract:
+    task_kind: cli_shell_native_runtime_acceptance
+    objective: Use the registered native shell coordination surface to evaluate an
+      embedded synthetic fixture and return separate role evidence without reading
+      AgentLab project files.
+    acceptance_scope: synthetic_native_surface_smoke
+    private_project_context_loaded: false
+    synthetic_input_only: true
+    production_changes_allowed: false
+    agentlab_memory_remains_authoritative: true
+  execution_contract:
+    trusted_runner_required: true
+    trusted_runner_env: AGENTLAB_TRUSTED_CLI_SHELL_RUNNER=1
+    frontdesk_role_invocations: 0
+    provider_invocation_count_claimed: false
+    receipts_materialized_by_agentlab_runner: true
+    acceptance_scope: synthetic_native_surface_smoke
+    isolated_execution_workspace_required: true
+    project_read_tools_allowed: false
+    native_surface: hermes_kanban
+    coordination_semantics: board_orchestrated_multi_worker
+    single_provider_session_claimed: false
+    command_spec:
+      entrypoint: hermes
+      command_family: kanban
+      board_slug: agentlab-cli-shell-acceptance
+      role_task_command:
+      - kanban
+      - create
+      - <role_task_title>
+      - --body
+      - <role_task_body>
+      - --assignee
+      - <configured_profile_or_default>
+      - --workspace
+      - scratch
+      - --idempotency-key
+      - <packet_and_role_id>
+      - --json
+      dispatch_command:
+      - kanban
+      - dispatch
+      - --max
+      - <role_count>
+      - --json
+      collection_commands:
+      - - kanban
+        - show
+        - <task_id>
+      - - kanban
+        - runs
+        - <task_id>
+      worker_process_note: Kanban consolidates AgentLab submission and board governance
+        but may spawn one shell-managed worker process per delegated role.
+  provider_calls_executed_by_request_generation: false
+  session_receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/shell_board_sync_receipt.yml
+  session_receipt_acceptance_rule: shell-level receipt must pass and describe the
+    native subagent or board-mediated delegation used for this bounded AgentLab shell
+    session
+  delegated_roles:
+  - role: Supervisor
+    receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/supervisor_role_session_receipt.yml
+    validation_evidence_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/supervisor_validation_evidence.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - tool_or_mcp_usage_ledger.yml
+    - artifact_manifest_or_findings.yml
+    task:
+      objective: Validate the synthetic authority and delegation invariants from the
+        Supervisor role; do not read any project files.
+      read_scope: []
+      write_scope:
+      - returned_artifacts/
+      private_project_context_loaded: false
+      model_file_writes_allowed: false
+      synthetic_fixture:
+        fixture_id: agentlab-cli-native-surface-smoke-v1
+        packet_state: candidate
+        project_context: absent
+        production_promotion: forbidden
+        receipt_policy: one_result_per_delegated_role
+        validation_policy: non_empty_findings_and_validation_per_role
+        delegated_role: Supervisor
+      production_changes_allowed: false
+      must_return_finding_artifact: true
+    model_route:
+      configured_model_key: codex_gpt_5_5_high_hermes_oauth
+      provider: openai-codex
+      model_id: gpt-5.5
+      reasoning_effort: high
+      base_url: https://chatgpt.com/backend-api/codex
+      applied_to_shell_invocation: true
+      shell_model_selection: explicit_catalog_route
+      fallback_worker: claude_code
+      fallback_invocation_contract: claude
+      fallback_model_key: deepseek_v4_pro
+      fallback_provider: deepseek
+      fallback_model_id: deepseek-v4-pro
+      workflow_shell_profile: agentlabsupervisor
+      required_profile_config:
+        model.provider: openai-codex
+        model.default: gpt-5.5
+        model.base_url: https://chatgpt.com/backend-api/codex
+        agent.reasoning_effort: high
+    acceptance_rule: receipt and validation evidence must both pass, match the delegated
+      role, and must not attempt production promotion
+  - role: PromptEngineer
+    receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/promptengineer_role_session_receipt.yml
+    validation_evidence_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/promptengineer_validation_evidence.yml
+    required_outputs:
+    - role_session_receipt.yml
+    - tool_or_mcp_usage_ledger.yml
+    - artifact_manifest_or_findings.yml
+    task:
+      objective: Validate that the synthetic role-result contract is deterministic
+        and role-separated; do not read any project files.
+      read_scope: []
+      write_scope:
+      - returned_artifacts/
+      private_project_context_loaded: false
+      model_file_writes_allowed: false
+      synthetic_fixture:
+        fixture_id: agentlab-cli-native-surface-smoke-v1
+        packet_state: candidate
+        project_context: absent
+        production_promotion: forbidden
+        receipt_policy: one_result_per_delegated_role
+        validation_policy: non_empty_findings_and_validation_per_role
+        delegated_role: PromptEngineer
+      production_changes_allowed: false
+      must_return_finding_artifact: true
+    model_route:
+      configured_model_key: deepseek_v4_flash
+      provider: deepseek
+      model_id: deepseek-v4-flash
+      base_url: https://api.deepseek.com
+      applied_to_shell_invocation: true
+      shell_model_selection: explicit_catalog_route
+      fallback_worker: hermes
+      fallback_invocation_contract: hermes
+      fallback_model_key: deepseek_v4_pro
+      fallback_provider: deepseek
+      fallback_model_id: deepseek-v4-pro
+      workflow_shell_profile: agentlabpromptengineer
+      required_profile_config:
+        model.provider: deepseek
+        model.default: deepseek-v4-flash
+        model.base_url: https://api.deepseek.com
+        agent.reasoning_effort: ''
+    acceptance_rule: receipt and validation evidence must both pass, match the delegated
+      role, and must not attempt production promotion
+  current_status: pass
+  accepted: true
+  missing: []
+  failures: []
+local_runner_package:
+  request_path: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+  runner_result_path: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_result.yml
+  status_path: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_status.yml
+  plan_path: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_plan.yml
+  dry_run_command: ./agentlab.sh cli-shell-coalescing-runner --request acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_result.yml
+  execute_command: AGENTLAB_TRUSTED_CLI_SHELL_RUNNER=1 ./agentlab.sh cli-shell-coalescing-runner
+    --request acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_result.yml
+    --execute
+  execute_claude_only_command: AGENTLAB_TRUSTED_CLI_SHELL_RUNNER=1 ./agentlab.sh cli-shell-coalescing-runner
+    --request acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_result.yml
+    --execute --backend claude_code
+  execute_hermes_only_command: AGENTLAB_TRUSTED_CLI_SHELL_RUNNER=1 ./agentlab.sh cli-shell-coalescing-runner
+    --request acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_result.yml
+    --execute --backend hermes --provision-hermes-profiles
+  provision_hermes_profiles_command: AGENTLAB_TRUSTED_CLI_SHELL_RUNNER=1 ./agentlab.sh
+    cli-shell-coalescing-runner --request acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_result.yml
+    --execute --backend hermes --provision-hermes-profiles --provision-only
+  status_command: ./agentlab.sh cli-shell-coalescing-status --plan acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_plan.yml
+    --out acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_status.yml
+  acceptance_refresh_command: ./agentlab.sh capability-acceptance --out acceptance_runs/agentlab_capability_acceptance/current.yml
+  post_run_collect_command: ./agentlab.sh cli-shell-coalescing-collect --plan acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_plan.yml
+    --status acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_status.yml
+    --request acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_collect.yml
+  expected_return_files: []
+  must_return_one_shell_receipt_per_packet: true
+  must_return_one_role_receipt_per_delegated_role: true
+  must_return_validation_evidence_per_delegated_role: true
+  full_run_requires_coalescing_status_pass: true
+operator_steps:
+- step: review_session_packets
+  loads_private_project_context: false
+  description: Read each packet and confirm the backend, command, delegated roles,
+    and receipt paths.
+- step: execute_trusted_shell_sessions
+  loads_private_project_context: false
+  acceptance_scope: synthetic_native_surface_smoke
+  description: Run each synthetic shell session from the trusted shell runner, using
+    the shell-native subagent or board surface named by coalescing_mode without loading
+    project files.
+  frontdesk_must_not_execute: true
+  command: AGENTLAB_TRUSTED_CLI_SHELL_RUNNER=1 ./agentlab.sh cli-shell-coalescing-runner
+    --request acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_result.yml
+    --execute
+- step: return_agentlab_receipts
+  loads_private_project_context: false
+  description: Write the shell-level receipt plus role receipt and validation evidence
+    for every delegated AgentLab role.
+- step: refresh_status
+  loads_private_project_context: false
+  command: ./agentlab.sh cli-shell-coalescing-status --plan acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_plan.yml
+    --out acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_status.yml
+  pass_condition: cli_shell_coalescing_status.status is pass
+- step: collect_acceptance
+  loads_private_project_context: false
+  command: ./agentlab.sh cli-shell-coalescing-collect --out acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_collect.yml
+  pass_condition: cli_shell_coalescing_collect.status is pass
+secret_values_rendered: false
+next_action: none

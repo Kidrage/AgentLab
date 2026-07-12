@@ -1,0 +1,75 @@
+schema_version: 1
+report_type: agentlab_cli_shell_coalescing_runner_result
+root: .
+source_request: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+selected_backend: all
+execute_requested: false
+trusted_runner_env: AGENTLAB_TRUSTED_CLI_SHELL_RUNNER
+provision_hermes_profiles_requested: false
+provision_only_requested: false
+acceptance_scope: synthetic_native_surface_smoke
+private_project_context_loaded: false
+isolated_execution_workspace_required: true
+project_read_tools_allowed: false
+provider_calls_executed: false
+secret_values_rendered: false
+status: ready_for_trusted_runner
+backend_results:
+- backend: claude_code
+  status: planned
+  native_surface_used: claude_inline_agents
+  command_preview:
+    entrypoint: claude
+    arguments:
+    - --print
+    - --output-format
+    - json
+    - --permission-mode
+    - plan
+    - --safe-mode
+    - --no-session-persistence
+    - --tools
+    - Agent
+    - --agents
+    - <rendered_inline_agent_json>
+    - --json-schema
+    - <role_result_schema>
+    - <rendered_session_prompt>
+    structured_result: one JSON result containing one section per delegated AgentLab
+      role
+- backend: hermes
+  status: planned
+  native_surface_used: hermes_kanban
+  command_preview:
+    entrypoint: hermes
+    command_family: kanban
+    board_slug: agentlab-cli-shell-acceptance
+    role_task_command:
+    - kanban
+    - create
+    - <role_task_title>
+    - --body
+    - <role_task_body>
+    - --assignee
+    - <configured_profile_or_default>
+    - --workspace
+    - scratch
+    - --idempotency-key
+    - <packet_and_role_id>
+    - --json
+    dispatch_command:
+    - kanban
+    - dispatch
+    - --max
+    - <role_count>
+    - --json
+    collection_commands:
+    - - kanban
+      - show
+      - <task_id>
+    - - kanban
+      - runs
+      - <task_id>
+    worker_process_note: Kanban consolidates AgentLab submission and board governance
+      but may spawn one shell-managed worker process per delegated role.
+next_action: set AGENTLAB_TRUSTED_CLI_SHELL_RUNNER=1 and rerun with --execute

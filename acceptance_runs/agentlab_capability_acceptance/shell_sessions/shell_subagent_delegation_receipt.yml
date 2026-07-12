@@ -1,0 +1,19 @@
+schema_version: 1
+status: pass
+backend: claude_code
+coalescing_mode: native_subagents
+native_surface_used: claude_inline_agents
+delegated_roles:
+- Coder
+- Archivist
+acceptance_scope: synthetic_native_surface_smoke
+private_project_context_loaded: false
+execution_workspace_isolated: true
+project_read_tools_enabled: false
+provider_calls_executed_by_shell_session: true
+source_packet_sha256: 478c2208ba49c167affac38a69489908b1d26cecafaeb22bdea058895bff85e6
+frontdesk_role_invocations: 0
+production_promotion_attempted: false
+production_promotion_allowed: false
+details:
+  top_level_shell_invocation_count: 1

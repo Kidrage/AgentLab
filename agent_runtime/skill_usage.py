@@ -5,8 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from atomic_io import atomic_write_yaml, safe_read_yaml
-from state_store import utc_now
+try:
+    from agent_runtime.atomic_io import atomic_write_yaml, safe_read_yaml
+    from agent_runtime.state_store import utc_now
+except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+    from atomic_io import atomic_write_yaml, safe_read_yaml
+    from state_store import utc_now
 
 
 def task_skill_usage_path(run_dir: Path) -> Path:

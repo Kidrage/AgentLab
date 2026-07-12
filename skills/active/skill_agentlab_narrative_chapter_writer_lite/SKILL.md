@@ -49,6 +49,52 @@ Write only candidate run artifacts, never production files:
 fact, character-state change, relationship change, timeline movement, item
 state, or foreshadowing status that should survive into later chapters.
 
+Use these exact version-1 candidate envelopes. Add domain fields where useful,
+but do not rename or omit the shown gate fields:
+
+```yaml
+# continuity_ledger.yml
+schema_version: 1
+chapter: 1
+baseline_mode: reset # reset for Ch1, continuation otherwise
+timeline:
+  monotonic: true
+  chapter_day: 1
+plot_state_changes: []
+character_changes: []
+relationship_or_worldline_changes: []
+foreshadowing: []
+```
+
+```yaml
+# state_transition_proposal.yml
+schema_version: 1
+status: candidate
+chapter: 1
+requires_user_promotion: true
+events:
+  - event_type: chapter_state_change
+    scope: candidate_only
+    summary: "Concrete fact proposed by this chapter."
+```
+
+```yaml
+# narrative_delivery_receipt.yml
+schema_version: 1
+status: pass # blocked when any required check fails
+candidate_only: true
+checks:
+  chapter_and_title: pass
+  required_beats: pass
+  continuity_outputs: pass
+  production_untouched: pass
+  deprecated_sources_excluded: pass
+```
+
+The local harness validates these envelopes before accepting any Writer output.
+Do not invent a new schema version or use synonyms such as `delivery_status` or
+`proposed_transitions` for canonical gate fields.
+
 ## Local Checks
 
 Before receipt, run deterministic self-checks in text:

@@ -54,6 +54,12 @@ def build_mission_contract(
     )
     domain_keywords = load_domain_keywords(root / "config" / "mission_compiler_v2.yml")
     domain = _validated_legacy_domain(llm_draft) or classify_domain(prompt, domain_keywords)
+    explicit_pack_synthesis = _explicit_pack_synthesis_request(prompt)
+    explicit_media_domain = _explicit_media_output_domain(prompt)
+    if explicit_pack_synthesis:
+        domain = "pack_synthesis"
+    elif explicit_media_domain:
+        domain = explicit_media_domain
     if narrative_intent.kind == "article" and domain == "creative_longform":
         domain = "unknown"
 
@@ -67,7 +73,17 @@ def build_mission_contract(
 
     pt_keywords = load_project_type_keywords(root / "config" / "mission_compiler_v2.yml")
     project_type = _validated_project_type(llm_draft) or classify_project_type(prompt, domain, pt_keywords)
-    if narrative_intent.is_narrative:
+    if explicit_media_domain in {"video_generation", "video_editing"}:
+        project_type = "video_generation_project"
+    elif explicit_media_domain in {"image_generation", "image_editing"}:
+        project_type = "media_generation_project"
+    media_domains = {"image_generation", "image_editing", "video_generation", "video_editing", "multimodal"}
+    media_project_types = {"video_generation_project", "media_generation_project", "multimodal_content_project"}
+    if (
+        narrative_intent.is_narrative
+        and domain not in media_domains
+        and project_type not in media_project_types
+    ):
         domain = "creative_longform"
         project_type = "longform_text_project"
     project_types = load_project_types(root / "config" / "project_type_classifier.yml")
@@ -189,6 +205,7 @@ _KNOWN_LEGACY_DOMAINS = {
     "audio_music",
     "multimodal",
     "local_ops",
+    "pack_synthesis",
     "unknown",
 }
 
@@ -203,6 +220,7 @@ _TASK_DOMAIN_TO_LEGACY_DOMAIN = {
     "multimodal_asset_generation": "multimodal",
     "audio_dsp_experiment": "audio_music",
     "automation_ops": "local_ops",
+    "production_pack_synthesis": "pack_synthesis",
     "unknown": "unknown",
 }
 
@@ -221,6 +239,106 @@ def _is_active_longform_content_project(project_id: str | None, root: Path) -> b
         return project_contract.get("task_type") == "creative_longform"
     except Exception:
         return False
+
+
+def _explicit_media_output_domain(prompt: str) -> str | None:
+    lowered = prompt.lower()
+    production_verbs = [
+        "generate",
+        "create",
+        "make",
+        "produce",
+        "render",
+        "turn into",
+        "制作",
+        "生成",
+        "做成",
+        "做",
+        "拍成",
+        "转成",
+        "产出",
+    ]
+    # Media prompts in Chinese often omit explicit English-style verbs. Accept
+    # concise forms like "做" to avoid false-positive narrative routing.
+    if not any(verb in lowered for verb in production_verbs):
+        return None
+    video_terms = [
+        "video",
+        "short video",
+        "film",
+        "animation",
+        "storyboard",
+        "视频",
+        "短视频",
+        "连续剧",
+        "剧集",
+        "动画",
+        "影片",
+        "分镜",
+    ]
+    image_terms = [
+        "image",
+        "poster",
+        "comic",
+        "illustration",
+        "concept art",
+        "图片",
+        "图像",
+        "海报",
+        "漫画",
+        "图册",
+        "插画",
+        "设定图",
+    ]
+    if any(term in lowered for term in video_terms):
+        return "video_generation"
+    if any(term in lowered for term in image_terms):
+        return "image_generation"
+    return None
+
+
+def _explicit_pack_synthesis_request(prompt: str) -> bool:
+    lowered = prompt.lower()
+    pack_terms = [
+        "production pack",
+        "task pack",
+        "domain pack",
+        "生产包",
+        "任务包",
+        "领域包",
+    ]
+    governance_terms = [
+        "lifecycle",
+        "life cycle",
+        "memory contract",
+        "memory policy",
+        "state governance",
+        "生命周期",
+        "记忆合约",
+        "记忆系统",
+        "记忆策略",
+        "状态治理",
+    ]
+    creation_terms = [
+        "create",
+        "build",
+        "design",
+        "prepare",
+        "synthesize",
+        "scaffold",
+        "创建",
+        "构建",
+        "设计",
+        "准备",
+        "生成",
+        "合成",
+        "封装",
+    ]
+    return (
+        any(term in lowered for term in pack_terms)
+        and any(term in lowered for term in governance_terms)
+        and any(term in lowered for term in creation_terms)
+    )
 
 
 def _try_compile_llm_mission_draft(
@@ -414,6 +532,15 @@ def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any], roo
             domain_pack.get("audit_route_proposal") or {
                 "route_key": "narrative_heavy_audit",
                 "agents": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
+            },
+        )
+    if intent.kind == "chapter_batch":
+        return (
+            str(domain_pack.get("batch_route") or "narrative_batch_chapters"),
+            intent.reason,
+            domain_pack.get("batch_route_proposal") or {
+                "route_key": "narrative_batch_chapters",
+                "agents": ["Supervisor", "Writer"],
             },
         )
     return (

@@ -1,0 +1,50 @@
+schema_version: 1
+report_type: agentlab_cli_shell_coalescing_collect
+root: .
+status: pass
+source_plan: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_plan.yml
+source_status: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_status.yml
+source_request: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+refreshed_reports:
+  cli_shell_coalescing_status: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_status.yml
+  cli_shell_coalescing_runner_request: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml
+  capability_acceptance: acceptance_runs/agentlab_capability_acceptance/current.yml
+  objective_requirement_audit: acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml
+  goal_completion_audit: acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml
+  acceptance_report_hygiene: acceptance_runs/agentlab_capability_acceptance/acceptance_report_hygiene.yml
+coalescing_status:
+  status: pass
+  expected_packet_count: 2
+  accepted_packet_count: 2
+  delegated_role_count: 4
+  accepted_role_count: 4
+  missing_returned_files_count: 0
+  stale_returned_files_count: 0
+  failure_count: 0
+runner_request_status: accepted
+source_report_sha256:
+  cli_shell_coalescing_status: e328d6d7f6d14f73e440765d87fa333040a4d7456b4adcbcb40ac138ff2e34bc
+  cli_shell_coalescing_runner_request: 8e5936238188bc081d4d266a27c1d903f1297e2e75684de7e23c11f28aad9514
+missing_returned_files: []
+stale_returned_files: []
+failure_items: []
+secret_values_rendered: false
+provider_calls_executed: false
+acceptance_refresh:
+  performed: true
+  reason: canonical_collector_refresh
+next_action: refresh_promotion_or_human_acceptance_gate
+acceptance_summary:
+  capability_overall_status: candidate
+  capability_status_counts:
+    pass: 26
+    candidate: 5
+  objective_status: partial
+  objective_status_counts:
+    pass: 9
+    candidate: 2
+  goal_status: partial
+  goal_status_counts:
+    pass: 6
+    candidate: 2
+  acceptance_report_hygiene_status: pass

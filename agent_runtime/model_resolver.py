@@ -198,7 +198,10 @@ def resolve_profile_config(
 
     # 2. Get active mode and tier
     import os
-    from cli_executor import budget_mode_to_tier
+    try:
+        from agent_runtime.cli_executor import budget_mode_to_tier
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from cli_executor import budget_mode_to_tier
 
     budget_mode = os.getenv("AGENTLAB_BUDGET_MODE", "balanced").lower()
     if profile_name.lower().replace("-", "_") in {"frugal", "balanced", "max_quality", "low_cost", "direct_api_only", "hybrid_agent_executor"}:

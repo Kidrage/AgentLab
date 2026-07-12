@@ -62,6 +62,18 @@ wrapper must:
 - run `role-doctor` for role workers
 - pass the generated packet to the external CLI
 
+Some local CLI project directories are symlink-managed or protected by the CLI
+runtime. Their `AGENTLAB_ENTRYPOINT.md` is optional when the policy sets
+`entrypoint_required: false`; a write failure is recorded as
+`optional_write_skipped` and must not prevent wrapper installation. The doctor
+may report a warning for the missing advisory file, but required wrappers remain
+hard failures.
+
+Bootstrap also reconciles managed wrapper profiles. If an agent is no longer
+FrontDesk-capable or worker-capable, its obsolete `*-agentlab` wrapper is
+removed during the next write install. This prevents stale Codex FrontDesk
+launchers from surviving a role-policy change.
+
 For `ArtifactProducer`, the role wrapper is still the hard path. The worker must
 also receive an `ArtifactTask` contract from `artifact_task.yml`; project-local
 entrypoint files alone are not enough.

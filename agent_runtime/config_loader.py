@@ -50,6 +50,7 @@ CONFIG_FILES = {
     "memory_policy": "memory_policy.yml",
     "migration_profile": "migration_profile.yml",
     "media_generation_backends": "media_generation_backends.yml",
+    "production_packs": "production_packs.yml",
 }
 
 

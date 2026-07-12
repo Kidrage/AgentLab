@@ -1,0 +1,229 @@
+schema_version: 1
+report_type: agentlab_trusted_live_runner_operator_handoff
+root: .
+status: ready_for_trusted_runner
+source_reports:
+  trusted_live_runner_request: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+  trusted_live_runner_preflight: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_preflight.yml
+  trusted_live_runner_status: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
+  trusted_live_runner_collect: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml
+  trusted_live_runner_collect_writer: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml
+  trusted_live_runner_collect_media: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml
+  internal_live_readiness: acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
+  external_acceptance_readiness: acceptance_runs/agentlab_capability_acceptance/external_acceptance_readiness.yml
+  codex_frontdesk_private_context_rejection: acceptance_runs/agentlab_capability_acceptance/frontdesk_runtime_private_context_rejection_trusted_runner_20260708.yml
+terminology:
+  canonical_kind: private_role_session_acceptance_smoke
+  canonical_label: private role-session acceptance smoke
+  legacy_terms:
+  - private live smoke
+  - private live-smoke
+  - live-smoke
+  meaning: A minimal trusted-runner acceptance run that loads private project context
+    through the configured AgentLab role-session worker and returns run-local candidate
+    artifacts for structural QC.
+  not_a_default_production_workflow: true
+execution_boundary:
+  codex_frontdesk_executes_private_live_commands: false
+  codex_frontdesk_executes_role_session_acceptance_commands: false
+  trusted_agentlab_runner_required: true
+  user_terminal_fallback_allowed: true
+  trusted_runner_or_user_terminal_required: true
+  non_private_session_health_clean: true
+  codex_frontdesk_private_context_rejected: true
+  agentlab_internal_route_blocked: false
+  full_run_requires_trusted_status_pass: true
+  approval_gate_before_private_context: true
+  exact_outbound_context_manifest_required: true
+  writer_sealed_context_required: true
+  media_prompt_digest_required: true
+  secret_pattern_gate_before_provider_call: true
+  role_session_acceptance_approval_env_required: AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+  selective_run_supported: true
+  selective_run_requires_selected_item_pass: true
+  selected_session_health_gates:
+    run_crown_internal_writer_eval:
+      required_issue_ids:
+      - current_agy_session_health
+      blocking_issue_ids: []
+      clean: true
+      blocked_until_relevant_session_health_clean: false
+    run_crown_internal_media_smoke:
+      required_issue_ids:
+      - current_grok_session_health
+      blocking_issue_ids: []
+      clean: true
+      blocked_until_relevant_session_health_clean: false
+selected_item_readiness:
+  summary: top-level handoff status covers the full writer+media acceptance set; selected
+    items may still be runnable when their own session gate is clean
+  ready_item_ids:
+  - run_crown_internal_writer_eval
+  - run_crown_internal_media_smoke
+  blocked_item_ids: []
+  items:
+    run_crown_internal_writer_eval:
+      can_run_now: true
+      blocked_by_session_health: false
+      required_session_health_issue_ids:
+      - current_agy_session_health
+      blocking_session_health_issue_ids: []
+    run_crown_internal_media_smoke:
+      can_run_now: true
+      blocked_by_session_health: false
+      required_session_health_issue_ids:
+      - current_grok_session_health
+      blocking_session_health_issue_ids: []
+operator_steps:
+- step: preflight
+  loads_private_project_context: false
+  command: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+    --preflight-only
+- step: session_health
+  loads_private_project_context: false
+  command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+    --session-health-only
+  pass_condition: internal_live_readiness.session_health_issues is empty
+- step: role_session_acceptance_smoke
+  loads_private_project_context: true
+  command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+    acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+  must_run_from: trusted AgentLab runner or user-operated terminal/session
+  approval_env_required: AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+  runtime_outbound_context_manifest_required: true
+  blocked_until_session_health_clean: false
+  required_session_health_issue_ids:
+  - current_agy_session_health
+  - current_grok_session_health
+  blocking_session_health_issue_ids: []
+  runs_all_items: true
+- step: writer_role_session_acceptance_smoke
+  loads_private_project_context: true
+  command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+    acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+    --only run_crown_internal_writer_eval
+  must_run_from: trusted AgentLab runner or user-operated terminal/session
+  approval_env_required: AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+  runtime_outbound_context_manifest_required: true
+  sealed_writer_context_required: true
+  blocked_until_session_health_clean: false
+  blocked_until_relevant_session_health_clean: false
+  relevant_session_health_issue_ids:
+  - current_agy_session_health
+  blocking_session_health_issue_ids: []
+  runs_only: run_crown_internal_writer_eval
+  recommended_before_media_for_incremental_acceptance: true
+  selective_run_supported: true
+- step: writer_selected_collect
+  loads_private_project_context: false
+  command: ./agentlab.sh trusted-live-runner-collect --request acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml
+    --item run_crown_internal_writer_eval
+  runs_only: run_crown_internal_writer_eval
+  pass_condition: selected_item_collect_status is pass
+- step: media_role_session_acceptance_smoke
+  loads_private_project_context: true
+  command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+    acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+    --only run_crown_internal_media_smoke
+  must_run_from: trusted AgentLab runner or user-operated terminal/session
+  approval_env_required: AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+  runtime_outbound_context_manifest_required: true
+  exact_media_prompt_digest_required: true
+  blocked_until_session_health_clean: false
+  blocked_until_relevant_session_health_clean: false
+  relevant_session_health_issue_ids:
+  - current_grok_session_health
+  blocking_session_health_issue_ids: []
+  runs_only: run_crown_internal_media_smoke
+  recommended_after_writer_or_after_grok_session_health_is_clean: true
+  selective_run_supported: true
+- step: media_selected_collect
+  loads_private_project_context: false
+  command: ./agentlab.sh trusted-live-runner-collect --request acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml
+    --item run_crown_internal_media_smoke
+  runs_only: run_crown_internal_media_smoke
+  pass_condition: selected_item_collect_status is pass
+- step: refresh_status
+  loads_private_project_context: false
+  command: ./agentlab.sh trusted-live-runner-status --request acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
+- step: refresh_acceptance_reports
+  loads_private_project_context: false
+  command: ./agentlab.sh trusted-live-runner-collect --request acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml
+  refreshes:
+  - trusted_live_runner_status
+  - trusted_live_runner_operator_handoff
+  - live_unblock_plan
+  - capability_acceptance
+  - objective_requirement_audit
+  - goal_completion_audit
+  - acceptance_report_hygiene
+candidate_items:
+- id: run_crown_internal_writer_eval
+  agentlab_execution_owner: Writer
+  assigned_worker: agy
+  expected_type: narrative_live_smoke
+  candidate_only: true
+  required_files:
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/fiction_draft.md
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/continuity_ledger.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/state_transition_proposal.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/narrative_delivery_receipt.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/outbound_context_manifest_writer.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/writer_output_contract.yml
+  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/longform_eval_report.yml
+  trusted_status_item_present: true
+  current_status: pass
+  missing: []
+  required_files_exist: true
+  returned_candidate_artifacts_accepted: true
+  acceptance_blocker: none
+- id: run_crown_internal_media_smoke
+  agentlab_execution_owner: ArtifactProducer
+  assigned_worker: grok
+  expected_type: media_live_smoke
+  candidate_only: true
+  required_files:
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/outbound_context_manifest_media.yml
+  trusted_status_item_present: true
+  current_status: pending
+  current_pending_reason: missing_candidate_artifacts
+  missing:
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/outbound_context_manifest_media.yml
+  required_files_exist: false
+  returned_candidate_artifacts_accepted: false
+  acceptance_blocker: missing_required_files
+session_health:
+  status: ready_for_internal_live_smoke
+  clean: true
+  issue_count: 0
+  issues: []
+  next_action: run_role_session_acceptance_smoke
+current_return_status:
+  status: pending
+  missing_item_count: 1
+  stale_item_count: 0
+  artifact_qc_failure_count: 0
+  full_run_requires_trusted_status_pass: true
+  selective_run_supported: true
+  selective_run_requires_selected_item_pass: true
+acceptance_rule: AgentLab accepts returned role-session acceptance smoke evidence
+  only when trusted-live-runner-status passes local structural QC; the generated full-run
+  script exits nonzero unless that status is pass; Writer/media provider calls must
+  first produce a passing exact outbound-context manifest; selective --only runs exit
+  nonzero unless the selected item status is pass; generated outputs remain run-local
+  candidates until explicit promotion.
+secret_values_rendered: false
+issues: []
+notes:
+- This handoff does not execute private role-session acceptance commands.
+- It is safe for Codex/frontdesk to generate and inspect this report.
+- The full role-session acceptance smoke command must run from a trusted AgentLab
+  runner; a user-operated terminal is only a fallback execution surface.

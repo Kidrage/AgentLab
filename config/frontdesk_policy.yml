@@ -6,6 +6,27 @@ summary: >
   They translate user intent into AgentLab commands and handoffs, but they are
   not execution workers.
 frontdesk_class: frontdesk_chat_assistant
+default_frontdesk:
+  agent_id: hermes
+  invocation_contract: hermes
+  provider: deepseek
+  model_key: deepseek_v4_pro
+  model_id: deepseek-v4-pro
+execution_paths:
+  routed_task_intake:
+    frontdesk_required: true
+    frontdesk_agent: hermes
+  direct_closed_loop:
+    frontdesk_required: false
+    entrypoints: [run-pipeline, role-session, narrative-eval]
+    requirements: [agentlab_contract, role_binding, run_local_receipts, acceptance_gate]
+external_runtime_boundary:
+  sandbox_approvals_are_agentlab_roles: false
+  sandbox_approvals_are_agentlab_workflow_nodes: false
+  summary: >
+    Host/Codex sandbox approval is an external runtime safety boundary. It is
+    not an AgentLab role, worker, supervisor, reviewer, or production-chain node.
+    AgentLab live work must still be owned by the assigned role-session packet.
 session_command: ./agentlab.sh frontdesk-session --agent "{agent_id}"
 context_command: ./agentlab.sh frontdesk-context --agent "{agent_id}"
 doctor_command: ./agentlab.sh frontdesk-doctor --agent "{agent_id}"
@@ -71,6 +92,13 @@ state_grounding:
   must_cite_artifacts: true
   hallucinated_state_is_failure: true
 frontdesk_agents:
+  hermes:
+    display_name: Hermes CLI Frontdesk
+    command: hermes
+    provider: deepseek
+    model_key: deepseek_v4_pro
+    model_id: deepseek-v4-pro
+    launch_hint: hermes --provider deepseek -m deepseek-v4-pro -z "$(./agentlab.sh frontdesk-session --agent hermes)"
   agy:
     display_name: Antigravity CLI Frontdesk
     command: agy
@@ -79,10 +107,6 @@ frontdesk_agents:
     display_name: OpenClaw Frontdesk
     command: openclaw
     launch_hint: openclaw agent --message "$(./agentlab.sh frontdesk-session --agent openclaw)"
-  codex:
-    display_name: Codex Frontdesk
-    command: codex
-    launch_hint: codex exec "$(./agentlab.sh frontdesk-session --agent codex)"
   qwen:
     display_name: Qwen Frontdesk
     command: qwen

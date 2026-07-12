@@ -53,6 +53,8 @@ EVIDENCE_NAME_PATTERNS = (
     "prompt",
     "audit",
     "validation",
+    "before_diff",
+    "after_diff",
 )
 
 
@@ -208,17 +210,14 @@ def build_artifact_intent(
     project: str,
     task_id: str,
     project_config: dict | None = None,
+    production_pack: dict | None = None,
 ) -> dict:
     """Build the task-level artifact destination contract."""
     root = _project_root(agentlab_root, project)
     run_dir = _run_dir(agentlab_root, project, task_id)
     artifact_cfg = (project_config or {}).get("artifact_steward", {})
     paths_cfg = (project_config or {}).get("paths", {})
-    production_dir = Path(
-        artifact_cfg.get("production_dir")
-        or paths_cfg.get("artifacts")
-        or root / "artifacts"
-    )
+    production_dir = Path(_production_dir_for_pack(root, artifact_cfg, paths_cfg, production_pack))
     if not production_dir.is_absolute():
         production_dir = root / production_dir
     candidate_dir = Path(artifact_cfg.get("candidate_dir") or run_dir / "artifacts")
@@ -250,6 +249,42 @@ def build_artifact_intent(
             "existing production files must be archived before replacement",
         ],
     }
+
+
+def _production_dir_for_pack(
+    project_root: Path,
+    artifact_cfg: dict,
+    paths_cfg: dict,
+    production_pack: dict | None,
+) -> Path | str:
+    pack_id = str((production_pack or {}).get("pack_id") or "")
+    media_packs = {"media_generation", "media_series_production"}
+    artifact_packs = {"article_light", "generic_artifact", "pack_synthesis_candidate"}
+    narrative_packs = {"narrative_longform"}
+
+    if pack_id in media_packs:
+        return (
+            artifact_cfg.get("media_production_dir")
+            or paths_cfg.get("media_artifacts")
+            or project_root / "artifacts" / "media"
+        )
+    if pack_id in artifact_packs:
+        return (
+            artifact_cfg.get("artifact_production_dir")
+            or paths_cfg.get("artifacts")
+            or project_root / "artifacts"
+        )
+    if pack_id in narrative_packs:
+        return (
+            artifact_cfg.get("production_dir")
+            or paths_cfg.get("manuscript")
+            or project_root / "production" / "manuscript"
+        )
+    return (
+        artifact_cfg.get("production_dir")
+        or paths_cfg.get("artifacts")
+        or project_root / "artifacts"
+    )
 
 
 def _artifact_intent(agentlab_root: Path, project: str, task_id: str, run_dir: Path) -> dict:
@@ -649,11 +684,28 @@ def _archive_completed_or_claimed(run_dir: Path) -> bool:
     lifecycle = _read_yaml(run_dir / "lifecycle.yml", {})
     if isinstance(lifecycle, dict):
         nodes = lifecycle.get("nodes", {})
+        if _archive_skipped(run_dir):
+            return False
         if nodes.get("ARCHIVE", {}).get("status") == "completed":
             return True
         if nodes.get("FINALIZE", {}).get("status") in {"running", "completed"}:
             return True
     return (run_dir / "09_archive_update.md").exists()
+
+
+def _content_promotion_requested(run_dir: Path) -> bool:
+    if (run_dir / "artifact_promotion_plan.yml").exists():
+        return True
+    if _archive_skipped(run_dir):
+        return False
+    return _archive_completed_or_claimed(run_dir)
+
+
+def _archive_skipped(run_dir: Path) -> bool:
+    lifecycle = _read_yaml(run_dir / "lifecycle.yml", {})
+    if not isinstance(lifecycle, dict):
+        return False
+    return lifecycle.get("nodes", {}).get("ARCHIVE", {}).get("status") == "skipped"
 
 
 def _index_evidence_only(index: dict, production_rel: str) -> bool:
@@ -772,17 +824,21 @@ def validate_project_artifact_governance(
 
     if _is_active_content_project(agentlab_root, project):
         issues.extend(_content_governance_issues(agentlab_root, project_root, project, index, run_dir))
-        issues.extend(validate_content_promotion_readiness(
-            agentlab_root,
-            project,
-            task_id,
-            run_dir,
-            require_archive_receipt=_task_completed(run_dir) or _archive_completed_or_claimed(run_dir),
-        ))
+        if _content_promotion_requested(run_dir):
+            issues.extend(validate_content_promotion_readiness(
+                agentlab_root,
+                project,
+                task_id,
+                run_dir,
+                require_archive_receipt=(
+                    not _archive_skipped(run_dir)
+                    and (_task_completed(run_dir) or _archive_completed_or_claimed(run_dir))
+                ),
+            ))
 
     receipt_path = run_dir / "archive_receipt.yml"
     archive_claimed = _archive_completed_or_claimed(run_dir)
-    if _task_completed(run_dir) and not receipt_path.exists():
+    if _task_completed(run_dir) and not _archive_skipped(run_dir) and not receipt_path.exists():
         issues.append("completed task missing archive_receipt.yml")
     if archive_claimed:
         if not (run_dir / "artifact_lineage.yml").exists():

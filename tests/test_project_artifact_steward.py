@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 from project_artifact_steward import (
     apply_archive_protocol,
     build_artifact_intent,
+    ensure_artifact_promotion_plan,
     validate_content_promotion_readiness,
     validate_project_artifact_governance,
 )
@@ -97,6 +98,104 @@ class ProjectArtifactStewardTests(TestCase):
 
             self.assertTrue(any("contains evidence/report file" in issue for issue in issues))
 
+    def test_generated_promotion_plan_treats_patch_diffs_as_evidence_only(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = self._make_run(root)
+            artifact_dir = run_dir / "artifacts" / "web_ui"
+            artifact_dir.mkdir(parents=True)
+            (artifact_dir / "index.html").write_text("<main>ok</main>\n", encoding="utf-8")
+            (artifact_dir / "before_diff_runs_task_web_ui_index.html.patch").write_text(
+                "--- before\n",
+                encoding="utf-8",
+            )
+            (artifact_dir / "after_diff_runs_task_web_ui_index.html.patch").write_text(
+                "+++ after\n",
+                encoding="utf-8",
+            )
+
+            plan = ensure_artifact_promotion_plan(root, "Novel", "task_0001")
+
+            promoted_sources = {item["source_run_artifact"] for item in plan["promotions"]}
+            self.assertEqual(promoted_sources, {"artifacts/web_ui/index.html"})
+            self.assertIn(
+                "artifacts/web_ui/before_diff_runs_task_web_ui_index.html.patch",
+                plan["evidence_only"],
+            )
+            self.assertIn(
+                "artifacts/web_ui/after_diff_runs_task_web_ui_index.html.patch",
+                plan["evidence_only"],
+            )
+
+    def test_media_pack_uses_media_artifact_production_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            project_root = root / "projects" / "Crown"
+            project_root.mkdir(parents=True)
+            intent = build_artifact_intent(
+                root,
+                "Crown",
+                "task_media",
+                {"artifact_steward": {"production_dir": "production/manuscript"}},
+                {"pack_id": "media_series_production"},
+            )
+
+            self.assertEqual(
+                intent["production_dir"],
+                str(project_root / "artifacts" / "media"),
+            )
+
+    def test_article_pack_does_not_inherit_manuscript_production_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            project_root = root / "projects" / "Crown"
+            project_root.mkdir(parents=True)
+            intent = build_artifact_intent(
+                root,
+                "Crown",
+                "task_article",
+                {"artifact_steward": {"production_dir": "production/manuscript"}},
+                {"pack_id": "article_light"},
+            )
+
+            self.assertEqual(intent["production_dir"], str(project_root / "artifacts"))
+
+    def test_narrative_pack_keeps_project_manuscript_production_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            project_root = root / "projects" / "Crown"
+            project_root.mkdir(parents=True)
+            intent = build_artifact_intent(
+                root,
+                "Crown",
+                "task_chapter",
+                {"artifact_steward": {"production_dir": "production/manuscript"}},
+                {"pack_id": "narrative_longform"},
+            )
+
+            self.assertEqual(
+                intent["production_dir"],
+                str(project_root / "production" / "manuscript"),
+            )
+
+    def test_narrative_pack_defaults_to_manuscript_without_project_config(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            project_root = root / "projects" / "Crown"
+
+            intent = build_artifact_intent(
+                root,
+                "Crown",
+                "task_chapter",
+                {},
+                {"pack_id": "narrative_longform"},
+            )
+
+            self.assertEqual(
+                intent["production_dir"],
+                str(project_root / "production" / "manuscript"),
+            )
+
     def test_replace_without_archived_old_version_fails(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -152,6 +251,30 @@ class ProjectArtifactStewardTests(TestCase):
             issues = validate_project_artifact_governance(root, "Novel", "task_0001")
 
             self.assertTrue(any("completed task missing archive_receipt.yml" in issue for issue in issues))
+
+    def test_skipped_archive_lifecycle_ignores_init_archive_placeholder(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = self._make_run(root)
+            (run_dir / "09_archive_update.md").write_text("# Archive Update\n\nTBD\n", encoding="utf-8")
+            _write_yaml(
+                run_dir / "lifecycle.yml",
+                {
+                    "nodes": {
+                        "ARCHIVE": {
+                            "status": "skipped",
+                            "skip_reason": "Production pack article_light excludes ARCHIVE",
+                        },
+                        "FINALIZE": {"status": "running"},
+                    }
+                },
+            )
+            _write_yaml(run_dir / "task_card.yml", {"status": "completed"})
+
+            issues = validate_project_artifact_governance(root, "Novel", "task_0001")
+
+            self.assertFalse(any("ARCHIVE completed" in issue for issue in issues))
+            self.assertFalse(any("completed task missing archive_receipt.yml" in issue for issue in issues))
 
     def test_active_content_current_artifact_must_use_production_fact_root(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -219,6 +342,70 @@ class ProjectArtifactStewardTests(TestCase):
             self.assertTrue(any("content task missing required output state_transition_proposal.yml" in issue for issue in issues))
             self.assertTrue(any("content promotion readiness missing artifact_lineage.yml" in issue for issue in issues))
             self.assertTrue(any("content promotion readiness missing state_transition_proposal.yml" in issue for issue in issues))
+
+    def test_active_content_media_candidate_does_not_require_promotion_readiness_when_archive_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "config").mkdir()
+            _write_yaml(
+                root / "config" / "content_project_governance.yml",
+                {
+                    "active_projects": ["Crown_of_Ash"],
+                    "required_content_task_outputs": ["artifact_lineage.yml", "state_transition_proposal.yml"],
+                },
+            )
+            run_dir = self._make_run(root, project="Crown_of_Ash")
+            _write_yaml(
+                run_dir / "workflow_plan.yml",
+                {
+                    "project": "Crown_of_Ash",
+                    "task_id": "task_0001",
+                    "route": {
+                        "agents": [
+                            "Supervisor",
+                            "ArtifactProducer",
+                            "TesterAuditor",
+                            "Verifier",
+                            "Archivist",
+                        ]
+                    },
+                    "production_pack": {
+                        "pack_id": "media_series_production",
+                        "lifecycle_nodes": [
+                            "INIT_TASK",
+                            "CONTEXT_PROFILE",
+                            "CONTEXT_BUDGET",
+                            "CONTEXT_PACK",
+                            "PREPARE_PLAN",
+                            "SUPERVISOR_PLAN",
+                            "ARTIFACT_PRODUCTION",
+                            "VALIDATION",
+                            "VERIFY",
+                            "SELF_CHECK",
+                            "FINALIZE",
+                        ],
+                    },
+                },
+            )
+            _write_yaml(
+                run_dir / "lifecycle.yml",
+                {
+                    "nodes": {
+                        "ARCHIVE": {
+                            "status": "skipped",
+                            "skip_reason": "Production pack media_series_production excludes ARCHIVE",
+                        },
+                        "FINALIZE": {"status": "completed"},
+                    }
+                },
+            )
+            _write_yaml(run_dir / "state.yml", {"status": "completed"})
+
+            issues = validate_project_artifact_governance(root, "Crown_of_Ash", "task_0001")
+
+            self.assertFalse(any("content task missing required output" in issue for issue in issues))
+            self.assertFalse(any("content promotion readiness missing" in issue for issue in issues))
+            self.assertFalse(any("completed task missing archive_receipt.yml" in issue for issue in issues))
 
     def test_active_content_archive_protocol_blocks_without_readiness_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as td:

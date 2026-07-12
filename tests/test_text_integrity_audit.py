@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -38,6 +39,22 @@ def test_audit_skips_venv_cache_and_generated(tmp_path: Path) -> None:
     assert audits == []
 
 
+def test_audit_uses_git_visible_files_and_skips_ignored_runtime(tmp_path: Path) -> None:
+    module = _load_audit_module()
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (tmp_path / ".gitignore").write_text("docs/ignored.md\n", encoding="utf-8")
+    (docs / "visible.md").write_text("# Visible\n", encoding="utf-8")
+    (docs / "ignored.md").write_text("# Ignored\n", encoding="utf-8")
+
+    audits = module.run_audit(tmp_path)
+    paths = {audit.path for audit in audits}
+
+    assert "docs/visible.md" in paths
+    assert "docs/ignored.md" not in paths
+
+
 def test_skill_discovery_config_disabled() -> None:
     import yaml
     data = yaml.safe_load((ROOT / "config" / "skill_discovery.yml").read_text(encoding="utf-8"))
@@ -66,6 +83,28 @@ def test_audit_detects_large_single_line_markdown(tmp_path: Path) -> None:
     bad.write_text("# Title " + "word " * 400 + "\n", encoding="utf-8")
     audits = module.run_audit(tmp_path)
     assert any(a.path == "docs/BAD.md" and a.suspicious_single_line for a in audits)
+
+
+def test_audit_allows_long_markdown_table_row(tmp_path: Path) -> None:
+    module = _load_audit_module()
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    table = docs / "MATRIX.md"
+    table.write_text(
+        "# Matrix\n\n"
+        "| Name | Detail |\n"
+        "|---|---|\n"
+        f"| worker | {'x' * 1500} |\n"
+        "\nFooter.\n",
+        encoding="utf-8",
+    )
+
+    audits = module.run_audit(tmp_path)
+
+    assert any(
+        audit.path == "docs/MATRIX.md" and not audit.suspicious_single_line
+        for audit in audits
+    )
 
 
 def test_audit_detects_local_absolute_path_leak(tmp_path: Path) -> None:

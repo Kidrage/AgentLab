@@ -97,6 +97,12 @@ def _cost_source(model_entry: dict[str, Any], provider_entry: dict[str, Any]) ->
         return "unknown"
     if billing == "token_plan":
         return "subscription/token plan"
+    if billing == "codex_oauth":
+        return "oauth/subscription quota"
+    if billing == "agy_oauth":
+        return "oauth/subscription quota"
+    if billing == "gemini_api_key":
+        return "free-tier/api quota"
     return f"pay-as-you-go/{billing}"
 
 
@@ -188,7 +194,6 @@ def _render_rows(console: Console, rows: list[dict[str, str]]) -> None:
 def _doctor_issues(root: Path) -> list[dict[str, str]]:
     profiles = _read_yaml(root / "config" / "agent_model_profiles.yml", {}) or {}
     issues: list[dict[str, str]] = []
-    high_qwen = ("qwen3_7_max", "qwen3_6_plus")
     modes = profiles.get("modes") or {}
     for mode_name, mode_cfg in modes.items():
         tiers = (mode_cfg or {}).get("tiers") or {}
@@ -198,7 +203,7 @@ def _doctor_issues(root: Path) -> list[dict[str, str]]:
                     continue
                 for field in ("default", "fallback"):
                     value = str(cfg.get(field) or "")
-                    if value.startswith(high_qwen):
+                    if value.startswith("qwen3_7_max") or (tier_name == "low" and value.startswith("qwen3_6_plus")):
                         issues.append({
                             "severity": "warning",
                             "scope": f"{mode_name}.{tier_name}.{role}.{field}",

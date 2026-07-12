@@ -6,6 +6,7 @@ domain_packs:
       - creative_longform
     artifact_type: longform_text
     recommended_route: narrative_light_chapter
+    batch_route: narrative_batch_chapters
     audit_route: narrative_heavy_audit
     forbidden_fallback_routes:
       - interface_sensitive_task
@@ -21,6 +22,15 @@ domain_packs:
         - Writer drafts the candidate chapter against chapter packet, fact snapshot, artifact index, and previous continuity ledger.
         - Writer emits fiction_draft.md, continuity_ledger.yml, state_transition_proposal.yml, and narrative_delivery_receipt.yml.
         - Reviewer/Scribe/Verifier are reserved for narrative_heavy_audit, promotion, or blocking continuity issues.
+    batch_route_proposal:
+      route_key: narrative_batch_chapters
+      agents:
+        - Supervisor
+        - Writer
+      rationale:
+        - Writer produces a bounded candidate chapter batch, not production manuscript files.
+        - Writer emits chapter_batch_plan.yml, chapters/, batch_continuity_ledger.yml, state_transition_proposal.yml, and narrative_batch_delivery_receipt.yml.
+        - Heavy audit remains a separate stage before promotion or acceptance.
     audit_route_proposal:
       route_key: narrative_heavy_audit
       agents:
@@ -65,6 +75,33 @@ domain_packs:
       - source_quality
       - citation_accuracy
       - claim_traceability
+
+  production_pack_synthesis:
+    legacy_domains:
+      - pack_synthesis
+    artifact_type: production_pack_candidate
+    recommended_route: artifact_production_task
+    route_proposal:
+      route_key: artifact_production_task
+      agents:
+        - Supervisor
+        - Researcher
+        - ArtifactProducer
+        - Verifier
+      rationale:
+        - Supervisor scopes the missing production domain and approval boundary.
+        - Researcher gathers domain capability evidence without writing authoritative project memory.
+        - ArtifactProducer drafts production_pack_proposal.yml, domain_memory_contract.yml, and lifecycle_profile.yml.
+        - Verifier checks the candidate pack before any promotion or execution.
+    memory_contract:
+      - domain_research_brief
+      - production_pack_proposal
+      - domain_memory_contract
+      - lifecycle_profile
+    quality_gates:
+      - domain_research_brief
+      - pack_proposal_reviewed
+      - approval_before_execution
 
   audio_dsp_experiment:
     legacy_domains:

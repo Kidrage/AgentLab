@@ -1,0 +1,19 @@
+schema_version: 1
+report_type: grok_oauth_cli_smoke
+created_at: '2026-07-07T16:35:30Z'
+status: pass
+evidence_scope: historical_non_private_cli_smoke
+command_shape: grok --oauth -p <non_private_smoke_prompt> --output-format plain --max-turns 3
+current_command_shape: grok -p <non_private_smoke_prompt> --output-format plain --max-turns 3
+current_contract_supersedes_command_shape: true
+prompt_scope: non_private_smoke_only
+stdout_expected: GROK_OAUTH_HEADLESS_SMOKE_OK
+stdout_observed: GROK_OAUTH_HEADLESS_SMOKE_OK
+exit_code: 0
+secret_values_rendered: false
+notes:
+- This smoke did not send Crown project context.
+- Non-sandbox max-turns=1 reached the turn limit; max-turns=3 completed successfully.
+- Current AgentLab Grok contract starts the already-authenticated local CLI with `grok`;
+  OAuth session ownership stays inside the CLI/Hermes environment.
+- Crown media live execution now uses the internal ArtifactProducer/grok hermes_grok_oauth route; refreshed live artifact smoke and QC remain pending.

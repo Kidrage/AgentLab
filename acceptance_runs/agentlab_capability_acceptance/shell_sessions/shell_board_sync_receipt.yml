@@ -1,0 +1,24 @@
+schema_version: 1
+status: pass
+backend: hermes
+coalescing_mode: board_mediated
+native_surface_used: hermes_kanban
+delegated_roles:
+- Supervisor
+- PromptEngineer
+acceptance_scope: synthetic_native_surface_smoke
+private_project_context_loaded: false
+execution_workspace_isolated: true
+project_read_tools_enabled: false
+provider_calls_executed_by_shell_session: true
+source_packet_sha256: 111e63561182231134ccbbbe740f9db107c590794e8e5eb6d10e0df82c20e09b
+frontdesk_role_invocations: 0
+production_promotion_attempted: false
+production_promotion_allowed: false
+details:
+  board_slug: agentlab-cli-shell-acceptance
+  attempt_id: 4516a5dc286b
+  task_ids:
+    Supervisor: t_6359e53c
+    PromptEngineer: t_11c04e96
+  worker_process_count_claimed: false

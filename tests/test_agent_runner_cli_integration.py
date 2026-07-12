@@ -13,9 +13,8 @@ import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 # Make agent_runtime/ importable
 sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
@@ -28,6 +27,7 @@ from schemas import AgentRoute, LLMCallResult, WorkflowPlan  # noqa: E402
 
 def _make_plan(tmp_path: Path, budget_mode: str = "balanced") -> WorkflowPlan:
     """Build a minimal WorkflowPlan for testing."""
+    _write_role_binding_policy(tmp_path)
     route = AgentRoute(task_size="small", agents=["Supervisor", "Coder"])
     return WorkflowPlan(
         project="TestProject",
@@ -41,6 +41,47 @@ def _make_plan(tmp_path: Path, budget_mode: str = "balanced") -> WorkflowPlan:
         ),
         budget_mode=budget_mode,
         route=route,
+    )
+
+
+def _write_role_binding_policy(root: Path) -> None:
+    """Write the minimal role binding policy needed by CLI dispatch tests."""
+    config_dir = root / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "agent_role_bindings.yml").write_text(
+        """
+schema_version: 1
+roles:
+  Supervisor:
+    allowed_workers: [hermes, qwen, claude_code]
+  Coder:
+    allowed_workers: [claude_code, codex, aider]
+  Writer:
+    allowed_workers: [agy, qwen, claude_code]
+workers:
+  hermes:
+    worker_capable: true
+    worker_capabilities: [role_worker]
+    allowed_roles: [Supervisor]
+    forbidden_roles: []
+  claude_code:
+    worker_capable: true
+    worker_capabilities: [role_worker]
+    allowed_roles: [Supervisor, Coder, Writer]
+    forbidden_roles: []
+  codex:
+    worker_capable: true
+    worker_capabilities: [role_worker]
+    allowed_roles: [Coder]
+    forbidden_roles: [Supervisor, Writer]
+  agy:
+    worker_capable: true
+    worker_capabilities: [candidate_artifact_worker]
+    allowed_roles: [Writer]
+    forbidden_roles: [Supervisor, Coder]
+""".strip()
+        + "\n",
+        encoding="utf-8",
     )
 
 
@@ -85,6 +126,1016 @@ def _api_fallback_result() -> LLMCallResult:
     )
 
 
+def test_writer_prompt_requires_delivery_edit_blocks(tmp_path: Path) -> None:
+    from agent_runner import compose_agent_messages
+
+    config_dir = tmp_path / "config"
+    template_dir = tmp_path / "agent_templates"
+    project_root = tmp_path / "projects" / "TestProject"
+    run_dir = tmp_path / "projects" / "TestProject" / "runs" / "task_test_001"
+    config_dir.mkdir(parents=True)
+    template_dir.mkdir(parents=True)
+    (project_root / "project_brain").mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (config_dir / "agent_registry.yml").write_text(
+        """
+agents:
+  Writer:
+    template_path: agent_templates/writer.md
+    role: Writer
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (template_dir / "writer.md").write_text("# Writer\n\nEmit candidate files.\n", encoding="utf-8")
+    (run_dir / "user_request.md").write_text("写 Crown 第 1 章候选正文。", encoding="utf-8")
+    (run_dir / "workflow_plan.yml").write_text(
+        "route:\n  route_key: narrative_light_chapter\nworkflow_marker: do_not_inject_full_workflow\n",
+        encoding="utf-8",
+    )
+    (run_dir / "fiction_draft.md").write_text("old_current_run_draft_should_not_be_injected\n", encoding="utf-8")
+    (run_dir / "mission_contract.yml").write_text(
+        """
+allowed_output_files:
+  - runs/task_test_001/fiction_draft.md
+  - runs/task_test_001/continuity_ledger.yml
+  - runs/task_test_001/state_transition_proposal.yml
+  - runs/task_test_001/narrative_delivery_receipt.yml
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (run_dir / "chapter_packet.yml").write_text(
+        """
+must_read:
+  - project_brain/project_fact_snapshot.yml
+  - ../outside_project_story.yml
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (project_root / "project_brain" / "project_fact_snapshot.yml").write_text(
+        "project: TestProject\ncanon_marker: loaded_from_chapter_packet\n",
+        encoding="utf-8",
+    )
+    (project_root.parent / "outside_project_story.yml").write_text(
+        "outside_project_marker: must_not_be_injected\n",
+        encoding="utf-8",
+    )
+    skill_path = tmp_path / "skills" / "narrative-lite" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text("writer_skill_marker: injected_without_local_path\n", encoding="utf-8")
+    plan = _make_plan(tmp_path)
+    plan.route.agents = ["Supervisor", "Writer"]
+    plan.skills = {
+        "selected": [
+            {
+                "name": "narrative-chapter-writer-lite",
+                "skill_path": str(skill_path),
+                "injected_into": ["Writer"],
+            }
+        ]
+    }
+
+    messages = compose_agent_messages(tmp_path, plan, "Writer", run_dir / "writer_report.md")
+    user_message = messages[-1]["content"]
+    all_message_text = "\n".join(message["content"] for message in messages)
+
+    assert "Produce the AgentLab narrative candidate files" in user_message
+    assert "Do not write a prose report." in user_message
+    assert "AGENTLAB_EDIT block" in user_message
+    assert "fiction_draft.md" in user_message
+    assert "loaded_from_chapter_packet" in user_message
+    assert "must_not_be_injected" not in user_message
+    assert "writer_skill_marker" in user_message
+    assert str(tmp_path) not in all_message_text
+    assert "do_not_inject_full_workflow" not in user_message
+    assert "old_current_run_draft_should_not_be_injected" not in user_message
+    assert "Prepare the AgentLab report" not in user_message
+
+
+def test_coder_prompt_excludes_current_output_and_placeholder_reports(tmp_path: Path) -> None:
+    from agent_runner import compose_agent_messages
+
+    config_dir = tmp_path / "config"
+    template_dir = tmp_path / "agent_templates"
+    project_root = tmp_path / "projects" / "TestProject"
+    run_dir = project_root / "runs" / "task_test_001"
+    config_dir.mkdir(parents=True)
+    template_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (config_dir / "agent_registry.yml").write_text(
+        """
+agents:
+  Coder:
+    template_path: agent_templates/coder.md
+    role: Coder
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (template_dir / "coder.md").write_text("# Coder\n\nImplement scoped code changes.\n", encoding="utf-8")
+    (tmp_path / ".agentlab").mkdir(parents=True)
+    (tmp_path / "PROJECT_HANDOFF.md").write_text(
+        "# HandOff\n\nduplicate_handoff_marker\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".agentlab" / "HandOff.md").write_text(
+        "# HandOff\n\nduplicate_handoff_marker\n",
+        encoding="utf-8",
+    )
+    (run_dir / "user_request.md").write_text("Build the production pack UI concept.", encoding="utf-8")
+    (run_dir / "workflow_plan.yml").write_text(
+        "route:\n  route_key: interface_sensitive_task\nproduction_pack: full_workflow_plan_marker\n",
+        encoding="utf-8",
+    )
+    (run_dir / "01_supervisor_plan.md").write_text(
+        "# Supervisor\n\nTBD upstream_placeholder_marker\n",
+        encoding="utf-8",
+    )
+    (run_dir / "02_reposcout_report.md").write_text(
+        "# RepoScout\n\nreposcout_real_context_marker\n",
+        encoding="utf-8",
+    )
+    (run_dir / "04_interface_map.md").write_text(
+        "# InterfaceMapper\n\nPlaceholder interface_placeholder_marker\n",
+        encoding="utf-8",
+    )
+    output_path = run_dir / "06_implementation_report.md"
+    output_path.write_text(
+        "# Coder\n\nplan-only stale_current_output_marker\n",
+        encoding="utf-8",
+    )
+    plan = _make_plan(tmp_path)
+
+    messages = compose_agent_messages(tmp_path, plan, "Coder", output_path)
+    system_message = messages[0]["content"]
+    user_message = messages[-1]["content"]
+
+    assert "direct API text-generation path" in system_message
+    assert "You cannot run shell commands" in system_message
+    assert "execution-mode Coder call" in user_message
+    assert "coder_model_call_mode: direct_api_text_generation" in user_message
+    assert "Report Coder backend and execution mode as direct_api_text_generation" in user_message
+    assert "HTML-style full-file block" in user_message
+    assert "execution_backend:" not in user_message
+    assert "Commands run by this model call: none" in user_message
+    assert "reposcout_real_context_marker" in user_message
+    assert "duplicate_handoff_marker" not in user_message
+    assert "stale_current_output_marker" not in user_message
+    assert "upstream_placeholder_marker" not in user_message
+    assert "interface_placeholder_marker" not in user_message
+    assert "full_workflow_plan_marker" not in user_message
+    assert "Prepare the AgentLab report" not in user_message
+
+
+def test_artifact_producer_prompt_uses_production_pack_contract_not_code_context(tmp_path: Path) -> None:
+    from agent_runner import compose_agent_messages
+
+    config_dir = tmp_path / "config"
+    template_dir = tmp_path / "agent_templates"
+    project_root = tmp_path / "projects" / "TestProject"
+    run_dir = project_root / "runs" / "task_test_001"
+    config_dir.mkdir(parents=True)
+    template_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (config_dir / "agent_registry.yml").write_text(
+        """
+agents:
+  ArtifactProducer:
+    template_path: agent_templates/artifact_producer.md
+    role: ArtifactProducer
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (template_dir / "artifact_producer.md").write_text(
+        "# ArtifactProducer\n\nUse production_pack.required_outputs when no artifact_task.yml exists.\n",
+        encoding="utf-8",
+    )
+    (run_dir / "user_request.md").write_text("生成一份产品说明文章。", encoding="utf-8")
+    (run_dir / "workflow_plan.yml").write_text(
+        "route:\n  route_key: article_light_draft\nworkflow_marker: injected_for_artifact_context\n",
+        encoding="utf-8",
+    )
+    (run_dir / "01_supervisor_plan.md").write_text("# Supervisor\n\narticle audience: operators\n", encoding="utf-8")
+    (project_root / "agent_docs").mkdir(parents=True)
+    (project_root / "agent_docs" / "01_REPO_MAP.md").write_text("repo_map_should_not_be_injected\n", encoding="utf-8")
+    (run_dir / "06_implementation_report.md").write_text("implementation_should_not_be_injected\n", encoding="utf-8")
+    plan = _make_plan(tmp_path)
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    plan.route.route_key = "article_light_draft"
+    plan.included_agents = {
+        "ArtifactProducer": {
+            "required_inputs": [
+                "runs/task_xxxx/mission_contract.yml",
+                "runs/task_xxxx/user_request.md",
+                "runs/task_xxxx/workflow_plan.yml",
+            ],
+            "required_outputs": [
+                "runs/task_xxxx/article_draft.md",
+                "runs/task_xxxx/article_structure_check.yml",
+            ],
+        }
+    }
+    plan.production_pack = {
+        "pack_id": "article_light",
+        "required_outputs": ["article_draft.md", "article_structure_check.yml"],
+    }
+    candidate_dir = run_dir / "artifacts"
+    plan.artifact_intent = {
+        "candidate_dir": str(candidate_dir),
+        "allowed_write_roots": [str(candidate_dir)],
+        "declared_production_paths": [],
+    }
+
+    messages = compose_agent_messages(tmp_path, plan, "ArtifactProducer", run_dir / "artifact_producer_report.md")
+    system_message = messages[0]["content"]
+    user_message = messages[-1]["content"]
+
+    assert "Use production_pack.required_outputs when no artifact_task.yml exists" in system_message
+    assert "Direct API ArtifactProducer rules" in system_message
+    assert "Produce the AgentLab non-code candidate artifacts" in user_message
+    assert "article_draft.md" in user_message
+    assert "article_structure_check.yml" in user_message
+    assert "AGENTLAB_EDIT block" in user_message
+    assert "Commands run by this model call: none" in user_message
+    assert "repo_map_should_not_be_injected" not in user_message
+    assert "implementation_should_not_be_injected" not in user_message
+    assert "workflow_marker: injected_for_artifact_context" not in user_message
+    assert "Prepare the AgentLab report" not in user_message
+
+
+def test_pack_synthesis_researcher_prompt_uses_domain_brief_not_code_context(tmp_path: Path) -> None:
+    from agent_runner import compose_agent_messages
+
+    config_dir = tmp_path / "config"
+    template_dir = tmp_path / "agent_templates"
+    project_root = tmp_path / "projects" / "TestProject"
+    run_dir = project_root / "runs" / "task_test_001"
+    config_dir.mkdir(parents=True)
+    template_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (config_dir / "agent_registry.yml").write_text(
+        """
+agents:
+  Researcher:
+    template_path: agent_templates/researcher.md
+    role: Researcher
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (config_dir / "production_packs.yml").write_text("packs: []\n", encoding="utf-8")
+    (template_dir / "researcher.md").write_text("# Researcher\n\nResearch domain requirements.\n", encoding="utf-8")
+    (run_dir / "user_request.md").write_text("设计沉浸式展览生产包。", encoding="utf-8")
+    (run_dir / "workflow_plan.yml").write_text(
+        "route:\n  route_key: artifact_production_task\nworkflow_marker_should_not_be_injected\n",
+        encoding="utf-8",
+    )
+    (project_root / "agent_docs").mkdir(parents=True)
+    (project_root / "agent_docs" / "01_REPO_MAP.md").write_text("repo_map_should_not_be_injected\n", encoding="utf-8")
+    (run_dir / "06_implementation_report.md").write_text("implementation_should_not_be_injected\n", encoding="utf-8")
+    plan = _make_plan(tmp_path)
+    plan.route.agents = ["Supervisor", "Researcher", "ArtifactProducer", "Verifier"]
+    plan.route.route_key = "artifact_production_task"
+    plan.included_agents = {
+        "Researcher": {
+            "required_outputs": ["runs/task_xxxx/domain_research_brief.md"],
+        }
+    }
+    plan.production_pack = {
+        "status": "synthesis_candidate",
+        "pack_id": "pack_synthesis_candidate",
+        "task_domain": "multimodal_asset_generation",
+        "required_outputs": [
+            "production_pack_proposal.yml",
+            "domain_memory_contract.yml",
+            "lifecycle_profile.yml",
+        ],
+    }
+
+    messages = compose_agent_messages(tmp_path, plan, "Researcher", run_dir / "03_research_notes.md")
+    system_message = messages[0]["content"]
+    user_message = messages[-1]["content"]
+
+    assert "Production-pack synthesis Researcher rules" in system_message
+    assert "Produce the AgentLab production-pack domain research brief" in user_message
+    assert "external resources/providers/tools" in user_message
+    assert "code-factory nodes should remain excluded" in user_message
+    assert "repo_map_should_not_be_injected" not in user_message
+    assert "implementation_should_not_be_injected" not in user_message
+    assert "workflow_marker_should_not_be_injected" not in user_message
+    assert "Prepare the AgentLab report" not in user_message
+
+
+def test_pack_synthesis_supervisor_uses_bounded_non_code_packet(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import (
+        compose_agent_messages,
+        production_pack_context_source_files,
+    )
+
+    config_dir = tmp_path / "config"
+    template_dir = tmp_path / "agent_templates"
+    project_root = tmp_path / "projects" / "TestProject"
+    run_dir = project_root / "runs" / "task_test_001"
+    config_dir.mkdir(parents=True)
+    template_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (config_dir / "agent_registry.yml").write_text(
+        """
+agents:
+  Supervisor:
+    template_path: agent_templates/supervisor.md
+    role: Supervisor
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (config_dir / "production_packs.yml").write_text(
+        "packs: []\n", encoding="utf-8"
+    )
+    (template_dir / "supervisor.md").write_text(
+        "# Supervisor\n\nCompile the execution contract.\n", encoding="utf-8"
+    )
+    (run_dir / "user_request.md").write_text(
+        "设计沉浸式展览生产包。", encoding="utf-8"
+    )
+    (run_dir / "mission_contract.yml").write_text(
+        "schema_version: 2\ntask_domain: installation_art\n",
+        encoding="utf-8",
+    )
+    (run_dir / "workflow_plan.yml").write_text(
+        "route:\n  route_key: artifact_production_task\n", encoding="utf-8"
+    )
+    plan = _make_plan(tmp_path)
+    plan.route.agents = [
+        "Supervisor",
+        "Researcher",
+        "ArtifactProducer",
+        "Verifier",
+    ]
+    plan.route.route_key = "artifact_production_task"
+    plan.production_pack = {
+        "status": "synthesis_candidate",
+        "pack_id": "pack_synthesis_candidate",
+        "required_outputs": [
+            "production_pack_proposal.yml",
+            "domain_memory_contract.yml",
+            "lifecycle_profile.yml",
+        ],
+    }
+    plan.included_agents = {
+        "Supervisor": {
+            "required_outputs": ["runs/task_test_001/01_supervisor_plan.md"]
+        }
+    }
+
+    output_path = run_dir / "01_supervisor_plan.md"
+    messages = compose_agent_messages(
+        tmp_path,
+        plan,
+        "Supervisor",
+        output_path,
+    )
+    sources = production_pack_context_source_files(
+        tmp_path,
+        plan,
+        "Supervisor",
+        output_path,
+    )
+    rendered = "\n".join(item["content"] for item in messages)
+
+    assert "production-pack synthesis Supervisor plan" in rendered
+    assert "Researcher, ArtifactProducer, and Verifier" in rendered
+    assert "Use only the exact messages and files embedded" in rendered
+    assert "Before reading repository/project content" not in rendered
+    assert str(tmp_path) not in rendered
+    assert {path.name for path in sources} >= {
+        "agent_registry.yml",
+        "supervisor.md",
+        "user_request.md",
+        "mission_contract.yml",
+        "workflow_plan.yml",
+        "production_packs.yml",
+    }
+
+
+def test_pack_synthesis_artifact_and_verifier_prompts_bind_returned_contracts(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import (
+        compose_agent_messages,
+        production_pack_context_source_files,
+    )
+
+    config_dir = tmp_path / "config"
+    template_dir = tmp_path / "agent_templates"
+    project_root = tmp_path / "projects" / "TestProject"
+    run_dir = project_root / "runs" / "task_test_001"
+    config_dir.mkdir(parents=True)
+    template_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (config_dir / "agent_registry.yml").write_text(
+        """
+agents:
+  ArtifactProducer:
+    template_path: agent_templates/artifact_producer.md
+    role: ArtifactProducer
+  Verifier:
+    template_path: agent_templates/verifier.md
+    role: Verifier
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (config_dir / "production_packs.yml").write_text("packs: []\n", encoding="utf-8")
+    (template_dir / "artifact_producer.md").write_text(
+        "# ArtifactProducer\n", encoding="utf-8"
+    )
+    (template_dir / "verifier.md").write_text("# Verifier\n", encoding="utf-8")
+    (run_dir / "user_request.md").write_text(
+        "设计沉浸式展览生产包。", encoding="utf-8"
+    )
+    (run_dir / "workflow_plan.yml").write_text(
+        "route:\n  route_key: artifact_production_task\n", encoding="utf-8"
+    )
+    (run_dir / "domain_research_brief.md").write_text(
+        "# Domain Research Brief\n\nresearch_marker\n", encoding="utf-8"
+    )
+    (run_dir / "production_pack_research_contract.yml").write_text(
+        "status: pass\n", encoding="utf-8"
+    )
+    secret = "sk-" + ("a" * 40)
+    (run_dir / "01_supervisor_plan.md").write_text(
+        f"# Supervisor\n\nrun path: {run_dir}\ncredential: {secret}\n",
+        encoding="utf-8",
+    )
+    for name in (
+        "production_pack_proposal.yml",
+        "domain_memory_contract.yml",
+        "lifecycle_profile.yml",
+        "production_pack_output_contract.yml",
+    ):
+        (run_dir / name).write_text(f"status: candidate\nmarker: {name}\n", encoding="utf-8")
+    plan = _make_plan(tmp_path)
+    plan.route.agents = ["Supervisor", "Researcher", "ArtifactProducer", "Verifier"]
+    plan.route.route_key = "artifact_production_task"
+    plan.production_pack = {
+        "status": "synthesis_candidate",
+        "pack_id": "pack_synthesis_candidate",
+        "required_outputs": [
+            "production_pack_proposal.yml",
+            "domain_memory_contract.yml",
+            "lifecycle_profile.yml",
+        ],
+    }
+    plan.included_agents = {
+        "ArtifactProducer": {
+            "required_outputs": [
+                "runs/task_test_001/production_pack_proposal.yml",
+                "runs/task_test_001/domain_memory_contract.yml",
+                "runs/task_test_001/lifecycle_profile.yml",
+            ]
+        },
+        "Verifier": {"required_outputs": ["runs/task_test_001/verification_report.md"]},
+    }
+
+    artifact_messages = compose_agent_messages(
+        tmp_path,
+        plan,
+        "ArtifactProducer",
+        run_dir / "artifact_producer_report.md",
+    )
+    verifier_messages = compose_agent_messages(
+        tmp_path,
+        plan,
+        "Verifier",
+        run_dir / "verification_report.md",
+    )
+    artifact_sources = production_pack_context_source_files(
+        tmp_path,
+        plan,
+        "ArtifactProducer",
+        run_dir / "artifact_producer_report.md",
+    )
+    verifier_sources = production_pack_context_source_files(
+        tmp_path,
+        plan,
+        "Verifier",
+        run_dir / "verification_report.md",
+    )
+
+    artifact_user = artifact_messages[-1]["content"]
+    verifier_user = verifier_messages[-1]["content"]
+    artifact_system = artifact_messages[0]["content"]
+    verifier_system = verifier_messages[0]["content"]
+    rendered_messages = "\n".join(
+        item["content"] for item in [*artifact_messages, *verifier_messages]
+    )
+    assert "Emit exactly one full-file AGENTLAB_EDIT" in artifact_user
+    assert "do not return a generic or" in artifact_user
+    assert "research_marker" in artifact_user
+    assert "Verify the AgentLab production-pack candidate" in verifier_user
+    assert "production_pack_output_contract.yml" in verifier_user
+    assert "Do not emit AGENTLAB_EDIT blocks" in verifier_user
+    assert str(tmp_path) not in rendered_messages
+    assert secret not in rendered_messages
+    assert "<RUN_DIR>" in rendered_messages
+    assert "[REDACTED_SECRET]" in rendered_messages
+    assert "Use only the exact messages and files embedded" in artifact_system
+    assert "Use only the exact messages and files embedded" in verifier_system
+    assert "Before reading repository/project content" not in artifact_system
+    assert "Before reading repository/project content" not in verifier_system
+    artifact_source_names = {path.name for path in artifact_sources}
+    verifier_source_names = {path.name for path in verifier_sources}
+    assert {
+        "agent_registry.yml",
+        "artifact_producer.md",
+        "user_request.md",
+        "workflow_plan.yml",
+        "domain_research_brief.md",
+        "production_pack_research_contract.yml",
+        "production_packs.yml",
+    } <= artifact_source_names
+    assert {
+        "agent_registry.yml",
+        "verifier.md",
+        "user_request.md",
+        "workflow_plan.yml",
+        "production_pack_proposal.yml",
+        "domain_memory_contract.yml",
+        "lifecycle_profile.yml",
+        "production_pack_output_contract.yml",
+    } <= verifier_source_names
+    assert "01_REPO_MAP.md" not in artifact_source_names
+    assert "01_REPO_MAP.md" not in verifier_source_names
+
+
+def test_pack_synthesis_direct_api_fallback_cannot_bypass_outbound_gate(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import run_agent_model
+    from outbound_context import PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME
+
+    plan = _make_plan(tmp_path)
+    plan.production_pack = {
+        "status": "synthesis_candidate",
+        "pack_id": "pack_synthesis_candidate",
+    }
+    run_dir = Path(plan.run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    source = run_dir / "domain_research_brief.md"
+    source.write_text("# Domain research\n", encoding="utf-8")
+    settings = SimpleNamespace(provider="deepseek", model="deepseek-test")
+
+    with patch.dict(
+        "os.environ",
+        {PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME: "0"},
+        clear=False,
+    ), patch(
+        "operational_uploader.maybe_run_operational_agent", return_value=None
+    ), patch(
+        "agent_runner._resolve_cli_profile_for_agent",
+        return_value=({"agent_model_profiles": {}}, "full_api", "artifact_producer", None),
+    ), patch(
+        "agent_runner.resolve_agent_settings", return_value=(settings, {})
+    ), patch(
+        "agent_runner.compose_agent_messages",
+        return_value=[{"role": "user", "content": "Return candidate YAML."}],
+    ), patch(
+        "agent_runner.production_pack_context_source_files",
+        return_value=[source],
+    ), patch(
+        "agent_runner.generate_text"
+    ) as generate_text:
+        result = run_agent_model(
+            tmp_path,
+            plan,
+            "ArtifactProducer",
+            run_dir / "artifact_producer_report.md",
+        )
+
+    assert result.status == "blocked_user_decision"
+    assert result.error == "production_pack_outbound_context_gate_blocked"
+    generate_text.assert_not_called()
+    manifest_path = run_dir / "outbound_context_manifest_artifactproducer.yml"
+    assert manifest_path.exists()
+    assert PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME in manifest_path.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_pack_synthesis_cli_unavailable_does_not_switch_to_direct_api(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.production_pack = {
+        "status": "synthesis_candidate",
+        "pack_id": "pack_synthesis_candidate",
+    }
+    run_dir = Path(plan.run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    cli_profile = {
+        "executor_type": "cli_agent",
+        "cli_agent": "agy",
+        "cli_command": 'agy --sandbox -p "Read {task_packet_path}"',
+    }
+
+    with patch(
+        "operational_uploader.maybe_run_operational_agent", return_value=None
+    ), patch(
+        "agent_runner._resolve_cli_profile_for_agent",
+        return_value=(
+            {"agent_model_profiles": {}},
+            "full_cli",
+            "artifact_producer",
+            cli_profile,
+        ),
+    ), patch(
+        "agent_runner._check_cli_role_binding", return_value=(True, "allowed")
+    ), patch(
+        "agent_runner.compose_agent_messages",
+        return_value=[{"role": "user", "content": "Return candidate YAML."}],
+    ), patch(
+        "agent_runner.production_pack_context_source_files", return_value=[]
+    ), patch(
+        "agent_runner.run_cli_agent", return_value=_cli_not_available()
+    ), patch(
+        "agent_runner.generate_text"
+    ) as generate_text:
+        result = run_agent_model(
+            tmp_path,
+            plan,
+            "ArtifactProducer",
+            run_dir / "artifact_producer_report.md",
+        )
+
+    assert result.status == "blocked_user_decision"
+    assert result.error == "production_pack_cli_unavailable_no_fallback"
+    assert result.raw_usage["direct_api_fallback_attempted"] is False
+    generate_text.assert_not_called()
+
+
+def test_coder_allowed_files_include_artifact_candidate_root(tmp_path: Path) -> None:
+    from agent_runner import _extract_allowed_files
+
+    plan = _make_plan(tmp_path)
+    plan.artifact_intent = {
+        "allowed_write_roots": [
+            str(Path(plan.project_root) / "runs" / plan.task_id / "artifacts"),
+        ],
+        "declared_production_paths": [],
+    }
+
+    assert _extract_allowed_files(plan) == {"runs/task_test_001/artifacts/"}
+
+
+def test_coder_candidate_artifacts_allow_direct_patch_application(tmp_path: Path) -> None:
+    from agent_runner import _candidate_artifact_patch_application_allowed
+
+    plan = _make_plan(tmp_path)
+    candidate_dir = Path(plan.run_dir) / "artifacts"
+    plan.artifact_intent = {
+        "candidate_dir": str(candidate_dir),
+        "allowed_write_roots": [str(candidate_dir)],
+        "declared_production_paths": [],
+        "allowed_overwrite_paths": [],
+    }
+
+    assert _candidate_artifact_patch_application_allowed(plan) is True
+
+
+def test_coder_candidate_artifacts_do_not_allow_production_patch_application(tmp_path: Path) -> None:
+    from agent_runner import _candidate_artifact_patch_application_allowed
+
+    plan = _make_plan(tmp_path)
+    candidate_dir = Path(plan.run_dir) / "artifacts"
+    plan.artifact_intent = {
+        "candidate_dir": str(candidate_dir),
+        "allowed_write_roots": [str(candidate_dir)],
+        "declared_production_paths": ["src/app.py"],
+        "allowed_overwrite_paths": [],
+    }
+
+    assert _candidate_artifact_patch_application_allowed(plan) is False
+
+
+def test_coder_candidate_artifacts_must_be_run_local(tmp_path: Path) -> None:
+    from agent_runner import _candidate_artifact_patch_application_allowed
+
+    plan = _make_plan(tmp_path)
+    outside_candidate_dir = Path(plan.project_root) / "artifacts"
+    plan.artifact_intent = {
+        "candidate_dir": str(outside_candidate_dir),
+        "allowed_write_roots": [str(outside_candidate_dir)],
+        "declared_production_paths": [],
+        "allowed_overwrite_paths": [],
+    }
+
+    assert _candidate_artifact_patch_application_allowed(plan) is False
+
+
+def test_coder_applies_run_local_candidate_artifact_blocks_when_policy_is_proposal_first(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    run_dir = Path(plan.run_dir)
+    run_dir.mkdir(parents=True)
+    candidate_dir = run_dir / "artifacts"
+    plan.artifact_intent = {
+        "candidate_dir": str(candidate_dir),
+        "allowed_write_roots": [str(candidate_dir)],
+        "declared_production_paths": [],
+        "allowed_overwrite_paths": [],
+    }
+
+    monkeypatch.setattr(
+        "agent_runner._resolve_cli_profile_for_agent",
+        lambda *a, **kw: (
+            {"agent_model_profiles": {"profiles": {}}, "agent_registry": {"agents": {}}},
+            "direct_api_only",
+            "coder",
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        "operational_uploader.maybe_run_operational_agent",
+        lambda *a, **kw: None,
+    )
+    monkeypatch.setattr(
+        "agent_runner.resolve_agent_settings",
+        lambda *a, **kw: (
+            SimpleNamespace(
+                provider="qwen-coder",
+                provider_type="openai_compatible",
+                model="qwen3-coder-next",
+                base_url=None,
+                api_key_configured=True,
+                temperature=0.2,
+                top_p=1.0,
+                max_output_tokens=2000,
+                profile_name="",
+            ),
+            {
+                "execution_policy": {
+                    "execution_policy": {"patch_application_policy": "patch_proposal_first"},
+                    "coder_policy": {"automatic_patch_application": False},
+                },
+                "model_providers": {},
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        "agent_runner.compose_agent_messages",
+        lambda *a, **kw: [{"role": "user", "content": "test"}],
+    )
+    monkeypatch.setattr(
+        "brain_governor.evaluate_token_status",
+        lambda *a, **kw: {},
+    )
+    monkeypatch.setattr(
+        "agent_runner.generate_text",
+        lambda *a, **kw: LLMCallResult(
+            provider="qwen-coder",
+            model="qwen3-coder-next",
+            content="""# Coder Report
+
+<!-- AGENTLAB_EDIT: runs/task_test_001/artifacts/web_ui/index.html -->
+```html
+<html>ok</html>
+```
+<!-- END AGENTLAB_EDIT -->
+""",
+            status="completed",
+        ),
+    )
+
+    result = run_agent_model(tmp_path, plan, "Coder", run_dir / "06_implementation_report.md")
+
+    assert result.raw_usage["patch_applied"] == 1
+    assert result.raw_usage["patch_failed"] == 0
+    assert "Patch Application Results" in result.content
+    assert (
+        Path(plan.project_root) / "runs" / "task_test_001" / "artifacts" / "web_ui" / "index.html"
+    ).read_text(encoding="utf-8") == "<html>ok</html>\n"
+
+
+def test_artifact_producer_applies_run_local_candidate_artifact_blocks(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    plan.route.route_key = "article_light_draft"
+    run_dir = Path(plan.run_dir)
+    run_dir.mkdir(parents=True)
+    candidate_dir = run_dir / "artifacts"
+    plan.included_agents = {"ArtifactProducer": {"required_outputs": ["runs/task_xxxx/article_draft.md"]}}
+    plan.production_pack = {"pack_id": "article_light", "required_outputs": ["article_draft.md"]}
+    plan.artifact_intent = {
+        "candidate_dir": str(candidate_dir),
+        "allowed_write_roots": [str(candidate_dir)],
+        "declared_production_paths": [],
+        "allowed_overwrite_paths": [],
+    }
+
+    monkeypatch.setattr(
+        "agent_runner._resolve_cli_profile_for_agent",
+        lambda *a, **kw: (
+            {"agent_model_profiles": {"profiles": {}}, "agent_registry": {"agents": {}}},
+            "direct_api_only",
+            "artifact_producer",
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        "operational_uploader.maybe_run_operational_agent",
+        lambda *a, **kw: None,
+    )
+    monkeypatch.setattr(
+        "agent_runner.resolve_agent_settings",
+        lambda *a, **kw: (
+            SimpleNamespace(
+                provider="deepseek",
+                provider_type="openai_compatible",
+                model="deepseek-v4-flash",
+                base_url=None,
+                api_key_configured=True,
+                temperature=0.2,
+                top_p=1.0,
+                max_output_tokens=2000,
+                profile_name="",
+            ),
+            {
+                "execution_policy": {
+                    "execution_policy": {"patch_application_policy": "patch_proposal_first"},
+                    "coder_policy": {"automatic_patch_application": False},
+                },
+                "model_providers": {},
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        "agent_runner.compose_agent_messages",
+        lambda *a, **kw: [{"role": "user", "content": "artifact producer test"}],
+    )
+    monkeypatch.setattr(
+        "brain_governor.evaluate_token_status",
+        lambda *a, **kw: {},
+    )
+    monkeypatch.setattr(
+        "agent_runner.generate_text",
+        lambda *a, **kw: LLMCallResult(
+            provider="deepseek",
+            model="deepseek-v4-flash",
+            content="""# ArtifactProducer Report
+
+<!-- AGENTLAB_EDIT: runs/task_test_001/artifacts/article_draft.md -->
+# Draft
+
+Candidate article.
+<!-- END AGENTLAB_EDIT -->
+""",
+            status="completed",
+        ),
+    )
+
+    result = run_agent_model(tmp_path, plan, "ArtifactProducer", run_dir / "artifact_producer_report.md", apply_patches=True)
+
+    assert result.raw_usage["patch_applied"] == 1
+    assert result.raw_usage["patch_failed"] == 0
+    assert "Patch Application Results" in result.content
+    assert (
+        Path(plan.project_root) / "runs" / "task_test_001" / "artifacts" / "article_draft.md"
+    ).read_text(encoding="utf-8") == "# Draft\n\nCandidate article.\n"
+
+
+def test_coder_does_not_partially_apply_when_edit_blocks_are_truncated(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    run_dir = Path(plan.run_dir)
+    run_dir.mkdir(parents=True)
+    candidate_dir = run_dir / "artifacts"
+    plan.artifact_intent = {
+        "candidate_dir": str(candidate_dir),
+        "allowed_write_roots": [str(candidate_dir)],
+        "declared_production_paths": [],
+        "allowed_overwrite_paths": [],
+    }
+
+    monkeypatch.setattr(
+        "agent_runner._resolve_cli_profile_for_agent",
+        lambda *a, **kw: (
+            {"agent_model_profiles": {"profiles": {}}, "agent_registry": {"agents": {}}},
+            "direct_api_only",
+            "coder",
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        "operational_uploader.maybe_run_operational_agent",
+        lambda *a, **kw: None,
+    )
+    monkeypatch.setattr(
+        "agent_runner.resolve_agent_settings",
+        lambda *a, **kw: (
+            SimpleNamespace(
+                provider="qwen-coder",
+                provider_type="openai_compatible",
+                model="qwen3-coder-next",
+                base_url=None,
+                api_key_configured=True,
+                temperature=0.2,
+                top_p=1.0,
+                max_output_tokens=2000,
+                profile_name="",
+            ),
+            {
+                "execution_policy": {
+                    "execution_policy": {"patch_application_policy": "patch_proposal_first"},
+                    "coder_policy": {"automatic_patch_application": False},
+                },
+                "model_providers": {},
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        "agent_runner.compose_agent_messages",
+        lambda *a, **kw: [{"role": "user", "content": "test"}],
+    )
+    monkeypatch.setattr(
+        "brain_governor.evaluate_token_status",
+        lambda *a, **kw: {},
+    )
+    monkeypatch.setattr(
+        "agent_runner.generate_text",
+        lambda *a, **kw: LLMCallResult(
+            provider="qwen-coder",
+            model="qwen3-coder-next",
+            content="""# Coder Report
+
+<!-- AGENTLAB_EDIT: runs/task_test_001/artifacts/web_ui/index.html -->
+<html>ok</html>
+<!-- END AGENTLAB_EDIT -->
+
+<!-- AGENTLAB_EDIT: runs/task_test_001/artifacts/web_ui/styles.css -->
+body {
+""",
+            status="completed",
+        ),
+    )
+
+    result = run_agent_model(tmp_path, plan, "Coder", run_dir / "06_implementation_report.md")
+
+    assert result.raw_usage["patch_applied"] == 0
+    assert result.raw_usage["patch_failed"] == 1
+    assert result.raw_usage["patch_blocked_reason"] == "unclosed_structured_edit_block"
+    assert not (
+        Path(plan.project_root) / "runs" / "task_test_001" / "artifacts" / "web_ui" / "index.html"
+    ).exists()
+
+
+def test_writer_profile_keeps_full_delivery_output_budget() -> None:
+    from model_resolver import resolve_profile_config
+
+    profile = resolve_profile_config(
+        "execution_artifact_producer",
+        agent_name="Writer",
+        model_catalog={
+            "models": {
+                "deepseek_v4_flash": {
+                    "provider": "deepseek_official",
+                    "model_id": "deepseek-v4-flash",
+                    "max_output": 384000,
+                }
+            }
+        },
+        agent_model_profiles={
+            "default_mode": "full_api",
+            "modes": {
+                "full_api": {
+                    "tiers": {
+                        "performance": {
+                            "writer": {
+                                "executor_type": "direct_api",
+                                "default": "deepseek_v4_flash",
+                            }
+                        }
+                    }
+                }
+            },
+        },
+    )
+
+    assert profile["max_output_tokens"] == 8192
+
+
 # ── Tests ──────────────────────────────────────────────────────────────────
 
 
@@ -93,8 +1144,6 @@ class TestAgentRunnerCliDispatch:
 
     def test_calls_cli_agent_when_profile_is_cli_backed(self, tmp_path, monkeypatch):
         """run_agent_model calls run_cli_agent when the role profile resolves to CLI."""
-        from cli_executor import CliAgentNotAvailable
-
         plan = _make_plan(tmp_path)
         run_dir = Path(plan.run_dir)
         run_dir.mkdir(parents=True)
@@ -483,6 +1532,35 @@ class TestAgentRunnerSchemaV4Dispatch:
             assert result.raw_usage.get("configured_cli_agent") == "hermes"
             assert "binary_not_found" in str(result.raw_usage.get("fallback_reason", ""))
 
+    def test_cli_dispatch_blocks_disallowed_role_binding(self, tmp_path, monkeypatch):
+        """A CLI worker not authorized for the role is blocked before execution."""
+        plan = _make_plan(tmp_path, budget_mode="full")
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+
+        bad_config = _schema_v4_configs()
+        bad_config["agent_model_profiles"]["modes"]["full_cli"]["tiers"]["full"]["supervisor"]["cli_agent"] = "codex"
+        bad_config["agent_model_profiles"]["modes"]["full_cli"]["tiers"]["full"]["supervisor"]["invocation_contract"] = "codex"
+
+        monkeypatch.setattr("agent_runner.load_agentlab_configs", lambda _: bad_config)
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *a, **kw: None,
+        )
+
+        with patch("agent_runner.run_cli_agent") as mock_cli, patch("agent_runner.generate_text") as mock_api:
+            from agent_runner import run_agent_model
+
+            output = run_dir / "test_output.md"
+            result = run_agent_model(tmp_path, plan, "Supervisor", output, apply_patches=False)
+
+            mock_cli.assert_not_called()
+            mock_api.assert_not_called()
+            assert result.status == "blocked_user_decision"
+            assert result.raw_usage.get("reason") == "role_binding_denied"
+            assert "Supervisor" in result.content
+            assert "codex" in result.content
+
 
 # ── Config profile tests ───────────────────────────────────────────────────
 
@@ -556,6 +1634,52 @@ class TestConfigProfiles:
         missing = required - set(profiles.keys())
         assert not missing, f"Missing profiles: {missing}"
         print(f"All required profiles present: {sorted(required)}")
+
+    def test_default_mode_is_full_cli(self):
+        """Default execution uses the canonical local CLI company mode."""
+        import yaml
+
+        config_path = Path(__file__).parent.parent / "config" / "agent_model_profiles.yml"
+        data = yaml.safe_load(config_path.read_text())
+
+        assert data.get("default_mode") == "full_cli"
+
+    def test_cli_profiles_match_role_bindings(self):
+        """Every configured CLI worker must be authorized by agent_role_bindings."""
+        import yaml
+        from agent_runtime.protocols.enforcement import check_role_binding
+
+        root = Path(__file__).parent.parent
+        config_path = root / "config" / "agent_model_profiles.yml"
+        data = yaml.safe_load(config_path.read_text())
+        role_key_map = {
+            "supervisor": "Supervisor",
+            "reposcout": "RepoScout",
+            "researcher": "Researcher",
+            "interface_mapper": "InterfaceMapper",
+            "prompt_engineer": "PromptEngineer",
+            "coder": "Coder",
+            "artifact_producer": "ArtifactProducer",
+            "writer": "Writer",
+            "tester_auditor": "TesterAuditor",
+            "verifier": "Verifier",
+            "archivist": "Archivist",
+        }
+        violations = []
+        for group_name, profile in _iter_config_role_groups(data):
+            for role_key, role_cfg in profile.items():
+                if not isinstance(role_cfg, dict) or role_cfg.get("executor_type") != "cli_agent":
+                    continue
+                role = role_key_map.get(role_key, role_key)
+                for field in ("cli_agent", "fallback_cli_agent"):
+                    worker = role_cfg.get(field)
+                    if not worker:
+                        continue
+                    ok, reason = check_role_binding(root, str(worker), role)
+                    if not ok:
+                        violations.append(f"{group_name}.{role_key}.{field}={worker}: {reason}")
+
+        assert not violations, "\n".join(violations)
 
 
 # ── Text integrity tests ───────────────────────────────────────────────────
@@ -665,8 +1789,8 @@ class TestPromptEngineerMapping:
             "not 'execution_prompt_engineer'"
         )
         prom_role = full_tier["prompt_engineer"]
-        assert prom_role.get("cli_agent") == "codex"
-        assert prom_role.get("invocation_contract") == "codex"
+        assert prom_role.get("cli_agent") == "hermes"
+        assert prom_role.get("invocation_contract") == "hermes"
 
     def test_agent_runner_role_key_map_has_correct_promptengineer(self):
         """The role key map in agent_runner maps promptengineer -> prompt_engineer."""

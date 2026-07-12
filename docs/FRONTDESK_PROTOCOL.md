@@ -15,10 +15,15 @@ frontdesk binding for it and the session starts from a generated packet.
 Examples:
 
 ```bash
+hermes --provider deepseek -m deepseek-v4-pro -z "$(./agentlab.sh frontdesk-session --agent hermes)"
 agy --sandbox -p "$(./agentlab.sh frontdesk-session --agent agy)"
 qwen --bare "$(./agentlab.sh frontdesk-session --agent qwen)"
-codex exec "$(./agentlab.sh frontdesk-session --agent codex)"
 ```
+
+The canonical internal FrontDesk is Hermes CLI with `deepseek_v4_pro`.
+Codex is an external construction/audit worker, not an AgentLab FrontDesk.
+Declared pipelines may use `direct_closed_loop` and skip FrontDesk entirely;
+role binding, receipts, validation, and promotion gates still apply.
 
 ## Allowed Actions
 

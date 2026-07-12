@@ -30,6 +30,7 @@ LIFECYCLE_NODES = [
     "FICTION_REVIEW",
     "SCRIBE_LEDGER",
     "CODER_IMPLEMENTATION",
+    "ARTIFACT_PRODUCTION",
     "VALIDATION",
     "AUDIT",
     "VERIFY",
@@ -54,6 +55,7 @@ NODE_REQUIRED_OUTPUTS = {
     "FICTION_REVIEW": ["fiction_review.yml"],
     "SCRIBE_LEDGER": ["continuity_ledger.yml"],
     "CODER_IMPLEMENTATION": ["06_implementation_report.md"],
+    "ARTIFACT_PRODUCTION": ["artifact_producer_report.md"],
     "VALIDATION": ["07_validation_report.md"],
     "AUDIT": ["08_audit_report.md"],
     "VERIFY": ["verification_report.md"],
@@ -75,6 +77,7 @@ OPTIONAL_NODES = {
     "FICTION_REVIEW",
     "SCRIBE_LEDGER",
     "CODER_IMPLEMENTATION",
+    "ARTIFACT_PRODUCTION",
     "VALIDATION",
     "AUDIT",
     "VERIFY",
@@ -105,31 +108,13 @@ def create_lifecycle(run_dir: Path, workflow_plan: dict) -> dict:
     route = workflow_plan.get("route", {}).get("agents", [])
     if not route and isinstance(workflow_plan.get("route"), list):
         route = workflow_plan["route"]
+    active_nodes, pack_id = _production_pack_nodes(workflow_plan)
 
     nodes = {}
     for node_id in LIFECYCLE_NODES:
         is_optional = node_id in OPTIONAL_NODES
         # Determine if optional node is needed based on route
-        node_skipped = False
-        skip_reason = None
-        if node_id == "RESEARCH_OPTIONAL" and "Researcher" not in route:
-            skip_reason = "Route does not include Researcher"
-        elif node_id == "INTERFACE_OPTIONAL" and "InterfaceMapper" not in route:
-            skip_reason = "Route does not include InterfaceMapper"
-        elif node_id == "WRITER_DRAFT" and "Writer" not in route:
-            skip_reason = "Route does not include Writer"
-        elif node_id == "FICTION_REVIEW" and "Reviewer" not in route:
-            skip_reason = "Route does not include Reviewer"
-        elif node_id == "SCRIBE_LEDGER" and "Scribe" not in route:
-            skip_reason = "Route does not include Scribe"
-        elif node_id == "CODER_IMPLEMENTATION" and "Coder" not in route:
-            skip_reason = "Route does not include Coder"
-        elif node_id in {"VALIDATION", "AUDIT"} and "TesterAuditor" not in route:
-            skip_reason = "Route does not include TesterAuditor"
-        elif node_id == "VERIFY" and "Verifier" not in route:
-            skip_reason = "Route does not include Verifier"
-        elif node_id == "ARCHIVE" and "Archivist" not in route:
-            skip_reason = "Route does not include Archivist"
+        skip_reason = _skip_reason_for_node(node_id, route, active_nodes, pack_id)
 
         nodes[node_id] = {
             "status": "skipped" if skip_reason else "waiting",
@@ -154,6 +139,47 @@ def create_lifecycle(run_dir: Path, workflow_plan: dict) -> dict:
 
     save_lifecycle(run_dir, lifecycle)
     return lifecycle
+
+
+def _skip_reason_for_node(
+    node_id: str,
+    route: list[str],
+    active_nodes: set[str] | None = None,
+    pack_id: str = "unknown",
+) -> str | None:
+    if active_nodes is not None and node_id not in active_nodes:
+        return f"Production pack {pack_id} excludes {node_id}"
+    if node_id == "RESEARCH_OPTIONAL" and "Researcher" not in route:
+        return "Route does not include Researcher"
+    if node_id == "INTERFACE_OPTIONAL" and "InterfaceMapper" not in route:
+        return "Route does not include InterfaceMapper"
+    if node_id == "WRITER_DRAFT" and "Writer" not in route:
+        return "Route does not include Writer"
+    if node_id == "FICTION_REVIEW" and "Reviewer" not in route:
+        return "Route does not include Reviewer"
+    if node_id == "SCRIBE_LEDGER" and "Scribe" not in route:
+        return "Route does not include Scribe"
+    if node_id == "CODER_IMPLEMENTATION" and "Coder" not in route:
+        return "Route does not include Coder"
+    if node_id == "ARTIFACT_PRODUCTION" and "ArtifactProducer" not in route:
+        return "Route does not include ArtifactProducer"
+    if node_id in {"VALIDATION", "AUDIT"} and "TesterAuditor" not in route:
+        return "Route does not include TesterAuditor"
+    if node_id == "VERIFY" and "Verifier" not in route:
+        return "Route does not include Verifier"
+    if node_id == "ARCHIVE" and "Archivist" not in route:
+        return "Route does not include Archivist"
+    return None
+
+
+def _production_pack_nodes(workflow_plan: dict) -> tuple[set[str] | None, str]:
+    pack = workflow_plan.get("production_pack")
+    if not isinstance(pack, dict):
+        return None, "unknown"
+    nodes = pack.get("lifecycle_nodes")
+    if not isinstance(nodes, list) or not nodes:
+        return None, str(pack.get("pack_id") or "unknown")
+    return {str(node) for node in nodes}, str(pack.get("pack_id") or "unknown")
 
 
 def load_lifecycle(run_dir: Path) -> Optional[dict]:
@@ -192,16 +218,16 @@ def next_node(run_dir: Path) -> Optional[str]:
 
     nodes = lifecycle.get("nodes", {})
 
-    # First waiting node
-    for node_id in LIFECYCLE_NODES:
-        n = nodes.get(node_id, {})
-        if n.get("status") == "waiting":
-            return node_id
-
-    # First paused/failed node (for resume)
+    # Resume the failed/paused checkpoint before advancing to later work.
     for node_id in LIFECYCLE_NODES:
         n = nodes.get(node_id, {})
         if n.get("status") in ("paused", "failed"):
+            return node_id
+
+    # Otherwise advance to the first waiting node.
+    for node_id in LIFECYCLE_NODES:
+        n = nodes.get(node_id, {})
+        if n.get("status") == "waiting":
             return node_id
 
     return None

@@ -1,0 +1,18 @@
+schema_version: 1
+skill_id: skill_20260703174334298047_story-long-write
+validation_date: '2026-07-03T17:43:55.721681+00:00'
+sandbox_report:
+  schema_version: 1
+  skill_id: skill_20260703174334298047_story-long-write
+  validated: true
+  mode: fake_sandbox
+  checked_files:
+  - file: adapted_skill.md
+    readable: true
+    size_bytes: 31919
+  - file: metadata.yml
+    parsable: true
+  risk_level: low
+  created_at: '2026-07-03T17:43:50.195197+00:00'
+  notes: Fake sandbox validation — no external code was executed.
+checks_passed: true

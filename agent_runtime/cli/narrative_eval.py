@@ -38,6 +38,9 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
         mode: str = typer.Option("live", "--mode", help="One of: audit-only, mock, live."),
         chapters: str = typer.Option("1-3", "--chapters", help="Chapter range or comma list, e.g. 1-3 or 1,2,3."),
         timestamp: str | None = typer.Option(None, "--timestamp", help="Stable acceptance run id for tests or reruns."),
+        writer_worker: str | None = typer.Option(None, "--writer-worker", help="Worker id used to generate Writer role-session packets for live mode."),
+        resume_valid: bool = typer.Option(False, "--resume-valid/--no-resume-valid", help="Reuse already valid chapter runs under the same timestamp."),
+        stop_on_block: bool = typer.Option(False, "--stop-on-block/--continue-on-block", help="Stop before later chapters when one chapter delivery is blocked."),
     ) -> None:
         """Run L0-L3 longform acceptance checks without modifying production."""
         if mode not in VALID_MODES:
@@ -49,6 +52,9 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
             mode=mode,
             chapters=_parse_chapters(chapters),
             timestamp=timestamp,
+            writer_worker=writer_worker,
+            resume_valid=resume_valid,
+            stop_on_block=stop_on_block,
         )
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result.get("status") == "fail":

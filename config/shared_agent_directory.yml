@@ -147,14 +147,19 @@ agents:
     explicit_named_delegation_mode: relay_only
     may_edit_task_files_when_relaying: false
   hermes:
-    display_name: Hermes
-    class: supervisor_agent
-    primary_roles: [planning, decomposition, coordination, recovery, global_memory]
+    display_name: Hermes CLI Frontdesk and Supervisor Shell
+    class: frontdesk_and_supervisor_cli
+    primary_roles: [user_intake, task_routing, planning, decomposition, coordination, recovery, global_memory]
     invocation:
       command: hermes
+      frontdesk_session: >-
+        hermes --provider deepseek -m deepseek-v4-pro -z "$(./agentlab.sh frontdesk-session --agent hermes)"
       one_shot: >-
         hermes -z "Read the task packet at {task_packet_path}; perform only the assigned role;
         return findings, actions, verification, changed files, and blockers."
+    frontdesk_model: deepseek_v4_pro
+    frontdesk_provider: deepseek
+    frontdesk_model_id: deepseek-v4-pro
     high_risk: true
   codex:
     display_name: Codex
@@ -187,29 +192,52 @@ agents:
         {task_packet_path}; perform only the assigned role and report actual changes."
     high_risk: true
   gemini:
-    display_name: Gemini CLI
+    display_name: Gemini API CLI
     class: rough_work_agent
     primary_roles: [summarization, first_pass_classification, log_scanning, checklist_generation, disposable_analysis]
     invocation:
       command: gemini
       noninteractive: >-
-        gemini --approval-mode plan --model gemini-2.5-flash --prompt "Read the task packet at
+        gemini --approval-mode plan --model gemini-2.5-flash-high --prompt "Read the task packet at
         {task_packet_path}; do read-only rough work only and report findings, confidence, and escalation points."
+    default_path: false
+    auth: env:GEMINI_API_KEY
+    notes: Explicit Gemini API-key fallback only; free tier has usage limits.
     may_edit_project_files: false
     may_execute_commands: false
     high_risk: medium
   agy:
-    display_name: Antigravity
+    display_name: Antigravity / Agy Gemini OAuth
     class: frontdesk_and_artifact_cli
-    primary_roles: [user_intake, agentlab_command_translation, status_explanation, handoff_dispatch, artifact_production]
+    primary_roles: [user_intake, agentlab_command_translation, status_explanation, handoff_dispatch, artifact_production, longform_writing]
     invocation:
       command: agy
       frontdesk_session: >-
         agy --sandbox -p "$(./agentlab.sh frontdesk-session --agent agy)"
+    default_model: gemini-3.5-flash-high
+    auth: local_oauth_session
+    billing: subscription_or_oauth_quota
+    region_requirement: VPN/proxy to a Gemini-supported region when local region is blocked.
     explicit_named_delegation_mode: relay_only
     may_edit_task_files_when_relaying: false
     may_execute_agentlab_roles_directly: [ArtifactProducer]
     high_risk: true
+  grok:
+    display_name: Hermes Grok OAuth Media Worker
+    class: media_backend_worker
+    primary_roles: [media_candidate_generation, image_generation_handoff, video_generation_handoff]
+    invocation:
+      command: hermes
+      role_session: >-
+        hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z "Read the AgentLab ArtifactProducer task packet at {task_packet_path};
+        execute only media generation or media handoff work; return generated
+        artifact paths, settings-fetch/auth errors, and validation notes."
+    auth: hermes_xai_oauth_session
+    default_path: media_backend_only
+    may_act_as_general_frontdesk: false
+    may_execute_agentlab_roles_directly: [ArtifactProducer]
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
+    high_risk: medium
   bl:
     display_name: Bailian CLI
     class: specialist_cloud_tool

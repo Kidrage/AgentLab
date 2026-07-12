@@ -199,6 +199,12 @@ domain_keywords:
       - recording
       - mix
       - master audio
+      - 音频
+      - 声音
+      - 音效
+      - 声场
+      - 语音
+      - 配音
 
   multimodal:
     keywords:
@@ -213,6 +219,18 @@ domain_keywords:
       - mixed media assets
       - image and video
       - generate assets
+      - immersive
+      - installation
+      - exhibition
+      - lighting cue
+      - sound cue
+      - 沉浸式
+      - 装置
+      - 展览
+      - 展演
+      - 灯光
+      - 空间装置
+      - 场景状态
 
   local_ops:
     keywords:
@@ -242,6 +260,15 @@ project_type_keywords:
     - create library
     - software project
     - codebase
+    - 设计并实现
+    - 实现功能
+    - 网页端
+    - 前端
+    - 后端
+    - app
+    - 应用
+    - 代码项目
+    - 代码库
 
   longform_text_project:
     - write novel
@@ -297,6 +324,15 @@ project_type_keywords:
     - cross-media project
     - image and video
     - mixed media assets
+    - immersive installation
+    - installation project
+    - exhibition project
+    - 沉浸式
+    - 装置
+    - 展览
+    - 展演
+    - 空间装置
+    - 场景状态
 
   media_generation_project:
     - generate image

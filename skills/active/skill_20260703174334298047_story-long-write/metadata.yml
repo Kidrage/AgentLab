@@ -1,0 +1,48 @@
+schema_version: 1
+skill_id: skill_20260703174334298047_story-long-write
+skill_name: story-long-write
+name: story-long-write
+promoted_at: '2026-07-03T17:43:55.719287+00:00'
+source:
+  type: external_url
+  uri: https://raw.githubusercontent.com/worldwonderer/oh-story-claudecode/main/skills/story-long-write/SKILL.md
+purpose: 长篇网文写作。从大纲到正文，辅助长篇网络小说的创作，包括世界观、人物、情节线管理。触发方式：/story-long-write、/写长篇、「帮我开书」「写大纲」「日更」「续写」「继续写」「修改第X章」「回炉」「重写第X章」。
+summary: 长篇网文写作。从大纲到正文，辅助长篇网络小说的创作，包括世界观、人物、情节线管理。触发方式：/story-long-write、/写长篇、「帮我开书」「写大纲」「日更」「续写」「继续写」「修改第X章」「回炉」「重写第X章」。
+triggers:
+- story-long-write
+- /story-long-write
+- /写长篇
+- 写长篇
+- 帮我开书
+- 写大纲
+- 日更
+- 续写
+- 继续写
+- 修改第X章
+- 回炉
+- 重写第X章
+- 小说
+- 长篇小说
+- 章节
+- 撰写第
+- 灰烬王冠
+- Crown_of_Ash
+applies_to:
+- creative_longform
+- longform_text_project
+- fiction_chapter_pipeline
+- Writer
+- Crown_of_Ash
+load_tokens: 7979
+expected_saving_tokens: 8000
+risk_level: low
+permissions:
+  has_scripts: false
+  requires_network: false
+  modifies_files: false
+  permission_level: low
+confidence: 0.85
+status: source_reference
+default_injection: false
+reference_for:
+- narrative-chapter-writer-lite

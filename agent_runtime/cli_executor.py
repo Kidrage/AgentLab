@@ -36,14 +36,20 @@ import re
 import shlex
 import shutil
 import subprocess
+import tempfile
 import textwrap
 import yaml
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from schemas import LLMCallResult, WorkflowPlan
+try:
+    from agent_runtime.schemas import LLMCallResult, WorkflowPlan
+    from agent_runtime.workers.cli_error_classifier import classify_cli_error
+except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+    from schemas import LLMCallResult, WorkflowPlan
+    from workers.cli_error_classifier import classify_cli_error
 
 
 _CLI_CONTRACT_ALIASES = {
@@ -203,9 +209,65 @@ def resolve_cli_profile(
     }
 
 
-def _write_task_packet(run_dir: Path, agent_name: str, plan: WorkflowPlan) -> Path:
-    """Serialise a minimal task packet for the CLI agent and return its path."""
-    packet = {
+def _task_packet_payload(
+    agent_name: str,
+    plan: WorkflowPlan,
+    sealed_messages: list[dict[str, str]] | None = None,
+    task_messages: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    if sealed_messages is not None:
+        return {
+            "schema_version": 2,
+            "packet_type": "agentlab_sealed_role_session",
+            "agent": agent_name,
+            "project": plan.project,
+            "task_id": plan.task_id,
+            "execution_backend": plan.execution_backend,
+            "budget_mode": plan.budget_mode,
+            "risk_level": plan.risk_level,
+            "context_policy": {
+                "mode": "sealed_messages_only",
+                "read_scope": ["this_task_packet"],
+                "additional_file_reads_allowed": False,
+                "shell_browser_or_repository_scan_allowed": False,
+                "workspace_mutation_allowed": False,
+                "return_stdout_only": True,
+            },
+            "required_outputs": (
+                (plan.included_agents.get(agent_name) or {}).get("required_outputs", [])
+            ),
+            "messages": sealed_messages,
+        }
+
+    if task_messages is not None:
+        return {
+            "schema_version": 2,
+            "packet_type": "agentlab_production_pack_role_session",
+            "agent": agent_name,
+            "project": plan.project,
+            "task_id": plan.task_id,
+            "execution_backend": plan.execution_backend,
+            "budget_mode": plan.budget_mode,
+            "risk_level": plan.risk_level,
+            "context_policy": {
+                "mode": "embedded_messages_only",
+                "read_scope": ["this_task_packet"],
+                "additional_file_reads_allowed": False,
+                "repository_scan_allowed": False,
+                "workspace_mutation_allowed": False,
+                "external_domain_research_allowed": agent_name == "Researcher",
+                "return_stdout_only": True,
+                "returned_artifacts_require_agentlab_materialization": True,
+            },
+            "required_outputs": (
+                (plan.included_agents.get(agent_name) or {}).get(
+                    "required_outputs", []
+                )
+            ),
+            "messages": task_messages,
+        }
+
+    payload = {
         "schema_version": 1,
         "agent": agent_name,
         "project": plan.project,
@@ -235,6 +297,23 @@ def _write_task_packet(run_dir: Path, agent_name: str, plan: WorkflowPlan) -> Pa
         },
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+    return payload
+
+
+def _write_task_packet(
+    run_dir: Path,
+    agent_name: str,
+    plan: WorkflowPlan,
+    sealed_messages: list[dict[str, str]] | None = None,
+    task_messages: list[dict[str, str]] | None = None,
+) -> Path:
+    """Serialise a task packet for the CLI agent and return its path."""
+    packet = _task_packet_payload(
+        agent_name,
+        plan,
+        sealed_messages,
+        task_messages,
+    )
     packet_path = run_dir / f"task_packet_{agent_name.lower()}.json"
     packet_path.write_text(json.dumps(packet, indent=2, ensure_ascii=False), encoding="utf-8")
     return packet_path
@@ -374,15 +453,23 @@ def _render_command(
     task_packet_path: Path,
     *,
     workspace_path: Path | None = None,
+    provider: str | None = None,
+    model_id: str | None = None,
+    model_key: str | None = None,
 ) -> list[str]:
     """Expand the CLI command template and split into argv tokens.
 
-    Supported placeholders: ``{task_packet_path}``, ``{workspace_path}``.
-    Falls back to appending the packet path if no placeholder is present.
+    Supported placeholders: ``{task_packet_path}``, ``{workspace_path}``,
+    ``{provider}``, ``{model_id}``, and ``{model_key}``. Model placeholders are
+    substituted only when the template explicitly contains them; AgentLab does
+    not append model flags to CLIs implicitly.
     """
     replacements = {
         "task_packet_path": str(task_packet_path),
         "workspace_path": str(workspace_path or task_packet_path.parent),
+        "provider": str(provider or ""),
+        "model_id": str(model_id or model_key or ""),
+        "model_key": str(model_key or model_id or ""),
     }
     rendered = cli_command_template
     for key, value in replacements.items():
@@ -400,6 +487,107 @@ def _render_command(
     # Split respecting simple quoting (no shell glob expansion needed here)
     import shlex
     return shlex.split(rendered)
+
+
+def _ensure_cli_log_file_arg(argv: list[str], run_dir: Path, cli_agent_name: str) -> Path | None:
+    if cli_agent_name != "agy" or "--log-file" in argv:
+        return None
+    log_dir = run_dir / "command_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "agy_cli_agent.log"
+    argv.extend(["--log-file", str(log_path)])
+    return log_path
+
+
+def _read_cli_log_excerpt(path: Path | None, limit: int = 4000) -> str:
+    if not path or not path.exists():
+        return ""
+    text = path.read_text(encoding="utf-8", errors="replace").strip()
+    priority_lines = [
+        line
+        for line in text.splitlines()
+        if "CLI failed to start" in line
+        or "operation not permitted" in line
+        or "Settings fetch failed" in line
+    ]
+    if priority_lines:
+        text = "\n".join(priority_lines[-8:])
+    if len(text) <= limit:
+        return text
+    return text[-limit:]
+
+
+def _augment_empty_stderr_with_cli_log(
+    stderr_text: str,
+    *,
+    cli_log_path: Path | None,
+    cli_agent_name: str,
+) -> str:
+    if stderr_text or cli_agent_name != "agy":
+        return stderr_text
+    excerpt = _read_cli_log_excerpt(cli_log_path)
+    if not excerpt:
+        return stderr_text
+    return f"[{cli_agent_name} log excerpt]\n{excerpt}\n[{cli_agent_name} log path: {cli_log_path}]"
+
+
+def _runtime_provider_for_catalog_model(model_entry: dict[str, Any]) -> str:
+    catalog_provider = str(model_entry.get("provider", ""))
+    model_id = str(model_entry.get("model_id", ""))
+
+    if model_entry.get("cli_provider"):
+        return str(model_entry["cli_provider"])
+    if model_entry.get("runtime_provider"):
+        return str(model_entry["runtime_provider"])
+    if catalog_provider == "deepseek_official":
+        return "deepseek"
+    if catalog_provider in {"dashscope_cn", "dashscope_intl"}:
+        if model_id.startswith("qwen3-coder"):
+            return "qwen-coder"
+        if "flash" in model_id:
+            return "qwen-flash"
+        if (
+            model_id.startswith("qwen3.7")
+            or model_id.startswith("qwen-max")
+            or model_id.startswith("qwen3-max")
+        ):
+            return "qwen3"
+        return "qwen"
+    return catalog_provider
+
+
+def _model_invocation_values(
+    role_profile: dict[str, Any],
+    agentlab_root: str | Path,
+) -> dict[str, str]:
+    """Resolve model placeholders for CLI templates from the model catalog."""
+    model_key = str(role_profile.get("default") or role_profile.get("provider") or "")
+    values = {
+        "model_key": model_key,
+        "model_id": str(role_profile.get("model_id") or model_key),
+        "provider": str(
+            role_profile.get("cli_provider")
+            or role_profile.get("runtime_provider")
+            or role_profile.get("provider")
+            or ""
+        ),
+    }
+    if not model_key:
+        return values
+
+    catalog_path = Path(agentlab_root) / "config" / "model_catalog.yml"
+    try:
+        catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return values
+
+    model_entry = (catalog.get("models") or {}).get(model_key) or {}
+    if not model_entry:
+        return values
+
+    values["model_id"] = str(model_entry.get("model_id") or values["model_id"])
+    values["provider"] = _runtime_provider_for_catalog_model(model_entry)
+    return values
 
 
 def _resolve_invocation_contract_template(
@@ -525,6 +713,9 @@ def run_cli_agent(
     role_profile: dict[str, Any],
     *,
     timeout: int | None = None,
+    sealed_messages: list[dict[str, str]] | None = None,
+    task_messages: list[dict[str, str]] | None = None,
+    outbound_source_paths: list[Path] | None = None,
 ) -> LLMCallResult:
     """Invoke the CLI agent described in *role_profile* and return its output.
 
@@ -564,12 +755,93 @@ def run_cli_agent(
     run_dir = Path(plan.run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    packet_path = _write_task_packet(run_dir, agent_name, plan)
+    packet_payload = _task_packet_payload(
+        agent_name,
+        plan,
+        sealed_messages,
+        task_messages,
+    )
+    packet_text = json.dumps(packet_payload, indent=2, ensure_ascii=False)
+    manifest_path: Path | None = None
+    bounded_messages = sealed_messages is not None or task_messages is not None
+    if bounded_messages:
+        try:
+            from agent_runtime.outbound_context import (
+                PRIVATE_CONTEXT_APPROVAL_ENV_NAME,
+                PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME,
+                write_outbound_context_manifest,
+            )
+        except ModuleNotFoundError:  # pragma: no cover - direct script path
+            from outbound_context import (
+                PRIVATE_CONTEXT_APPROVAL_ENV_NAME,
+                PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME,
+                write_outbound_context_manifest,
+            )
+
+        manifest_path = run_dir / f"outbound_context_manifest_{agent_name.lower()}.yml"
+        production_pack_session = task_messages is not None
+        approval_required = production_pack_session or (
+            str(plan.task_id).startswith("task_narrative_eval_")
+            or os.getenv("AGENTLAB_TRUSTED_LIVE_RUNNER") == "1"
+        )
+        approval_env_name = (
+            PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME
+            if production_pack_session
+            else PRIVATE_CONTEXT_APPROVAL_ENV_NAME
+        )
+        manifest = write_outbound_context_manifest(
+            Path(plan.agentlab_root),
+            manifest_path,
+            item_id=str(plan.task_id),
+            role=agent_name,
+            provider_surface=f"cli_agent:{cli_agent_name}",
+            payload_kind=(
+                "production_pack_cli_role_session_packet"
+                if production_pack_session
+                else "sealed_cli_role_session_packet"
+            ),
+            payload_text=packet_text,
+            source_paths=outbound_source_paths or [],
+            private_context=True,
+            exact_payload=True,
+            sealed_context=True,
+            execution_workspace_isolated=True,
+            approval_required=approval_required,
+            approval_env_name=approval_env_name,
+            provider_shell_or_browser_requested=(
+                production_pack_session and agent_name == "Researcher"
+            ),
+            source_inventory_required=production_pack_session,
+        )
+        if not manifest.get("execution_allowed"):
+            return LLMCallResult(
+                provider="agentlab-cli-executor",
+                model=cli_agent_name,
+                content=(
+                    f"# {agent_name} outbound context blocked\n\n"
+                    "The deterministic outbound-context gate refused the CLI provider call. "
+                    f"Inspect {manifest_path.name} for content-free reasons.\n"
+                ),
+                status="blocked_user_decision",
+                error=f"{agent_name.lower()}_outbound_context_gate_blocked",
+                raw_usage={
+                    "cli_agent": cli_agent_name,
+                    "outbound_context_manifest": str(manifest_path),
+                    "outbound_context_status": manifest.get("status"),
+                },
+            )
+
+    packet_path = run_dir / f"task_packet_{agent_name.lower()}.json"
+    packet_path.write_text(packet_text, encoding="utf-8")
+    model_values = _model_invocation_values(role_profile, plan.agentlab_root)
     try:
         argv = _render_command(
             cli_command_template,
             packet_path,
             workspace_path=Path(plan.agentlab_root),
+            provider=model_values["provider"],
+            model_id=model_values["model_id"],
+            model_key=model_values["model_key"],
         )
     except ValueError as exc:
         return CliAgentNotAvailable(
@@ -622,75 +894,115 @@ def run_cli_agent(
         os.getenv("AGENTLAB_CLI_AGENT_TIMEOUT", "600")
     )
 
-    started_at = datetime.now(timezone.utc)
+    workspace_context = (
+        tempfile.TemporaryDirectory(prefix="agentlab-sealed-role-")
+        if bounded_messages
+        else None
+    )
     try:
-        proc = subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            timeout=effective_timeout,
-            cwd=plan.agentlab_root,
-        )
-    except subprocess.TimeoutExpired as exc:
-        finished_at = datetime.now(timezone.utc)
-        stdout_text = _coerce_process_output(exc.stdout)
-        stderr_text = _coerce_process_output(exc.stderr)
-        usage_estimate = _external_cli_usage(
-            packet_path,
-            argv,
-            agent_name,
-            cli_agent_name,
-            stdout_text,
-            stderr_text,
-        )
-        command_id = _append_cli_execution_record(
-            run_dir,
-            agent_name=agent_name,
-            cli_agent_name=cli_agent_name,
-            argv=argv,
-            cwd=plan.agentlab_root,
-            exit_code=None,
-            timed_out=True,
-            timeout_sec=effective_timeout,
-            status="timeout",
-            stdout=stdout_text,
-            stderr=stderr_text,
-            started_at=started_at,
-            finished_at=finished_at,
-        )
-        evidence = (
-            f"\n\nEvidence: command_id {command_id} in execution_log.yml"
-            if command_id
-            else ""
-        )
-        return LLMCallResult(
-            provider="agentlab-cli-executor",
-            model=cli_agent_name,
-            content=(
-                f"# {agent_name} CLI Agent Timeout\n\n"
-                f"Process `{argv[0]}` did not complete within {effective_timeout}s.\n\n"
-                f"**Action required**: Check whether `{cli_agent_name}` is stuck, "
-                f"then rerun or switch to API fallback."
-                f"{evidence}"
-            ),
-            status="blocked_user_decision",
-            error=f"CLI agent timed out after {effective_timeout}s.",
-            input_tokens=usage_estimate["input_tokens"],
-            output_tokens=usage_estimate["output_tokens"],
-            total_tokens=usage_estimate["total_tokens"],
-            raw_usage={
-                "cli_agent": cli_agent_name,
-                "timeout": effective_timeout,
-                **usage_estimate,
-                **({"command_id": command_id} if command_id else {}),
-            },
-        )
-    except FileNotFoundError:
-        return CliAgentNotAvailable(
-            cli_agent=cli_agent_name,
-            reason="file_not_found",
-            detail=f"Binary `{argv[0]}` raised FileNotFoundError at exec time.",
-        )
+        execution_cwd = Path(plan.agentlab_root)
+        if workspace_context is not None:
+            execution_cwd = Path(workspace_context.name)
+            execution_packet_path = execution_cwd / packet_path.name
+            execution_packet_path.write_text(packet_text, encoding="utf-8")
+            argv = _render_command(
+                cli_command_template,
+                execution_packet_path,
+                workspace_path=execution_cwd,
+                provider=model_values["provider"],
+                model_id=model_values["model_id"],
+                model_key=model_values["model_key"],
+            )
+            if candidate_used:
+                argv[0] = candidate_used
+
+        cli_log_path = _ensure_cli_log_file_arg(argv, run_dir, cli_agent_name)
+        started_at = datetime.now(timezone.utc)
+        try:
+            proc = subprocess.run(
+                argv,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=effective_timeout,
+                cwd=execution_cwd,
+            )
+        except subprocess.TimeoutExpired as exc:
+            finished_at = datetime.now(timezone.utc)
+            stdout_text = _coerce_process_output(exc.stdout)
+            stderr_text = _coerce_process_output(exc.stderr)
+            stderr_text = _augment_empty_stderr_with_cli_log(
+                stderr_text,
+                cli_log_path=cli_log_path,
+                cli_agent_name=cli_agent_name,
+            )
+            usage_estimate = _external_cli_usage(
+                packet_path,
+                argv,
+                agent_name,
+                cli_agent_name,
+                stdout_text,
+                stderr_text,
+            )
+            command_id = _append_cli_execution_record(
+                run_dir,
+                agent_name=agent_name,
+                cli_agent_name=cli_agent_name,
+                argv=argv,
+                cwd=execution_cwd,
+                exit_code=None,
+                timed_out=True,
+                timeout_sec=effective_timeout,
+                status="timeout",
+                stdout=stdout_text,
+                stderr=stderr_text,
+                started_at=started_at,
+                finished_at=finished_at,
+            )
+            evidence = (
+                f"\n\nEvidence: command_id {command_id} in execution_log.yml"
+                if command_id
+                else ""
+            )
+            return LLMCallResult(
+                provider="agentlab-cli-executor",
+                model=cli_agent_name,
+                content=(
+                    f"# {agent_name} CLI Agent Timeout\n\n"
+                    f"Process `{argv[0]}` did not complete within {effective_timeout}s.\n\n"
+                    f"**Action required**: Check whether `{cli_agent_name}` is stuck, "
+                    f"then rerun or switch to API fallback."
+                    f"{evidence}"
+                ),
+                status="blocked_user_decision",
+                error=f"CLI agent timed out after {effective_timeout}s.",
+                input_tokens=usage_estimate["input_tokens"],
+                output_tokens=usage_estimate["output_tokens"],
+                total_tokens=usage_estimate["total_tokens"],
+                raw_usage={
+                    "cli_agent": cli_agent_name,
+                    "failure_class": classify_cli_error(
+                        None,
+                        stdout_text,
+                        stderr_text,
+                        timeout_occurred=True,
+                    ),
+                    "timeout": effective_timeout,
+                    **usage_estimate,
+                    **({"command_id": command_id} if command_id else {}),
+                    **({"cli_log_path": str(cli_log_path)} if cli_log_path else {}),
+                    **({"outbound_context_manifest": str(manifest_path)} if manifest_path else {}),
+                },
+            )
+        except FileNotFoundError:
+            return CliAgentNotAvailable(
+                cli_agent=cli_agent_name,
+                reason="file_not_found",
+                detail=f"Binary `{argv[0]}` raised FileNotFoundError at exec time.",
+            )
+    finally:
+        if workspace_context is not None:
+            workspace_context.cleanup()
 
     finished_at = datetime.now(timezone.utc)
     duration_s = (finished_at - started_at).total_seconds()
@@ -698,20 +1010,25 @@ def run_cli_agent(
     # ── Determine success ─────────────────────────────────────────────────────
     stdout_text = proc.stdout.strip()
     stderr_text = proc.stderr.strip()
+    stderr_text = _augment_empty_stderr_with_cli_log(
+        stderr_text,
+        cli_log_path=cli_log_path,
+        cli_agent_name=cli_agent_name,
+    )
     usage_estimate = _external_cli_usage(
         packet_path,
         argv,
         agent_name,
         cli_agent_name,
         proc.stdout or "",
-        proc.stderr or "",
+        stderr_text or proc.stderr or "",
     )
     command_id = _append_cli_execution_record(
         run_dir,
         agent_name=agent_name,
         cli_agent_name=cli_agent_name,
         argv=argv,
-        cwd=plan.agentlab_root,
+        cwd=execution_cwd,
         exit_code=proc.returncode,
         timed_out=False,
         timeout_sec=effective_timeout,
@@ -744,6 +1061,11 @@ def run_cli_agent(
         )
 
     success = proc.returncode == 0 and bool(stdout_text)
+    failure_class = (
+        None
+        if success
+        else classify_cli_error(proc.returncode, stdout_text, stderr_text)
+    )
 
     # ── Build the canonical AgentLab report ──────────────────────────────────
     header = textwrap.dedent(f"""\
@@ -772,10 +1094,7 @@ def run_cli_agent(
         result_error = None
     else:
         result_status = "blocked_user_decision"
-        result_error = (
-            f"CLI agent exited {proc.returncode}."
-            + (f" stderr: {stderr_text[:200]}" if stderr_text else "")
-        )
+        result_error = f"CLI agent {failure_class} (exit {proc.returncode})."
 
     return LLMCallResult(
         provider="agentlab-cli-executor",
@@ -793,9 +1112,14 @@ def run_cli_agent(
             "duration_s": duration_s,
             "stdout_bytes": len(proc.stdout),
             "stderr_bytes": len(proc.stderr),
+            **({"failure_class": failure_class} if failure_class else {}),
             "task_packet_path": str(packet_path),
+            "sealed_context": bounded_messages,
+            "execution_workspace_isolated": bounded_messages,
             **usage_estimate,
             **({"command_id": command_id} if command_id else {}),
             **({"binary_candidate_used": candidate_used} if candidate_used else {}),
+            **({"cli_log_path": str(cli_log_path)} if cli_log_path else {}),
+            **({"outbound_context_manifest": str(manifest_path)} if manifest_path else {}),
         },
     )

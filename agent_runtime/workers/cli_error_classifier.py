@@ -34,7 +34,13 @@ DEFAULT_RULES = [
     },
     {
         "error_class": CliErrorClass.PERMISSION_DENIED,
-        "patterns": ["Permission denied", "sandbox denied", "AccessDenied", "not allowed"]
+        "patterns": [
+            "Permission denied",
+            "operation not permitted",
+            "sandbox denied",
+            "AccessDenied",
+            "not allowed",
+        ]
     },
     {
         "error_class": CliErrorClass.RATE_LIMITED,

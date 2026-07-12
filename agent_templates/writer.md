@@ -14,8 +14,16 @@ foreshadowing register, style guide, and word-count constraints.
 Do not silently change canon. If required canon is missing, state the missing
 input before drafting or mark assumptions clearly in the draft notes.
 
-When the mission contract authorizes file output, emit exactly one full-file
-HTML edit block for the approved draft path:
+When the mission contract authorizes file output, emit one full-file HTML edit
+block for each approved output file required by the route. For
+`narrative_light_chapter`, this normally means:
+
+- `fiction_draft.md`
+- `continuity_ledger.yml`
+- `state_transition_proposal.yml`
+- `narrative_delivery_receipt.yml`
+
+Use this HTML edit block format:
 
 <!-- AGENTLAB_EDIT: relative/path/from/project/root.md -->
 ```markdown

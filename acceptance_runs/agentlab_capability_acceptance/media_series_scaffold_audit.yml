@@ -1,0 +1,241 @@
+schema_version: 1
+report_type: agentlab_media_series_scaffold_audit
+root: .
+project: Crown_of_Ash
+task_id: task_probe_crown_comic_video_poster_series_scaffold_20260707
+run_dir: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707
+status: pass
+checks:
+- id: active_route_uses_media_pack
+  status: pass
+  route_key: media_generation_task
+  pack_id: media_series_production
+- id: active_agents_are_media_chain
+  status: pass
+  agents:
+  - Archivist
+  - ArtifactProducer
+  - Supervisor
+  - TesterAuditor
+  - Verifier
+  missing_required_agents: []
+  forbidden_active_agents: []
+- id: artifact_manifest_passes
+  status: pass
+  manifest:
+    version: 1
+    task_id: task_probe_crown_comic_video_poster_series_scaffold_20260707
+    valid: true
+    pass_rate: 1.0
+    artifacts_checked: 24
+    artifacts_passed: 24
+    issues: []
+- id: required_media_artifacts_are_valid_yaml
+  status: pass
+  files:
+  - path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/episode_plan.yml
+    status: pass
+    keys:
+    - artifact
+    - candidate_only
+    - episodes
+    - execution_mode
+    - generated_by
+    - production_modified
+    - production_pack
+    - project
+    - schema_version
+    - source_scope
+    - status
+    - task_id
+  - path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/shot_list.yml
+    status: pass
+    keys:
+    - artifact
+    - candidate_only
+    - execution_mode
+    - generated_by
+    - production_modified
+    - production_pack
+    - project
+    - schema_version
+    - shots
+    - status
+    - task_id
+  - path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/character_visual_bible.yml
+    status: pass
+    keys:
+    - artifact
+    - candidate_only
+    - characters
+    - execution_mode
+    - generated_by
+    - production_modified
+    - production_pack
+    - project
+    - schema_version
+    - status
+    - task_id
+  - path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/asset_registry.yml
+    status: pass
+    keys:
+    - artifact
+    - assets
+    - candidate_only
+    - execution_mode
+    - generated_by
+    - production_modified
+    - production_pack
+    - project
+    - schema_version
+    - status
+    - task_id
+  - path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/prompt_pack.yml
+    status: pass
+    keys:
+    - artifact
+    - candidate_only
+    - execution_mode
+    - generated_by
+    - production_modified
+    - production_pack
+    - project
+    - prompts
+    - schema_version
+    - status
+    - task_id
+  - path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/generation_ledger.yml
+    status: pass
+    keys:
+    - artifact
+    - candidate_only
+    - execution_mode
+    - generated_by
+    - generations
+    - production_modified
+    - production_pack
+    - project
+    - schema_version
+    - status
+    - task_id
+  - path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_continuity_ledger.yml
+    status: pass
+    keys:
+    - artifact
+    - candidate_only
+    - continuity_checks
+    - execution_mode
+    - generated_by
+    - production_modified
+    - production_pack
+    - project
+    - schema_version
+    - status
+    - task_id
+  - path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_qc_report.yml
+    status: pass
+    keys:
+    - artifact
+    - candidate_only
+    - checks
+    - execution_mode
+    - generated_by
+    - production_modified
+    - production_pack
+    - project
+    - schema_version
+    - status
+    - task_id
+  - path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/narrative_media_delivery_receipt.yml
+    status: pass
+    keys:
+    - acceptance_required_before_promotion
+    - artifact
+    - candidate_only
+    - delivery_status
+    - execution_mode
+    - generated_by
+    - live_generation
+    - production_modified
+    - production_pack
+    - project
+    - required_files
+    - schema_version
+    - status
+    - task_id
+  - path: projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    status: pass
+    keys:
+    - acceptance_gates
+    - approval_card
+    - approval_required
+    - artifact_paths
+    - backend_contracts
+    - backend_policy
+    - contract_type
+    - cost_policy
+    - delivery_constraints
+    - executable
+    - execution_blocker
+    - fallback_chain
+    - harness_rules
+    - intent
+    - modality
+    - no_backend_fallback
+    - pending_backends
+    - project_id
+    - prompt
+    - quality_target
+    - reference_assets
+    - schema_version
+    - selected_backend
+    - style_constraints
+    - task_id
+    - time_policy
+- id: media_artifacts_are_candidate_only
+  status: pass
+  scope_failures: []
+- id: delivery_receipt_blocks_promotion
+  status: pass
+  receipt_status: candidate
+  candidate_only: true
+  production_modified: false
+- id: backend_preflight_is_safe_and_explainable
+  status: pass
+  preflight_status: ready
+  backend_id: hermes_grok_oauth
+  adapter_kind: local_grok_cli
+  local_cli_available: pass
+  accepted_env: []
+- id: backend_dry_run_ledgers_exist
+  status: pass
+  missing: []
+- id: project_media_production_not_modified
+  status: pass
+  production_media_files: []
+evidence:
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/workflow_plan.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifact_manifest.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/episode_plan.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/shot_list.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/character_visual_bible.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/asset_registry.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/prompt_pack.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/generation_ledger.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_continuity_ledger.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_qc_report.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/narrative_media_delivery_receipt.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+- acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend/media_backend_preflight.yml
+- projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_smoke_20260707/media_backend_preflight.yml
+summary:
+  route_key: media_generation_task
+  pack_id: media_series_production
+  required_media_artifacts: 10
+  manifest_pass_rate: 1.0
+  live_generation: false
+  backend_status: ready
+  candidate_only: true
+  production_modified: false
+issues: []

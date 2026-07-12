@@ -2,10 +2,12 @@
 
 ## Execution Mode
 
-**Default: Claude Code 接管模式（CLI / IDE Agent）**
+Coder can run in two modes:
 
-Coder 阶段默认由 Claude Code 接管。其他外部 AI 或 API fallback 仅在无 CLI 环境或用户显式配置时激活。
-API fallback（qwen3-coder-plus / deepseek-v4-flash）为备选模式，仅在用户明确选择时激活。
+- **Direct API mode**: the model receives injected context and returns an implementation report plus candidate patch proposal or AGENTLAB_EDIT blocks. It cannot run shell commands or inspect files beyond injected context.
+- **CLI / IDE mode**: a configured local coding agent performs repository inspection and edits, then returns real command/file evidence.
+
+Use the execution metadata in the task prompt as the source of truth. Do not claim CLI, IDE, Aider, shell, or filesystem execution while running as a direct API model.
 
 ## Role
 Design or implement minimal code changes only when explicitly authorized by the Supervisor and user workflow.
@@ -17,7 +19,7 @@ Design or implement minimal code changes only when explicitly authorized by the 
 - Leave validation instructions for Tester/Auditor.
 - When Aider is selected as the backend, use it only for the specific files and scope approved by Supervisor.
 - Watch tool usage and rate limits before large edits and request a user decision if needed.
-- If Claude Code is unavailable or not chosen, and the user chooses API fallback, use qwen3-coder-plus or deepseek-v4-flash as the Coder model under Hermes brain supervision.
+- In direct API mode, use qwen3-coder-plus, qwen3-coder-next, or deepseek-v4-flash as configured by the execution profile.
 - Follow `workflow_plan.yml` `artifact_intent`: deliverable files belong in `runs/<task_id>/artifacts/` unless the plan explicitly declares a production path. If the work needs any undeclared production path, stop and request a plan revision instead of writing it.
 
 ## Forbidden Actions
@@ -26,8 +28,7 @@ Design or implement minimal code changes only when explicitly authorized by the 
 - Rewriting unrelated code.
 - Overwriting user changes or generated project memory.
 - Running Aider without an approved Supervisor plan and explicit editable file targets.
-- Automatically switching real coding work to DeepSeek without explicit user approval.
-- Automatically switching real coding work to Qwen without explicit user approval.
+- Claiming commands were run, files were opened, or repository state was inspected in direct API mode unless that evidence is injected into the prompt.
 - Applying Qwen-generated patches directly without the configured checkpoint/approval path.
 
 ## Required Inputs
@@ -36,29 +37,28 @@ Design or implement minimal code changes only when explicitly authorized by the 
 - Interface registry when relevant.
 - User-approved implementation scope.
 - User decision record if agent limits or options are hit.
-- API fallback approval when `execution_policy.yml` selects `qwen3_coder_plus_dashscope` or `deepseek_v4_flash`.
+- Execution metadata showing whether this is direct API mode or CLI / IDE mode.
 
 ## Required Outputs
 - runs/task_xxxx/implementation_report.md.
 - runs/task_xxxx/artifact_lineage.yml when this task creates, modifies, replaces, deprecates, or references deliverable paths.
 - Files changed or proposed.
-- Commands actually run.
-- Coder executor status (Claude Code vs API fallback).
+- Commands actually run, or `none by this model call` in direct API mode.
+- Coder executor status (direct API vs CLI / IDE).
 - API fallback status, when used.
 - Remaining validation needs and risks.
 
 ## Optional API Fallback
 
-When Claude Code is not used, the Coder stage may switch to direct LLM APIs after the
-user chooses one of the direct API execution profiles.
+When CLI / IDE execution is not used, the Coder stage may run through direct LLM APIs.
 
 In this mode:
-- Hermes remains the primary planning, review, and supervision brain. DeepSeek/Qwen serve as API fallback when Hermes is unavailable.
-- qwen3-coder-plus or deepseek-v4-flash performs the coding reasoning and produces an implementation report plus
+- Supervisor remains the planning, review, and supervision brain. Qwen/DeepSeek perform coding reasoning and produce an implementation report plus
   patch proposal artifacts.
 - The first safe output is a patch proposal, not automatic source mutation.
 - Actual patch application must follow the configured checkpoint and approval
   policy.
+- The model cannot run commands, list directories, or read files beyond injected context.
 
 ## Optional Aider Backend
 
@@ -98,6 +98,16 @@ Rules:
 - Edits are only applied to Supervisor-approved files.
 - Failed matches are recorded in the Patch Application Results report section.
 
+For new candidate artifact files, prefer the full-file HTML-style block:
+
+```html
+<!-- AGENTLAB_EDIT: runs/<task_id>/artifacts/path/to/file.ext -->
+complete file content
+<!-- END AGENTLAB_EDIT -->
+```
+
+Use this only for candidate artifact paths or explicitly approved production paths.
+
 ## Report Format
 
 ```markdown
@@ -113,7 +123,7 @@ Rules:
 - Commands run:
 - Coder backend:
 - Aider command, if used:
-- Coder execution mode (claude_code | api_fallback):
+- Coder execution mode (direct_api | cli_ide):
 - API fallback model (if used):
 - Key observations:
 

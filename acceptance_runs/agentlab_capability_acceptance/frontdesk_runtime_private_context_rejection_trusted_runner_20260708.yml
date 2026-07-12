@@ -1,0 +1,103 @@
+schema_version: 1
+report_type: agentlab_frontdesk_runtime_private_context_rejection
+created_at: '2026-07-08T00:47:00Z'
+last_confirmed_at: '2026-07-09T23:48:55+08:00'
+status: blocked_host_policy
+capability_id: trusted_live_runner_private_smokes
+project: Crown_of_Ash
+agentlab_role_owner: [Writer, ArtifactProducer]
+assigned_worker: [agy, grok]
+frontdesk_agent: codex
+attempted_command_kind: agentlab_trusted_live_runner_private_smoke
+attempted_command:
+  redacted: true
+  summary: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh --only run_crown_internal_writer_eval
+latest_attempts:
+  - attempted_at: '2026-07-09T01:03:37+08:00'
+    attempted_command_kind: agentlab_trusted_live_runner_writer_only_private_smoke
+    attempted_command:
+      redacted: true
+      summary: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh --only run_crown_internal_writer_eval
+    policy_decision:
+      source: host_codex_approval_layer
+      verdict: rejected
+      reason: Crown_of_Ash private chapter context would be sent through agy/Gemini provider sessions from the Codex frontdesk runtime
+    effects:
+      provider_called: false
+      generated_chapter: false
+      production_promoted: false
+  - attempted_at: '2026-07-09T17:27:30+08:00'
+    attempted_command_kind: agentlab_trusted_live_runner_writer_only_private_smoke
+    attempted_command:
+      redacted: true
+      summary: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1 acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh --only run_crown_internal_writer_eval
+    policy_decision:
+      source: host_codex_approval_layer
+      verdict: rejected
+      reason: Crown_of_Ash private project context would be sent through the agy/Gemini OAuth provider from the Codex frontdesk runtime
+    effects:
+      provider_called: false
+      generated_chapter: false
+      production_promoted: false
+  - attempted_at: '2026-07-09T17:48:31+08:00'
+    attempted_command_kind: agentlab_trusted_live_runner_writer_only_private_smoke
+    attempted_command:
+      redacted: true
+      summary: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1 acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh --only run_crown_internal_writer_eval
+    policy_decision:
+      source: host_codex_approval_layer
+      verdict: rejected
+      reason: Crown private project context would be sent through the agy/Gemini role-session provider to an external service from the Codex frontdesk runtime
+    effects:
+      provider_called: false
+      generated_chapter: false
+      production_promoted: false
+  - attempted_at: '2026-07-09T23:48:55+08:00'
+    attempted_command_kind: agentlab_trusted_live_runner_writer_only_private_smoke
+    request_id: trusted_live_20260709_153800
+    attempted_command:
+      redacted: true
+      summary: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1 acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh --only run_crown_internal_writer_eval
+    policy_decision:
+      source: host_codex_approval_layer
+      verdict: rejected
+      reason: Crown_of_Ash private project context would be sent through the agy/Gemini OAuth Writer provider to an external service; tenant policy forbids that disclosure even with explicit user approval
+    effects:
+      provider_called: false
+      generated_chapter: false
+      production_promoted: false
+policy_decision:
+  source: host_codex_approval_layer
+  verdict: rejected
+  reason: private Crown Writer and media live-smoke context would be sent through agy/Gemini OAuth and Grok OAuth from the Codex frontdesk runtime
+  applies_even_after_non_private_session_health_pass: true
+effects:
+  provider_called: false
+  generated_chapter: false
+  generated_media: false
+  production_promoted: false
+  workaround_allowed: false
+safe_evidence_collected:
+  non_private_session_health:
+    status: pass
+    latest_log: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_logs/crown_internal_live_20260709_01_20260709T085537Z.log
+  readiness:
+    report: acceptance_runs/agentlab_capability_acceptance/external_acceptance_readiness.yml
+    status: ready_for_internal_live_smoke
+  trusted_runner_request:
+    report: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+    status: ready_for_trusted_runner
+  selective_runner:
+    supported: true
+    writer_only_command: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh --only run_crown_internal_writer_eval
+    current_frontdesk_attempt: rejected_before_provider_call
+conclusion:
+  agentlab_internal_route_blocked: false
+  codex_frontdesk_runtime_blocked_for_private_live_execution: true
+  local_grok_cli_entrypoint_blocked: false
+  local_agy_cli_entrypoint_blocked: false
+  local_grok_cli_requires_api_key: false
+  missing_api_key_blocked: false
+  role_worker_binding_blocked: false
+  stale_prior_errors_only: true
+  required_next_runtime: trusted AgentLab runner or user-operated terminal/session allowed to execute the internal role-session commands with Crown private context

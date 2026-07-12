@@ -1,0 +1,379 @@
+"""Non-private Agy CLI session smoke for AgentLab acceptance evidence."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from pathlib import Path
+import shlex
+import shutil
+import subprocess
+from typing import Any, Callable
+
+import yaml
+
+try:
+    from agent_runtime.report_sanitizer import write_report_yaml
+except ModuleNotFoundError:  # pragma: no cover - direct script path
+    from report_sanitizer import write_report_yaml
+
+
+CommandRunner = Callable[..., subprocess.CompletedProcess[str]]
+
+EXPECTED = "AGENTLAB_AGY_CLI_SMOKE_OK"
+
+
+def _read_yaml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return data if isinstance(data, dict) else {}
+
+
+def _safe_excerpt(value: str | bytes | None, limit: int = 500) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="replace")
+    return value[:limit]
+
+
+def _command_shape(args: list[str]) -> str:
+    rendered: list[str] = []
+    skip_next = False
+    for arg in args:
+        if skip_next:
+            rendered.append("<non_private_prompt>")
+            skip_next = False
+            continue
+        rendered.append(arg)
+        if arg == "-p":
+            skip_next = True
+    return " ".join(rendered)
+
+
+def _classify_failure(stderr: str, log_excerpt: str) -> str:
+    combined = f"{stderr}\n{log_excerpt}"
+    if "listen tcp 127.0.0.1:0" in combined and "operation not permitted" in combined:
+        return "agy_localhost_bind_denied"
+    if "oauth_session_or_region_blocked" in combined:
+        return "agy_oauth_session_or_region_blocked"
+    if "Settings fetch failed" in combined:
+        return "agy_settings_fetch_failed"
+    return "agy_cli_nonzero_exit"
+
+
+def _write_task_packet(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "packet_type": "agentlab_non_private_cli_smoke",
+                "project": "AgentLab",
+                "task_id": "agy_cli_session_smoke",
+                "role": "Writer",
+                "prompt_scope": "non_private_session_reachability_smoke",
+                "private_project_context_loaded": False,
+                "instructions": (
+                    f"Reply exactly: {EXPECTED}. Do not read project files, do not edit files, "
+                    "and do not execute additional commands."
+                ),
+            },
+            sort_keys=False,
+            allow_unicode=True,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _run_command(args: list[str], timeout_seconds: int, log_path: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds,
+    )
+
+
+def _contract_template(root: Path) -> str:
+    data = _read_yaml(root / "config" / "worker_invocation_contracts.yml")
+    contract = ((data.get("contracts") or {}).get("agy_coder") or {})
+    return str(contract.get("template") or "")
+
+
+def _append_log_file(args: list[str], log_path: Path) -> list[str]:
+    return [*args, "--log-file", str(log_path)]
+
+
+def _coalesce_variants(variants: list[list[str]]) -> list[list[str]]:
+    deduped: list[list[str]] = []
+    for candidate in variants:
+        if candidate not in deduped:
+            deduped.append(candidate)
+    return deduped
+
+
+def _command_variants(root: Path, task_packet: Path, log_path: Path) -> list[list[str]]:
+    template = _contract_template(root)
+    if not template:
+        template = "agy --sandbox -p {task_packet_path}"
+    try:
+        rendered = template.format(task_packet_path=str(task_packet))
+        parsed = shlex.split(rendered)
+    except ValueError:
+        parsed = []
+
+    variants: list[list[str]] = []
+    if parsed:
+        variants.append(_append_log_file(parsed, log_path))
+        if "--sandbox" in parsed:
+            variants.append(_append_log_file([arg for arg in parsed if arg != "--sandbox"], log_path))
+
+    if not variants:
+        fallback_prompt = (
+            f"Read the AgentLab task packet at {task_packet}; "
+            "perform only the assigned AgentLab role. "
+            f"Reply exactly: {EXPECTED}."
+        )
+        variants.append(_append_log_file(["agy", "-p", fallback_prompt], log_path))
+
+    return _coalesce_variants(variants)
+
+
+def _command_args(root: Path, task_packet: Path, log_path: Path) -> list[str]:
+    return _command_variants(root, task_packet, log_path)[0]
+
+
+def _run_single_variant(
+    args: list[str],
+    runner: CommandRunner,
+    timeout_seconds: int,
+    log_path: Path,
+) -> tuple[bool, subprocess.CompletedProcess[str]]:
+    try:
+        completed = runner(args, timeout_seconds, log_path)
+        return False, completed
+    except subprocess.TimeoutExpired as exc:
+        return True, subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout=_safe_excerpt(exc.stdout),
+            stderr=_safe_excerpt(exc.stderr),
+        )
+
+
+def _build_attempt_report(
+    attempt: int,
+    args: list[str],
+    timed_out: bool,
+    completed: subprocess.CompletedProcess[str],
+    log_path: Path,
+    live: bool,
+) -> dict[str, Any]:
+    stdout = _safe_excerpt(completed.stdout)
+    stderr = _safe_excerpt(completed.stderr)
+    log_excerpt = _safe_excerpt(log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else "")
+    expected = EXPECTED in stdout
+    status = "warn"
+    reason = None
+    process_exit_status = "completed"
+    if timed_out:
+        process_exit_status = "timeout_after_expected_token" if expected else "timeout"
+        status = "pass" if expected else "blocked"
+        reason = "agy_cli_expected_token_observed_before_process_timeout" if expected else "agy_cli_timeout"
+    elif completed.returncode != 0:
+        reason = _classify_failure(stderr, log_excerpt)
+        status = "blocked"
+    elif expected:
+        status = "pass"
+    else:
+        reason = "agy_cli_returned_unexpected_content"
+        status = "warn"
+
+    return {
+        "attempt": attempt,
+        "live": live,
+        "command": args[0] if args else "agy",
+        "command_shape": _command_shape(args),
+        "status": status,
+        "reason": reason,
+        "returncode": None if timed_out else completed.returncode,
+        "stdout_excerpt": stdout,
+        "stderr_excerpt": stderr,
+        "log_excerpt": log_excerpt,
+        "expected_token_present": expected,
+        "process_exit_status": process_exit_status,
+    }
+
+
+def build_agy_cli_smoke_report(
+    root: Path,
+    *,
+    live: bool = False,
+    timeout_seconds: int = 60,
+    command_runner: CommandRunner | None = None,
+    smoke_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Build an Agy CLI session report without sending private project context."""
+    root = root.resolve()
+    smoke_dir = (
+        smoke_dir.resolve()
+        if smoke_dir is not None
+        else root / "acceptance_runs" / "agentlab_capability_acceptance" / "agy_cli_session_smoke"
+    )
+    task_packet = smoke_dir / "task_packet.yml"
+    log_path = smoke_dir / "agy_cli_smoke.log"
+    _write_task_packet(task_packet)
+    command_variants = _command_variants(root, task_packet, log_path)
+    if not command_variants or not command_variants[0]:
+        return {
+            "schema_version": 1,
+            "report_type": "agentlab_agy_cli_session_smoke",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "live": live,
+            "status": "blocked",
+            "reason": "agy_cli_invalid_command_template",
+            "prompt_scope": "non_private_session_reachability_smoke",
+            "private_project_context_loaded": False,
+            "secret_values_rendered": False,
+            "worker": "agy",
+            "invocation_contract": "agy_coder",
+            "expected_stdout_token": EXPECTED,
+            "task_packet_path": str(task_packet),
+            "log_path": str(log_path),
+            "timeout_seconds": timeout_seconds,
+            "command_variants": [],
+            "attempts": [],
+        }
+
+    first_args = command_variants[0]
+    first_path = shutil.which(first_args[0]) if first_args else None
+    report: dict[str, Any] = {
+        "schema_version": 1,
+        "report_type": "agentlab_agy_cli_session_smoke",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "live": live,
+        "status": "blocked",
+        "prompt_scope": "non_private_session_reachability_smoke",
+        "private_project_context_loaded": False,
+        "secret_values_rendered": False,
+        "worker": "agy",
+        "invocation_contract": "agy_coder",
+        "command": first_args[0],
+        "command_available": bool(first_path),
+        "command_path": first_path,
+        "command_shape": _command_shape(first_args),
+        "expected_stdout_token": EXPECTED,
+        "task_packet_path": str(task_packet),
+        "log_path": str(log_path),
+        "timeout_seconds": timeout_seconds,
+        "command_variants": [
+            {"command": args[0], "command_shape": _command_shape(args), "with_log_file": True}
+            for args in command_variants
+        ],
+        "attempts": [],
+    }
+    if not first_path:
+        report.update({"status": "blocked", "reason": "agy_cli_not_found"})
+        return report
+
+    if not live:
+        report.update({"status": "configured", "reason": "dry_run_only"})
+        return report
+
+    runner = command_runner or _run_command
+    for attempt, args in enumerate(command_variants):
+        if not args:
+            continue
+        command_path = shutil.which(args[0])
+        if not command_path:
+            attempt_report = {
+                "attempt": attempt,
+                "live": live,
+                "command": args[0],
+                "command_shape": _command_shape(args),
+                "status": "blocked",
+                "reason": "agy_cli_not_found",
+                "returncode": None,
+                "stdout_excerpt": "",
+                "stderr_excerpt": "",
+                "log_excerpt": "",
+                "expected_token_present": False,
+                "process_exit_status": "command_missing",
+            }
+            report["attempts"].append(attempt_report)
+            if attempt + 1 >= len(command_variants):
+                report.update(
+                    {
+                        "status": "blocked",
+                        "reason": "agy_cli_not_found",
+                        "command": args[0],
+                        "command_shape": _command_shape(args),
+                        "command_available": False,
+                    }
+                )
+                return report
+            continue
+
+        log_path.unlink(missing_ok=True)
+        timed_out, completed = _run_single_variant(args, runner, timeout_seconds, log_path)
+        attempt_report = _build_attempt_report(
+            attempt=attempt,
+            args=args,
+            timed_out=timed_out,
+            completed=completed,
+            log_path=log_path,
+            live=live,
+        )
+        attempt_report["command_path"] = command_path
+        attempt_report["command_available"] = True
+
+        report["attempts"].append(attempt_report)
+        report_update: dict[str, Any] = {
+            "command": attempt_report["command"],
+            "command_shape": attempt_report["command_shape"],
+            "command_path": command_path,
+            "command_available": True,
+            "status": attempt_report["status"],
+            "stdout_excerpt": attempt_report["stdout_excerpt"],
+            "stderr_excerpt": attempt_report["stderr_excerpt"],
+            "log_excerpt": attempt_report["log_excerpt"],
+            "expected_token_present": attempt_report["expected_token_present"],
+            "process_exit_status": attempt_report["process_exit_status"],
+        }
+        if attempt_report.get("reason") is not None:
+            report_update["reason"] = attempt_report["reason"]
+        if attempt_report.get("returncode") is not None:
+            report_update["returncode"] = attempt_report["returncode"]
+        report.update(report_update)
+
+        if attempt_report["status"] == "pass":
+            return report
+
+        if (
+            attempt_report.get("reason") == "agy_localhost_bind_denied"
+            and "--sandbox" in args
+            and attempt + 1 < len(command_variants)
+        ):
+            continue
+        break
+
+    return report
+
+
+def write_agy_cli_smoke_report(
+    root: Path,
+    out: Path,
+    *,
+    live: bool = False,
+    timeout_seconds: int = 60,
+) -> dict[str, Any]:
+    report = build_agy_cli_smoke_report(
+        root,
+        live=live,
+        timeout_seconds=timeout_seconds,
+        smoke_dir=out.parent / out.stem,
+    )
+    write_report_yaml(out, report, root)
+    return report

@@ -1,0 +1,178 @@
+schema_version: 1
+report_type: agentlab_live_unblock_plan
+root: .
+status: ready_for_internal_live_smoke
+workflow_boundary: internal_agentlab_role_sessions
+terminology:
+  canonical_kind: private_role_session_acceptance_smoke
+  canonical_label: private role-session acceptance smoke
+  legacy_terms:
+  - private live smoke
+  - private live-smoke
+  - live-smoke
+  meaning: A minimal trusted-runner acceptance run that loads private project context
+    through the configured AgentLab role-session worker and returns run-local candidate
+    artifacts for structural QC.
+  not_a_default_production_workflow: true
+role_session_execution_boundary:
+  trusted_runner_env_required: AGENTLAB_TRUSTED_LIVE_RUNNER=1
+  role_session_acceptance_approval_env_required: AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+  session_health_only_command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+    --session-health-only
+  full_role_session_acceptance_command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+    acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+  writer_role_session_acceptance_command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+    acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+    --only run_crown_internal_writer_eval
+  media_role_session_acceptance_command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+    acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+    --only run_crown_internal_media_smoke
+  session_health_requires_approval_env: false
+  approval_gate_before_private_context: true
+  private_context_commands_require_approval_env: true
+  frontdesk_executes_role_session_acceptance_commands: false
+  full_run_requires_trusted_status_pass: true
+session_health_gate:
+  status: ready_for_internal_live_smoke
+  clean: true
+  issue_ids: []
+  writer_selected_item_can_run: true
+  media_selected_item_can_run: true
+  interpretation: live_unblock_plan.status describes route/plan readiness; session_health_gate
+    controls which selected private role-session item may run now.
+acceptance_phase:
+  entered_acceptance: true
+  status: in_acceptance_pending_returned_artifacts
+  final_acceptance_passed: false
+  pending_item_ids:
+  - run_crown_internal_media_smoke
+  next_action: run_selected_trusted_live_runner_items_then_collect_selected_reports
+  selected_collect_reports_available: true
+items:
+- id: run_crown_internal_writer_eval
+  capability_id: crown_formal_live_narrative_eval
+  status: ready
+  current_return:
+    trusted_status_item_present: true
+    status: pass
+    required_files_exist: true
+    returned_candidate_artifacts_accepted: true
+    acceptance_blocker: none
+    selected_collect_report_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml
+    selected_item_collect_status: pass
+    selected_item_status: pass
+    selected_item_accepted: true
+    selected_item_acceptance_blocker: none
+  required_operator_action: Submit the formal Crown single-chapter live eval as an
+    AgentLab Writer role-session and monitor run-local artifacts.
+  risk: Private Crown context is used inside the configured AgentLab Writer workflow;
+    generated prose remains candidate-only until promotion.
+  route:
+    ready: true
+    auth_probe: 'yes'
+    worker: agy
+    model_key: gemini_3_5_flash_high_agy_oauth
+    model_provider: agy_gemini_oauth
+  historical_blocker:
+    provider: deepseek
+    model: deepseek-v4-flash
+    error: Connection error.
+    policy_status: blocked
+  agentlab_command: ./agentlab.sh narrative-eval run --project Crown_of_Ash --suite
+    crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp
+    <internal_live_run_id> --writer-worker agy
+  safe_command_after_approval: ./agentlab.sh narrative-eval run --project Crown_of_Ash
+    --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp
+    <internal_live_run_id> --writer-worker agy
+  trusted_runner_command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+    acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+    --only run_crown_internal_writer_eval
+  selected_collect_command: ./agentlab.sh trusted-live-runner-collect --request acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml
+    --item run_crown_internal_writer_eval
+  must_not_do:
+  - do not copy candidate chapters into production/manuscript automatically
+  - do not run live narrative eval without Writer role-session evidence
+  - do not run broad 1-20 or 1500-chapter live generation before one approved single-chapter
+    pass
+  evidence:
+  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/live_ch01_retry_20260707_1118/longform_eval_report.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/live_generation_error.yml
+  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/live_ch01_retry_20260707_1118/external_retry_policy_note.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/provider_incidents.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/USER_DECISION_REQUIRED.md
+  - config/agent_model_profiles.yml
+  - config/agent_role_bindings.yml
+  - config/model_catalog.yml
+  - acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke.yml
+  - acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
+- id: run_crown_internal_media_smoke
+  capability_id: grok_xai_media_backend
+  status: ready
+  current_return:
+    trusted_status_item_present: true
+    status: pending
+    pending_reason: missing_candidate_artifacts
+    required_files_exist: false
+    returned_candidate_artifacts_accepted: false
+    acceptance_blocker: missing_required_files
+    next_action: run_trusted_live_command_and_collect_required_artifacts
+    selected_collect_report_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml
+    selected_item_collect_status: pending_selected_item
+    selected_item_status: pending
+    selected_item_accepted: false
+    selected_item_acceptance_blocker: missing_required_files
+    selected_item_pending_reason: missing_candidate_artifacts
+    selected_item_next_action: run_trusted_live_command_and_collect_required_artifacts
+  required_operator_action: Submit the Crown media role-session acceptance smoke through
+    the AgentLab ArtifactProducer role-session and monitor run-local candidate artifacts.
+  accepted_env: []
+  route:
+    backend_id: hermes_grok_oauth
+    adapter_kind: local_grok_cli
+    worker_id: grok
+    role_owner: ArtifactProducer
+    role_worker_binding: true
+    internal_worker: true
+    execution_mode: orchestrated_worker
+    approval_required: false
+    local_cli_available: pass
+  agentlab_commands:
+  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml
+  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out-dir projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_<id>
+    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_probe_crown_comic_video_poster_series_scaffold_20260707
+  safe_commands_after_approval:
+  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml
+  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out-dir projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_<id>
+    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_probe_crown_comic_video_poster_series_scaffold_20260707
+  trusted_runner_command: AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
+    acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
+    --only run_crown_internal_media_smoke
+  selected_collect_command: ./agentlab.sh trusted-live-runner-collect --request acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+    --out acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml
+    --item run_crown_internal_media_smoke
+  must_not_do:
+  - do not print or commit OAuth/session secret values
+  - do not run media-backend-execute --live without ArtifactProducer role-session
+    evidence
+  - do not promote generated media without QC or human acceptance
+  evidence:
+  - agent_runtime/media_backend_adapter.py
+  - config/media_generation_backends.yml
+  - config/agent_role_bindings.yml
+  - config/worker_invocation_contracts.yml
+  - acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml
+  - acceptance_runs/agentlab_capability_acceptance/grok_oauth_cli_smoke.yml
+  - acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_smoke_20260707/media_backend_preflight.yml
+  - acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
+notes:
+- This plan contains secret names only, never secret values.
+- The chat/frontdesk agent submits AgentLab commands and observes artifacts; Writer
+  and ArtifactProducer own the live work.
+- Generated outputs remain run-local candidates until configured QC and promotion
+  gates pass.

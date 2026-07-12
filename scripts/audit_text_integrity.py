@@ -209,6 +209,7 @@ class FileAudit:
 EXCLUDED_DIR_PARTS = {".venv", ".git", ".pytest_cache", "site-packages", "__pycache__", "node_modules", "dist", "build", "htmlcov", ".mypy_cache", ".ruff_cache"}
 LOCAL_ABSOLUTE_PATH_RE = re.compile("/" + "Users" + r"/[^\s`'\"<>]+")
 MAX_SOURCE_LINE_LENGTH = 1000
+MAX_MARKDOWN_TABLE_LINE_LENGTH = 2500
 HIDDEN_LINE_SEPARATORS = {
     "\u0085": "U+0085 NEXT LINE",
     "\u2028": "U+2028 LINE SEPARATOR",
@@ -258,11 +259,27 @@ def _hidden_unicode_issues(content: str) -> tuple[list[str], bool, bool]:
 def _resolve_scan_paths(root: Path) -> list[Path]:
     """Resolve all scan patterns into a deduplicated list of file paths,
     excluding third-party/vendor directories."""
+    git_visible: set[str] | None = None
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            git_visible = {item for item in result.stdout.split("\0") if item}
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        git_visible = None
+
     seen: dict[str, Path] = {}
     for pattern in SCAN_PATTERNS:
         for matched in sorted(root.glob(pattern)):
             if matched.is_file():
                 rel = str(matched.relative_to(root))
+                if git_visible is not None and rel not in git_visible:
+                    continue
                 # Skip files inside excluded directories
                 if any(part in EXCLUDED_DIR_PARTS for part in matched.parts):
                     continue
@@ -507,9 +524,25 @@ def _check_generic(path: Path, root: Path) -> FileAudit:
         suspicious = True
         issues.extend(hidden_issues)
 
-    if max_line_len > MAX_SOURCE_LINE_LENGTH:
+    overlong_lines = []
+    for line in lines:
+        stripped = line.strip()
+        is_markdown_table_row = (
+            path.suffix.lower() == ".md"
+            and stripped.startswith("|")
+            and stripped.endswith("|")
+        )
+        limit = (
+            MAX_MARKDOWN_TABLE_LINE_LENGTH
+            if is_markdown_table_row
+            else MAX_SOURCE_LINE_LENGTH
+        )
+        if len(line) > limit:
+            overlong_lines.append((len(line), limit))
+    if overlong_lines:
         suspicious = True
-        issues.append(f"max line length {max_line_len} > {MAX_SOURCE_LINE_LENGTH}")
+        longest, limit = max(overlong_lines)
+        issues.append(f"max line length {longest} > {limit}")
     if not _is_exempt_from_local_path_check(rel) and LOCAL_ABSOLUTE_PATH_RE.search(content):
         suspicious = True
         issues.append("contains local absolute /Users path")
@@ -606,7 +639,6 @@ def run_audit(root: Path | None = None) -> list[FileAudit]:
     results: list[FileAudit] = []
 
     for path in _resolve_scan_paths(base):
-        rel = str(path.relative_to(base))
         suffix = path.suffix
         if suffix == ".py":
             results.append(_check_python(path, base))

@@ -1,0 +1,77 @@
+schema_version: 1
+report_type: agentlab_agy_cli_session_smoke
+created_at: '2026-07-12T05:06:57.208913+00:00'
+live: true
+status: pass
+prompt_scope: non_private_session_reachability_smoke
+private_project_context_loaded: false
+secret_values_rendered: false
+worker: agy
+invocation_contract: agy_coder
+command: agy
+command_available: true
+command_path: /usr/local/bin/agy
+command_shape: agy --sandbox -p <non_private_prompt> --log-file acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke/agy_cli_smoke.log
+expected_stdout_token: AGENTLAB_AGY_CLI_SMOKE_OK
+task_packet_path: acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke/task_packet.yml
+log_path: acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke/agy_cli_smoke.log
+timeout_seconds: 60
+command_variants:
+- command: agy
+  command_shape: agy --sandbox -p <non_private_prompt> --log-file acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke/agy_cli_smoke.log
+  with_log_file: true
+- command: agy
+  command_shape: agy -p <non_private_prompt> --log-file acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke/agy_cli_smoke.log
+  with_log_file: true
+attempts:
+- attempt: 0
+  live: true
+  command: agy
+  command_shape: agy --sandbox -p <non_private_prompt> --log-file acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke/agy_cli_smoke.log
+  status: pass
+  returncode: 0
+  stdout_excerpt: 'AGENTLAB_AGY_CLI_SMOKE_OK
+
+    '
+  stderr_excerpt: ''
+  log_excerpt: 'I0712 13:06:57.277546  3430 server.go:1328] Starting language server
+    process with pid 3430
+
+    I0712 13:06:57.278427  3430 server.go:1378] Language server version: 1.1.1
+
+    I0712 13:06:57.278446  3430 server.go:505] Language server will attempt to listen
+    on host localhost
+
+    I0712 13:06:57.279981  3430 server.go:520] Language server listening on random
+    port at 50386 for HTTPS (gRPC)
+
+    I0712 13:06:57.280412  3430 server.go:528] Language server listening on random
+    port at 50387 for HTTP
+
+    E0712 13:07:04.644908 '
+  expected_token_present: true
+  process_exit_status: completed
+  command_path: /usr/local/bin/agy
+  command_available: true
+stdout_excerpt: 'AGENTLAB_AGY_CLI_SMOKE_OK
+
+  '
+stderr_excerpt: ''
+log_excerpt: 'I0712 13:06:57.277546  3430 server.go:1328] Starting language server
+  process with pid 3430
+
+  I0712 13:06:57.278427  3430 server.go:1378] Language server version: 1.1.1
+
+  I0712 13:06:57.278446  3430 server.go:505] Language server will attempt to listen
+  on host localhost
+
+  I0712 13:06:57.279981  3430 server.go:520] Language server listening on random port
+  at 50386 for HTTPS (gRPC)
+
+  I0712 13:06:57.280412  3430 server.go:528] Language server listening on random port
+  at 50387 for HTTP
+
+  E0712 13:07:04.644908 '
+expected_token_present: true
+process_exit_status: completed
+returncode: 0

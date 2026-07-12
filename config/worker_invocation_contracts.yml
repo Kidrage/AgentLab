@@ -5,19 +5,37 @@ contracts:
     display_name: Hermes CLI
     command: hermes
     invocation_style: one_shot_prompt
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_capability_families:
+      - one_shot_role_execution
+      - session_and_checkpoint_reuse
+      - tool_and_mcp_governance
+      - skills_plugins_and_bundles
+      - worktree_or_background_execution
+      - structured_output_and_qc
+      - native_command_surface_inventory
+      - collaboration_board_governance
+    required_receipts:
+      - role_session_receipt.yml
+      - tool_or_mcp_usage_ledger.yml
+      - artifact_manifest_or_findings.yml
     template: >-
-      hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path},
+      hermes --provider {provider} -m {model_id} -z "You are an AgentLab CLI executor.
+      Read the JSON task packet at {task_packet_path},
       perform the requested AgentLab role work, and return a concise markdown report
       with findings, actions taken, verification, and blockers."
     required_placeholders:
       - task_packet_path
+      - provider
+      - model_id
     safe_probe:
       - hermes
       - --help
     expected_parse:
       argv_prefix:
         - hermes
-        - -z
+        - --provider
     validation:
       shlex_parse_required: true
       require_existing_binary: false
@@ -42,6 +60,21 @@ contracts:
     display_name: Claude Code
     command: claude
     invocation_style: one_shot_prompt
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_capability_families:
+      - one_shot_role_execution
+      - session_and_checkpoint_reuse
+      - tool_and_mcp_governance
+      - skills_plugins_and_bundles
+      - worktree_or_background_execution
+      - structured_output_and_qc
+      - native_command_surface_inventory
+      - native_subagent_orchestration
+    required_receipts:
+      - role_session_receipt.yml
+      - changed_files_or_findings.yml
+      - validation_evidence.yml
     template: >-
       claude --permission-mode bypassPermissions --output-format json -p "Read the task packet at {task_packet_path};
       perform only the assigned work and report actual changed files and validation."
@@ -118,6 +151,19 @@ contracts:
     display_name: Codex Code
     command: codex
     invocation_style: one_shot_prompt
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_capability_families:
+      - one_shot_role_execution
+      - tool_and_mcp_governance
+      - skills_plugins_and_bundles
+      - permission_and_sandbox_control
+      - workspace_context_control
+      - structured_output_and_qc
+    required_receipts:
+      - role_session_receipt.yml
+      - changed_files_or_findings.yml
+      - validation_evidence.yml
     template: >-
       codex exec --json -C "{workspace_path}" "Read the task packet at
       {task_packet_path}; perform only the assigned work and report actual changes."
@@ -163,6 +209,18 @@ contracts:
     display_name: Qwen Code
     command: qwen
     invocation_style: task_packet_prompt
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_capability_families:
+      - one_shot_role_execution
+      - tool_and_mcp_governance
+      - skills_plugins_and_bundles
+      - worktree_or_background_execution
+      - permission_and_sandbox_control
+      - structured_output_and_qc
+    required_receipts:
+      - role_session_receipt.yml
+      - structured_findings_or_artifacts.yml
     template: >-
       qwen --bare --approval-mode default --output-format json "Read the task packet at
       {task_packet_path}; perform only the assigned role and report actual changes."
@@ -179,15 +237,16 @@ contracts:
 
   gemini:
     worker_id: gemini
-    display_name: Gemini CLI
+    display_name: Gemini API CLI (explicit fallback)
     command: gemini
     invocation_style: task_packet_prompt
     template: >-
-      gemini --approval-mode plan --model gemini-2.5-flash --prompt "Read the
+      gemini --approval-mode plan --model gemini-2.5-flash-high --prompt "Read the
       AgentLab task packet at {task_packet_path}; perform only low-risk rough
       work such as summarization, first-pass classification, redundant log
       scanning, candidate checklist generation, or disposable draft analysis.
-      Do not edit files or execute commands. Return concise findings,
+      This is the explicit Gemini API-key fallback path, not the default Gemini
+      path. Do not edit files or execute commands. Return concise findings,
       confidence, and escalation points."
     required_placeholders:
       - task_packet_path
@@ -203,9 +262,19 @@ contracts:
 
   agy:
     worker_id: agy
-    display_name: Antigravity CLI Frontdesk
+    display_name: Antigravity CLI Frontdesk (Gemini OAuth)
     command: agy
     invocation_style: frontdesk_session_prompt
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_capability_families:
+      - one_shot_role_execution
+      - session_and_checkpoint_reuse
+      - skills_plugins_and_bundles
+      - workspace_context_control
+      - permission_and_sandbox_control
+    required_receipts:
+      - frontdesk_session_receipt.yml
     template: >-
       agy --sandbox -p "Read the AgentLab frontdesk session packet at
       '{frontdesk_session_path}'; act only as the user-facing AgentLab frontdesk."
@@ -222,16 +291,30 @@ contracts:
 
   agy_coder:
     worker_id: agy
-    display_name: Antigravity CLI Coder
+    display_name: Antigravity CLI Worker (Gemini OAuth)
     command: agy
     invocation_style: task_packet_prompt
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_capability_families:
+      - one_shot_role_execution
+      - session_and_checkpoint_reuse
+      - skills_plugins_and_bundles
+      - workspace_context_control
+      - permission_and_sandbox_control
+    required_receipts:
+      - role_session_receipt.yml
+      - generated_or_changed_artifacts.yml
     template: >-
       agy --sandbox -p "Read the AgentLab task packet at
-      {task_packet_path}; perform only the assigned coding role.
-      Prefer Gemini Flash for routine changes; use Claude Sonnet
-      fallback for complex refactors. Report all changed files,
-      executed commands, and validation results. Your output will
-      be reviewed by TesterAuditor."
+      {task_packet_path}; perform only the assigned AgentLab role.
+      Use the local Agy Gemini OAuth path as the default Gemini runtime
+      (gemini-3.5-flash-high). Do not use GEMINI_API_KEY or the Gemini API
+      free-tier path unless the task packet explicitly authorizes that fallback.
+      If the OAuth session or regional network path is blocked, stop and report
+      oauth_session_or_region_blocked. Report all changed files, executed
+      commands, and validation results. Your output will be reviewed by the
+      assigned AgentLab audit role."
     required_placeholders:
       - task_packet_path
     safe_probe: [agy, --help]
@@ -242,6 +325,82 @@ contracts:
       allow_unquoted_placeholders: true
     fallback:
       on_binary_missing: stop_and_report
+
+  agy_writer:
+    worker_id: agy
+    display_name: Antigravity Sealed Writer (Gemini OAuth)
+    command: agy
+    invocation_style: sealed_task_packet_prompt
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_capability_families:
+      - one_shot_role_execution
+      - workspace_context_control
+      - permission_and_sandbox_control
+    required_receipts:
+      - outbound_context_manifest_writer.yml
+      - narrative_delivery_receipt.yml
+    template: >-
+      agy --sandbox -p "Read only the sealed AgentLab Writer packet at
+      {task_packet_path}. Use only its embedded messages; do not read any other
+      file, run shell commands, browse, or scan the repository. Return only the
+      required candidate AGENTLAB_EDIT blocks on stdout. Use the local Agy
+      Gemini OAuth runtime (gemini-3.5-flash-high); do not use GEMINI_API_KEY or
+      the Gemini API free-tier fallback."
+    required_placeholders:
+      - task_packet_path
+    safe_probe: [agy, --help]
+    expected_parse:
+      argv_prefix: [agy, --sandbox, -p]
+    validation:
+      shlex_parse_required: true
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+
+  grok:
+    worker_id: grok
+    display_name: Hermes Grok OAuth Media Worker
+    command: hermes
+    invocation_style: media_backend_task_packet
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_backend: hermes
+    workflow_shell_capability_families:
+      - one_shot_role_execution
+      - tool_and_mcp_governance
+      - skills_plugins_and_bundles
+      - structured_output_and_qc
+    required_receipts:
+      - role_session_receipt.yml
+      - generation_ledger.yml
+      - media_qc_report.yml
+    template: >-
+      hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z "Read the AgentLab ArtifactProducer task packet at
+      {task_packet_path}; execute only the media generation or media handoff
+      work described there. Use the Hermes xAI OAuth Grok session. Return a concise
+      report with generated artifact paths, settings-fetch/auth errors, and
+      validation notes. Do not perform code edits or longform prose writing."
+    required_placeholders:
+      - task_packet_path
+    safe_probe: [hermes, --help]
+    expected_parse:
+      argv_prefix: [hermes, --ignore-rules, --provider, xai-oauth]
+    validation:
+      shlex_parse_required: true
+      allow_unquoted_placeholders: true
+    error_classification:
+      auth_required_patterns:
+        - "Settings fetch failed"
+        - "auth"
+        - "OAuth"
+      network_failure_patterns:
+        - "network"
+        - "timeout"
+    fallback:
+      on_binary_missing: alternate_worker_or_direct_api
+      on_auth_required: local_oauth_session_unhealthy
+      on_network_required: retry_with_required_region_or_vpn
 
   git:
     worker_id: git

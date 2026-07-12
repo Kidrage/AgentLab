@@ -39,3 +39,19 @@ def test_probe_auth_legacy_claude_env_still_works(tmp_path):
     with patch("os.path.expanduser", return_value=str(provider_dir)):
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-test"}):
             assert probe_auth("claude_code") == "yes"
+
+
+def test_probe_auth_agy_uses_oauth_markers_not_gemini_api_key():
+    with patch.dict(os.environ, {"GEMINI_API_KEY": "test-gemini-key"}, clear=True):
+        with patch("os.path.exists", return_value=False):
+            assert probe_auth("agy") == "unknown"
+
+    with patch.dict(os.environ, {}, clear=True):
+        with patch("os.path.exists", return_value=True):
+            assert probe_auth("agy") == "yes"
+
+
+def test_probe_auth_hermes_accepts_local_oauth_marker_without_api_key():
+    with patch.dict(os.environ, {}, clear=True):
+        with patch("os.path.exists", return_value=True):
+            assert probe_auth("hermes") == "yes"

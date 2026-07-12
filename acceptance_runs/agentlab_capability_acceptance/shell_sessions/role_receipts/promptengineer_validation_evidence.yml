@@ -1,0 +1,11 @@
+schema_version: 1
+status: pass
+role: PromptEngineer
+acceptance_scope: synthetic_native_surface_smoke
+private_project_context_loaded: false
+source_packet_sha256: 111e63561182231134ccbbbe740f9db107c590794e8e5eb6d10e0df82c20e09b
+checks:
+- Hermes kanban task reached done
+- task run evidence returned
+production_promotion_attempted: false
+production_promotion_allowed: false

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import typer
+import yaml
 from rich.console import Console
 
 
@@ -76,3 +77,68 @@ def register_capability_contract_commands(app: typer.Typer, console: Console) ->
             mock=mock,
         )
         console.print(f"wrote {path}")
+
+    @app.command("media-backend-preflight")
+    def media_backend_preflight(
+        contract: Path = typer.Option(..., "--contract", help="Path to media_generation_contract.yml."),
+        out: Path | None = typer.Option(None, "--out", help="Optional YAML report path."),
+    ) -> None:
+        """Check selected media backend readiness without executing generation."""
+        from agent_runtime.media_backend_adapter import load_media_generation_contract, preflight_media_contract
+
+        root = Path(__file__).resolve().parents[2]
+        report = preflight_media_contract(load_media_generation_contract(contract), root)
+        text = yaml.safe_dump(report, sort_keys=False, allow_unicode=True)
+        if out:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(text, encoding="utf-8")
+            console.print(f"wrote {out}")
+        else:
+            console.print(text)
+
+    @app.command("media-backend-execute")
+    def media_backend_execute(
+        contract: Path = typer.Option(..., "--contract", help="Path to media_generation_contract.yml."),
+        out_dir: Path = typer.Option(..., "--out-dir", help="Directory for adapter evidence and generated assets."),
+        live: bool = typer.Option(False, "--live", help="Opt in to real provider execution. Default is dry-run."),
+        role_session: Path | None = typer.Option(
+            None,
+            "--role-session",
+            help="ArtifactProducer role-session packet required for live execution.",
+        ),
+        role: str = typer.Option("ArtifactProducer", "--role", help="AgentLab role used when generating a live role-session packet."),
+        worker: str | None = typer.Option(None, "--worker", help="Worker id used to generate a live role-session packet."),
+        project: str | None = typer.Option(None, "--project", help="Project for generated role-session; defaults to contract project_id."),
+        task_id: str | None = typer.Option(
+            None,
+            "--task-id",
+            "--run-id",
+            help="Task/run id for generated role-session; defaults to contract task_id.",
+        ),
+    ) -> None:
+        """Execute or dry-run a media backend contract. Real provider calls require --live."""
+        from agent_runtime.media_backend_adapter import execute_media_contract, load_media_generation_contract
+
+        root = Path(__file__).resolve().parents[2]
+        media_contract = load_media_generation_contract(contract)
+        role_session_packet = None
+        if role_session:
+            role_session_packet = yaml.safe_load(role_session.read_text(encoding="utf-8")) or {}
+        elif live and worker:
+            from agent_runtime.protocols import build_role_session
+
+            role_session_packet = build_role_session(
+                root,
+                role,
+                worker,
+                project=project or str(media_contract.get("project_id") or "AgentLab"),
+                task_id=task_id or str(media_contract.get("task_id") or "task_0001"),
+            )
+        result = execute_media_contract(
+            media_contract,
+            root,
+            out_dir,
+            live=live,
+            role_session=role_session_packet if isinstance(role_session_packet, dict) else {},
+        )
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True))

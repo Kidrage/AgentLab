@@ -75,6 +75,34 @@ class PipelineFeedbackIntegrationTests(TestCase):
         self.assertEqual(progress.get("status"), "blocked")
         self.assertEqual(lifecycle["nodes"]["SUPERVISOR_PLAN"]["status"], "failed")
 
+    def test_block_task_redacts_and_compacts_decision_reason(self) -> None:
+        local_path = "/" + "Users/private-user/project/error.log"
+        fake_api_key = "sk-" + "1234567890abcdef"
+        result = _block_task(
+            self.root,
+            self.run_dir,
+            "Demo",
+            "task_feedback_001",
+            "SUPERVISOR_PLAN",
+            agent="Supervisor",
+            reason=(
+                "provider failed\n"
+                f"api_key={fake_api_key}\n"
+                f"{local_path}"
+            ),
+            stage="blocked_user_decision",
+            user_action_required=True,
+            block_type="provider_error",
+        )
+
+        decision = (self.run_dir / "USER_DECISION_REQUIRED.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn(fake_api_key, decision)
+        self.assertNotIn("/" + "Users/private-user", decision)
+        self.assertIn("[REDACTED_SECRET]", decision)
+        self.assertNotIn("\napi_key", result["message"])
+
     def test_resolve_decision_card_approves_and_clears_legacy_gate(self) -> None:
         result = _block_task(
             self.root,

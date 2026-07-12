@@ -1,0 +1,135 @@
+schema_version: 1
+report_type: agentlab_trusted_live_runner_status
+root: .
+request_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
+request_id: trusted_live_20260712_0505_writer_contract_v1
+status: pending
+items:
+- id: run_crown_internal_writer_eval
+  expected_type: narrative_live_smoke
+  status: pass
+  required_files:
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/fiction_draft.md
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/continuity_ledger.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/state_transition_proposal.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/narrative_delivery_receipt.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/outbound_context_manifest_writer.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer/writer_output_contract.yml
+  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/longform_eval_report.yml
+  missing: []
+  required_files_exist: true
+  returned_candidate_artifacts_accepted: true
+  acceptance_blocker: none
+  command: ./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707
+    --mode live --chapters 1 --timestamp trusted_live_20260712_0505_writer_contract_v1_writer
+    --writer-worker agy
+  artifact_qc:
+    type: narrative_live_smoke
+    status: pass
+    checks:
+    - id: fiction_draft_substantive
+      status: pass
+      message: fiction draft contains chapter-scale substantive text
+      chars: 2284
+      minimum_chars: 1200
+    - id: fiction_draft_multiline_chapter
+      status: pass
+      message: fiction draft has multiple non-empty chapter lines
+      nonblank_lines: 51
+      minimum_nonblank_lines: 8
+    - id: fiction_draft_not_placeholder
+      status: pass
+      message: fiction draft is not placeholder text
+    - id: delivery_receipt_passed
+      status: pass
+      message: narrative delivery receipt passed
+      receipt_status: pass
+    - id: state_transition_candidate_only
+      status: pass
+      message: state transition proposal remains candidate-only and requires promotion
+      proposal_status: candidate
+    - id: state_transition_events_present
+      status: pass
+      message: state transition proposal records proposed events
+    - id: continuity_timeline_monotonic
+      status: pass
+      message: continuity ledger records a monotonic timeline
+      monotonic: true
+    - id: longform_eval_passed
+      status: pass
+      message: formal current-run longform evaluation layers passed
+      eval_status: warn
+      historical_warning_only: true
+    - id: longform_eval_matches_run_dir
+      status: pass
+      message: formal longform evaluation report references the returned narrative
+        run directory
+      expected_run_dir: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer
+      reported_run_dirs:
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260712_0505_writer_contract_v1_writer
+    - id: outbound_context_manifest_passed
+      status: pass
+      message: provider-bound context manifest passed before execution
+      manifest_status: pass
+    - id: outbound_context_role_matches
+      status: pass
+      message: outbound context manifest belongs to the expected AgentLab role
+      manifest_role: Writer
+      expected_role: Writer
+    - id: outbound_context_exact_and_sealed
+      status: pass
+      message: provider-bound context was sealed and exact-payload hashed
+    - id: outbound_context_secret_scan_clean
+      status: pass
+      message: provider-bound context contains no recognized secret pattern
+      secret_pattern_hit_count: 0
+    - id: outbound_context_digest_present
+      status: pass
+      message: provider-bound context has a non-empty SHA-256 digest
+    - id: outbound_context_approval_satisfied
+      status: pass
+      message: explicit approval was observed whenever this run required it
+      approval_required: true
+      approval_observed: true
+    - id: writer_output_contract_passed
+      status: pass
+      message: Writer returned and materialized every required candidate output without
+        harness-authored story state
+      writer_contract_status: pass
+- id: run_crown_internal_media_smoke
+  expected_type: media_live_smoke
+  status: pending
+  required_files:
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/outbound_context_manifest_media.yml
+  missing:
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/outbound_context_manifest_media.yml
+  required_files_exist: false
+  returned_candidate_artifacts_accepted: false
+  acceptance_blocker: missing_required_files
+  command: ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out-dir projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media
+    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_probe_crown_comic_video_poster_series_scaffold_20260707
+  pending_reason: missing_candidate_artifacts
+  evidence_interpretation: The trusted runner has not returned all required candidate
+    artifacts.
+  next_action: run_trusted_live_command_and_collect_required_artifacts
+missing_items:
+- id: run_crown_internal_media_smoke
+  missing:
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_trusted_live_20260712_0505_writer_contract_v1_media/outbound_context_manifest_media.yml
+stale_items: []
+artifact_qc_failures: []
+issues: []
+notes:
+- This status check does not execute live commands.
+- pending means the trusted runner has not yet returned all expected candidate artifacts.
+- stale_items means older failure evidence no longer matches the current backend command
+  contract or session health.
+- artifact_qc_failures means files returned, but local structural QC rejected the
+  candidate.

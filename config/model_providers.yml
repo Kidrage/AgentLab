@@ -1,13 +1,13 @@
 version: 2
 
 # ─── AgentLab Model Provider Registry ─────────────────────────────────────
-# 分层架构 (Model Tier Architecture) v2.0:
+# 分层架构 (Model Tier Architecture) v3.0:
 #
-#   T1 大脑层 (Brain)       — deepseek-v4-pro / qwen3.7-max
-#   T2 感知层 (Perception)   — qwen3.7-max / qwen3.6-plus / qwen3.6-flash
-#   T3 执行层 (Execution)    — external_ide_ai / qwen3-coder-next / local_llm
-#   T4 审核层 (Audit)        — qwen3.6-plus / qwen3.6-flash
-#   T5 归档层 (Archive)      — qwen3.6-flash
+#   Agent backend 选择由 config/agent_model_profiles.yml 负责。
+#   full_cli 默认大脑层 Supervisor — Hermes Codex OAuth / gpt-5.5-high
+#   full_cli 默认写作与非代码产出 — Agy Gemini OAuth / gemini-3.5-flash-high
+#   Gemini API key 路径 — gemini-2.5-flash-high，仅显式 fallback，不默认启用
+#   direct API 模式 — 使用本文件 provider defaults 与 model_catalog facts
 #
 #  预算模式 (Budget Modes) — 用户可选:
 #    🧠 brain_allocated (默认) — Supervisor 根据 L1/L2/L3 项目体量智能分配
@@ -15,8 +15,6 @@ version: 2
 #    💰 frugal                — 最低成本，flash+跳过非必要 agent
 #
 #  本地算力: Frugal 模式下优先使用本地 LLM (Ollama/vLLM)
-#  DeepSeek 75%折扣 2026-05-31 到期 → 价格大幅调整，策略重评估
-#
 #  外部IDE窗口: external_ide_ai 只是可选 provider 事实。
 #  Coder 默认后端由 config/agent_model_profiles.yml 决定。
 #  需要外部 IDE 接管时，选择 hybrid_ide mode 或显式激活 handoff。
@@ -195,6 +193,78 @@ providers:
       - 需要用户提供 QWEN_TOKEN_PLAN_API_KEY。
       - 需要用户提供 QWEN_TOKEN_PLAN_BASE_URL；不要猜测或硬编码未知 endpoint。
       - fallback_provider 指向普通 DashScope qwen，仅在用户明确同意时使用。
+
+  # ── Hermes Codex OAuth Provider ────────────────────────────────────
+  openai-codex:
+    type: oauth_cli
+    display_name: Hermes Codex OAuth
+    command: hermes
+    base_url: https://chatgpt.com/backend-api/codex
+    default_model: gpt-5.5
+    reasoning_effort: high
+    auth: local_hermes_oauth_session
+    billing:
+      source: codex_oauth
+      metering: subscription_or_oauth_quota
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_cli
+      - oauth_session_expired
+      - provider_error
+    notes:
+      - Runtime provider key matches Hermes' registered openai-codex OAuth provider.
+      - This is not the Codex CLI worker.
+      - Invoke through Hermes as: hermes --provider openai-codex -m gpt-5.5.
+      - The high setting is agent.reasoning_effort, not part of the model slug.
+
+  # ── Agy / Antigravity Gemini OAuth 默认入口 ───────────────────────
+  agy-gemini-oauth:
+    type: oauth_cli
+    display_name: Agy Gemini OAuth
+    command: agy
+    default_model: gemini-3.5-flash-high
+    auth: local_oauth_session
+    billing:
+      source: agy_oauth
+      metering: subscription_or_oauth_quota
+    network:
+      requires_supported_region: true
+      recommended_regions:
+        - US
+      vpn_or_proxy_required_when_region_blocked: true
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_cli
+      - oauth_session_expired
+      - region_blocked
+      - provider_error
+    notes:
+      - AgentLab 默认 Gemini 路径。Agy 接 Gemini 模型，走本地 OAuth 认证。
+      - 不读取 GEMINI_API_KEY，不按本地 Gemini API key 计费。
+      - 默认模型为 gemini-3.5-flash-high。
+
+  # ── Gemini API 免费额度备用入口 ──────────────────────────────────
+  gemini-api:
+    type: google_genai_api
+    display_name: Gemini API Free Tier
+    api_key: env:GEMINI_API_KEY
+    default_model: gemini-2.5-flash-high
+    billing:
+      source: gemini_api_key
+      metering: free_tier_limited
+    never_default: true
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_api_key
+      - quota_exceeded
+      - rate_limited
+      - provider_error
+    notes:
+      - 本地 Gemini API key 通道，只作为显式启用的备用路径。
+      - 免费 API 有次数/额度限制，不能作为默认 Gemini 路径。
 
   # ── 保留扩展 ──────────────────────────────────────────────────────
   openai:

@@ -24,6 +24,7 @@ AGENTLAB_ROLES = [
     "PromptEngineer",
     "Coder",
     "ArtifactProducer",
+    "Writer",
     "TesterAuditor",
     "Verifier",
     "Archivist",
@@ -275,7 +276,7 @@ def check_role_binding(root: Path, worker: str, role: str) -> tuple[bool, str]:
         return False, f"worker '{worker}' is not bound in config/agent_role_bindings.yml"
     if worker_cfg.get("frontdesk_capable") and not worker_cfg.get("worker_capable"):
         return False, f"worker '{worker}' is frontdesk-only and cannot execute AgentLab role '{canonical_role}'"
-    if canonical_role == "ArtifactProducer":
+    if canonical_role in {"ArtifactProducer", "Writer"}:
         if not ({"candidate_artifact_worker", "role_worker"} & capabilities):
             return False, f"worker '{worker}' lacks candidate_artifact_worker or role_worker capability"
     elif "role_worker" not in capabilities:
@@ -349,6 +350,7 @@ def build_frontdesk_context(
     frontdesk_policy = _load_policy(root, "frontdesk_policy.yml")
     bindings = _load_policy(root, "agent_role_bindings.yml")
     worker_cfg = ((bindings.get("workers") or {}).get(agent_id) or {})
+    default_frontdesk = frontdesk_policy.get("default_frontdesk") or {}
     entry = build_workspace_entry(root, agent_id, project=project, task_id=task_id)
     content_policy = _load_policy(root, "content_project_governance.yml")
     return {
@@ -358,6 +360,9 @@ def build_frontdesk_context(
         "frontdesk_capable": bool(worker_cfg.get("frontdesk_capable")),
         "worker_capabilities": worker_capabilities(worker_cfg),
         "frontdesk_profile": (worker_cfg.get("frontdesk_profiles") or ["unbound"])[0],
+        "default_frontdesk": default_frontdesk,
+        "is_default_frontdesk": agent_id == default_frontdesk.get("agent_id"),
+        "execution_paths": frontdesk_policy.get("execution_paths") or {},
         "role": "AgentLab Frontdesk / Chat Assistant Layer",
         "meaning": "Talk with the user, translate intent into AgentLab operations, and report grounded state.",
         "allowed_actions": frontdesk_policy.get("allowed_actions") or [],

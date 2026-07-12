@@ -1,0 +1,734 @@
+schema_version: 1
+policy_id: cli_workflow_shells
+summary: >
+  Local CLI agents can provide reusable workflow orchestration, tool routing,
+  MCP integration, skills/plugins, sessions, and background execution. AgentLab
+  absorbs those workflow-shell capabilities through bounded role-session
+  contracts instead of rebuilding equivalent scaffolding as AgentLab-specific
+  code.
+
+mode_policy:
+  full_cli:
+    primary_governance_object: cli_shell_capability_and_delivery
+    rule: >
+      Govern each selected CLI shell's native workflow capability, delivery
+      receipt, tool boundary, and efficiency gain. Do not rebuild a parallel
+      AgentLab workflow shell when the CLI shell already provides one.
+    onboarding_required_before_use: true
+    shell_capability_audit_required: true
+    own_workflow_shell_scaffold: false
+  full_api:
+    primary_governance_object: agentlab_internal_work_shell
+    rule: >
+      Direct API models do not bring a mature local CLI workflow shell, so
+      AgentLab must provide task packet execution, tool routing, memory
+      discipline, validation, and receipt collection itself.
+    onboarding_required_before_use: false
+    shell_capability_audit_required: false
+    own_workflow_shell_scaffold: true
+  hybrid_ide:
+    primary_governance_object: external_ide_handoff_and_evidence
+    rule: >
+      External IDE agents are governed as handoff surfaces unless they are
+      explicitly promoted into a CLI workflow shell registry entry.
+
+boundary:
+  agentlab_owns:
+    - mission_contract
+    - route_decision
+    - role_session_packet
+    - project_memory
+    - validation_gates
+    - acceptance_receipts
+    - promotion_policy
+  workflow_shell_owns:
+    - intra_role_workflow_orchestration
+    - cli_native_tool_routing
+    - local_session_management
+    - provider_fallback_inside_invocation
+    - structured_role_output
+  shells_do_not_create_agentlab_roles: true
+  shells_must_return_agentlab_receipts: true
+  shell_state_is_not_project_memory: true
+  background_work_requires_status_receipt: true
+  mcp_or_plugin_changes_require_explicit_approval: true
+
+shell_onboarding_audit:
+  required_before_first_role_assignment: true
+  required_fields:
+    - command
+    - evidence_source
+    - native_command_surface
+    - common_capabilities
+    - unique_capabilities
+    - efficiency_gains
+    - delivery_contract
+    - risk_controls
+    - allowed_roles
+  compares:
+    - common_capabilities_across_shells
+    - unique_shell_advantages
+    - efficiency_gain_over_agentlab_native_scaffold
+    - delivery_receipt_reliability
+    - role_boundary_risk
+  outputs:
+    - cli_shell_capability_audit.yml
+    - shell_delivery_contract.yml
+    - shell_risk_register.yml
+
+native_command_surface_policy:
+  goal: >
+    Treat local CLI shells as governed worker runtimes with their own command
+    surfaces, not just as text model providers. AgentLab may use shell-native
+    subagents, background work, boards, sessions, skills, MCP, tools, projects,
+    and dashboards only after those surfaces are inventoried and tied to
+    AgentLab receipts.
+  command_inventory_required_before_full_use: true
+  unregistered_native_commands_are_not_available_to_agentlab: true
+  same_backend_multi_role_policy: >
+    When multiple AgentLab workers point at the same workflow shell backend,
+    AgentLab should prefer one bounded shell role-session that delegates through
+    shell-native subagents or boards, but only if every delegated AgentLab role
+    returns a separate receipt and validation evidence. Otherwise AgentLab must
+    keep role sessions separate.
+  shell_native_state_is_operational_state_only: true
+  agentlab_memory_remains_authoritative: true
+  required_surfaces:
+    - native_subagents_or_background_agents
+    - task_board_or_kanban
+    - sessions_or_checkpoints
+    - tools_mcp_skills_plugins
+    - structured_output_or_receipts
+    - diagnostics_logs_status
+  outputs:
+    - cli_shell_native_command_inventory.yml
+    - shell_subagent_delegation_receipt.yml
+    - shell_board_sync_receipt.yml
+    - shell_command_surface_risk_register.yml
+
+capability_families:
+  one_shot_role_execution:
+    purpose: Run one bounded AgentLab task packet and return a parseable role receipt.
+    required_agentlab_controls:
+      - role_session_packet
+      - allowed_role_binding
+      - output_receipt
+  session_and_checkpoint_reuse:
+    purpose: Reuse local session or checkpoint features without making shell state authoritative.
+    required_agentlab_controls:
+      - session_id_recorded
+      - shell_state_not_project_memory
+  tool_and_mcp_governance:
+    purpose: Let the shell route approved tools and MCP servers for the assigned role.
+    required_agentlab_controls:
+      - tool_scope_declared
+      - mcp_changes_approval
+      - no_secret_rendering
+  skills_plugins_and_bundles:
+    purpose: Reuse shell-native skills/plugins/bundles as implementation aids.
+    required_agentlab_controls:
+      - skill_or_plugin_source_recorded
+      - result_evidence_required
+  worktree_or_background_execution:
+    purpose: Use shell-native isolated worktrees or background agents when the role needs parallel work.
+    required_agentlab_controls:
+      - workspace_scope_recorded
+      - background_status_receipt
+      - no_unreviewed_merge
+  native_command_surface_inventory:
+    purpose: Inventory shell-native commands before using them as AgentLab workflow primitives.
+    required_agentlab_controls:
+      - command_surface_evidence_recorded
+      - unregistered_native_commands_not_used
+      - shell_command_surface_risk_register
+  native_subagent_orchestration:
+    purpose: Use shell-native subagents or background agents inside one bounded AgentLab role-session.
+    required_agentlab_controls:
+      - one_agentlab_receipt_per_delegated_role
+      - shell_subagent_outputs_return_to_agentlab_artifacts
+      - shell_state_not_project_memory
+  collaboration_board_governance:
+    purpose: Use shell-native boards such as kanban only as operational coordination state.
+    required_agentlab_controls:
+      - board_sync_receipt
+      - board_state_not_project_memory
+      - agentlab_lifecycle_remains_authoritative
+  structured_output_and_qc:
+    purpose: Request JSON, stream-json, schemas, or named receipt files for deterministic collection.
+    required_agentlab_controls:
+      - receipt_schema
+      - local_qc_before_acceptance
+  model_auth_and_fallback_governance:
+    purpose: Use CLI-native model selection, OAuth/API auth, fallback, and health checks.
+    required_agentlab_controls:
+      - model_fact_source_recorded
+      - auth_status_no_secret_values
+      - fallback_reason_recorded
+  permission_and_sandbox_control:
+    purpose: Use CLI-native permission, sandbox, allow/deny tool, and yolo/skip controls safely.
+    required_agentlab_controls:
+      - dangerous_modes_are_not_default
+      - role_scope_limits_tools
+      - approval_policy_recorded
+  workspace_context_control:
+    purpose: Use CLI-native cwd/add-dir/worktree/context flags instead of rebuilding context loaders.
+    required_agentlab_controls:
+      - workspace_scope_recorded
+      - no_unreviewed_production_write
+  specialized_media_generation_shell:
+    purpose: Use media-capable CLI shells for image/video/audio generation or handoff.
+    required_agentlab_controls:
+      - generated_assets_required
+      - media_qc_report_required
+      - production_promotion_blocked_until_acceptance
+
+shells:
+  hermes:
+    worker_id: hermes
+    command: hermes
+    agentlab_scope: role_session_workflow_shell
+    default_invocation_contract: hermes
+    evidence_source:
+      - hermes --help
+      - hermes tools --help
+      - hermes skills --help
+      - hermes mcp --help
+      - config/worker_invocation_contracts.yml
+    native_command_surface:
+      inventory_status: registered_from_local_help
+      discovered_from:
+        - hermes --help
+      registered_surfaces:
+        - one_shot
+        - model_and_fallback
+        - tools_and_mcp
+        - skills_plugins_bundles
+        - sessions_memory_checkpoints
+        - native_collaboration_surface
+        - native_gateway_and_protocol_surface
+        - diagnostics_and_hooks
+        - media_backend_shell
+      native_subagent_surface: not_declared_by_help
+      board_surface: hermes kanban
+      operational_state_only: true
+    command_families:
+      one_shot:
+        examples:
+          - hermes -z <prompt>
+          - hermes --provider <provider> -m <model> -z <prompt>
+        agentlab_use: bounded role-session execution with a task packet
+      model_and_fallback:
+        examples:
+          - hermes model
+          - hermes fallback list
+          - hermes auth list
+        agentlab_use: provider selection, fallback, and OAuth/session diagnostics
+      tools_and_mcp:
+        examples:
+          - hermes tools list
+          - hermes mcp list
+          - hermes mcp test
+          - hermes mcp serve
+        agentlab_use: approved tool routing and MCP-backed workflows
+      skills_plugins_bundles:
+        examples:
+          - hermes skills list
+          - hermes skills inspect
+          - hermes bundles list
+          - hermes plugins list
+        agentlab_use: reuse existing local skills without copying them into AgentLab
+      sessions_memory_checkpoints:
+        examples:
+          - hermes sessions list
+          - hermes memory
+          - hermes checkpoints
+        agentlab_use: shell-local continuity only; AgentLab memory remains canonical
+      native_collaboration_surface:
+        examples:
+          - hermes kanban
+          - hermes dashboard
+          - hermes insights
+        agentlab_use: operational board/status surfaces only; must sync back into AgentLab receipts
+      native_gateway_and_protocol_surface:
+        examples:
+          - hermes gateway
+          - hermes proxy
+          - hermes acp
+        agentlab_use: approved integration/runtime surfaces, not project truth sources
+      diagnostics_and_hooks:
+        examples:
+          - hermes doctor
+          - hermes status
+          - hermes logs
+          - hermes hooks
+        agentlab_use: health, observability, and preflight diagnostics
+      media_backend_shell:
+        examples:
+          - hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z <prompt>
+        agentlab_use: Grok OAuth media backend shell behind ArtifactProducer/grok
+    allowed_roles:
+      - Supervisor
+      - Researcher
+      - PromptEngineer
+      - Coder
+      - TesterAuditor
+      - Verifier
+      - Archivist
+    forbidden_as:
+      - frontdesk
+      - project_memory_source
+      - production_promotion_gate
+    required_outputs:
+      - role_session_receipt.yml
+      - tool_or_mcp_usage_ledger.yml
+      - artifact_manifest_or_findings.yml
+    common_capabilities:
+      - one_shot_role_execution
+      - model_auth_and_fallback_governance
+      - tool_and_mcp_governance
+      - skills_plugins_and_bundles
+      - session_and_checkpoint_reuse
+      - structured_output_and_qc
+      - native_command_surface_inventory
+      - collaboration_board_governance
+    unique_capabilities:
+      - broad platform integrations and gateways
+      - skill bundle lifecycle and curator/audit commands
+      - MCP server/client surface plus local proxy and hooks
+      - kanban/dashboard/insights operational coordination surfaces
+      - existing xAI OAuth shell path for Grok media backend
+    efficiency_gains:
+      - avoids rebuilding skills/plugins/MCP/session/hook orchestration inside AgentLab
+      - lets Supervisor/Verifier-style roles use established Hermes workflow machinery
+      - reuses existing OAuth/provider routing for media handoff
+    delivery_contract:
+      required_receipts:
+        - role_session_receipt.yml
+        - tool_or_mcp_usage_ledger.yml
+        - artifact_manifest_or_findings.yml
+      shell_state_counts_as_memory: false
+    risk_controls:
+      - ignore-rules or yolo-style modes require explicit contract justification
+      - MCP/plugin changes require approval
+      - shell output must be converted to AgentLab receipts before acceptance
+
+  claude_code:
+    worker_id: claude_code
+    command: claude
+    agentlab_scope: role_session_workflow_shell
+    default_invocation_contract: claude
+    evidence_source:
+      - claude --help
+      - claude agents --help
+      - claude mcp --help
+      - config/worker_invocation_contracts.yml
+    native_command_surface:
+      inventory_status: registered_from_local_help
+      discovered_from:
+        - claude --help
+      registered_surfaces:
+        - print_mode
+        - tool_permissions
+        - agents_and_background
+        - project_and_review
+        - worktree_and_context
+        - mcp_plugins_settings
+        - model_fallback
+      native_subagent_surface: claude agents / --agent / --agents / --background
+      board_surface: not_declared_by_help
+      operational_state_only: true
+    command_families:
+      print_mode:
+        examples:
+          - claude -p <prompt>
+          - claude --output-format json -p <prompt>
+          - claude --json-schema <schema> -p <prompt>
+        agentlab_use: deterministic role-session output and receipt collection
+      tool_permissions:
+        examples:
+          - claude --allowedTools <tools>
+          - claude --disallowedTools <tools>
+          - claude --permission-mode <mode>
+        agentlab_use: bound code/file/tool access to the role packet
+      agents_and_background:
+        examples:
+          - claude agents --json
+          - claude --background
+          - claude --agent <agent>
+          - claude --agents <json>
+        agentlab_use: CLI-native delegated work inside one AgentLab role-session
+      project_and_review:
+        examples:
+          - claude project
+          - claude ultrareview
+          - claude --from-pr <value>
+        agentlab_use: project-state and cloud review surfaces under AgentLab evidence gates
+      worktree_and_context:
+        examples:
+          - claude --worktree
+          - claude --add-dir <directory>
+          - claude --resume <session>
+        agentlab_use: isolated repo execution and explicit context injection
+      mcp_plugins_settings:
+        examples:
+          - claude mcp list
+          - claude --mcp-config <config>
+          - claude --plugin-dir <path>
+          - claude --settings <file-or-json>
+        agentlab_use: reuse configured integrations under explicit role scope
+      model_fallback:
+        examples:
+          - claude --model <model>
+          - claude --fallback-model <model>
+          - claude --effort <level>
+        agentlab_use: role-local model and effort selection
+    allowed_roles:
+      - Supervisor
+      - RepoScout
+      - Researcher
+      - InterfaceMapper
+      - PromptEngineer
+      - Coder
+      - Writer
+      - Reviewer
+      - Scribe
+      - TesterAuditor
+      - Verifier
+      - Archivist
+    forbidden_as:
+      - frontdesk
+      - project_memory_source
+      - production_promotion_gate
+    required_outputs:
+      - role_session_receipt.yml
+      - changed_files_or_findings.yml
+      - validation_evidence.yml
+    common_capabilities:
+      - one_shot_role_execution
+      - tool_and_mcp_governance
+      - skills_plugins_and_bundles
+      - worktree_or_background_execution
+      - permission_and_sandbox_control
+      - structured_output_and_qc
+      - native_command_surface_inventory
+      - native_subagent_orchestration
+    unique_capabilities:
+      - background agents and custom inline agents
+      - explicit tool allow/deny and permission-mode controls
+      - structured JSON/schema output in print mode
+      - worktree and context directory support for repo work
+    efficiency_gains:
+      - avoids rebuilding multi-agent code work orchestration
+      - provides mature repo tool permissions and output schemas
+      - supports background/code review style workflows with status collection
+    delivery_contract:
+      required_receipts:
+        - role_session_receipt.yml
+        - changed_files_or_findings.yml
+        - validation_evidence.yml
+      shell_state_counts_as_memory: false
+    risk_controls:
+      - dangerous permission skip is never default
+      - worktree/background results require AgentLab review before merge
+      - MCP/plugin/settings changes require explicit scope
+
+  agy:
+    worker_id: agy
+    command: agy
+    agentlab_scope: frontdesk_or_role_session_workflow_shell
+    default_invocation_contract: agy_coder
+    evidence_source:
+      - agy --help
+      - config/worker_invocation_contracts.yml
+    native_command_surface:
+      inventory_status: partial_registered
+      discovered_from:
+        - agy --help
+      registered_surfaces:
+        - print_mode
+        - plugins_and_models
+        - workspace_context
+      native_subagent_surface: not_registered
+      board_surface: not_registered
+      operational_state_only: true
+    command_families:
+      print_mode:
+        examples:
+          - agy --sandbox -p <prompt>
+          - agy --print <prompt>
+        agentlab_use: Gemini OAuth role/session execution and frontdesk packet handling
+      plugins_and_models:
+        examples:
+          - agy models
+          - agy plugin list
+        agentlab_use: local Gemini OAuth model/session capability and plugin discovery
+      workspace_context:
+        examples:
+          - agy --add-dir <dir>
+          - agy --project <project>
+          - agy --conversation <id>
+        agentlab_use: project-scoped context without rebuilding context injection
+    allowed_roles:
+      - RepoScout
+      - InterfaceMapper
+      - ArtifactProducer
+      - Archivist
+      - Writer
+    forbidden_as:
+      - production_promotion_gate
+      - project_memory_source
+    required_outputs:
+      - role_session_receipt.yml
+      - generated_or_changed_artifacts.yml
+    common_capabilities:
+      - one_shot_role_execution
+      - session_and_checkpoint_reuse
+      - skills_plugins_and_bundles
+      - workspace_context_control
+      - permission_and_sandbox_control
+    unique_capabilities:
+      - default Gemini OAuth path for full_cli Writer/frontdesk work
+      - sandbox flag suited to role-session isolation
+      - project/conversation flags for local continuity
+    efficiency_gains:
+      - avoids rebuilding Gemini OAuth CLI session handling
+      - supports fast Writer/RepoScout-style role execution through existing local auth
+    delivery_contract:
+      required_receipts:
+        - role_session_receipt.yml
+        - generated_or_changed_artifacts.yml
+      shell_state_counts_as_memory: false
+    risk_controls:
+      - Gemini API-key fallback must be explicit and not default
+      - private project context requires role-session acceptance gate
+
+  codex:
+    worker_id: codex
+    command: codex
+    agentlab_scope: frontdesk_or_role_session_workflow_shell
+    default_invocation_contract: codex
+    evidence_source:
+      - codex --help
+      - config/worker_invocation_contracts.yml
+    native_command_surface:
+      inventory_status: partial_registered
+      discovered_from:
+        - codex --help
+      registered_surfaces:
+        - exec_and_review
+        - mcp_plugins_sandbox
+        - sessions_and_cloud
+      native_subagent_surface: not_registered
+      board_surface: not_registered
+      operational_state_only: true
+    command_families:
+      exec_and_review:
+        examples:
+          - codex exec <prompt>
+          - codex review
+        agentlab_use: code/task execution and review when Codex is selected as a role worker
+      mcp_plugins_sandbox:
+        examples:
+          - codex mcp
+          - codex plugin
+          - codex sandbox
+        agentlab_use: MCP/plugin/sandbox reuse under AgentLab role boundaries
+      sessions_and_cloud:
+        examples:
+          - codex resume
+          - codex cloud
+        agentlab_use: session continuity and cloud-task observation when explicitly scoped
+    allowed_roles:
+      - RepoScout
+      - InterfaceMapper
+      - Coder
+      - ArtifactProducer
+      - Scribe
+      - TesterAuditor
+      - Verifier
+    forbidden_as:
+      - Writer
+      - Supervisor
+      - production_promotion_gate
+    required_outputs:
+      - role_session_receipt.yml
+      - changed_files_or_findings.yml
+      - validation_evidence.yml
+    common_capabilities:
+      - one_shot_role_execution
+      - tool_and_mcp_governance
+      - skills_plugins_and_bundles
+      - permission_and_sandbox_control
+      - workspace_context_control
+      - structured_output_and_qc
+    unique_capabilities:
+      - native sandbox and approval policy surface
+      - code review and apply-oriented commands
+      - MCP server and desktop/app-server bridge surfaces
+    efficiency_gains:
+      - avoids rebuilding code-review/sandbox execution scaffolds
+      - useful as deterministic-ish role worker where existing Codex tooling fits
+    delivery_contract:
+      required_receipts:
+        - role_session_receipt.yml
+        - changed_files_or_findings.yml
+        - validation_evidence.yml
+      shell_state_counts_as_memory: false
+    risk_controls:
+      - external Codex worker must not claim role output without role-session receipt
+      - dangerous sandbox bypass is never default
+
+  qwen:
+    worker_id: qwen
+    command: qwen
+    agentlab_scope: role_session_workflow_shell
+    default_invocation_contract: qwen
+    evidence_source:
+      - qwen --help
+      - config/worker_invocation_contracts.yml
+    native_command_surface:
+      inventory_status: partial_registered
+      discovered_from:
+        - qwen --help
+      registered_surfaces:
+        - headless_and_schema
+        - mcp_extensions_hooks
+        - budgets_sessions_worktree
+      native_subagent_surface: not_registered
+      board_surface: not_registered
+      operational_state_only: true
+    command_families:
+      headless_and_schema:
+        examples:
+          - qwen --bare --output-format json <prompt>
+          - qwen --json-schema @schema.json <prompt>
+        agentlab_use: structured role receipts and analysis output
+      mcp_extensions_hooks:
+        examples:
+          - qwen mcp
+          - qwen extensions list
+          - qwen hooks
+        agentlab_use: shell-native integrations without rebuilding integration managers
+      budgets_sessions_worktree:
+        examples:
+          - qwen --max-wall-time 5m
+          - qwen --max-tool-calls 50
+          - qwen --worktree <slug>
+          - qwen sessions
+        agentlab_use: bounded unattended runs and isolated repo work
+    allowed_roles:
+      - Supervisor
+      - Researcher
+      - PromptEngineer
+      - ArtifactProducer
+      - Writer
+      - Reviewer
+      - Scribe
+    forbidden_as:
+      - production_promotion_gate
+      - project_memory_source
+    required_outputs:
+      - role_session_receipt.yml
+      - structured_findings_or_artifacts.yml
+    common_capabilities:
+      - one_shot_role_execution
+      - tool_and_mcp_governance
+      - skills_plugins_and_bundles
+      - worktree_or_background_execution
+      - permission_and_sandbox_control
+      - structured_output_and_qc
+    unique_capabilities:
+      - built-in wall-time and tool-call budgets for unattended runs
+      - JSON schema structured output in headless mode
+      - extensions/hooks/review helper surfaces
+    efficiency_gains:
+      - avoids rebuilding run-budget controls and structured-output wrappers
+      - useful for bounded review/research/writer support roles
+    delivery_contract:
+      required_receipts:
+        - role_session_receipt.yml
+        - structured_findings_or_artifacts.yml
+      shell_state_counts_as_memory: false
+    risk_controls:
+      - yolo/auto modes are not default
+      - telemetry/prompt logging must remain governed by local config
+
+  grok:
+    worker_id: grok
+    command: grok
+    agentlab_scope: media_artifact_workflow_shell
+    default_invocation_contract: grok
+    evidence_source:
+      - grok --help
+      - config/worker_invocation_contracts.yml
+      - config/media_generation_backends.yml
+    native_command_surface:
+      inventory_status: partial_registered
+      discovered_from:
+        - grok --help
+      registered_surfaces:
+        - media_and_agent
+        - permissions_memory_mcp
+        - worktree_sessions_plugins
+      native_subagent_surface: grok agent
+      board_surface: not_registered
+      operational_state_only: true
+    command_families:
+      media_and_agent:
+        examples:
+          - grok -p <prompt> --output-format plain
+          - grok agent <prompt>
+          - grok --best-of-n <n>
+          - grok --check
+        agentlab_use: ArtifactProducer-only media generation or media handoff
+      permissions_memory_mcp:
+        examples:
+          - grok --allow <rule>
+          - grok --deny <rule>
+          - grok mcp
+          - grok memory
+        agentlab_use: bounded media worker execution and session diagnostics
+      worktree_sessions_plugins:
+        examples:
+          - grok --worktree <name>
+          - grok sessions
+          - grok plugin
+        agentlab_use: shell-native task isolation when explicitly scoped
+    allowed_roles:
+      - ArtifactProducer
+    forbidden_as:
+      - Writer
+      - Coder
+      - Supervisor
+      - frontdesk
+      - project_memory_source
+      - production_promotion_gate
+    required_outputs:
+      - role_session_receipt.yml
+      - generation_ledger.yml
+      - media_qc_report.yml
+      - generated_assets
+    common_capabilities:
+      - one_shot_role_execution
+      - tool_and_mcp_governance
+      - permission_and_sandbox_control
+      - structured_output_and_qc
+      - specialized_media_generation_shell
+    unique_capabilities:
+      - media-oriented Grok Build shell with OAuth login/session support
+      - best-of-n and self-check headless controls
+      - generated asset return can be governed by AgentLab marker contract
+    efficiency_gains:
+      - avoids rebuilding media generation shell semantics inside AgentLab
+      - concentrates media live smoke around returned assets and QC rather than prompt plumbing
+    delivery_contract:
+      required_receipts:
+        - role_session_receipt.yml
+        - generation_ledger.yml
+        - media_qc_report.yml
+        - generated_assets
+      shell_state_counts_as_memory: false
+    risk_controls:
+      - text handoff is not accepted as media artifact
+      - generated assets must exist under trusted out_dir
+      - direct API key path remains explicit fallback only

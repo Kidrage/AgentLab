@@ -40,11 +40,11 @@ agents:
     command: codex
     project_dir: .codex
     entrypoint_file: AGENTLAB_ENTRYPOINT.md
-    default_profile: frontdesk_or_worker
-    wrapper_kind: both
+    entrypoint_required: false
+    default_profile: worker
+    wrapper_kind: role
     auto_read_confidence: unknown
     invocation:
-      frontdesk: codex exec "$AGENTLAB_SESSION_TEXT"
       role: codex exec "$AGENTLAB_SESSION_TEXT"
   qwen:
     enabled: true
@@ -72,10 +72,12 @@ agents:
     command: hermes
     project_dir: .hermes
     entrypoint_file: AGENTLAB_ENTRYPOINT.md
-    default_profile: worker
-    wrapper_kind: role
+    entrypoint_required: false
+    default_profile: frontdesk_or_worker
+    wrapper_kind: both
     auto_read_confidence: unknown
     invocation:
+      frontdesk: hermes --provider deepseek -m deepseek-v4-pro -z "$AGENTLAB_SESSION_TEXT"
       role: hermes -z "$AGENTLAB_SESSION_TEXT"
 ignored_known_agents:
   bl: specialist_cloud_tool_not_entrypoint

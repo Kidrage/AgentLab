@@ -1,0 +1,116 @@
+schema_version: 1
+report_type: agentlab_production_pack_role_session_request
+status: ready_for_explicit_approval
+project: AgentLab
+source_task_id: task_production_pack_role_session_live_20260710
+target_task_id: task_production_pack_role_session_governed_20260710_01
+source_request_path: projects/AgentLab/runs/task_production_pack_role_session_live_20260710/user_request.md
+source_request_sha256: 1f1c8903c70e5cbde42bbe3e1c20145d7fed58f346d84cc0ad5929849112d6f4
+source_request_contents_rendered: false
+target_run_dir: projects/AgentLab/runs/task_production_pack_role_session_governed_20260710_01
+fresh_run_required: true
+provider_calls_executed: false
+role_chain:
+- Supervisor
+- Researcher
+- ArtifactProducer
+- Verifier
+role_surfaces:
+  Supervisor:
+    executor_type: cli_agent
+    worker: hermes
+    invocation_contract: hermes
+    model_key: codex_gpt_5_5_high_hermes_oauth
+    role_binding_allowed: true
+    role_binding_reason: role binding allowed
+    silent_fallback_allowed: false
+  Researcher:
+    executor_type: cli_agent
+    worker: claude_code
+    invocation_contract: claude
+    model_key: deepseek_v4_flash
+    role_binding_allowed: true
+    role_binding_reason: role binding allowed
+    silent_fallback_allowed: false
+  ArtifactProducer:
+    executor_type: cli_agent
+    worker: agy
+    invocation_contract: agy_coder
+    model_key: gemini_3_5_flash_high_agy_oauth
+    role_binding_allowed: true
+    role_binding_reason: role binding allowed
+    silent_fallback_allowed: false
+  Verifier:
+    executor_type: cli_agent
+    worker: hermes
+    invocation_contract: hermes
+    model_key: qwen3_6_flash_dashscope
+    role_binding_allowed: true
+    role_binding_reason: role binding allowed
+    silent_fallback_allowed: false
+route_preview:
+  route_key: media_generation_task
+  agents:
+  - Supervisor
+  - Researcher
+  - ArtifactProducer
+  - Verifier
+  production_pack_status: synthesis_candidate
+  production_pack_id: pack_synthesis_candidate
+  mission_compiler_source: rule_based
+approval:
+  required: true
+  env_name: AGENTLAB_PRODUCTION_PACK_CONTEXT_APPROVED
+  observed_during_request: false
+  scope: production_pack_four_role_minimal_context_only
+  env_value_rendered: false
+context_boundary:
+  packet_only: true
+  workspace_scan_allowed: false
+  workspace_mutation_allowed: false
+  exact_runtime_manifest_required_for_every_role: true
+  secret_pattern_gate_before_every_provider_call: true
+  silent_provider_fallback_allowed: false
+source_context_preflight:
+  status: pass
+  payload:
+    kind: production_pack_request_source_preview
+    bytes: 335
+    sha256: 1f1c8903c70e5cbde42bbe3e1c20145d7fed58f346d84cc0ad5929849112d6f4
+    secret_pattern_hit_count: 0
+    secret_pattern_names: []
+  source_inventory:
+    count: 1
+    required: true
+    content_rendered: false
+    files:
+    - path: projects/AgentLab/runs/task_production_pack_role_session_live_20260710/user_request.md
+      inside_agentlab_root: true
+      exists: true
+      is_symlink: false
+      forbidden_name: false
+      bytes: 335
+      sha256: 1f1c8903c70e5cbde42bbe3e1c20145d7fed58f346d84cc0ad5929849112d6f4
+  issues: []
+required_run_artifacts:
+- mission_contract.yml
+- workflow_plan.yml
+- 01_supervisor_plan.md
+- domain_research_brief.md
+- production_pack_research_contract.yml
+- production_pack_proposal.yml
+- domain_memory_contract.yml
+- lifecycle_profile.yml
+- production_pack_output_contract.yml
+- verification_report.md
+- production_pack_verification_receipt.yml
+- outbound_context_manifest_supervisor.yml
+- outbound_context_manifest_researcher.yml
+- outbound_context_manifest_artifactproducer.yml
+- outbound_context_manifest_verifier.yml
+candidate_only: true
+production_modified: false
+promotion_attempted: false
+runner_script: acceptance_runs/agentlab_capability_acceptance/production_pack_role_session_request.sh
+audit_report: acceptance_runs/agentlab_capability_acceptance/production_pack_role_session_request_audit.yml
+issues: []

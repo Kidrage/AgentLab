@@ -1,0 +1,21 @@
+schema_version: 1
+scope_id: code_and_longform_full_media_readiness_20260711
+status: active
+acceptance_modes:
+  code_project: full_acceptance
+  longform_narrative: full_live_acceptance
+  production_pack_synthesis: deterministic_scaffold_only
+  media_generation: readiness_only
+deferred_items:
+- id: production_pack_four_role_live_acceptance
+  reason: outside_current_goal
+  future_scope: production_pack_provider_role_session_acceptance
+- id: media_live_artifact_acceptance
+  reason: replace_black_box_media_production_with_visual_workflow
+  future_scope: comfyui_style_node_graph_generation_and_continuity_acceptance
+constraints:
+- code project acceptance must remain complete
+- Crown longform acceptance still requires returned Writer artifacts and local QC
+- media readiness must prove route, worker binding, OAuth CLI session, invocation contract,
+  backend preflight, and candidate-only promotion boundaries
+- media readiness must not claim generated-asset quality or continuity acceptance

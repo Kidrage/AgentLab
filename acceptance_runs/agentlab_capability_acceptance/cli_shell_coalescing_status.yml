@@ -1,0 +1,92 @@
+schema_version: 1
+report_type: agentlab_cli_shell_coalescing_status
+status: pass
+plan_path: acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_plan.yml
+plan_status: pass
+expected_packet_count: 2
+packet_count: 2
+accepted_packet_count: 2
+delegated_role_count: 4
+accepted_role_count: 4
+missing_returned_files_count: 0
+missing_returned_files: []
+stale_returned_files_count: 0
+stale_returned_files: []
+failure_count: 0
+failures: []
+packet_statuses:
+- packet_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/claude_code_full_cli_performance_coalesced_session.yml
+  backend: claude_code
+  coalescing_mode: native_subagents
+  status: pass
+  accepted: true
+  session_receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/shell_subagent_delegation_receipt.yml
+  delegated_role_count: 2
+  accepted_role_count: 2
+  missing: []
+  stale: []
+  failures: []
+  role_checks:
+  - role: Coder
+    status: pass
+    accepted: true
+    receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/coder_role_session_receipt.yml
+    validation_evidence_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/coder_validation_evidence.yml
+    missing: []
+    stale: []
+    failures: []
+  - role: Archivist
+    status: pass
+    accepted: true
+    receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/archivist_role_session_receipt.yml
+    validation_evidence_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/archivist_validation_evidence.yml
+    missing: []
+    stale: []
+    failures: []
+  provider_calls_executed_by_shell_session: true
+  source_packet_sha256: 478c2208ba49c167affac38a69489908b1d26cecafaeb22bdea058895bff85e6
+- packet_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/hermes_full_cli_performance_coalesced_session.yml
+  backend: hermes
+  coalescing_mode: board_mediated
+  status: pass
+  accepted: true
+  session_receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/shell_board_sync_receipt.yml
+  delegated_role_count: 2
+  accepted_role_count: 2
+  missing: []
+  stale: []
+  failures: []
+  role_checks:
+  - role: Supervisor
+    status: pass
+    accepted: true
+    receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/supervisor_role_session_receipt.yml
+    validation_evidence_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/supervisor_validation_evidence.yml
+    missing: []
+    stale: []
+    failures: []
+  - role: PromptEngineer
+    status: pass
+    accepted: true
+    receipt_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/promptengineer_role_session_receipt.yml
+    validation_evidence_path: acceptance_runs/agentlab_capability_acceptance/shell_sessions/role_receipts/promptengineer_validation_evidence.yml
+    missing: []
+    stale: []
+    failures: []
+  provider_calls_executed_by_shell_session: true
+  source_packet_sha256: 111e63561182231134ccbbbe740f9db107c590794e8e5eb6d10e0df82c20e09b
+secret_values_rendered: false
+provider_calls_executed: false
+returned_shell_sessions_provider_calls_executed: true
+acceptance_scope: synthetic_native_surface_smoke
+private_project_context_loaded: false
+acceptance_contract:
+  one_session_receipt_per_packet_required: true
+  one_role_receipt_per_delegated_role_required: true
+  validation_evidence_per_delegated_role_required: true
+  shell_state_counts_as_project_memory: false
+  production_promotion_allowed: false
+  synthetic_input_only: true
+  isolated_execution_workspace_required: true
+  project_read_tools_allowed: false
+next_action: none

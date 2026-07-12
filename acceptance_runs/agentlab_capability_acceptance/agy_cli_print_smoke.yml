@@ -1,0 +1,13 @@
+schema_version: 1
+report_type: agentlab_agy_cli_print_smoke
+created_at: '2026-07-07T14:38:00Z'
+status: pass
+command_shape: agy --log-file <tmp_log> -p <non_private_smoke_prompt>
+prompt_scope: non_private_smoke_only
+stdout_expected: AGY_PRINT_SMOKE_OK
+stdout_observed: AGY_PRINT_SMOKE_OK
+exit_code: 0
+secret_values_rendered: false
+notes:
+- This smoke did not send Crown project context.
+- It proves the local agy CLI print path can run when the host sandbox permits localhost binding.

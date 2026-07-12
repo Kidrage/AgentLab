@@ -71,7 +71,7 @@ DEFAULT_CANDIDATES = [
     },
     {
         "worker_id": "gemini",
-        "display_name": "Gemini CLI",
+        "display_name": "Gemini API CLI",
         "command": "gemini",
         "category": WorkerCategory.PLANNING_AGENT,
         "cost_tier": "medium",
@@ -92,7 +92,7 @@ DEFAULT_CANDIDATES = [
     },
     {
         "worker_id": "agy",
-        "display_name": "Antigravity CLI",
+        "display_name": "Antigravity CLI (Gemini OAuth)",
         "command": "agy",
         "category": WorkerCategory.FRONTDESK_AGENT,
         "cost_tier": "medium",

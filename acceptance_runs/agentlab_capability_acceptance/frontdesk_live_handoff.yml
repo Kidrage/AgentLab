@@ -1,0 +1,101 @@
+schema_version: 1
+report_type: agentlab_frontdesk_live_handoff
+root: .
+frontdesk_agent: hermes
+status: ready_for_agentlab_submission
+source_reports:
+  live_unblock_plan: acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml
+  frontdesk_policy: config/frontdesk_policy.yml
+boundary:
+  frontdesk_role: optional_submit_and_observe_only
+  canonical_frontdesk:
+    agent_id: hermes
+    invocation_contract: hermes
+    provider: deepseek
+    model_key: deepseek_v4_pro
+    model_id: deepseek-v4-pro
+  direct_closed_loop_supported: true
+  agentlab_owns_execution: true
+  sandbox_approval_is_external_runtime_boundary: true
+  current_live_items_are_internal_role_sessions: true
+items:
+- id: run_crown_internal_writer_eval
+  status: ready
+  frontdesk_action: submit_agentlab_role_session_and_monitor_artifacts
+  frontdesk_must_not:
+  - generate or edit the production content directly
+  - claim provider output without AgentLab role-session evidence
+  - promote generated candidates without the configured acceptance gate
+  agentlab_execution_owner: Writer
+  assigned_worker: agy
+  role_session_required: true
+  role_session_evidence: agentlab_role_session
+  operator_action_required: Submit the formal Crown single-chapter live eval as an
+    AgentLab Writer role-session and monitor run-local artifacts.
+  user_approval_required: false
+  agentlab_command: ./agentlab.sh narrative-eval run --project Crown_of_Ash --suite
+    crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp
+    <internal_live_run_id> --writer-worker agy
+  agentlab_command_after_approval: ./agentlab.sh narrative-eval run --project Crown_of_Ash
+    --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp
+    <internal_live_run_id> --writer-worker agy
+  observe_artifacts:
+  - acceptance_runs/narrative_eval/Crown_of_Ash/*/longform_eval_report.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_*/fiction_draft.md
+  - projects/Crown_of_Ash/runs/task_narrative_eval_*/narrative_delivery_receipt.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_*/live_generation_error.yml
+- id: run_crown_internal_media_smoke
+  status: ready
+  frontdesk_action: submit_agentlab_role_session_and_monitor_artifacts
+  frontdesk_must_not:
+  - generate or edit the production content directly
+  - claim provider output without AgentLab role-session evidence
+  - promote generated candidates without the configured acceptance gate
+  agentlab_execution_owner: ArtifactProducer
+  assigned_worker: grok
+  role_session_required: true
+  role_session_evidence: agentlab_role_session
+  operator_action_required: Submit the Crown media role-session acceptance smoke through
+    the AgentLab ArtifactProducer role-session and monitor run-local candidate artifacts.
+  user_approval_required: false
+  agentlab_command: ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out-dir projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_<id>
+    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_probe_crown_comic_video_poster_series_scaffold_20260707
+  agentlab_command_after_approval: ./agentlab.sh media-backend-execute --contract
+    projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out-dir projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_<id>
+    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_probe_crown_comic_video_poster_series_scaffold_20260707
+  observe_artifacts:
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/*/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/*/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_qc_report.yml
+  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/narrative_media_delivery_receipt.yml
+checks:
+- id: frontdesk_is_not_execution_worker
+  status: pass
+  summary: frontdesk policy forbids implementing task content itself
+- id: canonical_frontdesk_is_hermes_deepseek_v4_pro
+  status: pass
+  summary: routed task intake uses Hermes CLI with DeepSeek V4 Pro
+- id: direct_closed_loop_can_skip_frontdesk
+  status: pass
+  summary: declared AgentLab pipelines can run and be accepted without a FrontDesk
+    session
+- id: sandbox_approval_kept_outside_agentlab_chain
+  status: pass
+  summary: host sandbox approval is recorded as external runtime policy
+- id: writer_command_has_role_session_worker
+  status: pass
+  summary: Crown Writer live command creates Writer role-session evidence
+- id: media_command_has_artifact_producer_worker
+  status: pass
+  summary: Crown media live command creates ArtifactProducer role-session evidence
+    through the Grok CLI worker
+- id: secret_values_not_rendered
+  status: pass
+  summary: handoff contains no rendered API keys or test secrets
+issues: []
+notes:
+- This handoff does not call external providers.
+- Commands execute as AgentLab role-session work; Hermes FrontDesk may submit and
+  observe but is optional for direct closed-loop validation.

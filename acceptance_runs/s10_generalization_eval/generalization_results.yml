@@ -1,6 +1,5 @@
 stage: S10
 suite: generalization_eval
-started_at: '2026-06-30T10:00:58.417456+00:00'
 offline_only: true
 external_execution: blocked
 total: 11
@@ -167,4 +166,3 @@ results:
   - production_plan.yml
   score: 1.0
   pass: true
-completed_at: '2026-06-30T10:00:58.417579+00:00'

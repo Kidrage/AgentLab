@@ -38,6 +38,7 @@ def _active_skill(
     skill_id: str,
     *,
     status: str = "active",
+    default_injection: bool | None = None,
     triggers: list[str] | None = None,
     applies_to: list[str] | None = None,
     risk_level: str = "low",
@@ -60,6 +61,8 @@ def _active_skill(
         "permissions": {"can_read_repo": True, "can_modify_files": risk_level == "high"},
         "confidence": confidence,
     }
+    if default_injection is not None:
+        metadata["default_injection"] = default_injection
     (skill_dir / "metadata.yml").write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")
     (skill_dir / "SKILL.md").write_text(f"# {skill_id}\n", encoding="utf-8")
     (skill_dir / "usage_ledger.yml").write_text(
@@ -79,6 +82,27 @@ def test_active_skill_can_match_task_goal_by_trigger(tmp_path: Path) -> None:
     assert "matched trigger" in result["selected"][0]["reason"]
 
 
+def test_negated_trigger_phrase_does_not_match_skill(tmp_path: Path) -> None:
+    _write_policy(tmp_path)
+    _active_skill(tmp_path, "narrative_chapter_writer_lite", triggers=["小说章节", "长篇小说"])
+
+    result = match_active_skills(
+        tmp_path,
+        task_text="这是长期沉浸式展览生成系统，不是小说章节，也不是长篇小说。",
+    )
+
+    assert result["selected"] == []
+
+
+def test_positive_trigger_phrase_still_matches_skill(tmp_path: Path) -> None:
+    _write_policy(tmp_path)
+    _active_skill(tmp_path, "narrative_chapter_writer_lite", triggers=["小说章节", "长篇小说"])
+
+    result = match_active_skills(tmp_path, task_text="请继续写这个长篇小说的第 8 章。")
+
+    assert [s["skill_id"] for s in result["selected"]] == ["narrative_chapter_writer_lite"]
+
+
 def test_retired_or_inactive_skill_is_ignored(tmp_path: Path) -> None:
     _write_policy(tmp_path)
     _active_skill(tmp_path, "old_skill", status="retired", triggers=["pytest failed"])
@@ -86,6 +110,31 @@ def test_retired_or_inactive_skill_is_ignored(tmp_path: Path) -> None:
     result = match_active_skills(tmp_path, task_text="pytest failed")
 
     assert result["selected"] == []
+
+
+def test_default_injection_false_skill_is_not_auto_injected(tmp_path: Path) -> None:
+    _write_policy(tmp_path)
+    _active_skill(
+        tmp_path,
+        "story_long_write",
+        default_injection=False,
+        triggers=["灰烬王冠", "写第"],
+        applies_to=["fiction_chapter_pipeline", "Writer"],
+        confidence=0.95,
+    )
+    _active_skill(
+        tmp_path,
+        "narrative_chapter_writer_lite",
+        triggers=["灰烬王冠", "写第"],
+        applies_to=["narrative_light_chapter", "Writer"],
+        confidence=0.8,
+    )
+
+    result = match_active_skills(tmp_path, task_text="灰烬王冠 写第10章")
+
+    assert [s["skill_id"] for s in result["selected"]] == ["narrative_chapter_writer_lite"]
+    rejected = {s["skill_id"]: s["reason"] for s in result["rejected"]}
+    assert rejected["story_long_write"] == "default_injection is false"
 
 
 def test_max_skills_per_task_respected(tmp_path: Path) -> None:

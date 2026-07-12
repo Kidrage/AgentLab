@@ -1,0 +1,26 @@
+{
+  "productionPacks": [
+    {"id": "code_factory", "name": "Code Factory", "status": "configured", "domain": "coding"},
+    {"id": "narrative_longform", "name": "Narrative Longform", "status": "candidate", "domain": "creative_writing"},
+    {"id": "media_series_production", "name": "Media Series Production", "status": "blocked", "domain": "media_generation"}
+  ],
+  "lifecycle": [
+    {"node": "INIT_TASK", "status": "complete", "owner": "Supervisor"},
+    {"node": "SUPERVISOR_PLAN", "status": "complete", "owner": "Supervisor"},
+    {"node": "ARTIFACT_PRODUCTION", "status": "candidate", "owner": "ArtifactProducer"},
+    {"node": "VALIDATION", "status": "pending", "owner": "TesterAuditor"}
+  ],
+  "evidenceLedger": [
+    {"gate": "implementation_report", "status": "pass"},
+    {"gate": "ui_interaction_workflow", "status": "candidate"},
+    {"gate": "grok_media_live", "status": "blocked"}
+  ],
+  "providerHealth": {
+    "deepseek": "healthy",
+    "codex": "healthy"
+  },
+  "projectMemory": [
+    "07_DEVELOPMENT_LOG.md",
+    "08_CODEX_DIALOGUE_LOG.md"
+  ]
+}

@@ -10,11 +10,15 @@ from unittest import TestCase, main
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
-import yaml
-
-from lifecycle_graph import create_lifecycle, load_lifecycle, save_lifecycle, LIFECYCLE_NODES
+from lifecycle_graph import (
+    LIFECYCLE_NODES,
+    create_lifecycle,
+    load_lifecycle,
+    next_node,
+    save_lifecycle,
+)
 from state_store import load_state, save_state
-from pipeline_runner import resume_pipeline, run_full_pipeline
+from pipeline_runner import resume_pipeline
 
 
 def _setup_minimal_run_dir(root: Path, project: str, task_id: str, status: str) -> Path:
@@ -90,6 +94,19 @@ class ResumePipelineTests(TestCase):
         self.assertFalse(result["success"])
         self.assertEqual(result["final_status"], "weird_state")
         self.assertTrue(result["requires_user_action"])
+
+    def test_resume_retries_failed_checkpoint_before_later_waiting_node(self) -> None:
+        run_dir = _setup_minimal_run_dir(
+            self.root, "Demo", "task_resume_failed_checkpoint", "blocked"
+        )
+        lifecycle = load_lifecycle(run_dir) or {}
+        for node_id in LIFECYCLE_NODES:
+            lifecycle["nodes"][node_id]["status"] = "completed"
+        lifecycle["nodes"]["ARTIFACT_PRODUCTION"]["status"] = "failed"
+        lifecycle["nodes"]["VERIFY"]["status"] = "waiting"
+        save_lifecycle(run_dir, lifecycle)
+
+        self.assertEqual(next_node(run_dir), "ARTIFACT_PRODUCTION")
 
 
 if __name__ == "__main__":

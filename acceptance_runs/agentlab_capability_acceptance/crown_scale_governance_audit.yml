@@ -1,0 +1,44 @@
+schema_version: 1
+report_type: crown_scale_governance_audit
+root: .
+scale_dir: acceptance_runs/narrative_eval/Crown_of_Ash/crown_scale_probe_20260707/crown_scale_1500_20260707
+status: pass
+chapter_count: 1500
+target_total_chapters: 1500
+scope: governance_ledger_only
+text_generation_claimed: false
+checks:
+- id: target_chapter_count
+  status: pass
+  summary: target=1500; simulated=1500
+- id: governance_only_scope
+  status: pass
+  summary: scale run validates governance only and does not claim generated prose
+- id: state_delta_every_chapter
+  status: pass
+  summary: chapter-state plan requires state delta every chapter
+- id: continuity_cadence
+  status: pass
+  summary: continuity and character/foreshadowing audit cadences are present
+- id: longform_invariants
+  status: pass
+  summary: timeline, foreshadowing, character arcs, and worldline invariants are marked
+    valid
+- id: promotion_gates
+  status: pass
+  summary: promotion requires narrative eval or heavy audit pass
+- id: ledger_files_present
+  status: pass
+  summary: required ledger files present=6/6
+missing: []
+evidence:
+- acceptance_runs/narrative_eval/Crown_of_Ash/crown_scale_probe_20260707/crown_scale_1500_20260707/series_scale_simulation.yml
+- acceptance_runs/narrative_eval/Crown_of_Ash/crown_scale_probe_20260707/crown_scale_1500_20260707/chapter_state_plan.yml
+- acceptance_runs/narrative_eval/Crown_of_Ash/crown_scale_probe_20260707/crown_scale_1500_20260707/series_arc_ledger.yml
+- acceptance_runs/narrative_eval/Crown_of_Ash/crown_scale_probe_20260707/crown_scale_1500_20260707/foreshadowing_ledger.yml
+- acceptance_runs/narrative_eval/Crown_of_Ash/crown_scale_probe_20260707/crown_scale_1500_20260707/character_arc_ledger.yml
+- acceptance_runs/narrative_eval/Crown_of_Ash/crown_scale_probe_20260707/crown_scale_1500_20260707/timeline_worldline_ledger.yml
+notes:
+- This audit proves governance-scale capacity, not generated manuscript quality.
+- 1500-chapter prose acceptance still requires approved live generation and promotion
+  gates.

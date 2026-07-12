@@ -219,7 +219,7 @@ python -m compileall agent_runtime/ — PASS (no errors)
 
 1. **No Hermes/Claude Code end-to-end smoke test**: These binaries are not installed in the CI environment. E2E testing requires a configured workstation with Hermes and Claude Code installed.
 2. **Fallback config structure in `hybrid_agent_executor`**: The `fallback` key uses a nested `{executor_type, provider, model}` dict, which differs slightly from the simple string fallback in `balanced`. The runtime's `resolve_cli_profile` function doesn't yet parse the nested fallback structure — this is a follow-up item.
-3. **`docs/archive/historical_runs/executor_runs/` untracked files**: 3 local-only .md files still contain `/Users/` paths. These are not tracked in git, so CI is unaffected. Can be cleaned up or deleted locally.
+3. **`docs/archive/historical_runs/executor_runs/` untracked files**: 3 local-only .md files still contain local user paths. These are not tracked in git, so CI is unaffected. Can be cleaned up or deleted locally.
 
 ---
 

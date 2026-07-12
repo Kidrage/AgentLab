@@ -1,0 +1,27 @@
+schema_version: 1
+suite: crown_mock_chain_receipt_contract_20260707
+chapter_count: 1500
+target_total_chapters: 1500
+simulation_scope: governance_ledger_only
+parts:
+- part: 1
+  chapters:
+  - 1
+  - 500
+  phase: survival_and_discovery
+- part: 2
+  chapters:
+  - 501
+  - 1000
+  phase: war_and_cost
+- part: 3
+  chapters:
+  - 1001
+  - 1500
+  phase: reckoning_and_rebuild
+governance_cadence:
+  chapter_ledger: every chapter
+  continuity_batch_audit: every 3 chapters
+  character_foreshadowing_timeline_audit: every 10 chapters
+  volume_heavy_audit: each part boundary
+  promotion_gate: before production promotion
