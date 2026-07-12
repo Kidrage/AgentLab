@@ -1782,6 +1782,8 @@ class TestConfigProfiles:
             "coder": "Coder",
             "artifact_producer": "ArtifactProducer",
             "writer": "Writer",
+            "reviewer": "Reviewer",
+            "scribe": "Scribe",
             "tester_auditor": "TesterAuditor",
             "verifier": "Verifier",
             "archivist": "Archivist",

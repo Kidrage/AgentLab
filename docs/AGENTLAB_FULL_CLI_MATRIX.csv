@@ -10,6 +10,8 @@ full_cli,full,TesterAuditor,cli_agent,hermes,hermes,qwen3_7_max_dashscope,qwen3.
 full_cli,full,Verifier,cli_agent,hermes,hermes,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,command_template,claude_code,deepseek_v4_flash,,ok
 full_cli,full,Archivist,cli_agent,agy,agy_coder,gemini_3_5_flash_high_agy_oauth,gemini-3.5-flash-high,agy_gemini_oauth,agy-gemini-oauth,shell_configuration,hermes,qwen3_7_max_dashscope,,ok
 full_cli,full,Writer,cli_agent,agy,agy_writer,gemini_3_5_flash_high_agy_oauth,gemini-3.5-flash-high,agy_gemini_oauth,agy-gemini-oauth,shell_configuration,claude_code,deepseek_v4_flash,,ok
+full_cli,full,Reviewer,cli_agent,qwen,qwen,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,shell_configuration,claude_code,deepseek_v4_flash,,ok
+full_cli,full,Scribe,cli_agent,qwen,qwen,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,shell_configuration,claude_code,deepseek_v4_flash,,ok
 full_cli,performance,Supervisor,cli_agent,hermes,hermes,codex_gpt_5_5_high_hermes_oauth,gpt-5.5,hermes_codex_oauth,openai-codex,command_template,claude_code,deepseek_v4_pro,,ok
 full_cli,performance,RepoScout,cli_agent,codex,codex,deepseek_v4_pro,deepseek-v4-pro,deepseek_official,deepseek,shell_configuration,,,,ok
 full_cli,performance,InterfaceMapper,cli_agent,codex,codex,deepseek_v4_pro,deepseek-v4-pro,deepseek_official,deepseek,shell_configuration,,qwen3_6_plus_dashscope,,ok
@@ -21,6 +23,8 @@ full_cli,performance,TesterAuditor,cli_agent,codex,codex,deepseek_v4_pro,deepsee
 full_cli,performance,Verifier,cli_agent,codex,codex,deepseek_v4_flash,deepseek-v4-flash,deepseek_official,deepseek,shell_configuration,claude_code,qwen3_6_flash_dashscope,,ok
 full_cli,performance,Archivist,cli_agent,claude_code,claude,deepseek_v4_pro,deepseek-v4-pro,deepseek_official,deepseek,shell_configuration,,qwen3_6_flash_dashscope,,ok
 full_cli,performance,Writer,cli_agent,agy,agy_writer,gemini_3_5_flash_high_agy_oauth,gemini-3.5-flash-high,agy_gemini_oauth,agy-gemini-oauth,shell_configuration,claude_code,deepseek_v4_flash,,ok
+full_cli,performance,Reviewer,cli_agent,qwen,qwen,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,shell_configuration,claude_code,deepseek_v4_flash,,ok
+full_cli,performance,Scribe,cli_agent,qwen,qwen,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,shell_configuration,claude_code,deepseek_v4_flash,,ok
 full_cli,low,Supervisor,cli_agent,hermes,hermes,deepseek_v4_flash,deepseek-v4-flash,deepseek_official,deepseek,command_template,hermes,deepseek_v4_flash,,ok
 full_cli,low,RepoScout,cli_agent,codex,codex,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,shell_configuration,,,,ok
 full_cli,low,InterfaceMapper,skip,,,,,,,,,,,not_applicable
@@ -32,3 +36,5 @@ full_cli,low,TesterAuditor,cli_agent,codex,codex,deepseek_v4_flash,deepseek-v4-f
 full_cli,low,Verifier,cli_agent,codex,codex,deepseek_v4_flash,deepseek-v4-flash,deepseek_official,deepseek,shell_configuration,claude_code,qwen3_6_flash_dashscope,,ok
 full_cli,low,Archivist,cli_agent,claude_code,claude,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,shell_configuration,,,,ok
 full_cli,low,Writer,cli_agent,agy,agy_writer,gemini_3_5_flash_high_agy_oauth,gemini-3.5-flash-high,agy_gemini_oauth,agy-gemini-oauth,shell_configuration,claude_code,qwen3_6_flash_dashscope,,ok
+full_cli,low,Reviewer,cli_agent,qwen,qwen,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,shell_configuration,claude_code,deepseek_v4_flash,,ok
+full_cli,low,Scribe,cli_agent,qwen,qwen,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,shell_configuration,claude_code,deepseek_v4_flash,,ok

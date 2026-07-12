@@ -1896,6 +1896,10 @@ def run_next_node(
                     and not (agent == "ArtifactProducer" and pack_synthesis)
                     and not narrative_heavy_audit
                 ),
+                allow_cli_api_fallback=not (
+                    narrative_heavy_audit
+                    and agent in {"Reviewer", "Scribe", "Verifier"}
+                ),
             )
         except Exception as exc:
             blocked_path = run_dir / f"blocked_{agent or nid}_exception.md"

@@ -126,6 +126,22 @@ modes:
           fallback_cli_agent: claude_code
           fallback_invocation_contract: claude
           fallback: deepseek_v4_flash
+        reviewer:
+          executor_type: cli_agent
+          cli_agent: qwen
+          invocation_contract: qwen
+          default: qwen3_6_flash_dashscope
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback: deepseek_v4_flash
+        scribe:
+          executor_type: cli_agent
+          cli_agent: qwen
+          invocation_contract: qwen
+          default: qwen3_6_flash_dashscope
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback: deepseek_v4_flash
       performance:
         supervisor:
           executor_type: cli_agent
@@ -214,6 +230,22 @@ modes:
           fallback_cli_agent: claude_code
           fallback_invocation_contract: claude
           fallback: deepseek_v4_flash
+        reviewer:
+          executor_type: cli_agent
+          cli_agent: qwen
+          invocation_contract: qwen
+          default: qwen3_6_flash_dashscope
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback: deepseek_v4_flash
+        scribe:
+          executor_type: cli_agent
+          cli_agent: qwen
+          invocation_contract: qwen
+          default: qwen3_6_flash_dashscope
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback: deepseek_v4_flash
       low:
         supervisor:
           executor_type: cli_agent
@@ -282,6 +314,22 @@ modes:
           fallback_cli_agent: claude_code
           fallback_invocation_contract: claude
           fallback: qwen3_6_flash_dashscope
+        reviewer:
+          executor_type: cli_agent
+          cli_agent: qwen
+          invocation_contract: qwen
+          default: qwen3_6_flash_dashscope
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback: deepseek_v4_flash
+        scribe:
+          executor_type: cli_agent
+          cli_agent: qwen
+          invocation_contract: qwen
+          default: qwen3_6_flash_dashscope
+          fallback_cli_agent: claude_code
+          fallback_invocation_contract: claude
+          fallback: deepseek_v4_flash
   qwen_token_plan_cli:
     notes: Preserves the pre-2026-07-02 full_cli role allocation while routing Qwen model defaults through the user's Qwen Token Plan provider.
     billing:

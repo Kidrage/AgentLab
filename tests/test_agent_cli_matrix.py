@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 
 from scripts.generate_agent_cli_matrix import build_matrices, generate
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "agent_runtime"))
+
+from agent_runner import resolve_agent_execution_preview  # noqa: E402
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
@@ -24,6 +29,11 @@ def test_matrix_references_are_valid_and_full_cli_full_matches_required_defaults
     assert rows[("full", "Supervisor")]["fallback_model_key"] == "deepseek_v4_pro"
     assert rows[("full", "Writer")]["cli_agent"] == "agy"
     assert rows[("full", "Writer")]["model_key"] == "gemini_3_5_flash_high_agy_oauth"
+    for tier in ("full", "performance", "low"):
+        assert rows[(tier, "Reviewer")]["cli_agent"] == "qwen"
+        assert rows[(tier, "Scribe")]["cli_agent"] == "qwen"
+        assert rows[(tier, "Reviewer")]["role_binding_status"] == "ok"
+        assert rows[(tier, "Scribe")]["role_binding_status"] == "ok"
     assert all(row["role_binding_status"] in {"ok", "not_applicable"} for row in full_cli)
     assert {row["component"] for row in cli} >= {"hermes", "claude_code", "codex", "qwen", "agy"}
 
@@ -35,3 +45,13 @@ def test_checked_in_csv_matrices_are_deterministic(tmp_path: Path) -> None:
 
     assert _read_csv(full_cli_out) == _read_csv(ROOT / "docs" / "AGENTLAB_FULL_CLI_MATRIX.csv")
     assert _read_csv(cli_out) == _read_csv(ROOT / "docs" / "AGENTLAB_CLI_REQUIREMENTS.csv")
+
+
+def test_heavy_audit_alias_roles_resolve_to_bound_cli_workers() -> None:
+    for budget_mode in ("max_quality", "balanced", "frugal"):
+        plan = SimpleNamespace(budget_mode=budget_mode)
+        for role in ("Reviewer", "Scribe"):
+            preview = resolve_agent_execution_preview(ROOT, plan, role)
+            assert preview["executor_type"] == "cli_agent"
+            assert preview["cli_agent"] == "qwen"
+            assert preview["role_binding_allowed"] is True

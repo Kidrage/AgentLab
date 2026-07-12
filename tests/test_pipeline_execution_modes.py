@@ -152,6 +152,76 @@ class DryRunClosureEvidenceTests(TestCase):
                 self.assertTrue((run_dir / filename).exists(), filename)
             self.assertFalse((run_dir / "fiction_draft.md").exists())
 
+    def test_heavy_narrative_role_forbids_cli_to_api_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            task_id = "task_heavy_audit_execute"
+            run_dir = root / "projects" / "Crown_of_Ash" / "runs" / task_id
+            run_dir.mkdir(parents=True)
+            route = SimpleNamespace(
+                route_key="narrative_heavy_audit",
+                agents=["Supervisor", "Reviewer", "Scribe", "Verifier"],
+            )
+            plan_data = {
+                "route": {
+                    "route_key": route.route_key,
+                    "agents": route.agents,
+                }
+            }
+            (run_dir / "workflow_plan.yml").write_text(
+                yaml.safe_dump(plan_data, sort_keys=False),
+                encoding="utf-8",
+            )
+            (run_dir / "user_request.md").write_text(
+                "审计 Crown 第 1-10 章。",
+                encoding="utf-8",
+            )
+            create_lifecycle(run_dir, plan_data)
+            lifecycle = load_lifecycle(run_dir) or {}
+            for node_id, node in lifecycle.get("nodes", {}).items():
+                node["status"] = "waiting" if node_id == "FICTION_REVIEW" else "skipped"
+            save_lifecycle(run_dir, lifecycle)
+            plan = SimpleNamespace(
+                route=route,
+                production_pack={},
+            )
+            reviewer_content = "\n\n".join(
+                [
+                    "<!-- AGENTLAB_EDIT: fiction_review.yml -->\n"
+                    "schema_version: 1\nstatus: pass\ncandidate_only: true\n"
+                    "production_modified: false\nfindings: []\n"
+                    "<!-- END AGENTLAB_EDIT -->",
+                    "<!-- AGENTLAB_EDIT: continuity_failure_report.yml -->\n"
+                    "schema_version: 1\nstatus: pass\ncandidate_only: true\n"
+                    "production_modified: false\nblocking_issue_count: 0\nfailures: []\n"
+                    "<!-- END AGENTLAB_EDIT -->",
+                ]
+            )
+            model_result = LLMCallResult(
+                provider="agentlab-cli-executor",
+                model="qwen",
+                content=reviewer_content,
+                status="completed",
+            )
+
+            with mock.patch(
+                "workflow_plan.build_workflow_plan",
+                return_value=plan,
+            ), mock.patch(
+                "agent_runner.run_agent_model",
+                return_value=model_result,
+            ) as run_model:
+                result = run_next_node(
+                    root,
+                    "Crown_of_Ash",
+                    task_id,
+                    fake_provider=False,
+                    execution_mode="execute",
+                )
+
+            self.assertEqual(result["status"], "completed", result)
+            self.assertFalse(run_model.call_args.kwargs["allow_cli_api_fallback"])
+
     def test_prepare_plan_reopens_audit_and_archive_nodes_from_existing_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
