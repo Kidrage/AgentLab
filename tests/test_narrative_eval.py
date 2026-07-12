@@ -521,6 +521,7 @@ def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+    _write_yaml(run_dir / "live_generation_error.yml", {"status": "blocked", "message": "stale"})
 
     _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
 
@@ -550,6 +551,57 @@ def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path
         "narrative_delivery_receipt.yml",
     ]
     assert request["supplementary_outputs"] == ["artifact_lineage.yml"]
+
+
+def test_live_narrative_eval_failed_retry_cannot_reuse_stale_candidate_outputs(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
+        return types.SimpleNamespace(
+            status="blocked_user_decision",
+            content="",
+            error="transient auth failure",
+            provider="agentlab-cli-executor",
+            model="agy",
+        )
+
+    monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    timestamp = "20260705T042000Z"
+    run_dir = project_root / "runs" / f"task_narrative_eval_ch01_{timestamp}"
+    run_dir.mkdir(parents=True)
+    for filename in [
+        "fiction_draft.md",
+        "continuity_ledger.yml",
+        "state_transition_proposal.yml",
+        "narrative_delivery_receipt.yml",
+    ]:
+        (run_dir / filename).write_text("stale\n", encoding="utf-8")
+
+    result = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="live",
+        chapters=[1],
+        timestamp=timestamp,
+        writer_worker="agy",
+        stop_on_block=True,
+    )
+
+    chapter = result["layers"]["L2_real_chapter_sample"]["chapters"][0]
+    assert chapter["delivery"]["valid"] is False
+    assert chapter["live_generation_error"]["result_status"] == "blocked_user_decision"
+    assert not (run_dir / "fiction_draft.md").exists()
+    assert not (run_dir / "continuity_ledger.yml").exists()
+    assert not (run_dir / "state_transition_proposal.yml").exists()
+    assert not (run_dir / "narrative_delivery_receipt.yml").exists()
 
 
 def test_live_narrative_eval_cli_fallback_completes_light_outputs(tmp_path: Path, monkeypatch) -> None:

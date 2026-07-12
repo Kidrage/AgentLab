@@ -20,6 +20,7 @@ from agent_runtime.narrative_delivery import (
 from agent_runtime.policies import ensure_safe_task_id
 from agent_runtime.report_sanitizer import write_report_yaml
 from agent_runtime.writer_output_materializer import (
+    REQUIRED_WRITER_OUTPUTS,
     materialize_writer_candidate_content,
     materialize_writer_candidate_result,
 )
@@ -30,6 +31,19 @@ DEFAULT_CHAPTERS = [1, 2, 3]
 DEFAULT_SCALE_CHAPTERS = 1500
 ALLOWED_FORESHADOWING_STATUSES = ["introduced", "touched", "escalated", "resolved", "deferred"]
 VALID_MODES = {"audit-only", "mock", "live"}
+CHAPTER_ATTEMPT_OUTPUTS = (
+    *REQUIRED_WRITER_OUTPUTS,
+    "artifact_lineage.yml",
+    "continuity_failure_report.yml",
+    "fiction_review.yml",
+    "live_generation_error.yml",
+    "live_generation_request.yml",
+    "live_writer_cli_fallback.yml",
+    "revision_or_rewrite_proposal.yml",
+    "writer_cli_fallback_capture.md",
+    "writer_output_contract.yml",
+    "writer_role_session_capture.md",
+)
 
 
 def _project_root(root: Path, project: str) -> Path:
@@ -46,6 +60,12 @@ def _rel(path: Path, base: Path) -> str:
 def _write_yaml(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
+    """Remove stale candidate-derived files before a non-resumed attempt."""
+    for filename in CHAPTER_ATTEMPT_OUTPUTS:
+        (run_dir / filename).unlink(missing_ok=True)
 
 
 def _collect(project_root: Path, patterns: list[str], *, limit: int = 200) -> list[str]:
@@ -578,6 +598,7 @@ def _write_live_chapter_outputs(
     allow_writer_cli_fallback: bool = False,
 ) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
+    _clear_chapter_attempt_outputs(run_dir)
     _write_yaml(
         run_dir / "live_generation_request.yml",
         {
@@ -689,6 +710,7 @@ def _generate_chapters(
             candidate_fact_events.extend(_candidate_events_from_run(run_dir, chapter, task_id))
             _write_generation_checkpoint(eval_dir, suite, chapters, generated)
             continue
+        _clear_chapter_attempt_outputs(run_dir)
         baseline_mode = "reset" if chapter == 1 else "continuation"
         baseline_instruction = (
             "Start from the reset fact snapshot and do not read any deprecated manuscript."
