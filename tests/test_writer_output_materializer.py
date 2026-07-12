@@ -87,6 +87,50 @@ def test_materializer_normalizes_duplicate_end_token_and_records_it(
     assert "<!-- END END AGENTLAB_EDIT -->" in capture
 
 
+def test_materializer_normalizes_event_scope_copied_from_event_type(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "runs" / "task_ch01"
+    copied_scope = _blocks().replace(
+        "event_type: plot\n    scope: candidate_only",
+        "event_type: plot\n    scope: plot",
+    )
+
+    ok = materialize_writer_candidate_content(copied_scope, run_dir, "task_ch01")
+
+    assert ok is True
+    proposal = yaml.safe_load(
+        (run_dir / "state_transition_proposal.yml").read_text(encoding="utf-8")
+    )
+    assert proposal["events"][0]["scope"] == "candidate_only"
+    contract = yaml.safe_load(
+        (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
+    )
+    assert contract["normalizations"] == [
+        {"id": "event_scope_copied_from_event_type", "count": 1}
+    ]
+
+
+def test_materializer_does_not_normalize_explicit_production_scope(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "runs" / "task_ch01"
+    production_scope = _blocks().replace(
+        "scope: candidate_only",
+        "scope: production",
+        1,
+    )
+
+    ok = materialize_writer_candidate_content(production_scope, run_dir, "task_ch01")
+
+    assert ok is False
+    contract = yaml.safe_load(
+        (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
+    )
+    assert contract["normalizations"] == []
+    assert "invalid_writer_output_schema:state_transition_proposal.yml" in contract["issues"]
+
+
 def test_materializer_is_transactional_when_required_output_is_missing(
     tmp_path: Path,
 ) -> None:

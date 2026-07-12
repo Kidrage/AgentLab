@@ -57,6 +57,48 @@ def _normalize_writer_edit_markers(content: str) -> tuple[str, list[dict[str, An
     return normalized, normalizations
 
 
+def _normalize_candidate_event_scopes(
+    materialized: dict[str, str],
+) -> list[dict[str, Any]]:
+    name = "state_transition_proposal.yml"
+    try:
+        proposal = yaml.safe_load(materialized[name]) or {}
+    except (KeyError, yaml.YAMLError):
+        return []
+    if (
+        not isinstance(proposal, dict)
+        or proposal.get("schema_version") != 1
+        or proposal.get("status") != "candidate"
+        or proposal.get("requires_user_promotion") is not True
+        or not isinstance(proposal.get("events"), list)
+    ):
+        return []
+
+    count = 0
+    for event in proposal["events"]:
+        if not isinstance(event, dict):
+            continue
+        event_type = event.get("event_type")
+        scope = event.get("scope")
+        if (
+            isinstance(event_type, str)
+            and event_type
+            and scope == event_type
+            and scope != "candidate_only"
+        ):
+            event["scope"] = "candidate_only"
+            count += 1
+    if not count:
+        return []
+
+    materialized[name] = yaml.safe_dump(
+        proposal,
+        sort_keys=False,
+        allow_unicode=True,
+    ).rstrip()
+    return [{"id": "event_scope_copied_from_event_type", "count": count}]
+
+
 def _write_contract(run_dir: Path, data: dict[str, Any]) -> None:
     path = run_dir / "writer_output_contract.yml"
     path.write_text(
@@ -203,6 +245,7 @@ def materialize_writer_candidate_content(
     missing = [name for name in REQUIRED_WRITER_OUTPUTS if name not in materialized]
     issues.extend(f"missing_writer_output:{name}" for name in missing)
     if not missing:
+        normalizations.extend(_normalize_candidate_event_scopes(materialized))
         schema_issues = _writer_output_schema_issues(materialized)
         issues.extend(schema_issues)
         if not schema_issues:
