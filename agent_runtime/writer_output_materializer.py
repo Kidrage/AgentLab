@@ -31,6 +31,9 @@ REQUIRED_CONTINUITY_LISTS = (
 DUPLICATE_END_MARKER = re.compile(
     r"<!--\s*END(?:\s+END)+\s+AGENTLAB_EDIT\s*-->",
 )
+SAFE_CANDIDATE_SCOPE_CATEGORIES = {
+    "character_action",
+}
 
 
 def _strip_optional_code_fence(content: str) -> str:
@@ -74,7 +77,8 @@ def _normalize_candidate_event_scopes(
     ):
         return []
 
-    count = 0
+    copied_count = 0
+    category_count = 0
     for event in proposal["events"]:
         if not isinstance(event, dict):
             continue
@@ -87,8 +91,11 @@ def _normalize_candidate_event_scopes(
             and scope != "candidate_only"
         ):
             event["scope"] = "candidate_only"
-            count += 1
-    if not count:
+            copied_count += 1
+        elif scope in SAFE_CANDIDATE_SCOPE_CATEGORIES:
+            event["scope"] = "candidate_only"
+            category_count += 1
+    if not copied_count and not category_count:
         return []
 
     materialized[name] = yaml.safe_dump(
@@ -96,7 +103,16 @@ def _normalize_candidate_event_scopes(
         sort_keys=False,
         allow_unicode=True,
     ).rstrip()
-    return [{"id": "event_scope_copied_from_event_type", "count": count}]
+    normalizations: list[dict[str, Any]] = []
+    if copied_count:
+        normalizations.append(
+            {"id": "event_scope_copied_from_event_type", "count": copied_count}
+        )
+    if category_count:
+        normalizations.append(
+            {"id": "event_scope_category_to_candidate_only", "count": category_count}
+        )
+    return normalizations
 
 
 def _write_contract(run_dir: Path, data: dict[str, Any]) -> None:
