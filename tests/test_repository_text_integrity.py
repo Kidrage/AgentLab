@@ -34,8 +34,6 @@ KNOWN_TINY_PYTHON_FILES = {
     "agent_runtime/external_agents/__init__.py",
     "agent_runtime/costing/__init__.py",
     "agent_runtime/recovery/__init__.py",
-    "tests/test_m2_6_text_integrity.py",
-    "tests/test_m2_cost_approval_cli.py",
 }
 
 MIN_LINE_COUNTS = {
