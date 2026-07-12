@@ -622,6 +622,7 @@ Narrative heavy audit role-session rules:
 Creative writing execution rules:
 - Do not request tools, shell commands, file listings, browser access, or repository scans.
 - Use only the injected context, mission contract, and story authority files.
+- Do not copy substantive prose from the previous candidate chapter.
 - Writer and Scribe must emit AGENTLAB_EDIT blocks only for files listed in mission_contract.yml.
 - Reviewer writes a review report only.
 - Do not output DSML/tool-call markup.

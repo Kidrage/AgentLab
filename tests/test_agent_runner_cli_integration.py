@@ -200,6 +200,7 @@ must_read:
 
     assert "Produce the AgentLab narrative candidate files" in user_message
     assert "Do not write a prose report." in user_message
+    assert "Do not copy substantive prose from the previous candidate chapter" in all_message_text
     assert "AGENTLAB_EDIT block" in user_message
     assert "fiction_draft.md" in user_message
     assert "loaded_from_chapter_packet" in user_message

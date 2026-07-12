@@ -210,7 +210,10 @@ def _build_chapter_intent(project_root: Path, outline_refs: list[str], chapter: 
                 "required_chapter_beat": "derive from the selected authoritative outline",
                 "phase_outcomes": [],
                 "progression_role": "chapter_specific",
-                "constraints": ["do not invent an unsupported phase payoff"],
+                "constraints": [
+                    "do not invent an unsupported phase payoff",
+                    "do not copy substantive prose from the previous candidate chapter",
+                ],
             },
             "target_character_range": [4500, 5500],
             "hard_character_range": [3000, 8000],
@@ -264,6 +267,7 @@ def _build_chapter_intent(project_root: Path, outline_refs: list[str], chapter: 
             "constraints": [
                 "deliver one distinct state transition",
                 "do not repeat the previous candidate chapter's resolved beat",
+                "do not copy substantive prose from the previous candidate chapter",
                 "do not resolve later phase outcomes early",
             ],
         },

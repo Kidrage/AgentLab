@@ -8,6 +8,11 @@ from typing import Any
 
 import yaml
 
+try:
+    from agent_runtime.narrative_repetition import repetition_evidence
+except ModuleNotFoundError:  # pragma: no cover - direct script path
+    from narrative_repetition import repetition_evidence
+
 
 REQUIRED_WRITER_OUTPUTS = (
     "fiction_draft.md",
@@ -214,6 +219,34 @@ def _governed_chapter_issues(materialized: dict[str, str], run_dir: Path) -> lis
     for check in REQUIRED_RECEIPT_CHECKS:
         if checks.get(check) != "pass":
             issues.append(f"delivery_receipt_check_failed:{check}")
+
+    previous_sources = packet.get("previous_candidate_sources")
+    if previous_sources is None:
+        previous_sources = packet.get("previous_chapters") or []
+    project_root = run_dir.parent.parent.resolve()
+    if isinstance(previous_sources, list):
+        for source in previous_sources:
+            if not isinstance(source, str) or Path(source).name != "fiction_draft.md":
+                continue
+            previous_path = (project_root / source).resolve()
+            try:
+                previous_path.relative_to(project_root)
+            except ValueError:
+                continue
+            if not previous_path.is_file():
+                continue
+            evidence = repetition_evidence(
+                draft,
+                previous_path.read_text(encoding="utf-8", errors="replace"),
+            )
+            if evidence["blocking"]:
+                issues.append(
+                    "draft_repeats_previous_candidate:"
+                    f"passages={evidence['passage_count']}:"
+                    f"characters={evidence['repeated_characters']}:"
+                    f"longest={evidence['longest_passage_characters']}"
+                )
+            break
     return issues
 
 

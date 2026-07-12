@@ -238,3 +238,89 @@ def test_materializer_rejects_short_governed_chapter_before_writing(tmp_path: Pa
         (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
     )
     assert "draft_character_count_out_of_range" in contract["issues"]
+
+
+def test_materializer_rejects_substantive_paragraph_copied_from_previous_chapter(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "projects" / "Crown_of_Ash"
+    previous_dir = project_root / "runs" / "task_ch01"
+    run_dir = project_root / "runs" / "task_ch02"
+    previous_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    repeated = "这是一段不应在相邻章节中被逐字复制的实质叙事内容。" * 12
+    previous_draft = "# 第1章\n\n" + repeated + "\n\n" + ("前章独有内容。" * 500)
+    current_draft = "# 第2章\n\n" + repeated + "\n\n" + ("本章全新内容。" * 500)
+    (previous_dir / "fiction_draft.md").write_text(previous_draft, encoding="utf-8")
+    (run_dir / "chapter_packet.yml").write_text(
+        yaml.safe_dump(
+            {
+                "chapter": 2,
+                "baseline_mode": "continuation",
+                "chapter_intent": {"hard_character_range": [3000, 8000]},
+                "previous_candidate_sources": [
+                    "runs/task_ch01/fiction_draft.md",
+                    "runs/task_ch01/continuity_ledger.yml",
+                    "runs/task_ch01/state_transition_proposal.yml",
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    values = {
+        "fiction_draft.md": current_draft,
+        "continuity_ledger.yml": yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "chapter": 2,
+                "baseline_mode": "continuation",
+                "timeline": {"monotonic": True},
+                "plot_state_changes": ["new plot"],
+                "character_changes": ["new character state"],
+                "relationship_or_worldline_changes": ["new relationship state"],
+                "foreshadowing": ["new foreshadowing state"],
+            },
+            sort_keys=False,
+        ),
+        "state_transition_proposal.yml": yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "candidate",
+                "chapter": 2,
+                "requires_user_promotion": True,
+                "events": [{"event_type": "plot", "scope": "candidate_only"}],
+            },
+            sort_keys=False,
+        ),
+        "narrative_delivery_receipt.yml": yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "pass",
+                "candidate_only": True,
+                "checks": {
+                    "chapter_and_title": "pass",
+                    "required_beats": "pass",
+                    "continuity_outputs": "pass",
+                    "production_untouched": "pass",
+                    "deprecated_sources_excluded": "pass",
+                },
+            },
+            sort_keys=False,
+        ),
+    }
+    content = "\n\n".join(
+        f"<!-- AGENTLAB_EDIT: runs/task_ch02/{name} -->\n{value.rstrip()}\n"
+        "<!-- END AGENTLAB_EDIT -->"
+        for name, value in values.items()
+    )
+
+    assert not materialize_writer_candidate_content(content, run_dir, "task_ch02")
+    assert not (run_dir / "fiction_draft.md").exists()
+    contract = yaml.safe_load(
+        (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
+    )
+    assert any(
+        issue.startswith("draft_repeats_previous_candidate:")
+        for issue in contract["issues"]
+    )

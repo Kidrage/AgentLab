@@ -147,3 +147,30 @@ def test_crown_completion_batch_audit_checks_one_continuous_chain(tmp_path: Path
     assert report["summary"]["production_manuscript_files"] == []
     assert report["warnings"] == []
     assert report["issues"] == []
+
+
+def test_crown_completion_batch_audit_rejects_cross_chapter_passage_reuse(
+    tmp_path: Path,
+) -> None:
+    manuscript = tmp_path / "projects" / "Crown_of_Ash" / "production" / "manuscript"
+    manuscript.mkdir(parents=True)
+    _write_batch_chapter(tmp_path, 1, "fixture")
+    _write_batch_chapter(tmp_path, 2, "fixture")
+    runs = tmp_path / "projects" / "Crown_of_Ash" / "runs"
+    first = runs / "task_narrative_eval_ch01_fixture" / "fiction_draft.md"
+    second = runs / "task_narrative_eval_ch02_fixture" / "fiction_draft.md"
+    repeated_body = first.read_text(encoding="utf-8").split("\n", 2)[-1]
+    second.write_text(f"# 第2章\n\n{repeated_body}", encoding="utf-8")
+
+    report = build_crown_completion_batch_audit(
+        tmp_path,
+        eval_id="fixture",
+        through_chapter=2,
+    )
+
+    assert report["status"] == "fail"
+    assert report["summary"]["repetition_failure_count"] == 1
+    assert report["repetition_findings"][0]["chapter"] == 2
+    assert report["repetition_findings"][0]["source_chapter"] == 1
+    assert report["repetition_findings"][0]["blocking"] is True
+    assert "cross_chapter_repetition" in report["chapters"][1]["issues"]

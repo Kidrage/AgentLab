@@ -19,6 +19,17 @@ try:
 except ImportError:  # pragma: no cover - package import path
     from agent_runtime.narrative_delivery import validate_narrative_delivery
 
+try:
+    from narrative_repetition import (
+        repetition_evidence_from_paragraphs,
+        substantive_paragraphs,
+    )
+except ImportError:  # pragma: no cover - package import path
+    from agent_runtime.narrative_repetition import (
+        repetition_evidence_from_paragraphs,
+        substantive_paragraphs,
+    )
+
 
 DEFAULT_CROWN_LIVE_RUN = "task_narrative_eval_ch01_live_ch01_20260707_cli_fallback"
 BATCH_REQUIRED_FILES = (
@@ -235,6 +246,8 @@ def build_crown_completion_batch_audit(
     retry_ledgers: list[dict[str, Any]] = []
     local_recoveries: list[dict[str, Any]] = []
     rejected_attempts: list[str] = []
+    repetition_findings: list[dict[str, Any]] = []
+    prior_drafts: list[tuple[int, set[str]]] = []
     seen_drafts: dict[str, int] = {}
     cumulative_events = 0
     fact_ledger_started = False
@@ -296,6 +309,36 @@ def build_crown_completion_batch_audit(
         draft_hash = hashlib.sha256(draft.encode("utf-8")).hexdigest()
         checks["unique_draft"] = draft_hash not in seen_drafts
         seen_drafts[draft_hash] = chapter
+
+        draft_paragraphs = substantive_paragraphs(draft)
+        for source_chapter, previous_paragraphs in prior_drafts:
+            evidence = repetition_evidence_from_paragraphs(
+                draft_paragraphs,
+                previous_paragraphs,
+            )
+            if not evidence["blocking"]:
+                continue
+            finding = {
+                "chapter": chapter,
+                "source_chapter": source_chapter,
+                **evidence,
+            }
+            repetition_findings.append(finding)
+            if "cross_chapter_repetition" not in chapter_issues:
+                chapter_issues.append("cross_chapter_repetition")
+            issues.append(
+                {
+                    "chapter": chapter,
+                    "check": "cross_chapter_repetition",
+                    "message": (
+                        f"substantive prose repeats chapter {source_chapter}: "
+                        f"passages={evidence['passage_count']}, "
+                        f"characters={evidence['repeated_characters']}, "
+                        f"longest={evidence['longest_passage_characters']}"
+                    ),
+                }
+            )
+        prior_drafts.append((chapter, draft_paragraphs))
 
         fact_path = run_dir / "candidate_fact_ledger.yml"
         if fact_path.is_file():
@@ -385,6 +428,10 @@ def build_crown_completion_batch_audit(
             "retry_ledger_count": len(retry_ledgers),
             "local_recovery_count": len(local_recoveries),
             "rejected_attempt_count": len(rejected_attempts),
+            "repetition_failure_count": len(repetition_findings),
+            "repetition_chapter_count": len(
+                {item["chapter"] for item in repetition_findings}
+            ),
             "production_manuscript_files": production_files,
         },
         "chapters": chapters,
@@ -392,6 +439,7 @@ def build_crown_completion_batch_audit(
         "retry_ledgers": retry_ledgers,
         "local_recoveries": local_recoveries,
         "rejected_attempts": rejected_attempts,
+        "repetition_findings": repetition_findings,
         "warnings": warnings,
         "issues": issues,
     }
