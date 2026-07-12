@@ -41,6 +41,11 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
         writer_worker: str | None = typer.Option(None, "--writer-worker", help="Worker id used to generate Writer role-session packets for live mode."),
         resume_valid: bool = typer.Option(False, "--resume-valid/--no-resume-valid", help="Reuse already valid chapter runs under the same timestamp."),
         stop_on_block: bool = typer.Option(False, "--stop-on-block/--continue-on-block", help="Stop before later chapters when one chapter delivery is blocked."),
+        allow_writer_cli_fallback: bool = typer.Option(
+            False,
+            "--allow-writer-cli-fallback/--no-writer-cli-fallback",
+            help="Permit a second Writer CLI invocation after the bound role-session fails.",
+        ),
     ) -> None:
         """Run L0-L3 longform acceptance checks without modifying production."""
         if mode not in VALID_MODES:
@@ -55,6 +60,7 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
             writer_worker=writer_worker,
             resume_valid=resume_valid,
             stop_on_block=stop_on_block,
+            allow_writer_cli_fallback=allow_writer_cli_fallback,
         )
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result.get("status") == "fail":

@@ -47,11 +47,30 @@ HEAVY_CHAPTER_DELIVERY_FILES = [
 
 REQUIRED_DELIVERY_FILES = LIGHT_CHAPTER_DELIVERY_FILES
 
-EARLY_CHAPTER_OUTLINE_KEYWORDS = (
+CORE_CHAPTER_OUTLINE_KEYWORDS = (
+    "00_世界史诗编年史",
     "00_重构总纲",
+    "01_完整故事蓝图",
     "02_卷纲与章节路线",
-    "卷纲_第一卷",
+    "03_感情戏执行准则",
 )
+VOLUME_OUTLINE_KEYWORDS = (
+    (1, 60, "卷纲_第一卷"),
+    (61, 130, "卷纲_第二卷"),
+    (131, 200, "卷纲_第三卷"),
+)
+PHASE_PROGRESS_ROLES = ("setup", "escalation", "complication", "reversal", "payoff")
+FORESHADOWING_TARGET_BY_ROLE = {
+    "setup": "introduce",
+    "escalation": "touch",
+    "complication": "escalate",
+    "reversal": "touch_or_reframe",
+    "payoff": "payoff_or_explicitly_defer",
+}
+PHASE_HEADING_PATTERN = re.compile(
+    r"^###\s*0*(\d+)\s*[-–—]\s*0*(\d+)\s*章?\s*[：:]\s*(.+)$"
+)
+CHAPTER_BEAT_PATTERN = re.compile(r"^-\s*0*(\d+)\s*[：:]\s*(.+)$")
 
 
 def _read_yaml(path: Path, default: Any = None) -> Any:
@@ -103,14 +122,154 @@ def _chapter_number(path: Path) -> int | None:
 
 
 def _select_outline_refs(outline_refs: list[str], chapter: int) -> list[str]:
-    if chapter <= 20:
-        selected = [
-            ref
-            for ref in outline_refs
-            if any(keyword in Path(ref).name for keyword in EARLY_CHAPTER_OUTLINE_KEYWORDS)
-        ]
-        return selected or outline_refs[:8]
-    return outline_refs
+    volume_keyword = next(
+        (keyword for start, end, keyword in VOLUME_OUTLINE_KEYWORDS if start <= chapter <= end),
+        None,
+    )
+    selected = [
+        ref
+        for ref in outline_refs
+        if any(keyword in Path(ref).name for keyword in CORE_CHAPTER_OUTLINE_KEYWORDS)
+        or (volume_keyword is not None and volume_keyword in Path(ref).name)
+        or (chapter >= 181 and "04_续作钩子与未完结属性" in Path(ref).name)
+    ]
+    return selected or outline_refs[:8]
+
+
+def _clean_outline_text(value: str) -> str:
+    return value.replace("**", "").strip()
+
+
+def _outline_phase_for_chapter(path: Path, chapter: int) -> dict[str, Any] | None:
+    current_volume = "unspecified volume"
+    phase: dict[str, Any] | None = None
+    for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw_line.strip()
+        if line.startswith("## ") and not line.startswith("### "):
+            if phase is not None:
+                break
+            current_volume = _clean_outline_text(line[3:])
+            continue
+
+        phase_match = PHASE_HEADING_PATTERN.match(line)
+        if phase_match:
+            if phase is not None:
+                break
+            start, end = int(phase_match.group(1)), int(phase_match.group(2))
+            if start <= chapter <= end:
+                phase = {
+                    "start": start,
+                    "end": end,
+                    "title": _clean_outline_text(phase_match.group(3)),
+                    "volume": current_volume,
+                    "chapter_beats": {},
+                    "phase_outcomes": [],
+                }
+            continue
+
+        if phase is None:
+            continue
+        beat_match = CHAPTER_BEAT_PATTERN.match(line)
+        if beat_match:
+            beat_chapter = int(beat_match.group(1))
+            beat = _clean_outline_text(beat_match.group(2))
+            phase["chapter_beats"][beat_chapter] = beat
+            phase["phase_outcomes"].append(f"Chapter {beat_chapter}: {beat}")
+        elif line.startswith("- "):
+            phase["phase_outcomes"].append(_clean_outline_text(line[2:]))
+    return phase
+
+
+def _build_chapter_intent(project_root: Path, outline_refs: list[str], chapter: int) -> dict[str, Any]:
+    ordered_refs = sorted(
+        outline_refs,
+        key=lambda ref: (0 if "章节路线" in Path(ref).name else 1, ref),
+    )
+    phase = None
+    source = None
+    for ref in ordered_refs:
+        candidate = _outline_phase_for_chapter(project_root / ref, chapter)
+        if candidate is not None:
+            phase = candidate
+            source = ref
+            break
+
+    if phase is None:
+        return {
+            "status": "generic_fallback",
+            "chapter": chapter,
+            "source": ordered_refs[0] if ordered_refs else None,
+            "source_kind": "outline_without_parseable_chapter_range",
+            "emotional_target": "Create one chapter-specific emotional turn with a changed pressure state.",
+            "plot_state_change": "Advance one concrete and irreversible plot state.",
+            "character_state_change": "Show one observable choice, cost, or capability change.",
+            "relationship_or_worldline_progress": "Advance one relationship, faction, or worldline state.",
+            "foreshadowing_to_introduce_or_payoff": "touch_only_supported_seed",
+            "timeline_position": f"chapter {chapter}; preserve monotonic continuity",
+            "beat_plan": {
+                "required_chapter_beat": "derive from the selected authoritative outline",
+                "phase_outcomes": [],
+                "progression_role": "chapter_specific",
+                "constraints": ["do not invent an unsupported phase payoff"],
+            },
+            "target_character_range": [4500, 5500],
+            "hard_character_range": [3000, 8000],
+        }
+
+    start = int(phase["start"])
+    end = int(phase["end"])
+    position = chapter - start + 1
+    total = end - start + 1
+    role_index = min(len(PHASE_PROGRESS_ROLES) - 1, ((position - 1) * len(PHASE_PROGRESS_ROLES)) // total)
+    progression_role = PHASE_PROGRESS_ROLES[role_index]
+    chapter_beat = phase["chapter_beats"].get(chapter)
+    outcomes = list(phase["phase_outcomes"])
+    anchor_index = min(len(outcomes) - 1, ((position - 1) * len(outcomes)) // total) if outcomes else 0
+    phase_anchor = chapter_beat or (outcomes[anchor_index] if outcomes else phase["title"])
+    source_kind = "exact_chapter_beat" if chapter_beat else "chapter_range_phase"
+    return {
+        "status": "planned",
+        "chapter": chapter,
+        "source": source,
+        "source_kind": source_kind,
+        "volume": phase["volume"],
+        "phase": phase["title"],
+        "phase_range": [start, end],
+        "phase_position": {
+            "index": position,
+            "total": total,
+            "progression_role": progression_role,
+        },
+        "emotional_target": (
+            f"Make '{phase['title']}' feel like a {progression_role} turn and end with changed pressure."
+        ),
+        "plot_state_change": (
+            chapter_beat
+            or f"Advance one distinct {progression_role} step toward this phase anchor: {phase_anchor}"
+        ),
+        "character_state_change": (
+            "Show an observable choice, cost, belief shift, or capability change caused by the plot turn."
+        ),
+        "relationship_or_worldline_progress": (
+            "Advance one relationship, faction, or worldline state without resolving a later phase beat early."
+        ),
+        "foreshadowing_to_introduce_or_payoff": FORESHADOWING_TARGET_BY_ROLE[progression_role],
+        "timeline_position": (
+            f"{phase['volume']}; {phase['title']}; chapter {chapter} of range {start}-{end}; slot {position}/{total}"
+        ),
+        "beat_plan": {
+            "required_chapter_beat": phase_anchor,
+            "phase_outcomes": outcomes,
+            "progression_role": progression_role,
+            "constraints": [
+                "deliver one distinct state transition",
+                "do not repeat the previous candidate chapter's resolved beat",
+                "do not resolve later phase outcomes early",
+            ],
+        },
+        "target_character_range": [4500, 5500],
+        "hard_character_range": [3000, 8000],
+    }
 
 
 def _is_fiction_route(route: dict[str, Any]) -> bool:
@@ -162,7 +321,7 @@ def build_chapter_packet(
     bible_refs = _collect(project_root, ["production/bible/**/*.md"], limit=20)
     outline_refs = _select_outline_refs(_collect(project_root, ["production/outlines/**/*.md"], limit=20), chapter)
     manuscript_refs = _collect(project_root, ["production/manuscript/**/*.md"], limit=200)
-    if baseline_mode == "reset":
+    if baseline_mode in {"reset", "continuation", "candidate_continuation"}:
         resolved_previous_chapters = list(previous_chapters or [])
     else:
         resolved_previous_chapters = [
@@ -177,12 +336,20 @@ def build_chapter_packet(
         "task_id": task_id,
         "chapter": chapter,
         "baseline_mode": baseline_mode,
+        "continuity_source_kind": (
+            "reset_snapshot"
+            if baseline_mode == "reset"
+            else "candidate_run"
+            if baseline_mode in {"continuation", "candidate_continuation"}
+            else "production_manuscript"
+        ),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "source_of_truth": {
             "fact_snapshot": "project_brain/project_fact_snapshot.yml",
             "artifact_index": "project_artifact_index.yml",
             "production_root": "production/",
         },
+        "chapter_intent": _build_chapter_intent(project_root, outline_refs, chapter),
         "must_read": [
             "project_brain/project_fact_snapshot.yml",
             "project_artifact_index.yml",
@@ -196,6 +363,7 @@ def build_chapter_packet(
             "previous_chapters": resolved_previous_chapters[-3:],
         },
         "previous_chapters": resolved_previous_chapters[-3:],
+        "previous_candidate_sources": resolved_previous_chapters[-3:],
         "deprecated_sources": list(deprecated_sources or []),
         "required_outputs": list(LIGHT_CHAPTER_DELIVERY_FILES) + ["narrative_delivery_receipt.yml"],
         "quality_gates": list(REQUIRED_REVIEW_GATES),

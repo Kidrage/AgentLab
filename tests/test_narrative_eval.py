@@ -90,6 +90,23 @@ def _make_crown_project(root: Path) -> Path:
     (project_root / "production" / "manuscript").mkdir(parents=True)
     (project_root / "production" / "bible" / "roles.md").write_text("# Roles\n", encoding="utf-8")
     (project_root / "production" / "outlines" / "main_outline.md").write_text("# Outline\n", encoding="utf-8")
+    (project_root / "production" / "outlines" / "02_卷纲与章节路线.md").write_text(
+        """# 卷纲与章节路线
+
+## 第一卷：灰烬中觉醒
+
+### 1-2 章：灰谷镇与逃亡
+
+- 01：灰谷镇日常、火刑、师父死亡、烙印初热。
+- 02：荒野逃亡、濒死、烙印激活、被教团密探发现。
+
+### 3-5 章：地下图书馆
+
+- 凯恩苏醒并确认烙印的代价。
+- 伊莎贝拉隐瞒一次异常数据。
+""",
+        encoding="utf-8",
+    )
     for chapter in range(1, 11):
         (project_root / "production" / "manuscript" / f"第{chapter:02d}章_旧稿.md").write_text(
             f"# Old Ch{chapter}\n旧稿作废。\n",
@@ -147,7 +164,9 @@ def test_narrative_eval_reset_mock_generates_candidate_chapters_without_producti
         run_dir = root / item["run_dir"]
         packet = yaml.safe_load((run_dir / "chapter_packet.yml").read_text(encoding="utf-8"))
         workflow = yaml.safe_load((run_dir / "workflow_plan.yml").read_text(encoding="utf-8"))
-        assert packet["baseline_mode"] == "reset"
+        expected_baseline = "reset" if item["chapter"] == 1 else "continuation"
+        assert packet["baseline_mode"] == expected_baseline
+        assert packet["chapter_intent"]["status"] == "planned"
         assert item["task_id"].startswith("task_narrative_eval_ch")
         assert workflow["route"]["route_key"] == "narrative_light_chapter"
         assert not any(source.startswith("production/manuscript/") for source in packet["previous_chapters"])
@@ -156,8 +175,25 @@ def test_narrative_eval_reset_mock_generates_candidate_chapters_without_producti
 
     ch1_packet = yaml.safe_load((root / l2_chapters[0]["run_dir"] / "chapter_packet.yml").read_text(encoding="utf-8"))
     ch2_packet = yaml.safe_load((root / l2_chapters[1]["run_dir"] / "chapter_packet.yml").read_text(encoding="utf-8"))
+    ch3_packet = yaml.safe_load((root / l2_chapters[2]["run_dir"] / "chapter_packet.yml").read_text(encoding="utf-8"))
     assert ch1_packet["previous_chapters"] == []
-    assert any("runs/task_narrative_eval_ch01_20260705T000000Z/fiction_draft.md" == source for source in ch2_packet["previous_chapters"])
+    assert ch1_packet["chapter_intent"]["source_kind"] == "exact_chapter_beat"
+    assert "灰谷镇日常" in ch1_packet["chapter_intent"]["plot_state_change"]
+    assert ch2_packet["previous_candidate_sources"] == [
+        "runs/task_narrative_eval_ch01_20260705T000000Z/fiction_draft.md",
+        "runs/task_narrative_eval_ch01_20260705T000000Z/continuity_ledger.yml",
+        "runs/task_narrative_eval_ch01_20260705T000000Z/state_transition_proposal.yml",
+    ]
+    assert ch3_packet["previous_candidate_sources"] == [
+        "runs/task_narrative_eval_ch02_20260705T000000Z/fiction_draft.md",
+        "runs/task_narrative_eval_ch02_20260705T000000Z/continuity_ledger.yml",
+        "runs/task_narrative_eval_ch02_20260705T000000Z/state_transition_proposal.yml",
+    ]
+    assert ch3_packet["chapter_intent"]["source_kind"] == "chapter_range_phase"
+    ch2_ledger = yaml.safe_load(
+        (root / l2_chapters[1]["run_dir"] / "continuity_ledger.yml").read_text(encoding="utf-8")
+    )
+    assert ch2_ledger["baseline_mode"] == "continuation"
 
     production_after = {
         path.relative_to(project_root).as_posix(): path.read_text(encoding="utf-8")
@@ -194,8 +230,13 @@ def test_narrative_eval_resume_reuses_valid_chapters_and_rebuilds_continuity_cha
         mode="mock",
         chapters=[1, 2, 3],
         timestamp=timestamp,
+        resume_valid=True,
     )
     assert first["layers"]["L2_real_chapter_sample"]["status"] == "pass"
+    assert all(
+        chapter.get("resumed_existing") is not True
+        for chapter in first["layers"]["L2_real_chapter_sample"]["chapters"]
+    )
 
     def fail_if_regenerated(*args, **kwargs):
         raise AssertionError("valid chapter should have been resumed")
@@ -339,12 +380,13 @@ def test_narrative_eval_cli_run_on_temp_root(tmp_path: Path) -> None:
     assert result.exit_code == 0
     data = yaml.safe_load(result.output)
     assert data["acceptance_run_dir"] == "acceptance_runs/narrative_eval/Crown_of_Ash/crown_reset_acceptance_v1/20260705T030000Z"
+    assert data["allow_writer_cli_fallback"] is False
 
 
 def test_live_narrative_eval_stops_before_reviewer_when_writer_fails(tmp_path: Path, monkeypatch) -> None:
     calls: list[str] = []
 
-    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
         calls.append(agent_name)
         return types.SimpleNamespace(
             status="blocked_user_decision",
@@ -359,6 +401,10 @@ def test_live_narrative_eval_stops_before_reviewer_when_writer_fails(tmp_path: P
         sys.modules,
         "workflow_plan",
         types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        "agent_runtime.narrative_eval._try_writer_cli_fallback",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("fallback must be opt-in")),
     )
 
     run_dir = tmp_path / "run"
@@ -375,7 +421,7 @@ def test_live_narrative_eval_stops_before_reviewer_when_writer_fails(tmp_path: P
 
 
 def test_live_narrative_eval_report_includes_writer_failure_summary(tmp_path: Path, monkeypatch) -> None:
-    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
         return types.SimpleNamespace(
             status="blocked_user_decision",
             content="",
@@ -412,7 +458,7 @@ def test_live_narrative_eval_report_includes_writer_failure_summary(tmp_path: Pa
 def test_live_narrative_eval_blocks_without_writer_role_session(tmp_path: Path, monkeypatch) -> None:
     calls: list[str] = []
 
-    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
         calls.append(agent_name)
         return types.SimpleNamespace(status="completed", content="# Draft", error=None, provider="test", model="test")
 
@@ -438,8 +484,9 @@ def test_live_narrative_eval_blocks_without_writer_role_session(tmp_path: Path, 
 def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path: Path, monkeypatch) -> None:
     calls: list[str] = []
 
-    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
         calls.append(agent_name)
+        assert kwargs["allow_cli_api_fallback"] is False
         content = _writer_candidate_blocks("正文段落。" * 900) if agent_name == "Writer" else "verdict: pass\n"
         return types.SimpleNamespace(
             status="completed",
@@ -479,6 +526,8 @@ def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path
     assert request["execution_scope"] == "internal_agentlab_writer_role_session"
     assert request["candidate_only"] is True
     assert request["writer_role_session_required"] is True
+    assert request["writer_cli_fallback_allowed"] is False
+    assert request["provider_surface_fallback_allowed"] is False
     assert request["required_outputs"] == [
         "fiction_draft.md",
         "continuity_ledger.yml",
@@ -489,7 +538,7 @@ def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path
 
 
 def test_live_narrative_eval_cli_fallback_completes_light_outputs(tmp_path: Path, monkeypatch) -> None:
-    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False):
+    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
         return types.SimpleNamespace(
             status="blocked_user_decision",
             content="",
@@ -519,7 +568,15 @@ def test_live_narrative_eval_cli_fallback_completes_light_outputs(tmp_path: Path
     run_dir.mkdir()
     (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
 
-    _write_live_chapter_outputs(root, run_dir, "Crown_of_Ash", "task_live", 1, [])
+    _write_live_chapter_outputs(
+        root,
+        run_dir,
+        "Crown_of_Ash",
+        "task_live",
+        1,
+        [],
+        allow_writer_cli_fallback=True,
+    )
 
     assert not (run_dir / "live_generation_error.yml").exists()
     assert (run_dir / "live_writer_cli_fallback.yml").exists()

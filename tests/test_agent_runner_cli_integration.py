@@ -1532,6 +1532,71 @@ class TestAgentRunnerSchemaV4Dispatch:
             assert result.raw_usage.get("configured_cli_agent") == "hermes"
             assert "binary_not_found" in str(result.raw_usage.get("fallback_reason", ""))
 
+    def test_cli_unavailable_blocks_when_api_fallback_is_disabled(self, tmp_path, monkeypatch):
+        plan = _make_plan(tmp_path, budget_mode="full")
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+
+        monkeypatch.setattr("agent_runner.load_agentlab_configs", lambda _: _schema_v4_configs())
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *args, **kwargs: None,
+        )
+
+        with patch(
+            "agent_runner.run_cli_agent",
+            return_value=_cli_not_available(),
+        ) as mock_cli, patch("agent_runner.generate_text") as mock_api:
+            from agent_runner import run_agent_model
+
+            result = run_agent_model(
+                tmp_path,
+                plan,
+                "Supervisor",
+                run_dir / "test_output.md",
+                apply_patches=False,
+                allow_cli_api_fallback=False,
+            )
+
+        mock_cli.assert_called_once()
+        mock_api.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert result.error == "cli_unavailable_no_fallback"
+        assert result.raw_usage["provider_surface_changed"] is False
+        assert result.raw_usage["direct_api_fallback_attempted"] is False
+
+    def test_missing_cli_profile_blocks_when_api_fallback_is_disabled(self, tmp_path, monkeypatch):
+        plan = _make_plan(tmp_path, budget_mode="full")
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *args, **kwargs: None,
+        )
+        monkeypatch.setattr(
+            "agent_runner._resolve_cli_profile_for_agent",
+            lambda *args, **kwargs: ({}, "full_cli", "supervisor", None),
+        )
+
+        with patch("agent_runner.run_cli_agent") as mock_cli, patch("agent_runner.generate_text") as mock_api:
+            from agent_runner import run_agent_model
+
+            result = run_agent_model(
+                tmp_path,
+                plan,
+                "Supervisor",
+                run_dir / "test_output.md",
+                apply_patches=False,
+                allow_cli_api_fallback=False,
+            )
+
+        mock_cli.assert_not_called()
+        mock_api.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert result.error == "cli_profile_required_no_fallback"
+        assert result.raw_usage["direct_api_fallback_attempted"] is False
+
     def test_cli_dispatch_blocks_disallowed_role_binding(self, tmp_path, monkeypatch):
         """A CLI worker not authorized for the role is blocked before execution."""
         plan = _make_plan(tmp_path, budget_mode="full")

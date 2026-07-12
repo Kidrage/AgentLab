@@ -119,3 +119,28 @@ def test_materializer_rejects_present_but_noncanonical_writer_yaml(
         "invalid_writer_output_schema:state_transition_proposal.yml"
         in contract["issues"]
     )
+
+
+def test_materializer_rejects_short_governed_chapter_before_writing(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / "task_ch01"
+    run_dir.mkdir(parents=True)
+    (run_dir / "chapter_packet.yml").write_text(
+        yaml.safe_dump(
+            {
+                "chapter": 1,
+                "baseline_mode": "reset",
+                "chapter_intent": {"hard_character_range": [3000, 8000]},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    ok = materialize_writer_candidate_content(_blocks(), run_dir, "task_ch01")
+
+    assert ok is False
+    assert not (run_dir / "fiction_draft.md").exists()
+    contract = yaml.safe_load(
+        (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
+    )
+    assert "draft_character_count_out_of_range" in contract["issues"]

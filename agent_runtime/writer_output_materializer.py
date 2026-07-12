@@ -14,6 +14,19 @@ REQUIRED_WRITER_OUTPUTS = (
     "state_transition_proposal.yml",
     "narrative_delivery_receipt.yml",
 )
+REQUIRED_RECEIPT_CHECKS = (
+    "chapter_and_title",
+    "required_beats",
+    "continuity_outputs",
+    "production_untouched",
+    "deprecated_sources_excluded",
+)
+REQUIRED_CONTINUITY_LISTS = (
+    "plot_state_changes",
+    "character_changes",
+    "relationship_or_worldline_changes",
+    "foreshadowing",
+)
 
 
 def _strip_optional_code_fence(content: str) -> str:
@@ -84,6 +97,51 @@ def _writer_output_schema_issues(materialized: dict[str, str]) -> list[str]:
     return issues
 
 
+def _governed_chapter_issues(materialized: dict[str, str], run_dir: Path) -> list[str]:
+    packet_path = run_dir / "chapter_packet.yml"
+    if not packet_path.is_file():
+        return []
+    try:
+        packet = yaml.safe_load(packet_path.read_text(encoding="utf-8")) or {}
+        ledger = yaml.safe_load(materialized["continuity_ledger.yml"]) or {}
+        proposal = yaml.safe_load(materialized["state_transition_proposal.yml"]) or {}
+        receipt = yaml.safe_load(materialized["narrative_delivery_receipt.yml"]) or {}
+    except (KeyError, yaml.YAMLError):
+        return ["invalid_governed_writer_output"]
+
+    issues: list[str] = []
+    chapter = packet.get("chapter")
+    expected_baseline = "reset" if packet.get("baseline_mode") == "reset" else "continuation"
+    intent = packet.get("chapter_intent") if isinstance(packet.get("chapter_intent"), dict) else {}
+    hard_range = intent.get("hard_character_range") or [3000, 8000]
+    draft = materialized.get("fiction_draft.md", "")
+    if (
+        not isinstance(hard_range, list)
+        or len(hard_range) != 2
+        or not all(isinstance(value, int) for value in hard_range)
+        or not hard_range[0] <= len(draft) <= hard_range[1]
+    ):
+        issues.append("draft_character_count_out_of_range")
+
+    first_heading = next((line.strip() for line in draft.splitlines() if line.strip()), "")
+    if not first_heading.startswith("#") or ("章" not in first_heading and "chapter" not in first_heading.lower()):
+        issues.append("draft_chapter_heading_missing")
+    if ledger.get("chapter") != chapter:
+        issues.append("continuity_chapter_mismatch")
+    if ledger.get("baseline_mode") != expected_baseline:
+        issues.append("continuity_baseline_mode_mismatch")
+    for field in REQUIRED_CONTINUITY_LISTS:
+        if not isinstance(ledger.get(field), list) or not ledger.get(field):
+            issues.append(f"continuity_field_missing:{field}")
+    if proposal.get("chapter") != chapter:
+        issues.append("state_transition_chapter_mismatch")
+    checks = receipt.get("checks") if isinstance(receipt.get("checks"), dict) else {}
+    for check in REQUIRED_RECEIPT_CHECKS:
+        if checks.get(check) != "pass":
+            issues.append(f"delivery_receipt_check_failed:{check}")
+    return issues
+
+
 def materialize_writer_candidate_content(
     content: str,
     run_dir: Path,
@@ -127,7 +185,10 @@ def materialize_writer_candidate_content(
     missing = [name for name in REQUIRED_WRITER_OUTPUTS if name not in materialized]
     issues.extend(f"missing_writer_output:{name}" for name in missing)
     if not missing:
-        issues.extend(_writer_output_schema_issues(materialized))
+        schema_issues = _writer_output_schema_issues(materialized)
+        issues.extend(schema_issues)
+        if not schema_issues:
+            issues.extend(_governed_chapter_issues(materialized, run_dir))
     status = "pass" if not issues else "blocked"
     _write_contract(
         run_dir,

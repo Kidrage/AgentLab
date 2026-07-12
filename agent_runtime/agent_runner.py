@@ -1128,6 +1128,7 @@ def run_agent_model(
     provider_override: str | None = None,
     model_override: str | None = None,
     apply_patches: bool = True,
+    allow_cli_api_fallback: bool = True,
 ):
     from operational_uploader import maybe_run_operational_agent
 
@@ -1229,6 +1230,45 @@ def run_agent_model(
                     "direct_api_fallback_attempted": False,
                 },
             )
+        if not allow_cli_api_fallback:
+            return LLMCallResult(
+                provider="agentlab-cli-executor",
+                model=cli_configured_agent or "unknown_cli_worker",
+                content=(
+                    f"# {agent_name} CLI worker unavailable\n\n"
+                    "AgentLab refused to switch from the configured CLI worker to a direct-API provider.\n"
+                ),
+                status="blocked_user_decision",
+                error="cli_unavailable_no_fallback",
+                raw_usage={
+                    "executor_type": "cli_agent",
+                    "configured_cli_agent": cli_configured_agent,
+                    "cli_unavailable_reason": getattr(
+                        cli_result,
+                        "reason",
+                        "cli_unavailable",
+                    ),
+                    "provider_surface_changed": False,
+                    "direct_api_fallback_attempted": False,
+                },
+            )
+    if not allow_cli_api_fallback and cli_role_profile is None:
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="unconfigured_cli_worker",
+            content=(
+                f"# {agent_name} CLI profile missing\n\n"
+                "AgentLab refused to use a direct-API provider without the required CLI profile.\n"
+            ),
+            status="blocked_user_decision",
+            error="cli_profile_required_no_fallback",
+            raw_usage={
+                "executor_type": "cli_agent",
+                "configured_cli_agent": None,
+                "provider_surface_changed": False,
+                "direct_api_fallback_attempted": False,
+            },
+        )
     # ─────────────────────────────────────────────────────────────────────────
 
     settings, configs = resolve_agent_settings(

@@ -68,6 +68,14 @@ def _safe_eval_task_id(chapter: int, eval_id: str) -> str:
     return ensure_safe_task_id(f"task_narrative_eval_ch{chapter:02d}_{cleaned_eval_id}"[:85])
 
 
+def _candidate_chapter_sources(task_id: str) -> list[str]:
+    return [
+        f"runs/{task_id}/fiction_draft.md",
+        f"runs/{task_id}/continuity_ledger.yml",
+        f"runs/{task_id}/state_transition_proposal.yml",
+    ]
+
+
 def _write_light_chapter_workflow_plan(root: Path, project: str, task_id: str, run_dir: Path) -> None:
     fallback = {
         "route": {
@@ -232,6 +240,7 @@ def _write_structured_delivery_files(
     chapter: int,
     previous: list[str],
     created_by: str,
+    baseline_mode: str,
     include_review: bool = True,
 ) -> None:
     draft_path = run_dir / "fiction_draft.md"
@@ -269,7 +278,7 @@ def _write_structured_delivery_files(
         {
             "schema_version": 1,
             "chapter": chapter,
-            "baseline_mode": "reset",
+            "baseline_mode": baseline_mode,
             "previous_candidate_sources": previous,
             "timeline": {"monotonic": True, "chapter_day": chapter},
             "worldline_changes": ["enemy command channel remains active"],
@@ -308,11 +317,23 @@ def _write_structured_delivery_files(
     write_narrative_delivery_receipt(run_dir)
 
 
-def _write_mock_chapter_outputs(run_dir: Path, project: str, chapter: int, previous: list[str]) -> None:
+def _write_mock_chapter_outputs(
+    run_dir: Path,
+    project: str,
+    chapter: int,
+    previous: list[str],
+    baseline_mode: str,
+) -> None:
     draft = _mock_draft(project, chapter)
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "fiction_draft.md").write_text(draft, encoding="utf-8")
-    _write_structured_delivery_files(run_dir, chapter=chapter, previous=previous, created_by="narrative-eval mock harness")
+    _write_structured_delivery_files(
+        run_dir,
+        chapter=chapter,
+        previous=previous,
+        created_by="narrative-eval mock harness",
+        baseline_mode=baseline_mode,
+    )
 
 
 def _write_live_generation_error(run_dir: Path, *, agent: str, result: Any) -> None:
@@ -504,7 +525,16 @@ def _load_live_generation_error(run_dir: Path, root: Path) -> dict[str, Any] | N
     return data
 
 
-def _write_live_chapter_outputs(root: Path, run_dir: Path, project: str, task_id: str, chapter: int, previous: list[str]) -> None:
+def _write_live_chapter_outputs(
+    root: Path,
+    run_dir: Path,
+    project: str,
+    task_id: str,
+    chapter: int,
+    previous: list[str],
+    *,
+    allow_writer_cli_fallback: bool = False,
+) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     _write_yaml(
         run_dir / "live_generation_request.yml",
@@ -517,6 +547,8 @@ def _write_live_chapter_outputs(root: Path, run_dir: Path, project: str, task_id
             "execution_scope": "internal_agentlab_writer_role_session",
             "candidate_only": True,
             "writer_role_session_required": True,
+            "writer_cli_fallback_allowed": allow_writer_cli_fallback,
+            "provider_surface_fallback_allowed": False,
             "required_outputs": [
                 "fiction_draft.md",
                 "continuity_ledger.yml",
@@ -539,9 +571,14 @@ def _write_live_chapter_outputs(root: Path, run_dir: Path, project: str, task_id
             "Writer",
             run_dir / "writer_role_session_capture.md",
             apply_patches=False,
+            allow_cli_api_fallback=False,
         )
         if not materialize_writer_candidate_result(writer_result, run_dir, task_id):
-            if not _try_writer_cli_fallback(root, run_dir, project, task_id, writer_result):
+            fallback_completed = (
+                allow_writer_cli_fallback
+                and _try_writer_cli_fallback(root, run_dir, project, task_id, writer_result)
+            )
+            if not fallback_completed:
                 _write_live_generation_error(run_dir, agent="Writer", result=writer_result)
                 return
 
@@ -581,6 +618,7 @@ def _generate_chapters(
     writer_worker: str | None = None,
     resume_valid: bool = False,
     stop_on_block: bool = False,
+    allow_writer_cli_fallback: bool = False,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     generated: list[dict[str, Any]] = []
@@ -590,7 +628,11 @@ def _generate_chapters(
         run_dir = project_root / "runs" / task_id
         run_dir.mkdir(parents=True, exist_ok=True)
         existing_delivery = validate_narrative_delivery(run_dir)
-        if resume_valid and existing_delivery.get("valid"):
+        if (
+            resume_valid
+            and existing_delivery.get("valid")
+            and not existing_delivery.get("skipped")
+        ):
             generated.append({
                 "chapter": chapter,
                 "task_id": task_id,
@@ -600,14 +642,21 @@ def _generate_chapters(
                 "production_modified": False,
                 "resumed_existing": True,
             })
-            previous_sources.extend([
-                f"runs/{task_id}/fiction_draft.md",
-                f"runs/{task_id}/continuity_ledger.yml",
-            ])
+            previous_sources = _candidate_chapter_sources(task_id)
             _write_generation_checkpoint(eval_dir, suite, chapters, generated)
             continue
+        baseline_mode = "reset" if chapter == 1 else "continuation"
+        baseline_instruction = (
+            "Start from the reset fact snapshot and do not read any deprecated manuscript."
+            if baseline_mode == "reset"
+            else "Continue only from the previous candidate sources named by chapter_packet.yml."
+        )
         (run_dir / "user_request.md").write_text(
-            f"Generate reset-baseline chapter {chapter} for {project}. Do not read deprecated production manuscript.",
+            (
+                f"Generate candidate chapter {chapter} for {project}. "
+                "Fulfill chapter_intent and beat_plan in chapter_packet.yml. "
+                f"{baseline_instruction} Do not write production or promote candidate facts."
+            ),
             encoding="utf-8",
         )
         _write_light_chapter_workflow_plan(root, project, task_id, run_dir)
@@ -616,12 +665,12 @@ def _generate_chapters(
             project,
             task_id,
             chapter,
-            baseline_mode="reset",
-            previous_chapters=previous_sources[-6:],
+            baseline_mode=baseline_mode,
+            previous_chapters=previous_sources,
             deprecated_sources=deprecated_sources,
         )
         if mode == "mock":
-            _write_mock_chapter_outputs(run_dir, project, chapter, previous_sources[-6:])
+            _write_mock_chapter_outputs(run_dir, project, chapter, previous_sources, baseline_mode)
         elif mode == "live":
             role_session = None
             if writer_worker:
@@ -641,7 +690,15 @@ def _generate_chapters(
             guard = validate_narrative_live_role_session(project, task_id, role_session)
             _write_yaml(run_dir / "live_writer_role_session_guard.yml", guard)
             if guard.get("status") == "pass":
-                _write_live_chapter_outputs(root, run_dir, project, task_id, chapter, previous_sources[-6:])
+                _write_live_chapter_outputs(
+                    root,
+                    run_dir,
+                    project,
+                    task_id,
+                    chapter,
+                    previous_sources,
+                    allow_writer_cli_fallback=allow_writer_cli_fallback,
+                )
             else:
                 _write_live_guard_error(run_dir, agent="Writer", guard=guard)
 
@@ -651,6 +708,7 @@ def _generate_chapters(
             "task_id": task_id,
             "run_dir": _rel(run_dir, root),
             "mode": mode,
+            "baseline_mode": baseline_mode,
             "delivery": delivery,
             "production_modified": False,
         }
@@ -659,10 +717,7 @@ def _generate_chapters(
             record["live_generation_error"] = live_error
         generated.append(record)
         if delivery.get("valid"):
-            previous_sources.extend([
-                f"runs/{task_id}/fiction_draft.md",
-                f"runs/{task_id}/continuity_ledger.yml",
-            ])
+            previous_sources = _candidate_chapter_sources(task_id)
         _write_generation_checkpoint(eval_dir, suite, chapters, generated)
         if stop_on_block and not delivery.get("valid"):
             break
@@ -677,6 +732,7 @@ def _generate_chapters(
         "completed_chapter_count": len(completed_chapters),
         "resume_valid": resume_valid,
         "stop_on_block": stop_on_block,
+        "allow_writer_cli_fallback": allow_writer_cli_fallback,
     }
 
 
@@ -874,6 +930,7 @@ def run_narrative_eval(
     writer_worker: str | None = None,
     resume_valid: bool = False,
     stop_on_block: bool = False,
+    allow_writer_cli_fallback: bool = False,
 ) -> dict[str, Any]:
     if mode not in VALID_MODES:
         raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
@@ -906,6 +963,7 @@ def run_narrative_eval(
             writer_worker=writer_worker,
             resume_valid=resume_valid,
             stop_on_block=stop_on_block,
+            allow_writer_cli_fallback=allow_writer_cli_fallback,
         )
 
     l3 = _build_scale_simulation(eval_dir, suite)
@@ -923,6 +981,7 @@ def run_narrative_eval(
         "writer_worker": writer_worker,
         "resume_valid": resume_valid,
         "stop_on_block": stop_on_block,
+        "allow_writer_cli_fallback": allow_writer_cli_fallback,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": overall_status,
         "acceptance_run_dir": _rel(eval_dir, root),

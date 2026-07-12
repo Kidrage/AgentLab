@@ -69,6 +69,7 @@ projects/*/tasks/*/tmp/
 
 # Runtime artifacts
 /_shared/novel-moon-in-seal/
+/acceptance_runs/narrative_eval/Crown_of_Ash/crown_completion_*/
 /config/worker_performance_ledger.yml
 external_skill_inventory.json
 internal_skill_candidates.yml

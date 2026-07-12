@@ -71,6 +71,7 @@ def test_prepare_chapter_packet_uses_current_story_sources(tmp_path: Path) -> No
     written = write_chapter_packet(root, "Crown_of_Ash", "task_ch02", 2)
 
     assert packet["chapter"] == 2
+    assert packet["continuity_source_kind"] == "production_manuscript"
     assert "project_brain/project_fact_snapshot.yml" in packet["must_read"]
     assert "project_artifact_index.yml" in packet["must_read"]
     assert packet["previous_chapters"] == ["production/manuscript/第01章_灰谷镇的灰.md"]
@@ -103,6 +104,56 @@ def test_early_chapter_packet_uses_core_and_volume_one_outlines(tmp_path: Path) 
     assert "production/outlines/卷纲_第二卷.md" not in outline_refs
     assert "production/outlines/卷纲_第三卷.md" not in outline_refs
     assert "production/outlines/04_续作钩子与未完结属性.md" not in outline_refs
+
+
+def test_candidate_chapter_packet_builds_intent_from_authoritative_route(tmp_path: Path) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    route = project_root / "production" / "outlines" / "02_卷纲与章节路线.md"
+    route.write_text(
+        """# Route
+
+## 第一卷
+
+### 11-15 章：追捕与裂痕
+
+- 莉亚先纠错，不提供廉价外挂。
+- 凯恩发现教团也会牺牲无辜。
+""",
+        encoding="utf-8",
+    )
+    previous = [
+        "runs/task_ch11/fiction_draft.md",
+        "runs/task_ch11/continuity_ledger.yml",
+        "runs/task_ch11/state_transition_proposal.yml",
+    ]
+
+    packet = build_chapter_packet(
+        root,
+        "Crown_of_Ash",
+        "task_ch12",
+        12,
+        baseline_mode="continuation",
+        previous_chapters=previous,
+    )
+
+    assert packet["baseline_mode"] == "continuation"
+    assert packet["continuity_source_kind"] == "candidate_run"
+    assert packet["previous_candidate_sources"] == previous
+    assert not any(source.startswith("production/manuscript/") for source in packet["previous_chapters"])
+    intent = packet["chapter_intent"]
+    assert intent["source"] == "production/outlines/02_卷纲与章节路线.md"
+    assert intent["source_kind"] == "chapter_range_phase"
+    assert intent["phase_range"] == [11, 15]
+    assert intent["phase_position"]["index"] == 2
+    assert intent["beat_plan"]["required_chapter_beat"]
+    assert intent["foreshadowing_to_introduce_or_payoff"] in {
+        "introduce",
+        "touch",
+        "escalate",
+        "touch_or_reframe",
+        "payoff_or_explicitly_defer",
+    }
 
 
 def test_narrative_doctor_reports_missing_delivery_protocol(tmp_path: Path) -> None:
