@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 from agent_runtime.cli.narrative_eval import register_narrative_eval_commands  # noqa: E402
 from agent_runtime.narrative_eval import (  # noqa: E402
     _audit_history,
+    _clear_chapter_attempt_outputs,
     _write_live_chapter_outputs,
     run_narrative_eval,
 )
@@ -27,6 +28,34 @@ runner = CliRunner()
 def _write_yaml(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def test_clear_chapter_attempt_outputs_archives_blocked_evidence(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "runs" / "task_chapter"
+    run_dir.mkdir(parents=True)
+    (run_dir / "writer_role_session_capture.md").write_text("rejected", encoding="utf-8")
+    _write_yaml(
+        run_dir / "writer_output_contract.yml",
+        {"status": "blocked", "issues": ["invalid candidate"]},
+    )
+    _write_yaml(
+        run_dir / "live_generation_error.yml",
+        {"status": "blocked", "error": "required output missing"},
+    )
+    _write_yaml(run_dir / "writer_retry_ledger.yml", {"status": "blocked"})
+
+    _clear_chapter_attempt_outputs(run_dir)
+
+    archive = run_dir / "rejected_attempts" / "resume_001"
+    assert (archive / "writer_role_session_capture.md").read_text(encoding="utf-8") == "rejected"
+    rejection = yaml.safe_load((archive / "rejection.yml").read_text(encoding="utf-8"))
+    assert rejection["contract_issues"] == ["invalid candidate"]
+    assert rejection["live_generation_error"] == "required output missing"
+    assert "writer_retry_ledger.yml" in rejection["archived_files"]
+    assert not (run_dir / "writer_output_contract.yml").exists()
+    assert not (run_dir / "live_generation_error.yml").exists()
 
 
 def _writer_candidate_blocks(draft: str) -> str:

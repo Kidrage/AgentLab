@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 import os
 import re
+import shutil
 import subprocess
 import time
 
@@ -67,6 +68,50 @@ def _write_yaml(path: Path, data: dict[str, Any]) -> None:
 
 def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
     """Remove stale candidate-derived files before a non-resumed attempt."""
+    contract_path = run_dir / "writer_output_contract.yml"
+    error_path = run_dir / "live_generation_error.yml"
+    contract: dict[str, Any] = {}
+    error: dict[str, Any] = {}
+    for path, target in ((contract_path, contract), (error_path, error)):
+        if not path.is_file():
+            continue
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            data = {}
+        if isinstance(data, dict):
+            target.update(data)
+
+    if contract.get("status") == "blocked" or error.get("status") == "blocked":
+        archive_root = run_dir / "rejected_attempts"
+        index = 1
+        while (archive_root / f"resume_{index:03d}").exists():
+            index += 1
+        archive_dir = archive_root / f"resume_{index:03d}"
+        archive_dir.mkdir(parents=True, exist_ok=False)
+        archived: list[str] = []
+        candidates = [
+            *(run_dir / filename for filename in CHAPTER_ATTEMPT_OUTPUTS),
+            *sorted(run_dir.glob("writer_retry_attempt_*")),
+        ]
+        for path in candidates:
+            if not path.is_file() or path.name in archived:
+                continue
+            shutil.copy2(path, archive_dir / path.name)
+            archived.append(path.name)
+        _write_yaml(
+            archive_dir / "rejection.yml",
+            {
+                "schema_version": 1,
+                "status": "rejected",
+                "candidate_only": True,
+                "production_modified": False,
+                "reason": "blocked_chapter_attempt_replaced_on_resume",
+                "contract_issues": contract.get("issues") or [],
+                "live_generation_error": error.get("error") or error.get("message"),
+                "archived_files": archived,
+            },
+        )
     for filename in CHAPTER_ATTEMPT_OUTPUTS:
         (run_dir / filename).unlink(missing_ok=True)
     for path in run_dir.glob("writer_retry_attempt_*"):
