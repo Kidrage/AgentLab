@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from agent_runtime.writer_output_materializer import (
@@ -131,13 +132,18 @@ def test_materializer_does_not_normalize_explicit_production_scope(
     assert "invalid_writer_output_schema:state_transition_proposal.yml" in contract["issues"]
 
 
+@pytest.mark.parametrize(
+    "scope",
+    ["character_action", "character_relationship_progress"],
+)
 def test_materializer_normalizes_known_candidate_scope_category(
     tmp_path: Path,
+    scope: str,
 ) -> None:
     run_dir = tmp_path / "runs" / "task_ch01"
     category_scope = _blocks().replace(
         "scope: candidate_only",
-        "scope: character_action",
+        f"scope: {scope}",
         1,
     )
 

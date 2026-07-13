@@ -38,6 +38,7 @@ DUPLICATE_END_MARKER = re.compile(
 )
 SAFE_CANDIDATE_SCOPE_CATEGORIES = {
     "character_action",
+    "character_relationship_progress",
 }
 
 
