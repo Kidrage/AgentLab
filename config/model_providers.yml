@@ -245,6 +245,34 @@ providers:
       - 不读取 GEMINI_API_KEY，不按本地 Gemini API key 计费。
       - 默认模型为 gemini-3.5-flash-high。
 
+  # ── Agy / Antigravity Claude OAuth 配额轮换入口 ─────────────────
+  agy-claude-oauth:
+    type: oauth_cli
+    display_name: Agy Claude OAuth
+    command: agy
+    default_model: claude-sonnet-4-6@default
+    auth: local_oauth_session
+    billing:
+      source: agy_oauth
+      metering: separate_subscription_quota_window
+    network:
+      requires_supported_region: true
+      recommended_regions:
+        - US
+      vpn_or_proxy_required_when_region_blocked: true
+    never_default: true
+    unavailable_action: stop_and_report
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_cli
+      - oauth_session_expired
+      - region_blocked
+      - provider_error
+    notes:
+      - 仅在 Agy Gemini 返回 rate_limited 或 quota_exhausted 时使用。
+      - 与 Gemini 额度窗口独立；provider surface 仍为同一个 Agy CLI worker。
+      - 不读取 API key，认证/网络/命令或输出契约错误不得触发轮换。
+
   # ── Gemini API 免费额度备用入口 ──────────────────────────────────
   gemini-api:
     type: google_genai_api

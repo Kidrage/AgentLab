@@ -5,6 +5,7 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
 import typer
 import yaml
 from rich.console import Console
@@ -686,7 +687,15 @@ def test_live_narrative_eval_does_not_retry_agy_quota_with_stale_eof_log(
     )
     monkeypatch.setattr("agent_runtime.narrative_eval.time.sleep", delays.append)
 
-    _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 85, [])
+    _write_live_chapter_outputs(
+        tmp_path,
+        run_dir,
+        "Crown_of_Ash",
+        "task_live",
+        85,
+        [],
+        allow_agy_quota_model_rotation=False,
+    )
 
     assert calls == ["Writer"]
     assert delays == []
@@ -698,6 +707,140 @@ def test_live_narrative_eval_does_not_retry_agy_quota_with_stale_eof_log(
     assert error["retry_policy"] == "same_provider_after_reset"
     assert error["fallback_allowed"] is False
     assert error["retry_not_before"].endswith("+00:00")
+
+
+def test_live_narrative_eval_rotates_agy_model_on_quota(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+    model_overrides: list[str | None] = []
+
+    def fake_run_agent_model(
+        root,
+        plan,
+        agent_name,
+        output_path,
+        model_override=None,
+        **kwargs,
+    ):
+        model_overrides.append(model_override)
+        if len(model_overrides) == 1:
+            return types.SimpleNamespace(
+                status="blocked_user_decision",
+                content="",
+                error="CLI agent rate_limited (exit 1).",
+                provider="agentlab-cli-executor",
+                model="agy",
+                raw_usage={
+                    "failure_class": "rate_limited",
+                    "command_id": "cmd_0001",
+                },
+            )
+        return types.SimpleNamespace(
+            status="completed",
+            content=_writer_candidate_blocks("正文段落。" * 900),
+            error=None,
+            provider="agentlab-cli-executor",
+            model="agy",
+            raw_usage={"command_id": "cmd_0002"},
+        )
+
+    monkeypatch.setitem(
+        sys.modules,
+        "agent_runner",
+        types.SimpleNamespace(run_agent_model=fake_run_agent_model),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+
+    _write_live_chapter_outputs(
+        tmp_path,
+        run_dir,
+        "Crown_of_Ash",
+        "task_live",
+        182,
+        [],
+    )
+
+    assert model_overrides == [None, "claude_sonnet_4_6_agy_oauth"]
+    assert (run_dir / "fiction_draft.md").exists()
+    retry = yaml.safe_load((run_dir / "writer_retry_ledger.yml").read_text(encoding="utf-8"))
+    assert retry["status"] == "recovered"
+    assert retry["provider_surface"] == "cli_agent:agy"
+    assert retry["provider_changed"] is False
+    assert retry["model_rotated"] is True
+    assert retry["rotation"]["from_model"] == "gemini_3_5_flash_high_agy_oauth"
+    assert retry["rotation"]["to_model"] == "claude_sonnet_4_6_agy_oauth"
+    assert retry["rotation"]["reason"] == "rate_limited"
+    assert retry["attempts"][0]["retry_kind"] == "quota_model_rotation"
+    assert retry["attempts"][1]["requested_model"] == "claude_sonnet_4_6_agy_oauth"
+
+
+@pytest.mark.parametrize(
+    "failure_class",
+    ["auth_required", "network_required", "invalid_cli_invocation", "provider_error"],
+)
+def test_live_narrative_eval_does_not_rotate_agy_model_for_non_quota_errors(
+    tmp_path: Path,
+    monkeypatch,
+    failure_class: str,
+) -> None:
+    run_dir = tmp_path / failure_class
+    run_dir.mkdir()
+    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+    model_overrides: list[str | None] = []
+
+    def fake_run_agent_model(
+        root,
+        plan,
+        agent_name,
+        output_path,
+        model_override=None,
+        **kwargs,
+    ):
+        model_overrides.append(model_override)
+        return types.SimpleNamespace(
+            status="blocked_user_decision",
+            content="",
+            error=f"CLI agent {failure_class} (exit 1).",
+            provider="agentlab-cli-executor",
+            model="agy",
+            raw_usage={"failure_class": failure_class, "command_id": "cmd_0001"},
+        )
+
+    monkeypatch.setitem(
+        sys.modules,
+        "agent_runner",
+        types.SimpleNamespace(run_agent_model=fake_run_agent_model),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+
+    _write_live_chapter_outputs(
+        tmp_path,
+        run_dir,
+        "Crown_of_Ash",
+        "task_live",
+        182,
+        [],
+    )
+
+    assert model_overrides
+    assert all(model is None for model in model_overrides)
+    retry_path = run_dir / "writer_retry_ledger.yml"
+    if retry_path.exists():
+        retry = yaml.safe_load(retry_path.read_text(encoding="utf-8"))
+        assert retry["model_rotated"] is False
+    assert (run_dir / "live_generation_error.yml").exists()
 
 
 def test_live_narrative_eval_retries_one_full_contract_redo(

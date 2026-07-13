@@ -325,6 +325,40 @@ def test_agy_is_default_gemini_oauth_path_and_api_gemini_is_explicit_fallback() 
     assert _cost_source(api_model, {}) == "free-tier/api quota"
 
 
+def test_agy_writer_quota_rotation_uses_separate_claude_window_only() -> None:
+    catalog = _load_config("model_catalog.yml")
+    providers = _load_config("model_providers.yml")["providers"]
+    contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
+    requirements = _load_config("runtime_cli_requirements.yml")["components"]["agy"]
+
+    model = catalog["models"]["claude_sonnet_4_6_agy_oauth"]
+    assert model["provider"] == "agy_claude_oauth"
+    assert model["runtime_provider"] == "agy-claude-oauth"
+    assert model["cli_model_id"] == "claude-sonnet-4-6@default"
+    assert model["usage_policy"]["never_default"] is True
+    assert model["usage_policy"]["quota_rotation_only"] is True
+    assert model["usage_policy"]["allowed_failure_classes"] == [
+        "rate_limited",
+        "quota_exhausted",
+    ]
+
+    provider = providers["agy-claude-oauth"]
+    assert provider["type"] == "oauth_cli"
+    assert provider["command"] == "agy"
+    assert provider["default_model"] == "claude-sonnet-4-6@default"
+    assert provider["never_default"] is True
+    assert "api_key" not in provider
+
+    rotation = contracts["agy_writer"]["quota_model_rotation"]
+    assert rotation["from_model"] == "gemini_3_5_flash_high_agy_oauth"
+    assert rotation["to_model"] == "claude_sonnet_4_6_agy_oauth"
+    assert rotation["same_worker_required"] == "agy"
+    assert rotation["provider_surface_change_allowed"] is False
+    assert rotation["api_key_fallback_allowed"] is False
+    assert requirements["quota_model_rotation"]["to_model"] == rotation["to_model"]
+    assert "Use exactly the Agy OAuth model selected by --model" in contracts["agy_writer"]["template"]
+
+
 def test_writer_light_contract_has_one_unambiguous_four_file_response() -> None:
     registry = _load_config("agent_registry.yml")
     writer = registry["agents"]["Writer"]

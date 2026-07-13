@@ -120,6 +120,9 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
 
 AGY_WRITER_RETRY_DELAYS_SECONDS = (5, 15)
 WRITER_MAX_CONTRACT_REDOS = 1
+AGY_DEFAULT_WRITER_MODEL = "gemini_3_5_flash_high_agy_oauth"
+AGY_QUOTA_ROTATION_MODEL = "claude_sonnet_4_6_agy_oauth"
+AGY_QUOTA_ROTATION_FAILURE_CLASSES = frozenset({"rate_limited", "quota_exhausted"})
 QUOTA_RESET_PATTERN = re.compile(
     r"Resets in\s*(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?",
     re.IGNORECASE,
@@ -160,6 +163,60 @@ def _agy_writer_retry_reason(result: Any, run_dir: Path) -> tuple[str | None, Pa
     if failure_class == "network_required":
         return "agy_network_required", log_path
     return None, log_path
+
+
+def _agy_quota_rotation_policy(root: Path) -> dict[str, Any]:
+    policy: dict[str, Any] = {
+        "from_model": AGY_DEFAULT_WRITER_MODEL,
+        "to_model": AGY_QUOTA_ROTATION_MODEL,
+        "allowed_failure_classes": sorted(AGY_QUOTA_ROTATION_FAILURE_CLASSES),
+        "quota_window": "separate_5_hour_window",
+        "same_worker_required": "agy",
+        "provider_surface_change_allowed": False,
+        "api_key_fallback_allowed": False,
+        "max_rotations_per_role_session": 1,
+    }
+    path = Path(root) / "config" / "worker_invocation_contracts.yml"
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return policy
+    configured = ((data.get("contracts") or {}).get("agy_writer") or {}).get(
+        "quota_model_rotation"
+    )
+    if not isinstance(configured, dict):
+        return policy
+    candidate = {**policy, **configured}
+    if (
+        not str(candidate.get("from_model") or "")
+        or not str(candidate.get("to_model") or "")
+        or candidate.get("same_worker_required") != "agy"
+        or candidate.get("provider_surface_change_allowed") is not False
+        or candidate.get("api_key_fallback_allowed") is not False
+        or int(candidate.get("max_rotations_per_role_session") or 0) != 1
+    ):
+        return policy
+    allowed = candidate.get("allowed_failure_classes")
+    if not isinstance(allowed, list) or not allowed:
+        return policy
+    candidate["allowed_failure_classes"] = sorted(str(item) for item in allowed)
+    return candidate
+
+
+def _agy_quota_rotation_reason(
+    result: Any,
+    allowed_failure_classes: set[str],
+) -> str | None:
+    if (
+        getattr(result, "status", None) == "completed"
+        or getattr(result, "provider", None) != "agentlab-cli-executor"
+        or getattr(result, "model", None) != "agy"
+    ):
+        return None
+    raw_usage = getattr(result, "raw_usage", None)
+    raw_usage = raw_usage if isinstance(raw_usage, dict) else {}
+    failure_class = str(raw_usage.get("failure_class") or "")
+    return failure_class if failure_class in allowed_failure_classes else None
 
 
 def _snapshot_writer_retry_log(log_path: Path | None, run_dir: Path, attempt: int) -> str | None:
@@ -770,9 +827,14 @@ def _write_live_chapter_outputs(
     previous: list[str],
     *,
     allow_writer_cli_fallback: bool = False,
+    allow_agy_quota_model_rotation: bool = True,
 ) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     _clear_chapter_attempt_outputs(run_dir)
+    rotation_policy = _agy_quota_rotation_policy(root)
+    rotation_from_model = str(rotation_policy["from_model"])
+    rotation_to_model = str(rotation_policy["to_model"])
+    rotation_failure_classes = set(rotation_policy["allowed_failure_classes"])
     _write_yaml(
         run_dir / "live_generation_request.yml",
         {
@@ -786,6 +848,15 @@ def _write_live_chapter_outputs(
             "writer_role_session_required": True,
             "writer_cli_fallback_allowed": allow_writer_cli_fallback,
             "provider_surface_fallback_allowed": False,
+            "agy_quota_model_rotation_allowed": allow_agy_quota_model_rotation,
+            "agy_quota_model_rotation": {
+                "from_model": rotation_from_model,
+                "to_model": rotation_to_model,
+                "allowed_failure_classes": sorted(rotation_failure_classes),
+                "same_worker": "agy",
+                "provider_surface_changed": False,
+                "api_key_fallback_allowed": False,
+            },
             "required_outputs": [
                 "fiction_draft.md",
                 "continuity_ledger.yml",
@@ -807,10 +878,14 @@ def _write_live_chapter_outputs(
         retry_attempts: list[dict[str, Any]] = []
         transport_retries = 0
         contract_redos = 0
+        model_rotated = False
+        active_model_override: str | None = None
+        rotation: dict[str, Any] | None = None
         max_attempts = (
             1
             + len(AGY_WRITER_RETRY_DELAYS_SECONDS)
             + WRITER_MAX_CONTRACT_REDOS
+            + int(allow_agy_quota_model_rotation)
         )
         for attempt in range(1, max_attempts + 1):
             if attempt > 1:
@@ -821,6 +896,7 @@ def _write_live_chapter_outputs(
                 plan,
                 "Writer",
                 run_dir / "writer_role_session_capture.md",
+                model_override=active_model_override,
                 apply_patches=False,
                 allow_cli_api_fallback=False,
             )
@@ -839,10 +915,36 @@ def _write_live_chapter_outputs(
                 "retry_reason": retry_reason,
                 "command_id": raw_usage.get("command_id"),
                 "materialized": writer_materialized,
+                "requested_model": active_model_override or rotation_from_model,
+                "resolved_model_key": raw_usage.get("resolved_model_key"),
+                "resolved_cli_model_id": raw_usage.get("cli_model_id"),
             }
             if writer_materialized or attempt == max_attempts:
                 retry_attempts.append(record)
                 break
+            rotation_reason = _agy_quota_rotation_reason(
+                writer_result,
+                rotation_failure_classes,
+            )
+            if (
+                allow_agy_quota_model_rotation
+                and not model_rotated
+                and rotation_reason is not None
+            ):
+                record["retry_kind"] = "quota_model_rotation"
+                record["rotation_target"] = rotation_to_model
+                rotation = {
+                    "from_model": rotation_from_model,
+                    "to_model": rotation_to_model,
+                    "reason": rotation_reason,
+                    "quota_window": rotation_policy["quota_window"],
+                    "same_worker": "agy",
+                    "provider_surface_changed": False,
+                }
+                model_rotated = True
+                active_model_override = rotation_to_model
+                retry_attempts.append(record)
+                continue
             if (
                 retry_reason is not None
                 and transport_retries < len(AGY_WRITER_RETRY_DELAYS_SECONDS)
@@ -888,9 +990,12 @@ def _write_live_chapter_outputs(
                     "provider_surface": "cli_agent:agy",
                     "provider_changed": False,
                     "fallback_used": False,
+                    "model_rotated": model_rotated,
+                    **({"rotation": rotation} if rotation else {}),
                     "limits": {
                         "transport_retries": len(AGY_WRITER_RETRY_DELAYS_SECONDS),
                         "full_contract_redos": WRITER_MAX_CONTRACT_REDOS,
+                        "quota_model_rotations": int(allow_agy_quota_model_rotation),
                         "total_attempts": max_attempts,
                     },
                     "attempts": retry_attempts,
@@ -943,6 +1048,7 @@ def _generate_chapters(
     resume_valid: bool = False,
     stop_on_block: bool = False,
     allow_writer_cli_fallback: bool = False,
+    allow_agy_quota_model_rotation: bool = True,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     generated: list[dict[str, Any]] = []
@@ -1027,6 +1133,7 @@ def _generate_chapters(
                     chapter,
                     previous_sources,
                     allow_writer_cli_fallback=allow_writer_cli_fallback,
+                    allow_agy_quota_model_rotation=allow_agy_quota_model_rotation,
                 )
             else:
                 _write_live_guard_error(run_dir, agent="Writer", guard=guard)
@@ -1052,7 +1159,7 @@ def _generate_chapters(
         if stop_on_block and not delivery.get("valid"):
             break
 
-    quality_rows = _write_generation_checkpoint(eval_dir, suite, chapters, generated)
+    _write_generation_checkpoint(eval_dir, suite, chapters, generated)
     completed_chapters = {item["chapter"] for item in generated if item["delivery"].get("valid")}
     all_selected_completed = all(chapter in completed_chapters for chapter in chapters)
     return {
@@ -1063,6 +1170,7 @@ def _generate_chapters(
         "resume_valid": resume_valid,
         "stop_on_block": stop_on_block,
         "allow_writer_cli_fallback": allow_writer_cli_fallback,
+        "allow_agy_quota_model_rotation": allow_agy_quota_model_rotation,
     }
 
 
@@ -1280,6 +1388,7 @@ def run_narrative_eval(
     resume_valid: bool = False,
     stop_on_block: bool = False,
     allow_writer_cli_fallback: bool = False,
+    allow_agy_quota_model_rotation: bool = True,
 ) -> dict[str, Any]:
     if mode not in VALID_MODES:
         raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
@@ -1313,6 +1422,7 @@ def run_narrative_eval(
             resume_valid=resume_valid,
             stop_on_block=stop_on_block,
             allow_writer_cli_fallback=allow_writer_cli_fallback,
+            allow_agy_quota_model_rotation=allow_agy_quota_model_rotation,
         )
 
     l3 = _build_scale_simulation(eval_dir, suite)
@@ -1331,6 +1441,7 @@ def run_narrative_eval(
         "resume_valid": resume_valid,
         "stop_on_block": stop_on_block,
         "allow_writer_cli_fallback": allow_writer_cli_fallback,
+        "allow_agy_quota_model_rotation": allow_agy_quota_model_rotation,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": overall_status,
         "acceptance_run_dir": _rel(eval_dir, root),

@@ -345,9 +345,10 @@ contracts:
       agy --sandbox --model "{model_id}" -p "Read only the sealed AgentLab Writer packet at
       {task_packet_path}. Use only its embedded messages; do not read any other
       file, run shell commands, browse, or scan the repository. Return only the
-      required candidate AGENTLAB_EDIT blocks on stdout. Use the local Agy
-      Gemini OAuth runtime (gemini-3.5-flash-high); do not use GEMINI_API_KEY or
-      the Gemini API free-tier fallback."
+      required candidate AGENTLAB_EDIT blocks on stdout. Use exactly the Agy
+      OAuth model selected by --model. The default is Gemini 3.5 Flash High;
+      only the governed quota_model_rotation rule may select Claude Sonnet 4.6.
+      Do not use GEMINI_API_KEY or any API-key fallback."
     required_placeholders:
       - task_packet_path
       - model_id
@@ -357,6 +358,15 @@ contracts:
     validation:
       shlex_parse_required: true
       allow_unquoted_placeholders: true
+    quota_model_rotation:
+      from_model: gemini_3_5_flash_high_agy_oauth
+      to_model: claude_sonnet_4_6_agy_oauth
+      allowed_failure_classes: [rate_limited, quota_exhausted]
+      quota_window: separate_5_hour_window
+      same_worker_required: agy
+      provider_surface_change_allowed: false
+      api_key_fallback_allowed: false
+      max_rotations_per_role_session: 1
     fallback:
       on_binary_missing: stop_and_report
 

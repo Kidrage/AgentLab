@@ -1223,6 +1223,9 @@ def run_agent_model(
     cli_attempted: bool = False
 
     if cli_role_profile is not None:
+        if model_override:
+            cli_role_profile = dict(cli_role_profile)
+            cli_role_profile["default"] = model_override
         cli_configured_agent = cli_role_profile.get("cli_agent", "")
         allowed, binding_reason = _check_cli_role_binding(agentlab_root, agent_name, cli_role_profile)
         if not allowed:
@@ -1699,6 +1702,7 @@ def _audit_annotate_cli_result(
         "resolved_mode": role_profile.get("resolved_mode", ""),
         "resolved_tier": role_profile.get("resolved_tier", ""),
         "resolved_schema": role_profile.get("resolved_schema", ""),
+        "resolved_model_key": role_profile.get("default", ""),
         "api_fallback_used": False,
         "disposition": disposition,
     }

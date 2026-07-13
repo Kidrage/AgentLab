@@ -985,6 +985,8 @@ def run_cli_agent(
                 total_tokens=usage_estimate["total_tokens"],
                 raw_usage={
                     "cli_agent": cli_agent_name,
+                    "cli_model_key": model_values["model_key"],
+                    "cli_model_id": model_values["model_id"],
                     "failure_class": classify_cli_error(
                         None,
                         stdout_text,
@@ -1112,6 +1114,8 @@ def run_cli_agent(
         raw_usage={
             "cli_agent": cli_agent_name,
             "binary": argv[0],
+            "cli_model_key": model_values["model_key"],
+            "cli_model_id": model_values["model_id"],
             "exit_code": proc.returncode,
             "duration_s": duration_s,
             "stdout_bytes": len(proc.stdout),

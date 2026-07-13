@@ -40,5 +40,6 @@ rules:
     patterns:
       - "rate limit"
       - "quota exceeded"
+      - "quota reached"
       - "too many requests"
       - "429"

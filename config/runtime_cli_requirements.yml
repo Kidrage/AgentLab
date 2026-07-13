@@ -56,13 +56,21 @@ components:
     kind: agent_cli
     release_requirement: required
     command: agy
-    auth_mode: local_gemini_oauth_session
+    auth_mode: local_agy_oauth_session
     model_binding: shell_configuration
     install_source: Agy upstream release
     version_probe: agy --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker agy
     live_smoke: ./agentlab.sh agy-cli-smoke --live
-    notes: Default Writer and ArtifactProducer shell; expected default is Gemini 3.5 Flash High over OAuth, never GEMINI_API_KEY.
+    quota_model_rotation:
+      from_model: gemini_3_5_flash_high_agy_oauth
+      to_model: claude_sonnet_4_6_agy_oauth
+      allowed_failure_classes: [rate_limited, quota_exhausted]
+      quota_window: separate_5_hour_window
+      same_worker: agy
+      provider_surface_change_allowed: false
+      api_key_fallback_allowed: false
+    notes: Default Writer and ArtifactProducer shell is Gemini 3.5 Flash High over OAuth. On Gemini quota exhaustion only, Writer may use Claude Sonnet 4.6 in the same Agy shell and its separate five-hour window. Never use GEMINI_API_KEY; auth, network, command, schema, or content errors do not trigger rotation.
   grok:
     kind: agent_cli_backend
     release_requirement: optional_media
