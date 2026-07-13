@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 import os
@@ -120,6 +120,10 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
 
 AGY_WRITER_RETRY_DELAYS_SECONDS = (5, 15)
 WRITER_MAX_CONTRACT_REDOS = 1
+QUOTA_RESET_PATTERN = re.compile(
+    r"Resets in\s*(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?",
+    re.IGNORECASE,
+)
 
 
 def _agy_writer_retry_reason(result: Any, run_dir: Path) -> tuple[str | None, Path | None]:
@@ -523,19 +527,64 @@ def _write_mock_chapter_outputs(
     )
 
 
+def _quota_retry_metadata(run_dir: Path, result: Any) -> dict[str, Any]:
+    raw_usage = getattr(result, "raw_usage", None)
+    raw_usage = raw_usage if isinstance(raw_usage, dict) else {}
+    failure_class = str(raw_usage.get("failure_class") or "")
+    if failure_class not in {"rate_limited", "quota_exhausted"}:
+        return {"failure_class": failure_class} if failure_class else {}
+
+    log_paths: list[Path] = []
+    command_id = str(raw_usage.get("command_id") or "")
+    if re.fullmatch(r"cmd_\d+", command_id):
+        log_paths.append(run_dir / "command_logs" / f"{command_id}.stderr.txt")
+    raw_log_path = str(raw_usage.get("cli_log_path") or "")
+    if raw_log_path:
+        candidate = Path(raw_log_path)
+        try:
+            candidate.resolve().relative_to(run_dir.resolve())
+            log_paths.append(candidate)
+        except (OSError, ValueError):
+            pass
+
+    reset_seconds: list[int] = []
+    for path in log_paths:
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for match in QUOTA_RESET_PATTERN.finditer(text):
+            hours, minutes, seconds = (int(value or 0) for value in match.groups())
+            total = hours * 3600 + minutes * 60 + seconds
+            if total > 0:
+                reset_seconds.append(total)
+
+    metadata: dict[str, Any] = {
+        "failure_class": failure_class,
+        "retry_policy": "same_provider_after_reset",
+        "same_provider_required": True,
+        "fallback_allowed": False,
+    }
+    if reset_seconds:
+        retry_after = max(reset_seconds)
+        metadata["retry_after_seconds"] = retry_after
+        metadata["retry_not_before"] = (
+            datetime.now(timezone.utc) + timedelta(seconds=retry_after)
+        ).isoformat()
+    return metadata
+
+
 def _write_live_generation_error(run_dir: Path, *, agent: str, result: Any) -> None:
-    _write_yaml(
-        run_dir / "live_generation_error.yml",
-        {
-            "schema_version": 1,
-            "status": "blocked",
-            "agent": agent,
-            "result_status": getattr(result, "status", "unknown"),
-            "provider": getattr(result, "provider", None),
-            "model": getattr(result, "model", None),
-            "error": getattr(result, "error", None) or "agent did not produce the required output",
-        },
-    )
+    data = {
+        "schema_version": 1,
+        "status": "blocked",
+        "agent": agent,
+        "result_status": getattr(result, "status", "unknown"),
+        "provider": getattr(result, "provider", None),
+        "model": getattr(result, "model", None),
+        "error": getattr(result, "error", None) or "agent did not produce the required output",
+    }
+    data.update(_quota_retry_metadata(run_dir, result))
+    _write_yaml(run_dir / "live_generation_error.yml", data)
 
 
 def _write_live_guard_error(run_dir: Path, *, agent: str, guard: dict[str, Any]) -> None:
@@ -1050,6 +1099,23 @@ def _write_generation_checkpoint(
     attempted = {row["chapter"] for row in quality_rows}
     next_chapter = next((chapter for chapter in selected_chapters if chapter not in attempted), None)
     blocking_chapter = next((row["chapter"] for row in quality_rows if row["status"] == "blocked"), None)
+    blocking_record = next(
+        (item for item in generated if item["chapter"] == blocking_chapter),
+        {},
+    )
+    blocking_error = blocking_record.get("live_generation_error") or {}
+    retry = {
+        key: blocking_error[key]
+        for key in (
+            "failure_class",
+            "retry_policy",
+            "same_provider_required",
+            "fallback_allowed",
+            "retry_after_seconds",
+            "retry_not_before",
+        )
+        if key in blocking_error
+    }
     _write_yaml(
         eval_dir / "generation_checkpoint.yml",
         {
@@ -1062,6 +1128,8 @@ def _write_generation_checkpoint(
             "completed_chapter_count": len(completed),
             "blocking_chapter": blocking_chapter,
             "next_chapter": next_chapter,
+            "resume_chapter": blocking_chapter or next_chapter,
+            "retry": retry or None,
             "status": (
                 "blocked" if blocking_chapter is not None
                 else "complete" if len(completed) == len(selected_chapters)

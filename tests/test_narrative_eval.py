@@ -329,6 +329,7 @@ def test_narrative_eval_stop_on_block_prevents_later_chapter_generation(tmp_path
     assert checkpoint["status"] == "blocked"
     assert checkpoint["blocking_chapter"] == 1
     assert checkpoint["next_chapter"] == 2
+    assert checkpoint["resume_chapter"] == 1
 
 
 def test_history_audit_does_not_require_review_for_light_chapter_runs(tmp_path: Path) -> None:
@@ -655,6 +656,10 @@ def test_live_narrative_eval_does_not_retry_agy_quota_with_stale_eof_log(
     log_path = run_dir / "command_logs" / "agy_cli_agent.log"
     log_path.parent.mkdir()
     log_path.write_text("userinfo request failed: EOF\n", encoding="utf-8")
+    (log_path.parent / "cmd_0001.stderr.txt").write_text(
+        "Error: Individual quota reached. Resets in 1h2m3s.\n",
+        encoding="utf-8",
+    )
     calls: list[str] = []
     delays: list[int] = []
 
@@ -688,6 +693,11 @@ def test_live_narrative_eval_does_not_retry_agy_quota_with_stale_eof_log(
     assert not (run_dir / "writer_retry_ledger.yml").exists()
     error = yaml.safe_load((run_dir / "live_generation_error.yml").read_text(encoding="utf-8"))
     assert error["error"] == "CLI agent rate_limited (exit 1)."
+    assert error["failure_class"] == "rate_limited"
+    assert error["retry_after_seconds"] == 3723
+    assert error["retry_policy"] == "same_provider_after_reset"
+    assert error["fallback_allowed"] is False
+    assert error["retry_not_before"].endswith("+00:00")
 
 
 def test_live_narrative_eval_retries_one_full_contract_redo(
