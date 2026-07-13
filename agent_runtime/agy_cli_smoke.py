@@ -1,9 +1,10 @@
-"""Non-private Agy CLI session smoke for AgentLab acceptance evidence."""
+"""Non-private Agy Observer session smoke for AgentLab acceptance evidence."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import os
 import shlex
 import shutil
 import subprocess
@@ -20,7 +21,24 @@ except ModuleNotFoundError:  # pragma: no cover - direct script path
 CommandRunner = Callable[..., subprocess.CompletedProcess[str]]
 
 EXPECTED = "AGENTLAB_AGY_CLI_SMOKE_OK"
-DEFAULT_AGY_MODEL = "gemini-3.5-flash-high"
+_DIRECT_GEMINI_API_KEY_ENV_VARS = {
+    "GEMINI_API_KEY",
+    "GENAI_API_KEY",
+    "GOOGLE_AI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    "GOOGLE_GENAI_API_KEY",
+}
+
+
+def _is_direct_gemini_api_key_environment(name: str) -> bool:
+    normalized = str(name).strip().upper()
+    if normalized in _DIRECT_GEMINI_API_KEY_ENV_VARS:
+        return True
+    return "API_KEY" in normalized and any(
+        marker in normalized
+        for marker in ("GEMINI", "GENAI", "GENERATIVE_AI", "GOOGLE")
+    )
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -72,8 +90,8 @@ def _write_task_packet(path: Path) -> None:
                 "packet_type": "agentlab_non_private_cli_smoke",
                 "project": "AgentLab",
                 "task_id": "agy_cli_session_smoke",
-                "role": "Writer",
-                "prompt_scope": "non_private_session_reachability_smoke",
+                "role": "Observer",
+                "prompt_scope": "non_private_observer_session_reachability_smoke",
                 "private_project_context_loaded": False,
                 "instructions": (
                     f"Reply exactly: {EXPECTED}. Do not read project files, do not edit files, "
@@ -88,12 +106,17 @@ def _write_task_packet(path: Path) -> None:
 
 
 def _run_command(args: list[str], timeout_seconds: int, log_path: Path) -> subprocess.CompletedProcess[str]:
+    process_env = os.environ.copy()
+    for name in list(process_env):
+        if _is_direct_gemini_api_key_environment(name):
+            process_env.pop(name, None)
     return subprocess.run(
         args,
         check=False,
         capture_output=True,
         text=True,
         timeout=timeout_seconds,
+        env=process_env,
     )
 
 
@@ -108,7 +131,7 @@ def _resolve_command_path(command: str, command_runner: CommandRunner | None) ->
 
 def _contract_template(root: Path) -> str:
     data = _read_yaml(root / "config" / "worker_invocation_contracts.yml")
-    contract = ((data.get("contracts") or {}).get("agy_coder") or {})
+    contract = ((data.get("contracts") or {}).get("agy_observer") or {})
     return str(contract.get("template") or "")
 
 
@@ -118,7 +141,7 @@ def _default_model_id(root: Path) -> str:
     return str(
         provider.get("cli_model_id")
         or provider.get("default_model")
-        or DEFAULT_AGY_MODEL
+        or ""
     )
 
 
@@ -126,19 +149,11 @@ def _append_log_file(args: list[str], log_path: Path) -> list[str]:
     return [*args, "--log-file", str(log_path)]
 
 
-def _coalesce_variants(variants: list[list[str]]) -> list[list[str]]:
-    deduped: list[list[str]] = []
-    for candidate in variants:
-        if candidate not in deduped:
-            deduped.append(candidate)
-    return deduped
-
-
 def _command_variants(root: Path, task_packet: Path, log_path: Path) -> list[list[str]]:
     template = _contract_template(root)
     model_id = _default_model_id(root)
-    if not template:
-        template = "agy --sandbox --model {model_id} -p {task_packet_path}"
+    if not template or not model_id:
+        return []
     try:
         rendered = template.format(
             task_packet_path=str(task_packet),
@@ -146,32 +161,10 @@ def _command_variants(root: Path, task_packet: Path, log_path: Path) -> list[lis
         )
         parsed = shlex.split(rendered)
     except (KeyError, ValueError):
-        parsed = []
-
-    variants: list[list[str]] = []
-    if parsed:
-        variants.append(_append_log_file(parsed, log_path))
-        if "--sandbox" in parsed:
-            variants.append(_append_log_file([arg for arg in parsed if arg != "--sandbox"], log_path))
-
-    if not variants:
-        fallback_prompt = (
-            f"Read the AgentLab task packet at {task_packet}; "
-            "perform only the assigned AgentLab role. "
-            f"Reply exactly: {EXPECTED}."
-        )
-        variants.append(
-            _append_log_file(
-                ["agy", "--model", model_id, "-p", fallback_prompt],
-                log_path,
-            )
-        )
-
-    return _coalesce_variants(variants)
-
-
-def _command_args(root: Path, task_packet: Path, log_path: Path) -> list[str]:
-    return _command_variants(root, task_packet, log_path)[0]
+        return []
+    if not parsed or parsed[0] != "agy" or "--sandbox" not in parsed:
+        return []
+    return [_append_log_file(parsed, log_path)]
 
 
 def _run_single_variant(
@@ -202,12 +195,21 @@ def _build_attempt_report(
 ) -> dict[str, Any]:
     stdout = _safe_excerpt(completed.stdout)
     stderr = _safe_excerpt(completed.stderr)
-    log_excerpt = _safe_excerpt(log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else "")
+    log_text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else ""
+    log_excerpt = _safe_excerpt(log_text)
+    model_resolution_failed = (
+        "failed to resolve model flag" in log_text.lower()
+        or "is not recognized as a known model" in log_text.lower()
+    )
     expected = EXPECTED in stdout
     status = "warn"
     reason = None
     process_exit_status = "completed"
-    if timed_out:
+    if model_resolution_failed:
+        process_exit_status = "model_resolution_failed"
+        status = "blocked"
+        reason = "agy_model_flag_unresolved"
+    elif timed_out:
         process_exit_status = "timeout_after_expected_token" if expected else "timeout"
         status = "pass" if expected else "blocked"
         reason = "agy_cli_expected_token_observed_before_process_timeout" if expected else "agy_cli_timeout"
@@ -232,6 +234,7 @@ def _build_attempt_report(
         "stderr_excerpt": stderr,
         "log_excerpt": log_excerpt,
         "expected_token_present": expected,
+        "model_resolution_failed": model_resolution_failed,
         "process_exit_status": process_exit_status,
     }
 
@@ -263,11 +266,11 @@ def build_agy_cli_smoke_report(
             "live": live,
             "status": "blocked",
             "reason": "agy_cli_invalid_command_template",
-            "prompt_scope": "non_private_session_reachability_smoke",
+            "prompt_scope": "non_private_observer_session_reachability_smoke",
             "private_project_context_loaded": False,
             "secret_values_rendered": False,
             "worker": "agy",
-            "invocation_contract": "agy_coder",
+            "invocation_contract": "agy_observer",
             "expected_stdout_token": EXPECTED,
             "task_packet_path": str(task_packet),
             "log_path": str(log_path),
@@ -284,11 +287,11 @@ def build_agy_cli_smoke_report(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "live": live,
         "status": "blocked",
-        "prompt_scope": "non_private_session_reachability_smoke",
+        "prompt_scope": "non_private_observer_session_reachability_smoke",
         "private_project_context_loaded": False,
         "secret_values_rendered": False,
         "worker": "agy",
-        "invocation_contract": "agy_coder",
+        "invocation_contract": "agy_observer",
         "command": first_args[0],
         "command_available": bool(first_path),
         "command_path": first_path,
@@ -380,12 +383,6 @@ def build_agy_cli_smoke_report(
         if attempt_report["status"] == "pass":
             return report
 
-        if (
-            attempt_report.get("reason") == "agy_localhost_bind_denied"
-            and "--sandbox" in args
-            and attempt + 1 < len(command_variants)
-        ):
-            continue
         break
 
     return report

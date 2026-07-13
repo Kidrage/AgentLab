@@ -152,6 +152,11 @@ def register_protocol_commands(app: typer.Typer, project_root: Path, console: Co
         task_text: str = typer.Option(..., "--task-text", help="User-facing artifact request text."),
         artifact_type: str | None = typer.Option(None, "--artifact-type", help="Override inferred artifact type."),
         output_path: str | None = typer.Option(None, "--output-path", help="Expected artifact output path."),
+        input_path: list[Path] | None = typer.Option(
+            None,
+            "--input",
+            help="Repeatable explicit root-contained file assigned read-only to ArtifactProducer.",
+        ),
         preferred_provider: str | None = typer.Option(
             None,
             "--provider",
@@ -172,6 +177,7 @@ def register_protocol_commands(app: typer.Typer, project_root: Path, console: Co
             project=project,
             task_id=task_id,
             preferred_provider=preferred_provider,
+            assigned_input_paths=input_path,
         )
         if write:
             out = project_root / "projects" / project / "runs" / task_id / "artifact_task.yml"

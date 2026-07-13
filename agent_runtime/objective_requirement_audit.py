@@ -32,6 +32,7 @@ try:
         selected_collect_metadata_by_item,
         session_health_summary as _session_health_summary,
         trusted_collect_strict_pass,
+        trusted_writer_request_route_current,
     )
 except ModuleNotFoundError:
     from agent_runtime.audit_helpers import (
@@ -48,6 +49,7 @@ except ModuleNotFoundError:
         selected_collect_metadata_by_item,
         session_health_summary as _session_health_summary,
         trusted_collect_strict_pass,
+        trusted_writer_request_route_current,
     )
 
 try:
@@ -395,7 +397,7 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
     )
     session_health_clean = readiness_status == "ready_for_internal_live_smoke" and session_health.get("issue_count") == 0
     session_issue_ids = {str(issue.get("id")) for issue in session_health.get("issues", []) if isinstance(issue, dict)}
-    agy_session_blocked = "current_agy_session_health" in session_issue_ids
+    claude_writer_session_blocked = "current_claude_writer_session_health" in session_issue_ids
     grok_session_blocked = "current_grok_session_health" in session_issue_ids
     grok_session_reason = next(
         (
@@ -410,18 +412,18 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
     if session_health_clean:
         if writer_acceptance_complete:
             crown_live_conclusion = (
-                "Local Crown governance, batch/scaled ledgers, one live candidate chapter, and accepted trusted-runner Writer artifacts prove the internal Writer role-session path with agy/Gemini OAuth. "
+                "Local Crown governance, batch/scaled ledgers, one live candidate chapter, and accepted trusted-runner Writer artifacts prove the internal Claude Code shell + DeepSeek V4 Pro Writer role-session path. "
                 f"{frontdesk_boundary_sentence}"
             )
             crown_live_gap = None
         else:
             crown_live_conclusion = (
-                "Local Crown governance, batch/scaled ledgers, and one live candidate chapter exist; the formal live eval is routed through the internal Writer role-session with agy/Gemini OAuth. "
-                "The current non-private agy session smoke passes, so old frontdesk sandbox bind errors are stale; returned prose artifacts are still pending until the trusted Writer command is rerun and returns required files. "
+                "Local Crown governance, batch/scaled ledgers, and one live candidate chapter exist; the formal live eval is routed through the internal Claude Code shell + DeepSeek V4 Pro Writer role-session. "
+                "The current non-private Claude Writer contract probe passes; returned prose artifacts are still pending until the trusted Writer command is rerun and returns required files. "
                 f"{frontdesk_boundary_sentence}"
             )
             crown_live_gap = (
-                "Needs a rerun of the internal Writer live smoke from the current healthy agy session, followed by returned candidate artifacts and local delivery/QC evidence."
+                "Needs a rerun of the internal Writer live smoke from the current healthy Claude Writer route, followed by returned candidate artifacts and local delivery/QC evidence."
             )
         readiness_conclusion = (
             "Current route readiness is ready_for_internal_live_smoke with no session-health blockers; old frontdesk/sandbox errors are retained only as stale execution evidence. "
@@ -433,14 +435,14 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
             )
         )
     else:
-        agy_status_text = (
-            "current non-private agy session health is not clean"
-            if agy_session_blocked
-            else "current non-private agy session smoke is clean; the active session-health issue is not the Writer agy gate"
+        claude_writer_status_text = (
+            "current non-private Claude Writer session health is not clean"
+            if claude_writer_session_blocked
+            else "current non-private Claude Writer contract probe is clean; the active session-health issue is not the Writer gate"
         )
         crown_live_conclusion = (
-            "Local Crown governance, batch/scaled ledgers, and one live candidate chapter exist; the formal live eval is routed through the internal Writer role-session with agy/Gemini OAuth. "
-            f"{agy_status_text}; returned prose artifacts are still pending until the trusted Writer command is rerun. "
+            "Local Crown governance, batch/scaled ledgers, and one live candidate chapter exist; the formal live eval is routed through the internal Claude Code shell + DeepSeek V4 Pro Writer role-session. "
+            f"{claude_writer_status_text}; returned prose artifacts are still pending until the trusted Writer command is rerun. "
             f"{frontdesk_boundary_sentence}"
         )
         crown_live_gap = (
@@ -754,6 +756,7 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
             if _capability_status(capabilities, "internal_live_unblock_plan") == "pass"
             and _capability_status(capabilities, "internal_live_readiness") in {"pass", "candidate"}
             and _capability_status(capabilities, "trusted_live_runner_request") == "pass"
+            and trusted_writer_request_route_current(trusted_request)
             and _capability_status(capabilities, "trusted_live_runner_operator_handoff") in {"candidate", "pass"}
             and _capability_status(capabilities, "trusted_live_runner_preflight") == "pass"
             and _capability_status(capabilities, "trusted_live_runner_status") in {"candidate", "pass"}
@@ -785,6 +788,11 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
                 str(legacy_private_live_handoff_path),
                 str(goal_path),
             ],
+            details={
+                "writer_request_route_current": trusted_writer_request_route_current(
+                    trusted_request
+                )
+            },
         ),
         _requirement(
             "preserve_candidate_only_and_secret_safety",

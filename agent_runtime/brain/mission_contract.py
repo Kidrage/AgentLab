@@ -148,6 +148,39 @@ def build_mission_contract(
         task_id=task_id,
         root=root,
     )
+    try:
+        from agent_runtime.protocols.artifact_task import infer_artifact_components
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from protocols.artifact_task import infer_artifact_components
+    artifact_components = infer_artifact_components(prompt)
+    if (
+        len(artifact_components) > 1
+        and not set(artifact_components).issubset({"image", "video"})
+    ):
+        route_decision = {
+            "action": "select_existing_route",
+            "selected_route": "artifact_production_task",
+            "reason": "mixed_artifact_requires_composite_adapter_fail_closed",
+            "route_proposal": {
+                "route_key": "artifact_production_task",
+                "agents": ["Supervisor", "ArtifactProducer", "Verifier"],
+                "artifact_components": artifact_components,
+                "execution_policy": "block_until_one_provider_or_composite_adapter_satisfies_all_components",
+            },
+        }
+        media_generation_contract = None
+    elif len(artifact_components) > 1:
+        # A prompt that asks for both an image and a video is one composite
+        # media request. Never collapse it to whichever keyword happened to
+        # win domain classification; the media router must select a true mixed
+        # backend or fail closed before generation.
+        media_generation_contract = _media_generation_contract(
+            prompt=prompt,
+            mission_domain="multimodal_asset_generation",
+            project_id=project_id,
+            task_id=task_id,
+            root=root,
+        )
 
     contract: dict[str, Any] = {
         "schema_version": 2,
@@ -165,6 +198,7 @@ def build_mission_contract(
         "task_type": domain,
         "task_domain": mission_domain,
         "artifact_type": artifact_type,
+        "artifact_components": artifact_components,
         "project_type": project_type,
         "is_long_project": is_long,
         "estimated_scale": scale,
@@ -559,6 +593,33 @@ def _build_route_decision(
     domain_pack: dict[str, Any],
     root: Path,
 ) -> dict[str, Any]:
+    # Explicit inspection of an assigned source is a read-only perception task,
+    # even when the source suffix would otherwise resemble an audio, video, or
+    # image production domain. Reuse the task router so implementation and
+    # generation intent still keep their higher-priority routes.
+    try:
+        from agent_runtime.config_loader import load_yaml
+        from agent_runtime.task_router import recommend_route
+
+        routing_config = load_yaml(root / "config" / "routing_rules.yml")
+        observation_route = recommend_route(
+            prompt,
+            routing_config if isinstance(routing_config, dict) else None,
+        )
+        if (
+            observation_route.route_key == "observation_task"
+            and _route_exists(root, "observation_task")
+        ):
+            return {
+                "action": "select_existing_route",
+                "selected_route": "observation_task",
+                "reason": "explicit_assigned_source_observation",
+            }
+    except Exception:
+        # Mission compilation remains available with its domain-pack fallback
+        # if the lightweight task router/config cannot be loaded.
+        pass
+
     route_key = str(domain_pack.get("recommended_route") or "")
     if mission_domain != "creative_writing":
         decision = {

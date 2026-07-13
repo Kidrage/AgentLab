@@ -10,6 +10,7 @@ from agent_runtime.protocols import (
     route_artifact_provider,
     run_artifact_task_doctor,
 )
+from agent_runtime.brain.mission_contract import build_mission_contract
 from agent_runtime.run_task import app, _init_agents_for_request, _init_templates_for_agents
 from agent_runtime.task_router import recommend_route
 
@@ -35,8 +36,11 @@ def test_artifact_task_contract_routes_to_provider():
 
     assert packet["packet_type"] == "agentlab_artifact_task"
     assert packet["role"] == ARTIFACT_PRODUCER_ROLE
-    assert packet["routing"]["status"] == "routed"
-    assert packet["routing"]["selected"]["worker"] in {"codex", "agy", "qwen"}
+    assert packet["routing"]["status"] == "capability_mismatch"
+    assert packet["routing"]["selected"] is None
+    assert {"generate_image", "create_spreadsheet"}.issubset(
+        set(packet["required_capabilities"])
+    )
     assert "validate_artifact_contract" in packet["required_capabilities"]
 
 
@@ -44,12 +48,40 @@ def test_provider_router_honors_preferred_provider():
     route = route_artifact_provider(
         ROOT,
         "text",
-        preferred_provider="agy_cli",
+        preferred_provider="qwen_cli",
     )
 
     assert route["status"] == "routed"
-    assert route["selected"]["provider_id"] == "agy_cli"
-    assert route["selected"]["worker"] == "agy"
+    assert route["selected"]["provider_id"] == "qwen_cli"
+    assert route["selected"]["worker"] == "qwen"
+
+
+def test_media_artifact_routes_to_grok_producer():
+    route = route_artifact_provider(ROOT, "image")
+
+    assert route["status"] == "routed"
+    assert route["selected"]["provider_id"] == "grok_media"
+    assert route["selected"]["worker"] == "grok"
+
+
+def test_audio_artifact_fails_closed_without_a_capable_provider():
+    route = route_artifact_provider(ROOT, "audio")
+
+    assert route["status"] == "capability_mismatch"
+    assert route["selected"] is None
+    assert route["candidates"] == []
+
+
+def test_incompatible_preferred_provider_does_not_silently_switch():
+    route = route_artifact_provider(
+        ROOT,
+        "image",
+        preferred_provider="qwen_cli",
+    )
+
+    assert route["status"] == "capability_mismatch"
+    assert route["selected"] is None
+    assert route["candidates"] == []
 
 
 def test_pure_artifact_request_routes_to_artifact_producer_not_coder():
@@ -58,6 +90,30 @@ def test_pure_artifact_request_routes_to_artifact_producer_not_coder():
     assert "ArtifactProducer" in route.agents
     assert "Coder" not in route.agents
     assert route.route_key == "artifact_production_task"
+
+
+def test_single_media_output_routes_to_media_acceptance_pipeline():
+    for request in ("Generate an image.png", "Create a video.mp4"):
+        route = recommend_route(request)
+        assert route.route_key == "media_generation_task"
+        assert {"ArtifactProducer", "Observer", "Reviewer", "Verifier"}.issubset(
+            set(route.agents)
+        )
+
+
+def test_image_plus_video_contract_is_mixed_instead_of_silently_partial():
+    contract = build_mission_contract(
+        "Generate an image.png and a video.mp4.",
+        project_id="AgentLab",
+        task_id="task_mixed_media",
+        agentlab_root=ROOT,
+    )
+
+    assert contract["artifact_components"] == ["image", "video"]
+    media = contract["media_generation_contract"]
+    assert media["modality"] == "mixed"
+    assert media["executable"] is False
+    assert media["selected_backend"] != "hermes_grok_oauth"
 
 
 def test_mixed_code_and_artifact_request_routes_to_both():
@@ -69,7 +125,7 @@ def test_mixed_code_and_artifact_request_routes_to_both():
 
 
 def test_artifact_producer_role_session_includes_contract_status():
-    packet = build_role_session(ROOT, "ArtifactProducer", "agy", project="AgentLab", task_id="task_missing")
+    packet = build_role_session(ROOT, "ArtifactProducer", "grok", project="AgentLab", task_id="task_missing")
 
     assert packet["binding"]["allowed"] is True
     assert packet["artifact_task"]["status"] == "missing"

@@ -38,12 +38,23 @@ def route_task_packet(task_packet_path: Path, agentlab_root: Path) -> dict[str, 
     available = packet.get("available_workers")
     approved = packet.get("approved_workers") or []
     extra_caps = packet.get("required_capabilities") or []
+    artifact_type = packet.get("artifact_type")
+    artifact_task = packet.get("artifact_task")
+    if not artifact_type and isinstance(artifact_task, dict):
+        artifact_type = artifact_task.get("artifact_type")
     engine = RoleAssignmentEngine(Path(agentlab_root))
     out_dir = Path(agentlab_root) / "projects" / project_id / "runs" / task_id / "routing"
     decisions = []
     for role in roles:
         decision = engine.assign(
             role,
+            artifact_type=(
+                str(artifact_type)
+                if str(role).lower().replace("_", "").replace("-", "")
+                == "artifactproducer"
+                and artifact_type
+                else None
+            ),
             project_id=project_id,
             phase_id=phase_id,
             task_id=task_id,

@@ -18,11 +18,15 @@ from .cli_entrypoint import (
 )
 from .artifact_task import (
     ARTIFACT_PRODUCER_ROLE,
+    ArtifactInputContractError,
     build_artifact_task_contract,
     infer_artifact_type,
     load_artifact_task_for_run,
     route_artifact_provider,
     run_artifact_task_doctor,
+    stage_artifact_task_inputs,
+    validate_artifact_task_inputs,
+    verify_staged_artifact_task_inputs,
 )
 
 __all__ = [
@@ -39,9 +43,13 @@ __all__ = [
     "install_cli_entrypoints",
     "scan_cli_entrypoints",
     "ARTIFACT_PRODUCER_ROLE",
+    "ArtifactInputContractError",
     "build_artifact_task_contract",
     "infer_artifact_type",
     "load_artifact_task_for_run",
     "route_artifact_provider",
     "run_artifact_task_doctor",
+    "stage_artifact_task_inputs",
+    "validate_artifact_task_inputs",
+    "verify_staged_artifact_task_inputs",
 ]

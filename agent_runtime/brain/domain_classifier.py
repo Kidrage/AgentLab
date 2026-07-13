@@ -41,7 +41,15 @@ def classify_domain(
             if not isinstance(kw, str):
                 continue
             # longer keyword matches count more
-            if kw.lower() in lowered:
+            normalized = kw.lower().strip()
+            if not normalized:
+                continue
+            pattern = re.escape(normalized)
+            if re.match(r"[a-z0-9_]", normalized[0]):
+                pattern = rf"(?<![a-z0-9_]){pattern}"
+            if re.match(r"[a-z0-9_]", normalized[-1]):
+                pattern = rf"{pattern}(?![a-z0-9_])"
+            if re.search(pattern, lowered):
                 score += len(kw.split())
         if score > 0:
             scores[domain] = score

@@ -93,6 +93,11 @@ def register_routing_commands(app: typer.Typer, project_root: ProjectRootProvide
     @app.command("assign-role")
     def assign_role_cmd(
         role: str = typer.Option(..., "--role", help="AgentLab role to assign."),
+        artifact_type: str | None = typer.Option(
+            None,
+            "--artifact-type",
+            help="Required for ArtifactProducer: text, image, video, audio, spreadsheet, presentation, or mixed.",
+        ),
         project: str = typer.Option("AgentLab", "--project"),
         phase: str = typer.Option("unknown", "--phase"),
         task_id: str = typer.Option("ad_hoc_route", "--task-id"),
@@ -106,31 +111,166 @@ def register_routing_commands(app: typer.Typer, project_root: ProjectRootProvide
 
         root = current_project_root()
         engine = RoleAssignmentEngine(root)
-        decision = engine.assign(
-            role,
-            project_id=project,
-            phase_id=phase,
-            task_id=task_id,
-            mode=mode,
-            tier=tier,
-            available_workers=available_worker,
-            approved_workers=approved_worker,
-        )
+        normalized_role = role.lower().replace("_", "").replace("-", "")
+        is_artifact_producer = normalized_role == "artifactproducer"
+        if artifact_type and not is_artifact_producer:
+            raise typer.BadParameter(
+                "--artifact-type is only valid with --role ArtifactProducer"
+            )
+
+        artifact_dispatch = None
+        if is_artifact_producer and not artifact_type:
+            policy_path = root / "config" / "artifact_task_policy.yml"
+            artifact_policy = (
+                yaml.safe_load(policy_path.read_text(encoding="utf-8")) or {}
+                if policy_path.is_file()
+                else {}
+            )
+            decision = engine.assign(
+                role,
+                project_id=project,
+                phase_id=phase,
+                task_id=task_id,
+                mode=mode,
+                tier=tier,
+                available_workers=[],
+                approved_workers=approved_worker,
+            )
+            payload = decision.to_dict()
+            payload["route_decision"]["selection_reason"] = [
+                "ArtifactProducer is dynamically dispatched by artifact type; generic assignment is not executable."
+            ]
+            payload["route_decision"]["activation_decision"] = (
+                "blocked_artifact_type_required"
+            )
+            payload["artifact_dispatch"] = {
+                "status": "incomplete",
+                "executable": False,
+                "artifact_type": None,
+                "supported_artifact_types": list(
+                    (artifact_policy.get("artifact_types") or {}).keys()
+                ),
+                "reason": "artifact_type_required_for_provider_and_capability_binding",
+            }
+        else:
+            extra_capabilities = None
+            constrained_available = available_worker
+            if is_artifact_producer:
+                from agent_runtime.protocols.artifact_task import (
+                    capabilities_for_artifact_type,
+                    route_artifact_provider,
+                )
+
+                policy_path = root / "config" / "artifact_task_policy.yml"
+                artifact_policy = (
+                    yaml.safe_load(policy_path.read_text(encoding="utf-8")) or {}
+                    if policy_path.is_file()
+                    else {}
+                )
+                artifact_types = artifact_policy.get("artifact_types") or {}
+                normalized_type = str(artifact_type or "").strip().lower()
+                if normalized_type not in artifact_types:
+                    raise typer.BadParameter(
+                        "unknown --artifact-type; expected one of: "
+                        + ", ".join(str(item) for item in artifact_types)
+                    )
+                extra_capabilities = capabilities_for_artifact_type(
+                    root,
+                    normalized_type,
+                )
+                provider_route = route_artifact_provider(
+                    root,
+                    normalized_type,
+                    required_capabilities=extra_capabilities,
+                )
+                selected_provider = provider_route.get("selected") or {}
+                provider_id = str(selected_provider.get("provider_id") or "")
+                provider_config = (
+                    (artifact_policy.get("providers") or {}).get(provider_id) or {}
+                )
+                expected_worker = str(selected_provider.get("worker") or "")
+                if expected_worker:
+                    known_available = (
+                        set(available_worker)
+                        if available_worker is not None
+                        else engine.detected_available_workers()
+                    )
+                    constrained_available = (
+                        [expected_worker] if expected_worker in known_available else []
+                    )
+                else:
+                    constrained_available = []
+
+                capacity_tier = {
+                    "max_quality": "full",
+                    "max-quality": "full",
+                }.get(tier, tier)
+                artifact_dispatch = {
+                    "status": provider_route.get("status"),
+                    "executable": False,
+                    "artifact_type": normalized_type,
+                    "required_capabilities": extra_capabilities,
+                    "provider_id": provider_id or None,
+                    "worker": expected_worker or None,
+                    "invocation_contract": provider_config.get(
+                        "invocation_contract"
+                    ),
+                    "capacity_route": (
+                        provider_config.get("capacity_routes") or {}
+                    ).get(capacity_tier),
+                    "reason": (
+                        selected_provider.get("reason")
+                        if selected_provider
+                        else "no configured provider satisfies the artifact type and required capabilities"
+                    ),
+                }
+
+            decision = engine.assign(
+                role,
+                artifact_type=(normalized_type if is_artifact_producer else None),
+                project_id=project,
+                phase_id=phase,
+                task_id=task_id,
+                mode=mode,
+                tier=tier,
+                available_workers=constrained_available,
+                approved_workers=approved_worker,
+                extra_required_capabilities=extra_capabilities,
+            )
+            payload = decision.to_dict()
+            if artifact_dispatch is not None:
+                decision_payload = payload["route_decision"]
+                if artifact_dispatch["status"] != "routed":
+                    decision_payload["activation_decision"] = (
+                        "blocked_artifact_capability_mismatch"
+                    )
+                artifact_dispatch["executable"] = (
+                    artifact_dispatch["status"] == "routed"
+                    and decision_payload.get("selected_worker")
+                    == artifact_dispatch.get("worker")
+                    and decision_payload.get("activation_decision") == "activate"
+                )
+                payload["artifact_dispatch"] = artifact_dispatch
         from agent_runtime.observability.api import emit_event
 
+        route_payload = payload["route_decision"]
         emit_event(
             project_id=project,
             project_dir=root,
             event_type="role_assigned",
             details={
-                "decision_path": getattr(decision, "decision_path", ""),
-                "rejected_alternatives": getattr(decision, "rejected_alternatives", []),
+                "activation_decision": route_payload.get("activation_decision"),
+                "rejected_alternatives": route_payload.get("rejected_workers", []),
+                "artifact_dispatch": payload.get("artifact_dispatch"),
             },
-            worker_id=getattr(decision, "selected_worker", ""),
+            worker_id=str(route_payload.get("selected_worker") or ""),
             role_id=role,
             task_id=task_id,
         )
-        console.print(yaml.safe_dump(decision.to_dict(), sort_keys=False, allow_unicode=True))
+        console.print(
+            yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
+            soft_wrap=True,
+        )
 
     @app.command("route-task")
     def route_task_cmd(

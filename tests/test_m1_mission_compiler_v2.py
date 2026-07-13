@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 from agent_runtime.brain.mission_contract import build_mission_contract
+from agent_runtime.brain.domain_classifier import classify_domain
 
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -74,6 +75,16 @@ PROMPT_LOCAL_AUTO = (
 )
 
 PROMPT_EMPTY = ""
+
+
+def test_ascii_domain_keywords_match_tokens_not_substrings() -> None:
+    keywords = {
+        "local_ops": {"keywords": ["script"]},
+        "document_processing": {"keywords": ["article"]},
+    }
+
+    assert classify_domain("Write a product description article", keywords) == "document_processing"
+    assert classify_domain("Run this script locally", keywords) == "local_ops"
 
 PROMPT_CROWN_OF_ASH = (
     "Write chapter 7 of Crown of Ash. Keep the protagonist in close third POV, "
@@ -452,6 +463,13 @@ class TestAcceptanceGates:
 
 
 class TestMediaGenerationRouting:
+    @staticmethod
+    def _media_config() -> dict:
+        repo_root = Path(__file__).resolve().parents[1]
+        return yaml.safe_load(
+            (repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8")
+        )
+
     def _contract_with_media_config(self, prompt: str, media_config: dict) -> dict:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:
@@ -473,7 +491,28 @@ class TestMediaGenerationRouting:
             )
             return build_mission_contract(prompt, agentlab_root=root)
 
+    def test_unknown_capacity_backed_auth_is_pending_without_fallback_preselection(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        media_config = yaml.safe_load(
+            (repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8")
+        )
+        assert media_config["backends"]["hermes_grok_oauth"]["auth_state"] == "unknown"
+        assert media_config["backends"]["hermes_grok_oauth"]["capacity_source"]
+
+        contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
+        media = contract["media_generation_contract"]
+
+        assert media["selected_backend"] is None
+        assert media["executable"] is False
+        assert media["routing_status"] == "pending_capacity"
+        assert media["execution_blocker"]["status"] == "capacity_pending"
+        assert media["execution_blocker"]["backend"] == "hermes_grok_oauth"
+        assert media["execution_blocker"]["recommended_action"] == "observe_capacity_then_retry"
+        assert media["approval_card"] is None
+
     def test_generate_image_selects_hermes_grok_when_local_cli_adapter_is_ready(self):
+        media_config = self._media_config()
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "ready"
         with (
             patch(
                 "agent_runtime.brain.media_generation_router.shutil.which",
@@ -481,7 +520,7 @@ class TestMediaGenerationRouting:
             ),
             patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False),
         ):
-            contract = build_mission_contract(PROMPT_IMAGE, project_id="AgentLab", task_id="task_media")
+            contract = self._contract_with_media_config(PROMPT_IMAGE, media_config)
         media = contract["media_generation_contract"]
         assert contract["task_domain"] == "image_generation"
         assert contract["artifact_type"] == "media_generation_contract"
@@ -493,6 +532,8 @@ class TestMediaGenerationRouting:
         assert media["backend_contracts"]["hermes_grok_oauth"]["adapter_kind"] == "local_grok_cli"
 
     def test_simple_image_selects_local_grok_cli_by_default(self):
+        media_config = self._media_config()
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "ready"
         with (
             patch(
                 "agent_runtime.brain.media_generation_router.shutil.which",
@@ -500,7 +541,7 @@ class TestMediaGenerationRouting:
             ),
             patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False),
         ):
-            contract = build_mission_contract(PROMPT_SIMPLE_IMAGE)
+            contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
         media = contract["media_generation_contract"]
         assert media["backend_policy"] == "fast_simple"
         assert media["selected_backend"] == "hermes_grok_oauth"
@@ -535,11 +576,13 @@ class TestMediaGenerationRouting:
         assert media["backend_contracts"]["grok_direct"]["approval_required"] is True
 
     def test_missing_local_grok_cli_does_not_auto_fall_through_to_direct_api_when_key_is_present(self):
+        media_config = self._media_config()
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "ready"
         with (
             patch("agent_runtime.brain.media_generation_router.shutil.which", return_value=None),
             patch.dict(os.environ, {"XAI_API_KEY": "test-key", "GROK_API_KEY": ""}, clear=False),
         ):
-            contract = build_mission_contract(PROMPT_SIMPLE_IMAGE)
+            contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
         media = contract["media_generation_contract"]
         assert media["selected_backend"] == "bailian_cli"
         assert media["executable"] is False
@@ -557,19 +600,24 @@ class TestMediaGenerationRouting:
         assert media["executable"] is False
         assert media["execution_blocker"]["status"] == "approval_required"
 
-    def test_draft_batch_selects_agy_harness_and_marks_draft_only(self):
+    def test_draft_batch_does_not_preselect_an_unobserved_renderer(self):
         contract = build_mission_contract(PROMPT_BATCH_DRAFT)
         media = contract["media_generation_contract"]
         assert media["backend_policy"] == "draft_batch"
-        assert media["selected_backend"] == "agy_media"
-        assert any("draft candidates only" in rule for rule in media["harness_rules"])
+        assert media["selected_backend"] is None
+        assert media["routing_status"] == "pending_capacity"
+        assert media["execution_blocker"]["backend"] == "hermes_grok_oauth"
 
     def test_ark_pending_is_not_executable_backend(self):
+        media_config = self._media_config()
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "ready"
         with patch(
             "agent_runtime.brain.media_generation_router.shutil.which",
             side_effect=local_hermes_command,
         ):
-            contract = build_mission_contract("Generate a commercial final image for client delivery.")
+            contract = self._contract_with_media_config(
+                "Generate a commercial final image for client delivery.", media_config
+            )
         media = contract["media_generation_contract"]
         assert media["selected_backend"] == "hermes_grok_oauth"
         assert media["executable"] is True
@@ -789,7 +837,8 @@ class TestRenderer:
             assert (out_dir / "media_generation_contract.yml").exists()
             assert "media_generation_contract" in written
             media = yaml.safe_load((out_dir / "media_generation_contract.yml").read_text(encoding="utf-8"))
-            assert media["selected_backend"] == "hermes_grok_oauth"
+            assert media["selected_backend"] is None
+            assert media["routing_status"] == "pending_capacity"
 
 
 # ── External executor recommendation tests ─────────────────────────

@@ -5,7 +5,6 @@ import sys
 import types
 from pathlib import Path
 
-import pytest
 import typer
 import yaml
 from rich.console import Console
@@ -18,6 +17,7 @@ from agent_runtime.cli.narrative_eval import register_narrative_eval_commands  #
 from agent_runtime.narrative_eval import (  # noqa: E402
     _audit_history,
     _clear_chapter_attempt_outputs,
+    _write_writer_contract_retry_feedback,
     _write_live_chapter_outputs,
     run_narrative_eval,
 )
@@ -57,6 +57,37 @@ def test_clear_chapter_attempt_outputs_archives_blocked_evidence(
     assert "writer_retry_ledger.yml" in rejection["archived_files"]
     assert not (run_dir / "writer_output_contract.yml").exists()
     assert not (run_dir / "live_generation_error.yml").exists()
+
+
+def test_writer_contract_retry_feedback_includes_character_ranges(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    _write_yaml(
+        run_dir / "chapter_packet.yml",
+        {
+            "chapter_intent": {
+                "target_character_range": [4500, 5500],
+                "hard_character_range": [3000, 8000],
+            }
+        },
+    )
+
+    _write_writer_contract_retry_feedback(
+        run_dir,
+        attempt=1,
+        chapter=200,
+        issues=["draft_character_count_out_of_range"],
+    )
+
+    feedback = yaml.safe_load(
+        (run_dir / "writer_contract_retry_feedback.yml").read_text(encoding="utf-8")
+    )
+    assert feedback["draft_character_contract"] == {
+        "target_character_range": [4500, 5500],
+        "hard_character_range": [3000, 8000],
+    }
 
 
 def _writer_candidate_blocks(draft: str) -> str:
@@ -353,6 +384,27 @@ def test_history_audit_does_not_require_review_for_light_chapter_runs(tmp_path: 
     assert all(item["task_id"] != "task_light_chapter_complete" for item in audit["incomplete_historical_narrative_runs"])
 
 
+def test_history_audit_does_not_treat_heavy_audit_bundle_as_chapter_run(
+    tmp_path: Path,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    run_dir = project_root / "runs" / "task_narrative_heavy_audit_ch001_ch020"
+    run_dir.mkdir(parents=True)
+    (run_dir / "user_request.md").write_text(
+        "Audit Crown chapters 1-20",
+        encoding="utf-8",
+    )
+    _write_yaml(run_dir / "narrative_audit_manifest.yml", {"chapter_range": [1, 20]})
+
+    audit = _audit_history(project_root)
+
+    assert all(
+        item["task_id"] != run_dir.name
+        for item in audit["incomplete_historical_narrative_runs"]
+    )
+
+
 def test_history_audit_classifies_live_generation_error_separately(tmp_path: Path) -> None:
     root = _copy_config_root(tmp_path)
     project_root = _make_crown_project(root)
@@ -441,7 +493,7 @@ def test_live_narrative_eval_stops_before_reviewer_when_writer_fails(tmp_path: P
             content="# blocked",
             error="writer cli failed",
             provider="agentlab-cli-executor",
-            model="agy",
+            model="deepseek-v4-pro",
         )
 
     monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
@@ -475,7 +527,7 @@ def test_live_narrative_eval_report_includes_writer_failure_summary(tmp_path: Pa
             content="",
             error="writer cli failed",
             provider="agentlab-cli-executor",
-            model="agy",
+            model="deepseek-v4-pro",
         )
 
     monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
@@ -493,7 +545,7 @@ def test_live_narrative_eval_report_includes_writer_failure_summary(tmp_path: Pa
         mode="live",
         chapters=[1],
         timestamp="20260705T040000Z",
-        writer_worker="agy",
+        writer_worker="claude_code",
     )
 
     assert result["status"] == "fail"
@@ -586,96 +638,35 @@ def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path
     assert request["supplementary_outputs"] == ["artifact_lineage.yml"]
 
 
-def test_live_narrative_eval_retries_bounded_agy_transport_failure(
+def test_live_narrative_eval_delegates_capacity_failure_without_local_retry(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
-    calls: list[str] = []
-    delays: list[int] = []
-
-    def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
-        calls.append(agent_name)
-        if len(calls) == 1:
-            log_path = run_dir / "command_logs" / "agy_cli_agent.log"
-            log_path.parent.mkdir()
-            log_path.write_text(
-                "keyringAuth: timed out after 5s\nuserinfo request failed: EOF\n",
-                encoding="utf-8",
-            )
-            return types.SimpleNamespace(
-                status="blocked_user_decision",
-                content="",
-                error="CLI agent auth_required (exit 1).",
-                provider="agentlab-cli-executor",
-                model="agy",
-                raw_usage={
-                    "failure_class": "auth_required",
-                    "cli_log_path": str(log_path),
-                    "command_id": "cmd_0001",
-                },
-            )
-        return types.SimpleNamespace(
-            status="completed",
-            content=_writer_candidate_blocks("正文段落。" * 900),
-            error=None,
-            provider="agentlab-cli-executor",
-            model="agy",
-            raw_usage={"command_id": "cmd_0002"},
-        )
-
-    monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
-    monkeypatch.setitem(
-        sys.modules,
-        "workflow_plan",
-        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
-    )
-    monkeypatch.setattr("agent_runtime.narrative_eval.time.sleep", delays.append)
-
-    _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
-
-    assert calls == ["Writer", "Writer"]
-    assert delays == [5]
-    assert (run_dir / "fiction_draft.md").exists()
-    assert not (run_dir / "live_generation_error.yml").exists()
-    retry = yaml.safe_load((run_dir / "writer_retry_ledger.yml").read_text(encoding="utf-8"))
-    assert retry["status"] == "recovered"
-    assert retry["provider_changed"] is False
-    assert retry["fallback_used"] is False
-    assert retry["attempts"][0]["retry_reason"] == "agy_keyring_timeout"
-    assert retry["attempts"][0]["log_snapshot"] == "writer_retry_attempt_01_agy.log"
-    assert retry["attempts"][1]["materialized"] is True
-
-
-def test_live_narrative_eval_does_not_retry_agy_quota_with_stale_eof_log(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    run_dir = tmp_path / "run"
-    run_dir.mkdir()
-    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
-    log_path = run_dir / "command_logs" / "agy_cli_agent.log"
+    log_path = run_dir / "command_logs" / "writer.stderr.txt"
     log_path.parent.mkdir()
-    log_path.write_text("userinfo request failed: EOF\n", encoding="utf-8")
-    (log_path.parent / "cmd_0001.stderr.txt").write_text(
-        "Error: Individual quota reached. Resets in 1h2m3s.\n",
+    log_path.write_text(
+        "Error: quota exhausted. Resets in 1h2m3s.\n",
         encoding="utf-8",
     )
-    calls: list[str] = []
-    delays: list[int] = []
+    calls: list[dict[str, object]] = []
 
     def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
-        calls.append(agent_name)
+        calls.append({"agent_name": agent_name, "kwargs": kwargs})
         return types.SimpleNamespace(
             status="blocked_user_decision",
             content="",
-            error="CLI agent rate_limited (exit 1).",
+            error="CLI agent quota_exhausted (exit 1).",
             provider="agentlab-cli-executor",
-            model="agy",
+            model="deepseek-v4-pro",
             raw_usage={
-                "failure_class": "rate_limited",
+                "failure_class": "quota_exhausted",
+                "capacity_route": "Writer",
+                "capacity_pool": "deepseek_metered_api",
+                "capacity_status": "blocked",
+                "capacity_reset_at": "2026-07-13T12:00:00Z",
                 "cli_log_path": str(log_path),
                 "command_id": "cmd_0001",
             },
@@ -687,7 +678,6 @@ def test_live_narrative_eval_does_not_retry_agy_quota_with_stale_eof_log(
         "workflow_plan",
         types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
     )
-    monkeypatch.setattr("agent_runtime.narrative_eval.time.sleep", delays.append)
 
     _write_live_chapter_outputs(
         tmp_path,
@@ -696,245 +686,27 @@ def test_live_narrative_eval_does_not_retry_agy_quota_with_stale_eof_log(
         "task_live",
         85,
         [],
-        allow_agy_quota_model_rotation=False,
     )
 
-    assert calls == ["Writer"]
-    assert delays == []
+    assert calls == [{
+        "agent_name": "Writer",
+        "kwargs": {
+            "allow_cli_api_fallback": False,
+        },
+    }]
     assert not (run_dir / "writer_retry_ledger.yml").exists()
     error = yaml.safe_load((run_dir / "live_generation_error.yml").read_text(encoding="utf-8"))
-    assert error["error"] == "CLI agent rate_limited (exit 1)."
-    assert error["failure_class"] == "rate_limited"
-    assert error["retry_after_seconds"] == 3723
-    assert error["retry_policy"] == "same_provider_after_reset"
-    assert error["fallback_allowed"] is False
-    assert error["retry_not_before"].endswith("+00:00")
-
-
-def test_live_narrative_eval_rotates_agy_model_on_quota(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    run_dir = tmp_path / "run"
-    run_dir.mkdir()
-    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
-    model_overrides: list[str | None] = []
-
-    def fake_run_agent_model(
-        root,
-        plan,
-        agent_name,
-        output_path,
-        cli_model_override=None,
-        **kwargs,
-    ):
-        model_overrides.append(cli_model_override)
-        if len(model_overrides) == 1:
-            return types.SimpleNamespace(
-                status="blocked_user_decision",
-                content="",
-                error="CLI agent quota_exhausted (exit 1).",
-                provider="agentlab-cli-executor",
-                model="agy",
-                raw_usage={
-                    "failure_class": "quota_exhausted",
-                    "command_id": "cmd_0001",
-                },
-            )
-        return types.SimpleNamespace(
-            status="completed",
-            content=_writer_candidate_blocks("正文段落。" * 900),
-            error=None,
-            provider="agentlab-cli-executor",
-            model="agy",
-            raw_usage={"command_id": "cmd_0002"},
-        )
-
-    monkeypatch.setitem(
-        sys.modules,
-        "agent_runner",
-        types.SimpleNamespace(run_agent_model=fake_run_agent_model),
+    assert error["error"] == "CLI agent quota_exhausted (exit 1)."
+    assert error["failure_class"] == "quota_exhausted"
+    assert error["capacity_route"] == "Writer"
+    assert error["capacity_pool"] == "deepseek_metered_api"
+    assert error["capacity_status"] == "blocked"
+    assert error["capacity_reset_at"] == "2026-07-13T12:00:00Z"
+    assert "retry_after_seconds" not in error
+    request = yaml.safe_load(
+        (run_dir / "live_generation_request.yml").read_text(encoding="utf-8")
     )
-    monkeypatch.setitem(
-        sys.modules,
-        "workflow_plan",
-        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
-    )
-
-    _write_live_chapter_outputs(
-        ROOT,
-        run_dir,
-        "Crown_of_Ash",
-        "task_live",
-        182,
-        [],
-        allow_agy_quota_model_rotation=True,
-    )
-
-    assert model_overrides == [None, "claude_sonnet_4_6_agy_oauth"]
-    assert (run_dir / "fiction_draft.md").exists()
-    retry = yaml.safe_load((run_dir / "writer_retry_ledger.yml").read_text(encoding="utf-8"))
-    assert retry["status"] == "recovered"
-    assert retry["provider_surface"] == "cli_agent:agy"
-    assert retry["provider_changed"] is False
-    assert retry["model_rotated"] is True
-    assert retry["rotation"]["from_model"] == "gemini_3_5_flash_high_agy_oauth"
-    assert retry["rotation"]["to_model"] == "claude_sonnet_4_6_agy_oauth"
-    assert retry["rotation"]["reason"] == "quota_exhausted"
-    assert retry["attempts"][0]["retry_kind"] == "quota_model_rotation"
-    assert retry["attempts"][1]["requested_model"] == "claude_sonnet_4_6_agy_oauth"
-
-
-@pytest.mark.parametrize(
-    "failure_class",
-    [
-        "auth_required",
-        "network_required",
-        "invalid_cli_invocation",
-        "provider_error",
-        "rate_limited",
-    ],
-)
-def test_live_narrative_eval_does_not_rotate_agy_model_for_non_quota_errors(
-    tmp_path: Path,
-    monkeypatch,
-    failure_class: str,
-) -> None:
-    run_dir = tmp_path / failure_class
-    run_dir.mkdir()
-    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
-    model_overrides: list[str | None] = []
-
-    def fake_run_agent_model(
-        root,
-        plan,
-        agent_name,
-        output_path,
-        cli_model_override=None,
-        **kwargs,
-    ):
-        model_overrides.append(cli_model_override)
-        return types.SimpleNamespace(
-            status="blocked_user_decision",
-            content="",
-            error=f"CLI agent {failure_class} (exit 1).",
-            provider="agentlab-cli-executor",
-            model="agy",
-            raw_usage={"failure_class": failure_class, "command_id": "cmd_0001"},
-        )
-
-    monkeypatch.setitem(
-        sys.modules,
-        "agent_runner",
-        types.SimpleNamespace(run_agent_model=fake_run_agent_model),
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "workflow_plan",
-        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
-    )
-
-    _write_live_chapter_outputs(
-        tmp_path,
-        run_dir,
-        "Crown_of_Ash",
-        "task_live",
-        182,
-        [],
-    )
-
-    assert model_overrides
-    assert all(model is None for model in model_overrides)
-    retry_path = run_dir / "writer_retry_ledger.yml"
-    if retry_path.exists():
-        retry = yaml.safe_load(retry_path.read_text(encoding="utf-8"))
-        assert retry["model_rotated"] is False
-    assert (run_dir / "live_generation_error.yml").exists()
-
-
-def test_live_narrative_eval_does_not_rotate_quota_model_for_unlisted_project(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    run_dir = tmp_path / "run"
-    run_dir.mkdir()
-    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
-    model_overrides: list[str | None] = []
-
-    def fake_run_agent_model(
-        root,
-        plan,
-        agent_name,
-        output_path,
-        cli_model_override=None,
-        **kwargs,
-    ):
-        model_overrides.append(cli_model_override)
-        return types.SimpleNamespace(
-            status="blocked_user_decision",
-            content="",
-            error="CLI agent quota_exhausted (exit 1).",
-            provider="agentlab-cli-executor",
-            model="agy",
-            raw_usage={"failure_class": "quota_exhausted", "command_id": "cmd_0001"},
-        )
-
-    monkeypatch.setitem(
-        sys.modules,
-        "agent_runner",
-        types.SimpleNamespace(run_agent_model=fake_run_agent_model),
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "workflow_plan",
-        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
-    )
-
-    _write_live_chapter_outputs(
-        ROOT,
-        run_dir,
-        "Other_Novel",
-        "task_live",
-        1,
-        [],
-        allow_agy_quota_model_rotation=True,
-    )
-
-    assert model_overrides == [None]
-    assert not (run_dir / "writer_retry_ledger.yml").exists()
-    request = yaml.safe_load((run_dir / "live_generation_request.yml").read_text(encoding="utf-8"))
-    assert request["agy_quota_model_rotation_allowed"] is False
-
-
-def test_live_narrative_eval_blocks_on_missing_quota_rotation_contract(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    run_dir = tmp_path / "run"
-    run_dir.mkdir()
-    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
-    calls: list[str] = []
-
-    monkeypatch.setitem(
-        sys.modules,
-        "agent_runner",
-        types.SimpleNamespace(run_agent_model=lambda *args, **kwargs: calls.append("called")),
-    )
-
-    _write_live_chapter_outputs(
-        tmp_path,
-        run_dir,
-        "Crown_of_Ash",
-        "task_live",
-        1,
-        [],
-        allow_agy_quota_model_rotation=True,
-    )
-
-    assert calls == []
-    error = yaml.safe_load((run_dir / "live_generation_error.yml").read_text(encoding="utf-8"))
-    assert error["status"] == "blocked"
-    assert error["error"] == "invalid_agy_quota_model_rotation_policy"
+    assert request["model_capacity_governance"] == "centralized"
 
 
 def test_live_narrative_eval_retries_one_full_contract_redo(
@@ -953,12 +725,28 @@ def test_live_narrative_eval_retries_one_full_contract_redo(
 
     def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
         calls.append(agent_name)
+        if len(calls) == 2:
+            feedback = yaml.safe_load(
+                (run_dir / "writer_contract_retry_feedback.yml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            assert feedback["status"] == "correction_required"
+            assert feedback["issues"] == [
+                "missing_writer_output:narrative_delivery_receipt.yml"
+            ]
+            assert feedback["required_envelopes"]["state_transition_proposal.yml"][
+                "status"
+            ] == "candidate"
+            assert feedback["required_envelopes"]["narrative_delivery_receipt.yml"][
+                "status"
+            ] == "pass"
         return types.SimpleNamespace(
             status="completed",
             content=incomplete if len(calls) == 1 else complete,
             error=None,
             provider="agentlab-cli-executor",
-            model="agy",
+            model="deepseek-v4-pro",
             raw_usage={"command_id": f"cmd_{len(calls):04d}"},
         )
 
@@ -995,7 +783,7 @@ def test_live_narrative_eval_failed_retry_cannot_reuse_stale_candidate_outputs(
             content="",
             error="transient auth failure",
             provider="agentlab-cli-executor",
-            model="agy",
+            model="deepseek-v4-pro",
         )
 
     monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
@@ -1023,7 +811,7 @@ def test_live_narrative_eval_failed_retry_cannot_reuse_stale_candidate_outputs(
         mode="live",
         chapters=[1],
         timestamp=timestamp,
-        writer_worker="agy",
+        writer_worker="claude_code",
         stop_on_block=True,
     )
 

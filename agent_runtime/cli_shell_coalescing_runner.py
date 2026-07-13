@@ -413,6 +413,30 @@ def _nested_config_value(config: dict[str, Any], dotted_key: str) -> Any:
     return value
 
 
+def _set_nested_profile_value(config: dict[str, Any], dotted_key: str, value: Any) -> None:
+    parts = dotted_key.split(".")
+    target = config
+    for part in parts[:-1]:
+        existing = target.get(part)
+        if not isinstance(existing, dict):
+            existing = {}
+            target[part] = existing
+        target = existing
+    if value is None:
+        target.pop(parts[-1], None)
+    else:
+        target[parts[-1]] = value
+
+
+def _write_profile_config(path: Path, config: dict[str, Any]) -> None:
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    temporary.write_text(
+        yaml.safe_dump(config, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
 def _hermes_profile_preflight(
     packet: dict[str, Any],
     hermes_home: Path,
@@ -424,6 +448,11 @@ def _hermes_profile_preflight(
         route = role.get("model_route") if isinstance(role.get("model_route"), dict) else {}
         profile_name = str(route.get("workflow_shell_profile") or "")
         required = route.get("required_profile_config") if isinstance(route.get("required_profile_config"), dict) else {}
+        forbidden = (
+            route.get("forbidden_profile_config_keys")
+            if isinstance(route.get("forbidden_profile_config_keys"), list)
+            else []
+        )
         if not profile_name:
             issues.append(f"{_role_slug(role_name)}:profile_not_declared")
             continue
@@ -437,6 +466,9 @@ def _hermes_profile_preflight(
             actual = _nested_config_value(config, str(key))
             if (actual or "") != (expected or ""):
                 issues.append(f"{profile_name}:{key}_mismatch")
+        for key in forbidden:
+            if _nested_config_value(config, str(key)) is not None:
+                issues.append(f"{profile_name}:{key}_must_be_absent")
     return profiles, sorted(issues)
 
 
@@ -454,6 +486,11 @@ def provision_hermes_profiles(
         route = role.get("model_route") if isinstance(role.get("model_route"), dict) else {}
         profile_name = str(route.get("workflow_shell_profile") or "")
         required = route.get("required_profile_config") if isinstance(route.get("required_profile_config"), dict) else {}
+        forbidden = (
+            route.get("forbidden_profile_config_keys")
+            if isinstance(route.get("forbidden_profile_config_keys"), list)
+            else []
+        )
         if not profile_name or not profile_name.replace("_", "").replace("-", "").isalnum():
             return {
                 "status": "fail",
@@ -488,6 +525,13 @@ def provision_hermes_profiles(
             created = config_materialized
         configured_keys = []
         for key, value in required.items():
+            if value is None or isinstance(value, (list, dict)):
+                config_path = profile_dir / "config.yaml"
+                config = _read_yaml(config_path)
+                _set_nested_profile_value(config, str(key), value)
+                _write_profile_config(config_path, config)
+                configured_keys.append(str(key))
+                continue
             config_result = executor(
                 ["hermes", "-p", profile_name, "config", "set", str(key), str(value or "")],
                 min(timeout, 60),
@@ -499,6 +543,13 @@ def provision_hermes_profiles(
                     "issues": [f"{profile_name}:{key}_config_set_failed"],
                 }
             configured_keys.append(str(key))
+        if forbidden:
+            config_path = profile_dir / "config.yaml"
+            config = _read_yaml(config_path)
+            for key in forbidden:
+                _set_nested_profile_value(config, str(key), None)
+                configured_keys.append(str(key))
+            _write_profile_config(config_path, config)
         profile_results[profile_name] = {
             "role": role_name,
             "created": created,

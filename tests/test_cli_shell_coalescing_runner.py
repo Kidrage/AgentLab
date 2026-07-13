@@ -116,10 +116,11 @@ def test_cli_shell_coalescing_runner_materializes_role_receipts_from_native_surf
         "agentlabsupervisor": {
             "model": {
                 "provider": "openai-codex",
-                "default": "gpt-5.5",
+                "default": "gpt-5.6-sol",
                 "base_url": "https://chatgpt.com/backend-api/codex",
             },
-            "agent": {"reasoning_effort": "high"},
+            "agent": {"reasoning_effort": "xhigh"},
+            "fallback_providers": [],
         },
         "agentlabpromptengineer": {
             "model": {
@@ -128,6 +129,7 @@ def test_cli_shell_coalescing_runner_materializes_role_receipts_from_native_surf
                 "base_url": "https://api.deepseek.com",
             },
             "agent": {"reasoning_effort": ""},
+            "fallback_providers": [],
         },
     }
     for profile, config in profile_configs.items():
@@ -342,10 +344,12 @@ def test_cli_shell_coalescing_runner_provisions_isolated_hermes_role_profiles(
     )
     assert supervisor["model"] == {
         "provider": "openai-codex",
-        "default": "gpt-5.5",
+        "default": "gpt-5.6-sol",
         "base_url": "https://chatgpt.com/backend-api/codex",
     }
-    assert supervisor["agent"]["reasoning_effort"] == "high"
+    assert supervisor["agent"]["reasoning_effort"] == "xhigh"
+    assert supervisor["fallback_providers"] == []
+    assert "fallback_model" not in supervisor
 
 
 def test_cli_shell_coalescing_runner_provision_only_never_dispatches_provider(

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
 
@@ -22,6 +22,7 @@ class PriceInfo:
     cache_read_per_1m_usd: float | None = None
     cache_write_per_1m_usd: float | None = None
     reasoning_per_1m_usd: float | None = None
+    media_unit_prices_usd: dict[str, float] = field(default_factory=dict)
     price_source: str = "unknown"
     pricing_confidence: str = "none"
     free: bool = False
@@ -31,6 +32,10 @@ class PriceInfo:
         if self.free:
             return True
         return self.input_per_1m_usd is not None and self.output_per_1m_usd is not None
+
+    @property
+    def has_billable_media_prices(self) -> bool:
+        return bool(self.media_unit_prices_usd)
 
     def estimate_cost_usd(
         self,
@@ -62,6 +67,39 @@ class PriceInfo:
             cost += (reasoning_tokens / 1_000_000) * float(self.reasoning_per_1m_usd)
         return round(cost, 8)
 
+    def estimate_media_cost_usd(
+        self,
+        *,
+        units: Mapping[str, int | float],
+    ) -> float | None:
+        """Estimate media cost from exact named provider billing units.
+
+        Every positive requested unit must have a configured price. Returning
+        ``None`` for a partial or unknown unit prevents an apparently exact
+        total from silently omitting part of a media generation charge.
+        """
+        if not units:
+            return None
+        if self.free:
+            return 0.0
+        total = 0.0
+        priced_any = False
+        for unit, raw_count in units.items():
+            try:
+                count = float(raw_count)
+            except (TypeError, ValueError):
+                return None
+            if count < 0:
+                return None
+            if count == 0:
+                continue
+            unit_price = self.media_unit_prices_usd.get(str(unit))
+            if unit_price is None:
+                return None
+            total += count * unit_price
+            priced_any = True
+        return round(total, 8) if priced_any else 0.0
+
 
 def _load_pricing_file(agentlab_root: Path) -> dict[str, Any]:
     path = agentlab_root / "config" / "model_pricing.yml"
@@ -92,6 +130,18 @@ def _entry_confidence(entry: dict[str, Any], has_price: bool) -> str:
     if has_price:
         return "medium"
     return "none"
+
+
+def _media_unit_prices(entry: dict[str, Any], *, free: bool) -> dict[str, float]:
+    raw = entry.get("media_unit_prices_usd")
+    if not isinstance(raw, dict):
+        return {}
+    prices: dict[str, float] = {}
+    for unit, value in raw.items():
+        price = _coerce_price(value, free=free)
+        if price is not None:
+            prices[str(unit)] = price
+    return prices
 
 
 class PriceResolver:
@@ -140,7 +190,8 @@ class PriceResolver:
         free = bool(entry.get("free", False))
         input_price = _coerce_price(entry.get("input_per_1m_usd", entry.get("input_per_1m")), free=free)
         output_price = _coerce_price(entry.get("output_per_1m_usd", entry.get("output_per_1m")), free=free)
-        has_price = free or (input_price is not None and output_price is not None)
+        media_prices = _media_unit_prices(entry, free=free)
+        has_price = free or (input_price is not None and output_price is not None) or bool(media_prices)
         source = entry.get("price_source") or entry.get("pricing_source") or "manual"
         price_source = PRICE_SOURCE_CONFIG if source == "manual" else str(source)
         if price_source not in PRICE_SOURCES:
@@ -153,6 +204,7 @@ class PriceResolver:
             cache_read_per_1m_usd=_coerce_price(entry.get("cache_read_per_1m_usd"), free=free),
             cache_write_per_1m_usd=_coerce_price(entry.get("cache_write_per_1m_usd"), free=free),
             reasoning_per_1m_usd=_coerce_price(entry.get("reasoning_per_1m_usd"), free=free),
+            media_unit_prices_usd=media_prices,
             price_source=price_source,
             pricing_confidence=_entry_confidence(entry, has_price),
             free=free,

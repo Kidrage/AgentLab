@@ -50,7 +50,7 @@ Practical status: AgentLab is in the M-series alignment stage. Many S-series fou
 - **Domain-aware creative routing**: `config/domain_route_packs.yml` provides dedicated route packs and quality gates for longform fiction, research reading, and codebase work.
 - **CLI modularization**: worker, runtime hygiene, capability contract, routing, external project, protocol, and role capability subcommands were extracted from the monolithic CLI.
 - **Project artifact governance**: `project_artifact_index.yml`, per-project `PROJECT_HANDOFF.md`, and artifact stewardship gates for creative projects such as Crown_of_Ash.
-- **Executor binding refresh**: `agy` as Coder executor, expanded Hermes model groups, and synchronized worker invocation contracts.
+- **Role/capacity refresh**: `agy` is a read-only multimodal Observer/Reviewer; role-specific CLI contracts govern Writer, Supervisor, Researcher, and ArtifactProducer.
 
 ### Active Creative Projects (Local, Not on GitHub)
 
@@ -81,7 +81,7 @@ Local Mac (development source)
 
 - Local-first task state, project memory, run directories, and evidence artifacts.
 - Canonical task lifecycle with checkpointing and resume support.
-- 9-agent tiered operating model: Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist.
+- 14-role operating model: Supervisor, RepoScout, Researcher, Observer, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist.
 - Route profiles for small, medium, interface-sensitive, research-sensitive, and large/risky tasks.
 - Brain governance with provider/model policy, token budgets, and route-aware execution.
 - Budget planner, BudgetGate, CostLedger v2, pricing, and cost tracker.

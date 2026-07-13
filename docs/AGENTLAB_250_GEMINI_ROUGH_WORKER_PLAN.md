@@ -16,13 +16,19 @@ Regenerate the two CSV files with:
 python3 scripts/generate_agent_cli_matrix.py
 ```
 
-## Current Gemini Policy
+## Current Role Policy
 
-- The default AgentLab Gemini worker is `agy`.
-- Agy uses the remote machine's own Gemini OAuth session.
-- The expected Writer model is Gemini 3.5 Flash High.
+- Agy is the read-only multimodal Observer and independent visual Reviewer; it is
+  not a Writer or ArtifactProducer.
+- The primary Observer profile uses Gemini 3.5 Flash High through the remote
+  machine's own Agy OAuth session.
+- The current Writer is Claude Code + DeepSeek V4 Pro.
+- Agy's Claude Sonnet Observer profile belongs to a separate capacity pool and is
+  eligible only for governed Gemini `quota_exhausted`, `rate_limited`, or
+  `model_unavailable` transitions.
 - OAuth state is not copied from another host by the activation script.
-- Gemini 2.5 Flash API-key access is an optional explicit fallback.
+- Legacy Gemini 2.5 Flash API-key setup is an explicit activation option, not an
+  automatic role fallback and not part of the current Writer path.
 - Hermes must not be globally forced to the Gemini API provider through environment
   overrides.
 
@@ -44,14 +50,15 @@ The default activation asks only for the Clash/mihomo subscription URL. It write
 subscription to `~/.agentlab_secrets/network.env`, writes non-secret proxy variables to
 `~/.agentlab_runtime/network.env`, and never selects Gemini API-key auth.
 
-Explicit non-default Gemini API fallback:
+Legacy explicit Gemini API-key setup:
 
 ```bash
 scripts/activate_250_runtime.sh --enable-gemini-api-fallback
 ```
 
-This additional mode asks for a Gemini API key and stores it in private fallback files.
-It does not change AgentLab's default Writer path from Agy OAuth.
+This additional mode asks for a Gemini API key and stores it in private activation
+files. It does not change any role binding or bypass `config/model_capacity.yml`, the
+sole automatic capacity-transition authority.
 
 ## Deployment Gates
 
@@ -61,8 +68,8 @@ Before running Crown production on 250, all of the following require fresh evide
 2. The Crown project asset tree is synchronized through the private workspace path.
 3. Required deterministic tools and required CLI rows in
    `AGENTLAB_CLI_REQUIREMENTS.csv` pass version and safe probes.
-4. The remote Agy OAuth session is authenticated and `./agentlab.sh agy-cli-smoke
-   --live` succeeds through the US-capable proxy.
+4. The remote Agy OAuth session is authenticated and a separately authorized Agy
+   Observer live smoke succeeds through the US-capable proxy.
 5. `./agentlab.sh models doctor`, the full test suite, and narrative candidate gates
    pass on the remote checkout.
 6. Candidate generation does not write `production/manuscript` before audit and user

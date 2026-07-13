@@ -71,6 +71,9 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     workflow_shells = _read_yaml(root / "config" / "cli_workflow_shells.yml")
     profiles = _read_yaml(root / "config" / "agent_model_profiles.yml")
     role_bindings = _read_yaml(root / "config" / "agent_role_bindings.yml")
+    invocation_contracts = _read_yaml(
+        root / "config" / "worker_invocation_contracts.yml"
+    )
     model_catalog = _read_yaml(root / "config" / "model_catalog.yml")
     capability_cli = _read_text(root / "agent_runtime" / "cli" / "capability_contracts.py")
     narrative_cli = _read_text(root / "agent_runtime" / "cli" / "narrative_eval.py")
@@ -78,11 +81,15 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
 
     worker = _worker(root, frontdesk_agent)
     codex_worker = _worker(root, "codex")
+    researcher_role = _role(root, "Researcher")
     artifact_role = _role(root, "ArtifactProducer")
     grok_worker = _worker(root, "grok")
     hermes_worker = _worker(root, "hermes")
     claude_worker = _worker(root, "claude_code")
     hermes_grok = ((media_backends.get("backends") or {}).get("hermes_grok_oauth") or {})
+    contracts = invocation_contracts.get("contracts") or {}
+    grok_research_contract = contracts.get("grok_research") or {}
+    grok_media_contract = contracts.get("grok_media") or {}
     shell_registry = workflow_shells.get("shells") if isinstance(workflow_shells.get("shells"), dict) else {}
     mode_policy = (
         workflow_shells.get("mode_policy")
@@ -294,18 +301,37 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             "summary": "Hermes workflow shell powers the Grok media backend, but ArtifactProducer/grok remains the AgentLab role-worker owner",
         },
         {
-            "id": "grok_cli_is_registered_as_internal_artifact_worker",
+            "id": "grok_cli_is_registered_as_internal_research_and_artifact_worker",
             "status": "pass"
-            if "grok" in (artifact_role.get("allowed_workers") or [])
+            if "grok" in (researcher_role.get("allowed_workers") or [])
+            and "grok" in (artifact_role.get("allowed_workers") or [])
             and grok_worker.get("worker_capable") is True
             and grok_worker.get("frontdesk_capable") is False
             and "candidate_artifact_worker" in (grok_worker.get("worker_capabilities") or [])
-            and grok_worker.get("allowed_roles") == ["ArtifactProducer"]
+            and set(grok_worker.get("allowed_roles") or []) == {
+                "Researcher",
+                "ArtifactProducer",
+            }
             and "Coder" in (grok_worker.get("forbidden_roles") or [])
             and "Writer" in (grok_worker.get("forbidden_roles") or [])
             else "fail",
             "evidence": ["config/agent_role_bindings.yml", "config/worker_invocation_contracts.yml"],
-            "summary": "Grok is an internal ArtifactProducer-only media worker, not a general provider or writing/coding agent",
+            "summary": "Grok is a bounded internal Researcher and ArtifactProducer worker, never a Writer, Coder, or FrontDesk",
+        },
+        {
+            "id": "grok_current_contracts_use_hermes_surface",
+            "status": "pass"
+            if grok_research_contract.get("worker_id") == "grok"
+            and grok_research_contract.get("command") == "hermes"
+            and grok_research_contract.get("invocation_style")
+            == "sourced_research_task_packet"
+            and grok_media_contract.get("worker_id") == "grok"
+            and grok_media_contract.get("command") == "hermes"
+            and grok_media_contract.get("invocation_style")
+            == "media_backend_task_packet"
+            else "fail",
+            "evidence": ["config/worker_invocation_contracts.yml"],
+            "summary": "grok_research and grok_media are separate role contracts on the configured Hermes xAI OAuth executable",
         },
         {
             "id": "artifact_producer_profiles_bind_grok_oauth",
@@ -355,10 +381,11 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             f"{frontdesk_agent} / DeepSeek V4 Pro: optional frontdesk-session for task intake and routing",
             "Direct closed loop: AgentLab pipeline or role-session without FrontDesk",
             "Supervisor: route and mission contract",
+            "Researcher: Grok sourced research through grok_research role-session",
             "ArtifactProducer: media/artifact production role-session",
             "Writer: narrative live eval role-session",
             "Registered CLI workflow shells: native capability families inside bounded role sessions",
-            "hermes_grok_oauth: local Grok CLI backend behind ArtifactProducer",
+            "hermes_grok_oauth: configured Hermes executable behind separate grok_research and grok_media contracts",
             "TesterAuditor/Verifier: audit generated candidate artifacts",
         ],
         "operator_boundary": {

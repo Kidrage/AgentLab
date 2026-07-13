@@ -93,19 +93,30 @@ def test_cli_profiles_invocation_contracts_match_selected_workers() -> None:
                     f"runs worker {contract_worker!r}"
                 )
 
-                fallback_cli_agent = role.get("fallback_cli_agent")
-                fallback_contract_name = role.get("fallback_invocation_contract")
-                if fallback_cli_agent:
-                    assert fallback_contract_name in contracts, (
-                        f"{mode_name}/{tier_name}/{role_name} selects fallback_cli_agent "
-                        f"{fallback_cli_agent!r} without a valid fallback_invocation_contract"
-                    )
-                    fallback_contract_worker = contracts[fallback_contract_name]["worker_id"]
-                    assert fallback_contract_worker == fallback_cli_agent, (
-                        f"{mode_name}/{tier_name}/{role_name} selects fallback_cli_agent "
-                        f"{fallback_cli_agent!r} but fallback_invocation_contract "
-                        f"{fallback_contract_name!r} runs worker {fallback_contract_worker!r}"
-                    )
+
+def test_agent_model_profiles_delegate_all_automatic_fallbacks_to_capacity_policy() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
+
+    authority = profiles["authority"]
+    assert authority["automatic_fallback_source"] == "config/model_capacity.yml"
+    assert authority["undeclared_failure_policy"] == "stop_and_report"
+
+    forbidden_route_fields = {
+        "fallback",
+        "fallback_cli_agent",
+        "fallback_invocation_contract",
+        "fallback_artifact_backend",
+    }
+    for mode_name, mode in profiles["modes"].items():
+        for tier_name, tier in mode.get("tiers", {}).items():
+            for role_name, role in tier.items():
+                if not isinstance(role, dict):
+                    continue
+                assert forbidden_route_fields.isdisjoint(role), (
+                    f"{mode_name}/{tier_name}/{role_name} declares a profile-level "
+                    "fallback; executable fallback routes belong only in "
+                    "config/model_capacity.yml"
+                )
 
 
 def test_agent_model_profiles_reference_existing_artifact_backends() -> None:
@@ -132,55 +143,46 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     tier = profiles["modes"]["full_cli"]["tiers"]["performance"]
 
     assert tier["supervisor"]["cli_agent"] == "hermes"
-    assert tier["supervisor"]["invocation_contract"] == "hermes"
-    assert tier["supervisor"]["default"] == "codex_gpt_5_5_high_hermes_oauth"
-    assert tier["supervisor"]["fallback_cli_agent"] == "claude_code"
-    assert tier["supervisor"]["fallback_invocation_contract"] == "claude"
-    assert tier["supervisor"]["fallback"] == "deepseek_v4_pro"
+    assert tier["supervisor"]["invocation_contract"] == "hermes_supervisor"
+    assert tier["supervisor"]["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+    assert tier["supervisor"]["capacity_route"] == "Supervisor"
+    assert tier["observer"]["cli_agent"] == "agy"
+    assert tier["observer"]["invocation_contract"] == "agy_observer"
 
     assert tier["reposcout"]["cli_agent"] == "codex"
     assert tier["reposcout"]["default"] == "deepseek_v4_pro"
 
     assert tier["interface_mapper"]["cli_agent"] == "codex"
     assert tier["interface_mapper"]["default"] == "deepseek_v4_pro"
-    assert tier["interface_mapper"]["fallback"] == "qwen3_6_plus_dashscope"
 
-    assert tier["researcher"]["cli_agent"] == "qwen"
-    assert tier["researcher"]["default"] == "deepseek_v4_flash"
-    assert tier["researcher"]["fallback_cli_agent"] == "claude_code"
-    assert tier["researcher"]["fallback"] == "deepseek_v4_flash"
+    assert tier["researcher"]["cli_agent"] == "grok"
+    assert tier["researcher"]["invocation_contract"] == "grok_research"
+    assert tier["researcher"]["default"] == "grok_4_3_hermes_oauth"
 
     assert tier["prompt_engineer"]["cli_agent"] == "hermes"
     assert tier["prompt_engineer"]["default"] == "deepseek_v4_flash"
-    assert tier["prompt_engineer"]["fallback_cli_agent"] == "hermes"
-    assert tier["prompt_engineer"]["fallback"] == "deepseek_v4_pro"
 
     assert tier["coder"]["cli_agent"] == "claude_code"
     assert tier["coder"]["default"] == "qwen3_coder_plus_dashscope"
-    assert tier["coder"]["fallback_cli_agent"] == "codex"
 
-    assert tier["artifact_producer"]["cli_agent"] == "agy"
-    assert tier["artifact_producer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert tier["artifact_producer"]["cli_agent"] == "grok"
+    assert tier["artifact_producer"]["invocation_contract"] == "grok_media"
+    assert tier["artifact_producer"]["default"] == "grok_4_3_hermes_oauth"
     assert tier["artifact_producer"]["artifact_backend"] == "hermes_grok_oauth"
-    assert tier["artifact_producer"]["fallback_cli_agent"] == "agy"
-    assert tier["artifact_producer"]["fallback_artifact_backend"] == "agy_media"
 
     assert tier["tester_auditor"]["cli_agent"] == "codex"
     assert tier["tester_auditor"]["default"] == "deepseek_v4_pro"
 
     assert tier["verifier"]["cli_agent"] == "codex"
-    assert tier["verifier"]["fallback_cli_agent"] == "claude_code"
     assert tier["verifier"]["default"] == "deepseek_v4_flash"
 
     assert tier["archivist"]["cli_agent"] == "claude_code"
     assert tier["archivist"]["default"] == "deepseek_v4_pro"
-    assert tier["archivist"]["fallback"] == "qwen3_6_flash_dashscope"
 
-    assert tier["writer"]["cli_agent"] == "agy"
-    assert tier["writer"]["invocation_contract"] == "agy_writer"
-    assert tier["writer"]["fallback_cli_agent"] == "claude_code"
-    assert tier["writer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
-    assert tier["writer"]["fallback"] == "deepseek_v4_flash"
+    assert tier["writer"]["cli_agent"] == "claude_code"
+    assert tier["writer"]["invocation_contract"] == "claude_writer"
+    assert tier["writer"]["default"] == "deepseek_v4_pro"
+    assert tier["writer"]["capacity_route"] == "Writer"
 
 
 def test_full_cli_full_tier_matches_operator_matrix() -> None:
@@ -188,56 +190,41 @@ def test_full_cli_full_tier_matches_operator_matrix() -> None:
     tier = profiles["modes"]["full_cli"]["tiers"]["full"]
 
     assert tier["supervisor"]["cli_agent"] == "hermes"
-    assert tier["supervisor"]["invocation_contract"] == "hermes"
-    assert tier["supervisor"]["default"] == "codex_gpt_5_5_high_hermes_oauth"
-    assert tier["supervisor"]["fallback_cli_agent"] == "claude_code"
-    assert tier["supervisor"]["fallback_invocation_contract"] == "claude"
-    assert tier["supervisor"]["fallback"] == "deepseek_v4_pro"
+    assert tier["supervisor"]["invocation_contract"] == "hermes_supervisor"
+    assert tier["supervisor"]["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+    assert tier["observer"]["invocation_contract"] == "agy_observer"
 
-    assert tier["reposcout"]["cli_agent"] == "agy"
-    assert tier["reposcout"]["default"] == "gemini_3_5_flash_high_agy_oauth"
-    assert tier["reposcout"]["fallback_cli_agent"] == "claude_code"
-    assert tier["reposcout"]["fallback"] == "deepseek_v4_pro"
+    assert tier["reposcout"]["cli_agent"] == "codex"
+    assert tier["reposcout"]["default"] == "deepseek_v4_pro"
 
-    assert tier["interface_mapper"]["cli_agent"] == "agy"
-    assert tier["interface_mapper"]["default"] == "gemini_3_5_flash_high_agy_oauth"
-    assert tier["interface_mapper"]["fallback_cli_agent"] == "claude_code"
-    assert tier["interface_mapper"]["fallback"] == "deepseek_v4_pro"
+    assert tier["interface_mapper"]["cli_agent"] == "codex"
+    assert tier["interface_mapper"]["default"] == "deepseek_v4_pro"
 
-    assert tier["researcher"]["cli_agent"] == "claude_code"
-    assert tier["researcher"]["default"] == "deepseek_v4_flash"
-    assert tier["researcher"]["fallback_cli_agent"] == "hermes"
-    assert tier["researcher"]["fallback"] == "qwen3_coder_next_dashscope"
+    assert tier["researcher"]["cli_agent"] == "grok"
+    assert tier["researcher"]["invocation_contract"] == "grok_research"
+    assert tier["researcher"]["default"] == "grok_4_3_hermes_oauth"
 
     assert tier["prompt_engineer"]["cli_agent"] == "hermes"
     assert tier["prompt_engineer"]["default"] == "qwen3_7_max_dashscope"
-    assert tier["prompt_engineer"]["fallback_cli_agent"] == "claude_code"
-    assert tier["prompt_engineer"]["fallback"] == "deepseek_v4_pro"
 
     assert tier["coder"]["cli_agent"] == "claude_code"
     assert tier["coder"]["default"] == "deepseek_v4_pro"
-    assert tier["coder"]["fallback_cli_agent"] == "hermes"
-    assert tier["coder"]["fallback"] == "qwen3_7_max_dashscope"
 
     assert tier["tester_auditor"]["cli_agent"] == "hermes"
     assert tier["tester_auditor"]["default"] == "qwen3_7_max_dashscope"
-    assert tier["tester_auditor"]["fallback_cli_agent"] == "claude_code"
-    assert tier["tester_auditor"]["fallback"] == "deepseek_v4_pro"
 
     assert tier["verifier"]["cli_agent"] == "hermes"
     assert tier["verifier"]["default"] == "qwen3_6_flash_dashscope"
-    assert tier["verifier"]["fallback_cli_agent"] == "claude_code"
-    assert tier["verifier"]["fallback"] == "deepseek_v4_flash"
 
-    assert tier["archivist"]["cli_agent"] == "agy"
-    assert tier["archivist"]["default"] == "gemini_3_5_flash_high_agy_oauth"
-    assert tier["archivist"]["fallback_cli_agent"] == "hermes"
-    assert tier["archivist"]["fallback"] == "qwen3_7_max_dashscope"
+    assert tier["archivist"]["cli_agent"] == "claude_code"
+    assert tier["archivist"]["default"] == "deepseek_v4_pro"
 
-    assert tier["writer"]["cli_agent"] == "agy"
-    assert tier["writer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
-    assert tier["writer"]["fallback_cli_agent"] == "claude_code"
-    assert tier["writer"]["fallback"] == "deepseek_v4_flash"
+    assert tier["artifact_producer"]["cli_agent"] == "grok"
+    assert tier["artifact_producer"]["invocation_contract"] == "grok_media"
+    assert tier["writer"]["cli_agent"] == "claude_code"
+    assert tier["writer"]["invocation_contract"] == "claude_writer"
+    assert tier["writer"]["default"] == "deepseek_v4_pro"
+    assert tier["writer"]["capacity_route"] == "Writer"
 
 
 def test_qwen_token_plan_cli_preserves_original_cli_allocation() -> None:
@@ -264,7 +251,6 @@ def test_qwen_token_plan_cli_preserves_original_cli_allocation() -> None:
     assert tier["archivist"]["default"] == "qwen3_6_plus_tokenplan"
     assert tier["writer"]["executor_type"] == "direct_api"
     assert tier["writer"]["default"] == "deepseek_v4_flash"
-    assert tier["writer"]["fallback"] == "qwen3_6_plus_tokenplan"
 
 
 def test_qwen_token_plan_models_route_to_tokenplan_provider() -> None:
@@ -288,24 +274,33 @@ def test_qwen_token_plan_models_route_to_tokenplan_provider() -> None:
     assert provider["base_url"] == "env:QWEN_TOKEN_PLAN_BASE_URL"
 
 
-def test_agy_is_default_gemini_oauth_path_and_api_gemini_is_explicit_fallback() -> None:
+def test_agy_is_multimodal_observer_and_not_writer_or_image_renderer() -> None:
     profiles = _load_config("agent_model_profiles.yml")
     catalog = _load_config("model_catalog.yml")
     providers = _load_config("model_providers.yml")["providers"]
     contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
+    bindings = _load_config("agent_role_bindings.yml")
 
     tier = profiles["modes"]["full_cli"]["tiers"]["performance"]
     assert profiles["default_mode"] == "full_cli"
-    assert tier["writer"]["cli_agent"] == "agy"
-    assert tier["writer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
-    assert tier["artifact_producer"]["cli_agent"] == "agy"
-    assert tier["artifact_producer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert tier["observer"]["cli_agent"] == "agy"
+    assert tier["observer"]["invocation_contract"] == "agy_observer"
+    assert tier["observer"]["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert tier["writer"]["cli_agent"] == "claude_code"
+    assert tier["artifact_producer"]["cli_agent"] == "grok"
+    assert "Writer" not in bindings["workers"]["agy"]["allowed_roles"]
+    assert "Observer" in bindings["workers"]["agy"]["allowed_roles"]
 
     agy_model = catalog["models"]["gemini_3_5_flash_high_agy_oauth"]
     assert agy_model["runtime_provider"] == "agy-gemini-oauth"
     assert agy_model["model_id"] == "gemini-3.5-flash-high"
     assert agy_model["cli_model_id"] == "Gemini 3.5 Flash (High)"
     assert agy_model["pricing"]["billing_source"] == "agy_oauth"
+    assert agy_model["capabilities"]["input_modalities"] == [
+        "text", "image", "video", "audio", "pdf"
+    ]
+    assert agy_model["capabilities"]["output_modalities"] == ["text"]
+    assert agy_model["capabilities"]["image_generation"] is False
 
     api_model = catalog["models"]["gemini_2_5_flash_high_api"]
     assert api_model["runtime_provider"] == "gemini-api"
@@ -316,54 +311,56 @@ def test_agy_is_default_gemini_oauth_path_and_api_gemini_is_explicit_fallback() 
     assert catalog["providers"]["agy_gemini_oauth"]["cli_model_id"] == "Gemini 3.5 Flash (High)"
     assert providers["gemini-api"]["never_default"] is True
     assert providers["gemini-api"]["api_key"] == "env:GEMINI_API_KEY"
-    assert "Do not use GEMINI_API_KEY" in contracts["agy_coder"]["template"]
-    assert '--model "{model_id}"' in contracts["agy_coder"]["template"]
-    assert "Read only the sealed AgentLab Writer packet" in contracts["agy_writer"]["template"]
-    assert "do not read any other" in contracts["agy_writer"]["template"]
-    assert '--model "{model_id}"' in contracts["agy_writer"]["template"]
+    assert "Do not use GEMINI_API_KEY" in contracts["agy_observer"]["template"]
+    assert '--model "{model_id}"' in contracts["agy_observer"]["template"]
+    assert "read-only multimodal Observer" in contracts["agy_observer"]["template"]
+    assert "agy_writer" not in contracts
     assert _cost_source(agy_model, {}) == "oauth/subscription quota"
     assert _cost_source(api_model, {}) == "free-tier/api quota"
 
 
-def test_agy_writer_quota_rotation_uses_separate_claude_window_only() -> None:
+def test_agy_observer_models_use_independent_honest_capacity_pools() -> None:
     catalog = _load_config("model_catalog.yml")
     providers = _load_config("model_providers.yml")["providers"]
     contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
-    requirements = _load_config("runtime_cli_requirements.yml")["components"]["agy"]
+    capacity = _load_config("model_capacity.yml")
 
     model = catalog["models"]["claude_sonnet_4_6_agy_oauth"]
     assert model["provider"] == "agy_claude_oauth"
     assert model["runtime_provider"] == "agy-claude-oauth"
-    assert model["cli_model_id"] == "claude-sonnet-4-6@default"
-    assert model["usage_policy"]["never_default"] is True
-    assert model["usage_policy"]["quota_rotation_only"] is True
+    assert model["cli_model_id"] == "Claude Sonnet 4.6 (Thinking)"
+    assert model["usage_policy"]["never_primary"] is True
+    assert model["usage_policy"]["perception_fallback_only"] is True
     assert model["usage_policy"]["allowed_failure_classes"] == [
         "quota_exhausted",
+        "rate_limited",
+        "model_unavailable",
     ]
-    assert model["usage_policy"]["allowed_projects"] == ["Crown_of_Ash"]
+    assert model["capacity_pool"] == "agy_claude_observer"
+    assert catalog["models"]["gemini_3_5_flash_high_agy_oauth"]["capacity_pool"] == "agy_gemini_observer"
 
     provider = providers["agy-claude-oauth"]
     assert provider["type"] == "oauth_cli"
     assert provider["command"] == "agy"
-    assert provider["default_model"] == "claude-sonnet-4-6@default"
-    assert provider["never_default"] is True
+    assert provider["default_model"] == "Claude Sonnet 4.6 (Thinking)"
+    assert provider["never_primary"] is True
     assert "api_key" not in provider
 
-    rotation = contracts["agy_writer"]["quota_model_rotation"]
-    assert rotation["from_model"] == "gemini_3_5_flash_high_agy_oauth"
-    assert rotation["to_model"] == "claude_sonnet_4_6_agy_oauth"
-    assert rotation["same_worker_required"] == "agy"
-    assert rotation["provider_surface_change_allowed"] is False
-    assert rotation["api_key_fallback_allowed"] is False
-    assert requirements["quota_model_rotation"]["to_model"] == rotation["to_model"]
-    assert "Use exactly the Agy OAuth model selected by --model" in contracts["agy_writer"]["template"]
-
-    directory = _load_config("shared_agent_directory.yml")["agents"]["agy"]
-    assert directory["display_name"] == "Antigravity / Agy OAuth"
-    assert directory["quota_model_rotation"]["to_model"] == "claude_sonnet_4_6_agy_oauth"
-    assert directory["quota_model_rotation"]["allowed_failure_classes"] == [
-        "quota_exhausted"
+    pools = capacity["pools"]
+    assert pools["agy_gemini_observer"]["shared_pool_id"] != pools["agy_claude_observer"]["shared_pool_id"]
+    for pool_id in ("agy_gemini_observer", "agy_claude_observer"):
+        assert pools[pool_id]["declared_windows"]["rolling"]["period_seconds"] == 18_000
+        assert pools[pool_id]["declared_windows"]["rolling"]["remaining"] is None
+        assert pools[pool_id]["declared_windows"]["rolling"]["reset_at"] is None
+        assert pools[pool_id]["declared_windows"]["weekly"]["remaining"] is None
+    primary = capacity["routes"]["Observer"]
+    fallback = capacity["routes"][primary["approved_fallbacks"][0]]
+    assert primary["pool"] == "agy_gemini_observer"
+    assert fallback["pool"] == "agy_claude_observer"
+    assert primary["fallback_on"] == model["usage_policy"][
+        "allowed_failure_classes"
     ]
+    assert contracts["agy_observer"]["worker_id"] == "agy"
 
 
 def test_writer_light_contract_has_one_unambiguous_four_file_response() -> None:
@@ -387,30 +384,102 @@ def test_writer_light_contract_has_one_unambiguous_four_file_response() -> None:
     assert "no preamble" in skill
 
 
-def test_codex_gpt_55_high_is_registered_as_hermes_oauth_provider() -> None:
+def test_hermes_supervisor_uses_gpt_56_sol_at_strongest_supported_effort() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
     catalog = _load_config("model_catalog.yml")
     providers = _load_config("model_providers.yml")["providers"]
     contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
 
-    model = catalog["models"]["codex_gpt_5_5_high_hermes_oauth"]
+    model = catalog["models"]["codex_gpt_5_6_sol_xhigh_hermes_oauth"]
     assert model["provider"] == "hermes_codex_oauth"
     assert model["provider"] in catalog["providers"]
     assert model["runtime_provider"] == "openai-codex"
     assert model["runtime_provider"] in providers
     assert model["cli_provider"] == "openai-codex"
-    assert model["model_id"] == "gpt-5.5"
-    assert model["reasoning_effort"] == "high"
+    assert model["model_id"] == "gpt-5.6-sol"
+    assert model["reasoning_effort"] == "xhigh"
+    assert model["reasoning_effort_label"] == "extra"
     assert _cost_source(model, {}) == "oauth/subscription quota"
 
     provider = providers["openai-codex"]
     assert provider["type"] == "oauth_cli"
     assert provider["command"] == "hermes"
-    assert provider["default_model"] == "gpt-5.5"
-    assert provider["reasoning_effort"] == "high"
+    assert provider["default_model"] == "gpt-5.6-sol"
+    assert provider["reasoning_effort"] == "xhigh"
 
-    hermes_template = contracts["hermes"]["template"]
+    hermes_template = contracts["hermes_supervisor"]["template"]
+    assert "-p agentlabsupervisor chat -Q" in hermes_template
     assert "--provider {provider}" in hermes_template
     assert "-m {model_id}" in hermes_template
+    assert " -q " in hermes_template
+    assert " -z " not in hermes_template
+    supervisor_contract = contracts["hermes_supervisor"]
+    assert supervisor_contract["workflow_shell_profile"] == "agentlabsupervisor"
+    assert supervisor_contract["requested_reasoning_label"] == "extra"
+    assert supervisor_contract["resolved_reasoning_effort"] == "xhigh"
+    assert supervisor_contract["required_shell_state"] == {
+        "model.provider": "openai-codex",
+        "model.default": "gpt-5.6-sol",
+        "agent.reasoning_effort": "xhigh",
+        "fallback_providers": [],
+        "fallback_model": None,
+    }
+    for tier in ("full", "performance", "low"):
+        route = profiles["modes"]["full_cli"]["tiers"][tier]["supervisor"]
+        assert route["invocation_contract"] == "hermes_supervisor"
+        assert route["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+
+
+def test_writer_is_claude_deepseek_with_bounded_optional_ultracode() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
+    contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
+    bindings = _load_config("agent_role_bindings.yml")
+    capacity = _load_config("model_capacity.yml")["routes"]
+
+    for tier in ("full", "performance"):
+        route = profiles["modes"]["full_cli"]["tiers"][tier]["writer"]
+        assert route["cli_agent"] == "claude_code"
+        assert route["invocation_contract"] == "claude_writer"
+        assert route["default"] == "deepseek_v4_pro"
+    writer = contracts["claude_writer"]
+    assert '--model "{model_id}"' in writer["template"]
+    assert "--effort max" in writer["template"]
+    assert "--max-budget-usd" in writer["template"]
+    assert "final Chinese prose" in writer["template"]
+    assert writer["safe_probe"] == ["claude", "--help"]
+    ultracode = contracts["claude_writer_ultracode"]
+    assert ultracode["opt_in_only"] is True
+    assert ultracode["allowed_work"] == ["developmental_edit", "structure", "continuity", "revision_plan"]
+    assert ultracode["forbidden_work"] == ["final_prose_draft"]
+    ultracode_route = capacity["WriterUltracode"]
+    assert ultracode_route["role"] == "writer"
+    assert ultracode_route["worker"] == "claude_code"
+    assert ultracode_route["invocation_contract"] == "claude_writer_ultracode"
+    assert ultracode_route["model_key"] == "deepseek_v4_pro"
+    assert ultracode_route["activation_policy"] == "explicit_sealed_packet_only"
+    assert ultracode_route["approved_fallbacks"] == []
+    assert "Writer" not in bindings["workers"]["agy"]["allowed_roles"]
+    assert "Writer" in bindings["workers"]["claude_code"]["allowed_roles"]
+
+
+def test_grok_has_separate_research_and_media_contracts() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
+    contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
+    bindings = _load_config("agent_role_bindings.yml")
+    tier = profiles["modes"]["full_cli"]["tiers"]["performance"]
+
+    assert tier["researcher"]["cli_agent"] == "grok"
+    assert tier["researcher"]["invocation_contract"] == "grok_research"
+    assert tier["artifact_producer"]["invocation_contract"] == "grok_media"
+    assert contracts["grok_research"]["worker_id"] == "grok"
+    assert "research evidence" in contracts["grok_research"]["template"]
+    assert contracts["grok_media"]["worker_id"] == "grok"
+    assert "generated artifact paths" in contracts["grok_media"]["template"]
+    assert "media_qc_report.yml" not in contracts["grok_media"]["required_receipts"]
+    assert "generation_receipt.yml" in contracts["grok_media"]["required_receipts"]
+    assert "Observer, Reviewer, and Verifier" in contracts["grok_media"]["template"]
+    assert "Researcher" in bindings["workers"]["grok"]["allowed_roles"]
+    assert "ArtifactProducer" in bindings["workers"]["grok"]["allowed_roles"]
 
 
 def test_driver_modes_map_to_agent_backend_modes_without_role_defaults() -> None:

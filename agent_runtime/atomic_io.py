@@ -4,12 +4,24 @@ import functools
 import yaml
 import json
 import os
+import tempfile
+
+
+def _unique_temp_path(path_obj: Path) -> Path:
+    """Reserve a unique sibling path so concurrent atomic writers cannot collide."""
+    fd, name = tempfile.mkstemp(
+        prefix=f".{path_obj.name}.",
+        suffix=".tmp",
+        dir=path_obj.parent,
+    )
+    os.close(fd)
+    return Path(name)
 
 def atomic_write_text(path, content, encoding="utf-8"):
     """Write text to a file atomically."""
     path_obj = Path(str(path))
     path_obj.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path_obj.with_suffix(path_obj.suffix + '.tmp')
+    temp_path = _unique_temp_path(path_obj)
     try:
         with open(temp_path, 'w', encoding=encoding) as f:
             f.write(content)
@@ -22,7 +34,7 @@ def atomic_write_yaml(path, data, sort_keys=False, allow_unicode=True):
     """Write YAML data to a file atomically."""
     path_obj = Path(str(path))
     path_obj.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path_obj.with_suffix(path_obj.suffix + '.tmp')
+    temp_path = _unique_temp_path(path_obj)
     try:
         content = yaml.safe_dump(data, sort_keys=sort_keys, allow_unicode=allow_unicode)
         with open(temp_path, 'w', encoding='utf-8') as f:
@@ -36,7 +48,7 @@ def atomic_write_json(path, data, **json_kwargs):
     """Write JSON data to a file atomically."""
     path_obj = Path(str(path))
     path_obj.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path_obj.with_suffix(path_obj.suffix + '.tmp')
+    temp_path = _unique_temp_path(path_obj)
     try:
         with open(temp_path, 'w', encoding='utf-8') as f:
             kwargs = {"indent": 2, "ensure_ascii": False}

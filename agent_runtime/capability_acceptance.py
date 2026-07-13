@@ -113,32 +113,59 @@ def _internal_writer_route_readiness(root: Path) -> dict[str, Any]:
     profile = _full_cli_role_profile(root, "writer")
     model_key = str(profile.get("default") or "")
     model = _model_catalog_entry(root, model_key)
-    binding_ok = _role_worker_binding_ok(root, "Writer", "agy")
+    invocation_contracts = _read_yaml(
+        root / "config" / "worker_invocation_contracts.yml"
+    )
+    contract = (
+        (invocation_contracts.get("contracts") or {}).get("claude_writer") or {}
+    )
+    capacity = _read_yaml(root / "config" / "model_capacity.yml")
+    capacity_route = ((capacity.get("routes") or {}).get("Writer") or {})
+    binding_ok = _role_worker_binding_ok(root, "Writer", "claude_code")
     profile_ok = (
-        profile.get("cli_agent") == "agy"
-        and profile.get("invocation_contract") == "agy_writer"
-        and model_key == "gemini_3_5_flash_high_agy_oauth"
+        profile.get("executor_type") == "cli_agent"
+        and profile.get("cli_agent") == "claude_code"
+        and profile.get("invocation_contract") == "claude_writer"
+        and model_key == "deepseek_v4_pro"
+        and profile.get("capacity_route") == "Writer"
     )
     model_ok = (
-        model.get("provider") == "agy_gemini_oauth"
-        and model.get("runtime_provider") == "agy-gemini-oauth"
-        and ((model.get("pricing") or {}).get("billing_source") == "agy_oauth")
+        model.get("provider") == "deepseek_official"
+        and model.get("model_id") == "deepseek-v4-pro"
     )
-    auth = _probe_worker_auth("agy")
-    config_ready = binding_ok and profile_ok and model_ok
+    contract_ok = (
+        contract.get("worker_id") == "claude_code"
+        and contract.get("command") == "claude"
+        and contract.get("invocation_style") == "sealed_writer_task_packet"
+        and {"task_packet_path", "model_id"}.issubset(
+            set(contract.get("required_placeholders") or [])
+        )
+    )
+    capacity_ok = (
+        capacity_route.get("role") == "writer"
+        and capacity_route.get("worker") == "claude_code"
+        and capacity_route.get("invocation_contract") == "claude_writer"
+        and capacity_route.get("model_key") == "deepseek_v4_pro"
+    )
+    auth = _probe_worker_auth("claude_code")
+    config_ready = binding_ok and profile_ok and model_ok and contract_ok and capacity_ok
     return {
         "ready": config_ready,
         "status": "pass" if config_ready and auth == "yes" else ("candidate" if config_ready else "fail"),
         "role": "Writer",
-        "worker": "agy",
+        "worker": "claude_code",
+        "invocation_contract": "claude_writer",
+        "capacity_route": "Writer",
         "auth_probe": auth,
         "profile": profile,
         "model_key": model_key,
         "model_provider": model.get("provider"),
         "checks": {
             "role_worker_binding": binding_ok,
-            "profile_selects_agy_gemini_oauth": profile_ok,
-            "model_registered_as_agy_oauth": model_ok,
+            "profile_selects_claude_deepseek_writer": profile_ok,
+            "model_registered_as_deepseek": model_ok,
+            "claude_writer_contract_is_model_bound": contract_ok,
+            "capacity_route_matches_profile": capacity_ok,
         },
     }
 
@@ -1485,11 +1512,9 @@ def _crown_formal_live_eval(root: Path) -> dict[str, Any]:
     report_path = eval_dir / "longform_eval_report.yml"
     policy_note = eval_dir / "external_retry_policy_note.yml"
     error_path = run_dir / "live_generation_error.yml"
-    agy_smoke_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "agy_cli_session_smoke.yml"
     report = _read_yaml(report_path)
     error = _read_yaml(error_path)
-    agy_smoke = _read_yaml(agy_smoke_path)
-    missing = [str(path) for path in [report_path, error_path, agy_smoke_path] if not path.exists()]
+    missing = [str(path) for path in [report_path, error_path] if not path.exists()]
     blocked = report.get("status") == "fail" and error.get("status") == "blocked"
     writer_route = _internal_writer_route_readiness(root)
     provider = error.get("provider", "unknown")
@@ -1501,25 +1526,18 @@ def _crown_formal_live_eval(root: Path) -> dict[str, Any]:
         "run_crown_internal_writer_eval",
     )
     status = "pass" if internal_ready and trusted_accepted else ("candidate" if internal_ready else ("blocked" if blocked and not missing else "fail"))
-    agy_session_smoke_details = {
-        "status": agy_smoke.get("status"),
-        "command_available": agy_smoke.get("command_available"),
-    }
-    if agy_smoke.get("reason"):
-        agy_session_smoke_details["reason"] = agy_smoke.get("reason")
     if internal_ready and trusted_accepted:
         summary = (
             "formal live one-chapter eval returned accepted trusted-runner Writer artifacts "
-            "through the internal Writer role-session: agy + Gemini OAuth"
+            "through the internal Writer role-session: Claude shell + DeepSeek V4 Pro"
         )
         issues: list[str] = []
     elif internal_ready:
         summary = (
             "formal live one-chapter eval is routed through the internal Writer role-session: "
-            "agy + Gemini OAuth; non-private agy session smoke status="
-            f"{agy_smoke.get('status') or 'missing'}"
-            + (f" reason={agy_smoke.get('reason')}" if agy_smoke.get("reason") else "")
-            + "; previous blocked provider evidence is historical"
+            "Claude shell + DeepSeek V4 Pro; route auth probe status="
+            f"{writer_route.get('auth_probe') or 'unknown'}; previous blocked provider "
+            "evidence is historical"
         )
         issues = ["refreshed internal Writer role-session acceptance artifacts have not been returned or accepted yet"]
     elif not missing:
@@ -1541,7 +1559,8 @@ def _crown_formal_live_eval(root: Path) -> dict[str, Any]:
             str(root / "config" / "agent_model_profiles.yml"),
             str(root / "config" / "agent_role_bindings.yml"),
             str(root / "config" / "model_catalog.yml"),
-            str(agy_smoke_path),
+            str(root / "config" / "worker_invocation_contracts.yml"),
+            str(root / "config" / "model_capacity.yml"),
             str(trusted_status_path),
         ],
         "summary": summary,
@@ -1559,7 +1578,13 @@ def _crown_formal_live_eval(root: Path) -> dict[str, Any]:
                 "model": model,
                 "error": error_text,
             },
-            "agy_session_smoke": agy_session_smoke_details,
+            "writer_route_health": {
+                "status": writer_route.get("status"),
+                "auth_probe": writer_route.get("auth_probe"),
+                "worker": writer_route.get("worker"),
+                "invocation_contract": writer_route.get("invocation_contract"),
+                "model_key": writer_route.get("model_key"),
+            },
         },
     }
 
@@ -1648,20 +1673,35 @@ def _grok_media_backend(root: Path) -> dict[str, Any]:
         backend = {**backend, **configured_backend}
     worker_id = str(backend.get("worker_id") or "")
     role_owner = str(backend.get("role_owner") or "")
-    worker_binding_ready = (
+    artifact_worker_binding_ready = (
         worker_id == "grok"
         and role_owner == "ArtifactProducer"
         and backend.get("internal_worker") is True
         and _role_worker_binding_ok(root, "ArtifactProducer", "grok")
     )
-    grok_contract = ((invocation_contracts.get("contracts") or {}).get("grok") or {})
-    backend_command = str(backend.get("command") or "grok")
-    contract_command = str(grok_contract.get("command") or "")
+    researcher_worker_binding_ready = _role_worker_binding_ok(
+        root,
+        "Researcher",
+        "grok",
+    )
+    contracts = invocation_contracts.get("contracts") or {}
+    grok_research_contract = contracts.get("grok_research") or {}
+    grok_media_contract = contracts.get("grok_media") or {}
+    backend_command = str(backend.get("command") or "")
+    research_contract_command = str(grok_research_contract.get("command") or "")
+    media_contract_command = str(grok_media_contract.get("command") or "")
+    grok_research_contract_ready = (
+        grok_research_contract.get("worker_id") == "grok"
+        and research_contract_command == "hermes"
+        and grok_research_contract.get("invocation_style") == "sourced_research_task_packet"
+    )
+    grok_media_contract_ready = (
+        grok_media_contract.get("worker_id") == "grok"
+        and media_contract_command == backend_command == "hermes"
+        and grok_media_contract.get("invocation_style") == "media_backend_task_packet"
+    )
     invocation_contract_ready = (
-        grok_contract.get("worker_id") == "grok"
-        and contract_command == backend_command
-        and contract_command in {"grok", "hermes"}
-        and grok_contract.get("invocation_style") == "media_backend_task_packet"
+        grok_research_contract_ready and grok_media_contract_ready
     )
     local_cli_ready = (
         report.get("status") == "ready"
@@ -1670,7 +1710,13 @@ def _grok_media_backend(root: Path) -> dict[str, Any]:
         and smoke.get("status") == "pass"
     )
     approval_required = bool((report.get("backend") or {}).get("approval_required", report.get("approval_required", False)))
-    internal_worker_ready = local_cli_ready and not approval_required and worker_binding_ready and invocation_contract_ready
+    internal_worker_ready = (
+        local_cli_ready
+        and not approval_required
+        and researcher_worker_binding_ready
+        and artifact_worker_binding_ready
+        and invocation_contract_ready
+    )
     session_status = session_smoke.get("status")
     session_reason = session_smoke.get("reason")
     local_cli_entrypoint_available = session_smoke.get(
@@ -1731,11 +1777,17 @@ def _grok_media_backend(root: Path) -> dict[str, Any]:
         "worker_id": worker_id,
         "role_owner": role_owner,
         "internal_worker": backend.get("internal_worker"),
-        "artifact_producer_grok_binding": worker_binding_ready,
+        "researcher_grok_binding": researcher_worker_binding_ready,
+        "artifact_producer_grok_binding": artifact_worker_binding_ready,
         "grok_invocation_contract_ready": invocation_contract_ready,
-        "grok_invocation_command": contract_command,
+        "grok_research_contract_ready": grok_research_contract_ready,
+        "grok_media_contract_ready": grok_media_contract_ready,
+        "grok_research_command": research_contract_command,
+        "grok_media_command": media_contract_command,
+        "grok_invocation_command": media_contract_command,
         "grok_backend_command": backend_command,
-        "grok_invocation_style": grok_contract.get("invocation_style"),
+        "grok_research_invocation_style": grok_research_contract.get("invocation_style"),
+        "grok_invocation_style": grok_media_contract.get("invocation_style"),
         "local_cli_entrypoint_available": local_cli_entrypoint_available,
         "local_cli_entrypoint_is_internal_worker": local_cli_entrypoint_is_internal_worker,
         "local_cli_auth_mode": session_smoke.get("local_cli_auth_mode", "oauth_cli_session"),
@@ -1772,7 +1824,8 @@ def _grok_media_backend(root: Path) -> dict[str, Any]:
     if internal_worker_ready and trusted_media_accepted:
         summary = (
             "Local Grok CLI media backend returned accepted trusted-runner media artifacts "
-            "through ArtifactProducer/grok hermes_grok_oauth"
+            "through ArtifactProducer/grok hermes_grok_oauth; the same Hermes executable "
+            "has separate bounded grok_research and grok_media contracts"
         )
         issues = []
     elif internal_worker_ready:
@@ -1781,7 +1834,7 @@ def _grok_media_backend(root: Path) -> dict[str, Any]:
             f"current non-private session smoke status={session_status or 'missing'}"
             + (f" reason={session_reason}" if session_reason else "")
             + f" auth_status={session_auth_status}"
-            + "; ArtifactProducer/grok can use the internal hermes_grok_oauth backend for run-local candidate media smoke"
+            + "; Researcher/grok and ArtifactProducer/grok use separate contracts on the configured Hermes executable"
         )
         issues = [
             *(
@@ -1799,7 +1852,7 @@ def _grok_media_backend(root: Path) -> dict[str, Any]:
             f"accepted env: {', '.join(str(item) for item in accepted_env if item)}"
         )
         issues = [
-            "local Grok CLI backend is missing, blocked, or not bound as the internal ArtifactProducer/grok worker; direct xAI API keys are fallback-only"
+            "local Grok CLI backend is missing, blocked, or lacks the bounded Researcher/grok and ArtifactProducer/grok Hermes contracts; direct xAI API keys are fallback-only"
         ]
     if missing:
         issues = missing
@@ -1937,8 +1990,25 @@ def _trusted_live_runner_request(root: Path) -> dict[str, Any]:
     script_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_request.sh"
     report = _read_yaml(request_path)
     items = report.get("items", []) if isinstance(report.get("items"), list) else []
+    writer_item = next(
+        (
+            item
+            for item in items
+            if isinstance(item, dict) and item.get("id") == "run_crown_internal_writer_eval"
+        ),
+        {},
+    )
     runner_package = report.get("local_runner_package") if isinstance(report.get("local_runner_package"), dict) else {}
     preflight_commands = runner_package.get("preflight_commands", [])
+    writer_route_current = (
+        writer_item.get("assigned_worker") == "claude_code"
+        and "--writer-worker claude_code" in str(writer_item.get("command") or "")
+        and "--writer-worker agy" not in str(writer_item.get("command") or "")
+    )
+    preflight_writer_route_current = (
+        "command -v claude" in preflight_commands
+        and "command -v agy" not in preflight_commands
+    )
     package_entrypoint = Path(str(runner_package.get("entrypoint") or ""))
     if package_entrypoint and not package_entrypoint.is_absolute():
         package_entrypoint = root / package_entrypoint
@@ -1958,7 +2028,8 @@ def _trusted_live_runner_request(root: Path) -> dict[str, Any]:
         and runner_package.get("secret_pattern_gate_before_provider_call") is True
         and runner_package.get("full_run_requires_trusted_status_pass") is True
         and "trusted-live-runner-collect" in str(runner_package.get("post_run_collect_command") or "")
-        and "command -v agy" in preflight_commands
+        and writer_route_current
+        and preflight_writer_route_current
         and "command -v hermes" in preflight_commands
         and report.get("secret_values_rendered") is False
     )
@@ -1996,6 +2067,9 @@ def _trusted_live_runner_request(root: Path) -> dict[str, Any]:
             ),
             "refreshes_status_after_run": runner_package.get("refreshes_status_after_run") is True,
             "refreshes_acceptance_after_run": runner_package.get("refreshes_acceptance_after_run") is True,
+            "writer_route_current": writer_route_current,
+            "writer_assigned_worker": writer_item.get("assigned_worker"),
+            "preflight_writer_route_current": preflight_writer_route_current,
         },
         "issues": [] if valid else ["trusted live runner request missing, unsafe, or incomplete"],
     }
@@ -2053,7 +2127,11 @@ def _trusted_live_runner_operator_handoff(root: Path) -> dict[str, Any]:
         and step_by_id.get("session_health", {}).get("loads_private_project_context") is False
         and acceptance_step.get("loads_private_project_context") is True
         and bool(acceptance_step.get("approval_env_required"))
-        and any(item.get("assigned_worker") == "agy" for item in candidate_items if isinstance(item, dict))
+        and any(
+            item.get("assigned_worker") == "claude_code"
+            for item in candidate_items
+            if isinstance(item, dict)
+        )
         and any(item.get("assigned_worker") == "grok" for item in candidate_items if isinstance(item, dict))
         and report.get("secret_values_rendered") is False
     )
@@ -2094,6 +2172,9 @@ def _trusted_live_runner_operator_handoff(root: Path) -> dict[str, Any]:
         ),
         "details": {
             "acceptance_smoke_kind": (report.get("terminology") or {}).get("canonical_kind"),
+            "writer_request_route_current": (
+                boundary.get("writer_request_route_current") is True
+            ),
             "trusted_agentlab_runner_required": boundary.get("trusted_agentlab_runner_required", True),
             "user_terminal_fallback_allowed": boundary.get("user_terminal_fallback_allowed"),
             "trusted_runner_or_user_terminal_required": boundary.get("trusted_runner_or_user_terminal_required"),

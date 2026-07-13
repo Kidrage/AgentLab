@@ -24,6 +24,14 @@ def test_classify_network_required():
 def test_classify_rate_limited():
     assert classify_cli_error(1, "", "Rate limit exceeded. Try again in 10s.") == CliErrorClass.RATE_LIMITED
     assert classify_cli_error(1, "", "Too many requests (429).") == CliErrorClass.RATE_LIMITED
+    assert (
+        classify_cli_error(
+            1,
+            "",
+            "429 Too Many Requests: quota exceeded for requests per minute",
+        )
+        == CliErrorClass.RATE_LIMITED
+    )
 
 
 def test_classify_quota_exhausted():
@@ -34,6 +42,13 @@ def test_classify_quota_exhausted():
             "Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 33m53s.",
         )
         == CliErrorClass.QUOTA_EXHAUSTED
+    )
+
+
+def test_classify_model_unavailable():
+    assert (
+        classify_cli_error(1, "", "Requested model not found")
+        == CliErrorClass.MODEL_UNAVAILABLE
     )
 
 def test_classify_permission_denied():

@@ -4,6 +4,9 @@ defaults:
   cost_policy: free_first
   paid_api_policy: approval_required
   final_promotion_requires: qa_or_human_acceptance
+  producer_self_acceptance_forbidden: true
+  independent_multimodal_observer_required: true
+  independent_aesthetic_reviewer_required: true
   run_artifact_dir: runs/<task_id>/artifacts/
   production_artifact_dir: projects/<Project>/artifacts/
   required_ledgers:
@@ -25,15 +28,15 @@ backends:
       - image
       - video
       - image_to_video
-      - mixed
     quality_tier: high
     cost_tier: subscription_or_quota
     quota_policy: prefer_for_high_quality_single_or_short_media
-    auth_state: ready
-    auth_probe: hermes_xai_oauth_session
+    auth_state: unknown
+    auth_probe: hermes auth status xai-oauth
+    capacity_source: config/model_capacity.yml
     adapter_state: configured
     adapter_kind: local_grok_cli
-    adapter_note: Uses Hermes xAI OAuth oneshot as the Grok worker shell for live reachability and media handoff smoke; this is an internal ArtifactProducer worker path and does not by itself prove returned media files.
+    adapter_note: Uses Hermes xAI OAuth plus the registered image-generation tool. Text output from Grok does not prove a media artifact; paths, hashes, and independent QC are mandatory.
     worker_id: grok
     role_owner: ArtifactProducer
     internal_worker: true
@@ -52,12 +55,17 @@ backends:
       shell_state_is_not_project_memory: true
       shell_background_work_requires_status_receipt: true
     command_contract:
-      session_smoke: hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z <prompt>
+      session_smoke: hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z <prompt>
+    registered_generation_models:
+      image: [grok-imagine-image-quality]
+      video: [grok-imagine-video-1.5]
+      image_to_video: [grok-imagine-video-1.5]
     required_receipts:
-      - generation_ledger.yml
-      - media_qc_report.yml
       - role_session_receipt.yml
-      - tool_or_mcp_usage_ledger.yml
+      - generation_ledger.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
+      - outbound_context_manifest_media.yml
     execution_mode: orchestrated_worker
     approval_required: false
     final_artifact_allowed: false
@@ -78,7 +86,7 @@ backends:
     auth_probe: grok_direct_env_or_session
     adapter_state: configured
     adapter_kind: xai_imagine_rest
-    adapter_note: Fallback-only xAI Imagine REST path. The default Grok route is hermes_grok_oauth via the local grok CLI session; this API path requires explicit approval even when XAI_API_KEY is present.
+    adapter_note: Fallback-only xAI Imagine REST path. The default route is hermes_grok_oauth through the explicit Hermes+xAI OAuth shell; this API path requires explicit approval even when XAI_API_KEY is present.
     api_key: env:XAI_API_KEY
     api_key_env: XAI_API_KEY
     api_key_env_aliases:
@@ -91,6 +99,9 @@ backends:
     models:
       image: grok-imagine-image-quality
       video: grok-imagine-video-1.5
+    registered_generation_models:
+      image: [grok-imagine-image-quality]
+      video: [grok-imagine-video-1.5]
     default_response_format: b64_json
     default_image_count: 1
     default_video_duration_seconds: 8
@@ -157,22 +168,25 @@ backends:
     fallback_rank: 40
 
   agy_media:
-    display_name: Agy Media Harness
+    display_name: Agy Visual Preproduction Observer
     capabilities:
       - prompt_batch_exploration
-      - low_cost_draft_candidates
-      - lightweight_media_handoff
+      - low_cost_visual_briefs
+      - storyboard_text
+      - reference_asset_observation
     modalities:
-      - image
-      - video
-      - mixed
-    quality_tier: draft
+      - text
+    output_modalities:
+      - text
+    image_generation: false
+    quality_tier: preproduction_only
     cost_tier: low_or_quota
     quota_policy: high_quota_draft_only
-    auth_state: ready
-    auth_probe: agy_cli
+    auth_state: unknown
+    auth_probe: agy models
+    capacity_source: config/model_capacity.yml
     adapter_state: configured
-    execution_mode: harness_route
+    execution_mode: observer_preproduction_route
     approval_required: false
     final_artifact_allowed: false
     fallback_rank: 50
@@ -194,12 +208,12 @@ policies:
       - bailian_cli
 
   draft_batch:
-    description: Batch prompt exploration or low-cost draft media.
+    description: Batch media candidates; Agy may prepare briefs but is not a renderer.
     backend_chain:
-      - agy_media
       - hermes_grok_oauth
       - grok_direct
       - bailian_cli
+    preproduction_observer: agy_media
 
   commercial_final:
     description: Commercial or final delivery quality target.

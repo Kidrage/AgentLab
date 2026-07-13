@@ -66,8 +66,8 @@ def test_request_builds_fresh_four_role_runner_without_provider_calls(
     assert report["context_boundary"]["silent_provider_fallback_allowed"] is False
     assert report["context_boundary"]["workspace_scan_allowed"] is False
     assert report["role_surfaces"]["Supervisor"]["worker"] == "hermes"
-    assert report["role_surfaces"]["Researcher"]["worker"] == "claude_code"
-    assert report["role_surfaces"]["ArtifactProducer"]["worker"] == "agy"
+    assert report["role_surfaces"]["Researcher"]["worker"] == "grok"
+    assert report["role_surfaces"]["ArtifactProducer"]["worker"] == "grok"
     assert report["role_surfaces"]["Verifier"]["worker"] == "hermes"
     assert all(
         item["role_binding_allowed"] is True

@@ -28,6 +28,7 @@ CONFIG_FILES = {
     "skill_evolution_policy": "skill_evolution_policy.yml",
     "feedback_policy": "feedback_policy.yml",
     "model_catalog": "model_catalog.yml",
+    "model_capacity": "model_capacity.yml",
     "model_providers": "model_providers.yml",
     "model_profiles": "model_profiles.yml",
     "routing_policy": "routing_policy.yml",

@@ -35,10 +35,11 @@ def test_frontdesk_live_handoff_keeps_operator_out_of_execution_roles() -> None:
 
     crown = by_id["run_crown_internal_writer_eval"]
     assert crown["agentlab_execution_owner"] == "Writer"
-    assert crown["assigned_worker"] == "agy"
+    assert crown["assigned_worker"] == "claude_code"
     assert crown["role_session_required"] is True
     assert crown["user_approval_required"] is False
-    assert "--writer-worker agy" in crown["agentlab_command"]
+    assert "--writer-worker claude_code" in crown["agentlab_command"]
+    assert "--writer-worker agy" not in crown["agentlab_command"]
     assert "generate or edit the production content directly" in crown["frontdesk_must_not"]
 
     media = by_id["run_crown_internal_media_smoke"]

@@ -250,6 +250,31 @@ def usage_entry(
         else:
             unpriced_reason = "cost_not_available"
 
+    audit_fields = {
+        key: raw_usage[key]
+        for key in (
+            "billing_mode",
+            "capacity_primary_route",
+            "capacity_route_id",
+            "capacity_pool_id",
+            "capacity_status",
+            "capacity_selection_kind",
+            "capacity_attempt_id",
+            "capacity_failure_class",
+            "capacity_reset_at",
+            "capacity_remaining",
+            "capacity_evidence_source",
+            "capacity_confidence",
+            "failure_class",
+            "configured_cli_agent",
+            "cli_agent",
+            "provider_reported_model_id",
+            "provider_reported_model_ids",
+            "provider_reported_session_id",
+        )
+        if key in raw_usage
+    }
+
     return {
         "timestamp": utc_now(),
         "project": project,
@@ -270,6 +295,7 @@ def usage_entry(
         "usage_source": resolved_usage_source,
         **({"token_estimation_method": token_estimation_method} if token_estimation_method else {}),
         **({"unpriced_reason": unpriced_reason} if unpriced_reason else {}),
+        **audit_fields,
         "notes": notes,
     }
 

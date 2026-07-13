@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 from pathlib import Path
@@ -16,10 +17,441 @@ from agent_runtime.media_backend_adapter import (
     validate_media_live_role_session,
 )
 from agent_runtime.run_task import app
+from agent_runtime.pipeline_runner import (
+    _execute_media_backend_role_outputs,
+    _write_media_backend_dry_run_outputs,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
+
+
+def test_media_dry_run_keeps_root_and_nested_receipts_identical(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "workflow_plan.yml").write_text(
+        yaml.safe_dump(
+            {
+                "route": {"route_key": "media_generation_task"},
+                "production_pack": {"pack_id": "media_generation"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "media_generation_contract.yml").write_text(
+        yaml.safe_dump(_oauth_contract(), sort_keys=False),
+        encoding="utf-8",
+    )
+
+    written = _write_media_backend_dry_run_outputs(
+        ROOT,
+        run_dir,
+        "Demo",
+        "task-media-dry",
+    )
+
+    for filename in (
+        "role_session_receipt.yml",
+        "generation_ledger.yml",
+        "generation_receipt.yml",
+        "generated_assets_manifest.yml",
+    ):
+        assert (run_dir / filename).read_bytes() == (
+            run_dir / "artifacts" / "media_backend" / filename
+        ).read_bytes()
+        assert f"artifacts/media_backend/{filename}" in written
+
+
+def test_pipeline_execute_materializes_verified_media_role_receipts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "media_generation_contract.yml").write_text(
+        yaml.safe_dump(_oauth_contract(), sort_keys=False),
+        encoding="utf-8",
+    )
+
+    def fake_execute(contract, root, out_dir, *, live, role_session):
+        assert live is True
+        assert role_session["role"] == "ArtifactProducer"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        asset = out_dir / "poster.png"
+        asset.write_bytes(b"verified-media")
+        digest = hashlib.sha256(asset.read_bytes()).hexdigest()
+        asset_row = {
+            "candidate_id": "asset-verified",
+            "path": asset.relative_to(run_dir).as_posix(),
+            "media_type": "image",
+            "sha256": digest,
+            "size_bytes": asset.stat().st_size,
+        }
+        (out_dir / "generation_ledger.yml").write_text(
+            yaml.safe_dump({"status": "completed", "generated_assets": [str(asset)]}),
+            encoding="utf-8",
+        )
+        (out_dir / "role_session_receipt.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "status": "complete",
+                    "role_session_id": role_session["role_session_id"],
+                    "execution_id": "media_exec_test",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (out_dir / "generation_receipt.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "status": "complete",
+                    "producer": {
+                        "role": "ArtifactProducer",
+                        "id": role_session["role_session_id"],
+                        "execution_id": "media_exec_test",
+                    },
+                    "backend": "hermes_grok_oauth",
+                    "model": "grok-imagine-image-quality",
+                    "prompt_parameters": {"prompt_sha256": "a" * 64},
+                    "reference_assets": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (out_dir / "generated_assets_manifest.yml").write_text(
+            yaml.safe_dump({"status": "complete", "assets": [asset_row]}),
+            encoding="utf-8",
+        )
+        return {"status": "completed", "artifact_generation_verified": True}
+
+    monkeypatch.setattr(
+        "agent_runtime.media_backend_adapter.execute_media_contract",
+        fake_execute,
+    )
+
+    result = _execute_media_backend_role_outputs(
+        ROOT,
+        run_dir,
+        "Demo",
+        "task-media",
+        pack_id="media_generation",
+    )
+
+    assert result["status"] == "complete"
+    assert (run_dir / "generation_receipt.yml").is_file()
+    assert (run_dir / "generated_assets_manifest.yml").is_file()
+    delivery = yaml.safe_load((run_dir / "media_delivery_receipt.yml").read_text())
+    assert delivery["status"] == "candidate_ready_for_independent_review"
+    assert delivery["generated_assets"][0]["sha256"]
+    capacity_receipt = yaml.safe_load(
+        (run_dir / "media_capacity_route_receipt.yml").read_text(encoding="utf-8")
+    )
+    assert capacity_receipt["status"] == "complete"
+    assert capacity_receipt["route_id"] == "ArtifactProducer"
+    assert capacity_receipt["pool_id"] == "xai_subscription_shared"
+    assert capacity_receipt["media_backend"] == "hermes_grok_oauth"
+    capacity_ledger = yaml.safe_load(
+        (run_dir / "model_capacity_ledger.yml").read_text(encoding="utf-8")
+    )
+    assert capacity_ledger["pools"]["xai_subscription_shared"]["status"] == "closed"
+
+
+def test_pipeline_execute_blocks_receipt_without_actual_generation_model(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "media_generation_contract.yml").write_text(
+        yaml.safe_dump(_oauth_contract(), sort_keys=False),
+        encoding="utf-8",
+    )
+
+    def fake_execute(contract, root, out_dir, *, live, role_session):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for name, payload in {
+            "role_session_receipt.yml": {
+                "status": "complete",
+                "role_session_id": role_session["role_session_id"],
+                "execution_id": "media_exec_test",
+            },
+            "generation_ledger.yml": {"status": "completed"},
+            "generation_receipt.yml": {
+                "status": "complete",
+                "producer": {
+                    "role": "ArtifactProducer",
+                    "id": role_session["role_session_id"],
+                    "execution_id": "media_exec_test",
+                },
+                "model": None,
+            },
+            "generated_assets_manifest.yml": {
+                "status": "complete",
+                "assets": [{"candidate_id": "asset-1"}],
+            },
+        }.items():
+            (out_dir / name).write_text(yaml.safe_dump(payload), encoding="utf-8")
+        return {"status": "completed", "artifact_generation_verified": True}
+
+    monkeypatch.setattr(
+        "agent_runtime.media_backend_adapter.execute_media_contract",
+        fake_execute,
+    )
+
+    result = _execute_media_backend_role_outputs(
+        ROOT,
+        run_dir,
+        "Demo",
+        "task-media",
+        pack_id="media_generation",
+    )
+
+    assert result["status"] == "blocked"
+    assert "invalid:generation_receipt.backend_route_mismatch" in result["issues"]
+    assert "invalid:generation_receipt.actual_model_missing" in result["issues"]
+    assert not (run_dir / "media_delivery_receipt.yml").exists()
+
+
+def test_pipeline_pending_capacity_probes_exact_xai_auth_shape_before_execution(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    contract = _oauth_contract()
+    contract.update(
+        {
+            "selected_backend": None,
+            "routing_status": "pending_capacity",
+            "executable": False,
+            "execution_blocker": {
+                "status": "capacity_pending",
+                "backend": "hermes_grok_oauth",
+            },
+        }
+    )
+    (run_dir / "media_generation_contract.yml").write_text(
+        yaml.safe_dump(contract, sort_keys=False),
+        encoding="utf-8",
+    )
+    probe_calls: list[tuple[str, ...]] = []
+
+    def fake_probe(command: tuple[str, ...]):
+        probe_calls.append(command)
+        return {"returncode": 0, "stdout": "authenticated", "stderr": ""}
+
+    def fake_execute(effective_contract, root, out_dir, *, live, role_session):
+        assert effective_contract["selected_backend"] == "hermes_grok_oauth"
+        assert effective_contract["routing_status"] == "selected"
+        return _write_verified_pipeline_media_outputs(
+            run_dir,
+            out_dir,
+            role_session,
+        )
+
+    monkeypatch.setattr(
+        "agent_runtime.media_backend_adapter.execute_media_contract",
+        fake_execute,
+    )
+
+    result = _execute_media_backend_role_outputs(
+        ROOT,
+        run_dir,
+        "Demo",
+        "task-media-pending",
+        pack_id="media_generation",
+        capacity_probe_runner=fake_probe,
+    )
+
+    assert result["status"] == "complete"
+    assert probe_calls == [("hermes", "auth", "status", "xai-oauth")]
+    selected_contract = yaml.safe_load(
+        (run_dir / "media_generation_contract.yml").read_text(encoding="utf-8")
+    )
+    assert selected_contract["routing_status"] == "selected"
+    assert selected_contract["selected_backend"] == "hermes_grok_oauth"
+    assert selected_contract["execution_blocker"] is None
+    receipt = yaml.safe_load(
+        (run_dir / "media_capacity_route_receipt.yml").read_text(encoding="utf-8")
+    )
+    assert receipt["probe"]["command"] == [
+        "hermes", "auth", "status", "xai-oauth"
+    ]
+    assert receipt["probe"]["status"] == "pass"
+    assert "stdout" not in yaml.safe_dump(receipt)
+
+
+def test_pipeline_pending_capacity_probe_failure_blocks_provider(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    contract = _oauth_contract()
+    contract.update(
+        {
+            "selected_backend": None,
+            "routing_status": "pending_capacity",
+            "executable": False,
+            "execution_blocker": {
+                "status": "capacity_pending",
+                "backend": "hermes_grok_oauth",
+            },
+        }
+    )
+    (run_dir / "media_generation_contract.yml").write_text(
+        yaml.safe_dump(contract, sort_keys=False),
+        encoding="utf-8",
+    )
+    provider_called = False
+
+    def fail_if_called(*args, **kwargs):
+        nonlocal provider_called
+        provider_called = True
+        raise AssertionError("provider must remain blocked")
+
+    monkeypatch.setattr(
+        "agent_runtime.media_backend_adapter.execute_media_contract",
+        fail_if_called,
+    )
+
+    result = _execute_media_backend_role_outputs(
+        ROOT,
+        run_dir,
+        "Demo",
+        "task-media-pending",
+        pack_id="media_generation",
+        capacity_probe_runner=lambda command: {
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "not authenticated",
+        },
+    )
+
+    assert result["status"] == "blocked"
+    assert provider_called is False
+    assert "media_capacity_probe_failed:auth_missing" in result["issues"]
+    receipt = yaml.safe_load(
+        (run_dir / "media_capacity_route_receipt.yml").read_text(encoding="utf-8")
+    )
+    assert receipt["status"] == "blocked"
+    assert receipt["failure_class"] == "auth_missing"
+    assert "not authenticated" not in yaml.safe_dump(receipt)
+
+
+def test_pipeline_rejects_handwritten_backend_outside_capacity_route(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    contract = _oauth_contract()
+    contract["selected_backend"] = "grok_direct"
+    contract["routing_status"] = "selected"
+    (run_dir / "media_generation_contract.yml").write_text(
+        yaml.safe_dump(contract, sort_keys=False),
+        encoding="utf-8",
+    )
+    provider_called = False
+
+    def fail_if_called(*args, **kwargs):
+        nonlocal provider_called
+        provider_called = True
+        raise AssertionError("provider must remain blocked")
+
+    monkeypatch.setattr(
+        "agent_runtime.media_backend_adapter.execute_media_contract",
+        fail_if_called,
+    )
+
+    result = _execute_media_backend_role_outputs(
+        ROOT,
+        run_dir,
+        "Demo",
+        "task-media-manual",
+        pack_id="media_generation",
+    )
+
+    assert result["status"] == "blocked"
+    assert provider_called is False
+    assert "media_backend_capacity_route_mismatch:grok_direct:hermes_grok_oauth" in result["issues"]
+
+
+def test_pipeline_media_capacity_route_blocks_unsupported_modality_before_provider(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    contract = _oauth_contract()
+    contract["modality"] = "audio"
+    (run_dir / "media_generation_contract.yml").write_text(
+        yaml.safe_dump(contract, sort_keys=False),
+        encoding="utf-8",
+    )
+    provider_called = False
+
+    def fail_if_called(*args, **kwargs):
+        nonlocal provider_called
+        provider_called = True
+        raise AssertionError("provider must remain blocked")
+
+    monkeypatch.setattr(
+        "agent_runtime.media_backend_adapter.execute_media_contract",
+        fail_if_called,
+    )
+
+    result = _execute_media_backend_role_outputs(
+        ROOT,
+        run_dir,
+        "Demo",
+        "task-media-audio",
+        pack_id="media_generation",
+    )
+
+    assert result["status"] == "blocked"
+    assert provider_called is False
+    assert "media_capacity_route_not_selected:unsupported_modality" in result["issues"]
+    receipt = yaml.safe_load(
+        (run_dir / "media_capacity_route_receipt.yml").read_text(encoding="utf-8")
+    )
+    assert receipt["capacity_decision"]["missing_modalities"] == ["audio"]
+
+
+def test_pipeline_capacity_failure_opens_shared_xai_pool(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "media_generation_contract.yml").write_text(
+        yaml.safe_dump(_oauth_contract(), sort_keys=False),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "agent_runtime.media_backend_adapter.execute_media_contract",
+        lambda *args, **kwargs: {
+            "status": "blocked",
+            "reason": "quota exhausted; Resets in 1h",
+            "artifact_generation_verified": False,
+        },
+    )
+
+    result = _execute_media_backend_role_outputs(
+        ROOT,
+        run_dir,
+        "Demo",
+        "task-media-quota",
+        pack_id="media_generation",
+    )
+
+    assert result["status"] == "blocked"
+    ledger = yaml.safe_load(
+        (run_dir / "model_capacity_ledger.yml").read_text(encoding="utf-8")
+    )
+    pool = ledger["pools"]["xai_subscription_shared"]
+    assert pool["status"] == "open"
+    assert pool["failure_class"] == "quota_exhausted"
+    receipt = yaml.safe_load(
+        (run_dir / "media_capacity_route_receipt.yml").read_text(encoding="utf-8")
+    )
+    assert receipt["status"] == "blocked"
+    assert receipt["failure_class"] == "quota_exhausted"
 
 
 def _contract() -> dict:
@@ -37,8 +469,66 @@ def _contract() -> dict:
 
 def _oauth_contract() -> dict:
     contract = _contract()
-    contract["selected_backend"] = "hermes_grok_oauth"
+    contract.update(
+        {
+            "selected_backend": "hermes_grok_oauth",
+            "routing_status": "selected",
+            "executable": True,
+            "execution_blocker": None,
+            "fallback_chain": [
+                "hermes_grok_oauth",
+                "grok_direct",
+                "bailian_cli",
+            ],
+        }
+    )
     return contract
+
+
+def _write_verified_pipeline_media_outputs(
+    run_dir: Path,
+    out_dir: Path,
+    role_session: dict,
+) -> dict:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    asset = out_dir / "poster.png"
+    asset.write_bytes(b"verified-media")
+    asset_row = {
+        "candidate_id": "asset-verified",
+        "path": asset.relative_to(run_dir).as_posix(),
+        "media_type": "image",
+        "sha256": hashlib.sha256(asset.read_bytes()).hexdigest(),
+        "size_bytes": asset.stat().st_size,
+    }
+    for name, payload in {
+        "role_session_receipt.yml": {
+            "status": "complete",
+            "role_session_id": role_session["role_session_id"],
+            "execution_id": "media_exec_test",
+        },
+        "generation_ledger.yml": {
+            "status": "completed",
+            "generated_assets": [str(asset)],
+        },
+        "generation_receipt.yml": {
+            "status": "complete",
+            "producer": {
+                "role": "ArtifactProducer",
+                "id": role_session["role_session_id"],
+                "execution_id": "media_exec_test",
+            },
+            "backend": "hermes_grok_oauth",
+            "model": "grok-imagine-image-quality",
+            "prompt_parameters": {"prompt_sha256": "a" * 64},
+            "reference_assets": [],
+        },
+        "generated_assets_manifest.yml": {
+            "status": "complete",
+            "assets": [asset_row],
+        },
+    }.items():
+        (out_dir / name).write_text(yaml.safe_dump(payload), encoding="utf-8")
+    return {"status": "completed", "artifact_generation_verified": True}
 
 
 def _artifact_role_session(contract: dict | None = None) -> dict:
@@ -46,8 +536,9 @@ def _artifact_role_session(contract: dict | None = None) -> dict:
     return {
         "packet_type": "agentlab_role_session",
         "schema_version": 1,
+        "role_session_id": f"{contract.get('task_id')}:ArtifactProducer:grok",
         "role": "ArtifactProducer",
-        "worker": "agy",
+        "worker": "grok",
         "binding": {"allowed": True, "reason": "role binding allowed"},
         "project": contract.get("project_id"),
         "task_id": contract.get("task_id"),
@@ -105,6 +596,27 @@ def test_preflight_allows_local_grok_cli_without_api_key() -> None:
     assert local_cli_check["command"] == "hermes"
 
 
+def test_preflight_rejects_stale_audio_contract_before_provider_execution() -> None:
+    contract = _oauth_contract()
+    contract["modality"] = "audio"
+
+    report = preflight_media_contract(
+        contract,
+        ROOT,
+        command_probe=lambda _backend: True,
+    )
+
+    assert report["status"] == "blocked"
+    assert report["executable"] is False
+    assert report["block_reason"] == "unsupported_media_modality"
+    modality_check = next(
+        check for check in report["checks"]
+        if check["id"] == "backend_modality_supported"
+    )
+    assert modality_check["status"] == "fail"
+    assert "audio" not in modality_check["configured_modalities"]
+
+
 def test_local_grok_cli_execution_writes_text_handoff_not_media_asset(tmp_path: Path) -> None:
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         assert args[:5] == ["hermes", "--ignore-rules", "--provider", "xai-oauth", "-m"]
@@ -130,6 +642,8 @@ def test_local_grok_cli_execution_writes_text_handoff_not_media_asset(tmp_path: 
     assert ledger["text_artifacts"] == [str(response)]
     assert ledger["generated_assets"] == []
     assert ledger["artifact_generation_verified"] is False
+    assert yaml.safe_load((tmp_path / "generated_assets_manifest.yml").read_text())["status"] == "blocked"
+    assert yaml.safe_load((tmp_path / "generation_receipt.yml").read_text())["status"] == "blocked"
 
 
 def test_local_grok_cli_execution_collects_reported_assets_under_out_dir(tmp_path: Path) -> None:
@@ -143,7 +657,11 @@ def test_local_grok_cli_execution_collects_reported_assets_under_out_dir(tmp_pat
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
-            stdout="done\nAGENTLAB_GENERATED_ASSET: poster.png\n",
+            stdout=(
+                "done\n"
+                "AGENTLAB_GENERATION_MODEL: grok-imagine-image-quality\n"
+                "AGENTLAB_GENERATED_ASSET: poster.png\n"
+            ),
             stderr="",
         )
 
@@ -164,12 +682,64 @@ def test_local_grok_cli_execution_collects_reported_assets_under_out_dir(tmp_pat
     ledger = yaml.safe_load((tmp_path / "generation_ledger.yml").read_text(encoding="utf-8"))
     assert ledger["status"] == "completed"
     assert ledger["generated_assets"] == [str(asset.resolve())]
+    assert ledger["generated_asset_receipts"] == [
+        {
+            "path": str(asset.resolve()),
+            "sha256": hashlib.sha256(b"fake-png").hexdigest(),
+            "size_bytes": len(b"fake-png"),
+        }
+    ]
     assert ledger["artifact_generation_verified"] is True
+    assert ledger["producer_role_session_id"] == _artifact_role_session(_oauth_contract())["role_session_id"]
+    receipt = yaml.safe_load((tmp_path / "generation_receipt.yml").read_text(encoding="utf-8"))
+    assert receipt["status"] == "complete"
+    assert receipt["model"] == "grok-imagine-image-quality"
+    assert receipt["model_source"] == "worker_report_marker"
+    assert receipt["model_registered_for_backend"] is True
+    assert receipt["producer"]["id"] == _artifact_role_session(_oauth_contract())["role_session_id"]
+    assert receipt["producer"]["execution_id"].startswith("media_exec_")
+    role_receipt = yaml.safe_load((tmp_path / "role_session_receipt.yml").read_text(encoding="utf-8"))
+    assert role_receipt["status"] == "complete"
+    assert role_receipt["role_session_id"] == receipt["producer"]["id"]
+    assert role_receipt["execution_id"] == receipt["producer"]["execution_id"]
     assert ledger["asset_return_contract"]["marker"] == "AGENTLAB_GENERATED_ASSET:"
     manifest = yaml.safe_load((tmp_path / "outbound_context_manifest_media.yml").read_text(encoding="utf-8"))
     assert manifest["status"] == "pass"
     assert manifest["payload"]["secret_pattern_hit_count"] == 0
     assert len(manifest["payload"]["sha256"]) == 64
+
+
+def test_local_grok_cli_blocks_unregistered_reported_generation_model(tmp_path: Path) -> None:
+    asset = tmp_path / "poster.png"
+
+    def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
+        asset.write_bytes(b"fake-png")
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=(
+                "AGENTLAB_GENERATION_MODEL: invented-image-model\n"
+                "AGENTLAB_GENERATED_ASSET: poster.png\n"
+            ),
+            stderr="",
+        )
+
+    result = execute_media_contract(
+        _oauth_contract(),
+        ROOT,
+        tmp_path,
+        live=True,
+        command_runner=fake_runner,
+        role_session=_artifact_role_session(_oauth_contract()),
+    )
+
+    assert result["status"] == "blocked"
+    assert result["reason"] == "generation_model_not_registered_for_backend"
+    assert result["artifact_generation_verified"] is False
+    receipt = yaml.safe_load((tmp_path / "generation_receipt.yml").read_text())
+    assert receipt["status"] == "blocked"
+    assert receipt["model_registered_for_backend"] is False
+    assert "generation_model_not_registered_for_backend" in receipt["issues"]
 
 
 def test_local_grok_cli_secret_gate_blocks_before_command(tmp_path: Path) -> None:
@@ -353,6 +923,9 @@ def test_live_media_execution_blocks_without_artifact_producer_role_session(tmp_
     assert result["reason"] == "missing_role_session"
     ledger = yaml.safe_load((tmp_path / "generation_ledger.yml").read_text(encoding="utf-8"))
     assert ledger["status"] == "blocked"
+    assert yaml.safe_load((tmp_path / "generated_assets_manifest.yml").read_text())["status"] == "blocked"
+    assert yaml.safe_load((tmp_path / "generation_receipt.yml").read_text())["status"] == "blocked"
+    assert yaml.safe_load((tmp_path / "role_session_receipt.yml").read_text())["status"] == "blocked"
 
 
 def test_media_backend_execute_cli_generates_role_session_from_worker(tmp_path: Path) -> None:
@@ -372,7 +945,7 @@ def test_media_backend_execute_cli_generates_role_session_from_worker(tmp_path: 
             "--role",
             "ArtifactProducer",
             "--worker",
-            "agy",
+            "grok",
             "--project",
             "Crown_of_Ash",
             "--run-id",
@@ -410,7 +983,7 @@ def test_build_grok_cli_payload_plan_records_no_media_artifact_claim() -> None:
     assert plan["adapter_kind"] == "local_grok_cli"
     assert plan["command"] == "hermes"
     assert plan["args"][:5] == ["hermes", "--ignore-rules", "--provider", "xai-oauth", "-m"]
-    assert "grok-build-0.1" in plan["args"]
+    assert "grok-4.3" in plan["args"]
     assert "-z" in plan["args"]
     assert "--oauth" not in plan["args"]
     assert plan["artifact_generation_verified"] is False
@@ -430,12 +1003,15 @@ backends:
     display_name: Grok Direct
     adapter_state: configured
     adapter_kind: xai_imagine_rest
+    modalities: [image]
     api_key: literal-test-key
     base_url: https://api.x.ai/v1
     endpoints:
       image_generation: /images/generations
     models:
       image: grok-imagine-image-quality
+    registered_generation_models:
+      image: [grok-imagine-image-quality]
     approval_required: false
 """,
         encoding="utf-8",
@@ -497,6 +1073,7 @@ backends:
     display_name: Grok Direct API Test Fixture
     adapter_state: configured
     adapter_kind: xai_imagine_rest
+    modalities: [image]
     api_key: env:XAI_API_KEY
     api_key_env: XAI_API_KEY
     base_url: https://api.x.ai/v1
@@ -504,6 +1081,8 @@ backends:
       image_generation: /images/generations
     models:
       image: grok-imagine-image-quality
+    registered_generation_models:
+      image: [grok-imagine-image-quality]
     approval_required: false
 """,
         encoding="utf-8",
@@ -532,3 +1111,8 @@ backends:
     ledger = yaml.safe_load((tmp_path / "generation_ledger.yml").read_text(encoding="utf-8"))
     assert ledger["live"] is True
     assert ledger["generated_assets"] == [str(asset)]
+    role_receipt = yaml.safe_load((tmp_path / "role_session_receipt.yml").read_text(encoding="utf-8"))
+    receipt = yaml.safe_load((tmp_path / "generation_receipt.yml").read_text(encoding="utf-8"))
+    assert role_receipt["status"] == "complete"
+    assert receipt["producer"]["id"] == role_receipt["role_session_id"]
+    assert receipt["producer"]["execution_id"] == role_receipt["execution_id"]

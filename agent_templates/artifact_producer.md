@@ -29,7 +29,9 @@ Produce non-code and mixed deliverables from a structured ArtifactTask or produc
 - runs/task_xxxx/mission_contract.yml when available.
 - runs/task_xxxx/artifact_task.yml when available.
 - User request for context.
-- Any referenced source data files.
+- Only source data files explicitly listed in `artifact_task.yml`
+  `assigned_inputs`, using their hash-bound `artifact_inputs/...` staged paths.
+  A path mentioned only in prose is not readable authority.
 
 ## Required Outputs
 

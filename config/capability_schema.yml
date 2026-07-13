@@ -100,3 +100,79 @@ capabilities:
     display_name: Approval UI
     description: Prompt and manage operator approvals.
     risk_level: low
+  long_context:
+    display_name: Long Context
+    description: Inspect bounded long-form input without truncating required evidence.
+    risk_level: low
+  tool_routing:
+    display_name: Tool Routing
+    description: Select a governed tool or worker for a bounded task.
+    risk_level: medium
+  external_network:
+    display_name: External Network
+    description: Access a network outside the local workspace.
+    risk_level: high
+  multimodal_observation:
+    display_name: Multimodal Observation
+    description: Read assigned text, image, video, audio, or PDF evidence without mutation.
+    risk_level: low
+  evidence_quality_review:
+    display_name: Evidence Quality Review
+    description: Evaluate evidence quality, uncertainty, integrity, and acceptance claims.
+    risk_level: low
+  artifact_task_contract:
+    display_name: Artifact Task Contract
+    description: Execute only within a governed artifact-production contract.
+    risk_level: medium
+  write_artifact_file:
+    display_name: Write Artifact File
+    description: Materialize a non-code candidate artifact to an authorized path.
+    risk_level: high
+  validate_artifact_contract:
+    display_name: Validate Artifact Contract
+    description: Validate artifact outputs against their declared contract.
+    risk_level: medium
+  write_text_artifact:
+    display_name: Write Text Artifact
+    description: Draft candidate prose or another governed text deliverable.
+    risk_level: medium
+  generate_image:
+    display_name: Generate Image
+    description: Generate a raster image candidate through a registered backend.
+    risk_level: high
+  generate_video:
+    display_name: Generate Video
+    description: Generate a video candidate through a registered backend.
+    risk_level: high
+  generate_audio:
+    display_name: Generate Audio
+    description: Generate an audio candidate through a registered backend.
+    risk_level: high
+  create_spreadsheet:
+    display_name: Create Spreadsheet
+    description: Create a governed spreadsheet artifact.
+    risk_level: medium
+  create_presentation:
+    display_name: Create Presentation
+    description: Create a governed presentation artifact.
+    risk_level: medium
+  state_ledger:
+    display_name: State Ledger
+    description: Maintain candidate continuity or state-transition ledgers.
+    risk_level: medium
+  unapproved_source_edit:
+    display_name: Unapproved Source Edit
+    description: Modify source outside a role's explicit authorization.
+    risk_level: high
+  silent_provider_fallback:
+    display_name: Silent Provider Fallback
+    description: Switch provider or model without a governed decision and receipt.
+    risk_level: high
+  unrelated_file_edit:
+    display_name: Unrelated File Edit
+    description: Modify a file outside the assigned task scope.
+    risk_level: high
+  unsafe_delete:
+    display_name: Unsafe Delete
+    description: Delete data without an explicit safe authorization path.
+    risk_level: high

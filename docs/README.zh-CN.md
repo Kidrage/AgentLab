@@ -50,7 +50,7 @@ AgentLab 已经通过 P 系列和 S 系列工作具备长期项目治理底座�
 - **领域感知创作路由**：`config/domain_route_packs.yml` 为长篇小说、研究阅读、代码库等任务提供专用 route pack 与质量门禁。
 - **CLI 模块化拆分**：worker、runtime hygiene、capability contract、routing、external project、protocol、role capability 等子命令已从单体 CLI 拆出。
 - **项目产物治理**：`project_artifact_index.yml`、项目级 `PROJECT_HANDOFF.md`、Crown_of_Ash 等创作项目的 artifact stewardship gate。
-- **执行器绑定更新**：`agy` 作为 Coder 执行器，Hermes 扩展模型组，worker invocation contracts 同步。
+- **角色与容量更新**：`agy` 仅作为只读多模态 Observer/Reviewer；Writer、Supervisor、Researcher、ArtifactProducer 均由角色专用 CLI 合同治理。
 
 ### 活跃创作项目（本地，不入 GitHub）
 
@@ -81,7 +81,7 @@ AgentLab 已经通过 P 系列和 S 系列工作具备长期项目治理底座�
 
 - 本地优先的任务状态、项目记忆、运行目录和证据产物。
 - 规范任务生命周期，支持 checkpoint 和 resume。
-- 9 Agent 分层运行模型：Supervisor、RepoScout、Researcher、InterfaceMapper、PromptEngineer、Coder、TesterAuditor、Verifier、Archivist。
+- 14 角色运行模型：Supervisor、RepoScout、Researcher、Observer、InterfaceMapper、PromptEngineer、Coder、ArtifactProducer、Writer、Reviewer、Scribe、TesterAuditor、Verifier、Archivist。
 - small、medium、interface-sensitive、research-sensitive、large/risky 等任务路由。
 - 大脑治理：provider/model 策略、token 预算、路由感知执行。
 - Budget Planner、BudgetGate、CostLedger v2、定价和成本追踪。

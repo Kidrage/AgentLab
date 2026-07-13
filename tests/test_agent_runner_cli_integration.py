@@ -15,14 +15,22 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import yaml
+
 
 # Make agent_runtime/ importable
-sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 from schemas import AgentRoute, LLMCallResult, WorkflowPlan  # noqa: E402
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
+
+
+def _write_yaml(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
 def _make_plan(tmp_path: Path, budget_mode: str = "balanced") -> WorkflowPlan:
@@ -44,6 +52,293 @@ def _make_plan(tmp_path: Path, budget_mode: str = "balanced") -> WorkflowPlan:
     )
 
 
+def test_media_artifact_producer_generic_dispatch_is_blocked_before_provider(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "media_generation_task"
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    provider_called = False
+
+    def forbidden_provider(*args, **kwargs):
+        nonlocal provider_called
+        provider_called = True
+        raise AssertionError("generic provider must not run for media ArtifactProducer")
+
+    monkeypatch.setattr("agent_runner.run_cli_agent", forbidden_provider)
+    monkeypatch.setattr("agent_runner.generate_text", forbidden_provider)
+
+    result = run_agent_model(
+        tmp_path,
+        plan,
+        "ArtifactProducer",
+        Path(plan.run_dir) / "artifact_producer_report.md",
+    )
+
+    assert result.status == "blocked_user_decision"
+    assert result.error == "media_artifact_producer_requires_adapter_execution"
+    assert result.raw_usage["provider_process_started"] is False
+    assert provider_called is False
+
+
+def test_writer_explicit_ultracode_opt_in_selects_dedicated_capacity_contract(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import _resolve_cli_profile_for_agent
+
+    plan = _make_plan(tmp_path)
+    plan.route.agents = ["Writer"]
+    plan.included_agents["Writer"] = {
+        "ultracode_opt_in": True,
+        "writer_mode": "developmental_ultracode",
+        "work_type": "revision_plan",
+    }
+
+    _configs, _mode, _role, profile = _resolve_cli_profile_for_agent(
+        ROOT,
+        plan,
+        "Writer",
+    )
+
+    assert profile["writer_workflow_activation_status"] == "requested"
+    assert profile["invocation_contract"] == "claude_writer_ultracode"
+    assert profile["capacity_route"] == "WriterUltracode"
+    assert profile["default"] == "deepseek_v4_pro"
+
+
+def test_writer_without_explicit_opt_in_keeps_the_pure_writer_contract(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import _resolve_cli_profile_for_agent
+
+    plan = _make_plan(tmp_path)
+    plan.route.agents = ["Writer"]
+
+    _configs, _mode, _role, profile = _resolve_cli_profile_for_agent(
+        ROOT,
+        plan,
+        "Writer",
+    )
+
+    assert profile.get("writer_workflow_activation_status") is None
+    assert profile["invocation_contract"] == "claude_writer"
+    assert profile["capacity_route"] == "Writer"
+
+
+def test_writer_ultracode_opt_in_reaches_cli_only_through_dedicated_route(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.route.agents = ["Writer"]
+    plan.included_agents["Writer"] = {
+        "ultracode_opt_in": True,
+        "writer_mode": "developmental_ultracode",
+        "work_type": "revision_plan",
+    }
+    observed: dict[str, object] = {}
+
+    def fake_cli(_plan, _agent, profile, **kwargs):
+        observed["profile"] = dict(profile)
+        observed["sealed_messages"] = kwargs.get("sealed_messages")
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="deepseek-v4-pro",
+            content="# Revision plan\n",
+            status="completed",
+        )
+
+    with patch(
+        "operational_uploader.maybe_run_operational_agent", return_value=None
+    ), patch(
+        "agent_runner.compose_agent_messages",
+        return_value=[{"role": "user", "content": "Plan a revision."}],
+    ), patch("agent_runner.run_cli_agent", side_effect=fake_cli):
+        result = run_agent_model(
+            ROOT,
+            plan,
+            "Writer",
+            Path(plan.run_dir) / "revision_plan.md",
+        )
+
+    assert result.status == "completed"
+    profile = observed["profile"]
+    assert profile["invocation_contract"] == "claude_writer_ultracode"
+    assert profile["capacity_selected_route"] == "WriterUltracode"
+    assert profile["capacity_selection_kind"] == "primary"
+    assert observed["sealed_messages"]
+
+
+def test_artifact_producer_profile_is_selected_by_artifact_capability(tmp_path: Path) -> None:
+    from agent_runner import _check_cli_role_binding, _resolve_cli_profile_for_agent
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "article_light_draft"
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    request_path = Path(plan.user_request_path)
+    request_path.parent.mkdir(parents=True, exist_ok=True)
+    request_path.write_text("Write a concise product article.", encoding="utf-8")
+
+    _configs, _mode, _role, profile = _resolve_cli_profile_for_agent(
+        ROOT, plan, "ArtifactProducer"
+    )
+
+    assert profile["artifact_type"] == "text"
+    assert profile["artifact_provider"] == "qwen_cli"
+    assert profile["cli_agent"] == "qwen"
+    assert profile["invocation_contract"] == "qwen_artifact"
+    assert profile["capacity_route"] == "ArtifactProducerQwen"
+    assert _check_cli_role_binding(ROOT, "ArtifactProducer", profile)[0] is True
+
+    request_path.write_text("Generate an audio narration.wav", encoding="utf-8")
+    _configs, _mode, _role, blocked = _resolve_cli_profile_for_agent(
+        ROOT, plan, "ArtifactProducer"
+    )
+    allowed, reason = _check_cli_role_binding(ROOT, "ArtifactProducer", blocked)
+    assert allowed is False
+    assert blocked["artifact_type"] == "audio"
+    assert blocked["artifact_routing_status"] == "capability_mismatch"
+    assert "no approved cli provider satisfies audio" in reason
+
+
+def test_artifact_producer_full_api_uses_explicit_text_api_only(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_runner import _resolve_cli_profile_for_agent
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "article_light_draft"
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    request_path = Path(plan.user_request_path)
+    request_path.parent.mkdir(parents=True, exist_ok=True)
+    request_path.write_text("Write a concise markdown article.", encoding="utf-8")
+    monkeypatch.setenv("AGENTLAB_MODE", "full_api")
+
+    _configs, mode, _role, profile = _resolve_cli_profile_for_agent(
+        ROOT, plan, "ArtifactProducer"
+    )
+
+    assert mode == "full_api"
+    assert profile["executor_type"] == "direct_api"
+    assert profile["artifact_provider"] == "qwen_37max_api"
+    assert profile["artifact_routing_status"] == "routed"
+
+    request_path.write_text("Create a spreadsheet.xlsx", encoding="utf-8")
+    _configs, _mode, _role, blocked = _resolve_cli_profile_for_agent(
+        ROOT, plan, "ArtifactProducer"
+    )
+    assert blocked["artifact_routing_status"] == "capability_mismatch"
+    assert blocked["executor_type"] == "blocked"
+
+
+def test_artifact_producer_does_not_cross_execution_mode_billing_surface(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_runner import _resolve_cli_profile_for_agent
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "article_light_draft"
+    request_path = Path(plan.user_request_path)
+    request_path.parent.mkdir(parents=True, exist_ok=True)
+    request_path.write_text("Write a markdown article.", encoding="utf-8")
+    monkeypatch.setenv("AGENTLAB_MODE", "qwen_token_plan_cli")
+
+    _configs, mode, _role, profile = _resolve_cli_profile_for_agent(
+        ROOT, plan, "ArtifactProducer"
+    )
+
+    assert mode == "qwen_token_plan_cli"
+    assert profile["artifact_routing_status"] == "capability_mismatch"
+    assert profile["_artifact_task_contract"]["routing"]["mode_blocker"] == (
+        "unsupported_artifact_execution_mode:qwen_token_plan_cli"
+    )
+
+
+def test_artifact_producer_materializes_contract_before_cli_execution(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "article_light_draft"
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    request_path = Path(plan.user_request_path)
+    request_path.parent.mkdir(parents=True, exist_ok=True)
+    request_path.write_text("Write a concise product article.", encoding="utf-8")
+    run_dir = Path(plan.run_dir)
+
+    def fake_cli(_plan, _agent, profile, **_kwargs):
+        contract_path = run_dir / "artifact_task.yml"
+        assert contract_path.exists()
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+        assert contract["artifact_type"] == "text"
+        assert contract["routing"]["selected"]["provider_id"] == "qwen_cli"
+        assert profile["cli_agent"] == "qwen"
+        for raw_path in contract["validation"]["required_paths"]:
+            target = Path(plan.project_root) / raw_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("# Article candidate\n", encoding="utf-8")
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="deepseek-v4-pro",
+            content="# Article candidate\n",
+        )
+
+    with patch(
+        "operational_uploader.maybe_run_operational_agent", return_value=None
+    ), patch(
+        "agent_runner.compose_agent_messages",
+        return_value=[{"role": "user", "content": "Write article"}],
+    ), patch("agent_runner.run_cli_agent", side_effect=fake_cli):
+        result = run_agent_model(
+            ROOT,
+            plan,
+            "ArtifactProducer",
+            run_dir / "artifact_producer_report.md",
+        )
+
+    assert result.status == "completed"
+    assert result.raw_usage["capacity_route_id"] == "ArtifactProducerQwen"
+
+
+def test_unsupported_audio_artifact_fails_with_capability_mismatch_before_provider(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "artifact_production_task"
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    request_path = Path(plan.user_request_path)
+    request_path.parent.mkdir(parents=True, exist_ok=True)
+    request_path.write_text("Generate an audio narration.wav", encoding="utf-8")
+
+    with patch(
+        "operational_uploader.maybe_run_operational_agent", return_value=None
+    ), patch("agent_runner.run_cli_agent") as cli, patch(
+        "agent_runner.generate_text"
+    ) as direct_api:
+        result = run_agent_model(
+            ROOT,
+            plan,
+            "ArtifactProducer",
+            Path(plan.run_dir) / "artifact_producer_report.md",
+        )
+
+    assert result.status == "blocked_user_decision"
+    assert result.error == "capability_mismatch"
+    assert result.raw_usage["reason"] == "capability_mismatch"
+    assert result.raw_usage["artifact_type"] == "audio"
+    assert result.raw_usage["provider_process_started"] is False
+    cli.assert_not_called()
+    direct_api.assert_not_called()
+
+
 def _write_role_binding_policy(root: Path) -> None:
     """Write the minimal role binding policy needed by CLI dispatch tests."""
     config_dir = root / "config"
@@ -57,7 +352,11 @@ roles:
   Coder:
     allowed_workers: [claude_code, codex, aider]
   Writer:
-    allowed_workers: [agy, qwen, claude_code]
+    allowed_workers: [claude_code]
+  Observer:
+    allowed_workers: [agy]
+  ArtifactProducer:
+    allowed_workers: [grok, codex, qwen]
 workers:
   hermes:
     worker_capable: true
@@ -72,13 +371,18 @@ workers:
   codex:
     worker_capable: true
     worker_capabilities: [role_worker]
-    allowed_roles: [Coder]
-    forbidden_roles: [Supervisor, Writer]
+    allowed_roles: [Coder, ArtifactProducer]
+    forbidden_roles: [Supervisor, Writer, Observer]
   agy:
     worker_capable: true
-    worker_capabilities: [candidate_artifact_worker]
-    allowed_roles: [Writer]
-    forbidden_roles: [Supervisor, Coder]
+    worker_capabilities: [multimodal_observer]
+    allowed_roles: [Observer]
+    forbidden_roles: [Supervisor, Coder, Writer, ArtifactProducer]
+  grok:
+    worker_capable: true
+    worker_capabilities: [artifact_producer]
+    allowed_roles: [ArtifactProducer]
+    forbidden_roles: [Supervisor, Coder, Writer, Observer]
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -153,6 +457,10 @@ agents:
         encoding="utf-8",
     )
     (run_dir / "fiction_draft.md").write_text("old_current_run_draft_should_not_be_injected\n", encoding="utf-8")
+    (run_dir / "writer_contract_retry_feedback.yml").write_text(
+        "status: correction_required\nretry_feedback_marker: exact_schema_required\n",
+        encoding="utf-8",
+    )
     (run_dir / "mission_contract.yml").write_text(
         """
 allowed_output_files:
@@ -165,6 +473,9 @@ allowed_output_files:
     )
     (run_dir / "chapter_packet.yml").write_text(
         """
+chapter_intent:
+  target_character_range: [4500, 5500]
+  hard_character_range: [3000, 8000]
 must_read:
   - project_brain/project_fact_snapshot.yml
   - ../outside_project_story.yml
@@ -206,10 +517,33 @@ must_read:
     assert "loaded_from_chapter_packet" in user_message
     assert "must_not_be_injected" not in user_message
     assert "writer_skill_marker" in user_message
+    assert "retry_feedback_marker: exact_schema_required" in user_message
+    assert "target_character_range: [4500, 5500]" in user_message
+    assert "hard_character_range: [3000, 8000]" in user_message
     assert str(tmp_path) not in all_message_text
     assert "do_not_inject_full_workflow" not in user_message
     assert "old_current_run_draft_should_not_be_injected" not in user_message
     assert "Prepare the AgentLab report" not in user_message
+
+    for malformed_packet in (
+        "- not-a-mapping\n",
+        "chapter_intent: not-a-mapping\n",
+        "must_read: project_brain/project_fact_snapshot.yml\n",
+    ):
+        (run_dir / "chapter_packet.yml").write_text(
+            malformed_packet,
+            encoding="utf-8",
+        )
+        malformed_messages = compose_agent_messages(
+            tmp_path,
+            plan,
+            "Writer",
+            run_dir / "writer_report.md",
+        )
+        malformed_user_message = malformed_messages[-1]["content"]
+        assert "Produce the AgentLab narrative candidate files" in malformed_user_message
+        assert "Draft length contract" not in malformed_user_message
+        assert "loaded_from_chapter_packet" not in malformed_user_message
 
 
 def test_narrative_heavy_audit_prompts_require_exact_candidate_blocks(tmp_path: Path) -> None:
@@ -830,6 +1164,65 @@ def test_pack_synthesis_cli_unavailable_does_not_switch_to_direct_api(
     generate_text.assert_not_called()
 
 
+def test_ordinary_researcher_cli_uses_sealed_sources_instead_of_open_workspace(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.route.agents = ["Supervisor", "Researcher"]
+    run_dir = Path(plan.run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    source = run_dir / "mission_contract.yml"
+    source.write_text("research_scope: public_sources_only\n", encoding="utf-8")
+    messages = [{"role": "user", "content": "Collect bounded evidence."}]
+    cli_profile = {
+        "executor_type": "cli_agent",
+        "cli_agent": "grok",
+        "invocation_contract": "grok_research",
+        "default": "grok_4_3_hermes_oauth",
+    }
+
+    def fake_cli(_plan, agent_name, _profile, **kwargs):
+        assert agent_name == "Researcher"
+        assert kwargs["sealed_messages"] == messages
+        assert kwargs["task_messages"] is None
+        assert kwargs["outbound_source_paths"] == [source]
+        return _cli_success_result()
+
+    with patch(
+        "operational_uploader.maybe_run_operational_agent", return_value=None
+    ), patch(
+        "agent_runner._resolve_cli_profile_for_agent",
+        return_value=(
+            {"agent_model_profiles": {}},
+            "full_cli",
+            "researcher",
+            cli_profile,
+        ),
+    ), patch(
+        "agent_runner._check_cli_role_binding", return_value=(True, "allowed")
+    ), patch(
+        "agent_runner.compose_agent_messages", return_value=messages
+    ), patch(
+        "agent_runner.researcher_context_source_files", return_value=[source]
+    ), patch(
+        "agent_runner.run_cli_agent", side_effect=fake_cli
+    ), patch(
+        "agent_runner.generate_text"
+    ) as generate_text:
+        result = run_agent_model(
+            tmp_path,
+            plan,
+            "Researcher",
+            run_dir / "03_research_notes.md",
+            apply_patches=False,
+        )
+
+    assert result.status == "completed"
+    generate_text.assert_not_called()
+
+
 def test_coder_allowed_files_include_artifact_candidate_root(tmp_path: Path) -> None:
     from agent_runner import _extract_allowed_files
 
@@ -910,7 +1303,7 @@ def test_coder_applies_run_local_candidate_artifact_blocks_when_policy_is_propos
         "agent_runner._resolve_cli_profile_for_agent",
         lambda *a, **kw: (
             {"agent_model_profiles": {"profiles": {}}, "agent_registry": {"agents": {}}},
-            "direct_api_only",
+            "full_api",
             "coder",
             None,
         ),
@@ -1002,7 +1395,7 @@ def test_artifact_producer_applies_run_local_candidate_artifact_blocks(
         "agent_runner._resolve_cli_profile_for_agent",
         lambda *a, **kw: (
             {"agent_model_profiles": {"profiles": {}}, "agent_registry": {"agents": {}}},
-            "direct_api_only",
+            "full_api",
             "artifact_producer",
             None,
         ),
@@ -1090,7 +1483,7 @@ def test_coder_does_not_partially_apply_when_edit_blocks_are_truncated(
         "agent_runner._resolve_cli_profile_for_agent",
         lambda *a, **kw: (
             {"agent_model_profiles": {"profiles": {}}, "agent_registry": {"agents": {}}},
-            "direct_api_only",
+            "full_api",
             "coder",
             None,
         ),
@@ -1271,7 +1664,172 @@ class TestAgentRunnerCliDispatch:
             assert result.provider == "agentlab-cli-executor"
             assert "CLI" in result.content
 
-    def test_contract_bound_agy_writer_cli_model_override(self, tmp_path, monkeypatch):
+    def test_capacity_failure_uses_only_preapproved_same_role_fallback(
+        self, tmp_path, monkeypatch
+    ):
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+        capacity_policy = {
+            "ledger": {"filename": "model_capacity_ledger.yml"},
+            "pools": {
+                "codex_pool": {},
+                "deepseek_pool": {},
+            },
+            "routes": {
+                "Supervisor": {
+                    "role": "supervisor",
+                    "worker": "hermes",
+                    "invocation_contract": "hermes_supervisor",
+                    "model_key": "codex_gpt_5_6_sol_xhigh_hermes_oauth",
+                    "pool": "codex_pool",
+                    "approved_fallbacks": ["SupervisorDeepSeek"],
+                    "fallback_on": ["quota_exhausted"],
+                },
+                "SupervisorDeepSeek": {
+                    "role": "supervisor",
+                    "worker": "claude_code",
+                    "invocation_contract": "claude",
+                    "model_key": "deepseek_v4_pro",
+                    "pool": "deepseek_pool",
+                    "approved_fallbacks": [],
+                    "fallback_on": [],
+                },
+            },
+        }
+        monkeypatch.setattr(
+            "agent_runner.load_agentlab_configs",
+            lambda _: {
+                "agent_model_profiles": {
+                    "profiles": {
+                        "balanced": {
+                            "supervisor": {
+                                **_cli_role_profile(),
+                                "capacity_route": "Supervisor",
+                            }
+                        }
+                    }
+                },
+                "model_capacity": capacity_policy,
+            },
+        )
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *a, **kw: None,
+        )
+        attempted_profiles: list[dict] = []
+
+        def fake_cli(_plan, _agent, role_profile, **_kwargs):
+            attempted_profiles.append(dict(role_profile))
+            if len(attempted_profiles) == 1:
+                return LLMCallResult(
+                    provider="agentlab-cli-executor",
+                    model="hermes",
+                    content="subscription quota exhausted; Resets in 5h",
+                    status="blocked_user_decision",
+                    error="CLI agent quota_exhausted",
+                    raw_usage={"failure_class": "quota_exhausted"},
+                )
+            return _cli_success_result()
+
+        monkeypatch.setattr("agent_runner.run_cli_agent", fake_cli)
+        with patch("agent_runner.generate_text") as direct_api:
+            from agent_runner import run_agent_model
+
+            result = run_agent_model(
+                tmp_path,
+                plan,
+                "Supervisor",
+                run_dir / "test_output.md",
+                apply_patches=False,
+            )
+
+        direct_api.assert_not_called()
+        assert result.status == "completed"
+        assert [profile["cli_agent"] for profile in attempted_profiles] == [
+            "hermes",
+            "claude_code",
+        ]
+        assert attempted_profiles[1]["default"] == "deepseek_v4_pro"
+        assert result.raw_usage["capacity_route_id"] == "SupervisorDeepSeek"
+        assert result.raw_usage["capacity_selection_kind"] == "approved_fallback"
+        ledger = yaml.safe_load(
+            (run_dir / "model_capacity_ledger.yml").read_text(encoding="utf-8")
+        )
+        assert ledger["pools"]["codex_pool"]["failure_class"] == "quota_exhausted"
+        assert ledger["pools"]["deepseek_pool"]["status"] == "closed"
+
+    def test_capacity_reselecting_attempted_route_marks_chain_exhausted(
+        self, tmp_path, monkeypatch
+    ):
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+        capacity_policy = {
+            "ledger": {"filename": "model_capacity_ledger.yml"},
+            "pools": {"codex_pool": {}},
+            "routes": {
+                "Supervisor": {
+                    "role": "supervisor",
+                    "worker": "hermes",
+                    "invocation_contract": "hermes_supervisor",
+                    "model_key": "codex_gpt_5_6_sol_xhigh_hermes_oauth",
+                    "pool": "codex_pool",
+                    "approved_fallbacks": [],
+                    "fallback_on": [],
+                }
+            },
+        }
+        monkeypatch.setattr(
+            "agent_runner.load_agentlab_configs",
+            lambda _: {
+                "agent_model_profiles": {
+                    "profiles": {
+                        "balanced": {
+                            "supervisor": {
+                                **_cli_role_profile(),
+                                "capacity_route": "Supervisor",
+                            }
+                        }
+                    }
+                },
+                "model_capacity": capacity_policy,
+            },
+        )
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *a, **kw: None,
+        )
+        monkeypatch.setattr(
+            "agent_runner.run_cli_agent",
+            lambda *_a, **_kw: LLMCallResult(
+                provider="agentlab-cli-executor",
+                model="hermes",
+                content="unexpected provider failure",
+                status="blocked_user_decision",
+                error="unclassified failure",
+            ),
+        )
+
+        with patch("agent_runner.generate_text") as direct_api:
+            from agent_runner import run_agent_model
+
+            result = run_agent_model(
+                tmp_path,
+                plan,
+                "Supervisor",
+                run_dir / "test_output.md",
+                apply_patches=False,
+            )
+
+        direct_api.assert_not_called()
+        assert result.raw_usage["capacity_route_chain_exhausted"] is True
+        assert result.raw_usage["capacity_next_route_id"] == "Supervisor"
+        assert result.raw_usage["capacity_next_route_already_attempted"] is True
+
+    def test_ad_hoc_cli_model_override_is_blocked_in_favor_of_capacity_policy(
+        self, tmp_path, monkeypatch
+    ):
         plan = _make_plan(tmp_path)
         run_dir = Path(plan.run_dir)
         run_dir.mkdir(parents=True)
@@ -1283,32 +1841,12 @@ class TestAgentRunnerCliDispatch:
                         "balanced": {
                             "writer": {
                                 "executor_type": "cli_agent",
-                                "cli_agent": "agy",
-                                "invocation_contract": "agy_writer",
-                                "default": "gemini_3_5_flash_high_agy_oauth",
+                                "cli_agent": "claude_code",
+                                "invocation_contract": "claude_writer",
+                                "default": "deepseek_v4_pro",
                             }
                         }
                     },
-                },
-                "agent_registry": {"agents": {}},
-                "model_providers": {"providers": {}, "defaults": {}},
-                "model_profiles": {"profiles": {}},
-                "model_catalog": {
-                    "models": {
-                        "gemini_3_5_flash_high_agy_oauth": {},
-                        "claude_sonnet_4_6_agy_oauth": {},
-                    }
-                },
-                "worker_invocation_contracts": {
-                    "contracts": {
-                        "agy_writer": {
-                            "worker_id": "agy",
-                            "quota_model_rotation": {
-                                "from_model": "gemini_3_5_flash_high_agy_oauth",
-                                "to_model": "claude_sonnet_4_6_agy_oauth",
-                            },
-                        }
-                    }
                 },
             },
         )
@@ -1317,32 +1855,22 @@ class TestAgentRunnerCliDispatch:
             lambda *a, **kw: None,
         )
 
-        captured_profile: dict = {}
-
-        def fake_run_cli_agent(plan, agent_name, role_profile, **kwargs):
-            captured_profile.update(role_profile)
-            return _cli_success_result()
-
-        monkeypatch.setattr("agent_runner.run_cli_agent", fake_run_cli_agent)
-        monkeypatch.setattr(
-            "agent_runner.compose_agent_messages",
-            lambda *a, **kw: [{"role": "user", "content": "test"}],
-        )
-        monkeypatch.setattr("agent_runner.writer_context_source_files", lambda *a, **kw: [])
-
         from agent_runner import run_agent_model
 
-        result = run_agent_model(
-            tmp_path,
-            plan,
-            "Writer",
-            run_dir / "test_output.md",
-            cli_model_override="claude_sonnet_4_6_agy_oauth",
-            apply_patches=False,
-        )
+        with patch("agent_runner.run_cli_agent") as mock_cli:
+            result = run_agent_model(
+                tmp_path,
+                plan,
+                "Writer",
+                run_dir / "test_output.md",
+                cli_model_override="deepseek_v4_flash",
+                apply_patches=False,
+            )
 
-        assert result.status == "completed"
-        assert captured_profile["default"] == "claude_sonnet_4_6_agy_oauth"
+        mock_cli.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert result.error == "invalid_cli_model_override"
+        assert "model_capacity.yml" in result.content
 
     def test_unregistered_cli_model_override_is_blocked(self, tmp_path, monkeypatch):
         plan = _make_plan(tmp_path)
@@ -1378,8 +1906,8 @@ class TestAgentRunnerCliDispatch:
         assert result.status == "blocked_user_decision"
         assert result.error == "invalid_cli_model_override"
 
-    def test_falls_back_to_api_when_cli_not_available(self, tmp_path, monkeypatch):
-        """run_agent_model falls back to generate_text when CliAgentNotAvailable."""
+    def test_cli_unavailable_never_silently_changes_to_direct_api(self, tmp_path, monkeypatch):
+        """A configured CLI surface cannot silently fall through to direct API."""
         plan = _make_plan(tmp_path)
         run_dir = Path(plan.run_dir)
         run_dir.mkdir(parents=True)
@@ -1443,13 +1971,15 @@ class TestAgentRunnerCliDispatch:
             result = run_agent_model(tmp_path, plan, "Supervisor", output, apply_patches=False)
 
             mock_cli.assert_called_once()
-            mock_api.assert_called_once()
-            assert result.status == "completed"
-            assert "API fallback" in result.content
+            mock_api.assert_not_called()
+            assert result.status == "blocked_user_decision"
+            assert result.error == "cli_unavailable_no_fallback"
+            assert result.raw_usage["provider_surface_changed"] is False
+            assert result.raw_usage["direct_api_fallback_attempted"] is False
 
     def test_no_cli_dispatch_for_direct_api_only_profile(self, tmp_path, monkeypatch):
         """run_agent_model skips CLI dispatch when profile is direct_api_only."""
-        plan = _make_plan(tmp_path, budget_mode="direct_api_only")
+        plan = _make_plan(tmp_path, budget_mode="balanced")
         run_dir = Path(plan.run_dir)
         run_dir.mkdir(parents=True)
 
@@ -1457,13 +1987,18 @@ class TestAgentRunnerCliDispatch:
             "agent_runner.load_agentlab_configs",
             lambda _: {
                 "agent_model_profiles": {
-                    "profiles": {
-                        "direct_api_only": {
-                            "supervisor": {
-                                "executor_type": "direct_api",
-                                "default": "deepseek_v4_pro",
-                            },
-                        },
+                    "default_mode": "full_api",
+                    "modes": {
+                        "full_api": {
+                            "tiers": {
+                                "performance": {
+                                    "supervisor": {
+                                        "executor_type": "direct_api",
+                                        "default": "deepseek_v4_pro",
+                                    }
+                                }
+                            }
+                        }
                     },
                 },
                 "agent_registry": {"agents": {}},
@@ -1639,8 +2174,8 @@ class TestAgentRunnerSchemaV4Dispatch:
             assert result.raw_usage.get("api_fallback_used") is False
             assert result.raw_usage.get("resolved_schema") == "modes_v4"
 
-    def test_cli_unavailable_produces_api_fallback_with_metadata(self, tmp_path, monkeypatch):
-        """When CLI is unavailable, API fallback records reason in result metadata."""
+    def test_cli_unavailable_never_changes_to_direct_api(self, tmp_path, monkeypatch):
+        """A configured CLI surface must not silently change to direct API."""
         plan = _make_plan(tmp_path, budget_mode="full")
         run_dir = Path(plan.run_dir)
         run_dir.mkdir(parents=True)
@@ -1687,14 +2222,13 @@ class TestAgentRunnerSchemaV4Dispatch:
             result = run_agent_model(tmp_path, plan, "Supervisor", output, apply_patches=False)
 
             mock_cli.assert_called_once()
-            mock_api.assert_called_once()
-            assert result.status == "completed"
-            # Audit metadata must document the CLI→API fallback
-            assert result.raw_usage.get("usage_source") == "api_usage"
-            assert result.raw_usage.get("executor_type") == "cli_agent_fallback"
-            assert result.raw_usage.get("api_fallback_used") is True
+            mock_api.assert_not_called()
+            assert result.status == "blocked_user_decision"
+            assert result.error == "cli_unavailable_no_fallback"
+            assert result.raw_usage.get("executor_type") == "cli_agent"
             assert result.raw_usage.get("configured_cli_agent") == "hermes"
-            assert "binary_not_found" in str(result.raw_usage.get("fallback_reason", ""))
+            assert result.raw_usage.get("provider_surface_changed") is False
+            assert result.raw_usage.get("direct_api_fallback_attempted") is False
 
     def test_cli_unavailable_blocks_when_api_fallback_is_disabled(self, tmp_path, monkeypatch):
         plan = _make_plan(tmp_path, budget_mode="full")

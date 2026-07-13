@@ -1,6 +1,6 @@
 # AgentLab 整体逻辑图
 
-更新日期：2026-07-12
+更新日期：2026-07-13
 
 这份文档是 AgentLab 当前定位、agent 职责、生产链和验收状态的中文总图。机器可读事实源是：
 
@@ -64,26 +64,74 @@ Full CLI 模式下，AgentLab 治理的对象首先是 CLI 壳能力与交付契
 
 更完整的 CLI 壳目标是：AgentLab 不只是把 `hermes`、`claude`、`grok` 当 provider 命令调用，而是把它们当本地 workflow runtime 治理。一个 Hermes 壳如果已有 kanban、sessions、tools、MCP、skills、gateway、dashboard 等命令面，AgentLab 应先登记这些 native command surfaces，再决定哪些可用于 role-session 内部协作。一个 Claude Code 壳如果提供 `agents`、`--agent/--agents`、`--background`、`project`、`ultrareview`、worktree、MCP/plugin/settings 等能力，AgentLab 应把这些能力纳入 Coder/Reviewer 等角色的执行契约。
 
-当前 `cli_native_command_surface_governance` 已通过验收：`cli_shell_coalescing_plan.yml` 按 backend 分组 full_cli/performance roles，`claude_code` 的 Coder+Archivist 走 native inline agents，`hermes` 的 Supervisor+PromptEngineer 走 kanban/board-mediated coordination，并要求每个 delegated role 返回独立 receipt 与 validation evidence。该控制面 smoke 使用内嵌 synthetic fixture，`read_scope=[]`，不加载项目文件。Claude 在隔离临时目录启动，只开放 `Agent` 工具、safe mode 且不持久化会话；Hermes 每次使用唯一 attempt id 和 `scratch` workspace。
+历史 `cli_native_command_surface_governance` 已通过验收：`cli_shell_coalescing_plan.yml` 按 backend 分组当时的 full_cli/performance roles，Claude Coder+Archivist 走 native inline agents，Hermes Supervisor+PromptEngineer 走 kanban/board-mediated coordination。该 synthetic fixture 不加载项目文件，并要求独立 receipt 与 validation evidence。
 
 这里必须区分成本语义：Hermes kanban 合并的是 AgentLab/frontdesk 的调度入口和治理面，底层可能为每个角色启动独立 worker，系统不宣称它是单一 provider 会话。`cli_shell_coalescing_status.yml` 对真实返回物执行硬门槛：每个 packet 必须有 shell receipt，每个 role 必须有 receipt、非空 finding artifact 和 validation evidence。Receipts 必须声明 provider execution、无私有上下文、隔离 workspace、禁用项目读取和禁止 promotion，并且 SHA-256 必须匹配当前 materialized packet。哈希不匹配只会进入 `stale` 后重跑，安全合同冲突才会 fail。
 
-当前 gate 已通过：`accepted_packets=2/2`、`accepted_roles=4/4`、missing/stale/failure 均为 0。`cli_shell_coalescing_collect.yml` 以纯本地方式把结果刷新进 capability/objective/goal/hygiene；这证明 CLI native runtime 与 receipt 回收机制，不等于 Crown 私有 Writer/media 质量验收。
+该历史 gate 的结果是 `accepted_packets=2/2`、`accepted_roles=4/4`，missing/stale/failure 均为 0。它证明当时的 CLI native runtime 与 receipt 回收机制，不等于当前角色绑定或 Crown Writer/media 质量验收。
 
-Hermes 模型路由必须使用已安装 CLI 的真实注册语义：Supervisor profile 是 `agentlabsupervisor`，provider 为 `openai-codex`，model slug 为 `gpt-5.5`，`high` 写入 `agent.reasoning_effort`，不能伪造为 provider `codex` 或 model `gpt-5.5-high`；PromptEngineer 使用隔离 profile `agentlabpromptengineer` 和 `deepseek-v4-flash`。`--provision-only` 只克隆/校验本地 profile，不派发 kanban 或调用 provider；provisioner 以 `config.yaml` 是否真实落盘作为创建后置条件，兼容 Hermes 已创建 profile 但命令因后续清理返回非零的行为。两个 profile 的配置和认证预检均已通过。真实 Claude/Hermes role-session 仍会向模型发送任务上下文，因此当前私有工作区 live run 需要宿主外发审批；这不是 AgentLab 内部 role、route 或 provider 故障。
+当前 Supervisor 的权威绑定是 Hermes + OpenAI Codex OAuth，调用合同为 `hermes_supervisor`，模型是 GPT-5.6 Sol，reasoning 为 `xhigh`。CLI 注册值是 provider `openai-codex`、model `gpt-5.6-sol`；不能把 Codex CLI worker 与 Hermes runtime provider 混为一谈。
+
+旧的 CLI coalescing synthetic receipt 使用过 `agentlabsupervisor` + GPT-5.5 + `high`。它只保留为当时 native-shell 调度与 receipt mechanics 的历史证据，不再定义当前 Supervisor。PromptEngineer 的旧隔离 profile 证据也不改变当前角色绑定。
+
+当前 full_cli 核心角色拓扑是：
+
+| Role | 当前执行面 | 合同与边界 |
+|---|---|---|
+| Supervisor | Hermes + GPT-5.6 Sol (`xhigh`) | `hermes_supervisor`；容量/认证类失败只走预批准 fallback |
+| Observer | Agy + Gemini 3.5 Flash High | `agy_observer`；独立读取文本、图片、视频、音频、PDF 证据 |
+| Observer 容量 fallback | 同一 Agy 壳 + Claude Sonnet 4.6 | 仅 Gemini `quota_exhausted`、`rate_limited` 或 `model_unavailable` 的受治理结果允许；只读文本、图片、PDF |
+| Writer | Claude Code + DeepSeek V4 Pro | `claude_writer`；运行前精确绑定模型、effort、预算、plan mode、JSON 与空 tools，产出正文与 narrative ledger 候选 |
+| Researcher | Hermes + xAI OAuth + Grok 4.3 | `grok_research`；产出带来源的研究证据 |
+| ArtifactProducer | 按 ArtifactTask 类型动态分派：文本/表格/演示走 Qwen CLI，图片/视频走 Hermes + xAI OAuth + Grok 4.3 | `artifact_task_policy.yml` 是唯一权威；音频和跨 provider 混合产物当前不支持；所有返回均为 run-local candidate，不得自验收 |
+
+`claude_writer_ultracode` 是独立的开发性编辑路线，不是默认 Writer 的
+“更强档”。只有 sealed Writer packet 同时显式提供
+`ultracode_opt_in: true`、`writer_mode: developmental_ultracode` 和 allowlist
+内的 `work_type` 才可执行；运行时写 `ultracode_activation_receipt.yml`，并
+始终禁止 `final_prose_draft`。
+
+任务级操作入口为：
+
+```bash
+./agentlab.sh run-agent Writer --project <project> --task-id <task> \
+  --writer-ultracode --writer-work-type revision_plan --execute
+```
+
+缺少任一 Ultracode 参数时仍走普通纯 Writer 合同；专用
+`WriterUltracode` 容量路线不会自动降级成普通正文起草。
+
+ArtifactProducer 不能以“未声明类型的通用角色”直接执行。用户侧
+`assign-role` 必须提供 `--artifact-type`，再由
+`artifact_task_policy.yml` 推导 required capabilities、provider、invocation
+contract 和 capacity route；目标 provider 不可用时必须阻断。CSV 中原有
+profile 列只表示 full-cli 的基础媒体 profile，新增 `artifact_dispatch` 列才是
+按类型生效的执行面。
+
+Agy 的 Gemini 与 Claude Observer 是两个独立订阅池。五小时与周窗口的时长来自用户声明，但 limit、remaining、reset_at 都未知；OpenAI Codex 与 xAI 订阅池也同样未知。认证通过或 smoke 成功只证明 reachability，不证明额度充足。
+
+安全容量探测只允许 `agy models` 或 provider-scoped `hermes auth status <provider>`。不得运行会扩大秘密暴露面的 broad Hermes status，也不得猜测重置点。
+
+媒体执行复用同一容量门：pending Grok 合同只能运行精确的
+`hermes auth status xai-oauth`，并且 capacity route、
+`hermes_grok_oauth` backend、generation receipt 三者必须一致；运行前写
+`media_capacity_route_receipt.yml`。手写 backend、音频以及同时要求图片和
+视频但没有 composite adapter 的请求都必须阻断，不能缩减成单一媒体输出。
 
 ## 2. Agent 职责
 
 | Agent | 职责 | 不应该做 |
 |---|---|---|
-| Frontdesk/Codex | 用户入口、任务提交、状态观察、报告已验证证据 | 扮演 Writer/ArtifactProducer/Supervisor 直接完成生产内容 |
+| FrontDesk/Hermes | 可选用户入口、任务提交、状态观察、报告已验证证据 | 扮演 Writer/ArtifactProducer/Supervisor 直接完成生产内容 |
 | Supervisor | mission contract、route、scope、budget、production-pack selection、approval gates | 静默改源码或绕过审批 |
+| Observer | 独立多模态观察、实际候选产物检查、证据记录 | 生成自己要验收的产物或臆测未读取的质量 |
 | RepoScout | 代码任务的仓库结构和上下文读取 | 改文件 |
 | InterfaceMapper | 代码接口、契约、跨层边界分析 | 实现 patch |
-| Researcher | 新领域/生产包需要外部资源或能力调查时产出 domain brief | 无证据地变成事实源 |
+| Researcher | 通过 `grok_research` 调查外部资源并产出有来源的 domain brief | 无证据地变成事实源 |
+| PromptEngineer | 准备有边界的执行 prompt 与上下文 handoff | 代替生产角色执行或 promotion |
 | Coder | 代码任务的实现、候选 patch、代码产物 | 默认产出小说、视频、文章等非代码任务 |
-| ArtifactProducer | 非代码 artifact/production-pack contract 的产物生产 | 替代 Coder 改 source |
-| Writer | 长篇叙事候选正文和轻路径 ledger | 直接 promotion 到 production memory |
+| ArtifactProducer | 按 ArtifactTask 能力路由生产非代码候选资产；图像/视频走 `grok_media`，文本/表格/演示走 Qwen CLI，音频和跨 provider 混合产物当前阻断 | 替代 Coder、自己验收、直接 promotion |
+| Writer | 通过 Claude Code + DeepSeek 生产长篇叙事候选正文和 ledger | 直接 promotion 到 production memory |
 | Reviewer | 小说连续性、人物状态、时间线、POV、风格漂移审计 | 默认重写正文 |
 | Scribe | narrative ledger、state-transition proposal | 把未批准事实当生产事实 |
 | TesterAuditor | 验证命令、审计风险、证据记录 | 无证据宣布通过 |
@@ -144,7 +192,7 @@ production-pack synthesis 可以向外寻求资源，但外部资源边界必须
 | Crown 小说轻章 | `narrative_light_chapter` | `narrative_longform` | Supervisor -> Writer | chapter packet、fiction draft、continuity ledger、state transition proposal、delivery receipt |
 | 普通文章 | `article_light_draft` | `article_light` | Supervisor -> ArtifactProducer | article draft、structure check |
 | Crown 阶段重审计 | `narrative_heavy_audit` | `narrative_longform` | Supervisor -> Reviewer -> Scribe -> Verifier | fiction review、continuity failure report、state transition proposal、rewrite proposal |
-| Crown 漫画/短视频/海报图册 | `media_generation_task` | `media_series_production` | Supervisor -> ArtifactProducer -> TesterAuditor -> Verifier | episode plan、shot list、character visual bible、asset registry、prompt pack、generation ledger、media QC |
+| Crown 漫画/短视频/海报图册 | `media_generation_task` | `media_series_production` | 生成：Supervisor -> ArtifactProducer -> TesterAuditor；promotion：Observer + Reviewer + Verifier -> 人/Supervisor | episode plan、shot list、character visual bible、asset registry、prompt pack、generation ledger、media QC |
 | 未知复杂非代码领域 | `media_generation_task` + synthesis | `pack_synthesis_candidate` | Supervisor -> Researcher -> ArtifactProducer -> Verifier | domain research brief、pack proposal、memory contract、lifecycle profile |
 
 这六条链路通过：
@@ -169,7 +217,7 @@ production-pack synthesis 可以向外寻求资源，但外部资源边界必须
 ./agentlab.sh media-series-scaffold-audit --out acceptance_runs/agentlab_capability_acceptance/media_series_scaffold_audit.yml
 ```
 
-它不把历史 run 目录里的旧占位文件当作活动生产线证据，而是检查 `media_generation_task`、`media_series_production`、媒体 YAML 交付件、candidate-only 状态、promotion 阻断、无 production media 写入，以及本地 Grok CLI preflight 是否安全可解释。
+它不把历史 run 目录里的旧占位文件当作活动生产线证据，而是检查 `media_generation_task`、`media_series_production`、媒体 YAML 交付件、candidate-only 状态、promotion 阻断和无 production media 写入。报告里的 local Grok preflight 是历史字段；当前执行合同是 Hermes/xAI 的 `grok_media`。
 
 ## 5. 状态治理如何复用
 
@@ -186,24 +234,33 @@ AgentLab 复用的是这几层，而不是复用代码壳：
 
 ## 6. 当前验收结论
 
-当前验收范围由 `acceptance_runs/agentlab_capability_acceptance/goal_acceptance_scope.yml`
-显式声明：代码项目和 Crown 长篇走完整验收；production-pack synthesis 本轮只要求
-deterministic scaffold；媒体只要求 generation readiness。媒体成品、镜头连续性与质量
-验收延期到后续 ComfyUI 式可视化节点工作流，不再用当前黑盒链路阻塞本 goal。
+`goal_acceptance_scope.yml` 保存的是 2026-07-12 scoped goal 的历史完成口径：代码项目和
+Crown 长篇走完整验收，production-pack synthesis 只要求 deterministic scaffold，媒体只
+要求 generation readiness。该历史 scope 不等于当前生产 promotion 标准。
 
-当前总报告：
+当前视觉资产必须走独立验收：`grok_media` 先返回 run-local candidate，Observer 再读取
+实际图片/视频/音频并记录证据。Reviewer 必须用与 Producer/Observer 不同的角色会话完成
+审美、连续性、技术、事实安全四维判断；Verifier 则只验证资产 hash、证据链、Reviewer
+独立性与 promotion 边界，不假装直接感知画面，也不重复审美结论。最后由人或 Supervisor
+显式 promotion。任何 `pending`、`unknown` 或缺失证据都阻断 promotion。
+
+机器总报告生成命令：
 
 ```bash
 ./agentlab.sh capability-acceptance --out acceptance_runs/agentlab_capability_acceptance/current.yml
 ```
 
-结果：
+2026-07-12 冻结快照的结果：
 
 ```text
 overall_status: candidate
 pass: 27
 candidate: 5
 ```
+
+按当前角色配置重跑时，旧 Agy Writer request 会正确触发
+`writer_route_current: false`，因此总状态可暂时为 `fail`。这表示历史 runner 漂移，
+不表示应恢复旧 Writer；应重新生成 Claude Code + DeepSeek Writer request。
 
 已经成立的结论：
 
@@ -215,38 +272,56 @@ candidate: 5
 - CLI workflow shell governance 已并入主线：`config/cli_workflow_shells.yml`、`config/agent_role_bindings.yml`、`config/worker_invocation_contracts.yml`、`config/media_generation_backends.yml` 和 `config/agent_model_profiles.yml` 共同证明 full_cli 治理 shell capability/delivery，而不是重建 shell scaffold；Hermes/Claude Code/Agy/Codex/Qwen/Grok 的共通能力、独特能力、效率收益、交付契约和风险控制都有注册。
 - CLI coalesced shell session 的 trusted-runner request 已被接受：`cli_shell_coalescing_runner_request.yml` 当前是 `accepted`，明确 Codex/frontdesk 不承担 AgentLab 角色执行，trusted runner 已返回 shell-level receipt、每个 delegated role 的 receipt 和 validation evidence。
 - CLI coalesced shell trusted runner 已同时通过 canonical dry-run 与 synthetic live：dry-run 记录 `execute_requested=false`、`provider_calls_executed=false` 并展示安全命令形态；live reports 分别记录 Claude inline agents 与 Hermes kanban 的 `provider_calls_executed=true`，且不加载项目上下文。
-- Hermes coalesced roles 已使用隔离的 `agentlabsupervisor` / `agentlabpromptengineer` profiles；前者已校正为 `openai-codex` + `gpt-5.5` + `high` reasoning，后者为 DeepSeek Flash。`cli_shell_coalescing_profile_provision.yml` 证明本地 provision-only 通过且 `provider_calls_executed=false`，两条 profile auth preflight 也通过。
+- 历史 CLI coalesced synthetic run 使用隔离的 `agentlabsupervisor` / `agentlabpromptengineer` profiles；当时 Supervisor 是 `openai-codex` + GPT-5.5 + `high`。该 pass 只证明旧 packet 的 native-shell receipt mechanics，不覆盖当前 GPT-5.6 Sol / `xhigh` Supervisor。
 - CLI coalesced shell session 的 post-run collector 已接入并通过：`cli_shell_coalescing_collect.yml` 会以纯本地方式刷新 status、runner request、capability、objective、goal 与 hygiene 报告；它拒绝密钥形态来源、校验 status/request SHA-256，且只允许 canonical 默认路径刷新总验收。collector 自身仍记录 `provider_calls_executed=false`，真实执行证据来自逐 packet shell receipts。
 - CLI coalesced shell session 的 synthetic 返回验收已通过：`cli_shell_coalescing_status.yml` 为 `pass`，Claude Coder/Archivist 与 Hermes Supervisor/PromptEngineer 达到 `2/2 packets`、`4/4 roles`，missing/stale/failure 均为 0，两个 shell receipts 都记录 provider execution 并匹配当前 packet SHA-256。该 pass 只覆盖 native shell coordination/receipt mechanics，不覆盖 Crown 私有上下文产出质量。
 - Crown 的本地长篇治理、mock 链路、1500 章治理模拟成立；`crown_heavy_audit_scale` 已明确通过 1500 章 governance-scale audit，但该审计只证明状态治理规模能力，不证明 1500 章正文质量。一章 live candidate 已通过本地 candidate audit，确认正文 565 行、候选状态变更、delivery receipt、reset baseline 和未写入 production manuscript。
 - Crown 媒体连续剧 scaffold 已通过本地 media-series audit：活动路线是 `media_generation_task`，生产包是 `media_series_production`，episode/shot/visual bible/asset/prompt/generation/QC/receipt 都是 candidate-only，且没有写入 production media。
 - Web UI/app 已完成 production promotion：候选 `artifacts/web_ui/` 通过 DOM/fetch、headless browser、operator interaction、run-local API write、截图像素和桌面/移动响应式视觉证据后，由 artifact steward 发布到 `projects/AgentLab/artifacts/web_ui/`，并写入 `archive_receipt.yml` 与 `project_artifact_index.yml`。
 - DeepSeek text/code provider reachability 已通过无私有上下文 live smoke：`deepseek-v4-flash` 在禁用 thinking 的 ProviderSmoke 合同下返回 `AGENTLAB_PROVIDER_SMOKE_OK`，并记录 `finish_reason: stop`、输入/输出/总 token。此前空内容是短 smoke 未禁用 thinking 导致 `finish_reason: length`，不是当前 provider reachability 失败。
-- Grok/xAI media adapter 已支持 `hermes_grok_oauth` / `local_grok_cli`；当前命令契约是本机 `hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z <prompt>`。`grok` 已注册为 AgentLab 内部 `ArtifactProducer` 专用 worker。route、worker binding、OAuth CLI session、非交互 prompt contract、backend preflight、asset-return contract 和 candidate-only gate 均通过当前 readiness-only scope。`AGENTLAB_GENERATED_ASSET: <path>` 仍是未来真实产物回收硬合同，但本轮不以黑盒 media live artifact 作为完成条件，也不宣称视频质量或镜头连续性已验收。
+- 当前 Grok 角色通过 Hermes executable + xAI OAuth + Grok 4.3 执行。Researcher 使用 `grok_research`；只有图片/视频 ArtifactProducer 使用 `grok_media`，两者共享 xAI subscription pool，但不能互换交付合同。文本/表格/演示 ArtifactProducer 走 Qwen CLI；跨 provider 混合任务在 composite adapter 就绪前阻断。旧 `grok-build-0.1`/generic Grok 命令只属历史证据，不再是当前路由。
+- `grok_media` 的 OAuth reachability、preflight、asset-return 与 candidate-only 边界不等于成品验收。返回资产必须经过 Observer、相互独立的 Reviewer/Verifier 与人或 Supervisor promotion；真实质量、连续性和成本在完成该链前都保持未验收。
 - Frontdesk 边界已机器审计：Hermes CLI + DeepSeek V4 Pro 是默认 FrontDesk；Codex 仅是外部建设/审计 worker。Hermes 的 FrontDesk profile 与 Supervisor 等 role-session profile 严格分离。既定 pipeline 可走 direct closed loop，不要求 FrontDesk；Writer/ArtifactProducer 的 live 调用仍必须带对应 role-session evidence。Canonical flags 是 `hermes_frontdesk=True`、`direct_closed_loop=True`、`codex_external_worker=True`。
 - Hermes FrontDesk 的真实 provider/model/auth 路径已做隔离非私有 smoke：从 `/private/tmp` 使用显式 `deepseek / deepseek-v4-pro` 一次性调用，Hermes 无 fallback provider，精确返回 `AGENTLAB_HERMES_DEEPSEEK_V4_PRO_FRONTDESK_OK`。证据在 `hermes_frontdesk_deepseek_v4_pro_smoke.yml`；该结果只证明 FrontDesk reachability，不替代 Crown Writer 私有 role-session 验收。
-- Internal live-smoke readiness 当前是 `ready_for_internal_live_smoke`：route/safety readiness 已通过，`agy` 和 Grok/Hermes 的无私有上下文 session health 都通过，`session_health_issues: []`。Writer 仍要执行带项目上下文的 role-session acceptance smoke；媒体 readiness 已满足本轮 scope，其 live artifact item 转入 deferred。
+- 历史 `internal_live_readiness.yml` 的 `ready_for_internal_live_smoke` 证明当时 route/safety 与无私有上下文 reachability。它不证明当前容量：Agy、OpenAI Codex、xAI 的 limit/remaining/reset 仍未知，也不证明当前 Claude Code + DeepSeek Writer 的 live 质量。
 - 术语边界：`private live smoke` 只是旧简称；canonical kind 是 `private_role_session_acceptance_smoke`，准确含义是“带项目上下文的角色会话验收跑”。它不是新的默认生产链路，只用于最终验收 Writer/ArtifactProducer 真实 provider 路径是否能返回候选产物；日常小说/媒体生产仍应走对应 production pack、记忆闭环和候选/晋升 gate。
-- Trusted live runner request 现在带硬 gate：`--session-health-only` 前必须显式设置 `AGENTLAB_TRUSTED_LIVE_RUNNER=1`；真正会发送 Crown 私有上下文的完整 `.sh` 或 `--only ...` 私有 role-session acceptance 命令还必须同时设置 `AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1`。缺任一 gate 时脚本会拒绝继续，避免 Codex/frontdesk shell 再次污染 canonical smoke 报告或误发送私有上下文。完整运行 `.sh` 时会先执行无私有上下文的 `agy-cli-smoke`、`grok-cli-smoke` 和 `internal-live-readiness`；只要 `session_health_issues` 仍不为空，脚本会刷新 status 后退出，不会继续发送 Crown 私有正文或媒体上下文。该 request 还记录 `approval_gate_before_private_context: true` 与 `full_run_requires_trusted_status_pass: true`，完整脚本在刷新 status/collect 后会要求 `trusted_live_runner_status.yml` 顶层 `status: pass`，否则非零退出。
-- Writer 私有上下文不再通过含 `agentlab_root` / `project_root` / `run_dir` 的通用 CLI task packet 暴露给 shell。`agy_writer` 使用只含完整 Writer messages 的 sealed packet，在临时隔离 cwd 中执行；chapter packet 的越界 `must_read` 会被拒绝。每次 provider 调用前必须写 `outbound_context_manifest_writer.yml`，只记录 payload/source 的 SHA-256、大小、相对路径、secret pattern 名称和 approval 状态，不记录正文或 secret 值。
+- 历史 trusted-live runner request 带硬 gate：无私有上下文 health 需要 `AGENTLAB_TRUSTED_LIVE_RUNNER=1`，私有 role-session 还需要 `AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1`。旧脚本先跑 Agy/Grok reachability，再校验 returned-artifact QC；这些控制面证据保留，但旧 Agy Writer 选择不再定义当前 Writer。
+- 历史 Agy Writer run 使用过 `agy_writer` sealed packet。当前 Writer 已改为 Claude Code + DeepSeek V4 Pro / `claude_writer`，但继续沿用最小 sealed payload、隔离 cwd、越界拒绝与 `outbound_context_manifest_writer.yml` 边界。旧 run 只证明 artifact/manifest 合同，不证明当前 executor。
 - Production-pack synthesis 的 Supervisor、Researcher、ArtifactProducer、Verifier 都采用 packet-only 边界：CLI task packet 不再携带 `agentlab_root` / `project_root` / `run_dir` 等工作区路径，只携带 AgentLab 已组装的最小 messages，并在临时隔离 cwd 中执行。每个角色必须先写自己的 `outbound_context_manifest_<role>.yml`，使用独立批准域 `AGENTLAB_PRODUCTION_PACK_CONTEXT_APPROVED=1`；秘密模式命中、source 越界/缺失、payload 非精确或未批准时，都在 subprocess/API 调用之前阻断。full-cli 主 worker 不可用时直接 block；不得静默切换 direct API。显式 `full_api` 路线仍使用相同 manifest gate，但需要单独规划和批准 provider surface。
 - Writer 返回值不再被当作整段 `fiction_draft.md`，narrative-eval 和普通 pipeline 共用 `writer_output_materializer.py`：只有同一 run 的四个完整 AGENTLAB_EDIT 候选块全部存在时才事务性写入，且 harness 不再用固定模板覆盖 Writer 的 continuity/state/receipt。`writer_output_contract.yml` 明确记录 `harness_generated_story_state: false`。
 - Media live adapter 在调用 Grok/Hermes 前写 `outbound_context_manifest_media.yml`，hash 的是实际 1200 字符上限 media prompt；默认 subprocess cwd 使用临时隔离目录。secret 命中或 trusted acceptance 缺 approval 时在 command runner 之前阻断。
-- Trusted live runner operator handoff 仍保留 Writer/media 两个可选 item，作为历史兼容和未来证据；当前 goal 只使用 Writer selected collect。媒体 item 即使仍为 pending，也只出现在 `deferred_internal_live_smokes`，不会进入 active blockers。Canonical 内部入口是 Hermes FrontDesk 提交或无 FrontDesk 的 direct closed loop，不再把 Codex 放进 AgentLab 执行链。
+- 历史 trusted-live runner operator handoff 保留 Agy Writer/Grok media 两个可选 item；当时 scoped goal 只使用 Writer selected collect，媒体 item 留在 `deferred_internal_live_smokes`。这些字段用于复核旧 run，不定义当前角色绑定。
 - 人读 handoff 的 canonical 路径是 `role_session_acceptance_handoff.md`；旧 `private_live_smoke_approval_handoff.md` 只保留为 legacy path，避免再把 legacy shorthand 当成正式生产链名称。
-- Trusted live runner collector 已纳入能力矩阵：全局 collector 仍如实记录 Writer/media 两项历史状态，但 goal/objective audit 读取 Writer-specific selected collect。当前 active blocker 只有 `writer_missing_returned_artifacts`；media missing files 作为 deferred evidence 保留，不再污染当前完成条件。
+- 历史 trusted-live runner collector 已纳入能力矩阵：它保留 Writer/media 两项当时状态，goal/objective audit 读取 Writer-specific selected collect。旧 blocker 字段只解释冻结 scope，不能外推到当前 Claude Writer 或视觉 gate。
 - 兼容性与可观测字段仍完整保留：每项继续暴露 `required_files_exist`、`returned_candidate_artifacts_accepted` 和 `acceptance_blocker`。Collector 继续暴露 `acceptance_blockers`、`acceptance_blocker_reasons`、`required_files_missing_count`、`returned_candidate_artifacts_accepted_count`、`acceptance_report_hygiene_status`，并刷新 `live_unblock_plan.yml`。
-- 当前全局 collector issue 仍是 `collector refreshed reports, but returned role-session acceptance artifacts are not accepted yet`。这个 issue 不是 session health，因为它只指向 deferred media item。当前计数是 `required_files_missing_count: 3`、`returned_candidate_artifacts_accepted_count: 1`。Writer blocker 是 `none`；media blocker 是 `missing_required_files`，reason 是 `missing_candidate_artifacts`，且 media 已被 scope 标为 deferred。
-- Hygiene 继续记录 `canonical_text_artifact_count`、`canonical_text_issues`、`hygiene_private_selected_command_hits`、`stale_private_selected_command_hit_count`。Handoff 的 `selected_item_readiness` 当前仍显示 `selected_ready=run_crown_internal_writer_eval,run_crown_internal_media_smoke`、`selected_blocked=none`，但 active scope 只选择 Writer。`approval_gate_before_private_context` 与 `full_run_requires_trusted_status_pass` 仍保留，selected private role-session commands must include `AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1`。
-- Acceptance report hygiene 已纳入验收证据：`acceptance_report_hygiene.yml` 当前是 `pass`。它把 `current.yml`、`objective_requirement_audit.yml`、`goal_completion_audit.yml`、`internal_live_readiness.yml`、trusted-runner 系列报告作为 canonical truth，也检查 `role_session_acceptance_handoff.md` 和 legacy handoff 的 required markers；当前 `canonical_text_artifact_count: 2`，`canonical_text_issues: []`。它还检查 selected 私有 role-session 命令是否带 `AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1`，当前 `stale_private_selected_command_hit_count: 0`，对应 policy 是 `selected private role-session commands must include AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1`。同时它把 `*_now` / `*_check` / `*_current` 归类为非权威快照；旧的手工 session smoke 快照如 `agy_cli_session_smoke_now.yml`、`grok_cli_session_smoke_now.yml` 只作为历史快照保留，不再覆盖 canonical smoke 结论。
+- 冻结 collector snapshot 的 issue 是 `collector refreshed reports, but returned role-session acceptance artifacts are not accepted yet`；计数为 missing 3、accepted 1，Writer blocker `none`，media 为 deferred missing candidate。它是历史 scope 字段，不是当前 session health 或容量结论。
+- 历史 handoff 继续保留 canonical text、hygiene、selected readiness 与两个 approval gate 字段。它们证明当时控制面完整，不允许把 `selected_ready` 解读成当前容量可用。
+- 历史 acceptance-report hygiene 是 `pass`：它证明冻结 scope 的 canonical reports、文本 handoff、审批 env 与 snapshot 分类一致。它只治理该历史报告集，不是当前 role topology 或容量事实源；旧 Agy/Grok smoke 继续保留为历史快照。
 
-当前 scope 内仍未完成的 live 质量验收：
+冻结报告还保留这些精确的机器兼容标记；它们描述原始 runner 快照，不授权当前
+执行：`full_run_requires_trusted_status_pass`、`approval_gate_before_private_context`、
+`selected_item_readiness`、
+`selected_ready=run_crown_internal_writer_eval,run_crown_internal_media_smoke`、
+`selected_blocked=none`。快照中的 media blocker 是 `missing_required_files`，reason 是
+`missing_candidate_artifacts`，计数是
+`required_files_missing_count: 3` 与
+`returned_candidate_artifacts_accepted_count: 1`。Hygiene 字段是
+`canonical_text_artifact_count: 2`、`canonical_text_issues`、
+`hygiene_private_selected_command_hits`、
+`stale_private_selected_command_hit_count: 0`；原始 policy 文本是
+`selected private role-session commands must include AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1`。
+该 issue 不是 session health。历史 runner 在 returned status 未通过时会非零退出。
+`external_acceptance_readiness.yml` 只是旧消费者兼容文件；
+`acceptance_report_hygiene.yml` 把 `*_now`、`*_check` 与 `*_current` 归为
+非权威快照。
 
-- `crown_formal_live_narrative_eval`：candidate。旧 DeepSeek retry / host-policy rejection 只保留为历史证据；当前 full tier 的 Writer 已改为内部 AgentLab role-session：`agy` + `gemini_3_5_flash_high_agy_oauth`。还缺一次刷新后的单章 formal live smoke。
+当前架构与历史验收的边界：
 
-scope 外 deferred：`production_pack_synthesis_role_session` 四角色 provider live acceptance，
-以及 `grok_xai_media_backend` 的真实 generated-assets/QC。两者的请求和安全合同保留，
-但不要求本轮执行。
+- 历史 `crown_formal_live_narrative_eval` 的 Agy/Gemini 单章返回后来通过当时 scoped QC。它证明 governed narrative artifact 合同，不证明当前 Claude Code + DeepSeek V4 Pro Writer 的 live surface 或更广泛文学质量；若当前 executor 也要求 live acceptance，必须单独取证。
+
+旧 scope 将 `production_pack_synthesis_role_session` 四角色 provider live acceptance 与
+真实 generated-assets/QC 标为 deferred。当前视觉合同不把质量无限期推给未来流程：任何
+真实资产在 Observer + Reviewer + Verifier 证据与显式 promotion 前都保持 blocked。
 
 对应解阻计划：
 
@@ -262,13 +337,13 @@ Frontdesk 安全 handoff：
 
 该 handoff 的含义是：Hermes/DeepSeek V4 Pro 可以作为可选 FrontDesk 提交 AgentLab 命令并观察 artifact；既定闭环也可以不经过 FrontDesk。live 正文生成归 Writer role-session，live 媒体生成归 ArtifactProducer role-session。
 
-Trusted runner 可执行包：
+历史 Trusted runner 可执行包：
 
 ```bash
 ./agentlab.sh trusted-live-runner-request --out acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml --request-id <id>
 ```
 
-生成的 `.sh` 可先用 `--preflight-only` 做本地路径/命令检查；完整运行前脚本会自动跑无私有上下文 session health，并在 health 不干净时拒绝进入私有 live 命令。`--session-health-only` 必须用 `AGENTLAB_TRUSTED_LIVE_RUNNER=1` 前缀；完整/selected 私有运行必须同时用 `AGENTLAB_TRUSTED_LIVE_RUNNER=1 AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1` 前缀。该 request 和 handoff 当前都是 `ready_for_trusted_runner`；后续阻塞不再是 session health，而是 private role-session acceptance artifacts 尚未返回或尚未通过 QC。
+该 `.sh` 保留旧 Agy Writer/Grok media 请求的 `--preflight-only`、session-health 与私有上下文批准门。它只用于复核原始 run；新执行必须重新 materialize 当前 Claude Writer、Agy Observer、`grok_research` / `grok_media` 绑定，不能直接复用旧 worker map。
 
 内部 live-smoke readiness：
 
@@ -276,7 +351,7 @@ Trusted runner 可执行包：
 ./agentlab.sh internal-live-readiness --out acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
 ```
 
-该报告当前是 `ready_for_internal_live_smoke`。含义是：本地 evidence、source report、frontdesk handoff、后续安全命令、secret 安全边界、两个内部 role-session 路由以及 `agy`/Grok-Hermes 无私有上下文 session health 都已经准备好。`external_acceptance_readiness.yml` 只是旧消费者兼容文件，canonical report type 是 `agentlab_internal_live_readiness`。
+该报告当前是 `ready_for_internal_live_smoke`；这里的“当前”只表示冻结历史报告文件自身的状态。它证明当时的本地 handoff、秘密边界与无私有上下文 reachability，不是当前 role topology 或容量事实源。`external_acceptance_readiness.yml` 仍只是旧消费者兼容文件。
 
 历史拒绝证据：
 
@@ -284,10 +359,10 @@ Trusted runner 可执行包：
 acceptance_runs/agentlab_capability_acceptance/external_policy_rejection_writer_20260707.yml
 ```
 
-仍待执行的内部 live smoke：
+历史 runner 中保留的 live-smoke item：
 
-- `run_crown_internal_writer_eval`：用 Writer/agy role-session 跑一章 formal `narrative-eval live`；
-- `run_crown_internal_media_smoke`：用 ArtifactProducer/grok role-session 跑 `media-backend-execute --live`，产物仍是 run-local candidate。
+- `run_crown_internal_writer_eval`：当时用 Agy Writer 跑 formal `narrative-eval live`，不能当作当前 Claude Writer 绑定；
+- `run_crown_internal_media_smoke`：用 `grok_media` 跑 `media-backend-execute --live`，产物仍只能是 run-local candidate。
 
 目标级闭合审计：
 
@@ -301,9 +376,9 @@ acceptance_runs/agentlab_capability_acceptance/external_policy_rejection_writer_
 ./agentlab.sh objective-requirement-audit --out acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml
 ```
 
-它保留 11 条 requirement，并按 `goal_acceptance_scope.yml` 解释完成门槛。当前结果是 11 pass，状态为 `complete`。Crown Writer formal live acceptance 已通过；媒体 live artifact 和 production-pack 四角色 provider 验收仍按 scope 明确 deferred。
+该 2026-07-12 scoped audit 保留 11 条 requirement，当时结果为 11 pass / `complete`。其中 Crown Writer pass 来自历史 Agy/Gemini run；媒体 live artifact 和 production-pack 四角色 provider 验收按旧 scope deferred。它不自动验收当前 Claude+DeepSeek Writer 或视觉 promotion 链。
 
-当前 scoped goal 状态是 `complete`：代码项目、Crown Writer formal live、媒体 generation readiness 和 production-pack deterministic scaffold 均达到各自门槛。active blocker 为空；production-pack 四角色和 media live artifact 仍在 deferred，不得被误报成已验收。
+该历史 scoped goal 的状态仍是 `complete`，其证据和口径不改写。当前架构的独立事实是：Supervisor、Observer、Writer、`grok_research` 与 `grok_media` 按新绑定执行；未观察到的容量保持 unknown；视觉候选在独立验收与显式 promotion 前不得进入 production。
 
 历史上的 Codex shell 私有上下文拒绝只说明外部 worker 入口选错，不能作为 AgentLab 内部 Writer、route、provider 或 role binding 失败证据。Canonical 验收应由 Hermes FrontDesk 提交，或直接通过 AgentLab role-session/pipeline 闭环执行；Codex 只读取返回 artifact 和审计报告。
 
@@ -314,17 +389,20 @@ acceptance_runs/agentlab_capability_acceptance/external_policy_rejection_writer_
 如果要继续扩大 live 证据，顺序应为：
 
 1. 复用已通过的一章 formal `narrative-eval live` 作为基线，不要把 1500 章治理模拟误写成 1500 章正文质量证明。
-2. 后续章节继续走 Writer light path，每 3/10 章及卷末按既定 cadence 做阶段审计。
+2. 后续章节走当前 Claude Code + DeepSeek Writer light path；历史 Agy 结果只能作结构基线。
 3. Writer 返回物仍只能进入 run-local candidate artifacts，不能自动 promotion。
-4. 媒体 live 生成等待未来可视化 node-graph 工作流，不回填到当前黑盒链路。
-5. promotion 前必须经过 heavy audit / QC / human acceptance。
+4. 媒体生成使用 `grok_media`；研究使用 `grok_research`，不得用 generic Grok 合同混跑。
+5. 视觉候选立即进入 Observer -> 独立 Reviewer + Verifier -> 人或 Supervisor promotion gate。
+6. 任何未观测容量与未完成视觉证据保持 `unknown` / `pending`，不能用 reachability 代替。
 
 当前最诚实状态就是：
 
 ```text
 本地治理和生产链：通过
-候选 live 证据：Writer selected item 已通过
-正式 live 内部 role-session：Crown 单章 Writer 验收通过；media live artifact 已 deferred
+历史 live 证据：Agy/Gemini Crown 单章按旧 scoped contract 通过
+当前 Writer：Claude Code + DeepSeek V4 Pro；当前 executor 的 live 质量需独立取证
+当前视觉资产：candidate-only；独立观察、审美验证、显式 promotion 前未验收
+当前容量：limit / remaining / reset_at 未观测时保持 unknown
 ```
 
 ## 8. 测试剪枝

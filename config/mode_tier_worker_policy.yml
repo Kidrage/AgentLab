@@ -14,7 +14,7 @@ modes:
       Supervisor: [claude_code, hermes]
       PromptEngineer: [claude_code, hermes]
       Coder: [claude_code, codex, aider]
-      ArtifactProducer: [codex, agy, qwen]
+      ArtifactProducer: [grok, codex, qwen]
   hybrid_local_company:
     role_preferences:
       RepoScout: [rg]
@@ -34,7 +34,7 @@ modes:
     role_preferences:
       Supervisor: [hermes, claude_code, qwen, gemini]
       Coder: [claude_code, aider]
-      ArtifactProducer: [codex, agy, qwen]
+      ArtifactProducer: [grok, codex, qwen]
   frontdesk_gateway:
     role_preferences:
       Supervisor: [hermes, qwen, gemini]

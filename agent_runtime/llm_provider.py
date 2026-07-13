@@ -207,7 +207,24 @@ def generate_text(
         request_payload["extra_body"] = {"thinking": {"type": "disabled"}}
         request_payload["stream"] = True
 
-    role_auto_fallback_allowed = role in ("repo_reader", "researcher", "archivist")
+    provider_config = (model_providers.get("providers") or {}).get(
+        settings.provider,
+        {},
+    )
+    explicitly_silent_failure_classes = {
+        str(item) for item in provider_config.get("fallback_on") or []
+    }
+    provider_silent_fallback_allowed = (
+        provider_config.get("unavailable_action") == "fallback_silent"
+        and provider_config.get("requires_user_approval_before_fallback") is False
+    )
+    # Role identity alone never authorizes a provider-surface change. A provider
+    # must explicitly opt into silent fallback for this exact failure class.
+    role_may_use_silent_fallback = role in (
+        "repo_reader",
+        "researcher",
+        "archivist",
+    )
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(**request_payload)
@@ -217,6 +234,11 @@ def generate_text(
         except Exception as exc:
             last_reason = classify_provider_error(exc)
             last_error = str(exc)
+            role_auto_fallback_allowed = (
+                role_may_use_silent_fallback
+                and provider_silent_fallback_allowed
+                and last_reason in explicitly_silent_failure_classes
+            )
             retry_same_provider = last_reason == "provider_error" or (
                 is_retryable(last_reason) and not role_auto_fallback_allowed
             )

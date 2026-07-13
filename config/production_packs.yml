@@ -138,6 +138,38 @@ packs:
       - article_draft
       - article_structure_check
 
+  - pack_id: read_only_observation
+    name: Read-only Multimodal Observation
+    description: Evidence-bound inspection of assigned long text, image, video, audio, PDF, or document inputs without production or promotion authority.
+    routes:
+      - observation_task
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - CONTEXT_BUDGET
+      - CONTEXT_PACK
+      - PREPARE_PLAN
+      - SUPERVISOR_PLAN
+      - OBSERVATION_OPTIONAL
+      - SELF_CHECK
+      - FINALIZE
+    domain_phases:
+      - stage_assigned_inputs_read_only
+      - verify_input_hashes
+      - observe_and_extract_evidence
+      - report_limitations_and_suggestions
+    required_outputs:
+      - observation_report.yml
+    memory_contract:
+      - assigned_input_manifest
+      - source_hashes
+      - observation_report
+    quality_gates:
+      - assigned_input_boundary
+      - source_hash_integrity
+      - evidence_traceability
+      - candidate_only_no_project_write
+
   - pack_id: media_series_production
     name: Media Series Production
     description: Multi-episode image/video production with persistent character, scene, shot, and asset continuity.
@@ -157,6 +189,8 @@ packs:
       - SUPERVISOR_PLAN
       - RESEARCH_OPTIONAL
       - ARTIFACT_PRODUCTION
+      - VISUAL_OBSERVATION
+      - VISUAL_REVIEW
       - VALIDATION
       - VERIFY
       - SELF_CHECK
@@ -178,8 +212,15 @@ packs:
       - asset_registry.yml
       - prompt_pack.yml
       - generation_ledger.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
       - media_continuity_ledger.yml
+      - visual_observation_report.yml
+      - visual_review_report.yml
       - media_qc_report.yml
+      - visual_verification_report.yml
+      - visual_acceptance_candidate.yml
+      - visual_acceptance_decision.yml
       - narrative_media_delivery_receipt.yml
     memory_contract:
       - source_script
@@ -190,12 +231,19 @@ packs:
       - shot_ledger
       - prompt_pack
       - generation_ledger
+      - generation_receipt
+      - generated_assets_manifest
+      - visual_observation_report
+      - visual_review_report
       - media_qc_report
+      - visual_acceptance_decision
     quality_gates:
       - character_visual_consistency
       - shot_continuity
       - asset_provenance
       - generation_ledger_written
+      - producer_receipts_bound_to_real_asset_hashes
+      - independent_observer_reviewer_verifier_acceptance
       - qa_or_human_acceptance_before_project_artifact_promotion
 
   - pack_id: media_generation
@@ -213,22 +261,38 @@ packs:
       - PREPARE_PLAN
       - SUPERVISOR_PLAN
       - ARTIFACT_PRODUCTION
+      - VISUAL_OBSERVATION
+      - VISUAL_REVIEW
       - VALIDATION
       - VERIFY
       - SELF_CHECK
       - FINALIZE
     required_outputs:
       - generation_ledger.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
+      - visual_observation_report.yml
+      - visual_review_report.yml
       - media_qc_report.yml
+      - visual_verification_report.yml
+      - visual_acceptance_candidate.yml
+      - visual_acceptance_decision.yml
       - media_delivery_receipt.yml
     memory_contract:
       - media_generation_contract
       - reference_asset_manifest
       - generation_ledger
+      - generation_receipt
+      - generated_assets_manifest
+      - visual_observation_report
+      - visual_review_report
       - media_qc_report
+      - visual_acceptance_decision
     quality_gates:
       - capability_auth_quota_preflight
       - generation_ledger_written
+      - producer_receipts_bound_to_real_asset_hashes
+      - independent_observer_reviewer_verifier_acceptance
       - media_qc_report_written
 
   - pack_id: generic_artifact

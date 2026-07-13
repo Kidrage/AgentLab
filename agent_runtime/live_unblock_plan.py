@@ -83,19 +83,25 @@ def _writer_route_ready(root: Path) -> dict[str, Any]:
     model_key = str(writer.get("default") or "")
     model = ((catalog.get("models") or {}).get(model_key) or {})
     route_ready = (
-        writer.get("cli_agent") == "agy"
-        and writer.get("invocation_contract") == "agy_writer"
-        and model_key == "gemini_3_5_flash_high_agy_oauth"
-        and model.get("provider") == "agy_gemini_oauth"
-        and _role_worker_binding_ok(root, "Writer", "agy")
+        writer.get("executor_type") == "cli_agent"
+        and writer.get("cli_agent") == "claude_code"
+        and writer.get("invocation_contract") == "claude_writer"
+        and writer.get("capacity_route") == "Writer"
+        and model_key == "deepseek_v4_pro"
+        and model.get("provider") == "deepseek_official"
+        and model.get("model_id") == "deepseek-v4-pro"
+        and _role_worker_binding_ok(root, "Writer", "claude_code")
     )
-    auth = _probe_worker_auth("agy")
+    auth = _probe_worker_auth("claude_code")
     return {
         "ready": route_ready,
         "auth_probe": auth,
-        "worker": "agy",
+        "worker": "claude_code",
+        "invocation_contract": writer.get("invocation_contract"),
+        "capacity_route": writer.get("capacity_route"),
         "model_key": model_key,
         "model_provider": model.get("provider"),
+        "model_runtime_provider": model.get("runtime_provider"),
     }
 
 
@@ -244,8 +250,8 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
                 "error": crown_error.get("error"),
                 "policy_status": crown_policy.get("status"),
             },
-            "agentlab_command": "./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp <internal_live_run_id> --writer-worker agy",
-            "safe_command_after_approval": "./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp <internal_live_run_id> --writer-worker agy",
+            "agentlab_command": "./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp <internal_live_run_id> --writer-worker claude_code",
+            "safe_command_after_approval": "./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp <internal_live_run_id> --writer-worker claude_code",
             "trusted_runner_command": _selected_command(
                 local_runner_package,
                 "selective_run_examples",
@@ -349,7 +355,9 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
             "status": internal_readiness.get("status") or "missing",
             "clean": not session_health_issue_ids,
             "issue_ids": session_health_issue_ids,
-            "writer_selected_item_can_run": "current_agy_session_health" not in session_health_issue_ids,
+            "writer_selected_item_can_run": (
+                "current_claude_writer_session_health" not in session_health_issue_ids
+            ),
             "media_selected_item_can_run": "current_grok_session_health" not in session_health_issue_ids,
             "interpretation": (
                 "live_unblock_plan.status describes route/plan readiness; "

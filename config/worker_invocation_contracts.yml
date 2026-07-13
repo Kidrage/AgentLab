@@ -52,8 +52,54 @@ contracts:
         - "unauthorized"
         - "auth required"
     fallback:
-      on_binary_missing: alternate_worker_or_direct_api
-      on_invalid_invocation: direct_api
+      on_binary_missing: stop_and_report
+      on_invalid_invocation: stop_and_report
+
+  hermes_supervisor:
+    worker_id: hermes
+    display_name: Hermes Supervisor (Codex OAuth)
+    command: hermes
+    invocation_style: governed_supervisor_task_packet
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    required_receipts:
+      - role_session_receipt.yml
+      - model_execution_chain_supervisor.yml
+      - model_execution_receipt_supervisor_<route>_<attempt>.yml
+      - supervisor_plan.md
+    workflow_shell_profile: agentlabsupervisor
+    template: >-
+      hermes -p agentlabsupervisor chat -Q --provider {provider} -m {model_id} -q "Read the AgentLab Supervisor task packet at
+      {task_packet_path}; own planning, decomposition, progress, recovery, and
+      final synthesis only. Do not take over producer work. Return the governed
+      plan and receipt paths. AgentLab owns the model execution receipt from the
+      verified command and isolated profile state."
+    required_placeholders: [task_packet_path, provider, model_id]
+    required_shell_state:
+      model.provider: openai-codex
+      model.default: gpt-5.6-sol
+      agent.reasoning_effort: xhigh
+      fallback_providers: []
+      fallback_model: null
+    requested_reasoning_label: extra
+    resolved_reasoning_effort: xhigh
+    reasoning_resolution_note: >-
+      Hermes v0.17.0 exposes xhigh as its strongest supported reasoning setting.
+      AgentLab maps the user-facing label extra to xhigh and must not claim ultra
+      unless a future Hermes probe proves it. The classic chat query path is
+      required because the one-shot -z path does not apply profile reasoning state.
+    safe_probe: [hermes, auth, status, openai-codex]
+    forbidden_probes: [[hermes, status, --all]]
+    expected_parse:
+      argv_prefix: [hermes, -p, agentlabsupervisor, chat, -Q, --provider, openai-codex, -m]
+    validation:
+      shlex_parse_required: true
+      require_existing_binary: false
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_auth_required: capacity_manager
 
   claude:
     worker_id: claude_code
@@ -76,16 +122,18 @@ contracts:
       - changed_files_or_findings.yml
       - validation_evidence.yml
     template: >-
-      claude --permission-mode bypassPermissions --output-format json -p "Read the task packet at {task_packet_path};
+      claude --model "{model_id}" --permission-mode bypassPermissions --output-format json -p "Read the task packet at {task_packet_path};
       perform only the assigned work and report actual changed files and validation."
     required_placeholders:
       - task_packet_path
+      - model_id
     safe_probe:
       - claude
       - --help
     expected_parse:
       argv_prefix:
         - claude
+        - --model
         - --permission-mode
         - bypassPermissions
         - --output-format
@@ -101,8 +149,118 @@ contracts:
         - "usage:"
         - "unrecognized arguments"
     fallback:
-      on_binary_missing: alternate_worker_or_direct_api
-      on_invalid_invocation: direct_api
+      on_binary_missing: stop_and_report
+      on_invalid_invocation: stop_and_report
+
+  claude_writer:
+    worker_id: claude_code
+    display_name: Claude Shell DeepSeek Writer
+    command: claude
+    invocation_style: sealed_writer_task_packet
+    workflow_shell: true
+    coalescing_allowed: false
+    required_receipts:
+      - outbound_context_manifest_writer.yml
+      - model_execution_chain_writer.yml
+      - model_execution_receipt_writer_<route>_<attempt>.yml
+      - narrative_delivery_receipt.yml
+    template: >-
+      claude --model "{model_id}" --effort max --max-budget-usd 1.00
+      --permission-mode plan --output-format json --tools "" -p "Read only the
+      sealed AgentLab Writer packet at {task_packet_path}. Act as a pure Writer:
+      produce high-quality final Chinese prose while preserving voice, POV,
+      continuity, and length constraints. Do not browse, edit source files,
+      plan other roles, or invoke subagents. Return only the required candidate
+      output envelopes. AgentLab owns the model execution receipt and derives
+      observed provider/model/session/usage fields from Claude's JSON envelope."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [claude, --help]
+    max_budget_usd: 1.00
+    output_parser: claude_json
+    expected_parse:
+      argv_prefix: [claude, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_quota_exhausted: capacity_manager
+
+  claude_supervisor_fallback:
+    worker_id: claude_code
+    display_name: Claude Shell DeepSeek Supervisor Capacity Fallback
+    command: claude
+    invocation_style: bounded_supervisor_fallback_task_packet
+    workflow_shell: true
+    coalescing_allowed: false
+    required_receipts:
+      - role_session_receipt.yml
+      - model_execution_chain_supervisor.yml
+      - model_execution_receipt_supervisor_<route>_<attempt>.yml
+      - supervisor_plan.md
+    template: >-
+      claude --model "{model_id}" --effort max --max-budget-usd 1.00
+      --permission-mode plan --output-format json --tools "" -p "Read only the
+      bounded AgentLab Supervisor packet at {task_packet_path}. This route is an
+      explicitly approved same-role capacity fallback. Plan, decompose, recover,
+      and synthesize; do not perform producer work, invoke subagents, browse,
+      mutate files, or write final prose. Return the Supervisor plan plus the
+      governed plan only. AgentLab owns the model execution receipt and derives
+      observed provider/model/session/usage fields from Claude's JSON envelope."
+    required_placeholders: [task_packet_path, model_id]
+    max_budget_usd: 1.00
+    output_parser: claude_json
+    expected_parse:
+      argv_prefix: [claude, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_quota_exhausted: capacity_manager
+
+  claude_writer_ultracode:
+    worker_id: claude_code
+    display_name: Claude Shell DeepSeek Writer Developmental Ultracode
+    command: claude
+    invocation_style: sealed_writer_developmental_workflow
+    workflow_shell: true
+    coalescing_allowed: false
+    opt_in_only: true
+    requires_task_packet:
+      ultracode_opt_in: true
+      writer_mode: developmental_ultracode
+      work_type: one_of_allowed_work
+    allowed_work: [developmental_edit, structure, continuity, revision_plan]
+    forbidden_work: [final_prose_draft]
+    environment:
+      unset: [CLAUDE_CODE_EFFORT_LEVEL]
+    required_receipts:
+      - ultracode_activation_receipt.yml
+      - model_execution_chain_writer.yml
+      - model_execution_receipt_writer_<route>_<attempt>.yml
+      - revision_plan.yml
+    template: >-
+      claude --model "{model_id}" --max-budget-usd 2.00 --permission-mode plan
+      --output-format json -p "Read only the sealed AgentLab Writer packet at
+      {task_packet_path}. The packet explicitly authorizes the Claude Code
+      ultracode workflow for developmental editing, structure, continuity, or
+      revision planning. Activate ultracode only if the installed shell exposes
+      it, use bounded subagents, and return a revision plan and activation
+      receipt. Never draft or approve final prose in this mode."
+    required_placeholders: [task_packet_path, model_id]
+    max_budget_usd: 2.00
+    output_parser: claude_json
+    expected_parse:
+      argv_prefix: [claude, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_capability_missing: stop_and_report
 
   bl:
     worker_id: bl
@@ -123,8 +281,8 @@ contracts:
     validation:
       shlex_parse_required: true
     fallback:
-      on_binary_missing: alternate_worker_or_direct_api
-      on_invalid_invocation: direct_api
+      on_binary_missing: stop_and_report
+      on_invalid_invocation: stop_and_report
 
   aider:
     worker_id: aider
@@ -144,7 +302,7 @@ contracts:
     validation:
       shlex_parse_required: true
     fallback:
-      on_binary_missing: alternate_worker_or_direct_api
+      on_binary_missing: stop_and_report
 
   codex:
     worker_id: codex
@@ -165,11 +323,12 @@ contracts:
       - changed_files_or_findings.yml
       - validation_evidence.yml
     template: >-
-      codex exec --json -C "{workspace_path}" "Read the task packet at
+      codex exec --json --model "{model_id}" -C "{workspace_path}" "Read the task packet at
       {task_packet_path}; perform only the assigned work and report actual changes."
     required_placeholders:
       - workspace_path
       - task_packet_path
+      - model_id
     safe_probe:
       - codex
       - --help
@@ -181,7 +340,7 @@ contracts:
       shlex_parse_required: true
       allow_unquoted_placeholders: true
     fallback:
-      on_binary_missing: alternate_worker_or_direct_api
+      on_binary_missing: stop_and_report
 
   openclaw:
     worker_id: openclaw
@@ -202,7 +361,7 @@ contracts:
     validation:
       shlex_parse_required: true
     fallback:
-      on_binary_missing: alternate_worker_or_direct_api
+      on_binary_missing: stop_and_report
 
   qwen:
     worker_id: qwen
@@ -222,10 +381,11 @@ contracts:
       - role_session_receipt.yml
       - structured_findings_or_artifacts.yml
     template: >-
-      qwen --bare --approval-mode default --output-format json "Read the task packet at
+      qwen --bare --model "{model_id}" --approval-mode default --output-format json "Read the task packet at
       {task_packet_path}; perform only the assigned role and report actual changes."
     required_placeholders:
       - task_packet_path
+      - model_id
     safe_probe: [qwen, --help]
     expected_parse:
       argv_prefix: [qwen, --bare]
@@ -234,6 +394,46 @@ contracts:
       allow_unquoted_placeholders: true
     fallback:
       on_binary_missing: stop_and_report
+
+  qwen_artifact:
+    worker_id: qwen
+    display_name: Qwen Code Bounded Artifact Producer
+    command: qwen
+    invocation_style: isolated_artifact_task_packet
+    workflow_shell: true
+    coalescing_allowed: false
+    environment:
+      api_key_source: DASHSCOPE_API_KEY
+      api_key_target: OPENAI_API_KEY
+      base_url_target: OPENAI_BASE_URL
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    required_receipts:
+      - model_execution_chain_artifactproducer.yml
+      - model_execution_receipt_artifactproducer_<route>_<attempt>.yml
+      - artifact_task.yml
+      - artifact_materialization_receipt.yml
+    template: >-
+      qwen --bare --auth-type openai --openai-base-url
+      "https://dashscope.aliyuncs.com/compatible-mode/v1" --model "{model_id}"
+      --sandbox --approval-mode yolo --output-format json --max-wall-time 10m
+      --max-tool-calls 50 "Read only the bounded ArtifactTask packet at
+      {task_packet_path}. Work only inside this isolated workspace. Create every
+      exact required output path declared by the packet, validate each artifact,
+      and return a concise report. Do not read any unlisted host path, use network
+      tools beyond the selected model provider, or claim an artifact that does not
+      exist. AgentLab copies only declared outputs and owns all runtime receipts."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [qwen, --help]
+    output_parser: qwen_json
+    expected_parse:
+      argv_prefix: [qwen, --bare, --auth-type, openai]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_quota_exhausted: capacity_manager
 
   gemini:
     worker_id: gemini
@@ -257,8 +457,8 @@ contracts:
       shlex_parse_required: true
       allow_unquoted_placeholders: true
     fallback:
-      on_binary_missing: alternate_worker_or_direct_api
-      on_invalid_invocation: direct_api
+      on_binary_missing: stop_and_report
+      on_invalid_invocation: stop_and_report
 
   agy:
     worker_id: agy
@@ -289,32 +489,32 @@ contracts:
     fallback:
       on_binary_missing: stop_and_report
 
-  agy_coder:
+  agy_observer:
     worker_id: agy
-    display_name: Antigravity CLI Worker (Gemini OAuth)
+    display_name: Antigravity Multimodal Observer (OAuth)
     command: agy
-    invocation_style: task_packet_prompt
+    invocation_style: read_only_multimodal_task_packet
     workflow_shell: true
+    coalescing_allowed: false
     workflow_shell_registry: config/cli_workflow_shells.yml
     workflow_shell_capability_families:
       - one_shot_role_execution
-      - session_and_checkpoint_reuse
-      - skills_plugins_and_bundles
       - workspace_context_control
       - permission_and_sandbox_control
     required_receipts:
       - role_session_receipt.yml
-      - generated_or_changed_artifacts.yml
+      - observation_report.yml
+      - model_execution_chain_observer.yml
+      - model_execution_receipt_observer_<route>_<attempt>.yml
     template: >-
-      agy --sandbox --model "{model_id}" -p "Read the AgentLab task packet at
-      {task_packet_path}; perform only the assigned AgentLab role.
-      Use the local Agy Gemini OAuth path as the default Gemini runtime
-      (gemini-3.5-flash-high). Do not use GEMINI_API_KEY or the Gemini API
-      free-tier path unless the task packet explicitly authorizes that fallback.
-      If the OAuth session or regional network path is blocked, stop and report
-      oauth_session_or_region_blocked. Report all changed files, executed
-      commands, and validation results. Your output will be reviewed by the
-      assigned AgentLab audit role."
+      agy --sandbox --model "{model_id}" -p "Read the bounded AgentLab task
+      packet at {task_packet_path}; act only as a read-only multimodal Observer.
+      Understand the supplied long text, image, video, audio, or PDF evidence;
+      return sourced observations, scientific evidence, uncertainty, and
+      actionable suggestions in observation_report.yml format. Never write
+      prose as Writer, generate or claim a raster asset, modify project/source
+      files, or approve your own observations. Use exactly the selected Agy
+      OAuth model. Do not use GEMINI_API_KEY or any API-key fallback."
     required_placeholders:
       - task_packet_path
       - model_id
@@ -326,29 +526,33 @@ contracts:
       allow_unquoted_placeholders: true
     fallback:
       on_binary_missing: stop_and_report
+      on_quota_exhausted: capacity_manager
 
-  agy_writer:
+  agy_visual_reviewer:
     worker_id: agy
-    display_name: Antigravity Sealed Writer (Gemini OAuth)
+    display_name: Antigravity Independent Visual Reviewer (OAuth)
     command: agy
-    invocation_style: sealed_task_packet_prompt
+    invocation_style: read_only_multimodal_task_packet
     workflow_shell: true
+    coalescing_allowed: false
     workflow_shell_registry: config/cli_workflow_shells.yml
     workflow_shell_capability_families:
       - one_shot_role_execution
       - workspace_context_control
       - permission_and_sandbox_control
     required_receipts:
-      - outbound_context_manifest_writer.yml
-      - narrative_delivery_receipt.yml
+      - role_session_receipt.yml
+      - visual_review_report.yml
+      - model_execution_chain_reviewer.yml
+      - model_execution_receipt_reviewer_<route>_<attempt>.yml
     template: >-
-      agy --sandbox --model "{model_id}" -p "Read only the sealed AgentLab Writer packet at
-      {task_packet_path}. Use only its embedded messages; do not read any other
-      file, run shell commands, browse, or scan the repository. Return only the
-      required candidate AGENTLAB_EDIT blocks on stdout. Use exactly the Agy
-      OAuth model selected by --model. The default is Gemini 3.5 Flash High;
-      only the governed Crown_of_Ash quota_model_rotation rule may select Claude Sonnet 4.6.
-      Do not use GEMINI_API_KEY or any API-key fallback."
+      agy --sandbox --model "{model_id}" -p "Read the bounded AgentLab visual
+      Reviewer task packet at {task_packet_path}; inspect only the exact staged
+      candidate assets and role-owned receipts. Return YAML evidence for
+      aesthetic, continuity, technical, and factual-safety dimensions. Never
+      generate or edit media, copy the producer identity, browse, scan, write
+      prose, or promote a candidate. Use exactly the selected Agy OAuth model;
+      do not use GEMINI_API_KEY or any API-key fallback."
     required_placeholders:
       - task_packet_path
       - model_id
@@ -358,25 +562,52 @@ contracts:
     validation:
       shlex_parse_required: true
       allow_unquoted_placeholders: true
-    quota_model_rotation:
-      from_model: gemini_3_5_flash_high_agy_oauth
-      to_model: claude_sonnet_4_6_agy_oauth
-      allowed_failure_classes: [quota_exhausted]
-      allowed_projects: [Crown_of_Ash]
-      quota_window: separate_5_hour_window
-      same_worker_required: agy
-      provider_surface_change_allowed: false
-      api_key_fallback_allowed: false
-      max_rotations_per_role_session: 1
     fallback:
       on_binary_missing: stop_and_report
+      on_quota_exhausted: capacity_manager
 
-  grok:
+  grok_research:
+    worker_id: grok
+    display_name: Hermes Grok OAuth Research Worker
+    command: hermes
+    invocation_style: sourced_research_task_packet
+    workflow_shell: true
+    coalescing_allowed: false
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    workflow_shell_backend: hermes
+    required_receipts:
+      - outbound_context_manifest_researcher.yml
+      - 03_research_notes.md
+      - model_execution_chain_researcher.yml
+      - model_execution_receipt_researcher_<route>_<attempt>.yml
+    template: >-
+      hermes --ignore-rules --provider xai-oauth -m {model_id} -t web,x_search -z "Read the
+      AgentLab Researcher task packet at {task_packet_path}; perform only social,
+      web, or external research evidence collection. Use xAI search tools when
+      available, preserve source URLs and retrieval timestamps, distinguish
+      facts from inference, and return a Researcher report with an explicit
+      Sources section. Do not edit code, write longform prose, generate media, or act as
+      aesthetic judge. Report actual provider/model and auth/capacity errors."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [hermes, auth, status, xai-oauth]
+    forbidden_probes: [[hermes, status, --all]]
+    expected_parse:
+      argv_prefix: [hermes, --ignore-rules, --provider, xai-oauth]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_auth_required: capacity_manager
+
+  grok_media:
     worker_id: grok
     display_name: Hermes Grok OAuth Media Worker
     command: hermes
     invocation_style: media_backend_task_packet
     workflow_shell: true
+    coalescing_allowed: false
     workflow_shell_registry: config/cli_workflow_shells.yml
     workflow_shell_backend: hermes
     workflow_shell_capability_families:
@@ -387,15 +618,21 @@ contracts:
     required_receipts:
       - role_session_receipt.yml
       - generation_ledger.yml
-      - media_qc_report.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
     template: >-
-      hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z "Read the AgentLab ArtifactProducer task packet at
+      hermes --ignore-rules --provider xai-oauth -m {model_id} -z "Read the AgentLab ArtifactProducer task packet at
       {task_packet_path}; execute only the media generation or media handoff
-      work described there. Use the Hermes xAI OAuth Grok session. Return a concise
-      report with generated artifact paths, settings-fetch/auth errors, and
-      validation notes. Do not perform code edits or longform prose writing."
+      work described there. Use the Hermes image-generation tool backed by a
+      registered Grok Imagine model; a text response from Grok is not a media
+      asset. Return generated artifact paths, sha256 receipts, prompt/parameters,
+      references, settings-fetch/auth errors, and validation notes. Keep every
+      artifact candidate-only and never approve its aesthetics yourself. Do not
+      emit media_qc_report.yml, perform code edits, research, or longform prose
+      writing; Observer, Reviewer, and Verifier own downstream acceptance."
     required_placeholders:
       - task_packet_path
+      - model_id
     safe_probe: [hermes, --help]
     expected_parse:
       argv_prefix: [hermes, --ignore-rules, --provider, xai-oauth]
@@ -411,7 +648,7 @@ contracts:
         - "network"
         - "timeout"
     fallback:
-      on_binary_missing: alternate_worker_or_direct_api
+      on_binary_missing: stop_and_report
       on_auth_required: local_oauth_session_unhealthy
       on_network_required: retry_with_required_region_or_vpn
 
@@ -432,4 +669,4 @@ contracts:
     validation:
       shlex_parse_required: true
     fallback:
-      on_binary_missing: alternate_worker_or_direct_api
+      on_binary_missing: stop_and_report

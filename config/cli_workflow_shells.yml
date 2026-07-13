@@ -45,13 +45,15 @@ boundary:
     - intra_role_workflow_orchestration
     - cli_native_tool_routing
     - local_session_management
-    - provider_fallback_inside_invocation
+    - selected_provider_request_execution
     - structured_role_output
   shells_do_not_create_agentlab_roles: true
   shells_must_return_agentlab_receipts: true
   shell_state_is_not_project_memory: true
   background_work_requires_status_receipt: true
   mcp_or_plugin_changes_require_explicit_approval: true
+  shell_native_provider_fallback_forbidden: true
+  provider_or_model_switch_requires_capacity_approval: true
 
 shell_onboarding_audit:
   required_before_first_role_assignment: true
@@ -164,6 +166,8 @@ capability_families:
       - model_fact_source_recorded
       - auth_status_no_secret_values
       - fallback_reason_recorded
+      - capacity_route_approval_recorded
+      - shell_did_not_self_switch_provider
   permission_and_sandbox_control:
     purpose: Use CLI-native permission, sandbox, allow/deny tool, and yolo/skip controls safely.
     required_agentlab_controls:
@@ -176,7 +180,7 @@ capability_families:
       - workspace_scope_recorded
       - no_unreviewed_production_write
   specialized_media_generation_shell:
-    purpose: Use media-capable CLI shells for image/video/audio generation or handoff.
+    purpose: Use registered media-capable CLI shells for image/video generation or handoff.
     required_agentlab_controls:
       - generated_assets_required
       - media_qc_report_required
@@ -216,7 +220,8 @@ shells:
         examples:
           - hermes -z <prompt>
           - hermes --provider <provider> -m <model> -z <prompt>
-        agentlab_use: bounded role-session execution with a task packet
+          - hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.6-sol -q <prompt>
+        agentlab_use: bounded role-session execution with a task packet; Supervisor must use the isolated chat profile because -z does not apply its reasoning-effort state
       model_and_fallback:
         examples:
           - hermes model
@@ -258,13 +263,13 @@ shells:
       diagnostics_and_hooks:
         examples:
           - hermes doctor
-          - hermes status
+          - hermes auth status <provider>
           - hermes logs
           - hermes hooks
         agentlab_use: health, observability, and preflight diagnostics
       media_backend_shell:
         examples:
-          - hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z <prompt>
+          - hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z <prompt>
         agentlab_use: Grok OAuth media backend shell behind ArtifactProducer/grok
     allowed_roles:
       - Supervisor
@@ -436,7 +441,7 @@ shells:
     worker_id: agy
     command: agy
     agentlab_scope: frontdesk_or_role_session_workflow_shell
-    default_invocation_contract: agy_coder
+    default_invocation_contract: agy_observer
     evidence_source:
       - agy --help
       - config/worker_invocation_contracts.yml
@@ -469,17 +474,19 @@ shells:
           - agy --conversation <id>
         agentlab_use: project-scoped context without rebuilding context injection
     allowed_roles:
-      - RepoScout
-      - InterfaceMapper
-      - ArtifactProducer
-      - Archivist
-      - Writer
+      - Observer
+      - Reviewer
     forbidden_as:
       - production_promotion_gate
       - project_memory_source
     required_outputs:
       - role_session_receipt.yml
-      - generated_or_changed_artifacts.yml
+      - model_execution_chain_observer.yml
+      - model_execution_receipt_observer_<route>_<attempt>.yml
+      - model_execution_chain_reviewer.yml
+      - model_execution_receipt_reviewer_<route>_<attempt>.yml
+      - observation_report.yml
+      - visual_review_report.yml
     common_capabilities:
       - one_shot_role_execution
       - session_and_checkpoint_reuse
@@ -487,19 +494,24 @@ shells:
       - workspace_context_control
       - permission_and_sandbox_control
     unique_capabilities:
-      - default Gemini OAuth path for full_cli Writer/frontdesk work
+      - default Gemini OAuth path for read-only multimodal observation and isolated visual review
       - sandbox flag suited to role-session isolation
       - project/conversation flags for local continuity
     efficiency_gains:
       - avoids rebuilding Gemini OAuth CLI session handling
-      - supports fast Writer/RepoScout-style role execution through existing local auth
+      - supports fast evidence-bound Observer/Reviewer execution through existing local auth
     delivery_contract:
       required_receipts:
         - role_session_receipt.yml
-        - generated_or_changed_artifacts.yml
+        - model_execution_chain_observer.yml
+        - model_execution_receipt_observer_<route>_<attempt>.yml
+        - model_execution_chain_reviewer.yml
+        - model_execution_receipt_reviewer_<route>_<attempt>.yml
+        - observation_report.yml
+        - visual_review_report.yml
       shell_state_counts_as_memory: false
     risk_controls:
-      - Gemini API-key fallback must be explicit and not default
+      - Gemini API-key fallback is forbidden for Agy Observer/Reviewer routes
       - private project context requires role-session acceptance gate
 
   codex:
@@ -621,7 +633,6 @@ shells:
       - Researcher
       - PromptEngineer
       - ArtifactProducer
-      - Writer
       - Reviewer
       - Scribe
     forbidden_as:
@@ -643,7 +654,7 @@ shells:
       - extensions/hooks/review helper surfaces
     efficiency_gains:
       - avoids rebuilding run-budget controls and structured-output wrappers
-      - useful for bounded review/research/writer support roles
+      - useful for bounded review, research, artifact, and scribe support roles
     delivery_contract:
       required_receipts:
         - role_session_receipt.yml
@@ -655,46 +666,37 @@ shells:
 
   grok:
     worker_id: grok
-    command: grok
-    agentlab_scope: media_artifact_workflow_shell
-    default_invocation_contract: grok
+    command: hermes
+    agentlab_scope: research_and_media_workflow_shell
+    default_invocation_contract: grok_research
+    invocation_contracts: [grok_research, grok_media]
     evidence_source:
-      - grok --help
+      - hermes --help
+      - hermes auth status xai-oauth
       - config/worker_invocation_contracts.yml
       - config/media_generation_backends.yml
     native_command_surface:
       inventory_status: partial_registered
       discovered_from:
-        - grok --help
+        - hermes --help
       registered_surfaces:
-        - media_and_agent
+        - social_and_web_research
+        - media_tool_orchestration
         - permissions_memory_mcp
-        - worktree_sessions_plugins
-      native_subagent_surface: grok agent
+      native_subagent_surface: not_declared_by_help
       board_surface: not_registered
       operational_state_only: true
     command_families:
       media_and_agent:
         examples:
-          - grok -p <prompt> --output-format plain
-          - grok agent <prompt>
-          - grok --best-of-n <n>
-          - grok --check
-        agentlab_use: ArtifactProducer-only media generation or media handoff
-      permissions_memory_mcp:
+          - hermes --provider xai-oauth -m grok-4.3 -z <prompt>
+        agentlab_use: Separate sourced Researcher and candidate-only media tool contracts
+      auth_and_capacity:
         examples:
-          - grok --allow <rule>
-          - grok --deny <rule>
-          - grok mcp
-          - grok memory
-        agentlab_use: bounded media worker execution and session diagnostics
-      worktree_sessions_plugins:
-        examples:
-          - grok --worktree <name>
-          - grok sessions
-          - grok plugin
-        agentlab_use: shell-native task isolation when explicitly scoped
+          - hermes auth status xai-oauth
+        agentlab_use: safe provider-scoped auth evidence; capacity remains unknown unless the provider reports it
     allowed_roles:
+      - Researcher
       - ArtifactProducer
     forbidden_as:
       - Writer
@@ -706,7 +708,8 @@ shells:
     required_outputs:
       - role_session_receipt.yml
       - generation_ledger.yml
-      - media_qc_report.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
       - generated_assets
     common_capabilities:
       - one_shot_role_execution
@@ -715,9 +718,9 @@ shells:
       - structured_output_and_qc
       - specialized_media_generation_shell
     unique_capabilities:
-      - media-oriented Grok Build shell with OAuth login/session support
-      - best-of-n and self-check headless controls
-      - generated asset return can be governed by AgentLab marker contract
+      - sourced social/web research through the registered xAI OAuth provider
+      - candidate media-tool orchestration with returned file/hash receipts
+      - separate research and media invocation contracts
     efficiency_gains:
       - avoids rebuilding media generation shell semantics inside AgentLab
       - concentrates media live smoke around returned assets and QC rather than prompt plumbing
@@ -725,10 +728,12 @@ shells:
       required_receipts:
         - role_session_receipt.yml
         - generation_ledger.yml
-        - media_qc_report.yml
+        - generation_receipt.yml
+        - generated_assets_manifest.yml
         - generated_assets
       shell_state_counts_as_memory: false
     risk_controls:
       - text handoff is not accepted as media artifact
       - generated assets must exist under trusted out_dir
+      - producer output requires separate Observer, Reviewer, and Verifier visual acceptance before promotion
       - direct API key path remains explicit fallback only

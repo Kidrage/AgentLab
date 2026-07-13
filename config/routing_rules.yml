@@ -165,7 +165,9 @@ agent_order:
   - Supervisor
   - RepoScout
   - Researcher
+  - Observer
   - InterfaceMapper
+  - PromptEngineer
   - Coder
   - ArtifactProducer
   - Writer
@@ -180,6 +182,15 @@ agent_order:
 # ══════════════════════════════════════════════════════════════════════
 
 routes:
+
+  # ── 显式多模态输入观察 ──────────────────────────────
+  observation_task:
+    size: L2
+    description: 显式长文本、附件图片、视频、音频、PDF或文档的只读观察、总结、OCR、转录与提取
+    analysis_only: true
+    agents:
+      - Supervisor
+      - Observer
 
   # ── L3 评估/审计项目 — 分析路线，不做源码实现 ─────────────────────
   evaluation_task:
@@ -220,9 +231,10 @@ routes:
     agents:
       - Supervisor
       - ArtifactProducer
+      - Observer
+      - Reviewer
       - TesterAuditor
       - Verifier
-      - Archivist
 
   narrative_light_chapter:
     size: L1

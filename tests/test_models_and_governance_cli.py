@@ -36,6 +36,11 @@ def _copy_config_root(tmp_path: Path) -> Path:
         "model_providers.yml",
         "agent_registry.yml",
         "agent_role_bindings.yml",
+        "model_capacity.yml",
+        "worker_invocation_contracts.yml",
+        "model_pricing.yml",
+        "media_generation_backends.yml",
+        "visual_acceptance.yml",
         "frontdesk_policy.yml",
         "content_project_governance.yml",
     ]:
@@ -48,13 +53,46 @@ def _write_yaml(path: Path, data: dict) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
-def test_models_show_lists_writer_agy_gemini_oauth_default():
+def test_models_show_lists_writer_claude_deepseek_default():
     result = runner.invoke(app, ["models", "show", "--role", "Writer"])
 
     assert result.exit_code == 0
     assert "writer" in result.output
-    assert "agy" in result.output
-    assert "gemini_3_5_flash_high_agy_oauth" in result.output
+    assert "claude_code" in result.output
+    assert "deepseek_v4_pro" in result.output
+
+
+def test_models_show_lists_observer_supervisor_and_grok_research_routes():
+    observer = runner.invoke(app, ["models", "show", "--role", "Observer"])
+    supervisor = runner.invoke(app, ["models", "show", "--role", "Supervisor"])
+    researcher = runner.invoke(app, ["models", "show", "--role", "Researcher"])
+
+    assert observer.exit_code == 0
+    assert "agy" in observer.output
+    assert "gemini_3_5_flash_high_agy_oauth" in observer.output
+    assert supervisor.exit_code == 0
+    assert "codex_gpt_5_6_sol_xhigh_hermes_oauth" in supervisor.output
+    assert researcher.exit_code == 0
+    assert "grok" in researcher.output
+    assert "grok_4_3_hermes_oauth" in researcher.output
+
+
+def test_models_capacity_keeps_unobserved_remaining_and_reset_null():
+    result = runner.invoke(app, ["models", "capacity"])
+
+    assert result.exit_code == 0
+    payload = yaml.safe_load(result.output)
+    assert payload["remaining_and_reset_policy"] == "provider_evidence_or_null"
+    observer_pools = {
+        row["pool_id"]: row
+        for row in payload["pools"]
+        if row["pool_id"].startswith("agy_")
+    }
+    assert set(observer_pools) == {"agy_gemini_observer", "agy_claude_observer"}
+    for row in observer_pools.values():
+        assert row["status"] == "unknown"
+        assert row["remaining"] is None
+        assert row["reset_at"] is None
 
 
 def test_model_proposal_round_trip_on_temp_root(tmp_path):
@@ -68,7 +106,7 @@ def test_model_proposal_round_trip_on_temp_root(tmp_path):
 
     proposed = runner.invoke(
         local_app,
-        ["models", "propose", "--role", "Writer", "--cli", "agy", "--model", "deepseek_v4_flash"],
+        ["models", "propose", "--role", "Writer", "--cli", "claude_code", "--model", "deepseek_v4_flash"],
     )
     assert proposed.exit_code == 0
     data = yaml.safe_load(proposed.output)
@@ -81,6 +119,81 @@ def test_model_proposal_round_trip_on_temp_root(tmp_path):
     assert applied.exit_code == 0
     proposal = yaml.safe_load((_proposal_dir(root) / f"{proposal_id}.yml").read_text(encoding="utf-8"))
     assert proposal["status"] == "applied"
+    profiles = yaml.safe_load(
+        (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
+    )
+    writer = profiles["modes"][profiles["default_mode"]]["tiers"]["performance"]["writer"]
+    assert writer["invocation_contract"] == "claude_writer"
+    assert writer["capacity_route"] == "WriterFlash"
+
+
+def test_model_proposal_rejects_forbidden_worker_and_contract_model_drift(tmp_path):
+    from agent_runtime.cli.models import _proposal_dir, register_model_commands
+    import typer
+    from rich.console import Console
+
+    root = _copy_config_root(tmp_path)
+    local_app = typer.Typer()
+    register_model_commands(local_app, root, Console(width=120))
+
+    forbidden = runner.invoke(
+        local_app,
+        [
+            "models",
+            "propose",
+            "--role",
+            "Writer",
+            "--cli",
+            "agy",
+            "--model",
+            "gemini_3_5_flash_high_agy_oauth",
+        ],
+    )
+    assert forbidden.exit_code == 1
+    assert "Protocol role binding rejected" in forbidden.output
+
+    wrong_supervisor_model = runner.invoke(
+        local_app,
+        [
+            "models",
+            "propose",
+            "--role",
+            "Supervisor",
+            "--cli",
+            "hermes",
+            "--model",
+            "deepseek_v4_pro",
+        ],
+    )
+    assert wrong_supervisor_model.exit_code == 1
+    assert "No governed capacity route matches" in wrong_supervisor_model.output
+    assert list(_proposal_dir(root).glob("*.yml")) == []
+
+
+def test_model_apply_revalidates_proposal_binding_before_mutation(tmp_path):
+    from agent_runtime.cli.models import _proposal_dir, register_model_commands
+    import typer
+    from rich.console import Console
+
+    root = _copy_config_root(tmp_path)
+    local_app = typer.Typer()
+    register_model_commands(local_app, root, Console(width=120))
+    proposed = runner.invoke(
+        local_app,
+        ["models", "propose", "--role", "Writer", "--cli", "claude_code", "--model", "deepseek_v4_flash"],
+    )
+    proposal_id = yaml.safe_load(proposed.output)["proposal_id"]
+    path = _proposal_dir(root) / f"{proposal_id}.yml"
+    proposal = yaml.safe_load(path.read_text(encoding="utf-8"))
+    proposal["cli_agent"] = "agy"
+    _write_yaml(path, proposal)
+    profiles_before = (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
+
+    applied = runner.invoke(local_app, ["models", "apply", "--proposal", proposal_id])
+
+    assert applied.exit_code == 1
+    assert "Proposal no longer matches governed routing" in applied.output
+    assert (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8") == profiles_before
 
 
 def test_models_doctor_allows_balanced_qwen_plus_but_not_qwen_max_or_low_plus(tmp_path):
@@ -132,6 +245,184 @@ def test_models_doctor_allows_balanced_qwen_plus_but_not_qwen_max_or_low_plus(tm
         "full_cli.performance.tester_auditor.default",
         "full_cli.low.writer.default",
     }
+
+
+def test_models_doctor_rejects_static_capacity_values_and_cooldown_guesses(tmp_path):
+    from agent_runtime.cli.models import _doctor_issues
+
+    root = _copy_config_root(tmp_path)
+    capacity_path = root / "config" / "model_capacity.yml"
+    capacity = yaml.safe_load(capacity_path.read_text(encoding="utf-8"))
+    pool = capacity["pools"]["agy_gemini_observer"]
+    pool["declared_windows"]["weekly"]["remaining"] = 17
+    pool["exhaustion_cooldown_seconds"] = 18_000
+    _write_yaml(capacity_path, capacity)
+
+    issues = _doctor_issues(root)
+    names = {issue["issue"] for issue in issues}
+
+    assert "static_capacity_value_must_be_unknown" in names
+    assert "static_exhaustion_cooldown_forbidden" in names
+
+
+def test_models_doctor_rejects_route_contract_and_model_pool_drift(tmp_path):
+    from agent_runtime.cli.models import _doctor_issues
+
+    root = _copy_config_root(tmp_path)
+    capacity_path = root / "config" / "model_capacity.yml"
+    capacity = yaml.safe_load(capacity_path.read_text(encoding="utf-8"))
+    capacity["routes"]["WriterFlash"]["invocation_contract"] = "not_registered"
+    _write_yaml(capacity_path, capacity)
+
+    catalog_path = root / "config" / "model_catalog.yml"
+    catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+    catalog["models"]["grok_4_3_hermes_oauth"]["capacity_pool"] = "wrong_pool"
+    _write_yaml(catalog_path, catalog)
+
+    issues = _doctor_issues(root)
+    names = {issue["issue"] for issue in issues}
+
+    assert "capacity_contract_missing" in names
+    assert "capacity_model_pool_mismatch" in names
+
+
+def test_pricing_authority_has_current_qwen_and_exact_xai_media_rows():
+    pricing = yaml.safe_load(
+        (ROOT / "config" / "model_pricing.yml").read_text(encoding="utf-8")
+    )
+    models = pricing["models"]
+
+    assert models["qwen3.7-max"]["input_per_1m_usd"] == 1.65
+    assert models["qwen3.7-max"]["output_per_1m_usd"] == 4.951
+    assert models["qwen3.7-max"]["deployment_region"] == "cn-beijing"
+    assert models["qwen3.7-max"]["deployment_tier"] == "china_first_tier"
+    assert models["qwen3.6-plus"]["input_per_1m_usd"] == 0.276
+    assert models["qwen3.6-plus"]["output_per_1m_usd"] == 1.651
+    assert models["qwen3.6-plus"]["deployment_region"] == "cn-beijing"
+    assert models["qwen3.6-plus"]["deployment_tier"] == "china_first_tier"
+    assert models["qwen3.6-flash"]["input_per_1m_usd"] == 0.165
+    assert models["qwen3.6-flash"]["output_per_1m_usd"] == 0.99
+    assert models["qwen3.6-flash"]["deployment_region"] == "cn-beijing"
+    assert models["qwen3.6-flash"]["deployment_tier"] == "china_first_tier"
+    assert models["qwen3-coder-next"]["deployment_tier"] == "china_first_tier"
+    assert models["qwen3-coder-next"]["input_per_1m_usd"] == 0.144
+    assert models["qwen3-coder-next"]["output_per_1m_usd"] == 0.574
+    assert models["qwen3-coder-plus"]["pricing_tier"] == "input_context_0_to_32k"
+    assert models["qwen3-coder-plus"]["input_per_1m_usd"] == 0.574
+    assert models["qwen3-coder-plus"]["output_per_1m_usd"] == 2.294
+
+    image = models["grok-imagine-image-quality"]
+    assert image["provider_model_id"] == "grok-imagine-image-quality"
+    assert image["media_unit_prices_usd"] == {
+        "input_image": 0.01,
+        "output_image_1k": 0.05,
+        "output_image_2k": 0.07,
+    }
+    video = models["grok-imagine-video-1.5"]
+    assert video["provider_model_id"] == "grok-imagine-video-1.5"
+    assert video["media_unit_prices_usd"] == {
+        "input_image": 0.01,
+        "output_video_480p_second": 0.08,
+        "output_video_720p_second": 0.14,
+        "output_video_1080p_second": 0.25,
+    }
+
+    catalog = yaml.safe_load(
+        (ROOT / "config" / "model_catalog.yml").read_text(encoding="utf-8")
+    )
+    assert catalog["models"]["qwen3_6_plus_dashscope"]["pricing_key"] == "qwen3.6-plus"
+    assert "pricing" not in catalog["models"]["qwen3_6_plus_dashscope"]
+    providers = yaml.safe_load(
+        (ROOT / "config" / "model_providers.yml").read_text(encoding="utf-8")
+    )
+    assert providers["providers"]["qwen"]["pricing_key"] == "qwen3.6-plus"
+
+
+def test_models_doctor_rejects_duplicate_or_missing_pricing_evidence(tmp_path):
+    from agent_runtime.cli.models import _doctor_issues
+
+    root = _copy_config_root(tmp_path)
+    pricing_path = root / "config" / "model_pricing.yml"
+    pricing = yaml.safe_load(pricing_path.read_text(encoding="utf-8"))
+    pricing["models"]["grok-imagine-video-1.5"]["provider_model_id"] = "stale-video-id"
+    pricing["models"]["grok-imagine-video-1.5"]["media_unit_prices_usd"] = {}
+    _write_yaml(pricing_path, pricing)
+
+    backends_path = root / "config" / "media_generation_backends.yml"
+    backends = yaml.safe_load(backends_path.read_text(encoding="utf-8"))
+    backends["backends"]["hermes_grok_oauth"]["registered_generation_models"][
+        "image"
+    ] = ["unpriced-registered-image-model"]
+    _write_yaml(backends_path, backends)
+
+    catalog_path = root / "config" / "model_catalog.yml"
+    catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+    catalog["models"]["qwen3_6_plus_dashscope"]["pricing"] = {
+        "currency": "USD",
+        "input_per_m": 9.99,
+    }
+    _write_yaml(catalog_path, catalog)
+
+    providers_path = root / "config" / "model_providers.yml"
+    providers = yaml.safe_load(providers_path.read_text(encoding="utf-8"))
+    providers["providers"]["qwen"]["notes"].append(
+        "Stale duplicate price: $9.99/M input."
+    )
+    _write_yaml(providers_path, providers)
+
+    issues = _doctor_issues(root)
+    names = {issue["issue"] for issue in issues}
+
+    assert "duplicate_numeric_pricing_outside_authority" in names
+    assert "inline_numeric_provider_pricing_forbidden" in names
+    assert "media_backend_pricing_missing" in names
+    assert "media_backend_pricing_model_id_mismatch" in names
+    assert "media_backend_unit_pricing_missing" in names
+
+
+def test_models_doctor_current_pricing_graph_passes():
+    from agent_runtime.cli.models import _doctor_issues
+
+    assert _doctor_issues(ROOT) == []
+
+
+def test_recommended_brain_topology_and_model_facts_match_current_roles():
+    groups = yaml.safe_load(
+        (ROOT / "config" / "hermes_brain_model_groups.yml").read_text(encoding="utf-8")
+    )
+    chain = groups["brain_layouts"]["recommended"]["brain_chain"]
+    assert chain == {
+        "supervisor": "codex_gpt_5_6_sol_xhigh_hermes_oauth",
+        "writer": "deepseek_v4_pro",
+        "multimodal_observer": "gemini_3_5_flash_high_agy_oauth",
+        "observer_fallback": "claude_sonnet_4_6_agy_oauth",
+        "social_web_research": "grok_4_3_hermes_oauth",
+        "artifact_producer": "grok_4_3_hermes_oauth",
+        "independent_verifier": "deepseek_v4_flash",
+    }
+
+    catalog = yaml.safe_load(
+        (ROOT / "config" / "model_catalog.yml").read_text(encoding="utf-8")
+    )
+    catalog_keys = set(catalog["models"])
+    for provider in groups["providers"].values():
+        assert set(provider.get("default_models") or []) <= catalog_keys
+    for layout in groups["brain_layouts"].values():
+        assert set(layout.get("examples") or []) <= catalog_keys
+        assert set((layout.get("brain_chain") or {}).values()) <= catalog_keys
+
+    grok = groups["providers"]["grok_xai"]
+    assert grok["role"] == "social_web_research_and_registered_media_tool_orchestration"
+    assert grok["direct_media_generation"] is False
+    assert grok["audio_generation"] is False
+    assert "registered_image_tool_orchestration" in grok["strengths"]
+    assert "registered_video_tool_orchestration" in grok["strengths"]
+    assert "image_generation" not in grok["strengths"]
+
+    assert "context_window" not in catalog["models"]["grok_4_3_hermes_oauth"]
+
+    providers_text = (ROOT / "config" / "model_providers.yml").read_text(encoding="utf-8")
+    assert "$1.74/M输入, $3.48/M输出" not in providers_text
 
 
 def test_governance_doctor_detects_legacy_and_multiple_current(tmp_path):

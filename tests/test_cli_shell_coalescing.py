@@ -132,17 +132,19 @@ def test_cli_shell_coalescing_plan_cli_writes_report(tmp_path: Path) -> None:
             supervisor = routes["Supervisor"]
             assert supervisor["applied_to_shell_invocation"] is True
             assert supervisor["provider"] == "openai-codex"
-            assert supervisor["model_id"] == "gpt-5.5"
-            assert supervisor["reasoning_effort"] == "high"
+            assert supervisor["model_id"] == "gpt-5.6-sol"
+            assert supervisor["reasoning_effort"] == "xhigh"
             assert supervisor["workflow_shell_profile"] == "agentlabsupervisor"
             assert supervisor["required_profile_config"] == {
                 "model.provider": "openai-codex",
-                "model.default": "gpt-5.5",
+                "model.default": "gpt-5.6-sol",
                 "model.base_url": "https://chatgpt.com/backend-api/codex",
-                "agent.reasoning_effort": "high",
+                "agent.reasoning_effort": "xhigh",
+                "fallback_providers": [],
             }
-            assert supervisor["fallback_worker"] == "claude_code"
-            assert supervisor["fallback_model_key"] == "deepseek_v4_pro"
+            assert supervisor["forbidden_profile_config_keys"] == ["fallback_model"]
+            assert supervisor.get("fallback_worker") is None
+            assert supervisor.get("fallback_model_key") is None
             prompt_engineer = routes["PromptEngineer"]
             assert prompt_engineer["applied_to_shell_invocation"] is True
             assert prompt_engineer["provider"] == "deepseek"

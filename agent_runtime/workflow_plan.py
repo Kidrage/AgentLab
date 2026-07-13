@@ -28,12 +28,13 @@ AGENT_LIFECYCLE_NODES = {
     "Supervisor": {"SUPERVISOR_PLAN"},
     "RepoScout": {"REPO_CONTEXT"},
     "Researcher": {"RESEARCH_OPTIONAL"},
+    "Observer": {"OBSERVATION_OPTIONAL", "VISUAL_OBSERVATION"},
     "InterfaceMapper": {"INTERFACE_OPTIONAL"},
     "PromptEngineer": {"CODER_IMPLEMENTATION"},
     "Coder": {"CODER_IMPLEMENTATION"},
     "ArtifactProducer": {"ARTIFACT_PRODUCTION"},
     "Writer": {"WRITER_DRAFT"},
-    "Reviewer": {"FICTION_REVIEW"},
+    "Reviewer": {"FICTION_REVIEW", "VISUAL_REVIEW"},
     "Scribe": {"SCRIBE_LEDGER"},
     "TesterAuditor": {"VALIDATION", "AUDIT"},
     "Verifier": {"VERIFY"},
@@ -358,13 +359,32 @@ def _production_pack_output_gates(production_pack: dict | None) -> list[dict]:
         gates.append(
             {
                 "id": stem,
-                "owner": "ArtifactProducer",
+                "owner": _production_pack_output_owner(output_name),
                 "required": True,
                 "description": f"Produce {output_name} as a candidate artifact for production pack {pack.get('pack_id', 'unknown')}.",
                 "evidence": [output_name],
             }
         )
     return gates
+
+
+def _production_pack_output_owner(output_name: str) -> str:
+    """Return the role that is allowed to originate a pack output."""
+    name = Path(str(output_name)).name
+    if name == "visual_observation_report.yml":
+        return "Observer"
+    if name in {"visual_review_report.yml", "media_qc_report.yml"}:
+        return "Reviewer"
+    if name in {
+        "visual_verification_report.yml",
+        "visual_acceptance_candidate.yml",
+        "visual_acceptance_decision.yml",
+        "verification_report.md",
+    }:
+        return "Verifier"
+    if name in {"validation_report.md", "audit_report.md"}:
+        return "TesterAuditor"
+    return "ArtifactProducer"
 
 
 def _pack_synthesis_research_gate() -> dict:
@@ -561,6 +581,10 @@ def _apply_non_code_production_contracts(
     synthesis_contract: bool = False,
 ) -> None:
     pack_outputs = _prefixed_pack_outputs(production_pack)
+    pack_outputs_by_owner: dict[str, list[str]] = {}
+    for output in pack_outputs:
+        owner = _production_pack_output_owner(output)
+        pack_outputs_by_owner.setdefault(owner, []).append(output)
     pack_id = str((production_pack or {}).get("pack_id") or "production_pack")
 
     _apply_non_code_supervisor_contract(included)
@@ -596,17 +620,48 @@ def _apply_non_code_production_contracts(
                 "relevant domain references gathered by Researcher",
             ])
         included["ArtifactProducer"]["required_inputs"] = list(dict.fromkeys(inputs))
-        included["ArtifactProducer"]["required_outputs"] = pack_outputs or [
+        included["ArtifactProducer"]["required_outputs"] = pack_outputs_by_owner.get(
+            "ArtifactProducer"
+        ) or [
             "runs/task_xxxx/artifact_producer_report.md",
             "runs/task_xxxx/outputs/",
         ]
 
+    if media_contract and "Observer" in included:
+        included["Observer"]["required_inputs"] = [
+            "runs/task_xxxx/media_generation_contract.yml",
+            "runs/task_xxxx/artifacts/media_backend/generation_ledger.yml",
+            "runs/task_xxxx/artifacts/media_backend/generation_receipt.yml",
+            "runs/task_xxxx/artifacts/media_backend/generated_assets_manifest.yml",
+            "the exact generated asset files declared by generated_assets_manifest.yml",
+        ]
+        included["Observer"]["required_outputs"] = [
+            "runs/task_xxxx/visual_observation_report.yml"
+        ]
+
+    if media_contract and "Reviewer" in included:
+        included["Reviewer"]["required_inputs"] = [
+            "runs/task_xxxx/media_generation_contract.yml",
+            "runs/task_xxxx/artifacts/media_backend/generation_receipt.yml",
+            "runs/task_xxxx/artifacts/media_backend/generated_assets_manifest.yml",
+            "runs/task_xxxx/visual_observation_report.yml",
+        ]
+        included["Reviewer"]["required_outputs"] = [
+            "runs/task_xxxx/visual_review_report.yml",
+            "runs/task_xxxx/media_qc_report.yml",
+        ]
+
     if "TesterAuditor" in included:
+        prior_outputs = [
+            output
+            for owner in ("ArtifactProducer", "Observer", "Reviewer")
+            for output in pack_outputs_by_owner.get(owner, [])
+        ]
         included["TesterAuditor"]["required_inputs"] = [
             "runs/task_xxxx/workflow_plan.yml",
             "runs/task_xxxx/mission_contract.yml",
             "runs/task_xxxx/artifact_producer_report.md",
-            *pack_outputs,
+            *prior_outputs,
             "runs/task_xxxx/artifacts/media_backend/ when available",
         ]
         included["TesterAuditor"]["required_outputs"] = [
@@ -615,6 +670,11 @@ def _apply_non_code_production_contracts(
         ]
 
     if "Verifier" in included:
+        verifier_inputs = [
+            output
+            for owner in ("ArtifactProducer", "Observer", "Reviewer", "TesterAuditor")
+            for output in pack_outputs_by_owner.get(owner, [])
+        ]
         included["Verifier"]["required_inputs"] = [
             "runs/task_xxxx/supervisor_plan.md",
             "runs/task_xxxx/mission_contract.yml",
@@ -622,8 +682,16 @@ def _apply_non_code_production_contracts(
             "runs/task_xxxx/artifact_producer_report.md",
             "runs/task_xxxx/validation_report.md when available",
             "runs/task_xxxx/audit_report.md when available",
-            *pack_outputs,
+            *verifier_inputs,
         ]
+        if media_contract:
+            included["Verifier"]["required_inputs"].extend(
+                [
+                    "runs/task_xxxx/visual_observation_report.yml",
+                    "runs/task_xxxx/visual_review_report.yml",
+                    "runs/task_xxxx/media_qc_report.yml",
+                ]
+            )
         if synthesis_contract:
             included["Verifier"]["required_inputs"].extend(
                 [
@@ -632,7 +700,16 @@ def _apply_non_code_production_contracts(
                     "runs/task_xxxx/production_pack_output_contract.yml",
                 ]
             )
-        included["Verifier"]["required_outputs"] = ["runs/task_xxxx/verification_report.md"]
+        included["Verifier"]["required_outputs"] = (
+            [
+                "runs/task_xxxx/visual_verification_report.yml",
+                "runs/task_xxxx/visual_acceptance_candidate.yml",
+                "runs/task_xxxx/visual_acceptance_decision.yml",
+                "runs/task_xxxx/verification_report.md",
+            ]
+            if media_contract
+            else ["runs/task_xxxx/verification_report.md"]
+        )
 
     if "Archivist" in included:
         included["Archivist"]["required_inputs"] = [

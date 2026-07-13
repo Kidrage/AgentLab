@@ -7,6 +7,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+try:
+    from lifecycle_graph import LIFECYCLE_NODES
+except ModuleNotFoundError:  # pragma: no cover - package import
+    from agent_runtime.lifecycle_graph import LIFECYCLE_NODES
+
 
 @dataclass(frozen=True)
 class ChainScenario:
@@ -23,9 +28,12 @@ LIFECYCLE_NODE_AGENT = {
     "SUPERVISOR_PLAN": "Supervisor",
     "REPO_CONTEXT": "RepoScout",
     "RESEARCH_OPTIONAL": "Researcher",
+    "OBSERVATION_OPTIONAL": "Observer",
     "INTERFACE_OPTIONAL": "InterfaceMapper",
     "CODER_IMPLEMENTATION": "Coder",
     "ARTIFACT_PRODUCTION": "ArtifactProducer",
+    "VISUAL_OBSERVATION": "Observer",
+    "VISUAL_REVIEW": "Reviewer",
     "WRITER_DRAFT": "Writer",
     "FICTION_REVIEW": "Reviewer",
     "SCRIBE_LEDGER": "Scribe",
@@ -75,7 +83,7 @@ SCENARIOS = [
         project="Crown_of_Ash",
         request="把 Crown of Ash 第一卷做成连续漫画、短视频和海报图册，需要保持角色视觉、场景资产和镜头连续性。",
         expected_pack="media_series_production",
-        expected_agents=("Supervisor", "ArtifactProducer", "Verifier"),
+        expected_agents=("Supervisor", "ArtifactProducer", "Observer", "Reviewer", "Verifier"),
         forbidden_agents=("Coder", "Archivist"),
     ),
     ChainScenario(
@@ -109,8 +117,21 @@ def _code_shell_hits(plan: Any) -> list[str]:
 
 def _effective_lifecycle_nodes(pack: dict[str, Any], route_agents: list[str]) -> list[str]:
     route_agent_set = set(route_agents)
+    lifecycle_nodes = [str(node) for node in pack.get("lifecycle_nodes") or []]
+    if (
+        "Observer" in route_agent_set
+        and "OBSERVATION_OPTIONAL" not in lifecycle_nodes
+        and "VISUAL_OBSERVATION" not in lifecycle_nodes
+    ):
+        observation_rank = LIFECYCLE_NODES.index("OBSERVATION_OPTIONAL")
+        insert_at = len(lifecycle_nodes)
+        for index, node_id in enumerate(lifecycle_nodes):
+            if node_id in LIFECYCLE_NODES and LIFECYCLE_NODES.index(node_id) > observation_rank:
+                insert_at = index
+                break
+        lifecycle_nodes.insert(insert_at, "OBSERVATION_OPTIONAL")
     effective: list[str] = []
-    for node in pack.get("lifecycle_nodes") or []:
+    for node in lifecycle_nodes:
         node_id = str(node)
         owner = LIFECYCLE_NODE_AGENT.get(node_id)
         if owner and owner not in route_agent_set:

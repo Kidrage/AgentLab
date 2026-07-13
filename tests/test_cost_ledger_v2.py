@@ -47,6 +47,36 @@ def test_price_resolver_known_model(tmp_path: Path) -> None:
     assert price.pricing_confidence == "medium"
 
 
+def test_price_resolver_estimates_exact_media_unit_prices(tmp_path: Path) -> None:
+    _write_pricing(tmp_path, {
+        "grok-imagine-video-1.5": {
+            "provider": "xai",
+            "provider_model_id": "grok-imagine-video-1.5",
+            "media_unit_prices_usd": {
+                "input_image": 0.01,
+                "output_video_720p_second": 0.14,
+            },
+            "pricing_confidence": "high",
+        }
+    })
+
+    price = PriceResolver(tmp_path).resolve(
+        model_alias="grok-imagine-video-1.5",
+        provider="xai",
+    )
+
+    assert price.model_key == "grok-imagine-video-1.5"
+    assert price.has_billable_media_prices is True
+    assert price.media_unit_prices_usd == {
+        "input_image": 0.01,
+        "output_video_720p_second": 0.14,
+    }
+    assert price.estimate_media_cost_usd(
+        units={"input_image": 1, "output_video_720p_second": 8},
+    ) == 1.13
+    assert price.estimate_media_cost_usd(units={"output_video_1080p_second": 8}) is None
+
+
 def test_price_resolver_unknown_model_does_not_fake_zero(tmp_path: Path) -> None:
     _write_pricing(tmp_path, {})
 

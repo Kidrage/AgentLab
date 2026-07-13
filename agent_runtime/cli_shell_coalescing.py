@@ -149,6 +149,7 @@ def _model_route(
             "model.default": model_id,
             "model.base_url": base_url,
             "agent.reasoning_effort": reasoning_effort or "",
+            "fallback_providers": [],
         }
     return {
         "configured_model_key": model_key,
@@ -165,6 +166,7 @@ def _model_route(
         "fallback_model_id": fallback.get("model_id") if fallback else None,
         "workflow_shell_profile": profile_name,
         "required_profile_config": required_profile_config,
+        "forbidden_profile_config_keys": ["fallback_model"] if profile_name and applied else [],
     }
 
 
@@ -296,6 +298,7 @@ def build_cli_shell_coalescing_plan(root: Path, mode: str = "full_cli", tier: st
     tier_roles = _tier_roles(profiles, mode, tier)
 
     role_sessions: list[dict[str, Any]] = []
+    isolated_role_sessions: list[dict[str, str]] = []
     for role_key, role_cfg in tier_roles.items():
         if isinstance(role_cfg, str):
             continue
@@ -308,6 +311,16 @@ def build_cli_shell_coalescing_plan(root: Path, mode: str = "full_cli", tier: st
         worker_id = str(role_cfg.get("cli_agent") or contract.get("worker_id") or contract_id)
         backend = _contract_backend(contract_id, contract, role_cfg)
         role_name = _role_name(str(role_key))
+        if contract.get("coalescing_allowed") is False:
+            isolated_role_sessions.append(
+                {
+                    "role": role_name,
+                    "worker_id": worker_id,
+                    "invocation_contract": contract_id,
+                    "reason": "invocation_contract_requires_isolated_role_session",
+                }
+            )
+            continue
         shell = shells.get(backend) if isinstance(shells.get(backend), dict) else {}
         role_sessions.append(
             {
@@ -401,6 +414,7 @@ def build_cli_shell_coalescing_plan(root: Path, mode: str = "full_cli", tier: st
             "provider_calls_executed": False,
         },
         "role_session_count": len(role_sessions),
+        "isolated_role_sessions": isolated_role_sessions,
         "backend_group_count": len(groups),
         "eligible_group_count": len(eligible_groups),
         "groups": groups,

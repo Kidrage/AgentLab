@@ -22,6 +22,25 @@ def _reason_set(values: list[str]) -> frozenset[str]:
     return frozenset(str(value) for value in values)
 
 
+def _persisted_writer_request_is_current(root: Path) -> bool:
+    path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_request.yml"
+    report = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    writer = next(
+        (
+            item
+            for item in report.get("items", [])
+            if isinstance(item, dict) and item.get("id") == "run_crown_internal_writer_eval"
+        ),
+        {},
+    )
+    package = report.get("local_runner_package") or {}
+    return (
+        writer.get("assigned_worker") == "claude_code"
+        and "--writer-worker claude_code" in str(writer.get("command") or "")
+        and "command -v claude" in (package.get("preflight_commands") or [])
+    )
+
+
 def test_selected_collect_path_is_separate_from_canonical() -> None:
     canonical = Path("acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml")
 
@@ -74,8 +93,13 @@ def test_trusted_live_runner_collect_refreshes_status_and_acceptance_reports(
         ] is False
         assert report["returned_candidate_artifacts_accepted_count"] == 1
         assert report["required_files_missing_count"] == 3
-        assert report["acceptance_summary"]["objective_status"] == "complete"
-        assert report["acceptance_summary"]["goal_status"] == "complete"
+        expected_audit_status = (
+            "complete"
+            if _persisted_writer_request_is_current(private_crown_project_root)
+            else "fail"
+        )
+        assert report["acceptance_summary"]["objective_status"] == expected_audit_status
+        assert report["acceptance_summary"]["goal_status"] == expected_audit_status
         assert report["active_selected_item_ids"] == [
             "run_crown_internal_writer_eval"
         ]
@@ -106,8 +130,12 @@ def test_trusted_live_runner_collect_refreshes_status_and_acceptance_reports(
             "missing_candidate_artifacts",
         }),
         frozenset({
-            "agy_session_health_blocked_before_private_writer_smoke",
+            "claude_writer_session_health_blocked_before_private_writer_smoke",
             "grok_cli_transport_or_proxy_failed_in_live_smoke",
+        }),
+        frozenset({
+            "claude_writer_session_health_blocked_before_private_writer_smoke",
+            "missing_candidate_artifacts",
         }),
     }
     assert report["returned_candidate_artifacts_accepted_count"] == 0
@@ -642,8 +670,12 @@ def test_canonical_collect_write_refreshes_current_from_fresh_collect(
             "missing_candidate_artifacts",
         }),
         frozenset({
-            "agy_session_health_blocked_before_private_writer_smoke",
+            "claude_writer_session_health_blocked_before_private_writer_smoke",
             "grok_cli_transport_or_proxy_failed_in_live_smoke",
+        }),
+        frozenset({
+            "claude_writer_session_health_blocked_before_private_writer_smoke",
+            "missing_candidate_artifacts",
         }),
     }
     assert details["required_files_missing_count"] in {3, 5, 7, 10}

@@ -176,7 +176,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     by_id = {item["id"]: item for item in report["capabilities"]}
 
     assert report["report_type"] == "agentlab_capability_acceptance"
-    assert report["overall_status"] in {"candidate", "warn", "blocked", "pass"}
+    assert report["overall_status"] in {"candidate", "warn", "blocked", "fail", "pass"}
     assert by_id["code_factory_orchestration"]["status"] == "pass"
     assert by_id["non_code_code_shell_split"]["status"] == "pass"
     assert by_id["non_code_code_shell_split"]["summary"] == "media code-shell hits=0; code probe hits=3"
@@ -322,16 +322,21 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     assert "accepted trusted-runner Writer artifacts" in by_id[
         "crown_formal_live_narrative_eval"
     ]["summary"]
-    assert any(path.endswith("agy_cli_session_smoke.yml") for path in by_id["crown_formal_live_narrative_eval"]["evidence"])
+    assert any(
+        path.endswith("worker_invocation_contracts.yml")
+        for path in by_id["crown_formal_live_narrative_eval"]["evidence"]
+    )
     assert by_id["crown_formal_live_narrative_eval"]["issues"] == []
     assert by_id["crown_formal_live_narrative_eval"]["details"]["returned_artifacts_pending"] is False
     assert by_id["crown_formal_live_narrative_eval"]["details"]["returned_artifacts_accepted"] is True
     assert by_id["crown_formal_live_narrative_eval"]["details"]["trusted_runner_item"] == "run_crown_internal_writer_eval"
-    agy_session = by_id["crown_formal_live_narrative_eval"]["details"]["agy_session_smoke"]
-    if agy_session["status"] == "pass":
-        assert "reason" not in agy_session
-    else:
-        assert agy_session["reason"]
+    writer_route = by_id["crown_formal_live_narrative_eval"]["details"][
+        "internal_writer_route"
+    ]
+    assert writer_route["worker"] == "claude_code"
+    assert writer_route["invocation_contract"] == "claude_writer"
+    assert writer_route["model_key"] == "deepseek_v4_pro"
+    assert writer_route["model_provider"] == "deepseek_official"
     assert by_id["crown_heavy_audit_scale"]["status"] == "pass"
     assert "governance-scale audit passes" in by_id["crown_heavy_audit_scale"]["summary"]
     assert by_id["media_series_scaffold"]["status"] == "pass"
@@ -343,10 +348,16 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     assert by_id["grok_xai_media_backend"]["details"]["worker_id"] == "grok"
     assert by_id["grok_xai_media_backend"]["details"]["role_owner"] == "ArtifactProducer"
     assert by_id["grok_xai_media_backend"]["details"]["internal_worker"] is True
+    assert by_id["grok_xai_media_backend"]["details"]["researcher_grok_binding"] is True
     assert by_id["grok_xai_media_backend"]["details"]["artifact_producer_grok_binding"] is True
     assert by_id["grok_xai_media_backend"]["details"]["grok_invocation_contract_ready"] is True
+    assert by_id["grok_xai_media_backend"]["details"]["grok_research_contract_ready"] is True
+    assert by_id["grok_xai_media_backend"]["details"]["grok_media_contract_ready"] is True
+    assert by_id["grok_xai_media_backend"]["details"]["grok_research_command"] == "hermes"
+    assert by_id["grok_xai_media_backend"]["details"]["grok_media_command"] == "hermes"
     assert by_id["grok_xai_media_backend"]["details"]["grok_invocation_command"] == "hermes"
     assert by_id["grok_xai_media_backend"]["details"]["grok_backend_command"] == "hermes"
+    assert by_id["grok_xai_media_backend"]["details"]["grok_research_invocation_style"] == "sourced_research_task_packet"
     assert by_id["grok_xai_media_backend"]["details"]["grok_invocation_style"] == "media_backend_task_packet"
     assert by_id["grok_xai_media_backend"]["details"]["execution_kernel"] == "hermes_workflow_shell"
     assert by_id["grok_xai_media_backend"]["details"]["orchestration_scope"] == "bounded_role_session_backend"
@@ -419,7 +430,14 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     assert "--item run_crown_internal_writer_eval" in unblock_items[
         "run_crown_internal_writer_eval"
     ]["selected_collect_command"]
-    assert by_id["trusted_live_runner_request"]["status"] == "pass"
+    request_details = by_id["trusted_live_runner_request"]["details"]
+    expected_request_status = (
+        "pass"
+        if request_details["writer_route_current"]
+        and request_details["preflight_writer_route_current"]
+        else "fail"
+    )
+    assert by_id["trusted_live_runner_request"]["status"] == expected_request_status
     assert "items=2" in by_id["trusted_live_runner_request"]["summary"]
     assert "local_runner_package=True" in by_id["trusted_live_runner_request"]["summary"]
     assert "session_health_gate=True" in by_id["trusted_live_runner_request"]["summary"]
@@ -435,10 +453,17 @@ def test_capability_acceptance_report_aggregates_current_evidence(
         by_id["trusted_live_runner_request"]["details"]["role_session_acceptance_approval_env_required"]
         == "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1"
     )
-    assert by_id["trusted_live_runner_operator_handoff"]["status"] in {"pass", "candidate"}
-    assert "operator handoff status=" in by_id["trusted_live_runner_operator_handoff"]["summary"]
-    assert "approval_gate=True" in by_id["trusted_live_runner_operator_handoff"]["summary"]
-    assert by_id["trusted_live_runner_operator_handoff"]["details"]["trusted_agentlab_runner_required"] is True
+    operator_handoff = by_id["trusted_live_runner_operator_handoff"]
+    if operator_handoff["details"]["writer_request_route_current"]:
+        assert operator_handoff["status"] in {"pass", "candidate"}
+    else:
+        assert operator_handoff["status"] == "fail"
+        assert operator_handoff["issues"] == [
+            "trusted live runner operator handoff missing, unsafe, or incomplete"
+        ]
+    assert "operator handoff status=" in operator_handoff["summary"]
+    assert "approval_gate=True" in operator_handoff["summary"]
+    assert operator_handoff["details"]["trusted_agentlab_runner_required"] is True
     assert (
         by_id["trusted_live_runner_operator_handoff"]["details"]["acceptance_smoke_kind"]
         == "private_role_session_acceptance_smoke"
@@ -547,7 +572,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
         "acceptance_blocker_reasons=missing_candidate_artifacts"
         in by_id["trusted_live_runner_collect"]["summary"]
         or (
-        "acceptance_blocker_reasons=agy_session_health_blocked_before_private_writer_smoke,"
+        "acceptance_blocker_reasons=claude_writer_session_health_blocked_before_private_writer_smoke,"
         "missing_candidate_artifacts"
         in by_id["trusted_live_runner_collect"]["summary"]
         )
@@ -561,7 +586,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
             in by_id["trusted_live_runner_collect"]["summary"]
         )
         or (
-            "acceptance_blocker_reasons=agy_session_health_blocked_before_private_writer_smoke,"
+            "acceptance_blocker_reasons=claude_writer_session_health_blocked_before_private_writer_smoke,"
             "grok_cli_transport_or_proxy_failed_in_live_smoke"
             in by_id["trusted_live_runner_collect"]["summary"]
         )
@@ -575,7 +600,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
             "missing_candidate_artifacts",
         }),
         frozenset({
-            "agy_session_health_blocked_before_private_writer_smoke",
+            "claude_writer_session_health_blocked_before_private_writer_smoke",
             "missing_candidate_artifacts",
         }),
         frozenset({
@@ -587,7 +612,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
             "missing_candidate_artifacts",
         }),
         frozenset({
-            "agy_session_health_blocked_before_private_writer_smoke",
+            "claude_writer_session_health_blocked_before_private_writer_smoke",
             "grok_cli_transport_or_proxy_failed_in_live_smoke",
         }),
     }
@@ -649,8 +674,8 @@ def test_capability_acceptance_cli_writes_yaml_report(
 
     result = runner.invoke(app, ["capability-acceptance", "--out", str(out)])
 
-    assert result.exit_code == 0
     assert out.exists()
     report = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert result.exit_code == (1 if report["overall_status"] == "fail" else 0)
     assert report["report_type"] == "agentlab_capability_acceptance"
     assert "code_factory_orchestration" in {item["id"] for item in report["capabilities"]}

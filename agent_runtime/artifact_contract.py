@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import re
+import zipfile
 
 import yaml
 
@@ -90,6 +91,7 @@ REQUIRED_ARTIFACTS_BY_ROUTE = {
     "supervisor": ["01_supervisor_plan.md"],
     "reposcout": ["02_reposcout_report.md"],
     "researcher": ["03_research_notes.md"],
+    "observer": ["observation_report.yml"],
     "interface_mapper": ["04_interface_map.md"],
     "coder": ["06_implementation_report.md"],
     "artifact_producer": ["artifact_producer_report.md"],
@@ -115,12 +117,15 @@ COMMON_ARTIFACTS = [
 NODE_ARTIFACTS = {
     "REPO_CONTEXT": ["02_reposcout_report.md"],
     "RESEARCH_OPTIONAL": ["03_research_notes.md"],
+    "OBSERVATION_OPTIONAL": ["observation_report.yml"],
     "INTERFACE_OPTIONAL": ["04_interface_map.md"],
     "WRITER_DRAFT": ["fiction_draft.md"],
     "FICTION_REVIEW": ["fiction_review.yml"],
     "SCRIBE_LEDGER": ["continuity_ledger.yml"],
     "CODER_IMPLEMENTATION": ["06_implementation_report.md"],
     "ARTIFACT_PRODUCTION": ["artifact_producer_report.md"],
+    "VISUAL_OBSERVATION": ["visual_observation_report.yml"],
+    "VISUAL_REVIEW": ["visual_review_report.yml", "media_qc_report.yml"],
     "VALIDATION": ["07_validation_report.md"],
     "AUDIT": ["08_audit_report.md"],
     "VERIFY": ["verification_report.md"],
@@ -191,6 +196,21 @@ def validate_artifacts(run_dir: Path) -> dict:
                 artifacts_passed += 1
                 continue
             issues.append({"file": fname, "issue": "missing"})
+            continue
+
+        if path.is_dir():
+            if any(child.is_file() for child in path.rglob("*")):
+                artifacts_passed += 1
+            else:
+                issues.append({"file": fname, "issue": "empty directory"})
+            continue
+
+        binary_issue = _binary_artifact_format_issue(path)
+        if binary_issue:
+            issues.append({"file": fname, "issue": binary_issue})
+            continue
+        if path.suffix.lower() in {".xlsx", ".docx", ".pptx", ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov"}:
+            artifacts_passed += 1
             continue
 
         # Read and check content
@@ -454,6 +474,13 @@ def _production_pack_placeholder_issue(
     if not isinstance(data, dict):
         return None
 
+    if (
+        fname == "visual_acceptance_candidate.yml"
+        and data.get("status") == "not_required"
+        and data.get("candidates") == []
+    ):
+        return None
+
     if _has_meaningful_pack_payload(data):
         return None
     return "production-pack candidate artifact has no meaningful payload beyond metadata"
@@ -489,6 +516,7 @@ def required_artifacts_for_route(route: list[str]) -> list[str]:
         "Supervisor": "supervisor",
         "RepoScout": "reposcout",
         "Researcher": "researcher",
+        "Observer": "observer",
         "InterfaceMapper": "interface_mapper",
         "Coder": "coder",
         "ArtifactProducer": "artifact_producer",
@@ -538,8 +566,113 @@ def _required_artifacts_for_run(run_dir: Path, route: list[str], workflow_plan: 
         required = [name for name in required if name != "verification_report.md"]
     required.extend(_route_required_outputs(workflow_plan))
     required.extend(_production_pack_required_outputs(workflow_plan, run_dir))
+    required.extend(_artifact_task_required_outputs(run_dir))
     skipped_files = _skipped_lifecycle_artifacts(run_dir)
     return [name for name in required if name not in skipped_files]
+
+
+def _artifact_task_required_outputs(run_dir: Path) -> list[str]:
+    contract_path = run_dir / "artifact_task.yml"
+    try:
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return []
+    validation = contract.get("validation") if isinstance(contract, dict) else {}
+    raw_paths = (
+        validation.get("required_paths")
+        if isinstance(validation, dict)
+        else []
+    )
+    if not isinstance(raw_paths, list):
+        return []
+    names: list[str] = []
+    for raw in raw_paths:
+        path = Path(str(raw))
+        if path.is_absolute() or ".." in path.parts:
+            continue
+        if path.parts[:2] == ("runs", run_dir.name):
+            path = Path(*path.parts[2:])
+        elif path.parts[:1] == ("runs",):
+            continue
+        normalized = _normalize_run_artifact_name(path.as_posix())
+        if normalized:
+            names.append(normalized)
+    return list(dict.fromkeys(names))
+
+
+def _binary_artifact_format_issue(path: Path) -> str | None:
+    suffix = path.suffix.lower()
+    if suffix not in {
+        ".xlsx", ".docx", ".pptx", ".pdf", ".png", ".jpg", ".jpeg",
+        ".webp", ".mp4", ".mov",
+    }:
+        return None
+    if path.stat().st_size <= 0:
+        return "empty binary artifact"
+    if suffix in {".xlsx", ".docx", ".pptx"}:
+        if not zipfile.is_zipfile(path):
+            return "invalid Office package"
+        required_entry = {
+            ".xlsx": "xl/workbook.xml",
+            ".docx": "word/document.xml",
+            ".pptx": "ppt/presentation.xml",
+        }[suffix]
+        try:
+            with zipfile.ZipFile(path) as package:
+                names = set(package.namelist())
+        except (OSError, zipfile.BadZipFile):
+            return "invalid Office package"
+        if "[Content_Types].xml" not in names or required_entry not in names:
+            return f"invalid Office package: missing {required_entry}"
+        return None
+    with path.open("rb") as stream:
+        header = stream.read(12)
+    if suffix == ".pdf" and header[:5] != b"%PDF-":
+        return "invalid PDF signature"
+    if suffix == ".png" and header[:8] != b"\x89PNG\r\n\x1a\n":
+        return "invalid PNG signature"
+    if suffix in {".jpg", ".jpeg"} and header[:3] != b"\xff\xd8\xff":
+        return "invalid JPEG signature"
+    if suffix == ".webp" and (header[:4] != b"RIFF" or header[8:12] != b"WEBP"):
+        return "invalid WebP signature"
+    if suffix in {".mp4", ".mov"} and header[4:8] != b"ftyp":
+        return "invalid ISO media signature"
+    return None
+
+
+def validate_artifact_task_outputs(
+    run_dir: Path,
+    *,
+    deferred_paths: set[str] | None = None,
+) -> list[dict[str, str]]:
+    """Validate exact ArtifactTask outputs before a role result can complete."""
+
+    deferred = deferred_paths or set()
+    issues: list[dict[str, str]] = []
+    for name in _artifact_task_required_outputs(run_dir):
+        if name in deferred or Path(name).name in deferred:
+            continue
+        path = run_dir / name
+        if not path.exists():
+            issues.append({"file": name, "issue": "missing"})
+            continue
+        if path.is_dir():
+            if not any(child.is_file() for child in path.rglob("*")):
+                issues.append({"file": name, "issue": "empty directory"})
+            continue
+        binary_issue = _binary_artifact_format_issue(path)
+        if binary_issue:
+            issues.append({"file": name, "issue": binary_issue})
+            continue
+        if path.stat().st_size <= 0:
+            issues.append({"file": name, "issue": "empty"})
+            continue
+        if path.suffix.lower() in {".yml", ".yaml"}:
+            try:
+                yaml.safe_load(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+                issues.append({"file": name, "issue": f"invalid YAML: {exc}"})
+    return issues
 
 
 def _route_required_outputs(workflow_plan: dict) -> list[str]:

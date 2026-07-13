@@ -27,14 +27,7 @@ PROMPT = (
 DIAGNOSTIC_TIMEOUT_SECONDS = 15
 PROMPT_FLAGS = {"-p", "--prompt", "-z", "--oneshot"}
 SETTINGS_FETCH_MARKER = "Settings fetch failed"
-GROK_SMOKE_TEMPLATE_KEYS = ("session_smoke", "oauth_smoke", "hermes_session_smoke", "hermes_smoke_session")
-SETTINGS_FAILURE_RETRYABLE = {
-    "grok_cli_transport_or_proxy_failed",
-    "grok_cli_settings_fetch_failed",
-    "grok_cli_auth_session_unhealthy",
-    "grok_cli_nonzero_exit",
-    "grok_cli_timeout",
-}
+GROK_SMOKE_TEMPLATE_KEY = "session_smoke"
 TRANSPORT_FAILURE_MARKERS = (
     "request error",
     "error sending request",
@@ -50,6 +43,10 @@ TRANSPORT_FAILURE_MARKERS = (
 )
 AUTH_FAILURE_MARKERS = (
     "not authenticated",
+    "not logged in",
+    "logged out",
+    "missing access token",
+    "missing access_token",
     "oauth session expired",
     "oauth error",
     "sign in",
@@ -97,7 +94,7 @@ def _command_shape(args: list[str]) -> str:
     return " ".join(rendered)
 
 
-def _parse_command_template(base_command: str, template: str) -> list[str]:
+def _parse_command_template(template: str) -> list[str]:
     if not template:
         return []
     try:
@@ -108,41 +105,11 @@ def _parse_command_template(base_command: str, template: str) -> list[str]:
     return rendered if any(flag in rendered for flag in PROMPT_FLAGS) else []
 
 
-def _coalesce_variants(variants: list[list[str]]) -> list[list[str]]:
-    deduped: list[list[str]] = []
-    for candidate in variants:
-        if candidate not in deduped:
-            deduped.append(candidate)
-    return deduped
-
-
-def _command_variants(command: str, command_contract: dict[str, Any], fallback_prompt: str) -> list[list[str]]:
-    templates: list[str] = []
-    for key in GROK_SMOKE_TEMPLATE_KEYS:
-        contract_template = str(command_contract.get(key) or "")
-        if contract_template:
-            templates.append(contract_template)
-
-    # Existing contract may only provide oauth/session keys; preserve them as primary.
-    if not templates and (command == "hermes" or "grok" in command):
-        templates.append(f"{command} -p <prompt> --output-format plain --max-turns 3")
-
-    # If hermes is the primary command, add a direct grok smoke fallback that often
-    # bypasses hermes session transport restrictions.
-    if command == "hermes":
-        fallback = "grok -p <prompt> --output-format plain --max-turns 3"
-        if fallback not in templates:
-            templates.append(fallback)
-
-    variants: list[list[str]] = []
-    for template in templates:
-        rendered = _parse_command_template(command, template)
-        if rendered:
-            variants.append(rendered)
-
-    if not variants:
-        variants.append([command, "-p", fallback_prompt, "--output-format", "plain", "--max-turns", "3"])
-    return _coalesce_variants(variants)
+def _command_variants(command_contract: dict[str, Any]) -> list[list[str]]:
+    """Return only the configured Hermes smoke contract, never a direct fallback."""
+    template = str(command_contract.get(GROK_SMOKE_TEMPLATE_KEY) or "")
+    rendered = _parse_command_template(template)
+    return [rendered] if rendered else []
 
 
 def _grok_cli_failure_flags(stdout: str = "", stderr: str = "") -> dict[str, Any]:
@@ -211,10 +178,19 @@ def _diagnostic_command(
     stdout = _safe_excerpt(completed.stdout)
     stderr = _safe_excerpt(completed.stderr)
     flags = _grok_cli_failure_flags(stdout, stderr)
+    combined_lower = f"{stdout}\n{stderr}".lower()
+    unauthenticated = any(
+        marker in combined_lower
+        for marker in (
+            "not authenticated",
+            "not logged in",
+            "logged out",
+            "missing access token",
+            "missing access_token",
+        )
+    )
+    logged_in = "logged in" in combined_lower and not unauthenticated
     stdout_lower = stdout.lower()
-    stderr_lower = stderr.lower()
-    unauthenticated = "not authenticated" in stdout_lower or "not authenticated" in stderr_lower
-    logged_in = "logged in" in stdout_lower and not unauthenticated
     default_model_visible = "default model" in stdout_lower or "model:" in stdout_lower
     return {
         "command_shape": " ".join(args),
@@ -238,62 +214,35 @@ def _diagnostics(
     runner: CommandRunner,
     timeout_seconds: int,
 ) -> dict[str, Any]:
-    if command == "hermes":
-        inspect_args = [command, "status"]
-        models_args = [command, "auth", "list"]
-        command_labels = ("status", "auth_list")
-    else:
-        inspect_args = [command, "inspect"]
-        models_args = [command, "models"]
-        command_labels = ("inspect", "models")
-    inspect_report = _diagnostic_command(
-        inspect_args,
-        timeout_seconds=timeout_seconds,
-        runner=runner,
-    )
-    models_report = _diagnostic_command(
-        models_args,
+    auth_report = _diagnostic_command(
+        [command, "auth", "status", "xai-oauth"],
         timeout_seconds=timeout_seconds,
         runner=runner,
     )
     auth_status = (
         "not_authenticated"
-        if models_report.get("not_authenticated_marker_present")
+        if auth_report.get("not_authenticated_marker_present")
         else "authenticated_but_settings_fetch_failed"
-        if models_report.get("logged_in_marker_present")
-        and (models_report.get("settings_fetch_failed") or inspect_report.get("settings_fetch_failed"))
+        if auth_report.get("logged_in_marker_present")
+        and (
+            auth_report.get("settings_fetch_failed")
+            or auth_report.get("transport_failure_marker_present")
+        )
         else "authenticated"
-        if models_report.get("logged_in_marker_present")
+        if auth_report.get("logged_in_marker_present")
         else "unknown"
     )
-    settings_fetch_failed = bool(
-        inspect_report.get("settings_fetch_failed")
-        or models_report.get("settings_fetch_failed")
-    )
-    transport_failure = bool(
-        inspect_report.get("transport_failure_marker_present")
-        or models_report.get("transport_failure_marker_present")
-    )
+    settings_fetch_failed = bool(auth_report.get("settings_fetch_failed"))
+    transport_failure = bool(auth_report.get("transport_failure_marker_present"))
     return {
         "scope": "non_private_local_cli_diagnostics",
         "loads_private_project_context": False,
-        "commands": {
-            command_labels[0]: inspect_report,
-            command_labels[1]: models_report,
-        },
+        "commands": {"xai_oauth_status": auth_report},
         "auth_status": auth_status,
         "auth_session_healthy": auth_status == "authenticated" and not settings_fetch_failed and not transport_failure,
-        "not_authenticated_marker_present": bool(models_report.get("not_authenticated_marker_present")),
-        "model_catalog_visible": bool(
-            inspect_report.get("model_catalog_visible")
-            or models_report.get("model_catalog_visible")
-        ),
-        "login_or_model_catalog_visible": bool(
-            inspect_report.get("logged_in_marker_present")
-            or inspect_report.get("default_model_marker_present")
-            or models_report.get("logged_in_marker_present")
-            or models_report.get("default_model_marker_present")
-        ),
+        "not_authenticated_marker_present": bool(auth_report.get("not_authenticated_marker_present")),
+        "model_catalog_visible": False,
+        "login_or_model_catalog_visible": bool(auth_report.get("logged_in_marker_present")),
         "settings_fetch_failed": settings_fetch_failed,
         "transport_failure_marker_present": transport_failure,
     }
@@ -328,17 +277,18 @@ def build_grok_cli_smoke_report(
     root = root.resolve()
     config = _read_yaml(root / "config" / "media_generation_backends.yml")
     backend = ((config.get("backends") or {}).get("hermes_grok_oauth") or {})
-    command = str(backend.get("command") or "grok")
+    command = str(backend.get("command") or "")
     command_contract = backend.get("command_contract") if isinstance(backend.get("command_contract"), dict) else {}
     variants = _command_variants(
-        command,
         command_contract if isinstance(command_contract, dict) else {},
-        PROMPT,
     )
-    fallback_prompt = f"{command} -p <prompt> --output-format plain --max-turns 3"
-    if not variants:
-        variants.append(_parse_command_template(command, fallback_prompt))
-    command_path = _resolve_command_path(variants[0][0], command_runner) if variants and variants[0] else None
+    contract_command = variants[0][0] if variants and variants[0] else None
+    executable_matches_contract = command == "hermes" and contract_command == command
+    command_path = (
+        _resolve_command_path(command, command_runner)
+        if executable_matches_contract
+        else None
+    )
     max_turns = _arg_value(variants[0], "--max-turns") if variants and variants[0] else None
     report: dict[str, Any] = {
         "schema_version": 1,
@@ -354,7 +304,9 @@ def build_grok_cli_smoke_report(
         "command_variants": [
             {"command": v[0], "command_shape": _command_shape(v)} for v in variants if v
         ],
-        "command": variants[0][0] if variants and variants[0] else command,
+        "command": command,
+        "contract_command": contract_command,
+        "configured_contract_key": GROK_SMOKE_TEMPLATE_KEY,
         "command_available": bool(command_path),
         "cli_entrypoint_available": bool(command_path),
         "local_cli_entrypoint_available": bool(command_path),
@@ -363,7 +315,8 @@ def build_grok_cli_smoke_report(
         "tested_invocation_mode": "non_interactive_prompt_contract",
         "execution_scope": "internal_local_cli_worker",
         "local_cli_entrypoint_is_internal_worker": (
-            backend.get("adapter_kind") in {"local_grok_cli", "grok_cli_oauth"}
+            executable_matches_contract
+            and backend.get("adapter_kind") in {"local_grok_cli", "grok_cli_oauth"}
             and backend.get("internal_worker") is True
             and backend.get("worker_id") == "grok"
             and backend.get("role_owner") == "ArtifactProducer"
@@ -384,8 +337,24 @@ def build_grok_cli_smoke_report(
     if not backend:
         report.update({"status": "blocked", "reason": "backend_config_missing"})
         return report
+    if command != "hermes":
+        report.update(
+            {
+                "status": "blocked",
+                "reason": "grok_cli_unsupported_executable",
+            }
+        )
+        return report
     if not variants or not variants[0]:
         report.update({"status": "blocked", "reason": "grok_cli_invalid_command_template"})
+        return report
+    if contract_command != command:
+        report.update(
+            {
+                "status": "blocked",
+                "reason": "grok_cli_contract_executable_mismatch",
+            }
+        )
         return report
     if not command_path:
         report.update({"status": "blocked", "reason": "grok_cli_not_found"})
@@ -527,15 +496,7 @@ def build_grok_cli_smoke_report(
             )
             return report
 
-        if (
-            attempt_report["status"] == "warn"
-            or attempt_report["reason"] not in SETTINGS_FAILURE_RETRYABLE
-            or attempt + 1 >= len(variants)
-        ):
-            break
-
-        # Retry using fallback command variant (typically direct grok fallback for hermes session).
-        continue
+        break
 
     if final_status == "warn":
         report.update(

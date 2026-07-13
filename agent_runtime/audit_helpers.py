@@ -34,6 +34,36 @@ def capability_status(capabilities: dict[str, dict[str, Any]], capability_id: st
     return str(capabilities.get(capability_id, {}).get("status", "missing"))
 
 
+def trusted_writer_request_route_current(report: dict[str, Any]) -> bool:
+    """Return whether a persisted trusted-runner request uses the current Writer route."""
+    items = report.get("items") if isinstance(report.get("items"), list) else []
+    writer = next(
+        (
+            item
+            for item in items
+            if isinstance(item, dict)
+            and item.get("id") == "run_crown_internal_writer_eval"
+        ),
+        {},
+    )
+    package = (
+        report.get("local_runner_package")
+        if isinstance(report.get("local_runner_package"), dict)
+        else {}
+    )
+    preflight_commands = package.get("preflight_commands")
+    if not isinstance(preflight_commands, list):
+        preflight_commands = []
+    command = str(writer.get("command") or "")
+    return (
+        writer.get("assigned_worker") == "claude_code"
+        and "--writer-worker claude_code" in command
+        and "--writer-worker agy" not in command
+        and "command -v claude" in preflight_commands
+        and "command -v agy" not in preflight_commands
+    )
+
+
 def evidence_health(evidence: list[str]) -> dict[str, Any]:
     paths = [path for path in evidence if path]
     missing = [path for path in paths if not Path(path).exists()]
@@ -395,9 +425,13 @@ def active_acceptance_blockers(
     boundary = frontdesk_runtime_boundary or {}
     not_current_blockers = [
         {
-            "id": "writer_agy_session_health",
-            "active": "current_agy_session_health" in session_issue_by_id,
-            "status": "blocking" if "current_agy_session_health" in session_issue_by_id else "not_blocking",
+            "id": "writer_claude_session_health",
+            "active": "current_claude_writer_session_health" in session_issue_by_id,
+            "status": (
+                "blocking"
+                if "current_claude_writer_session_health" in session_issue_by_id
+                else "not_blocking"
+            ),
         },
         {
             "id": "agentlab_internal_route_or_role_binding",
@@ -431,7 +465,9 @@ def active_acceptance_blockers(
         "selected_item_gate_summary": {
             "writer_selected_in_scope": "writer" in required_scopes,
             "media_selected_in_scope": "media" in required_scopes,
-            "writer_selected_can_run": "current_agy_session_health" not in session_issue_by_id,
+            "writer_selected_can_run": (
+                "current_claude_writer_session_health" not in session_issue_by_id
+            ),
             "media_selected_can_run": "current_grok_session_health" not in session_issue_by_id,
         },
     }

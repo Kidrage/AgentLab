@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import sys
 import tempfile
 from pathlib import Path
@@ -472,6 +473,197 @@ class ProjectArtifactStewardTests(TestCase):
 
             self.assertTrue(any("missing archive_receipt.yml" in issue for issue in issues))
             self.assertTrue(any("single-current invariant" in issue for issue in issues))
+
+    def test_media_promotion_requires_recomputed_independent_visual_acceptance(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = self._make_run(root)
+            candidate = run_dir / "artifacts" / "poster.png"
+            candidate.parent.mkdir(parents=True)
+            candidate.write_bytes(b"real-candidate-image")
+            _write_yaml(
+                run_dir / "artifact_promotion_plan.yml",
+                {
+                    "version": 1,
+                    "project": "Novel",
+                    "task_id": "task_0001",
+                    "promotions": [
+                        {
+                            "artifact_id": "poster",
+                            "source_run_artifact": "artifacts/poster.png",
+                            "production_path": "artifacts/poster.png",
+                        }
+                    ],
+                },
+            )
+
+            blocked = apply_archive_protocol(root, "Novel", "task_0001")
+
+            self.assertEqual(blocked["status"], "blocked")
+            self.assertEqual(blocked["visual_acceptance_gate"]["status"], "blocked")
+            self.assertTrue(
+                any("visual promotion missing visual_acceptance_candidate.yml" in issue for issue in blocked["errors"])
+            )
+            self.assertFalse((root / "projects" / "Novel" / "artifacts" / "poster.png").exists())
+
+            digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+            size_bytes = candidate.stat().st_size
+            dimensions = {
+                name: {"verdict": "pass", "evidence": [f"checked {name}"]}
+                for name in ("aesthetic", "continuity", "technical", "factual_safety")
+            }
+            _write_yaml(
+                run_dir / "visual_acceptance_candidate.yml",
+                {
+                    "candidate_id": "poster-v1",
+                    "candidate_only": True,
+                    "status": "complete",
+                    "asset": {
+                        "path": "artifacts/poster.png",
+                        "media_type": "image",
+                        "sha256": digest,
+                        "size_bytes": size_bytes,
+                    },
+                    "generation_receipt": {
+                        "status": "complete",
+                        "producer": {"role": "ArtifactProducer", "id": "grok-producer"},
+                        "backend": "hermes_grok_oauth",
+                        "model": "grok-imagine-image",
+                        "prompt_parameters": {"prompt_sha256": hashlib.sha256(b"prompt").hexdigest()},
+                        "reference_assets": [],
+                    },
+                    "observer_evidence": {
+                        "status": "complete",
+                        "observer": {
+                            "role": "Observer",
+                            "id": "agy-observer",
+                            "backend": "agy_oauth",
+                            "model": "gemini-3.5-flash",
+                        },
+                        "asset": {
+                            "path": "artifacts/poster.png",
+                            "sha256": digest,
+                            "size_bytes": size_bytes,
+                        },
+                        "keyframes": [{"label": "full_frame", "sha256": digest}],
+                    },
+                    "reviews": [
+                        {
+                            "reviewer": {
+                                "role": "Reviewer",
+                                "id": "claude-reviewer",
+                                "backend": "claude_shell",
+                                "model": "deepseek-v4-pro",
+                            },
+                            "status": "complete",
+                            "asset": {
+                                "path": "artifacts/poster.png",
+                                "sha256": digest,
+                                "size_bytes": size_bytes,
+                            },
+                            "dimensions": dimensions,
+                        },
+                        {
+                            "reviewer": {
+                                "role": "Verifier",
+                                "id": "codex-verifier",
+                                "backend": "hermes_codex_oauth",
+                                "model": "gpt-5.6-sol",
+                            },
+                            "status": "complete",
+                            "asset": {
+                                "path": "artifacts/poster.png",
+                                "sha256": digest,
+                                "size_bytes": size_bytes,
+                            },
+                            "checks": {
+                                name: {"verdict": "pass", "evidence": [f"checked {name}"]}
+                                for name in ("asset_integrity", "evidence_chain", "reviewer_independence", "promotion_boundary")
+                            },
+                        },
+                    ],
+                },
+            )
+
+            accepted = apply_archive_protocol(root, "Novel", "task_0001")
+
+            self.assertEqual(accepted["status"], "completed")
+            self.assertEqual(accepted["visual_acceptance_gate"]["status"], "pass")
+            self.assertEqual(accepted["visual_acceptance_gate"]["verified_sources"], ["artifacts/poster.png"])
+            self.assertEqual(
+                (root / "projects" / "Novel" / "artifacts" / "poster.png").read_bytes(),
+                b"real-candidate-image",
+            )
+
+    def test_media_promotion_rechecks_file_hash_after_acceptance_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = self._make_run(root)
+            candidate = run_dir / "artifacts" / "poster.png"
+            candidate.parent.mkdir(parents=True)
+            candidate.write_bytes(b"original")
+            digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+            size_bytes = candidate.stat().st_size
+            _write_yaml(
+                run_dir / "artifact_promotion_plan.yml",
+                {
+                    "promotions": [
+                        {
+                            "source_run_artifact": "artifacts/poster.png",
+                            "production_path": "artifacts/poster.png",
+                        }
+                    ]
+                },
+            )
+            _write_yaml(
+                run_dir / "visual_acceptance_candidate.yml",
+                {
+                    "candidate_id": "poster-v1",
+                    "candidate_only": True,
+                    "status": "complete",
+                    "asset": {
+                        "path": "artifacts/poster.png",
+                        "media_type": "image",
+                        "sha256": digest,
+                        "size_bytes": size_bytes,
+                    },
+                    "generation_receipt": {
+                        "status": "complete",
+                        "producer": {"role": "ArtifactProducer", "id": "grok-producer"},
+                        "backend": "grok",
+                        "model": "grok-image",
+                        "prompt_parameters": {"prompt_sha256": "abc"},
+                        "reference_assets": [],
+                    },
+                    "observer_evidence": {
+                        "status": "complete",
+                        "observer": {"role": "Observer", "id": "observer", "backend": "agy", "model": "gemini"},
+                        "asset": {"path": "artifacts/poster.png", "sha256": digest, "size_bytes": size_bytes},
+                        "keyframes": [{"label": "full", "sha256": digest}],
+                    },
+                    "reviews": [
+                        {
+                            "reviewer": {"role": "Reviewer", "id": "reviewer", "backend": "claude", "model": "deepseek"},
+                            "status": "complete",
+                            "asset": {"path": "artifacts/poster.png", "sha256": digest, "size_bytes": size_bytes},
+                            "dimensions": {name: {"verdict": "pass", "evidence": ["ok"]} for name in ("aesthetic", "continuity", "technical", "factual_safety")},
+                        },
+                        {
+                            "reviewer": {"role": "Verifier", "id": "verifier", "backend": "hermes", "model": "gpt-5.6-sol"},
+                            "status": "complete",
+                            "asset": {"path": "artifacts/poster.png", "sha256": digest, "size_bytes": size_bytes},
+                            "checks": {name: {"verdict": "pass", "evidence": ["ok"]} for name in ("asset_integrity", "evidence_chain", "reviewer_independence", "promotion_boundary")},
+                        },
+                    ],
+                },
+            )
+            candidate.write_bytes(b"tampered-after-review")
+
+            receipt = apply_archive_protocol(root, "Novel", "task_0001")
+
+            self.assertEqual(receipt["status"], "blocked")
+            self.assertTrue(any("asset.sha256_mismatch" in issue for issue in receipt["errors"]))
+            self.assertFalse((root / "projects" / "Novel" / "artifacts" / "poster.png").exists())
 
 
 if __name__ == "__main__":

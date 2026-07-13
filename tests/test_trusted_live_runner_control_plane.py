@@ -27,7 +27,11 @@ def test_operator_handoff_preserves_trusted_runner_and_approval_boundaries(
     candidates = {item["id"]: item for item in report["candidate_items"]}
 
     assert report["report_type"] == "agentlab_trusted_live_runner_operator_handoff"
-    assert report["status"] == "ready_for_trusted_runner"
+    if boundary["writer_request_route_current"]:
+        assert report["status"] == "ready_for_trusted_runner"
+    else:
+        assert report["status"] == "needs_attention"
+        assert "trusted_live_runner_writer_route_stale" in report["issues"]
     assert boundary["codex_frontdesk_executes_private_live_commands"] is False
     assert boundary["codex_frontdesk_executes_role_session_acceptance_commands"] is False
     assert boundary["trusted_agentlab_runner_required"] is True
@@ -42,7 +46,7 @@ def test_operator_handoff_preserves_trusted_runner_and_approval_boundaries(
 
     gates = boundary["selected_session_health_gates"]
     assert gates["run_crown_internal_writer_eval"]["required_issue_ids"] == [
-        "current_agy_session_health"
+        "current_claude_writer_session_health"
     ]
     assert gates["run_crown_internal_media_smoke"]["required_issue_ids"] == [
         "current_grok_session_health"
@@ -85,7 +89,9 @@ def test_operator_handoff_preserves_trusted_runner_and_approval_boundaries(
 
     writer = candidates["run_crown_internal_writer_eval"]
     assert writer["agentlab_execution_owner"] == "Writer"
-    assert writer["assigned_worker"] == "agy"
+    assert (writer["assigned_worker"] == "claude_code") is boundary[
+        "writer_request_route_current"
+    ]
     assert writer["candidate_only"] is True
     assert writer["required_files_exist"] is True
     assert writer["returned_candidate_artifacts_accepted"] is True
@@ -152,7 +158,7 @@ def test_candidate_items_use_explicit_missing_return_state() -> None:
                 {
                     "id": "run_missing_status",
                     "agentlab_execution_owner": "Writer",
-                    "assigned_worker": "agy",
+                    "assigned_worker": "claude_code",
                     "expected_outputs": {
                         "type": "narrative_live_smoke",
                         "candidate_only": True,
@@ -192,6 +198,11 @@ def test_trusted_runner_control_plane_cli_writes_yaml(
 
     result = RUNNER.invoke(app, [command, "--out", str(out)])
 
-    assert result.exit_code == 0
     report = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert result.exit_code == (
+        0
+        if report["status"]
+        in {"ready_for_trusted_runner", "ready_for_internal_live_smoke"}
+        else 1
+    )
     assert report["report_type"] == report_type

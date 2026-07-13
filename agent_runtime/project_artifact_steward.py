@@ -46,6 +46,8 @@ EVIDENCE_FILENAMES = {
     "archive_receipt.yml",
     "artifact_lineage.yml",
     "artifact_promotion_plan.yml",
+    "visual_acceptance_candidate.yml",
+    "visual_acceptance_decision.yml",
 }
 
 EVIDENCE_NAME_PATTERNS = (
@@ -55,6 +57,26 @@ EVIDENCE_NAME_PATTERNS = (
     "validation",
     "before_diff",
     "after_diff",
+)
+
+VISUAL_PROMOTION_EXTENSIONS = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".gif",
+        ".svg",
+        ".mp4",
+        ".mov",
+        ".webm",
+        ".mkv",
+        ".mp3",
+        ".wav",
+        ".m4a",
+        ".flac",
+        ".pdf",
+    }
 )
 
 
@@ -520,6 +542,7 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
     project_root = _project_root(agentlab_root, project)
     run_dir = _run_dir(agentlab_root, project, task_id)
     run_dir.mkdir(parents=True, exist_ok=True)
+    plan = ensure_artifact_promotion_plan(agentlab_root, project, task_id)
     readiness_errors = validate_content_promotion_readiness(
         agentlab_root,
         project,
@@ -527,6 +550,8 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
         run_dir,
         require_archive_receipt=False,
     )
+    visual_acceptance_gate = _visual_promotion_gate(run_dir, plan)
+    readiness_errors.extend(visual_acceptance_gate["issues"])
     if readiness_errors:
         receipt = {
             "version": 1,
@@ -539,12 +564,12 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
             "project_artifact_index": "project_artifact_index.yml",
             "promotions_applied": [],
             "archived_paths": [],
+            "visual_acceptance_gate": visual_acceptance_gate,
             "errors": readiness_errors,
         }
         atomic_write_yaml(run_dir / "archive_receipt.yml", receipt)
         return receipt
     lineage = ensure_artifact_lineage(agentlab_root, project, task_id)
-    plan = ensure_artifact_promotion_plan(agentlab_root, project, task_id)
     intent = _artifact_intent(agentlab_root, project, task_id, run_dir)
     archive_dir = Path(plan.get("archive_dir") or intent["archive_dir"])
     source_prompt_summary = (
@@ -630,10 +655,99 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
         "project_artifact_index": "project_artifact_index.yml",
         "promotions_applied": promotions_applied,
         "archived_paths": archived_paths,
+        "visual_acceptance_gate": visual_acceptance_gate,
         "errors": errors,
     }
     atomic_write_yaml(run_dir / "archive_receipt.yml", receipt)
     return receipt
+
+
+def _visual_promotion_gate(run_dir: Path, plan: dict[str, Any]) -> dict[str, Any]:
+    """Recompute visual/media acceptance against the exact files being promoted."""
+
+    sources = sorted(
+        {
+            str(entry.get("source_run_artifact") or "")
+            for entry in plan.get("promotions") or []
+            if isinstance(entry, dict)
+            and not entry.get("evidence_only")
+            and Path(str(entry.get("source_run_artifact") or "")).suffix.lower()
+            in VISUAL_PROMOTION_EXTENSIONS
+        }
+    )
+    gate: dict[str, Any] = {
+        "required": bool(sources),
+        "status": "not_required" if not sources else "blocked",
+        "manifest": "visual_acceptance_candidate.yml" if sources else None,
+        "verified_sources": [],
+        "issues": [],
+    }
+    if not sources:
+        return gate
+
+    manifest_path = run_dir / "visual_acceptance_candidate.yml"
+    manifest = _read_yaml(manifest_path, {})
+    if not manifest_path.exists() or not isinstance(manifest, dict):
+        gate["issues"].append(
+            "visual promotion missing visual_acceptance_candidate.yml"
+        )
+        return gate
+
+    raw_candidates = manifest.get("candidates")
+    candidates = (
+        [item for item in raw_candidates if isinstance(item, dict)]
+        if isinstance(raw_candidates, list)
+        else [manifest]
+    )
+    try:
+        from visual_acceptance import evaluate_visual_candidate
+    except ModuleNotFoundError:  # pragma: no cover - package import path
+        from agent_runtime.visual_acceptance import evaluate_visual_candidate
+
+    evaluated: list[tuple[Path, dict[str, Any]]] = []
+    for candidate in candidates:
+        asset = candidate.get("asset") or {}
+        raw_path = str(asset.get("path") or "") if isinstance(asset, dict) else ""
+        asset_path = Path(raw_path)
+        if not asset_path.is_absolute():
+            asset_path = run_dir / asset_path
+        evaluated.append(
+            (
+                asset_path.resolve(strict=False),
+                evaluate_visual_candidate(candidate, workspace=run_dir),
+            )
+        )
+
+    for source in sources:
+        source_path = (run_dir / source).resolve(strict=False)
+        matches = [decision for asset_path, decision in evaluated if asset_path == source_path]
+        if len(matches) != 1:
+            gate["issues"].append(
+                f"visual promotion {source} requires exactly one matching acceptance candidate"
+            )
+            continue
+        decision = matches[0]
+        if decision.get("status") != "accepted_candidate" or not (
+            decision.get("promotion") or {}
+        ).get("eligible"):
+            reasons = decision.get("blocking_reasons") or []
+            if reasons:
+                for reason in reasons:
+                    if isinstance(reason, dict):
+                        gate["issues"].append(
+                            f"visual promotion {source} blocked: "
+                            f"{reason.get('code') or 'unknown'} at {reason.get('path') or '<unknown>'}"
+                        )
+            else:
+                gate["issues"].append(
+                    f"visual promotion {source} blocked by visual acceptance"
+                )
+            continue
+        gate["verified_sources"].append(source)
+
+    if not gate["issues"] and gate["verified_sources"] == sources:
+        gate["status"] = "pass"
+    return gate
 
 
 def validate_content_promotion_readiness(

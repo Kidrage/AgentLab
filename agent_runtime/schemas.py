@@ -8,6 +8,7 @@ AgentName = Literal[
     "Supervisor",
     "RepoScout",
     "Researcher",
+    "Observer",
     "InterfaceMapper",
     "Coder",
     "ArtifactProducer",

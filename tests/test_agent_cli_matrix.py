@@ -21,20 +21,54 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
 
 def test_matrix_references_are_valid_and_full_cli_full_matches_required_defaults() -> None:
     full_cli, cli = build_matrices(ROOT)
-    rows = {(row["tier"], row["role"]): row for row in full_cli}
+    rows = {(row["tier"], row["profile_key"]): row for row in full_cli}
 
-    assert rows[("full", "Supervisor")]["cli_agent"] == "hermes"
-    assert rows[("full", "Supervisor")]["model_key"] == "codex_gpt_5_5_high_hermes_oauth"
-    assert rows[("full", "Supervisor")]["fallback_cli_agent"] == "claude_code"
-    assert rows[("full", "Supervisor")]["fallback_model_key"] == "deepseek_v4_pro"
-    assert rows[("full", "Writer")]["cli_agent"] == "agy"
-    assert rows[("full", "Writer")]["model_key"] == "gemini_3_5_flash_high_agy_oauth"
+    assert rows[("full", "supervisor")]["cli_agent"] == "hermes"
+    assert rows[("full", "supervisor")]["model_key"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+    assert rows[("full", "supervisor")]["capacity_route"] == "Supervisor"
+    assert rows[("full", "supervisor")]["fallback_routes"] == "SupervisorDeepSeek"
+    assert rows[("full", "supervisor")]["fallback_cli_agent"] == "claude_code"
+    assert rows[("full", "supervisor")]["fallback_model_key"] == "deepseek_v4_pro"
+    assert rows[("full", "observer")]["cli_agent"] == "agy"
+    assert rows[("full", "observer")]["model_key"] == "gemini_3_5_flash_high_agy_oauth"
+    assert rows[("full", "observer")]["capacity_route"] == "Observer"
+    assert rows[("full", "observer")]["fallback_routes"] == "ObserverClaude"
+    assert rows[("full", "observer")]["fallback_cli_agent"] == "agy"
+    assert rows[("full", "observer")]["fallback_model_key"] == "claude_sonnet_4_6_agy_oauth"
+    assert rows[("full", "writer")]["cli_agent"] == "claude_code"
+    assert rows[("full", "writer")]["model_key"] == "deepseek_v4_pro"
+    assert rows[("full", "writer")]["capacity_route"] == "Writer"
+    assert rows[("full", "writer")]["fallback_routes"] == "WriterFlash"
+    assert rows[("full", "writer")]["fallback_cli_agent"] == "claude_code"
+    assert rows[("full", "writer")]["fallback_model_key"] == "deepseek_v4_flash"
+    assert rows[("full", "researcher")]["cli_agent"] == "grok"
+    assert rows[("full", "artifact_producer")]["invocation_contract"] == "grok_media"
+    assert rows[("full", "artifact_producer")]["artifact_types"] == (
+        "text | image | video | audio | spreadsheet | presentation | mixed"
+    )
+    artifact_dispatch = rows[("full", "artifact_producer")]["artifact_dispatch"]
+    assert (
+        "text|spreadsheet|presentation=>"
+        "qwen_cli/qwen/qwen_artifact/ArtifactProducerQwenMax"
+    ) in artifact_dispatch
+    assert "image|video=>grok_media/grok/grok_media/ArtifactProducer" in artifact_dispatch
+    assert "audio|mixed=>unsupported" in artifact_dispatch
+    assert "ArtifactProducerQwenLow" in rows[("low", "artifact_producer")][
+        "artifact_dispatch"
+    ]
     for tier in ("full", "performance", "low"):
-        assert rows[(tier, "Reviewer")]["cli_agent"] == "qwen"
-        assert rows[(tier, "Scribe")]["cli_agent"] == "qwen"
-        assert rows[(tier, "Reviewer")]["role_binding_status"] == "ok"
-        assert rows[(tier, "Scribe")]["role_binding_status"] == "ok"
+        assert rows[(tier, "reviewer")]["cli_agent"] == "qwen"
+        assert rows[(tier, "visual_reviewer")]["cli_agent"] == "agy"
+        assert rows[(tier, "visual_reviewer")]["role"] == "Reviewer"
+        assert rows[(tier, "scribe")]["cli_agent"] == "qwen"
+        assert rows[(tier, "reviewer")]["role_binding_status"] == "ok"
+        assert rows[(tier, "visual_reviewer")]["role_binding_status"] == "ok"
+        assert rows[(tier, "scribe")]["role_binding_status"] == "ok"
     assert all(row["role_binding_status"] in {"ok", "not_applicable"} for row in full_cli)
+    assert rows[("low", "writer")]["capacity_route"] == "WriterLow"
+    assert rows[("low", "writer")]["fallback_routes"] == ""
+    assert rows[("low", "writer")]["fallback_cli_agent"] == ""
+    assert rows[("low", "writer")]["fallback_model_key"] == ""
     assert {row["component"] for row in cli} >= {"hermes", "claude_code", "codex", "qwen", "agy"}
 
 

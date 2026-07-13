@@ -20,6 +20,37 @@ from schemas import LLMSettings
 
 
 class ArtifactGateTests(TestCase):
+    def test_not_required_empty_visual_candidate_is_valid_pack_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            run_dir = Path(td)
+            atomic_write_yaml(
+                run_dir / "workflow_plan.yml",
+                {
+                    "production_pack": {
+                        "required_outputs": ["visual_acceptance_candidate.yml"]
+                    }
+                },
+            )
+            content = yaml.safe_dump(
+                {
+                    "schema_version": "visual-acceptance-candidates/v1",
+                    "status": "not_required",
+                    "candidate_only": True,
+                    "production_modified": False,
+                    "candidates": [],
+                },
+                sort_keys=False,
+            )
+
+            self.assertEqual(
+                artifact_content_issues(
+                    "visual_acceptance_candidate.yml",
+                    content,
+                    run_dir,
+                ),
+                [],
+            )
+
     def test_tool_call_report_is_invalid(self) -> None:
         issues = artifact_content_issues(
             "02_reposcout_report.md",
@@ -492,6 +523,7 @@ class ProviderFallbackTests(TestCase):
         import sys
         import types
         from types import SimpleNamespace
+        from unittest.mock import patch
 
         calls: list[dict] = []
 
@@ -576,10 +608,11 @@ class ProviderFallbackTests(TestCase):
         self.assertEqual(chain[0]["key"], "deepseek")
         self.assertEqual(chain[0]["model"], "deepseek-v4-pro")
 
-    def test_generate_text_auto_retries_configured_fallback_provider(self) -> None:
+    def test_generate_text_does_not_auto_switch_provider_without_explicit_policy(self) -> None:
         import sys
         import types
         from types import SimpleNamespace
+        from unittest.mock import patch
 
         calls: list[str] = []
 
@@ -630,29 +663,31 @@ class ProviderFallbackTests(TestCase):
                 max_output_tokens=128,
             )
             try:
-                result = generate_text(
-                    settings,
-                    model_providers,
-                    [{"role": "user", "content": "scan repo"}],
-                    agent_name="RepoScout",
-                    run_dir=str(run_dir),
-                    project="Demo",
-                    task_id="task_fb",
-                    role="repo_reader",
-                    risk_level="R1",
-                    route=["RepoScout"],
-                )
+                with patch("llm_provider.time.sleep", return_value=None):
+                    result = generate_text(
+                        settings,
+                        model_providers,
+                        [{"role": "user", "content": "scan repo"}],
+                        agent_name="RepoScout",
+                        run_dir=str(run_dir),
+                        project="Demo",
+                        task_id="task_fb",
+                        role="repo_reader",
+                        risk_level="R1",
+                        route=["RepoScout"],
+                    )
+                decision_written = (run_dir / "USER_DECISION_REQUIRED.md").exists()
             finally:
                 if previous_openai is None:
                     sys.modules.pop("openai", None)
                 else:
                     sys.modules["openai"] = previous_openai
 
-        self.assertEqual(result.status, "completed")
-        self.assertEqual(result.provider, "deepseek")
-        self.assertEqual(result.fallback_from, "qwen3")
-        self.assertEqual(calls, ["qwen3.7-max", "deepseek-v4-pro"])
-        self.assertTrue(result.raw_usage["auto_fallback"])
+        self.assertEqual(result.status, "blocked_user_decision")
+        self.assertEqual(result.provider, "qwen3")
+        self.assertEqual(calls, ["qwen3.7-max"] * 3)
+        self.assertFalse(result.raw_usage.get("auto_fallback", False))
+        self.assertTrue(decision_written)
 
     def test_generate_text_retries_retryable_network_error_before_guard(self) -> None:
         import sys

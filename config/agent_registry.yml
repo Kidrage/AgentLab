@@ -130,23 +130,50 @@ agents:
 
   Researcher:
     template_path: agent_templates/researcher.md
-    role: 外部资料搜索、引用汇总、信息合成.
-    model_profile: perception_research  # qwen3.6-flash (默认)
+    role: Grok/Hermes 外部资料、社交与网页证据搜索，保留来源和检索时间.
+    model_profile: perception_research_grok
     model_tier: T2
     profile_mapping:
       brain_allocated:
-        L2: perception_research           # qwen3.6-flash
-        L3: perception_research_l3        # qwen3.6-plus
+        L2: perception_research_grok
+        L3: perception_research_grok
       max_quality:
-        any: perception_research_maxq     # qwen3.6-plus
+        any: perception_research_grok
       frugal:
         any: null                         # 跳过
     can_edit_source: false
-    can_run_shell: false
+    can_run_shell: true
     can_browse: true
     source_write_policy: never
+    execution_owner: hermes_grok_oauth
+    invocation_contract: grok_research
     required_outputs:
-      - runs/task_xxxx/research_notes.md
+      - runs/task_xxxx/03_research_notes.md
+
+  Observer:
+    template_path: agent_templates/observer.md
+    role: >
+      Read-only multimodal perception for assigned long-form text, images,
+      video, audio, and PDF inputs. Produces evidence-bound observations,
+      scientific context, limitations, and suggestions without acting on the
+      project or approving its own conclusions.
+    model_profile: perception_observer
+    model_tier: T2
+    can_edit_source: false
+    can_run_shell: false
+    can_write_agent_docs: false
+    can_browse: false
+    source_write_policy: never
+    observation_policy: assigned_inputs_only
+    execution_owner: agy
+    invocation_contract: agy_observer
+    required_inputs:
+      - runs/task_xxxx/user_request.md
+      - runs/task_xxxx/01_supervisor_plan.md
+      - runs/task_xxxx/observation_contract.yml
+      - exact read-only files declared by observation_contract.yml
+    required_outputs:
+      - runs/task_xxxx/observation_report.yml
 
   # ══════════════════════════════════════════════════════════════════════
   # T3 执行层 (Execution Tier)
@@ -200,8 +227,9 @@ agents:
   ArtifactProducer:
     template_path: agent_templates/artifact_producer.md
     role: >
-      泛化产物执行层。只接收 ArtifactTask 结构化合同，负责文本、图片、视频、
-      音频、表格、演示文稿和混合交付的生成、落盘、校验与失败转派。
+      泛化产物执行层。只接收 ArtifactTask 结构化合同，负责已登记能力覆盖的文本、
+      图片、视频、表格和演示文稿生成、落盘、校验与失败转派；音频与跨 provider
+      混合交付在没有专用适配器时必须明确阻断。
       不替代 Coder；涉及源码或自动化实现时必须由 Coder 承担代码变更。
     model_profile: execution_artifact_producer
     model_tier: T3
@@ -219,8 +247,8 @@ agents:
     shell_policy: artifact_validation_only
     execution_owner: capability_router
     allowed_backends:
-      - codex_high_cli
-      - agy_cli
+      - hermes_grok_oauth
+      - qwen_cli
       - qwen_37max_api
     required_inputs:
       - runs/task_xxxx/artifact_task.yml
@@ -233,16 +261,18 @@ agents:
   Writer:
     template_path: agent_templates/writer.md
     role: >
-      Creative writing execution alias. Drafts prose or chapter material from
-      the approved fiction brief while preserving voice, POV, continuity, and
-      word-count constraints.
-    model_profile: execution_artifact_producer
+      Pure creative Writer. Uses the bounded Claude shell with DeepSeek to draft
+      high-quality Chinese prose while preserving voice, POV, continuity, and
+      word-count constraints. It is not an ArtifactProducer or planner.
+    model_profile: execution_writer_deepseek
     model_tier: T3
-    role_alias_of: ArtifactProducer
     can_edit_source: false
-    can_run_shell: false
+    can_run_shell: true
     can_write_agent_docs: false
     source_write_policy: artifact_contract_outputs_only
+    execution_owner: claude_code
+    invocation_contract: claude_writer
+    allowed_backends: [claude_code_deepseek]
     required_inputs:
       - runs/task_xxxx/mission_contract.yml
       - runs/task_xxxx/user_request.md
@@ -255,16 +285,17 @@ agents:
   Reviewer:
     template_path: agent_templates/fiction_reviewer.md
     role: >
-      Creative writing review alias. Checks chapter drafts for continuity,
-      character state, timeline, POV walls, foreshadowing, item tracking, style
-      drift, and acceptance gates.
+      Independent route-specific review. Narrative routes check continuity,
+      character state, timeline, POV, and style drift. Media routes use an
+      isolated multimodal Agy/Gemini role-session to inspect actual staged
+      candidates and return four-dimension visual evidence without mutation.
     model_profile: audit_verifier
     model_tier: T4
-    role_alias_of: Verifier
     can_edit_source: false
-    can_run_shell: false
+    can_run_shell: true
     can_write_agent_docs: false
     source_write_policy: never
+    allowed_backends: [agy_gemini_oauth, qwen_cli, claude_code]
     required_inputs:
       - runs/task_xxxx/fiction_draft.md
       - runs/task_xxxx/mission_contract.yml

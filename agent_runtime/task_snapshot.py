@@ -14,23 +14,13 @@ from typing import Any
 
 from atomic_io import atomic_write_yaml, safe_read_yaml
 
+try:
+    from lifecycle_graph import LIFECYCLE_NODES
+except ModuleNotFoundError:  # pragma: no cover - package import
+    from agent_runtime.lifecycle_graph import LIFECYCLE_NODES
 
-LIFECYCLE_ORDER = [
-    "INIT_TASK",
-    "PREPARE_PLAN",
-    "SUPERVISOR_PLAN",
-    "REPO_CONTEXT",
-    "RESEARCH_OPTIONAL",
-    "INTERFACE_OPTIONAL",
-    "CODER_IMPLEMENTATION",
-    "VALIDATION",
-    "AUDIT",
-    "VERIFY",
-    "ARCHIVE",
-    "SELF_CHECK",
-    "SYNC_OPTIONAL",
-    "FINALIZE",
-]
+
+LIFECYCLE_ORDER = list(LIFECYCLE_NODES)
 
 TERMINAL_LIFECYCLE_STATUSES = {"completed", "skipped"}
 BLOCKING_STATUSES = {"blocked", "paused", "recoverable", "failed", "failed_recoverable"}

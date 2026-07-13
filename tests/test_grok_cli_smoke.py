@@ -30,6 +30,16 @@ def test_grok_cli_smoke_dry_run_reports_command_without_private_context() -> Non
     assert report["non_interactive_prompt_contract_status"] == "not_tested"
     assert report["interactive_cli_start_is_not_task_contract_proof"] is True
     assert report["status"] in {"configured", "blocked"}
+    assert report["command"] == "hermes"
+    assert report["command_variants"] == [
+        {
+            "command": "hermes",
+            "command_shape": (
+                "hermes --ignore-rules --provider xai-oauth -m grok-4.3 "
+                "-z <non_private_prompt>"
+            ),
+        }
+    ]
     assert "<non_private_prompt>" in report["command_shape"]
     rendered = yaml.safe_dump(report, sort_keys=False, allow_unicode=True)
     assert "Crown_of_Ash" not in rendered
@@ -57,19 +67,15 @@ def test_grok_cli_smoke_live_pass_with_fake_runner() -> None:
 
 
 def test_grok_cli_smoke_classifies_settings_fetch_failure() -> None:
+    commands: list[list[str]] = []
+
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
-        if args == ["hermes", "status"]:
+        commands.append(args)
+        if args == ["hermes", "auth", "status", "xai-oauth"]:
             return subprocess.CompletedProcess(
                 args=args,
                 returncode=0,
-                stdout="Provider: xAI Grok OAuth\nModel: grok-build-0.1\n",
-                stderr="",
-            )
-        if args == ["hermes", "auth", "list"]:
-            return subprocess.CompletedProcess(
-                args=args,
-                returncode=0,
-                stdout="xai-oauth (1 credentials):\n  #1 loopback_pkce oauth logged in\n",
+                stdout="xai-oauth: logged in\n",
                 stderr="ERROR Settings fetch failed after 3 attempts",
             )
         return subprocess.CompletedProcess(
@@ -93,24 +99,28 @@ def test_grok_cli_smoke_classifies_settings_fetch_failure() -> None:
     assert report["non_interactive_prompt_contract_status"] == "blocked"
     assert report["diagnostics"]["scope"] == "non_private_local_cli_diagnostics"
     assert report["diagnostics"]["loads_private_project_context"] is False
-    assert report["diagnostics"]["commands"]["status"]["status"] == "pass"
-    assert report["diagnostics"]["commands"]["auth_list"]["logged_in_marker_present"] is True
-    assert report["diagnostics"]["commands"]["auth_list"]["not_authenticated_marker_present"] is False
+    assert set(report["diagnostics"]["commands"]) == {"xai_oauth_status"}
+    auth_status = report["diagnostics"]["commands"]["xai_oauth_status"]
+    assert auth_status["command_shape"] == "hermes auth status xai-oauth"
+    assert auth_status["logged_in_marker_present"] is True
+    assert auth_status["not_authenticated_marker_present"] is False
     assert report["diagnostics"]["auth_status"] == "authenticated_but_settings_fetch_failed"
     assert report["diagnostics"]["auth_session_healthy"] is False
-    assert report["diagnostics"]["model_catalog_visible"] is True
+    assert report["diagnostics"]["model_catalog_visible"] is False
     assert report["diagnostics"]["settings_fetch_failed"] is True
+    assert commands[-1] == ["hermes", "auth", "status", "xai-oauth"]
+    assert all(command[:2] not in (["hermes", "status"], ["hermes", "auth", "list"]) for command in commands)
+    assert all(command[0] == "hermes" for command in commands)
+    assert len(report["attempts"]) == 1
 
 
 def test_grok_cli_smoke_classifies_transport_failure() -> None:
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
-        if args == ["hermes", "status"]:
-            return subprocess.CompletedProcess(args=args, returncode=0, stdout="Environment\n", stderr="")
-        if args == ["hermes", "auth", "list"]:
+        if args == ["hermes", "auth", "status", "xai-oauth"]:
             return subprocess.CompletedProcess(
                 args=args,
                 returncode=0,
-                stdout="xai-oauth (1 credentials):\n  #1 loopback_pkce oauth logged in\n",
+                stdout="xai-oauth: logged in\n",
                 stderr="",
             )
         return subprocess.CompletedProcess(
@@ -135,18 +145,11 @@ def test_grok_cli_smoke_classifies_transport_failure() -> None:
 
 def test_grok_cli_smoke_blocks_successful_exit_with_connection_error_text() -> None:
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
-        if args == ["hermes", "status"]:
+        if args == ["hermes", "auth", "status", "xai-oauth"]:
             return subprocess.CompletedProcess(
                 args=args,
                 returncode=0,
-                stdout="Provider: xAI Grok OAuth\nModel: grok-build-0.1\n",
-                stderr="",
-            )
-        if args == ["hermes", "auth", "list"]:
-            return subprocess.CompletedProcess(
-                args=args,
-                returncode=0,
-                stdout="xai-oauth (1 credentials):\n  #1 loopback_pkce oauth logged in\n",
+                stdout="xai-oauth: logged in\n",
                 stderr="",
             )
         return subprocess.CompletedProcess(
@@ -168,18 +171,11 @@ def test_grok_cli_smoke_blocks_successful_exit_with_connection_error_text() -> N
 
 def test_grok_cli_smoke_distinguishes_model_catalog_from_authentication() -> None:
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
-        if args == ["hermes", "status"]:
+        if args == ["hermes", "auth", "status", "xai-oauth"]:
             return subprocess.CompletedProcess(
                 args=args,
                 returncode=0,
-                stdout="Provider: xAI Grok OAuth\nModel: grok-build-0.1\n",
-                stderr="",
-            )
-        if args == ["hermes", "auth", "list"]:
-            return subprocess.CompletedProcess(
-                args=args,
-                returncode=0,
-                stdout="xai-oauth (1 credentials):\n  #1 loopback_pkce oauth not authenticated\n",
+                stdout="xai-oauth: not authenticated\n",
                 stderr="",
             )
         return subprocess.CompletedProcess(
@@ -191,20 +187,17 @@ def test_grok_cli_smoke_distinguishes_model_catalog_from_authentication() -> Non
 
     report = build_grok_cli_smoke_report(ROOT, live=True, command_runner=fake_runner)
 
-    status = report["diagnostics"]["commands"]["status"]
-    auth_list = report["diagnostics"]["commands"]["auth_list"]
-    assert status["default_model_marker_present"] is True
-    assert status["model_catalog_visible"] is True
-    assert auth_list["logged_in_marker_present"] is False
-    assert auth_list["not_authenticated_marker_present"] is True
+    auth_status = report["diagnostics"]["commands"]["xai_oauth_status"]
+    assert auth_status["logged_in_marker_present"] is False
+    assert auth_status["not_authenticated_marker_present"] is True
     assert report["diagnostics"]["auth_status"] == "not_authenticated"
     assert report["diagnostics"]["auth_session_healthy"] is False
-    assert report["diagnostics"]["model_catalog_visible"] is True
+    assert report["diagnostics"]["model_catalog_visible"] is False
 
 
 def test_grok_cli_smoke_timeout_omits_null_returncode() -> None:
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
-        if args in (["hermes", "status"], ["hermes", "auth", "list"]):
+        if args == ["hermes", "auth", "status", "xai-oauth"]:
             return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
         raise subprocess.TimeoutExpired(args, timeout, output="", stderr="ERROR Settings fetch failed after 3 attempts")
 
@@ -213,6 +206,57 @@ def test_grok_cli_smoke_timeout_omits_null_returncode() -> None:
     assert report["status"] == "blocked"
     assert report["reason"] == "grok_cli_settings_fetch_failed"
     assert "returncode" not in report
+
+
+def test_grok_cli_smoke_rejects_contract_with_wrong_executable(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "media_generation_backends.yml").write_text(
+        yaml.safe_dump(
+            {
+                "backends": {
+                    "hermes_grok_oauth": {
+                        "adapter_kind": "local_grok_cli",
+                        "worker_id": "grok",
+                        "role_owner": "ArtifactProducer",
+                        "internal_worker": True,
+                        "command": "hermes",
+                        "command_contract": {
+                            "session_smoke": (
+                                "grok -p <prompt> --output-format plain --max-turns 3"
+                            )
+                        },
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    calls: list[list[str]] = []
+
+    def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="AGENTLAB_GROK_CLI_SMOKE_OK\n",
+            stderr="",
+        )
+
+    report = build_grok_cli_smoke_report(
+        tmp_path,
+        live=True,
+        command_runner=fake_runner,
+    )
+
+    assert report["status"] == "blocked"
+    assert report["reason"] == "grok_cli_contract_executable_mismatch"
+    assert report["command"] == "hermes"
+    assert report["contract_command"] == "grok"
+    assert calls == []
 
 
 def test_grok_cli_smoke_cli_writes_yaml(tmp_path: Path) -> None:

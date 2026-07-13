@@ -61,7 +61,7 @@ Default design is local-first and approval-gated. Real external execution, skill
 - **Domain-aware creative routing / 领域感知创作路由**：`config/domain_route_packs.yml` for longform fiction, research, codebase, and media tasks
 - **CLI modularization / CLI 模块化**：worker, hygiene, capability, routing, external project, protocol, and role capability commands extracted
 - **Repository handoff / 仓库级交接**：`./agentlab.sh repository-handoff --repo <path> --write` → `PROJECT_HANDOFF.md`
-- **Executor refresh / 执行器更新**：`agy` as Coder, expanded Hermes model groups, updated worker invocation contracts
+- **Role/capacity refresh / 角色与容量更新**：`agy` is a read-only multimodal Observer/Reviewer; Writer, Supervisor, Researcher, and ArtifactProducer use governed role-specific CLI contracts and capacity routes
 - **Creative project governance / 创作项目治理**：`project_artifact_index.yml`, per-project handoff, artifact stewardship gates
 
 ### Active Creative Projects / 活跃创作项目（本地，不入 GitHub）
@@ -115,15 +115,20 @@ Practical status: M-series alignment stage. Consolidate M0/M1 acceptance before 
 
 ---
 
-## 9-Agent Operating Model / 9 智能体运行模型
+## 14-Role Operating Model / 14 角色运行模型
 
 ```text
-T1 Brain / 大脑层:       Supervisor → Hermes (default) / DeepSeek API fallback
-T2 Perception / 感知层:  RepoScout, Researcher, InterfaceMapper → Qwen
-T3 Execution / 执行层:   Coder (agy / Claude Code), PromptEngineer → Qwen Coder
-T4 Audit / 审核层:       TesterAuditor, Verifier → Qwen Flash/Plus / DeepSeek
-T5 Archive / 归档层:     Archivist → Qwen Plus
+T1 Brain / 大脑层:       Supervisor
+T2 Context / 上下文层:   RepoScout, Researcher, Observer, InterfaceMapper, PromptEngineer
+T3 Production / 生产层:  Coder, ArtifactProducer, Writer
+T4 Review / 审核层:      Reviewer, Scribe, TesterAuditor, Verifier
+T5 Archive / 归档层:     Archivist
 ```
+
+Current anchors / 当前锚点：Hermes + GPT-5.6 Sol (`xhigh`) for Supervisor;
+Agy Gemini/Claude OAuth pools for read-only Observer/visual Reviewer; Claude
+Code + DeepSeek for Writer; Hermes+xAI/Grok for sourced Researcher and
+image/video ArtifactProducer. Agy is never Coder, Writer, or ArtifactProducer.
 
 Budget modes / 预算模式: `brain_allocated` (default), `max_quality`, `frugal`
 
@@ -172,7 +177,7 @@ Full capability list / 完整能力列表：see [`docs/README.zh-CN.md`](docs/RE
 ```text
 AgentLab/
 ├── agent_runtime/       # Core runtime / 核心运行时
-├── agent_templates/     # 9 agent role prompts / 9 个 Agent 提示词
+├── agent_templates/     # Canonical role prompts / 规范角色提示词
 ├── config/              # YAML policies / YAML 策略
 ├── skills/              # Skill lifecycle registry / 技能生命周期
 ├── projects/            # Per-project memory + runs (local-only assets) / 项目记忆与运行

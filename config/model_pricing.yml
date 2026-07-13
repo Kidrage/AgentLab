@@ -6,43 +6,176 @@
 #   remain accepted for compatibility.
 # - Set per-unit prices to null for TBD/unknown/subscription pricing.
 # - Numeric 0 is treated as unknown unless the entry explicitly says free: true.
+# - Media rows use exact provider model IDs and named media_unit_prices_usd.
 # - Future LiteLLM/tokencost/genai-prices adapters can populate the same fields.
 
-version: 1
+version: 3
 currency: USD
+last_verified: "2026-07-13"
+authority:
+  numeric_runtime_pricing: config/model_pricing.yml
+  duplicate_numeric_pricing_elsewhere_forbidden: true
 
 models:
+  qwen3.7-max:
+    provider: qwen3
+    provider_model_id: qwen3.7-max
+    input_per_1m_usd: 1.65
+    output_per_1m_usd: 4.951
+    currency: USD
+    deployment_region: cn-beijing
+    deployment_tier: china_first_tier
+    pricing_source: manual
+    pricing_confidence: high
+    source_url: https://www.alibabacloud.com/help/en/model-studio/model-pricing
+    source_last_updated: "2026-07-08"
+    verified_at: "2026-07-13"
+
   qwen3.6-plus:
     provider: qwen
-    provider_model_id: qwen-plus-latest
-    input_per_1m_usd: 0.50
-    output_per_1m_usd: 3.00
+    provider_model_id: qwen3.6-plus
+    input_per_1m_usd: 0.276
+    output_per_1m_usd: 1.651
     currency: USD
+    deployment_region: cn-beijing
+    deployment_tier: china_first_tier
     pricing_source: manual
-    pricing_confidence: medium
-    notes: "Manual estimate; verify with provider billing before production use."
+    pricing_confidence: high
+    source_url: https://www.alibabacloud.com/help/en/model-studio/model-pricing
+    source_last_updated: "2026-07-08"
+    verified_at: "2026-07-13"
 
   qwen3-coder-next:
-    provider: qwen
+    provider: qwen-coder
+    provider_model_id: qwen3-coder-next
     input_per_1m_usd: 0.144
     output_per_1m_usd: 0.574
     currency: USD
+    deployment_region: cn-beijing
+    deployment_tier: china_first_tier
     pricing_source: manual
-    pricing_confidence: medium
+    pricing_confidence: high
+    source_url: https://www.alibabacloud.com/help/en/model-studio/model-pricing
+    source_last_updated: "2026-07-08"
+    verified_at: "2026-07-13"
+
+  qwen3-coder-plus:
+    provider: qwen-coder
+    provider_model_id: qwen3-coder-plus
+    input_per_1m_usd: 0.574
+    output_per_1m_usd: 2.294
+    currency: USD
+    deployment_region: cn-beijing
+    deployment_tier: china_first_tier
+    pricing_tier: input_context_0_to_32k
+    pricing_source: manual
+    pricing_confidence: high
+    source_url: https://www.alibabacloud.com/help/en/model-studio/model-pricing
+    source_last_updated: "2026-07-08"
+    verified_at: "2026-07-13"
 
   qwen3.6-flash:
-    provider: qwen
-    input_per_1m_usd: null
-    output_per_1m_usd: null
+    provider: qwen-flash
+    provider_model_id: qwen3.6-flash
+    input_per_1m_usd: 0.165
+    output_per_1m_usd: 0.99
     currency: USD
-    pricing_source: unknown
-    pricing_confidence: none
+    deployment_region: cn-beijing
+    deployment_tier: china_first_tier
+    pricing_source: manual
+    pricing_confidence: high
+    source_url: https://www.alibabacloud.com/help/en/model-studio/model-pricing
+    source_last_updated: "2026-07-08"
+    verified_at: "2026-07-13"
+
+  deepseek-v4-flash:
+    provider: deepseek
+    provider_model_id: deepseek-v4-flash
+    input_per_1m_usd: 0.14
+    cache_read_per_1m_usd: 0.0028
+    output_per_1m_usd: 0.28
+    currency: USD
+    pricing_source: manual
+    pricing_confidence: high
+    source_url: https://api-docs.deepseek.com/quick_start/pricing/
+    verified_at: "2026-07-13"
+    notes: "input_per_1m_usd is cache-miss input; cache_read is cache-hit input."
 
   deepseek-v4-pro:
+    provider: deepseek
+    provider_model_id: deepseek-v4-pro
+    input_per_1m_usd: 0.435
+    cache_read_per_1m_usd: 0.003625
+    output_per_1m_usd: 0.87
+    currency: USD
+    pricing_source: manual
+    pricing_confidence: high
+    source_url: https://api-docs.deepseek.com/quick_start/pricing/
+    verified_at: "2026-07-13"
+    notes: "input_per_1m_usd is cache-miss input; cache_read is cache-hit input."
+
+  gpt-5.6-sol:
+    provider: openai
+    provider_model_id: gpt-5.6-sol
+    input_per_1m_usd: 5.00
+    cache_read_per_1m_usd: 0.50
+    output_per_1m_usd: 30.00
+    currency: USD
+    pricing_source: manual
+    pricing_confidence: high
+    source_url: https://developers.openai.com/api/docs/models/gpt-5.6-sol
+    verified_at: "2026-07-13"
+    notes: "API reference only. Hermes OpenAI-Codex OAuth is subscription-metered and must not be priced as an API call."
+
+  grok-4.3:
+    provider: xai
+    provider_model_id: grok-4.3
+    input_per_1m_usd: 1.25
+    cache_read_per_1m_usd: 0.20
+    output_per_1m_usd: 2.50
+    currency: USD
+    pricing_source: manual
+    pricing_confidence: high
+    source_url: https://docs.x.ai/developers/pricing
+    verified_at: "2026-07-13"
+    notes: "API reference only. Hermes xAI OAuth is subscription-metered and must not be priced as an API call."
+
+  grok-imagine-image-quality:
+    provider: xai
+    provider_model_id: grok-imagine-image-quality
     input_per_1m_usd: null
     output_per_1m_usd: null
-    pricing_confidence: none
-    notes: "Fill manually.  DeepSeek-V4-Pro pricing TBD."
+    media_unit_prices_usd:
+      input_image: 0.01
+      output_image_1k: 0.05
+      output_image_2k: 0.07
+    currency: USD
+    pricing_source: manual
+    pricing_confidence: high
+    source_url: https://docs.x.ai/developers/pricing
+    model_url: https://docs.x.ai/developers/models/grok-imagine-image-quality
+    source_last_updated: "2026-07-03"
+    verified_at: "2026-07-13"
+    notes: "Exact image input/output unit prices; token estimator must not apply them as text pricing."
+
+  grok-imagine-video-1.5:
+    provider: xai
+    provider_model_id: grok-imagine-video-1.5
+    input_per_1m_usd: null
+    output_per_1m_usd: null
+    media_unit_prices_usd:
+      input_image: 0.01
+      output_video_480p_second: 0.08
+      output_video_720p_second: 0.14
+      output_video_1080p_second: 0.25
+    currency: USD
+    pricing_source: manual
+    pricing_confidence: high
+    source_url: https://docs.x.ai/developers/pricing
+    model_url: https://docs.x.ai/developers/models/grok-imagine-video-1.5
+    source_last_updated: "2026-07-03"
+    verified_at: "2026-07-13"
+    notes: "Exact input-image and output-video resolution/second prices."
 
   codex_plus_manual:
     input_per_1m_usd: null

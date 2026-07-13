@@ -25,12 +25,15 @@ LIFECYCLE_NODES = [
     "SUPERVISOR_PLAN",
     "REPO_CONTEXT",
     "RESEARCH_OPTIONAL",
+    "OBSERVATION_OPTIONAL",
     "INTERFACE_OPTIONAL",
     "WRITER_DRAFT",
     "FICTION_REVIEW",
     "SCRIBE_LEDGER",
     "CODER_IMPLEMENTATION",
     "ARTIFACT_PRODUCTION",
+    "VISUAL_OBSERVATION",
+    "VISUAL_REVIEW",
     "VALIDATION",
     "AUDIT",
     "VERIFY",
@@ -50,12 +53,15 @@ NODE_REQUIRED_OUTPUTS = {
     "SUPERVISOR_PLAN": ["01_supervisor_plan.md"],
     "REPO_CONTEXT": ["02_reposcout_report.md"],
     "RESEARCH_OPTIONAL": ["03_research_notes.md"],
+    "OBSERVATION_OPTIONAL": ["observation_report.yml"],
     "INTERFACE_OPTIONAL": ["04_interface_map.md"],
     "WRITER_DRAFT": ["fiction_draft.md"],
     "FICTION_REVIEW": ["fiction_review.yml"],
     "SCRIBE_LEDGER": ["continuity_ledger.yml"],
     "CODER_IMPLEMENTATION": ["06_implementation_report.md"],
     "ARTIFACT_PRODUCTION": ["artifact_producer_report.md"],
+    "VISUAL_OBSERVATION": ["visual_observation_report.yml"],
+    "VISUAL_REVIEW": ["visual_review_report.yml", "media_qc_report.yml"],
     "VALIDATION": ["07_validation_report.md"],
     "AUDIT": ["08_audit_report.md"],
     "VERIFY": ["verification_report.md"],
@@ -72,12 +78,15 @@ NODE_REQUIRED_OUTPUTS = {
 
 OPTIONAL_NODES = {
     "RESEARCH_OPTIONAL",
+    "OBSERVATION_OPTIONAL",
     "INTERFACE_OPTIONAL",
     "WRITER_DRAFT",
     "FICTION_REVIEW",
     "SCRIBE_LEDGER",
     "CODER_IMPLEMENTATION",
     "ARTIFACT_PRODUCTION",
+    "VISUAL_OBSERVATION",
+    "VISUAL_REVIEW",
     "VALIDATION",
     "AUDIT",
     "VERIFY",
@@ -147,6 +156,15 @@ def _skip_reason_for_node(
     active_nodes: set[str] | None = None,
     pack_id: str = "unknown",
 ) -> str | None:
+    if node_id == "OBSERVATION_OPTIONAL":
+        if pack_id in {"media_generation", "media_series_production"}:
+            return "Media packs use post-production VISUAL_OBSERVATION"
+        if "Observer" not in route:
+            return "Route does not include Observer"
+        # Observer is a cross-cutting, read-only perception stage.  Existing
+        # production packs predate this node, so an explicit route selection
+        # activates it without requiring every historical pack to be edited.
+        return None
     if active_nodes is not None and node_id not in active_nodes:
         return f"Production pack {pack_id} excludes {node_id}"
     if node_id == "RESEARCH_OPTIONAL" and "Researcher" not in route:
@@ -163,6 +181,10 @@ def _skip_reason_for_node(
         return "Route does not include Coder"
     if node_id == "ARTIFACT_PRODUCTION" and "ArtifactProducer" not in route:
         return "Route does not include ArtifactProducer"
+    if node_id == "VISUAL_OBSERVATION" and "Observer" not in route:
+        return "Route does not include Observer"
+    if node_id == "VISUAL_REVIEW" and "Reviewer" not in route:
+        return "Route does not include Reviewer"
     if node_id in {"VALIDATION", "AUDIT"} and "TesterAuditor" not in route:
         return "Route does not include TesterAuditor"
     if node_id == "VERIFY" and "Verifier" not in route:

@@ -21,6 +21,10 @@ ROLE_RESPONSIBILITIES: dict[str, dict[str, str]] = {
         "responsibility": "Produce evidence-backed domain briefs for new domains or production-pack synthesis.",
         "boundary": "Does not become a truth source without cited evidence.",
     },
+    "Observer": {
+        "responsibility": "Inspect only assigned text, image, video, audio, or PDF evidence and return source-bound observations and limitations.",
+        "boundary": "Read-only; does not write prose, generate artifacts, or approve its own observations.",
+    },
     "InterfaceMapper": {
         "responsibility": "Map code interfaces, contracts, and cross-module boundaries.",
         "boundary": "Does not implement patches.",
@@ -42,8 +46,8 @@ ROLE_RESPONSIBILITIES: dict[str, dict[str, str]] = {
         "boundary": "Does not promote candidate text into production memory.",
     },
     "Reviewer": {
-        "responsibility": "Audit narrative continuity, character state, timeline, POV, and style drift.",
-        "boundary": "Does not rewrite prose by default; emits findings and rewrite proposals.",
+        "responsibility": "Independently review narrative or visual candidates against the route-specific quality contract.",
+        "boundary": "Does not rewrite prose, mutate media, or act as the producing worker.",
     },
     "Scribe": {
         "responsibility": "Maintain narrative ledgers and state-transition proposals.",
@@ -54,7 +58,7 @@ ROLE_RESPONSIBILITIES: dict[str, dict[str, str]] = {
         "boundary": "Does not declare pass without evidence.",
     },
     "Verifier": {
-        "responsibility": "Check output contracts and handoff completeness.",
+        "responsibility": "Independently check output contracts, evidence integrity, acceptance decisions, and handoff completeness.",
         "boundary": "Does not edit implementation artifacts.",
     },
     "Archivist": {
@@ -67,12 +71,14 @@ ROLE_KEY_MAP = {
     "supervisor": "Supervisor",
     "reposcout": "RepoScout",
     "researcher": "Researcher",
+    "observer": "Observer",
     "interface_mapper": "InterfaceMapper",
     "prompt_engineer": "PromptEngineer",
     "coder": "Coder",
     "artifact_producer": "ArtifactProducer",
     "writer": "Writer",
     "reviewer": "Reviewer",
+    "visual_reviewer": "Reviewer",
     "scribe": "Scribe",
     "tester_auditor": "TesterAuditor",
     "verifier": "Verifier",

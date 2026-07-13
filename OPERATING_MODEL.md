@@ -80,8 +80,8 @@ Current packs:
 | `code_factory` | Codebase build, repair, refactor, testing, architecture work | Supervisor -> RepoScout/Researcher/InterfaceMapper as needed -> Coder -> TesterAuditor -> Verifier -> Archivist |
 | `narrative_longform` | Longform fiction chapter/batch drafting and narrative audit with structured continuity memory | Supervisor -> Writer for light chapters or bounded chapter batches; Supervisor -> Reviewer/Scribe/Verifier for heavy audit |
 | `article_light_draft` route / `article_light` pack | Short prose/article/report drafting without long-project governance | Supervisor -> ArtifactProducer -> Self-check |
-| `media_series_production` | Multi-episode image/video work with persistent character, scene, shot, and asset continuity | Supervisor -> ArtifactProducer -> TesterAuditor -> Verifier -> Self-check |
-| `media_generation` | Single image/video generation or editing with ledger and QC | Supervisor -> ArtifactProducer -> TesterAuditor -> Verifier -> Self-check |
+| `media_series_production` | Multi-episode image/video work with persistent character, scene, shot, and asset continuity | Generation: Supervisor -> ArtifactProducer -> TesterAuditor; promotion gate: Observer + Reviewer + Verifier -> human/Supervisor |
+| `media_generation` | Single image/video generation or editing with ledger and QC | Generation: Supervisor -> ArtifactProducer -> TesterAuditor; promotion gate: Observer + Reviewer + Verifier -> human/Supervisor |
 | `generic_artifact` | Non-code artifact fallback when no richer configured domain pack applies | Supervisor -> ArtifactProducer -> TesterAuditor -> Verifier -> Self-check |
 
 Promotion is not automatic for non-code candidate outputs. Media and generic
@@ -126,17 +126,89 @@ configured separately in `config/agent_role_bindings.yml`.
 | Role | Responsibility | Does not do |
 |---|---|---|
 | Supervisor | Mission contract, route, scope, budget, production-pack selection, approval gates | Edit source or silently execute |
+| Observer | Independent multimodal inspection and evidence capture for candidate artifacts | Produce the artifact it accepts or infer unseen quality |
 | RepoScout | Read repository structure and code context for code tasks | Mutate files |
 | InterfaceMapper | Trace interfaces, contracts, and cross-layer boundaries | Implement patches |
-| Researcher | Gather external evidence and references when a pack or route needs it | Become a fact source without citation/evidence |
+| Researcher | Gather external evidence through the governed research contract | Become a fact source without citation/evidence |
 | Coder | Source edits under approved scope for code tasks | Produce non-code media/text artifacts by default |
-| ArtifactProducer | Produce non-code artifacts from a structured artifact or production-pack contract | Replace Coder for source changes |
-| Writer | Longform prose drafting alias for governed narrative work | Promote facts directly into production memory |
+| ArtifactProducer | Produce candidate non-code artifacts through an artifact-type-dispatched ArtifactTask or production-pack contract | Replace Coder, accept its own output, or promote candidates |
+| Writer | Produce governed longform prose and narrative ledgers | Promote facts directly into production memory |
 | Reviewer | Narrative audit for continuity, character state, timeline, POV, and style drift | Rewrite prose by default |
 | Scribe | Narrative ledger and state-transition proposal writing | Treat unapproved facts as current production facts |
 | TesterAuditor | Validation evidence and risk/audit findings | Accept claims without command or artifact evidence |
 | Verifier | Final output-contract and handoff completeness check | Patch implementation |
 | Archivist | Durable memory/archive updates after acceptance | Archive or promote candidate outputs when the pack excludes archive |
+
+### Current role and capacity baseline
+
+The canonical current bindings come from `config/agent_model_profiles.yml` and
+`config/model_capacity.yml`:
+
+| Role | Current executor | Contract and boundary |
+|---|---|---|
+| Supervisor | Hermes + OpenAI Codex OAuth, GPT-5.6 Sol with `xhigh` reasoning | `hermes_supervisor`; an approved Claude Code + DeepSeek V4 Pro fallback is capacity-gated |
+| Observer | Agy + Gemini 3.5 Flash High | `agy_observer`; independent multimodal observation |
+| Observer capacity fallback | The same Agy shell + Claude Sonnet 4.6 | Allowed only for governed Gemini `quota_exhausted`, `rate_limited`, or `model_unavailable` outcomes; text, image, and PDF only |
+| Writer | Claude Code + DeepSeek V4 Pro | `claude_writer`; exact runtime preflight pins model, effort, budget, plan mode, JSON, and empty tools; DeepSeek V4 Flash requires the declared lower-cost fallback policy |
+| Researcher | Grok 4.3 through Hermes + xAI OAuth | `grok_research`; cited research evidence only |
+| ArtifactProducer | Dynamic ArtifactTask dispatch: Qwen CLI for text, spreadsheet, and presentation; Grok 4.3 through Hermes + xAI OAuth for image and video | `config/artifact_task_policy.yml` is authoritative; audio and cross-provider mixed artifacts are currently unsupported, and every returned asset remains a non-self-accepted candidate |
+
+`claude_writer_ultracode` is a separate developmental route, not a stronger
+default Writer mode. It runs only from a sealed Writer packet containing
+`ultracode_opt_in: true`, `writer_mode: developmental_ultracode`, and an
+allowlisted `work_type`; runtime writes `ultracode_activation_receipt.yml` and
+always forbids `final_prose_draft`.
+
+The task-local operator entrypoint is:
+
+```bash
+./agentlab.sh run-agent Writer --project <project> --task-id <task> \
+  --writer-ultracode --writer-work-type revision_plan --execute
+```
+
+Without both Ultracode flags, the resolver keeps the ordinary pure Writer
+contract. The dedicated `WriterUltracode` capacity route has no automatic
+fallback to ordinary drafting.
+
+`ArtifactProducer` is not executable as an untyped generic assignment. The
+user-facing `assign-role` command requires `--artifact-type`, derives the
+required capabilities and provider from `artifact_task_policy.yml`, and blocks
+when that exact provider is unavailable. In `AGENTLAB_FULL_CLI_MATRIX.csv`, the
+legacy profile columns show the base full-cli media profile while the
+`artifact_dispatch` column shows the effective per-type worker, invocation
+contract, and capacity route.
+
+The two Agy Observer routes use independent Gemini and Claude subscription
+pools. Their five-hour and weekly window durations are user-declared, but
+limits, remaining capacity, and reset timestamps are unknown until a safe
+run-local observation supplies them. OpenAI Codex and xAI subscription limits,
+remaining capacity, and reset timestamps are also unknown.
+
+Authentication or a successful smoke is reachability evidence, not capacity
+evidence. Safe discovery is limited to `agy models` and provider-scoped
+`hermes auth status <provider>`; broad Hermes status output is forbidden.
+Media execution uses the same seam: a pending Grok contract may run only the
+exact `hermes auth status xai-oauth` probe, must bind the selected capacity
+route to `hermes_grok_oauth`, and writes `media_capacity_route_receipt.yml`
+before any adapter execution. Hand-written backends, audio, and composite
+image-plus-video requests fail closed; no provider is silently substituted.
+
+Visual output follows a separate acceptance boundary:
+
+```text
+Image/video ArtifactProducer/grok_media -> run-local candidate
+-> independent Observer inspects the actual asset
+-> a distinct Reviewer records aesthetic, continuity, technical,
+   and factual-safety evidence
+-> a distinct Verifier checks asset integrity, evidence-chain completeness,
+   reviewer independence, and the promotion boundary
+-> human or Supervisor explicitly promotes
+```
+
+The producer cannot accept its own output. Observer, Reviewer, and Verifier
+must be independent role sessions; the Verifier does not pretend to perceive
+the media or repeat the Reviewer's aesthetic judgment. Missing, `pending`, or
+`unknown` evidence blocks promotion.
 
 ## Current Acceptance Evidence
 
@@ -277,12 +349,12 @@ Verified locally:
   to `projects/Crown_of_Ash/artifacts`. Candidate outputs still write under
   `runs/<task_id>/artifacts/` first, and promotion remains explicit.
 - Media generation contracts now distinguish backend auth from backend
-  execution adapters. The default Grok route is `hermes_grok_oauth` through the
-  local `grok` CLI and is registered as an internal `ArtifactProducer` worker;
-  it does not require `XAI_API_KEY` or `GROK_API_KEY`. `grok_direct` remains a
-  fallback-only `xai_imagine_rest` adapter that requires explicit operator
-  approval and API-key auth. Preflight reports only secret references, not
-  secret values.
+  execution adapters. The configured `grok` worker identity runs through the
+  Hermes executable with xAI OAuth. `grok_research` is the Researcher contract;
+  `grok_media` is the ArtifactProducer contract. The default route requires no
+  `XAI_API_KEY` or `GROK_API_KEY`. `grok_direct` remains an explicitly approved,
+  API-key-authenticated fallback adapter. Preflight reports only secret
+  references, not secret values.
 - Unknown non-code domains enter executable production-pack synthesis candidate
   mode with `ArtifactProducer` and `Verifier`.
 - `AgentLab` unknown-domain production-pack synthesis probe
@@ -466,12 +538,15 @@ Verified locally:
   a Crown media or article task inherited the long-novel manuscript production
   path.
 - An older media-series scaffold smoke selected `grok_direct` for `video` and
-  safely blocked on missing xAI/Grok API-key auth. That is now historical
-  fallback evidence only. Current media routing prefers `hermes_grok_oauth` via
-  the local `grok` CLI, which is an internal `ArtifactProducer` worker and does
-  not use API keys as the default unblock path. The direct xAI REST adapter
-  still reports only secret references such as `XAI_API_KEY` / `GROK_API_KEY`
-  when explicitly selected as fallback.
+  safely blocked on missing xAI/Grok API-key auth. That is historical fallback
+  evidence only. Current Researcher and image/video ArtifactProducer routing
+  uses the configured Hermes executable with xAI OAuth through distinct
+  `grok_research` and `grok_media` contracts. Text, spreadsheet, presentation,
+  ArtifactProducer work uses Qwen CLI instead. Cross-provider mixed work blocks until a composite adapter exists. The direct xAI REST adapter still reports only
+  secret references such as `XAI_API_KEY` / `GROK_API_KEY` when explicitly
+  selected as fallback.
+  API-key auth is fallback-only; the default OAuth route does not use API keys
+  as the default unblock path.
 - `Crown_of_Ash` chapter-batch dry-run
   `projects/Crown_of_Ash/runs/task_probe_crown_batch_ch01_ch20_20260707`
   completed with artifact pass rate `1.0 (17/17)`.
@@ -496,7 +571,8 @@ Verified locally:
   `preflight_required_files` and `external_required_files`, making the receipt
   gate auditable without circularly requiring the receipt before it is written.
   This is deterministic governance-chain evidence, not prose-quality evidence.
-- `Crown_of_Ash` live Writer smoke produced a real Chapter 1 candidate through
+- Historical `Crown_of_Ash` live Writer evidence produced a real Chapter 1
+  candidate through
   the normal `run-agent Writer` path in
   `projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback`.
   The successful call used `deepseek-v4-flash`, recorded exact API usage
@@ -568,17 +644,18 @@ python3 -m pytest -q tests/test_workflow_plan_routing.py tests/test_agent_runner
 Still not proved:
 
 - Live Grok/media generation quality, continuity, and cost behavior are not
-  accepted. The current goal proves execution readiness only: local
-  `hermes_grok_oauth`, ArtifactProducer/Grok binding, OAuth session,
-  non-interactive invocation, backend preflight, asset-return contract, and
-  candidate boundaries. Output acceptance is deferred to a ComfyUI-style
-  visual node graph. API-key auth is fallback-only; the default path does not
-  use API keys as the default unblock path.
-- Live longform prose quality for Crown beyond the one generated candidate and
-  existing mock governance / scale-simulation evidence. The active remaining
-  gate is one refreshed Agy/Gemini OAuth Writer run with draft, continuity
-  ledger, state transition, delivery receipt, outbound manifest, output
-  contract, and selected-item QC.
+  accepted. Current evidence proves route readiness, xAI OAuth reachability,
+  separate `grok_research` / `grok_media` contracts, backend preflight,
+  asset-return structure, and candidate boundaries. A real returned asset must
+  still pass independent Observer inspection, distinct Reviewer and Verifier
+  judgments, and an explicit human or Supervisor promotion decision.
+- Current Claude Code + DeepSeek V4 Pro Writer quality is not proved by the
+  historical Agy/Gemini or DeepSeek candidate runs. Those runs remain evidence
+  for the governed narrative artifact contract, not for the current executor
+  surface or broader literary quality.
+- Provider capacity is not proved by authentication or reachability. Current
+  limits, remaining capacity, and reset timestamps remain unknown unless a
+  safe run-local probe records them.
 - The frugal budget/prepare verbosity defect has been fixed for explicit
   budget selection. Broader budget policy still needs separate acceptance if
   the desired behavior changes for default high-risk tasks.
@@ -600,9 +677,9 @@ inspect evidence, and report the named agent's result and actual file diff. It
 must not implement the delegated task, silently substitute another agent, or
 claim the delegate's changes as its own.
 
-### Preferred high-capability local configuration
+### Current high-capability local configuration
 
-A high-capability local-first configuration may look like:
+The current canonical high-capability role topology is:
 
 ```yaml
 operating_mode: hybrid_agent_executor
@@ -619,13 +696,13 @@ roles:
       - evidence_review
       - cost_governance
 
-  brain_executor:
-    type: agent_harness
-    provider: hermes
-    model_backend:
-      - gpt-5.5
-      - deepseek
-      - other_user_configured_model
+  supervisor_executor:
+    type: cli_agent
+    shell: hermes
+    provider: openai_codex_oauth
+    model: gpt-5.6-sol
+    reasoning_effort: xhigh
+    invocation_contract: hermes_supervisor
     responsibilities:
       - high_level_reasoning
       - route_planning
@@ -636,6 +713,45 @@ roles:
       bypass_agentlab_state: false
       requires_task_packet: true
       writes_result_report: true
+
+  observer_executor:
+    type: cli_agent
+    shell: agy
+    primary: gemini-3.5-flash-high
+    invocation_contract: agy_observer
+    capacity_fallback:
+      shell: agy
+      model: claude-sonnet-4.6
+      only_on: [quota_exhausted, rate_limited, model_unavailable]
+      modalities: [text, image, pdf]
+
+  writer_executor:
+    type: cli_agent
+    shell: claude_code
+    model: deepseek-v4-pro
+    invocation_contract: claude_writer
+
+  researcher_executor:
+    type: cli_agent
+    worker: grok
+    executable: hermes
+    provider: xai_oauth
+    model: grok-4.3
+    invocation_contract: grok_research
+
+  artifact_executor:
+    type: capability_routed_cli_agent
+    non_media_worker: qwen
+    non_media_invocation_contract: qwen_artifact
+    media_worker: grok
+    media_executable: hermes
+    media_provider: xai_oauth
+    media_model: grok-4.3
+    media_invocation_contract: grok_media
+    unsupported: [audio, cross_provider_mixed]
+    output_state: candidate_only
+    independent_visual_acceptance_required: true
+    required_review_roles: [Observer, Reviewer, Verifier]
 
   code_executor:
     type: cli_coding_agent
@@ -652,14 +768,11 @@ roles:
       requires_diff_summary: true
       requires_test_evidence: true
 
-  fallback_model_provider:
-    type: direct_api
-    provider: qwen_or_deepseek_or_openai
-    responsibilities:
-      - low_cost_summarization
-      - deterministic_classification
-      - small_review_tasks
-      - fallback_reasoning
+capacity_truth:
+  limit: unknown
+  remaining: unknown
+  reset_at: unknown
+  reachability_does_not_imply_capacity: true
 ```
 
 ### Why agent executors may outperform direct API execution
@@ -717,12 +830,14 @@ Use this priority order for high-value local project work:
 
 ```text
 1. AgentLab compiles mission and workflow.
-2. Hermes-backed brain executor proposes route and decomposition.
-3. AgentLab converts proposal into governed task packets.
-4. Claude Code / Codex / Cline executes scoped coding packets.
-5. AgentLab ingests reports, diffs, tests, and artifacts.
-6. AgentLab performs phase acceptance.
-7. AgentLab updates project brain and generates the next phase.
+2. Hermes + GPT-5.6 Sol Supervisor proposes route and decomposition.
+3. AgentLab converts the proposal into governed role packets.
+4. The bound role executes: Agy Observer, Claude+DeepSeek Writer,
+   Grok Researcher, artifact-type-dispatched Qwen/Grok ArtifactProducer,
+   or the scoped code worker.
+5. AgentLab ingests reports, diffs, tests, candidates, and capacity evidence.
+6. Independent validation runs; visual producers cannot self-accept.
+7. Human or Supervisor approval promotes accepted state and updates memory.
 ```
 
 The goal is not to make AgentLab a weaker replacement for strong agents. The goal is to make AgentLab the operating system that coordinates them.

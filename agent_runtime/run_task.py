@@ -2663,6 +2663,11 @@ def prepare(
     user_request: Optional[Path] = typer.Option(None, help="Optional path to a user request file."),
     execution_backend: str = typer.Option("codex", help="Planned Coder backend: codex or qwen."),
     budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: frugal, balanced, or max-quality."),
+    observation_input: Optional[list[Path]] = typer.Option(
+        None,
+        "--observation-input",
+        help="Repeatable explicit file to seal into observation_contract.yml for the Observer.",
+    ),
     write_plan: bool = typer.Option(False, help="Write runs/task_xxxx/workflow_plan.yml if it does not exist."),
     overwrite_plan: bool = typer.Option(False, help="Allow replacing an existing workflow_plan.yml."),
 ) -> None:
@@ -2670,6 +2675,8 @@ def prepare(
     ensure_safe_task_id(task_id)
     if execution_backend not in {"codex", "qwen"}:
         raise typer.BadParameter("execution_backend must be codex or qwen")
+    if observation_input and not write_plan:
+        raise typer.BadParameter("--observation-input requires --write-plan")
 
     agentlab_root, project_name = runtime_context(project)
     plan = build_workflow_plan(
@@ -2680,6 +2687,15 @@ def prepare(
         user_request_path=user_request,
         budget_mode=budget,
     )
+    if observation_input and (
+        plan.route.route_key != "observation_task"
+        or "Observer" not in plan.route.agents
+        or (plan.production_pack or {}).get("pack_id") != "read_only_observation"
+    ):
+        raise typer.BadParameter(
+            "--observation-input requires a request routed to "
+            "observation_task/read_only_observation"
+        )
 
     request = TaskRunRequest(
         project=project_name,
@@ -2758,6 +2774,17 @@ def prepare(
                 mission_contract=plan.mission_contract,
             )
             written_context = write_context_artifacts(agentlab_root, project_name, task_id)
+            observation_contract_path = None
+            if observation_input:
+                from agent_runtime.observation_contract import (
+                    materialize_observation_contract,
+                )
+
+                observation_contract_path = materialize_observation_contract(
+                    plan,
+                    observation_input,
+                    overwrite=overwrite_plan,
+                )
             inject_skills_into_workflow_plan(
                 agentlab_root,
                 plan_path,
@@ -2795,8 +2822,17 @@ def prepare(
             console.print({name: str(path) for name, path in written_mission.items()})
             console.print("[green]Wrote context governance artifacts:[/green]")
             console.print(written_context)
+            if observation_contract_path is not None:
+                console.print(
+                    "[green]Wrote read-only observation contract:[/green] "
+                    f"{observation_contract_path}"
+                )
         else:
             console.print(f"[yellow]Plan already exists and was not overwritten:[/yellow] {plan_path}")
+            if observation_input:
+                raise typer.BadParameter(
+                    "--observation-input requires a newly written plan or --overwrite-plan"
+                )
 
 
 @app.command("status")
@@ -3375,11 +3411,61 @@ def run_agent(
     overwrite_report: bool = typer.Option(False, help="Overwrite an existing non-placeholder report."),
     force: bool = typer.Option(False, help="Allow running an agent not present in the selected route."),
     no_apply_patches: bool = typer.Option(False, help="Skip applying structured edit blocks from the LLM output."),
+    writer_ultracode: bool = typer.Option(
+        False,
+        "--writer-ultracode",
+        help="Explicitly opt this Writer run into the developmental Ultracode contract.",
+    ),
+    writer_work_type: Optional[str] = typer.Option(
+        None,
+        "--writer-work-type",
+        help="Ultracode work type: developmental_edit, structure, continuity, or revision_plan.",
+    ),
 ) -> None:
     """Dry-run or execute a single agent and write its report."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
     plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend, budget_mode=budget)
+    if writer_ultracode or writer_work_type is not None:
+        if agent_name != "Writer":
+            raise typer.BadParameter(
+                "--writer-ultracode and --writer-work-type are valid only for Writer."
+            )
+        if not writer_ultracode:
+            raise typer.BadParameter(
+                "--writer-work-type requires the explicit --writer-ultracode opt-in."
+            )
+        contracts = (
+            (load_agentlab_configs(agentlab_root).get("worker_invocation_contracts") or {}).get(
+                "contracts"
+            )
+            or {}
+        )
+        ultracode_contract = contracts.get("claude_writer_ultracode") or {}
+        allowed_work = [
+            str(item) for item in ultracode_contract.get("allowed_work", [])
+        ]
+        forbidden_work = {
+            str(item) for item in ultracode_contract.get("forbidden_work", [])
+        }
+        selected_work_type = str(writer_work_type or "").strip()
+        if (
+            not selected_work_type
+            or selected_work_type not in allowed_work
+            or selected_work_type in forbidden_work
+        ):
+            raise typer.BadParameter(
+                "--writer-work-type must be one of: " + ", ".join(allowed_work)
+            )
+        writer_plan = dict(plan.included_agents.get("Writer") or {})
+        writer_plan.update(
+            {
+                "ultracode_opt_in": True,
+                "writer_mode": "developmental_ultracode",
+                "work_type": selected_work_type,
+            }
+        )
+        plan.included_agents["Writer"] = writer_plan
     if agent_name not in plan.route.agents and not force:
         raise typer.BadParameter(f"{agent_name} is not in route {plan.route.agents}. Use --force to override.")
 
