@@ -13,6 +13,7 @@ class CliErrorClass:
     PERMISSION_DENIED = "permission_denied"
     TIMEOUT = "timeout"
     RATE_LIMITED = "rate_limited"
+    QUOTA_EXHAUSTED = "quota_exhausted"
     MODEL_UNAVAILABLE = "model_unavailable"
     PROVIDER_ERROR = "provider_error"
     TASK_FAILED = "task_failed"
@@ -43,8 +44,12 @@ DEFAULT_RULES = [
         ]
     },
     {
+        "error_class": CliErrorClass.QUOTA_EXHAUSTED,
+        "patterns": ["individual quota reached", "quota exhausted", "quota reached", "quota exceeded"]
+    },
+    {
         "error_class": CliErrorClass.RATE_LIMITED,
-        "patterns": ["rate limit", "quota exceeded", "quota reached", "too many requests", "429"]
+        "patterns": ["rate limit", "too many requests", "429"]
     }
 ]
 

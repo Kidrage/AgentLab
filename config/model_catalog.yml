@@ -98,16 +98,17 @@ models:
       never_default: true
       quota_rotation_only: true
       rotates_from: gemini_3_5_flash_high_agy_oauth
-      allowed_failure_classes: [rate_limited, quota_exhausted]
+      allowed_failure_classes: [quota_exhausted]
+      allowed_projects: [Crown_of_Ash]
       quota_window: separate_5_hour_window
       same_cli_worker: agy
       provider_surface_change_allowed: false
       api_key_fallback_allowed: false
     notes: >
-      Agy Writer 的配额轮换模型，不是默认模型。只有默认 Gemini 3.5
-      Flash High 返回 rate_limited 或 quota_exhausted 时，才允许在同一个
+      Agy Writer 的配额轮换模型，不是默认模型。只有 Crown_of_Ash 的
+      默认 Gemini 3.5 Flash High 返回 quota_exhausted 时，才允许在同一个
       Agy OAuth 壳内切换到 claude-sonnet-4-6@default。用户于 2026-07-13
-      确认该模型使用独立的五小时额度窗口。认证、网络、命令、schema 或
+      确认该模型使用独立的五小时额度窗口。普通 rate limit、认证、网络、命令、schema 或
       内容契约错误不得触发此切换；不读取任何 API key。
 
   gemini_2_5_flash_high_api:

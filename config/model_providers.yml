@@ -269,9 +269,9 @@ providers:
       - region_blocked
       - provider_error
     notes:
-      - 仅在 Agy Gemini 返回 rate_limited 或 quota_exhausted 时使用。
+      - 仅在 Crown_of_Ash 的 Agy Gemini 返回 quota_exhausted 时使用。
       - 与 Gemini 额度窗口独立；provider surface 仍为同一个 Agy CLI worker。
-      - 不读取 API key，认证/网络/命令或输出契约错误不得触发轮换。
+      - 不读取 API key；普通 rate limit、认证、网络、命令或输出契约错误不得触发轮换。
 
   # ── Gemini API 免费额度备用入口 ──────────────────────────────────
   gemini-api:

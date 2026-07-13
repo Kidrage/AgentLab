@@ -1148,6 +1148,60 @@ def _blocked_role_binding_result(agent_name: str, worker: str, reason: str) -> L
     )
 
 
+def _apply_contract_bound_cli_model_override(
+    configs: dict,
+    agent_name: str,
+    role_profile: dict,
+    model_key: str,
+) -> tuple[dict | None, str | None]:
+    """Apply the one registered Agy Writer quota rotation, or return a reason."""
+    if agent_name != "Writer" or role_profile.get("cli_agent") != "agy":
+        return None, "CLI model overrides are restricted to the Agy Writer role"
+    contract_id = str(role_profile.get("invocation_contract") or "")
+    contracts = (configs.get("worker_invocation_contracts") or {}).get("contracts") or {}
+    contract = contracts.get(contract_id) or {}
+    rotation = contract.get("quota_model_rotation") or {}
+    from_model = str(rotation.get("from_model") or "")
+    to_model = str(rotation.get("to_model") or "")
+    catalog_models = (configs.get("model_catalog") or {}).get("models") or {}
+    if contract_id != "agy_writer" or contract.get("worker_id") != "agy":
+        return None, "Agy Writer invocation contract is missing or belongs to another worker"
+    if role_profile.get("default") != from_model or model_key != to_model:
+        return None, "CLI model override is not the registered Agy Writer quota rotation"
+    if from_model not in catalog_models or to_model not in catalog_models:
+        return None, "Agy Writer quota rotation references an unregistered model"
+    overridden = dict(role_profile)
+    overridden["default"] = model_key
+    return overridden, None
+
+
+def _blocked_cli_model_override_result(
+    agent_name: str,
+    worker: str,
+    model_key: str,
+    reason: str,
+) -> LLMCallResult:
+    return LLMCallResult(
+        provider="agentlab-protocol",
+        model=worker or "unknown_cli_worker",
+        content=(
+            f"# {agent_name} CLI model override blocked\n\n"
+            f"- CLI worker: {worker or 'unknown'}\n"
+            f"- Requested model: {model_key}\n"
+            f"- Reason: {reason}\n"
+        ),
+        status="blocked_user_decision",
+        error="invalid_cli_model_override",
+        raw_usage={
+            "blocked": True,
+            "reason": "invalid_cli_model_override",
+            "executor_type": "cli_agent",
+            "configured_cli_agent": worker or None,
+            "requested_model_key": model_key,
+        },
+    )
+
+
 def resolve_agent_execution_preview(
     agentlab_root: Path,
     plan: WorkflowPlan,
@@ -1196,6 +1250,7 @@ def run_agent_model(
     output_path: Path,
     provider_override: str | None = None,
     model_override: str | None = None,
+    cli_model_override: str | None = None,
     apply_patches: bool = True,
     allow_cli_api_fallback: bool = True,
 ):
@@ -1223,9 +1278,22 @@ def run_agent_model(
     cli_attempted: bool = False
 
     if cli_role_profile is not None:
-        if model_override:
-            cli_role_profile = dict(cli_role_profile)
-            cli_role_profile["default"] = model_override
+        if cli_model_override:
+            override_worker = str(cli_role_profile.get("cli_agent") or "")
+            overridden_profile, override_issue = _apply_contract_bound_cli_model_override(
+                configs_for_cli,
+                agent_name,
+                cli_role_profile,
+                cli_model_override,
+            )
+            if override_issue:
+                return _blocked_cli_model_override_result(
+                    agent_name,
+                    override_worker,
+                    cli_model_override,
+                    override_issue,
+                )
+            cli_role_profile = overridden_profile
         cli_configured_agent = cli_role_profile.get("cli_agent", "")
         allowed, binding_reason = _check_cli_role_binding(agentlab_root, agent_name, cli_role_profile)
         if not allowed:

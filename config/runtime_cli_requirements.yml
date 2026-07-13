@@ -65,12 +65,13 @@ components:
     quota_model_rotation:
       from_model: gemini_3_5_flash_high_agy_oauth
       to_model: claude_sonnet_4_6_agy_oauth
-      allowed_failure_classes: [rate_limited, quota_exhausted]
+      allowed_failure_classes: [quota_exhausted]
+      allowed_projects: [Crown_of_Ash]
       quota_window: separate_5_hour_window
       same_worker: agy
       provider_surface_change_allowed: false
       api_key_fallback_allowed: false
-    notes: Default Writer and ArtifactProducer shell is Gemini 3.5 Flash High over OAuth. On Gemini quota exhaustion only, Writer may use Claude Sonnet 4.6 in the same Agy shell and its separate five-hour window. Never use GEMINI_API_KEY; auth, network, command, schema, or content errors do not trigger rotation.
+    notes: Default Writer and ArtifactProducer shell is Gemini 3.5 Flash High over OAuth. Only for Crown_of_Ash after a quota_exhausted result, Writer may use Claude Sonnet 4.6 in the same Agy shell and its separate five-hour window. Never use GEMINI_API_KEY; ordinary rate limits, auth, network, command, schema, or content errors do not trigger rotation.
   grok:
     kind: agent_cli_backend
     release_requirement: optional_media

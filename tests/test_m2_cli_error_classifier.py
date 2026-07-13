@@ -23,13 +23,17 @@ def test_classify_network_required():
 
 def test_classify_rate_limited():
     assert classify_cli_error(1, "", "Rate limit exceeded. Try again in 10s.") == CliErrorClass.RATE_LIMITED
+    assert classify_cli_error(1, "", "Too many requests (429).") == CliErrorClass.RATE_LIMITED
+
+
+def test_classify_quota_exhausted():
     assert (
         classify_cli_error(
             1,
             "",
             "Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 33m53s.",
         )
-        == CliErrorClass.RATE_LIMITED
+        == CliErrorClass.QUOTA_EXHAUSTED
     )
 
 def test_classify_permission_denied():

@@ -36,10 +36,15 @@ rules:
       - "AccessDenied"
       - "not allowed"
 
+  - error_class: quota_exhausted
+    patterns:
+      - "individual quota reached"
+      - "quota exhausted"
+      - "quota exceeded"
+      - "quota reached"
+
   - error_class: rate_limited
     patterns:
       - "rate limit"
-      - "quota exceeded"
-      - "quota reached"
       - "too many requests"
       - "429"

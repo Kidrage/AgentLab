@@ -1271,7 +1271,7 @@ class TestAgentRunnerCliDispatch:
             assert result.provider == "agentlab-cli-executor"
             assert "CLI" in result.content
 
-    def test_cli_model_override_replaces_profile_default(self, tmp_path, monkeypatch):
+    def test_contract_bound_agy_writer_cli_model_override(self, tmp_path, monkeypatch):
         plan = _make_plan(tmp_path)
         run_dir = Path(plan.run_dir)
         run_dir.mkdir(parents=True)
@@ -1279,12 +1279,37 @@ class TestAgentRunnerCliDispatch:
             "agent_runner.load_agentlab_configs",
             lambda _: {
                 "agent_model_profiles": {
-                    "profiles": {"balanced": {"supervisor": _cli_role_profile()}},
+                    "profiles": {
+                        "balanced": {
+                            "writer": {
+                                "executor_type": "cli_agent",
+                                "cli_agent": "agy",
+                                "invocation_contract": "agy_writer",
+                                "default": "gemini_3_5_flash_high_agy_oauth",
+                            }
+                        }
+                    },
                 },
                 "agent_registry": {"agents": {}},
                 "model_providers": {"providers": {}, "defaults": {}},
                 "model_profiles": {"profiles": {}},
-                "model_catalog": {},
+                "model_catalog": {
+                    "models": {
+                        "gemini_3_5_flash_high_agy_oauth": {},
+                        "claude_sonnet_4_6_agy_oauth": {},
+                    }
+                },
+                "worker_invocation_contracts": {
+                    "contracts": {
+                        "agy_writer": {
+                            "worker_id": "agy",
+                            "quota_model_rotation": {
+                                "from_model": "gemini_3_5_flash_high_agy_oauth",
+                                "to_model": "claude_sonnet_4_6_agy_oauth",
+                            },
+                        }
+                    }
+                },
             },
         )
         monkeypatch.setattr(
@@ -1299,20 +1324,59 @@ class TestAgentRunnerCliDispatch:
             return _cli_success_result()
 
         monkeypatch.setattr("agent_runner.run_cli_agent", fake_run_cli_agent)
+        monkeypatch.setattr(
+            "agent_runner.compose_agent_messages",
+            lambda *a, **kw: [{"role": "user", "content": "test"}],
+        )
+        monkeypatch.setattr("agent_runner.writer_context_source_files", lambda *a, **kw: [])
 
         from agent_runner import run_agent_model
 
         result = run_agent_model(
             tmp_path,
             plan,
-            "Supervisor",
+            "Writer",
             run_dir / "test_output.md",
-            model_override="claude_sonnet_4_6_agy_oauth",
+            cli_model_override="claude_sonnet_4_6_agy_oauth",
             apply_patches=False,
         )
 
         assert result.status == "completed"
         assert captured_profile["default"] == "claude_sonnet_4_6_agy_oauth"
+
+    def test_unregistered_cli_model_override_is_blocked(self, tmp_path, monkeypatch):
+        plan = _make_plan(tmp_path)
+        profile = _cli_role_profile()
+        monkeypatch.setattr(
+            "agent_runner.load_agentlab_configs",
+            lambda _: {
+                "agent_model_profiles": {
+                    "profiles": {"balanced": {"supervisor": profile}},
+                },
+                "model_catalog": {"models": {}},
+                "worker_invocation_contracts": {"contracts": {}},
+            },
+        )
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *a, **kw: None,
+        )
+
+        with patch("agent_runner.run_cli_agent") as mock_cli:
+            from agent_runner import run_agent_model
+
+            result = run_agent_model(
+                tmp_path,
+                plan,
+                "Supervisor",
+                Path(plan.run_dir) / "test_output.md",
+                cli_model_override="not_registered",
+                apply_patches=False,
+            )
+
+        mock_cli.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert result.error == "invalid_cli_model_override"
 
     def test_falls_back_to_api_when_cli_not_available(self, tmp_path, monkeypatch):
         """run_agent_model falls back to generate_text when CliAgentNotAvailable."""

@@ -66,7 +66,7 @@ endpoints:
       openclaw: "2026.6.9"
       hermes: "v0.17.0"
       claude_code: "2.1.186"
-      agy: "1.0.10"
+      agy: "1.1.1"
       bl: "1.4.1"
       codex: "0.142.0"
       qwen: "0.19.1"
@@ -207,7 +207,7 @@ agents:
     may_execute_commands: false
     high_risk: medium
   agy:
-    display_name: Antigravity / Agy Gemini OAuth
+    display_name: Antigravity / Agy OAuth
     class: frontdesk_and_artifact_cli
     primary_roles: [user_intake, agentlab_command_translation, status_explanation, handoff_dispatch, artifact_production, longform_writing]
     invocation:
@@ -215,6 +215,16 @@ agents:
       frontdesk_session: >-
         agy --sandbox --model 'Gemini 3.5 Flash (High)' -p "$(./agentlab.sh frontdesk-session --agent agy)"
     default_model: gemini-3.5-flash-high
+    quota_model_rotation:
+      from_model: gemini_3_5_flash_high_agy_oauth
+      to_model: claude_sonnet_4_6_agy_oauth
+      cli_model_id: claude-sonnet-4-6@default
+      allowed_failure_classes: [quota_exhausted]
+      allowed_projects: [Crown_of_Ash]
+      quota_window: separate_5_hour_window
+      same_worker_required: agy
+      provider_surface_change_allowed: false
+      api_key_fallback_allowed: false
     auth: local_oauth_session
     billing: subscription_or_oauth_quota
     region_requirement: VPN/proxy to a Gemini-supported region when local region is blocked.

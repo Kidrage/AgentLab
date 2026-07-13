@@ -46,11 +46,6 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
             "--allow-writer-cli-fallback/--no-writer-cli-fallback",
             help="Permit a second Writer CLI invocation after the bound role-session fails.",
         ),
-        allow_agy_quota_model_rotation: bool = typer.Option(
-            True,
-            "--agy-quota-model-rotation/--no-agy-quota-model-rotation",
-            help="On Agy quota exhaustion only, rotate Gemini to Claude Sonnet 4.6 in the same Agy OAuth shell.",
-        ),
     ) -> None:
         """Run L0-L3 longform acceptance checks without modifying production."""
         if mode not in VALID_MODES:
@@ -66,7 +61,6 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
             resume_valid=resume_valid,
             stop_on_block=stop_on_block,
             allow_writer_cli_fallback=allow_writer_cli_fallback,
-            allow_agy_quota_model_rotation=allow_agy_quota_model_rotation,
         )
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result.get("status") == "fail":

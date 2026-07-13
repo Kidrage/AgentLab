@@ -108,6 +108,8 @@ def _copy_config_root(tmp_path: Path) -> Path:
         "content_project_governance.yml",
         "agent_role_bindings.yml",
         "frontdesk_policy.yml",
+        "model_catalog.yml",
+        "worker_invocation_contracts.yml",
     ]:
         shutil.copy(ROOT / "config" / name, root / "config" / name)
     return root
@@ -723,19 +725,19 @@ def test_live_narrative_eval_rotates_agy_model_on_quota(
         plan,
         agent_name,
         output_path,
-        model_override=None,
+        cli_model_override=None,
         **kwargs,
     ):
-        model_overrides.append(model_override)
+        model_overrides.append(cli_model_override)
         if len(model_overrides) == 1:
             return types.SimpleNamespace(
                 status="blocked_user_decision",
                 content="",
-                error="CLI agent rate_limited (exit 1).",
+                error="CLI agent quota_exhausted (exit 1).",
                 provider="agentlab-cli-executor",
                 model="agy",
                 raw_usage={
-                    "failure_class": "rate_limited",
+                    "failure_class": "quota_exhausted",
                     "command_id": "cmd_0001",
                 },
             )
@@ -760,12 +762,13 @@ def test_live_narrative_eval_rotates_agy_model_on_quota(
     )
 
     _write_live_chapter_outputs(
-        tmp_path,
+        ROOT,
         run_dir,
         "Crown_of_Ash",
         "task_live",
         182,
         [],
+        allow_agy_quota_model_rotation=True,
     )
 
     assert model_overrides == [None, "claude_sonnet_4_6_agy_oauth"]
@@ -777,14 +780,20 @@ def test_live_narrative_eval_rotates_agy_model_on_quota(
     assert retry["model_rotated"] is True
     assert retry["rotation"]["from_model"] == "gemini_3_5_flash_high_agy_oauth"
     assert retry["rotation"]["to_model"] == "claude_sonnet_4_6_agy_oauth"
-    assert retry["rotation"]["reason"] == "rate_limited"
+    assert retry["rotation"]["reason"] == "quota_exhausted"
     assert retry["attempts"][0]["retry_kind"] == "quota_model_rotation"
     assert retry["attempts"][1]["requested_model"] == "claude_sonnet_4_6_agy_oauth"
 
 
 @pytest.mark.parametrize(
     "failure_class",
-    ["auth_required", "network_required", "invalid_cli_invocation", "provider_error"],
+    [
+        "auth_required",
+        "network_required",
+        "invalid_cli_invocation",
+        "provider_error",
+        "rate_limited",
+    ],
 )
 def test_live_narrative_eval_does_not_rotate_agy_model_for_non_quota_errors(
     tmp_path: Path,
@@ -801,10 +810,10 @@ def test_live_narrative_eval_does_not_rotate_agy_model_for_non_quota_errors(
         plan,
         agent_name,
         output_path,
-        model_override=None,
+        cli_model_override=None,
         **kwargs,
     ):
-        model_overrides.append(model_override)
+        model_overrides.append(cli_model_override)
         return types.SimpleNamespace(
             status="blocked_user_decision",
             content="",
@@ -841,6 +850,91 @@ def test_live_narrative_eval_does_not_rotate_agy_model_for_non_quota_errors(
         retry = yaml.safe_load(retry_path.read_text(encoding="utf-8"))
         assert retry["model_rotated"] is False
     assert (run_dir / "live_generation_error.yml").exists()
+
+
+def test_live_narrative_eval_does_not_rotate_quota_model_for_unlisted_project(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+    model_overrides: list[str | None] = []
+
+    def fake_run_agent_model(
+        root,
+        plan,
+        agent_name,
+        output_path,
+        cli_model_override=None,
+        **kwargs,
+    ):
+        model_overrides.append(cli_model_override)
+        return types.SimpleNamespace(
+            status="blocked_user_decision",
+            content="",
+            error="CLI agent quota_exhausted (exit 1).",
+            provider="agentlab-cli-executor",
+            model="agy",
+            raw_usage={"failure_class": "quota_exhausted", "command_id": "cmd_0001"},
+        )
+
+    monkeypatch.setitem(
+        sys.modules,
+        "agent_runner",
+        types.SimpleNamespace(run_agent_model=fake_run_agent_model),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "workflow_plan",
+        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+    )
+
+    _write_live_chapter_outputs(
+        ROOT,
+        run_dir,
+        "Other_Novel",
+        "task_live",
+        1,
+        [],
+        allow_agy_quota_model_rotation=True,
+    )
+
+    assert model_overrides == [None]
+    assert not (run_dir / "writer_retry_ledger.yml").exists()
+    request = yaml.safe_load((run_dir / "live_generation_request.yml").read_text(encoding="utf-8"))
+    assert request["agy_quota_model_rotation_allowed"] is False
+
+
+def test_live_narrative_eval_blocks_on_missing_quota_rotation_contract(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
+    calls: list[str] = []
+
+    monkeypatch.setitem(
+        sys.modules,
+        "agent_runner",
+        types.SimpleNamespace(run_agent_model=lambda *args, **kwargs: calls.append("called")),
+    )
+
+    _write_live_chapter_outputs(
+        tmp_path,
+        run_dir,
+        "Crown_of_Ash",
+        "task_live",
+        1,
+        [],
+        allow_agy_quota_model_rotation=True,
+    )
+
+    assert calls == []
+    error = yaml.safe_load((run_dir / "live_generation_error.yml").read_text(encoding="utf-8"))
+    assert error["status"] == "blocked"
+    assert error["error"] == "invalid_agy_quota_model_rotation_policy"
 
 
 def test_live_narrative_eval_retries_one_full_contract_redo(

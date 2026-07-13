@@ -347,7 +347,7 @@ contracts:
       file, run shell commands, browse, or scan the repository. Return only the
       required candidate AGENTLAB_EDIT blocks on stdout. Use exactly the Agy
       OAuth model selected by --model. The default is Gemini 3.5 Flash High;
-      only the governed quota_model_rotation rule may select Claude Sonnet 4.6.
+      only the governed Crown_of_Ash quota_model_rotation rule may select Claude Sonnet 4.6.
       Do not use GEMINI_API_KEY or any API-key fallback."
     required_placeholders:
       - task_packet_path
@@ -361,7 +361,8 @@ contracts:
     quota_model_rotation:
       from_model: gemini_3_5_flash_high_agy_oauth
       to_model: claude_sonnet_4_6_agy_oauth
-      allowed_failure_classes: [rate_limited, quota_exhausted]
+      allowed_failure_classes: [quota_exhausted]
+      allowed_projects: [Crown_of_Ash]
       quota_window: separate_5_hour_window
       same_worker_required: agy
       provider_surface_change_allowed: false

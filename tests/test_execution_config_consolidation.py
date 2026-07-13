@@ -338,9 +338,9 @@ def test_agy_writer_quota_rotation_uses_separate_claude_window_only() -> None:
     assert model["usage_policy"]["never_default"] is True
     assert model["usage_policy"]["quota_rotation_only"] is True
     assert model["usage_policy"]["allowed_failure_classes"] == [
-        "rate_limited",
         "quota_exhausted",
     ]
+    assert model["usage_policy"]["allowed_projects"] == ["Crown_of_Ash"]
 
     provider = providers["agy-claude-oauth"]
     assert provider["type"] == "oauth_cli"
@@ -357,6 +357,13 @@ def test_agy_writer_quota_rotation_uses_separate_claude_window_only() -> None:
     assert rotation["api_key_fallback_allowed"] is False
     assert requirements["quota_model_rotation"]["to_model"] == rotation["to_model"]
     assert "Use exactly the Agy OAuth model selected by --model" in contracts["agy_writer"]["template"]
+
+    directory = _load_config("shared_agent_directory.yml")["agents"]["agy"]
+    assert directory["display_name"] == "Antigravity / Agy OAuth"
+    assert directory["quota_model_rotation"]["to_model"] == "claude_sonnet_4_6_agy_oauth"
+    assert directory["quota_model_rotation"]["allowed_failure_classes"] == [
+        "quota_exhausted"
+    ]
 
 
 def test_writer_light_contract_has_one_unambiguous_four_file_response() -> None:
