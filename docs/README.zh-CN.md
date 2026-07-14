@@ -2,6 +2,8 @@
 
 语言：[English](README.en-US.md) | [中文](README.zh-CN.md)
 
+**当前版本完整能力手册：**[中文](CURRENT_VERSION_CAPABILITIES.zh-CN.md) · [English](CURRENT_VERSION_CAPABILITIES.en-US.md)
+
 AgentLab 是一个本地优先的 AI Production OS / Project-to-Revenue OS，仍在持续开发中。它不是 Codex、Claude Code、Cline、Hermes、OpenClaw 或其他执行器/前端 Agent 的替代品。AgentLab 的定位是后端事实源：让长期项目保持可治理、可检查、可恢复、可审计，并用证据闭环。
 
 当前仓库：`Kidrage/AgentLab` 的 `main` 分支。
@@ -37,11 +39,13 @@ AgentLab 已经通过 P 系列和 S 系列工作具备长期项目治理底座�
 
 实际状态：AgentLab 正处在 M-series 对齐阶段。S7/S8 等底座能力已经实现很多，但在进入 M2/M3 之前，仍应先完成 M0/M1 的正式验收收敛。
 
-## 当前基线（2026-06-29）
+## 当前基线（2026-07-14）
 
 - 分支：`main`，本地工作根：`Desktop/AgentLab`
-- 最近主线提交：`9c65d95`（媒体生成路由层）、`2e8ff83`（根级 `PROJECT_HANDOFF.md` 生成）
-- 测试基线：`1906 passed, 2 skipped`（全量 pytest）
+- 能力快照：`424b983`（角色/容量实现）、`b098513`（已验证 handoff）
+- 测试基线：`2663 passed, 24 skipped, 11 warnings`（全量 pytest）
+- 验收状态：`27 pass / 5 candidate`；canonical status 仍为 `candidate`
+- CLI 命令面：253 个顶层命令
 - 根级项目交接：`./agentlab.sh repository-handoff --repo <path> --write` 生成 `PROJECT_HANDOFF.md`、`.agentlab/HandOff.md` 与共享镜像
 
 ### 近期更新
@@ -51,6 +55,7 @@ AgentLab 已经通过 P 系列和 S 系列工作具备长期项目治理底座�
 - **CLI 模块化拆分**：worker、runtime hygiene、capability contract、routing、external project、protocol、role capability 等子命令已从单体 CLI 拆出。
 - **项目产物治理**：`project_artifact_index.yml`、项目级 `PROJECT_HANDOFF.md`、Crown_of_Ash 等创作项目的 artifact stewardship gate。
 - **角色与容量更新**：`agy` 仅作为只读多模态 Observer/Reviewer；Writer、Supervisor、Researcher、ArtifactProducer 均由角色专用 CLI 合同治理。
+- **完整能力手册**：新增中英双语当前版本参考，覆盖 14 角色、24 节点生命周期、媒体、ArtifactTask、容量、成本、receipts、CLI、验收和限制。
 
 ### 活跃创作项目（本地，不入 GitHub）
 
@@ -194,8 +199,8 @@ AgentLab 已经通过 P 系列和 S 系列工作具备长期项目治理底座�
 
 ### Web UI 与状态界面
 
-- 零依赖静态状态板。
-- 任务详情面板连接运行时产物。
+- 本地 dashboard、任务详情、JSON API 和 SSE task events。
+- 写 API 需要 `AGENTLAB_WEB_UI_TOKEN`；默认仅绑定 `127.0.0.1`。
 - S11 方向的本地 ops console snapshot。
 - CLI 仍是最可靠的一等控制面。
 
@@ -205,6 +210,9 @@ AgentLab 已经通过 P 系列和 S 系列工作具备长期项目治理底座�
 - P1/P2/S7/S8/S9/S10/S11/S12 acceptance artifacts。
 - Text integrity audit 用于发现多行文件压缩、markdown fence 损坏、private path 泄漏、raw 文件损坏。
 - `doctor` 命令检查 Python、bash syntax、py_compile、config parsing、目录布局、UI 文件、artifact contract 和 API key readiness。
+- 当前完整基线为 `2663 passed, 24 skipped, 11 warnings`；Protocol Doctor `106/106`，Artifact Doctor `21/21`。
+
+角色、模型、生命周期、生产链和限制的详细事实见[当前版本完整能力手册](CURRENT_VERSION_CAPABILITIES.zh-CN.md)。
 
 ## 常用命令
 
@@ -212,9 +220,9 @@ AgentLab 已经通过 P 系列和 S 系列工作具备长期项目治理底座�
 ./agentlab.sh --help
 ./agentlab.sh doctor
 ./agentlab.sh policy-status --project AgentLab
-./agentlab.sh models
+./agentlab.sh models show
 ./agentlab.sh run-pipeline --help
-./agentlab.sh project-next --project AgentLab
+./agentlab.sh project-next --project-brain projects/AgentLab/project_brain --out /tmp/agentlab_next
 ./agentlab.sh capability-list
 ./agentlab.sh eval-generalization --out acceptance_runs/s10_generalization_eval
 ./agentlab.sh ops-console-status --project AgentLab --out acceptance_runs/s11_dashboard

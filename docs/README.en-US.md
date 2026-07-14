@@ -2,6 +2,8 @@
 
 Language: [English](README.en-US.md) | [中文](README.zh-CN.md)
 
+**Complete current-version reference:** [English](CURRENT_VERSION_CAPABILITIES.en-US.md) · [中文](CURRENT_VERSION_CAPABILITIES.zh-CN.md)
+
 AgentLab is a local-first AI Production OS and Project-to-Revenue OS under active development. It is not a replacement for Codex, Claude Code, Cline, Hermes, OpenClaw, or other executor/front-end agents. AgentLab is the backend truth source that keeps long-running projects governed, inspectable, recoverable, and evidence-backed.
 
 Current repository: `Kidrage/AgentLab` on `main`.
@@ -37,11 +39,13 @@ AgentLab already has the long-project governance foundation from the P-series an
 
 Practical status: AgentLab is in the M-series alignment stage. Many S-series foundations are implemented, especially S7/S8, but M0/M1 acceptance should still be consolidated before moving to M2 and M3.
 
-## Current Baseline (2026-06-29)
+## Current Baseline (2026-07-14)
 
 - Branch: `main`, local working root: `Desktop/AgentLab`
-- Recent mainline commits: `9c65d95` (media generation routing layer), `2e8ff83` (root `PROJECT_HANDOFF.md` generation)
-- Test baseline: `1906 passed, 2 skipped` (full pytest)
+- Capability snapshot: `424b983` (role/capacity implementation), `b098513` (verified handoff)
+- Test baseline: `2663 passed, 24 skipped, 11 warnings` (full pytest)
+- Acceptance: `27 pass / 5 candidate`; canonical status remains `candidate`
+- CLI surface: 253 top-level commands
 - Root project handoff: `./agentlab.sh repository-handoff --repo <path> --write` generates `PROJECT_HANDOFF.md`, `.agentlab/HandOff.md`, and the shared mirror
 
 ### Recent Updates
@@ -51,6 +55,7 @@ Practical status: AgentLab is in the M-series alignment stage. Many S-series fou
 - **CLI modularization**: worker, runtime hygiene, capability contract, routing, external project, protocol, and role capability subcommands were extracted from the monolithic CLI.
 - **Project artifact governance**: `project_artifact_index.yml`, per-project `PROJECT_HANDOFF.md`, and artifact stewardship gates for creative projects such as Crown_of_Ash.
 - **Role/capacity refresh**: `agy` is a read-only multimodal Observer/Reviewer; role-specific CLI contracts govern Writer, Supervisor, Researcher, and ArtifactProducer.
+- **Complete capability manual**: bilingual current-version reference for 14 roles, the 24-node lifecycle, media, ArtifactTask, capacity, cost, receipts, CLI, acceptance, and limits.
 
 ### Active Creative Projects (Local, Not on GitHub)
 
@@ -194,8 +199,8 @@ Safety posture:
 
 ### Web UI And Status Surfaces
 
-- Dependency-free static status board.
-- Task details panel tied to runtime artifacts.
+- Local dashboard, task details, JSON API, and SSE task events.
+- Write APIs require `AGENTLAB_WEB_UI_TOKEN`; the default bind is `127.0.0.1`.
 - Local-only dashboard direction through S11 ops console snapshots.
 - CLI remains the primary reliable control surface.
 
@@ -205,6 +210,9 @@ Safety posture:
 - P1/P2/S7/S8/S9/S10/S11/S12 acceptance artifacts.
 - Text integrity audit to catch compressed multiline files, broken markdown fences, private path leakage, and raw-file corruption.
 - `doctor` command for Python, bash syntax, py_compile, config parsing, directory layout, UI files, artifact contract, and API key readiness checks.
+- Current full baseline: `2663 passed, 24 skipped, 11 warnings`; Protocol Doctor `106/106`; Artifact Doctor `21/21`.
+
+See the [complete current-version reference](CURRENT_VERSION_CAPABILITIES.en-US.md) for role, model, lifecycle, production-chain, and limitation details.
 
 ## Important Commands
 
@@ -212,9 +220,9 @@ Safety posture:
 ./agentlab.sh --help
 ./agentlab.sh doctor
 ./agentlab.sh policy-status --project AgentLab
-./agentlab.sh models
+./agentlab.sh models show
 ./agentlab.sh run-pipeline --help
-./agentlab.sh project-next --project AgentLab
+./agentlab.sh project-next --project-brain projects/AgentLab/project_brain --out /tmp/agentlab_next
 ./agentlab.sh capability-list
 ./agentlab.sh eval-generalization --out acceptance_runs/s10_generalization_eval
 ./agentlab.sh ops-console-status --project AgentLab --out acceptance_runs/s11_dashboard

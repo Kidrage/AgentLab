@@ -7,6 +7,10 @@
 > Standalone guides / 独立说明：
 > [English guide](docs/README.en-US.md) ·
 > [中文说明](docs/README.zh-CN.md)
+>
+> **Current-version capability reference / 当前版本完整能力手册：**
+> [English](docs/CURRENT_VERSION_CAPABILITIES.en-US.md) ·
+> [中文](docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md)
 
 AgentLab is a local-first AI Production OS and Project-to-Revenue OS under active development.
 It is **not** a replacement for Codex, Claude Code, Cline, Hermes, OpenClaw, or other executor/front-end agents.
@@ -45,14 +49,16 @@ Default design is local-first and approval-gated. Real external execution, skill
 
 ---
 
-## Current Baseline / 当前基线（2026-06-29）
+## Current Baseline / 当前基线（2026-07-14）
 
 | Item / 项 | Value / 值 |
 |---|---|
 | Branch / 分支 | `main` |
 | Local root / 本地根目录 | `Desktop/AgentLab` |
-| Latest mainline / 最近主线 | `9c65d95` media generation routing · `2e8ff83` root project handoff |
-| Test baseline / 测试基线 | `1906 passed, 2 skipped` (full pytest) |
+| Capability snapshot / 能力快照 | `424b983` role/capacity implementation · `b098513` verified handoff |
+| Test baseline / 测试基线 | `2663 passed, 24 skipped, 11 warnings` (full pytest) |
+| Acceptance / 验收 | `27 pass / 5 candidate`; canonical status remains `candidate` |
+| CLI surface / CLI 命令面 | 253 top-level commands / 253 个顶层命令 |
 | Product stage / 产品阶段 | M-series alignment (M0/M1 consolidation before M2/M3) |
 
 ### Recent Updates / 近期更新
@@ -62,6 +68,7 @@ Default design is local-first and approval-gated. Real external execution, skill
 - **CLI modularization / CLI 模块化**：worker, hygiene, capability, routing, external project, protocol, and role capability commands extracted
 - **Repository handoff / 仓库级交接**：`./agentlab.sh repository-handoff --repo <path> --write` → `PROJECT_HANDOFF.md`
 - **Role/capacity refresh / 角色与容量更新**：`agy` is a read-only multimodal Observer/Reviewer; Writer, Supervisor, Researcher, and ArtifactProducer use governed role-specific CLI contracts and capacity routes
+- **Complete capability manual / 完整能力手册**：roles, models, 24-node lifecycle, production packs, media, ArtifactTask, capacity, pricing, receipts, safety, CLI, acceptance, and limits in English and Chinese
 - **Creative project governance / 创作项目治理**：`project_artifact_index.yml`, per-project handoff, artifact stewardship gates
 
 ### Active Creative Projects / 活跃创作项目（本地，不入 GitHub）
@@ -143,7 +150,7 @@ Config / 配置：`config/agent_registry.yml`, `config/model_catalog.yml`, `conf
 ### Core Runtime / 核心运行时
 
 - Local-first task state, project memory, run directories, evidence artifacts / 本地任务状态、项目记忆、运行目录、证据产物
-- 14-node lifecycle with checkpoint/resume / 14 节点生命周期与检查点恢复
+- 24-node lifecycle with checkpoint/resume / 24 节点生命周期与检查点恢复
 - Brain governance: token budgets, loop detection, provider failover / 大脑治理：预算、循环检测、故障切换
 - Artifact evidence gate, CostLedger v2, BudgetGate / 产物证据门禁、成本账本、预算门
 - Guard system: atomic I/O, file locks, heartbeats, crash recovery / 守护：原子 IO、锁、心跳、崩溃恢复
@@ -166,9 +173,11 @@ Config / 配置：`config/agent_registry.yml`, `config/model_catalog.yml`, `conf
 - Skill lifecycle MVP + Skill Vault + Trace-to-Skill learning / 技能生命周期 + 技能库 + 轨迹学习
 - Feedback loop: `task_events.jsonl`, decision cards, watchdog, webhooks / 反馈闭环
 - MCP stdio tool server, Cline STDIO wrapper / MCP 工具服务
-- Static Web UI status board + task details / 静态 Web UI 看板
+- Local Web UI dashboard, task details, JSON API, and SSE events / 本地 Web UI、任务详情、JSON API 与 SSE 事件
 
-Full capability list / 完整能力列表：see [`docs/README.zh-CN.md`](docs/README.zh-CN.md) or [`docs/README.en-US.md`](docs/README.en-US.md)
+Full current-version reference / 当前版本完整能力手册：
+[`中文`](docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md) ·
+[`English`](docs/CURRENT_VERSION_CAPABILITIES.en-US.md)
 
 ---
 
@@ -184,7 +193,7 @@ AgentLab/
 ├── _shared/             # Shared creative assets (e.g. novel-moon-in-seal) / 共享创作资产
 ├── tests/               # Integration + acceptance tests / 集成与验收测试
 ├── acceptance_runs/     # Offline acceptance artifacts / 离线验收产物
-├── web_ui/              # Static status dashboard / 静态状态看板
+├── web_ui/              # Local dashboard + API/SSE / 本地看板与 API/SSE
 ├── docs/                # Specs and standalone READMEs / 规范与独立说明
 ├── agentlab.sh          # One-command CLI entrypoint / 一键 CLI 入口
 ├── PROJECT_HANDOFF.md   # Root project status dashboard / 根级项目状态看板
@@ -200,7 +209,7 @@ AgentLab/
 # Health / 健康检查
 ./agentlab.sh doctor
 ./agentlab.sh policy-status --project AgentLab
-./agentlab.sh models
+./agentlab.sh models show
 
 # Task lifecycle / 任务生命周期
 ./agentlab.sh init-task --project <Project> --task-id task_0007
@@ -209,16 +218,16 @@ AgentLab/
 ./agentlab.sh status --project <Project> --task-id task_0007
 
 # Long project / 长期项目
-./agentlab.sh project-brain-init --project <Project>
-./agentlab.sh project-next --project <Project>
-./agentlab.sh phase-accept --project <Project>
+./agentlab.sh project-brain-init --mission-contract <mission.yml> --project <Project> --out projects/<Project>/project_brain
+./agentlab.sh project-next --project-brain projects/<Project>/project_brain --out <next_action_dir>
+./agentlab.sh phase-accept --phase-plan <phase_plan.yml> --evidence-dir <evidence_dir> --out <acceptance_dir>
 
 # Handoff / 交接
 ./agentlab.sh repository-handoff --repo . --write
 
 # Sync / 同步
-./agentlab.sh migration-doctor --project AgentLab
-./agentlab.sh truenas-status --project AgentLab
+./agentlab.sh migration-doctor --project AgentLab --no-write-probe
+./agentlab.sh truenas-status --project AgentLab --no-write-probe
 ./agentlab.sh truenas-sync --project AgentLab --task-id <task_id> --dry-run
 
 # Skills / 技能
@@ -266,6 +275,7 @@ Auto-push via post-commit hook. Check `git status` before committing — never s
 
 | Version | Date | Changes |
 |---|---|---|
+| **3.1** | 2026-07-14 | Governed role/model overhaul; Agy Observer/visual Reviewer; Claude+DeepSeek Writer and explicit Ultracode; Hermes+GPT-5.6 Sol Supervisor; Grok research/media; ArtifactTask; capacity/pricing/receipt closure; full bilingual capability manual / 角色模型治理升级；完整双语能力手册 |
 | **3.0** | 2026-06-29 | M-series alignment README refresh; media generation routing; domain-aware creative writing routes; CLI modularization; root `PROJECT_HANDOFF.md`; repository handoff command; three-end sync docs; creative project governance / M 系列对齐 README 刷新；媒体生成路由；领域感知创作路由；CLI 模块化；根级项目交接；三端同步文档；创作项目治理 |
 | 2.3 | 2026-06-06 | Task snapshot, memory writer, artifact gate tests, Web UI refactor |
 | 2.2 | 2026-06-05 | Closure hardening: doctor, lifecycle graph, artifact contract, task index |
@@ -278,6 +288,7 @@ Auto-push via post-commit hook. Check `git status` before committing — never s
 ## Source Documents / 来源文档
 
 - Standalone READMEs / 独立说明：[`docs/README.zh-CN.md`](docs/README.zh-CN.md) · [`docs/README.en-US.md`](docs/README.en-US.md)
+- Current-version capabilities / 当前版本完整能力：[`中文`](docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md) · [`English`](docs/CURRENT_VERSION_CAPABILITIES.en-US.md)
 - Mainline status / 主线状态：[`docs/MAINLINE_BASELINE_STATUS.md`](docs/MAINLINE_BASELINE_STATUS.md)
 - M-series handoff / M 系列交接：[`docs/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md`](docs/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md)
 - Driver protocol / 驱动协议：[`DRIVER_PROTOCOL.md`](DRIVER_PROTOCOL.md)
