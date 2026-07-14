@@ -8,13 +8,13 @@
 - Repository ID: `AgentLab-de62d90289e0`
 - Working root: `/Users/saintpeter/Desktop/AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-13T18:48:18.426289+00:00`
+- Generated at: `2026-07-14T15:11:12.322507+00:00`
 
 ## Current State
 
 - Branch: `feature/agent-role-capacity-overhaul`
-- HEAD: `424b983`
-- Indexed paths: 1785
+- HEAD: `2ee2716`
+- Indexed paths: 1787
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -45,7 +45,7 @@
 | `agent_runtime` | 521 |
 | `tests` | 439 |
 | `acceptance_runs` | 318 |
-| `docs` | 213 |
+| `docs` | 215 |
 | `config` | 142 |
 | `docs/archive` | 126 |
 | `tests/fixtures` | 110 |
@@ -87,16 +87,16 @@
 
 ### Categories
 
-- code: 899 files, 7194500 bytes
-- literature: 357 files, 1879947 bytes
+- code: 899 files, 7234781 bytes
+- literature: 359 files, 1999738 bytes
 - other: 12 files, 77231 bytes
-- structured_data: 517 files, 2054901 bytes
+- structured_data: 517 files, 2064026 bytes
 
 ### Common Extensions
 
 - `.py`: 886
 - `.yml`: 497
-- `.md`: 318
+- `.md`: 320
 - `.txt`: 39
 - `.json`: 15
 - `.sh`: 8
@@ -212,6 +212,8 @@
 
 ## Change History
 
+- `2ee2716 2026-07-14 docs: publish current AgentLab capability reference`
+- `b098513 2026-07-14 docs: refresh AgentLab role overhaul handoff`
 - `424b983 2026-07-14 feat: govern agent roles and model capacity`
 - `a27c0b1 2026-07-13 docs: refresh AgentLab handoff`
 - `1b96c93 2026-07-13 fix: constrain Agy quota rotation`
@@ -230,8 +232,6 @@
 - `520e028 2026-07-12 fix: bound Writer transport and contract retries`
 - `3aba51a 2026-07-12 fix: enforce candidate scope on copied event types`
 - `91a4f5e 2026-07-12 fix: make Writer four-file output contract unambiguous`
-- `e954105 2026-07-12 fix: retry transient Agy writer startup failures`
-- `c7fcaeb 2026-07-12 fix: distinguish Agy CLI model labels from slugs`
 
 ## Current Changes
 
@@ -245,8 +245,24 @@
 - ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml`
 - ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml`
 - ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_operator_handoff.yml`
+- ` M agent_runtime/agent_runner.py`
+- ` M agent_runtime/cli_executor.py`
+- ` M agent_runtime/narrative_heavy_audit.py`
+- ` M agent_runtime/revision_governance.py`
 - ` M agent_runtime/skill_evolution.py`
+- ` M config/cli_workflow_shells.yml`
+- ` M config/routing_rules.yml`
+- ` M config/runtime_cli_requirements.yml`
+- ` M config/shared_agent_directory.yml`
+- ` M config/worker_invocation_contracts.yml`
+- ` M docs/AGENTLAB_OPERATING_LOGIC.zh-CN.md`
+- ` M skills/active/skill_agentlab_narrative_chapter_writer_lite/usage_ledger.yml`
 - ` M skills/registry.yml`
+- ` M tests/test_agent_runner_cli_integration.py`
+- ` M tests/test_cli_executor.py`
+- ` M tests/test_execution_config_consolidation.py`
+- ` M tests/test_models_and_governance_cli.py`
+- ` M tests/test_narrative_heavy_audit_materializer.py`
 - ` M tests/test_skill_evolution_scaffold.py`
 
 ## Related Repositories
@@ -332,12 +348,14 @@
 
 <!-- AGENT_NOTES_START -->
 - Agent role/capacity overhaul is implemented on `feature/agent-role-capacity-overhaul`; implementation commit `424b983` is pushed to `origin` and GitHub Actions run `29275493261` passed in 6m12s.
+- The complete bilingual current-version capability reference is committed as `2ee2716` and published in Draft PR `#9`. Push CI `29343470920` and PR CI `29343637752` both passed.
+- The documentation delivery adds 2,060 lines across five files, covers all 253 top-level commands, and corrects the lifecycle count to 24 nodes. Clean-tree documentation tests passed 39/39; text integrity scanned 1,419 files with zero findings.
 - Agy is now a read-only multimodal Observer and independent visual Reviewer, with separate Gemini/Claude capacity pools and observed-only remaining/reset facts. It is excluded from Writer, ArtifactProducer, and Coder.
 - Writer is Claude Code + DeepSeek. Developmental Ultracode is a separate explicit sealed-packet route, limited to its allowlist, emits an activation receipt, cannot draft final prose, and has no automatic fallback to ordinary writing.
 - Supervisor is governed as Hermes + GPT-5.6 Sol `xhigh`; Researcher and media ArtifactProducer use sealed Hermes/xAI/Grok contracts. Exact command preflights prevent trailing provider/model/fallback overrides and silent provider switching.
 - Model capacity now supports validated multi-hop fallback graphs, per-edge failure policy, pool breakers/canary leases, observed-only subscription windows, and run-local capacity/cost receipts. Visual promotion validates real staged bytes, hashes, metadata, and independent Observer/Reviewer/Verifier evidence.
 - Verification used no real provider/model calls: focused regression `248 passed`; capacity regression `86 passed`; exact staged-tree full suite `2663 passed, 24 skipped, 11 warnings`; the 22 private Crown tests skipped in the clean tree executed and passed in the local host suite. Models doctor reported 0 issues, Artifact doctor 21/21, Protocol doctor 106/106, model doctor 0 issues, and role-chain audit passed.
-- Preserved local-only changes remain unstaged: eight dynamic capability-acceptance snapshots plus `agent_runtime/skill_evolution.py`, `skills/registry.yml`, and `tests/test_skill_evolution_scaffold.py`. They are not part of `424b983` and must not be overwritten by follow-up work.
+- Preserved local-only acceptance, narrative-heavy-audit, CLI execution, skill-evolution, config, ledger, and test changes remain unstaged. The exact paths are listed under Current Changes; they are not part of `2ee2716` and must not be overwritten.
 - Remaining operational caveat: an older local Hermes Supervisor profile may still advertise GPT-5.5/high. Runtime now fails closed until the installed profile is provisioned to the exact GPT-5.6 Sol/xhigh contract; this task did not mutate user-level Hermes configuration or invoke a provider.
 <!-- AGENT_NOTES_END -->
 
