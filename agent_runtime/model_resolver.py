@@ -214,6 +214,7 @@ def resolve_profile_config(
     role_key = agent_name.lower().replace(" ", "_")
     _role_key_map = {
         "supervisor": "supervisor",
+        "observer": "observer",
         "reposcout": "reposcout",
         "researcher": "researcher",
         "interfacemapper": "interface_mapper",
@@ -224,8 +225,35 @@ def resolve_profile_config(
         "testerauditor": "tester_auditor",
         "verifier": "verifier",
         "archivist": "archivist",
+        "writer": "writer",
+        "reviewer": "reviewer",
+        "visualreviewer": "visual_reviewer",
+        "scribe": "scribe",
+        "narrativeplanner": "narrative_planner",
     }
     role_key = _role_key_map.get(role_key, role_key)
+
+    # Compile the dynamic registry selection into a catalog key before reading
+    # the retained schema-v4 matrix.  The matrix remains an emergency fallback
+    # for installations that have not yet installed the normalized registry.
+    try:
+        from agent_runtime.runtime_registry import (
+            dynamic_runtime_enabled,
+            resolve_dynamic_profile,
+        )
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from runtime_registry import dynamic_runtime_enabled, resolve_dynamic_profile
+    dynamic_profile = resolve_dynamic_profile(
+        agent_model_profiles,
+        agent_role=role_key,
+        resolved_mode=mode,
+        resolved_tier=tier,
+    )
+    if dynamic_profile is None and dynamic_runtime_enabled(agent_model_profiles, mode):
+        raise RuntimeError(
+            "dynamic runtime routing failed closed; legacy full_cli matrix "
+            f"was not consulted for role={role_key}, tier={tier}"
+        )
 
     # 4. Lookup config in modes and tiers
     modes = agent_model_profiles.get("modes", {}) or {}
@@ -237,7 +265,7 @@ def resolve_profile_config(
     if isinstance(role_cfg, str) and role_cfg in {"skip", "skip_unless_required"}:
         return {"skip": True, "profile": profile_name, "source": "mode_tier_skip"}
 
-    catalog_key = None
+    catalog_key = dynamic_profile.get("default") if dynamic_profile else None
     if isinstance(role_cfg, dict):
         if mode == "full_api" and tier == "full":
             catalog_key = resolve_dynamic_api_model(role_key, model_catalog, agent_model_profiles)
@@ -278,7 +306,12 @@ def resolve_profile_config(
         "max_output_tokens": min(max_output, 8192),
         "context_window": model_entry.get("context_window"),
         "tier": _tier_for_agent(agent_name),
-        "source": "model_catalog_via_mode_tier",
+        "source": "runtime_registry" if dynamic_profile else "model_catalog_via_mode_tier",
+        **({
+            "runtime_route_id": dynamic_profile.get("runtime_route_id"),
+            "runtime_identity": dynamic_profile.get("runtime_identity"),
+            "route_decision": dynamic_profile.get("route_decision"),
+        } if dynamic_profile else {}),
     }
 
 

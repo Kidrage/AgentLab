@@ -73,9 +73,9 @@ For long-running deliverable tasks, completion requires `artifact_lineage.yml`,
 
 ## Brain Layer Rules
 
-- Hermes with GPT-5.6 Sol owns Supervisor/Brain Layer planning, routing, and
-  policy decisions. The user-facing `extra` effort label maps to Hermes
-  `xhigh`; only capacity-approved fallback routes may change worker or model.
+- Hermes JSON-RPC with Codex GPT-5.5 `high` owns Supervisor/Brain Layer
+  planning, routing, and policy decisions. Only an explicit checkpoint and a
+  fresh runtime-registry decision may change worker or model.
 - Hermes must use durable Plan Mode for long projects: draft the plan, check gaps,
   revise, self-check, then dispatch task packets with `must_read_artifacts`.
 - Agy is a read-only multimodal Observer and isolated visual Reviewer. It may
@@ -90,8 +90,8 @@ For long-running deliverable tasks, completion requires `artifact_lineage.yml`,
   Reviewer, or Verifier and cannot accept its own media.
 - Coder execution and local file edits use the current registered role profile;
   do not infer executor authority from a CLI name.
-- Never silently switch provider, model, or CLI. Use only a declared capacity
-  fallback and record the triggering evidence and execution receipt.
+- Never silently switch provider, model, or CLI. Record the failed attempt,
+  then make a fresh runtime-registry decision only at the next checkpoint.
 - Before execution, publish route, budget, editable scope, and validation gates.
 - Prefer the smallest safe route; include agents only when their function is
   needed.
@@ -156,7 +156,7 @@ ALL agents entering this workspace MUST read and enforce this directory layout. 
     调用登记 agent、监控与结果回传；不得自行实现任务或编辑目标文件。
   - **长期任务边界**：后续批次必须引用现有 plan handoff、revision log 和
     `must_read_artifacts`；不得为小说、工程、视频等长期项目重新发明 prompt。
-  - **职责绑定**：CLI 名字不等于 AgentLab 角色。14 个 canonical AgentLab 角色必须通过
+  - **职责绑定**：CLI 名字不等于 AgentLab 角色。15 个 canonical AgentLab 角色必须通过
     `./agentlab.sh role-session --role <Role> --worker <worker> --project <P> --task-id <T>`
     生成强绑定会话包；`./agentlab.sh protocol-doctor` 是强规定自检入口。
   - **写入边界**：frontdesk 只能直接生成 `change_request.yml`、

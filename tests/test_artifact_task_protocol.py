@@ -56,12 +56,27 @@ def test_provider_router_honors_preferred_provider():
     assert route["selected"]["worker"] == "qwen"
 
 
-def test_media_artifact_routes_to_grok_producer():
-    route = route_artifact_provider(ROOT, "image")
+def test_text_artifact_defaults_to_claude_deepseek():
+    route = route_artifact_provider(ROOT, "text")
 
     assert route["status"] == "routed"
-    assert route["selected"]["provider_id"] == "grok_media"
-    assert route["selected"]["worker"] == "grok"
+    assert route["selected"]["provider_id"] == "claude_deepseek"
+    assert route["selected"]["worker"] == "claude_code"
+
+
+def test_preferred_provider_cannot_bypass_quarantine():
+    route = route_artifact_provider(ROOT, "image")
+
+    assert route["status"] == "capability_mismatch"
+    assert route["selected"] is None
+
+    preferred = route_artifact_provider(
+        ROOT,
+        "image",
+        preferred_provider="grok_media",
+    )
+    assert preferred["status"] == "capability_mismatch"
+    assert preferred["selected"] is None
 
 
 def test_audio_artifact_fails_closed_without_a_capable_provider():

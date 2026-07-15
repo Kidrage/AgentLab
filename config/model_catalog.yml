@@ -39,13 +39,13 @@ models:
       AgentLab L2/L3 Balanced 大脑层默认。MaxQ 模式规划+审查主力。
       BenchLM: Agentic 74, Coding 75.9 — 在 coding/agentic 维度优于 Qwen3.7-Max。
 
-  codex_gpt_5_6_sol_xhigh_hermes_oauth:
+  codex_gpt_5_5_high_hermes_oauth:
     provider: hermes_codex_oauth
     runtime_provider: openai-codex
     cli_provider: openai-codex
-    model_id: gpt-5.6-sol
-    reasoning_effort: xhigh
-    reasoning_effort_label: extra
+    model_id: gpt-5.5
+    reasoning_effort: high
+    reasoning_effort_label: high
     context_window: 272000
     capacity_pool: openai_codex_agentic
     strengths: [oauth_cli, high_reasoning, supervision, planning, code_review, agentic_control]
@@ -55,16 +55,14 @@ models:
       currency: subscription_or_oauth_quota
       billing_source: codex_oauth
     notes: >
-      GPT-5.6 Sol through the local Hermes OAuth provider. This is a
+      GPT-5.5 High through the local Hermes OAuth provider. This is a
       Hermes runtime provider registration, not the Codex CLI worker. AgentLab
-      invokes it through Hermes with --provider openai-codex -m gpt-5.6-sol.
-      The installed Hermes v0.17.0 exposes xhigh as its strongest supported
-      reasoning value; AgentLab maps the user's "extra" label to xhigh and must
-      not claim ultra until a future Hermes capability probe proves it.
+      invokes it through the isolated agentlabsupervisor Hermes profile with
+      --provider openai-codex -m gpt-5.5 and high reasoning effort.
     evidence:
-      official_model: https://developers.openai.com/api/docs/models/gpt-5.6-sol
+      operator_full_matrix: AgentLab full_cli full tier
       local_model_cache_verified: "2026-07-13"
-      local_hermes_reasoning_verified: xhigh
+      local_hermes_reasoning_verified: high
 
   gemini_3_5_flash_high_agy_oauth:
     provider: agy_gemini_oauth
@@ -122,10 +120,13 @@ models:
       Agy 多模态感知角色的第二个独立容量池。只有默认 Gemini Observer
       或 visual Reviewer 返回 quota_exhausted、rate_limited 或
       model_unavailable 且容量策略预批准时，才允许
-      在同一个 Agy shell 中切换。`agy models` 1.1.1 已验证 CLI 标签；Agy 没有额度查询命令，
-      因此 remaining/reset 未知时必须保持 null，不能猜测五小时重置点。
+      在同一个 Agy shell 中切换。`agy models` 1.1.1 已验证 CLI 标签；AgentLab
+      通过绑定该模型标签的交互会话运行 `/usage`。若 CLI 未返回可解析的余量或刷新时间，
+      remaining/reset 必须保持 null，不能猜测五小时重置点。
 
   grok_4_3_hermes_oauth:
+    status: quarantined
+    automatic_use: false
     provider: hermes_xai_oauth
     runtime_provider: xai-oauth
     cli_provider: xai-oauth
@@ -145,7 +146,8 @@ models:
       currency: subscription_or_oauth_quota
       billing_source: xai_oauth
     notes: >
-      Grok 4.3 is the Hermes+xAI research brain and media-tool orchestrator.
+      Grok 4.3 remains a registered Hermes+xAI research and media-tool route,
+      but is quarantined from automatic runtime selection until a fresh canary passes.
       Text output is not a generated image. ArtifactProducer completion requires
       a real Grok Imagine tool artifact path and a separate aesthetic review.
     evidence:
@@ -344,15 +346,17 @@ providers:
     command: hermes
     base_url: https://chatgpt.com/backend-api/codex
     runtime_provider: openai-codex
-    default_model: gpt-5.6-sol
-    reasoning_effort: xhigh
+    default_model: gpt-5.5
+    reasoning_effort: high
     notes: >
       Hermes 内部的 Codex OAuth provider。用于 Supervisor 等脑力层通过
-      hermes --provider openai-codex -m gpt-5.6-sol 调用，并要求 xhigh reasoning effort；
+      hermes --provider openai-codex -m gpt-5.5 调用，并要求 high reasoning effort；
       不等同于 Codex CLI worker。
 
   hermes_xai_oauth:
     display: Hermes xAI OAuth
+    status: quarantined
+    automatic_use: false
     currency: subscription_or_oauth_quota
     auth: local_hermes_oauth_session
     command: hermes
@@ -360,9 +364,9 @@ providers:
     default_model: grok-4.3
     capacity_source: config/model_capacity.yml
     notes: >
-      Used separately by Grok Researcher and Grok media-tool contracts. Runtime
-      auth/cooldown evidence is dynamic; this catalog entry never claims a
-      remaining percentage or reset time.
+      Registered for explicit Grok Researcher and media-tool canaries only.
+      Runtime auth/cooldown evidence is dynamic; this catalog entry never
+      claims a remaining percentage or reset time.
 
   agy_gemini_oauth:
     display: Agy / Antigravity Gemini OAuth

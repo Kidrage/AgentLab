@@ -187,7 +187,7 @@ def test_exact_qwen_command_provider_environment_and_allowlisted_materialization
             _MODEL_ID,
             "--sandbox",
             "--approval-mode",
-            "yolo",
+        "default",
             "--output-format",
             "json",
             "--max-wall-time",

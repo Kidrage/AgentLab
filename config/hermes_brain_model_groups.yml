@@ -7,12 +7,13 @@ summary: >
   belongs only to config/model_capacity.yml.
 
 default_recommendation:
-  model_mix: codex_gpt56_sol_supervisor_with_specialists
+  model_mix: codex_gpt55_high_supervisor_with_specialists
   rationale:
-    - Hermes with Codex GPT-5.6 Sol xhigh is the strongest registered Supervisor route.
-    - Claude shell with DeepSeek owns bounded Chinese Writer work.
-    - Agy observes multimodal evidence; it does not write final prose or claim image generation.
-    - Grok/xAI owns sourced social/web research and registered image/video tool orchestration.
+    - Hermes JSON-RPC with Codex GPT-5.5 high is the registered primary Supervisor route.
+    - Claude shell with DeepSeek V4 Pro owns bounded text production, review, and narrative planning.
+    - Agy/Gemini OAuth is the preferred multimodal observer and visual-review route while its independent quota window is available.
+    - Qwen models are selected by capability score as metered multimodal fallbacks, not treated as one interchangeable visual module.
+    - Grok/xAI remains quarantined until its execution and usage telemetry pass a new canary.
 
 providers:
   deepseek:
@@ -27,15 +28,17 @@ providers:
       - deepseek_v4_flash
     multimodal: false
   qwen:
-    role: current_qwen_text_reasoning
+    role: metered_multimodal_fallback_family
     strengths:
+      - image_and_pdf_understanding
       - text_reasoning
       - chinese_repo_understanding
-      - broad_model_selection
+      - structured_artifact_generation
     default_models:
       - qwen3_7_max_dashscope
       - qwen3_6_plus_dashscope
-    multimodal: false
+    multimodal: true
+    selection_rule: choose_the_lowest_cost_model_that_meets_the_task_quality_floor
   codex:
     role: primary_supervisor_brain
     strengths:
@@ -44,7 +47,7 @@ providers:
       - architecture_refactor
       - tool_heavy_execution
     default_models:
-      - codex_gpt_5_6_sol_xhigh_hermes_oauth
+      - codex_gpt_5_5_high_hermes_oauth
     quota_policy:
       source: config/model_capacity.yml
       refresh_window_hours: null
@@ -52,7 +55,7 @@ providers:
       reset_at: null
       rule: never_guess_subscription_capacity
   grok_xai:
-    role: social_web_research_and_registered_media_tool_orchestration
+    role: quarantined_optional_provider
     strengths:
       - social_search
       - web_search
@@ -63,23 +66,28 @@ providers:
     multimodal: tool_orchestration_only
     direct_media_generation: false
     audio_generation: false
+    status: quarantined
+    automatic_use: false
 
 brain_layouts:
   recommended:
-    name: codex_gpt56_sol_supervisor_with_specialists
+    name: codex_gpt55_high_supervisor_with_specialists
     brain_chain:
-      supervisor: codex_gpt_5_6_sol_xhigh_hermes_oauth
+      supervisor: codex_gpt_5_5_high_hermes_oauth
       writer: deepseek_v4_pro
       multimodal_observer: gemini_3_5_flash_high_agy_oauth
       observer_fallback: claude_sonnet_4_6_agy_oauth
-      social_web_research: grok_4_3_hermes_oauth
-      artifact_producer: grok_4_3_hermes_oauth
-      independent_verifier: deepseek_v4_flash
+      researcher: gemini_3_5_flash_high_agy_oauth
+      artifact_producer: deepseek_v4_pro
+      independent_reviewer: deepseek_v4_pro
+      independent_verifier: deepseek_v4_pro
+      visual_review_fallback: qwen3_7_max_dashscope
     execution_rule: >
-      Hermes with Codex GPT-5.6 Sol keeps Supervisor plan ownership and routes
+      Hermes with Codex GPT-5.5 high keeps Supervisor plan ownership and routes
       only verified task packets to the separate Writer, Observer, Researcher,
       ArtifactProducer, and independent Verifier roles. Producers cannot
-      self-approve, and capacity changes must follow config/model_capacity.yml.
+      self-approve. Runtime selection, quota reserve, and provider switching
+      must follow config/runtime_registry.yml and config/routing_policy.yml.
   single_multimodal_brain:
     name: agy_multimodal_observer_with_qwen_text_support
     examples:
@@ -91,26 +99,26 @@ brain_layouts:
       evidence reports. Qwen Plus may support explicitly assigned text roles;
       this layout does not imply an automatic worker or provider fallback.
   pure_api_lowest_tier:
-    name: deepseek_qwen_text_only
+    name: deepseek_primary_with_qwen_multimodal_fallback
     examples:
       - deepseek_v4_pro
       - deepseek_v4_flash
       - qwen3_7_max_dashscope
-    multimodal_gap_policy: >
-      These brain models do not process media directly. When multimodal evidence
-      is required, Hermes must request execution-layer multimodal tools or
-      workers to produce observations, captions, transcripts, embeddings, or QA
-      reports, then reason over those returned artifacts.
+    multimodal_policy: >
+      DeepSeek remains the text reasoning route. Qwen may process assigned image
+      or PDF evidence only when its selected model meets the quality floor and a
+      subscription/OAuth route is unavailable or below reserve.
   premium_codex_brain:
-    name: codex_gpt56_sol_supervisor
+    name: codex_gpt55_high_supervisor
     brain_chain:
-      planner: codex_gpt_5_6_sol_xhigh_hermes_oauth
-      reviewer: qwen3_6_flash_dashscope
+      planner: codex_gpt_5_5_high_hermes_oauth
+      reviewer: deepseek_v4_pro
       writer: deepseek_v4_pro
       multimodal_observer: gemini_3_5_flash_high_agy_oauth
-      social_web_research: grok_4_3_hermes_oauth
+      researcher: gemini_3_5_flash_high_agy_oauth
+      visual_review_fallback: qwen3_7_max_dashscope
     execution_rule: >
-      Codex GPT-5.6 Sol xhigh acts as the Hermes Supervisor brain. It must emit the standard
+      Codex GPT-5.5 high acts as the Hermes Supervisor brain. It must emit the standard
       Hermes handoff contract (plan_status, missing_facts, must_read_artifacts,
       dispatch_units, self_check, revision_log). Coder execution must be
       dispatched through role-session. Writer, Observer, Researcher, and

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 import hashlib
 import re
+import shlex
 
 import typer
 import yaml
@@ -44,6 +45,8 @@ ROLE_ALIASES = {
     "archivist": "archivist",
     "writer": "writer",
     "visual_reviewer": "visual_reviewer",
+    "narrativeplanner": "narrative_planner",
+    "narrative_planner": "narrative_planner",
 }
 
 
@@ -64,6 +67,7 @@ ROLE_KEY_TO_CANONICAL = {
     "tester_auditor": "TesterAuditor",
     "verifier": "Verifier",
     "archivist": "Archivist",
+    "narrative_planner": "NarrativePlanner",
 }
 INLINE_NUMERIC_PRICE_RE = re.compile(
     r"(?:[$\u00a5\uffe5]\s*\d+(?:\.\d+)?|\b(?:USD|CNY)\s*\d+(?:\.\d+)?)",
@@ -94,6 +98,14 @@ def _proposal_dir(root: Path) -> Path:
 def _proposal_id(role: str, cli: str, model: str) -> str:
     seed = f"{datetime.now(timezone.utc).isoformat()}:{role}:{cli}:{model}".encode()
     return "model_" + hashlib.sha1(seed).hexdigest()[:12]
+
+
+def _dynamic_full_cli_enabled(root: Path) -> bool:
+    profiles = _read_yaml(root / "config" / "agent_model_profiles.yml", {}) or {}
+    runtime = profiles.get("dynamic_runtime") or {}
+    default_mode = str(profiles.get("default_mode") or "full_cli")
+    enabled_modes = {str(item) for item in runtime.get("enabled_modes") or ["full_cli"]}
+    return bool(runtime.get("enabled")) and default_mode in enabled_modes
 
 
 def _governed_proposal_binding(
@@ -269,6 +281,80 @@ def _capacity_rows(root: Path, ledger_path: Path | None = None) -> list[dict[str
 
 
 def _role_rows(root: Path, *, mode: str, role: str | None) -> list[dict[str, str]]:
+    registry_path = root / "config" / "runtime_registry.yml"
+    if registry_path.exists():
+        try:
+            from agent_runtime.routing.dynamic_selector import DynamicRouteSelector
+            from agent_runtime.runtime_registry import RuntimeRegistry
+        except ModuleNotFoundError:  # pragma: no cover - direct script path
+            from routing.dynamic_selector import DynamicRouteSelector
+            from runtime_registry import RuntimeRegistry
+
+        registry = RuntimeRegistry.load(root)
+        if not registry.validate():
+            selector = DynamicRouteSelector(registry)
+            selected_role = _role_key(role) if role else None
+            rows: list[dict[str, str]] = []
+            for role_key in sorted((registry.data.get("role_routes") or {})):
+                if selected_role and role_key != selected_role:
+                    continue
+                decision = selector.select(
+                    registry.task_demand(role_key, preset=_tier(mode))
+                )
+                if decision.get("status") != "selected":
+                    rows.append({
+                        "role": role_key,
+                        "cli": "blocked",
+                        "model": "",
+                        "provider": "",
+                        "cost": "unknown",
+                        "pool": "",
+                        "fallback": "",
+                        "fit": str(decision.get("reason") or "no eligible route"),
+                        "risk": ",".join(
+                            str(item.get("reason") or "")
+                            for item in decision.get("rejected_routes") or []
+                        ),
+                        "route": "",
+                        "channel": "",
+                    })
+                    continue
+                route_id = str(decision["route_id"])
+                identity = registry.route_identity(route_id)
+                shell = registry.shells.get(identity.shell_id) or {}
+                quote = decision.get("cost") or {}
+                cost_value = quote.get("cny_amount")
+                billing = str(quote.get("billing_mode") or "unknown")
+                cost = (
+                    f"CNY {float(cost_value):.6f} ({billing})"
+                    if cost_value is not None
+                    else f"unknown ({billing})"
+                )
+                fallback_ids = [
+                    item
+                    for item in registry.candidates_for(role_key)
+                    if item != route_id
+                    and str((registry.routes.get(item) or {}).get("status") or "active")
+                    == "active"
+                ]
+                rows.append({
+                    "role": role_key,
+                    "cli": f"{identity.shell_id}/{shell.get('worker_id') or identity.shell_id}",
+                    "model": identity.model_id,
+                    "provider": identity.provider_id,
+                    "cost": cost,
+                    "pool": identity.credential_pool_id,
+                    "fallback": ",".join(fallback_ids),
+                    "fit": f"quality={decision.get('quality')} floor={decision.get('quality_floor')}",
+                    "risk": ",".join(
+                        f"{item.get('route_id')}:{item.get('reason')}"
+                        for item in decision.get("rejected_routes") or []
+                    )[:160],
+                    "route": route_id,
+                    "channel": str(shell.get("preferred_channel") or "cli"),
+                })
+            return rows
+
     profiles = _read_yaml(root / "config" / "agent_model_profiles.yml", {}) or {}
     catalog = _read_yaml(root / "config" / "model_catalog.yml", {}) or {}
     capacity = _read_yaml(root / "config" / "model_capacity.yml", {}) or {}
@@ -313,6 +399,8 @@ def _role_rows(root: Path, *, mode: str, role: str | None) -> list[dict[str, str
             ),
             "fit": ", ".join(str(item) for item in model_entry.get("suitable_agents") or [])[:80],
             "risk": _risk(model_key, model_entry),
+            "route": capacity_route_id,
+            "channel": "legacy",
         })
     return rows
 
@@ -328,6 +416,8 @@ def _render_rows(console: Console, rows: list[dict[str, str]]) -> None:
     table.add_column("Fallback", overflow="fold")
     table.add_column("Fit", overflow="fold")
     table.add_column("Risk", overflow="fold")
+    table.add_column("Route", overflow="fold")
+    table.add_column("Channel", overflow="fold")
     for row in rows:
         table.add_row(
             row["role"],
@@ -339,6 +429,8 @@ def _render_rows(console: Console, rows: list[dict[str, str]]) -> None:
             row["fallback"],
             row["fit"],
             row["risk"],
+            row.get("route", ""),
+            row.get("channel", ""),
         )
     console.print(table)
     for row in rows:
@@ -354,9 +446,94 @@ def _render_rows(console: Console, rows: list[dict[str, str]]) -> None:
                     f"fallback={row['fallback']}",
                     f"fit={row['fit']}",
                     f"risk={row['risk']}",
+                    f"route={row.get('route', '')}",
+                    f"channel={row.get('channel', '')}",
                 ]
             )
         )
+
+
+def _runtime_quota_snapshots(
+    registry: Any,
+    ledger_path: Path | None,
+) -> dict[str, dict[str, Any]]:
+    try:
+        from agent_runtime.runtime_registry import load_runtime_quota_snapshots
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from runtime_registry import load_runtime_quota_snapshots
+
+    return load_runtime_quota_snapshots(registry, ledger_path)
+
+
+def _runtime_matrix_rows(root: Path, role: str | None = None) -> list[dict[str, str]]:
+    try:
+        from agent_runtime.runtime_registry import RuntimeRegistry, canonical_role
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from runtime_registry import RuntimeRegistry, canonical_role
+
+    registry = RuntimeRegistry.load(root)
+    wanted = canonical_role(role) if role else None
+    rows: list[dict[str, str]] = []
+    for route_id, route in sorted(registry.routes.items()):
+        identity = registry.route_identity(route_id)
+        if wanted and canonical_role(identity.role) != wanted:
+            continue
+        shell = registry.shells.get(identity.shell_id) or {}
+        model = registry.models.get(identity.model_id) or {}
+        provider = registry.providers.get(identity.provider_id) or {}
+        rows.append({
+            "role": identity.role,
+            "route": route_id,
+            "status": str(route.get("status") or "active"),
+            "shell": identity.shell_id,
+            "worker": str(shell.get("worker_id") or identity.shell_id),
+            "channel": str(shell.get("preferred_channel") or "cli"),
+            "adapter": identity.adapter_id,
+            "profile": identity.profile_ref or "",
+            "provider": identity.provider_id,
+            "model": identity.model_id,
+            "provider_model": str(model.get("provider_model_id") or ""),
+            "pool": identity.credential_pool_id,
+            "billing": str(provider.get("billing_mode") or ""),
+        })
+    return rows
+
+
+def _render_runtime_matrix(console: Console, rows: list[dict[str, str]]) -> None:
+    table = Table()
+    for label in (
+        "Role",
+        "Route",
+        "Status",
+        "Shell/worker",
+        "Channel",
+        "Adapter",
+        "Profile",
+        "Provider",
+        "Model",
+        "Provider model",
+        "Pool",
+        "Billing",
+    ):
+        table.add_column(label, overflow="fold")
+    for row in rows:
+        table.add_row(
+            row["role"],
+            row["route"],
+            row["status"],
+            f"{row['shell']}/{row['worker']}",
+            row["channel"],
+            row["adapter"],
+            row["profile"],
+            row["provider"],
+            row["model"],
+            row["provider_model"],
+            row["pool"],
+            row["billing"],
+        )
+    console.print(table)
+    for row in rows:
+        console.print(" | ".join(f"{key}={value}" for key, value in row.items()))
 
 
 def _doctor_issues(root: Path) -> list[dict[str, str]]:
@@ -373,6 +550,49 @@ def _doctor_issues(root: Path) -> list[dict[str, str]]:
     ) or {}
     visual = _read_yaml(root / "config" / "visual_acceptance.yml", {}) or {}
     issues: list[dict[str, str]] = []
+    runtime_registry_path = root / "config" / "runtime_registry.yml"
+    if runtime_registry_path.exists():
+        try:
+            from agent_runtime.runtime_registry import RuntimeRegistry
+        except ModuleNotFoundError:  # pragma: no cover - direct script path
+            from runtime_registry import RuntimeRegistry
+        for runtime_issue in RuntimeRegistry.load(root).validate():
+            issues.append({
+                "severity": str(runtime_issue.get("severity") or "error"),
+                "scope": str(runtime_issue.get("scope") or "runtime_registry"),
+                "issue": "runtime_registry:"
+                + str(runtime_issue.get("issue") or "invalid"),
+                "value": "",
+            })
+
+    try:
+        from agent_runtime.shell_governance import validate_production_argv
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from shell_governance import validate_production_argv
+    for contract_id, contract in (
+        (invocation_contracts.get("contracts") or {}).items()
+    ):
+        template = str((contract or {}).get("template") or "")
+        if not template:
+            continue
+        try:
+            argv = shlex.split(template)
+        except ValueError as exc:
+            issues.append({
+                "severity": "error",
+                "scope": f"worker_invocation_contracts.contracts.{contract_id}.template",
+                "issue": "invalid_shell_template",
+                "value": str(exc),
+            })
+            continue
+        shell_issues = validate_production_argv(argv)
+        if shell_issues:
+            issues.append({
+                "severity": "error",
+                "scope": f"worker_invocation_contracts.contracts.{contract_id}.template",
+                "issue": "production_shell_bypass_forbidden",
+                "value": ",".join(shell_issues),
+            })
     modes = profiles.get("modes") or {}
     for mode_name, mode_cfg in modes.items():
         tiers = (mode_cfg or {}).get("tiers") or {}
@@ -705,6 +925,123 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
         if role and not rows:
             raise typer.Exit(code=1)
 
+    @models_app.command("matrix")
+    def model_matrix(
+        role: str | None = typer.Option(
+            None,
+            "--role",
+            help="Limit output to one normalized runtime role.",
+        ),
+    ) -> None:
+        """Show every normalized shell/adapter/provider/model route."""
+        rows = _runtime_matrix_rows(project_root, role)
+        _render_runtime_matrix(console, rows)
+        if role and not rows:
+            raise typer.Exit(code=1)
+
+    @models_app.command("route-explain")
+    def explain_route(
+        role: str = typer.Option(..., "--role", help="Role to route, e.g. Writer."),
+        mode: str = typer.Option(
+            "balanced",
+            "--mode",
+            help="quality, balanced, frugal, full, performance, or low.",
+        ),
+        modalities: str = typer.Option(
+            "",
+            "--modalities",
+            help="Comma-separated required input modalities.",
+        ),
+        data_class: str = typer.Option("private", "--data-class"),
+        input_tokens: int = typer.Option(0, "--input-tokens", min=0),
+        output_tokens: int = typer.Option(0, "--output-tokens", min=0),
+        predicted_quota_percent: float = typer.Option(
+            0.0,
+            "--predicted-quota-percent",
+            min=0.0,
+        ),
+        risk_reserve_percent: float = typer.Option(
+            0.0,
+            "--risk-reserve-percent",
+            min=0.0,
+        ),
+        long_batch: bool = typer.Option(False, "--long-batch"),
+        checkpoint_complete: bool = typer.Option(
+            True,
+            "--checkpoint-complete/--mid-task",
+        ),
+        quota_ledger: Path | None = typer.Option(
+            None,
+            "--quota-ledger",
+            help="Optional model_capacity_ledger.yml with observed quota only.",
+        ),
+    ) -> None:
+        """Explain hard filters, quality floor, and effective-cost selection."""
+        try:
+            from agent_runtime.routing.dynamic_selector import DynamicRouteSelector
+            from agent_runtime.runtime_registry import (
+                RuntimeRegistry,
+                load_runtime_route_states,
+            )
+        except ModuleNotFoundError:  # pragma: no cover - direct script path
+            from routing.dynamic_selector import DynamicRouteSelector
+            from runtime_registry import RuntimeRegistry, load_runtime_route_states
+
+        registry = RuntimeRegistry.load(project_root)
+        issues = registry.validate()
+        if issues:
+            console.print(
+                yaml.safe_dump(
+                    {"status": "invalid_registry", "issues": issues},
+                    sort_keys=False,
+                    allow_unicode=True,
+                ).rstrip(),
+                markup=False,
+                soft_wrap=True,
+            )
+            raise typer.Exit(code=1)
+        required = [
+            item.strip().lower()
+            for item in modalities.split(",")
+            if item.strip()
+        ]
+        demand = registry.task_demand(
+            _role_key(role),
+            preset=_tier(mode),
+            required_modalities=required,
+            data_class=data_class,
+            predicted_input_tokens=input_tokens,
+            predicted_output_tokens=output_tokens,
+            predicted_quota_percent=predicted_quota_percent,
+            risk_reserve_percent=risk_reserve_percent,
+            long_batch=long_batch,
+            checkpoint_complete=checkpoint_complete,
+        )
+        decision = DynamicRouteSelector(
+            registry,
+            quota_snapshots=_runtime_quota_snapshots(registry, quota_ledger),
+            route_states=load_runtime_route_states(registry, quota_ledger),
+        ).select(demand)
+        decision["demand"] = {
+            "mode": mode,
+            "preset": _tier(mode),
+            "modalities": required,
+            "data_class": data_class,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "predicted_quota_percent": predicted_quota_percent,
+            "risk_reserve_percent": risk_reserve_percent,
+            "long_batch": long_batch,
+            "checkpoint_complete": checkpoint_complete,
+        }
+        console.print(
+            yaml.safe_dump(decision, sort_keys=False, allow_unicode=True).rstrip(),
+            markup=False,
+            soft_wrap=True,
+        )
+        if decision.get("status") != "selected":
+            raise typer.Exit(code=1)
+
     @models_app.command("plan")
     def plan_models(
         mode: str = typer.Option(..., "--mode", help="quality, balanced, or frugal."),
@@ -738,6 +1075,13 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
         if issue or binding is None:
             console.print(f"[red]{issue or 'Invalid governed model route'}[/red]")
             raise typer.Exit(code=1)
+        if _dynamic_full_cli_enabled(project_root):
+            console.print(
+                "[red]Fixed-model proposals cannot mutate the generated full_cli "
+                "compatibility view. Submit a reviewed runtime_registry route change "
+                "and validate it with models route-explain.[/red]"
+            )
+            raise typer.Exit(code=1)
         proposal_id = _proposal_id(role, cli, model)
         proposal = {
             "schema_version": 1,
@@ -770,6 +1114,12 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
             raise typer.Exit(code=1)
         if data.get("status") != "pending":
             console.print(f"[red]Proposal is not pending: {proposal}[/red]")
+            raise typer.Exit(code=1)
+        if _dynamic_full_cli_enabled(project_root):
+            console.print(
+                "[red]Refusing to apply a fixed-model proposal to dynamic full_cli; "
+                "config/agent_model_profiles.yml is a generated compatibility view.[/red]"
+            )
             raise typer.Exit(code=1)
         profiles_path = project_root / "config" / "agent_model_profiles.yml"
         profiles = _read_yaml(profiles_path, {}) or {}
@@ -874,6 +1224,111 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
         }
         console.print(
             yaml.safe_dump(payload, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    @models_app.command("quota")
+    def probe_quota(
+        pool: str = typer.Option(
+            ...,
+            "--pool",
+            help="Normalized credential pool or compatibility capacity pool id.",
+        ),
+        run_dir: Path = typer.Option(
+            ...,
+            "--run-dir",
+            help="Run-local directory that owns model_capacity_ledger.yml.",
+        ),
+        predicted_quota_percent: float = typer.Option(
+            0.0,
+            "--predicted-quota-percent",
+            min=0.0,
+        ),
+        risk_reserve_percent: float = typer.Option(
+            0.0,
+            "--risk-reserve-percent",
+            min=0.0,
+        ),
+    ) -> None:
+        """Run one allowlisted /usage probe and persist normalized telemetry."""
+        try:
+            from agent_runtime.model_capacity import ModelCapacity
+            from agent_runtime.quota_probes import run_interactive_probe
+            from agent_runtime.runtime_registry import RuntimeRegistry
+        except ModuleNotFoundError:  # pragma: no cover - direct script path
+            from model_capacity import ModelCapacity
+            from quota_probes import run_interactive_probe
+            from runtime_registry import RuntimeRegistry
+
+        policy = _read_yaml(project_root / "config" / "model_capacity.yml", {}) or {}
+        registry = RuntimeRegistry.load(project_root)
+        capacity_pool = pool
+        runtime_pool = registry.credential_pools.get(pool)
+        if isinstance(runtime_pool, dict):
+            capacity_pool = str(
+                runtime_pool.get("legacy_capacity_pool_id") or pool
+            )
+        if capacity_pool not in (policy.get("pools") or {}):
+            raise typer.BadParameter(f"unknown quota pool: {pool}")
+        run_dir.mkdir(parents=True, exist_ok=True)
+        ledger_name = str(
+            (policy.get("ledger") or {}).get("filename")
+            or "model_capacity_ledger.yml"
+        )
+        capacity = ModelCapacity(policy, run_dir / ledger_name)
+        result = capacity.probe_quota(
+            capacity_pool,
+            runner=run_interactive_probe,
+            attempt_id=f"models-quota:{datetime.now(timezone.utc).isoformat()}",
+            predicted_unit_usage_percent=predicted_quota_percent,
+            risk_reserve_percent=risk_reserve_percent,
+        )
+        payload = {
+            "requested_pool_id": pool,
+            "capacity_pool_id": capacity_pool,
+            "ledger_path": str(run_dir / ledger_name),
+            **result,
+        }
+        console.print(
+            yaml.safe_dump(payload, sort_keys=False, allow_unicode=True).rstrip(),
+            markup=False,
+            soft_wrap=True,
+        )
+
+    @models_app.command("receipt")
+    def show_receipts(
+        run_dir: Path = typer.Option(
+            ...,
+            "--run-dir",
+            help="Run directory containing usage_receipt_<role>.yml files.",
+        ),
+    ) -> None:
+        """Summarize immutable route, usage, pricing, and quota receipts."""
+        receipts: list[dict[str, Any]] = []
+        for path in sorted(run_dir.glob("usage_receipt_*.yml")):
+            payload = _read_yaml(path, {}) or {}
+            receipt = payload.get("usage_receipt")
+            if not isinstance(receipt, dict):
+                continue
+            receipts.append({"path": str(path), **receipt})
+        known_costs = [
+            float(item["cost_cny"])
+            for item in receipts
+            if item.get("cost_cny") is not None
+        ]
+        payload = {
+            "status": "observed",
+            "run_dir": str(run_dir),
+            "receipt_count": len(receipts),
+            "known_cost_cny": round(sum(known_costs), 8),
+            "unavailable_cost_count": sum(
+                1 for item in receipts if item.get("cost_cny") is None
+            ),
+            "receipts": receipts,
+        }
+        console.print(
+            yaml.safe_dump(payload, sort_keys=False, allow_unicode=True).rstrip(),
+            markup=False,
+            soft_wrap=True,
         )
 
     @models_app.command("doctor")

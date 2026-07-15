@@ -2,11 +2,11 @@
 
 语言：[English](CURRENT_VERSION_CAPABILITIES.en-US.md) | [中文](CURRENT_VERSION_CAPABILITIES.zh-CN.md)
 
-> 本文记录 2026-07-14 的已提交能力快照。能力实现基线为 `424b983`，审计起点为 `b098513`。仓库尚未发布语义化版本，因此本文以日期和 Git 提交界定“当前版本”。
+> 本文记录 2026-07-15 动态运行时与 CLI 壳治理修订的能力快照。仓库尚未发布语义化版本，因此“当前版本”指包含本文及对应实现的提交。
 
 AgentLab 是本地优先的 AI Production OS 与长期项目治理后端。它负责合同、路由、预算、审批、证据、验收、恢复、记忆和归档，不替代 Codex、Claude Code、Hermes、Agy、Qwen 或 OpenClaw。
 
-本文只描述 Git `HEAD=b098513` 已提交事实。审计期间工作区另有并行未提交改动；这些改动没有被计入当前 GitHub 版本，也不会被本次文档提交覆盖。
+本文只描述对应实现提交中的受跟踪事实。私有项目 run 与被忽略的本地验收资产不是可分发仓库证据；引用这些资产时只将其视为历史本地证据。
 
 ## 1. 快照、成熟度与验收口径
 
@@ -14,14 +14,14 @@ AgentLab 是本地优先的 AI Production OS 与长期项目治理后端。它�
 |---|---|
 | 仓库 | `Kidrage/AgentLab` |
 | 默认分支 | `main` |
-| 本文能力实现基线 | `424b983`，`feat: govern agent roles and model capacity` |
-| 本文审计起点 | `b098513`，角色/容量改造 handoff 已刷新 |
+| 本文能力实现基线 | 动态运行时、CLI 壳治理与对应实现提交 |
+| 合并目标 | `main` |
 | 产品阶段 | M-series 对齐；M1 治理内核较完整，M2/M3 仍持续建设 |
 | CLI 规模 | `./agentlab.sh --help` 当前列出 253 个顶层命令 |
-| 完整测试基线 | `2663 passed, 24 skipped, 11 warnings` |
-| 协议 Doctor | `106/106` 检查通过 |
+| 完整测试基线 | `2734 passed, 24 skipped, 11 warnings` |
+| 协议 Doctor | `110/110` 检查通过 |
 | Artifact Doctor | `21/21` 检查通过 |
-| 当前能力验收矩阵 | `27 pass / 5 candidate`，总体仍为 `candidate` |
+| 能力验收口径 | 私有工作区报告仅作历史证据；干净克隆聚合取决于本地 run 资产 |
 | 本轮真实 provider 调用 | 0；没有模型、媒体或付费 API 调用 |
 
 完整测试中的 22 个私有 Crown 用例在干净克隆中因无私有资产而跳过，但已在本机含资产环境通过。另有 2 个外部 live 用例按设计跳过。
@@ -82,23 +82,24 @@ AgentLab 始终拥有 mission、route、role packet、项目记忆、验证、�
 
 还存在 `qwen_token_plan_cli`、`full_api`、`hybrid_ide`。`trusted_headless_cli` 是显式安全例外，不是默认路径。
 
-## 3. 14 角色、默认执行面与职责边界
+## 3. 15 角色、默认执行面与职责边界
 
-AgentLab 有 14 个治理角色；“14 角色”与“24 生命周期节点”是两件不同的事。
+AgentLab 有 15 个治理角色；“15 角色”与“24 生命周期节点”是两件不同的事。
 
 | 层级 | 角色 | 当前主职责 | 默认或典型执行面 | 关键边界 |
 |---|---|---|---|---|
-| T1 | Supervisor | 规划、拆解、进度、恢复、最终综合 | Hermes + OpenAI Codex OAuth + GPT-5.6 Sol `xhigh` | 不接管 Writer、Coder、Producer |
-| T2 | RepoScout | 低成本仓库定位和事实收集 | `rg`、Codex、Claude Code | 只读，不做实现 |
-| T2 | Researcher | 外部网络、社媒、热点和证据调研 | Hermes + xAI OAuth + Grok 4.3 | 事实/推断分离，不写成品 |
+| T1 | Supervisor | 规划、拆解、进度、恢复、最终综合 | Hermes JSON-RPC + OpenAI Codex OAuth + GPT-5.5 `high` | 不接管 Writer、Coder、Producer |
+| T2 | RepoScout | 低成本仓库定位和事实收集 | Claude Code + DeepSeek V4 Pro | 只读，不做实现 |
+| T2 | Researcher | 外部资料和证据调研 | Agy + Gemini 3.5 Flash High | 事实/推断分离，不写成品 |
 | T2 | Observer | 长文和多模态只读观察 | Agy + Gemini 3.5 Flash High | 只输出文本，不写文件、不生成媒体 |
 | T2 | InterfaceMapper | AST、接口、依赖和边界映射 | `ast-grep`、Codex、Claude Code | 不越权修改接口 |
-| T2 | PromptEngineer | 角色提示、上下文和任务包设计 | Hermes / Claude / Qwen | 不替代执行角色 |
+| T2 | PromptEngineer | 角色提示、上下文和任务包设计 | Claude Code + DeepSeek | 不替代执行角色 |
 | T3 | Coder | 受限代码实现与修复 | Claude Code、Codex、Aider、Hermes | 仅允许文件和命令范围 |
-| T3 | ArtifactProducer | 非代码候选产物 | Grok 媒体；Qwen 文档类 | candidate-only，不得自审 |
+| T3 | ArtifactProducer | 非代码候选产物 | Claude+DeepSeek 文本；Bailian/Ark 媒体 | candidate-only，不得自审 |
 | T3 | Writer | 中文叙事候选写作 | Claude Code shell + DeepSeek | 不规划、不浏览、不改源码 |
-| T4 | Reviewer | 内容、视觉、diff 和证据质量评审 | Qwen；视觉时 Agy；亦可 Claude | 必须独立于 Producer |
-| T4 | Scribe | 状态、连续性和决策账本 | Qwen / Claude / Codex | 记录事实，不改写原产物 |
+| T3 | NarrativePlanner | 长篇逻辑修补与重写提案 | Claude Code + DeepSeek V4 Pro | 只写提案，不直接改候选或 production |
+| T4 | Reviewer | 内容、视觉、diff 和证据质量评审 | Claude+DeepSeek；视觉时 Agy | 必须独立于 Producer |
+| T4 | Scribe | 状态、连续性和决策账本 | Claude Code + DeepSeek | 记录事实，不改写原产物 |
 | T4 | TesterAuditor | 测试执行与测试充分性审计 | pytest / Claude / Codex / Hermes | 不把“声称通过”当证据 |
 | T4 | Verifier | 格式、静态检查、完整性和闭环验证 | ruff / mypy / eslint / Claude / Codex / Hermes | 不负责 promotion 决策 |
 | T5 | Archivist | 受控记忆写入、归档和 Git 交付 | git / Claude / Hermes | 只写批准路径和格式 |
@@ -109,20 +110,21 @@ AgentLab 有 14 个治理角色；“14 角色”与“24 生命周期节点”�
 
 | 角色 | Full / quality | Performance / balanced | Low / frugal |
 |---|---|---|---|
-| Supervisor | Hermes + GPT-5.6 Sol `xhigh` | 同左 | 同左 |
+| Supervisor | Hermes + GPT-5.5 `high` | 同左 | 同左 |
 | Observer | Agy Gemini 3.5 Flash High | 同左 | 同左 |
-| RepoScout | Codex + DeepSeek V4 Pro | 同左 | Codex + Qwen 3.6 Flash |
-| InterfaceMapper | Codex + DeepSeek V4 Pro | 同左 | 跳过 |
-| Researcher | Hermes + Grok 4.3 | 同左 | 同左 |
-| PromptEngineer | Hermes + Qwen 3.7 Max | Hermes + DeepSeek V4 Flash | Hermes + Qwen 3.6 Flash |
-| Coder | Claude + DeepSeek V4 Pro | Claude + Qwen3 Coder Plus | Claude + Qwen3 Coder Next |
-| ArtifactProducer | 按 ArtifactTask 类型分流 | 同左 | 同左 |
-| Writer | Claude + DeepSeek V4 Pro | 同左 | Claude + DeepSeek V4 Flash |
-| Reviewer | Qwen 3.6 Flash | 同左 | 同左 |
-| Scribe | Qwen 3.6 Flash | 同左 | 同左 |
-| TesterAuditor | Hermes + Qwen 3.7 Max | Codex + DeepSeek V4 Pro | Codex + DeepSeek V4 Flash |
-| Verifier | Hermes + Qwen 3.6 Flash | Codex + DeepSeek V4 Flash | 同左 |
-| Archivist | Claude + DeepSeek V4 Pro | 同左 | Claude + Qwen 3.6 Flash |
+| RepoScout | Claude + DeepSeek V4 Pro | 同左 | 同左 |
+| InterfaceMapper | Claude + DeepSeek V4 Pro | 同左 | 同左 |
+| Researcher | Agy Gemini 3.5 Flash High | 同左 | 同左 |
+| PromptEngineer | Claude + DeepSeek V4 Pro | Claude + DeepSeek V4 Flash | 同左 |
+| Coder | Claude + DeepSeek V4 Pro | 同左 | 同左 |
+| ArtifactProducer | Claude + DeepSeek V4 Pro | 同左 | 同左 |
+| Writer | Claude + DeepSeek V4 Pro | 同左 | 同左 |
+| NarrativePlanner | Claude + DeepSeek V4 Pro | 同左 | 同左 |
+| Reviewer | Claude + DeepSeek V4 Pro | 同左 | 同左 |
+| Scribe | Claude + DeepSeek V4 Pro | Claude + DeepSeek V4 Flash | 同左 |
+| TesterAuditor | Claude + DeepSeek V4 Pro | 同左 | 同左 |
+| Verifier | Claude + DeepSeek V4 Pro | 同左 | 同左 |
+| Archivist | Claude + DeepSeek V4 Pro | Claude + DeepSeek V4 Flash | 同左 |
 
 媒体 VisualReviewer 是独立 profile：优先 Agy/Gemini，容量和模态允许时可转 Agy/Claude。它不等同于普通 Qwen Reviewer。
 
@@ -195,15 +197,15 @@ Task packet 固定 objective、context、允许/禁止文件、required outputs�
 
 ## 5. 关键模型组合与小说能力
 
-### 5.1 Supervisor：Hermes + GPT-5.6 Sol
+### 5.1 Supervisor：Hermes JSON-RPC + GPT-5.5
 
-Supervisor 使用 Hermes profile `agentlabsupervisor`，provider 为 `openai-codex`，模型为 `gpt-5.6-sol`，推理强度为 `xhigh`。用户写 `extra` 时会映射到 `xhigh`。
+Supervisor 使用本机 Hermes 的 loopback JSON-RPC 服务，provider 为 `openai-codex`，模型为 `gpt-5.5`，推理强度为 `high`。每次 AgentLab 调用创建独立 role session，完成后读取精确 usage 并关闭 session。
 
 预检校验 profile、provider、model、reasoning 和空 fallback；任何尾部 argv 覆盖都会在 provider 启动前失败。
 
 Supervisor 只做规划、拆解、进度、恢复和最终综合。容量故障时，可按同角色边界转 Claude shell + DeepSeek V4 Pro；不能转为 Writer 或 Producer。
 
-本机旧 Hermes profile 可能仍是 GPT-5.5/high。AgentLab 不修改 `~/.hermes`，profile 未 provision 到精确配置时会 fail-closed。
+AgentLab 不写入用户的 provider 密钥，也不声明未登记 fallback；Hermes RPC 发生审批请求或 provider/model 漂移时会 fail-closed。
 
 ### 5.2 Writer：Claude Code shell + DeepSeek
 
@@ -224,11 +226,11 @@ Ultracode 是独立 `WriterUltracode` route，不是普通 Writer 的隐式开�
 
 它禁止 `final_prose_draft`，CLI ceiling 是 2 美元，必须写 activation receipt。失败后不静默转回普通写作。
 
-### 5.4 Researcher：Hermes + Grok 4.3
+### 5.4 Researcher：Agy + Gemini 3.5 Flash High
 
-Researcher 使用 xAI OAuth 和 Grok 的 `web`、`x_search` 工具，聚焦真实网络、社媒、热点、流行趋势与外部证据。
+默认 Researcher 使用 Agy/Gemini OAuth 生成外部资料候选证据。Grok 的 `grok_research` 合同仍登记，但 xAI provider 与模型处于 `quarantined`，仅允许显式 bounded canary。
 
-报告必须保留 URL、检索时间、事实与推断分离。Researcher 不写代码、长篇正文或媒体候选，也没有自动 provider fallback。
+报告必须保留 URL、检索时间、事实与推断分离。Researcher 不写代码、长篇正文或媒体候选；provider 切换只能发生在 checkpoint，并写明 route identity。
 
 ### 5.5 Observer：Agy 多模态只读层
 
@@ -310,15 +312,17 @@ ArtifactTask 必须声明类型、精确输出路径、格式、requirements、v
 
 | 产物 | 当前默认生产者 | 格式 | 状态 |
 |---|---|---|---|
-| 文本/文档 | Qwen CLI | `md`、`txt`、`docx` | 支持 |
-| 表格 | Qwen CLI | `xlsx`、`csv` | 支持 |
-| 演示 | Qwen CLI | `pptx`、`pdf` | 支持 |
-| 图片 | Grok / xAI Imagine | `png`、`jpg`、`webp` | candidate；需视觉验收 |
-| 视频 | Grok / xAI Imagine | `mp4`、`mov` | candidate；需视觉验收 |
+| 文本/文档 | Claude Code + DeepSeek V4 Pro | `md`、`txt`、`docx` | 支持；Qwen 为显式计费候选 |
+| 表格 | Claude Code + DeepSeek V4 Pro | `xlsx`、`csv` | 支持；Qwen 为显式计费候选 |
+| 演示 | Claude Code + DeepSeek V4 Pro | `pptx`、`pdf` | 支持；Qwen 为显式计费候选 |
+| 图片 | Bailian CLI；Ark premium option | `png`、`jpg`、`webp` | 需付费批准；candidate；需视觉验收 |
+| 视频 | Bailian CLI；Ark premium option | `mp4`、`mov` | 需付费批准；candidate；需视觉验收 |
 | 音频 | 无受治理 producer | — | fail-closed，`capability_mismatch` |
 | 跨 provider mixed | 无 composite adapter | — | fail-closed，`capability_mismatch` |
 
-Qwen 文档路线按 Max → Plus → Flash 多跳，每一跳只允许 `model_unavailable`。Grok 图片/视频没有自动 fallback。
+Qwen 文档路线是显式、计费候选；Max、Plus、Flash 由当前质量下限与预测
+成本选择，不执行同调用多跳。Grok 图片/视频路线已隔离，只允许显式 bounded
+canary，没有自动 route。
 
 ### 输入与输出隔离
 
@@ -338,54 +342,58 @@ Qwen 文档路线按 Max → Plus → Flash 多跳，每一跳只允许 `model_u
 
 这些检查证明结构和交付合同有效，不证明公式正确、PPT 美观或内容准确。内容质量仍需 Reviewer、Verifier 或人工验收。
 
-Qwen Artifact 使用 `--approval-mode yolo`，Grok 使用 `--ignore-rules`。这些命令本身是高风险的；安全来自 sealed packet、隔离 workspace、精确输出回收、审批和 receipts。
+生产命令全局禁止 `-z`、`--ignore-rules`、`--yolo` 和 `--dangerously-skip-permissions`。Qwen 使用 `--approval-mode default`；Hermes 使用 `chat -Q ... -q` 或 loopback JSON-RPC。sealed packet、隔离 workspace 与 receipts 是额外约束，不是绕过权限的理由。
 
-## 8. 容量、订阅窗口、breaker 与 fallback
+## 8. 容量、订阅窗口与 checkpoint 调度
 
-容量账本是 run-local 原子 YAML：`model_capacity_ledger.yml`。它只保存结构化观察，不保存 probe 原始输出。
+`config/runtime_registry.yml` 是 Full CLI 的 route、provider、model、credential
+pool 权威；`model_capacity_ledger.yml` 是 run-local 原子状态账本。旧
+`config/model_capacity.yml` 仍提供状态持久化与兼容命令，但不再驱动动态
+Full CLI 的同调用 fallback。
 
-### 容量池
+### 容量池与探测
 
-| Pool | 计费模式 | 已知窗口 | 诚实状态 |
-|---|---|---|---|
-| `agy_gemini_observer` | subscription | 5h rolling + weekly | limit/remaining/reset 均为 `null` |
-| `agy_claude_observer` | subscription | 5h rolling + weekly | limit/remaining/reset 均为 `null` |
-| `openai_codex_agentic` | subscription | 未知 | 全部 `null`，运行时观察 |
-| `xai_subscription_shared` | subscription | 未知 | 全部 `null`，运行时观察 |
-| `deepseek_metered_api` | metered API | 无 quota probe | 由真实成功/失败更新 |
-| `dashscope_metered_api` | metered API | 无 quota probe | 由真实成功/失败更新 |
-
-两个 Agy pool 分开记账，但不代表系统知道具体额度。Agy 没有可靠 quota API，AgentLab 不猜 remaining 或 reset。
-
-### 故障范围
-
-- `rate_limited`、`quota_exhausted`、`auth_missing` 是 pool-scoped，会打开共享池 breaker。
-- `model_unavailable` 是 route-scoped，只阻断具体 route。
-- `unknown` 不是容量证据，不会打开 breaker。
-
-breaker 到期后只发一个 300 秒 canary lease。只有 lease owner 的成功可以关闭 breaker；文件锁防止并发 worker 同时抢跑。
-
-### 当前 fallback 图
-
-| 起点 | 允许 fallback | 触发条件 |
+| Pool | 计费模式 | 运行时处理 |
 |---|---|---|
-| Supervisor GPT-5.6 Sol | Claude + DeepSeek V4 Pro | rate/quota/auth/model unavailable |
-| Observer Gemini | Agy Claude | quota/rate/model unavailable；仅模态兼容时 |
-| VisualReviewer Gemini | Agy Claude | 同上 |
-| Qwen Artifact Max | Plus → Flash | 每跳仅 model unavailable |
-| Writer Pro | Writer Flash | 仅 model unavailable |
-| WriterUltracode | 无 | 失败即报告 |
-| Researcher / Grok media | 无 | 失败即报告 |
+| `agy_gemini` | OAuth subscription | 绑定 `Gemini 3.5 Flash (High)` 后运行 `/usage` |
+| `agy_claude` | OAuth subscription | 绑定 `Claude Sonnet 4.6 (Thinking)` 后独立运行 `/usage` |
+| `codex_oauth` | OAuth subscription | Hermes 固定 profile 会话运行 `/usage` |
+| `xai_oauth` | OAuth subscription、quarantined | 只允许显式 canary；不自动选择 |
+| `deepseek_metered` | metered API | 由精确 usage 与真实调用结果记账 |
+| `dashscope_metered` | metered API | 由精确 usage 与真实调用结果记账 |
 
-Fallback 用声明顺序 DFS，可支持任意深度。循环、重复 route、未知 route、跨角色、前驱故障不匹配或模态不兼容都会 fail-closed。
+探测通过受限 PTY 执行，只保存解析后的 percentage、window、reset 和时间戳，
+不保存原始终端输出。OAuth 余量不高于 5%，或不高于“预测消耗 + 风险预留”
+时拒绝入场；长批次缺少新鲜且可解析的余量时 fail-closed。达到已观测 reset
+后先重新探测，不能凭时间推测恢复。
 
-Observer 的 Claude route 不支持 video/audio，因此这两类任务不能借 fallback 丢失模态。Receipt 保留完整 `route_chain` 和 `attempt_id`。
+### 选择与故障反馈
 
-安全 probe 仅允许 `agy models` 与 `hermes auth status <provider>`。`hermes status --all` 被明确禁止，以免泄露认证信息。
+选择顺序固定为：硬约束（状态、模态、隐私、provider allowlist、quota）→
+质量下限 → 预测现金成本、quota 稀缺、重试、延迟与切换成本。`full`、
+`performance`、`low` 是质量下限，不是三份模型矩阵。
+
+一次 provider 失败只做三件事：归一化故障、写入 pool 或 model-scoped 状态、
+结束本次调用。系统不会在同一个调用里换 shell/model 重跑。下一 completed
+checkpoint 才重新执行选择器：
+
+- Supervisor 默认 Hermes/Codex；Codex pool 不合格时可选择 Claude+DeepSeek。
+- Observer 默认 Agy/Gemini；图像/PDF 可在下一 checkpoint 选择独立 Agy Claude pool。
+- Visual Reviewer 依次评估 Agy Gemini、Agy Claude 与按强度分层的付费 Qwen；video/audio 不会降模态到 Claude/Qwen。
+- Writer 的 `full/performance` 达到 Pro 下限，`low` 可选择 Flash；低档模型达不到当前质量下限时直接阻断。
+- Qwen Max/Plus/Flash 依据同一质量下限和成本公式选择，不把整个 Qwen 家族视作一个模型。
+- Grok route、shell、adapter、provider、model 均隔离，不能被局部 active 配置绕过。
+
+`auth_missing`、`quota_exhausted`、`rate_limited` 是 pool-scoped；
+`model_unavailable` 是 model-scoped；`unknown` 不授权切换。每次动态执行写唯一
+attempt receipt，并保留 checkpoint、requested/observed binding 与精确度标记。
 
 ## 9. 定价、预算、token 与成本账本
 
 `config/model_pricing.yml` 是唯一数字价格事实源，版本 3，币种 USD，最近核验日期为 2026-07-13。
+`config/pricing_catalog.yml` 只保存 runtime model 映射、计费模式和版本化 FX；
+带 `source_ref` 的条目在加载时从唯一事实源编译，禁止复制 token 单价。Receipt
+保留供应商原币金额，并只按对应 FX snapshot 转换一次 CNY。
 
 ### 文本模型参考价格
 
@@ -400,7 +408,6 @@ Observer 的 Claude route 不支持 video/audio，因此这两类任务不能借
 | Qwen 3.6 Flash | 0.165 | — | 0.990 | DashScope CN |
 | DeepSeek V4 Flash | 0.140 | 0.0028 | 0.280 | input 为 cache miss |
 | DeepSeek V4 Pro | 0.435 | 0.003625 | 0.870 | input 为 cache miss |
-| GPT-5.6 Sol API 参考 | 5.000 | 0.500 | 30.000 | 不用于 Hermes OAuth 结算 |
 | Grok 4.3 API 参考 | 1.250 | 0.200 | 2.500 | 不用于 Hermes xAI OAuth 结算 |
 
 Hermes OpenAI-Codex OAuth 与 Hermes xAI OAuth 都是 subscription 路线。AgentLab 不能把公开 API token 价格伪装成订阅会话的实际成本。
@@ -431,9 +438,10 @@ Hermes OpenAI-Codex OAuth 与 Hermes xAI OAuth 都是 subscription 路线。Agen
 
 Usage ledger 记录 exact usage/cost、estimated cost、currency、pricing source/confidence、usage source 和 unpriced reason。
 
-它还透传 capacity route/pool/status、attempt、failure、selected CLI/model，以及 provider 实际报告的 model/session。
+它还透传 runtime route/pool/checkpoint、attempt、failure、selected CLI/model，以及 provider 实际报告的 model/session。
 
-外部 CLI 未返回原生 usage 时写 `unavailable/null`。只有 direct API 有真实 token 数时，才能依据价格表计算成本。
+外部 CLI 未返回原生 usage 时写 `unavailable/null`。Direct API、Claude 原生 JSON
+或 Hermes `session.usage` 返回精确 token 时可以计价；字符数估算不得伪装成精确成本。
 
 ## 10. CLI 合同、协议、receipts 与错误
 
@@ -467,7 +475,7 @@ Chain 记录 route、pool、selection kind、provider、selected/reported model�
 专项证据还包括：
 
 - Agy：profile/argv、OAuth provider/model、unset API-key env、capacity route。
-- Supervisor：Hermes profile path+SHA256、provider/model/xhigh 和空 fallback。
+- Supervisor：Hermes JSON-RPC route identity、provider/model/high、精确 usage（如可用）和空 fallback。
 - Claude：原生 JSON token/cache/cost/session、selected 与 reported model 差异。
 - Qwen Artifact：DashScope auth/base URL、reported model、materialization receipt、output hash。
 - Grok Research：只读 sealed workspace、tool allowlist、credential 只记存在性。
@@ -604,11 +612,9 @@ Grok receipt 只记录 credential 是否存在，`credential_values_recorded:fal
 
 服务默认仅绑定 `127.0.0.1` 或本地进程。公开 bind 和 endpoint override 需要审批。
 
-### 有意保留的高风险命令
+### CLI 安全门
 
-Claude 通用代码合同使用 `bypassPermissions`，Qwen Artifact 使用 `yolo`，Grok 使用 `--ignore-rules`。
-
-它们不是低风险命令。AgentLab 依靠 role binding、sealed packet、isolated workspace、allowed paths、审批、hash 和 receipts 把风险约束在任务范围内。
+生产链不保留 permission-bypass 命令。全局 shell governance 会在启动 provider 前拒绝危险参数；role binding、sealed packet、isolated workspace、allowed paths、审批、hash 和 receipts 继续作为纵深约束。
 
 ## 13. 测试、Doctors、CI 与验收
 
@@ -616,14 +622,13 @@ Claude 通用代码合同使用 `bypassPermissions`，Qwen Artifact 使用 `yolo
 
 | 验证 | 结果 |
 |---|---|
-| 角色/容量 focused regression | `248 passed` |
-| Capacity regression | `86 passed` |
-| 完整 pytest | `2663 passed, 24 skipped, 11 warnings` |
-| Model routing doctor | 0 issues |
+| 动态运行时、定价、Hermes、配额与壳治理 focused regression | `56 passed` |
+| 完整 pytest | `2734 passed, 24 skipped, 11 warnings` |
+| Model routing doctor | pass；当前 worktree 未配置 API key，报告 7 个 warning |
 | Artifact doctor | `21/21` |
-| Protocol doctor | `106/106` |
+| Protocol doctor | `110/110` |
 | Agent role chain audit | pass |
-| 文档/实现分支 CI | GitHub Actions `29275493261`、`29276017764` 均成功 |
+| 编译与差异完整性 | `compileall`、`git diff --check` 均通过 |
 
 CI 使用 Python 3.11，执行 text integrity、compileall、pytest、S10 generalization、`git diff --check`、入口 help/compile 和 forbidden tracked file 检查。
 
@@ -796,7 +801,9 @@ S11 ops console 是 read-only snapshot 或本地 serve plan；CLI core 不依赖
 - [`../agent_runtime/pipeline_runner.py`](../agent_runtime/pipeline_runner.py)：pipeline、checkpoint、resume。
 - [`../agent_runtime/lifecycle_graph.py`](../agent_runtime/lifecycle_graph.py)：24 节点生命周期事实源。
 - [`../agent_runtime/workflow_plan.py`](../agent_runtime/workflow_plan.py)：当前任务 workflow 组装。
-- [`../agent_runtime/model_capacity.py`](../agent_runtime/model_capacity.py)：池、breaker、canary、多跳 fallback。
+- [`../agent_runtime/runtime_registry.py`](../agent_runtime/runtime_registry.py)：标准化 route identity、quota snapshot 与兼容视图编译。
+- [`../agent_runtime/routing/dynamic_selector.py`](../agent_runtime/routing/dynamic_selector.py)：硬门、质量下限与成本选择。
+- [`../agent_runtime/model_capacity.py`](../agent_runtime/model_capacity.py)：run-local pool/model 状态账本与旧模式兼容。
 - [`../agent_runtime/observation_contract.py`](../agent_runtime/observation_contract.py)：Agy 多模态输入与证据合同。
 - [`../agent_runtime/media_backend_adapter.py`](../agent_runtime/media_backend_adapter.py)：Grok/xAI 媒体 adapter、preflight 与执行。
 - [`../agent_runtime/protocols/artifact_task.py`](../agent_runtime/protocols/artifact_task.py)：ArtifactTask 解析、隔离和路由。
@@ -807,14 +814,17 @@ S11 ops console 是 read-only snapshot 或本地 serve plan；CLI core 不依赖
 
 ### 关键配置
 
-- [`../config/agent_registry.yml`](../config/agent_registry.yml)：14 角色职责。
+- [`../config/agent_registry.yml`](../config/agent_registry.yml)：15 角色职责。
 - [`../config/agent_role_bindings.yml`](../config/agent_role_bindings.yml)：角色/worker 双向边界。
-- [`../config/agent_model_profiles.yml`](../config/agent_model_profiles.yml)：模型模式与档位。
+- [`../config/agent_model_profiles.yml`](../config/agent_model_profiles.yml)：执行模式与 Full CLI 生成兼容视图。
+- [`../config/runtime_registry.yml`](../config/runtime_registry.yml)：Full CLI route/provider/model/pool 权威。
+- [`../config/routing_policy.yml`](../config/routing_policy.yml)：质量下限、角色需求、quota 与成本权重。
 - [`../config/worker_invocation_contracts.yml`](../config/worker_invocation_contracts.yml)：精确 CLI 合同。
 - [`../config/model_catalog.yml`](../config/model_catalog.yml)：模型能力事实。
 - [`../config/model_providers.yml`](../config/model_providers.yml)：provider 事实。
-- [`../config/model_capacity.yml`](../config/model_capacity.yml)：容量与 fallback。
+- [`../config/model_capacity.yml`](../config/model_capacity.yml)：旧模式容量配置与动态账本持久化兼容。
 - [`../config/model_pricing.yml`](../config/model_pricing.yml)：数字价格唯一事实源。
+- [`../config/pricing_catalog.yml`](../config/pricing_catalog.yml)：无重复数字的 runtime pricing/FX 投影。
 - [`../config/artifact_task_policy.yml`](../config/artifact_task_policy.yml)：ArtifactTask 路由与格式。
 - [`../config/media_generation_backends.yml`](../config/media_generation_backends.yml)：媒体后端目录与执行边界。
 - [`../config/visual_acceptance.yml`](../config/visual_acceptance.yml)：视觉验收与独立性规则。

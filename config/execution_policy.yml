@@ -36,6 +36,13 @@ budget_mode_policy:
       allow_sacrifice: [成本, 速度]
       forbid_sacrifice: [事实校验, 双模型复核, 回滚计划]
 
+runtime_model_routing:
+  probe_before_task: true
+  probe_at_checkpoint: true
+  data_class: private
+  allowed_provider_ids: []
+  raw_quota_probe_output_persisted: false
+
 # ══════════════════════════════════════════════════════════════════════
 # Coder 执行策略
 # ══════════════════════════════════════════════════════════════════════

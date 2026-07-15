@@ -21,7 +21,7 @@ contracts:
       - tool_or_mcp_usage_ledger.yml
       - artifact_manifest_or_findings.yml
     template: >-
-      hermes --provider {provider} -m {model_id} -z "You are an AgentLab CLI executor.
+      hermes chat -Q --provider {provider} -m {model_id} -q "You are an AgentLab CLI executor.
       Read the JSON task packet at {task_packet_path},
       perform the requested AgentLab role work, and return a concise markdown report
       with findings, actions taken, verification, and blockers."
@@ -35,6 +35,8 @@ contracts:
     expected_parse:
       argv_prefix:
         - hermes
+        - chat
+        - -Q
         - --provider
     validation:
       shlex_parse_required: true
@@ -77,17 +79,16 @@ contracts:
     required_placeholders: [task_packet_path, provider, model_id]
     required_shell_state:
       model.provider: openai-codex
-      model.default: gpt-5.6-sol
-      agent.reasoning_effort: xhigh
+      model.default: gpt-5.5
+      agent.reasoning_effort: high
       fallback_providers: []
       fallback_model: null
-    requested_reasoning_label: extra
-    resolved_reasoning_effort: xhigh
+    requested_reasoning_label: high
+    resolved_reasoning_effort: high
     reasoning_resolution_note: >-
-      Hermes v0.17.0 exposes xhigh as its strongest supported reasoning setting.
-      AgentLab maps the user-facing label extra to xhigh and must not claim ultra
-      unless a future Hermes probe proves it. The classic chat query path is
-      required because the one-shot -z path does not apply profile reasoning state.
+      The operator-approved full matrix binds Supervisor to GPT-5.5 high. The
+      classic chat query path is required because production bypass/YOLO paths are forbidden and do not
+      provide a governed profile or receipt boundary.
     safe_probe: [hermes, auth, status, openai-codex]
     forbidden_probes: [[hermes, status, --all]]
     expected_parse:
@@ -122,7 +123,7 @@ contracts:
       - changed_files_or_findings.yml
       - validation_evidence.yml
     template: >-
-      claude --model "{model_id}" --permission-mode bypassPermissions --output-format json -p "Read the task packet at {task_packet_path};
+      claude --model "{model_id}" --permission-mode auto --output-format json -p "Read the task packet at {task_packet_path};
       perform only the assigned work and report actual changed files and validation."
     required_placeholders:
       - task_packet_path
@@ -135,7 +136,7 @@ contracts:
         - claude
         - --model
         - --permission-mode
-        - bypassPermissions
+        - auto
         - --output-format
         - json
         - -p
@@ -148,6 +149,37 @@ contracts:
       invalid_invocation_patterns:
         - "usage:"
         - "unrecognized arguments"
+    fallback:
+      on_binary_missing: stop_and_report
+      on_invalid_invocation: stop_and_report
+
+  claude_longform_governance:
+    worker_id: claude_code
+    display_name: Claude Shell DeepSeek Long-form Governance
+    command: claude
+    invocation_style: read_only_longform_governance_task_packet
+    workflow_shell: true
+    coalescing_allowed: false
+    required_receipts:
+      - role_session_receipt.yml
+      - returned_role_artifact
+    template: >-
+      claude --model "{model_id}" --effort max --max-budget-usd 1.00
+      --permission-mode plan --output-format json -p "Read the governed
+      long-form task packet at {task_packet_path} and inspect only its assigned
+      evidence. Return the requested review, ledger, or revision proposal in
+      the response. Do not edit candidate or production text, apply a rewrite,
+      promote an artifact, invoke subagents, or broaden scope."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [claude, --help]
+    max_budget_usd: 1.00
+    output_parser: claude_json
+    expected_parse:
+      argv_prefix: [claude, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
     fallback:
       on_binary_missing: stop_and_report
       on_invalid_invocation: stop_and_report
@@ -415,7 +447,7 @@ contracts:
     template: >-
       qwen --bare --auth-type openai --openai-base-url
       "https://dashscope.aliyuncs.com/compatible-mode/v1" --model "{model_id}"
-      --sandbox --approval-mode yolo --output-format json --max-wall-time 10m
+      --sandbox --approval-mode default --output-format json --max-wall-time 10m
       --max-tool-calls 50 "Read only the bounded ArtifactTask packet at
       {task_packet_path}. Work only inside this isolated workspace. Create every
       exact required output path declared by the packet, validate each artifact,
@@ -581,7 +613,7 @@ contracts:
       - model_execution_chain_researcher.yml
       - model_execution_receipt_researcher_<route>_<attempt>.yml
     template: >-
-      hermes --ignore-rules --provider xai-oauth -m {model_id} -t web,x_search -z "Read the
+      hermes chat -Q --provider xai-oauth -m {model_id} -t web,x_search -q "Read the
       AgentLab Researcher task packet at {task_packet_path}; perform only social,
       web, or external research evidence collection. Use xAI search tools when
       available, preserve source URLs and retrieval timestamps, distinguish
@@ -592,7 +624,7 @@ contracts:
     safe_probe: [hermes, auth, status, xai-oauth]
     forbidden_probes: [[hermes, status, --all]]
     expected_parse:
-      argv_prefix: [hermes, --ignore-rules, --provider, xai-oauth]
+      argv_prefix: [hermes, chat, -Q, --provider, xai-oauth]
     validation:
       shlex_parse_required: true
       allow_shell: false
@@ -621,7 +653,7 @@ contracts:
       - generation_receipt.yml
       - generated_assets_manifest.yml
     template: >-
-      hermes --ignore-rules --provider xai-oauth -m {model_id} -z "Read the AgentLab ArtifactProducer task packet at
+      hermes chat -Q --provider xai-oauth -m {model_id} -q "Read the AgentLab ArtifactProducer task packet at
       {task_packet_path}; execute only the media generation or media handoff
       work described there. Use the Hermes image-generation tool backed by a
       registered Grok Imagine model; a text response from Grok is not a media
@@ -635,7 +667,7 @@ contracts:
       - model_id
     safe_probe: [hermes, --help]
     expected_parse:
-      argv_prefix: [hermes, --ignore-rules, --provider, xai-oauth]
+      argv_prefix: [hermes, chat, -Q, --provider, xai-oauth]
     validation:
       shlex_parse_required: true
       allow_unquoted_placeholders: true

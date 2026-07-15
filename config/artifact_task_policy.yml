@@ -41,15 +41,16 @@ artifact_types:
     output_formats: [directory]
     required_capabilities: [produce_mixed_artifacts, write_artifact_file, validate_artifact_contract]
 providers:
-  qwen_cli:
-    worker: qwen
+  claude_deepseek:
+    worker: claude_code
     provider_type: cli
-    invocation_contract: qwen_artifact
+    invocation_contract: claude
+    runtime_provider_ids: [deepseek_api]
     capacity_routes:
-      full: ArtifactProducerQwenMax
-      performance: ArtifactProducerQwen
-      low: ArtifactProducerQwenLow
-    priority: 100
+      full: ArtifactProducerPro
+      performance: ArtifactProducerPro
+      low: ArtifactProducerPro
+    priority: 120
     fallback: false
     handles: [text, spreadsheet, presentation]
     output_formats: [markdown, txt, docx, xlsx, csv, pptx, pdf]
@@ -59,7 +60,28 @@ providers:
       - create_presentation
       - write_artifact_file
       - validate_artifact_contract
+  qwen_cli:
+    worker: qwen
+    provider_type: cli
+    invocation_contract: qwen_artifact
+    runtime_provider_ids: [dashscope_api]
+    capacity_routes:
+      full: ArtifactProducerQwenMax
+      performance: ArtifactProducerQwen
+      low: ArtifactProducerQwenLow
+    priority: 90
+    fallback: true
+    handles: [text, spreadsheet, presentation]
+    output_formats: [markdown, txt, docx, xlsx, csv, pptx, pdf]
+    capabilities:
+      - write_text_artifact
+      - create_spreadsheet
+      - create_presentation
+      - write_artifact_file
+      - validate_artifact_contract
   grok_media:
+    status: quarantined
+    automatic_use: false
     worker: grok
     provider_type: cli
     invocation_contract: grok_media
@@ -68,7 +90,7 @@ providers:
       performance: ArtifactProducer
       low: ArtifactProducer
     priority: 110
-    fallback: false
+    fallback: true
     handles: [image, video]
     output_formats: [png, jpg, webp, mp4, mov]
     capabilities:

@@ -58,14 +58,21 @@ config/artifact_task_policy.yml
 
 Current provider order:
 
-- `grok_media`: registered candidate image/video producer through the bounded
-  Hermes+xAI media contract.
-- `qwen_cli`: text, spreadsheet, and presentation producer
+- `claude_deepseek`: default text, spreadsheet, and presentation producer
+  through the governed Claude Code + DeepSeek contract.
+- `qwen_cli`: metered text, spreadsheet, and presentation fallback
   through the governed Qwen CLI contract. It receives only the sealed task
   packet and hash-verified read-only input copies in an isolated workspace;
   AgentLab copies back only exact declared outputs.
-- `qwen_37max_api`: explicit fallback for only the artifact types and
+- `qwen_37max_api`: explicit API fallback for only the artifact types and
   capabilities declared in policy.
+- `grok_media`: quarantined candidate image/video producer. It is never
+  selected automatically and may run only as an explicit bounded canary.
+
+Default image/video generation is routed separately through the approval-gated
+Bailian CLI, with Ark as the premium configured option. These media backends
+remain governed ArtifactProducer executions even though they are not generic
+text ArtifactTask providers.
 
 No governed audio backend is currently registered. Audio requests therefore
 return `capability_mismatch` until a provider with `generate_audio` and

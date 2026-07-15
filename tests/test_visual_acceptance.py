@@ -85,7 +85,7 @@ def _candidate(workspace: Path, *, media_type: str = "image") -> dict:
             role="Verifier",
             reviewer_id="codex-verifier",
             backend="hermes_codex_oauth",
-            model="gpt-5.6-sol",
+            model="gpt-5.5",
         ),
     ]
     for review in reviews:

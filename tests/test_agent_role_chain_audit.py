@@ -26,6 +26,7 @@ def test_agent_role_chain_audit_covers_roles_workers_and_chains() -> None:
     assert roles["Coder"]["allowed_workers"]
     assert roles["Reviewer"]["status"] == "pass"
     assert roles["Scribe"]["status"] == "pass"
+    assert roles["NarrativePlanner"]["status"] == "pass"
     assert "qwen" in roles["Reviewer"]["allowed_workers"]
     assert "codex" in roles["Scribe"]["allowed_workers"]
     assert chains["narrative_heavy_audit"]["agents"] == [
@@ -47,16 +48,16 @@ def test_agent_role_chain_audit_covers_roles_workers_and_chains() -> None:
     ]
     artifact_profile = profile_contracts[("full_cli", "performance", "artifact_producer")]
     assert artifact_profile["status"] == "pass"
-    assert artifact_profile["cli_agent"] == "grok"
-    assert artifact_profile["default_model"] == "grok_4_3_hermes_oauth"
+    assert artifact_profile["cli_agent"] == "claude_code"
+    assert artifact_profile["default_model"] == "deepseek_v4_pro"
     assert artifact_profile["default_model_catalog_status"] == "pass"
-    assert artifact_profile["invocation_contract"] == "grok_media"
-    assert artifact_profile["contract_worker"] == "grok"
+    assert artifact_profile["invocation_contract"] == "claude"
+    assert artifact_profile["contract_worker"] == "claude_code"
     assert artifact_profile["role_binding_status"] == "pass"
     assert "role_binding_issue" not in artifact_profile
     low_artifact_profile = profile_contracts[("full_cli", "low", "artifact_producer")]
-    assert low_artifact_profile["cli_agent"] == "grok"
-    assert low_artifact_profile["default_model"] == "grok_4_3_hermes_oauth"
+    assert low_artifact_profile["cli_agent"] == "claude_code"
+    assert low_artifact_profile["default_model"] == "deepseek_v4_pro"
     assert "fallback_model" not in low_artifact_profile
     assert all(
         item.get("role_binding_status") != "pass" or "role_binding_issue" not in item

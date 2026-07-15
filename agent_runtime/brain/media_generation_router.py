@@ -144,6 +144,11 @@ def _filter_chain(
     filtered = []
     for backend_id in chain:
         backend = backends.get(backend_id, {})
+        if (
+            str(backend.get("status") or "active") in {"quarantined", "disabled"}
+            or backend.get("automatic_use") is False
+        ):
+            continue
         modalities = backend.get("modalities", [])
         if modality in modalities:
             filtered.append(backend_id)

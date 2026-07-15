@@ -77,8 +77,8 @@ agents:
     wrapper_kind: both
     auto_read_confidence: unknown
     invocation:
-      frontdesk: hermes --provider deepseek -m deepseek-v4-pro -z "$AGENTLAB_SESSION_TEXT"
-      role: hermes -z "$AGENTLAB_SESSION_TEXT"
+      frontdesk: hermes chat -Q --provider deepseek -m deepseek-v4-pro -q "$AGENTLAB_SESSION_TEXT"
+      role: hermes chat -Q -q "$AGENTLAB_SESSION_TEXT"
 ignored_known_agents:
   bl: specialist_cloud_tool_not_entrypoint
   rg: deterministic_tool_not_agent_cli

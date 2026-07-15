@@ -25,19 +25,22 @@ def test_cli_shell_coalescing_plan_finds_native_backend_groups() -> None:
     assert report["status"] == "pass"
     assert report["policy"]["provider_calls_executed"] is False
     assert report["policy"]["per_role_receipts_required"] is True
-    assert report["eligible_group_count"] >= 2
+    assert report["eligible_group_count"] == 1
 
     assert groups["claude_code"]["coalescing_eligible"] is True
     assert groups["claude_code"]["coalescing_mode"] == "native_subagents"
-    assert set(groups["claude_code"]["roles"]) == {"Coder", "Archivist"}
+    assert {"Coder", "Archivist"}.issubset(set(groups["claude_code"]["roles"]))
+    isolated_roles = {
+        item["role"] for item in report["isolated_role_sessions"]
+    }
+    assert {"Reviewer", "Scribe", "NarrativePlanner"}.issubset(isolated_roles)
+    assert "NarrativePlanner" not in groups["claude_code"]["roles"]
 
-    assert groups["hermes"]["coalescing_eligible"] is True
-    assert groups["hermes"]["coalescing_mode"] == "board_mediated"
-    assert "Supervisor" in groups["hermes"]["roles"]
+    assert groups["hermes"]["coalescing_eligible"] is False
+    assert groups["hermes"]["coalescing_mode"] == "separate_role_sessions"
+    assert groups["hermes"]["roles"] == ["Supervisor"]
     assert groups["hermes"]["surface"]["board_surface"] == "hermes kanban"
-
-    assert groups["codex"]["coalescing_eligible"] is False
-    assert "backend_lacks_registered_subagent_or_board_surface" in groups["codex"]["blocked_reasons"]
+    assert "needs_at_least_two_roles_for_same_backend" in groups["hermes"]["blocked_reasons"]
 
     for group in report["groups"]:
         assert group["single_shell_session_contract"]["must_return_one_receipt_per_role"] is True
@@ -120,37 +123,8 @@ def test_cli_shell_coalescing_plan_cli_writes_report(tmp_path: Path) -> None:
             assert routes["Coder"]["applied_to_shell_invocation"] is False
             assert routes["Coder"]["shell_model_selection"] == "shell_native_default"
             assert routes["Archivist"]["applied_to_shell_invocation"] is False
-        elif packet["backend"] == "hermes":
-            assert packet["execution_contract"]["native_surface"] == "hermes_kanban"
-            assert packet["execution_contract"]["coordination_semantics"] == "board_orchestrated_multi_worker"
-            assert packet["execution_contract"]["command_spec"]["entrypoint"] == "hermes"
-            assert packet["execution_contract"]["command_spec"]["command_family"] == "kanban"
-            role_command = packet["execution_contract"]["command_spec"]["role_task_command"]
-            assert role_command[role_command.index("--workspace") + 1] == "scratch"
-            assert packet["execution_contract"]["single_provider_session_claimed"] is False
-            routes = {role["role"]: role["model_route"] for role in packet["delegated_roles"]}
-            supervisor = routes["Supervisor"]
-            assert supervisor["applied_to_shell_invocation"] is True
-            assert supervisor["provider"] == "openai-codex"
-            assert supervisor["model_id"] == "gpt-5.6-sol"
-            assert supervisor["reasoning_effort"] == "xhigh"
-            assert supervisor["workflow_shell_profile"] == "agentlabsupervisor"
-            assert supervisor["required_profile_config"] == {
-                "model.provider": "openai-codex",
-                "model.default": "gpt-5.6-sol",
-                "model.base_url": "https://chatgpt.com/backend-api/codex",
-                "agent.reasoning_effort": "xhigh",
-                "fallback_providers": [],
-            }
-            assert supervisor["forbidden_profile_config_keys"] == ["fallback_model"]
-            assert supervisor.get("fallback_worker") is None
-            assert supervisor.get("fallback_model_key") is None
-            prompt_engineer = routes["PromptEngineer"]
-            assert prompt_engineer["applied_to_shell_invocation"] is True
-            assert prompt_engineer["provider"] == "deepseek"
-            assert prompt_engineer["model_id"] == "deepseek-v4-flash"
-            assert prompt_engineer["base_url"] == "https://api.deepseek.com"
-            assert prompt_engineer["workflow_shell_profile"] == "agentlabpromptengineer"
+        else:  # current performance matrix has no second eligible shell group
+            raise AssertionError(f"unexpected materialized backend: {packet['backend']}")
 
 
 def test_cli_shell_coalescing_status_reports_pending_until_receipts_return(tmp_path: Path) -> None:
@@ -176,11 +150,11 @@ def test_cli_shell_coalescing_status_reports_pending_until_receipts_return(tmp_p
     assert report["secret_values_rendered"] is False
     assert report["acceptance_scope"] == "synthetic_native_surface_smoke"
     assert report["private_project_context_loaded"] is False
-    assert report["expected_packet_count"] >= 2
+    assert report["expected_packet_count"] == 1
     assert report["accepted_packet_count"] == 0
     assert report["missing_returned_files_count"] > 0
     assert any(path.endswith("shell_subagent_delegation_receipt.yml") for path in report["missing_returned_files"])
-    assert any(path.endswith("shell_board_sync_receipt.yml") for path in report["missing_returned_files"])
+    assert not any(path.endswith("shell_board_sync_receipt.yml") for path in report["missing_returned_files"])
 
     out = tmp_path / "cli_shell_coalescing_status.yml"
     cli_result = runner.invoke(
@@ -364,7 +338,7 @@ def test_cli_shell_coalescing_runner_request_packages_receipt_handoff(tmp_path: 
     assert report["runner_boundary"]["private_project_context_loaded"] is False
     assert report["runner_boundary"]["isolated_execution_workspace_required"] is True
     assert report["runner_boundary"]["project_read_tools_allowed"] is False
-    assert report["status_summary"]["packet_count"] == 2
+    assert report["status_summary"]["packet_count"] == 1
     assert report["status_summary"]["missing_returned_files_count"] > 0
     assert report["local_runner_package"]["must_return_one_shell_receipt_per_packet"] is True
     assert report["local_runner_package"]["must_return_one_role_receipt_per_delegated_role"] is True
@@ -375,10 +349,9 @@ def test_cli_shell_coalescing_runner_request_packages_receipt_handoff(tmp_path: 
     assert "--execute" in report["local_runner_package"]["execute_command"]
     assert "cli-shell-coalescing-collect" in report["local_runner_package"]["post_run_collect_command"]
     assert "cli-shell-coalescing-status" in report["local_runner_package"]["status_command"]
-    assert len(report["packets"]) == 2
-    assert {packet["backend"] for packet in report["packets"]} == {"claude_code", "hermes"}
+    assert len(report["packets"]) == 1
+    assert {packet["backend"] for packet in report["packets"]} == {"claude_code"}
     assert any(packet["coalescing_mode"] == "native_subagents" for packet in report["packets"])
-    assert any(packet["coalescing_mode"] == "board_mediated" for packet in report["packets"])
     execute_step = next(step for step in report["operator_steps"] if step["step"] == "execute_trusted_shell_sessions")
     assert execute_step["loads_private_project_context"] is False
     assert execute_step["acceptance_scope"] == "synthetic_native_surface_smoke"
@@ -386,7 +359,7 @@ def test_cli_shell_coalescing_runner_request_packages_receipt_handoff(tmp_path: 
         assert packet["session_receipt_path"].endswith(".yml")
         assert len(packet["source_packet_sha256"]) == 64
         assert packet["task_contract"]["task_kind"] == "cli_shell_native_runtime_acceptance"
-        assert packet["execution_contract"]["native_surface"] in {"claude_inline_agents", "hermes_kanban"}
+        assert packet["execution_contract"]["native_surface"] == "claude_inline_agents"
         assert packet["execution_contract"]["frontdesk_role_invocations"] == 0
         assert packet["delegated_roles"]
         for role in packet["delegated_roles"]:

@@ -35,6 +35,14 @@ failure_classes:
 
 canary_lease_seconds: 300
 
+quota_policy:
+  hard_reserve_percent: 5.0
+  admission_floor: max_hard_reserve_or_predicted_unit_plus_risk_reserve
+  stale_after_seconds: 600
+  resume_jitter_seconds: [60, 180]
+  reprobe_before_resume: true
+  long_batch_requires_fresh_telemetry: true
+
 probe_policy:
   allowlist_shapes:
     - [agy, models]
@@ -51,6 +59,12 @@ pools:
     provider: agy_gemini_oauth
     billing_mode: subscription
     probe: [agy, models]
+    quota_probe:
+      shell_id: agy
+      argv: [agy, --model, Gemini 3.5 Flash (High)]
+      slash_command: /usage
+      exit_command: /exit
+      timeout_seconds: 30
     declared_windows:
       rolling:
         period_seconds: 18000
@@ -72,6 +86,12 @@ pools:
     provider: agy_claude_oauth
     billing_mode: subscription
     probe: [agy, models]
+    quota_probe:
+      shell_id: agy
+      argv: [agy, --model, Claude Sonnet 4.6 (Thinking)]
+      slash_command: /usage
+      exit_command: /exit
+      timeout_seconds: 30
     declared_windows:
       rolling:
         period_seconds: 18000
@@ -93,6 +113,12 @@ pools:
     provider: hermes_codex_oauth
     billing_mode: subscription
     probe: [hermes, auth, status, openai-codex]
+    quota_probe:
+      shell_id: hermes
+      argv: [hermes, -p, agentlabsupervisor, chat]
+      slash_command: /usage
+      exit_command: /exit
+      timeout_seconds: 30
     declared_windows:
       rolling:
         period_seconds: null
@@ -114,6 +140,12 @@ pools:
     provider: hermes_xai_oauth
     billing_mode: subscription
     probe: [hermes, auth, status, xai-oauth]
+    quota_probe:
+      shell_id: grok
+      argv: [grok]
+      slash_command: /usage
+      exit_command: /exit
+      timeout_seconds: 30
     declared_windows:
       rolling:
         period_seconds: null
@@ -163,7 +195,7 @@ routes:
     role: supervisor
     worker: hermes
     invocation_contract: hermes_supervisor
-    model_key: codex_gpt_5_6_sol_xhigh_hermes_oauth
+    model_key: codex_gpt_5_5_high_hermes_oauth
     pool: openai_codex_agentic
     approved_fallbacks: [SupervisorDeepSeek]
     fallback_on: [rate_limited, quota_exhausted, auth_missing, model_unavailable]
@@ -215,6 +247,8 @@ routes:
     fallback_on: []
 
   Researcher:
+    status: quarantined
+    automatic_use: false
     role: researcher
     worker: grok
     invocation_contract: grok_research
@@ -224,6 +258,9 @@ routes:
     fallback_on: []
 
   ArtifactProducer:
+    status: quarantined
+    automatic_use: false
+    explicit_canary_allowed: true
     role: artifact_producer
     worker: grok
     invocation_contract: grok_media
@@ -231,6 +268,16 @@ routes:
     pool: xai_subscription_shared
     media_backend: hermes_grok_oauth
     input_modalities: [image, video, image_to_video]
+    approved_fallbacks: []
+    fallback_on: []
+
+  ArtifactProducerPro:
+    role: artifact_producer
+    worker: claude_code
+    invocation_contract: claude
+    model_key: deepseek_v4_pro
+    pool: deepseek_metered_api
+    input_modalities: [text, spreadsheet, presentation]
     approved_fallbacks: []
     fallback_on: []
 

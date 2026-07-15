@@ -17,10 +17,10 @@ components:
     install_source: Hermes Agent upstream installer
     version_probe: hermes --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker hermes
-    live_smoke: hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.6-sol -q "Return AGENTLAB_HERMES_CODEX_SMOKE_OK only."
+    live_smoke: hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.5 -q "Return AGENTLAB_HERMES_CODEX_SMOKE_OK only."
     capacity_probe: hermes auth status openai-codex
     forbidden_probe: hermes status --all
-    notes: Full CLI Supervisor shell; the isolated profile must preflight as openai-codex/gpt-5.6-sol/xhigh with no Hermes fallback before the provider process starts.
+    notes: Full CLI Supervisor shell; the isolated profile must preflight as openai-codex/gpt-5.5/high with no Hermes fallback before the provider process starts.
   claude_code:
     kind: agent_cli
     release_requirement: required
@@ -45,7 +45,7 @@ components:
     notes: Coding worker; its native model remains shell-managed unless a model-aware contract is selected.
   qwen:
     kind: agent_cli
-    release_requirement: required
+    release_requirement: optional_metered_multimodal_fallback
     command: qwen
     auth_mode: shell_managed_private_configuration
     model_binding: shell_configuration
@@ -53,7 +53,7 @@ components:
     version_probe: qwen --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker qwen
     live_smoke: qwen --bare --approval-mode default --output-format json "Return AGENTLAB_QWEN_SMOKE_OK only."
-    notes: General analysis/audit worker and ArtifactTask backend for text, spreadsheet, and presentation ArtifactProducer outputs; cross-provider mixed work remains blocked until a composite adapter exists, and provider/model selection is owned by the governed Qwen CLI route.
+    notes: Metered multimodal and structured-artifact fallback. Model strength is selected by task quality floor; Qwen is not one interchangeable visual module and is not the default text producer.
   agy:
     kind: agent_cli
     release_requirement: required
@@ -65,12 +65,12 @@ components:
     safe_probe: ./agentlab.sh worker-invocation-probe --worker agy
     live_smoke: ./agentlab.sh agy-cli-smoke --live
     capacity_source: config/model_capacity.yml
-    capacity_probe: agy models
-    quota_visibility: failure_observation_only
-    notes: Multimodal Observer and the isolated visual Reviewer use Gemini with a separately tracked Claude fallback pool when modality-compatible. Agy has no quota/status command, so remaining/reset stay unknown until provider error evidence; never use GEMINI_API_KEY.
+    capacity_probe: interactive /usage through a safe PTY session
+    quota_visibility: normalized_remaining_percent_and_reset_when_reported
+    notes: Default Researcher, multimodal Observer, and isolated visual Reviewer use Gemini with a separately tracked Claude fallback pool when modality-compatible. Quota telemetry is normalized from /usage without persisting raw terminal output; the Gemini API key route is separate and never default.
   grok:
     kind: agent_cli_backend
-    release_requirement: required_for_social_research_optional_for_media
+    release_requirement: quarantined_optional_canary
     command: hermes
     auth_mode: hermes_xai_oauth_session
     model_binding: command_template
@@ -80,10 +80,10 @@ components:
     live_smoke: ./agentlab.sh grok-cli-smoke --live
     capacity_probe: hermes auth status xai-oauth
     forbidden_probe: hermes status --all
-    notes: Separate Researcher and image/video-only ArtifactProducer contracts share one dynamically observed xAI pool. Text model output is not an image asset and Grok cannot self-approve aesthetics.
+    notes: Registered Researcher and media contracts are explicit bounded canaries only while xAI is quarantined. Text output is not an image asset and Grok cannot self-approve aesthetics.
   bl:
     kind: specialist_cli
-    release_requirement: optional_specialist
+    release_requirement: required_when_media_generation_is_enabled
     command: bl
     auth_mode: shell_managed_private_configuration
     model_binding: capability_subcommand
@@ -91,7 +91,7 @@ components:
     version_probe: bl --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker bl
     live_smoke: bl doctor
-    notes: Bailian multimodal, media, speech, RAG, and search specialist; not a default code or narrative worker.
+    notes: Primary approval-gated image/video generation specialist while Grok is quarantined; not a code, narrative, or visual-review worker.
   openclaw:
     kind: frontdesk_cli
     release_requirement: optional_frontdesk

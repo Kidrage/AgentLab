@@ -1,0 +1,743 @@
+schema_version: 1
+authority:
+  purpose: normalized_shell_adapter_provider_model_and_credential_pool_registry
+  secret_storage: forbidden
+  user_shell_configuration: read_only_reference
+  hermes_optional_accelerator: true
+  native_agentlab_execution_required: true
+
+shells:
+  hermes:
+    worker_id: hermes
+    command: hermes
+    preferred_channel: json_rpc_ws
+    control_plane: cli
+    channel_config:
+      endpoint: ws://127.0.0.1:9119/api/ws
+      auto_start: true
+      startup_timeout_seconds: 15
+    capabilities:
+      reasoning: 0.98
+      agentic_control: 0.98
+      coding: 0.94
+      writing: 0.94
+      narrative_continuity: 0.92
+      audit: 0.96
+      research: 0.95
+      multimodal: 0.92
+      artifact_generation: 0.93
+      summarization: 0.96
+    production_forbidden_flags: [-z, --ignore-rules, --yolo, --dangerously-skip-permissions]
+    features:
+      kanban: durable_cross_role_work
+      delegate_task: same_role_short_parallelism_only
+      profiles: agentlab_managed_isolated_profiles
+      discovery: read_only
+
+  claude:
+    worker_id: claude_code
+    command: claude
+    capabilities:
+      reasoning: 0.96
+      agentic_control: 0.92
+      coding: 0.98
+      writing: 0.96
+      narrative_continuity: 0.95
+      audit: 0.95
+      research: 0.82
+      multimodal: 0.75
+      artifact_generation: 0.90
+      summarization: 0.95
+    production_forbidden_flags: [--dangerously-skip-permissions, --allow-dangerously-skip-permissions]
+
+  agy:
+    worker_id: agy
+    command: agy
+    capabilities:
+      reasoning: 0.94
+      agentic_control: 0.86
+      coding: 0.86
+      writing: 0.93
+      narrative_continuity: 0.91
+      audit: 0.94
+      research: 0.93
+      multimodal: 0.98
+      artifact_generation: 0.82
+      summarization: 0.95
+
+  qwen:
+    worker_id: qwen
+    command: qwen
+    capabilities:
+      reasoning: 0.93
+      agentic_control: 0.90
+      coding: 0.91
+      writing: 0.91
+      narrative_continuity: 0.88
+      audit: 0.94
+      research: 0.86
+      multimodal: 0.96
+      artifact_generation: 0.96
+      summarization: 0.94
+    production_forbidden_flags: [--yolo]
+
+  grok:
+    worker_id: grok
+    command: grok
+    status: quarantined
+    capabilities:
+      reasoning: 0.94
+      agentic_control: 0.88
+      coding: 0.88
+      writing: 0.91
+      narrative_continuity: 0.87
+      audit: 0.93
+      research: 0.98
+      multimodal: 0.95
+      artifact_generation: 0.94
+      summarization: 0.93
+
+  native:
+    worker_id: native_api
+    command: null
+    capabilities:
+      reasoning: 1.0
+      agentic_control: 0.82
+      coding: 0.90
+      writing: 0.96
+      narrative_continuity: 0.94
+      audit: 0.96
+      research: 0.80
+      multimodal: 0.98
+      artifact_generation: 0.82
+      summarization: 0.97
+
+adapters:
+  hermes_runs:
+    protocol: hermes_runs
+    status: active
+    transport: websocket_json_rpc
+    contract_methods:
+      - session.create
+      - prompt.submit
+      - session.usage
+      - session.close
+    capabilities: &broad_adapter_caps
+      reasoning: 0.99
+      agentic_control: 0.99
+      coding: 0.97
+      writing: 0.98
+      narrative_continuity: 0.97
+      audit: 0.98
+      research: 0.98
+      multimodal: 0.96
+      artifact_generation: 0.97
+      summarization: 0.99
+  hermes_cli:
+    protocol: hermes_cli
+    status: active
+    capabilities: *broad_adapter_caps
+  claude_cli:
+    protocol: claude_cli
+    status: active
+    capabilities: *broad_adapter_caps
+  agy_cli:
+    protocol: agy_cli
+    status: active
+    capabilities: *broad_adapter_caps
+  qwen_cli:
+    protocol: qwen_cli
+    status: active
+    capabilities: *broad_adapter_caps
+  grok_cli:
+    protocol: grok_cli
+    status: quarantined
+    capabilities: *broad_adapter_caps
+  openai_chat:
+    protocol: openai_chat
+    status: active
+    capabilities: *broad_adapter_caps
+  openai_responses:
+    protocol: openai_responses
+    status: active
+    capabilities: *broad_adapter_caps
+  anthropic_messages:
+    protocol: anthropic_messages
+    status: active
+    capabilities: *broad_adapter_caps
+  gemini_generate_content:
+    protocol: gemini_generate_content
+    status: active
+    capabilities: *broad_adapter_caps
+
+providers:
+  openai_codex_oauth:
+    billing_mode: oauth_subscription
+    allowed_data_classes: [public, internal, private]
+    credential_source: user_managed_hermes_profile
+  deepseek_api:
+    billing_mode: api_metered
+    allowed_data_classes: [public, internal, private]
+    credential_source: environment_reference
+  agy_gemini_oauth:
+    billing_mode: oauth_subscription
+    allowed_data_classes: [public, internal, private]
+    credential_source: user_managed_agy_oauth
+  agy_claude_oauth:
+    billing_mode: oauth_subscription
+    allowed_data_classes: [public, internal, private]
+    credential_source: user_managed_agy_oauth
+  gemini_api_free:
+    billing_mode: api_free_tier
+    allowed_data_classes: [public, internal]
+    credential_source: environment_reference
+    automatic_use: false
+  dashscope_api:
+    billing_mode: api_metered
+    allowed_data_classes: [public, internal, private]
+    credential_source: environment_reference
+  xai_oauth:
+    billing_mode: oauth_subscription
+    allowed_data_classes: [public, internal, private]
+    credential_source: user_managed_oauth
+    status: quarantined
+
+models:
+  codex_gpt_5_5_high_hermes_oauth:
+    provider_id: openai_codex_oauth
+    provider_model_id: gpt-5.5
+    status: active
+    input_modalities: [text]
+    capabilities:
+      reasoning: 0.99
+      agentic_control: 0.99
+      coding: 0.98
+      writing: 0.94
+      narrative_continuity: 0.91
+      audit: 0.98
+      research: 0.91
+      multimodal: 0.0
+      artifact_generation: 0.88
+      summarization: 0.97
+  deepseek_v4_pro:
+    provider_id: deepseek_api
+    provider_model_id: deepseek-v4-pro
+    status: active
+    input_modalities: [text]
+    capabilities:
+      reasoning: 0.97
+      agentic_control: 0.94
+      coding: 0.97
+      writing: 0.96
+      narrative_continuity: 0.96
+      audit: 0.97
+      research: 0.88
+      multimodal: 0.0
+      artifact_generation: 0.91
+      summarization: 0.96
+  deepseek_v4_flash:
+    provider_id: deepseek_api
+    provider_model_id: deepseek-v4-flash
+    status: active
+    input_modalities: [text]
+    capabilities:
+      reasoning: 0.84
+      agentic_control: 0.82
+      coding: 0.83
+      writing: 0.83
+      narrative_continuity: 0.75
+      audit: 0.82
+      research: 0.80
+      multimodal: 0.0
+      artifact_generation: 0.82
+      summarization: 0.92
+  gemini_3_5_flash_high_agy_oauth:
+    provider_id: agy_gemini_oauth
+    provider_model_id: gemini-3.5-flash-high
+    status: active
+    input_modalities: [text, image, video, audio, pdf]
+    capabilities:
+      reasoning: 0.94
+      agentic_control: 0.87
+      coding: 0.87
+      writing: 0.91
+      narrative_continuity: 0.89
+      audit: 0.95
+      research: 0.94
+      multimodal: 0.98
+      artifact_generation: 0.80
+      summarization: 0.96
+  claude_sonnet_4_6_agy_oauth:
+    provider_id: agy_claude_oauth
+    provider_model_id: claude-sonnet-4-6
+    status: active
+    input_modalities: [text, image, pdf]
+    capabilities:
+      reasoning: 0.96
+      agentic_control: 0.89
+      coding: 0.92
+      writing: 0.97
+      narrative_continuity: 0.96
+      audit: 0.96
+      research: 0.90
+      multimodal: 0.91
+      artifact_generation: 0.84
+      summarization: 0.96
+  gemini_2_5_flash_high_api_free:
+    provider_id: gemini_api_free
+    provider_model_id: gemini-2.5-flash
+    status: active
+    input_modalities: [text, image, audio, video, pdf]
+    capabilities:
+      reasoning: 0.87
+      agentic_control: 0.80
+      coding: 0.82
+      writing: 0.86
+      narrative_continuity: 0.82
+      audit: 0.88
+      research: 0.82
+      multimodal: 0.93
+      artifact_generation: 0.76
+      summarization: 0.91
+  qwen3_7_max_dashscope:
+    provider_id: dashscope_api
+    provider_model_id: qwen3.7-max
+    status: active
+    input_modalities: [text, image, pdf]
+    capabilities:
+      reasoning: 0.96
+      agentic_control: 0.91
+      coding: 0.92
+      writing: 0.93
+      narrative_continuity: 0.90
+      audit: 0.96
+      research: 0.88
+      multimodal: 0.95
+      artifact_generation: 0.96
+      summarization: 0.95
+  qwen3_6_plus_dashscope:
+    provider_id: dashscope_api
+    provider_model_id: qwen3.6-plus
+    status: active
+    input_modalities: [text, image, pdf]
+    capabilities:
+      reasoning: 0.90
+      agentic_control: 0.87
+      coding: 0.88
+      writing: 0.89
+      narrative_continuity: 0.85
+      audit: 0.92
+      research: 0.84
+      multimodal: 0.92
+      artifact_generation: 0.92
+      summarization: 0.93
+  qwen3_6_flash_dashscope:
+    provider_id: dashscope_api
+    provider_model_id: qwen3.6-flash
+    status: active
+    input_modalities: [text, image, pdf]
+    capabilities:
+      reasoning: 0.79
+      agentic_control: 0.78
+      coding: 0.78
+      writing: 0.80
+      narrative_continuity: 0.74
+      audit: 0.82
+      research: 0.76
+      multimodal: 0.86
+      artifact_generation: 0.84
+      summarization: 0.88
+  grok_4_3_oauth_quarantined:
+    provider_id: xai_oauth
+    provider_model_id: grok-4.3
+    status: quarantined
+    input_modalities: [text, image]
+    capabilities:
+      reasoning: 0.94
+      agentic_control: 0.88
+      coding: 0.88
+      writing: 0.91
+      narrative_continuity: 0.87
+      audit: 0.93
+      research: 0.98
+      multimodal: 0.95
+      artifact_generation: 0.94
+      summarization: 0.93
+
+credential_pools:
+  codex_oauth:
+    provider_id: openai_codex_oauth
+    billing_mode: oauth_subscription
+    legacy_capacity_pool_id: openai_codex_agentic
+    quota_probe:
+      shell_id: hermes
+      argv: [hermes, -p, agentlabsupervisor, chat]
+      slash_command: /usage
+      exit_command: /exit
+      timeout_seconds: 30
+  deepseek_metered:
+    provider_id: deepseek_api
+    billing_mode: api_metered
+    legacy_capacity_pool_id: deepseek_metered_api
+  agy_gemini:
+    provider_id: agy_gemini_oauth
+    billing_mode: oauth_subscription
+    legacy_capacity_pool_id: agy_gemini_observer
+    quota_probe:
+      shell_id: agy
+      argv: [agy, --model, Gemini 3.5 Flash (High)]
+      slash_command: /usage
+      exit_command: /exit
+      timeout_seconds: 30
+  agy_claude:
+    provider_id: agy_claude_oauth
+    billing_mode: oauth_subscription
+    legacy_capacity_pool_id: agy_claude_observer
+    quota_probe:
+      shell_id: agy
+      argv: [agy, --model, Claude Sonnet 4.6 (Thinking)]
+      slash_command: /usage
+      exit_command: /exit
+      timeout_seconds: 30
+  gemini_api_free:
+    provider_id: gemini_api_free
+    billing_mode: api_free_tier
+  dashscope_metered:
+    provider_id: dashscope_api
+    billing_mode: api_metered
+    legacy_capacity_pool_id: dashscope_metered_api
+  xai_oauth:
+    provider_id: xai_oauth
+    billing_mode: oauth_subscription
+    legacy_capacity_pool_id: xai_subscription_shared
+    quota_probe:
+      shell_id: grok
+      argv: [grok]
+      slash_command: /usage
+      exit_command: /exit
+      timeout_seconds: 30
+
+routes:
+  supervisor_codex:
+    status: active
+    identity: {role: supervisor, shell_id: hermes, adapter_id: hermes_runs, profile_ref: agentlabsupervisor, provider_id: openai_codex_oauth, model_id: codex_gpt_5_5_high_hermes_oauth, credential_pool_id: codex_oauth}
+    legacy_cli_agent: hermes
+    invocation_contract: hermes_supervisor
+    evidence_confidence: 0.99
+    reliability: 0.98
+    independence: 0.96
+    retry_expectation: 0.02
+    latency_penalty: 0.02
+  supervisor_deepseek:
+    status: active
+    identity: {role: supervisor, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-supervisor-deepseek, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude_supervisor_fallback
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.92
+    retry_expectation: 0.03
+    latency_penalty: 0.03
+
+  observer_gemini:
+    status: active
+    identity: {role: observer, shell_id: agy, adapter_id: agy_cli, profile_ref: agy-gemini-high, provider_id: agy_gemini_oauth, model_id: gemini_3_5_flash_high_agy_oauth, credential_pool_id: agy_gemini}
+    legacy_cli_agent: agy
+    invocation_contract: agy_observer
+    evidence_confidence: 0.98
+    reliability: 0.97
+    independence: 0.95
+    retry_expectation: 0.03
+    latency_penalty: 0.01
+  observer_claude:
+    status: active
+    identity: {role: observer, shell_id: agy, adapter_id: agy_cli, profile_ref: agy-claude-thinking, provider_id: agy_claude_oauth, model_id: claude_sonnet_4_6_agy_oauth, credential_pool_id: agy_claude}
+    legacy_cli_agent: agy
+    invocation_contract: agy_observer
+    evidence_confidence: 0.97
+    reliability: 0.96
+    independence: 0.94
+    retry_expectation: 0.04
+    latency_penalty: 0.03
+
+  visual_reviewer_gemini:
+    status: active
+    identity: {role: visual_reviewer, shell_id: agy, adapter_id: agy_cli, profile_ref: agy-gemini-high, provider_id: agy_gemini_oauth, model_id: gemini_3_5_flash_high_agy_oauth, credential_pool_id: agy_gemini}
+    legacy_cli_agent: agy
+    invocation_contract: agy_visual_reviewer
+    evidence_confidence: 0.98
+    reliability: 0.97
+    independence: 0.95
+    retry_expectation: 0.03
+    latency_penalty: 0.01
+  visual_reviewer_claude:
+    status: active
+    identity: {role: visual_reviewer, shell_id: agy, adapter_id: agy_cli, profile_ref: agy-claude-thinking, provider_id: agy_claude_oauth, model_id: claude_sonnet_4_6_agy_oauth, credential_pool_id: agy_claude}
+    legacy_cli_agent: agy
+    invocation_contract: agy_visual_reviewer
+    evidence_confidence: 0.97
+    reliability: 0.96
+    independence: 0.94
+    retry_expectation: 0.04
+    latency_penalty: 0.03
+  visual_reviewer_qwen:
+    status: active
+    identity: {role: visual_reviewer, shell_id: qwen, adapter_id: qwen_cli, profile_ref: null, provider_id: dashscope_api, model_id: qwen3_7_max_dashscope, credential_pool_id: dashscope_metered}
+    legacy_cli_agent: qwen
+    invocation_contract: qwen
+    evidence_confidence: 0.97
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.03
+    latency_penalty: 0.03
+  visual_reviewer_qwen_plus:
+    status: active
+    identity: {role: visual_reviewer, shell_id: qwen, adapter_id: qwen_cli, profile_ref: null, provider_id: dashscope_api, model_id: qwen3_6_plus_dashscope, credential_pool_id: dashscope_metered}
+    legacy_cli_agent: qwen
+    invocation_contract: qwen
+    evidence_confidence: 0.97
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.03
+    latency_penalty: 0.02
+  visual_reviewer_qwen_flash:
+    status: active
+    identity: {role: visual_reviewer, shell_id: qwen, adapter_id: qwen_cli, profile_ref: null, provider_id: dashscope_api, model_id: qwen3_6_flash_dashscope, credential_pool_id: dashscope_metered}
+    legacy_cli_agent: qwen
+    invocation_contract: qwen
+    evidence_confidence: 0.96
+    reliability: 0.97
+    independence: 0.94
+    retry_expectation: 0.04
+    latency_penalty: 0.01
+
+  writer_pro:
+    status: active
+    identity: {role: writer, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-writer, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude_writer
+    evidence_confidence: 0.99
+    reliability: 0.98
+    independence: 0.95
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+  writer_flash:
+    status: active
+    identity: {role: writer, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-writer, provider_id: deepseek_api, model_id: deepseek_v4_flash, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude_writer
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.95
+    retry_expectation: 0.02
+    latency_penalty: 0.01
+
+  reviewer_pro:
+    status: active
+    identity: {role: reviewer, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-reviewer, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude_longform_governance
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+  narrative_planner_pro:
+    status: active
+    identity: {role: narrative_planner, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-narrative-planner, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude_longform_governance
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.95
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+
+  reposcout_pro:
+    status: active
+    identity: {role: reposcout, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-code, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+  interface_mapper_pro:
+    status: active
+    identity: {role: interface_mapper, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-code, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+  coder_pro:
+    status: active
+    identity: {role: coder, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-code, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude
+    external_ide_allowed: true
+    evidence_confidence: 0.99
+    reliability: 0.98
+    independence: 0.95
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+  tester_pro:
+    status: active
+    identity: {role: tester_auditor, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-code, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+  verifier_pro:
+    status: active
+    identity: {role: verifier, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-reviewer, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.96
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+  researcher_gemini:
+    status: active
+    identity: {role: researcher, shell_id: agy, adapter_id: agy_cli, profile_ref: agy-gemini-high, provider_id: agy_gemini_oauth, model_id: gemini_3_5_flash_high_agy_oauth, credential_pool_id: agy_gemini}
+    legacy_cli_agent: agy
+    invocation_contract: agy_observer
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.04
+    latency_penalty: 0.02
+  researcher_grok_quarantined:
+    status: quarantined
+    identity: {role: researcher, shell_id: grok, adapter_id: grok_cli, profile_ref: null, provider_id: xai_oauth, model_id: grok_4_3_oauth_quarantined, credential_pool_id: xai_oauth}
+    legacy_cli_agent: grok
+    invocation_contract: grok_research
+    evidence_confidence: 0.0
+    reliability: 0.0
+    independence: 0.95
+
+  prompt_engineer_pro:
+    status: active
+    identity: {role: prompt_engineer, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-writing, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+  prompt_engineer_flash:
+    status: active
+    identity: {role: prompt_engineer, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-writing, provider_id: deepseek_api, model_id: deepseek_v4_flash, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.01
+  artifact_producer_pro:
+    status: active
+    identity: {role: artifact_producer, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-artifact, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude
+    evidence_confidence: 0.97
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+  artifact_producer_qwen:
+    status: active
+    identity: {role: artifact_producer, shell_id: qwen, adapter_id: qwen_cli, profile_ref: null, provider_id: dashscope_api, model_id: qwen3_7_max_dashscope, credential_pool_id: dashscope_metered}
+    legacy_cli_agent: qwen
+    invocation_contract: qwen_artifact
+    evidence_confidence: 0.97
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.03
+    latency_penalty: 0.03
+  artifact_producer_qwen_plus:
+    status: active
+    identity: {role: artifact_producer, shell_id: qwen, adapter_id: qwen_cli, profile_ref: null, provider_id: dashscope_api, model_id: qwen3_6_plus_dashscope, credential_pool_id: dashscope_metered}
+    legacy_cli_agent: qwen
+    invocation_contract: qwen_artifact
+    evidence_confidence: 0.97
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.03
+    latency_penalty: 0.02
+  artifact_producer_qwen_flash:
+    status: active
+    identity: {role: artifact_producer, shell_id: qwen, adapter_id: qwen_cli, profile_ref: null, provider_id: dashscope_api, model_id: qwen3_6_flash_dashscope, credential_pool_id: dashscope_metered}
+    legacy_cli_agent: qwen
+    invocation_contract: qwen_artifact
+    evidence_confidence: 0.96
+    reliability: 0.97
+    independence: 0.94
+    retry_expectation: 0.04
+    latency_penalty: 0.01
+  archivist_flash:
+    status: active
+    identity: {role: archivist, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-writing, provider_id: deepseek_api, model_id: deepseek_v4_flash, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.01
+  archivist_pro:
+    status: active
+    identity: {role: archivist, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-writing, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+  scribe_flash:
+    status: active
+    identity: {role: scribe, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-writing, provider_id: deepseek_api, model_id: deepseek_v4_flash, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude_longform_governance
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.01
+  scribe_pro:
+    status: active
+    identity: {role: scribe, shell_id: claude, adapter_id: claude_cli, profile_ref: agentlab-writing, provider_id: deepseek_api, model_id: deepseek_v4_pro, credential_pool_id: deepseek_metered}
+    legacy_cli_agent: claude_code
+    invocation_contract: claude_longform_governance
+    evidence_confidence: 0.98
+    reliability: 0.98
+    independence: 0.94
+    retry_expectation: 0.02
+    latency_penalty: 0.03
+
+role_routes:
+  supervisor: [supervisor_codex, supervisor_deepseek]
+  observer: [observer_gemini, observer_claude]
+  reposcout: [reposcout_pro]
+  researcher: [researcher_gemini, researcher_grok_quarantined]
+  interface_mapper: [interface_mapper_pro]
+  prompt_engineer: [prompt_engineer_flash, prompt_engineer_pro]
+  coder: [coder_pro]
+  artifact_producer: [artifact_producer_pro, artifact_producer_qwen, artifact_producer_qwen_plus, artifact_producer_qwen_flash]
+  tester_auditor: [tester_pro]
+  verifier: [verifier_pro]
+  archivist: [archivist_flash, archivist_pro]
+  writer: [writer_flash, writer_pro]
+  reviewer: [reviewer_pro]
+  visual_reviewer: [visual_reviewer_gemini, visual_reviewer_claude, visual_reviewer_qwen, visual_reviewer_qwen_plus, visual_reviewer_qwen_flash]
+  scribe: [scribe_flash, scribe_pro]
+  narrative_planner: [narrative_planner_pro]

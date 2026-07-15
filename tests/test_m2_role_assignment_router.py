@@ -38,14 +38,24 @@ def test_new_canonical_roles_have_governed_assignments() -> None:
     engine = RoleAssignmentEngine(ROOT)
 
     assert engine.assign("Observer", available_workers=["agy"]).selected_worker == "agy"
+    assert engine.assign(
+        "Researcher",
+        available_workers=["agy", "claude_code"],
+        approved_workers=["agy"],
+    ).selected_worker == "agy"
     assert engine.assign("Writer", available_workers=["claude_code"]).selected_worker == "claude_code"
+    assert engine.assign(
+        "NarrativePlanner",
+        available_workers=["claude_code"],
+    ).selected_worker == "claude_code"
     assert engine.assign("Reviewer", available_workers=["agy"]).selected_worker == "agy"
     assert engine.assign("Scribe", available_workers=["qwen"]).selected_worker == "qwen"
     assert engine.assign(
         "ArtifactProducer",
-        artifact_type="image",
-        available_workers=["grok"],
-    ).selected_worker == "grok"
+        artifact_type="text",
+        available_workers=["claude_code"],
+    ).selected_worker == "claude_code"
+    assert "grok" not in engine._configured_candidates("Researcher")
 
 
 def test_public_engine_requires_artifact_type_and_reuses_provider_policy() -> None:
@@ -83,10 +93,10 @@ def test_public_engine_requires_artifact_type_and_reuses_provider_policy() -> No
     text = engine.assign(
         "ArtifactProducer",
         artifact_type="text",
-        available_workers=["grok", "qwen", "codex"],
-        approved_workers=["grok", "qwen", "codex"],
+        available_workers=["claude_code", "grok", "qwen", "codex"],
+        approved_workers=["claude_code", "grok", "qwen", "codex"],
     )
-    assert text.selected_worker == "qwen"
+    assert text.selected_worker == "claude_code"
     assert text.activation_decision == "activate"
 
 
@@ -114,11 +124,11 @@ def test_forced_artifact_worker_cannot_bypass_provider_policy(tmp_path: Path) ->
     decision = RoleAssignmentEngine(root).assign(
         "ArtifactProducer",
         artifact_type="text",
-        available_workers=["codex", "qwen"],
-        approved_workers=["codex", "qwen"],
+        available_workers=["codex", "claude_code"],
+        approved_workers=["codex", "claude_code"],
     )
 
-    assert decision.selected_worker == "qwen"
+    assert decision.selected_worker == "claude_code"
     rejection = next(
         item for item in decision.rejected_workers if item.worker == "codex"
     )
@@ -142,7 +152,7 @@ def test_forced_worker_cannot_bypass_protocol_role_binding(tmp_path: Path) -> No
         )
         decision = RoleAssignmentEngine(root).assign(
             role,
-            artifact_type="image" if role == "ArtifactProducer" else None,
+            artifact_type="text" if role == "ArtifactProducer" else None,
             available_workers=["agy"],
         )
 
@@ -219,19 +229,17 @@ def test_assign_role_dispatches_artifact_type_through_artifact_policy() -> None:
                 "--artifact-type",
                 artifact_type,
                 "--available-worker",
-                "qwen",
+                "claude_code",
                 "--approved-worker",
-                "qwen",
+                "claude_code",
             ],
         )
         assert result.exit_code == 0, result.output
         payload = yaml.safe_load(result.stdout)
-        assert payload["route_decision"]["selected_worker"] == "qwen"
-        assert payload["artifact_dispatch"]["provider_id"] == "qwen_cli"
-        assert payload["artifact_dispatch"]["invocation_contract"] == "qwen_artifact"
-        assert payload["artifact_dispatch"]["capacity_route"] == (
-            "ArtifactProducerQwen"
-        )
+        assert payload["route_decision"]["selected_worker"] == "claude_code"
+        assert payload["artifact_dispatch"]["provider_id"] == "claude_deepseek"
+        assert payload["artifact_dispatch"]["invocation_contract"] == "claude"
+        assert payload["artifact_dispatch"]["capacity_route"] == "ArtifactProducerPro"
         assert payload["artifact_dispatch"]["executable"] is True
 
     for artifact_type in ("image", "video"):
@@ -251,11 +259,10 @@ def test_assign_role_dispatches_artifact_type_through_artifact_policy() -> None:
         )
         assert result.exit_code == 0, result.output
         payload = yaml.safe_load(result.stdout)
-        assert payload["route_decision"]["selected_worker"] == "grok"
-        assert payload["artifact_dispatch"]["provider_id"] == "grok_media"
-        assert payload["artifact_dispatch"]["invocation_contract"] == "grok_media"
-        assert payload["artifact_dispatch"]["capacity_route"] == "ArtifactProducer"
-        assert payload["artifact_dispatch"]["executable"] is True
+        assert payload["route_decision"]["selected_worker"] is None
+        assert payload["artifact_dispatch"]["provider_id"] is None
+        assert payload["artifact_dispatch"]["status"] == "capability_mismatch"
+        assert payload["artifact_dispatch"]["executable"] is False
 
 
 def test_assign_role_blocks_unsupported_artifacts() -> None:

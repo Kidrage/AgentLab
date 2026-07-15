@@ -25,7 +25,7 @@ PROMPT = (
     f"Reply exactly: {EXPECTED}"
 )
 DIAGNOSTIC_TIMEOUT_SECONDS = 15
-PROMPT_FLAGS = {"-p", "--prompt", "-z", "--oneshot"}
+PROMPT_FLAGS = {"-p", "--prompt", "-q", "-z", "--oneshot"}
 SETTINGS_FETCH_MARKER = "Settings fetch failed"
 GROK_SMOKE_TEMPLATE_KEY = "session_smoke"
 TRANSPORT_FAILURE_MARKERS = (

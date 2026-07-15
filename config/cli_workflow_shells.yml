@@ -218,10 +218,10 @@ shells:
     command_families:
       one_shot:
         examples:
-          - hermes -z <prompt>
-          - hermes --provider <provider> -m <model> -z <prompt>
-          - hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.6-sol -q <prompt>
-        agentlab_use: bounded role-session execution with a task packet; Supervisor must use the isolated chat profile because -z does not apply its reasoning-effort state
+          - hermes chat -Q -q <prompt>
+          - hermes chat -Q --provider <provider> -m <model> -q <prompt>
+          - hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.5 -q <prompt>
+        agentlab_use: bounded role-session execution with a task packet; production bypass/YOLO flags are forbidden
       model_and_fallback:
         examples:
           - hermes model
@@ -269,7 +269,7 @@ shells:
         agentlab_use: health, observability, and preflight diagnostics
       media_backend_shell:
         examples:
-          - hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z <prompt>
+          - hermes chat -Q --provider xai-oauth -m grok-4.3 -q <prompt>
         agentlab_use: Grok OAuth media backend shell behind ArtifactProducer/grok
     allowed_roles:
       - Supervisor
@@ -313,7 +313,7 @@ shells:
         - artifact_manifest_or_findings.yml
       shell_state_counts_as_memory: false
     risk_controls:
-      - ignore-rules or yolo-style modes require explicit contract justification
+      - ignore-rules and yolo-style modes are forbidden for production AgentLab work
       - MCP/plugin changes require approval
       - shell output must be converted to AgentLab receipts before acceptance
 
@@ -689,7 +689,7 @@ shells:
     command_families:
       media_and_agent:
         examples:
-          - hermes --provider xai-oauth -m grok-4.3 -z <prompt>
+          - hermes chat -Q --provider xai-oauth -m grok-4.3 -q <prompt>
         agentlab_use: Separate sourced Researcher and candidate-only media tool contracts
       auth_and_capacity:
         examples:

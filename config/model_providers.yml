@@ -4,10 +4,11 @@ version: 2
 # 分层架构 (Model Tier Architecture) v3.0:
 #
 #   Agent backend 选择由 config/agent_model_profiles.yml 负责。
-#   full_cli 默认大脑层 Supervisor — Hermes Codex OAuth / gpt-5.6-sol xhigh
+#   full_cli 默认大脑层 Supervisor — Hermes Codex OAuth / gpt-5.5 high
 #   full_cli Observer — Agy Gemini/Claude OAuth 独立容量池
 #   full_cli Writer — Claude shell / DeepSeek V4
-#   full_cli Researcher/ArtifactProducer — Hermes Grok OAuth（独立合同）
+#   full_cli Researcher — Agy Gemini OAuth；ArtifactProducer 文本 — Claude/DeepSeek
+#   Hermes Grok OAuth — 已登记但隔离，仅显式 bounded canary
 #   Gemini API key 路径 — gemini-2.5-flash-high，仅显式 fallback，不默认启用
 #   direct API 模式 — 使用本文件 provider defaults 与 model_catalog facts
 #
@@ -207,14 +208,14 @@ providers:
     display_name: Hermes Codex OAuth
     command: hermes
     base_url: https://chatgpt.com/backend-api/codex
-    default_model: gpt-5.6-sol
-    reasoning_effort: xhigh
+    default_model: gpt-5.5
+    reasoning_effort: high
     auth: local_hermes_oauth_session
     billing:
       source: codex_oauth
       metering: subscription_or_oauth_quota
       shared_pool_id: openai_codex_agentic
-    capacity_source: config/model_capacity.yml
+    capacity_source: config/runtime_registry.yml
     unavailable_action: capacity_manager
     requires_user_approval_before_fallback: false
     blocked_on:
@@ -224,12 +225,13 @@ providers:
     notes:
       - Runtime provider key matches Hermes' registered openai-codex OAuth provider.
       - This is not the Codex CLI worker.
-      - Invoke through Hermes as: hermes --provider openai-codex -m gpt-5.6-sol.
-      - xhigh is the strongest setting exposed by installed Hermes v0.17.0.
+      - Invoke through the isolated Supervisor profile as openai-codex / gpt-5.5 / high.
       - Never use `hermes status --all` as a probe; use `hermes auth status openai-codex`.
 
   xai-oauth:
     type: oauth_cli
+    status: quarantined
+    automatic_use: false
     display_name: Hermes xAI OAuth
     command: hermes
     default_model: grok-4.3
@@ -247,7 +249,7 @@ providers:
       - subscription_exhausted
       - provider_error
     notes:
-      - Grok Researcher and Grok media generation share this observed capacity pool.
+      - Registered Grok Researcher and media contracts share this observed capacity pool, but automatic routing is quarantined.
       - "`hermes auth status xai-oauth` is an auth/cooldown signal, not a weekly remaining percentage."
       - "Never use `hermes status --all`; its output is not safe for AgentLab logs."
 
@@ -279,7 +281,7 @@ providers:
       - AgentLab 默认 Observer 路径。Agy 接 Gemini 模型，走本地 OAuth 认证。
       - 不读取 GEMINI_API_KEY，不按本地 Gemini API key 计费。
       - 默认模型为 gemini-3.5-flash-high。
-      - Agy 不提供 quota/status 命令；remaining/reset 不得推测。
+      - AgentLab 在绑定 Gemini 模型的交互会话中运行 `/usage`；无法解析时 remaining/reset 保持 null。
 
   # ── Agy / Antigravity Claude OAuth Observer 备用容量池 ─────────
   agy-claude-oauth:
@@ -292,7 +294,7 @@ providers:
       source: agy_oauth
       metering: separate_subscription_quota_window
       shared_pool_id: agy_claude_observer
-    capacity_source: config/model_capacity.yml
+    capacity_source: config/runtime_registry.yml
     network:
       requires_supported_region: true
       recommended_regions:
@@ -309,7 +311,7 @@ providers:
     notes:
       - 仅在 Agy Gemini Observer 返回 quota_exhausted、rate_limited 或 model_unavailable 时作为预批准独立容量池使用。
       - 与 Gemini 容量池独立；provider surface 仍为同一个 Agy CLI worker。
-      - 用户说明两池各有五小时与周窗口，但 Agy 无状态 API，reset/remaining 未观测时保持 null。
+      - 两池分别运行绑定模型的 `/usage`；reset/remaining 未观测或不可解析时保持 null。
       - 认证、网络、命令或输出契约错误不得触发切换；受治理的 rate_limited 属于容量故障。
 
   # ── Gemini API 免费额度备用入口 ──────────────────────────────────

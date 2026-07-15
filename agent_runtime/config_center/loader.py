@@ -69,6 +69,8 @@ _CONFIG_FILE_NAMESPACE: dict[str, str] = {
     "model_profiles": "model_profiles",
     "agent_registry": "agent_registry",
     "agent_model_profiles": "agent_model_profiles",
+    "runtime_registry": "runtime_registry",
+    "pricing_catalog": "pricing_catalog",
     # Skills & workers
     "skill_evolution_policy": "skill_evolution_policy",
     "skill_injection_policy": "skill_injection_policy",

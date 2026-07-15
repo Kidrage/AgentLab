@@ -126,7 +126,7 @@ def _complete_visual_evidence(run_dir: Path) -> None:
                 "role": "Verifier",
                 "id": "hermes-verifier-session-1",
                 "backend": "hermes_codex_oauth",
-                "model": "gpt-5.6-sol",
+                "model": "gpt-5.5",
             },
             "candidates": [
                 {

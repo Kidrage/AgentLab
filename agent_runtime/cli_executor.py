@@ -45,7 +45,7 @@ import yaml
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 from uuid import uuid4
 
 try:
@@ -60,7 +60,6 @@ _CLI_CONTRACT_ALIASES = {
     "claude_code": "claude",
 }
 _PLACEHOLDER_RE = re.compile(r"\{([a-zA-Z0-9_]+)\}")
-_APPROX_CHARS_PER_TOKEN = 4
 _OBSERVER_STAGED_SUFFIXES = {
     ".aac",
     ".avi",
@@ -162,6 +161,7 @@ def resolve_cli_profile(
     profile_name: str | None = None,
     budget_mode: str | None = None,
     mode: str | None = None,
+    routing_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Return the CLI profile config for *agent_role*.
 
@@ -199,6 +199,31 @@ def resolve_cli_profile(
 
         # Resolve tier
         resolved_tier = budget_mode_to_tier(budget_mode or os.getenv("AGENTLAB_BUDGET_MODE", "performance"))
+
+        # The normalized runtime registry is the authority for full_cli.  It
+        # compiles one selected route back into the legacy profile shape so the
+        # existing executor remains stable during migration.
+        try:
+            from agent_runtime.runtime_registry import (
+                dynamic_runtime_enabled,
+                resolve_dynamic_profile,
+            )
+        except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+            from runtime_registry import dynamic_runtime_enabled, resolve_dynamic_profile
+        dynamic_profile = resolve_dynamic_profile(
+            agent_model_profiles,
+            agent_role=agent_role,
+            resolved_mode=resolved_mode,
+            resolved_tier=resolved_tier,
+            routing_context=routing_context,
+        )
+        if dynamic_profile is not None:
+            return dynamic_profile
+        if dynamic_runtime_enabled(agent_model_profiles, resolved_mode):
+            raise RuntimeError(
+                "dynamic runtime routing failed closed; legacy full_cli matrix "
+                f"was not consulted for role={agent_role}, tier={resolved_tier}"
+            )
 
         # Traverse: modes → mode_cfg → tiers → tier_cfg → role_cfg
         mode_cfg = modes.get(resolved_mode, {}) or {}
@@ -603,32 +628,20 @@ def _materialize_isolated_artifact_outputs(
     return {**receipt, "receipt_path": str(receipt_path)}
 
 
-def _estimate_text_tokens(*texts: str) -> int:
-    """Approximate tokenizer usage when an external CLI hides provider telemetry."""
-    chars = sum(len(text or "") for text in texts)
-    if chars <= 0:
-        return 0
-    return max(1, (chars + _APPROX_CHARS_PER_TOKEN - 1) // _APPROX_CHARS_PER_TOKEN)
-
-
 def _external_cli_usage_estimate(
     packet_path: Path,
     argv: list[str],
     stdout: str = "",
     stderr: str = "",
 ) -> dict[str, Any]:
-    try:
-        packet_text = packet_path.read_text(encoding="utf-8")
-    except OSError:
-        packet_text = ""
-    input_tokens = _estimate_text_tokens(packet_text, shlex.join(argv))
-    output_tokens = _estimate_text_tokens(stdout, stderr)
+    """Return an explicit unavailable record when the CLI exposes no telemetry."""
+
+    del packet_path, argv, stdout, stderr
     return {
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "total_tokens": input_tokens + output_tokens,
-        "usage_source": "external_cli_estimate",
-        "token_estimation_method": "chars_div_4_packet_command_stdout_stderr",
+        "input_tokens": None,
+        "output_tokens": None,
+        "total_tokens": None,
+        "usage_source": "external_cli_unavailable",
         "exact_usage_available": False,
         "exact_cost_available": False,
     }
@@ -645,11 +658,11 @@ def _coerce_usage_payload(raw: Any) -> dict[str, Any] | None:
         return None
     usage: dict[str, Any] = {}
     for target, aliases in {
-        "input_tokens": ("input_tokens", "prompt_tokens"),
-        "output_tokens": ("output_tokens", "completion_tokens"),
+        "input_tokens": ("input_tokens", "prompt_tokens", "input"),
+        "output_tokens": ("output_tokens", "completion_tokens", "output"),
         "cache_creation_input_tokens": ("cache_creation_input_tokens",),
         "cache_read_input_tokens": ("cache_read_input_tokens", "cached_input_tokens"),
-        "total_tokens": ("total_tokens",),
+        "total_tokens": ("total_tokens", "total"),
     }.items():
         for alias in aliases:
             if payload.get(alias) is None:
@@ -807,6 +820,262 @@ def _external_cli_usage(
         or _extract_cli_usage_from_output(stdout, stderr)
         or _external_cli_usage_estimate(packet_path, argv, stdout, stderr)
     )
+
+
+def _run_hermes_rpc_channel(
+    *,
+    role_profile: dict[str, Any],
+    contract: dict[str, Any],
+    model_values: dict[str, str],
+    execution_cwd: Path,
+    execution_packet_path: Path,
+    agentlab_root: Path,
+    agent_name: str,
+    timeout_seconds: int,
+) -> tuple[subprocess.CompletedProcess[str], dict[str, Any], dict[str, Any]]:
+    """Execute a fixed Hermes route through its local JSON-RPC gateway."""
+    try:
+        from agent_runtime.hermes_rpc import (
+            HermesApprovalRequired,
+            HermesRpcClient,
+            HermesRpcError,
+            HermesRpcTimeout,
+            ensure_hermes_server,
+        )
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from hermes_rpc import (
+            HermesApprovalRequired,
+            HermesRpcClient,
+            HermesRpcError,
+            HermesRpcTimeout,
+            ensure_hermes_server,
+        )
+
+    channel = dict(role_profile.get("runtime_channel_config") or {})
+    endpoint = str(channel.get("endpoint") or "ws://127.0.0.1:9119/api/ws")
+    auto_start = bool(channel.get("auto_start", False))
+    startup_timeout = float(channel.get("startup_timeout_seconds") or 15)
+    binary = str(channel.get("binary") or "hermes")
+    server = None
+    profile = str(
+        role_profile.get("profile_ref")
+        or contract.get("workflow_shell_profile")
+        or ""
+    ) or None
+    required_state = contract.get("required_shell_state") or {}
+    reasoning_effort = str(
+        contract.get("resolved_reasoning_effort")
+        or required_state.get("agent.reasoning_effort")
+        or ""
+    ) or None
+    prompt = (
+        f"Act as AgentLab role {agent_name}. Read and execute only the governed "
+        f"task packet at {execution_packet_path}. Return the requested role output; "
+        "do not change provider, model, profile, or approval policy."
+    )
+    try:
+        server = ensure_hermes_server(
+            endpoint,
+            binary=binary,
+            log_path=agentlab_root / ".agents" / "runtime" / "hermes_gateway.log",
+            startup_timeout_seconds=startup_timeout,
+            auto_start=auto_start,
+        )
+        result = HermesRpcClient(endpoint).run(
+            prompt,
+            cwd=execution_cwd,
+            profile=profile,
+            provider=model_values["provider"],
+            model=model_values["model_id"],
+            reasoning_effort=reasoning_effort,
+            timeout_seconds=timeout_seconds,
+        )
+    except HermesRpcTimeout as exc:
+        raise subprocess.TimeoutExpired(
+            cmd=["hermes-json-rpc", endpoint],
+            timeout=timeout_seconds,
+            stderr=str(exc),
+        ) from exc
+    except HermesApprovalRequired as exc:
+        process = subprocess.CompletedProcess(
+            args=["hermes-json-rpc", endpoint],
+            returncode=77,
+            stdout="",
+            stderr=f"hermes_rpc_approval_required: {exc}",
+        )
+        return process, {}, {
+            "execution_channel": "hermes_json_rpc_ws",
+            "endpoint": endpoint,
+            "server_started": bool(server and server.started),
+            "server_pid": server.pid if server else None,
+            "rpc_failure_class": "approval_required",
+        }
+    except HermesRpcError as exc:
+        process = subprocess.CompletedProcess(
+            args=["hermes-json-rpc", endpoint],
+            returncode=1,
+            stdout="",
+            stderr=f"hermes_rpc_error: {exc}",
+        )
+        return process, {}, {
+            "execution_channel": "hermes_json_rpc_ws",
+            "endpoint": endpoint,
+            "server_started": bool(server and server.started),
+            "server_pid": server.pid if server else None,
+            "rpc_failure_class": "provider_unavailable",
+        }
+
+    usage = _coerce_usage_payload(
+        {
+            "usage": result.usage,
+            "usage_source": result.usage_source,
+            "exact_usage_available": result.exact_usage_available,
+            "exact_cost_available": False,
+            "session_id": result.stored_session_id or result.session_id,
+        }
+    ) or {}
+    usage.setdefault("usage_source", result.usage_source)
+    usage.setdefault("exact_usage_available", result.exact_usage_available)
+    usage.setdefault("exact_cost_available", False)
+    completed = result.status == "complete"
+    process = subprocess.CompletedProcess(
+        args=["hermes-json-rpc", endpoint],
+        returncode=0 if completed else 1,
+        stdout=result.text,
+        stderr="" if completed else f"hermes_rpc_status:{result.status}",
+    )
+    metadata = {
+        "execution_channel": "hermes_json_rpc_ws",
+        "endpoint": endpoint,
+        "server_started": bool(server and server.started),
+        "server_pid": server.pid if server else None,
+        "session_id": result.session_id,
+        "stored_session_id": result.stored_session_id,
+        "event_count": result.event_count,
+        "observed_provider": result.provider,
+        "observed_model": result.model,
+        "observed_reasoning_effort": result.reasoning_effort,
+        "binding_observed": result.binding_observed,
+    }
+    return process, usage, metadata
+
+
+def _write_runtime_usage_receipt(
+    *,
+    agentlab_root: Path,
+    run_dir: Path,
+    agent_name: str,
+    role_profile: dict[str, Any],
+    usage: dict[str, Any],
+    started_at: datetime,
+    completed_at: datetime,
+    execution_status: str,
+    execution_channel: str,
+) -> tuple[str | None, str | None]:
+    """Write one normalized receipt for a dynamic runtime route."""
+    route_id = str(role_profile.get("runtime_route_id") or "")
+    if not route_id:
+        return None, None
+    try:
+        from agent_runtime.costing.catalog import PricingCatalog
+        from agent_runtime.runtime_registry import RuntimeRegistry, UsageReceipt
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from costing.catalog import PricingCatalog
+        from runtime_registry import RuntimeRegistry, UsageReceipt
+
+    try:
+        registry = RuntimeRegistry.load(agentlab_root)
+        identity = registry.route_identity(route_id)
+        pricing = PricingCatalog.load(agentlab_root)
+        exact_usage = usage.get("exact_usage_available") is True
+        input_tokens = (
+            max(0, int(usage.get("input_tokens") or 0)) if exact_usage else None
+        )
+        output_tokens = (
+            max(0, int(usage.get("output_tokens") or 0)) if exact_usage else None
+        )
+        quote = pricing.quote(
+            identity.model_id,
+            input_tokens=input_tokens or 0,
+            output_tokens=output_tokens or 0,
+            cache_read_tokens=(
+                max(0, int(usage.get("cache_read_input_tokens") or 0))
+                if exact_usage
+                else 0
+            ),
+            cache_write_tokens=(
+                max(0, int(usage.get("cache_creation_input_tokens") or 0))
+                if exact_usage
+                else 0
+            ),
+        )
+        usage_independent_cost = quote.billing_mode in {
+            "oauth_subscription",
+            "api_free_tier",
+            "shell_only",
+        }
+        cost_exact = bool(quote.exact and (exact_usage or usage_independent_cost))
+        decision = role_profile.get("route_decision") or {}
+
+        def optional_float(value: Any) -> float | None:
+            if value is None:
+                return None
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        checkpoint_id = str(
+            decision.get("checkpoint_id") or role_profile.get("checkpoint_id") or ""
+        ) or None
+        attempt_id = str(
+            role_profile.get("_runtime_model_execution_attempt_id")
+            or f"{checkpoint_id or agent_name}:{started_at.astimezone(timezone.utc).isoformat()}:{uuid4().hex}"
+        )
+        receipt = UsageReceipt(
+            route_id=route_id,
+            identity=identity,
+            started_at=started_at.astimezone(timezone.utc).isoformat(),
+            completed_at=completed_at.astimezone(timezone.utc).isoformat(),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            native_cost=quote.native_amount if cost_exact else None,
+            native_currency=quote.native_currency,
+            cost_cny=quote.cny_amount if cost_exact else None,
+            billing_mode=quote.billing_mode,
+            pricing_version=quote.pricing_version,
+            fx_version=quote.fx_version,
+            quota_before_percent=optional_float(
+                decision.get("quota_before_percent")
+            ),
+            quota_after_percent=optional_float(
+                decision.get("quota_after_percent")
+            ),
+            checkpoint_id=checkpoint_id,
+            fallback_from=str(decision.get("fallback_from") or "") or None,
+            execution_status=execution_status,
+            usage_source=str(usage.get("usage_source") or "") or None,
+            exact_usage_available=exact_usage,
+            cost_exact=cost_exact,
+            execution_channel=execution_channel,
+            attempt_id=attempt_id,
+            cash_basis=(
+                quote.cash_basis if cost_exact else "unavailable_without_exact_usage"
+            ),
+            pricing_source=(
+                quote.pricing_source
+                if cost_exact and quote.pricing_source
+                else "unavailable_without_exact_usage"
+            ),
+        )
+        slug = re.sub(r"[^a-z0-9]+", "_", agent_name.casefold()).strip("_")
+        attempt_slug = re.sub(r"[^a-z0-9]+", "_", attempt_id.casefold()).strip("_")
+        path = receipt.write(
+            run_dir / f"usage_receipt_{slug or 'role'}_{attempt_slug[-64:]}.yml"
+        )
+        return str(path), None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}:{exc}"
 
 
 def _render_command(
@@ -1168,7 +1437,7 @@ def _qwen_artifact_preflight(
             option_value("--auth-type") == "openai",
             option_value("--openai-base-url") == expected_base_url,
             option_value("--model") == requested_cli_model_id,
-            option_value("--approval-mode") == "yolo",
+            option_value("--approval-mode") == "default",
             option_value("--output-format") == "json",
             "--bare" in argv,
             "--sandbox" in argv,
@@ -1901,20 +2170,21 @@ def _grok_research_preflight(
 
     expected_prefix = [
         "hermes",
-        "--ignore-rules",
+        "chat",
+        "-Q",
         "--provider",
         "xai-oauth",
         "-m",
         requested_cli_model_id,
         "-t",
         "web,x_search",
-        "-z",
+        "-q",
     ]
-    prompt = argv[9] if len(argv) == 10 else ""
+    prompt = argv[10] if len(argv) == 11 else ""
     command_binding_verified = (
-        len(argv) == 10
+        len(argv) == 11
         and Path(argv[0]).name == "hermes"
-        and argv[1:9] == expected_prefix[1:]
+        and argv[1:10] == expected_prefix[1:]
         and str(task_packet_path) in prompt
         and "Researcher" in prompt
         and "task packet" in prompt.lower()
@@ -2169,8 +2439,8 @@ def _hermes_supervisor_preflight(
 ) -> dict[str, Any]:
     """Verify the exact Hermes Supervisor request path before provider launch.
 
-    Hermes' ``-z`` one-shot path does not apply ``agent.reasoning_effort``.
-    The governed Supervisor contract therefore uses a named profile with the
+    Production bypass modes are forbidden. The governed Supervisor contract
+    therefore uses a named profile with the
     classic ``chat -q`` path. This preflight proves the profile state, exact
     command binding, and absence of Hermes-internal fallbacks without calling a
     provider or printing the rest of the private Hermes configuration.
@@ -2275,11 +2545,20 @@ def _write_hermes_supervisor_model_receipt(
     stdout_nonempty: bool = False,
     timed_out: bool = False,
     extra_issues: list[str] | None = None,
+    execution_metadata: Mapping[str, Any] | None = None,
 ) -> str | None:
     if not preflight.get("applicable"):
         return None
     issues = sorted(
         set(str(item) for item in (preflight.get("issues") or []) + (extra_issues or []))
+    )
+    metadata = dict(execution_metadata or {})
+    binding_observed = metadata.get("binding_observed") is True
+    requested_provider = (preflight.get("required_shell_state") or {}).get(
+        "model.provider"
+    )
+    requested_model = (preflight.get("required_shell_state") or {}).get(
+        "model.default"
     )
     receipt = {
         "schema_version": 1,
@@ -2288,8 +2567,13 @@ def _write_hermes_supervisor_model_receipt(
         "worker": "hermes",
         "invocation_contract": "hermes_supervisor",
         "requested_reasoning_label": preflight.get("requested_reasoning_label"),
-        "provider": (preflight.get("required_shell_state") or {}).get("model.provider"),
-        "model": (preflight.get("required_shell_state") or {}).get("model.default"),
+        "requested_provider": requested_provider,
+        "requested_model": requested_model,
+        "provider": metadata.get("observed_provider") if binding_observed else None,
+        "model": metadata.get("observed_model") if binding_observed else None,
+        "observed_reasoning_effort": (
+            metadata.get("observed_reasoning_effort") if binding_observed else None
+        ),
         "reasoning_effort": preflight.get("resolved_reasoning_effort"),
         "workflow_shell_profile": preflight.get("workflow_shell_profile"),
         "profile_config_path": preflight.get("profile_config_path"),
@@ -2298,8 +2582,12 @@ def _write_hermes_supervisor_model_receipt(
         "command_binding_verified": preflight.get("command_binding_verified") is True,
         "fallback_chain": [],
         "provider_process_started": provider_process_started,
-        "provider_response_metadata_observed": False,
-        "evidence_source": "runtime_verified_argv_and_hermes_profile",
+        "provider_response_metadata_observed": binding_observed,
+        "evidence_source": (
+            "hermes_session_info"
+            if binding_observed
+            else "runtime_verified_argv_and_hermes_profile_only"
+        ),
         "exit_code": exit_code,
         "stdout_nonempty": stdout_nonempty,
         "timed_out": timed_out,
@@ -3519,7 +3807,7 @@ def run_cli_agent(
                 content=(
                     "# Supervisor model execution blocked\n\n"
                     "The isolated Hermes profile or exact command binding did not "
-                    "match openai-codex / gpt-5.6-sol / xhigh with an empty fallback "
+                    "match openai-codex / gpt-5.5 / high with an empty fallback "
                     "chain. No provider process was started.\n"
                 ),
                 status="blocked_user_decision",
@@ -3713,18 +4001,59 @@ def run_cli_agent(
                 },
             )
 
+        try:
+            from agent_runtime.shell_governance import validate_production_argv
+        except ModuleNotFoundError:  # pragma: no cover - direct runtime path
+            from shell_governance import validate_production_argv
+        shell_safety_issues = validate_production_argv(argv)
+        if shell_safety_issues:
+            return LLMCallResult(
+                provider="agentlab-protocol",
+                model=cli_agent_name,
+                content=(
+                    f"# {agent_name} shell execution blocked\n\n"
+                    "The command contains a production-forbidden permission "
+                    "bypass. No provider process was started.\n"
+                ),
+                status="blocked_user_decision",
+                error="unsafe_shell_bypass",
+                raw_usage={
+                    "cli_agent": cli_agent_name,
+                    "provider_process_started": False,
+                    "shell_safety_issues": shell_safety_issues,
+                },
+            )
+
         cli_log_path = _ensure_cli_log_file_arg(argv, run_dir, cli_agent_name)
         started_at = datetime.now(timezone.utc)
+        execution_argv = list(argv)
+        channel_usage: dict[str, Any] = {}
+        execution_metadata: dict[str, Any] = {
+            "execution_channel": "cli_subprocess"
+        }
         try:
-            proc = subprocess.run(
-                argv,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=effective_timeout,
-                cwd=execution_cwd,
-                env=process_env,
-            )
+            if str(role_profile.get("adapter_id") or "") == "hermes_runs":
+                proc, channel_usage, execution_metadata = _run_hermes_rpc_channel(
+                    role_profile=role_profile,
+                    contract=resolved_invocation_contract,
+                    model_values=model_values,
+                    execution_cwd=execution_cwd,
+                    execution_packet_path=execution_packet_path,
+                    agentlab_root=Path(plan.agentlab_root),
+                    agent_name=agent_name,
+                    timeout_seconds=effective_timeout,
+                )
+                execution_argv = [str(item) for item in proc.args]
+            else:
+                proc = subprocess.run(
+                    argv,
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    text=True,
+                    timeout=effective_timeout,
+                    cwd=execution_cwd,
+                    env=process_env,
+                )
             if observer_manifest and workspace_context is not None:
                 (
                     staged_input_manifest_path,
@@ -3756,6 +4085,8 @@ def run_cli_agent(
                     [str(item) for item in packet_payload.get("required_outputs", [])],
                 )
         except subprocess.TimeoutExpired as exc:
+            if isinstance(exc.cmd, (list, tuple)):
+                execution_argv = [str(item) for item in exc.cmd]
             finished_at = datetime.now(timezone.utc)
             if observer_manifest and workspace_context is not None:
                 (
@@ -3787,7 +4118,7 @@ def run_cli_agent(
             )
             usage_estimate = _external_cli_usage(
                 packet_path,
-                argv,
+                execution_argv,
                 agent_name,
                 cli_agent_name,
                 stdout_text,
@@ -3804,6 +4135,19 @@ def run_cli_agent(
                     / "cli_error_classification.yml"
                 ),
             )
+            usage_receipt_path, usage_receipt_error = _write_runtime_usage_receipt(
+                agentlab_root=Path(plan.agentlab_root),
+                run_dir=run_dir,
+                agent_name=agent_name,
+                role_profile=role_profile,
+                usage=usage_estimate,
+                started_at=started_at,
+                completed_at=finished_at,
+                execution_status="timeout",
+                execution_channel=str(
+                    execution_metadata.get("execution_channel") or "cli_subprocess"
+                ),
+            )
             timeout_receipt_issues = [
                 "provider_process_timeout",
                 f"failure_class:{timeout_failure_class}",
@@ -3817,7 +4161,7 @@ def run_cli_agent(
                 run_dir,
                 agent_name=agent_name,
                 cli_agent_name=cli_agent_name,
-                argv=argv,
+                argv=execution_argv,
                 cwd=execution_cwd,
                 exit_code=None,
                 timed_out=True,
@@ -3913,7 +4257,7 @@ def run_cli_agent(
                 model=cli_agent_name,
                 content=(
                     f"# {agent_name} CLI Agent Timeout\n\n"
-                    f"Process `{argv[0]}` did not complete within {effective_timeout}s.\n\n"
+                    f"Execution channel `{execution_argv[0]}` did not complete within {effective_timeout}s.\n\n"
                     f"**Action required**: Check whether `{cli_agent_name}` is stuck, "
                     "then rerun or select an explicitly approved capacity route."
                     f"{evidence}"
@@ -3931,6 +4275,17 @@ def run_cli_agent(
                     "cli_runtime_provider": model_values["provider"],
                     "failure_class": timeout_failure_class,
                     "timeout": effective_timeout,
+                    **execution_metadata,
+                    **(
+                        {"usage_receipt": usage_receipt_path}
+                        if usage_receipt_path
+                        else {}
+                    ),
+                    **(
+                        {"usage_receipt_error": usage_receipt_error}
+                        if usage_receipt_error
+                        else {}
+                    ),
                     **usage_estimate,
                     **({"command_id": command_id} if command_id else {}),
                     **({"cli_log_path": str(cli_log_path)} if cli_log_path else {}),
@@ -4115,12 +4470,14 @@ def run_cli_agent(
     )
     usage_estimate = _external_cli_usage(
         packet_path,
-        argv,
+        execution_argv,
         agent_name,
         cli_agent_name,
         proc.stdout or "",
         stderr_text or proc.stderr or "",
     )
+    if channel_usage:
+        usage_estimate = channel_usage
     model_resolution_failed = (
         cli_agent_name == "agy"
         and _agy_model_resolution_failed(
@@ -4190,6 +4547,19 @@ def run_cli_agent(
             )
         )
     )
+    usage_receipt_path, usage_receipt_error = _write_runtime_usage_receipt(
+        agentlab_root=Path(plan.agentlab_root),
+        run_dir=run_dir,
+        agent_name=agent_name,
+        role_profile=role_profile,
+        usage=usage_estimate,
+        started_at=started_at,
+        completed_at=finished_at,
+        execution_status="completed" if success else "failed",
+        execution_channel=str(
+            execution_metadata.get("execution_channel") or "cli_subprocess"
+        ),
+    )
     receipt_failure_issues = (
         [] if success else [f"failure_class:{failure_class or 'unknown'}"]
     )
@@ -4201,7 +4571,7 @@ def run_cli_agent(
         run_dir,
         agent_name=agent_name,
         cli_agent_name=cli_agent_name,
-        argv=argv,
+        argv=execution_argv,
         cwd=execution_cwd,
         exit_code=proc.returncode,
         timed_out=False,
@@ -4289,7 +4659,7 @@ def run_cli_agent(
 
     # Exit 2 + argparse usage usually means AgentLab's cli_command template is
     # stale for the installed CLI, e.g. `hermes --task ...` against Hermes,
-    # which only supports `hermes -z PROMPT` / `hermes chat -q PROMPT`.
+    # which supports the governed `hermes chat -Q ... -q PROMPT` surface.
     if proc.returncode == 2 and _looks_like_cli_usage_error(stderr_text):
         return CliAgentNotAvailable(
             cli_agent=cli_agent_name,
@@ -4309,6 +4679,7 @@ def run_cli_agent(
         stdout_nonempty=bool(stdout_text),
         timed_out=False,
         extra_issues=receipt_failure_issues,
+        execution_metadata=execution_metadata,
     )
     if hermes_receipt_path:
         model_receipt_path = hermes_receipt_path
@@ -4319,7 +4690,8 @@ def run_cli_agent(
 
         - **Task**: {plan.task_id}
         - **Project**: {plan.project}
-        - **CLI command**: `{shlex.join(argv)}`
+        - **Execution channel**: `{execution_metadata.get('execution_channel', 'cli_subprocess')}`
+        - **Command**: `{shlex.join(execution_argv)}`
         - **Exit code**: {proc.returncode}
         - **Duration**: {duration_s:.1f}s
         - **Started**: {started_at.isoformat()}
@@ -4366,7 +4738,18 @@ def run_cli_agent(
         total_tokens=usage_estimate["total_tokens"],
         raw_usage={
             "cli_agent": cli_agent_name,
-            "binary": argv[0],
+            "binary": execution_argv[0],
+            **execution_metadata,
+            **(
+                {"usage_receipt": usage_receipt_path}
+                if usage_receipt_path
+                else {}
+            ),
+            **(
+                {"usage_receipt_error": usage_receipt_error}
+                if usage_receipt_error
+                else {}
+            ),
             "cli_model_key": model_values["model_key"],
             "cli_model_id": model_values["model_id"],
             "cli_catalog_model_id": model_values["catalog_model_id"],

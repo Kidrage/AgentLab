@@ -1,26 +1,37 @@
 schema_version: 4.0
 default_mode: full_cli
+dynamic_runtime:
+  enabled: true
+  enabled_modes: [full_cli]
+  registry: config/runtime_registry.yml
+  routing_policy: config/routing_policy.yml
+  pricing_catalog: config/pricing_catalog.yml
+  legacy_matrix_role: generated_compatibility_view_only
 authority:
-  purpose: canonical_agent_backend_selection
+  purpose: mode_metadata_and_generated_compatibility_views
   owns:
     - agent_backend_mode
-    - tier_role_executor
-    - default_model_key
+    - non_dynamic_mode_profiles
   does_not_own:
+    - full_cli_runtime_route_selection
     - cli_command_templates
     - model_provider_facts
     - task_level_manual_executor_priority
+  full_cli_runtime_source: config/runtime_registry.yml
+  full_cli_routing_source: config/routing_policy.yml
   command_template_source: config/worker_invocation_contracts.yml
   model_fact_source: config/model_catalog.yml
   provider_fact_source: config/model_providers.yml
   external_executor_router_source: config/executor_router.yml
-  automatic_fallback_source: config/model_capacity.yml
+  automatic_fallback_source: config/runtime_registry.yml
+  legacy_capacity_source: config/model_capacity.yml
   undeclared_failure_policy: stop_and_report
   notes:
-    - This file is the single runtime source for selecting each AgentLab role backend.
+    - Dynamic full_cli route selection comes only from config/runtime_registry.yml plus config/routing_policy.yml.
+    - The full_cli tier matrix below is a generated compatibility view and is never a fallback input.
     - CLI command strings are resolved from invocation_contract keys, not duplicated here.
-    - Automatic fallback is executable only when a capacity_route delegates to config/model_capacity.yml.
-    - Every failure outside a capacity-approved route stops and reports without switching worker, model, or provider.
+    - A runtime candidate switch is executable only at a completed checkpoint after a fresh route decision.
+    - A failed dynamic route never falls through to the compatibility matrix or legacy capacity routes.
     - trusted_headless_cli is an explicit safety-gated exception and must never be default.
 tier_policy:
   default_tier: performance
@@ -36,42 +47,39 @@ tier_policy:
       intent: cheapest_safe_execution_with_optional_roles_skipped
 modes:
   full_cli:
-    notes: Canonical local CLI company mode. This mode selects local CLI workers; command templates are loaded from config/worker_invocation_contracts.yml.
+    notes: Generated compatibility matrix. Dynamic full_cli routing is authoritative; these entries mirror its current selected routes and are never consulted after a dynamic routing failure.
     tiers:
       full:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes_supervisor
-          default: codex_gpt_5_6_sol_xhigh_hermes_oauth
-          capacity_route: Supervisor
+          default: codex_gpt_5_5_high_hermes_oauth
         observer:
           executor_type: cli_agent
           cli_agent: agy
           invocation_contract: agy_observer
           default: gemini_3_5_flash_high_agy_oauth
-          capacity_route: Observer
         reposcout:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
+          cli_agent: claude_code
+          invocation_contract: claude
           default: deepseek_v4_pro
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
+          cli_agent: claude_code
+          invocation_contract: claude
           default: deepseek_v4_pro
         researcher:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_research
-          default: grok_4_3_hermes_oauth
-          capacity_route: Researcher
+          cli_agent: agy
+          invocation_contract: agy_observer
+          default: gemini_3_5_flash_high_agy_oauth
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
-          default: qwen3_7_max_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
@@ -80,21 +88,19 @@ modes:
           external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_media
-          default: grok_4_3_hermes_oauth
-          artifact_backend: hermes_grok_oauth
-          capacity_route: ArtifactProducer
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
-          default: qwen3_7_max_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         verifier:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         archivist:
           executor_type: cli_agent
           cli_agent: claude_code
@@ -105,193 +111,190 @@ modes:
           cli_agent: claude_code
           invocation_contract: claude_writer
           default: deepseek_v4_pro
-          capacity_route: Writer
         reviewer:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_longform_governance
+          default: deepseek_v4_pro
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy
           invocation_contract: agy_visual_reviewer
           default: gemini_3_5_flash_high_agy_oauth
-          capacity_route: VisualReviewer
         scribe:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_longform_governance
+          default: deepseek_v4_pro
+        narrative_planner:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude_longform_governance
+          default: deepseek_v4_pro
       performance:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes_supervisor
-          default: codex_gpt_5_6_sol_xhigh_hermes_oauth
-          capacity_route: Supervisor
+          default: codex_gpt_5_5_high_hermes_oauth
         observer:
           executor_type: cli_agent
           cli_agent: agy
           invocation_contract: agy_observer
           default: gemini_3_5_flash_high_agy_oauth
-          capacity_route: Observer
         reposcout:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
+          cli_agent: claude_code
+          invocation_contract: claude
           default: deepseek_v4_pro
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
+          cli_agent: claude_code
+          invocation_contract: claude
           default: deepseek_v4_pro
         researcher:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_research
-          default: grok_4_3_hermes_oauth
-          capacity_route: Researcher
+          cli_agent: agy
+          invocation_contract: agy_observer
+          default: gemini_3_5_flash_high_agy_oauth
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
-          default: deepseek_v4_flash
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
           invocation_contract: claude
-          binary_candidates:
-            - claude
-            - ccs
-          default: qwen3_coder_plus_dashscope
+          default: deepseek_v4_pro
           external_ide_allowed: true
         artifact_producer:
-          executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_media
-          default: grok_4_3_hermes_oauth
-          artifact_backend: hermes_grok_oauth
-          capacity_route: ArtifactProducer
-        tester_auditor:
-          executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: deepseek_v4_pro
-        verifier:
-          executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: deepseek_v4_flash
-        archivist:
           executor_type: cli_agent
           cli_agent: claude_code
           invocation_contract: claude
           default: deepseek_v4_pro
+        tester_auditor:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
+        verifier:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
+        archivist:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_flash
         writer:
           executor_type: cli_agent
           cli_agent: claude_code
           invocation_contract: claude_writer
           default: deepseek_v4_pro
-          capacity_route: Writer
         reviewer:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_longform_governance
+          default: deepseek_v4_pro
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy
           invocation_contract: agy_visual_reviewer
           default: gemini_3_5_flash_high_agy_oauth
-          capacity_route: VisualReviewer
         scribe:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_longform_governance
+          default: deepseek_v4_flash
+        narrative_planner:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude_longform_governance
+          default: deepseek_v4_pro
       low:
         supervisor:
           executor_type: cli_agent
           cli_agent: hermes
           invocation_contract: hermes_supervisor
-          default: codex_gpt_5_6_sol_xhigh_hermes_oauth
-          capacity_route: Supervisor
+          default: codex_gpt_5_5_high_hermes_oauth
         observer:
           executor_type: cli_agent
           cli_agent: agy
           invocation_contract: agy_observer
           default: gemini_3_5_flash_high_agy_oauth
-          capacity_route: Observer
         reposcout:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: qwen3_6_flash_dashscope
-        interface_mapper: skip
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
+        interface_mapper:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         researcher:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_research
-          default: grok_4_3_hermes_oauth
-          capacity_route: Researcher
+          cli_agent: agy
+          invocation_contract: agy_observer
+          default: gemini_3_5_flash_high_agy_oauth
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_flash
         coder:
           executor_type: cli_agent
           cli_agent: claude_code
           invocation_contract: claude
-          binary_candidates:
-            - claude
-            - ccs
-          default: qwen3_coder_next_dashscope
+          default: deepseek_v4_pro
           external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
-          cli_agent: grok
-          invocation_contract: grok_media
-          default: grok_4_3_hermes_oauth
-          artifact_backend: hermes_grok_oauth
-          capacity_route: ArtifactProducer
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: deepseek_v4_flash
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         verifier:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: deepseek_v4_flash
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         archivist:
           executor_type: cli_agent
           cli_agent: claude_code
           invocation_contract: claude
-          default: qwen3_6_flash_dashscope
+          default: deepseek_v4_flash
         writer:
           executor_type: cli_agent
           cli_agent: claude_code
           invocation_contract: claude_writer
           default: deepseek_v4_flash
-          capacity_route: WriterLow
         reviewer:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_longform_governance
+          default: deepseek_v4_pro
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy
           invocation_contract: agy_visual_reviewer
           default: gemini_3_5_flash_high_agy_oauth
-          capacity_route: VisualReviewer
         scribe:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_longform_governance
+          default: deepseek_v4_flash
+        narrative_planner:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude_longform_governance
+          default: deepseek_v4_pro
   qwen_token_plan_cli:
     notes: Preserves the pre-2026-07-02 full_cli role allocation while routing Qwen model defaults through the user's Qwen Token Plan provider.
     billing:
@@ -662,7 +665,7 @@ modes:
           executor_type: direct_api
           default: deepseek_v4_flash
   trusted_headless_cli:
-    notes: Explicit opt-in profile for trusted local-only headless CLI automation. Requires env gate and human approval.
+    notes: Deprecated compatibility profile. Production bypass flags remain forbidden even with approval.
     safety:
       requires_env:
         AGENTLAB_ALLOW_DANGEROUS_CCS: "1"
@@ -676,6 +679,6 @@ modes:
           binary_candidates:
             - claude
             - ccs
-          cli_command: 'claude --model "{model_id}" --output-format json --allow-dangerously-skip-permissions -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
+          cli_command: 'claude --model "{model_id}" --permission-mode plan --output-format json -p "Read task packet {task_packet_path}; perform only the assigned role and report actual changes."'
           default: qwen3_coder_plus_dashscope
           external_ide_allowed: true

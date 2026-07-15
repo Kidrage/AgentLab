@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Mapping
 from uuid import uuid4
 
 import yaml
@@ -26,6 +28,7 @@ DEFAULT_REPORT_BY_AGENT = {
     "Coder": "06_implementation_report.md",
     "ArtifactProducer": "artifact_producer_report.md",
     "Writer": "fiction_draft.md",
+    "NarrativePlanner": "revision_or_rewrite_proposal.yml",
     "Reviewer": "fiction_review.yml",
     "Scribe": "continuity_ledger.yml",
     "TesterAuditor": "08_audit_report.md",
@@ -58,6 +61,9 @@ ROLE_KEY_BY_AGENT = {
     "verifier": "verifier",
     "archivist": "archivist",
     "writer": "writer",
+    "reviewer": "reviewer",
+    "scribe": "scribe",
+    "narrativeplanner": "narrative_planner",
 }
 
 _OBSERVER_TEXT_SUFFIXES = {
@@ -1815,6 +1821,205 @@ def _role_key_for_agent(agent_name: str) -> str:
     return ROLE_KEY_BY_AGENT.get(agent_name.lower(), agent_name.lower().replace(" ", "_"))
 
 
+def _runtime_routing_context(
+    plan: WorkflowPlan,
+    agent_name: str,
+    configs: Mapping[str, Any],
+    *,
+    required_modalities: list[str] | None = None,
+) -> dict[str, Any]:
+    """Compile task-level demand into one checkpoint-bound route decision input."""
+
+    try:
+        from agent_runtime.runtime_registry import canonical_role
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from runtime_registry import canonical_role
+
+    role_token = canonical_role(agent_name)
+    selected_budget = None
+    for budget in getattr(plan, "token_budgets", []) or []:
+        if role_token and role_token in canonical_role(getattr(budget, "phase", "")):
+            selected_budget = budget
+            break
+
+    runtime_policy = (configs.get("routing_policy") or {}).get("runtime_routing") or {}
+    defaults = runtime_policy.get("task_demand_defaults") or {}
+    project_size = str(getattr(plan, "project_size", "L2") or "L2").upper()
+    risk_level = str(getattr(plan, "risk_level", "R1") or "R1").upper()
+    token_defaults = (defaults.get("tokens_by_project_size") or {}).get(
+        project_size,
+        {},
+    )
+    predicted_input = int(
+        getattr(selected_budget, "estimated_input_tokens", 0)
+        or token_defaults.get("input", 0)
+    )
+    predicted_output = int(
+        getattr(selected_budget, "estimated_output_tokens", 0)
+        or token_defaults.get("output", 0)
+    )
+    predicted_quota = float(
+        (defaults.get("predicted_quota_percent_by_project_size") or {}).get(
+            project_size,
+            0.0,
+        )
+    )
+    risk_reserve = float(
+        (defaults.get("risk_reserve_percent_by_risk_level") or {}).get(
+            risk_level,
+            0.0,
+        )
+    )
+
+    route_key = str(getattr(getattr(plan, "route", None), "route_key", "") or "")
+    route_markers = {
+        str(item).casefold()
+        for item in defaults.get(
+            "long_batch_route_markers",
+            ["heavy_audit", "batch", "series_scale", "promotion"],
+        )
+    }
+    long_batch = project_size == "L3" or any(
+        marker and marker in route_key.casefold() for marker in route_markers
+    )
+
+    execution_routing = (
+        getattr(plan, "execution_policy", {}) or {}
+    ).get("runtime_model_routing") or {}
+    allowed_provider_ids = execution_routing.get("allowed_provider_ids") or []
+    data_class = str(execution_routing.get("data_class") or "private")
+    capacity_policy = configs.get("model_capacity") or {}
+    ledger_filename = str(
+        (capacity_policy.get("ledger") or {}).get(
+            "filename",
+            "model_capacity_ledger.yml",
+        )
+    )
+    task_id = str(getattr(plan, "task_id", "") or "preview")
+    run_dir = str(getattr(plan, "run_dir", "") or "")
+    return {
+        "required_modalities": list(required_modalities or []),
+        "data_class": data_class,
+        "predicted_input_tokens": max(0, predicted_input),
+        "predicted_output_tokens": max(0, predicted_output),
+        "predicted_quota_percent": max(0.0, predicted_quota),
+        "risk_reserve_percent": max(0.0, risk_reserve),
+        "long_batch": long_batch,
+        "checkpoint_complete": True,
+        "checkpoint_id": f"{task_id}:{agent_name}",
+        "allowed_provider_ids": [str(item) for item in allowed_provider_ids],
+        "quota_ledger_path": Path(run_dir) / ledger_filename if run_dir else None,
+    }
+
+
+def _refresh_runtime_quota_telemetry(
+    agentlab_root: Path,
+    plan: WorkflowPlan,
+    role_key: str,
+    configs: Mapping[str, Any],
+    routing_context: Mapping[str, Any],
+) -> None:
+    """Probe only stale OAuth pools and persist normalized run-local telemetry."""
+
+    execution_routing = (
+        getattr(plan, "execution_policy", {}) or {}
+    ).get("runtime_model_routing") or {}
+    if not bool(execution_routing.get("probe_before_task", False)):
+        return
+    try:
+        from agent_runtime.model_capacity import ModelCapacity
+        from agent_runtime.quota_probes import run_interactive_probe
+        from agent_runtime.runtime_registry import (
+            RuntimeRegistry,
+            load_runtime_quota_snapshots,
+            utc_timestamp,
+        )
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from model_capacity import ModelCapacity
+        from quota_probes import run_interactive_probe
+        from runtime_registry import (
+            RuntimeRegistry,
+            load_runtime_quota_snapshots,
+            utc_timestamp,
+        )
+
+    registry = RuntimeRegistry.load(agentlab_root)
+    capacity_policy = configs.get("model_capacity") or {}
+    ledger_path = Path(routing_context["quota_ledger_path"])
+    capacity = ModelCapacity(capacity_policy, ledger_path)
+    snapshots = load_runtime_quota_snapshots(registry, ledger_path)
+    probed: set[str] = set()
+    for route_id in registry.candidates_for(role_key):
+        route = registry.routes.get(route_id) or {}
+        if str(route.get("status") or "active") != "active":
+            continue
+        identity = registry.route_identity(route_id)
+        pool = registry.credential_pools.get(identity.credential_pool_id) or {}
+        if str(pool.get("billing_mode") or "") != "oauth_subscription":
+            continue
+        legacy_pool_id = str(pool.get("legacy_capacity_pool_id") or "")
+        if not legacy_pool_id or legacy_pool_id in probed:
+            continue
+        probed.add(legacy_pool_id)
+        current = snapshots.get(identity.credential_pool_id) or {}
+        if str(current.get("status") or "") not in {
+            "",
+            "unknown",
+            "stale",
+            "telemetry_degraded",
+        }:
+            continue
+        attempt_id = f"{plan.task_id}:{role_key}:quota:{uuid4().hex}"
+        try:
+            capacity.probe_quota(
+                legacy_pool_id,
+                runner=run_interactive_probe,
+                attempt_id=attempt_id,
+                probe_spec=pool.get("quota_probe"),
+                predicted_unit_usage_percent=float(
+                    routing_context.get("predicted_quota_percent") or 0.0
+                ),
+                risk_reserve_percent=float(
+                    routing_context.get("risk_reserve_percent") or 0.0
+                ),
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            now = datetime.now(timezone.utc)
+            stale_seconds = int(
+                ((capacity_policy.get("quota_policy") or {}).get(
+                    "stale_after_seconds",
+                    600,
+                ))
+            )
+            degraded = {
+                "credential_pool_id": legacy_pool_id,
+                "status": "telemetry_degraded",
+                "observed_at": utc_timestamp(now),
+                "stale_at": utc_timestamp(
+                    datetime.fromtimestamp(
+                        now.timestamp() + stale_seconds,
+                        tz=timezone.utc,
+                    )
+                ),
+                "remaining_percent": None,
+                "failure_class": f"quota_probe_failed:{type(exc).__name__}",
+                "source_kind": "cli_usage",
+                "confidence": "unknown",
+                "windows": [],
+            }
+            capacity.record_quota_snapshot(
+                legacy_pool_id,
+                degraded,
+                attempt_id=attempt_id,
+                predicted_unit_usage_percent=float(
+                    routing_context.get("predicted_quota_percent") or 0.0
+                ),
+                risk_reserve_percent=float(
+                    routing_context.get("risk_reserve_percent") or 0.0
+                ),
+            )
+
+
 def _artifact_task_profile_for_plan(
     agentlab_root: Path,
     plan: WorkflowPlan,
@@ -2102,6 +2307,72 @@ def _artifact_task_profile_for_plan(
         )
         return profile
 
+    if execution_mode == "full_cli":
+        try:
+            from agent_runtime.runtime_registry import resolve_dynamic_profile
+        except ModuleNotFoundError:  # pragma: no cover - direct script path
+            from runtime_registry import resolve_dynamic_profile
+
+        runtime_provider_ids = [
+            str(item) for item in provider_cfg.get("runtime_provider_ids") or []
+        ]
+        routing_context = _runtime_routing_context(
+            plan,
+            "ArtifactProducer",
+            configs,
+        )
+        project_allowlist = set(routing_context.get("allowed_provider_ids") or [])
+        if project_allowlist:
+            runtime_provider_ids = [
+                provider_id
+                for provider_id in runtime_provider_ids
+                if provider_id in project_allowlist
+            ]
+            if not runtime_provider_ids:
+                profile["artifact_routing_reason"] = (
+                    f"provider {provider_id} is excluded by the project provider allowlist"
+                )
+                return profile
+        if not runtime_provider_ids:
+            profile["artifact_routing_reason"] = (
+                f"provider {provider_id} has no runtime provider binding"
+            )
+            return profile
+        routing_context["allowed_provider_ids"] = runtime_provider_ids
+        dynamic_profile = resolve_dynamic_profile(
+            configs.get("agent_model_profiles") or {},
+            agent_role="artifact_producer",
+            resolved_mode="full_cli",
+            resolved_tier={
+                "quality": "full",
+                "balanced": "performance",
+                "frugal": "low",
+                "max_quality": "full",
+            }.get(str(budget_mode).lower(), str(budget_mode).lower()),
+            root=agentlab_root,
+            routing_context=routing_context,
+        )
+        if not isinstance(dynamic_profile, dict):
+            profile["artifact_routing_reason"] = (
+                f"provider {provider_id} has no eligible dynamic runtime route"
+            )
+            return profile
+        worker = str(selected.get("worker") or "")
+        if str(dynamic_profile.get("cli_agent") or "") != worker:
+            profile["artifact_routing_reason"] = (
+                f"provider {provider_id} runtime route resolved to another worker"
+            )
+            return profile
+        profile.update(dynamic_profile)
+        profile.update(
+            {
+                "artifact_provider": provider_id,
+                "artifact_routing_status": "routed",
+                "artifact_routing_reason": str(selected.get("reason") or ""),
+            }
+        )
+        return profile
+
     tier = {
         "quality": "full",
         "balanced": "performance",
@@ -2218,6 +2489,9 @@ def _resolve_cli_profile_for_agent(
     agentlab_root: Path,
     plan: WorkflowPlan,
     agent_name: str,
+    *,
+    output_path: Path | None = None,
+    execute: bool = False,
 ) -> tuple[dict, str, str, dict | None]:
     configs = load_agentlab_configs(agentlab_root)
     agent_model_profiles = configs.get("agent_model_profiles", {})
@@ -2240,13 +2514,58 @@ def _resolve_cli_profile_for_agent(
                 mode,
             ),
         )
-    cli_role_profile = resolve_cli_profile(
-        agent_model_profiles,
-        agent_role=agent_role_key,
-        budget_mode=budget_mode,
-        mode=mode,
+    required_modalities: list[str] = []
+    if output_path is not None and agent_name == "Observer":
+        required_modalities = observer_required_modalities(
+            observer_context_source_files(agentlab_root, plan, output_path)
+        )
+    elif (
+        output_path is not None
+        and agent_name == "Reviewer"
+        and route_key == "media_generation_task"
+    ):
+        required_modalities = observer_required_modalities(
+            visual_acceptance_context_source_files(
+                agentlab_root,
+                plan,
+                agent_name,
+                output_path,
+            )
+        )
+    routing_context = _runtime_routing_context(
+        plan,
+        agent_name,
+        configs,
+        required_modalities=required_modalities,
     )
-    if agent_name == "Writer":
+    if execute:
+        _refresh_runtime_quota_telemetry(
+            agentlab_root,
+            plan,
+            agent_role_key,
+            configs,
+            routing_context,
+        )
+    try:
+        cli_role_profile = resolve_cli_profile(
+            agent_model_profiles,
+            agent_role=agent_role_key,
+            budget_mode=budget_mode,
+            mode=mode,
+            routing_context=routing_context,
+        )
+    except RuntimeError as exc:
+        cli_role_profile = {
+            "executor_type": "cli_agent",
+            "runtime_routing_status": "blocked",
+            "runtime_routing_reason": str(exc),
+            "resolved_mode": mode,
+        }
+    if (
+        agent_name == "Writer"
+        and cli_role_profile is not None
+        and cli_role_profile.get("runtime_routing_status") != "blocked"
+    ):
         cli_role_profile = _apply_writer_workflow_activation(
             plan,
             configs,
@@ -2321,6 +2640,34 @@ def _blocked_artifact_capability_result(profile: dict) -> LLMCallResult:
                 else []
             ),
             "artifact_routing": route if isinstance(route, dict) else {},
+            "provider_process_started": False,
+            "provider_surface_changed": False,
+            "direct_api_fallback_attempted": False,
+        },
+    )
+
+
+def _blocked_runtime_routing_result(agent_name: str, profile: dict) -> LLMCallResult:
+    reason = str(
+        profile.get("runtime_routing_reason")
+        or "no runtime route satisfied the current task constraints"
+    )
+    return LLMCallResult(
+        provider="agentlab-runtime-router",
+        model="no_eligible_route",
+        content=(
+            f"# {agent_name} runtime route blocked\n\n"
+            f"- Reason: {reason}\n\n"
+            "AgentLab did not start a provider, retry the failed route, or "
+            "fall through to the compatibility matrix."
+        ),
+        status="blocked_user_decision",
+        error="dynamic_runtime_route_unavailable",
+        raw_usage={
+            "blocked": True,
+            "reason": "dynamic_runtime_route_unavailable",
+            "runtime_routing_reason": reason,
+            "usage_source": "routing_gate",
             "provider_process_started": False,
             "provider_surface_changed": False,
             "direct_api_fallback_attempted": False,
@@ -2467,6 +2814,77 @@ def _capacity_failure_message(result: LLMCallResult) -> str:
     return "\n".join(part for part in parts if part)
 
 
+def _record_dynamic_runtime_outcome(
+    agentlab_root: Path,
+    configs: Mapping[str, Any],
+    plan: WorkflowPlan,
+    role_profile: Mapping[str, Any],
+    result: LLMCallResult,
+) -> None:
+    """Persist one outcome for the next checkpoint without retrying this call."""
+
+    runtime_route_id = str(role_profile.get("runtime_route_id") or "")
+    if not runtime_route_id:
+        return
+    raw_usage = dict(result.raw_usage or {})
+    if result.status != "completed" and raw_usage.get("provider_process_started") is False:
+        return
+    try:
+        from agent_runtime.model_capacity import ModelCapacity
+        from agent_runtime.runtime_registry import RuntimeRegistry
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from model_capacity import ModelCapacity
+        from runtime_registry import RuntimeRegistry
+
+    try:
+        registry = RuntimeRegistry.load(agentlab_root)
+        identity = registry.route_identity(runtime_route_id)
+        pool = registry.credential_pools.get(identity.credential_pool_id) or {}
+        legacy_pool_id = str(pool.get("legacy_capacity_pool_id") or "")
+        capacity_policy = dict(configs.get("model_capacity") or {})
+        if legacy_pool_id not in (capacity_policy.get("pools") or {}):
+            raise ValueError(f"runtime credential pool has no ledger binding: {legacy_pool_id}")
+        capacity = ModelCapacity(
+            capacity_policy,
+            Path(plan.run_dir)
+            / str(
+                (capacity_policy.get("ledger") or {}).get(
+                    "filename",
+                    "model_capacity_ledger.yml",
+                )
+            ),
+        )
+        attempt_id = str(
+            role_profile.get("_runtime_model_execution_attempt_id")
+            or f"{plan.task_id}:{runtime_route_id}:{uuid4().hex}"
+        )
+        if result.status == "completed":
+            observation = capacity.record_runtime_success(
+                runtime_route_id,
+                pool_id=legacy_pool_id,
+                attempt_id=attempt_id,
+            )
+        else:
+            observation = capacity.record_runtime_failure(
+                runtime_route_id,
+                pool_id=legacy_pool_id,
+                message=_capacity_failure_message(result),
+                attempt_id=attempt_id,
+            )
+        result.raw_usage = {
+            **raw_usage,
+            "runtime_outcome_recorded": True,
+            "runtime_outcome_failure_class": observation.get("failure_class"),
+            "runtime_outcome_checkpoint_only": True,
+        }
+    except (OSError, TypeError, ValueError) as exc:
+        result.raw_usage = {
+            **raw_usage,
+            "runtime_outcome_recorded": False,
+            "runtime_outcome_record_error": f"{type(exc).__name__}:{exc}",
+        }
+
+
 def _annotate_capacity_result(
     result: LLMCallResult,
     *,
@@ -2516,6 +2934,18 @@ def resolve_agent_execution_preview(
         agent_name,
     )
     if cli_role_profile is not None:
+        if cli_role_profile.get("runtime_routing_status") == "blocked":
+            return {
+                "mode": mode,
+                "role_key": agent_role_key,
+                "executor_type": "blocked",
+                "runtime_routing_status": "blocked",
+                "runtime_routing_reason": cli_role_profile.get(
+                    "runtime_routing_reason"
+                ),
+                "role_binding_allowed": False,
+                "role_binding_reason": "dynamic runtime route unavailable",
+            }
         worker = str(cli_role_profile.get("cli_agent") or "")
         allowed, reason = _check_cli_role_binding(agentlab_root, agent_name, cli_role_profile)
         return {
@@ -2596,6 +3026,8 @@ def run_agent_model(
         agentlab_root,
         plan,
         agent_name,
+        output_path=output_path,
+        execute=True,
     )
     agent_model_profiles = configs_for_cli.get("agent_model_profiles", {})
     budget_mode = getattr(plan, "budget_mode", "balanced") or "balanced"
@@ -2607,6 +3039,8 @@ def run_agent_model(
     artifact_api_profile: dict | None = None
 
     if cli_role_profile is not None:
+        if cli_role_profile.get("runtime_routing_status") == "blocked":
+            return _blocked_runtime_routing_result(agent_name, cli_role_profile)
         if cli_role_profile.get("writer_workflow_activation_status") == "blocked":
             return _blocked_writer_workflow_activation_result(cli_role_profile)
         artifact_contract = cli_role_profile.get("_artifact_task_contract")
@@ -2856,6 +3290,13 @@ def run_agent_model(
 
             _audit_annotate_cli_result(cli_result, selected_profile, "cli_executed")
             if capacity_manager is None or capacity_decision is None:
+                _record_dynamic_runtime_outcome(
+                    agentlab_root,
+                    configs_for_cli,
+                    plan,
+                    selected_profile,
+                    cli_result,
+                )
                 finalized = _apply_agent_result_patches(
                     configs_for_cli,
                     plan,
@@ -3518,6 +3959,8 @@ def _audit_annotate_cli_result(
         "resolved_tier": role_profile.get("resolved_tier", ""),
         "resolved_schema": role_profile.get("resolved_schema", ""),
         "resolved_model_key": role_profile.get("default", ""),
+        "runtime_route_id": role_profile.get("runtime_route_id"),
+        "runtime_identity": role_profile.get("runtime_identity"),
         "api_fallback_used": False,
         "disposition": disposition,
     }

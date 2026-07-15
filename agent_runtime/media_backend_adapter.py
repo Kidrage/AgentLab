@@ -45,7 +45,7 @@ SUPPORTED_ADAPTERS = {"xai_imagine_rest", *LOCAL_GROK_CLI_ADAPTERS}
 GROK_ASSET_MARKER = "AGENTLAB_GENERATED_ASSET:"
 GROK_MODEL_MARKER = "AGENTLAB_GENERATION_MODEL:"
 GROK_SMOKE_FALLBACK_KEYS = ("hermes_session_smoke", "hermes_smoke_session", "oauth_smoke")
-PROMPT_FLAGS = {"-p", "--prompt", "-z", "--oneshot"}
+PROMPT_FLAGS = {"-p", "--prompt", "-q", "-z", "--oneshot"}
 GROK_SETTINGS_FETCH_MARKER = "Settings fetch failed"
 GROK_TRANSPORT_FAILURE_MARKERS = (
     "request error",

@@ -18,6 +18,8 @@ defaults:
 backends:
   hermes_grok_oauth:
     display_name: Hermes + Grok OAuth CLI
+    status: quarantined
+    automatic_use: false
     capabilities:
       - orchestration
       - prompt_refinement
@@ -30,7 +32,7 @@ backends:
       - image_to_video
     quality_tier: high
     cost_tier: subscription_or_quota
-    quota_policy: prefer_for_high_quality_single_or_short_media
+    quota_policy: explicit_bounded_canary_only_while_quarantined
     auth_state: unknown
     auth_probe: hermes auth status xai-oauth
     capacity_source: config/model_capacity.yml
@@ -55,7 +57,7 @@ backends:
       shell_state_is_not_project_memory: true
       shell_background_work_requires_status_receipt: true
     command_contract:
-      session_smoke: hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z <prompt>
+      session_smoke: hermes chat -Q --provider xai-oauth -m grok-4.3 -q <prompt>
     registered_generation_models:
       image: [grok-imagine-image-quality]
       video: [grok-imagine-video-1.5]
@@ -86,7 +88,7 @@ backends:
     auth_probe: grok_direct_env_or_session
     adapter_state: configured
     adapter_kind: xai_imagine_rest
-    adapter_note: Fallback-only xAI Imagine REST path. The default route is hermes_grok_oauth through the explicit Hermes+xAI OAuth shell; this API path requires explicit approval even when XAI_API_KEY is present.
+    adapter_note: Fallback-only xAI Imagine REST path. The quarantined Hermes+xAI OAuth shell is available only through an explicit canary policy; this API path requires explicit approval even when XAI_API_KEY is present.
     api_key: env:XAI_API_KEY
     api_key_env: XAI_API_KEY
     api_key_env_aliases:
@@ -195,36 +197,38 @@ policies:
   high_quality_single_or_short:
     description: High-quality single image or short video.
     backend_chain:
-      - hermes_grok_oauth
-      - grok_direct
       - bailian_cli
       - ark_cli
+      - grok_direct
 
   fast_simple:
     description: Simple prompt to image or video direct output.
     backend_chain:
-      - hermes_grok_oauth
-      - grok_direct
       - bailian_cli
+      - grok_direct
 
   draft_batch:
     description: Batch media candidates; Agy may prepare briefs but is not a renderer.
     backend_chain:
-      - hermes_grok_oauth
-      - grok_direct
       - bailian_cli
+      - grok_direct
     preproduction_observer: agy_media
 
   commercial_final:
     description: Commercial or final delivery quality target.
     backend_chain:
-      - hermes_grok_oauth
       - bailian_cli
       - ark_cli
+      - grok_direct
 
   commercial_final_after_ark_activation:
     description: Future route when Ark activation is complete.
     backend_chain:
       - ark_cli
-      - hermes_grok_oauth
       - bailian_cli
+      - grok_direct
+
+  explicit_grok_canary:
+    description: Operator-selected bounded canary for the quarantined Hermes xAI OAuth backend.
+    backend_chain:
+      - hermes_grok_oauth

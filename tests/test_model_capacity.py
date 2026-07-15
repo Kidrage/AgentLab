@@ -95,6 +95,50 @@ def _multihop_policy() -> dict:
     return policy
 
 
+def test_quarantined_capacity_route_fails_closed(tmp_path):
+    policy = _policy()
+    policy["routes"]["primary"]["status"] = "quarantined"
+    policy["routes"]["primary"]["automatic_use"] = False
+    policy["routes"]["primary"]["explicit_canary_allowed"] = True
+    capacity = ModelCapacity(policy, tmp_path / "capacity.yml", clock=lambda: NOW)
+
+    decision = capacity.select_route("primary", role="observer", attempt_id="quarantine")
+
+    assert decision["status"] == "blocked"
+    assert decision["route_id"] is None
+    assert decision["failure_class"] == "route_quarantined"
+
+
+def test_quarantined_capacity_route_requires_policy_opt_in_for_explicit_canary(tmp_path):
+    policy = _policy()
+    route = policy["routes"]["primary"]
+    route["status"] = "quarantined"
+    route["automatic_use"] = False
+    capacity = ModelCapacity(policy, tmp_path / "capacity.yml", clock=lambda: NOW)
+
+    blocked = capacity.select_route(
+        "primary",
+        role="observer",
+        attempt_id="undeclared-canary",
+        explicit_canary=True,
+    )
+    route["explicit_canary_allowed"] = True
+    selected = ModelCapacity(
+        policy, tmp_path / "declared.yml", clock=lambda: NOW
+    ).select_route(
+        "primary",
+        role="observer",
+        attempt_id="declared-canary",
+        explicit_canary=True,
+    )
+
+    assert blocked["status"] == "blocked"
+    assert blocked["failure_class"] == "route_quarantined"
+    assert selected["status"] == "selected"
+    assert selected["route_id"] == "primary"
+    assert selected["selection_mode"] == "explicit_canary"
+
+
 def test_retry_after_failure_is_classified_and_persisted_atomically(tmp_path):
     ledger_path = tmp_path / "run" / "model_capacity_ledger.yml"
     capacity = ModelCapacity(_policy(), ledger_path, clock=lambda: NOW)

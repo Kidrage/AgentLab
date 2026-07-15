@@ -491,7 +491,7 @@ class TestMediaGenerationRouting:
             )
             return build_mission_contract(prompt, agentlab_root=root)
 
-    def test_unknown_capacity_backed_auth_is_pending_without_fallback_preselection(self):
+    def test_quarantined_capacity_backend_does_not_block_ready_media_backend(self):
         repo_root = Path(__file__).resolve().parents[1]
         media_config = yaml.safe_load(
             (repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8")
@@ -502,15 +502,15 @@ class TestMediaGenerationRouting:
         contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
         media = contract["media_generation_contract"]
 
-        assert media["selected_backend"] is None
+        assert media["selected_backend"] == "bailian_cli"
         assert media["executable"] is False
-        assert media["routing_status"] == "pending_capacity"
-        assert media["execution_blocker"]["status"] == "capacity_pending"
-        assert media["execution_blocker"]["backend"] == "hermes_grok_oauth"
-        assert media["execution_blocker"]["recommended_action"] == "observe_capacity_then_retry"
-        assert media["approval_card"] is None
+        assert media["routing_status"] == "selected"
+        assert media["execution_blocker"]["status"] == "approval_required"
+        assert media["execution_blocker"]["backend"] == "bailian_cli"
+        assert "hermes_grok_oauth" not in media["fallback_chain"]
+        assert media["approval_card"]["backend"] == "bailian_cli"
 
-    def test_generate_image_selects_hermes_grok_when_local_cli_adapter_is_ready(self):
+    def test_generate_image_keeps_quarantined_grok_out_of_automatic_selection(self):
         media_config = self._media_config()
         media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "ready"
         with (
@@ -525,13 +525,13 @@ class TestMediaGenerationRouting:
         assert contract["task_domain"] == "image_generation"
         assert contract["artifact_type"] == "media_generation_contract"
         assert contract["route_decision"]["selected_route"] == "media_generation_task"
-        assert media["selected_backend"] == "hermes_grok_oauth"
-        assert media["fallback_chain"][:3] == ["hermes_grok_oauth", "grok_direct", "bailian_cli"]
-        assert media["executable"] is True
-        assert media["execution_blocker"] is None
-        assert media["backend_contracts"]["hermes_grok_oauth"]["adapter_kind"] == "local_grok_cli"
+        assert media["selected_backend"] == "bailian_cli"
+        assert media["fallback_chain"][:2] == ["bailian_cli", "ark_cli"]
+        assert media["executable"] is False
+        assert media["execution_blocker"]["status"] == "approval_required"
+        assert "hermes_grok_oauth" not in media["backend_contracts"]
 
-    def test_simple_image_selects_local_grok_cli_by_default(self):
+    def test_simple_image_selects_ready_bailian_with_approval_gate(self):
         media_config = self._media_config()
         media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "ready"
         with (
@@ -544,10 +544,10 @@ class TestMediaGenerationRouting:
             contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
         media = contract["media_generation_contract"]
         assert media["backend_policy"] == "fast_simple"
-        assert media["selected_backend"] == "hermes_grok_oauth"
-        assert media["fallback_chain"][:3] == ["hermes_grok_oauth", "grok_direct", "bailian_cli"]
-        assert media["executable"] is True
-        assert media["execution_blocker"] is None
+        assert media["selected_backend"] == "bailian_cli"
+        assert media["fallback_chain"][:2] == ["bailian_cli", "grok_direct"]
+        assert media["executable"] is False
+        assert media["execution_blocker"]["status"] == "approval_required"
 
     def test_grok_direct_is_not_auto_selected_when_xai_key_is_present(self):
         repo_root = Path(__file__).resolve().parents[1]
@@ -600,13 +600,13 @@ class TestMediaGenerationRouting:
         assert media["executable"] is False
         assert media["execution_blocker"]["status"] == "approval_required"
 
-    def test_draft_batch_does_not_preselect_an_unobserved_renderer(self):
+    def test_draft_batch_selects_ready_renderer_behind_approval(self):
         contract = build_mission_contract(PROMPT_BATCH_DRAFT)
         media = contract["media_generation_contract"]
         assert media["backend_policy"] == "draft_batch"
-        assert media["selected_backend"] is None
-        assert media["routing_status"] == "pending_capacity"
-        assert media["execution_blocker"]["backend"] == "hermes_grok_oauth"
+        assert media["selected_backend"] == "bailian_cli"
+        assert media["routing_status"] == "selected"
+        assert media["execution_blocker"]["status"] == "approval_required"
 
     def test_ark_pending_is_not_executable_backend(self):
         media_config = self._media_config()
@@ -619,8 +619,9 @@ class TestMediaGenerationRouting:
                 "Generate a commercial final image for client delivery.", media_config
             )
         media = contract["media_generation_contract"]
-        assert media["selected_backend"] == "hermes_grok_oauth"
-        assert media["executable"] is True
+        assert media["selected_backend"] == "bailian_cli"
+        assert media["executable"] is False
+        assert media["execution_blocker"]["status"] == "approval_required"
         assert {"backend": "ark_cli", "auth_state": "pending_activation"} in media["pending_backends"]
 
     def test_bailian_first_ready_backend_creates_approval_card(self):
@@ -837,8 +838,9 @@ class TestRenderer:
             assert (out_dir / "media_generation_contract.yml").exists()
             assert "media_generation_contract" in written
             media = yaml.safe_load((out_dir / "media_generation_contract.yml").read_text(encoding="utf-8"))
-            assert media["selected_backend"] is None
-            assert media["routing_status"] == "pending_capacity"
+            assert media["selected_backend"] == "bailian_cli"
+            assert media["routing_status"] == "selected"
+            assert media["execution_blocker"]["status"] == "approval_required"
 
 
 # ── External executor recommendation tests ─────────────────────────

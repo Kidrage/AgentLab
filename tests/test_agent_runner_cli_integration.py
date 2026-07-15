@@ -22,7 +22,7 @@ import yaml
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
-from schemas import AgentRoute, LLMCallResult, WorkflowPlan  # noqa: E402
+from schemas import AgentRoute, LLMCallResult, TokenBudget, WorkflowPlan  # noqa: E402
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -50,6 +50,154 @@ def _make_plan(tmp_path: Path, budget_mode: str = "balanced") -> WorkflowPlan:
         budget_mode=budget_mode,
         route=route,
     )
+
+
+def test_runtime_routing_context_uses_role_budget_risk_and_checkpoint(tmp_path: Path) -> None:
+    from agent_runner import _runtime_routing_context
+    from config_loader import load_agentlab_configs
+
+    plan = _make_plan(tmp_path)
+    plan.project_size = "L3"
+    plan.risk_level = "R3"
+    plan.route.route_key = "narrative_heavy_audit"
+    plan.token_budgets = [
+        TokenBudget(
+            phase="Supervisor planning",
+            estimated_input_tokens=7_000,
+            estimated_output_tokens=3_000,
+        )
+    ]
+
+    context = _runtime_routing_context(
+        plan,
+        "Supervisor",
+        load_agentlab_configs(ROOT),
+    )
+
+    assert context["predicted_input_tokens"] == 7_000
+    assert context["predicted_output_tokens"] == 3_000
+    assert context["predicted_quota_percent"] == 12.0
+    assert context["risk_reserve_percent"] == 10.0
+    assert context["long_batch"] is True
+    assert context["checkpoint_complete"] is True
+    assert context["checkpoint_id"] == "task_test_001:Supervisor"
+
+
+def test_runtime_quota_probe_is_persisted_and_reused_while_fresh(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_runner import _refresh_runtime_quota_telemetry, _runtime_routing_context
+    from config_loader import load_agentlab_configs
+
+    plan = _make_plan(tmp_path)
+    plan.execution_policy = {
+        "runtime_model_routing": {"probe_before_task": True}
+    }
+    configs = load_agentlab_configs(ROOT)
+    context = _runtime_routing_context(plan, "Supervisor", configs)
+    calls = 0
+
+    def quota_probe(_spec):
+        nonlocal calls
+        calls += 1
+        return {
+            "returncode": 0,
+            "output": "5-hour window: 72% remaining, resets in 2h",
+        }
+
+    monkeypatch.setattr(
+        "agent_runtime.quota_probes.run_interactive_probe",
+        quota_probe,
+    )
+
+    _refresh_runtime_quota_telemetry(
+        ROOT,
+        plan,
+        "supervisor",
+        configs,
+        context,
+    )
+    _refresh_runtime_quota_telemetry(
+        ROOT,
+        plan,
+        "supervisor",
+        configs,
+        context,
+    )
+
+    assert calls == 1
+    ledger = yaml.safe_load(
+        Path(context["quota_ledger_path"]).read_text(encoding="utf-8")
+    )
+    state = ledger["pools"]["openai_codex_agentic"]
+    assert state["status"] == "closed"
+    assert state["remaining_percent"] == 72.0
+    assert "5-hour window" not in str(ledger)
+
+
+def test_dynamic_failure_changes_only_the_next_checkpoint_route(tmp_path: Path) -> None:
+    from agent_runner import (
+        _record_dynamic_runtime_outcome,
+        _resolve_cli_profile_for_agent,
+    )
+    from config_loader import load_agentlab_configs
+
+    plan = _make_plan(tmp_path)
+    configs = load_agentlab_configs(ROOT)
+    profile = _resolve_cli_profile_for_agent(ROOT, plan, "Supervisor")[3]
+    assert profile["runtime_route_id"] == "supervisor_codex"
+    result = LLMCallResult(
+        provider="hermes",
+        model="gpt-5.5",
+        content="quota exceeded; resets in 1h",
+        status="fallback_handoff",
+        error="quota exceeded; resets in 1h",
+        raw_usage={"provider_process_started": True},
+    )
+
+    _record_dynamic_runtime_outcome(ROOT, configs, plan, profile, result)
+
+    assert result.raw_usage["runtime_outcome_recorded"] is True
+    assert result.raw_usage["runtime_outcome_checkpoint_only"] is True
+    next_profile = _resolve_cli_profile_for_agent(ROOT, plan, "Supervisor")[3]
+    assert next_profile["runtime_route_id"] == "supervisor_deepseek"
+
+
+def test_dynamic_route_exhaustion_returns_structured_block_without_provider(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    provider_called = False
+
+    def forbidden_provider(*args, **kwargs):
+        nonlocal provider_called
+        provider_called = True
+        raise AssertionError("provider must not run after dynamic routing blocks")
+
+    monkeypatch.setattr(
+        "agent_runner.resolve_cli_profile",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("dynamic runtime routing failed closed")
+        ),
+    )
+    monkeypatch.setattr("agent_runner.run_cli_agent", forbidden_provider)
+    monkeypatch.setattr("agent_runner.generate_text", forbidden_provider)
+
+    result = run_agent_model(
+        tmp_path,
+        plan,
+        "Supervisor",
+        Path(plan.run_dir) / "supervisor_plan.md",
+    )
+
+    assert result.status == "blocked_user_decision"
+    assert result.error == "dynamic_runtime_route_unavailable"
+    assert result.raw_usage["provider_process_started"] is False
+    assert provider_called is False
 
 
 def test_media_artifact_producer_generic_dispatch_is_blocked_before_provider(
@@ -124,7 +272,8 @@ def test_writer_without_explicit_opt_in_keeps_the_pure_writer_contract(
 
     assert profile.get("writer_workflow_activation_status") is None
     assert profile["invocation_contract"] == "claude_writer"
-    assert profile["capacity_route"] == "Writer"
+    assert "capacity_route" not in profile
+    assert profile["runtime_route_id"] == "writer_pro"
 
 
 def test_writer_ultracode_opt_in_reaches_cli_only_through_dedicated_route(
@@ -187,10 +336,11 @@ def test_artifact_producer_profile_is_selected_by_artifact_capability(tmp_path: 
     )
 
     assert profile["artifact_type"] == "text"
-    assert profile["artifact_provider"] == "qwen_cli"
-    assert profile["cli_agent"] == "qwen"
-    assert profile["invocation_contract"] == "qwen_artifact"
-    assert profile["capacity_route"] == "ArtifactProducerQwen"
+    assert profile["artifact_provider"] == "claude_deepseek"
+    assert profile["cli_agent"] == "claude_code"
+    assert profile["invocation_contract"] == "claude"
+    assert profile["runtime_route_id"] == "artifact_producer_pro"
+    assert "capacity_route" not in profile
     assert _check_cli_role_binding(ROOT, "ArtifactProducer", profile)[0] is True
 
     request_path.write_text("Generate an audio narration.wav", encoding="utf-8")
@@ -202,6 +352,33 @@ def test_artifact_producer_profile_is_selected_by_artifact_capability(tmp_path: 
     assert blocked["artifact_type"] == "audio"
     assert blocked["artifact_routing_status"] == "capability_mismatch"
     assert "no approved cli provider satisfies audio" in reason
+
+
+def test_bound_qwen_artifact_provider_uses_dynamic_strength_tier(tmp_path: Path) -> None:
+    from agent_runner import _resolve_cli_profile_for_agent
+
+    plan = _make_plan(tmp_path, budget_mode="balanced")
+    plan.route.route_key = "article_light_draft"
+    request_path = Path(plan.user_request_path)
+    request_path.parent.mkdir(parents=True, exist_ok=True)
+    request_path.write_text("Write a concise markdown article.", encoding="utf-8")
+    _write_yaml(
+        Path(plan.run_dir) / "artifact_task.yml",
+        {
+            "artifact_type": "text",
+            "output": {"path": "artifacts/article.md", "format": "markdown"},
+            "required_capabilities": ["write_text_artifact", "write_artifact_file"],
+            "routing": {"selected": {"provider_id": "qwen_cli"}},
+        },
+    )
+
+    profile = _resolve_cli_profile_for_agent(ROOT, plan, "ArtifactProducer")[3]
+
+    assert profile["artifact_provider"] == "qwen_cli"
+    assert profile["cli_agent"] == "qwen"
+    assert profile["runtime_route_id"] == "artifact_producer_qwen_plus"
+    assert profile["default"] == "qwen3_6_plus_dashscope"
+    assert "capacity_route" not in profile
 
 
 def test_artifact_producer_full_api_uses_explicit_text_api_only(
@@ -277,8 +454,8 @@ def test_artifact_producer_materializes_contract_before_cli_execution(
         assert contract_path.exists()
         contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
         assert contract["artifact_type"] == "text"
-        assert contract["routing"]["selected"]["provider_id"] == "qwen_cli"
-        assert profile["cli_agent"] == "qwen"
+        assert contract["routing"]["selected"]["provider_id"] == "claude_deepseek"
+        assert profile["cli_agent"] == "claude_code"
         for raw_path in contract["validation"]["required_paths"]:
             target = Path(plan.project_root) / raw_path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -303,7 +480,8 @@ def test_artifact_producer_materializes_contract_before_cli_execution(
         )
 
     assert result.status == "completed"
-    assert result.raw_usage["capacity_route_id"] == "ArtifactProducerQwen"
+    assert result.raw_usage["runtime_route_id"] == "artifact_producer_pro"
+    assert "capacity_route_id" not in result.raw_usage
 
 
 def test_unsupported_audio_artifact_fails_with_capability_mismatch_before_provider(
@@ -394,7 +572,7 @@ def _cli_role_profile() -> dict:
     return {
         "executor_type": "cli_agent",
         "cli_agent": "hermes",
-        "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
+        "cli_command": 'hermes chat -Q -q "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
         "default": "deepseek_v4_pro",
     }
 
@@ -1681,7 +1859,7 @@ class TestAgentRunnerCliDispatch:
                     "role": "supervisor",
                     "worker": "hermes",
                     "invocation_contract": "hermes_supervisor",
-                    "model_key": "codex_gpt_5_6_sol_xhigh_hermes_oauth",
+                    "model_key": "codex_gpt_5_5_high_hermes_oauth",
                     "pool": "codex_pool",
                     "approved_fallbacks": ["SupervisorDeepSeek"],
                     "fallback_on": ["quota_exhausted"],
@@ -1773,7 +1951,7 @@ class TestAgentRunnerCliDispatch:
                     "role": "supervisor",
                     "worker": "hermes",
                     "invocation_contract": "hermes_supervisor",
-                    "model_key": "codex_gpt_5_6_sol_xhigh_hermes_oauth",
+                    "model_key": "codex_gpt_5_5_high_hermes_oauth",
                     "pool": "codex_pool",
                     "approved_fallbacks": [],
                     "fallback_on": [],
@@ -2100,7 +2278,7 @@ def _schema_v4_configs() -> dict:
                             "supervisor": {
                                 "executor_type": "cli_agent",
                                 "cli_agent": "hermes",
-                                "cli_command": 'hermes -z "Read {task_packet_path}"',
+                                "cli_command": 'hermes chat -Q -q "Read {task_packet_path}"',
                                 "default": "deepseek_v4_pro",
                             },
                         },
@@ -2554,8 +2732,8 @@ class TestPromptEngineerMapping:
             "not 'execution_prompt_engineer'"
         )
         prom_role = full_tier["prompt_engineer"]
-        assert prom_role.get("cli_agent") == "hermes"
-        assert prom_role.get("invocation_contract") == "hermes"
+        assert prom_role.get("cli_agent") == "claude_code"
+        assert prom_role.get("invocation_contract") == "claude"
 
     def test_agent_runner_role_key_map_has_correct_promptengineer(self):
         """The role key map in agent_runner maps promptengineer -> prompt_engineer."""
@@ -2686,7 +2864,7 @@ class TestResolveCliProfileCallSignature:
                                     "supervisor": {
                                         "executor_type": "cli_agent",
                                         "cli_agent": "hermes",
-                                        "cli_command": "hermes -z test",
+                                        "cli_command": "hermes chat -Q -q test",
                                         "default": "deepseek_v4_pro",
                                     },
                                 },

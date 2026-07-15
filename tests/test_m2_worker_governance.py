@@ -185,7 +185,7 @@ def test_role_requirements_and_cli() -> None:
     registry = RoleRequirementsRegistry.load_from_file(
         ROOT / "config" / "agent_role_requirements.yml"
     )
-    assert len(registry.list_roles()) == 14
+    assert len(registry.list_roles()) == 15
 
     coder = registry.get_role_requirements("Coder")
     assert coder is not None

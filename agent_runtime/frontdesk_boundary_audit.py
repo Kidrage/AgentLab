@@ -75,6 +75,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
         root / "config" / "worker_invocation_contracts.yml"
     )
     model_catalog = _read_yaml(root / "config" / "model_catalog.yml")
+    runtime_registry = _read_yaml(root / "config" / "runtime_registry.yml")
     capability_cli = _read_text(root / "agent_runtime" / "cli" / "capability_contracts.py")
     narrative_cli = _read_text(root / "agent_runtime" / "cli" / "narrative_eval.py")
     narrative_runtime = _read_text(root / "agent_runtime" / "narrative_eval.py")
@@ -142,6 +143,12 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     grok_artifact_bindings = [
         item for item in artifact_backend_bindings if item.get("artifact_backend") == "hermes_grok_oauth"
     ]
+    runtime_providers = runtime_registry.get("providers") if isinstance(runtime_registry.get("providers"), dict) else {}
+    runtime_models = runtime_registry.get("models") if isinstance(runtime_registry.get("models"), dict) else {}
+    grok_runtime_quarantined = (
+        (runtime_providers.get("xai_oauth") or {}).get("status") == "quarantined"
+        and (runtime_models.get("grok_4_3_oauth_quarantined") or {}).get("status") == "quarantined"
+    )
 
     checks = [
         {
@@ -334,10 +341,13 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             "summary": "grok_research and grok_media are separate role contracts on the configured Hermes xAI OAuth executable",
         },
         {
-            "id": "artifact_producer_profiles_bind_grok_oauth",
-            "status": "pass" if grok_artifact_bindings else "fail",
-            "evidence": ["config/agent_model_profiles.yml"],
-            "summary": f"artifact backend bindings for hermes_grok_oauth: {len(grok_artifact_bindings)}",
+            "id": "quarantined_grok_is_not_a_default_artifact_profile",
+            "status": "pass" if grok_runtime_quarantined and not grok_artifact_bindings else "fail",
+            "evidence": ["config/runtime_registry.yml", "config/agent_model_profiles.yml"],
+            "summary": (
+                "Grok remains registered for explicit bounded contracts but is quarantined from default "
+                f"artifact profiles; default bindings={len(grok_artifact_bindings)}"
+            ),
         },
         {
             "id": "raw_media_live_cli_requires_role_session",

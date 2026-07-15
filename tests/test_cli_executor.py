@@ -45,7 +45,7 @@ def _make_plan(tmp_path: Path, budget_mode: str = "balanced") -> "WorkflowPlan":
 def _hermes_supervisor_fixture(
     tmp_path: Path,
     *,
-    reasoning_effort: str = "xhigh",
+    reasoning_effort: str = "high",
     fallback_providers: list[dict] | None = None,
 ) -> tuple[dict, Path]:
     config_dir = tmp_path / "config"
@@ -58,7 +58,7 @@ def _hermes_supervisor_fixture(
                         "provider": "hermes_codex_oauth",
                         "runtime_provider": "openai-codex",
                         "cli_provider": "openai-codex",
-                        "model_id": "gpt-5.6-sol",
+                        "model_id": "gpt-5.5",
                     }
                 }
             },
@@ -79,13 +79,13 @@ def _hermes_supervisor_fixture(
                         ),
                         "required_shell_state": {
                             "model.provider": "openai-codex",
-                            "model.default": "gpt-5.6-sol",
-                            "agent.reasoning_effort": "xhigh",
+                            "model.default": "gpt-5.5",
+                            "agent.reasoning_effort": "high",
                             "fallback_providers": [],
                             "fallback_model": None,
                         },
-                        "requested_reasoning_label": "extra",
-                        "resolved_reasoning_effort": "xhigh",
+                        "requested_reasoning_label": "high",
+                        "resolved_reasoning_effort": "high",
                     }
                 }
             },
@@ -101,7 +101,7 @@ def _hermes_supervisor_fixture(
             {
                 "model": {
                     "provider": "openai-codex",
-                    "default": "gpt-5.6-sol",
+                    "default": "gpt-5.5",
                 },
                 "agent": {"reasoning_effort": reasoning_effort},
                 "fallback_providers": (
@@ -254,8 +254,8 @@ def _grok_research_fixture(
                         "invocation_style": "sourced_research_task_packet",
                         "template": template
                         or (
-                            'hermes --ignore-rules --provider xai-oauth '
-                            '-m {model_id} -t web,x_search -z "Read the AgentLab Researcher '
+                            'hermes chat -Q --provider xai-oauth '
+                            '-m {model_id} -t web,x_search -q "Read the AgentLab Researcher '
                             'task packet at {task_packet_path}; return sourced evidence."'
                         ),
                     }
@@ -312,7 +312,7 @@ def _sample_profiles(executor_type: str = "cli_agent") -> dict:
                 "supervisor": {
                     "executor_type": executor_type,
                     "cli_agent": "hermes",
-                    "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
+                    "cli_command": 'hermes chat -Q -q "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
                     "default": "deepseek_v4_pro",
                     "fallback": "qwen3_6_plus_dashscope",
                 },
@@ -393,7 +393,7 @@ def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
                         "supervisor": {
                             "executor_type": executor_type,
                             "cli_agent": "hermes",
-                            "cli_command": 'hermes -z "Read {task_packet_path}"',
+                            "cli_command": 'hermes chat -Q -q "Read {task_packet_path}"',
                             "default": "deepseek_v4_pro",
                         },
                         "coder": {
@@ -407,7 +407,7 @@ def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
                         "supervisor": {
                             "executor_type": executor_type,
                             "cli_agent": "hermes",
-                            "cli_command": 'hermes -z "Read {task_packet_path}"',
+                            "cli_command": 'hermes chat -Q -q "Read {task_packet_path}"',
                             "default": "deepseek_v4_pro",
                         },
                     },
@@ -415,7 +415,7 @@ def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
                         "supervisor": {
                             "executor_type": executor_type,
                             "cli_agent": "hermes",
-                            "cli_command": 'hermes -z "Read {task_packet_path}"',
+                            "cli_command": 'hermes chat -Q -q "Read {task_packet_path}"',
                             "default": "deepseek_v4_flash",
                         },
                         "interface_mapper": "skip",
@@ -467,8 +467,9 @@ class TestResolveCliProfileSchemaV4:
         assert result["resolved_tier"] == "performance"
         assert result["cli_agent"] == "hermes"
         assert result["invocation_contract"] == "hermes_supervisor"
-        assert result["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
-        assert result["capacity_route"] == "Supervisor"
+        assert result["default"] == "codex_gpt_5_5_high_hermes_oauth"
+        assert "capacity_route" not in result
+        assert result["runtime_route_id"] == "supervisor_codex"
         assert "fallback" not in result
 
     def test_real_default_full_cli_writer_resolves_to_claude_deepseek(self):
@@ -488,7 +489,8 @@ class TestResolveCliProfileSchemaV4:
         assert result["cli_agent"] == "claude_code"
         assert result["invocation_contract"] == "claude_writer"
         assert result["default"] == "deepseek_v4_pro"
-        assert result["capacity_route"] == "Writer"
+        assert "capacity_route" not in result
+        assert result["runtime_route_id"] == "writer_pro"
         assert "fallback" not in result
 
     def test_full_cli_full_supervisor_resolves_cli(self):
@@ -607,7 +609,7 @@ class TestResolveCliProfileSchemaV4:
             """
 contracts:
   hermes:
-    template: 'hermes -z "Read {task_packet_path}"'
+    template: 'hermes chat -Q -q "Read {task_packet_path}"'
 """,
             encoding="utf-8",
         )
@@ -621,7 +623,7 @@ contracts:
             tmp_path,
         )
 
-        assert template == 'hermes -z "Read {task_packet_path}"'
+        assert template == 'hermes chat -Q -q "Read {task_packet_path}"'
 
 
 # ---------------------------------------------------------------------------
@@ -725,7 +727,7 @@ class TestRenderCommand:
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import _render_command
 
-        argv = _render_command('hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."', tmp_path / "pkt.json")
+        argv = _render_command('hermes chat -Q -q "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."', tmp_path / "pkt.json")
         assert argv[0] == "hermes"
         assert any(str(tmp_path / "pkt.json") in arg for arg in argv)
 
@@ -758,14 +760,14 @@ class TestRenderCommand:
         from cli_executor import _render_command
 
         argv = _render_command(
-            'hermes --provider {provider} -m {model_id} -z "Read {task_packet_path}"',
+            'hermes chat -Q --provider {provider} -m {model_id} -q "Read {task_packet_path}"',
             tmp_path / "pkt.json",
             provider="openai-codex",
-            model_id="gpt-5.6-sol",
-            model_key="codex_gpt_5_6_sol_xhigh_hermes_oauth",
+            model_id="gpt-5.5",
+            model_key="codex_gpt_5_5_high_hermes_oauth",
         )
 
-        assert argv[:5] == ["hermes", "--provider", "openai-codex", "-m", "gpt-5.6-sol"]
+        assert argv[:7] == ["hermes", "chat", "-Q", "--provider", "openai-codex", "-m", "gpt-5.5"]
         assert any(str(tmp_path / "pkt.json") in arg for arg in argv)
 
     def test_agy_catalog_resolves_cli_display_label(self):
@@ -830,7 +832,7 @@ class TestRunCliAgentBinaryNotFound:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
+            "cli_command": 'hermes chat -Q -q "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
             "default": "deepseek_v4_pro",
         }
 
@@ -874,11 +876,11 @@ class TestRunCliAgentSubprocess:
                 "issues": [],
                 "required_shell_state": {
                     "model.provider": "openai-codex",
-                    "model.default": "gpt-5.6-sol",
+                    "model.default": "gpt-5.5",
                 },
                 "command_binding_verified": True,
                 "requested_reasoning_label": "extra",
-                "resolved_reasoning_effort": "xhigh",
+                "resolved_reasoning_effort": "high",
                 "capacity_route": "SupervisorCodex",
                 "attempt_id": "supervisor-primary-attempt",
                 "selection_kind": "primary",
@@ -958,11 +960,11 @@ class TestRunCliAgentSubprocess:
             "issues": [],
             "required_shell_state": {
                 "model.provider": "openai-codex",
-                "model.default": "gpt-5.6-sol",
+                "model.default": "gpt-5.5",
             },
             "command_binding_verified": True,
             "requested_reasoning_label": "extra",
-            "resolved_reasoning_effort": "xhigh",
+            "resolved_reasoning_effort": "high",
             "capacity_route": "SupervisorCodex",
             "capacity_pool": "openai_codex_agentic",
             "attempt_id": "supervisor-primary",
@@ -1092,7 +1094,7 @@ class TestRunCliAgentSubprocess:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
+            "cli_command": 'hermes chat -Q -q "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
             "default": "deepseek_v4_pro",
         }
 
@@ -1105,13 +1107,13 @@ class TestRunCliAgentSubprocess:
         assert result.status == "completed"
         assert result.provider == "agentlab-cli-executor"
         assert result.model == "hermes"
-        assert result.input_tokens is not None
-        assert result.output_tokens is not None
-        assert result.total_tokens == result.input_tokens + result.output_tokens
-        assert result.raw_usage["usage_source"] == "external_cli_estimate"
+        assert result.input_tokens is None
+        assert result.output_tokens is None
+        assert result.total_tokens is None
+        assert result.raw_usage["usage_source"] == "external_cli_unavailable"
         assert result.raw_usage["exact_usage_available"] is False
         assert result.raw_usage["exact_cost_available"] is False
-        assert result.raw_usage["token_estimation_method"] == "chars_div_4_packet_command_stdout_stderr"
+        assert "token_estimation_method" not in result.raw_usage
         assert "Supervisor Report" in result.content
         assert "command_id" in result.raw_usage
         assert f"command_id {result.raw_usage['command_id']}" in result.content
@@ -1119,7 +1121,7 @@ class TestRunCliAgentSubprocess:
         assert execution_log["commands"][0]["command_id"] == result.raw_usage["command_id"]
         assert execution_log["commands"][0]["exit_code"] == 0
 
-    def test_hermes_supervisor_runtime_binds_extra_to_xhigh_and_writes_receipt(
+    def test_hermes_supervisor_runtime_binds_high_and_writes_receipt(
         self,
         tmp_path,
     ):
@@ -1152,7 +1154,7 @@ class TestRunCliAgentSubprocess:
             "--provider",
             "openai-codex",
             "-m",
-            "gpt-5.6-sol",
+            "gpt-5.5",
             "-q",
         ]
         assert result.raw_usage["hermes_profile_preflight"]["status"] == "pass"
@@ -1162,10 +1164,12 @@ class TestRunCliAgentSubprocess:
         )
         receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
         assert receipt["status"] == "pass"
-        assert receipt["requested_reasoning_label"] == "extra"
-        assert receipt["reasoning_effort"] == "xhigh"
-        assert receipt["provider"] == "openai-codex"
-        assert receipt["model"] == "gpt-5.6-sol"
+        assert receipt["requested_reasoning_label"] == "high"
+        assert receipt["reasoning_effort"] == "high"
+        assert receipt["requested_provider"] == "openai-codex"
+        assert receipt["requested_model"] == "gpt-5.5"
+        assert receipt["provider"] is None
+        assert receipt["model"] is None
         assert receipt["fallback_chain"] == []
         assert receipt["profile_state_verified"] is True
         assert receipt["command_binding_verified"] is True
@@ -1243,15 +1247,16 @@ class TestRunCliAgentSubprocess:
             }
         ]
         assert not Path(observed["cwd"]).exists()
-        assert observed["argv"][:6] == [
+        assert observed["argv"][:7] == [
             "hermes",
-            "--ignore-rules",
+            "chat",
+            "-Q",
             "--provider",
             "xai-oauth",
             "-m",
             "grok-4.3",
         ]
-        assert observed["argv"][6:9] == ["-t", "web,x_search", "-z"]
+        assert observed["argv"][7:10] == ["-t", "web,x_search", "-q"]
         receipt_path = Path(result.raw_usage["model_execution_receipt"])
         assert receipt_path.name.startswith(
             "model_execution_receipt_researcher_researcher_"
@@ -1601,9 +1606,9 @@ class TestRunCliAgentSubprocess:
     @pytest.mark.parametrize(
         ("reasoning_effort", "fallback_providers", "expected_issue"),
         [
-            ("high", None, "profile_state_mismatch:agent.reasoning_effort"),
+            ("medium", None, "profile_state_mismatch:agent.reasoning_effort"),
             (
-                "xhigh",
+                "high",
                 [{"provider": "deepseek", "model": "deepseek-v4"}],
                 "profile_state_mismatch:fallback_providers",
             ),
@@ -2239,7 +2244,7 @@ class TestRunCliAgentSubprocess:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": 'hermes -z "task {task_packet_path}"',
+            "cli_command": 'hermes chat -Q -q "task {task_packet_path}"',
             "default": "deepseek_v4_pro",
         }
         mock_proc = self._mock_proc(0, stdout="# Supervisor Report\n\nAll good.")
@@ -2281,7 +2286,7 @@ class TestRunCliAgentSubprocess:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
+            "cli_command": 'hermes chat -Q -q "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
         }
 
         mock_proc = self._mock_proc(1, stdout="", stderr="fatal error")
@@ -2333,7 +2338,7 @@ class TestRunCliAgentSubprocess:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
+            "cli_command": 'hermes chat -Q -q "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
         }
 
         with patch("cli_executor.shutil.which", return_value="/usr/bin/hermes"), \
@@ -2354,7 +2359,7 @@ class TestRunCliAgentSubprocess:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": 'hermes -z "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
+            "cli_command": 'hermes chat -Q -q "You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers."',
         }
 
         mock_proc = self._mock_proc(127, stdout="", stderr="hermes: command not found")
@@ -2618,7 +2623,7 @@ class TestBinaryCandidateResolution:
         role_profile = {
             "executor_type": "cli_agent",
             "cli_agent": "hermes",
-            "cli_command": 'hermes -z "test"',
+            "cli_command": 'hermes chat -Q -q "test"',
             "default": "deepseek_v4_pro",
         }
 

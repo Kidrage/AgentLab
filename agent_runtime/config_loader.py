@@ -29,6 +29,8 @@ CONFIG_FILES = {
     "feedback_policy": "feedback_policy.yml",
     "model_catalog": "model_catalog.yml",
     "model_capacity": "model_capacity.yml",
+    "runtime_registry": "runtime_registry.yml",
+    "pricing_catalog": "pricing_catalog.yml",
     "model_providers": "model_providers.yml",
     "model_profiles": "model_profiles.yml",
     "routing_policy": "routing_policy.yml",

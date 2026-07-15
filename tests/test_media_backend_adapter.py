@@ -471,6 +471,7 @@ def _oauth_contract() -> dict:
     contract = _contract()
     contract.update(
         {
+            "backend_policy": "explicit_grok_canary",
             "selected_backend": "hermes_grok_oauth",
             "routing_status": "selected",
             "executable": True,
@@ -619,8 +620,8 @@ def test_preflight_rejects_stale_audio_contract_before_provider_execution() -> N
 
 def test_local_grok_cli_execution_writes_text_handoff_not_media_asset(tmp_path: Path) -> None:
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
-        assert args[:5] == ["hermes", "--ignore-rules", "--provider", "xai-oauth", "-m"]
-        assert "-z" in args
+        assert args[:5] == ["hermes", "chat", "-Q", "--provider", "xai-oauth"]
+        assert "-q" in args
         return subprocess.CompletedProcess(args=args, returncode=0, stdout="GROK_CLI_SMOKE_OK\n", stderr="")
 
     result = execute_media_contract(
@@ -650,7 +651,8 @@ def test_local_grok_cli_execution_collects_reported_assets_under_out_dir(tmp_pat
     asset = tmp_path / "poster.png"
 
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
-        prompt = args[args.index("-z") + 1] if "-z" in args else args[args.index("-p") + 1]
+        prompt_flag = next(flag for flag in ("-q", "-p", "-z") if flag in args)
+        prompt = args[args.index(prompt_flag) + 1]
         assert "AGENTLAB_GENERATED_ASSET:" in prompt
         assert str(tmp_path) in prompt
         asset.write_bytes(b"fake-png")
@@ -982,9 +984,9 @@ def test_build_grok_cli_payload_plan_records_no_media_artifact_claim() -> None:
 
     assert plan["adapter_kind"] == "local_grok_cli"
     assert plan["command"] == "hermes"
-    assert plan["args"][:5] == ["hermes", "--ignore-rules", "--provider", "xai-oauth", "-m"]
+    assert plan["args"][:5] == ["hermes", "chat", "-Q", "--provider", "xai-oauth"]
     assert "grok-4.3" in plan["args"]
-    assert "-z" in plan["args"]
+    assert "-q" in plan["args"]
     assert "--oauth" not in plan["args"]
     assert plan["artifact_generation_verified"] is False
     assert plan["artifact_return_contract"]["marker"] == "AGENTLAB_GENERATED_ASSET:"

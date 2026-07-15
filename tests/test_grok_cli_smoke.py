@@ -35,8 +35,8 @@ def test_grok_cli_smoke_dry_run_reports_command_without_private_context() -> Non
         {
             "command": "hermes",
             "command_shape": (
-                "hermes --ignore-rules --provider xai-oauth -m grok-4.3 "
-                "-z <non_private_prompt>"
+                "hermes chat -Q --provider xai-oauth -m grok-4.3 "
+                "-q <non_private_prompt>"
             ),
         }
     ]
@@ -49,7 +49,8 @@ def test_grok_cli_smoke_dry_run_reports_command_without_private_context() -> Non
 def test_grok_cli_smoke_live_pass_with_fake_runner() -> None:
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         assert args[0] == "hermes"
-        assert "-z" in args
+        assert args[:4] == ["hermes", "chat", "-Q", "--provider"]
+        assert "-q" in args
         return subprocess.CompletedProcess(args=args, returncode=0, stdout="AGENTLAB_GROK_CLI_SMOKE_OK\n", stderr="")
 
     report = build_grok_cli_smoke_report(ROOT, live=True, command_runner=fake_runner)

@@ -1,6 +1,6 @@
-schema_version: 3
+schema_version: 4
 
-# ─── AgentLab Routing Policy v3 — Size × Risk × Budget 三轴策略 ────────
+# ─── AgentLab Routing Policy v4 — Size × Risk × Budget 三轴策略 ────────
 # 补充 routing_rules.yml：本文件负责风险/预算策略，route agent 事实源仍是 routing_rules.yml。
 # 路由流程: user_request → routing_rules route → classify Risk → select Budget
 # ────────────────────────────────────────────────────────────────────────
@@ -181,6 +181,85 @@ agent_order:
   - TesterAuditor
   - Verifier
   - Archivist
+
+# Runtime model routing is orthogonal to the task/agent route above.  Presets
+# set quality floors and cost pressure; they do not contain duplicate matrices.
+runtime_routing:
+  selector: hard_filters_then_quality_floor_then_min_effective_cost
+  fallback_boundary: checkpoint_only
+  presets:
+    full:
+      quality_floor: 0.88
+      intent: promotion_or_high_quality
+    performance:
+      quality_floor: 0.82
+      intent: default_quality_cost_balance
+    low:
+      quality_floor: 0.65
+      intent: cheapest_route_above_role_floor
+    promotion:
+      quality_floor: 0.92
+      intent: independent_acceptance
+  quota:
+    hard_reserve_percent: 5.0
+    admission_floor: max_hard_reserve_or_predicted_unit_plus_risk_reserve
+    probe_before_task: true
+    probe_at_checkpoint: true
+    probe_after_status_codes: [401, 402, 429]
+    stale_after_seconds: 600
+    long_batch_requires_fresh_telemetry: true
+    resume_jitter_seconds: [60, 180]
+    reprobe_before_resume: true
+  task_demand_defaults:
+    tokens_by_project_size:
+      L1: {input: 2000, output: 1000}
+      L2: {input: 5000, output: 2500}
+      L3: {input: 10000, output: 5000}
+    predicted_quota_percent_by_project_size: {L1: 2.0, L2: 5.0, L3: 12.0}
+    risk_reserve_percent_by_risk_level: {R0: 0.0, R1: 2.0, R2: 5.0, R3: 10.0}
+    long_batch_route_markers: [heavy_audit, batch, series_scale, promotion]
+  privacy:
+    default_data_class: private
+    project_provider_allowlist_gates_switching: true
+  effective_cost_weights:
+    quota_scarcity: 0.5
+    retry: 1.0
+    latency: 0.25
+    switch: 0.05
+  role_demands:
+    supervisor:
+      capability_weights: {reasoning: 0.55, agentic_control: 0.30, audit: 0.15}
+    observer:
+      capability_weights: {multimodal: 0.55, audit: 0.25, summarization: 0.20}
+    reposcout:
+      capability_weights: {coding: 0.45, reasoning: 0.35, summarization: 0.20}
+    researcher:
+      capability_weights: {research: 0.60, reasoning: 0.25, summarization: 0.15}
+    interface_mapper:
+      capability_weights: {coding: 0.40, reasoning: 0.45, audit: 0.15}
+    prompt_engineer:
+      capability_weights: {writing: 0.55, reasoning: 0.30, summarization: 0.15}
+    coder:
+      capability_weights: {coding: 0.65, reasoning: 0.25, agentic_control: 0.10}
+    artifact_producer:
+      capability_weights: {artifact_generation: 0.55, writing: 0.25, reasoning: 0.20}
+    tester_auditor:
+      capability_weights: {audit: 0.55, coding: 0.25, reasoning: 0.20}
+    verifier:
+      capability_weights: {audit: 0.60, reasoning: 0.30, summarization: 0.10}
+    archivist:
+      capability_weights: {summarization: 0.70, audit: 0.20, writing: 0.10}
+    writer:
+      capability_weights: {writing: 0.45, narrative_continuity: 0.40, reasoning: 0.15}
+    reviewer:
+      capability_weights: {audit: 0.45, narrative_continuity: 0.35, reasoning: 0.20}
+    visual_reviewer:
+      capability_weights: {multimodal: 0.55, audit: 0.35, reasoning: 0.10}
+      required_modalities: [image]
+    scribe:
+      capability_weights: {summarization: 0.55, writing: 0.30, audit: 0.15}
+    narrative_planner:
+      capability_weights: {narrative_continuity: 0.45, reasoning: 0.35, writing: 0.20}
 
 # ══════════════════════════════════════════════════════════════════════
 # 关键词提示 (用于路由决策)

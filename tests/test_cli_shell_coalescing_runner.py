@@ -46,6 +46,78 @@ def _request_fixture(tmp_path: Path) -> tuple[Path, Path]:
     return plan_path, request_path
 
 
+def _hermes_packet_fixture(tmp_path: Path) -> dict:
+    def role(
+        name: str,
+        profile: str,
+        provider: str,
+        model: str,
+        reasoning: str,
+        base_url: str,
+    ) -> dict:
+        return {
+            "role": name,
+            "receipt_path": str(tmp_path / f"{name.lower()}_receipt.yml"),
+            "validation_evidence_path": str(tmp_path / f"{name.lower()}_validation.yml"),
+            "model_route": {
+                "workflow_shell_profile": profile,
+                "required_profile_config": {
+                    "model.provider": provider,
+                    "model.default": model,
+                    "model.base_url": base_url,
+                    "agent.reasoning_effort": reasoning,
+                    "fallback_providers": [],
+                },
+                "forbidden_profile_config_keys": ["fallback_model"],
+            },
+        }
+
+    return {
+        "backend": "hermes",
+        "command": "hermes",
+        "coalescing_mode": "board_mediated",
+        "packet_path": str(tmp_path / "hermes_synthetic_packet.yml"),
+        "session_receipt_path": str(tmp_path / "shell_board_sync_receipt.yml"),
+        "execution_contract": {
+            "native_surface": "hermes_kanban",
+            "command_spec": {"board_slug": "agentlab-cli-shell-acceptance"},
+        },
+        "delegated_roles": [
+            role(
+                "Supervisor",
+                "agentlabsupervisor",
+                "openai-codex",
+                "gpt-5.5",
+                "high",
+                "https://chatgpt.com/backend-api/codex",
+            ),
+            role(
+                "PromptEngineer",
+                "agentlabpromptengineer",
+                "deepseek",
+                "deepseek-v4-flash",
+                "",
+                "https://api.deepseek.com",
+            ),
+        ],
+    }
+
+
+def _hermes_request_fixture(tmp_path: Path) -> Path:
+    request_path = tmp_path / "hermes_runner_request.yml"
+    request_path.write_text(
+        yaml.safe_dump(
+            {
+                "status": "ready_for_trusted_runner",
+                "packets": [_hermes_packet_fixture(tmp_path)],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return request_path
+
+
 def test_cli_shell_coalescing_runner_defaults_to_nonexecuting_plan(tmp_path: Path) -> None:
     _plan_path, request_path = _request_fixture(tmp_path)
     report = run_cli_shell_coalescing_request(ROOT, request_path=request_path)
@@ -58,7 +130,7 @@ def test_cli_shell_coalescing_runner_defaults_to_nonexecuting_plan(tmp_path: Pat
     assert report["private_project_context_loaded"] is False
     assert report["isolated_execution_workspace_required"] is True
     assert report["project_read_tools_allowed"] is False
-    assert {item["backend"] for item in report["backend_results"]} == {"claude_code", "hermes"}
+    assert {item["backend"] for item in report["backend_results"]} == {"claude_code"}
     assert all(item["status"] == "planned" for item in report["backend_results"])
     assert all(item["command_preview"] for item in report["backend_results"])
 
@@ -116,10 +188,10 @@ def test_cli_shell_coalescing_runner_materializes_role_receipts_from_native_surf
         "agentlabsupervisor": {
             "model": {
                 "provider": "openai-codex",
-                "default": "gpt-5.6-sol",
+                "default": "gpt-5.5",
                 "base_url": "https://chatgpt.com/backend-api/codex",
             },
-            "agent": {"reasoning_effort": "xhigh"},
+            "agent": {"reasoning_effort": "high"},
             "fallback_providers": [],
         },
         "agentlabpromptengineer": {
@@ -136,6 +208,9 @@ def test_cli_shell_coalescing_runner_materializes_role_receipts_from_native_surf
         profile_dir = hermes_home / "profiles" / profile
         profile_dir.mkdir(parents=True)
         (profile_dir / "config.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    request = yaml.safe_load(request_path.read_text(encoding="utf-8"))
+    claude_packet = next(item for item in request["packets"] if item["backend"] == "claude_code")
+    claude_roles = [item["role"] for item in claude_packet["delegated_roles"]]
     hermes_task_roles: dict[str, str] = {}
     commands: list[list[str]] = []
 
@@ -146,17 +221,12 @@ def test_cli_shell_coalescing_runner_materializes_role_receipts_from_native_surf
                 "structured_output": {
                     "role_results": [
                         {
-                            "role": "Coder",
+                            "role": role,
                             "status": "pass",
                             "findings": "Collector execution contract is deterministic.",
                             "validation": ["read scope preserved", "no production writes"],
-                        },
-                        {
-                            "role": "Archivist",
-                            "status": "pass",
-                            "findings": "Evidence hashes and promotion boundary are present.",
-                            "validation": ["evidence paths checked", "promotion blocked"],
-                        },
+                        }
+                        for role in claude_roles
                     ]
                 }
             }
@@ -214,21 +284,12 @@ def test_cli_shell_coalescing_runner_materializes_role_receipts_from_native_surf
     assert "--safe-mode" in claude_command
     assert "--no-session-persistence" in claude_command
     assert claude_command[claude_command.index("--tools") + 1] == "Agent"
-    hermes_create_commands = [argv for argv in commands if argv[0] == "hermes" and "create" in argv]
-    assert hermes_create_commands
-    assert all(argv[argv.index("--workspace") + 1] == "scratch" for argv in hermes_create_commands)
-    assert all(str(ROOT) not in " ".join(argv) for argv in hermes_create_commands)
-    idempotency_keys = [argv[argv.index("--idempotency-key") + 1] for argv in hermes_create_commands]
-    assert len(set(idempotency_keys)) == len(idempotency_keys)
-    assert all(key.startswith("agentlab-") for key in idempotency_keys)
-    assert {item["native_surface_used"] for item in report["backend_results"]} == {
-        "claude_inline_agents",
-        "hermes_kanban",
-    }
+    assert not any(argv[0] == "hermes" for argv in commands)
+    assert {item["native_surface_used"] for item in report["backend_results"]} == {"claude_inline_agents"}
     status = build_cli_shell_coalescing_status(ROOT, plan_path=plan_path)
     assert status["status"] == "pass"
-    assert status["accepted_packet_count"] == 2
-    assert status["accepted_role_count"] == 4
+    assert status["accepted_packet_count"] == 1
+    assert status["accepted_role_count"] == len(claude_roles)
     assert status["missing_returned_files"] == []
     assert status["failures"] == []
 
@@ -267,7 +328,7 @@ def test_cli_shell_coalescing_runner_materializes_role_receipts_from_native_surf
 def test_cli_shell_coalescing_runner_refuses_wrong_hermes_profiles_before_dispatch(
     tmp_path: Path,
 ) -> None:
-    _plan_path, request_path = _request_fixture(tmp_path)
+    request_path = _hermes_request_fixture(tmp_path)
     called = False
 
     def executor(_argv: list[str], _timeout: int) -> dict:
@@ -298,9 +359,7 @@ def test_cli_shell_coalescing_runner_refuses_wrong_hermes_profiles_before_dispat
 def test_cli_shell_coalescing_runner_provisions_isolated_hermes_role_profiles(
     tmp_path: Path,
 ) -> None:
-    _plan_path, request_path = _request_fixture(tmp_path)
-    request = yaml.safe_load(request_path.read_text(encoding="utf-8"))
-    packet = next(item for item in request["packets"] if item["backend"] == "hermes")
+    packet = _hermes_packet_fixture(tmp_path)
     hermes_home = tmp_path / "hermes-home"
     commands: list[list[str]] = []
 
@@ -344,10 +403,10 @@ def test_cli_shell_coalescing_runner_provisions_isolated_hermes_role_profiles(
     )
     assert supervisor["model"] == {
         "provider": "openai-codex",
-        "default": "gpt-5.6-sol",
+        "default": "gpt-5.5",
         "base_url": "https://chatgpt.com/backend-api/codex",
     }
-    assert supervisor["agent"]["reasoning_effort"] == "xhigh"
+    assert supervisor["agent"]["reasoning_effort"] == "high"
     assert supervisor["fallback_providers"] == []
     assert "fallback_model" not in supervisor
 
@@ -355,7 +414,7 @@ def test_cli_shell_coalescing_runner_provisions_isolated_hermes_role_profiles(
 def test_cli_shell_coalescing_runner_provision_only_never_dispatches_provider(
     tmp_path: Path,
 ) -> None:
-    _plan_path, request_path = _request_fixture(tmp_path)
+    request_path = _hermes_request_fixture(tmp_path)
     hermes_home = tmp_path / "hermes-home"
     commands: list[list[str]] = []
 
@@ -404,9 +463,7 @@ def test_cli_shell_coalescing_runner_provision_only_never_dispatches_provider(
 def test_cli_shell_coalescing_runner_accepts_profile_materialized_after_nonzero_create(
     tmp_path: Path,
 ) -> None:
-    _plan_path, request_path = _request_fixture(tmp_path)
-    request = yaml.safe_load(request_path.read_text(encoding="utf-8"))
-    packet = next(item for item in request["packets"] if item["backend"] == "hermes")
+    packet = _hermes_packet_fixture(tmp_path)
     hermes_home = tmp_path / "hermes-home"
 
     def executor(argv: list[str], _timeout: int) -> dict:

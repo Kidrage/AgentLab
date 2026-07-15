@@ -1440,12 +1440,14 @@ def _execute_media_backend_role_outputs(
             )
 
     modality = str(contract.get("modality") or "").strip().lower()
+    explicit_canary = contract.get("backend_policy") == "explicit_grok_canary"
     try:
         capacity_decision = capacity_manager.select_route(
             "ArtifactProducer",
             role="ArtifactProducer",
             attempt_id=attempt_id,
             required_modalities=[modality] if modality else [],
+            explicit_canary=explicit_canary,
         )
     except (ValueError, TypeError) as exc:
         return block_capacity_route(
@@ -1508,6 +1510,7 @@ def _execute_media_backend_role_outputs(
             "model_key": selected_route.get("model_key")
             if isinstance(selected_route, dict)
             else None,
+            "selection_mode": capacity_decision.get("selection_mode"),
             "selection_kind": capacity_decision.get("selection_kind"),
             "capacity_status": capacity_decision.get("capacity_status"),
             "provider_invocation_started": False,

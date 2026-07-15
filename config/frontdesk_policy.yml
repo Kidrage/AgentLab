@@ -98,7 +98,7 @@ frontdesk_agents:
     provider: deepseek
     model_key: deepseek_v4_pro
     model_id: deepseek-v4-pro
-    launch_hint: hermes --provider deepseek -m deepseek-v4-pro -z "$(./agentlab.sh frontdesk-session --agent hermes)"
+    launch_hint: hermes chat -Q --provider deepseek -m deepseek-v4-pro -q "$(./agentlab.sh frontdesk-session --agent hermes)"
   agy:
     display_name: Antigravity CLI Frontdesk
     command: agy

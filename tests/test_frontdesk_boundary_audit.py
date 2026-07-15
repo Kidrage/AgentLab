@@ -44,7 +44,7 @@ def test_frontdesk_boundary_audit_reports_role_chain_and_raw_live_adapter_warnin
     assert by_id["hermes_grok_backend_uses_workflow_shell_without_role_leakage"]["status"] == "pass"
     assert by_id["grok_cli_is_registered_as_internal_research_and_artifact_worker"]["status"] == "pass"
     assert by_id["grok_current_contracts_use_hermes_surface"]["status"] == "pass"
-    assert by_id["artifact_producer_profiles_bind_grok_oauth"]["status"] == "pass"
+    assert by_id["quarantined_grok_is_not_a_default_artifact_profile"]["status"] == "pass"
     assert by_id["raw_media_live_cli_requires_role_session"]["status"] == "pass"
     assert by_id["narrative_live_eval_requires_writer_role_session"]["status"] == "pass"
 

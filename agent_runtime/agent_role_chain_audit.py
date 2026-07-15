@@ -45,6 +45,10 @@ ROLE_RESPONSIBILITIES: dict[str, dict[str, str]] = {
         "responsibility": "Draft candidate longform narrative chapters and light-path continuity ledgers.",
         "boundary": "Does not promote candidate text into production memory.",
     },
+    "NarrativePlanner": {
+        "responsibility": "Read accepted project memory and candidate longform text to propose bounded continuity repairs or rewrites.",
+        "boundary": "Writes revision_or_rewrite_proposal.yml only; does not edit candidate text, production text, or project facts.",
+    },
     "Reviewer": {
         "responsibility": "Independently review narrative or visual candidates against the route-specific quality contract.",
         "boundary": "Does not rewrite prose, mutate media, or act as the producing worker.",
@@ -77,6 +81,7 @@ ROLE_KEY_MAP = {
     "coder": "Coder",
     "artifact_producer": "ArtifactProducer",
     "writer": "Writer",
+    "narrative_planner": "NarrativePlanner",
     "reviewer": "Reviewer",
     "visual_reviewer": "Reviewer",
     "scribe": "Scribe",

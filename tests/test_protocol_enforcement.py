@@ -32,6 +32,7 @@ def test_workspace_entry_binds_agy_as_frontdesk_not_worker():
     }
     assert packet["allowed_profiles"]["allowed_roles"] == [
         "Observer",
+        "Researcher",
         "Reviewer",
     ]
     assert "rediscover_agentlab_by_full_repo_scan" in packet["forbidden_actions"]

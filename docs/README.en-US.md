@@ -39,13 +39,13 @@ AgentLab already has the long-project governance foundation from the P-series an
 
 Practical status: AgentLab is in the M-series alignment stage. Many S-series foundations are implemented, especially S7/S8, but M0/M1 acceptance should still be consolidated before moving to M2 and M3.
 
-## Current Baseline (2026-07-14)
+## Current Baseline (2026-07-15)
 
-- Branch: `main`, local working root: `Desktop/AgentLab`
-- Capability snapshot: `424b983` (role/capacity implementation), `b098513` (verified handoff)
-- Test baseline: `2663 passed, 24 skipped, 11 warnings` (full pytest)
-- Acceptance: `27 pass / 5 candidate`; canonical status remains `candidate`
-- CLI surface: 253 top-level commands
+- Branch: this governance revision; merge target `main`
+- Capability snapshot: dynamic runtime routing, governed CLI shells, and exact-or-null usage receipts
+- Test baseline: `2734 passed, 24 skipped, 11 warnings` (full pytest)
+- Acceptance: tracked private-workspace reports are historical evidence; clean-checkout aggregation depends on local run assets
+- CLI surface: discoverable via `./agentlab.sh --help`
 - Root project handoff: `./agentlab.sh repository-handoff --repo <path> --write` generates `PROJECT_HANDOFF.md`, `.agentlab/HandOff.md`, and the shared mirror
 
 ### Recent Updates
@@ -55,7 +55,7 @@ Practical status: AgentLab is in the M-series alignment stage. Many S-series fou
 - **CLI modularization**: worker, runtime hygiene, capability contract, routing, external project, protocol, and role capability subcommands were extracted from the monolithic CLI.
 - **Project artifact governance**: `project_artifact_index.yml`, per-project `PROJECT_HANDOFF.md`, and artifact stewardship gates for creative projects such as Crown_of_Ash.
 - **Role/capacity refresh**: `agy` is a read-only multimodal Observer/Reviewer; role-specific CLI contracts govern Writer, Supervisor, Researcher, and ArtifactProducer.
-- **Complete capability manual**: bilingual current-version reference for 14 roles, the 24-node lifecycle, media, ArtifactTask, capacity, cost, receipts, CLI, acceptance, and limits.
+- **Complete capability manual**: bilingual current-version reference for 15 roles, the 24-node lifecycle, media, ArtifactTask, capacity, cost, receipts, CLI, acceptance, and limits.
 
 ### Active Creative Projects (Local, Not on GitHub)
 
@@ -210,7 +210,7 @@ Safety posture:
 - P1/P2/S7/S8/S9/S10/S11/S12 acceptance artifacts.
 - Text integrity audit to catch compressed multiline files, broken markdown fences, private path leakage, and raw-file corruption.
 - `doctor` command for Python, bash syntax, py_compile, config parsing, directory layout, UI files, artifact contract, and API key readiness checks.
-- Current full baseline: `2663 passed, 24 skipped, 11 warnings`; Protocol Doctor `106/106`; Artifact Doctor `21/21`.
+- Current full baseline: `2734 passed, 24 skipped, 11 warnings`; Protocol Doctor `110/110`; Artifact Doctor `21/21`.
 
 See the [complete current-version reference](CURRENT_VERSION_CAPABILITIES.en-US.md) for role, model, lifecycle, production-chain, and limitation details.
 

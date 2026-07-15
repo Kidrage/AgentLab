@@ -49,16 +49,16 @@ Default design is local-first and approval-gated. Real external execution, skill
 
 ---
 
-## Current Baseline / 当前基线（2026-07-14）
+## Current Baseline / 当前基线（2026-07-15）
 
 | Item / 项 | Value / 值 |
 |---|---|
-| Branch / 分支 | `main` |
-| Local root / 本地根目录 | `Desktop/AgentLab` |
-| Capability snapshot / 能力快照 | `424b983` role/capacity implementation · `b098513` verified handoff |
-| Test baseline / 测试基线 | `2663 passed, 24 skipped, 11 warnings` (full pytest) |
-| Acceptance / 验收 | `27 pass / 5 candidate`; canonical status remains `candidate` |
-| CLI surface / CLI 命令面 | 253 top-level commands / 253 个顶层命令 |
+| Branch / 分支 | This governance revision; merge target `main` / 本治理修订，合并目标为 `main` |
+| Local root / 本地根目录 | Repository root / 仓库根目录 |
+| Capability snapshot / 能力快照 | Dynamic runtime routing, governed CLI shells, exact-or-null usage receipts / 动态运行时路由、受治理 CLI 壳、精确或空值用量回执 |
+| Test baseline / 测试基线 | `2734 passed, 24 skipped, 11 warnings` (full pytest) |
+| Acceptance / 验收 | Tracked private-workspace evidence remains historical; clean-checkout acceptance is evidence-dependent / 私有工作区证据仅作历史记录；干净克隆验收取决于本地证据 |
+| CLI surface / CLI 命令面 | Discoverable via `./agentlab.sh --help` / 以 `./agentlab.sh --help` 为准 |
 | Product stage / 产品阶段 | M-series alignment (M0/M1 consolidation before M2/M3) |
 
 ### Recent Updates / 近期更新
@@ -67,7 +67,7 @@ Default design is local-first and approval-gated. Real external execution, skill
 - **Domain-aware creative routing / 领域感知创作路由**：`config/domain_route_packs.yml` for longform fiction, research, codebase, and media tasks
 - **CLI modularization / CLI 模块化**：worker, hygiene, capability, routing, external project, protocol, and role capability commands extracted
 - **Repository handoff / 仓库级交接**：`./agentlab.sh repository-handoff --repo <path> --write` → `PROJECT_HANDOFF.md`
-- **Role/capacity refresh / 角色与容量更新**：`agy` is a read-only multimodal Observer/Reviewer; Writer, Supervisor, Researcher, and ArtifactProducer use governed role-specific CLI contracts and capacity routes
+- **Role/capacity refresh / 角色与容量更新**：`agy` is a read-only multimodal Observer/Reviewer; Writer, Supervisor, Researcher, and ArtifactProducer use governed role contracts plus checkpoint-only runtime route selection
 - **Complete capability manual / 完整能力手册**：roles, models, 24-node lifecycle, production packs, media, ArtifactTask, capacity, pricing, receipts, safety, CLI, acceptance, and limits in English and Chinese
 - **Creative project governance / 创作项目治理**：`project_artifact_index.yml`, per-project handoff, artifact stewardship gates
 
@@ -122,26 +122,33 @@ Practical status: M-series alignment stage. Consolidate M0/M1 acceptance before 
 
 ---
 
-## 14-Role Operating Model / 14 角色运行模型
+## 15-Role Operating Model / 15 角色运行模型
 
 ```text
 T1 Brain / 大脑层:       Supervisor
 T2 Context / 上下文层:   RepoScout, Researcher, Observer, InterfaceMapper, PromptEngineer
-T3 Production / 生产层:  Coder, ArtifactProducer, Writer
+T3 Production / 生产层:  Coder, ArtifactProducer, Writer, NarrativePlanner
 T4 Review / 审核层:      Reviewer, Scribe, TesterAuditor, Verifier
 T5 Archive / 归档层:     Archivist
 ```
 
-Current anchors / 当前锚点：Hermes + GPT-5.6 Sol (`xhigh`) for Supervisor;
-Agy Gemini/Claude OAuth pools for read-only Observer/visual Reviewer; Claude
-Code + DeepSeek for Writer; Hermes+xAI/Grok for sourced Researcher and
-image/video ArtifactProducer. Agy is never Coder, Writer, or ArtifactProducer.
+Current anchors / 当前锚点：Hermes JSON-RPC + Codex GPT-5.5 (`high`) for
+Supervisor; Agy/Gemini OAuth for Researcher, read-only Observer, and visual
+Reviewer; Claude Code + DeepSeek for code, text production, review, ledgers,
+and NarrativePlanner. Bailian/Ark own approval-gated media generation. Grok is
+registered but quarantined from automatic routing.
+
+Full CLI model selection is compiled from `config/runtime_registry.yml`,
+`config/routing_policy.yml`, and the numeric authority
+`config/model_pricing.yml`. Presets are quality floors, not fixed model
+matrices. Failed provider attempts are recorded and reconsidered only at a
+completed checkpoint; the compatibility matrix is never an execution fallback.
 
 Budget modes / 预算模式: `brain_allocated` (default), `max_quality`, `frugal`
 
 Route profiles / 路由配置: code factory routes (`small_task`, `medium_task`, `interface_sensitive_task`, `research_sensitive_task`, `large_or_risky_task`) plus governed production-pack routes such as `narrative_light_chapter`, `narrative_batch_chapters`, `narrative_heavy_audit`, `article_light_draft`, and `media_generation_task`.
 
-Config / 配置：`config/agent_registry.yml`, `config/model_catalog.yml`, `config/domain_route_packs.yml`, `OPERATING_MODEL.md`
+Config / 配置：`config/agent_registry.yml`, `config/runtime_registry.yml`, `config/routing_policy.yml`, `config/model_pricing.yml`, `config/domain_route_packs.yml`, `OPERATING_MODEL.md`
 
 ---
 
@@ -275,6 +282,7 @@ Auto-push via post-commit hook. Check `git status` before committing — never s
 
 | Version | Date | Changes |
 |---|---|---|
+| **3.2** | 2026-07-15 | Quality-floor-first runtime routing; checkpoint-only provider switching; fresh OAuth quota gates; Hermes JSON-RPC binding and exact-or-null usage; single pricing authority; NarrativePlanner; Qwen tier separation; shell bypass hardening / 质量门槛优先动态路由；仅检查点切换；OAuth 配额门；Hermes 身份与用量回执；单一定价权威；NarrativePlanner；Qwen 分层；CLI 旁路加固 |
 | **3.1** | 2026-07-14 | Governed role/model overhaul; Agy Observer/visual Reviewer; Claude+DeepSeek Writer and explicit Ultracode; Hermes+GPT-5.6 Sol Supervisor; Grok research/media; ArtifactTask; capacity/pricing/receipt closure; full bilingual capability manual / 角色模型治理升级；完整双语能力手册 |
 | **3.0** | 2026-06-29 | M-series alignment README refresh; media generation routing; domain-aware creative writing routes; CLI modularization; root `PROJECT_HANDOFF.md`; repository handoff command; three-end sync docs; creative project governance / M 系列对齐 README 刷新；媒体生成路由；领域感知创作路由；CLI 模块化；根级项目交接；三端同步文档；创作项目治理 |
 | 2.3 | 2026-06-06 | Task snapshot, memory writer, artifact gate tests, Web UI refactor |

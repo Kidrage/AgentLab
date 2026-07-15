@@ -5,6 +5,7 @@ pydantic
 pyyaml
 typer
 rich
+websocket-client>=1.8,<2
 # LangGraph backend (optional, for `run-pipeline`)
 langgraph>=1.2,<2.0
 langgraph-checkpoint>=4.1,<5.0

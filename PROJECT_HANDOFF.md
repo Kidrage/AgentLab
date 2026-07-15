@@ -5,16 +5,16 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-de62d90289e0`
-- Working root: `/Users/saintpeter/Desktop/AgentLab`
+- Repository ID: `AgentLab-industrial-runtime-governance-de62d90289e0`
+- Working root: `/Users/saintpeter/Desktop/AgentLab-industrial-runtime-governance`
 - Git repository: `true`
-- Generated at: `2026-07-14T15:11:12.322507+00:00`
+- Generated at: `2026-07-15T19:12:59.068516+00:00`
 
 ## Current State
 
-- Branch: `feature/agent-role-capacity-overhaul`
-- HEAD: `2ee2716`
-- Indexed paths: 1787
+- Branch: `codex/industrial-runtime-governance`
+- HEAD: `7b4a927`
+- Indexed paths: 1804
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -42,11 +42,11 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 521 |
-| `tests` | 439 |
+| `agent_runtime` | 528 |
+| `tests` | 446 |
 | `acceptance_runs` | 318 |
 | `docs` | 215 |
-| `config` | 142 |
+| `config` | 144 |
 | `docs/archive` | 126 |
 | `tests/fixtures` | 110 |
 | `acceptance_runs/agentlab_capability_acceptance` | 62 |
@@ -54,7 +54,7 @@
 | `skills` | 49 |
 | `skills/active` | 48 |
 | `acceptance_runs/s10_generalization_eval` | 32 |
-| `agent_templates` | 27 |
+| `agent_templates` | 28 |
 | `scripts` | 24 |
 | `agent_runtime/program_manager` | 21 |
 | `agent_runtime/recovery` | 21 |
@@ -80,23 +80,23 @@
 | `acceptance_runs/s0_remote_raw_repair` | 10 |
 | `agent_runtime/intelligence` | 10 |
 | `agent_runtime/router_update` | 10 |
+| `agent_runtime/routing` | 10 |
 | `agent_templates/codex_full_driver` | 10 |
-| `acceptance_runs/s12_productization` | 9 |
 
 ## Data and File Structure
 
 ### Categories
 
-- code: 899 files, 7234781 bytes
-- literature: 359 files, 1999738 bytes
+- code: 913 files, 7408848 bytes
+- literature: 360 files, 2004856 bytes
 - other: 12 files, 77231 bytes
-- structured_data: 517 files, 2064026 bytes
+- structured_data: 519 files, 2092601 bytes
 
 ### Common Extensions
 
-- `.py`: 886
-- `.yml`: 497
-- `.md`: 320
+- `.py`: 900
+- `.yml`: 499
+- `.md`: 321
 - `.txt`: 39
 - `.json`: 15
 - `.sh`: 8
@@ -167,6 +167,7 @@
 - `agent_runtime/ingestion/ingestion_contract.py`
 - `agent_runtime/langgraph_schema.py`
 - `agent_runtime/migration_doctor.py`
+- `agent_runtime/model_adapters.py`
 - `agent_runtime/model_capacity.py`
 - `agent_runtime/model_resolver.py`
 - `agent_runtime/observation_contract.py`
@@ -192,7 +193,6 @@
 - `config/hermes_brain_model_groups.yml`
 - `config/migration_profile.yml`
 - `config/model_capacity.yml`
-- `config/model_catalog.yml`
 
 ## Key Entrypoints and Guides
 
@@ -212,6 +212,7 @@
 
 ## Change History
 
+- `7b4a927 2026-07-14 docs: refresh capability reference handoff`
 - `2ee2716 2026-07-14 docs: publish current AgentLab capability reference`
 - `b098513 2026-07-14 docs: refresh AgentLab role overhaul handoff`
 - `424b983 2026-07-14 feat: govern agent roles and model capacity`
@@ -231,39 +232,104 @@
 - `2edbbcb 2026-07-12 fix: normalize known candidate scope categories`
 - `520e028 2026-07-12 fix: bound Writer transport and contract retries`
 - `3aba51a 2026-07-12 fix: enforce candidate scope on copied event types`
-- `91a4f5e 2026-07-12 fix: make Writer four-file output contract unambiguous`
 
 ## Current Changes
 
-- `## feature/agent-role-capacity-overhaul`
-- ` M PROJECT_HANDOFF.md`
-- ` M acceptance_runs/agentlab_capability_acceptance/current.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_operator_handoff.yml`
+- `## codex/industrial-runtime-governance`
+- ` M AGENTS.md`
+- ` M README.md`
+- ` M agent_runtime/agent_role_chain_audit.py`
 - ` M agent_runtime/agent_runner.py`
+- ` M agent_runtime/brain/media_generation_router.py`
+- ` M agent_runtime/cli/models.py`
 - ` M agent_runtime/cli_executor.py`
-- ` M agent_runtime/narrative_heavy_audit.py`
-- ` M agent_runtime/revision_governance.py`
-- ` M agent_runtime/skill_evolution.py`
+- ` M agent_runtime/config_center/loader.py`
+- ` M agent_runtime/config_loader.py`
+- ` M agent_runtime/costing/usage.py`
+- ` M agent_runtime/frontdesk_boundary_audit.py`
+- ` M agent_runtime/grok_cli_smoke.py`
+- ` M agent_runtime/media_backend_adapter.py`
+- ` M agent_runtime/model_capacity.py`
+- ` M agent_runtime/model_resolver.py`
+- ` M agent_runtime/pipeline_runner.py`
+- ` M agent_runtime/protocols/artifact_task.py`
+- ` M agent_runtime/protocols/enforcement.py`
+- ` M agent_runtime/requirements.txt`
+- ` M agent_runtime/run_task.py`
+- ` M agent_runtime/schemas.py`
+- ` M agent_runtime/workers/cli_command_policy.py`
+- ` M config/agent_model_profiles.yml`
+- ` M config/agent_registry.yml`
+- ` M config/agent_role_bindings.yml`
+- ` M config/agent_role_requirements.yml`
+- ` M config/artifact_task_policy.yml`
+- ` M config/cli_entrypoint_policy.yml`
 - ` M config/cli_workflow_shells.yml`
-- ` M config/routing_rules.yml`
+- ` M config/execution_policy.yml`
+- ` M config/frontdesk_policy.yml`
+- ` M config/hermes_brain_model_groups.yml`
+- ` M config/media_generation_backends.yml`
+- ` M config/model_capacity.yml`
+- ` M config/model_catalog.yml`
+- ` M config/model_pricing.yml`
+- ` M config/model_providers.yml`
+- ` M config/role_assignment_policy.yml`
+- ` M config/routing_policy.yml`
 - ` M config/runtime_cli_requirements.yml`
 - ` M config/shared_agent_directory.yml`
+- ` M config/worker_capability_defaults.yml`
 - ` M config/worker_invocation_contracts.yml`
+- ` M docs/AGENTLAB_CAPABILITY_ACCEPTANCE_MATRIX.md`
+- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
+- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
 - ` M docs/AGENTLAB_OPERATING_LOGIC.zh-CN.md`
-- ` M skills/active/skill_agentlab_narrative_chapter_writer_lite/usage_ledger.yml`
-- ` M skills/registry.yml`
+- ` M docs/ARTIFACT_PRODUCER_PROTOCOL.md`
+- ` M docs/CURRENT_VERSION_CAPABILITIES.en-US.md`
+- ` M docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md`
+- ` M docs/README.en-US.md`
+- ` M docs/README.zh-CN.md`
+- ` M requirements.txt`
+- ` M scripts/generate_agent_cli_matrix.py`
+- ` M tests/test_agent_cli_matrix.py`
+- ` M tests/test_agent_role_chain_audit.py`
 - ` M tests/test_agent_runner_cli_integration.py`
+- ` M tests/test_artifact_task_protocol.py`
+- ` M tests/test_cli_agent_profile_safety.py`
 - ` M tests/test_cli_executor.py`
+- ` M tests/test_cli_shell_coalescing.py`
+- ` M tests/test_cli_shell_coalescing_runner.py`
 - ` M tests/test_execution_config_consolidation.py`
+- ` M tests/test_frontdesk_boundary_audit.py`
+- ` M tests/test_grok_cli_smoke.py`
+- ` M tests/test_m1_mission_compiler_v2.py`
+- ` M tests/test_m2_role_assignment_router.py`
+- ` M tests/test_m2_worker_governance.py`
+- ` M tests/test_media_backend_adapter.py`
+- ` M tests/test_model_capacity.py`
 - ` M tests/test_models_and_governance_cli.py`
-- ` M tests/test_narrative_heavy_audit_materializer.py`
-- ` M tests/test_skill_evolution_scaffold.py`
+- ` M tests/test_production_pack_role_session_request.py`
+- ` M tests/test_project_artifact_steward.py`
+- ` M tests/test_protocol_enforcement.py`
+- ` M tests/test_qwen_artifact_adapter.py`
+- ` M tests/test_visual_acceptance.py`
+- ` M tests/test_visual_acceptance_workflow.py`
+- `?? agent_runtime/costing/catalog.py`
+- `?? agent_runtime/hermes_rpc.py`
+- `?? agent_runtime/model_adapters.py`
+- `?? agent_runtime/quota_probes.py`
+- `?? agent_runtime/routing/dynamic_selector.py`
+- `?? agent_runtime/runtime_registry.py`
+- `?? agent_runtime/shell_governance.py`
+- `?? agent_templates/narrative_planner.md`
+- `?? config/pricing_catalog.yml`
+- `?? config/runtime_registry.yml`
+- `?? tests/test_dynamic_model_routing.py`
+- `?? tests/test_hermes_rpc.py`
+- `?? tests/test_model_adapters.py`
+- `?? tests/test_pricing_catalog.py`
+- `?? tests/test_quota_probes.py`
+- `?? tests/test_runtime_registry.py`
+- `?? tests/test_shell_governance.py`
 
 ## Related Repositories
 

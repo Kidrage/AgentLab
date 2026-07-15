@@ -31,6 +31,7 @@ AGENTLAB_ROLES = [
     "TesterAuditor",
     "Verifier",
     "Archivist",
+    "NarrativePlanner",
 ]
 
 CORE_CONFIG_PATHS = {

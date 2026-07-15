@@ -43,6 +43,9 @@ def _copy_config_root(tmp_path: Path) -> Path:
         "visual_acceptance.yml",
         "frontdesk_policy.yml",
         "content_project_governance.yml",
+        "runtime_registry.yml",
+        "routing_policy.yml",
+        "pricing_catalog.yml",
     ]:
         shutil.copy(ROOT / "config" / name, root / "config" / name)
     return root
@@ -71,10 +74,174 @@ def test_models_show_lists_observer_supervisor_and_grok_research_routes():
     assert "agy" in observer.output
     assert "gemini_3_5_flash_high_agy_oauth" in observer.output
     assert supervisor.exit_code == 0
-    assert "codex_gpt_5_6_sol_xhigh_hermes_oauth" in supervisor.output
+    assert "codex_gpt_5_5_high_hermes_oauth" in supervisor.output
     assert researcher.exit_code == 0
-    assert "grok" in researcher.output
-    assert "grok_4_3_hermes_oauth" in researcher.output
+    assert "agy" in researcher.output
+    assert "gemini_3_5_flash_high_agy_oauth" in researcher.output
+    assert "grok_4_3_oauth_quarantined" not in researcher.output
+
+
+def test_models_matrix_uses_normalized_runtime_identity():
+    result = runner.invoke(app, ["models", "matrix", "--role", "Supervisor"])
+
+    assert result.exit_code == 0
+    assert "supervisor_codex" in result.output
+    assert "json_rpc_ws" in result.output
+    assert "openai_codex_oauth" in result.output
+    assert "codex_gpt_5_5_high_hermes_oauth" in result.output
+
+
+def test_models_route_explain_reports_quality_then_cost_decision():
+    result = runner.invoke(
+        app,
+        [
+            "models",
+            "route-explain",
+            "--role",
+            "Writer",
+            "--mode",
+            "balanced",
+            "--input-tokens",
+            "10000",
+            "--output-tokens",
+            "2000",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = yaml.safe_load(result.output)
+    assert payload["status"] == "selected"
+    assert payload["route_id"] == "writer_pro"
+    assert payload["selection_policy"] == (
+        "hard_filters_then_quality_floor_then_min_effective_cost"
+    )
+    assert payload["identity"]["shell_id"] == "claude"
+    assert payload["cost"]["native_currency"] == "USD"
+    assert payload["cost"]["cny_amount"] > 0
+
+
+def test_models_route_explain_uses_runtime_staleness_rules(tmp_path):
+    from agent_runtime.cli.models import register_model_commands
+    import typer
+    from rich.console import Console
+
+    root = _copy_config_root(tmp_path)
+    ledger = root / "runs" / "stale" / "model_capacity_ledger.yml"
+    _write_yaml(
+        ledger,
+        {
+            "pools": {
+                "openai_codex_agentic": {
+                    "status": "closed",
+                    "remaining_percent": 80.0,
+                    "quota_observed_at": "2026-07-15T00:00:00Z",
+                    "quota_stale_at": "2026-07-15T00:10:00Z",
+                }
+            }
+        },
+    )
+    local_app = typer.Typer()
+    register_model_commands(local_app, root, Console(width=120))
+
+    result = runner.invoke(
+        local_app,
+        [
+            "models",
+            "route-explain",
+            "--role",
+            "Supervisor",
+            "--mode",
+            "full",
+            "--long-batch",
+            "--quota-ledger",
+            str(ledger),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = yaml.safe_load(result.output)
+    assert payload["route_id"] == "supervisor_deepseek"
+    assert any(
+        item["route_id"] == "supervisor_codex"
+        and item["reason"] == "quota_telemetry_degraded_for_long_batch"
+        for item in payload["rejected_routes"]
+    )
+
+
+def test_models_quota_persists_only_normalized_probe_data(
+    tmp_path,
+    monkeypatch,
+):
+    from agent_runtime.cli.models import register_model_commands
+    import typer
+    from rich.console import Console
+
+    root = _copy_config_root(tmp_path)
+    run_dir = root / "runs" / "quota"
+    run_dir.mkdir(parents=True)
+    local_app = typer.Typer()
+    register_model_commands(local_app, root, Console(width=120))
+    monkeypatch.setattr(
+        "agent_runtime.quota_probes.run_interactive_probe",
+        lambda _spec: {
+            "returncode": 0,
+            "output": "5-hour window: 96% used, resets in 1h 30m",
+        },
+    )
+
+    result = runner.invoke(
+        local_app,
+        [
+            "models",
+            "quota",
+            "--pool",
+            "agy_gemini_observer",
+            "--run-dir",
+            str(run_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = yaml.safe_load(result.output)
+    assert payload["remaining_percent"] == 4.0
+    assert payload["status"] == "waiting_for_quota"
+    ledger_text = (run_dir / "model_capacity_ledger.yml").read_text(encoding="utf-8")
+    assert "96% used" not in ledger_text
+
+
+def test_models_receipt_summarizes_run_local_usage_receipts(tmp_path):
+    from agent_runtime.cli.models import register_model_commands
+    import typer
+    from rich.console import Console
+
+    root = _copy_config_root(tmp_path)
+    run_dir = root / "runs" / "receipt"
+    run_dir.mkdir(parents=True)
+    _write_yaml(
+        run_dir / "usage_receipt_writer.yml",
+        {
+            "usage_receipt": {
+                "route_id": "writer_pro",
+                "input_tokens": 100,
+                "output_tokens": 20,
+                "cost_cny": 0.001,
+                "billing_mode": "api_metered",
+            }
+        },
+    )
+    local_app = typer.Typer()
+    register_model_commands(local_app, root, Console(width=120))
+
+    result = runner.invoke(
+        local_app,
+        ["models", "receipt", "--run-dir", str(run_dir)],
+    )
+
+    assert result.exit_code == 0
+    payload = yaml.safe_load(result.output)
+    assert payload["receipt_count"] == 1
+    assert payload["receipts"][0]["route_id"] == "writer_pro"
+    assert payload["unavailable_cost_count"] == 0
 
 
 def test_models_capacity_keeps_unobserved_remaining_and_reset_null():
@@ -95,7 +262,7 @@ def test_models_capacity_keeps_unobserved_remaining_and_reset_null():
         assert row["reset_at"] is None
 
 
-def test_model_proposal_round_trip_on_temp_root(tmp_path):
+def test_model_proposal_refuses_dynamic_full_cli_compatibility_view(tmp_path):
     from agent_runtime.cli.models import _proposal_dir, register_model_commands
     import typer
     from rich.console import Console
@@ -108,23 +275,11 @@ def test_model_proposal_round_trip_on_temp_root(tmp_path):
         local_app,
         ["models", "propose", "--role", "Writer", "--cli", "claude_code", "--model", "deepseek_v4_flash"],
     )
-    assert proposed.exit_code == 0
-    data = yaml.safe_load(proposed.output)
-    proposal_id = data["proposal_id"]
+    assert proposed.exit_code == 1
+    assert "cannot mutate the generated full_cli compatibility view" in proposed.output
     profiles_before = (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
-    assert (_proposal_dir(root) / f"{proposal_id}.yml").exists()
+    assert list(_proposal_dir(root).glob("*.yml")) == []
     assert (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8") == profiles_before
-
-    applied = runner.invoke(local_app, ["models", "apply", "--proposal", proposal_id])
-    assert applied.exit_code == 0
-    proposal = yaml.safe_load((_proposal_dir(root) / f"{proposal_id}.yml").read_text(encoding="utf-8"))
-    assert proposal["status"] == "applied"
-    profiles = yaml.safe_load(
-        (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
-    )
-    writer = profiles["modes"][profiles["default_mode"]]["tiers"]["performance"]["writer"]
-    assert writer["invocation_contract"] == "claude_writer"
-    assert writer["capacity_route"] == "WriterFlash"
 
 
 def test_model_proposal_rejects_forbidden_worker_and_contract_model_drift(tmp_path):
@@ -170,7 +325,7 @@ def test_model_proposal_rejects_forbidden_worker_and_contract_model_drift(tmp_pa
     assert list(_proposal_dir(root).glob("*.yml")) == []
 
 
-def test_model_apply_revalidates_proposal_binding_before_mutation(tmp_path):
+def test_model_apply_rejects_stale_proposal_in_dynamic_full_cli(tmp_path):
     from agent_runtime.cli.models import _proposal_dir, register_model_commands
     import typer
     from rich.console import Console
@@ -178,21 +333,27 @@ def test_model_apply_revalidates_proposal_binding_before_mutation(tmp_path):
     root = _copy_config_root(tmp_path)
     local_app = typer.Typer()
     register_model_commands(local_app, root, Console(width=120))
-    proposed = runner.invoke(
-        local_app,
-        ["models", "propose", "--role", "Writer", "--cli", "claude_code", "--model", "deepseek_v4_flash"],
-    )
-    proposal_id = yaml.safe_load(proposed.output)["proposal_id"]
+    proposal_id = "model_stale_dynamic"
     path = _proposal_dir(root) / f"{proposal_id}.yml"
-    proposal = yaml.safe_load(path.read_text(encoding="utf-8"))
-    proposal["cli_agent"] = "agy"
-    _write_yaml(path, proposal)
+    _write_yaml(
+        path,
+        {
+            "proposal_id": proposal_id,
+            "status": "pending",
+            "role": "writer",
+            "tier": "performance",
+            "cli_agent": "claude_code",
+            "model": "deepseek_v4_flash",
+            "invocation_contract": "claude_writer",
+            "capacity_route": "WriterFlash",
+        },
+    )
     profiles_before = (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
 
     applied = runner.invoke(local_app, ["models", "apply", "--proposal", proposal_id])
 
     assert applied.exit_code == 1
-    assert "Proposal no longer matches governed routing" in applied.output
+    assert "Refusing to apply a fixed-model proposal to dynamic full_cli" in applied.output
     assert (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8") == profiles_before
 
 
@@ -263,6 +424,27 @@ def test_models_doctor_rejects_static_capacity_values_and_cooldown_guesses(tmp_p
 
     assert "static_capacity_value_must_be_unknown" in names
     assert "static_exhaustion_cooldown_forbidden" in names
+
+
+def test_models_doctor_rejects_runtime_registry_drift_and_shell_bypass(tmp_path):
+    from agent_runtime.cli.models import _doctor_issues
+
+    root = _copy_config_root(tmp_path)
+    registry_path = root / "config" / "runtime_registry.yml"
+    registry = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+    registry["routes"]["writer_pro"]["identity"]["model_id"] = "missing-model"
+    _write_yaml(registry_path, registry)
+    contracts_path = root / "config" / "worker_invocation_contracts.yml"
+    contracts = yaml.safe_load(contracts_path.read_text(encoding="utf-8"))
+    contracts["contracts"]["claude_writer"]["template"] += (
+        " --dangerously-skip-permissions"
+    )
+    _write_yaml(contracts_path, contracts)
+
+    names = {issue["issue"] for issue in _doctor_issues(root)}
+
+    assert "runtime_registry:unknown_reference" in names
+    assert "production_shell_bypass_forbidden" in names
 
 
 def test_models_doctor_rejects_route_contract_and_model_pool_drift(tmp_path):
@@ -392,13 +574,15 @@ def test_recommended_brain_topology_and_model_facts_match_current_roles():
     )
     chain = groups["brain_layouts"]["recommended"]["brain_chain"]
     assert chain == {
-        "supervisor": "codex_gpt_5_6_sol_xhigh_hermes_oauth",
+        "supervisor": "codex_gpt_5_5_high_hermes_oauth",
         "writer": "deepseek_v4_pro",
         "multimodal_observer": "gemini_3_5_flash_high_agy_oauth",
         "observer_fallback": "claude_sonnet_4_6_agy_oauth",
-        "social_web_research": "grok_4_3_hermes_oauth",
-        "artifact_producer": "grok_4_3_hermes_oauth",
-        "independent_verifier": "deepseek_v4_flash",
+        "researcher": "gemini_3_5_flash_high_agy_oauth",
+        "artifact_producer": "deepseek_v4_pro",
+        "independent_reviewer": "deepseek_v4_pro",
+        "independent_verifier": "deepseek_v4_pro",
+        "visual_review_fallback": "qwen3_7_max_dashscope",
     }
 
     catalog = yaml.safe_load(
@@ -412,12 +596,18 @@ def test_recommended_brain_topology_and_model_facts_match_current_roles():
         assert set((layout.get("brain_chain") or {}).values()) <= catalog_keys
 
     grok = groups["providers"]["grok_xai"]
-    assert grok["role"] == "social_web_research_and_registered_media_tool_orchestration"
+    assert grok["role"] == "quarantined_optional_provider"
+    assert grok["status"] == "quarantined"
+    assert grok["automatic_use"] is False
     assert grok["direct_media_generation"] is False
     assert grok["audio_generation"] is False
     assert "registered_image_tool_orchestration" in grok["strengths"]
     assert "registered_video_tool_orchestration" in grok["strengths"]
     assert "image_generation" not in grok["strengths"]
+
+    qwen = groups["providers"]["qwen"]
+    assert qwen["multimodal"] is True
+    assert qwen["selection_rule"] == "choose_the_lowest_cost_model_that_meets_the_task_quality_floor"
 
     assert "context_window" not in catalog["models"]["grok_4_3_hermes_oauth"]
 

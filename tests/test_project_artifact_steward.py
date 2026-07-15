@@ -568,7 +568,7 @@ class ProjectArtifactStewardTests(TestCase):
                                 "role": "Verifier",
                                 "id": "codex-verifier",
                                 "backend": "hermes_codex_oauth",
-                                "model": "gpt-5.6-sol",
+                                "model": "gpt-5.5",
                             },
                             "status": "complete",
                             "asset": {
@@ -649,7 +649,7 @@ class ProjectArtifactStewardTests(TestCase):
                             "dimensions": {name: {"verdict": "pass", "evidence": ["ok"]} for name in ("aesthetic", "continuity", "technical", "factual_safety")},
                         },
                         {
-                            "reviewer": {"role": "Verifier", "id": "verifier", "backend": "hermes", "model": "gpt-5.6-sol"},
+                            "reviewer": {"role": "Verifier", "id": "verifier", "backend": "hermes", "model": "gpt-5.5"},
                             "status": "complete",
                             "asset": {"path": "artifacts/poster.png", "sha256": digest, "size_bytes": size_bytes},
                             "checks": {name: {"verdict": "pass", "evidence": ["ok"]} for name in ("asset_integrity", "evidence_chain", "reviewer_independence", "promotion_boundary")},

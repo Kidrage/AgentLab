@@ -7,7 +7,7 @@ roles:
   InterfaceMapper:
     candidates: [ast_grep, claude_code, codex]
   Researcher:
-    candidates: [grok, bl, claude_code, qwen, hermes]
+    candidates: [agy, claude_code, qwen, hermes, bl]
   Observer:
     candidates: [agy]
   PromptEngineer:
@@ -15,8 +15,10 @@ roles:
   Coder:
     candidates: [claude_code, codex, aider, hermes]
   ArtifactProducer:
-    candidates: [grok, codex, qwen]
+    candidates: [claude_code, qwen, grok, codex]
   Writer:
+    candidates: [claude_code]
+  NarrativePlanner:
     candidates: [claude_code]
   Reviewer:
     candidates: [qwen, agy, claude_code]

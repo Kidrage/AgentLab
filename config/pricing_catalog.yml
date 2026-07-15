@@ -1,0 +1,98 @@
+schema_version: 1
+version: "2026-07-15.2"
+authority:
+  purpose: runtime_projection_and_fx
+  numeric_source: config/model_pricing.yml
+  numeric_values_materialized_at_load: true
+  duplicate_numeric_pricing_forbidden: true
+  preserves_native_currency: true
+  shell_has_independent_model_cost: false
+  historical_fx_snapshots_immutable: true
+
+active_fx_version: "2026-07-15-operational"
+fx_snapshots:
+  "2026-07-15-operational":
+    source_kind: operator_managed_planning_rate
+    captured_at: "2026-07-15T00:00:00Z"
+    rates_to_cny:
+      CNY: 1.0
+      USD: 7.2
+
+billing_modes:
+  api_metered:
+    marginal_cash_from_provider_units: true
+  api_free_tier:
+    marginal_cash_zero_until_quota_exhaustion: true
+    quota_probe_required_for_long_batch: true
+  oauth_subscription:
+    marginal_cash_zero: true
+    quota_probe_required_for_long_batch: true
+  shell_only:
+    marginal_cash_zero: true
+    backend_model_owns_billing: true
+
+models:
+  codex_gpt_5_5_high_hermes_oauth:
+    provider_id: openai_codex_oauth
+    provider_model_id: gpt-5.5
+    billing_mode: oauth_subscription
+    currency: CNY
+    source_kind: subscription_quota
+
+  deepseek_v4_pro:
+    provider_id: deepseek_api
+    provider_model_id: deepseek-v4-pro
+    billing_mode: api_metered
+    source_ref: config/model_pricing.yml#deepseek-v4-pro
+
+  deepseek_v4_flash:
+    provider_id: deepseek_api
+    provider_model_id: deepseek-v4-flash
+    billing_mode: api_metered
+    source_ref: config/model_pricing.yml#deepseek-v4-flash
+
+  gemini_3_5_flash_high_agy_oauth:
+    provider_id: agy_gemini_oauth
+    provider_model_id: gemini-3.5-flash-high
+    billing_mode: oauth_subscription
+    currency: CNY
+    source_kind: subscription_quota
+
+  claude_sonnet_4_6_agy_oauth:
+    provider_id: agy_claude_oauth
+    provider_model_id: claude-sonnet-4-6
+    billing_mode: oauth_subscription
+    currency: CNY
+    source_kind: subscription_quota
+
+  gemini_2_5_flash_high_api_free:
+    provider_id: gemini_api_free
+    provider_model_id: gemini-2.5-flash
+    billing_mode: api_free_tier
+    currency: CNY
+    source_kind: provider_free_tier
+
+  qwen3_7_max_dashscope:
+    provider_id: dashscope_api
+    provider_model_id: qwen3.7-max
+    billing_mode: api_metered
+    source_ref: config/model_pricing.yml#qwen3.7-max
+
+  qwen3_6_plus_dashscope:
+    provider_id: dashscope_api
+    provider_model_id: qwen3.6-plus
+    billing_mode: api_metered
+    source_ref: config/model_pricing.yml#qwen3.6-plus
+
+  qwen3_6_flash_dashscope:
+    provider_id: dashscope_api
+    provider_model_id: qwen3.6-flash
+    billing_mode: api_metered
+    source_ref: config/model_pricing.yml#qwen3.6-flash
+
+  grok_4_3_oauth_quarantined:
+    provider_id: xai_oauth
+    provider_model_id: grok-4.3
+    billing_mode: oauth_subscription
+    currency: CNY
+    source_kind: subscription_quota

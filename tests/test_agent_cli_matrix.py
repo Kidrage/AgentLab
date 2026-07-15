@@ -24,48 +24,48 @@ def test_matrix_references_are_valid_and_full_cli_full_matches_required_defaults
     rows = {(row["tier"], row["profile_key"]): row for row in full_cli}
 
     assert rows[("full", "supervisor")]["cli_agent"] == "hermes"
-    assert rows[("full", "supervisor")]["model_key"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
-    assert rows[("full", "supervisor")]["capacity_route"] == "Supervisor"
-    assert rows[("full", "supervisor")]["fallback_routes"] == "SupervisorDeepSeek"
-    assert rows[("full", "supervisor")]["fallback_cli_agent"] == "claude_code"
-    assert rows[("full", "supervisor")]["fallback_model_key"] == "deepseek_v4_pro"
+    assert rows[("full", "supervisor")]["model_key"] == "codex_gpt_5_5_high_hermes_oauth"
+    assert rows[("full", "supervisor")]["runtime_route_id"] == "supervisor_codex"
+    assert rows[("full", "supervisor")]["checkpoint_candidates"] == "supervisor_deepseek"
+    assert rows[("full", "supervisor")]["capacity_route"] == ""
+    assert rows[("full", "supervisor")]["fallback_routes"] == ""
     assert rows[("full", "observer")]["cli_agent"] == "agy"
     assert rows[("full", "observer")]["model_key"] == "gemini_3_5_flash_high_agy_oauth"
-    assert rows[("full", "observer")]["capacity_route"] == "Observer"
-    assert rows[("full", "observer")]["fallback_routes"] == "ObserverClaude"
-    assert rows[("full", "observer")]["fallback_cli_agent"] == "agy"
-    assert rows[("full", "observer")]["fallback_model_key"] == "claude_sonnet_4_6_agy_oauth"
+    assert rows[("full", "observer")]["runtime_route_id"] == "observer_gemini"
+    assert rows[("full", "observer")]["checkpoint_candidates"] == "observer_claude"
     assert rows[("full", "writer")]["cli_agent"] == "claude_code"
     assert rows[("full", "writer")]["model_key"] == "deepseek_v4_pro"
-    assert rows[("full", "writer")]["capacity_route"] == "Writer"
-    assert rows[("full", "writer")]["fallback_routes"] == "WriterFlash"
-    assert rows[("full", "writer")]["fallback_cli_agent"] == "claude_code"
-    assert rows[("full", "writer")]["fallback_model_key"] == "deepseek_v4_flash"
-    assert rows[("full", "researcher")]["cli_agent"] == "grok"
-    assert rows[("full", "artifact_producer")]["invocation_contract"] == "grok_media"
+    assert rows[("full", "writer")]["runtime_route_id"] == "writer_pro"
+    assert rows[("full", "writer")]["checkpoint_candidates"] == "writer_flash"
+    assert rows[("full", "researcher")]["cli_agent"] == "agy"
+    assert rows[("full", "researcher")]["model_key"] == "gemini_3_5_flash_high_agy_oauth"
+    assert rows[("full", "artifact_producer")]["cli_agent"] == "claude_code"
+    assert rows[("full", "artifact_producer")]["invocation_contract"] == "claude"
     assert rows[("full", "artifact_producer")]["artifact_types"] == (
         "text | image | video | audio | spreadsheet | presentation | mixed"
     )
     artifact_dispatch = rows[("full", "artifact_producer")]["artifact_dispatch"]
     assert (
         "text|spreadsheet|presentation=>"
-        "qwen_cli/qwen/qwen_artifact/ArtifactProducerQwenMax"
+        "claude_deepseek/claude_code/claude/deepseek_api"
     ) in artifact_dispatch
-    assert "image|video=>grok_media/grok/grok_media/ArtifactProducer" in artifact_dispatch
-    assert "audio|mixed=>unsupported" in artifact_dispatch
-    assert "ArtifactProducerQwenLow" in rows[("low", "artifact_producer")][
+    assert "image|video|audio|mixed=>unsupported" in artifact_dispatch
+    assert "deepseek_api" in rows[("low", "artifact_producer")][
         "artifact_dispatch"
     ]
     for tier in ("full", "performance", "low"):
-        assert rows[(tier, "reviewer")]["cli_agent"] == "qwen"
+        assert rows[(tier, "reviewer")]["cli_agent"] == "claude_code"
         assert rows[(tier, "visual_reviewer")]["cli_agent"] == "agy"
         assert rows[(tier, "visual_reviewer")]["role"] == "Reviewer"
-        assert rows[(tier, "scribe")]["cli_agent"] == "qwen"
+        assert rows[(tier, "scribe")]["cli_agent"] == "claude_code"
+        assert rows[(tier, "narrative_planner")]["cli_agent"] == "claude_code"
         assert rows[(tier, "reviewer")]["role_binding_status"] == "ok"
         assert rows[(tier, "visual_reviewer")]["role_binding_status"] == "ok"
         assert rows[(tier, "scribe")]["role_binding_status"] == "ok"
     assert all(row["role_binding_status"] in {"ok", "not_applicable"} for row in full_cli)
-    assert rows[("low", "writer")]["capacity_route"] == "WriterLow"
+    assert rows[("low", "writer")]["runtime_route_id"] == "writer_flash"
+    assert rows[("low", "writer")]["checkpoint_candidates"] == "writer_pro"
+    assert rows[("low", "writer")]["capacity_route"] == ""
     assert rows[("low", "writer")]["fallback_routes"] == ""
     assert rows[("low", "writer")]["fallback_cli_agent"] == ""
     assert rows[("low", "writer")]["fallback_model_key"] == ""
@@ -84,8 +84,8 @@ def test_checked_in_csv_matrices_are_deterministic(tmp_path: Path) -> None:
 def test_heavy_audit_alias_roles_resolve_to_bound_cli_workers() -> None:
     for budget_mode in ("max_quality", "balanced", "frugal"):
         plan = SimpleNamespace(budget_mode=budget_mode)
-        for role in ("Reviewer", "Scribe"):
+        for role in ("Reviewer", "Scribe", "NarrativePlanner"):
             preview = resolve_agent_execution_preview(ROOT, plan, role)
             assert preview["executor_type"] == "cli_agent"
-            assert preview["cli_agent"] == "qwen"
+            assert preview["cli_agent"] == "claude_code"
             assert preview["role_binding_allowed"] is True

@@ -282,6 +282,31 @@ agents:
       - runs/task_xxxx/state_transition_proposal.yml
       - runs/task_xxxx/narrative_delivery_receipt.yml
 
+  NarrativePlanner:
+    template_path: agent_templates/narrative_planner.md
+    role: >
+      Long-form repair planner for fiction, papers, reports, and other
+      continuity-sensitive text. It reads accepted audit evidence and proposes
+      bounded revisions or rewrites without editing the candidate or production
+      text. Blocking findings must identify evidence, affected spans, preserved
+      facts, and acceptance checks.
+    model_profile: execution_narrative_planner_deepseek
+    model_tier: T3
+    can_edit_source: false
+    can_run_shell: true
+    can_write_agent_docs: false
+    source_write_policy: never
+    execution_owner: claude_code
+    invocation_contract: claude
+    allowed_backends: [claude_code_deepseek]
+    required_inputs:
+      - runs/task_xxxx/fiction_draft.md
+      - runs/task_xxxx/fiction_review.yml
+      - runs/task_xxxx/continuity_failure_report.yml
+      - runs/task_xxxx/continuity_ledger.yml
+    required_outputs:
+      - runs/task_xxxx/revision_or_rewrite_proposal.yml
+
   Reviewer:
     template_path: agent_templates/fiction_reviewer.md
     role: >

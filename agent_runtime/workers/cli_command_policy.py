@@ -4,6 +4,10 @@ from dataclasses import dataclass
 
 DANGEROUS_FLAGS = {
     "--allow-dangerously-skip-permissions",
+    "--dangerously-skip-permissions",
+    "--ignore-rules",
+    "--yolo",
+    "-z",
 }
 
 @dataclass
@@ -16,18 +20,13 @@ class ProfileSafetyFinding:
     message: str
 
 def validate_cli_agent_profiles(profile_config: dict) -> list[ProfileSafetyFinding]:
-    """Validate that dangerous CLI flags are only used in trusted profiles with env gates."""
+    """Validate that production profiles never use permission bypass flags."""
     findings = []
     
     if not profile_config or "modes" not in profile_config:
         return findings
         
     for mode_name, mode_data in profile_config.get("modes", {}).items():
-        safety_config = mode_data.get("safety", {})
-        is_trusted = safety_config.get("requires_env", {}).get("AGENTLAB_ALLOW_DANGEROUS_CCS") == "1" \
-                     and safety_config.get("requires_human_approval", False) \
-                     and safety_config.get("never_default", False)
-                     
         tiers = mode_data.get("tiers", {})
         for tier_name, tier_data in tiers.items():
             for role_name, role_data in tier_data.items():
@@ -38,15 +37,14 @@ def validate_cli_agent_profiles(profile_config: dict) -> list[ProfileSafetyFindi
                     cmd = role_data.get("cli_command", "")
                     for dangerous_flag in DANGEROUS_FLAGS:
                         if dangerous_flag in cmd:
-                            if not is_trusted:
-                                findings.append(
-                                    ProfileSafetyFinding(
-                                        severity="error",
-                                        profile=mode_name,
-                                        tier=tier_name,
-                                        role=role_name,
-                                        flag=dangerous_flag,
-                                        message=f"Dangerous flag {dangerous_flag} found in non-trusted profile."
-                                    )
+                            findings.append(
+                                ProfileSafetyFinding(
+                                    severity="error",
+                                    profile=mode_name,
+                                    tier=tier_name,
+                                    role=role_name,
+                                    flag=dangerous_flag,
+                                    message=f"Production-forbidden flag {dangerous_flag} found."
                                 )
+                            )
     return findings

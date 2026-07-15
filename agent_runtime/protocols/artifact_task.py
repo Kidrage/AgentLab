@@ -882,6 +882,11 @@ def route_artifact_provider(
     for provider_id, cfg in providers.items():
         if preferred_provider and provider_id != preferred_provider:
             continue
+        if (
+            str(cfg.get("status") or "active") in {"quarantined", "disabled"}
+            or cfg.get("automatic_use") is False
+        ):
+            continue
         if provider_type and str(cfg.get("provider_type") or "") != provider_type:
             continue
         handles = set(cfg.get("handles") or [])

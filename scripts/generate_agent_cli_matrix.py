@@ -27,6 +27,7 @@ ROLE_NAMES = {
     "tester_auditor": "TesterAuditor",
     "verifier": "Verifier",
     "archivist": "Archivist",
+    "narrative_planner": "NarrativePlanner",
 }
 
 
@@ -63,8 +64,6 @@ def _join(values: list[str] | tuple[str, ...] | None) -> str:
 
 def _artifact_dispatch_summary(
     policy: dict[str, Any],
-    *,
-    tier: str,
 ) -> tuple[str, str, list[tuple[str, dict[str, Any]]]]:
     """Return effective ArtifactTask dispatch rather than one generic profile."""
     artifact_types = policy.get("artifact_types") or {}
@@ -74,14 +73,16 @@ def _artifact_dispatch_summary(
         list[str],
     ] = {}
     selected_rows: list[tuple[str, dict[str, Any]]] = []
-    capacity_tier = {"max_quality": "full", "max-quality": "full"}.get(
-        tier,
-        tier,
-    )
     for artifact_type, artifact_config in artifact_types.items():
         required = set((artifact_config or {}).get("required_capabilities") or [])
         eligible: list[tuple[int, str, dict[str, Any]]] = []
         for provider_id, provider_config in providers.items():
+            if (
+                str((provider_config or {}).get("status") or "active")
+                in {"quarantined", "disabled"}
+                or (provider_config or {}).get("automatic_use") is False
+            ):
+                continue
             handles = set((provider_config or {}).get("handles") or [])
             capabilities = set(
                 (provider_config or {}).get("capabilities") or []
@@ -104,27 +105,26 @@ def _artifact_dispatch_summary(
             )
             continue
         _, provider_id, provider_config = eligible[0]
-        capacity_route = str(
-            ((provider_config.get("capacity_routes") or {}).get(capacity_tier))
-            or ""
+        runtime_provider_ids = _join(
+            [str(item) for item in provider_config.get("runtime_provider_ids") or []]
         )
         key = (
             provider_id,
             str(provider_config.get("worker") or ""),
             str(provider_config.get("invocation_contract") or ""),
-            capacity_route,
+            runtime_provider_ids,
         )
         grouped.setdefault(key, []).append(str(artifact_type))
         selected_rows.append((str(artifact_type), provider_config))
 
     parts: list[str] = []
-    for (provider_id, worker, contract, capacity_route), types in grouped.items():
+    for (provider_id, worker, contract, runtime_providers), types in grouped.items():
         joined_types = "|".join(types)
         if provider_id == "unsupported":
             parts.append(f"{joined_types}=>unsupported")
         else:
             parts.append(
-                f"{joined_types}=>{provider_id}/{worker}/{contract}/{capacity_route}"
+                f"{joined_types}=>{provider_id}/{worker}/{contract}/{runtime_providers}"
             )
     return _join(list(artifact_types)), "; ".join(parts), selected_rows
 
@@ -140,6 +140,10 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
     bindings = _read_yaml(config / "agent_role_bindings.yml")
     requirements = _read_yaml(config / "runtime_cli_requirements.yml")
     artifact_policy = _read_yaml(config / "artifact_task_policy.yml")
+    runtime_registry = _read_yaml(config / "runtime_registry.yml")
+    runtime_routes = runtime_registry.get("routes") or {}
+    runtime_role_routes = runtime_registry.get("role_routes") or {}
+    runtime_providers = runtime_registry.get("providers") or {}
     workers = bindings.get("workers") or {}
     roles = bindings.get("roles") or {}
     components = requirements.get("components") or {}
@@ -207,7 +211,6 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
                 artifact_types, artifact_dispatch, selected_artifact_rows = (
                     _artifact_dispatch_summary(
                         artifact_policy,
-                        tier=str(tier),
                     )
                 )
                 for artifact_type, provider_config in selected_artifact_rows:
@@ -215,14 +218,10 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
                     provider_contract = str(
                         provider_config.get("invocation_contract") or ""
                     )
-                    capacity_tier = {
-                        "max_quality": "full",
-                        "max-quality": "full",
-                    }.get(str(tier), str(tier))
-                    provider_capacity_route = str(
-                        ((provider_config.get("capacity_routes") or {}).get(capacity_tier))
-                        or ""
-                    )
+                    provider_runtime_ids = [
+                        str(item)
+                        for item in provider_config.get("runtime_provider_ids") or []
+                    ]
                     if provider_worker not in workers:
                         errors.append(
                             f"artifact_task_policy.{artifact_type}: unknown worker {provider_worker!r}"
@@ -239,32 +238,15 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
                         errors.append(
                             f"artifact_task_policy.{artifact_type}: unknown contract {provider_contract!r}"
                         )
-                    capacity_config = capacity_routes.get(provider_capacity_route)
-                    if not isinstance(capacity_config, dict):
+                    if not provider_runtime_ids:
                         errors.append(
-                            f"artifact_task_policy.{artifact_type}: unknown capacity route "
-                            f"{provider_capacity_route!r}"
+                            f"artifact_task_policy.{artifact_type}: no runtime provider binding"
                         )
-                    else:
-                        if str(capacity_config.get("worker") or "") != provider_worker:
+                    for runtime_provider_id in provider_runtime_ids:
+                        if runtime_provider_id not in runtime_providers:
                             errors.append(
-                                f"artifact_task_policy.{artifact_type}: capacity route "
-                                f"{provider_capacity_route!r} uses another worker"
-                            )
-                        if str(
-                            capacity_config.get("invocation_contract") or ""
-                        ) != provider_contract:
-                            errors.append(
-                                f"artifact_task_policy.{artifact_type}: capacity route "
-                                f"{provider_capacity_route!r} uses another contract"
-                            )
-                        if ROLE_NAMES.get(
-                            str(capacity_config.get("role") or ""),
-                            str(capacity_config.get("role") or ""),
-                        ) != "ArtifactProducer":
-                            errors.append(
-                                f"artifact_task_policy.{artifact_type}: capacity route "
-                                f"{provider_capacity_route!r} belongs to another role"
+                                f"artifact_task_policy.{artifact_type}: unknown runtime provider "
+                                f"{runtime_provider_id!r}"
                             )
 
             if capacity_route:
@@ -358,6 +340,25 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
                                 f"uses unknown pool {fallback_pool!r}"
                             )
 
+            runtime_route_id = next(
+                (
+                    str(route_id)
+                    for route_id in runtime_role_routes.get(str(role_key), [])
+                    if isinstance(runtime_routes.get(str(route_id)), dict)
+                    and str((runtime_routes[str(route_id)].get("identity") or {}).get("model_id") or "")
+                    == model_key
+                    and str(runtime_routes[str(route_id)].get("legacy_cli_agent") or "")
+                    == cli_agent
+                ),
+                "",
+            )
+            checkpoint_candidates = [
+                str(route_id)
+                for route_id in runtime_role_routes.get(str(role_key), [])
+                if str(route_id) != runtime_route_id
+                and str((runtime_routes.get(str(route_id)) or {}).get("status") or "active")
+                == "active"
+            ]
             matrix_rows.append({
                 "mode": "full_cli",
                 "tier": str(tier),
@@ -371,6 +372,8 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
                 "catalog_provider": str(model.get("provider") or ""),
                 "runtime_provider": _runtime_provider(model),
                 "model_binding": str((components.get(cli_agent) or {}).get("model_binding") or "unregistered"),
+                "runtime_route_id": runtime_route_id,
+                "checkpoint_candidates": _join(checkpoint_candidates),
                 "capacity_route": capacity_route,
                 "fallback_routes": _join(fallback_routes),
                 "fallback_cli_agent": _join(fallback_cli_agents),

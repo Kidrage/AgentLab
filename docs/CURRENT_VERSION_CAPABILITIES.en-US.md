@@ -2,18 +2,18 @@
 
 Language: [English](CURRENT_VERSION_CAPABILITIES.en-US.md) | [中文](CURRENT_VERSION_CAPABILITIES.zh-CN.md)
 
-This manual describes the committed AgentLab capability surface at one exact source snapshot. It is a reference for operators, reviewers, and contributors, not a promise that every configured provider is currently reachable.
+This manual describes the AgentLab capability surface implemented by the governance revision dated 2026-07-15. It is a reference for operators, reviewers, and contributors, not a promise that every configured provider is currently reachable.
 
 ## Contents
 
 1. [Snapshot, positioning, and maturity](#1-snapshot-positioning-and-maturity)
 2. [Architecture, governance, and lifecycle](#2-architecture-governance-and-lifecycle)
-3. [The 14 roles, models, and boundaries](#3-the-14-roles-models-and-boundaries)
+3. [The 15 roles, models, and boundaries](#3-the-15-roles-models-and-boundaries)
 4. [Mission compilation, routing, and production chains](#4-mission-compilation-routing-and-production-chains)
 5. [Writer, Ultracode, Supervisor, and Researcher](#5-writer-ultracode-supervisor-and-researcher)
 6. [Multimodal observation, media production, and visual acceptance](#6-multimodal-observation-media-production-and-visual-acceptance)
 7. [ArtifactTask and non-code deliverables](#7-artifacttask-and-non-code-deliverables)
-8. [Capacity, windows, breakers, canaries, and fallback](#8-capacity-windows-breakers-canaries-and-fallback)
+8. [Capacity, windows, and checkpoint routing](#8-capacity-windows-and-checkpoint-routing)
 9. [Pricing, budgets, usage, and execution economy](#9-pricing-budgets-usage-and-execution-economy)
 10. [CLI, protocol, receipts, and errors](#10-cli-protocol-receipts-and-errors)
 11. [Memory, context, handoff, skills, and recovery](#11-memory-context-handoff-skills-and-recovery)
@@ -30,17 +30,17 @@ This manual describes the committed AgentLab capability surface at one exact sou
 | Field | Value |
 |---|---|
 | Repository | `Kidrage/AgentLab` |
-| Source branch while documented | `feature/agent-role-capacity-overhaul` |
-| Committed HEAD | `b0985130001b6753320427bc4ad6fef32a1195d7` |
-| Snapshot date | 2026-07-14 |
+| Source revision | Dynamic runtime and CLI-shell governance change; merge target `main` |
+| Commit identity | The commit containing this document and its implementation |
+| Snapshot date | 2026-07-15 |
 | Product stage | Active development; M-series alignment |
-| Full local test baseline | `2663 passed, 24 skipped, 11 warnings` |
-| Checked-in capability verdicts | `27 pass`, `5 candidate`; overall `candidate` |
+| Full local test baseline | `2734 passed, 24 skipped, 11 warnings` |
+| Acceptance evidence | Private-workspace reports are historical; clean-checkout aggregation depends on local run assets |
 | Live calls made for this verification | None |
 
-Only tracked content at the committed HEAD above is authoritative for this manual. Unstaged or uncommitted working-tree changes present during documentation were excluded from discovery, claims, examples, and acceptance evidence.
+Only tracked content in the implementation commit is authoritative for this manual. Private project runs and ignored local acceptance assets are not portable repository evidence and are identified as historical where referenced.
 
-AgentLab has no semantic release tag for this snapshot. “Current version” means the documented commit, not every later local edit and not a claim that GitHub `main` already contains this branch.
+AgentLab has no semantic release tag for this snapshot. “Current version” means the documented implementation commit, not later local edits and not a claim that GitHub `main` already contains this branch before merge.
 
 ### Product position
 
@@ -180,28 +180,29 @@ An unknown complex non-code domain enters synthesis mode. It must create `produc
 
 The synthesized pack is proposal-only. `pack-candidate-validate` checks it, and `pack-candidate-promote` requires approval before catalog or production use.
 
-## 3. The 14 roles, models, and boundaries
+## 3. The 15 roles, models, and boundaries
 
 The model column below shows the canonical `full_cli` performance default. Full and low tiers may select different models or skip optional roles.
 
 | Tier | Role | Current performance default | Responsibility | Hard boundary |
 |---|---|---|---|---|
-| T1 | Supervisor | Hermes + OpenAI Codex OAuth, GPT-5.6 Sol, `xhigh` | Mission, plan, route, scope, budget, recovery, synthesis | No source edits; no producer takeover |
-| T2 | RepoScout | Codex + DeepSeek V4 Pro | Repository map, dependencies, code context | Read-only inspection |
-| T2 | Researcher | Hermes/xAI OAuth + Grok 4.3 | Sourced web/social/external evidence | No code, prose production, media generation, or uncited authority |
+| T1 | Supervisor | Hermes JSON-RPC + OpenAI Codex OAuth, GPT-5.5, `high` | Mission, plan, route, scope, budget, recovery, synthesis | No source edits; no producer takeover |
+| T2 | RepoScout | Claude Code + DeepSeek V4 Pro | Repository map, dependencies, code context | Read-only inspection |
+| T2 | Researcher | Agy OAuth + Gemini 3.5 Flash High | Sourced external evidence | No code, prose production, media generation, or uncited authority |
 | T2 | Observer | Agy OAuth + Gemini 3.5 Flash High | Assigned-input multimodal evidence | No browsing, mutation, production, or self-approval |
-| T2 | InterfaceMapper | Codex + DeepSeek V4 Pro | Interfaces, schemas, contracts, cross-layer seams | Read-only; no implementation |
-| T2 | PromptEngineer | Hermes + DeepSeek V4 Flash | Reproducible implementation prompt from approved context | No source edits or shell execution |
-| T3 | Coder | Claude Code shell + Qwen3 Coder Plus | Approved source implementation and candidate code artifacts | Only Supervisor-approved scope and non-destructive commands |
-| T3 | ArtifactProducer | Qwen CLI for text/sheets/slides; Grok media for image/video | Typed non-code candidate production | No generic untyped work, code ownership, self-acceptance, or promotion |
+| T2 | InterfaceMapper | Claude Code + DeepSeek V4 Pro | Interfaces, schemas, contracts, cross-layer seams | Read-only; no implementation |
+| T2 | PromptEngineer | Claude Code + DeepSeek V4 Flash | Reproducible implementation prompt from approved context | No source edits or shell execution |
+| T3 | Coder | Claude Code shell + DeepSeek V4 Pro | Approved source implementation and candidate code artifacts | Only Supervisor-approved scope and non-destructive commands |
+| T3 | ArtifactProducer | Claude+DeepSeek for text; approval-gated Bailian/Ark for media | Typed non-code candidate production | No generic untyped work, code ownership, self-acceptance, or promotion |
 | T3 | Writer | Claude Code + DeepSeek V4 Pro | Final-quality candidate longform prose and narrative ledgers | No planning takeover, browsing, source edit, or fact promotion |
-| T4 | Reviewer | Qwen 3.6 Flash for narrative; Agy/Gemini for visual | Independent narrative or visual quality review | Does not rewrite by default; no generation or promotion |
-| T4 | Scribe | Qwen 3.6 Flash; registry alias of Archivist | Continuity, character, timeline, item, relation, and foreshadowing ledgers | Proposed state is not accepted project fact |
-| T4 | TesterAuditor | Codex + DeepSeek V4 Pro | Test evidence, diff interpretation, risk and behavior audit | Evidence only; no unsupported pass claim |
-| T4 | Verifier | Codex + DeepSeek V4 Flash | Output contract, handoff completeness, integrity, independence | Does not patch implementation or pretend to perceive media |
-| T5 | Archivist | Claude Code + DeepSeek V4 Pro | Accepted memory, archive, changelog, index, durable continuity | No archive or promotion before acceptance |
+| T3 | NarrativePlanner | Claude Code + DeepSeek V4 Pro | Evidence-bound continuity repair and rewrite proposals | Proposal-only; no direct candidate or production edits |
+| T4 | Reviewer | Claude+DeepSeek for text; Agy/Gemini for visual | Independent narrative or visual quality review | Does not rewrite by default; no generation or promotion |
+| T4 | Scribe | Claude Code + DeepSeek V4 Flash | Continuity, character, timeline, item, relation, and foreshadowing ledgers | Proposed state is not accepted project fact |
+| T4 | TesterAuditor | Claude Code + DeepSeek V4 Pro | Test evidence, diff interpretation, risk and behavior audit | Evidence only; no unsupported pass claim |
+| T4 | Verifier | Claude Code + DeepSeek V4 Pro | Output contract, handoff completeness, integrity, independence | Does not patch implementation or pretend to perceive media |
+| T5 | Archivist | Claude Code + DeepSeek V4 Flash | Accepted memory, archive, changelog, index, durable continuity | No archive or promotion before acceptance |
 
-The public operating model counts 14 roles, including PromptEngineer. The checked-in role-chain audit reports 13 governed chain roles because its responsibility baseline treats PromptEngineer as an auxiliary prompt role.
+The public operating model and role-chain audit both cover 15 governed roles, including PromptEngineer and NarrativePlanner.
 
 ### Role/worker separation
 
@@ -216,12 +217,12 @@ Important worker restrictions:
 | Worker | Allowed role scope | Explicitly important exclusions |
 |---|---|---|
 | Agy | Observer, Reviewer | Never Supervisor, Coder, ArtifactProducer, Writer, Scribe, TesterAuditor, Verifier, or Archivist |
-| Grok worker | Researcher, ArtifactProducer | Never Writer, Coder, Reviewer, Verifier, or Supervisor |
+| Grok worker | Explicit quarantined Researcher or ArtifactProducer canaries only | Never selected automatically; never Writer, Coder, Reviewer, Verifier, or Supervisor |
 | OpenClaw | Frontdesk only | No worker roles |
 | Codex | RepoScout, InterfaceMapper, Coder, ArtifactProducer, Scribe, TesterAuditor, Verifier | No Supervisor, Observer, Researcher, Writer, Reviewer, or Archivist |
-| Claude Code | Most reasoning/code/text/review/archive roles | Not Observer or ArtifactProducer in the binding policy |
+| Claude Code | Most reasoning/code/text/artifact/review/archive roles, including NarrativePlanner | Not Observer |
 | Hermes | Supervisor, Researcher, PromptEngineer, Coder, TesterAuditor, Verifier, Archivist | Not Observer, ArtifactProducer, Writer, Reviewer, or Scribe |
-| Qwen | Supervisor, Researcher, PromptEngineer, ArtifactProducer, Reviewer, Scribe | Not Observer, Coder, Writer, TesterAuditor, Verifier, or Archivist |
+| Qwen | Registered multimodal or metered fallback for Supervisor, Researcher, PromptEngineer, ArtifactProducer, Reviewer, and Scribe | Not a default generic-text route; not Observer, Coder, Writer, TesterAuditor, Verifier, Archivist, or NarrativePlanner |
 
 Deterministic workers are also role-bound: `rg` for RepoScout, `ast_grep` for InterfaceMapper, `pytest` for TesterAuditor, linters/type checkers for Verifier, and `git` for Archivist.
 
@@ -292,7 +293,9 @@ The exact contract pins:
 
 Required outputs are route-dependent. The single-chapter baseline includes `fiction_draft.md`, `continuity_ledger.yml`, `state_transition_proposal.yml`, and `narrative_delivery_receipt.yml`.
 
-The Writer route may fall back from DeepSeek V4 Pro to V4 Flash only for declared `model_unavailable`. The lower-cost fallback is explicit policy, not a silent quality switch.
+Writer model choice is recomputed at checkpoints. Pro satisfies the current
+full/performance floors; Flash is eligible only when the active floor permits
+it. A failed Writer call is never rerun on another model in the same call.
 
 ### Developmental Ultracode
 
@@ -323,25 +326,27 @@ Operator entrypoint:
 
 ### Supervisor
 
-The canonical Supervisor is Hermes profile `agentlabsupervisor`, provider `openai-codex`, model `gpt-5.6-sol`, with reasoning `xhigh`.
+The canonical Supervisor uses the local Hermes loopback JSON-RPC service with provider `openai-codex`, model `gpt-5.5`, and reasoning `high`.
 
-The user-facing label `extra` resolves to Hermes `xhigh`. AgentLab does not claim an unsupported `ultra` level.
+The registered reasoning level is `high`; AgentLab does not invent unsupported effort labels.
 
 Runtime preflight verifies the profile state and exact argv prefix. Provider, model, fallback provider, and fallback model overrides are rejected when they depart from the sealed contract.
 
-An approved same-role fallback uses Claude Code + DeepSeek V4 Pro. It is capacity-gated, retains Supervisor boundaries, and may not perform producer work.
+When Codex is ineligible, the next checkpoint may select Claude Code + DeepSeek
+V4 Pro. That is a new route decision, not an in-call retry, and it retains the
+Supervisor boundary.
 
-Operational caveat: an older local Hermes profile may still contain GPT-5.5 or `high`. The committed runtime treats that as drift and fails closed until the profile is provisioned to GPT-5.6 Sol and `xhigh`.
+Each invocation creates an isolated Hermes role session, reads normalized exact usage when available, and closes the session. Approval requests or provider/model drift fail closed.
 
 ### Researcher
 
-The Researcher uses Hermes + xAI OAuth + Grok 4.3 under `grok_research` with governed web and x-search tools.
+The default Researcher uses Agy/Gemini OAuth. Grok remains a registered explicit contract but is quarantined from automatic routing until a fresh canary passes.
 
 Its report must preserve URLs and retrieval timestamps, separate sourced facts from inference, and include an explicit Sources section.
 
 Research evidence stays run-local until reviewed. The Researcher cannot write authoritative project memory, code, longform prose, media output, or aesthetic judgments.
 
-Research and media share an xAI subscription pool but use different contracts. A successful research session does not prove media capacity or authorize media generation.
+Research output remains candidate evidence. Media generation uses a separate approval-gated production route; research success never authorizes media generation.
 
 ### Longform narrative delivery and heavy audit
 
@@ -383,9 +388,10 @@ The 1,500-chapter L3 check is `governance_ledger_only`. It validates arc, chapte
 
 The primary Observer route uses Agy with Gemini 3.5 Flash High and supports text, image, video, audio, and PDF inputs.
 
-The capacity fallback uses the same Agy shell with Claude Sonnet 4.6 in a separate pool. It supports text, image, and PDF only.
+A compatible checkpoint route can use the same Agy shell with Claude Sonnet
+4.6 in a separate pool. It supports text, image, and PDF only.
 
-Fallback must preserve required modalities. A video or audio task cannot silently drop those inputs to use Claude.
+Route reselection must preserve required modalities. A video or audio task cannot silently drop those inputs to use Claude.
 
 The Observer reads only explicitly assigned staged inputs. It reports evidence, locators, uncertainty, scientific context, limitations, and actionable suggestions.
 
@@ -400,24 +406,24 @@ Required locators are:
 
 The Observer cannot browse, generate media, write prose as Writer, modify project files, or approve its own conclusion.
 
-### Grok media production
+### Media production and quarantined Grok canaries
 
-The current primary image/video producer is the `grok_media` contract through Hermes xAI OAuth and registered Grok Imagine tools.
+The default image/video route uses the approval-gated Bailian CLI, with Ark as a configured premium option. The `grok_media` contract remains registered only for an explicit bounded canary while xAI is quarantined.
 
 Registered generation models are `grok-imagine-image-quality` and `grok-imagine-video-1.5`.
 
 A text response is not a media artifact. Success requires actual paths, sizes, SHA-256 hashes, prompt/parameter records, reference assets, validation notes, and generation receipts.
 
-Grok media outputs are candidate-only. The producer must not write `media_qc_report.yml`, review aesthetics, or promote its result.
+All media outputs are candidate-only. The producer must not write `media_qc_report.yml`, review aesthetics, or promote its result.
 
 Configured backend routing also includes:
 
 | Backend | State and boundary |
 |---|---|
-| `hermes_grok_oauth` | Primary governed shell; subscription/quota; candidate-only |
+| `hermes_grok_oauth` | Quarantined; explicit bounded canary only |
 | `grok_direct` | API-key fallback; explicit approval required |
-| `bailian_cli` | Catalog entry only; current adapter cannot execute it |
-| `ark_cli` | Catalog entry only; current adapter cannot execute it |
+| `bailian_cli` | Primary approval-gated image/video generation CLI |
+| `ark_cli` | Configured premium generation CLI; activation and approval required |
 | `agy_media` | Text-only visual preproduction observer; not a renderer |
 
 These entries are backend options, not an automatic cross-provider fallback promise. The selected ArtifactTask, policy, auth state, approval, and capability contract remain authoritative.
@@ -479,11 +485,11 @@ Required contract fields are:
 
 | Artifact type | Formats | Current effective path |
 |---|---|---|
-| Text | Markdown, TXT, DOCX | Qwen CLI; full-API text is limited to contracts without assigned local files |
-| Image | PNG, JPG, WebP | Grok media |
-| Video | MP4, MOV | Grok media |
-| Spreadsheet | XLSX, CSV | Qwen CLI |
-| Presentation | PPTX, PDF | Qwen CLI |
+| Text | Markdown, TXT, DOCX | Claude Code + DeepSeek V4 Pro; full-API text is limited to contracts without assigned local files |
+| Image | PNG, JPG, WebP | Media production route: approval-gated Bailian/Ark |
+| Video | MP4, MOV | Media production route: approval-gated Bailian/Ark |
+| Spreadsheet | XLSX, CSV | Claude Code + DeepSeek V4 Pro |
+| Presentation | PPTX, PDF | Claude Code + DeepSeek V4 Pro |
 | Audio | WAV, MP3 in schema | No current executable ArtifactTask provider; fail closed |
 | Mixed | Directory in schema | No cross-provider composite adapter; fail closed |
 
@@ -530,81 +536,49 @@ ArtifactTask returns explicit failure states:
 
 An output claim without a real file is invalid. Candidate delivery requires the artifact manifest, materialization receipt, validation evidence, and role-specific delivery receipt.
 
-## 8. Capacity, windows, breakers, canaries, and fallback
+## 8. Capacity, windows, and checkpoint routing
 
-`ModelCapacity` is the run-local authority for subscription and model-route availability. It does not own role lifecycle, model facts, commands, or prices.
+`config/runtime_registry.yml` is the Full CLI authority for routes, providers,
+models, and credential pools. `model_capacity_ledger.yml` is the atomic,
+run-local state ledger. The legacy capacity policy still supplies persistence
+and compatibility commands, but it no longer performs same-call fallback for
+dynamic Full CLI routes.
 
-### Capacity pools
+OAuth pools are probed through bounded interactive `/usage` sessions with the
+exact profile or Agy model label. AgentLab persists only normalized remaining
+percentages, windows, reset timestamps, and observation times. It does not
+persist raw terminal output. Admission is denied at or below the five-percent
+reserve, or when predicted unit usage plus risk reserve needs more headroom.
+Long batches fail closed without fresh, parseable remaining quota. An observed
+reset triggers a new probe; time alone never proves recovery.
 
-| Pool | Route use | Declared window evidence |
-|---|---|---|
-| `agy_gemini_observer` | Gemini Observer/visual Reviewer | 5-hour rolling and 7-day weekly duration; limit, remaining, reset unknown |
-| `agy_claude_observer` | Claude Observer/visual Reviewer fallback | Independent 5-hour and 7-day pool; limit, remaining, reset unknown |
-| `openai_codex_agentic` | Hermes Supervisor | Subscription; window, limit, remaining, reset unknown |
-| `xai_subscription_shared` | Grok Researcher and media producer | Shared subscription; window, limit, remaining, reset unknown |
-| `deepseek_metered_api` | Writer and Supervisor fallback | Metered API; live remaining state unknown unless observed |
-| `dashscope_metered_api` | Qwen artifact routes | Metered API; live remaining state unknown unless observed |
+Selection is deterministic: hard state/modality/privacy/provider/quota filters,
+then a quality floor, then predicted cash, quota scarcity, retry, latency, and
+switch costs. `full`, `performance`, and `low` are quality floors rather than
+fixed model matrices.
 
-The Agy durations are user-declared with medium confidence. They do not imply a known request limit or current availability.
+A provider failure is normalized and recorded, then that call ends. AgentLab
+does not change shell or model and rerun inside the same call. Only the next
+completed checkpoint invokes selection again. Pool-scoped failures are
+`auth_missing`, `quota_exhausted`, and `rate_limited`; `model_unavailable` is
+model-scoped; `unknown` never authorizes a switch.
 
-Auth success and model discovery are reachability evidence only. They never set remaining capacity to a guessed positive number.
-
-### Safe discovery
-
-Only these probe shapes are allowed:
-
-```text
-agy models
-hermes auth status <provider>
-```
-
-`hermes status --all` is forbidden because broad status output may expose secrets. Raw probe output is classified in memory and never persisted verbatim.
-
-### Failure scope
-
-| Failure class | Scope | Effect |
-|---|---|---|
-| `rate_limited` | Pool | Open shared-pool breaker |
-| `quota_exhausted` | Pool | Open shared-pool breaker |
-| `auth_missing` | Pool | Open shared-pool breaker |
-| `model_unavailable` | Route | Block model route without poisoning sibling models in the pool |
-| `unknown` | Route observation | Preserve unknown; do not open a breaker or authorize fallback |
-
-Reset and remaining values are parsed only from observed provider headers/messages. Missing values stay null.
-
-### Route-chain rules
-
-Fallback traversal is arbitrary-depth, declaration-order DFS. Every edge must name the predecessor failure class that authorizes it.
-
-The loader fails closed on cycles, duplicate routes, unknown routes or pools, cross-role edges, modality incompatibility, or malformed declarations.
-
-Each attempt records a route chain and attempt ID. A pool failure and a model-route failure have different receipts and different fallback effects.
-
-### Breaker and canary behavior
-
-When a reset is reached, a shared pool grants exactly one time-limited canary lease. Concurrent attempts cannot each assume recovery.
-
-A canary success closes the breaker. A capacity failure reopens it. A model-specific failure releases or transfers only that lease while preserving the shared-pool uncertainty.
-
-Canary leases default to 300 seconds and are serialized with a file lock plus atomic YAML writes.
-
-### Declared current chains
-
-| Start route | Approved next route | Trigger |
-|---|---|---|
-| Supervisor | `SupervisorDeepSeek` | rate limit, quota, auth missing, or model unavailable |
-| Observer Gemini | `ObserverClaude` | quota, rate limit, or model unavailable; modalities must fit |
-| VisualReviewer Gemini | `VisualReviewerClaude` | quota, rate limit, or model unavailable; modalities must fit |
-| Writer Pro | `WriterFlash` | model unavailable only |
-| Qwen Max artifact | Qwen Plus | model unavailable only |
-| Qwen Plus artifact | Qwen Flash | model unavailable only |
-| Researcher | none | stop and report |
-| Grok media ArtifactProducer | none | stop and report |
-| WriterUltracode | none | stop and report |
+The default candidates are Hermes/Codex then Claude+DeepSeek for Supervisor;
+Agy Gemini then the independent Agy Claude pool for compatible Observer and
+visual-review inputs; and paid Qwen Max/Plus/Flash routes selected by their
+actual quality floor when needed. Video/audio cannot silently drop to a
+text/image/PDF-only route. Writer uses Pro for full/performance and may use
+Flash only when the active quality floor permits it. Grok remains quarantined
+at the route, shell, adapter, provider, and model layers.
 
 ## 9. Pricing, budgets, usage, and execution economy
 
 `config/model_pricing.yml` is the single numeric runtime-pricing authority. Other model and provider catalogs may identify models but must not duplicate prices.
+
+`config/pricing_catalog.yml` is a runtime projection: it stores model mappings,
+billing modes, and versioned FX only. Metered entries resolve safe `source_ref`
+links to the numeric authority at load time. Receipts preserve supplier-native
+currency and perform one conversion through the named FX snapshot.
 
 ### Text-token pricing at this snapshot
 
@@ -619,7 +593,6 @@ Prices are USD per one million tokens. Cache is shown only when separately decla
 | Qwen 3.6 Flash | 0.165 | — | 0.990 | DashScope reference |
 | DeepSeek V4 Flash | 0.140 | 0.002800 | 0.280 | Cache-miss input plus cache-hit rate |
 | DeepSeek V4 Pro | 0.435 | 0.003625 | 0.870 | Cache-miss input plus cache-hit rate |
-| GPT-5.6 Sol | 5.000 | 0.500 | 30.000 | API reference only; do not charge Hermes OAuth as API usage |
 | Grok 4.3 | 1.250 | 0.200 | 2.500 | API reference only; do not charge Hermes xAI OAuth as API usage |
 
 ### Media unit pricing
@@ -840,14 +813,13 @@ Secret scans, redaction, path confinement, symlink audits, Git ignore policy, ou
 
 | Check | Result |
 |---|---|
-| Full pytest at the role/capacity implementation snapshot | `2663 passed, 24 skipped, 11 warnings` |
-| Focused role/capacity regression set | `248 passed` |
-| Capacity-specific tests | `86 passed` |
-| Model doctor | `0 issues` |
+| Full pytest | `2734 passed, 24 skipped, 11 warnings` |
+| Focused dynamic runtime, pricing, Hermes, quota, and shell-governance set | `56 passed` |
+| Model doctor | `pass`; 7 warnings for API keys absent from this worktree environment |
 | Artifact doctor | `21/21 checks passed` |
-| Protocol doctor | `106/106 checks passed` |
+| Protocol doctor | `110/110 checks passed` |
 | Role/production-chain audit | Passed |
-| GitHub Actions | Runs `29275493261` and `29276017764` completed successfully |
+| Compile and diff integrity | `compileall` and `git diff --check` passed |
 | Live provider or model calls during this validation | None |
 
 The test numbers prove the committed orchestration, policy, and deterministic seams covered by the suite. They do not prove current subscription capacity or subjective quality of a future live output.
@@ -1067,7 +1039,7 @@ Approval is required before promotion. External import adds network and trust ga
 10. Media and generic non-code outputs are candidates until independent acceptance and explicit promotion.
 11. Production-pack synthesis is implemented, but a synthesized pack cannot execute or enter the catalog without approval.
 12. The current strict four-role synthesis live closure is incomplete.
-13. Older Hermes profile state may fail Supervisor preflight until GPT-5.6 Sol and `xhigh` are provisioned.
+13. Hermes Supervisor execution requires the local loopback service and exact GPT-5.5/high route identity; drift fails closed.
 14. Configured Bailian and Ark media paths do not imply current activation, auth, approval, or automatic use.
 15. Public Web UI binding, platform posting, web crawling, skill installation, dependency installation, and MCP launch remain disabled by default.
 16. S11 and S12 provide deterministic operator/service planning, not a complete hosted control plane or automated commercial service.
@@ -1100,14 +1072,19 @@ Approval is required before promotion. External import adds network and trust ga
 
 ### Models, workers, capacity, and cost
 
-- `config/agent_model_profiles.yml` — canonical backend and tier selection.
+- `config/agent_model_profiles.yml` — execution modes and generated Full CLI compatibility view.
+- `config/runtime_registry.yml` — Full CLI route/provider/model/pool authority.
+- `config/routing_policy.yml` — quality floors, role demand, quota, and cost weights.
 - `config/model_catalog.yml` — model identities and capability facts.
 - `config/model_providers.yml` — provider facts.
 - `config/worker_invocation_contracts.yml` — exact command templates and receipt requirements.
 - `config/cli_workflow_shells.yml` — native CLI shell capability governance.
-- `config/model_capacity.yml` — pools, windows, probes, routes, and approved edges.
-- `agent_runtime/model_capacity.py` — breaker, canary, ledger, and traversal implementation.
+- `config/model_capacity.yml` — legacy-mode capacity configuration and dynamic-ledger compatibility.
+- `agent_runtime/runtime_registry.py` — normalized identity, quota snapshots, and compatibility compilation.
+- `agent_runtime/routing/dynamic_selector.py` — hard gates, quality floors, and effective-cost selection.
+- `agent_runtime/model_capacity.py` — run-local pool/model state ledger and legacy traversal.
 - `config/model_pricing.yml` — sole numeric pricing authority.
+- `config/pricing_catalog.yml` — numeric-free runtime pricing and FX projection.
 - `agent_runtime/costing/` and `agent_runtime/costs/` — budgets, ledgers, alerts, attribution, and efficiency.
 - `agent_runtime/execution_economy/` — activation, reuse, cache, coalescing, and marginal-utility policy.
 

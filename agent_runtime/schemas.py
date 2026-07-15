@@ -19,6 +19,7 @@ AgentName = Literal[
     "TesterAuditor",
     "Archivist",
     "Verifier",
+    "NarrativePlanner",
 ]
 
 

@@ -71,7 +71,7 @@ endpoints:
       codex: "0.142.0"
       qwen: "0.19.1"
     invocation_contracts:
-      hermes: "hermes -z \"You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers.\""
+      hermes: "hermes chat -Q -q \"You are an AgentLab CLI executor. Read the JSON task packet at {task_packet_path}, perform the requested AgentLab role work, and return a concise markdown report with findings, actions taken, verification, and blockers.\""
       claude_code: "claude -p \"{prompt}\""
       bl: "bl chat -p \"{prompt}\""
       agy: "agy --sandbox --model 'Gemini 3.5 Flash (High)' -p \"{prompt}\""
@@ -153,13 +153,13 @@ agents:
     invocation:
       command: hermes
       frontdesk_session: >-
-        hermes --provider deepseek -m deepseek-v4-pro -z "$(./agentlab.sh frontdesk-session --agent hermes)"
+        hermes chat -Q --provider deepseek -m deepseek-v4-pro -q "$(./agentlab.sh frontdesk-session --agent hermes)"
       one_shot: >-
-        hermes -z "Read the task packet at {task_packet_path}; perform only the assigned role;
+        hermes chat -Q -q "Read the task packet at {task_packet_path}; perform only the assigned role;
         return findings, actions, verification, changed files, and blockers."
       supervisor: >-
         hermes -p agentlabsupervisor chat -Q --provider openai-codex -m
-        gpt-5.6-sol -q "Read the AgentLab Supervisor packet at
+        gpt-5.5 -q "Read the AgentLab Supervisor packet at
         {task_packet_path}; return the governed plan. AgentLab writes the
         runtime-verified model execution receipt."
     frontdesk_model: deepseek_v4_pro
@@ -183,7 +183,7 @@ agents:
     invocation:
       command: claude
       noninteractive: >-
-        claude --permission-mode bypassPermissions --output-format json -p "Read the task packet at {task_packet_path};
+        claude --permission-mode auto --output-format json -p "Read the task packet at {task_packet_path};
         perform only the assigned work and report actual changes."
       writer: >-
         claude --model deepseek-v4-pro --effort max --max-budget-usd 1.00
@@ -255,11 +255,11 @@ agents:
     invocation:
       command: hermes
       research_session: >-
-        hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z "Read the
+        hermes chat -Q --provider xai-oauth -m grok-4.3 -q "Read the
         Researcher task packet at {task_packet_path}; return sourced social/web
         evidence and a source ledger."
       media_session: >-
-        hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z "Read the
+        hermes chat -Q --provider xai-oauth -m grok-4.3 -q "Read the
         ArtifactProducer task packet at {task_packet_path}; call the registered
         image-generation tool and return real candidate asset paths and hashes."
     auth: hermes_xai_oauth_session
