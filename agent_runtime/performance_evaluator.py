@@ -24,7 +24,7 @@ if str(RUNTIME_DIR) not in sys.path:
 from artifact_contract import validate_artifacts, write_artifact_manifest
 from config_loader import load_agentlab_configs
 from lifecycle_graph import LIFECYCLE_NODES, create_lifecycle, save_lifecycle
-from schemas import AgentName
+from agent_runtime.self_evolution.role_catalog import RoleCatalog
 from workflow_plan import build_workflow_plan
 
 
@@ -63,7 +63,7 @@ def run_performance_evaluation(agentlab_root: Path, project: str, task_id: str) 
         "model_profiles": _profile_summary(plan.model_profiles),
     }
     metrics["routing"] = evaluate_routing(agentlab_root)
-    metrics["configuration"] = evaluate_configuration(configs)
+    metrics["configuration"] = evaluate_configuration(configs, agentlab_root)
     metrics["lifecycle"] = evaluate_lifecycle(run_dir, plan.model_dump(mode="json"))
     metrics["commands"] = evaluate_commands(agentlab_root, project, task_id)
     metrics["score"] = score(metrics)
@@ -132,18 +132,23 @@ def evaluate_routing(agentlab_root: Path) -> dict[str, Any]:
     return {"passed": passed, "total": len(cases), "pass_rate": round(passed / len(cases), 3), "cases": details}
 
 
-def evaluate_configuration(configs: dict[str, Any]) -> dict[str, Any]:
+def evaluate_configuration(
+    configs: dict[str, Any],
+    agentlab_root: Path | None = None,
+) -> dict[str, Any]:
     from model_resolver import validate_model_configuration
 
     registry_agents = set((configs.get("agent_registry", {}).get("agents", {}) or {}).keys())
-    schema_agents = set(AgentName.__args__)  # type: ignore[attr-defined]
+    schema_agents = (
+        set(RoleCatalog.load(agentlab_root).names())
+        if agentlab_root is not None
+        else set(registry_agents)
+    )
     routes = configs.get("routing_rules", {}).get("routes", {}) or {}
     route_issues = []
     for route_key, route in routes.items():
         agents = route.get("agents", []) if isinstance(route, dict) else route
         for agent in agents or []:
-            if agent not in registry_agents:
-                route_issues.append({"route": route_key, "agent": agent, "issue": "missing_registry_agent"})
             if agent not in schema_agents:
                 route_issues.append({"route": route_key, "agent": agent, "issue": "missing_schema_agent"})
 

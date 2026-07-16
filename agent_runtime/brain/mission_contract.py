@@ -565,7 +565,13 @@ def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any], roo
             intent.reason,
             domain_pack.get("audit_route_proposal") or {
                 "route_key": "narrative_heavy_audit",
-                "agents": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
+                "agents": [
+                    "Supervisor",
+                    "Reviewer",
+                    "Scribe",
+                    "NarrativePlanner",
+                    "Verifier",
+                ],
             },
         )
     if intent.kind == "chapter_batch":

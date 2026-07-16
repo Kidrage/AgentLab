@@ -4,23 +4,10 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
-AgentName = Literal[
-    "Supervisor",
-    "RepoScout",
-    "Researcher",
-    "Observer",
-    "InterfaceMapper",
-    "Coder",
-    "ArtifactProducer",
-    "Writer",
-    "Reviewer",
-    "Scribe",
-    "PromptEngineer",
-    "TesterAuditor",
-    "Archivist",
-    "Verifier",
-    "NarrativePlanner",
-]
+# Role membership is governed by RoleCatalog at task compilation and protocol
+# boundaries. A static Literal made a merged component manifest unusable until
+# Python source was edited and redeployed.
+AgentName = str
 
 
 ExecutionBackend = Literal["codex", "qwen", "langgraph", "codex_full_driver"]

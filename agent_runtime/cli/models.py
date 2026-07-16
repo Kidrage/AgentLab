@@ -14,6 +14,7 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
+from agent_runtime.self_evolution.role_catalog import RoleCatalog, normalize_role
 
 MODE_TO_TIER = {
     "quality": "full",
@@ -24,51 +25,20 @@ MODE_TO_TIER = {
     "low": "low",
 }
 
-ROLE_ALIASES = {
-    "supervisor": "supervisor",
-    "reposcout": "reposcout",
-    "repo_scout": "reposcout",
-    "researcher": "researcher",
-    "observer": "observer",
-    "interfacemapper": "interface_mapper",
-    "interface_mapper": "interface_mapper",
-    "promptengineer": "prompt_engineer",
-    "prompt_engineer": "prompt_engineer",
-    "coder": "coder",
-    "artifactproducer": "artifact_producer",
-    "artifact_producer": "artifact_producer",
-    "reviewer": "reviewer",
-    "scribe": "scribe",
-    "testerauditor": "tester_auditor",
-    "tester_auditor": "tester_auditor",
-    "verifier": "verifier",
-    "archivist": "archivist",
-    "writer": "writer",
-    "visual_reviewer": "visual_reviewer",
-    "narrativeplanner": "narrative_planner",
-    "narrative_planner": "narrative_planner",
-}
+_DEFAULT_ROLE_CATALOG = RoleCatalog.load(Path(__file__).resolve().parents[2])
+ROLE_ALIASES: dict[str, str] = {}
+for _role in _DEFAULT_ROLE_CATALOG.roles():
+    ROLE_ALIASES[_role.key] = _role.key
+    ROLE_ALIASES[normalize_role(_role.display_name)] = _role.key
+ROLE_ALIASES["visualreviewer"] = "visual_reviewer"
+ROLE_ALIASES["visual_reviewer"] = "visual_reviewer"
 
 
 CAPACITY_ROLE_ALIASES = {"visual_reviewer": "reviewer"}
 ROLE_KEY_TO_CANONICAL = {
-    "supervisor": "Supervisor",
-    "reposcout": "RepoScout",
-    "researcher": "Researcher",
-    "observer": "Observer",
-    "interface_mapper": "InterfaceMapper",
-    "prompt_engineer": "PromptEngineer",
-    "coder": "Coder",
-    "artifact_producer": "ArtifactProducer",
-    "writer": "Writer",
-    "reviewer": "Reviewer",
-    "visual_reviewer": "Reviewer",
-    "scribe": "Scribe",
-    "tester_auditor": "TesterAuditor",
-    "verifier": "Verifier",
-    "archivist": "Archivist",
-    "narrative_planner": "NarrativePlanner",
+    item.key: item.display_name for item in _DEFAULT_ROLE_CATALOG.roles()
 }
+ROLE_KEY_TO_CANONICAL["visual_reviewer"] = "Reviewer"
 INLINE_NUMERIC_PRICE_RE = re.compile(
     r"(?:[$\u00a5\uffe5]\s*\d+(?:\.\d+)?|\b(?:USD|CNY)\s*\d+(?:\.\d+)?)",
     re.IGNORECASE,
@@ -86,9 +56,13 @@ def _write_yaml(path: Path, data: Any) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
-def _role_key(role: str) -> str:
+def _role_key(role: str, root: Path | None = None) -> str:
+    if root is not None:
+        definition = RoleCatalog.load(root).get(role)
+        if definition is not None:
+            return definition.key
     key = str(role or "").replace("-", "_").replace(" ", "_").lower()
-    return ROLE_ALIASES.get(key, key)
+    return ROLE_ALIASES.get(key, ROLE_ALIASES.get(normalize_role(role), key))
 
 
 def _proposal_dir(root: Path) -> Path:
@@ -117,7 +91,12 @@ def _governed_proposal_binding(
     tier: str,
 ) -> tuple[dict[str, str] | None, str | None]:
     """Resolve a proposal only through an existing capacity/contract/binding route."""
-    canonical_role = ROLE_KEY_TO_CANONICAL.get(role_key)
+    role_definition = RoleCatalog.load(root).get(role_key)
+    canonical_role = (
+        role_definition.display_name
+        if role_definition is not None
+        else ROLE_KEY_TO_CANONICAL.get(role_key)
+    )
     if not canonical_role:
         return None, f"Unknown canonical role: {role_key}"
     catalog = _read_yaml(root / "config" / "model_catalog.yml", {}) or {}
@@ -293,9 +272,15 @@ def _role_rows(root: Path, *, mode: str, role: str | None) -> list[dict[str, str
         registry = RuntimeRegistry.load(root)
         if not registry.validate():
             selector = DynamicRouteSelector(registry)
-            selected_role = _role_key(role) if role else None
+            selected_role = _role_key(role, root) if role else None
             rows: list[dict[str, str]] = []
-            for role_key in sorted((registry.data.get("role_routes") or {})):
+            role_keys = set(registry.data.get("role_routes") or {})
+            role_keys.update(
+                item.key
+                for item in RoleCatalog.load(root).roles()
+                if item.source == "component_manifest"
+            )
+            for role_key in sorted(role_keys):
                 if selected_role and role_key != selected_role:
                     continue
                 decision = selector.select(
@@ -359,7 +344,7 @@ def _role_rows(root: Path, *, mode: str, role: str | None) -> list[dict[str, str
     catalog = _read_yaml(root / "config" / "model_catalog.yml", {}) or {}
     capacity = _read_yaml(root / "config" / "model_capacity.yml", {}) or {}
     tier_cfg = _mode_config(profiles, mode)
-    selected_role = _role_key(role) if role else None
+    selected_role = _role_key(role, root) if role else None
     rows: list[dict[str, str]] = []
     for role_key, cfg in sorted(tier_cfg.items()):
         if selected_role and role_key != selected_role:
@@ -1006,7 +991,7 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
             if item.strip()
         ]
         demand = registry.task_demand(
-            _role_key(role),
+            _role_key(role, project_root),
             preset=_tier(mode),
             required_modalities=required,
             data_class=data_class,
@@ -1063,7 +1048,7 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
         if model not in (catalog.get("models") or {}):
             console.print(f"[red]Unknown model catalog key: {model}[/red]")
             raise typer.Exit(code=1)
-        role_key = _role_key(role)
+        role_key = _role_key(role, project_root)
         tier = _tier(mode)
         binding, issue = _governed_proposal_binding(
             project_root,

@@ -130,15 +130,87 @@ def test_blocking_continuity_requires_rewrite_proposal(tmp_path: Path) -> None:
         content,
         tmp_path,
         "task_audit",
-        "Verifier",
+        "NarrativePlanner",
     )
     assert not (tmp_path / "revision_or_rewrite_proposal.yml").exists()
     contract = yaml.safe_load(
-        (tmp_path / "narrative_heavy_audit_verifier_output_contract.yml").read_text(
+        (tmp_path / "narrative_heavy_audit_narrativeplanner_output_contract.yml").read_text(
             encoding="utf-8"
         )
     )
     assert "blocking_continuity_requires_rewrite_proposal" in contract["issues"]
+
+
+def test_narrative_planner_accepts_complete_bounded_rewrite_proposal(
+    tmp_path: Path,
+) -> None:
+    content = _block(
+        "revision_or_rewrite_proposal.yml",
+        {
+            "schema_version": 1,
+            "status": "proposed",
+            "candidate_only": True,
+            "production_modified": False,
+            "rewrite_required": True,
+            "direct_draft_edits": False,
+            "proposals": [
+                {
+                    "finding_ids": ["continuity-004"],
+                    "affected_spans": ["chapter_04:paragraphs_12_14"],
+                    "preserve": ["character location established in chapter 3"],
+                    "changes": ["Move the arrival beat after the recorded transition."],
+                    "acceptance_checks": ["Chapter 4 starts after transition T-03."],
+                    "unresolved": [],
+                }
+            ],
+        },
+    )
+
+    assert materialize_narrative_heavy_audit_content(
+        content,
+        tmp_path,
+        "task_audit",
+        "NarrativePlanner",
+    )
+
+
+def test_narrative_planner_rejects_incomplete_rewrite_proposal(
+    tmp_path: Path,
+) -> None:
+    content = _block(
+        "revision_or_rewrite_proposal.yml",
+        {
+            "schema_version": 1,
+            "status": "blocked",
+            "candidate_only": True,
+            "production_modified": False,
+            "rewrite_required": True,
+            "direct_draft_edits": False,
+            "proposals": [
+                {
+                    "finding_ids": ["continuity-004"],
+                    "affected_spans": [],
+                    "preserve": ["chapter 3 location"],
+                    "changes": ["Await authority input."],
+                    "unresolved": ["Which timeline event is authoritative?"],
+                }
+            ],
+        },
+    )
+
+    assert not materialize_narrative_heavy_audit_content(
+        content,
+        tmp_path,
+        "task_audit",
+        "NarrativePlanner",
+    )
+    contract = yaml.safe_load(
+        (
+            tmp_path
+            / "narrative_heavy_audit_narrativeplanner_output_contract.yml"
+        ).read_text(encoding="utf-8")
+    )
+    assert any("proposal_0" in issue for issue in contract["issues"])
 
 
 def _write_candidate_run(root: Path, chapter: int, eval_id: str) -> None:

@@ -9,7 +9,10 @@ import yaml
 
 from agent_runtime.capabilities.capability_schema import CapabilitySchema
 from agent_runtime.capabilities.compatibility import CompatibilityChecker, WorkerCapabilityRegistry
-from agent_runtime.capabilities.role_requirements import RoleRequirementsRegistry
+from agent_runtime.capabilities.role_requirements import (
+    RoleRequirementDefinition,
+    RoleRequirementsRegistry,
+)
 from agent_runtime.routing.approval_gate import ApprovalGate
 from agent_runtime.routing.fallback_policy import WorkerFallbackPolicy
 from agent_runtime.routing.mode_tier_policy import ModeTierWorkerPolicy
@@ -23,6 +26,7 @@ from agent_runtime.protocols import check_role_binding
 from agent_runtime.workers.detector import DEFAULT_CANDIDATES
 from agent_runtime.workers.performance_ledger import PerformanceLedger
 from agent_runtime.workers.registry import WorkerRegistry
+from agent_runtime.self_evolution.role_catalog import RoleCatalog
 from agent_runtime.workers.worker_card import WorkerCard
 
 
@@ -35,12 +39,31 @@ class RoleAssignmentEngine:
         self.root = Path(agentlab_root)
         self.schema = CapabilitySchema.load_from_file(self.root / "config" / "capability_schema.yml")
         self.roles = RoleRequirementsRegistry.load_from_file(self.root / "config" / "agent_role_requirements.yml")
+        role_definitions = {
+            definition.role_id: definition for definition in self.roles.get_all().values()
+        }
+        for role in RoleCatalog.load(self.root).roles():
+            if role.source != "component_manifest":
+                continue
+            role_definitions[role.key] = RoleRequirementDefinition(
+                role_id=role.key,
+                required_capabilities=list(role.required_capabilities),
+                preferred_capabilities=list(role.preferred_capabilities),
+                forbidden_capabilities=list(role.forbidden_capabilities),
+                default_risk_ceiling=role.default_risk_ceiling,
+                human_approval_required_for=list(role.human_approval_required_for),
+            )
+        self.roles = RoleRequirementsRegistry(role_definitions)
         self.capabilities = WorkerCapabilityRegistry.load_from_file(self.root / "config" / "worker_capability_defaults.yml")
         self.compatibility = CompatibilityChecker(self.schema, self.roles, self.capabilities)
         self.fallback_policy = WorkerFallbackPolicy(self.root / "config" / "worker_fallback_policy.yml")
         self.mode_tier_policy = ModeTierWorkerPolicy(self.root / "config" / "mode_tier_worker_policy.yml")
         self.performance = PerformanceLedger(self.root / "config" / "worker_performance_ledger.yml")
         self.assignment_policy = self._load_yaml(self.root / "config" / "role_assignment_policy.yml")
+        assignment_roles = self.assignment_policy.setdefault("roles", {})
+        for role in RoleCatalog.load(self.root).roles():
+            if role.source == "component_manifest":
+                assignment_roles[role.display_name] = {"candidates": list(role.allowed_workers)}
         self.worker_cards = {
             item["worker_id"]: WorkerCard.from_dict({
                 **item,

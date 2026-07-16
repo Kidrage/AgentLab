@@ -217,7 +217,13 @@ class TestRouteRecommendation:
 
         route = recommend_route("审计 Crown_of_Ash 前 10 章，检查连续性和 promotion 前验收。")
         assert route.route_key == "narrative_heavy_audit"
-        assert route.agents == ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+        assert route.agents == [
+            "Supervisor",
+            "Reviewer",
+            "Scribe",
+            "NarrativePlanner",
+            "Verifier",
+        ]
 
     def test_plain_article_routes_to_article_light_path(self):
         from task_router import recommend_route
@@ -245,7 +251,13 @@ class TestRouteRecommendation:
 
         route = recommend_route("检查前10章连续性。")
         assert route.route_key == "narrative_heavy_audit"
-        assert route.agents == ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+        assert route.agents == [
+            "Supervisor",
+            "Reviewer",
+            "Scribe",
+            "NarrativePlanner",
+            "Verifier",
+        ]
 
 
 # ── Route–gate consistency validation ──────────────────────────────────────

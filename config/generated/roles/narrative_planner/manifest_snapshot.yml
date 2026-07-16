@@ -1,0 +1,77 @@
+api_version: agentlab/v1
+kind: agent_role
+metadata:
+  id: narrative_planner
+  display_name: NarrativePlanner
+  version: 1.0.0
+  status: active
+  replaces_legacy: true
+spec:
+  responsibility: Read accepted project memory, candidate long-form text, and independent
+    audit evidence to propose bounded continuity repairs or rewrites.
+  boundary: Writes revision_or_rewrite_proposal.yml only. It cannot edit candidate
+    or production text, mutate project facts, review its own proposal, or promote
+    any artifact.
+  template_path: agent_templates/narrative_planner.md
+  default_report: revision_or_rewrite_proposal.yml
+  init_artifacts:
+    revision_or_rewrite_proposal.yml: 'schema_version: 1
+
+      status: tbd
+
+      candidate_only: true
+
+      production_modified: false
+
+      rewrite_required: false
+
+      direct_draft_edits: false
+
+      proposals: []'
+  artifacts:
+    inputs:
+    - runs/task_xxxx/narrative_audit_manifest.yml
+    - runs/task_xxxx/narrative_audit_context.md
+    - runs/task_xxxx/fiction_review.yml
+    - runs/task_xxxx/continuity_failure_report.yml
+    - runs/task_xxxx/continuity_ledger.yml
+    - runs/task_xxxx/state_transition_proposal.yml
+    outputs:
+    - runs/task_xxxx/revision_or_rewrite_proposal.yml
+  role_requirements:
+    required_capabilities:
+    - planning
+    - state_ledger
+    preferred_capabilities:
+    - long_context
+    - write_text_artifact
+    forbidden_capabilities:
+    - unapproved_source_edit
+    - silent_provider_fallback
+    default_risk_ceiling: medium
+    human_approval_required_for: []
+  worker_binding:
+    allowed_workers:
+    - claude_code
+    required_session: true
+    invocation_contracts:
+      claude_code: claude_longform_governance
+  runtime_demand:
+    capability_weights:
+      narrative_continuity: 0.45
+      reasoning: 0.35
+      writing: 0.2
+    required_modalities: []
+    quality_floor: 0.85
+    data_class: private
+    predicted_input_tokens: 10000
+    predicted_output_tokens: 4000
+  permissions:
+    can_edit_source: false
+    can_run_shell: true
+    direct_production_write: false
+    credential_management: false
+    install_provider: false
+    register_provider: false
+    secret_access: false
+    auto_merge: false

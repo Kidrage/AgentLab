@@ -112,7 +112,13 @@ class DryRunClosureEvidenceTests(TestCase):
             plan = {
                 "route": {
                     "route_key": "narrative_heavy_audit",
-                    "agents": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
+                    "agents": [
+                        "Supervisor",
+                        "Reviewer",
+                        "Scribe",
+                        "NarrativePlanner",
+                        "Verifier",
+                    ],
                 },
                 "production_pack": {
                     "pack_id": "narrative_longform",
@@ -120,6 +126,7 @@ class DryRunClosureEvidenceTests(TestCase):
                         "SUPERVISOR_PLAN",
                         "FICTION_REVIEW",
                         "SCRIBE_LEDGER",
+                        "NARRATIVE_REWRITE_PLAN",
                         "VERIFY",
                     ],
                 },
@@ -132,13 +139,23 @@ class DryRunClosureEvidenceTests(TestCase):
             create_lifecycle(run_dir, plan)
             lifecycle = load_lifecycle(run_dir) or {}
             for node_id, node in lifecycle.get("nodes", {}).items():
-                if node_id in {"FICTION_REVIEW", "SCRIBE_LEDGER", "VERIFY"}:
+                if node_id in {
+                    "FICTION_REVIEW",
+                    "SCRIBE_LEDGER",
+                    "NARRATIVE_REWRITE_PLAN",
+                    "VERIFY",
+                }:
                     node["status"] = "waiting"
                 else:
                     node["status"] = "skipped"
             save_lifecycle(run_dir, lifecycle)
 
-            for expected_node in ["FICTION_REVIEW", "SCRIBE_LEDGER", "VERIFY"]:
+            for expected_node in [
+                "FICTION_REVIEW",
+                "SCRIBE_LEDGER",
+                "NARRATIVE_REWRITE_PLAN",
+                "VERIFY",
+            ]:
                 result = run_next_node(root, "Crown_of_Ash", task_id, fake_provider=True)
                 self.assertEqual(result["node"], expected_node)
                 self.assertEqual(result["status"], "completed")
@@ -148,6 +165,7 @@ class DryRunClosureEvidenceTests(TestCase):
                 "continuity_failure_report.yml",
                 "state_transition_proposal.yml",
                 "revision_or_rewrite_proposal.yml",
+                "verification_report.md",
             ]:
                 self.assertTrue((run_dir / filename).exists(), filename)
             self.assertFalse((run_dir / "fiction_draft.md").exists())
@@ -160,7 +178,13 @@ class DryRunClosureEvidenceTests(TestCase):
             run_dir.mkdir(parents=True)
             route = SimpleNamespace(
                 route_key="narrative_heavy_audit",
-                agents=["Supervisor", "Reviewer", "Scribe", "Verifier"],
+                agents=[
+                    "Supervisor",
+                    "Reviewer",
+                    "Scribe",
+                    "NarrativePlanner",
+                    "Verifier",
+                ],
             )
             plan_data = {
                 "route": {
@@ -221,6 +245,86 @@ class DryRunClosureEvidenceTests(TestCase):
 
             self.assertEqual(result["status"], "completed", result)
             self.assertFalse(run_model.call_args.kwargs["allow_cli_api_fallback"])
+
+    def test_narrative_planner_execute_uses_declared_component_output(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            task_id = "task_heavy_rewrite_execute"
+            run_dir = root / "projects" / "Crown_of_Ash" / "runs" / task_id
+            run_dir.mkdir(parents=True)
+            route = SimpleNamespace(
+                route_key="narrative_heavy_audit",
+                agents=["Supervisor", "Reviewer", "Scribe", "NarrativePlanner", "Verifier"],
+            )
+            plan_data = {
+                "route": {"route_key": route.route_key, "agents": route.agents}
+            }
+            (run_dir / "workflow_plan.yml").write_text(
+                yaml.safe_dump(plan_data, sort_keys=False),
+                encoding="utf-8",
+            )
+            (run_dir / "user_request.md").write_text(
+                "审计并提出有边界的改写方案。",
+                encoding="utf-8",
+            )
+            create_lifecycle(run_dir, plan_data)
+            lifecycle = load_lifecycle(run_dir) or {}
+            for node_id, node in lifecycle.get("nodes", {}).items():
+                node["status"] = (
+                    "waiting" if node_id == "NARRATIVE_REWRITE_PLAN" else "skipped"
+                )
+            save_lifecycle(run_dir, lifecycle)
+            plan = SimpleNamespace(route=route, production_pack={})
+            proposal = {
+                "schema_version": 1,
+                "status": "proposed",
+                "candidate_only": True,
+                "production_modified": False,
+                "rewrite_required": True,
+                "direct_draft_edits": False,
+                "proposals": [
+                    {
+                        "finding_ids": ["finding-1"],
+                        "affected_spans": ["chapter_2:paragraph_4"],
+                        "preserve": ["established chronology"],
+                        "changes": ["Move the reveal after the transition."],
+                        "acceptance_checks": ["Timeline remains monotonic."],
+                        "unresolved": [],
+                    }
+                ],
+            }
+            model_result = LLMCallResult(
+                provider="agentlab-cli-executor",
+                model="deepseek_v4_pro",
+                content=(
+                    "<!-- AGENTLAB_EDIT: revision_or_rewrite_proposal.yml -->\n"
+                    + yaml.safe_dump(proposal, sort_keys=False)
+                    + "<!-- END AGENTLAB_EDIT -->"
+                ),
+                status="completed",
+            )
+
+            with mock.patch(
+                "workflow_plan.build_workflow_plan",
+                return_value=plan,
+            ), mock.patch(
+                "agent_runner.run_agent_model",
+                return_value=model_result,
+            ) as run_model:
+                result = run_next_node(
+                    root,
+                    "Crown_of_Ash",
+                    task_id,
+                    fake_provider=False,
+                    execution_mode="execute",
+                )
+
+            self.assertEqual(result["status"], "completed", result)
+            self.assertEqual(
+                Path(run_model.call_args.args[3]),
+                run_dir / "revision_or_rewrite_proposal.yml",
+            )
+            self.assertTrue((run_dir / "revision_or_rewrite_proposal.yml").is_file())
 
     def test_prepare_plan_reopens_audit_and_archive_nodes_from_existing_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as td:

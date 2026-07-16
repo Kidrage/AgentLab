@@ -43,7 +43,13 @@ DEFAULT_ROUTE_AGENTS: dict[str, list[str]] = {
     "narrative_light_chapter": ["Supervisor", "Writer"],
     "narrative_batch_chapters": ["Supervisor", "Writer"],
     "article_light_draft": ["Supervisor", "ArtifactProducer"],
-    "narrative_heavy_audit": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
+    "narrative_heavy_audit": [
+        "Supervisor",
+        "Reviewer",
+        "Scribe",
+        "NarrativePlanner",
+        "Verifier",
+    ],
     "evaluation_task": [
         "Supervisor",
         "RepoScout",

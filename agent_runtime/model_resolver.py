@@ -14,6 +14,7 @@ as ``qwen``, ``qwen3``, or ``qwen-coder``.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 
@@ -186,7 +187,6 @@ def resolve_profile_config(
 
     # 1. Load agent_model_profiles.yml if not provided
     if agent_model_profiles is None:
-        from pathlib import Path
         import yaml
         try:
             agentlab_root = Path(__file__).resolve().parent.parent
@@ -210,28 +210,16 @@ def resolve_profile_config(
     tier = budget_mode_to_tier(budget_mode)
     mode = os.getenv("AGENTLAB_MODE", agent_model_profiles.get("default_mode", "full_cli")).lower()
 
-    # 3. Resolve role key from agent name
-    role_key = agent_name.lower().replace(" ", "_")
-    _role_key_map = {
-        "supervisor": "supervisor",
-        "observer": "observer",
-        "reposcout": "reposcout",
-        "researcher": "researcher",
-        "interfacemapper": "interface_mapper",
-        "coder": "coder",
-        "artifactproducer": "artifact_producer",
-        "artifact_producer": "artifact_producer",
-        "promptengineer": "prompt_engineer",
-        "testerauditor": "tester_auditor",
-        "verifier": "verifier",
-        "archivist": "archivist",
-        "writer": "writer",
-        "reviewer": "reviewer",
-        "visualreviewer": "visual_reviewer",
-        "scribe": "scribe",
-        "narrativeplanner": "narrative_planner",
-    }
-    role_key = _role_key_map.get(role_key, role_key)
+    # 3. Resolve role key from the unified catalog. VisualReviewer remains a
+    # route-specific Reviewer alias rather than a standalone canonical role.
+    from agent_runtime.self_evolution.role_catalog import RoleCatalog, role_key as fallback_role_key
+
+    agentlab_root = Path(__file__).resolve().parent.parent
+    if agent_name.lower().replace("_", "").replace(" ", "") == "visualreviewer":
+        role_key = "visual_reviewer"
+    else:
+        role_definition = RoleCatalog.load(agentlab_root).get(agent_name)
+        role_key = role_definition.key if role_definition else fallback_role_key(agent_name)
 
     # Compile the dynamic registry selection into a catalog key before reading
     # the retained schema-v4 matrix.  The matrix remains an emergency fallback

@@ -312,7 +312,12 @@ def test_route_probe_classifies_natural_language_task_without_task_packet() -> N
 def test_route_probe_keeps_code_article_and_audit_chains_distinct() -> None:
     runner = CliRunner()
     cases = [
-        ("审计 Crown 前 10 章", "narrative_heavy_audit", ["Supervisor", "Reviewer", "Scribe", "Verifier"], "narrative_longform"),
+        (
+            "审计 Crown 前 10 章",
+            "narrative_heavy_audit",
+            ["Supervisor", "Reviewer", "Scribe", "NarrativePlanner", "Verifier"],
+            "narrative_longform",
+        ),
         ("写一篇产品说明文章", "article_light_draft", ["Supervisor", "ArtifactProducer"], "article_light"),
         ("Write a product description article", "article_light_draft", ["Supervisor", "ArtifactProducer"], "article_light"),
         ("修复这个 Python 函数的 bug", "small_task", ["Supervisor", "Coder", "TesterAuditor"], "code_factory"),

@@ -1629,6 +1629,7 @@ def _persist_model_execution_receipt(
         yaml.safe_dump(receipt, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
+    receipt_sha256 = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
 
     provider = receipt.get("provider") or receipt.get("selected_provider")
     selected_model = (
@@ -1644,6 +1645,7 @@ def _persist_model_execution_receipt(
         "capacity_pool": preflight.get("capacity_pool"),
         "selection_kind": selection_kind,
         "receipt_path": str(receipt_path),
+        "receipt_sha256": receipt_sha256,
         "status": receipt.get("status"),
         "provider": provider,
         "selected_model": selected_model,
@@ -1676,6 +1678,7 @@ def _persist_model_execution_receipt(
         "final": {
             "attempt_id": preflight.get("attempt_id"),
             "receipt_path": str(receipt_path),
+            "receipt_sha256": receipt_sha256,
             "status": receipt.get("status"),
             "capacity_route": preflight.get("capacity_route"),
             "selection_kind": selection_kind,
@@ -2051,6 +2054,11 @@ def _write_claude_model_receipt(
     timed_out: bool = False,
     provider_model_mismatch: bool = False,
     extra_issues: list[str] | None = None,
+    task_packet_sha256: str | None = None,
+    outbound_context_manifest_sha256: str | None = None,
+    provider_stdout_sha256: str | None = None,
+    returned_content_sha256: str | None = None,
+    execution_command_id: str | None = None,
 ) -> str | None:
     if not preflight.get("applicable"):
         return None
@@ -2113,6 +2121,11 @@ def _write_claude_model_receipt(
         "evidence_source": "runtime_verified_argv_profile_and_claude_json",
         "exit_code": exit_code,
         "stdout_nonempty": stdout_nonempty,
+        "task_packet_sha256": task_packet_sha256,
+        "outbound_context_manifest_sha256": outbound_context_manifest_sha256,
+        "provider_stdout_sha256": provider_stdout_sha256,
+        "returned_content_sha256": returned_content_sha256,
+        "execution_command_id": execution_command_id,
         "timed_out": timed_out,
         "issues": sorted(set(str(item) for item in issues)),
     }
@@ -4585,6 +4598,51 @@ def run_cli_agent(
         finished_at=finished_at,
     )
 
+    # Build the exact content returned to run_task before sealing the model
+    # receipt so the provider attempt and materialized report share one digest.
+    header = textwrap.dedent(f"""\
+        # {agent_name} Report (CLI Agent: {cli_agent_name})
+
+        - **Task**: {plan.task_id}
+        - **Project**: {plan.project}
+        - **Execution channel**: `{execution_metadata.get('execution_channel', 'cli_subprocess')}`
+        - **Command**: `{shlex.join(execution_argv)}`
+        - **Exit code**: {proc.returncode}
+        - **Duration**: {duration_s:.1f}s
+        - **Started**: {started_at.isoformat()}
+        - **Evidence**: {f'command_id {command_id} in execution_log.yml' if command_id else 'execution_log unavailable'}
+    """)
+    body = _extract_cli_result_text(proc.stdout or "", cli_agent_name)
+    body = body if body else "(no stdout output)"
+    stderr_section = (
+        f"\n\n## stderr\n\n```\n{stderr_text}\n```" if stderr_text else ""
+    )
+    if model_resolution_failed:
+        stderr_section += (
+            "\n\n## Model Resolution\n\n"
+            "Agy rejected the requested --model label; AgentLab blocked its "
+            "silent default-model substitution."
+        )
+    if claude_provider_model_mismatch:
+        stderr_section += (
+            "\n\n## Provider Model Binding\n\n"
+            "Claude reported a model different from the selected AgentLab route; "
+            "AgentLab blocked the result and recorded the mismatch."
+        )
+    full_content = header + "\n## Output\n\n" + body + stderr_section
+    task_packet_sha256 = hashlib.sha256(packet_path.read_bytes()).hexdigest()
+    outbound_manifest_sha256 = (
+        hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        if manifest_path is not None and manifest_path.is_file()
+        else None
+    )
+    provider_stdout_sha256 = hashlib.sha256(
+        (proc.stdout or "").encode("utf-8")
+    ).hexdigest()
+    returned_content_sha256 = hashlib.sha256(
+        full_content.encode("utf-8")
+    ).hexdigest()
+
     agy_receipt_path = _write_agy_model_receipt(
         run_dir,
         agent_name,
@@ -4616,6 +4674,11 @@ def run_cli_agent(
         timed_out=False,
         provider_model_mismatch=claude_provider_model_mismatch,
         extra_issues=receipt_failure_issues,
+        task_packet_sha256=task_packet_sha256,
+        outbound_context_manifest_sha256=outbound_manifest_sha256,
+        provider_stdout_sha256=provider_stdout_sha256,
+        returned_content_sha256=returned_content_sha256,
+        execution_command_id=command_id,
     )
     if claude_receipt_path:
         model_receipt_path = claude_receipt_path
@@ -4683,40 +4746,6 @@ def run_cli_agent(
     )
     if hermes_receipt_path:
         model_receipt_path = hermes_receipt_path
-
-    # ── Build the canonical AgentLab report ──────────────────────────────────
-    header = textwrap.dedent(f"""\
-        # {agent_name} Report (CLI Agent: {cli_agent_name})
-
-        - **Task**: {plan.task_id}
-        - **Project**: {plan.project}
-        - **Execution channel**: `{execution_metadata.get('execution_channel', 'cli_subprocess')}`
-        - **Command**: `{shlex.join(execution_argv)}`
-        - **Exit code**: {proc.returncode}
-        - **Duration**: {duration_s:.1f}s
-        - **Started**: {started_at.isoformat()}
-        - **Evidence**: {f'command_id {command_id} in execution_log.yml' if command_id else 'execution_log unavailable'}
-    """)
-
-    body = _extract_cli_result_text(proc.stdout or "", cli_agent_name)
-    body = body if body else "(no stdout output)"
-    stderr_section = (
-        f"\n\n## stderr\n\n```\n{stderr_text}\n```" if stderr_text else ""
-    )
-    if model_resolution_failed:
-        stderr_section += (
-            "\n\n## Model Resolution\n\n"
-            "Agy rejected the requested --model label; AgentLab blocked its "
-            "silent default-model substitution."
-        )
-    if claude_provider_model_mismatch:
-        stderr_section += (
-            "\n\n## Provider Model Binding\n\n"
-            "Claude reported a model different from the selected AgentLab route; "
-            "AgentLab blocked the result and recorded the mismatch."
-        )
-
-    full_content = header + "\n## Output\n\n" + body + stderr_section
 
     result_status: str
     result_error: str | None
@@ -4786,6 +4815,10 @@ def run_cli_agent(
             ),
             **usage_estimate,
             **({"command_id": command_id} if command_id else {}),
+            "task_packet_sha256": task_packet_sha256,
+            "outbound_context_manifest_sha256": outbound_manifest_sha256,
+            "provider_stdout_sha256": provider_stdout_sha256,
+            "returned_content_sha256": returned_content_sha256,
             **({"binary_candidate_used": candidate_used} if candidate_used else {}),
             **({"cli_log_path": str(cli_log_path)} if cli_log_path else {}),
             **({"outbound_context_manifest": str(manifest_path)} if manifest_path else {}),

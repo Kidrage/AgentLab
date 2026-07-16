@@ -7,88 +7,16 @@ from typing import Any
 
 import yaml
 
+from agent_runtime.self_evolution.role_catalog import RoleCatalog, normalize_role
 
-ROLE_RESPONSIBILITIES: dict[str, dict[str, str]] = {
-    "Supervisor": {
-        "responsibility": "Mission contract, route selection, scope, budget, production-pack selection, and approval gates.",
-        "boundary": "Does not silently edit source or bypass approval gates.",
-    },
-    "RepoScout": {
-        "responsibility": "Read codebase structure and repository context for code tasks.",
-        "boundary": "Does not modify files.",
-    },
-    "Researcher": {
-        "responsibility": "Produce evidence-backed domain briefs for new domains or production-pack synthesis.",
-        "boundary": "Does not become a truth source without cited evidence.",
-    },
-    "Observer": {
-        "responsibility": "Inspect only assigned text, image, video, audio, or PDF evidence and return source-bound observations and limitations.",
-        "boundary": "Read-only; does not write prose, generate artifacts, or approve its own observations.",
-    },
-    "InterfaceMapper": {
-        "responsibility": "Map code interfaces, contracts, and cross-module boundaries.",
-        "boundary": "Does not implement patches.",
-    },
-    "PromptEngineer": {
-        "responsibility": "Prepare bounded execution prompts when a task needs a handoff prompt.",
-        "boundary": "Does not own implementation or promotion.",
-    },
-    "Coder": {
-        "responsibility": "Implement code changes and code artifacts under the code_factory pack.",
-        "boundary": "Does not default to producing fiction, media, or article artifacts.",
-    },
-    "ArtifactProducer": {
-        "responsibility": "Produce non-code artifacts that follow the selected production-pack contract.",
-        "boundary": "Does not replace Coder for source-code implementation.",
-    },
-    "Writer": {
-        "responsibility": "Draft candidate longform narrative chapters and light-path continuity ledgers.",
-        "boundary": "Does not promote candidate text into production memory.",
-    },
-    "NarrativePlanner": {
-        "responsibility": "Read accepted project memory and candidate longform text to propose bounded continuity repairs or rewrites.",
-        "boundary": "Writes revision_or_rewrite_proposal.yml only; does not edit candidate text, production text, or project facts.",
-    },
-    "Reviewer": {
-        "responsibility": "Independently review narrative or visual candidates against the route-specific quality contract.",
-        "boundary": "Does not rewrite prose, mutate media, or act as the producing worker.",
-    },
-    "Scribe": {
-        "responsibility": "Maintain narrative ledgers and state-transition proposals.",
-        "boundary": "Does not treat unapproved candidate facts as production facts.",
-    },
-    "TesterAuditor": {
-        "responsibility": "Run or record validation commands, audit risks, and capture evidence.",
-        "boundary": "Does not declare pass without evidence.",
-    },
-    "Verifier": {
-        "responsibility": "Independently check output contracts, evidence integrity, acceptance decisions, and handoff completeness.",
-        "boundary": "Does not edit implementation artifacts.",
-    },
-    "Archivist": {
-        "responsibility": "Archive and promote accepted outputs into project memory.",
-        "boundary": "Does not force promotion for packs that exclude archive or lack acceptance.",
-    },
-}
 
-ROLE_KEY_MAP = {
-    "supervisor": "Supervisor",
-    "reposcout": "RepoScout",
-    "researcher": "Researcher",
-    "observer": "Observer",
-    "interface_mapper": "InterfaceMapper",
-    "prompt_engineer": "PromptEngineer",
-    "coder": "Coder",
-    "artifact_producer": "ArtifactProducer",
-    "writer": "Writer",
-    "narrative_planner": "NarrativePlanner",
-    "reviewer": "Reviewer",
-    "visual_reviewer": "Reviewer",
-    "scribe": "Scribe",
-    "tester_auditor": "TesterAuditor",
-    "verifier": "Verifier",
-    "archivist": "Archivist",
-}
+_DEFAULT_CATALOG = RoleCatalog.load(Path(__file__).resolve().parent.parent)
+ROLE_RESPONSIBILITIES = _DEFAULT_CATALOG.responsibility_catalog()
+ROLE_KEY_MAP = {item.key: item.display_name for item in _DEFAULT_CATALOG.roles()}
+ROLE_KEY_MAP.update(
+    {normalize_role(item.display_name): item.display_name for item in _DEFAULT_CATALOG.roles()}
+)
+ROLE_KEY_MAP["visual_reviewer"] = "Reviewer"
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -99,26 +27,27 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 
 def _role_binding_report(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
-    path = root / "config" / "agent_role_bindings.yml"
-    config = _read_yaml(path)
+    catalog = RoleCatalog.load(root)
+    responsibilities = catalog.responsibility_catalog()
+    config = catalog.merged_role_bindings()
     roles = config.get("roles", {}) if isinstance(config.get("roles"), dict) else {}
     workers = config.get("workers", {}) if isinstance(config.get("workers"), dict) else {}
     issues: list[str] = []
     report: list[dict[str, Any]] = []
 
-    missing_catalog = sorted(set(roles) - set(ROLE_RESPONSIBILITIES))
-    missing_bindings = sorted(set(ROLE_RESPONSIBILITIES) - set(roles))
+    missing_catalog = sorted(set(roles) - set(responsibilities))
+    missing_bindings = sorted(set(responsibilities) - set(roles))
     for role in missing_catalog:
         issues.append(f"role {role} is bound but missing from responsibility catalog")
     for role in missing_bindings:
         issues.append(f"role {role} is in responsibility catalog but missing from bindings")
 
-    for role in sorted(set(ROLE_RESPONSIBILITIES) | set(roles)):
+    for role in sorted(set(responsibilities) | set(roles)):
         binding = roles.get(role, {}) if isinstance(roles.get(role), dict) else {}
         allowed_workers = list(binding.get("allowed_workers") or [])
         required_session = bool(binding.get("required_session"))
         role_issues: list[str] = []
-        if role not in ROLE_RESPONSIBILITIES:
+        if role not in responsibilities:
             role_issues.append("missing responsibility definition")
         if role not in roles:
             role_issues.append("missing role binding")
@@ -141,8 +70,8 @@ def _role_binding_report(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
             {
                 "role": role,
                 "status": "pass" if not role_issues else "fail",
-                "responsibility": ROLE_RESPONSIBILITIES.get(role, {}).get("responsibility"),
-                "boundary": ROLE_RESPONSIBILITIES.get(role, {}).get("boundary"),
+                "responsibility": responsibilities.get(role, {}).get("responsibility"),
+                "boundary": responsibilities.get(role, {}).get("boundary"),
                 "allowed_workers": allowed_workers,
                 "required_session": required_session,
                 "issues": role_issues,
@@ -158,7 +87,7 @@ def _chain_role_report(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
         from agent_runtime.production_chain_audit import build_production_chain_audit
 
     chain = build_production_chain_audit(root)
-    roles = set(ROLE_RESPONSIBILITIES)
+    roles = set(RoleCatalog.load(root).names())
     issues: list[str] = []
     report: list[dict[str, Any]] = []
     for scenario in chain.get("scenarios", []):
@@ -197,9 +126,10 @@ def _chain_role_report(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
 
 
 def _worker_coverage_report(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
-    config = _read_yaml(root / "config" / "agent_role_bindings.yml")
+    catalog = RoleCatalog.load(root)
+    config = catalog.merged_role_bindings()
     workers = config.get("workers", {}) if isinstance(config.get("workers"), dict) else {}
-    roles = set(ROLE_RESPONSIBILITIES)
+    roles = set(catalog.names())
     issues: list[str] = []
     report: list[dict[str, Any]] = []
     for worker_name, worker_config in sorted(workers.items()):
@@ -270,6 +200,10 @@ def _profile_role_binding_issue(
 
 
 def _profile_contract_report(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    catalog = RoleCatalog.load(root)
+    role_key_map = {item.key: item.display_name for item in catalog.roles()}
+    role_key_map.update({normalize_role(item.display_name): item.display_name for item in catalog.roles()})
+    role_key_map["visual_reviewer"] = "Reviewer"
     profiles = _read_yaml(root / "config" / "agent_model_profiles.yml")
     model_catalog = _read_yaml(root / "config" / "model_catalog.yml")
     catalog_models = (
@@ -278,7 +212,7 @@ def _profile_contract_report(root: Path) -> tuple[list[dict[str, Any]], list[str
         else {}
     )
     contracts = _read_yaml(root / "config" / "worker_invocation_contracts.yml").get("contracts", {})
-    role_bindings = _read_yaml(root / "config" / "agent_role_bindings.yml")
+    role_bindings = catalog.merged_role_bindings()
     modes = profiles.get("modes", {}) if isinstance(profiles.get("modes"), dict) else {}
     contracts = contracts if isinstance(contracts, dict) else {}
     issues: list[str] = []
@@ -294,7 +228,7 @@ def _profile_contract_report(root: Path) -> tuple[list[dict[str, Any]], list[str
             for role_key, role_config in sorted(tier.items()):
                 if not isinstance(role_config, dict) or role_config.get("executor_type") != "cli_agent":
                     continue
-                role = ROLE_KEY_MAP.get(str(role_key), str(role_key))
+                role = role_key_map.get(str(role_key), str(role_key))
                 entry_issues: list[str] = []
                 contract_name = str(role_config.get("invocation_contract") or "")
                 cli_agent = str(role_config.get("cli_agent") or "")
@@ -403,6 +337,7 @@ def build_agent_role_chain_audit(root: Path) -> dict[str, Any]:
             str(root / "config" / "worker_invocation_contracts.yml"),
             str(root / "config" / "routing_rules.yml"),
             str(root / "config" / "production_packs.yml"),
+            str(root / "config" / "components" / "agents"),
         ],
         "roles": role_reports,
         "workers": worker_reports,
@@ -412,8 +347,8 @@ def build_agent_role_chain_audit(root: Path) -> dict[str, Any]:
         "invariants": [
             "every role has a responsibility and boundary",
             "every role has at least one allowed worker and requires a role session",
-            "role allowed_workers must be reciprocated by worker allowed_roles",
-            "every worker must explicitly allow or forbid every canonical role",
+            "legacy role allowed_workers must be reciprocated by worker allowed_roles",
+            "component-managed roles default-deny workers not declared in their manifest",
             "every cli_agent and fallback_cli_agent must match the selected invocation contract worker_id",
             "every cli_agent and fallback_cli_agent selected by runtime profiles must be allowed by role bindings",
             "every default and effective fallback model selected by runtime profiles must exist in model_catalog.yml",

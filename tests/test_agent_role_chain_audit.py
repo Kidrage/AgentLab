@@ -33,6 +33,7 @@ def test_agent_role_chain_audit_covers_roles_workers_and_chains() -> None:
         "Supervisor",
         "Reviewer",
         "Scribe",
+        "NarrativePlanner",
         "Verifier",
     ]
     assert chains["narrative_heavy_audit"]["status"] == "pass"
@@ -43,6 +44,9 @@ def test_agent_role_chain_audit_covers_roles_workers_and_chains() -> None:
     assert chains["narrative_heavy_audit"]["agent_lifecycle_coverage"]["coverage"]["Scribe"] == [
         "SCRIBE_LEDGER"
     ]
+    assert chains["narrative_heavy_audit"]["agent_lifecycle_coverage"]["coverage"][
+        "NarrativePlanner"
+    ] == ["NARRATIVE_REWRITE_PLAN"]
     assert chains["media_series_production"]["agent_lifecycle_coverage"]["coverage"]["ArtifactProducer"] == [
         "ARTIFACT_PRODUCTION"
     ]

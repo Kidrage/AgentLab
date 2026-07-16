@@ -86,6 +86,7 @@ def test_observer_role_contract_is_registered_and_read_only() -> None:
         "WRITER_DRAFT",
         "FICTION_REVIEW",
         "SCRIBE_LEDGER",
+        "NARRATIVE_REWRITE_PLAN",
         "CODER_IMPLEMENTATION",
         "ARTIFACT_PRODUCTION",
         "VISUAL_OBSERVATION",

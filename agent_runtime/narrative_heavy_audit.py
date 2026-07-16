@@ -20,7 +20,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct script path
 HEAVY_AUDIT_OUTPUTS_BY_AGENT: dict[str, tuple[str, ...]] = {
     "Reviewer": ("fiction_review.yml", "continuity_failure_report.yml"),
     "Scribe": ("state_transition_proposal.yml",),
-    "Verifier": ("revision_or_rewrite_proposal.yml",),
+    "NarrativePlanner": ("revision_or_rewrite_proposal.yml",),
 }
 MAX_AUDIT_BUNDLE_CHAPTERS = 20
 
@@ -83,14 +83,50 @@ def _schema_issues(name: str, value: str) -> list[str]:
         ):
             issues.append(f"invalid_heavy_audit_boundary:{name}:event_scope")
     elif name == "revision_or_rewrite_proposal.yml":
-        if data.get("status") not in {"not_required", "proposed", "blocked"}:
+        status = data.get("status")
+        rewrite_required = data.get("rewrite_required")
+        proposals = data.get("proposals")
+        if status not in {"not_required", "proposed", "blocked"}:
             issues.append(f"invalid_heavy_audit_schema:{name}:status")
-        if not isinstance(data.get("rewrite_required"), bool):
+        if not isinstance(rewrite_required, bool):
             issues.append(f"invalid_heavy_audit_schema:{name}:rewrite_required")
         if data.get("direct_draft_edits") is not False:
             issues.append(f"invalid_heavy_audit_boundary:{name}:direct_draft_edits")
-        if not isinstance(data.get("proposals"), list):
+        if not isinstance(proposals, list):
             issues.append(f"invalid_heavy_audit_schema:{name}:proposals")
+        elif status == "not_required":
+            if rewrite_required is not False or proposals:
+                issues.append(
+                    f"invalid_heavy_audit_schema:{name}:not_required_must_be_empty"
+                )
+        elif status in {"proposed", "blocked"}:
+            if rewrite_required is not True or not proposals:
+                issues.append(
+                    f"invalid_heavy_audit_schema:{name}:rewrite_plan_required"
+                )
+            required_fields = {
+                "finding_ids",
+                "affected_spans",
+                "preserve",
+                "changes",
+                "acceptance_checks",
+                "unresolved",
+            }
+            for index, proposal in enumerate(proposals):
+                if not isinstance(proposal, dict) or set(proposal) != required_fields:
+                    issues.append(
+                        f"invalid_heavy_audit_schema:{name}:proposal_{index}_fields"
+                    )
+                    continue
+                for field in required_fields:
+                    value = proposal.get(field)
+                    if not isinstance(value, list) or (
+                        field != "unresolved" and not value
+                    ):
+                        issues.append(
+                            f"invalid_heavy_audit_schema:{name}:"
+                            f"proposal_{index}_{field}"
+                        )
     return issues
 
 

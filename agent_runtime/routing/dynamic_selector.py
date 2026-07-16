@@ -44,8 +44,17 @@ class DynamicRouteSelector:
         self.quota_snapshots = dict(quota_snapshots or {})
         self.route_states = dict(route_states or {})
 
-    def select(self, demand: TaskDemand) -> dict[str, Any]:
-        candidates = self.registry.candidates_for(demand.role)
+    def select(
+        self,
+        demand: TaskDemand,
+        *,
+        candidate_route_ids: list[str] | tuple[str, ...] | None = None,
+    ) -> dict[str, Any]:
+        candidates = (
+            [str(item) for item in candidate_route_ids]
+            if candidate_route_ids is not None
+            else self.registry.candidates_for(demand.role)
+        )
         rejected: list[dict[str, Any]] = []
         eligible: list[dict[str, Any]] = []
         runtime_policy = self.registry.routing_policy.get("runtime_routing") or {}

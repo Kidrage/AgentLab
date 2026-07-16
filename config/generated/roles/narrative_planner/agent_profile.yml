@@ -1,0 +1,19 @@
+role_id: narrative_planner
+display_name: NarrativePlanner
+status: active
+source_template_path: agent_templates/narrative_planner.md
+template_path: config/generated/roles/narrative_planner/worker_prompt.md
+responsibility: Read accepted project memory, candidate long-form text, and independent
+  audit evidence to propose bounded continuity repairs or rewrites.
+boundary: Writes revision_or_rewrite_proposal.yml only. It cannot edit candidate or
+  production text, mutate project facts, review its own proposal, or promote any artifact.
+permissions:
+  can_edit_source: false
+  can_run_shell: true
+  direct_production_write: false
+  credential_management: false
+  install_provider: false
+  register_provider: false
+  secret_access: false
+  auto_merge: false
+source: component_manifest

@@ -1,0 +1,28 @@
+schema_version: 1
+component_id: narrative_planner
+manifest_fingerprint: 8b794f1ab1b3d6942452bad9c45edbd5cd7169fda7605fc19558515000ceb91d
+status: pass
+issues: []
+generated_files:
+- path: manifest_snapshot.yml
+  sha256: 5a364805af198d0b94dc588f0db6db3269288bee769ee22caf820d3f3006a22d
+- path: agent_profile.yml
+  sha256: 7653e0c791de5a5f5f783954e8b09d0f60719de9fd8e6179b701e0ffcb3ea5be
+- path: artifact_contract.yml
+  sha256: b10dbc9f7c1940d406fe0191ee7ee832ea6e985b1c97ebf7e25e67ad881c893b
+- path: role_requirement.yml
+  sha256: bca64004562a6fc8a9adea6027549a4d8f9b953db27342c297607160917b0da5
+- path: worker_binding.yml
+  sha256: 8c3276728b0ff5ecdfa0dc446e64784525a66938e010063292549c4ea87b3a59
+- path: model_selection_receipt.yml
+  sha256: 1d577d5ef56078423fc67338f92da992fa4b1031c9abc4cd10801d785e542543
+- path: runtime_binding.yml
+  sha256: 8284bf5e87ceca5aec385227c2d0cf18481b5a5e2386d06a98aeb34c598e9b98
+- path: protocol_binding.yml
+  sha256: 454afc9925bfc65bf8cb50f114d66aed79089a911639a45ba6e640c5edcb7dea
+- path: init_templates.yml
+  sha256: 592dd532468a17a88c030666ad24b282674139d1036a577ec389b2f8e8ba7d05
+- path: workflow_binding.yml
+  sha256: 8281592eee3a903402c61894dad1f243e53416525557e3943468c3c2b6c63f7c
+- path: worker_prompt.md
+  sha256: 541d3776672bcbd3a87c63b901308fd647aad57cc55d1574cf6397296b832439

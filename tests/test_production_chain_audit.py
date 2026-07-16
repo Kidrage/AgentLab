@@ -67,10 +67,14 @@ def test_production_chain_audit_covers_representative_chains() -> None:
     assert by_id["narrative_heavy_audit"]["agent_lifecycle_coverage"]["coverage"]["Scribe"] == [
         "SCRIBE_LEDGER"
     ]
+    assert by_id["narrative_heavy_audit"]["agent_lifecycle_coverage"]["coverage"][
+        "NarrativePlanner"
+    ] == ["NARRATIVE_REWRITE_PLAN"]
     assert by_id["narrative_heavy_audit"]["agents"] == [
         "Supervisor",
         "Reviewer",
         "Scribe",
+        "NarrativePlanner",
         "Verifier",
     ]
     assert "Writer" not in by_id["narrative_heavy_audit"]["agents"]

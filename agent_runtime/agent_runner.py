@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
-from pathlib import Path
+from hashlib import sha256
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 from uuid import uuid4
 
@@ -16,25 +17,11 @@ from config_loader import load_agentlab_configs
 from llm_provider import generate_text, resolve_env_value, resolve_llm_settings
 from policies import assert_path_allowed
 from schemas import LLMCallResult, LLMSettings, WorkflowPlan
+from agent_runtime.self_evolution.role_catalog import RoleCatalog
 
 
-DEFAULT_REPORT_BY_AGENT = {
-    "Supervisor": "01_supervisor_plan.md",
-    "RepoScout": "02_reposcout_report.md",
-    "Researcher": "03_research_notes.md",
-    "Observer": "observation_report.yml",
-    "InterfaceMapper": "04_interface_map.md",
-    "PromptEngineer": "05_coder_prompt.md",
-    "Coder": "06_implementation_report.md",
-    "ArtifactProducer": "artifact_producer_report.md",
-    "Writer": "fiction_draft.md",
-    "NarrativePlanner": "revision_or_rewrite_proposal.yml",
-    "Reviewer": "fiction_review.yml",
-    "Scribe": "continuity_ledger.yml",
-    "TesterAuditor": "08_audit_report.md",
-    "Verifier": "verification_report.md",
-    "Archivist": "09_archive_update.md",
-}
+_ROLE_CATALOG = RoleCatalog.load(Path(__file__).resolve().parent.parent)
+DEFAULT_REPORT_BY_AGENT = _ROLE_CATALOG.default_reports()
 
 LEGACY_REPORT_BY_AGENT = {
     "Supervisor": "supervisor_plan.md",
@@ -49,22 +36,20 @@ LEGACY_REPORT_BY_AGENT = {
 }
 
 ROLE_KEY_BY_AGENT = {
-    "supervisor": "supervisor",
-    "reposcout": "reposcout",
-    "researcher": "researcher",
-    "observer": "observer",
-    "interfacemapper": "interface_mapper",
-    "coder": "coder",
+    **_ROLE_CATALOG.role_keys(),
+    # Stable aliases retained for legacy integrations that inspect this module.
     "artifactproducer": "artifact_producer",
     "promptengineer": "prompt_engineer",
-    "testerauditor": "tester_auditor",
-    "verifier": "verifier",
-    "archivist": "archivist",
-    "writer": "writer",
-    "reviewer": "reviewer",
-    "scribe": "scribe",
-    "narrativeplanner": "narrative_planner",
 }
+
+
+def _effective_agent_configs(
+    agentlab_root: Path,
+    configs: Mapping[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
+    loaded = configs or load_agentlab_configs(agentlab_root)
+    legacy = (loaded.get("agent_registry", {}).get("agents", {}) or {})
+    return RoleCatalog.load(agentlab_root).agent_configs(legacy)
 
 _OBSERVER_TEXT_SUFFIXES = {
     ".csv",
@@ -215,7 +200,7 @@ def writer_context_source_files(
     files.extend(_story_authority_context_files(project_root, run_dir))
 
     configs = load_agentlab_configs(agentlab_root)
-    writer_config = (configs.get("agent_registry", {}).get("agents", {}) or {}).get("Writer", {})
+    writer_config = _effective_agent_configs(agentlab_root, configs).get("Writer", {})
     template_text = str(writer_config.get("template_path") or "").strip()
     if template_text:
         files.append(agentlab_root / template_text)
@@ -249,6 +234,138 @@ def writer_context_source_files(
     return result
 
 
+def governed_audit_context_source_files(
+    agentlab_root: Path,
+    plan: WorkflowPlan,
+    agent_name: str,
+    output_path: Path,
+) -> list[Path]:
+    """Return the exact local inputs used by governed audit role sessions."""
+
+    project_root = Path(plan.project_root)
+    run_dir = Path(plan.run_dir)
+    verifier_packet_path = run_dir / "self_evolution_verifier_task_packet.yml"
+    files = [
+        agentlab_root / "config" / "agent_registry.yml",
+        Path(plan.user_request_path),
+    ]
+    if agent_name == "Verifier" and verifier_packet_path.is_file():
+        files.extend(
+            _self_evolution_verifier_context_files(agentlab_root, run_dir)
+        )
+    elif plan.route.route_key == "narrative_heavy_audit":
+        files.extend(
+            [
+                run_dir / "workflow_plan.yml",
+                run_dir
+                / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
+                run_dir / "mission_contract.yml",
+                run_dir / "narrative_audit_manifest.yml",
+                run_dir / "narrative_audit_context.md",
+                project_root / "project_brain" / "project_fact_snapshot.yml",
+                project_root / "project_artifact_index.yml",
+            ]
+        )
+        if agent_name in {"Scribe", "NarrativePlanner", "Verifier"}:
+            files.extend(
+                [
+                    run_dir / "fiction_review.yml",
+                    run_dir / "continuity_failure_report.yml",
+                ]
+            )
+        if agent_name in {"NarrativePlanner", "Verifier"}:
+            files.append(run_dir / "state_transition_proposal.yml")
+        if agent_name == "Verifier":
+            files.append(run_dir / "revision_or_rewrite_proposal.yml")
+
+    configs = load_agentlab_configs(agentlab_root)
+    agent_config = _effective_agent_configs(agentlab_root, configs).get(
+        agent_name, {}
+    )
+    template_text = str(agent_config.get("template_path") or "").strip()
+    if template_text:
+        files.append(agentlab_root / template_text)
+    for item in (plan.skills or {}).get("selected", []) or []:
+        if not isinstance(item, dict):
+            continue
+        injected_into = item.get("injected_into") or []
+        if injected_into and agent_name not in injected_into:
+            continue
+        raw_path = str(item.get("skill_path") or "").strip()
+        if not raw_path:
+            continue
+        path = Path(raw_path)
+        files.append(path if path.is_absolute() else agentlab_root / path)
+
+    output_resolved = output_path.resolve(strict=False)
+    result: list[Path] = []
+    seen: set[Path] = set()
+    for path in files:
+        try:
+            safe_path = assert_path_allowed(path, agentlab_root)
+        except Exception:
+            continue
+        resolved = safe_path.resolve(strict=False)
+        if (
+            resolved == output_resolved
+            or resolved in seen
+            or not safe_path.is_file()
+            or _is_context_placeholder(safe_path)
+        ):
+            continue
+        seen.add(resolved)
+        result.append(safe_path)
+    return result
+
+
+def _self_evolution_verifier_context_files(
+    agentlab_root: Path,
+    run_dir: Path,
+) -> list[Path]:
+    """Load every declared Verifier input or fail before provider dispatch."""
+
+    root = Path(agentlab_root).resolve()
+    run_root = Path(run_dir).resolve()
+    packet_path = Path(run_dir) / "self_evolution_verifier_task_packet.yml"
+    if packet_path.is_symlink() or not packet_path.is_file():
+        raise ValueError("self-evolution Verifier task packet must be a regular file")
+    try:
+        packet = yaml.safe_load(packet_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError("self-evolution Verifier task packet is invalid") from exc
+    declared = packet.get("must_read_artifacts") if isinstance(packet, dict) else None
+    if not isinstance(declared, list) or not declared:
+        raise ValueError("self-evolution Verifier must_read_artifacts is empty")
+
+    files = [packet_path]
+    seen: set[Path] = set()
+    for raw_path in declared:
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise ValueError("self-evolution Verifier input path is invalid")
+        unresolved = root / raw_path
+        candidate = unresolved.resolve()
+        try:
+            candidate.relative_to(run_root)
+        except ValueError as exc:
+            raise ValueError(
+                "self-evolution Verifier input crosses the task-run boundary"
+            ) from exc
+        current = unresolved
+        while current != root and current != current.parent:
+            if current.is_symlink():
+                raise ValueError(
+                    "self-evolution Verifier input contains a symlink"
+                )
+            current = current.parent
+        if candidate in seen:
+            raise ValueError("self-evolution Verifier input is duplicated")
+        if not candidate.is_file():
+            raise ValueError("self-evolution Verifier input is missing")
+        seen.add(candidate)
+        files.append(candidate)
+    return files
+
+
 def researcher_context_source_files(
     agentlab_root: Path,
     plan: WorkflowPlan,
@@ -265,10 +382,8 @@ def researcher_context_source_files(
         run_dir / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
     ]
     configs = load_agentlab_configs(agentlab_root)
-    researcher_config = (
-        (configs.get("agent_registry", {}).get("agents", {}) or {}).get(
-            "Researcher", {}
-        )
+    researcher_config = _effective_agent_configs(agentlab_root, configs).get(
+        "Researcher", {}
     )
     template_text = str(researcher_config.get("template_path") or "").strip()
     if template_text:
@@ -559,9 +674,7 @@ def production_pack_context_source_files(
     files = [*shared, *role_files[agent_name]]
 
     configs = load_agentlab_configs(agentlab_root)
-    agent_config = (
-        configs.get("agent_registry", {}).get("agents", {}) or {}
-    ).get(agent_name, {})
+    agent_config = _effective_agent_configs(agentlab_root, configs).get(agent_name, {})
     template_text = str(agent_config.get("template_path") or "").strip()
     if template_text:
         files.append(agentlab_root / template_text)
@@ -773,7 +886,7 @@ def _agent_plan_summary(plan: WorkflowPlan, agent_name: str) -> dict:
 
 def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: str, output_path: Path) -> list[dict[str, str]]:
     configs = load_agentlab_configs(agentlab_root)
-    registry = configs.get("agent_registry", {}).get("agents", {})
+    registry = _effective_agent_configs(agentlab_root, configs)
     agent_config = registry.get(agent_name, {})
     template_path = assert_path_allowed(agentlab_root / agent_config.get("template_path", ""), agentlab_root)
     project_root = Path(plan.project_root)
@@ -820,6 +933,13 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             run_dir / "chapter_packet.yml",
         ]
         context_files.extend(_story_authority_context_files(project_root, run_dir))
+    elif agent_name == "Verifier" and (
+        run_dir / "self_evolution_verifier_task_packet.yml"
+    ).is_file():
+        context_files = [
+            Path(plan.user_request_path),
+            *_self_evolution_verifier_context_files(agentlab_root, run_dir),
+        ]
     elif agent_name == "Observer" and output_path.name == "visual_observation_report.yml":
         context_files = observer_context_source_files(
             agentlab_root,
@@ -839,7 +959,12 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             agent_name,
             output_path,
         )
-    elif narrative_heavy_audit and agent_name in {"Reviewer", "Scribe", "Verifier"}:
+    elif narrative_heavy_audit and agent_name in {
+        "Reviewer",
+        "Scribe",
+        "NarrativePlanner",
+        "Verifier",
+    }:
         context_files = [
             Path(plan.user_request_path),
             run_dir / "workflow_plan.yml",
@@ -850,15 +975,17 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             project_root / "project_brain" / "project_fact_snapshot.yml",
             project_root / "project_artifact_index.yml",
         ]
-        if agent_name in {"Scribe", "Verifier"}:
+        if agent_name in {"Scribe", "NarrativePlanner", "Verifier"}:
             context_files.extend(
                 [
                     run_dir / "fiction_review.yml",
                     run_dir / "continuity_failure_report.yml",
                 ]
             )
-        if agent_name == "Verifier":
+        if agent_name in {"NarrativePlanner", "Verifier"}:
             context_files.append(run_dir / "state_transition_proposal.yml")
+        if agent_name == "Verifier":
+            context_files.append(run_dir / "revision_or_rewrite_proposal.yml")
     elif agent_name in {"Reviewer", "Scribe"}:
         context_files = [
             Path(plan.user_request_path),
@@ -962,6 +1089,25 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             run_dir / "archive_receipt.yml",
         ]
 
+    component_role = RoleCatalog.load(agentlab_root).get(agent_name)
+    if component_role is not None and component_role.source == "component_manifest":
+        component_inputs, component_input_issue = _component_role_input_paths(
+            agentlab_root,
+            plan,
+            component_role,
+        )
+        if component_input_issue:
+            raise ValueError(component_input_issue)
+        context_files.extend(component_inputs)
+        component_session = _component_role_session_path(
+            run_dir,
+            component_role.key,
+        )
+        if component_session.is_symlink():
+            raise ValueError("component role session path is a symlink")
+        if component_session.is_file():
+            context_files.append(component_session)
+
     context_sections = []
     seen_context_texts: set[str] = set()
     output_resolved = output_path.resolve()
@@ -1043,7 +1189,11 @@ Hard execution rules:
 - If information is missing, state what is missing and what should happen next.
 - Keep the report concise, auditable, and scoped to this task.
 """
-    if narrative_heavy_audit and agent_name in {"Reviewer", "Scribe", "Verifier"}:
+    if narrative_heavy_audit and agent_name in {
+        "Reviewer",
+        "Scribe",
+        "NarrativePlanner",
+    }:
         hard_rules = """
 Narrative heavy audit role-session rules:
 - Audit only the injected candidate drafts, ledgers, proposals, and authority memory.
@@ -1052,7 +1202,15 @@ Narrative heavy audit role-session rules:
 - Do not emit or modify fiction_draft.md, production/manuscript, project memory, or authority files.
 - Reviewer reports findings and continuity failures; it does not rewrite prose.
 - Scribe proposes candidate fact-state events; it does not establish canon.
-- Verifier emits a revision/rewrite proposal only; it never edits the draft.
+- NarrativePlanner emits a bounded revision/rewrite proposal only; it never edits the draft.
+- Do not output DSML/tool-call markup or claim unprovided evidence.
+"""
+    elif narrative_heavy_audit and agent_name == "Verifier":
+        hard_rules = """
+Narrative heavy audit verification rules:
+- Verify the Reviewer, Scribe, and NarrativePlanner candidate outputs against the injected evidence.
+- Write only verification_report.md; do not emit edit blocks or mutate any candidate.
+- Reject missing evidence, inconsistent blocking status, direct-draft edits, production writes, or promotion claims.
 - Do not output DSML/tool-call markup or claim unprovided evidence.
 """
     elif media_visual_route and agent_name == "Reviewer":
@@ -1306,7 +1464,11 @@ Archivist durable-memory write rules:
 - If you cannot produce safe agent_docs edits, explain the blocker instead of writing a completed archive.
 """
 
-    if narrative_heavy_audit and agent_name in {"Reviewer", "Scribe", "Verifier"}:
+    if narrative_heavy_audit and agent_name in {
+        "Reviewer",
+        "Scribe",
+        "NarrativePlanner",
+    }:
         from agent_runtime.narrative_heavy_audit import HEAVY_AUDIT_OUTPUTS_BY_AGENT
 
         required_outputs = HEAVY_AUDIT_OUTPUTS_BY_AGENT[agent_name]
@@ -1807,7 +1969,7 @@ def resolve_agent_settings(
         return settings, configs
     settings = resolve_llm_settings(
         agent_name=agent_name,
-        agent_registry=configs.get("agent_registry", {}).get("agents", {}),
+        agent_registry=_effective_agent_configs(agentlab_root, configs),
         model_providers=configs.get("model_providers", {}),
         model_profiles=configs.get("model_profiles", {}),
         model_catalog=configs.get("model_catalog", {}),
@@ -2591,6 +2753,134 @@ def _check_cli_role_binding(agentlab_root: Path, agent_name: str, cli_role_profi
     return check_role_binding(agentlab_root, worker, agent_name)
 
 
+def _component_role_session_path(run_dir: Path, role_key: str) -> Path:
+    return Path(run_dir) / f"component_role_session_{role_key}.yml"
+
+
+def _component_role_input_paths(
+    agentlab_root: Path,
+    plan: WorkflowPlan,
+    role: Any,
+) -> tuple[list[Path], str | None]:
+    root = Path(agentlab_root).resolve()
+    inputs: list[Path] = []
+    for declared in role.required_inputs:
+        relative = PurePosixPath(declared)
+        if relative.parts[:2] == ("runs", "task_xxxx"):
+            unresolved = Path(plan.run_dir).joinpath(*relative.parts[2:])
+        else:
+            unresolved = root.joinpath(*relative.parts)
+        lexical_path = Path(os.path.abspath(unresolved))
+        try:
+            lexical_path.relative_to(root)
+        except ValueError:
+            return [], f"component required input crosses AgentLab root: {declared}"
+        current = lexical_path
+        while current != root:
+            if current.is_symlink():
+                return [], f"component required input contains a symlink: {declared}"
+            parent = current.parent
+            if parent == current:
+                return [], f"component required input crosses AgentLab root: {declared}"
+            current = parent
+        try:
+            path = assert_path_allowed(lexical_path, root)
+        except Exception:
+            return [], f"component required input crosses AgentLab root: {declared}"
+        if not path.is_file():
+            return [], f"component required input is missing or not regular: {declared}"
+        inputs.append(path)
+    return inputs, None
+
+
+def _bind_component_role_session(
+    agentlab_root: Path,
+    plan: WorkflowPlan,
+    agent_name: str,
+    worker: str,
+    output_path: Path,
+) -> tuple[Path | None, str | None]:
+    """Create the required run-local session for a component-managed role."""
+
+    catalog = RoleCatalog.load(agentlab_root)
+    if catalog.component_role_blocked(agent_name):
+        return None, "component-managed role bridge integrity validation failed"
+    role = catalog.get(agent_name)
+    if role is None or role.source != "component_manifest":
+        return None, None
+    if not role.required_session:
+        return None, "component-managed role does not require a bound session"
+    if worker not in role.allowed_workers:
+        return None, f"worker '{worker}' is not allowed by the component manifest"
+    expected_output = Path(plan.run_dir) / role.default_report
+    if output_path.is_symlink() or output_path.resolve(strict=False) != expected_output.resolve(
+        strict=False
+    ):
+        return None, (
+            "component-managed v1 role must write its declared default report: "
+            f"{role.default_report}"
+        )
+    required_inputs, input_issue = _component_role_input_paths(
+        agentlab_root,
+        plan,
+        role,
+    )
+    if input_issue:
+        return None, input_issue
+    try:
+        from agent_runtime.protocols.enforcement import build_role_session
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from protocols.enforcement import build_role_session
+
+    session = build_role_session(
+        agentlab_root,
+        agent_name,
+        worker,
+        project=plan.project,
+        task_id=plan.task_id,
+    )
+    if (session.get("binding") or {}).get("allowed") is not True:
+        return None, str(
+            (session.get("binding") or {}).get("reason")
+            or "component role session binding was denied"
+        )
+    manifest_path = Path(agentlab_root) / str(role.manifest_path or "")
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        return None, "component role manifest is missing or not a regular file"
+    session.update(
+        {
+            "component_managed": True,
+            "required_session_enforced": True,
+            "component_id": role.role_id,
+            "component_manifest": str(manifest_path.relative_to(agentlab_root)),
+            "component_manifest_sha256": sha256(
+                manifest_path.read_bytes()
+            ).hexdigest(),
+            "declared_required_inputs": list(role.required_inputs),
+            "resolved_required_inputs": [
+                str(path.relative_to(agentlab_root)) for path in required_inputs
+            ],
+        }
+    )
+    session["must_read_artifacts"] = list(
+        dict.fromkeys(
+            [
+                *(session.get("must_read_artifacts") or []),
+                *session["resolved_required_inputs"],
+            ]
+        )
+    )
+    session_path = _component_role_session_path(Path(plan.run_dir), role.key)
+    if session_path.is_symlink():
+        return None, "component role session path is a symlink"
+    session_path.parent.mkdir(parents=True, exist_ok=True)
+    session_path.write_text(
+        yaml.safe_dump(session, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    return session_path, None
+
+
 def _blocked_role_binding_result(agent_name: str, worker: str, reason: str) -> LLMCallResult:
     return LLMCallResult(
         provider="agentlab-protocol",
@@ -3164,7 +3454,29 @@ def run_agent_model(
         sealed_messages = None
         task_messages = None
         outbound_source_paths = None
-        if agent_name == "Writer":
+        governed_audit_session = (
+            agent_name == "Verifier"
+            and (
+                Path(plan.run_dir) / "self_evolution_verifier_task_packet.yml"
+            ).is_file()
+        ) or (
+            plan.route.route_key == "narrative_heavy_audit"
+            and agent_name in {"Reviewer", "Scribe", "NarrativePlanner", "Verifier"}
+        )
+        if governed_audit_session:
+            sealed_messages = compose_agent_messages(
+                agentlab_root,
+                plan,
+                agent_name,
+                output_path,
+            )
+            outbound_source_paths = governed_audit_context_source_files(
+                agentlab_root,
+                plan,
+                agent_name,
+                output_path,
+            )
+        elif agent_name == "Writer":
             sealed_messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
             outbound_source_paths = writer_context_source_files(
                 agentlab_root, plan, output_path
@@ -3264,6 +3576,32 @@ def run_agent_model(
                     cli_configured_agent,
                     binding_reason,
                 )
+            component_session_path, component_session_issue = (
+                _bind_component_role_session(
+                    agentlab_root,
+                    plan,
+                    agent_name,
+                    cli_configured_agent,
+                    output_path,
+                )
+            )
+            if component_session_issue:
+                return _blocked_role_binding_result(
+                    agent_name,
+                    cli_configured_agent,
+                    component_session_issue,
+                )
+            if component_session_path is not None:
+                sealed_messages = compose_agent_messages(
+                    agentlab_root,
+                    plan,
+                    agent_name,
+                    output_path,
+                )
+                task_messages = None
+                outbound_source_paths = list(outbound_source_paths or [])
+                if component_session_path not in outbound_source_paths:
+                    outbound_source_paths.append(component_session_path)
             cli_attempted = True
             cli_result = run_cli_agent(
                 plan,
@@ -3287,6 +3625,16 @@ def run_agent_model(
                         last_error=cli_fallback_reason,
                     )
                 break
+
+            if component_session_path is not None:
+                cli_result.raw_usage = {
+                    **dict(cli_result.raw_usage or {}),
+                    "component_role_session_path": str(component_session_path),
+                    "component_role_session_sha256": sha256(
+                        component_session_path.read_bytes()
+                    ).hexdigest(),
+                    "component_role_session_enforced": True,
+                }
 
             _audit_annotate_cli_result(cli_result, selected_profile, "cli_executed")
             if capacity_manager is None or capacity_decision is None:

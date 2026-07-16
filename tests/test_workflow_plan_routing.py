@@ -10,6 +10,7 @@ from lifecycle_graph import create_lifecycle
 from production_packs import build_production_pack
 from schemas import AgentRoute
 from workflow_plan import _route_for_production_pack
+from workflow_plan import _skill_injection_agents_for_route
 from workflow_plan import build_workflow_plan
 
 
@@ -167,7 +168,13 @@ def test_workflow_plan_routes_narrative_audit_to_heavy_path(tmp_path: Path) -> N
     )
 
     assert plan.route.route_key == "narrative_heavy_audit"
-    assert plan.route.agents == ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+    assert plan.route.agents == [
+        "Supervisor",
+        "Reviewer",
+        "Scribe",
+        "NarrativePlanner",
+        "Verifier",
+    ]
     gate_ids = {gate["id"] for gate in plan.validation_gates}
     assert {
         "fiction_review",
@@ -175,6 +182,15 @@ def test_workflow_plan_routes_narrative_audit_to_heavy_path(tmp_path: Path) -> N
         "state_transition_proposal",
         "revision_or_rewrite_proposal",
     } <= gate_ids
+    gates = {gate["id"]: gate for gate in plan.validation_gates}
+    assert gates["revision_or_rewrite_proposal"]["owner"] == "NarrativePlanner"
+    assert plan.model_profiles["NarrativePlanner"]["source"] == "runtime_registry"
+    assert plan.model_profiles["NarrativePlanner"]["catalog_key"] == "deepseek_v4_pro"
+    assert _skill_injection_agents_for_route(plan.route) == [
+        "Reviewer",
+        "Scribe",
+        "NarrativePlanner",
+    ]
     _assert_no_code_shell_task_state(plan)
     assert {
         "fiction_draft.md",
@@ -530,5 +546,11 @@ def test_workflow_plan_routes_short_chapter_check_to_heavy_audit(tmp_path: Path)
     )
 
     assert plan.route.route_key == "narrative_heavy_audit"
-    assert plan.route.agents == ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+    assert plan.route.agents == [
+        "Supervisor",
+        "Reviewer",
+        "Scribe",
+        "NarrativePlanner",
+        "Verifier",
+    ]
     _assert_no_code_shell_task_state(plan)

@@ -82,6 +82,7 @@ packs:
       - WRITER_DRAFT
       - FICTION_REVIEW
       - SCRIBE_LEDGER
+      - NARRATIVE_REWRITE_PLAN
       - VERIFY
       - SELF_CHECK
       - FINALIZE

@@ -1,0 +1,10 @@
+role: NarrativePlanner
+activation_mode: registered_route
+registered_routes:
+- narrative_heavy_audit
+normal_route_selection: true
+explicit_role_session_available: true
+auto_route_insertion: false
+route_pack_required_for_default_selection: false
+boundary: A new role is runnable after merge through an AgentLab-created bound role
+  session. Default mission routing requires a separately reviewed route-pack registration.

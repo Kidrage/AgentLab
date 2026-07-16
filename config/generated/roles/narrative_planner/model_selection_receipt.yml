@@ -1,0 +1,65 @@
+schema_version: 1
+receipt_type: component_model_selection
+role: NarrativePlanner
+manifest_fingerprint: 8b794f1ab1b3d6942452bad9c45edbd5cd7169fda7605fc19558515000ceb91d
+demand:
+  role: NarrativePlanner
+  capability_weights:
+    narrative_continuity: 0.45
+    reasoning: 0.35
+    writing: 0.2
+  required_modalities: []
+  quality_floor: 0.85
+  data_class: private
+  predicted_input_tokens: 10000
+  predicted_output_tokens: 4000
+  predicted_quota_percent: 0.0
+  risk_reserve_percent: 0.0
+  long_batch: false
+  checkpoint_complete: true
+  allowed_provider_ids: []
+candidate_route_templates:
+- narrative_planner_pro
+decision:
+  status: selected
+  route_id: narrative_planner_pro
+  role: NarrativePlanner
+  identity:
+    role: narrative_planner
+    shell_id: claude
+    adapter_id: claude_cli
+    profile_ref: agentlab-narrative-planner
+    provider_id: deepseek_api
+    model_id: deepseek_v4_pro
+    credential_pool_id: deepseek_metered
+  quality: 0.91765
+  quality_floor: 0.85
+  effective_capabilities:
+    narrative_continuity: 0.95
+    reasoning: 0.96
+    writing: 0.96
+  cost:
+    model_id: deepseek_v4_pro
+    billing_mode: api_metered
+    native_amount: 0.00783
+    native_currency: USD
+    cny_amount: 0.056376
+    cash_basis: provider_metered
+    pricing_source: config/model_pricing.yml#deepseek-v4-pro
+    pricing_version: 2026-07-15.2
+    fx_version: 2026-07-15-operational
+    exact: true
+    quota_scarcity_penalty_cny: 0.0
+    retry_penalty_cny: 0.02
+    latency_penalty_cny: 0.0075
+    switch_penalty_cny: 0.0
+    effective_cost_cny: 0.083876
+  selection_policy: hard_filters_then_quality_floor_then_min_effective_cost
+  fallback_at_checkpoint_only: true
+  rejected_routes: []
+  eligible_routes:
+  - narrative_planner_pro
+selected_worker: claude_code
+invocation_contract_override: claude_longform_governance
+whitelist_authority: config/runtime_registry.yml
+silent_fallback_allowed: false

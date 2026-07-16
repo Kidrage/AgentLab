@@ -65,6 +65,7 @@ NODE_TO_AGENT = {
     "WRITER_DRAFT": "Writer",
     "FICTION_REVIEW": "Reviewer",
     "SCRIBE_LEDGER": "Scribe",
+    "NARRATIVE_REWRITE_PLAN": "NarrativePlanner",
     "CODER_IMPLEMENTATION": "Coder",
     "ARTIFACT_PRODUCTION": "ArtifactProducer",
     "VISUAL_OBSERVATION": "Observer",
@@ -84,6 +85,7 @@ NODE_TO_REPORT = {
     "WRITER_DRAFT": "fiction_draft.md",
     "FICTION_REVIEW": "fiction_review.yml",
     "SCRIBE_LEDGER": "continuity_ledger.yml",
+    "NARRATIVE_REWRITE_PLAN": "revision_or_rewrite_proposal.yml",
     "CODER_IMPLEMENTATION": "06_implementation_report.md",
     "ARTIFACT_PRODUCTION": "artifact_producer_report.md",
     "VISUAL_OBSERVATION": "visual_observation_report.yml",
@@ -103,6 +105,7 @@ NODE_TO_PROGRESS = {
     "RESEARCH_OPTIONAL": "research", "OBSERVATION_OPTIONAL": "observing",
     "INTERFACE_OPTIONAL": "interfacing",
     "WRITER_DRAFT": "writing", "FICTION_REVIEW": "reviewing", "SCRIBE_LEDGER": "ledgering",
+    "NARRATIVE_REWRITE_PLAN": "rewrite_planning",
     "CODER_IMPLEMENTATION": "implementation", "ARTIFACT_PRODUCTION": "artifact_production",
     "VISUAL_OBSERVATION": "visual_observing", "VISUAL_REVIEW": "visual_reviewing",
     "VALIDATION": "validation",
@@ -116,6 +119,7 @@ NODE_TO_PCT = {
     "REPO_CONTEXT": 30, "RESEARCH_OPTIONAL": 35, "OBSERVATION_OPTIONAL": 38,
     "INTERFACE_OPTIONAL": 40,
     "WRITER_DRAFT": 45, "FICTION_REVIEW": 50, "SCRIBE_LEDGER": 53,
+    "NARRATIVE_REWRITE_PLAN": 55,
     "CODER_IMPLEMENTATION": 55, "ARTIFACT_PRODUCTION": 62,
     "VISUAL_OBSERVATION": 65, "VISUAL_REVIEW": 68,
     "VALIDATION": 70, "AUDIT": 78,
@@ -2443,7 +2447,7 @@ def run_next_node(
             if acceptance is not None:
                 payload["visual_acceptance"] = acceptance
             return payload
-        if narrative_heavy_audit and agent in {"Reviewer", "Scribe", "Verifier"}:
+        if narrative_heavy_audit and agent in {"Reviewer", "Scribe", "NarrativePlanner"}:
             from agent_runtime.narrative_heavy_audit import (
                 HEAVY_AUDIT_OUTPUTS_BY_AGENT,
                 fake_narrative_heavy_audit_content,
@@ -2610,8 +2614,10 @@ def run_next_node(
         visual_acceptance = None
         if agent == "Writer":
             report_path = run_dir / "writer_role_session_capture.md"
-        elif narrative_heavy_audit and agent in {"Reviewer", "Scribe", "Verifier"}:
+        elif narrative_heavy_audit and agent in {"Reviewer", "Scribe"}:
             report_path = run_dir / f"{agent.lower()}_role_session_capture.md"
+        elif narrative_heavy_audit and agent == "NarrativePlanner":
+            report_path = run_dir / "revision_or_rewrite_proposal.yml"
 
         if agent == "ArtifactProducer" and media_visual_route:
             try:
@@ -2742,7 +2748,12 @@ def run_next_node(
                 ),
                 allow_cli_api_fallback=not (
                     narrative_heavy_audit
-                    and agent in {"Reviewer", "Scribe", "Verifier"}
+                    and agent in {
+                        "Reviewer",
+                        "Scribe",
+                        "NarrativePlanner",
+                        "Verifier",
+                    }
                 ),
             )
         except Exception as exc:
@@ -2913,7 +2924,7 @@ def run_next_node(
                 )
             report_path = run_dir / "fiction_draft.md"
             report_content = report_path.read_text(encoding="utf-8", errors="replace")
-        elif narrative_heavy_audit and agent in {"Reviewer", "Scribe", "Verifier"}:
+        elif narrative_heavy_audit and agent in {"Reviewer", "Scribe", "NarrativePlanner"}:
             from agent_runtime.narrative_heavy_audit import (
                 HEAVY_AUDIT_OUTPUTS_BY_AGENT,
                 heavy_audit_primary_output,

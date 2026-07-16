@@ -743,13 +743,16 @@ agents:
   Scribe:
     template_path: agent_templates/scribe.md
     role: Scribe
+  NarrativePlanner:
+    template_path: agent_templates/narrative_planner.md
+    role: NarrativePlanner
   Verifier:
     template_path: agent_templates/verifier.md
     role: Verifier
 """.lstrip(),
         encoding="utf-8",
     )
-    for name in ["reviewer", "scribe", "verifier"]:
+    for name in ["reviewer", "scribe", "narrative_planner", "verifier"]:
         (template_dir / f"{name}.md").write_text(f"# {name.title()}\n", encoding="utf-8")
     (run_dir / "user_request.md").write_text("审计 Crown 第 1-10 章。", encoding="utf-8")
     (run_dir / "mission_contract.yml").write_text("task_domain: creative_writing\n", encoding="utf-8")
@@ -757,12 +760,18 @@ agents:
     (run_dir / "narrative_audit_context.md").write_text("# Audit context\n", encoding="utf-8")
     plan = _make_plan(tmp_path)
     plan.route.route_key = "narrative_heavy_audit"
-    plan.route.agents = ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+    plan.route.agents = [
+        "Supervisor",
+        "Reviewer",
+        "Scribe",
+        "NarrativePlanner",
+        "Verifier",
+    ]
 
     expected = {
         "Reviewer": ["fiction_review.yml", "continuity_failure_report.yml"],
         "Scribe": ["state_transition_proposal.yml"],
-        "Verifier": ["revision_or_rewrite_proposal.yml"],
+        "NarrativePlanner": ["revision_or_rewrite_proposal.yml"],
     }
     for agent, outputs in expected.items():
         messages = compose_agent_messages(
@@ -778,6 +787,21 @@ agents:
         for output in outputs:
             assert output in text
         assert "# Audit context" in text
+
+    (run_dir / "revision_or_rewrite_proposal.yml").write_text(
+        "status: not_required\nrewrite_required: false\n",
+        encoding="utf-8",
+    )
+    verifier_messages = compose_agent_messages(
+        tmp_path,
+        plan,
+        "Verifier",
+        run_dir / "verification_report.md",
+    )
+    verifier_text = "\n".join(message["content"] for message in verifier_messages)
+    assert "Narrative heavy audit verification rules" in verifier_text
+    assert "revision_or_rewrite_proposal.yml" in verifier_text
+    assert "AGENTLAB_EDIT" not in verifier_text
 
 
 def test_coder_prompt_excludes_current_output_and_placeholder_reports(tmp_path: Path) -> None:
@@ -1394,6 +1418,124 @@ def test_ordinary_researcher_cli_uses_sealed_sources_instead_of_open_workspace(
             plan,
             "Researcher",
             run_dir / "03_research_notes.md",
+            apply_patches=False,
+        )
+
+    assert result.status == "completed"
+    generate_text.assert_not_called()
+
+
+def test_narrative_heavy_audit_cli_uses_sealed_governed_context(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "narrative_heavy_audit"
+    plan.route.agents = ["Supervisor", "Reviewer", "Scribe", "NarrativePlanner", "Verifier"]
+    run_dir = Path(plan.run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    source = run_dir / "narrative_audit_manifest.yml"
+    source.write_text("chapter_range: [1, 3]\n", encoding="utf-8")
+    messages = [{"role": "user", "content": "Audit the sealed candidates."}]
+    cli_profile = {
+        "executor_type": "cli_agent",
+        "cli_agent": "claude",
+        "invocation_contract": "claude_longform_governance",
+        "default": "deepseek_v4_pro",
+    }
+
+    def fake_cli(_plan, agent_name, _profile, **kwargs):
+        assert agent_name == "NarrativePlanner"
+        assert kwargs["sealed_messages"] == messages
+        assert kwargs["task_messages"] is None
+        assert kwargs["outbound_source_paths"] == [source]
+        return _cli_success_result()
+
+    with patch(
+        "operational_uploader.maybe_run_operational_agent", return_value=None
+    ), patch(
+        "agent_runner._resolve_cli_profile_for_agent",
+        return_value=(
+            {"agent_model_profiles": {}},
+            "full_cli",
+            "narrative_planner",
+            cli_profile,
+        ),
+    ), patch(
+        "agent_runner._check_cli_role_binding", return_value=(True, "allowed")
+    ), patch(
+        "agent_runner.compose_agent_messages", return_value=messages
+    ), patch(
+        "agent_runner.governed_audit_context_source_files", return_value=[source]
+    ), patch(
+        "agent_runner.run_cli_agent", side_effect=fake_cli
+    ), patch("agent_runner.generate_text") as generate_text:
+        result = run_agent_model(
+            tmp_path,
+            plan,
+            "NarrativePlanner",
+            run_dir / "revision_or_rewrite_proposal.yml",
+            apply_patches=False,
+        )
+
+    assert result.status == "completed"
+    generate_text.assert_not_called()
+
+
+def test_self_evolution_verifier_cli_uses_sealed_governed_context(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.route.agents = ["Supervisor", "Verifier"]
+    run_dir = Path(plan.run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    packet = run_dir / "self_evolution_verifier_task_packet.yml"
+    packet.write_text(
+        "packet_type: agentlab_self_evolution_verifier_task\n",
+        encoding="utf-8",
+    )
+    messages = [{"role": "user", "content": "Verify the sealed component."}]
+    cli_profile = {
+        "executor_type": "cli_agent",
+        "cli_agent": "claude",
+        "invocation_contract": "claude",
+        "default": "deepseek_v4_pro",
+    }
+
+    def fake_cli(_plan, agent_name, _profile, **kwargs):
+        assert agent_name == "Verifier"
+        assert kwargs["sealed_messages"] == messages
+        assert kwargs["task_messages"] is None
+        assert kwargs["outbound_source_paths"] == [packet]
+        return _cli_success_result()
+
+    with patch(
+        "operational_uploader.maybe_run_operational_agent", return_value=None
+    ), patch(
+        "agent_runner._resolve_cli_profile_for_agent",
+        return_value=(
+            {"agent_model_profiles": {}},
+            "full_cli",
+            "verifier",
+            cli_profile,
+        ),
+    ), patch(
+        "agent_runner._check_cli_role_binding", return_value=(True, "allowed")
+    ), patch(
+        "agent_runner.compose_agent_messages", return_value=messages
+    ), patch(
+        "agent_runner.governed_audit_context_source_files", return_value=[packet]
+    ), patch(
+        "agent_runner.run_cli_agent", side_effect=fake_cli
+    ), patch("agent_runner.generate_text") as generate_text:
+        result = run_agent_model(
+            tmp_path,
+            plan,
+            "Verifier",
+            run_dir / "verification_report.md",
             apply_patches=False,
         )
 

@@ -265,6 +265,7 @@ routes:
       - Supervisor
       - Reviewer
       - Scribe
+      - NarrativePlanner
       - Verifier
 
   fiction_chapter_pipeline:

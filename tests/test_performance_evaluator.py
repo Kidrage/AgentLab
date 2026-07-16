@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import sys
 from pathlib import Path
 
@@ -9,7 +10,8 @@ RUNTIME = ROOT / "agent_runtime"
 if str(RUNTIME) not in sys.path:
     sys.path.insert(0, str(RUNTIME))
 
-from performance_evaluator import render_audit, score
+from config_loader import load_agentlab_configs
+from performance_evaluator import evaluate_configuration, render_audit, score
 
 
 def _metrics(artifact_pass_rate: float) -> dict:
@@ -39,3 +41,23 @@ def test_performance_audit_reports_low_artifact_completeness() -> None:
     report = render_audit({**_metrics(0.77), "score": score(_metrics(0.77))})
 
     assert "Artifact completeness below threshold: 0.77." in report
+
+
+def test_configuration_evaluation_uses_dynamic_role_catalog() -> None:
+    result = evaluate_configuration(load_agentlab_configs(ROOT), ROOT)
+
+    assert "NarrativePlanner" in result["schema_agents"]
+    assert result["route_issue_count"] == 0
+
+
+def test_configuration_accepts_component_role_without_legacy_registration() -> None:
+    configs = deepcopy(load_agentlab_configs(ROOT))
+    configs["agent_registry"]["agents"].pop("NarrativePlanner")
+
+    result = evaluate_configuration(configs, ROOT)
+
+    assert "NarrativePlanner" not in result["registry_agents"]
+    assert "NarrativePlanner" in result["schema_agents"]
+    assert not any(
+        issue.get("agent") == "NarrativePlanner" for issue in result["issues"]
+    )

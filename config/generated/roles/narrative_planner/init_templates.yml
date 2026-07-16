@@ -1,0 +1,15 @@
+role: NarrativePlanner
+templates:
+  revision_or_rewrite_proposal.yml: 'schema_version: 1
+
+    status: tbd
+
+    candidate_only: true
+
+    production_modified: false
+
+    rewrite_required: false
+
+    direct_draft_edits: false
+
+    proposals: []'

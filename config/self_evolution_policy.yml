@@ -1,0 +1,88 @@
+schema_version: 1
+policy_id: agentlab_self_evolution_control_plane
+authority: human_reviewed_component_manifest
+
+trigger:
+  explicit_user_request_allowed: true
+  minimum_unique_tasks: 2
+  window_days: 30
+  fingerprint_fields:
+    - capability_id
+    - input_contract
+    - output_contract
+    - permission_class
+  suppress_duplicate_open_proposals: true
+  composition_checks_required:
+    - existing_role_plus_skill
+    - existing_route_or_production_pack
+    - existing_worker_and_runtime_route
+
+component_kinds:
+  agent_role:
+    lifecycle: materializable_v1
+  worker_binding:
+    lifecycle: proposal_only_v1
+  skill:
+    lifecycle: proposal_only_v1
+  route_pack:
+    lifecycle: proposal_only_v1
+  runtime_adapter:
+    lifecycle: proposal_only_v1
+  core_module:
+    lifecycle: proposal_only_v1
+
+runtime:
+  authority: config/runtime_registry.yml
+  existing_whitelist_only: true
+  install_or_register_provider: false
+  credential_mutation: false
+  user_shell_configuration: read_only_reference
+  hard_quota_reserve_percent: 5.0
+  fallback_boundary: checkpoint_only
+  silent_fallback: false
+
+workspace:
+  branch_prefix: agentlab-evolution/
+  isolated_git_worktree_required: true
+  direct_main_write: false
+  direct_production_write: false
+  draft_pull_request: true
+  auto_merge: false
+  human_merge_required: true
+  activation_after_merge: next_config_reload
+
+security:
+  default_deny_unlisted_workers: true
+  separate_approval_required_for:
+    - credentials
+    - dependencies
+    - network_permissions
+    - external_write
+    - provider_registration
+  self_review: false
+  self_promotion: false
+  secret_scan_required: true
+  rollback_plan_required: true
+
+validation:
+  independent_verifier_required: true
+  independent_verifier_worker: claude_code
+  commands:
+    - [python3, -m, pytest, -q, tests/test_self_evolution_control_plane.py, tests/test_protocol_enforcement.py, tests/test_m2_role_assignment_router.py]
+    - [python3, -m, pytest, -q]
+    - [./agentlab.sh, models, doctor]
+    - [./agentlab.sh, runtime-doctor, --out, "{validation_artifact_dir}/runtime-doctor"]
+    - [./agentlab.sh, protocol-doctor]
+    - [./agentlab.sh, agent-role-chain-audit]
+    - [./agentlab.sh, frontdesk-boundary-audit]
+
+future_component_boundaries:
+  rag:
+    default_role: evidence_retrieval_only
+    may_become_fact_authority: false
+    implementation_in_v1: false
+  repository_manager:
+    destructive_git_permission_by_default: false
+    remote_write_permission_by_default: false
+    auto_merge_permission: false
+    implementation_in_v1: false

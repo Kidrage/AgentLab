@@ -1,0 +1,9 @@
+role: NarrativePlanner
+dynamic_runtime_required: true
+status: selected
+selected_route_template: narrative_planner_pro
+selected_worker: claude_code
+invocation_contract: claude_longform_governance
+checkpoint_only_reselection: true
+provider_install_allowed: false
+credential_mutation_allowed: false

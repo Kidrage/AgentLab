@@ -1,0 +1,15 @@
+role: NarrativePlanner
+inputs:
+- runs/task_xxxx/narrative_audit_manifest.yml
+- runs/task_xxxx/narrative_audit_context.md
+- runs/task_xxxx/fiction_review.yml
+- runs/task_xxxx/continuity_failure_report.yml
+- runs/task_xxxx/continuity_ledger.yml
+- runs/task_xxxx/state_transition_proposal.yml
+outputs:
+- runs/task_xxxx/revision_or_rewrite_proposal.yml
+default_report: revision_or_rewrite_proposal.yml
+execution_surface: single_run_local_report
+output_count: 1
+candidate_only: true
+production_write: false

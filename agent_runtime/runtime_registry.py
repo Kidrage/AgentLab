@@ -238,7 +238,54 @@ class RuntimeRegistry:
         for configured_role, route_ids in role_routes.items():
             if canonical_role(configured_role) == wanted and isinstance(route_ids, list):
                 return [str(item) for item in route_ids]
-        return []
+        try:
+            from agent_runtime.self_evolution.role_catalog import RoleCatalog
+
+            definition = RoleCatalog.load(self.root).get(role)
+        except (ImportError, OSError, ValueError, yaml.YAMLError):
+            definition = None
+        if definition is None or definition.source != "component_manifest":
+            return []
+        return self.whitelisted_route_templates(
+            allowed_workers=definition.allowed_workers,
+        )
+
+    def whitelisted_route_templates(
+        self,
+        *,
+        allowed_workers: list[str] | tuple[str, ...],
+    ) -> list[str]:
+        """Return deduplicated registered routes for approved worker shells.
+
+        Component roles declare capability demand and worker boundaries instead
+        of copying model/provider identifiers. The selector still applies all
+        normal active, privacy, quality, quota, and cost gates to these route
+        templates.
+        """
+
+        allowed = {str(item) for item in allowed_workers}
+        if not allowed:
+            return []
+        result: list[str] = []
+        seen: set[tuple[str, str, str, str, str]] = set()
+        for route_id in self.routes:
+            identity = self.route_identity(route_id)
+            shell = self.shells.get(identity.shell_id) or {}
+            worker_id = str(shell.get("worker_id") or identity.shell_id)
+            if worker_id not in allowed:
+                continue
+            fingerprint = (
+                identity.shell_id,
+                identity.adapter_id,
+                identity.provider_id,
+                identity.model_id,
+                identity.credential_pool_id,
+            )
+            if fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            result.append(route_id)
+        return result
 
     def task_demand(
         self,
@@ -260,7 +307,17 @@ class RuntimeRegistry:
         preset_cfg = presets.get(preset) or presets.get("performance") or {}
         demands = runtime.get("role_demands") or {}
         role_cfg: Mapping[str, Any] = {}
+        try:
+            from agent_runtime.self_evolution.role_catalog import RoleCatalog
+
+            component_role = RoleCatalog.load(self.root).get(role)
+        except (ImportError, OSError, ValueError, yaml.YAMLError):
+            component_role = None
+        if component_role is not None and component_role.source == "component_manifest":
+            role_cfg = component_role.runtime_demand
         for configured_role, candidate in demands.items():
+            if role_cfg:
+                break
             if canonical_role(configured_role) == canonical_role(role) and isinstance(candidate, Mapping):
                 role_cfg = candidate
                 break
@@ -302,6 +359,8 @@ class RuntimeRegistry:
         resolved_mode: str,
         resolved_tier: str,
         decision: Mapping[str, Any] | None = None,
+        requested_role: str | None = None,
+        invocation_contract: str | None = None,
     ) -> dict[str, Any]:
         route = self.routes[route_id]
         identity = self.route_identity(route_id)
@@ -311,7 +370,7 @@ class RuntimeRegistry:
             "cli_agent": str(route.get("legacy_cli_agent") or shell.get("worker_id") or identity.shell_id),
             "cli_command": "",
             "default": identity.model_id,
-            "invocation_contract": route.get("invocation_contract"),
+            "invocation_contract": invocation_contract or route.get("invocation_contract"),
             "external_ide_allowed": bool(route.get("external_ide_allowed", False)),
             "resolved_mode": resolved_mode,
             "resolved_tier": resolved_tier,
@@ -324,6 +383,9 @@ class RuntimeRegistry:
             "execution_channel": shell.get("preferred_channel"),
             "runtime_channel_config": dict(shell.get("channel_config") or {}),
         }
+        if requested_role:
+            profile["requested_role"] = requested_role
+            profile["runtime_template_role"] = identity.role
         if decision:
             profile["route_decision"] = dict(decision)
         return profile
@@ -574,9 +636,26 @@ def resolve_dynamic_profile(
             selected_snapshot["remaining_percent"]
         )
         decision["quota_snapshot_status"] = selected_snapshot.get("status")
+    invocation_contract = None
+    try:
+        from agent_runtime.self_evolution.role_catalog import RoleCatalog
+
+        component_role = RoleCatalog.load(agentlab_root).get(agent_role)
+    except (ImportError, OSError, ValueError, yaml.YAMLError):
+        component_role = None
+    if component_role is not None and component_role.source == "component_manifest":
+        route_id = str(decision["route_id"])
+        identity = registry.route_identity(route_id)
+        shell = registry.shells.get(identity.shell_id) or {}
+        worker_id = str(shell.get("worker_id") or identity.shell_id)
+        invocation_contract = component_role.invocation_contracts.get(worker_id)
+        if not invocation_contract:
+            return None
     return registry.compile_legacy_profile(
         str(decision["route_id"]),
         resolved_mode=resolved_mode,
         resolved_tier=resolved_tier,
         decision=decision,
+        requested_role=agent_role,
+        invocation_contract=invocation_contract,
     )

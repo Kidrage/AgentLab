@@ -28,9 +28,11 @@ Keep detailed policy in `config/*.yml` and long-lived project memory in
 - Hermes model-group routing lives in `config/hermes_brain_model_groups.yml`.
 - Long-project constitutions, must-read artifact rules, and dispatch gates live in
   `config/long_project_governance.yml`.
-- Frontdesk capability identities and role binding rules live in
-  `config/agent_role_bindings.yml`; never infer write or role authority from a
-  CLI name alone.
+- Legacy role bindings live in `config/agent_role_bindings.yml`. Active
+  component-managed roles live in `config/components/agents/*.yml`; `RoleCatalog`
+  merges them and permits replacement only through explicit
+  `metadata.replaces_legacy`. Never infer write or role authority from a CLI
+  name alone.
 - User-readable model routing and proposal/apply flow live under
   `./agentlab.sh models ...`.
 - Coder handoffs and external executor rules live in `DRIVER_PROTOCOL.md` and

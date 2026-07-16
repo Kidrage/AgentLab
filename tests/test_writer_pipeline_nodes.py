@@ -28,6 +28,7 @@ def test_fiction_route_enables_writer_reviewer_scribe_nodes(tmp_path: Path):
     assert lifecycle["nodes"]["WRITER_DRAFT"]["status"] == "waiting"
     assert lifecycle["nodes"]["FICTION_REVIEW"]["status"] == "waiting"
     assert lifecycle["nodes"]["SCRIBE_LEDGER"]["status"] == "waiting"
+    assert lifecycle["nodes"]["NARRATIVE_REWRITE_PLAN"]["status"] == "skipped"
     assert NODE_REQUIRED_OUTPUTS["WRITER_DRAFT"] == ["fiction_draft.md"]
     assert NODE_REQUIRED_OUTPUTS["FICTION_REVIEW"] == ["fiction_review.yml"]
     assert NODE_REQUIRED_OUTPUTS["SCRIBE_LEDGER"] == ["continuity_ledger.yml"]
@@ -37,6 +38,8 @@ def test_fiction_route_enables_writer_reviewer_scribe_nodes(tmp_path: Path):
     assert NODE_TO_REPORT["WRITER_DRAFT"] == "fiction_draft.md"
     assert NODE_TO_REPORT["FICTION_REVIEW"] == "fiction_review.yml"
     assert NODE_TO_REPORT["SCRIBE_LEDGER"] == "continuity_ledger.yml"
+    assert NODE_TO_AGENT["NARRATIVE_REWRITE_PLAN"] == "NarrativePlanner"
+    assert NODE_TO_REPORT["NARRATIVE_REWRITE_PLAN"] == "revision_or_rewrite_proposal.yml"
 
 
 def test_narrative_light_route_skips_heavy_lifecycle_nodes(tmp_path: Path):
@@ -52,6 +55,7 @@ def test_narrative_light_route_skips_heavy_lifecycle_nodes(tmp_path: Path):
     for node_id, agent_name in {
         "FICTION_REVIEW": "Reviewer",
         "SCRIBE_LEDGER": "Scribe",
+        "NARRATIVE_REWRITE_PLAN": "NarrativePlanner",
         "VALIDATION": "TesterAuditor",
         "AUDIT": "TesterAuditor",
         "VERIFY": "Verifier",
@@ -70,7 +74,13 @@ def test_heavy_audit_route_requires_complete_four_file_delivery() -> None:
     workflow = {
         "route": {
             "route_key": "narrative_heavy_audit",
-            "agents": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
+            "agents": [
+                "Supervisor",
+                "Reviewer",
+                "Scribe",
+                "NarrativePlanner",
+                "Verifier",
+            ],
         }
     }
     expected = [
@@ -81,7 +91,7 @@ def test_heavy_audit_route_requires_complete_four_file_delivery() -> None:
     ]
     assert _route_required_outputs(workflow) == expected
     required = _required_artifacts_for_run(Path("/nonexistent"), workflow["route"]["agents"], workflow)
-    assert "verification_report.md" not in required
+    assert "verification_report.md" in required
     for name in expected:
         assert name in required
 

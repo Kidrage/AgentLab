@@ -7,6 +7,7 @@ agent through a configured model API when `--execute` is explicitly passed.
 
 from __future__ import annotations
 
+from hashlib import sha256
 from pathlib import Path
 from collections import defaultdict
 from typing import Optional
@@ -136,49 +137,9 @@ INIT_BASE_TEMPLATES = {
     "brain_decisions.yml": "decisions: []\n",
 }
 
-INIT_AGENT_TEMPLATES = {
-    "Supervisor": {
-        "01_supervisor_plan.md": "# Supervisor Plan\n\nTBD\n",
-    },
-    "RepoScout": {
-        "02_reposcout_report.md": "# RepoScout Report\n\nTBD\n",
-    },
-    "Researcher": {
-        "03_research_notes.md": "# Research Notes\n\nTBD\n",
-    },
-    "InterfaceMapper": {
-        "04_interface_map.md": "# Interface Map\n\nTBD\n",
-    },
-    "PromptEngineer": {
-        "05_coder_prompt.md": "# Coder Handoff Prompt\n\nTBD\n",
-    },
-    "Coder": {
-        "05_coder_prompt.md": "# Coder Handoff Prompt\n\nTBD\n",
-        "06_implementation_report.md": "# Implementation Report\n\nTBD\n",
-    },
-    "ArtifactProducer": {
-        "artifact_producer_report.md": "# Artifact Producer Report\n\nTBD\n",
-    },
-    "Writer": {
-        "fiction_draft.md": "# Fiction Draft\n\nTBD\n",
-    },
-    "Reviewer": {
-        "fiction_review.yml": "status: tbd\nfindings: []\n",
-    },
-    "Scribe": {
-        "continuity_ledger.yml": "status: tbd\nentries: []\n",
-    },
-    "TesterAuditor": {
-        "07_validation_report.md": "# Validation Report\n\nTBD\n",
-        "08_audit_report.md": "# Audit Report\n\nTBD\n",
-    },
-    "Verifier": {
-        "verification_report.md": "# Verification Report\n\nTBD\n",
-    },
-    "Archivist": {
-        "09_archive_update.md": "# Archive Update\n\nTBD\n",
-    },
-}
+from agent_runtime.self_evolution.role_catalog import RoleCatalog  # noqa: E402
+
+INIT_AGENT_TEMPLATES = RoleCatalog.load(_PROJECT_ROOT).init_templates()
 
 LEGACY_INIT_AGENTS = [
     "Supervisor",
@@ -214,6 +175,9 @@ register_worker_commands(app, lambda: _PROJECT_ROOT, console)
 
 from agent_runtime.cli.models import register_model_commands
 register_model_commands(app, _PROJECT_ROOT, console)
+
+from agent_runtime.cli.self_evolution import register_self_evolution_commands  # noqa: E402
+register_self_evolution_commands(app, _PROJECT_ROOT, console)
 
 from agent_runtime.cli.governance import register_governance_commands
 register_governance_commands(app, _PROJECT_ROOT, console)
@@ -925,7 +889,7 @@ def init_task(
     )
     templates = _init_templates_for_agents(user_request, init_agents)
     for name, text in templates.items():
-        path = run_dir / name
+        path = assert_path_allowed(run_dir / name, run_dir)
         if write_text_if_missing(path, text):
             created.append(str(path))
         else:
@@ -3397,6 +3361,172 @@ def _handle_command_failure(
             pass
 
 
+def _write_self_evolution_verifier_execution_binding(
+    run_dir: Path,
+    *,
+    output_path: Path,
+    raw_usage: dict,
+) -> list[str]:
+    """Bind the sealed Verifier request, provider attempt, and returned report."""
+
+    run_dir = run_dir.resolve()
+    verifier_packet_path = run_dir / "self_evolution_verifier_task_packet.yml"
+    if verifier_packet_path.is_symlink():
+        return ["invalid_binding_source:verifier_task_packet"]
+    if not verifier_packet_path.is_file():
+        return []
+
+    def local_file(raw_path: object, fallback: Path | None = None) -> Path | None:
+        path = Path(str(raw_path or "")) if raw_path else fallback
+        if path is None:
+            return None
+        if not path.is_absolute():
+            path = run_dir / path
+        if path.is_symlink():
+            return None
+        resolved = path.resolve(strict=False)
+        try:
+            resolved.relative_to(run_dir.resolve())
+        except ValueError:
+            return None
+        return resolved if resolved.is_file() else None
+
+    try:
+        verifier_packet = yaml.safe_load(
+            verifier_packet_path.read_text(encoding="utf-8")
+        ) or {}
+    except (OSError, yaml.YAMLError):
+        verifier_packet = {}
+    role_session_path = local_file(
+        None,
+        run_dir / "self_evolution_verifier_role_session.yml",
+    )
+    execution_task_packet_path = local_file(raw_usage.get("task_packet_path"))
+    outbound_context_manifest_path = local_file(
+        raw_usage.get("outbound_context_manifest")
+    )
+    model_execution_receipt_path = local_file(
+        raw_usage.get("model_execution_receipt")
+    )
+    model_execution_chain_path = local_file(
+        raw_usage.get("model_execution_chain")
+    )
+    report_path = local_file(output_path)
+    sources = {
+        "role_session": role_session_path,
+        "verifier_task_packet": verifier_packet_path,
+        "execution_task_packet": execution_task_packet_path,
+        "outbound_context_manifest": outbound_context_manifest_path,
+        "model_execution_receipt": model_execution_receipt_path,
+        "model_execution_chain": model_execution_chain_path,
+        "verification_report": report_path,
+    }
+    issues: list[str] = []
+    execution_receipt = {}
+    if model_execution_receipt_path is not None:
+        try:
+            execution_receipt = yaml.safe_load(
+                model_execution_receipt_path.read_text(encoding="utf-8")
+            ) or {}
+        except (OSError, yaml.YAMLError):
+            issues.append("invalid_binding_source:model_execution_receipt")
+    execution_command_id = execution_receipt.get("execution_command_id")
+    execution_log_path = local_file(None, run_dir / "execution_log.yml")
+    command_record = {}
+    if execution_log_path is not None:
+        try:
+            execution_log = yaml.safe_load(
+                execution_log_path.read_text(encoding="utf-8")
+            ) or {}
+        except (OSError, yaml.YAMLError):
+            execution_log = {}
+        matching_commands = [
+            item
+            for item in execution_log.get("commands") or []
+            if isinstance(item, dict)
+            and item.get("command_id") == execution_command_id
+        ]
+        if len(matching_commands) == 1:
+            command_record = matching_commands[0]
+    provider_stdout_path = local_file(command_record.get("stdout_path"))
+    sources["execution_log"] = execution_log_path
+    sources["provider_stdout"] = provider_stdout_path
+    issues.extend(
+        f"missing_binding_source:{name}"
+        for name, path in sources.items()
+        if path is None
+    )
+    expected_receipt_hashes = {
+        "task_packet_sha256": (
+            sha256(execution_task_packet_path.read_bytes()).hexdigest()
+            if execution_task_packet_path is not None
+            else None
+        ),
+        "outbound_context_manifest_sha256": (
+            sha256(outbound_context_manifest_path.read_bytes()).hexdigest()
+            if outbound_context_manifest_path is not None
+            else None
+        ),
+        "returned_content_sha256": (
+            sha256(report_path.read_bytes()).hexdigest()
+            if report_path is not None
+            else None
+        ),
+    }
+    for key, expected in expected_receipt_hashes.items():
+        if expected is None or execution_receipt.get(key) != expected:
+            issues.append(f"invalid_model_receipt_binding:{key}")
+    provider_stdout_sha256 = str(
+        execution_receipt.get("provider_stdout_sha256") or ""
+    )
+    if len(provider_stdout_sha256) != 64 or any(
+        character not in "0123456789abcdef"
+        for character in provider_stdout_sha256
+    ):
+        issues.append("invalid_model_receipt_binding:provider_stdout_sha256")
+    if not execution_command_id or execution_command_id != raw_usage.get("command_id"):
+        issues.append("invalid_model_receipt_binding:execution_command_id")
+    if not (
+        command_record.get("agent") == "Verifier"
+        and command_record.get("exit_code") == 0
+        and command_record.get("status") == "success"
+        and provider_stdout_path is not None
+        and command_record.get("stdout_sha256") == provider_stdout_sha256
+        and sha256(provider_stdout_path.read_bytes()).hexdigest()
+        == provider_stdout_sha256
+    ):
+        issues.append("invalid_provider_execution_log_binding")
+    evidence = {}
+    for name, path in sources.items():
+        if path is None:
+            continue
+        evidence[f"{name}_path"] = str(path.relative_to(run_dir))
+        evidence[f"{name}_sha256"] = sha256(path.read_bytes()).hexdigest()
+    binding = {
+        "schema_version": 1,
+        "binding_type": "agentlab_self_evolution_verifier_execution",
+        "status": "pass" if not issues else "fail",
+        "created_at": utc_now(),
+        "role": "Verifier",
+        "worker": verifier_packet.get("worker"),
+        "role_session_id": verifier_packet.get("role_session_id"),
+        "component_id": verifier_packet.get("component_id"),
+        "manifest_fingerprint": verifier_packet.get("manifest_fingerprint"),
+        "execution_attempt_id": execution_receipt.get("attempt_id"),
+        "execution_command_id": execution_command_id,
+        **expected_receipt_hashes,
+        "provider_stdout_sha256": provider_stdout_sha256 or None,
+        "evidence": evidence,
+        "issues": issues,
+    }
+    binding_path = run_dir / "self_evolution_verifier_execution_binding.yml"
+    binding_path.write_text(
+        yaml.safe_dump(binding, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    return issues
+
+
 @app.command("run-agent")
 def run_agent(
     agent_name: str = typer.Argument(..., help="Agent name, e.g. Supervisor or Coder."),
@@ -3723,6 +3853,31 @@ def run_agent(
                 gate_issues.append("Writer did not return the four required candidate output blocks")
             output_path = contract_path
             output_content = result.content or ""
+    elif (
+        component_role := RoleCatalog.load(Path(plan.agentlab_root)).get(agent_name)
+    ) is not None and component_role.source == "component_manifest":
+        from agent_runtime.self_evolution.artifact_materializer import (
+            materialize_component_role_result,
+        )
+
+        materialized, component_issues, contract_path = (
+            materialize_component_role_result(
+                Path(plan.agentlab_root),
+                plan,
+                agent_name,
+                result,
+                output_path,
+            )
+        )
+        if materialized:
+            output_content = output_path.read_text(
+                encoding="utf-8",
+                errors="replace",
+            )
+        else:
+            gate_issues.extend(component_issues)
+            output_path = contract_path
+            output_content = result.content or ""
     else:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(result.content, encoding="utf-8")
@@ -3737,6 +3892,14 @@ def run_agent(
             gate_issues.append(f"Project Artifact Steward failed: {type(exc).__name__}: {exc}")
     if not gate_issues:
         gate_issues.extend(artifact_content_issues(output_path.name, output_content, Path(plan.run_dir)))
+    if not gate_issues and agent_name == "Verifier":
+        gate_issues.extend(
+            _write_self_evolution_verifier_execution_binding(
+                Path(plan.run_dir),
+                output_path=output_path,
+                raw_usage=raw_usage,
+            )
+        )
     if gate_issues:
         block_path = write_agent_artifact_gate_block(
             Path(plan.run_dir), project_name, task_id, agent_name, output_path, gate_issues

@@ -1,0 +1,7 @@
+role: NarrativePlanner
+required_session: true
+session_creation_authority: agentlab_runtime_dispatch
+self_review_allowed: false
+self_promotion_allowed: false
+human_merge_gate: true
+activation: on_config_reload_after_merge

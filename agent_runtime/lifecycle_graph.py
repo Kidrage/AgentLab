@@ -30,6 +30,7 @@ LIFECYCLE_NODES = [
     "WRITER_DRAFT",
     "FICTION_REVIEW",
     "SCRIBE_LEDGER",
+    "NARRATIVE_REWRITE_PLAN",
     "CODER_IMPLEMENTATION",
     "ARTIFACT_PRODUCTION",
     "VISUAL_OBSERVATION",
@@ -58,6 +59,7 @@ NODE_REQUIRED_OUTPUTS = {
     "WRITER_DRAFT": ["fiction_draft.md"],
     "FICTION_REVIEW": ["fiction_review.yml"],
     "SCRIBE_LEDGER": ["continuity_ledger.yml"],
+    "NARRATIVE_REWRITE_PLAN": ["revision_or_rewrite_proposal.yml"],
     "CODER_IMPLEMENTATION": ["06_implementation_report.md"],
     "ARTIFACT_PRODUCTION": ["artifact_producer_report.md"],
     "VISUAL_OBSERVATION": ["visual_observation_report.yml"],
@@ -83,6 +85,7 @@ OPTIONAL_NODES = {
     "WRITER_DRAFT",
     "FICTION_REVIEW",
     "SCRIBE_LEDGER",
+    "NARRATIVE_REWRITE_PLAN",
     "CODER_IMPLEMENTATION",
     "ARTIFACT_PRODUCTION",
     "VISUAL_OBSERVATION",
@@ -177,6 +180,8 @@ def _skip_reason_for_node(
         return "Route does not include Reviewer"
     if node_id == "SCRIBE_LEDGER" and "Scribe" not in route:
         return "Route does not include Scribe"
+    if node_id == "NARRATIVE_REWRITE_PLAN" and "NarrativePlanner" not in route:
+        return "Route does not include NarrativePlanner"
     if node_id == "CODER_IMPLEMENTATION" and "Coder" not in route:
         return "Route does not include Coder"
     if node_id == "ARTIFACT_PRODUCTION" and "ArtifactProducer" not in route:

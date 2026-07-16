@@ -15,24 +15,10 @@ from typing import Any
 
 import yaml
 
+from agent_runtime.self_evolution.role_catalog import RoleCatalog
 
-AGENTLAB_ROLES = [
-    "Supervisor",
-    "RepoScout",
-    "Researcher",
-    "Observer",
-    "InterfaceMapper",
-    "PromptEngineer",
-    "Coder",
-    "ArtifactProducer",
-    "Writer",
-    "Reviewer",
-    "Scribe",
-    "TesterAuditor",
-    "Verifier",
-    "Archivist",
-    "NarrativePlanner",
-]
+
+AGENTLAB_ROLES = RoleCatalog.load(Path(__file__).resolve().parents[2]).names()
 
 CORE_CONFIG_PATHS = {
     "config/agent_model_profiles.yml",
@@ -101,13 +87,20 @@ def _git_value(root: Path, args: list[str]) -> str:
 
 
 def _load_policy(root: Path, name: str) -> dict[str, Any]:
-    return _read_yaml(root / "config" / name, {}) or {}
+    policy = _read_yaml(root / "config" / name, {}) or {}
+    if name == "agent_role_bindings.yml":
+        return RoleCatalog.load(root).merged_role_bindings(policy)
+    return policy
 
 
-def _normalize_role(role: str) -> str:
+def _normalize_role(role: str, root: Path | None = None) -> str:
     text = str(role or "").replace("_", "").replace("-", "").lower()
     if text == "visualreviewer":
         return "Reviewer"
+    if root is not None:
+        definition = RoleCatalog.load(root).get(role)
+        if definition is not None:
+            return definition.display_name
     for canonical in AGENTLAB_ROLES:
         if canonical.replace("_", "").replace("-", "").lower() == text:
             return canonical
@@ -270,7 +263,7 @@ def _frontdesk_project_state_sources(root: Path) -> dict[str, list[str]]:
 
 def check_role_binding(root: Path, worker: str, role: str) -> tuple[bool, str]:
     bindings = _load_policy(root, "agent_role_bindings.yml")
-    canonical_role = _normalize_role(role)
+    canonical_role = _normalize_role(role, root)
     worker_cfg = ((bindings.get("workers") or {}).get(worker) or {})
     role_cfg = ((bindings.get("roles") or {}).get(canonical_role) or {})
     allowed_by_worker = worker_cfg.get("allowed_roles") or []
@@ -429,7 +422,7 @@ def build_role_session(
     task_id: str = "task_0001",
 ) -> dict[str, Any]:
     root = Path(root)
-    canonical_role = _normalize_role(role)
+    canonical_role = _normalize_role(role, root)
     allowed, reason = check_role_binding(root, worker, canonical_role)
     if canonical_role in {"Coder", "Writer"}:
         try:
@@ -444,7 +437,9 @@ def build_role_session(
     else:
         dispatch = {"blocked": False, "reason": "not a writer/coder role"}
     agent_registry = _load_policy(root, "agent_registry.yml")
-    role_cfg = ((agent_registry.get("agents") or {}).get(canonical_role) or {})
+    role_cfg = RoleCatalog.load(root).agent_configs(
+        agent_registry.get("agents") or {}
+    ).get(canonical_role, {})
     run_dir = root / "projects" / project / "runs" / task_id
     task = _task_state(root, project, task_id)
     packet = {
@@ -619,7 +614,7 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
 
     roles = bindings.get("roles") or {}
     workers = bindings.get("workers") or {}
-    for role in AGENTLAB_ROLES:
+    for role in RoleCatalog.load(root).names():
         role_cfg = roles.get(role) or {}
         allowed_workers = role_cfg.get("allowed_workers") or []
         checks.append(_check(bool(allowed_workers), "role_has_allowed_worker", f"{role} has allowed workers"))

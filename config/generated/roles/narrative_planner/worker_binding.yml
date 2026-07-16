@@ -1,0 +1,8 @@
+role: NarrativePlanner
+allowed_workers:
+- claude_code
+default_deny_unlisted_workers: true
+required_session: true
+session_creation_authority: agentlab_runtime_dispatch
+invocation_contracts:
+  claude_code: claude_longform_governance

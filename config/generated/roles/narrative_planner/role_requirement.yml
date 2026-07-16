@@ -1,0 +1,12 @@
+role: NarrativePlanner
+required_capabilities:
+- planning
+- state_ledger
+preferred_capabilities:
+- long_context
+- write_text_artifact
+forbidden_capabilities:
+- unapproved_source_edit
+- silent_provider_fallback
+default_risk_ceiling: medium
+human_approval_required_for: []

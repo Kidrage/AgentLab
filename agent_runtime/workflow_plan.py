@@ -13,6 +13,7 @@ try:
     from agent_runtime.production_packs import build_production_pack
     from agent_runtime.routing.route_catalog import RouteCatalog, route_size_suffix
     from agent_runtime.schemas import AgentRoute, WorkflowPlan
+    from agent_runtime.self_evolution.role_catalog import RoleCatalog
     from agent_runtime.task_router import recommend_route
 except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
     from budget_planner import build_token_budgets, normalize_budget_mode, select_budget_profile_key
@@ -22,6 +23,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
     from production_packs import build_production_pack
     from routing.route_catalog import RouteCatalog, route_size_suffix
     from schemas import AgentRoute, WorkflowPlan
+    from self_evolution.role_catalog import RoleCatalog
     from task_router import recommend_route
 
 AGENT_LIFECYCLE_NODES = {
@@ -36,6 +38,7 @@ AGENT_LIFECYCLE_NODES = {
     "Writer": {"WRITER_DRAFT"},
     "Reviewer": {"FICTION_REVIEW", "VISUAL_REVIEW"},
     "Scribe": {"SCRIBE_LEDGER"},
+    "NarrativePlanner": {"NARRATIVE_REWRITE_PLAN"},
     "TesterAuditor": {"VALIDATION", "AUDIT"},
     "Verifier": {"VERIFY"},
     "Archivist": {"ARCHIVE"},
@@ -210,7 +213,11 @@ def _route_from_mission_contract(mission: dict, routing_config: dict | None) -> 
 
 
 def _skill_injection_agents_for_route(route: AgentRoute) -> list[str] | None:
-    creative_agents = [agent for agent in ("Writer", "Reviewer", "Scribe") if agent in route.agents]
+    creative_agents = [
+        agent
+        for agent in ("Writer", "Reviewer", "Scribe", "NarrativePlanner")
+        if agent in route.agents
+    ]
     return creative_agents or None
 
 
@@ -480,9 +487,9 @@ def _narrative_heavy_audit_gates() -> list[dict]:
         },
         {
             "id": "revision_or_rewrite_proposal",
-            "owner": "Verifier",
+            "owner": "NarrativePlanner",
             "required": True,
-            "description": "Emit a rewrite proposal only when blocking issues require it; do not directly alter the draft.",
+            "description": "Propose a bounded rewrite only when blocking issues require it; do not directly alter the draft.",
             "evidence": ["revision_or_rewrite_proposal.yml"],
         },
     ]
@@ -936,13 +943,25 @@ def _included_agents_for_route(
                 "runs/task_xxxx/continuity_failure_report.yml",
             ]
             included["Scribe"]["required_outputs"] = ["runs/task_xxxx/state_transition_proposal.yml"]
+        if "NarrativePlanner" in included:
+            included["NarrativePlanner"]["required_inputs"] = [
+                "runs/task_xxxx/fiction_review.yml",
+                "runs/task_xxxx/continuity_failure_report.yml",
+                "runs/task_xxxx/state_transition_proposal.yml",
+            ]
+            included["NarrativePlanner"]["required_outputs"] = [
+                "runs/task_xxxx/revision_or_rewrite_proposal.yml"
+            ]
         if "Verifier" in included:
             included["Verifier"]["required_inputs"] = [
                 "runs/task_xxxx/fiction_review.yml",
                 "runs/task_xxxx/continuity_failure_report.yml",
                 "runs/task_xxxx/state_transition_proposal.yml",
+                "runs/task_xxxx/revision_or_rewrite_proposal.yml",
             ]
-            included["Verifier"]["required_outputs"] = ["runs/task_xxxx/revision_or_rewrite_proposal.yml"]
+            included["Verifier"]["required_outputs"] = [
+                "runs/task_xxxx/verification_report.md"
+            ]
         return included
 
     if route.route_key != "fiction_chapter_pipeline":
@@ -1026,7 +1045,9 @@ def build_workflow_plan(
     paths = _project_paths(agentlab_root, project_name, task_id, project_config)
     request_path = user_request_path or paths["user_request"]
     task_text = request_path.read_text(encoding="utf-8") if request_path.exists() else ""
-    agent_registry = configs.get("agent_registry", {}).get("agents", {})
+    agent_registry = RoleCatalog.load(agentlab_root).agent_configs(
+        configs.get("agent_registry", {}).get("agents", {})
+    )
     known_agents = list(agent_registry.keys()) or None
 
     mission = {}
