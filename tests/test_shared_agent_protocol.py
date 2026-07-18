@@ -89,6 +89,20 @@ def test_authoritative_protocol_points_to_structured_policies() -> None:
     assert "repository-handoff --repo <path> --write" in protocol
 
 
+def test_cli_homes_are_local_only_and_excluded_from_repository_ingestion() -> None:
+    protocol = (ROOT / "_shared" / "AGENT_PROTOCOL.md").read_text(encoding="utf-8")
+    collaboration = (
+        ROOT / "docs" / "AGENTLAB_CORP_AND_COLLABORATION_PROTOCOL.md"
+    ).read_text(encoding="utf-8")
+    glossary = (ROOT / "CONTEXT.md").read_text(encoding="utf-8")
+    ingestion = _yaml("repo_ingestion_policy.yml")["repo_ingestion"]
+
+    assert "`.agents/` (locks, states)" in protocol
+    assert "不得通过 Git 或 Relay Hub 同步" in collaboration
+    assert "local-only" in glossary
+    assert ".agents/**" in ingestion["default_excludes"]
+
+
 def test_repository_handoff_is_mandatory_for_every_agent() -> None:
     policy = _yaml("repository_handoff_policy.yml")
     collaboration = _yaml("agent_collaboration.yml")["agent_collaboration"]

@@ -159,7 +159,7 @@ agents:
         return findings, actions, verification, changed files, and blockers."
       supervisor: >-
         hermes -p agentlabsupervisor chat -Q --provider openai-codex -m
-        gpt-5.6-sol -q "Read the AgentLab Supervisor packet at
+        gpt-5.6-sol --ignore-rules --max-turns 6 -q "Read the AgentLab Supervisor packet at
         {task_packet_path}; return the governed plan. AgentLab writes the
         runtime-verified model execution receipt."
     frontdesk_model: deepseek_v4_pro
@@ -179,7 +179,7 @@ agents:
   claude_code:
     display_name: Claude Code
     class: coding_agent
-    primary_roles: [pure_writer, chinese_prose, developmental_editing, deep_analysis, architecture, multi_file_implementation, review]
+    primary_roles: [pure_writer, chinese_prose, narrative_rewrite_planning, developmental_editing, deep_analysis, architecture, multi_file_implementation, review]
     invocation:
       command: claude
       noninteractive: >-
@@ -190,7 +190,13 @@ agents:
         --permission-mode plan --output-format json --tools "" -p "Read only
         the sealed Writer packet at {task_packet_path}; return final Chinese
         prose candidate envelopes and native usage metadata."
+      narrative_planner: >-
+        claude --model deepseek-v4-pro --effort max --max-budget-usd 2.00
+        --permission-mode plan --output-format json --tools "" -p "Read only
+        the sealed NarrativePlanner packet at {task_packet_path}; return raw
+        candidate chapter_state_plan.yml YAML and no prose."
     writer_model: deepseek_v4_pro
+    narrative_planner_model: deepseek_v4_pro
     ultracode_policy:
       opt_in_only: true
       requires_packet_fields: [ultracode_opt_in, writer_mode, work_type]
@@ -204,8 +210,21 @@ agents:
     invocation:
       command: qwen
       noninteractive: >-
-        qwen --bare --approval-mode default --output-format json "Read the task packet at
+        qwen --bare --auth-type openai --openai-base-url
+        "https://dashscope.aliyuncs.com/compatible-mode/v1" --model "{model_id}"
+        --approval-mode default --output-format json "Read the task packet at
         {task_packet_path}; perform only the assigned role and report actual changes."
+      narrative_audit: >-
+        qwen --bare --auth-type openai --openai-base-url
+        "https://dashscope.aliyuncs.com/compatible-mode/v1" --model "{model_id}"
+        --approval-mode default --max-session-turns 6 --max-wall-time 9m
+        --exclude-tools
+        edit,write_file,read_file,grep_search,glob,run_shell_command,todo_write,save_memory,agent,skill,exit_plan_mode,enter_plan_mode,web_fetch,list_directory,lsp,ask_user_question,cron_create,cron_list,cron_delete,loop_wakeup,task_stop,task_create,task_update,task_list,team_create,team_delete,send_message,monitor,notebook_edit,tool_search,enter_worktree,exit_worktree,workflow,artifact
+        --max-tool-calls 1 --json-schema
+        @narrative_heavy_audit_output.schema.json --output-format stream-json -p "Read
+        the complete sealed narrative-audit packet from stdin and return exactly
+        the native structured-output JSON object. Never JSON-encode an object or
+        array into a string."
     high_risk: true
   gemini:
     display_name: Gemini API CLI

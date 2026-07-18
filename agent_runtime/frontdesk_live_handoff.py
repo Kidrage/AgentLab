@@ -139,10 +139,9 @@ def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") ->
             role="ArtifactProducer",
             worker="grok",
             observe_artifacts=[
-                "projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/*/generation_ledger.yml",
-                "projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/*/media_backend_preflight.yml",
-                "projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_qc_report.yml",
-                "projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/narrative_media_delivery_receipt.yml",
+                "projects/Crown_of_Ash/runs/task_media_role_session_acceptance_*/artifacts/*/generation_ledger.yml",
+                "projects/Crown_of_Ash/runs/task_media_role_session_acceptance_*/artifacts/*/media_backend_preflight.yml",
+                "projects/Crown_of_Ash/runs/task_media_role_session_acceptance_*/artifacts/*/outbound_context_manifest_media.yml",
             ],
         ),
     ]

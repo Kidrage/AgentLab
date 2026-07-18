@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from agent_runtime.cli.models import _cost_source
+from agent_runtime.role_keys import canonical_role_name
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +26,41 @@ def test_agent_backend_modes_have_three_canonical_tiers() -> None:
     for mode_name in ("full_cli", "qwen_token_plan_cli", "full_api", "hybrid_ide"):
         assert mode_name in modes
         assert set(modes[mode_name]["tiers"]) == {"full", "performance", "low"}
+
+
+def test_agent_registry_contains_only_role_contracts() -> None:
+    registry = _load_config("agent_registry.yml")
+    authority = registry["authority"]
+    assert authority["purpose"] == "canonical_agent_role_contracts"
+    assert authority["backend_source"] == "config/agent_model_profiles.yml"
+
+    forbidden = {
+        "model_profile",
+        "model_tier",
+        "profile_mapping",
+        "execution_owner",
+        "secondary_executor",
+        "local_executor",
+        "allowed_backends",
+        "invocation_contract",
+        "external_window",
+        "external_window_activation",
+    }
+    for role_name, role in registry["agents"].items():
+        assert forbidden.isdisjoint(role), (
+            f"{role_name} duplicates backend/model authority in agent_registry.yml"
+        )
+
+
+def test_execution_policy_does_not_duplicate_backend_or_model_selection() -> None:
+    policy = _load_config("execution_policy.yml")
+    authority = policy["authority"]
+
+    assert authority["purpose"] == "execution_gates_and_budget_behavior"
+    assert authority["role_backend_source"] == "config/agent_model_profiles.yml"
+    assert authority["fallback_source"] == "config/model_capacity.yml"
+    assert "default_api_coder" not in policy["execution_policy"]
+    assert "cross_family_review" not in policy["audit_policy"]
 
 
 def test_cli_profiles_reference_worker_invocation_contracts() -> None:
@@ -69,6 +105,20 @@ def test_cli_profiles_reference_worker_invocation_contracts() -> None:
                     f"{mode_name}/{tier_name}/{role_name} references "
                     f"{contract_name!r}, whose template has unsupported placeholders "
                     f"{sorted(template_placeholders - runtime_supported_placeholders)}"
+                )
+
+
+def test_profile_role_keys_resolve_to_registered_roles() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
+    registered_roles = set(_load_config("agent_role_bindings.yml")["roles"])
+
+    for mode_name, mode in profiles["modes"].items():
+        for tier_name, tier in mode.get("tiers", {}).items():
+            for role_key in tier:
+                canonical = canonical_role_name(str(role_key))
+                assert canonical in registered_roles, (
+                    f"{mode_name}/{tier_name}/{role_key} does not resolve to a "
+                    "registered AgentLab role"
                 )
 
 
@@ -170,6 +220,11 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["artifact_producer"]["default"] == "grok_4_3_hermes_oauth"
     assert tier["artifact_producer"]["artifact_backend"] == "hermes_grok_oauth"
 
+    assert tier["narrative_planner"]["cli_agent"] == "claude_code"
+    assert tier["narrative_planner"]["invocation_contract"] == "claude_narrative_planner"
+    assert tier["narrative_planner"]["default"] == "deepseek_v4_pro"
+    assert tier["narrative_planner"]["capacity_route"] == "NarrativePlannerRewrite"
+
     assert tier["tester_auditor"]["cli_agent"] == "codex"
     assert tier["tester_auditor"]["default"] == "deepseek_v4_pro"
 
@@ -221,10 +276,48 @@ def test_full_cli_full_tier_matches_operator_matrix() -> None:
 
     assert tier["artifact_producer"]["cli_agent"] == "grok"
     assert tier["artifact_producer"]["invocation_contract"] == "grok_media"
+    assert tier["narrative_planner"]["cli_agent"] == "claude_code"
+    assert tier["narrative_planner"]["default"] == "deepseek_v4_pro"
+    assert tier["narrative_planner"]["capacity_route"] == "NarrativePlannerRewrite"
     assert tier["writer"]["cli_agent"] == "claude_code"
     assert tier["writer"]["invocation_contract"] == "claude_writer"
     assert tier["writer"]["default"] == "deepseek_v4_pro"
     assert tier["writer"]["capacity_route"] == "Writer"
+
+
+def test_narrative_planner_capacity_route_has_no_fallback() -> None:
+    capacity = _load_config("model_capacity.yml")["routes"]
+    route = capacity["NarrativePlannerRewrite"]
+    contract = _load_config("worker_invocation_contracts.yml")["contracts"][
+        "claude_narrative_planner"
+    ]
+
+    assert route == {
+        "role": "narrative_planner",
+        "worker": "claude_code",
+        "invocation_contract": "claude_narrative_planner",
+        "model_key": "deepseek_v4_pro",
+        "pool": "deepseek_metered_api",
+        "approved_fallbacks": [],
+        "fallback_on": [],
+        "activation_policy": "blocking_narrative_rewrite_only",
+    }
+    assert contract["worker_id"] == "claude_code"
+    assert contract["fallback"] == {
+        "on_binary_missing": "stop_and_report",
+        "on_quota_exhausted": "stop_and_report",
+    }
+
+
+def test_narrative_planner_is_fixed_to_pro_in_every_full_cli_tier() -> None:
+    tiers = _load_config("agent_model_profiles.yml")["modes"]["full_cli"]["tiers"]
+    for tier_name in ("full", "performance", "low"):
+        planner = tiers[tier_name]["narrative_planner"]
+        assert planner["executor_type"] == "cli_agent"
+        assert planner["cli_agent"] == "claude_code"
+        assert planner["invocation_contract"] == "claude_narrative_planner"
+        assert planner["default"] == "deepseek_v4_pro"
+        assert planner["capacity_route"] == "NarrativePlannerRewrite"
 
 
 def test_qwen_token_plan_cli_preserves_original_cli_allocation() -> None:
@@ -411,6 +504,8 @@ def test_hermes_supervisor_uses_gpt_56_sol_at_strongest_supported_effort() -> No
     assert "-p agentlabsupervisor chat -Q" in hermes_template
     assert "--provider {provider}" in hermes_template
     assert "-m {model_id}" in hermes_template
+    assert "--ignore-rules" in hermes_template
+    assert "--max-turns 6" in hermes_template
     assert " -q " in hermes_template
     assert " -z " not in hermes_template
     supervisor_contract = contracts["hermes_supervisor"]
@@ -428,6 +523,49 @@ def test_hermes_supervisor_uses_gpt_56_sol_at_strongest_supported_effort() -> No
         route = profiles["modes"]["full_cli"]["tiers"][tier]["supervisor"]
         assert route["invocation_contract"] == "hermes_supervisor"
         assert route["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+
+
+def test_qwen_role_contract_uses_explicit_dashscope_auth() -> None:
+    contract = _load_config("worker_invocation_contracts.yml")["contracts"]["qwen"]
+
+    assert "--auth-type openai" in contract["template"]
+    assert "--openai-base-url" in contract["template"]
+    assert contract["environment"] == {
+        "api_key_source": "DASHSCOPE_API_KEY",
+        "api_key_target": "OPENAI_API_KEY",
+        "base_url_target": "OPENAI_BASE_URL",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    }
+
+
+def test_narrative_heavy_audit_uses_bounded_qwen_stdin_contract() -> None:
+    configs = _load_config("worker_invocation_contracts.yml")["contracts"]
+    routing = _load_config("routing_rules.yml")["routes"][
+        "narrative_heavy_audit"
+    ]
+    contract = configs["qwen_narrative_audit"]
+
+    assert routing["role_session_contracts"] == {
+        "Reviewer": "qwen_narrative_audit",
+        "Scribe": "qwen_narrative_audit",
+        "Verifier": "qwen_narrative_audit",
+    }
+    assert contract["worker_id"] == "qwen"
+    assert contract["model_profile"] == "qwen3_6_flash_dashscope"
+    assert contract["packet_delivery"] == "stdin"
+    assert contract["structured_output"] == "narrative_heavy_audit"
+    assert "--max-session-turns 6" in contract["template"]
+    exclude_value = contract["template"].split("--exclude-tools ", 1)[1].split()[0]
+    excluded_tools = set(exclude_value.split(","))
+    assert "structured_output" not in excluded_tools
+    assert {"read_file", "grep_search", "glob", "list_directory", "agent"} <= excluded_tools
+    assert "--core-tools" not in contract["template"]
+    assert "--max-tool-calls 1" in contract["template"]
+    assert "--json-schema @narrative_heavy_audit_output.schema.json" in contract[
+        "template"
+    ]
+    assert "{task_packet_path}" not in contract["template"]
+    assert contract["fallback"] == {"on_binary_missing": "stop_and_report"}
 
 
 def test_writer_is_claude_deepseek_with_bounded_optional_ultracode() -> None:

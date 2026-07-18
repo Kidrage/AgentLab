@@ -25,6 +25,7 @@ AGENTLAB_ROLES = [
     "PromptEngineer",
     "Coder",
     "ArtifactProducer",
+    "NarrativePlanner",
     "Writer",
     "Reviewer",
     "Scribe",

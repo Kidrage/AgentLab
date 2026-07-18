@@ -6,28 +6,16 @@ from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
+import sys
 from typing import Any
 
 import yaml
 
-
-ROLE_NAMES = {
-    "supervisor": "Supervisor",
-    "reposcout": "RepoScout",
-    "researcher": "Researcher",
-    "observer": "Observer",
-    "interface_mapper": "InterfaceMapper",
-    "prompt_engineer": "PromptEngineer",
-    "coder": "Coder",
-    "artifact_producer": "ArtifactProducer",
-    "writer": "Writer",
-    "reviewer": "Reviewer",
-    "visual_reviewer": "Reviewer",
-    "scribe": "Scribe",
-    "tester_auditor": "TesterAuditor",
-    "verifier": "Verifier",
-    "archivist": "Archivist",
-}
+try:
+    from agent_runtime.role_keys import canonical_role_name
+except ModuleNotFoundError:  # pragma: no cover - direct script path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from agent_runtime.role_keys import canonical_role_name
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -149,7 +137,7 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
     full_cli = (((profiles.get("modes") or {}).get("full_cli") or {}).get("tiers") or {})
     for tier, tier_config in full_cli.items():
         for role_key, role_config in (tier_config or {}).items():
-            role = ROLE_NAMES.get(str(role_key), str(role_key))
+            role = canonical_role_name(str(role_key))
             binding_role = role
             if not isinstance(role_config, dict):
                 matrix_rows.append({
@@ -258,9 +246,8 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
                                 f"artifact_task_policy.{artifact_type}: capacity route "
                                 f"{provider_capacity_route!r} uses another contract"
                             )
-                        if ROLE_NAMES.get(
-                            str(capacity_config.get("role") or ""),
-                            str(capacity_config.get("role") or ""),
+                        if canonical_role_name(
+                            str(capacity_config.get("role") or "")
                         ) != "ArtifactProducer":
                             errors.append(
                                 f"artifact_task_policy.{artifact_type}: capacity route "
@@ -294,7 +281,7 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
                             f"full_cli.{tier}.{role_key}: capacity route {capacity_route!r} "
                             f"uses model {route_model!r}, not {model_key!r}"
                         )
-                    if ROLE_NAMES.get(route_role, route_role) != binding_role:
+                    if canonical_role_name(route_role) != binding_role:
                         errors.append(
                             f"full_cli.{tier}.{role_key}: capacity route {capacity_route!r} "
                             f"uses role {route_role!r}, not {binding_role!r}"

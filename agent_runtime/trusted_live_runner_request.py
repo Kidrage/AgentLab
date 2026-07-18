@@ -227,12 +227,12 @@ def _local_runner_package(
         "post_run_selected_collect_commands": {
             "writer_only": _collect_command(
                 request_path,
-                collect_path.with_name("trusted_live_runner_collect_writer.yml"),
+                collect_path,
                 "run_crown_internal_writer_eval",
             ),
             "media_only": _collect_command(
                 request_path,
-                collect_path.with_name("trusted_live_runner_collect_media.yml"),
+                collect_path,
                 "run_crown_internal_media_smoke",
             ),
         },
@@ -707,9 +707,7 @@ def build_trusted_live_runner_request(root: Path, request_id: str | None = None)
         "items": items,
         "script_path": None,
         "secret_values_rendered": _contains_secret_text({"handoff": handoff, "readiness": readiness, "items": items}),
-        "session_health_warnings": readiness.get("session_health_issues", [])
-        if isinstance(readiness.get("session_health_issues"), list)
-        else [],
+        "session_health_evaluated_at_runtime": True,
         "issues": issues,
         "notes": [
             "This request does not execute private role-session acceptance commands.",

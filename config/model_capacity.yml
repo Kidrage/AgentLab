@@ -259,6 +259,16 @@ routes:
     approved_fallbacks: []
     fallback_on: []
 
+  NarrativePlannerRewrite:
+    role: narrative_planner
+    worker: claude_code
+    invocation_contract: claude_narrative_planner
+    model_key: deepseek_v4_pro
+    pool: deepseek_metered_api
+    approved_fallbacks: []
+    fallback_on: []
+    activation_policy: blocking_narrative_rewrite_only
+
   Writer:
     role: writer
     worker: claude_code

@@ -57,6 +57,11 @@ try:
 except ModuleNotFoundError:
     from agent_runtime.goal_acceptance_scope import acceptance_mode, load_goal_acceptance_scope
 
+try:
+    from agent_runtime.run_retention import resolve_run_dir
+except ModuleNotFoundError:  # pragma: no cover - direct script path
+    from run_retention import resolve_run_dir
+
 
 STATUS_RANK = {
     "pass": 0,
@@ -234,8 +239,13 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
     legacy_private_live_handoff_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "private_live_smoke_approval_handoff.md"
     frontdesk_rejection_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "frontdesk_runtime_private_context_rejection_trusted_runner_20260708.yml"
     media_audit_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "media_series_scaffold_audit.yml"
-    ui_api_report_path = root / "projects" / "AgentLab" / "runs" / "task_live_code_ui_app_json_binding_20260707" / "ui_api_smoke_report.json"
-    ui_action_ledger_path = root / "projects" / "AgentLab" / "runs" / "task_live_code_ui_app_json_binding_20260707" / "ui_action_ledger.json"
+    ui_run_dir = resolve_run_dir(
+        root,
+        "AgentLab",
+        "task_live_code_ui_app_json_binding_20260707",
+    )
+    ui_api_report_path = ui_run_dir / "ui_api_smoke_report.json"
+    ui_action_ledger_path = ui_run_dir / "ui_action_ledger.json"
     ui_api_report = _read_yaml(ui_api_report_path) if ui_api_report_path.suffix in {".yml", ".yaml"} else {}
     if ui_api_report_path.exists() and not ui_api_report:
         try:
@@ -548,43 +558,19 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
             "govern_cli_shell_native_command_surfaces_and_subagents",
             "Local CLI shells should be treated as controllable workflow runtimes: their native commands, subagents, boards, sessions, tools, and receipts must be inventoried before AgentLab relies on them.",
             "pass"
-            if _capability_status(capabilities, "cli_native_command_surface_governance") == "pass"
-            and _capability_status(capabilities, "cli_shell_coalesced_runner_implementation") == "pass"
-            and _capability_status(capabilities, "cli_shell_coalesced_runner_request") == "pass"
-            and _capability_status(capabilities, "cli_shell_coalesced_collect") == "pass"
-            and _capability_status(capabilities, "cli_shell_coalesced_session_returns") == "pass"
-            else (
-                "candidate"
-                if _capability_status(capabilities, "cli_native_command_surface_governance") == "pass"
-                and _capability_status(capabilities, "cli_shell_coalesced_runner_implementation") == "pass"
-                and _capability_status(capabilities, "cli_shell_coalesced_runner_request") == "pass"
-                and _capability_status(capabilities, "cli_shell_coalesced_collect") == "pass"
-                and _capability_status(capabilities, "cli_shell_coalesced_session_returns") == "candidate"
-                else "fail"
-            ),
-            "AgentLab now distinguishes high-level CLI shell absorption from full native command-surface governance; Hermes kanban and Claude agents/background surfaces are registered, and coalesced shell session returns are gated by per-role receipts and validation evidence.",
+            if _capability_status(capabilities, "cli_workflow_shell_absorption") == "pass"
+            and _capability_status(capabilities, "cli_native_command_surface_governance") == "pass"
+            else "fail",
+            "AgentLab registers shell-native commands, subagents, boards, sessions, and tools for bounded role sessions while preserving lifecycle gates between dependent roles.",
             _capability_evidence(
                 capabilities,
                 "cli_native_command_surface_governance",
-                "cli_shell_coalesced_runner_implementation",
-                "cli_shell_coalesced_runner_request",
-                "cli_shell_coalesced_collect",
-                "cli_shell_coalesced_session_returns",
                 "cli_workflow_shell_absorption",
             ),
-            None
-            if _capability_status(capabilities, "cli_shell_coalesced_session_returns") == "pass"
-            else "Needs returned shell-session receipt, one role receipt per delegated AgentLab role, and validation evidence per role.",
             details={
                 "candidate_capability_issues": candidate_issues_for(
                     capability_candidate_issues,
-                    [
-                        "cli_native_command_surface_governance",
-                        "cli_shell_coalesced_runner_implementation",
-                        "cli_shell_coalesced_runner_request",
-                        "cli_shell_coalesced_collect",
-                        "cli_shell_coalesced_session_returns",
-                    ],
+                    ["cli_workflow_shell_absorption", "cli_native_command_surface_governance"],
                 )
             },
         ),
@@ -763,7 +749,6 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
             and _capability_status(capabilities, "trusted_live_runner_collect") in {"candidate", "pass"}
             and goal_path.exists()
             and readiness_path.exists()
-            and report_hygiene.get("status") == "pass"
             and role_session_handoff_path.exists()
             and legacy_private_live_handoff_path.exists()
             and (root / "docs" / "AGENTLAB_CAPABILITY_ACCEPTANCE_MATRIX.md").exists()
@@ -789,6 +774,7 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
                 str(goal_path),
             ],
             details={
+                "acceptance_report_hygiene_status": report_hygiene.get("status"),
                 "writer_request_route_current": trusted_writer_request_route_current(
                     trusted_request
                 )

@@ -35,7 +35,7 @@ def test_tracked_text_files_do_not_have_extreme_lines() -> None:
     offenders: list[str] = []
     for relpath in _tracked_files():
         path = ROOT / relpath
-        if path.suffix not in TEXT_SUFFIXES:
+        if not path.exists() or path.suffix not in TEXT_SUFFIXES:
             continue
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if len(line) > MAX_HUMAN_LINE_LENGTH:

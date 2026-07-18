@@ -1,7 +1,15 @@
 root_policy:
   allowed_root_files:
     - .gitignore
+    - AGENTS.md
+    - CLAUDE.md
+    - CLI_ROADMAP.md
+    - CONTEXT.md
+    - DRIVER_PROTOCOL.md
+    - OPERATING_MODEL.md
+    - PROJECT_HANDOFF.md
     - README.md
+    - USAGE_PLAN.md
     - agentlab.sh
     - agentlab_app.py
     - pyproject.toml

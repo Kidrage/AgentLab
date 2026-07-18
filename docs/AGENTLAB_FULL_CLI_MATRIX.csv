@@ -7,6 +7,7 @@ full_cli,full,researcher,Researcher,cli_agent,grok,grok_research,grok_4_3_hermes
 full_cli,full,prompt_engineer,PromptEngineer,cli_agent,hermes,hermes,qwen3_7_max_dashscope,qwen3.7-max,dashscope_cn,qwen3,command_template,,,,,,,,ok
 full_cli,full,coder,Coder,cli_agent,claude_code,claude,deepseek_v4_pro,deepseek-v4-pro,deepseek_official,deepseek,command_template,,,,,,,,ok
 full_cli,full,artifact_producer,ArtifactProducer,cli_agent,grok,grok_media,grok_4_3_hermes_oauth,grok-4.3,hermes_xai_oauth,xai-oauth,command_template,ArtifactProducer,,,,text | image | video | audio | spreadsheet | presentation | mixed,text|spreadsheet|presentation=>qwen_cli/qwen/qwen_artifact/ArtifactProducerQwenMax; image|video=>grok_media/grok/grok_media/ArtifactProducer; audio|mixed=>unsupported,hermes_grok_oauth,ok
+full_cli,full,narrative_planner,NarrativePlanner,cli_agent,claude_code,claude_narrative_planner,deepseek_v4_pro,deepseek-v4-pro,deepseek_official,deepseek,command_template,NarrativePlannerRewrite,,,,,,,ok
 full_cli,full,tester_auditor,TesterAuditor,cli_agent,hermes,hermes,qwen3_7_max_dashscope,qwen3.7-max,dashscope_cn,qwen3,command_template,,,,,,,,ok
 full_cli,full,verifier,Verifier,cli_agent,hermes,hermes,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,command_template,,,,,,,,ok
 full_cli,full,archivist,Archivist,cli_agent,claude_code,claude,deepseek_v4_pro,deepseek-v4-pro,deepseek_official,deepseek,command_template,,,,,,,,ok
@@ -22,6 +23,7 @@ full_cli,performance,researcher,Researcher,cli_agent,grok,grok_research,grok_4_3
 full_cli,performance,prompt_engineer,PromptEngineer,cli_agent,hermes,hermes,deepseek_v4_flash,deepseek-v4-flash,deepseek_official,deepseek,command_template,,,,,,,,ok
 full_cli,performance,coder,Coder,cli_agent,claude_code,claude,qwen3_coder_plus_dashscope,qwen3-coder-plus,dashscope_cn,qwen-coder,command_template,,,,,,,,ok
 full_cli,performance,artifact_producer,ArtifactProducer,cli_agent,grok,grok_media,grok_4_3_hermes_oauth,grok-4.3,hermes_xai_oauth,xai-oauth,command_template,ArtifactProducer,,,,text | image | video | audio | spreadsheet | presentation | mixed,text|spreadsheet|presentation=>qwen_cli/qwen/qwen_artifact/ArtifactProducerQwen; image|video=>grok_media/grok/grok_media/ArtifactProducer; audio|mixed=>unsupported,hermes_grok_oauth,ok
+full_cli,performance,narrative_planner,NarrativePlanner,cli_agent,claude_code,claude_narrative_planner,deepseek_v4_pro,deepseek-v4-pro,deepseek_official,deepseek,command_template,NarrativePlannerRewrite,,,,,,,ok
 full_cli,performance,tester_auditor,TesterAuditor,cli_agent,codex,codex,deepseek_v4_pro,deepseek-v4-pro,deepseek_official,deepseek,shell_configuration,,,,,,,,ok
 full_cli,performance,verifier,Verifier,cli_agent,codex,codex,deepseek_v4_flash,deepseek-v4-flash,deepseek_official,deepseek,shell_configuration,,,,,,,,ok
 full_cli,performance,archivist,Archivist,cli_agent,claude_code,claude,deepseek_v4_pro,deepseek-v4-pro,deepseek_official,deepseek,command_template,,,,,,,,ok
@@ -37,6 +39,7 @@ full_cli,low,researcher,Researcher,cli_agent,grok,grok_research,grok_4_3_hermes_
 full_cli,low,prompt_engineer,PromptEngineer,cli_agent,hermes,hermes,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,command_template,,,,,,,,ok
 full_cli,low,coder,Coder,cli_agent,claude_code,claude,qwen3_coder_next_dashscope,qwen3-coder-next,dashscope_cn,qwen-coder,command_template,,,,,,,,ok
 full_cli,low,artifact_producer,ArtifactProducer,cli_agent,grok,grok_media,grok_4_3_hermes_oauth,grok-4.3,hermes_xai_oauth,xai-oauth,command_template,ArtifactProducer,,,,text | image | video | audio | spreadsheet | presentation | mixed,text|spreadsheet|presentation=>qwen_cli/qwen/qwen_artifact/ArtifactProducerQwenLow; image|video=>grok_media/grok/grok_media/ArtifactProducer; audio|mixed=>unsupported,hermes_grok_oauth,ok
+full_cli,low,narrative_planner,NarrativePlanner,cli_agent,claude_code,claude_narrative_planner,deepseek_v4_pro,deepseek-v4-pro,deepseek_official,deepseek,command_template,NarrativePlannerRewrite,,,,,,,ok
 full_cli,low,tester_auditor,TesterAuditor,cli_agent,codex,codex,deepseek_v4_flash,deepseek-v4-flash,deepseek_official,deepseek,shell_configuration,,,,,,,,ok
 full_cli,low,verifier,Verifier,cli_agent,codex,codex,deepseek_v4_flash,deepseek-v4-flash,deepseek_official,deepseek,shell_configuration,,,,,,,,ok
 full_cli,low,archivist,Archivist,cli_agent,claude_code,claude,qwen3_6_flash_dashscope,qwen3.6-flash,dashscope_cn,qwen-flash,command_template,,,,,,,,ok

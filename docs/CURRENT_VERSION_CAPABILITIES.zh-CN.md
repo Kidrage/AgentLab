@@ -745,7 +745,7 @@ S11 ops console 是 read-only snapshot 或本地 serve plan；CLI core 不依赖
 
 #### Acceptance、CI 与受信 live runner
 
-`eval-generalization`, `ci-gates`, `capability-acceptance`, `agent-role-chain-audit`, `goal-completion-audit`, `objective-requirement-audit`, `acceptance-report-hygiene`, `live-unblock-plan`, `external-acceptance-readiness`, `internal-live-readiness`, `frontdesk-live-handoff`, `trusted-live-runner-request`, `trusted-live-runner-status`, `trusted-live-runner-operator-handoff`, `trusted-live-runner-collect`, `trusted-live-runner-preflight`, `cli-shell-coalescing-plan`, `cli-shell-coalescing-status`, `cli-shell-coalescing-runner-request`, `cli-shell-coalescing-runner`, `cli-shell-coalescing-collect`.
+`eval-generalization`, `ci-gates`, `capability-acceptance`, `agent-role-chain-audit`, `goal-completion-audit`, `objective-requirement-audit`, `acceptance-report-hygiene`, `live-unblock-plan`, `external-acceptance-readiness`, `internal-live-readiness`, `frontdesk-live-handoff`, `trusted-live-runner-request`, `trusted-live-runner-status`, `trusted-live-runner-operator-handoff`, `trusted-live-runner-collect`, `trusted-live-runner-preflight`.
 
 #### Web UI 与专项 acceptance smoke
 

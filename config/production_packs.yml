@@ -70,6 +70,7 @@ packs:
       - narrative_light_chapter
       - narrative_batch_chapters
       - narrative_heavy_audit
+      - narrative_rewrite_plan
     project_types:
       - longform_text_project
     lifecycle_nodes:
@@ -79,6 +80,7 @@ packs:
       - CONTEXT_PACK
       - PREPARE_PLAN
       - SUPERVISOR_PLAN
+      - NARRATIVE_REWRITE_PLAN
       - WRITER_DRAFT
       - FICTION_REVIEW
       - SCRIBE_LEDGER
@@ -92,12 +94,14 @@ packs:
       - write_continuity_ledger
       - propose_state_transitions
       - staged_audit_or_promotion
+      - plan_blocking_rewrite_before_redraft
     memory_contract:
       - project_fact_snapshot
       - project_artifact_index
       - chapter_packet
       - continuity_ledger
       - state_transition_proposal
+      - chapter_state_plan
       - revision_log
     quality_gates:
       - continuity

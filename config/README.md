@@ -23,7 +23,6 @@ Edit these files first when you want to change how agents behave:
 - `watchdog_policy.yml`: stale running/event/approval/lock thresholds and recovery decision-card options.
 - `webhook_policy.yml`: optional outbound webhook endpoints, retry policy, signing, and redaction controls.
 - `mcp_policy.yml`: optional external-agent tool controls for task creation, approvals, and stop-task operations.
-- `language_policy.yml`: operator-facing language preference for English/Chinese output.
 
 Use `agent_templates/*.md` for role prompts and report formats. Use `config/*.yml`
 for policy, routing, model, budget, and permission changes.
@@ -49,12 +48,6 @@ For agent execution mode switching:
 - Use `AGENTLAB_MODE=hybrid_ide` when AgentLab plans/reviews and external IDE AI handles Coder.
 - Use `AGENTLAB_BUDGET_MODE=max_quality|balanced|frugal` to select the `full|performance|low` tier.
 - `trusted_headless_cli` is never default and requires its explicit env gate and human approval.
-
-For language switching:
-
-- Set `default_language` in `language_policy.yml` to `en-US` or `zh-CN`.
-- Override per deployment with `AGENTLAB_LANGUAGE=en-US` or `AGENTLAB_LANGUAGE=zh-CN`.
-- Keep command names, event names, JSON keys, and YAML keys in English for stable automation.
 
 Current policy:
 

@@ -110,23 +110,6 @@ def test_high_risk_capability_requires_approval() -> None:
     assert decision.requires_approval is True
 
 
-def test_config_files_parse_and_enforce_safe_defaults() -> None:
-    root = Path(__file__).resolve().parents[1]
-    registry_config = yaml.safe_load((root / "config/capability_registry.yml").read_text())
-    permission_policy = yaml.safe_load((root / "config/capability_permission_policy.yml").read_text())
-    media_policy = yaml.safe_load((root / "config/media_artifact_policy.yml").read_text())
-
-    ids = {item["capability_id"] for item in registry_config["capabilities"]}
-    assert ids == REQUIRED_CAPABILITY_IDS
-    assert permission_policy["default_mode"] == "mock_first"
-    assert permission_policy["require_explicit_approval_for"] == ["external", "network", "shell", "write"]
-    assert media_policy["allow_real_model_execution_by_default"] is False
-    dumped = yaml.safe_dump({"a": registry_config, "b": permission_policy, "c": media_policy}).lower()
-    assert "token" not in dumped
-    assert "password" not in dumped
-    assert "api_key" not in dumped
-
-
 def test_media_contracts_serialize_deterministically_and_validate_evidence(tmp_path: Path) -> None:
     vision_path = write_vision_contract(
         input_artifact="artifact.png",

@@ -7,48 +7,44 @@ legacy_command_aliases:
 - external-acceptance-readiness
 readiness_type: internal_agentlab_live_smoke
 root: .
-status: ready_for_internal_live_smoke
+status: route_ready_session_blocked
 source_reports:
-  objective_requirement_audit: acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml
   live_unblock_plan: acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml
   frontdesk_live_handoff: acceptance_runs/agentlab_capability_acceptance/frontdesk_live_handoff.yml
-  agy_cli_session_smoke: acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke.yml
+  claude_writer_session_probe: acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml
   grok_cli_session_smoke: acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml
 source_report_health:
-  status: pass
-  checked: 5
-  missing: []
+  status: missing_evidence
+  checked: 4
+  missing:
+  - acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml
 checks:
-- id: objective_has_no_active_external_blockers
+- id: internal_role_routes_own_execution
   status: pass
-  objective_status: partial
-  status_counts:
-    pass: 10
-    candidate: 1
-  external_blockers: []
+  workflow_boundary: internal_agentlab_role_sessions
 - id: crown_writer_internal_route_ready
   status: pass
   required_operator_action: Submit the formal Crown single-chapter live eval as an
     AgentLab Writer role-session and monitor run-local artifacts.
   agentlab_command: ./agentlab.sh narrative-eval run --project Crown_of_Ash --suite
     crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp
-    <internal_live_run_id> --writer-worker agy
+    <internal_live_run_id> --writer-worker claude_code
   evidence_health:
     status: pass
-    checked: 10
+    checked: 5
     missing: []
 - id: grok_media_internal_route_ready
   status: pass
   accepted_env: []
   agentlab_commands:
-  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
     --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml
-  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
-    --out-dir projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_<id>
-    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_probe_crown_comic_video_poster_series_scaffold_20260707
+  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_<id>/artifacts/media_backend_live_internal_<id>
+    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_<id>
   evidence_health:
     status: pass
-    checked: 9
+    checked: 6
     missing: []
 - id: secret_values_not_rendered
   status: pass
@@ -58,21 +54,17 @@ checks:
 - id: historical_policy_rejections_do_not_override_internal_routes
   status: pass
   historical_policy_rejections:
-  - path: acceptance_runs/agentlab_capability_acceptance/external_policy_rejection_media_20260707.yml
-    capability_id: grok_xai_media_backend
-    reason: tenant_policy_forbids_external_disclosure_of_private_workspace_context
   - path: acceptance_runs/agentlab_capability_acceptance/external_policy_rejection_writer_20260707.yml
     capability_id: crown_formal_live_narrative_eval
     reason: tenant_policy_forbids_external_disclosure_of_private_workspace_context
 session_health_checks:
-- id: current_agy_session_health
-  status: pass
-  session_smoke_status: pass
-  command_available: true
-  command_path: /usr/local/bin/agy
-  created_at: '2026-07-12T05:06:57.208913+00:00'
-  evidence_interpretation: The current non-private agy session smoke can start the
-    local CLI worker.
+- id: current_claude_writer_session_health
+  status: blocked
+  session_smoke_status: missing
+  evidence_interpretation: The current non-private Claude Writer contract probe is
+    missing or did not pass.
+  reason: session_health_report_missing_or_invalid
+  next_action: rerun_claude_writer_contract_probe_from_the_trusted_agentlab_runtime
 - id: current_grok_session_health
   status: pass
   session_smoke_status: pass
@@ -95,56 +87,28 @@ ready_items:
     AgentLab Writer role-session and monitor run-local artifacts.
   agentlab_command: ./agentlab.sh narrative-eval run --project Crown_of_Ash --suite
     crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp
-    <internal_live_run_id> --writer-worker agy
+    <internal_live_run_id> --writer-worker claude_code
 - id: run_crown_internal_media_smoke
   required_operator_action: Submit the Crown media role-session acceptance smoke through
     the AgentLab ArtifactProducer role-session and monitor run-local candidate artifacts.
   accepted_env: []
   agentlab_commands:
-  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+  - ./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
     --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml
-  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
-    --out-dir projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_<id>
-    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_probe_crown_comic_video_poster_series_scaffold_20260707
+  - ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
+    --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_<id>/artifacts/media_backend_live_internal_<id>
+    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_<id>
 issues: []
-session_health_issues: []
+session_health_issues:
+- id: current_claude_writer_session_health
+  status: blocked
+  session_smoke_status: missing
+  evidence_interpretation: The current non-private Claude Writer contract probe is
+    missing or did not pass.
+  reason: session_health_report_missing_or_invalid
+  next_action: rerun_claude_writer_contract_probe_from_the_trusted_agentlab_runtime
 policy_rejections: []
 historical_policy_rejections:
-- schema_version: 1
-  report_type: agentlab_external_policy_rejection
-  status: blocked_external_policy
-  attempted_at: '2026-07-07'
-  attempt_id: approved_media_role_session_20260707_01
-  capability_id: grok_xai_media_backend
-  project: Crown_of_Ash
-  agentlab_role_owner: ArtifactProducer
-  assigned_worker: grok
-  frontdesk_agent: codex
-  attempted_command_kind: agentlab_artifact_producer_grok_media_live_smoke
-  blocked_command:
-    redacted: true
-    summary: ./agentlab.sh media-backend-execute --contract <Crown_of_Ash media_generation_contract.yml>
-      --live --role ArtifactProducer --worker grok
-  policy_decision:
-    source: host_sandbox_approval_layer
-    verdict: rejected
-    reason: tenant_policy_forbids_external_disclosure_of_private_workspace_context
-    applies_even_with_user_approval: true
-  private_context_at_risk:
-  - Crown_of_Ash media_generation_contract prompt
-  - Crown_of_Ash visual continuity requirements
-  - Crown_of_Ash asset and shot planning context
-  effects:
-    provider_called: false
-    generated_media: false
-    production_promoted: false
-    workaround_allowed: false
-  notes:
-  - This is not an AgentLab ArtifactProducer worker binding failure.
-  - This is not evidence that the local grok CLI entrypoint is missing.
-  - Non-private Grok session smoke passed outside the Codex sandbox, but private Crown
-    media live execution is not allowed from this frontdesk runtime.
-  _path: acceptance_runs/agentlab_capability_acceptance/external_policy_rejection_media_20260707.yml
 - schema_version: 1
   report_type: agentlab_external_policy_rejection
   status: blocked_external_policy

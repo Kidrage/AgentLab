@@ -315,6 +315,16 @@ def test_pack_catalog_audit_allows_disambiguated_route_overlap() -> None:
     assert report["issues"] == []
     assert report["route_reference_audit"]["status"] == "pass"
     assert report["route_reference_audit"]["known_route_count"] > 0
+    creative_routes = next(
+        item
+        for item in report["route_reference_audit"]["domain_route_packs"]
+        if item["domain"] == "creative_writing"
+    )["route_references"]
+    assert {
+        "field": "rewrite_route",
+        "route": "narrative_rewrite_plan",
+        "exists": True,
+    } in creative_routes
     assert media_overlap["status"] == "selector_disjoint"
     assert media_overlap["disambiguated_by"] == ["project_types"]
 

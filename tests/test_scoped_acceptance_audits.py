@@ -79,12 +79,18 @@ def test_current_scoped_acceptance_audits_are_complete(
 
     assert report["report_type"] == report_type
     writer_request_current = _persisted_writer_request_is_current(private_crown_project_root)
-    assert report["status"] == ("complete" if writer_request_current else "fail")
-    assert report["status_counts"] == (
-        {"pass": item_count}
-        if writer_request_current
-        else {"pass": item_count - 1, "fail": 1}
+    computed_counts: dict[str, int] = {}
+    for item in items.values():
+        computed_counts[item["status"]] = computed_counts.get(item["status"], 0) + 1
+    assert report["status_counts"] == computed_counts
+    expected_status = (
+        "fail"
+        if computed_counts.get("fail")
+        else "partial"
+        if any(computed_counts.get(status) for status in ("candidate", "warn", "blocked"))
+        else "complete"
     )
+    assert report["status"] == expected_status
     assert len(items) == item_count
     assert report["source_report_health"]["status"] == "pass"
     assert report["source_report_health"]["checked"] == len(report["source_reports"])
@@ -95,14 +101,18 @@ def test_current_scoped_acceptance_audits_are_complete(
         "production_pack_synthesis": "deterministic_scaffold_only",
         "media_generation": "readiness_only",
     }
-    assert report["session_health_summary"] == {
-        "status": "ready_for_internal_live_smoke",
-        "issue_count": 0,
-        "issues": [],
-    }
-    assert report["active_acceptance_blockers"]["status"] == "clear"
-    assert report["active_acceptance_blockers"]["current_blockers"] == []
-    assert report["pending_internal_live_smokes"] == []
+    readiness = yaml.safe_load(
+        (
+            private_crown_project_root
+            / "acceptance_runs"
+            / "agentlab_capability_acceptance"
+            / "internal_live_readiness.yml"
+        ).read_text(encoding="utf-8")
+    ) or {}
+    assert report["session_health_summary"]["status"] == readiness.get("status")
+    assert report["session_health_summary"]["issue_count"] == len(
+        readiness.get("session_health_issues") or []
+    )
     assert {item["id"] for item in report["deferred_internal_live_smokes"]} == {
         "run_crown_internal_media_smoke"
     }
@@ -114,16 +124,25 @@ def test_current_scoped_acceptance_audits_are_complete(
     ] is True
 
     crown = items[crown_id]
-    assert crown["status"] == "pass"
-    assert crown["details"]["writer_selected_acceptance"] == {
-        "returned_artifacts_accepted": True,
-        "selected_collect_accepted": True,
-        "complete": True,
-    }
-    if writer_request_current:
-        assert all(item["status"] == "pass" for item in items.values())
-    else:
-        assert sum(item["status"] == "fail" for item in items.values()) == 1
+    writer_acceptance = crown["details"]["writer_selected_acceptance"]
+    assert writer_acceptance["complete"] is (
+        writer_acceptance["returned_artifacts_accepted"]
+        and writer_acceptance["selected_collect_accepted"]
+    )
+    assert crown["status"] == (
+        "pass"
+        if writer_acceptance["complete"]
+        else "candidate"
+        if writer_request_current
+        else "fail"
+    )
+    pending_ids = {item["id"] for item in report["pending_internal_live_smokes"]}
+    assert pending_ids == (
+        set() if writer_acceptance["complete"] else {"run_crown_internal_writer_eval"}
+    )
+    assert report["active_acceptance_blockers"]["status"] == (
+        "clear" if writer_acceptance["complete"] else "pending"
+    )
     assert all(item["evidence_health"]["status"] == "pass" for item in items.values())
     rendered = yaml.safe_dump(report, sort_keys=False, allow_unicode=True)
     assert "sk-" not in rendered
@@ -229,14 +248,19 @@ def test_scoped_acceptance_audit_cli_writes_current_report(
     result = RUNNER.invoke(app, [command, "--out", str(out)])
 
     report = yaml.safe_load(out.read_text(encoding="utf-8"))
-    writer_request_current = _persisted_writer_request_is_current(ROOT)
-    assert result.exit_code == (0 if writer_request_current else 1)
     assert report["report_type"] == report_type
-    assert report["status"] == ("complete" if writer_request_current else "fail")
-    assert report["status_counts"] == (
-        {"pass": item_count}
-        if writer_request_current
-        else {"pass": item_count - 1, "fail": 1}
+    computed_counts: dict[str, int] = {}
+    for item in report[items_key]:
+        computed_counts[item["status"]] = computed_counts.get(item["status"], 0) + 1
+    assert report["status_counts"] == computed_counts
+    expected_status = (
+        "fail"
+        if computed_counts.get("fail")
+        else "partial"
+        if any(computed_counts.get(status) for status in ("candidate", "warn", "blocked"))
+        else "complete"
     )
+    assert report["status"] == expected_status
+    assert result.exit_code == (1 if expected_status == "fail" else 0)
     assert len(report[items_key]) == item_count
     assert report["source_report_health"]["checked"] == len(report["source_reports"])

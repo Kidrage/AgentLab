@@ -521,6 +521,60 @@ def test_revision_apply_merges_events_and_unblocks_dispatch(tmp_path):
     assert (root / "projects" / "NovelGen" / "project_brain" / "revision_log.jsonl").exists()
 
 
+def test_candidate_only_state_proposal_does_not_block_audit_dispatch(tmp_path):
+    root = _copy_config_root(tmp_path)
+    target = root / "projects" / "NovelGen" / "runs" / "task_audit"
+    target.mkdir(parents=True)
+    (target / "state_transition_proposal.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "candidate",
+                "candidate_only": True,
+                "production_modified": False,
+                "requires_user_promotion": True,
+                "events": [{"scope": "candidate_only", "event_type": "continuity_fix"}],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    dispatch = revision_dispatch_status(root, "NovelGen", "task_audit")
+
+    assert dispatch == {
+        "blocked": False,
+        "reason": "candidate-only state proposal does not dispatch a revision",
+    }
+
+
+def test_unbounded_state_proposal_still_requires_change_request(tmp_path):
+    root = _copy_config_root(tmp_path)
+    target = root / "projects" / "NovelGen" / "runs" / "task_unbounded"
+    target.mkdir(parents=True)
+    (target / "state_transition_proposal.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "candidate",
+                "candidate_only": True,
+                "production_modified": False,
+                "requires_user_promotion": True,
+                "events": [{"event_type": "continuity_fix"}],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    dispatch = revision_dispatch_status(root, "NovelGen", "task_unbounded")
+
+    assert dispatch["blocked"] is True
+    assert dispatch["reason"] == (
+        "state_transition_proposal.yml exists without change_request.yml"
+    )
+
+
 def test_revision_conflict_checker_detects_snapshot_fact_conflict(tmp_path):
     root = _copy_config_root(tmp_path)
     brain = root / "projects" / "NovelGen" / "project_brain"

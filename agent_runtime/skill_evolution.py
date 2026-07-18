@@ -104,10 +104,15 @@ def default_skill_registry() -> dict[str, Any]:
         "retired_skills": [],
         "metadata": {
             "owner": "AgentLab",
-            "status": "local_lifecycle_mvp",
+            "status": "local_lifecycle_with_runtime_injection",
             "created_at": now,
             "updated_at": now,
-            "notes": "Local skill lifecycle MVP. External search and real sandbox execution are not implemented.",
+            "notes": (
+                "Skill lifecycle, active-skill matching, workflow-plan injection, "
+                "prompt injection, approval cards, and usage ledgers are implemented. "
+                "Real GitHub search, real sandbox execution, and automatic external "
+                "package parsing remain out of scope."
+            ),
         },
     }
 

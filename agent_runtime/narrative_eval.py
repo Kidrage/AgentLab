@@ -14,10 +14,12 @@ import yaml
 
 from agent_runtime.narrative_delivery import (
     REQUIRED_REVIEW_GATES,
+    validate_chapter_state_plan,
     validate_narrative_delivery,
     write_chapter_packet,
     write_narrative_delivery_receipt,
 )
+from agent_runtime.crown_candidate_audit import validate_writer_execution_contract
 from agent_runtime.policies import ensure_safe_task_id
 from agent_runtime.report_sanitizer import write_report_yaml
 from agent_runtime.writer_output_materializer import (
@@ -47,6 +49,14 @@ CHAPTER_ATTEMPT_OUTPUTS = (
     "writer_cli_fallback_capture.md",
     "writer_output_contract.yml",
     "writer_role_session_capture.md",
+    "model_execution_chain_writer.yml",
+    "outbound_context_manifest_writer.yml",
+)
+CHAPTER_REGENERATION_INPUTS = (
+    "chapter_packet.yml",
+    "candidate_fact_ledger.yml",
+    "workflow_plan.yml",
+    "live_writer_role_session_guard.yml",
 )
 
 
@@ -66,7 +76,12 @@ def _write_yaml(path: Path, data: dict[str, Any]) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
-def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
+def _clear_chapter_attempt_outputs(
+    run_dir: Path,
+    *,
+    replacement_reason: str | None = None,
+    clear_generation_inputs: bool = False,
+) -> None:
     """Remove stale candidate-derived files before a non-resumed attempt."""
     contract_path = run_dir / "writer_output_contract.yml"
     error_path = run_dir / "live_generation_error.yml"
@@ -82,7 +97,15 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
         if isinstance(data, dict):
             target.update(data)
 
-    if contract.get("status") == "blocked" or error.get("status") == "blocked":
+    should_archive = (
+        contract.get("status") == "blocked"
+        or error.get("status") == "blocked"
+        or bool(replacement_reason)
+    )
+    if should_archive and any(
+        (run_dir / name).is_file()
+        for name in (*CHAPTER_ATTEMPT_OUTPUTS, *CHAPTER_REGENERATION_INPUTS)
+    ):
         archive_root = run_dir / "rejected_attempts"
         index = 1
         while (archive_root / f"resume_{index:03d}").exists():
@@ -92,7 +115,9 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
         archived: list[str] = []
         candidates = [
             *(run_dir / filename for filename in CHAPTER_ATTEMPT_OUTPUTS),
+            *(run_dir / filename for filename in CHAPTER_REGENERATION_INPUTS),
             *sorted(run_dir.glob("writer_retry_attempt_*")),
+            *sorted(run_dir.glob("model_execution_receipt_writer_*.yml")),
         ]
         for path in candidates:
             if not path.is_file() or path.name in archived:
@@ -106,7 +131,7 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
                 "status": "rejected",
                 "candidate_only": True,
                 "production_modified": False,
-                "reason": "blocked_chapter_attempt_replaced_on_resume",
+                "reason": replacement_reason or "blocked_chapter_attempt_replaced_on_resume",
                 "contract_issues": contract.get("issues") or [],
                 "live_generation_error": error.get("error") or error.get("message"),
                 "archived_files": archived,
@@ -114,7 +139,12 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
         )
     for filename in CHAPTER_ATTEMPT_OUTPUTS:
         (run_dir / filename).unlink(missing_ok=True)
+    if clear_generation_inputs:
+        for filename in CHAPTER_REGENERATION_INPUTS:
+            (run_dir / filename).unlink(missing_ok=True)
     for path in run_dir.glob("writer_retry_attempt_*"):
+        path.unlink(missing_ok=True)
+    for path in run_dir.glob("model_execution_receipt_writer_*.yml"):
         path.unlink(missing_ok=True)
 
 
@@ -283,6 +313,24 @@ def _candidate_events_from_run(run_dir: Path, chapter: int, task_id: str) -> lis
     ]
 
 
+def _candidate_history_through_run(
+    run_dir: Path,
+    chapter: int,
+    task_id: str,
+) -> list[dict[str, Any]]:
+    """Rebuild cumulative candidate facts from a chapter's rolling ledger and proposal."""
+    ledger_path = run_dir / "candidate_fact_ledger.yml"
+    prior_events: list[dict[str, Any]] = []
+    if ledger_path.is_file():
+        try:
+            ledger = yaml.safe_load(ledger_path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            ledger = {}
+        events = ledger.get("events") if isinstance(ledger, dict) else []
+        prior_events = [event for event in events or [] if isinstance(event, dict)]
+    return [*prior_events, *_candidate_events_from_run(run_dir, chapter, task_id)]
+
+
 def _write_candidate_fact_ledger(
     run_dir: Path,
     events: list[dict[str, Any]],
@@ -304,7 +352,14 @@ def _write_candidate_fact_ledger(
     return f"runs/{run_dir.name}/candidate_fact_ledger.yml"
 
 
-def _write_light_chapter_workflow_plan(root: Path, project: str, task_id: str, run_dir: Path) -> None:
+def _write_light_chapter_workflow_plan(
+    root: Path,
+    project: str,
+    task_id: str,
+    run_dir: Path,
+    *,
+    writer_budget_mode: str = "balanced",
+) -> Any | None:
     fallback = {
         "route": {
             "route_key": "narrative_light_chapter",
@@ -324,7 +379,7 @@ def _write_light_chapter_workflow_plan(root: Path, project: str, task_id: str, r
             project,
             task_id,
             user_request_path=run_dir / "user_request.md",
-            budget_mode="balanced",
+            budget_mode=writer_budget_mode,
         )
         data = plan.model_dump(mode="json") if hasattr(plan, "model_dump") else fallback
         route = data.setdefault("route", {})
@@ -334,8 +389,10 @@ def _write_light_chapter_workflow_plan(root: Path, project: str, task_id: str, r
         route.setdefault("agents", ["Supervisor", "Writer"])
         data.setdefault("production_pack", fallback["production_pack"])
     except Exception:
+        plan = None
         data = fallback
     _write_yaml(run_dir / "workflow_plan.yml", data)
+    return plan
 
 
 def _chapter_number(path: Path) -> int | None:
@@ -780,9 +837,13 @@ def _write_live_chapter_outputs(
     previous: list[str],
     *,
     allow_writer_cli_fallback: bool = False,
+    writer_budget_mode: str = "balanced",
+    workflow_plan: Any | None = None,
+    clear_attempt_outputs: bool = True,
 ) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
-    _clear_chapter_attempt_outputs(run_dir)
+    if clear_attempt_outputs:
+        _clear_chapter_attempt_outputs(run_dir)
     _write_yaml(
         run_dir / "live_generation_request.yml",
         {
@@ -812,7 +873,13 @@ def _write_live_chapter_outputs(
         from agent_runner import run_agent_model
         from workflow_plan import build_workflow_plan
 
-        plan = build_workflow_plan(root, project, task_id, user_request_path=run_dir / "user_request.md", budget_mode="balanced")
+        plan = workflow_plan or build_workflow_plan(
+            root,
+            project,
+            task_id,
+            user_request_path=run_dir / "user_request.md",
+            budget_mode=writer_budget_mode,
+        )
         writer_result = None
         writer_materialized = False
         retry_attempts: list[dict[str, Any]] = []
@@ -939,20 +1006,63 @@ def _generate_chapters(
     resume_valid: bool = False,
     stop_on_block: bool = False,
     allow_writer_cli_fallback: bool = False,
+    chapter_state_plan: str | None = None,
+    writer_budget_mode: str = "balanced",
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     generated: list[dict[str, Any]] = []
     previous_sources: list[str] = []
     candidate_fact_events: list[dict[str, Any]] = []
+    resume_chain_intact = True
+    if chapters and chapters[0] > 1:
+        previous_chapter = chapters[0] - 1
+        previous_task_id = _safe_eval_task_id(previous_chapter, eval_id)
+        previous_run_dir = project_root / "runs" / previous_task_id
+        previous_delivery = validate_narrative_delivery(previous_run_dir)
+        previous_execution = (
+            validate_writer_execution_contract(previous_run_dir, previous_task_id)
+            if mode == "live"
+            else {"status": "pass"}
+        )
+        if not previous_delivery.get("valid") or previous_execution.get("status") != "pass":
+            return {
+                "status": "blocked",
+                "reason": "previous candidate chapter is unavailable or has invalid Writer provenance",
+                "chapters": [],
+                "selected_chapter_count": len(chapters),
+                "completed_chapter_count": 0,
+                "resume_valid": resume_valid,
+                "stop_on_block": stop_on_block,
+                "allow_writer_cli_fallback": allow_writer_cli_fallback,
+                "chapter_state_plan": chapter_state_plan,
+                "writer_budget_mode": writer_budget_mode,
+                "previous_chapter": previous_chapter,
+                "previous_delivery": previous_delivery,
+                "previous_writer_execution": previous_execution,
+                "model_capacity_governance": "centralized",
+            }
+        previous_sources = _candidate_chapter_sources(previous_task_id)
+        candidate_fact_events = _candidate_history_through_run(
+            previous_run_dir,
+            previous_chapter,
+            previous_task_id,
+        )
     for chapter in chapters:
         task_id = _safe_eval_task_id(chapter, eval_id)
         run_dir = project_root / "runs" / task_id
         run_dir.mkdir(parents=True, exist_ok=True)
         existing_delivery = validate_narrative_delivery(run_dir)
+        existing_execution = (
+            validate_writer_execution_contract(run_dir, task_id)
+            if mode == "live"
+            else {"status": "pass"}
+        )
         if (
             resume_valid
+            and resume_chain_intact
             and existing_delivery.get("valid")
             and not existing_delivery.get("skipped")
+            and existing_execution.get("status") == "pass"
         ):
             generated.append({
                 "chapter": chapter,
@@ -967,7 +1077,24 @@ def _generate_chapters(
             candidate_fact_events.extend(_candidate_events_from_run(run_dir, chapter, task_id))
             _write_generation_checkpoint(eval_dir, suite, chapters, generated)
             continue
-        _clear_chapter_attempt_outputs(run_dir)
+        replacement_reason = None
+        if resume_valid and any(
+            (run_dir / name).is_file()
+            for name in (*CHAPTER_ATTEMPT_OUTPUTS, *CHAPTER_REGENERATION_INPUTS)
+        ):
+            if not existing_delivery.get("valid"):
+                replacement_reason = "invalid_candidate_delivery_replaced_on_resume"
+            elif existing_execution.get("status") != "pass":
+                replacement_reason = "invalid_writer_execution_contract_replaced_on_resume"
+            else:
+                replacement_reason = "upstream_candidate_regenerated_on_resume"
+        if resume_valid:
+            resume_chain_intact = False
+        _clear_chapter_attempt_outputs(
+            run_dir,
+            replacement_reason=replacement_reason,
+            clear_generation_inputs=True,
+        )
         baseline_mode = "reset" if chapter == 1 else "continuation"
         baseline_instruction = (
             "Start from the reset fact snapshot and do not read any deprecated manuscript."
@@ -982,7 +1109,13 @@ def _generate_chapters(
             ),
             encoding="utf-8",
         )
-        _write_light_chapter_workflow_plan(root, project, task_id, run_dir)
+        workflow_plan = _write_light_chapter_workflow_plan(
+            root,
+            project,
+            task_id,
+            run_dir,
+            writer_budget_mode=writer_budget_mode,
+        )
         candidate_fact_ledger = _write_candidate_fact_ledger(run_dir, candidate_fact_events)
         write_chapter_packet(
             root,
@@ -993,6 +1126,7 @@ def _generate_chapters(
             previous_chapters=previous_sources,
             deprecated_sources=deprecated_sources,
             candidate_fact_ledger=candidate_fact_ledger,
+            chapter_state_plan=chapter_state_plan,
         )
         if mode == "mock":
             _write_mock_chapter_outputs(run_dir, project, chapter, previous_sources, baseline_mode)
@@ -1023,6 +1157,9 @@ def _generate_chapters(
                     chapter,
                     previous_sources,
                     allow_writer_cli_fallback=allow_writer_cli_fallback,
+                    writer_budget_mode=writer_budget_mode,
+                    workflow_plan=workflow_plan,
+                    clear_attempt_outputs=False,
                 )
             else:
                 _write_live_guard_error(run_dir, agent="Writer", guard=guard)
@@ -1059,6 +1196,8 @@ def _generate_chapters(
         "resume_valid": resume_valid,
         "stop_on_block": stop_on_block,
         "allow_writer_cli_fallback": allow_writer_cli_fallback,
+        "chapter_state_plan": chapter_state_plan,
+        "writer_budget_mode": writer_budget_mode,
         "model_capacity_governance": "centralized",
     }
 
@@ -1276,6 +1415,8 @@ def run_narrative_eval(
     resume_valid: bool = False,
     stop_on_block: bool = False,
     allow_writer_cli_fallback: bool = False,
+    chapter_state_plan: str | None = None,
+    writer_budget_mode: str = "balanced",
 ) -> dict[str, Any]:
     if mode not in VALID_MODES:
         raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
@@ -1291,8 +1432,53 @@ def run_narrative_eval(
     deprecated_sources = [item["path"] for item in l1["deprecated_production_chapters"]]
     reset_proposal = _write_reset_proposal(eval_dir, project, deprecated_sources)
 
+    if chapter_state_plan:
+        chapter_state_plan_validation = validate_chapter_state_plan(
+            project_root,
+            chapter_state_plan,
+            expected_chapters=selected_chapters,
+        )
+    elif len(selected_chapters) > 5 and mode != "audit-only":
+        chapter_state_plan_validation = {
+            "schema_version": 1,
+            "status": "fail",
+            "path": None,
+            "chapter_count": 0,
+            "selected_chapter_count": len(selected_chapters),
+            "issues": [
+                {
+                    "check": "long_batch_requires_chapter_state_plan",
+                    "message": (
+                        "generation requests over five chapters must bind a validated "
+                        "run-local chapter state plan"
+                    ),
+                }
+            ],
+        }
+    else:
+        chapter_state_plan_validation = {
+            "schema_version": 1,
+            "status": "skipped",
+            "path": None,
+            "chapter_count": 0,
+            "selected_chapter_count": len(selected_chapters),
+            "issues": [],
+        }
+    write_report_yaml(
+        eval_dir / "chapter_state_plan_validation.yml",
+        chapter_state_plan_validation,
+        root,
+    )
+
     if l0["status"] != "pass":
         l2 = {"status": "blocked", "reason": "L0 fact source health failed", "chapters": []}
+    elif chapter_state_plan_validation["status"] == "fail":
+        l2 = {
+            "status": "blocked",
+            "reason": "chapter state plan validation failed",
+            "chapters": [],
+            "chapter_state_plan_validation": chapter_state_plan_validation,
+        }
     elif mode == "audit-only":
         l2 = {"status": "skipped", "reason": "audit-only mode", "chapters": []}
     else:
@@ -1309,6 +1495,8 @@ def run_narrative_eval(
             resume_valid=resume_valid,
             stop_on_block=stop_on_block,
             allow_writer_cli_fallback=allow_writer_cli_fallback,
+            chapter_state_plan=chapter_state_plan,
+            writer_budget_mode=writer_budget_mode,
         )
 
     l3 = _build_scale_simulation(eval_dir, suite)
@@ -1327,6 +1515,9 @@ def run_narrative_eval(
         "resume_valid": resume_valid,
         "stop_on_block": stop_on_block,
         "allow_writer_cli_fallback": allow_writer_cli_fallback,
+        "chapter_state_plan": chapter_state_plan,
+        "writer_budget_mode": writer_budget_mode,
+        "chapter_state_plan_validation": chapter_state_plan_validation,
         "model_capacity_governance": "centralized",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": overall_status,
@@ -1349,6 +1540,7 @@ def run_narrative_eval(
             "continuity_failure_report": "continuity_failure_report.yml",
             "series_scale_simulation": "series_scale_simulation.yml",
             "manuscript_reset_proposal": "manuscript_reset_proposal.yml",
+            "chapter_state_plan_validation": "chapter_state_plan_validation.yml",
         },
         "reset_proposal": reset_proposal,
     }

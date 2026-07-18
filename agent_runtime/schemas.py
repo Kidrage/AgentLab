@@ -12,6 +12,7 @@ AgentName = Literal[
     "InterfaceMapper",
     "Coder",
     "ArtifactProducer",
+    "NarrativePlanner",
     "Writer",
     "Reviewer",
     "Scribe",

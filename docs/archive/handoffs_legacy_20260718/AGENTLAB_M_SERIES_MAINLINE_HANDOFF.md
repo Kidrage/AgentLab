@@ -1,6 +1,6 @@
 # AgentLab M-Series Mainline Handoff — RAG-Aware Revision
 
-> Target path in repo: `docs/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md` or root `AGENTLAB_M_SERIES_MAINLINE_HANDOFF_CACHE_AWARE.md`
+> Historical path: `docs/archive/handoffs_legacy_20260718/AGENTLAB_M_SERIES_MAINLINE_HANDOFF.md`
 > Revision purpose: replace the older M1/M2/M3 planning handoff with a current-state-aware plan that adds AgentLab Self RAG, Project RAG, Knowledge Acquisition, and Reasoning Replay as a first-class mainline.
 > Current remote audit date: 2026-07-02
 > Current observed remote branch: `main`

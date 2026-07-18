@@ -18,7 +18,7 @@ class NarrativeIntent:
 
     @property
     def is_narrative(self) -> bool:
-        return self.kind in {"chapter", "chapter_batch", "audit"}
+        return self.kind in {"chapter", "chapter_batch", "audit", "rewrite"}
 
 
 CHAPTER_RE = re.compile(
@@ -38,6 +38,20 @@ CHAPTER_RANGE_RE = re.compile(
 
 AUDIT_RE = re.compile(
     r"(audit|review|check|acceptance|promotion|narrative-eval|审计|验收|检查|连续性|晋升前)",
+    re.I,
+)
+
+REWRITE_ACTION_RE = re.compile(r"(rewrite|revise|重写|改写|重做)", re.I)
+
+REWRITE_EVIDENCE_RE = re.compile(
+    r"(heavy[\s_-]*audit|blocking|rewrite proposal|revision proposal|"
+    r"审计(?:结果|报告|发现|意见)?|阻断(?:项|问题)?|连续性失败|重写建议|改写建议)",
+    re.I,
+)
+
+REWRITE_QUESTION_RE = re.compile(
+    r"(是否|需不需要|需要不需要|要不要|检查是否|check\s+(?:whether|if)).{0,12}"
+    r"(rewrite|revise|重写|改写|重做)",
     re.I,
 )
 
@@ -73,9 +87,20 @@ def classify_narrative_intent(text: str, *, active_longform_project: bool = Fals
     has_chapter_word = bool(CHAPTER_WORD_RE.search(raw))
     has_chapter_range = bool(CHAPTER_RANGE_RE.search(raw))
     has_audit = bool(AUDIT_RE.search(raw))
+    has_rewrite_action = bool(REWRITE_ACTION_RE.search(raw))
+    has_rewrite_evidence = bool(REWRITE_EVIDENCE_RE.search(raw))
+    rewrite_is_question = bool(REWRITE_QUESTION_RE.search(raw))
     has_story_marker = bool(STORY_MARKER_RE.search(raw))
     has_generic_story = bool(GENERIC_STORY_RE.search(raw))
     has_continuation = bool(CONTINUATION_RE.search(raw))
+
+    if (
+        has_rewrite_action
+        and has_rewrite_evidence
+        and not rewrite_is_question
+        and (has_chapter or has_chapter_range or has_story_marker or active_longform_project)
+    ):
+        return NarrativeIntent("rewrite", "blocking_audit_rewrite_with_narrative_scope")
 
     if has_audit and (has_chapter or has_chapter_range or has_story_marker or active_longform_project):
         return NarrativeIntent("audit", "audit_signal_with_narrative_scope")

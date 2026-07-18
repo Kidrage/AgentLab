@@ -177,6 +177,10 @@ def build_trusted_live_runner_operator_handoff(
     )
     status = _read_yaml(status_abs)
     preflight = _read_yaml(preflight_abs)
+    request_id = request.get("request_id")
+    status_request_current = bool(request_id) and status.get("request_id") == request_id
+    preflight_request_current = bool(request_id) and preflight.get("request_id") == request_id
+    current_status = status if status_request_current else {"status": "stale_request", "items": []}
     readiness = _read_yaml(readiness_abs)
     rejection = _read_yaml(rejection_abs)
 
@@ -290,7 +294,7 @@ def build_trusted_live_runner_operator_handoff(
             "writer_only",
             (
                 f"./agentlab.sh trusted-live-runner-collect --request {request_rel} "
-                f"--out {_rel(root, collect_abs.with_name('trusted_live_runner_collect_writer.yml'))} "
+                f"--out {_rel(root, collect_abs)} "
                 "--item run_crown_internal_writer_eval"
             ),
         ),
@@ -298,12 +302,12 @@ def build_trusted_live_runner_operator_handoff(
             "media_only",
             (
                 f"./agentlab.sh trusted-live-runner-collect --request {request_rel} "
-                f"--out {_rel(root, collect_abs.with_name('trusted_live_runner_collect_media.yml'))} "
+                f"--out {_rel(root, collect_abs)} "
                 "--item run_crown_internal_media_smoke"
             ),
         ),
     }
-    candidate_items = _candidate_items(request, status)
+    candidate_items = _candidate_items(request, current_status)
     writer_request_item = next(
         (
             item
@@ -323,6 +327,10 @@ def build_trusted_live_runner_operator_handoff(
         issues.append("trusted_live_runner_request_not_ready")
     if preflight.get("status") != "pass":
         issues.append("trusted_live_runner_preflight_not_pass")
+    if not preflight_request_current:
+        issues.append("trusted_live_runner_preflight_request_stale")
+    if not status_request_current:
+        issues.append("trusted_live_runner_status_request_stale")
     if not readiness_clean:
         issues.append("internal_live_readiness_not_clean")
     if not script_abs.exists():
@@ -387,6 +395,8 @@ def build_trusted_live_runner_operator_handoff(
             ),
             "selected_session_health_gates": selected_session_gates,
             "writer_request_route_current": writer_request_route_current,
+            "trusted_status_request_current": status_request_current,
+            "trusted_preflight_request_current": preflight_request_current,
         },
         "selected_item_readiness": {
             "summary": (
@@ -511,12 +521,13 @@ def build_trusted_live_runner_operator_handoff(
             ),
         },
         "current_return_status": {
-            "status": status.get("status", "missing"),
-            "missing_item_count": len(status.get("missing_items", []) if isinstance(status.get("missing_items"), list) else []),
-            "stale_item_count": len(status.get("stale_items", []) if isinstance(status.get("stale_items"), list) else []),
+            "status": current_status.get("status", "missing"),
+            "request_current": status_request_current,
+            "missing_item_count": len(current_status.get("missing_items", []) if isinstance(current_status.get("missing_items"), list) else []),
+            "stale_item_count": len(current_status.get("stale_items", []) if isinstance(current_status.get("stale_items"), list) else []),
             "artifact_qc_failure_count": len(
-                status.get("artifact_qc_failures", [])
-                if isinstance(status.get("artifact_qc_failures"), list)
+                current_status.get("artifact_qc_failures", [])
+                if isinstance(current_status.get("artifact_qc_failures"), list)
                 else []
             ),
             "full_run_requires_trusted_status_pass": full_run_requires_trusted_status_pass,

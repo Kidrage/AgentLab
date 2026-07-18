@@ -95,6 +95,7 @@ REQUIRED_ARTIFACTS_BY_ROUTE = {
     "interface_mapper": ["04_interface_map.md"],
     "coder": ["06_implementation_report.md"],
     "artifact_producer": ["artifact_producer_report.md"],
+    "narrative_planner": ["chapter_state_plan.yml"],
     "tester_auditor": ["07_validation_report.md", "08_audit_report.md"],
     "verifier": ["verification_report.md"],
     "archivist": [
@@ -119,6 +120,7 @@ NODE_ARTIFACTS = {
     "RESEARCH_OPTIONAL": ["03_research_notes.md"],
     "OBSERVATION_OPTIONAL": ["observation_report.yml"],
     "INTERFACE_OPTIONAL": ["04_interface_map.md"],
+    "NARRATIVE_REWRITE_PLAN": ["chapter_state_plan.yml"],
     "WRITER_DRAFT": ["fiction_draft.md"],
     "FICTION_REVIEW": ["fiction_review.yml"],
     "SCRIBE_LEDGER": ["continuity_ledger.yml"],
@@ -693,6 +695,8 @@ def _route_required_outputs(workflow_plan: dict) -> list[str]:
             "state_transition_proposal.yml",
             "revision_or_rewrite_proposal.yml",
         ]
+    if route_key == "narrative_rewrite_plan":
+        return ["chapter_state_plan.yml"]
     return []
 
 

@@ -1,6 +1,6 @@
 # AgentLab 整体逻辑图
 
-更新日期：2026-07-13
+更新日期：2026-07-18
 
 这份文档是 AgentLab 当前定位、agent 职责、生产链和验收状态的中文总图。机器可读事实源是：
 
@@ -10,9 +10,6 @@
 - `acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml`
 - `acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml`
 - `acceptance_runs/agentlab_capability_acceptance/external_acceptance_readiness.yml`（旧消费者兼容文件；canonical report type 仍是 `agentlab_internal_live_readiness`）
-- `acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_runner_request.yml`
-- `acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_status.yml`
-- `acceptance_runs/agentlab_capability_acceptance/cli_shell_coalescing_collect.yml`
 - `acceptance_runs/agentlab_capability_acceptance/role_session_acceptance_handoff.md`
 - `acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml`
 - `docs/AGENTLAB_CAPABILITY_ACCEPTANCE_MATRIX.md`
@@ -64,16 +61,11 @@ Full CLI 模式下，AgentLab 治理的对象首先是 CLI 壳能力与交付契
 
 更完整的 CLI 壳目标是：AgentLab 不只是把 `hermes`、`claude`、`grok` 当 provider 命令调用，而是把它们当本地 workflow runtime 治理。一个 Hermes 壳如果已有 kanban、sessions、tools、MCP、skills、gateway、dashboard 等命令面，AgentLab 应先登记这些 native command surfaces，再决定哪些可用于 role-session 内部协作。一个 Claude Code 壳如果提供 `agents`、`--agent/--agents`、`--background`、`project`、`ultrareview`、worktree、MCP/plugin/settings 等能力，AgentLab 应把这些能力纳入 Coder/Reviewer 等角色的执行契约。
 
-历史 `cli_native_command_surface_governance` 已通过验收：`cli_shell_coalescing_plan.yml` 按 backend 分组当时的 full_cli/performance roles，Claude Coder+Archivist 走 native inline agents，Hermes Supervisor+PromptEngineer 走 kanban/board-mediated coordination。该 synthetic fixture 不加载项目文件，并要求独立 receipt 与 validation evidence。
+当前 `cli_native_command_surface_governance` 只验收真实运行边界：Hermes 的 kanban 和 Claude 的 agents/background 等命令面已登记，可在一个受限 AgentLab role-session 内作为壳原生协作能力使用。AgentLab 不再为这些壳复制一套 subagent、board 或 session 框架。
 
-这里必须区分成本语义：Hermes kanban 合并的是 AgentLab/frontdesk 的调度入口和治理面，底层可能为每个角色启动独立 worker，系统不宣称它是单一 provider 会话。`cli_shell_coalescing_status.yml` 对真实返回物执行硬门槛：每个 packet 必须有 shell receipt，每个 role 必须有 receipt、非空 finding artifact 和 validation evidence。Receipts 必须声明 provider execution、无私有上下文、隔离 workspace、禁用项目读取和禁止 promotion，并且 SHA-256 必须匹配当前 materialized packet。哈希不匹配只会进入 `stale` 后重跑，安全合同冲突才会 fail。
+不同 AgentLab 角色之间仍由 lifecycle gate 隔开。例如 Reviewer 的回执和产物必须先落盘并通过本地检查，Scribe 才能启动；即使两个角色指向同一个 CLI，也不能为了少一次壳命令而绕过该门。当前没有 dependency-free 的 same-stage multi-role 组，因此不启用跨角色 coalescing。
 
-该历史 gate 的结果是 `accepted_packets=2/2`、`accepted_roles=4/4`，missing/stale/failure 均为 0。它证明当时的 CLI native runtime 与 receipt 回收机制，不等于当前角色绑定或 Crown Writer/media 质量验收。
-
-当前 Supervisor 的权威绑定是 Hermes + OpenAI Codex OAuth，调用合同为 `hermes_supervisor`，模型是 GPT-5.6 Sol，reasoning 为 `xhigh`。CLI 注册值是 provider `openai-codex`、model `gpt-5.6-sol`；不能把 Codex CLI worker 与 Hermes runtime provider 混为一谈。
-
-旧的 CLI coalescing synthetic receipt 使用过 `agentlabsupervisor` + GPT-5.5 + `high`。它只保留为当时 native-shell 调度与 receipt mechanics 的历史证据，不再定义当前 Supervisor。PromptEngineer 的旧隔离 profile 证据也不改变当前角色绑定。
-
+旧 `cli_shell_coalescing_*` 实验按整张 full CLI matrix 分组，未进入 `run-pipeline`，也未处理上述角色依赖。它的五个运行模块、两个专用测试和当前验收链已经退出主线，历史证据移到 `docs/archive/acceptance_legacy_20260718/cli_shell_coalescing/`。
 当前 full_cli 核心角色拓扑是：
 
 | Role | 当前执行面 | 合同与边界 |
@@ -197,6 +189,8 @@ production-pack synthesis 可以向外寻求资源，但外部资源边界必须
 
 这六条链路通过：
 
+`narrative_heavy_audit` 的 Reviewer/Scribe/Verifier 使用专用 `qwen_narrative_audit` role-session contract。AgentLab 先把最小完整上下文封装进 packet，再通过 stdin 一次性交给 Qwen；该会话禁止普通工具调用和工作区扫描，要求 `AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1`，且只允许通过受约束的 structured output 返回 candidate-only 审计文件。Reviewer 才读取完整章节上下文，Scribe/Verifier 只消费上游结构化审计产物，避免重复注入正文。
+
 ```bash
 ./agentlab.sh production-chain-audit --out acceptance_runs/agentlab_capability_acceptance/production_chain_audit.yml
 ```
@@ -250,17 +244,17 @@ Crown 长篇走完整验收，production-pack synthesis 只要求 deterministic 
 ./agentlab.sh capability-acceptance --out acceptance_runs/agentlab_capability_acceptance/current.yml
 ```
 
-2026-07-12 冻结快照的结果：
+2026-07-18 当前快照的结果：
 
 ```text
 overall_status: candidate
-pass: 27
-candidate: 5
+pass: 20
+candidate: 8
 ```
 
-按当前角色配置重跑时，旧 Agy Writer request 会正确触发
-`writer_route_current: false`，因此总状态可暂时为 `fail`。这表示历史 runner 漂移，
-不表示应恢复旧 Writer；应重新生成 Claude Code + DeepSeek Writer request。
+当前没有 fail。8 个 candidate 都是尚未返回的阶段性 role-session/live 验收；
+它们不改变路由、模型登记和本地治理链的通过状态。当前 Writer request 已按
+Claude Code + DeepSeek V4 Pro 生成，只等待真实 role-session 返回。
 
 已经成立的结论：
 
@@ -270,11 +264,7 @@ candidate: 5
 - 核心大脑层 package import 稳定性已纳入机器验收：`workflow_plan`、`task_router`、`model_resolver`、`skill_injector`、`skill_usage`、`state_store` 等可作为 `agent_runtime.*` 包模块导入，package-mode workflow plan 能构建 `code_factory` 且不再让 skill plan / artifact intent 静默降级。
 - 代表生产链可机器审计。
 - CLI workflow shell governance 已并入主线：`config/cli_workflow_shells.yml`、`config/agent_role_bindings.yml`、`config/worker_invocation_contracts.yml`、`config/media_generation_backends.yml` 和 `config/agent_model_profiles.yml` 共同证明 full_cli 治理 shell capability/delivery，而不是重建 shell scaffold；Hermes/Claude Code/Agy/Codex/Qwen/Grok 的共通能力、独特能力、效率收益、交付契约和风险控制都有注册。
-- CLI coalesced shell session 的 trusted-runner request 已被接受：`cli_shell_coalescing_runner_request.yml` 当前是 `accepted`，明确 Codex/frontdesk 不承担 AgentLab 角色执行，trusted runner 已返回 shell-level receipt、每个 delegated role 的 receipt 和 validation evidence。
-- CLI coalesced shell trusted runner 已同时通过 canonical dry-run 与 synthetic live：dry-run 记录 `execute_requested=false`、`provider_calls_executed=false` 并展示安全命令形态；live reports 分别记录 Claude inline agents 与 Hermes kanban 的 `provider_calls_executed=true`，且不加载项目上下文。
-- 历史 CLI coalesced synthetic run 使用隔离的 `agentlabsupervisor` / `agentlabpromptengineer` profiles；当时 Supervisor 是 `openai-codex` + GPT-5.5 + `high`。该 pass 只证明旧 packet 的 native-shell receipt mechanics，不覆盖当前 GPT-5.6 Sol / `xhigh` Supervisor。
-- CLI coalesced shell session 的 post-run collector 已接入并通过：`cli_shell_coalescing_collect.yml` 会以纯本地方式刷新 status、runner request、capability、objective、goal 与 hygiene 报告；它拒绝密钥形态来源、校验 status/request SHA-256，且只允许 canonical 默认路径刷新总验收。collector 自身仍记录 `provider_calls_executed=false`，真实执行证据来自逐 packet shell receipts。
-- CLI coalesced shell session 的 synthetic 返回验收已通过：`cli_shell_coalescing_status.yml` 为 `pass`，Claude Coder/Archivist 与 Hermes Supervisor/PromptEngineer 达到 `2/2 packets`、`4/4 roles`，missing/stale/failure 均为 0，两个 shell receipts 都记录 provider execution 并匹配当前 packet SHA-256。该 pass 只覆盖 native shell coordination/receipt mechanics，不覆盖 Crown 私有上下文产出质量。
+- CLI 壳调用规则已剪枝：壳原生 subagent/kanban 只服务于一个 AgentLab role-session；跨 lifecycle gate 的角色保持独立。未被生产管线调用的 synthetic coalescing runner、collector、request/status 链已归档，不再进入 current acceptance 或默认 CLI 命令面。
 - Crown 的本地长篇治理、mock 链路、1500 章治理模拟成立；`crown_heavy_audit_scale` 已明确通过 1500 章 governance-scale audit，但该审计只证明状态治理规模能力，不证明 1500 章正文质量。一章 live candidate 已通过本地 candidate audit，确认正文 565 行、候选状态变更、delivery receipt、reset baseline 和未写入 production manuscript。
 - Crown 媒体连续剧 scaffold 已通过本地 media-series audit：活动路线是 `media_generation_task`，生产包是 `media_series_production`，episode/shot/visual bible/asset/prompt/generation/QC/receipt 都是 candidate-only，且没有写入 production media。
 - Web UI/app 已完成 production promotion：候选 `artifacts/web_ui/` 通过 DOM/fetch、headless browser、operator interaction、run-local API write、截图像素和桌面/移动响应式视觉证据后，由 artifact steward 发布到 `projects/AgentLab/artifacts/web_ui/`，并写入 `archive_receipt.yml` 与 `project_artifact_index.yml`。
@@ -294,23 +284,25 @@ candidate: 5
 - 人读 handoff 的 canonical 路径是 `role_session_acceptance_handoff.md`；旧 `private_live_smoke_approval_handoff.md` 只保留为 legacy path，避免再把 legacy shorthand 当成正式生产链名称。
 - 历史 trusted-live runner collector 已纳入能力矩阵：它保留 Writer/media 两项当时状态，goal/objective audit 读取 Writer-specific selected collect。旧 blocker 字段只解释冻结 scope，不能外推到当前 Claude Writer 或视觉 gate。
 - 兼容性与可观测字段仍完整保留：每项继续暴露 `required_files_exist`、`returned_candidate_artifacts_accepted` 和 `acceptance_blocker`。Collector 继续暴露 `acceptance_blockers`、`acceptance_blocker_reasons`、`required_files_missing_count`、`returned_candidate_artifacts_accepted_count`、`acceptance_report_hygiene_status`，并刷新 `live_unblock_plan.yml`。
-- 冻结 collector snapshot 的 issue 是 `collector refreshed reports, but returned role-session acceptance artifacts are not accepted yet`；计数为 missing 3、accepted 1，Writer blocker `none`，media 为 deferred missing candidate。它是历史 scope 字段，不是当前 session health 或容量结论。
+- 当前 collector issue 是 `collector refreshed reports, but non-private session health still needs attention`；它指向当前 Claude Writer 会话探针，不会把 route/model 登记误报为失败。
 - 历史 handoff 继续保留 canonical text、hygiene、selected readiness 与两个 approval gate 字段。它们证明当时控制面完整，不允许把 `selected_ready` 解读成当前容量可用。
 - 历史 acceptance-report hygiene 是 `pass`：它证明冻结 scope 的 canonical reports、文本 handoff、审批 env 与 snapshot 分类一致。它只治理该历史报告集，不是当前 role topology 或容量事实源；旧 Agy/Grok smoke 继续保留为历史快照。
 
-冻结报告还保留这些精确的机器兼容标记；它们描述原始 runner 快照，不授权当前
-执行：`full_run_requires_trusted_status_pass`、`approval_gate_before_private_context`、
+当前报告保留这些精确的机器兼容标记：
+`full_run_requires_trusted_status_pass`、`approval_gate_before_private_context`、
 `selected_item_readiness`、
-`selected_ready=run_crown_internal_writer_eval,run_crown_internal_media_smoke`、
-`selected_blocked=none`。快照中的 media blocker 是 `missing_required_files`，reason 是
+`selected_ready=run_crown_internal_media_smoke`、
+`selected_blocked=run_crown_internal_writer_eval`。当前 blocker reasons 是
+`missing_required_files`，具体 reasons 是
+`claude_writer_session_health_blocked_before_private_writer_smoke` 与
 `missing_candidate_artifacts`，计数是
-`required_files_missing_count: 3` 与
-`returned_candidate_artifacts_accepted_count: 1`。Hygiene 字段是
+`required_files_missing_count: 10` 与
+`returned_candidate_artifacts_accepted_count: 0`。Hygiene 字段是
 `canonical_text_artifact_count: 2`、`canonical_text_issues`、
 `hygiene_private_selected_command_hits`、
 `stale_private_selected_command_hit_count: 0`；原始 policy 文本是
 `selected private role-session commands must include AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1`。
-该 issue 不是 session health。历史 runner 在 returned status 未通过时会非零退出。
+该 issue 是当前非私有会话 health gate；runner 在 returned status 未通过时会非零退出。
 `external_acceptance_readiness.yml` 只是旧消费者兼容文件；
 `acceptance_report_hygiene.yml` 把 `*_now`、`*_check` 与 `*_current` 归为
 非权威快照。
@@ -351,7 +343,7 @@ Frontdesk 安全 handoff：
 ./agentlab.sh internal-live-readiness --out acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
 ```
 
-该报告当前是 `ready_for_internal_live_smoke`；这里的“当前”只表示冻结历史报告文件自身的状态。它证明当时的本地 handoff、秘密边界与无私有上下文 reachability，不是当前 role topology 或容量事实源。`external_acceptance_readiness.yml` 仍只是旧消费者兼容文件。
+该报告当前是 `route_ready_session_blocked`；路由与安全合同已就绪，但当前 Claude Writer 会话探针尚未返回。这是可恢复的运行时会话状态，不是 role topology、模型登记或本地治理链失败。`external_acceptance_readiness.yml` 仍只是旧消费者兼容文件。
 
 历史拒绝证据：
 

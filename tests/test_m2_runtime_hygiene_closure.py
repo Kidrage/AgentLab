@@ -106,6 +106,7 @@ def test_config_output_does_not_leak_env_values() -> None:
     result = _agentlab("config", "config-get", "--key", "routing_policy.default_budget")
     output = result.stdout + result.stderr
     # For non-secret keys, the actual value should be visible
+    assert result.returncode == 0
     assert "balanced" in output
     assert "***REDACTED***" not in output
 
@@ -154,11 +155,10 @@ def test_config_validate_exits_zero() -> None:
 
 
 def test_config_list_does_not_silently_truncate() -> None:
-    """config-list with --all should not truncate."""
-    result = _agentlab("config", "config-list", "--all")
-    output = result.stdout + result.stderr
-    assert "Showing" not in output or "of" not in output, \
-        f"Truncation message found in --all output: {output[:300]}"
+    """The --all resolver contract returns every discovered key."""
+    resolved, truncated, total = resolve_all_keys(ROOT, limit=None)
+    assert truncated is False
+    assert len(resolved) == total
 
 
 def test_config_list_reports_truncation_when_limit_applied() -> None:
@@ -174,13 +174,6 @@ def test_config_get_missing_key_fails_cleanly() -> None:
     result = _agentlab("config", "config-get", "--key", "nonexistent.ghost.key")
     assert result.returncode != 0
     assert "not found" in (result.stdout + result.stderr).lower()
-
-
-def test_config_get_routing_policy_default_budget() -> None:
-    """config-get routing_policy.default_budget works."""
-    result = _agentlab("config", "config-get", "--key", "routing_policy.default_budget")
-    assert result.returncode == 0
-    assert "balanced" in result.stdout
 
 
 def test_config_get_budget_policy_fields() -> None:

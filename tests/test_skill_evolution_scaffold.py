@@ -12,6 +12,7 @@ import cost_tracker
 from skill_evolution import (
     build_skill_adoption_request,
     build_trace_skill_candidate,
+    default_skill_registry,
     ensure_skill_registry,
     estimate_skill_learning_cost,
     load_skill_requests,
@@ -38,6 +39,14 @@ def _write_pricing(root: Path) -> None:
     )
     cost_tracker._PRICE_CACHE = None
     cost_tracker._PRICE_ROOT = None
+
+
+def test_default_skill_registry_describes_runtime_injection() -> None:
+    metadata = default_skill_registry()["metadata"]
+
+    assert metadata["status"] == "local_lifecycle_with_runtime_injection"
+    assert "workflow-plan injection" in metadata["notes"]
+    assert "usage ledgers are implemented" in metadata["notes"]
 
 
 def test_skill_learning_cost_uses_model_pricing(tmp_path: Path) -> None:

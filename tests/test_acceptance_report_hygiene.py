@@ -8,7 +8,6 @@ from typer.testing import CliRunner
 from agent_runtime.acceptance_report_hygiene import (
     _canonical_text_forbidden_hits,
     _private_selected_command_hits,
-    _request_session_health_warning_issues,
     build_acceptance_report_hygiene,
 )
 from agent_runtime.run_task import app
@@ -106,47 +105,5 @@ def test_acceptance_report_hygiene_flags_selected_private_commands_without_appro
             "item": "run_crown_internal_writer_eval",
             "reason": "selected_private_role_session_command_missing_approval_env",
             "required_env": "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1",
-        }
-    ]
-
-
-def test_acceptance_report_hygiene_flags_stale_request_session_health_warnings(
-    tmp_path: Path,
-) -> None:
-    base = tmp_path / "acceptance_runs" / "agentlab_capability_acceptance"
-    base.mkdir(parents=True)
-    (base / "internal_live_readiness.yml").write_text(
-        yaml.safe_dump(
-            {
-                "report_type": "agentlab_internal_live_readiness",
-                "status": "ready_for_internal_live_smoke",
-                "session_health_issues": [],
-            },
-            sort_keys=False,
-        ),
-        encoding="utf-8",
-    )
-    (base / "trusted_live_runner_request.yml").write_text(
-        yaml.safe_dump(
-            {
-                "report_type": "agentlab_trusted_live_runner_request",
-                "session_health_warnings": [
-                    {"id": "current_grok_session_health", "status": "blocked"}
-                ],
-            },
-            sort_keys=False,
-        ),
-        encoding="utf-8",
-    )
-
-    issues = _request_session_health_warning_issues(base)
-
-    assert issues == [
-        {
-            "path": "acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml",
-            "reason": "session_health_warnings_do_not_match_current_readiness",
-            "readiness_path": "acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml",
-            "current_readiness_issue_ids": [],
-            "request_warning_ids": ["current_grok_session_health"],
         }
     ]

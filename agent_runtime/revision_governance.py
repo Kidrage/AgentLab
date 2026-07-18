@@ -250,13 +250,39 @@ def append_revision_log(agentlab_root: Path, project: str, task_id: str, result:
     atomic_write_text(path, content)
 
 
+def _is_candidate_only_state_proposal(proposal: dict[str, Any] | None) -> bool:
+    if not isinstance(proposal, dict):
+        return False
+    body = proposal.get("state_transition_proposal") or proposal
+    if not isinstance(body, dict):
+        return False
+    events = body.get("events")
+    return (
+        body.get("status") == "candidate"
+        and body.get("candidate_only") is True
+        and body.get("production_modified") is False
+        and body.get("requires_user_promotion") is True
+        and isinstance(events, list)
+        and all(
+            isinstance(event, dict) and event.get("scope") == "candidate_only"
+            for event in events
+        )
+    )
+
+
 def revision_dispatch_status(agentlab_root: Path, project: str, task_id: str) -> dict[str, Any]:
     artifacts = load_revision_artifacts(agentlab_root, project, task_id)
     has_change = artifacts.get("change_request") is not None
-    has_proposal = artifacts.get("state_transition_proposal") is not None
+    proposal = artifacts.get("state_transition_proposal")
+    has_proposal = proposal is not None
     acceptance = artifacts.get("acceptance") or {}
     if not has_change and not has_proposal:
         return {"blocked": False, "reason": "no revision governance artifacts present"}
+    if not has_change and _is_candidate_only_state_proposal(proposal):
+        return {
+            "blocked": False,
+            "reason": "candidate-only state proposal does not dispatch a revision",
+        }
     if not has_change:
         return {"blocked": True, "reason": "state_transition_proposal.yml exists without change_request.yml"}
     if not has_proposal:

@@ -65,7 +65,8 @@ Every fetch records:
 
 ## Configuration
 
-See `config/web_intelligence.yml` and `config/source_quality_policy.yml`.
+The original unwired policy sketches are preserved under
+`docs/archive/config_specs_legacy_20260718/`; they are not runtime authority.
 
 ## CLI
 

@@ -117,18 +117,19 @@ def scan_repository_root(repo_root: Path, policy: dict[str, Any] | None = None) 
                 )
             continue
 
-        for pattern in forbidden_patterns:
-            if fnmatch.fnmatch(name, pattern):
-                findings.append(
-                    HygieneFinding(
-                        severity="error",
-                        path=name,
-                        code="forbidden_root_pattern",
-                        message=f"Root file matches forbidden runtime/scratch pattern: {pattern}",
-                        suggested_destination=".agentlab/inbox/",
+        if name not in allowed_files:
+            for pattern in forbidden_patterns:
+                if fnmatch.fnmatch(name, pattern):
+                    findings.append(
+                        HygieneFinding(
+                            severity="error",
+                            path=name,
+                            code="forbidden_root_pattern",
+                            message=f"Root file matches forbidden runtime/scratch pattern: {pattern}",
+                            suggested_destination=".agentlab/inbox/",
+                        )
                     )
-                )
-                break
+                    break
 
         if name not in allowed_files and not name.endswith((".md", ".txt")):
             findings.append(

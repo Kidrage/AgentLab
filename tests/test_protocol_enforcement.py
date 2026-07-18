@@ -95,6 +95,20 @@ def test_role_binding_rejects_agy_as_coder_and_allows_codex():
     assert "forbidden" in artifact_reason
 
 
+def test_narrative_planner_allows_only_claude_code():
+    claude_allowed, claude_reason = check_role_binding(
+        ROOT, "claude_code", "NarrativePlanner"
+    )
+    qwen_allowed, qwen_reason = check_role_binding(ROOT, "qwen", "NarrativePlanner")
+    codex_allowed, codex_reason = check_role_binding(
+        ROOT, "codex", "NarrativePlanner"
+    )
+
+    assert claude_allowed is True, claude_reason
+    assert qwen_allowed is False, qwen_reason
+    assert codex_allowed is False, codex_reason
+
+
 def test_visual_reviewer_route_uses_reviewer_role_binding():
     allowed, reason = check_role_binding(ROOT, "agy", "visual_reviewer")
 

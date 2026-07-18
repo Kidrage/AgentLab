@@ -14,8 +14,8 @@ This file defines the canonical domain terminology for AgentLab as an Agent Corp
     *   **Context Rules**: Specialized `.clinerules` or instructions assigned to their role.
 
 ### 2. Agent Workstation (Agent 工作站)
-*   **Definition**: The centralized directory inside the AgentLab workspace (`.agents/workspaces/`) where all local Agent CLI configurations, state records, and session history are stored. 
-*   **Mechanism**: Symbolic links are placed in the user's home directory pointing to the Workstation directories to ensure seamless CLI operations while keeping state inside the sync-ready codebase.
+*   **Definition**: A local-only directory (`.agents/workspaces/`) containing Agent CLI configuration, caches, state, and session history.
+*   **Mechanism**: Home-directory symlinks may point to these local CLI homes. They are ignored by Git, repository ingestion, HandOff inventory, and Relay synchronization; only redacted capability/config manifests are portable AgentLab assets.
 
 ### 3. Relay Hub (中转站)
 *   **Definition**: The central information exchange relay server (reachable at `<RELAY_HOST>:<RELAY_SSH_PORT>`). It acts as the central git and asset sync repository, anchoring the truth across nodes.

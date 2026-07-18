@@ -13,6 +13,12 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
+from agent_runtime.role_keys import (
+    CAPACITY_ROLE_ALIASES,
+    ROLE_KEY_TO_CANONICAL,
+    normalize_role_key,
+)
+
 
 MODE_TO_TIER = {
     "quality": "full",
@@ -23,48 +29,6 @@ MODE_TO_TIER = {
     "low": "low",
 }
 
-ROLE_ALIASES = {
-    "supervisor": "supervisor",
-    "reposcout": "reposcout",
-    "repo_scout": "reposcout",
-    "researcher": "researcher",
-    "observer": "observer",
-    "interfacemapper": "interface_mapper",
-    "interface_mapper": "interface_mapper",
-    "promptengineer": "prompt_engineer",
-    "prompt_engineer": "prompt_engineer",
-    "coder": "coder",
-    "artifactproducer": "artifact_producer",
-    "artifact_producer": "artifact_producer",
-    "reviewer": "reviewer",
-    "scribe": "scribe",
-    "testerauditor": "tester_auditor",
-    "tester_auditor": "tester_auditor",
-    "verifier": "verifier",
-    "archivist": "archivist",
-    "writer": "writer",
-    "visual_reviewer": "visual_reviewer",
-}
-
-
-CAPACITY_ROLE_ALIASES = {"visual_reviewer": "reviewer"}
-ROLE_KEY_TO_CANONICAL = {
-    "supervisor": "Supervisor",
-    "reposcout": "RepoScout",
-    "researcher": "Researcher",
-    "observer": "Observer",
-    "interface_mapper": "InterfaceMapper",
-    "prompt_engineer": "PromptEngineer",
-    "coder": "Coder",
-    "artifact_producer": "ArtifactProducer",
-    "writer": "Writer",
-    "reviewer": "Reviewer",
-    "visual_reviewer": "Reviewer",
-    "scribe": "Scribe",
-    "tester_auditor": "TesterAuditor",
-    "verifier": "Verifier",
-    "archivist": "Archivist",
-}
 INLINE_NUMERIC_PRICE_RE = re.compile(
     r"(?:[$\u00a5\uffe5]\s*\d+(?:\.\d+)?|\b(?:USD|CNY)\s*\d+(?:\.\d+)?)",
     re.IGNORECASE,
@@ -83,8 +47,7 @@ def _write_yaml(path: Path, data: Any) -> None:
 
 
 def _role_key(role: str) -> str:
-    key = str(role or "").replace("-", "_").replace(" ", "_").lower()
-    return ROLE_ALIASES.get(key, key)
+    return normalize_role_key(role)
 
 
 def _proposal_dir(root: Path) -> Path:

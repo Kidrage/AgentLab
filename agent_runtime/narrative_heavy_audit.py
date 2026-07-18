@@ -44,8 +44,17 @@ def _strip_optional_code_fence(content: str) -> str:
 def _schema_issues(name: str, value: str) -> list[str]:
     try:
         data = yaml.safe_load(value) or {}
-    except yaml.YAMLError:
-        return [f"invalid_heavy_audit_yaml:{name}"]
+    except yaml.YAMLError as exc:
+        mark = getattr(exc, "problem_mark", None)
+        line = int(getattr(mark, "line", -1)) + 1
+        problem = re.sub(
+            r"[^a-z0-9]+",
+            "_",
+            str(getattr(exc, "problem", "parse_error") or "parse_error").lower(),
+        ).strip("_")
+        return [
+            f"invalid_heavy_audit_yaml:{name}:line_{max(line, 1)}:{problem}"
+        ]
     if not isinstance(data, dict):
         return [f"invalid_heavy_audit_schema:{name}:mapping_required"]
 

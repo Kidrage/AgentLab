@@ -1,0 +1,62 @@
+schema_version: 1
+policy_id: durable_background_job
+
+authority:
+  state_file: projects/<project>/background_jobs/<job_id>/job_state.yml
+  event_log: projects/<project>/background_jobs/<job_id>/job_events.jsonl
+  attempt_request: projects/<project>/background_jobs/<job_id>/attempts/<attempt_id>/action_request.yml
+  process_receipt: projects/<project>/background_jobs/<job_id>/attempts/<attempt_id>/process_receipt.yml
+  operator_feedback: projects/<project>/background_jobs/<job_id>/operator_feedback.yml
+  completion_receipt: projects/<project>/background_jobs/<job_id>/completion_receipt.yml
+
+controls:
+  provider_execution_requires_explicit_execute: true
+  controller_is_token_free: true
+  receipt_consumption_is_idempotent: true
+  silent_provider_fallback: forbidden
+  active_worker_pause_behavior: finish_current_attempt_then_stop
+  production_write_default: forbidden
+
+states:
+  schedulable:
+    - queued
+    - deterministic_check
+    - awaiting_heavy_audit
+    - rewrite_required
+    - deterministic_reaudit
+    - final_acceptance
+    - failed_recoverable
+  running:
+    - preflight
+    - generating_batch
+    - heavy_auditing
+    - rewriting
+  waiting:
+    - capacity_wait
+    - paused
+  checkpoint:
+    - batch_sealed
+  terminal:
+    - completed
+    - blocked
+
+receipt_trigger_order:
+  - detached worker atomically writes process_receipt.yml
+  - controller validates the active attempt idempotency key
+  - controller applies the receipt to job_state.yml exactly once
+  - generation success schedules deterministic checks before model audit
+  - deterministic pass schedules heavy audit only at configured cadence
+  - blocking audit writes a rewrite handoff and stops without editing production
+  - terminal state writes operator_feedback.yml and optionally dispatches a webhook
+
+pause_resume:
+  pause_command: ./agentlab.sh background-job pause --project <project> --job-id <job_id>
+  resume_command: ./agentlab.sh background-job resume --project <project> --job-id <job_id>
+  paused_from_status_field: paused_from_status
+  pause_requested_field: pause_requested
+  kill_active_worker: false
+
+current_implementation:
+  supported_job_type: crown_narrative_delivery
+  generic_job_registry: not_implemented
+  automatic_validated_rewrite: not_implemented_fail_closed

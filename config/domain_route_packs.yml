@@ -8,6 +8,7 @@ domain_packs:
     recommended_route: narrative_light_chapter
     batch_route: narrative_batch_chapters
     audit_route: narrative_heavy_audit
+    rewrite_route: narrative_rewrite_plan
     forbidden_fallback_routes:
       - interface_sensitive_task
       - large_or_risky_task
@@ -42,6 +43,15 @@ domain_packs:
         - Reviewer checks already-produced drafts and ledgers for continuity, POV, character state, timeline, and style drift.
         - Scribe records structured audit findings and state transition proposals.
         - Verifier confirms audit gates before promotion or rewrite decisions.
+    rewrite_route_proposal:
+      route_key: narrative_rewrite_plan
+      agents:
+        - Supervisor
+        - NarrativePlanner
+      rationale:
+        - NarrativePlanner converts declared blocking heavy-audit evidence into one deterministic candidate chapter state plan.
+        - The route produces planning data only; it never rewrites prose, edits authority memory, writes production, or promotes facts.
+        - Writer consumes a locally validated chapter_state_plan.yml in a separate narrative generation run.
     memory_contract:
       - project_fact_snapshot
       - project_artifact_index
@@ -51,6 +61,7 @@ domain_packs:
       - timeline
       - foreshadowing_register
       - state_transition_proposal
+      - chapter_state_plan
       - revision_log
     quality_gates:
       - continuity

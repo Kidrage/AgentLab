@@ -143,7 +143,6 @@ def _session_health_check(
 def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
     """Legacy entrypoint that now returns the canonical internal-live readiness report."""
     root = root.resolve()
-    objective_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "objective_requirement_audit.yml"
     unblock_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "live_unblock_plan.yml"
     handoff_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "frontdesk_live_handoff.yml"
     claude_writer_probe_path = (
@@ -153,19 +152,12 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
         / "claude_writer_session_probe.yml"
     )
     grok_smoke_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "grok_cli_session_smoke.yml"
-    objective = _read_yaml(objective_path)
     unblock = build_live_unblock_plan(root)
     handoff = _read_yaml(handoff_path)
     claude_writer_probe = _read_yaml(claude_writer_probe_path)
     grok_smoke = _read_yaml(grok_smoke_path)
     historical_policy_rejections = _historical_policy_rejections(root)
     unblock_items = [item for item in unblock.get("items", []) if isinstance(item, dict)]
-    objective_blockers = [
-        item
-        for item in objective.get("external_blockers", [])
-        if isinstance(item, dict)
-    ]
-
     crown = _item_by_id(unblock_items, "run_crown_internal_writer_eval") or _item_by_id(unblock_items, "approve_crown_external_writer_context")
     if crown.get("id") == "run_crown_internal_writer_eval":
         crown = dict(crown)
@@ -182,16 +174,13 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
 
     checks = [
         {
-            "id": "objective_has_no_active_external_blockers",
+            "id": "internal_role_routes_own_execution",
             "status": "pass"
-            if objective
-            and not objective_blockers
-            and objective.get("status")
-            in {"partial", "complete", "blocked_external_input_required", "blocked_external_policy", "fail"}
+            if unblock.get("workflow_boundary") == "internal_agentlab_role_sessions"
+            and crown.get("agentlab_execution_owner") == "Writer"
+            and media.get("agentlab_execution_owner") == "ArtifactProducer"
             else "fail",
-            "objective_status": objective.get("status"),
-            "status_counts": objective.get("status_counts"),
-            "external_blockers": objective_blockers,
+            "workflow_boundary": unblock.get("workflow_boundary"),
         },
         {
             "id": "crown_writer_internal_route_ready",
@@ -226,7 +215,6 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
             "id": "secret_values_not_rendered",
             "status": "pass"
             if not _contains_secret_text(unblock)
-            and not _contains_secret_text(objective)
             and not _contains_secret_text(handoff)
             else "fail",
         },
@@ -298,7 +286,6 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
         "root": str(root),
         "status": status,
         "source_reports": {
-            "objective_requirement_audit": str(objective_path),
             "live_unblock_plan": str(unblock_path),
             "frontdesk_live_handoff": str(handoff_path),
             "claude_writer_session_probe": str(claude_writer_probe_path),
@@ -306,7 +293,6 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
         },
         "source_report_health": _evidence_health(
             [
-                str(objective_path),
                 str(unblock_path),
                 str(handoff_path),
                 str(claude_writer_probe_path),

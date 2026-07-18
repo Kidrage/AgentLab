@@ -529,12 +529,14 @@ def _domain_route_pack_audit(
             "recommended_route": config.get("recommended_route"),
             "batch_route": config.get("batch_route"),
             "audit_route": config.get("audit_route"),
+            "rewrite_route": config.get("rewrite_route"),
         }
         forbidden = _string_list(config.get("forbidden_fallback_routes"))
         route_proposals = {
             "route_proposal": config.get("route_proposal"),
             "batch_route_proposal": config.get("batch_route_proposal"),
             "audit_route_proposal": config.get("audit_route_proposal"),
+            "rewrite_route_proposal": config.get("rewrite_route_proposal"),
         }
         route_refs: list[dict[str, Any]] = []
         for field, route in route_fields.items():
@@ -557,6 +559,7 @@ def _domain_route_pack_audit(
             "route_proposal": route_fields["recommended_route"],
             "batch_route_proposal": route_fields["batch_route"],
             "audit_route_proposal": route_fields["audit_route"],
+            "rewrite_route_proposal": route_fields["rewrite_route"],
         }
         for proposal_field, proposal in route_proposals.items():
             if not isinstance(proposal, dict):

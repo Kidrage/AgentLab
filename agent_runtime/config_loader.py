@@ -18,6 +18,7 @@ CONFIG_FILES = {
     "agent_registry": "agent_registry.yml",
     "agent_model_profiles": "agent_model_profiles.yml",
     "auto_sync_policy": "auto_sync_policy.yml",
+    "background_job_policy": "background_job_policy.yml",
     "backup_policy": "backup_policy.yml",
     "brain_governance": "brain_governance.yml",
     "evaluation_policy": "evaluation_policy.yml",
@@ -30,7 +31,6 @@ CONFIG_FILES = {
     "model_catalog": "model_catalog.yml",
     "model_capacity": "model_capacity.yml",
     "model_providers": "model_providers.yml",
-    "model_profiles": "model_profiles.yml",
     "routing_policy": "routing_policy.yml",
     "routing_rules": "routing_rules.yml",
     "budget_profiles": "budget_profiles.yml",
@@ -53,6 +53,7 @@ CONFIG_FILES = {
     "migration_profile": "migration_profile.yml",
     "media_generation_backends": "media_generation_backends.yml",
     "production_packs": "production_packs.yml",
+    "run_retention_policy": "run_retention_policy.yml",
 }
 
 

@@ -85,6 +85,12 @@ modes:
           default: grok_4_3_hermes_oauth
           artifact_backend: hermes_grok_oauth
           capacity_route: ArtifactProducer
+        narrative_planner:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude_narrative_planner
+          default: deepseek_v4_pro
+          capacity_route: NarrativePlannerRewrite
         tester_auditor:
           executor_type: cli_agent
           cli_agent: hermes
@@ -172,6 +178,12 @@ modes:
           default: grok_4_3_hermes_oauth
           artifact_backend: hermes_grok_oauth
           capacity_route: ArtifactProducer
+        narrative_planner:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude_narrative_planner
+          default: deepseek_v4_pro
+          capacity_route: NarrativePlannerRewrite
         tester_auditor:
           executor_type: cli_agent
           cli_agent: codex
@@ -255,6 +267,12 @@ modes:
           default: grok_4_3_hermes_oauth
           artifact_backend: hermes_grok_oauth
           capacity_route: ArtifactProducer
+        narrative_planner:
+          executor_type: cli_agent
+          cli_agent: claude_code
+          invocation_contract: claude_narrative_planner
+          default: deepseek_v4_pro
+          capacity_route: NarrativePlannerRewrite
         tester_auditor:
           executor_type: cli_agent
           cli_agent: codex

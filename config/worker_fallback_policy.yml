@@ -8,6 +8,7 @@ roles:
   PromptEngineer: [hermes, claude_code, qwen]
   Coder: [claude_code, codex, aider, hermes]
   ArtifactProducer: [grok, codex, qwen]
+  NarrativePlanner: [claude_code]
   Writer: [claude_code]
   Reviewer: [qwen, agy, claude_code]
   Scribe: [qwen, claude_code, codex]

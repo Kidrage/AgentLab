@@ -21,7 +21,10 @@ from agent_runtime.routing.route_decision import (
 )
 from agent_runtime.protocols import check_role_binding
 from agent_runtime.workers.detector import DEFAULT_CANDIDATES
-from agent_runtime.workers.performance_ledger import PerformanceLedger
+from agent_runtime.workers.performance_ledger import (
+    PerformanceLedger,
+    default_performance_ledger_path,
+)
 from agent_runtime.workers.registry import WorkerRegistry
 from agent_runtime.workers.worker_card import WorkerCard
 
@@ -39,7 +42,7 @@ class RoleAssignmentEngine:
         self.compatibility = CompatibilityChecker(self.schema, self.roles, self.capabilities)
         self.fallback_policy = WorkerFallbackPolicy(self.root / "config" / "worker_fallback_policy.yml")
         self.mode_tier_policy = ModeTierWorkerPolicy(self.root / "config" / "mode_tier_worker_policy.yml")
-        self.performance = PerformanceLedger(self.root / "config" / "worker_performance_ledger.yml")
+        self.performance = PerformanceLedger(default_performance_ledger_path(self.root))
         self.assignment_policy = self._load_yaml(self.root / "config" / "role_assignment_policy.yml")
         self.worker_cards = {
             item["worker_id"]: WorkerCard.from_dict({

@@ -30,6 +30,7 @@ LIFECYCLE_NODE_AGENT = {
     "RESEARCH_OPTIONAL": "Researcher",
     "OBSERVATION_OPTIONAL": "Observer",
     "INTERFACE_OPTIONAL": "InterfaceMapper",
+    "NARRATIVE_REWRITE_PLAN": "NarrativePlanner",
     "CODER_IMPLEMENTATION": "Coder",
     "ARTIFACT_PRODUCTION": "ArtifactProducer",
     "VISUAL_OBSERVATION": "Observer",
@@ -77,6 +78,15 @@ SCENARIOS = [
         expected_agents=("Supervisor", "Reviewer", "Scribe", "Verifier"),
         forbidden_agents=("Coder", "Writer", "ArtifactProducer"),
         forbidden_effective_lifecycle_nodes=("WRITER_DRAFT",),
+    ),
+    ChainScenario(
+        scenario_id="narrative_rewrite_plan",
+        project="Crown_of_Ash",
+        request="根据 heavy audit 的 blocking findings 重写 Crown 前10章规划。",
+        expected_pack="narrative_longform",
+        expected_agents=("Supervisor", "NarrativePlanner"),
+        forbidden_agents=("Coder", "Writer", "ArtifactProducer"),
+        forbidden_effective_lifecycle_nodes=("WRITER_DRAFT", "FICTION_REVIEW"),
     ),
     ChainScenario(
         scenario_id="media_series_production",

@@ -87,12 +87,24 @@ native_command_surface_policy:
     AgentLab receipts.
   command_inventory_required_before_full_use: true
   unregistered_native_commands_are_not_available_to_agentlab: true
-  same_backend_multi_role_policy: >
-    When multiple AgentLab workers point at the same workflow shell backend,
-    AgentLab should prefer one bounded shell role-session that delegates through
-    shell-native subagents or boards, but only if every delegated AgentLab role
-    returns a separate receipt and validation evidence. Otherwise AgentLab must
-    keep role sessions separate.
+  same_backend_multi_role_policy:
+    scope: within_one_agentlab_role_session
+    rule: >
+      A selected workflow shell may use its native subagents, board, or
+      background workers inside one bounded AgentLab role-session. Separate
+      AgentLab roles remain separate shell sessions when a lifecycle gate
+      consumes the earlier role's returned artifact.
+    cross_lifecycle_gate_coalescing: forbidden
+    dependency_free_same_stage_coalescing: not_implemented
+    reason: >
+      AgentLab must validate and persist each role result before dispatching a
+      dependent role. Combining dependent roles would bypass lifecycle and
+      promotion gates even if the underlying CLI binary is the same.
+    optimization_rule: >
+      Reuse shell-native orchestration inside the role session; do not create a
+      second AgentLab orchestration stack or synthetic provider smoke solely to
+      claim fewer shell invocations.
+    required_receipt: one_role_session_receipt_per_agentlab_role
   shell_native_state_is_operational_state_only: true
   agentlab_memory_remains_authoritative: true
   required_surfaces:
@@ -220,7 +232,7 @@ shells:
         examples:
           - hermes -z <prompt>
           - hermes --provider <provider> -m <model> -z <prompt>
-          - hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.6-sol -q <prompt>
+          - hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.6-sol --ignore-rules --max-turns 6 -q <prompt>
         agentlab_use: bounded role-session execution with a task packet; Supervisor must use the isolated chat profile because -z does not apply its reasoning-effort state
       model_and_fallback:
         examples:
@@ -394,6 +406,7 @@ shells:
       - InterfaceMapper
       - PromptEngineer
       - Coder
+      - NarrativePlanner
       - Writer
       - Reviewer
       - Scribe
@@ -604,6 +617,7 @@ shells:
         - qwen --help
       registered_surfaces:
         - headless_and_schema
+        - sealed_packet_stdin
         - mcp_extensions_hooks
         - budgets_sessions_worktree
       native_subagent_surface: not_registered
@@ -612,9 +626,13 @@ shells:
     command_families:
       headless_and_schema:
         examples:
-          - qwen --bare --output-format json <prompt>
+          - qwen --bare --auth-type openai --openai-base-url https://dashscope.aliyuncs.com/compatible-mode/v1 --model <model_id> --output-format json <prompt>
           - qwen --json-schema @schema.json <prompt>
         agentlab_use: structured role receipts and analysis output
+      sealed_packet_stdin:
+        examples:
+          - qwen --bare --max-session-turns 6 --exclude-tools <all-core-tools-except-structured_output> --max-tool-calls 1 --json-schema @narrative_heavy_audit_output.schema.json --output-format stream-json -p <bounded-role-instruction>
+        agentlab_use: narrative heavy-audit Reviewer/Scribe/Verifier sessions receive the complete private packet on stdin, cannot inspect the workspace, and return candidate audit blocks only
       mcp_extensions_hooks:
         examples:
           - qwen mcp
@@ -663,6 +681,7 @@ shells:
     risk_controls:
       - yolo/auto modes are not default
       - telemetry/prompt logging must remain governed by local config
+      - narrative heavy-audit stdin packets require the private role-session approval gate and source inventory
 
   grok:
     worker_id: grok

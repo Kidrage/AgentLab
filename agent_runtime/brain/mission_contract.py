@@ -393,9 +393,8 @@ def _try_compile_llm_mission_draft(
             configs = load_agentlab_configs(root)
             settings = resolve_llm_settings(
                 agent_name="Supervisor",
-                agent_registry=configs.get("agent_registry", {}).get("agents", {}),
                 model_providers=configs.get("model_providers", {}),
-                model_profiles=configs.get("model_profiles", {}),
+                agent_model_profiles=configs.get("agent_model_profiles", {}),
                 model_catalog=configs.get("model_catalog", {}),
             )
             if not settings.api_key_configured:
@@ -559,6 +558,15 @@ def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any], roo
     from agent_runtime.narrative_intent import classify_narrative_intent
 
     intent = classify_narrative_intent(prompt, active_longform_project=True)
+    if intent.kind == "rewrite":
+        return (
+            str(domain_pack.get("rewrite_route") or "narrative_rewrite_plan"),
+            intent.reason,
+            domain_pack.get("rewrite_route_proposal") or {
+                "route_key": "narrative_rewrite_plan",
+                "agents": ["Supervisor", "NarrativePlanner"],
+            },
+        )
     if intent.kind == "audit":
         return (
             str(domain_pack.get("audit_route") or "narrative_heavy_audit"),

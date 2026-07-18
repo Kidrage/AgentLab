@@ -27,6 +27,7 @@ LIFECYCLE_NODES = [
     "RESEARCH_OPTIONAL",
     "OBSERVATION_OPTIONAL",
     "INTERFACE_OPTIONAL",
+    "NARRATIVE_REWRITE_PLAN",
     "WRITER_DRAFT",
     "FICTION_REVIEW",
     "SCRIBE_LEDGER",
@@ -55,6 +56,7 @@ NODE_REQUIRED_OUTPUTS = {
     "RESEARCH_OPTIONAL": ["03_research_notes.md"],
     "OBSERVATION_OPTIONAL": ["observation_report.yml"],
     "INTERFACE_OPTIONAL": ["04_interface_map.md"],
+    "NARRATIVE_REWRITE_PLAN": ["chapter_state_plan.yml"],
     "WRITER_DRAFT": ["fiction_draft.md"],
     "FICTION_REVIEW": ["fiction_review.yml"],
     "SCRIBE_LEDGER": ["continuity_ledger.yml"],
@@ -80,6 +82,7 @@ OPTIONAL_NODES = {
     "RESEARCH_OPTIONAL",
     "OBSERVATION_OPTIONAL",
     "INTERFACE_OPTIONAL",
+    "NARRATIVE_REWRITE_PLAN",
     "WRITER_DRAFT",
     "FICTION_REVIEW",
     "SCRIBE_LEDGER",
@@ -171,6 +174,8 @@ def _skip_reason_for_node(
         return "Route does not include Researcher"
     if node_id == "INTERFACE_OPTIONAL" and "InterfaceMapper" not in route:
         return "Route does not include InterfaceMapper"
+    if node_id == "NARRATIVE_REWRITE_PLAN" and "NarrativePlanner" not in route:
+        return "Route does not include NarrativePlanner"
     if node_id == "WRITER_DRAFT" and "Writer" not in route:
         return "Route does not include Writer"
     if node_id == "FICTION_REVIEW" and "Reviewer" not in route:

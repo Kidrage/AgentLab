@@ -15,6 +15,11 @@ from typing import Any
 
 import yaml
 
+try:
+    from agent_runtime.run_retention import resolve_run_dir
+except ModuleNotFoundError:  # pragma: no cover - direct script path
+    from run_retention import resolve_run_dir
+
 
 STATUS_RANK = {
     "pass": 0,
@@ -171,7 +176,7 @@ def _internal_writer_route_readiness(root: Path) -> dict[str, Any]:
 
 
 def _run_dir(root: Path, project: str, task_id: str) -> Path:
-    return root / "projects" / project / "runs" / task_id
+    return resolve_run_dir(root, project, task_id)
 
 
 def _artifact_probe(root: Path, probe: ArtifactProbe) -> dict[str, Any]:
@@ -342,6 +347,11 @@ def _production_pack_synthesis_smoke(root: Path) -> dict[str, Any]:
         else {}
     )
     missing = list(generated.get("missing") or [])
+    run_dir = _run_dir(
+        root,
+        "AgentLab",
+        "task_production_pack_synthesis_smoke_20260707",
+    )
     valid = (
         report.get("status") == "pass"
         and validation.get("valid") is True
@@ -356,10 +366,10 @@ def _production_pack_synthesis_smoke(root: Path) -> dict[str, Any]:
         "status": "pass" if valid else "fail",
         "evidence": [
             str(report_path),
-            str(root / "projects" / "AgentLab" / "runs" / "task_production_pack_synthesis_smoke_20260707" / "production_pack_proposal.yml"),
-            str(root / "projects" / "AgentLab" / "runs" / "task_production_pack_synthesis_smoke_20260707" / "domain_memory_contract.yml"),
-            str(root / "projects" / "AgentLab" / "runs" / "task_production_pack_synthesis_smoke_20260707" / "lifecycle_profile.yml"),
-            str(root / "projects" / "AgentLab" / "runs" / "task_production_pack_synthesis_smoke_20260707" / "domain_research_brief.md"),
+            str(run_dir / "production_pack_proposal.yml"),
+            str(run_dir / "domain_memory_contract.yml"),
+            str(run_dir / "lifecycle_profile.yml"),
+            str(run_dir / "domain_research_brief.md"),
         ],
         "summary": (
             f"synthesis smoke status={report.get('status')}; "
@@ -837,9 +847,7 @@ def _cli_workflow_shell_absorption(root: Path) -> dict[str, Any]:
 
 def _cli_native_command_surface_governance(root: Path) -> dict[str, Any]:
     shell_config_path = root / "config" / "cli_workflow_shells.yml"
-    coalescing_plan_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "cli_shell_coalescing_plan.yml"
     shell_config = _read_yaml(shell_config_path)
-    coalescing_plan = _read_yaml(coalescing_plan_path)
     policy = (
         shell_config.get("native_command_surface_policy")
         if isinstance(shell_config.get("native_command_surface_policy"), dict)
@@ -891,6 +899,14 @@ def _cli_native_command_surface_governance(root: Path) -> dict[str, Any]:
             for example in claude_families.get("agents_and_background", {}).get("examples", [])
         )
     )
+    multi_role_policy = policy.get("same_backend_multi_role_policy")
+    multi_role_policy = multi_role_policy if isinstance(multi_role_policy, dict) else {}
+    lifecycle_boundary_ok = (
+        multi_role_policy.get("scope") == "within_one_agentlab_role_session"
+        and multi_role_policy.get("cross_lifecycle_gate_coalescing") == "forbidden"
+        and multi_role_policy.get("dependency_free_same_stage_coalescing") == "not_implemented"
+        and multi_role_policy.get("required_receipt") == "one_role_session_receipt_per_agentlab_role"
+    )
     inventory_policy_ok = (
         policy.get("command_inventory_required_before_full_use") is True
         and policy.get("unregistered_native_commands_are_not_available_to_agentlab") is True
@@ -906,57 +922,42 @@ def _cli_native_command_surface_governance(root: Path) -> dict[str, Any]:
             }
         )
     )
-    same_backend_policy_recorded = bool(policy.get("same_backend_multi_role_policy"))
-    command_surface_registry_ok = (
+    retired_synthetic_modules = [
+        root / "agent_runtime" / "cli_shell_coalescing.py",
+        root / "agent_runtime" / "cli_shell_coalescing_request.py",
+        root / "agent_runtime" / "cli_shell_coalescing_runner.py",
+        root / "agent_runtime" / "cli_shell_coalescing_status.py",
+        root / "agent_runtime" / "cli_shell_coalescing_collect.py",
+    ]
+    synthetic_runtime_removed = not any(path.exists() for path in retired_synthetic_modules)
+    valid = (
         shell_config_path.exists()
         and required_families.issubset(set(families))
         and not shells_without_surface
         and inventory_policy_ok
-        and same_backend_policy_recorded
+        and lifecycle_boundary_ok
         and hermes_kanban_registered
         and claude_subagents_registered
-    )
-    materialized_session_packets = (
-        coalescing_plan.get("materialized_session_packets")
-        if isinstance(coalescing_plan.get("materialized_session_packets"), list)
-        else []
-    )
-    missing_session_packets = (
-        coalescing_plan.get("missing_session_packets")
-        if isinstance(coalescing_plan.get("missing_session_packets"), list)
-        else []
-    )
-    materialized_packets_exist = bool(materialized_session_packets) and all(
-        (root / str(path)).exists() for path in materialized_session_packets
-    )
-    runtime_coalescing_implemented = (
-        coalescing_plan.get("status") == "pass"
-        and isinstance(coalescing_plan.get("eligible_group_count"), int)
-        and coalescing_plan.get("eligible_group_count") >= 1
-        and len(materialized_session_packets) == coalescing_plan.get("eligible_group_count")
-        and not missing_session_packets
-        and materialized_packets_exist
-        and (coalescing_plan.get("policy") or {}).get("per_role_receipts_required") is True
-        and (coalescing_plan.get("policy") or {}).get("provider_calls_executed") is False
+        and synthetic_runtime_removed
     )
     issues: list[str] = []
-    if not command_surface_registry_ok:
+    if not inventory_policy_ok or shells_without_surface:
         issues.append("CLI native command-surface registry is incomplete")
-    if not runtime_coalescing_implemented:
-        issues.append(
-            "same-backend multi-role coalescing through one shell session is a governance target, not an implemented scheduler"
-        )
+    if not lifecycle_boundary_ok:
+        issues.append("same-backend shell policy may bypass an AgentLab lifecycle gate")
+    if not synthetic_runtime_removed:
+        issues.append("retired synthetic cross-role coalescing runtime is still present")
     return {
         "id": "cli_native_command_surface_governance",
-        "title": "CLI native command surface and subagent governance",
-        "status": "pass" if command_surface_registry_ok and runtime_coalescing_implemented else "candidate",
-        "evidence": [str(shell_config_path), str(coalescing_plan_path)],
+        "title": "CLI native command surface and role-session boundary",
+        "status": "pass" if valid else "fail",
+        "evidence": [str(shell_config_path)],
         "summary": (
-            "CLI shells have native command-surface inventory policy and registered Hermes/Claude surfaces; "
+            "CLI-native subagents and boards are available inside one bounded AgentLab role-session; "
             f"hermes_kanban_registered={hermes_kanban_registered}; "
             f"claude_subagents_registered={claude_subagents_registered}; "
-            f"runtime_coalescing_implemented={runtime_coalescing_implemented}; "
-            f"eligible_groups={coalescing_plan.get('eligible_group_count', 0)}"
+            f"cross_lifecycle_gate_coalescing={multi_role_policy.get('cross_lifecycle_gate_coalescing')}; "
+            f"synthetic_runtime_removed={synthetic_runtime_removed}"
         ),
         "issues": issues,
         "details": {
@@ -965,294 +966,22 @@ def _cli_native_command_surface_governance(root: Path) -> dict[str, Any]:
             "required_surfaces": sorted(required_surfaces),
             "shells_without_native_surface": sorted(shells_without_surface),
             "inventory_policy_ok": inventory_policy_ok,
-            "same_backend_policy_recorded": same_backend_policy_recorded,
+            "lifecycle_boundary_ok": lifecycle_boundary_ok,
             "hermes_kanban_registered": hermes_kanban_registered,
             "claude_subagents_registered": claude_subagents_registered,
-            "runtime_coalescing_implemented": runtime_coalescing_implemented,
-            "coalescing_plan_status": coalescing_plan.get("status", "missing"),
-            "eligible_group_count": coalescing_plan.get("eligible_group_count", 0),
-            "materialized_session_packets": materialized_session_packets,
-            "missing_session_packets": missing_session_packets,
-            "materialized_packets_exist": materialized_packets_exist,
-            "provider_calls_executed": (coalescing_plan.get("policy") or {}).get("provider_calls_executed"),
+            "cross_lifecycle_gate_coalescing": multi_role_policy.get(
+                "cross_lifecycle_gate_coalescing"
+            ),
+            "dependency_free_same_stage_coalescing": multi_role_policy.get(
+                "dependency_free_same_stage_coalescing"
+            ),
+            "synthetic_runtime_removed": synthetic_runtime_removed,
             "target_runtime_shape": (
-                "one bounded shell role-session may delegate to shell-native subagents/boards only when each "
-                "AgentLab role returns its own receipt and validation evidence"
+                "one AgentLab role-session may use shell-native subagents or boards; "
+                "dependent AgentLab roles dispatch only after the prior role receipt passes"
             ),
         },
     }
-
-
-def _cli_shell_coalesced_session_returns(root: Path) -> dict[str, Any]:
-    status_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "cli_shell_coalescing_status.yml"
-    report = _read_yaml(status_path)
-    status = report.get("status")
-    valid = (
-        status == "pass"
-        and report.get("secret_values_rendered") is False
-        and report.get("provider_calls_executed") is False
-        and report.get("missing_returned_files_count") == 0
-        and report.get("stale_returned_files_count") == 0
-        and report.get("failure_count") == 0
-        and report.get("accepted_packet_count") == report.get("expected_packet_count")
-        and report.get("accepted_role_count") == report.get("delegated_role_count")
-        and report.get("acceptance_scope") == "synthetic_native_surface_smoke"
-        and report.get("private_project_context_loaded") is False
-        and report.get("returned_shell_sessions_provider_calls_executed") is True
-        and (report.get("acceptance_contract") or {}).get("synthetic_input_only") is True
-        and (report.get("acceptance_contract") or {}).get("isolated_execution_workspace_required") is True
-        and (report.get("acceptance_contract") or {}).get("project_read_tools_allowed") is False
-    )
-    pending = (
-        status == "pending_returned_artifacts"
-        and report.get("secret_values_rendered") is False
-        and report.get("provider_calls_executed") is False
-        and report.get("acceptance_scope") == "synthetic_native_surface_smoke"
-        and report.get("private_project_context_loaded") is False
-        and isinstance(report.get("missing_returned_files"), list)
-    )
-    capability_status = "pass" if valid else ("candidate" if pending else "fail")
-    return {
-        "id": "cli_shell_coalesced_session_returns",
-        "title": "CLI coalesced shell session returned artifacts",
-        "status": capability_status,
-        "evidence": [str(status_path)],
-        "summary": (
-            f"coalesced shell status={status}; "
-            f"accepted_packets={report.get('accepted_packet_count', 0)}/{report.get('expected_packet_count', 0)}; "
-            f"accepted_roles={report.get('accepted_role_count', 0)}/{report.get('delegated_role_count', 0)}; "
-            f"missing_returned_files={report.get('missing_returned_files_count', 0)}; "
-            f"stale_returned_files={report.get('stale_returned_files_count', 0)}; "
-            f"failure_count={report.get('failure_count', 0)}"
-        ),
-        "issues": []
-        if valid
-        else (
-            ["coalesced CLI shell session packets are waiting for returned shell/role receipts and validation evidence"]
-            if pending
-            else ["coalesced CLI shell returned-artifact status is missing or failing"]
-        ),
-        "details": {
-            "plan_path": report.get("plan_path"),
-            "plan_status": report.get("plan_status"),
-            "expected_packet_count": report.get("expected_packet_count", 0),
-            "accepted_packet_count": report.get("accepted_packet_count", 0),
-            "delegated_role_count": report.get("delegated_role_count", 0),
-            "accepted_role_count": report.get("accepted_role_count", 0),
-            "missing_returned_files_count": report.get("missing_returned_files_count", 0),
-            "missing_returned_files": report.get("missing_returned_files", []),
-            "stale_returned_files_count": report.get("stale_returned_files_count", 0),
-            "stale_returned_files": report.get("stale_returned_files", []),
-            "failure_count": report.get("failure_count", 0),
-            "next_action": report.get("next_action"),
-            "acceptance_scope": report.get("acceptance_scope"),
-            "private_project_context_loaded": report.get("private_project_context_loaded"),
-            "returned_shell_sessions_provider_calls_executed": report.get(
-                "returned_shell_sessions_provider_calls_executed"
-            ),
-        },
-    }
-
-
-def _cli_shell_coalesced_runner_request(root: Path) -> dict[str, Any]:
-    request_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "cli_shell_coalescing_runner_request.yml"
-    report = _read_yaml(request_path)
-    package = report.get("local_runner_package") if isinstance(report.get("local_runner_package"), dict) else {}
-    boundary = report.get("runner_boundary") if isinstance(report.get("runner_boundary"), dict) else {}
-    status_summary = report.get("status_summary") if isinstance(report.get("status_summary"), dict) else {}
-    packets = report.get("packets") if isinstance(report.get("packets"), list) else []
-    valid = (
-        report.get("status") in {"ready_for_trusted_runner", "accepted"}
-        and request_path.exists()
-        and boundary.get("frontdesk_agent_executes_shell_sessions") is False
-        and boundary.get("trusted_shell_runner_required") is True
-        and boundary.get("provider_calls_executed_by_request_generation") is False
-        and boundary.get("shell_state_counts_as_project_memory") is False
-        and boundary.get("production_promotion_allowed") is False
-        and boundary.get("acceptance_scope") == "synthetic_native_surface_smoke"
-        and boundary.get("private_project_context_loaded") is False
-        and boundary.get("isolated_execution_workspace_required") is True
-        and boundary.get("project_read_tools_allowed") is False
-        and package.get("must_return_one_shell_receipt_per_packet") is True
-        and package.get("must_return_one_role_receipt_per_delegated_role") is True
-        and package.get("must_return_validation_evidence_per_delegated_role") is True
-        and package.get("full_run_requires_coalescing_status_pass") is True
-        and "cli-shell-coalescing-runner" in str(package.get("dry_run_command") or "")
-        and "AGENTLAB_TRUSTED_CLI_SHELL_RUNNER=1" in str(package.get("execute_command") or "")
-        and "--execute" in str(package.get("execute_command") or "")
-        and "cli-shell-coalescing-collect" in str(package.get("post_run_collect_command") or "")
-        and "cli-shell-coalescing-status" in str(package.get("status_command") or "")
-        and len(packets) == status_summary.get("packet_count")
-        and report.get("secret_values_rendered") is False
-    )
-    return {
-        "id": "cli_shell_coalesced_runner_request",
-        "title": "CLI coalesced shell trusted-runner request",
-        "status": "pass" if valid else "fail",
-        "evidence": [str(request_path)],
-        "summary": (
-            f"coalesced shell runner request status={report.get('status')}; "
-            f"packets={len(packets)}; "
-            f"missing_returned_files={status_summary.get('missing_returned_files_count', 0)}; "
-            f"frontdesk_executes={boundary.get('frontdesk_agent_executes_shell_sessions')}"
-        ),
-        "issues": [] if valid else ["coalesced CLI shell runner request missing, unsafe, or incomplete"],
-        "details": {
-            "packet_count": len(packets),
-            "expected_packet_count": status_summary.get("expected_packet_count", 0),
-            "missing_returned_files_count": status_summary.get("missing_returned_files_count", 0),
-            "status_command": package.get("status_command"),
-            "dry_run_command": package.get("dry_run_command"),
-            "execute_command": package.get("execute_command"),
-            "post_run_collect_command": package.get("post_run_collect_command"),
-            "next_action": report.get("next_action"),
-            "acceptance_scope": boundary.get("acceptance_scope"),
-            "private_project_context_loaded": boundary.get("private_project_context_loaded"),
-        },
-    }
-
-
-def _cli_shell_coalesced_runner_implementation(root: Path) -> dict[str, Any]:
-    runner_path = root / "agent_runtime" / "cli_shell_coalescing_runner.py"
-    result_path = (
-        root / "acceptance_runs" / "agentlab_capability_acceptance" / "cli_shell_coalescing_runner_result.yml"
-    )
-    report = _read_yaml(result_path)
-    backend_results = report.get("backend_results") if isinstance(report.get("backend_results"), list) else []
-    by_backend = {
-        str(item.get("backend")): item
-        for item in backend_results
-        if isinstance(item, dict) and item.get("backend")
-    }
-    expected_surfaces = {
-        "claude_code": "claude_inline_agents",
-        "hermes": "hermes_kanban",
-    }
-    valid = (
-        runner_path.is_file()
-        and result_path.is_file()
-        and report.get("status") == "ready_for_trusted_runner"
-        and report.get("execute_requested") is False
-        and report.get("provider_calls_executed") is False
-        and report.get("secret_values_rendered") is False
-        and report.get("acceptance_scope") == "synthetic_native_surface_smoke"
-        and report.get("private_project_context_loaded") is False
-        and report.get("isolated_execution_workspace_required") is True
-        and report.get("project_read_tools_allowed") is False
-        and set(by_backend) == set(expected_surfaces)
-        and all(by_backend[key].get("status") == "planned" for key in expected_surfaces)
-        and all(
-            by_backend[key].get("native_surface_used") == surface
-            for key, surface in expected_surfaces.items()
-        )
-        and all(isinstance(by_backend[key].get("command_preview"), dict) for key in expected_surfaces)
-    )
-    return {
-        "id": "cli_shell_coalesced_runner_implementation",
-        "title": "CLI coalesced shell trusted-runner implementation",
-        "status": "pass" if valid else "fail",
-        "evidence": [str(runner_path), str(result_path)],
-        "summary": (
-            f"runner dry-run status={report.get('status')}; "
-            f"execute_requested={report.get('execute_requested')}; "
-            f"provider_calls_executed={report.get('provider_calls_executed')}; "
-            f"backends={','.join(sorted(by_backend))}"
-        ),
-        "issues": [] if valid else ["coalesced CLI shell trusted runner is missing or its dry-run contract failed"],
-        "details": {
-            "runner_path": str(runner_path),
-            "result_path": str(result_path),
-            "backend_statuses": {key: item.get("status") for key, item in by_backend.items()},
-            "native_surfaces": {key: item.get("native_surface_used") for key, item in by_backend.items()},
-            "execute_requested": report.get("execute_requested"),
-            "provider_calls_executed": report.get("provider_calls_executed"),
-            "next_action": report.get("next_action"),
-            "acceptance_scope": report.get("acceptance_scope"),
-            "private_project_context_loaded": report.get("private_project_context_loaded"),
-        },
-    }
-
-
-def _cli_shell_coalesced_collect(root: Path) -> dict[str, Any]:
-    collect_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "cli_shell_coalescing_collect.yml"
-    report = _read_yaml(collect_path)
-    refreshed = report.get("refreshed_reports") if isinstance(report.get("refreshed_reports"), dict) else {}
-    coalescing_status = (
-        report.get("coalescing_status") if isinstance(report.get("coalescing_status"), dict) else {}
-    )
-    acceptance_refresh = (
-        report.get("acceptance_refresh") if isinstance(report.get("acceptance_refresh"), dict) else {}
-    )
-    source_hashes = report.get("source_report_sha256") if isinstance(report.get("source_report_sha256"), dict) else {}
-    required_refreshed = {
-        "cli_shell_coalescing_status",
-        "cli_shell_coalescing_runner_request",
-        "capability_acceptance",
-        "objective_requirement_audit",
-        "goal_completion_audit",
-        "acceptance_report_hygiene",
-    }
-    source_reports = {
-        "cli_shell_coalescing_status": root / str(refreshed.get("cli_shell_coalescing_status") or ""),
-        "cli_shell_coalescing_runner_request": root
-        / str(refreshed.get("cli_shell_coalescing_runner_request") or ""),
-    }
-    expected_source_types = {
-        "cli_shell_coalescing_status": "agentlab_cli_shell_coalescing_status",
-        "cli_shell_coalescing_runner_request": "agentlab_cli_shell_coalescing_runner_request",
-    }
-    source_report_types = {
-        key: (_read_yaml(path).get("report_type") if path.is_file() else None)
-        for key, path in source_reports.items()
-    }
-    source_hash_matches = {}
-    for key, path in source_reports.items():
-        if not path.is_file():
-            source_hash_matches[key] = False
-            continue
-        import hashlib
-
-        source_hash_matches[key] = hashlib.sha256(path.read_bytes()).hexdigest() == source_hashes.get(key)
-    valid = (
-        report.get("status") in {"pending_returned_artifacts", "pass"}
-        and collect_path.exists()
-        and report.get("provider_calls_executed") is False
-        and report.get("secret_values_rendered") is False
-        and required_refreshed.issubset(refreshed)
-        and acceptance_refresh.get("performed") is True
-        and coalescing_status.get("status") in {"pending_returned_artifacts", "pass"}
-        and report.get("runner_request_status") in {"ready_for_trusted_runner", "accepted"}
-        and source_report_types == expected_source_types
-        and all(source_hash_matches.values())
-    )
-    return {
-        "id": "cli_shell_coalesced_collect",
-        "title": "CLI coalesced shell returned-artifact collector",
-        "status": "pass" if valid else "fail",
-        "evidence": [str(collect_path)],
-        "summary": (
-            f"coalesced shell collect status={report.get('status')}; "
-            f"receipt_status={coalescing_status.get('status')}; "
-            f"refreshed_reports={len(refreshed)}; "
-            f"provider_calls_executed={report.get('provider_calls_executed')}"
-        ),
-        "issues": [] if valid else ["coalesced CLI shell collector is missing, unsafe, or incomplete"],
-        "details": {
-            "collect_status": report.get("status"),
-            "coalescing_status": coalescing_status.get("status"),
-            "runner_request_status": report.get("runner_request_status"),
-            "refreshed_reports": refreshed,
-            "acceptance_refresh": acceptance_refresh,
-            "source_report_types": source_report_types,
-            "source_hash_matches": source_hash_matches,
-            "missing_returned_files_count": coalescing_status.get("missing_returned_files_count", 0),
-            "failure_count": coalescing_status.get("failure_count", 0),
-            "provider_calls_executed": report.get("provider_calls_executed"),
-            "next_action": report.get("next_action"),
-        },
-    }
-
-
 def _live_code_promotion(root: Path, run_dir: Path) -> dict[str, Any]:
     project = "AgentLab"
     task_id = "task_live_code_ui_app_json_binding_20260707"
@@ -1275,7 +1004,12 @@ def _live_code_promotion(root: Path, run_dir: Path) -> dict[str, Any]:
         from project_artifact_steward import validate_project_artifact_governance
 
     try:
-        governance_issues = validate_project_artifact_governance(root, project, task_id)
+        governance_issues = validate_project_artifact_governance(
+            root,
+            project,
+            task_id,
+            run_dir=run_dir,
+        )
     except Exception as exc:
         governance_issues = [f"artifact governance validation failed: {exc}"]
 
@@ -1485,6 +1219,15 @@ def _crown_live_writer(root: Path) -> dict[str, Any]:
 def _trusted_runner_item(root: Path, item_id: str) -> tuple[dict[str, Any], Path]:
     status_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_status.yml"
     report = _read_yaml(status_path)
+    request = _read_yaml(
+        root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_request.yml"
+    )
+    request_id = request.get("request_id")
+    if request_id and report.get("request_id") != request_id:
+        return {}, status_path
     items = report.get("items", []) if isinstance(report.get("items"), list) else []
     item = next(
         (candidate for candidate in items if isinstance(candidate, dict) and candidate.get("id") == item_id),
@@ -1937,14 +1680,33 @@ def _external_acceptance_readiness(root: Path) -> dict[str, Any]:
         if isinstance(report.get("session_health_issues"), list)
         else []
     )
+    source_health = (
+        report.get("source_report_health")
+        if isinstance(report.get("source_report_health"), dict)
+        else {}
+    )
+    source_missing = [
+        str(path) for path in source_health.get("missing", []) if path
+    ]
+    session_report_names = {
+        "claude_writer_session_probe.yml",
+        "grok_cli_session_smoke.yml",
+    }
+    source_health_allows_temporal_session_gap = (
+        source_health.get("status") == "pass"
+        or (
+            bool(source_missing)
+            and all(Path(path).name in session_report_names for path in source_missing)
+        )
+    )
     valid = (
         report_status in {"ready_for_internal_live_smoke", "ready_for_user_input"}
-        and report.get("source_report_health", {}).get("status") == "pass"
+        and source_health.get("status") == "pass"
         and len(ready_items) == 2
     )
     route_ready_session_blocked = (
         report_status == "route_ready_session_blocked"
-        and report.get("source_report_health", {}).get("status") == "pass"
+        and source_health_allows_temporal_session_gap
         and len(ready_items) == 2
         and bool(session_health_issues)
     )
@@ -2196,32 +1958,62 @@ def _trusted_live_runner_operator_handoff(root: Path) -> dict[str, Any]:
 def _trusted_live_runner_preflight(root: Path) -> dict[str, Any]:
     preflight_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_preflight.yml"
     report = _read_yaml(preflight_path)
+    request = _read_yaml(
+        root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_request.yml"
+    )
+    request_id = request.get("request_id")
+    request_current = not request_id or report.get("request_id") == request_id
     status = report.get("status")
     checks = report.get("checks", []) if isinstance(report.get("checks"), list) else []
     passed = len([check for check in checks if isinstance(check, dict) and check.get("status") == "pass"])
+    check_ids = {
+        str(check.get("id")) for check in checks if isinstance(check, dict)
+    }
+    writer_command_current = "command:claude" in check_ids and "command:agy" not in check_ids
     valid = (
         status == "pass"
         and report.get("executes_provider_calls") is False
         and report.get("loads_private_project_context") is False
         and passed >= 5
+        and request_current
+        and writer_command_current
     )
     return {
         "id": "trusted_live_runner_preflight",
         "title": "Trusted live runner local preflight",
-        "status": "pass" if valid else "fail",
+        "status": "pass" if valid else ("candidate" if not request_current else "fail"),
         "evidence": [str(preflight_path)],
         "summary": (
             f"trusted runner preflight status={status}; "
             f"checks_passed={passed}; "
-            f"provider_calls={report.get('executes_provider_calls')}"
+            f"provider_calls={report.get('executes_provider_calls')}; "
+            f"request_current={request_current}; "
+            f"writer_command_current={writer_command_current}"
         ),
-        "issues": [] if valid else ["trusted live runner local preflight missing, unsafe, or failing"],
+        "issues": (
+            []
+            if valid
+            else ["trusted live runner preflight belongs to an older request"]
+            if not request_current
+            else ["trusted live runner local preflight missing, stale, unsafe, or failing"]
+        ),
     }
 
 
 def _trusted_live_runner_status(root: Path) -> dict[str, Any]:
     status_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_status.yml"
     report = _read_yaml(status_path)
+    request = _read_yaml(
+        root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_request.yml"
+    )
+    request_id = request.get("request_id")
+    request_current = not request_id or report.get("request_id") == request_id
     status = report.get("status")
     items = report.get("items", []) if isinstance(report.get("items"), list) else []
     pending_items = [item for item in items if isinstance(item, dict) and item.get("status") != "pass"]
@@ -2256,6 +2048,7 @@ def _trusted_live_runner_status(root: Path) -> dict[str, Any]:
         and missing_count == 0
         and stale_count == 0
         and qc_failure_count == 0
+        and request_current
     )
     inconsistent_pass_report = status == "pass" and not strict_status_pass
     if strict_status_pass:
@@ -2264,13 +2057,16 @@ def _trusted_live_runner_status(root: Path) -> dict[str, Any]:
     elif inconsistent_pass_report:
         capability_status = "fail"
         issues = ["trusted runner status reports pass, but returned-artifact acceptance invariants are inconsistent"]
-    elif status == "pending":
+    elif status == "pending" and request_current:
         capability_status = "candidate"
         issues = ["trusted runner has not returned all expected role-session acceptance artifacts"]
         if stale_count:
             issues.append("one or more role-session acceptance failures are stale after backend contract update and require rerun")
         if qc_failure_count:
             issues.append("one or more returned role-session acceptance artifacts failed local structural QC")
+    elif not request_current:
+        capability_status = "candidate"
+        issues = ["trusted runner status belongs to an older request"]
     else:
         capability_status = "fail"
         issues = ["trusted live runner status report missing or failing"]
@@ -2284,6 +2080,7 @@ def _trusted_live_runner_status(root: Path) -> dict[str, Any]:
             f"missing_items={missing_count}; "
             f"stale_items={stale_count}; "
             f"artifact_qc_failures={qc_failure_count}; "
+            f"request_current={request_current}; "
             f"acceptance_blockers={','.join(sorted(set(acceptance_blockers))) or 'none'}"
         ),
         "issues": issues,
@@ -2299,6 +2096,7 @@ def _trusted_live_runner_status(root: Path) -> dict[str, Any]:
                 ],
                 "acceptance_blockers": sorted(set(acceptance_blockers)),
                 "strict_status_pass": strict_status_pass,
+                "request_current": request_current,
                 "inconsistent_pass_report": inconsistent_pass_report,
                 "accepted_item_count": len(accepted_items),
                 "unaccepted_pass_items": [
@@ -2318,6 +2116,28 @@ def _trusted_live_runner_status(root: Path) -> dict[str, Any]:
 def _trusted_live_runner_collect(root: Path) -> dict[str, Any]:
     collect_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_collect.yml"
     report = _read_yaml(collect_path)
+    request = _read_yaml(
+        root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_request.yml"
+    )
+    request_id = request.get("request_id")
+    request_current = not request_id or report.get("request_id") == request_id
+    operator_handoff = _read_yaml(
+        root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "trusted_live_runner_operator_handoff.yml"
+    )
+    execution_boundary = (
+        operator_handoff.get("execution_boundary")
+        if isinstance(operator_handoff.get("execution_boundary"), dict)
+        else {}
+    )
+    non_private_session_health_clean = execution_boundary.get(
+        "non_private_session_health_clean"
+    )
     refreshed = report.get("refreshed_reports") if isinstance(report.get("refreshed_reports"), dict) else {}
     status = report.get("status")
     allowed_status = status in {"pending_returned_artifacts", "pass", "artifact_qc_failed"}
@@ -2388,28 +2208,39 @@ def _trusted_live_runner_collect(root: Path) -> dict[str, Any]:
     )
     valid = (
         strict_acceptance_pass
+        and request_current
         and required_reports.issubset(refreshed_keys)
         and report.get("secret_values_rendered") is False
         and handoff_status in {"ready_for_trusted_runner", "ready_for_user_terminal"}
     )
     inconsistent_pass_report = (
         status == "pass"
+        and request_current
         and required_reports.issubset(refreshed_keys)
         and report.get("secret_values_rendered") is False
         and not strict_acceptance_pass
     )
     returned_artifacts_pending = (
         allowed_status
+        and request_current
         and required_reports.issubset(refreshed_keys)
         and report.get("secret_values_rendered") is False
-        and handoff_status in {"ready_for_trusted_runner", "ready_for_user_terminal"}
+        and (
+            handoff_status in {"ready_for_trusted_runner", "ready_for_user_terminal"}
+            or (
+                handoff_status == "needs_attention"
+                and non_private_session_health_clean is True
+            )
+        )
         and (report.get("trusted_live_runner_status") or {}).get("status") == "pending"
     )
     session_health_attention = (
         allowed_status
+        and request_current
         and required_reports.issubset(refreshed_keys)
         and report.get("secret_values_rendered") is False
         and handoff_status == "needs_attention"
+        and non_private_session_health_clean is False
         and (report.get("trusted_live_runner_status") or {}).get("status") == "pending"
     )
     return {
@@ -2420,7 +2251,11 @@ def _trusted_live_runner_collect(root: Path) -> dict[str, Any]:
         else (
             "fail"
             if inconsistent_pass_report
-            else ("candidate" if returned_artifacts_pending or session_health_attention else "fail")
+            else (
+                "candidate"
+                if returned_artifacts_pending or session_health_attention or not request_current
+                else "fail"
+            )
         ),
         "evidence": [str(collect_path)],
         "summary": (
@@ -2428,6 +2263,7 @@ def _trusted_live_runner_collect(root: Path) -> dict[str, Any]:
             f"refreshed_reports={len(refreshed_keys)}; "
             f"operator_handoff={report.get('operator_handoff_status')}; "
             f"secret_values_rendered={report.get('secret_values_rendered')}; "
+            f"request_current={request_current}; "
             f"hygiene_text_artifacts={hygiene_text_artifact_count}; "
             f"hygiene_text_issues={hygiene_text_issue_count}; "
             f"hygiene_private_selected_command_hits={hygiene_stale_private_selected_command_hit_count}; "
@@ -2439,6 +2275,8 @@ def _trusted_live_runner_collect(root: Path) -> dict[str, Any]:
         else (
             ["collector reports pass, but returned-artifact acceptance invariants are inconsistent"]
             if inconsistent_pass_report
+            else ["collector belongs to an older trusted-runner request"]
+            if not request_current
             else
             ["collector refreshed reports, but returned role-session acceptance artifacts are not accepted yet"]
             if returned_artifacts_pending
@@ -2455,7 +2293,9 @@ def _trusted_live_runner_collect(root: Path) -> dict[str, Any]:
                 hygiene_stale_private_selected_command_hit_count
             ),
             "trusted_live_runner_status": report.get("trusted_live_runner_status"),
+            "non_private_session_health_clean": non_private_session_health_clean,
             "strict_acceptance_pass": strict_acceptance_pass,
+            "request_current": request_current,
             "inconsistent_pass_report": inconsistent_pass_report,
             "pending_items": pending_items,
             "acceptance_blockers": sorted(set(acceptance_blockers)),
@@ -2562,10 +2402,6 @@ def build_capability_acceptance_report(root: Path) -> dict[str, Any]:
             _frontdesk_boundary(root),
             _cli_workflow_shell_absorption(root),
             _cli_native_command_surface_governance(root),
-            _cli_shell_coalesced_runner_implementation(root),
-            _cli_shell_coalesced_runner_request(root),
-            _cli_shell_coalesced_collect(root),
-            _cli_shell_coalesced_session_returns(root),
             _live_code_candidate(root),
             _crown_live_writer(root),
             _crown_formal_live_eval(root),

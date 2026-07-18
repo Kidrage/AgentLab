@@ -5,6 +5,10 @@ from typing import Any, Dict, Optional
 import yaml
 
 
+def default_performance_ledger_path(agentlab_root: Path) -> Path:
+    return Path(agentlab_root) / ".agentlab" / "runtime" / "worker_performance_ledger.yml"
+
+
 class PerformanceLedger:
     def __init__(self, ledger_path: Path) -> None:
         self.ledger_path = ledger_path

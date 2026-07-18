@@ -126,6 +126,91 @@ def _write_batch_chapter(root: Path, chapter: int, eval_id: str) -> None:
         'Propagating selected model override to backend: label="Gemini 3.5 Flash (High)"\n',
         encoding="utf-8",
     )
+    (run_dir / "workflow_plan.yml").write_text(
+        yaml.safe_dump(
+            {
+                "task_id": task_id,
+                "included_agents": {"Writer": {"role_alias_of": "ArtifactProducer"}},
+                "model_profiles": {
+                    "Writer": {
+                        "provider": "agy-gemini-oauth",
+                        "model": "gemini-3.5-flash-high",
+                    }
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "live_writer_role_session_guard.yml").write_text(
+        yaml.safe_dump(
+            {
+                "status": "pass",
+                "role": "Writer",
+                "worker": "agy",
+                "project": "Crown_of_Ash",
+                "task_id": task_id,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_deepseek_execution(root: Path, chapter: int, eval_id: str) -> Path:
+    task_id = f"task_narrative_eval_ch{chapter:02d}_{eval_id}"
+    run_dir = root / "projects" / "Crown_of_Ash" / "runs" / task_id
+    (run_dir / "workflow_plan.yml").write_text(
+        yaml.safe_dump(
+            {
+                "task_id": task_id,
+                "included_agents": {"Writer": {"execution_owner": "claude_code"}},
+                "model_profiles": {
+                    "Writer": {"provider": "deepseek", "model": "deepseek-v4-pro"}
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "live_writer_role_session_guard.yml").write_text(
+        yaml.safe_dump(
+            {
+                "status": "pass",
+                "role": "Writer",
+                "worker": "claude_code",
+                "project": "Crown_of_Ash",
+                "task_id": task_id,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "model_execution_chain_writer.yml").write_text(
+        yaml.safe_dump(
+            {
+                "role": "Writer",
+                "status": "pass",
+                "attempts": [
+                    {
+                        "status": "pass",
+                        "provider": "deepseek",
+                        "selected_model": "deepseek-v4-pro",
+                        "fallback_detected": False,
+                    }
+                ],
+                "fallback_used": False,
+                "final": {
+                    "status": "pass",
+                    "provider": "deepseek",
+                    "model": "deepseek-v4-pro",
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return run_dir
 
 
 def test_crown_completion_batch_audit_checks_one_continuous_chain(tmp_path: Path) -> None:
@@ -147,6 +232,52 @@ def test_crown_completion_batch_audit_checks_one_continuous_chain(tmp_path: Path
     assert report["summary"]["production_manuscript_files"] == []
     assert report["warnings"] == []
     assert report["issues"] == []
+
+
+def test_crown_completion_batch_audit_accepts_declared_deepseek_writer(
+    tmp_path: Path,
+) -> None:
+    manuscript = tmp_path / "projects" / "Crown_of_Ash" / "production" / "manuscript"
+    manuscript.mkdir(parents=True)
+    _write_batch_chapter(tmp_path, 1, "fixture")
+    _write_deepseek_execution(tmp_path, 1, "fixture")
+
+    report = build_crown_completion_batch_audit(
+        tmp_path,
+        eval_id="fixture",
+        through_chapter=1,
+    )
+
+    assert report["status"] == "pass"
+    execution = report["chapters"][0]["writer_execution"]
+    assert execution["status"] == "pass"
+    assert execution["mode"] == "model_execution_chain"
+    assert execution["expected"] == execution["observed"]
+
+
+def test_crown_completion_batch_audit_rejects_writer_model_fallback(
+    tmp_path: Path,
+) -> None:
+    manuscript = tmp_path / "projects" / "Crown_of_Ash" / "production" / "manuscript"
+    manuscript.mkdir(parents=True)
+    _write_batch_chapter(tmp_path, 1, "fixture")
+    run_dir = _write_deepseek_execution(tmp_path, 1, "fixture")
+    chain_path = run_dir / "model_execution_chain_writer.yml"
+    chain = yaml.safe_load(chain_path.read_text(encoding="utf-8"))
+    chain["fallback_used"] = True
+    chain_path.write_text(yaml.safe_dump(chain, sort_keys=False), encoding="utf-8")
+
+    report = build_crown_completion_batch_audit(
+        tmp_path,
+        eval_id="fixture",
+        through_chapter=1,
+    )
+
+    assert report["status"] == "fail"
+    execution = report["chapters"][0]["writer_execution"]
+    assert execution["status"] == "fail"
+    assert execution["issues"] == ["model_chain_fallback"]
+    assert "writer_execution_contract" in report["chapters"][0]["issues"]
 
 
 def test_crown_completion_batch_audit_rejects_cross_chapter_passage_reuse(

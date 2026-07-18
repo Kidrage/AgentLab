@@ -88,6 +88,11 @@ def _production_manuscript_files(project_root: Path) -> list[str]:
     ]
 
 
+def production_manuscript_files(project_root: Path) -> list[str]:
+    """Public candidate-boundary check shared by background delivery workers."""
+    return _production_manuscript_files(project_root)
+
+
 def build_crown_live_candidate_audit(
     root: Path,
     *,
@@ -226,6 +231,107 @@ def _model_label(log_path: Path) -> str | None:
     return labels[-1] if labels else None
 
 
+def validate_writer_execution_contract(run_dir: Path, task_id: str) -> dict[str, Any]:
+    """Validate Writer provenance against the execution contract recorded by the run."""
+    workflow = _read_yaml(run_dir / "workflow_plan.yml")
+    guard = _read_yaml(run_dir / "live_writer_role_session_guard.yml")
+    chain_path = run_dir / "model_execution_chain_writer.yml"
+    chain = _read_yaml(chain_path)
+
+    included_agents = workflow.get("included_agents")
+    writer_agent = (
+        included_agents.get("Writer")
+        if isinstance(included_agents, dict)
+        and isinstance(included_agents.get("Writer"), dict)
+        else {}
+    )
+    model_profiles = workflow.get("model_profiles")
+    writer_model = (
+        model_profiles.get("Writer")
+        if isinstance(model_profiles, dict)
+        and isinstance(model_profiles.get("Writer"), dict)
+        else {}
+    )
+    expected_provider = writer_model.get("provider")
+    expected_model = writer_model.get("model")
+    expected_worker = writer_agent.get("execution_owner")
+    legacy_agy = (
+        expected_provider == "agy-gemini-oauth"
+        and expected_model == "gemini-3.5-flash-high"
+    )
+    if not expected_worker and legacy_agy:
+        expected_worker = "agy"
+
+    issues: list[str] = []
+    if workflow.get("task_id") != task_id:
+        issues.append("workflow_task_id")
+    if not expected_provider or not expected_model:
+        issues.append("workflow_writer_model")
+    if not expected_worker:
+        issues.append("workflow_execution_owner")
+    if guard.get("status") != "pass":
+        issues.append("role_session_guard_status")
+    if guard.get("role") != "Writer":
+        issues.append("role_session_guard_role")
+    if guard.get("task_id") != task_id:
+        issues.append("role_session_guard_task_id")
+    if guard.get("project") != "Crown_of_Ash":
+        issues.append("role_session_guard_project")
+    if expected_worker and guard.get("worker") != expected_worker:
+        issues.append("role_session_guard_worker")
+
+    mode = "model_execution_chain"
+    observed_provider = None
+    observed_model = None
+    if chain_path.is_file():
+        final = chain.get("final") if isinstance(chain.get("final"), dict) else {}
+        attempts = chain.get("attempts") if isinstance(chain.get("attempts"), list) else []
+        observed_provider = final.get("provider")
+        observed_model = final.get("model")
+        if chain.get("role") != "Writer":
+            issues.append("model_chain_role")
+        if chain.get("status") != "pass":
+            issues.append("model_chain_status")
+        if chain.get("fallback_used") is not False:
+            issues.append("model_chain_fallback")
+        if any(
+            isinstance(attempt, dict) and attempt.get("fallback_detected") is True
+            for attempt in attempts
+        ):
+            issues.append("model_chain_attempt_fallback")
+        if final.get("status") != "pass":
+            issues.append("model_chain_final_status")
+        if observed_provider != expected_provider:
+            issues.append("model_chain_provider")
+        if observed_model != expected_model:
+            issues.append("model_chain_model")
+    else:
+        mode = "legacy_agy_log"
+        observed_provider = "agy-gemini-oauth" if legacy_agy else None
+        observed_model = "gemini-3.5-flash-high" if legacy_agy else None
+        if not legacy_agy:
+            issues.append("model_chain_missing")
+        if _model_label(run_dir / "command_logs" / "agy_cli_agent.log") != AGY_HIGH_MODEL_LABEL:
+            issues.append("legacy_agy_model_label")
+
+    return {
+        "status": "pass" if not issues else "fail",
+        "mode": mode,
+        "expected": {
+            "worker": expected_worker,
+            "provider": expected_provider,
+            "model": expected_model,
+        },
+        "observed": {
+            "worker": guard.get("worker"),
+            "provider": observed_provider,
+            "model": observed_model,
+        },
+        "fallback_used": chain.get("fallback_used") if chain_path.is_file() else False,
+        "issues": issues,
+    }
+
+
 def build_crown_completion_batch_audit(
     root: Path,
     *,
@@ -270,6 +376,7 @@ def build_crown_completion_batch_audit(
         proposal = _read_yaml(run_dir / "state_transition_proposal.yml")
         receipt = _read_yaml(run_dir / "narrative_delivery_receipt.yml")
         contract = _read_yaml(run_dir / "writer_output_contract.yml")
+        writer_execution = validate_writer_execution_contract(run_dir, task_id)
         delivery = validate_narrative_delivery(run_dir)
         draft = (run_dir / "fiction_draft.md").read_text(encoding="utf-8", errors="replace")
         intent = packet.get("chapter_intent") if isinstance(packet.get("chapter_intent"), dict) else {}
@@ -304,7 +411,7 @@ def build_crown_completion_batch_audit(
             "receipt": receipt.get("status") == "pass"
             and receipt.get("candidate_only") is True
             and all((receipt.get("checks") or {}).get(name) == "pass" for name in BATCH_RECEIPT_CHECKS),
-            "agy_high_model": _model_label(run_dir / "command_logs" / "agy_cli_agent.log") == AGY_HIGH_MODEL_LABEL,
+            "writer_execution_contract": writer_execution.get("status") == "pass",
         }
         draft_hash = hashlib.sha256(draft.encode("utf-8")).hexdigest()
         checks["unique_draft"] = draft_hash not in seen_drafts
@@ -397,6 +504,7 @@ def build_crown_completion_batch_audit(
                 "status": "pass" if not chapter_issues else "fail",
                 "draft_characters": len(draft),
                 "candidate_event_count": len(events),
+                "writer_execution": writer_execution,
                 "issues": chapter_issues,
             }
         )

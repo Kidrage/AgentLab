@@ -185,6 +185,52 @@ def test_workflow_plan_routes_narrative_audit_to_heavy_path(tmp_path: Path) -> N
     } <= set(_memory_task_state(plan))
 
 
+def test_workflow_plan_routes_blocking_rewrite_to_narrative_planner(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[1]
+    request = tmp_path / "user_request.md"
+    request.write_text(
+        "根据 heavy audit 的 blocking findings 重写 Crown_of_Ash 第1章到第200章规划。",
+        encoding="utf-8",
+    )
+
+    plan = build_workflow_plan(
+        root,
+        "Crown_of_Ash",
+        "task_crown_rewrite_plan_ch001_ch200",
+        user_request_path=request,
+    )
+
+    assert plan.route.route_key == "narrative_rewrite_plan"
+    assert plan.route.agents == ["Supervisor", "NarrativePlanner"]
+    assert plan.production_pack["pack_id"] == "narrative_longform"
+    assert plan.validation_gates == [
+        {
+            "id": "chapter_state_plan",
+            "owner": "NarrativePlanner",
+            "required": True,
+            "description": (
+                "Convert blocking heavy-audit evidence into one ordered, "
+                "candidate-only chapter state plan for a later Writer run."
+            ),
+            "evidence": ["chapter_state_plan.yml"],
+        }
+    ]
+    planner = plan.included_agents["NarrativePlanner"]
+    assert planner["required_outputs"] == ["runs/task_xxxx/chapter_state_plan.yml"]
+    planner_execution = plan.model_profiles["NarrativePlanner"]
+    assert planner_execution["cli_agent"] == "claude_code"
+    assert planner_execution["invocation_contract"] == "claude_narrative_planner"
+    assert {
+        "narrative_rewrite_contract.yml",
+        "chapter_state_plan.yml",
+        "narrative_planner_validation.yml",
+    } <= set(_memory_task_state(plan))
+    _assert_no_code_shell_contract(plan)
+    _assert_no_code_shell_task_state(plan)
+
+
 def test_workflow_plan_routes_chapter_range_to_narrative_batch_path(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     request = tmp_path / "user_request.md"

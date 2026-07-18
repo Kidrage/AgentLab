@@ -62,6 +62,7 @@ NODE_TO_AGENT = {
     "RESEARCH_OPTIONAL": "Researcher",
     "OBSERVATION_OPTIONAL": "Observer",
     "INTERFACE_OPTIONAL": "InterfaceMapper",
+    "NARRATIVE_REWRITE_PLAN": "NarrativePlanner",
     "WRITER_DRAFT": "Writer",
     "FICTION_REVIEW": "Reviewer",
     "SCRIBE_LEDGER": "Scribe",
@@ -81,6 +82,7 @@ NODE_TO_REPORT = {
     "RESEARCH_OPTIONAL": "03_research_notes.md",
     "OBSERVATION_OPTIONAL": "observation_report.yml",
     "INTERFACE_OPTIONAL": "04_interface_map.md",
+    "NARRATIVE_REWRITE_PLAN": "chapter_state_plan.yml",
     "WRITER_DRAFT": "fiction_draft.md",
     "FICTION_REVIEW": "fiction_review.yml",
     "SCRIBE_LEDGER": "continuity_ledger.yml",
@@ -101,7 +103,7 @@ NODE_TO_PROGRESS = {
     "CONTEXT_BUDGET": "context_budget", "CONTEXT_PACK": "context_pack", "PREPARE_PLAN": "planning",
     "SUPERVISOR_PLAN": "planning", "REPO_CONTEXT": "scouting",
     "RESEARCH_OPTIONAL": "research", "OBSERVATION_OPTIONAL": "observing",
-    "INTERFACE_OPTIONAL": "interfacing",
+    "INTERFACE_OPTIONAL": "interfacing", "NARRATIVE_REWRITE_PLAN": "rewrite_planning",
     "WRITER_DRAFT": "writing", "FICTION_REVIEW": "reviewing", "SCRIBE_LEDGER": "ledgering",
     "CODER_IMPLEMENTATION": "implementation", "ARTIFACT_PRODUCTION": "artifact_production",
     "VISUAL_OBSERVATION": "visual_observing", "VISUAL_REVIEW": "visual_reviewing",
@@ -114,7 +116,7 @@ NODE_TO_PCT = {
     "INIT_TASK": 5, "CONTEXT_PROFILE": 7, "CONTEXT_BUDGET": 8, "CONTEXT_PACK": 9,
     "PREPARE_PLAN": 10, "SUPERVISOR_PLAN": 20,
     "REPO_CONTEXT": 30, "RESEARCH_OPTIONAL": 35, "OBSERVATION_OPTIONAL": 38,
-    "INTERFACE_OPTIONAL": 40,
+    "INTERFACE_OPTIONAL": 40, "NARRATIVE_REWRITE_PLAN": 42,
     "WRITER_DRAFT": 45, "FICTION_REVIEW": 50, "SCRIBE_LEDGER": 53,
     "CODER_IMPLEMENTATION": 55, "ARTIFACT_PRODUCTION": 62,
     "VISUAL_OBSERVATION": 65, "VISUAL_REVIEW": 68,
@@ -2882,6 +2884,33 @@ def run_next_node(
                         ],
                         report_path=run_dir / "visual_acceptance_decision.yml",
                     )
+        elif agent == "NarrativePlanner":
+            from agent_runtime.narrative_delivery import (
+                narrative_planner_validation_issues,
+                write_narrative_planner_validation,
+            )
+
+            report_content = native_report_content or result.content or ""
+            if native_report_content is None:
+                report_path.parent.mkdir(parents=True, exist_ok=True)
+                report_path.write_text(report_content, encoding="utf-8")
+            validation = write_narrative_planner_validation(
+                Path(plan.project_root),
+                run_dir,
+                report_path,
+            )
+            planner_issues = narrative_planner_validation_issues(validation)
+            if planner_issues:
+                return _block_on_artifact_gate(
+                    agentlab_root,
+                    run_dir,
+                    project,
+                    task_id,
+                    nid,
+                    agent,
+                    planner_issues,
+                    report_path=run_dir / "narrative_planner_validation.yml",
+                )
         elif agent == "Writer":
             try:
                 from agent_runtime.writer_output_materializer import materialize_writer_candidate_result

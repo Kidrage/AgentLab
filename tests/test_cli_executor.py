@@ -75,7 +75,8 @@ def _hermes_supervisor_fixture(
                         "workflow_shell_profile": "agentlabsupervisor",
                         "template": (
                             "hermes -p agentlabsupervisor chat -Q --provider {provider} "
-                            "-m {model_id} -q \"Read {task_packet_path}\""
+                            "-m {model_id} --ignore-rules --max-turns 6 "
+                            "-q \"Read {task_packet_path}\""
                         ),
                         "required_shell_state": {
                             "model.provider": "openai-codex",
@@ -119,6 +120,49 @@ def _hermes_supervisor_fixture(
         "default": "supervisor_model",
     }
     return role_profile, hermes_home
+
+
+def test_qwen_role_contract_maps_dashscope_auth_without_cli_secret(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _contract_process_environment
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "qwen": {
+                        "environment": {
+                            "api_key_source": "DASHSCOPE_API_KEY",
+                            "api_key_target": "OPENAI_API_KEY",
+                            "base_url_target": "OPENAI_BASE_URL",
+                            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                        }
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "dashscope-test-secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "stale-openai-secret")
+
+    process_env, _ = _contract_process_environment(
+        {"cli_agent": "qwen", "invocation_contract": "qwen"},
+        tmp_path,
+    )
+
+    assert process_env["OPENAI_API_KEY"] == "dashscope-test-secret"
+    assert process_env["OPENAI_BASE_URL"] == (
+        "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )
 
 
 @pytest.mark.parametrize(
@@ -1143,7 +1187,7 @@ class TestRunCliAgentSubprocess:
             result = run_cli_agent(plan, "Supervisor", role_profile)
 
         assert result.status == "completed"
-        assert observed["argv"][:10] == [
+        assert observed["argv"][:9] == [
             "hermes",
             "-p",
             "agentlabsupervisor",
@@ -1153,6 +1197,11 @@ class TestRunCliAgentSubprocess:
             "openai-codex",
             "-m",
             "gpt-5.6-sol",
+        ]
+        assert observed["argv"][9:13] == [
+            "--ignore-rules",
+            "--max-turns",
+            "6",
             "-q",
         ]
         assert result.raw_usage["hermes_profile_preflight"]["status"] == "pass"
@@ -1704,6 +1753,270 @@ class TestRunCliAgentSubprocess:
         assert "sealed chapter context" not in command["command"]
         assert "sealed chapter context" not in " ".join(command["argv"])
         assert result.raw_usage["inline_sealed_prompt"] is False
+
+    def test_qwen_narrative_audit_reads_sealed_packet_from_stdin_and_extracts_result(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        plan.route.route_key = "narrative_heavy_audit"
+        plan.route.agents = ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        source = run_dir / "narrative_audit_context.md"
+        source.write_text("complete bounded context\n", encoding="utf-8")
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "contracts": {
+                        "qwen_narrative_audit": {
+                            "worker_id": "qwen",
+                            "model_profile": "qwen3_6_flash_dashscope",
+                            "packet_delivery": "stdin",
+                            "structured_output": "narrative_heavy_audit",
+                            "environment": {
+                                "api_key_source": "DASHSCOPE_API_KEY",
+                                "api_key_target": "OPENAI_API_KEY",
+                                "base_url_target": "OPENAI_BASE_URL",
+                                "base_url": "https://dashscope.example/v1",
+                            },
+                            "template": (
+                                "qwen --bare --auth-type openai "
+                                "--openai-base-url https://dashscope.example/v1 "
+                                "--model {model_id} --approval-mode default "
+                                "--max-session-turns 2 "
+                                "--exclude-tools "
+                                "edit,write_file,read_file,grep_search,glob,run_shell_command,"
+                                "todo_write,save_memory,agent,skill,exit_plan_mode,enter_plan_mode,"
+                                "web_fetch,list_directory,lsp,ask_user_question,cron_create,"
+                                "cron_list,cron_delete,loop_wakeup,task_stop,task_create,task_update,"
+                                "task_list,team_create,team_delete,send_message,monitor,notebook_edit,"
+                                "tool_search,enter_worktree,exit_worktree,workflow,artifact "
+                                "--max-tool-calls 1 "
+                                "--json-schema @narrative_heavy_audit_output.schema.json "
+                                "--output-format stream-json"
+                            ),
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "models": {
+                        "qwen3_6_flash_dashscope": {
+                            "provider": "dashscope_cn",
+                            "model_id": "qwen3.6-flash",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "codex",
+            "invocation_contract": "qwen_narrative_audit",
+            "default": "deepseek_v4_flash",
+        }
+        structured_result = {
+            "fiction_review": {
+                "schema_version": 1,
+                "status": "pass",
+                "candidate_only": True,
+                "production_modified": False,
+                "findings": [],
+            },
+            "continuity_failure_report": {
+                "schema_version": 1,
+                "status": "pass",
+                "candidate_only": True,
+                "production_modified": False,
+                "blocking_issue_count": 0,
+                "failures": [],
+            },
+        }
+        stdout = "\n".join(
+            json.dumps(event)
+            for event in [
+                {"type": "system", "subtype": "init"},
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "result": structured_result,
+                    "usage": {
+                        "input_tokens": 1234,
+                        "output_tokens": 234,
+                        "total_tokens": 1468,
+                    },
+                },
+            ]
+        )
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            observed["argv"] = list(argv)
+            observed["kwargs"] = dict(kwargs)
+            observed["packet"] = json.loads(kwargs["input"])
+            schema_path = Path(kwargs["cwd"]) / "narrative_heavy_audit_output.schema.json"
+            observed["schema"] = json.loads(schema_path.read_text(encoding="utf-8"))
+            return self._mock_proc(0, stdout=stdout, stderr="")
+
+        with patch.dict(
+            "cli_executor.os.environ",
+            {
+                "DASHSCOPE_API_KEY": "private-test-key",
+                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
+            },
+            clear=False,
+        ), patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/qwen"
+        ), patch(
+            "cli_executor.subprocess.run", side_effect=fake_run
+        ):
+            result = run_cli_agent(
+                plan,
+                "Reviewer",
+                role_profile,
+                sealed_messages=[
+                    {"role": "system", "content": "Do not call tools."},
+                    {"role": "user", "content": "Audit all 20 chapters."},
+                ],
+                outbound_source_paths=[source],
+            )
+
+        assert result.status == "completed"
+        assert observed["packet"]["packet_type"] == "agentlab_sealed_role_session"
+        kwargs = observed["kwargs"]
+        assert "stdin" not in kwargs
+        assert kwargs["input"]
+        argv = observed["argv"]
+        assert argv[0] == "qwen"
+        assert argv[argv.index("--model") + 1] == "qwen3.6-flash"
+        assert argv[argv.index("--max-tool-calls") + 1] == "1"
+        assert "--core-tools" not in argv
+        assert argv[argv.index("--output-format") + 1] == "stream-json"
+        excluded_tools = set(argv[argv.index("--exclude-tools") + 1].split(","))
+        assert "structured_output" not in excluded_tools
+        assert {
+            "read_file",
+            "write_file",
+            "edit",
+            "grep_search",
+            "glob",
+            "run_shell_command",
+            "list_directory",
+            "todo_write",
+            "agent",
+            "tool_search",
+        } <= excluded_tools
+        assert argv[argv.index("--json-schema") + 1] == (
+            "@narrative_heavy_audit_output.schema.json"
+        )
+        assert not any(arg.endswith("task_packet_reviewer.json") for arg in argv)
+        assert "<!-- AGENTLAB_EDIT: fiction_review.yml -->" in result.content
+        assert "<!-- AGENTLAB_EDIT: continuity_failure_report.yml -->" in result.content
+        assert "candidate_only: true" in result.content
+        assert '\"type\": \"result\"' not in result.content
+        assert result.input_tokens == 1234
+        assert result.output_tokens == 234
+        assert result.raw_usage["sealed_packet_stdin"] is True
+        assert result.raw_usage["cli_agent"] == "qwen"
+        assert observed["schema"]["required"] == [
+            "fiction_review",
+            "continuity_failure_report",
+        ]
+
+
+    def test_narrative_heavy_audit_structured_schema_requires_scribe_boundaries(
+        self,
+    ) -> None:
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _narrative_heavy_audit_output_schema
+
+        schema = _narrative_heavy_audit_output_schema("Scribe")
+
+        assert "files" not in schema["properties"]
+        assert set(schema["required"]) >= {
+            "schema_version",
+            "status",
+            "candidate_only",
+            "production_modified",
+            "requires_user_promotion",
+            "events",
+        }
+        assert schema["properties"]["candidate_only"] == {
+            "enum": [True, "true"]
+        }
+        assert schema["properties"]["production_modified"] == {
+            "enum": [False, "false"]
+        }
+        assert schema["properties"]["events"]["items"]["properties"][
+            "scope"
+        ] == {"const": "candidate_only"}
+
+    def test_blocking_verifier_schema_requires_nonempty_direct_rewrite_proposal(
+        self,
+    ) -> None:
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import (
+            _narrative_heavy_audit_blocks_from_output,
+            _narrative_heavy_audit_output_schema,
+        )
+
+        schema = _narrative_heavy_audit_output_schema(
+            "Verifier",
+            blocking_rewrite_required=True,
+        )
+
+        assert "files" not in schema["properties"]
+        assert schema["properties"]["status"] == {"const": "proposed"}
+        assert schema["properties"]["rewrite_required"] == {
+            "enum": [True, "true"]
+        }
+        assert schema["properties"]["proposals"]["minItems"] == 1
+
+        content = {
+            "schema_version": "1",
+            "candidate_only": "true",
+            "production_modified": "false",
+            "status": "proposed",
+            "rewrite_required": "true",
+            "direct_draft_edits": "false",
+            "proposals": [{"issue_id": "C001", "action": "Rewrite chapter 58."}],
+        }
+        stdout = json.dumps(
+            {
+                "type": "result",
+                "subtype": "success",
+                "structured_result": content,
+            }
+        )
+
+        blocks = _narrative_heavy_audit_blocks_from_output(stdout, "Verifier")
+
+        assert blocks is not None
+        assert "<!-- AGENTLAB_EDIT: revision_or_rewrite_proposal.yml -->" in blocks
+        assert "schema_version: 1" in blocks
+        assert "candidate_only: true" in blocks
+        assert "production_modified: false" in blocks
+        assert "rewrite_required: true" in blocks
+        assert "direct_draft_edits: false" in blocks
+        assert "issue_id: C001" in blocks
 
     def test_observer_stages_only_manifested_multimodal_input_read_only(self, tmp_path):
         import sys

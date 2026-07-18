@@ -12,9 +12,13 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 from run_task import app  # noqa: E402
 
 
-def test_prepare_frugal_budget_persists_and_stdout_is_summary() -> None:
+def test_prepare_frugal_budget_persists_and_stdout_is_summary(
+    isolated_agentlab_root: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AGENTLAB_ROOT", str(isolated_agentlab_root))
     task_id = "task_prepare_frugal_summary_regression"
-    run_dir = ROOT / "projects" / "AgentLab" / "runs" / task_id
+    run_dir = isolated_agentlab_root / "projects" / "AgentLab" / "runs" / task_id
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "user_request.md").write_text(
         "Implement a small AgentLab UI code change and keep this run low cost.",

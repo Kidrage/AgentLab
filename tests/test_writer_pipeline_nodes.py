@@ -39,6 +39,14 @@ def test_fiction_route_enables_writer_reviewer_scribe_nodes(tmp_path: Path):
     assert NODE_TO_REPORT["SCRIBE_LEDGER"] == "continuity_ledger.yml"
 
 
+def test_narrative_rewrite_planner_has_independent_lifecycle_node():
+    assert NODE_REQUIRED_OUTPUTS["NARRATIVE_REWRITE_PLAN"] == [
+        "chapter_state_plan.yml"
+    ]
+    assert NODE_TO_AGENT["NARRATIVE_REWRITE_PLAN"] == "NarrativePlanner"
+    assert NODE_TO_REPORT["NARRATIVE_REWRITE_PLAN"] == "chapter_state_plan.yml"
+
+
 def test_narrative_light_route_skips_heavy_lifecycle_nodes(tmp_path: Path):
     workflow = {
         "route": {

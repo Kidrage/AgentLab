@@ -53,7 +53,7 @@ def test_external_acceptance_readiness_names_internal_live_smoke_actions(
     assert report["readiness_type"] == "internal_agentlab_live_smoke"
     assert report["status"] in {"ready_for_internal_live_smoke", "route_ready_session_blocked"}
     assert report["source_report_health"]["status"] in {"pass", "missing_evidence"}
-    assert by_id["objective_has_no_active_external_blockers"]["status"] == "pass"
+    assert by_id["internal_role_routes_own_execution"]["status"] == "pass"
     assert by_id["crown_writer_internal_route_ready"]["status"] == "pass"
     assert by_id["grok_media_internal_route_ready"]["status"] == "pass"
     assert by_id["secret_values_not_rendered"]["status"] == "pass"

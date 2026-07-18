@@ -280,6 +280,98 @@ def test_narrative_eval_reset_mock_generates_candidate_chapters_without_producti
     assert production_after == production_before
 
 
+def test_narrative_eval_blocks_long_generation_without_chapter_state_plan(
+    tmp_path: Path,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+
+    result = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[1, 2, 3, 4, 5, 6],
+        timestamp="20260705T003000Z",
+    )
+
+    assert result["status"] == "fail"
+    assert result["chapter_state_plan_validation"]["status"] == "fail"
+    assert result["layers"]["L2_real_chapter_sample"]["status"] == "blocked"
+    assert result["layers"]["L2_real_chapter_sample"]["chapters"] == []
+    assert not (project_root / "runs" / "task_narrative_eval_ch01_20260705T003000Z").exists()
+
+
+def test_narrative_eval_uses_valid_chapter_state_plan_for_long_generation(
+    tmp_path: Path,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    plan_ref = "runs/task_plan/chapter_state_plan.yml"
+    entries = []
+    for chapter in range(1, 7):
+        entries.append(
+            {
+                "chapter": chapter,
+                "title": f"Chapter {chapter}",
+                "volume": "Volume One",
+                "phase": "Opening",
+                "timeline_slot": f"day-{chapter}",
+                "pov": "Kane",
+                "opening_state": f"opening {chapter}",
+                "scene_goal": f"distinct scene {chapter}",
+                "irreversible_plot_change": f"irreversible change {chapter}",
+                "character_state_change": f"character change {chapter}",
+                "relationship_or_worldline_change": f"worldline change {chapter}",
+                "foreshadowing_action": f"foreshadowing action {chapter}",
+                "closing_state": f"closing {chapter}",
+                "must_not_repeat": [f"resolved event {chapter - 1}"],
+            }
+        )
+    _write_yaml(
+        project_root / plan_ref,
+        {
+            "schema_version": 1,
+            "project": "Crown_of_Ash",
+            "status": "candidate",
+            "candidate_only": True,
+            "production_modified": False,
+            "chapter_range": [1, 6],
+            "target_character_range": [4500, 5500],
+            "hard_character_range": [3000, 8000],
+            "chapter_state_plan": entries,
+            "validation_contract": {
+                "exact_chapter_count": 6,
+                "ordered_unique_chapters": True,
+                "unique_scene_goals": True,
+                "unique_irreversible_plot_changes": True,
+                "monotonic_story_state": True,
+            },
+        },
+    )
+
+    result = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[1, 2, 3, 4, 5, 6],
+        timestamp="20260705T004000Z",
+        chapter_state_plan=plan_ref,
+    )
+
+    assert result["chapter_state_plan_validation"]["status"] == "pass"
+    assert result["layers"]["L2_real_chapter_sample"]["status"] == "pass"
+    packet = yaml.safe_load(
+        (
+            project_root
+            / "runs"
+            / "task_narrative_eval_ch06_20260705T004000Z"
+            / "chapter_packet.yml"
+        ).read_text(encoding="utf-8")
+    )
+    assert packet["chapter_intent"]["source_kind"] == "candidate_chapter_state_plan"
+    assert packet["chapter_intent"]["plot_state_change"] == "irreversible change 6"
+
+
 def test_narrative_eval_blocks_generation_when_fact_snapshot_missing(tmp_path: Path) -> None:
     root = _copy_config_root(tmp_path)
     project_root = _make_crown_project(root)
@@ -338,6 +430,95 @@ def test_narrative_eval_resume_reuses_valid_chapters_and_rebuilds_continuity_cha
     checkpoint = yaml.safe_load((eval_dir / "generation_checkpoint.yml").read_text(encoding="utf-8"))
     assert checkpoint["status"] == "complete"
     assert checkpoint["completed_chapters"] == [1, 2, 3]
+
+
+def test_narrative_eval_resume_regenerates_suffix_after_invalid_chapter(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    timestamp = "20260705T005500Z"
+    first = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[1, 2, 3],
+        timestamp=timestamp,
+        resume_valid=True,
+    )
+    assert first["layers"]["L2_real_chapter_sample"]["status"] == "pass"
+    runs = project_root / "runs"
+    (runs / f"task_narrative_eval_ch02_{timestamp}" / "fiction_draft.md").unlink()
+    generated: list[int] = []
+    original = __import__(
+        "agent_runtime.narrative_eval",
+        fromlist=["_write_mock_chapter_outputs"],
+    )._write_mock_chapter_outputs
+
+    def record_generation(run_dir, project, chapter, previous, baseline_mode):
+        generated.append(chapter)
+        return original(run_dir, project, chapter, previous, baseline_mode)
+
+    monkeypatch.setattr(
+        "agent_runtime.narrative_eval._write_mock_chapter_outputs",
+        record_generation,
+    )
+
+    resumed = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[1, 2, 3],
+        timestamp=timestamp,
+        resume_valid=True,
+    )
+
+    chapters = resumed["layers"]["L2_real_chapter_sample"]["chapters"]
+    assert chapters[0]["resumed_existing"] is True
+    assert generated == [2, 3]
+    ch3_packet = yaml.safe_load(
+        (runs / f"task_narrative_eval_ch03_{timestamp}" / "chapter_packet.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert ch3_packet["previous_candidate_sources"][0].endswith(
+        f"task_narrative_eval_ch02_{timestamp}/fiction_draft.md"
+    )
+
+
+def test_narrative_eval_batch_seeds_previous_chapter_and_candidate_facts(
+    tmp_path: Path,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    timestamp = "20260705T005600Z"
+    first = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[1, 2, 3],
+        timestamp=timestamp,
+    )
+    assert first["layers"]["L2_real_chapter_sample"]["status"] == "pass"
+
+    second = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[4, 5],
+        timestamp=timestamp,
+    )
+
+    assert second["layers"]["L2_real_chapter_sample"]["status"] == "pass"
+    ch4 = project_root / "runs" / f"task_narrative_eval_ch04_{timestamp}"
+    packet = yaml.safe_load((ch4 / "chapter_packet.yml").read_text(encoding="utf-8"))
+    facts = yaml.safe_load((ch4 / "candidate_fact_ledger.yml").read_text(encoding="utf-8"))
+    assert packet["previous_candidate_sources"][0].endswith(
+        f"task_narrative_eval_ch03_{timestamp}/fiction_draft.md"
+    )
+    assert facts["through_chapter"] == 3
+    assert facts["event_count"] == 3
 
 
 def test_narrative_eval_stop_on_block_prevents_later_chapter_generation(tmp_path: Path) -> None:
@@ -583,6 +764,7 @@ def test_live_narrative_eval_blocks_without_writer_role_session(tmp_path: Path, 
 
 def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path: Path, monkeypatch) -> None:
     calls: list[str] = []
+    plan_calls: list[dict] = []
 
     def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
         calls.append(agent_name)
@@ -597,10 +779,14 @@ def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path
         )
 
     monkeypatch.setitem(sys.modules, "agent_runner", types.SimpleNamespace(run_agent_model=fake_run_agent_model))
+    def fake_build_workflow_plan(*args, **kwargs):
+        plan_calls.append(kwargs)
+        return types.SimpleNamespace()
+
     monkeypatch.setitem(
         sys.modules,
         "workflow_plan",
-        types.SimpleNamespace(build_workflow_plan=lambda *args, **kwargs: types.SimpleNamespace()),
+        types.SimpleNamespace(build_workflow_plan=fake_build_workflow_plan),
     )
 
     run_dir = tmp_path / "run"
@@ -608,10 +794,22 @@ def test_live_narrative_eval_writes_light_outputs_after_writer_complete(tmp_path
     (run_dir / "user_request.md").write_text("write chapter", encoding="utf-8")
     _write_yaml(run_dir / "live_generation_error.yml", {"status": "blocked", "message": "stale"})
 
-    _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
+    _write_live_chapter_outputs(
+        tmp_path,
+        run_dir,
+        "Crown_of_Ash",
+        "task_live",
+        1,
+        [],
+        writer_budget_mode="frugal",
+    )
 
     assert not (run_dir / "live_generation_error.yml").exists()
     assert calls == ["Writer"]
+    assert plan_calls == [{
+        "user_request_path": run_dir / "user_request.md",
+        "budget_mode": "frugal",
+    }]
     assert (run_dir / "fiction_draft.md").exists()
     assert not (run_dir / "fiction_review.yml").exists()
     assert (run_dir / "continuity_ledger.yml").exists()

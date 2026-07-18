@@ -98,6 +98,37 @@ def test_failed_reviewer_retry_removes_stale_materialized_outputs(tmp_path: Path
     assert not (tmp_path / "continuity_failure_report.yml").exists()
 
 
+def test_invalid_heavy_audit_yaml_reports_problem_line(tmp_path: Path) -> None:
+    content = """<!-- AGENTLAB_EDIT: state_transition_proposal.yml -->
+schema_version: 1
+status: candidate
+candidate_only: true
+production_modified: false
+requires_user_promotion: true
+events:
+  - scope: candidate_only
+    acceptance_criteria:
+      - Add indicators (e.g., phase: recovery, vital_signs: unstable).
+<!-- END AGENTLAB_EDIT -->"""
+
+    assert not materialize_narrative_heavy_audit_content(
+        content,
+        tmp_path,
+        "task_audit",
+        "Scribe",
+    )
+    contract = yaml.safe_load(
+        (tmp_path / "narrative_heavy_audit_scribe_output_contract.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    issue = contract["issues"][0]
+    assert issue.startswith(
+        "invalid_heavy_audit_yaml:state_transition_proposal.yml:line_"
+    )
+    assert "mapping_values_are_not_allowed_here" in issue
+
+
 def test_blocking_continuity_requires_rewrite_proposal(tmp_path: Path) -> None:
     (tmp_path / "continuity_failure_report.yml").write_text(
         yaml.safe_dump(

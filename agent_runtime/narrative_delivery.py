@@ -71,6 +71,22 @@ PHASE_HEADING_PATTERN = re.compile(
     r"^###\s*0*(\d+)\s*[-–—]\s*0*(\d+)\s*章?\s*[：:]\s*(.+)$"
 )
 CHAPTER_BEAT_PATTERN = re.compile(r"^-\s*0*(\d+)\s*[：:]\s*(.+)$")
+CHAPTER_STATE_PLAN_REQUIRED_FIELDS = (
+    "chapter",
+    "title",
+    "volume",
+    "phase",
+    "timeline_slot",
+    "pov",
+    "opening_state",
+    "scene_goal",
+    "irreversible_plot_change",
+    "character_state_change",
+    "relationship_or_worldline_change",
+    "foreshadowing_action",
+    "closing_state",
+    "must_not_repeat",
+)
 
 
 def _read_yaml(path: Path, default: Any = None) -> Any:
@@ -138,6 +154,406 @@ def _select_outline_refs(outline_refs: list[str], chapter: int) -> list[str]:
 
 def _clean_outline_text(value: str) -> str:
     return value.replace("**", "").strip()
+
+
+def _resolve_chapter_state_plan(project_root: Path, plan_ref: str) -> tuple[Path, dict[str, Any]]:
+    ref = str(plan_ref or "").strip()
+    if not ref or Path(ref).is_absolute():
+        raise ValueError("chapter state plan must be a project-relative path")
+    project_root = project_root.resolve()
+    path = (project_root / ref).resolve()
+    if not path.is_relative_to(project_root):
+        raise ValueError("chapter state plan must stay inside the project root")
+    if not path.is_file():
+        raise ValueError(f"chapter state plan does not exist: {ref}")
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise ValueError(f"chapter state plan is not valid YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("chapter state plan root must be a mapping")
+    return path, data
+
+
+def _nonempty_plan_value(value: Any) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return bool(value) and all(isinstance(item, str) and item.strip() for item in value)
+    return value is not None
+
+
+def _normalized_plan_text(value: Any) -> str:
+    return re.sub(r"[\W_]+", "", str(value or "").casefold(), flags=re.UNICODE)
+
+
+def validate_chapter_state_plan(
+    project_root: Path,
+    plan_ref: str,
+    *,
+    expected_chapters: list[int] | None = None,
+) -> dict[str, Any]:
+    """Validate a candidate chapter-state plan before any Writer call."""
+
+    issues: list[dict[str, Any]] = []
+    try:
+        path, data = _resolve_chapter_state_plan(project_root, plan_ref)
+    except ValueError as exc:
+        return {
+            "schema_version": 1,
+            "status": "fail",
+            "path": str(plan_ref or ""),
+            "chapter_count": 0,
+            "issues": [{"check": "plan_source", "message": str(exc)}],
+        }
+
+    for key, expected in (
+        ("schema_version", 1),
+        ("project", project_root.name),
+        ("status", "candidate"),
+        ("candidate_only", True),
+        ("production_modified", False),
+    ):
+        if data.get(key) != expected:
+            issues.append(
+                {
+                    "check": "candidate_boundary",
+                    "field": key,
+                    "message": f"expected {expected!r}",
+                }
+            )
+    character_ranges: dict[str, list[int]] = {}
+    for field in ("target_character_range", "hard_character_range"):
+        value = data.get(field)
+        valid = (
+            isinstance(value, list)
+            and len(value) == 2
+            and all(isinstance(item, int) and item > 0 for item in value)
+            and value[0] <= value[1]
+        )
+        if valid:
+            character_ranges[field] = value
+        else:
+            issues.append(
+                {
+                    "check": "character_range",
+                    "field": field,
+                    "message": "must be two ascending positive integers",
+                }
+            )
+    target_range = character_ranges.get("target_character_range")
+    hard_range = character_ranges.get("hard_character_range")
+    if target_range and hard_range and not (
+        hard_range[0] <= target_range[0] <= target_range[1] <= hard_range[1]
+    ):
+        issues.append(
+            {
+                "check": "character_range",
+                "field": "target_character_range",
+                "message": "target range must stay inside hard range",
+            }
+        )
+
+    entries = data.get("chapter_state_plan")
+    if not isinstance(entries, list):
+        issues.append(
+            {
+                "check": "plan_shape",
+                "field": "chapter_state_plan",
+                "message": "must be a list",
+            }
+        )
+        entries = []
+
+    by_chapter: dict[int, dict[str, Any]] = {}
+    chapter_sequence: list[int] = []
+    seen_scene_goals: dict[str, int] = {}
+    seen_plot_changes: dict[str, int] = {}
+    seen_timeline_slots: dict[str, int] = {}
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            issues.append(
+                {
+                    "check": "entry_shape",
+                    "entry_index": index,
+                    "message": "entry must be a mapping",
+                }
+            )
+            continue
+        chapter = entry.get("chapter")
+        if not isinstance(chapter, int) or chapter < 1:
+            issues.append(
+                {
+                    "check": "chapter_number",
+                    "entry_index": index,
+                    "message": "chapter must be a positive integer",
+                }
+            )
+            continue
+        chapter_sequence.append(chapter)
+        if chapter in by_chapter:
+            issues.append(
+                {
+                    "check": "unique_chapter",
+                    "chapter": chapter,
+                    "message": "duplicate chapter entry",
+                }
+            )
+            continue
+        by_chapter[chapter] = entry
+        for field in CHAPTER_STATE_PLAN_REQUIRED_FIELDS:
+            value = entry.get(field)
+            field_type_valid = (
+                isinstance(value, int)
+                if field == "chapter"
+                else isinstance(value, (str, list))
+                if field == "must_not_repeat"
+                else isinstance(value, str)
+            )
+            if not field_type_valid or not _nonempty_plan_value(value):
+                issues.append(
+                    {
+                        "check": "required_field",
+                        "chapter": chapter,
+                        "field": field,
+                        "message": "missing or empty",
+                    }
+                )
+        for field, seen in (
+            ("scene_goal", seen_scene_goals),
+            ("irreversible_plot_change", seen_plot_changes),
+        ):
+            normalized = _normalized_plan_text(entry.get(field))
+            if not normalized:
+                continue
+            if normalized in seen:
+                issues.append(
+                    {
+                        "check": f"unique_{field}",
+                        "chapter": chapter,
+                        "source_chapter": seen[normalized],
+                        "message": f"duplicate {field}",
+                    }
+                )
+            else:
+                seen[normalized] = chapter
+
+        normalized_timeline = _normalized_plan_text(entry.get("timeline_slot"))
+        if normalized_timeline:
+            if normalized_timeline in seen_timeline_slots:
+                issues.append(
+                    {
+                        "check": "unique_timeline_slot",
+                        "chapter": chapter,
+                        "source_chapter": seen_timeline_slots[normalized_timeline],
+                        "message": "duplicate timeline_slot",
+                    }
+                )
+            else:
+                seen_timeline_slots[normalized_timeline] = chapter
+        opening_state = _normalized_plan_text(entry.get("opening_state"))
+        closing_state = _normalized_plan_text(entry.get("closing_state"))
+        if opening_state and opening_state == closing_state:
+            issues.append(
+                {
+                    "check": "state_transition",
+                    "chapter": chapter,
+                    "message": "opening_state and closing_state must differ",
+                }
+            )
+
+    if by_chapter:
+        first_chapter = min(by_chapter)
+        last_chapter = max(by_chapter)
+        expected_sequence = list(range(first_chapter, last_chapter + 1))
+        if chapter_sequence != expected_sequence:
+            issues.append(
+                {
+                    "check": "ordered_contiguous_chapters",
+                    "message": (
+                        f"chapter entries must be ordered exactly {first_chapter}-"
+                        f"{last_chapter} with no gaps or extras"
+                    ),
+                }
+            )
+        if data.get("chapter_range") != [first_chapter, last_chapter]:
+            issues.append(
+                {
+                    "check": "chapter_range",
+                    "field": "chapter_range",
+                    "message": f"expected [{first_chapter}, {last_chapter}]",
+                }
+            )
+
+    validation_contract = data.get("validation_contract")
+    if not isinstance(validation_contract, dict):
+        issues.append(
+            {
+                "check": "validation_contract",
+                "message": "must be a mapping",
+            }
+        )
+    else:
+        expected_contract = {
+            "exact_chapter_count": len(by_chapter),
+            "ordered_unique_chapters": True,
+            "unique_scene_goals": True,
+            "unique_irreversible_plot_changes": True,
+            "monotonic_story_state": True,
+        }
+        for field, expected in expected_contract.items():
+            if validation_contract.get(field) != expected:
+                issues.append(
+                    {
+                        "check": "validation_contract",
+                        "field": field,
+                        "message": f"expected {expected!r}",
+                    }
+                )
+
+    selected = list(expected_chapters or [])
+    for chapter in selected:
+        if chapter not in by_chapter:
+            issues.append(
+                {
+                    "check": "selected_chapter_present",
+                    "chapter": chapter,
+                    "message": "selected chapter is absent from plan",
+                }
+            )
+
+    return {
+        "schema_version": 1,
+        "status": "pass" if not issues else "fail",
+        "path": _rel(path, project_root),
+        "chapter_count": len(by_chapter),
+        "selected_chapter_count": len(selected),
+        "issues": issues,
+    }
+
+
+def write_narrative_planner_validation(
+    project_root: Path,
+    run_dir: Path,
+    output_path: Path | None = None,
+) -> dict[str, Any]:
+    """Validate a planner result against its run-local rewrite contract."""
+
+    project_root = Path(project_root).resolve()
+    run_dir = Path(run_dir).resolve()
+    output_path = Path(output_path or run_dir / "chapter_state_plan.yml").resolve()
+    contract_path = run_dir / "narrative_rewrite_contract.yml"
+    contract_issue: dict[str, Any] | None = None
+    try:
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        contract = {}
+    chapter_range = contract.get("chapter_range") if isinstance(contract, dict) else None
+    if (
+        isinstance(chapter_range, list)
+        and len(chapter_range) == 2
+        and all(type(item) is int and item > 0 for item in chapter_range)
+        and chapter_range[0] <= chapter_range[1]
+    ):
+        expected_chapters = list(range(chapter_range[0], chapter_range[1] + 1))
+    else:
+        expected_chapters = []
+        contract_issue = {
+            "check": "narrative_rewrite_contract",
+            "message": "missing or invalid chapter_range",
+        }
+    try:
+        plan_ref = output_path.relative_to(project_root).as_posix()
+    except ValueError:
+        plan_ref = ""
+        contract_issue = {
+            "check": "planner_output_path",
+            "message": "chapter_state_plan.yml must stay inside the project root",
+        }
+
+    validation = validate_chapter_state_plan(
+        project_root,
+        plan_ref,
+        expected_chapters=expected_chapters,
+    )
+    if contract_issue is not None:
+        validation["status"] = "fail"
+        validation.setdefault("issues", []).append(contract_issue)
+    _write_yaml(run_dir / "narrative_planner_validation.yml", validation)
+    return validation
+
+
+def narrative_planner_validation_issues(validation: dict[str, Any]) -> list[str]:
+    """Render bounded gate issues from a planner validation receipt."""
+
+    if validation.get("status") == "pass":
+        return []
+    rendered = [
+        "NarrativePlanner validation failed: "
+        f"{issue.get('check', 'unknown')}: {issue.get('message', 'invalid chapter state plan')}"
+        for issue in (validation.get("issues") or [])[:20]
+        if isinstance(issue, dict)
+    ]
+    return rendered or ["NarrativePlanner validation failed"]
+
+
+def _chapter_intent_from_state_plan(
+    project_root: Path,
+    plan_ref: str,
+    chapter: int,
+) -> dict[str, Any]:
+    validation = validate_chapter_state_plan(
+        project_root,
+        plan_ref,
+        expected_chapters=[chapter],
+    )
+    if validation["status"] != "pass":
+        first = validation["issues"][0] if validation["issues"] else {}
+        raise ValueError(
+            "chapter state plan failed validation: "
+            f"{first.get('check', 'unknown')}: {first.get('message', 'unknown issue')}"
+        )
+    _path, data = _resolve_chapter_state_plan(project_root, plan_ref)
+    entry = next(
+        item
+        for item in data["chapter_state_plan"]
+        if isinstance(item, dict) and item.get("chapter") == chapter
+    )
+    must_not_repeat = entry["must_not_repeat"]
+    if isinstance(must_not_repeat, str):
+        must_not_repeat = [must_not_repeat]
+    return {
+        "status": "planned",
+        "chapter": chapter,
+        "source": validation["path"],
+        "source_kind": "candidate_chapter_state_plan",
+        "volume": entry["volume"],
+        "phase": entry["phase"],
+        "title": entry["title"],
+        "emotional_target": entry["scene_goal"],
+        "plot_state_change": entry["irreversible_plot_change"],
+        "character_state_change": entry["character_state_change"],
+        "relationship_or_worldline_progress": entry["relationship_or_worldline_change"],
+        "foreshadowing_to_introduce_or_payoff": entry["foreshadowing_action"],
+        "timeline_position": entry["timeline_slot"],
+        "beat_plan": {
+            "required_chapter_beat": entry["scene_goal"],
+            "opening_state": entry["opening_state"],
+            "closing_state": entry["closing_state"],
+            "pov": entry["pov"],
+            "must_not_repeat": must_not_repeat,
+            "progression_role": "chapter_specific",
+            "constraints": [
+                "deliver the declared irreversible plot change",
+                "open from the declared opening state and end in the declared closing state",
+                "do not repeat any event or scene named in must_not_repeat",
+                "do not copy substantive prose from previous candidate chapters",
+                "preserve monotonic timeline, injury, knowledge, location, death, and possession state",
+            ],
+        },
+        "target_character_range": data.get("target_character_range", [4500, 5500]),
+        "hard_character_range": data.get("hard_character_range", [3000, 8000]),
+    }
 
 
 def _outline_phase_for_chapter(path: Path, chapter: int) -> dict[str, Any] | None:
@@ -320,6 +736,7 @@ def build_chapter_packet(
     previous_chapters: list[str] | None = None,
     deprecated_sources: list[str] | None = None,
     candidate_fact_ledger: str | None = None,
+    chapter_state_plan: str | None = None,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     run_rel = f"runs/{task_id}"
@@ -335,6 +752,11 @@ def build_chapter_packet(
             if (num := _chapter_number(project_root / ref)) is not None and num < chapter
         ]
         resolved_previous_chapters = sorted(resolved_previous_chapters, key=lambda ref: _chapter_number(project_root / ref) or 0)
+    chapter_intent = (
+        _chapter_intent_from_state_plan(project_root, chapter_state_plan, chapter)
+        if chapter_state_plan
+        else _build_chapter_intent(project_root, outline_refs, chapter)
+    )
     packet = {
         "schema_version": 1,
         "project": project,
@@ -353,13 +775,15 @@ def build_chapter_packet(
             "fact_snapshot": "project_brain/project_fact_snapshot.yml",
             "artifact_index": "project_artifact_index.yml",
             "production_root": "production/",
+            "candidate_chapter_state_plan": chapter_state_plan,
         },
-        "chapter_intent": _build_chapter_intent(project_root, outline_refs, chapter),
+        "chapter_intent": chapter_intent,
         "must_read": [
             "project_brain/project_fact_snapshot.yml",
             "project_artifact_index.yml",
             *bible_refs,
             *outline_refs,
+            *([chapter_state_plan] if chapter_state_plan else []),
             *([candidate_fact_ledger] if candidate_fact_ledger else []),
             *resolved_previous_chapters[-3:],
         ],
@@ -368,6 +792,7 @@ def build_chapter_packet(
             "outline_refs": outline_refs,
             "previous_chapters": resolved_previous_chapters[-3:],
             "candidate_fact_ledger": candidate_fact_ledger,
+            "candidate_chapter_state_plan": chapter_state_plan,
         },
         "previous_chapters": resolved_previous_chapters[-3:],
         "previous_candidate_sources": resolved_previous_chapters[-3:],
@@ -394,6 +819,7 @@ def write_chapter_packet(
     previous_chapters: list[str] | None = None,
     deprecated_sources: list[str] | None = None,
     candidate_fact_ledger: str | None = None,
+    chapter_state_plan: str | None = None,
 ) -> dict[str, Any]:
     packet = build_chapter_packet(
         root,
@@ -404,6 +830,7 @@ def write_chapter_packet(
         previous_chapters=previous_chapters,
         deprecated_sources=deprecated_sources,
         candidate_fact_ledger=candidate_fact_ledger,
+        chapter_state_plan=chapter_state_plan,
     )
     path = _project_root(root, project) / "runs" / task_id / "chapter_packet.yml"
     _write_yaml(path, packet)

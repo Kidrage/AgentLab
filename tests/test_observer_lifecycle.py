@@ -83,6 +83,7 @@ def test_observer_role_contract_is_registered_and_read_only() -> None:
         "REPO_CONTEXT",
         "RESEARCH_OPTIONAL",
         "INTERFACE_OPTIONAL",
+        "NARRATIVE_REWRITE_PLAN",
         "WRITER_DRAFT",
         "FICTION_REVIEW",
         "SCRIBE_LEDGER",
@@ -100,7 +101,12 @@ def test_observer_role_contract_is_registered_and_read_only() -> None:
     ]
 
     assert route.agents == ["Observer"]
-    assert observer["model_profile"] == "perception_observer"
+    assert "model_profile" not in observer
+    profile = yaml.safe_load(
+        (ROOT / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
+    )["modes"]["full_cli"]["tiers"]["performance"]["observer"]
+    assert profile["cli_agent"] == "agy"
+    assert profile["invocation_contract"] == "agy_observer"
     assert observer["can_edit_source"] is False
     assert observer["can_run_shell"] is False
     assert observer["source_write_policy"] == "never"

@@ -46,6 +46,19 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
             "--allow-writer-cli-fallback/--no-writer-cli-fallback",
             help="Permit a second Writer CLI invocation after the bound role-session fails.",
         ),
+        chapter_state_plan: str | None = typer.Option(
+            None,
+            "--chapter-state-plan",
+            help=(
+                "Project-relative candidate chapter-state plan. Required for generation "
+                "requests over five chapters."
+            ),
+        ),
+        writer_budget: str = typer.Option(
+            "balanced",
+            "--writer-budget",
+            help="Writer budget mode used to resolve the recorded workflow/model contract.",
+        ),
     ) -> None:
         """Run L0-L3 longform acceptance checks without modifying production."""
         if mode not in VALID_MODES:
@@ -61,6 +74,8 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
             resume_valid=resume_valid,
             stop_on_block=stop_on_block,
             allow_writer_cli_fallback=allow_writer_cli_fallback,
+            chapter_state_plan=chapter_state_plan,
+            writer_budget_mode=writer_budget,
         )
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result.get("status") == "fail":

@@ -488,6 +488,7 @@ def role_session_execution_boundary(
         if isinstance(runner_package.get("selective_run_examples"), dict)
         else {}
     )
+    entrypoint = str(runner_package.get("entrypoint") or "")
     execution_boundary = (
         operator_handoff.get("execution_boundary")
         if isinstance(operator_handoff.get("execution_boundary"), dict)
@@ -515,6 +516,8 @@ def role_session_execution_boundary(
         or ""
     )
     full_command = str(step_by_id.get("role_session_acceptance_smoke", {}).get("command") or "")
+    if not full_command and trusted_env and approval_env and entrypoint:
+        full_command = f"{trusted_env} {approval_env} {entrypoint}"
     writer_command = str(
         selective_examples.get("writer_only")
         or step_by_id.get("writer_role_session_acceptance_smoke", {}).get("command")

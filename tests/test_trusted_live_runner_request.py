@@ -23,11 +23,8 @@ def test_trusted_live_runner_request_materializes_internal_smoke_commands_withou
 
     assert report["report_type"] == "agentlab_trusted_live_runner_request"
     assert report["status"] == "ready_for_trusted_runner"
-    warning_ids = {item["id"] for item in report["session_health_warnings"]}
-    assert warning_ids <= {
-        "current_claude_writer_session_health",
-        "current_grok_session_health",
-    }
+    assert report["session_health_evaluated_at_runtime"] is True
+    assert "session_health_warnings" not in report
     assert report["runner_boundary"]["frontdesk_agent_executes_commands"] is False
     assert report["runner_boundary"]["requires_trusted_runtime"] is True
     pre_run = report["recommended_pre_run_session_health_checks"]
@@ -137,9 +134,15 @@ def test_trusted_live_runner_request_cli_writes_yaml_and_script(tmp_path: Path) 
     assert report["local_runner_package"]["post_run_selected_collect_commands"]["writer_only"].endswith(
         "--item run_crown_internal_writer_eval"
     )
+    assert "trusted_live_runner_collect_writer.yml" not in report["local_runner_package"][
+        "post_run_selected_collect_commands"
+    ]["writer_only"]
     assert report["local_runner_package"]["post_run_selected_collect_commands"]["media_only"].endswith(
         "--item run_crown_internal_media_smoke"
     )
+    assert "trusted_live_runner_collect_media.yml" not in report["local_runner_package"][
+        "post_run_selected_collect_commands"
+    ]["media_only"]
     assert report["local_runner_package"]["preflight_only_command"].endswith(" --preflight-only")
     assert report["local_runner_package"]["session_health_only_command"].endswith(" --session-health-only")
     assert "trusted-live-runner-preflight" in report["local_runner_package"]["preflight_report_command"]
@@ -343,6 +346,11 @@ def test_trusted_live_runner_preflight_checks_local_package_without_provider_cal
                 "local_runner_package": {
                     "entrypoint": str(script),
                     "status_path": str(tmp_path / "trusted_live_runner_status.yml"),
+                    "preflight_commands": [
+                        "test -x ./agentlab.sh",
+                        "command -v claude",
+                        "command -v hermes",
+                    ],
                     "exact_outbound_context_manifest_required": True,
                     "writer_sealed_context_required": True,
                     "media_prompt_digest_required": True,
@@ -355,7 +363,7 @@ def test_trusted_live_runner_preflight_checks_local_package_without_provider_cal
     )
     monkeypatch.setattr(
         "agent_runtime.trusted_live_runner_preflight.shutil.which",
-        lambda command: f"/fake/bin/{command}" if command in {"agy", "hermes"} else None,
+        lambda command: f"/fake/bin/{command}" if command in {"claude", "hermes"} else None,
     )
 
     report = build_trusted_live_runner_preflight(tmp_path, request_path=request_path)
@@ -367,7 +375,7 @@ def test_trusted_live_runner_preflight_checks_local_package_without_provider_cal
         "request_yaml",
         "runner_script",
         "agentlab_entrypoint",
-        "command:agy",
+        "command:claude",
         "command:hermes",
         "exact_outbound_context_manifest_required",
         "writer_sealed_context_required",

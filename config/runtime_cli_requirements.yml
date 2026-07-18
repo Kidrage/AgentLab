@@ -17,7 +17,7 @@ components:
     install_source: Hermes Agent upstream installer
     version_probe: hermes --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker hermes
-    live_smoke: hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.6-sol -q "Return AGENTLAB_HERMES_CODEX_SMOKE_OK only."
+    live_smoke: hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.6-sol --ignore-rules --max-turns 6 -q "Return AGENTLAB_HERMES_CODEX_SMOKE_OK only."
     capacity_probe: hermes auth status openai-codex
     forbidden_probe: hermes status --all
     notes: Full CLI Supervisor shell; the isolated profile must preflight as openai-codex/gpt-5.6-sol/xhigh with no Hermes fallback before the provider process starts.
@@ -31,7 +31,7 @@ components:
     version_probe: claude --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker claude
     live_smoke: claude --model deepseek-v4-pro --effort max --max-budget-usd 0.01 --permission-mode plan --output-format json --tools "" -p "Return AGENTLAB_CLAUDE_WRITER_SMOKE_OK only."
-    notes: Pure Writer shell uses an explicit DeepSeek model, native JSON usage, and a hard CLI budget. Ultracode is a separate opt-in developmental contract, never final prose.
+    notes: Pure Writer and NarrativePlanner use explicit DeepSeek models, native JSON usage, sealed packets, and hard CLI budgets. NarrativePlanner is fixed to deepseek-v4-pro for blocking rewrite planning and has no provider/model fallback. Ultracode remains a separate opt-in developmental contract, never final prose.
   codex:
     kind: agent_cli
     release_requirement: required
@@ -52,8 +52,8 @@ components:
     install_source: npm package @qwen-code/qwen-code
     version_probe: qwen --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker qwen
-    live_smoke: qwen --bare --approval-mode default --output-format json "Return AGENTLAB_QWEN_SMOKE_OK only."
-    notes: General analysis/audit worker and ArtifactTask backend for text, spreadsheet, and presentation ArtifactProducer outputs; cross-provider mixed work remains blocked until a composite adapter exists, and provider/model selection is owned by the governed Qwen CLI route.
+    live_smoke: qwen --bare --auth-type openai --openai-base-url https://dashscope.aliyuncs.com/compatible-mode/v1 --model qwen3.6-flash --approval-mode default --output-format json "Return AGENTLAB_QWEN_SMOKE_OK only."
+    notes: General analysis/audit worker and ArtifactTask backend for text, spreadsheet, and presentation ArtifactProducer outputs. Narrative heavy audit uses a dedicated sealed stdin contract with zero tool calls; private context requires explicit approval. Cross-provider mixed work remains blocked until a composite adapter exists, and provider/model selection is owned by the governed Qwen CLI route.
   agy:
     kind: agent_cli
     release_requirement: required

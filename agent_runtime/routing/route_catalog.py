@@ -44,6 +44,7 @@ DEFAULT_ROUTE_AGENTS: dict[str, list[str]] = {
     "narrative_batch_chapters": ["Supervisor", "Writer"],
     "article_light_draft": ["Supervisor", "ArtifactProducer"],
     "narrative_heavy_audit": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
+    "narrative_rewrite_plan": ["Supervisor", "NarrativePlanner"],
     "evaluation_task": [
         "Supervisor",
         "RepoScout",
@@ -95,6 +96,7 @@ DEFAULT_ROUTE_SIZE: dict[str, str] = {
     "narrative_batch_chapters": "medium",
     "article_light_draft": "small",
     "narrative_heavy_audit": "large",
+    "narrative_rewrite_plan": "large",
     "evaluation_task": "large",
     "large_or_risky_task": "large",
 }

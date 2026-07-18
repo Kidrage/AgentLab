@@ -253,46 +253,6 @@ def _private_selected_command_hits(base: Path) -> list[dict[str, Any]]:
     return hits
 
 
-def _request_session_health_warning_issues(base: Path) -> list[dict[str, Any]]:
-    readiness_path = base / "internal_live_readiness.yml"
-    request_path = base / "trusted_live_runner_request.yml"
-    if not readiness_path.exists() or not request_path.exists():
-        return []
-    readiness = _read_yaml(readiness_path)
-    request = _read_yaml(request_path)
-    readiness_issues = (
-        readiness.get("session_health_issues")
-        if isinstance(readiness.get("session_health_issues"), list)
-        else []
-    )
-    request_warnings = (
-        request.get("session_health_warnings")
-        if isinstance(request.get("session_health_warnings"), list)
-        else []
-    )
-    readiness_issue_ids = sorted(
-        str(item.get("id"))
-        for item in readiness_issues
-        if isinstance(item, dict) and item.get("id")
-    )
-    request_warning_ids = sorted(
-        str(item.get("id"))
-        for item in request_warnings
-        if isinstance(item, dict) and item.get("id")
-    )
-    if readiness_issue_ids == request_warning_ids:
-        return []
-    return [
-        {
-            "path": _rel(base.parent.parent, request_path),
-            "reason": "session_health_warnings_do_not_match_current_readiness",
-            "readiness_path": _rel(base.parent.parent, readiness_path),
-            "current_readiness_issue_ids": readiness_issue_ids,
-            "request_warning_ids": request_warning_ids,
-        }
-    ]
-
-
 def _canonical_text_forbidden_hits(text: str, forbidden_markers: list[str]) -> list[str]:
     return [marker for marker in forbidden_markers if marker in text]
 
@@ -355,7 +315,7 @@ def build_acceptance_report_hygiene(root: Path) -> dict[str, Any]:
     stale_snapshots = _snapshot_staleness(base)
     stale_marker_hits = _marker_hits(base)
     stale_private_selected_command_hits = _private_selected_command_hits(base)
-    consistency_issues = _request_session_health_warning_issues(base)
+    consistency_issues: list[dict[str, Any]] = []
     status = (
         "pass"
         if not canonical_issues

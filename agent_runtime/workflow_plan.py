@@ -33,6 +33,7 @@ AGENT_LIFECYCLE_NODES = {
     "PromptEngineer": {"CODER_IMPLEMENTATION"},
     "Coder": {"CODER_IMPLEMENTATION"},
     "ArtifactProducer": {"ARTIFACT_PRODUCTION"},
+    "NarrativePlanner": {"NARRATIVE_REWRITE_PLAN"},
     "Writer": {"WRITER_DRAFT"},
     "Reviewer": {"FICTION_REVIEW", "VISUAL_REVIEW"},
     "Scribe": {"SCRIBE_LEDGER"},
@@ -120,27 +121,6 @@ def _project_paths(agentlab_root: Path, project_name: str, task_id: str, project
         "repo_map": docs_path / "01_REPO_MAP.md",
         "user_request": run_dir / "user_request.md",
     }
-
-
-def _profile_for_agent(agent_config: dict, route_size: str, budget_mode: str) -> str:
-    """Resolve an agent model profile from profile_mapping before fallback."""
-    mappings = agent_config.get("profile_mapping", {}) or {}
-    mode_key = normalize_budget_mode(budget_mode)
-    legacy_key = "brain_allocated" if mode_key == "balanced" else mode_key
-    mode_mapping = mappings.get(mode_key) or mappings.get(legacy_key) or mappings.get("brain_allocated") or {}
-    if isinstance(mode_mapping, dict):
-        direct = mode_mapping.get(route_size)
-        if direct:
-            return direct
-        any_profile = mode_mapping.get("any")
-        if any_profile:
-            return any_profile
-        # Frugal Coder mappings may distinguish local availability. Runtime does
-        # not yet probe local LLM here, so keep the API fallback.
-        no_local = mode_mapping.get("no_local")
-        if no_local:
-            return no_local
-    return agent_config.get("model_profile", "")
 
 
 def _budget_mode_from_request(task_text: str) -> str | None:
@@ -488,6 +468,21 @@ def _narrative_heavy_audit_gates() -> list[dict]:
     ]
 
 
+def _narrative_rewrite_plan_gates() -> list[dict]:
+    return [
+        {
+            "id": "chapter_state_plan",
+            "owner": "NarrativePlanner",
+            "required": True,
+            "description": (
+                "Convert blocking heavy-audit evidence into one ordered, "
+                "candidate-only chapter state plan for a later Writer run."
+            ),
+            "evidence": ["chapter_state_plan.yml"],
+        }
+    ]
+
+
 def _validation_gates_for_route(
     configs: dict,
     route: AgentRoute,
@@ -510,6 +505,9 @@ def _validation_gates_for_route(
 
     if route.route_key == "narrative_heavy_audit":
         return _narrative_heavy_audit_gates()
+
+    if route.route_key == "narrative_rewrite_plan":
+        return _narrative_rewrite_plan_gates()
 
     if isinstance(production_pack, dict) and production_pack.get("status") == "synthesis_candidate":
         return [
@@ -767,7 +765,14 @@ def _non_code_route_task_state(
     pack_id = str(pack.get("pack_id") or "")
 
     if pack_id == "narrative_longform":
-        if route.route_key == "narrative_batch_chapters":
+        if route.route_key == "narrative_rewrite_plan":
+            _append_unique(
+                records,
+                "narrative_rewrite_contract.yml",
+                "chapter_state_plan.yml",
+                "narrative_planner_validation.yml",
+            )
+        elif route.route_key == "narrative_batch_chapters":
             _append_unique(
                 records,
                 "chapter_batch_plan.yml",
@@ -860,6 +865,21 @@ def _included_agents_for_route(
             production_pack=production_pack,
             synthesis_contract=True,
         )
+        return included
+
+    if route.route_key == "narrative_rewrite_plan" and "NarrativePlanner" in included:
+        _apply_non_code_supervisor_contract(included)
+        included["NarrativePlanner"]["required_inputs"] = [
+            "runs/task_xxxx/mission_contract.yml",
+            "runs/task_xxxx/user_request.md",
+            "runs/task_xxxx/narrative_rewrite_contract.yml",
+            "heavy-audit aggregate and rewrite proposals declared by narrative_rewrite_contract.yml",
+            "project_brain/project_fact_snapshot.yml",
+            "project_artifact_index.yml",
+        ]
+        included["NarrativePlanner"]["required_outputs"] = [
+            "runs/task_xxxx/chapter_state_plan.yml",
+        ]
         return included
 
     if route.route_key == "narrative_light_chapter" and "Writer" in included:
@@ -1066,12 +1086,12 @@ def build_workflow_plan(
     included_agents = _included_agents_for_route(agent_registry, route, production_pack)
     model_profiles = {
         name: resolve_profile_config(
-            _profile_for_agent(config, route_size, resolved_budget_mode),
-            model_profiles=configs.get("model_profiles", {}),
             model_catalog=configs.get("model_catalog", {}),
             agent_name=name,
+            agent_model_profiles=configs.get("agent_model_profiles", {}),
+            budget_mode=resolved_budget_mode,
         )
-        for name, config in included_agents.items()
+        for name in included_agents
     }
 
     validation_gates = _validation_gates_for_route(configs, route, production_pack)
@@ -1096,12 +1116,6 @@ def build_workflow_plan(
         "Use this plan as the visible contract before starting agent execution.",
     ]
     execution_policy = configs.get("execution_policy", {})
-    brain_policy = execution_policy.get("brain_policy", {})
-    if brain_policy.get("deepseek_required_for_all_agentlab_tasks", False):
-        notes.append(
-            "Brain policy: DeepSeek must execute planning/review brain stages for simulated, small, and large AgentLab tasks."
-        )
-        notes.append("Codex may not silently simulate the brain layer unless the user changes the policy.")
     if project_config:
         notes.append("Project config loaded.")
     else:

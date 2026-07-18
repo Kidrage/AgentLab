@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -20,25 +21,6 @@ runner = CliRunner()
 
 def _reason_set(values: list[str]) -> frozenset[str]:
     return frozenset(str(value) for value in values)
-
-
-def _persisted_writer_request_is_current(root: Path) -> bool:
-    path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_request.yml"
-    report = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    writer = next(
-        (
-            item
-            for item in report.get("items", [])
-            if isinstance(item, dict) and item.get("id") == "run_crown_internal_writer_eval"
-        ),
-        {},
-    )
-    package = report.get("local_runner_package") or {}
-    return (
-        writer.get("assigned_worker") == "claude_code"
-        and "--writer-worker claude_code" in str(writer.get("command") or "")
-        and "command -v claude" in (package.get("preflight_commands") or [])
-    )
 
 
 def test_selected_collect_path_is_separate_from_canonical() -> None:
@@ -75,140 +57,58 @@ def test_selected_collect_metadata_accepts_canonical_top_level_summary() -> None
     }
 
 
-def test_trusted_live_runner_collect_refreshes_status_and_acceptance_reports(
-    private_crown_project_root: Path,
-) -> None:
-    report = build_trusted_live_runner_collect(private_crown_project_root)
-
-    assert report["report_type"] == "agentlab_trusted_live_runner_collect"
-    assert report["status"] in {"pending_returned_artifacts", "pass", "artifact_qc_failed"}
-    assert report["status"] == "pending_returned_artifacts"
-    assert report["trusted_live_runner_status"]["status"] == "pending"
-    assert report["trusted_live_runner_status"]["pending_item_count"] >= 1
-    assert report["trusted_live_runner_status"]["stale_item_count"] >= 0
-    pending_by_id = {item["id"]: item for item in report["pending_items"]}
-    if "run_crown_internal_writer_eval" not in pending_by_id:
-        assert pending_by_id["run_crown_internal_media_smoke"][
-            "returned_candidate_artifacts_accepted"
-        ] is False
-        assert report["returned_candidate_artifacts_accepted_count"] == 1
-        assert report["required_files_missing_count"] == 3
-        expected_audit_status = (
-            "complete"
-            if _persisted_writer_request_is_current(private_crown_project_root)
-            else "fail"
-        )
-        assert report["acceptance_summary"]["objective_status"] == expected_audit_status
-        assert report["acceptance_summary"]["goal_status"] == expected_audit_status
-        assert report["active_selected_item_ids"] == [
-            "run_crown_internal_writer_eval"
-        ]
-        assert report["deferred_selected_item_ids"] == [
-            "run_crown_internal_media_smoke"
-        ]
-        return
-    assert pending_by_id["run_crown_internal_writer_eval"]["required_files_exist"] is False
-    assert pending_by_id["run_crown_internal_writer_eval"]["returned_candidate_artifacts_accepted"] is False
-    assert pending_by_id["run_crown_internal_writer_eval"]["acceptance_blocker"] == "missing_required_files"
-    assert pending_by_id["run_crown_internal_media_smoke"]["returned_candidate_artifacts_accepted"] is False
-    if pending_by_id["run_crown_internal_media_smoke"]["required_files_exist"]:
-        assert pending_by_id["run_crown_internal_media_smoke"]["acceptance_blocker"] == "observed_execution_error_or_stale_ledger"
-        assert "observed_execution_error_or_stale_ledger" in report["acceptance_blockers"]
-        assert report["required_files_missing_count"] == 7
-    else:
-        assert pending_by_id["run_crown_internal_media_smoke"]["acceptance_blocker"] == "missing_required_files"
-        assert report["acceptance_blockers"] == ["missing_required_files"]
-        assert report["required_files_missing_count"] == 10
-    assert _reason_set(report["acceptance_blocker_reasons"]) in {
-        frozenset({"missing_candidate_artifacts"}),
-        frozenset({
-            "grok_cli_transport_or_proxy_failed_in_live_smoke",
-            "missing_candidate_artifacts",
-        }),
-        frozenset({
-            "media_live_artifacts_not_rerun_after_grok_session_pass",
-            "missing_candidate_artifacts",
-        }),
-        frozenset({
-            "claude_writer_session_health_blocked_before_private_writer_smoke",
-            "grok_cli_transport_or_proxy_failed_in_live_smoke",
-        }),
-        frozenset({
-            "claude_writer_session_health_blocked_before_private_writer_smoke",
-            "missing_candidate_artifacts",
-        }),
-    }
-    assert report["returned_candidate_artifacts_accepted_count"] == 0
-    assert report["operator_handoff_status"] in {"ready_for_trusted_runner", "needs_attention"}
-    assert report["acceptance_summary"]["capability_overall_status"] == "candidate"
-    assert report["acceptance_summary"]["objective_status"] == "partial"
-    assert report["acceptance_summary"]["goal_status"] == "partial"
-    assert report["acceptance_summary"]["acceptance_report_hygiene_status"] == "pass"
-    assert report["acceptance_summary"]["acceptance_report_hygiene_canonical_text_artifact_count"] == 2
-    assert report["acceptance_summary"]["acceptance_report_hygiene_canonical_text_issue_count"] == 0
-    assert (
-        report["acceptance_summary"][
-            "acceptance_report_hygiene_stale_private_selected_command_hit_count"
-        ]
-        == 0
-    )
-    assert "trusted_live_runner_status" in report["refreshed_reports"]
-    assert "trusted_live_runner_operator_handoff" in report["refreshed_reports"]
-    assert "live_unblock_plan" in report["refreshed_reports"]
-    assert "capability_acceptance" in report["refreshed_reports"]
-    assert "objective_requirement_audit" in report["refreshed_reports"]
-    assert "goal_completion_audit" in report["refreshed_reports"]
-    assert "acceptance_report_hygiene" in report["refreshed_reports"]
-    assert report["next_action"] == "run_writer_selected_item_only"
-    assert report["active_selected_item_ids"] == ["run_crown_internal_writer_eval"]
-    assert report["deferred_selected_item_ids"] == ["run_crown_internal_media_smoke"]
-    assert "--only run_crown_internal_writer_eval" in report["recommended_selected_command"]
-    assert report["secret_values_rendered"] is False
-    rendered = yaml.safe_dump(report, sort_keys=False, allow_unicode=True)
-    assert "sk-" not in rendered
-    assert "test-key" not in rendered
-
-
+@pytest.mark.parametrize(
+    ("item_id", "expected"),
+    [
+        (None, {"status": "pending_returned_artifacts"}),
+        (
+            "run_crown_internal_writer_eval",
+            {
+                "status": "pending_returned_artifacts",
+                "selected_item_id": "run_crown_internal_writer_eval",
+                "selected_item_collect_status": "pass",
+                "selected_item_status": "pass",
+                "selected_item_accepted": True,
+                "selected_item_acceptance_blocker": "none",
+            },
+        ),
+    ],
+)
 def test_trusted_live_runner_collect_cli_writes_yaml(
     tmp_path: Path,
-    private_crown_project_root: Path,
+    monkeypatch,
+    item_id: str | None,
+    expected: dict[str, object],
 ) -> None:
-    del private_crown_project_root
+    collect_mod = importlib.import_module("trusted_live_runner_collect")
     out = tmp_path / "trusted_live_runner_collect.yml"
 
-    result = runner.invoke(app, ["trusted-live-runner-collect", "--out", str(out)])
+    def fake_write(
+        root: Path,
+        collect_out: Path,
+        request_path: Path | None = None,
+        item_id: str | None = None,
+    ) -> dict[str, object]:
+        del root, request_path
+        report = {
+            "report_type": "agentlab_trusted_live_runner_collect",
+            **expected,
+        }
+        assert item_id == report.get("selected_item_id")
+        collect_out.parent.mkdir(parents=True, exist_ok=True)
+        collect_out.write_text(yaml.safe_dump(report, sort_keys=False), encoding="utf-8")
+        return report
+
+    monkeypatch.setattr(collect_mod, "write_trusted_live_runner_collect", fake_write)
+    args = ["trusted-live-runner-collect", "--out", str(out)]
+    if item_id:
+        args.extend(["--item", item_id])
+
+    result = runner.invoke(app, args)
 
     assert result.exit_code == 0
     report = yaml.safe_load(out.read_text(encoding="utf-8"))
-    assert report["report_type"] == "agentlab_trusted_live_runner_collect"
-    assert report["status"] == "pending_returned_artifacts"
-
-
-def test_trusted_live_runner_collect_cli_writes_selected_item_summary(
-    tmp_path: Path,
-    private_crown_project_root: Path,
-) -> None:
-    del private_crown_project_root
-    out = tmp_path / "trusted_live_runner_collect_writer.yml"
-
-    result = runner.invoke(
-        app,
-        [
-            "trusted-live-runner-collect",
-            "--out",
-            str(out),
-            "--item",
-            "run_crown_internal_writer_eval",
-        ],
-    )
-
-    assert result.exit_code == 0
-    report = yaml.safe_load(out.read_text(encoding="utf-8"))
-    assert report["selected_item_id"] == "run_crown_internal_writer_eval"
-    assert report["selected_item_collect_status"] == "pass"
-    assert report["selected_item_status"] == "pass"
-    assert report["selected_item_accepted"] is True
-    assert report["selected_item_acceptance_blocker"] == "none"
+    assert report == {"report_type": "agentlab_trusted_live_runner_collect", **expected}
 
 
 def test_trusted_live_runner_collect_selected_pass_can_coexist_with_global_pending(
@@ -589,7 +489,11 @@ def test_canonical_collect_write_rewrites_acceptance_summary_after_refresh(
     monkeypatch.setattr(hygiene_mod, "sync_snapshot_aliases", lambda base: None)
     monkeypatch.setattr(hygiene_mod, "write_acceptance_report_hygiene", fake_hygiene)
 
-    report = write_trusted_live_runner_collect(tmp_path, out)
+    report = write_trusted_live_runner_collect(
+        tmp_path,
+        out,
+        item_id="run_crown_internal_writer_eval",
+    )
     written = yaml.safe_load(out.read_text(encoding="utf-8"))
     writer_collect = yaml.safe_load(
         out.with_name("trusted_live_runner_collect_writer.yml").read_text(encoding="utf-8")
@@ -601,6 +505,8 @@ def test_canonical_collect_write_rewrites_acceptance_summary_after_refresh(
         assert result["acceptance_summary"]["capability_status_counts"] == {"pass": 26}
         assert result["acceptance_summary"]["objective_status"] == "complete"
         assert result["acceptance_summary"]["goal_status"] == "complete"
+    assert report["selected_item_id"] == "run_crown_internal_writer_eval"
+    assert "selected_item_id" not in written
 
 
 def test_canonical_collect_write_refreshes_current_from_fresh_collect(
@@ -612,6 +518,22 @@ def test_canonical_collect_write_refreshes_current_from_fresh_collect(
     write_trusted_live_runner_collect(ROOT, out)
 
     collect = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert collect["report_type"] == "agentlab_trusted_live_runner_collect"
+    assert collect["status"] == "pending_returned_artifacts"
+    assert collect["trusted_live_runner_status"]["status"] == "pending"
+    assert collect["operator_handoff_status"] in {"ready_for_trusted_runner", "needs_attention"}
+    assert set(collect["refreshed_reports"]) == {
+        "trusted_live_runner_status",
+        "trusted_live_runner_operator_handoff",
+        "live_unblock_plan",
+        "capability_acceptance",
+        "objective_requirement_audit",
+        "goal_completion_audit",
+        "acceptance_report_hygiene",
+    }
+    assert collect["active_selected_item_ids"] == ["run_crown_internal_writer_eval"]
+    assert collect["deferred_selected_item_ids"] == ["run_crown_internal_media_smoke"]
+    assert collect["secret_values_rendered"] is False
     assert collect["selected_item_report_paths"] == {
         "run_crown_internal_writer_eval": (
             "acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml"

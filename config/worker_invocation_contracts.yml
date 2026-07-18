@@ -69,7 +69,7 @@ contracts:
       - supervisor_plan.md
     workflow_shell_profile: agentlabsupervisor
     template: >-
-      hermes -p agentlabsupervisor chat -Q --provider {provider} -m {model_id} -q "Read the AgentLab Supervisor task packet at
+      hermes -p agentlabsupervisor chat -Q --provider {provider} -m {model_id} --ignore-rules --max-turns 6 -q "Read the AgentLab Supervisor task packet at
       {task_packet_path}; own planning, decomposition, progress, recovery, and
       final synthesis only. Do not take over producer work. Return the governed
       plan and receipt paths. AgentLab owns the model execution receipt from the
@@ -88,6 +88,8 @@ contracts:
       AgentLab maps the user-facing label extra to xhigh and must not claim ultra
       unless a future Hermes probe proves it. The classic chat query path is
       required because the one-shot -z path does not apply profile reasoning state.
+      The role session must ignore ambient AGENTS/memory rules and cap tool turns so
+      Supervisor cannot drift into repository onboarding instead of returning its plan.
     safe_probe: [hermes, auth, status, openai-codex]
     forbidden_probes: [[hermes, status, --all]]
     expected_parse:
@@ -186,6 +188,40 @@ contracts:
     fallback:
       on_binary_missing: stop_and_report
       on_quota_exhausted: capacity_manager
+
+  claude_narrative_planner:
+    worker_id: claude_code
+    display_name: Claude Shell DeepSeek Narrative Rewrite Planner
+    command: claude
+    invocation_style: sealed_narrative_rewrite_task_packet
+    workflow_shell: true
+    coalescing_allowed: false
+    required_receipts:
+      - outbound_context_manifest_narrativeplanner.yml
+      - model_execution_chain_narrativeplanner.yml
+      - model_execution_receipt_narrativeplanner_<route>_<attempt>.yml
+      - chapter_state_plan.yml
+    template: >-
+      claude --model "{model_id}" --effort max --max-budget-usd 2.00
+      --permission-mode plan --output-format json --tools "" -p "Read only the
+      sealed AgentLab NarrativePlanner packet at {task_packet_path}. Convert the
+      blocking heavy-audit evidence into one coherent candidate chapter state
+      plan. Do not browse, scan, invoke subagents, write prose, edit production,
+      promote facts, or change project memory. Return raw YAML for
+      chapter_state_plan.yml only. AgentLab owns receipts and validation."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [claude, --help]
+    max_budget_usd: 2.00
+    output_parser: claude_json
+    expected_parse:
+      argv_prefix: [claude, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_quota_exhausted: stop_and_report
 
   claude_supervisor_fallback:
     worker_id: claude_code
@@ -380,8 +416,15 @@ contracts:
     required_receipts:
       - role_session_receipt.yml
       - structured_findings_or_artifacts.yml
+    environment:
+      api_key_source: DASHSCOPE_API_KEY
+      api_key_target: OPENAI_API_KEY
+      base_url_target: OPENAI_BASE_URL
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
     template: >-
-      qwen --bare --model "{model_id}" --approval-mode default --output-format json "Read the task packet at
+      qwen --bare --auth-type openai --openai-base-url
+      "https://dashscope.aliyuncs.com/compatible-mode/v1" --model "{model_id}"
+      --approval-mode default --output-format json "Read the task packet at
       {task_packet_path}; perform only the assigned role and report actual changes."
     required_placeholders:
       - task_packet_path
@@ -392,6 +435,50 @@ contracts:
     validation:
       shlex_parse_required: true
       allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+
+  qwen_narrative_audit:
+    worker_id: qwen
+    display_name: Qwen Code Sealed Narrative Auditor
+    model_profile: qwen3_6_flash_dashscope
+    command: qwen
+    invocation_style: sealed_packet_stdin
+    packet_delivery: stdin
+    structured_output: narrative_heavy_audit
+    workflow_shell: true
+    coalescing_allowed: false
+    required_receipts:
+      - role_session_receipt.yml
+      - narrative_heavy_audit_output_contract.yml
+    environment:
+      api_key_source: DASHSCOPE_API_KEY
+      api_key_target: OPENAI_API_KEY
+      base_url_target: OPENAI_BASE_URL
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    template: >-
+      qwen --bare --auth-type openai --openai-base-url
+      "https://dashscope.aliyuncs.com/compatible-mode/v1" --model "{model_id}"
+      --approval-mode default --max-session-turns 6 --max-wall-time 9m
+      --exclude-tools
+      edit,write_file,read_file,grep_search,glob,run_shell_command,todo_write,save_memory,agent,skill,exit_plan_mode,enter_plan_mode,web_fetch,list_directory,lsp,ask_user_question,cron_create,cron_list,cron_delete,loop_wakeup,task_stop,task_create,task_update,task_list,team_create,team_delete,send_message,monitor,notebook_edit,tool_search,enter_worktree,exit_worktree,workflow,artifact
+      --max-tool-calls 1 --json-schema
+      @narrative_heavy_audit_output.schema.json --output-format stream-json -p "Treat
+      the complete AgentLab
+      sealed role-session packet on stdin as the only task context. Do not call
+      workspace tools. Return exactly the enforced structured-output JSON object;
+      never JSON-encode an object or array into a string. When blocking continuity
+      exists, keep rewrite_required true and proposals non-empty. AgentLab serializes
+      the accepted object to candidate YAML. Reviewer must populate both
+      fiction_review and continuity_failure_report in one structured call; never call
+      write_file."
+    required_placeholders:
+      - model_id
+    safe_probe: [qwen, --help]
+    expected_parse:
+      argv_prefix: [qwen, --bare]
+    validation:
+      shlex_parse_required: true
     fallback:
       on_binary_missing: stop_and_report
 

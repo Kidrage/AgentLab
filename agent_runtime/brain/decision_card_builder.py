@@ -57,7 +57,7 @@ def build_decision_cards(
             "recommended_action": "block",
             "risk_notes": [
                 "Required capabilities must have active backends before execution.",
-                "See capability_registry.yml for available backends.",
+                "Run `./agentlab.sh capability-list` to inspect available backends.",
             ],
         })
 

@@ -1,4 +1,23 @@
-schema_version: 3
+schema_version: 4
+
+authority:
+  purpose: execution_gates_and_budget_behavior
+  owns:
+    - budget_mode_behavior
+    - role_output_constraints
+    - risk_based_validation_requirements
+    - execution_logging_fields
+  does_not_own:
+    - role_backend_selection
+    - model_selection
+    - provider_selection
+    - fallback_routes
+    - cli_command_templates
+  role_backend_source: config/agent_model_profiles.yml
+  model_fact_source: config/model_catalog.yml
+  provider_fact_source: config/model_providers.yml
+  fallback_source: config/model_capacity.yml
+  cli_command_source: config/worker_invocation_contracts.yml
 
 # ─── AgentLab Execution Policy v3 — Size × Risk × Budget 执行规则 ──────
 # 总则：预算决定"多豪华"，不决定"要不要安全"。
@@ -50,14 +69,7 @@ execution_policy:
     - diff               # 只输出精确 patch
     - implementation_notes  # 给外部 IDE AI 的任务提示
 
-  # 默认 API Coder
-  default_api_coder:
-    model: qwen3-coder-next
-    provider: qwen-coder
-    catalog_provider: dashscope_cn
-    profile_ref: qwen3_coder_next_dashscope
-    max_output_tokens: 4096
-    temperature: 0.1
+  backend_resolution: config/agent_model_profiles.yml
 
   # 外部 IDE AI 窗口
   external_ide_window:
@@ -123,17 +135,16 @@ perception_policy:
     InterfaceMapper: must_list_interface_contracts
 
 # ══════════════════════════════════════════════════════════════════════
-# 审核层策略 — 跨模型家族交叉审查
+# 审核层策略
 # ══════════════════════════════════════════════════════════════════════
 
 audit_policy:
   audit_tier: T4
   audit_agents: [TesterAuditor, Verifier]
-  cross_family_review: >
-    与 Coder 使用不同模型家族。
-    Coder 用 Qwen → 审查用 DeepSeek；
-    Coder 用 DeepSeek → 审查用 Qwen；
-    Coder 用外部 IDE AI → 审查层至少用一个独立 API 模型。
+  backend_independence: >
+    R2/R3 审查必须由 workflow plan 解析出的独立角色执行面完成；具体
+    worker、model、provider 只从 agent_model_profiles.yml 解析。本文件
+    不按模型家族重新分配后端，也不声明 fallback。
   R2_required: independent_model_review
   R3_required: dual_model_review
   tester_auditor_forbidden: >

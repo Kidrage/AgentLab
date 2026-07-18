@@ -224,6 +224,12 @@ register_narrative_commands(app, _PROJECT_ROOT, console)
 from agent_runtime.cli.narrative_eval import register_narrative_eval_commands
 register_narrative_eval_commands(app, _PROJECT_ROOT, console)
 
+from agent_runtime.cli.background_jobs import register_background_job_commands
+register_background_job_commands(app, _PROJECT_ROOT, console)
+
+from agent_runtime.cli.run_retention import register_run_retention_commands
+register_run_retention_commands(app, _PROJECT_ROOT, console)
+
 def _run_external_skills_cli(args: list[str]) -> None:
     from external_skills_cli import main as external_skills_main
 
@@ -2473,32 +2479,28 @@ def skill_registry_validate_cmd() -> None:
 def policy_status(
     project: Optional[str] = typer.Option(None, help="Project name."),
 ) -> None:
-    """Show hard AgentLab execution policy for brain and coder stages."""
+    """Show execution gates plus the canonical Supervisor and Coder routes."""
     agentlab_root, _ = runtime_context(project)
     configs = load_agentlab_configs(agentlab_root)
     execution_policy = configs.get("execution_policy", {})
     brain_policy = execution_policy.get("brain_policy", {})
     tier_policy = execution_policy.get("execution_policy", {})
-    coder_policy = execution_policy.get("coder_policy", {})
     providers = configs.get("model_providers", {}).get("providers", {})
-    agent_registry = configs.get("agent_registry", {}).get("agents", {})
     from llm_provider import resolve_env_value
 
-    supervisor_profile_name = agent_registry.get("Supervisor", {}).get("model_profile", "")
     supervisor_profile = resolve_profile_config(
-        supervisor_profile_name,
-        model_profiles=configs.get("model_profiles", {}),
         model_catalog=configs.get("model_catalog", {}),
         agent_name="Supervisor",
+        agent_model_profiles=configs.get("agent_model_profiles", {}),
     )
-    brain_provider_name = (
-        brain_policy.get("required_provider")
-        or supervisor_profile.get("provider")
-        or "deepseek"
+    coder_profile = resolve_profile_config(
+        model_catalog=configs.get("model_catalog", {}),
+        agent_name="Coder",
+        agent_model_profiles=configs.get("agent_model_profiles", {}),
     )
-    deepseek = providers.get(brain_provider_name, {})
-    api_key_configured = bool(resolve_env_value(deepseek.get("api_key"), ""))
-    default_api_coder = tier_policy.get("default_api_coder", {})
+    brain_provider_name = str(supervisor_profile.get("provider") or "")
+    brain_provider = providers.get(brain_provider_name, {})
+    api_key_configured = bool(resolve_env_value(brain_provider.get("api_key"), ""))
     external_window = tier_policy.get("external_ide_window", {})
 
     console.print("[bold]AgentLab execution policy[/bold]")
@@ -2507,24 +2509,18 @@ def policy_status(
             "schema_version": execution_policy.get("schema_version", 1),
             "budget_mode_default": execution_policy.get("budget_mode_policy", {}).get("default_budget_mode", ""),
             "brain_required_provider": brain_provider_name,
+            "brain_model": supervisor_profile.get("model", ""),
+            "brain_cli_agent": supervisor_profile.get("cli_agent", ""),
             "brain_agent": brain_policy.get("brain_agent", "Supervisor"),
             "brain_tier": brain_policy.get("brain_tier", ""),
-            "deepseek_required_for_all_agentlab_tasks": brain_policy.get(
-                "deepseek_required_for_all_agentlab_tasks",
-                brain_provider_name == "deepseek",
-            ),
-            "codex_may_simulate_brain": brain_policy.get("codex_may_simulate_brain", False),
-            "deepseek_api_key_configured": api_key_configured,
-            "coder_default_provider": default_api_coder.get("provider", coder_policy.get("api_fallback_executor", "")),
-            "coder_default_model": default_api_coder.get("model", ""),
+            "brain_provider_api_key_configured": api_key_configured,
+            "coder_default_provider": coder_profile.get("provider", ""),
+            "coder_default_model": coder_profile.get("model", ""),
+            "coder_cli_agent": coder_profile.get("cli_agent", ""),
             "external_ide_window_enabled": external_window.get("enabled", False),
             "patch_application_policy": tier_policy.get("patch_application_policy", ""),
-            "automatic_patch_application": coder_policy.get(
-                "automatic_patch_application",
-                tier_policy.get("patch_application_policy") == "apply_directly",
-            ),
-            "codex_quota_insufficient_action": coder_policy.get("if_codex_quota_insufficient", "ask_user"),
-            "coder_quota_choices": coder_policy.get("user_choices_when_quota_insufficient", []),
+            "backend_authority": "config/agent_model_profiles.yml",
+            "fallback_authority": "config/model_capacity.yml",
         }
     )
 
@@ -3182,10 +3178,9 @@ def models(
     for agent_name in registry:
         settings, _ = resolve_agent_settings(agentlab_root, agent_name)
         profile = resolve_profile_config(
-            settings.profile_name,
-            model_profiles=configs.get("model_profiles", {}),
             model_catalog=configs.get("model_catalog", {}),
             agent_name=agent_name,
+            agent_model_profiles=configs.get("agent_model_profiles", {}),
         )
         agent_table.add_row(
             agent_name,
@@ -3207,6 +3202,7 @@ def models(
 @app.command("model-doctor")
 def model_doctor(
     project: Optional[str] = typer.Option(None, help="Project name, only used to resolve root."),
+    verbose: bool = typer.Option(False, "--verbose", help="Show every resolved mode/tier role profile."),
 ) -> None:
     """Audit model/provider wiring without making network calls."""
     agentlab_root, _ = runtime_context(project)
@@ -3214,19 +3210,26 @@ def model_doctor(
     check = validate_model_configuration(configs)
 
     console.print("[bold]AgentLab model doctor[/bold]")
-    console.print({"status": check["status"], "issue_count": check["issue_count"]})
+    console.print(
+        {
+            "status": check["status"],
+            "issue_count": check["issue_count"],
+            "resolved_profile_count": len(check.get("resolved_profiles", [])),
+        }
+    )
 
-    table = Table("Agent", "Origin", "Profile", "Provider", "Model", "Source")
-    for row in check.get("resolved_profiles", []):
-        table.add_row(
-            row.get("agent", ""),
-            row.get("origin", ""),
-            row.get("profile", ""),
-            row.get("provider", ""),
-            row.get("model", ""),
-            row.get("source", ""),
-        )
-    console.print(table)
+    if verbose:
+        table = Table("Agent", "Origin", "Profile", "Provider", "Model", "Source")
+        for row in check.get("resolved_profiles", []):
+            table.add_row(
+                row.get("agent", ""),
+                row.get("origin", ""),
+                row.get("profile", ""),
+                row.get("provider", ""),
+                row.get("model", ""),
+                row.get("source", ""),
+            )
+        console.print(table)
 
     if check.get("issues"):
         issue_table = Table("Severity", "Scope", "Issue", "Provider/Profile")
@@ -3727,6 +3730,24 @@ def run_agent(
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(result.content, encoding="utf-8")
         output_content = result.content or ""
+    if agent_name == "NarrativePlanner":
+        try:
+            from agent_runtime.narrative_delivery import (
+                narrative_planner_validation_issues,
+                write_narrative_planner_validation,
+            )
+        except ModuleNotFoundError:  # pragma: no cover - direct script path
+            from narrative_delivery import (
+                narrative_planner_validation_issues,
+                write_narrative_planner_validation,
+            )
+
+        validation = write_narrative_planner_validation(
+            Path(plan.project_root),
+            Path(plan.run_dir),
+            output_path,
+        )
+        gate_issues.extend(narrative_planner_validation_issues(validation))
     if agent_name == "Archivist":
         try:
             from project_artifact_steward import apply_archive_protocol
@@ -5214,152 +5235,6 @@ def frontdesk_live_handoff_cmd(
     if report.get("status") == "fail":
         raise typer.Exit(code=1)
 
-
-@app.command("cli-shell-coalescing-plan")
-def cli_shell_coalescing_plan_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
-    mode: str = typer.Option("full_cli", "--mode", help="Agent model profile mode to inspect."),
-    tier: str = typer.Option("performance", "--tier", help="Agent model profile tier to inspect."),
-) -> None:
-    """Plan same-backend CLI workflow-shell role-session coalescing."""
-    agentlab_root, _project_name = runtime_context(None)
-    from cli_shell_coalescing import write_cli_shell_coalescing_plan
-
-    report_out = out or (
-        agentlab_root
-        / "acceptance_runs"
-        / "agentlab_capability_acceptance"
-        / "cli_shell_coalescing_plan.yml"
-    )
-    report = write_cli_shell_coalescing_plan(agentlab_root, report_out, mode=mode, tier=tier)
-    console.print(f"wrote {report_out}")
-    console.print(dump_report_yaml(report, agentlab_root).rstrip())
-    if report.get("status") == "fail":
-        raise typer.Exit(code=1)
-
-
-@app.command("cli-shell-coalescing-status")
-def cli_shell_coalescing_status_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
-    plan: Optional[Path] = typer.Option(None, "--plan", help="Optional coalescing plan path to inspect."),
-) -> None:
-    """Validate returned artifacts from coalesced CLI workflow-shell sessions."""
-    agentlab_root, _project_name = runtime_context(None)
-    from cli_shell_coalescing_status import write_cli_shell_coalescing_status
-
-    report_out = out or (
-        agentlab_root
-        / "acceptance_runs"
-        / "agentlab_capability_acceptance"
-        / "cli_shell_coalescing_status.yml"
-    )
-    report = write_cli_shell_coalescing_status(agentlab_root, report_out, plan_path=plan)
-    console.print(f"wrote {report_out}")
-    console.print(dump_report_yaml(report, agentlab_root).rstrip())
-    if report.get("status") == "fail":
-        raise typer.Exit(code=1)
-
-
-@app.command("cli-shell-coalescing-runner-request")
-def cli_shell_coalescing_runner_request_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML request."),
-    plan: Optional[Path] = typer.Option(None, "--plan", help="Optional coalescing plan path to inspect."),
-    status: Optional[Path] = typer.Option(None, "--status", help="Optional coalescing status path to inspect."),
-) -> None:
-    """Write a trusted-runner request for coalesced CLI shell session receipts."""
-    agentlab_root, _project_name = runtime_context(None)
-    from cli_shell_coalescing_request import write_cli_shell_coalescing_runner_request
-
-    report_out = out or (
-        agentlab_root
-        / "acceptance_runs"
-        / "agentlab_capability_acceptance"
-        / "cli_shell_coalescing_runner_request.yml"
-    )
-    report = write_cli_shell_coalescing_runner_request(
-        agentlab_root,
-        report_out,
-        plan_path=plan,
-        status_path=status,
-    )
-    console.print(f"wrote {report_out}")
-    console.print(dump_report_yaml(report, agentlab_root).rstrip())
-    if report.get("status") == "needs_attention":
-        raise typer.Exit(code=1)
-
-
-@app.command("cli-shell-coalescing-runner")
-def cli_shell_coalescing_runner_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the runner YAML report."),
-    request: Optional[Path] = typer.Option(None, "--request", help="Optional coalesced runner request path."),
-    backend: str = typer.Option("all", "--backend", help="Backend to run: all, claude_code, or hermes."),
-    execute: bool = typer.Option(False, "--execute", help="Execute trusted shell sessions instead of dry-run."),
-    provision_hermes_profiles: bool = typer.Option(
-        False,
-        "--provision-hermes-profiles",
-        help="Create/update isolated Hermes role profiles before trusted execution.",
-    ),
-    provision_only: bool = typer.Option(
-        False,
-        "--provision-only",
-        help="Provision Hermes role profiles without dispatching shell role work.",
-    ),
-    timeout: int = typer.Option(600, "--timeout", min=1, help="Per-run timeout in seconds."),
-) -> None:
-    """Plan or execute coalesced CLI shell sessions behind a trusted-runner gate."""
-    agentlab_root, _project_name = runtime_context(None)
-    from cli_shell_coalescing_runner import write_cli_shell_coalescing_runner_result
-
-    report_out = out or (
-        agentlab_root
-        / "acceptance_runs"
-        / "agentlab_capability_acceptance"
-        / "cli_shell_coalescing_runner_result.yml"
-    )
-    report = write_cli_shell_coalescing_runner_result(
-        agentlab_root,
-        report_out,
-        request_path=request,
-        backend=backend,
-        execute=execute,
-        provision_profiles=provision_hermes_profiles,
-        provision_only=provision_only,
-        timeout=timeout,
-    )
-    console.print(f"wrote {report_out}")
-    console.print(dump_report_yaml(report, agentlab_root).rstrip())
-    if report.get("status") not in {"ready_for_trusted_runner", "pass"}:
-        raise typer.Exit(code=1)
-
-
-@app.command("cli-shell-coalescing-collect")
-def cli_shell_coalescing_collect_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
-    plan: Optional[Path] = typer.Option(None, "--plan", help="Optional coalescing plan path to inspect."),
-    status: Optional[Path] = typer.Option(None, "--status", help="Optional coalescing status path to refresh."),
-    request: Optional[Path] = typer.Option(None, "--request", help="Optional runner request path to refresh."),
-) -> None:
-    """Collect coalesced shell receipts and refresh local acceptance reports."""
-    agentlab_root, _project_name = runtime_context(None)
-    from cli_shell_coalescing_collect import write_cli_shell_coalescing_collect
-
-    report_out = out or (
-        agentlab_root
-        / "acceptance_runs"
-        / "agentlab_capability_acceptance"
-        / "cli_shell_coalescing_collect.yml"
-    )
-    report = write_cli_shell_coalescing_collect(
-        agentlab_root,
-        report_out,
-        plan_path=plan,
-        status_path=status,
-        request_path=request,
-    )
-    console.print(f"wrote {report_out}")
-    console.print(dump_report_yaml(report, agentlab_root).rstrip())
-    if report.get("status") not in {"pending_returned_artifacts", "pass"}:
-        raise typer.Exit(code=1)
 
 
 @app.command("trusted-live-runner-request")

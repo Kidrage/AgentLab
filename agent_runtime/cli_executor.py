@@ -753,13 +753,16 @@ def _load_cli_usage_sidecar(packet_path: Path, agent_name: str, cli_agent_name: 
 
 def _extract_cli_usage_from_output(stdout: str, stderr: str) -> dict[str, Any] | None:
     whole_stdout = stdout.strip()
-    if whole_stdout.startswith("{"):
+    if whole_stdout.startswith(("{", "[")):
         try:
-            usage = _coerce_usage_payload(json.loads(whole_stdout))
+            parsed = json.loads(whole_stdout)
         except json.JSONDecodeError:
-            usage = None
-        if usage:
-            return usage
+            parsed = None
+        candidates = reversed(parsed) if isinstance(parsed, list) else [parsed]
+        for candidate in candidates:
+            usage = _coerce_usage_payload(candidate)
+            if usage:
+                return usage
     for line in reversed((stdout + "\n" + stderr).splitlines()):
         stripped = line.strip()
         if not stripped:
@@ -782,16 +785,346 @@ def _extract_cli_usage_from_output(stdout: str, stderr: str) -> dict[str, Any] |
 
 def _extract_cli_result_text(stdout: str, cli_agent_name: str) -> str:
     """Return the provider's textual result while retaining raw stdout in logs."""
-    if cli_agent_name != "claude_code":
+    if cli_agent_name not in {"claude_code", "qwen", "codex"}:
         return stdout.strip()
+    if cli_agent_name == "codex":
+        result = ""
+        for line in stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            item = event.get("item") if isinstance(event, dict) else None
+            if (
+                isinstance(item, dict)
+                and item.get("type") == "agent_message"
+                and isinstance(item.get("text"), str)
+                and item["text"].strip()
+            ):
+                result = item["text"].strip()
+        return result or stdout.strip()
     try:
         payload = json.loads(stdout.strip())
     except (json.JSONDecodeError, TypeError):
         return stdout.strip()
-    if not isinstance(payload, dict):
-        return stdout.strip()
-    result = payload.get("result")
-    return result.strip() if isinstance(result, str) and result.strip() else stdout.strip()
+    candidates = reversed(payload) if isinstance(payload, list) else [payload]
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        result = candidate.get("result")
+        if isinstance(result, str) and result.strip():
+            return result.strip()
+    return stdout.strip()
+
+
+def _narrative_heavy_audit_output_schema(
+    agent_name: str,
+    *,
+    blocking_rewrite_required: bool = False,
+) -> dict[str, Any]:
+    from agent_runtime.narrative_heavy_audit import HEAVY_AUDIT_OUTPUTS_BY_AGENT
+
+    required_outputs = HEAVY_AUDIT_OUTPUTS_BY_AGENT.get(agent_name, ())
+
+    def content_schema(name: str) -> dict[str, Any]:
+        properties: dict[str, Any] = {
+            "schema_version": {"enum": [1, "1"]},
+            "candidate_only": {"enum": [True, "true"]},
+            "production_modified": {"enum": [False, "false"]},
+        }
+        required = ["schema_version", "candidate_only", "production_modified"]
+        if name == "fiction_review.yml":
+            properties.update(
+                {
+                    "status": {"enum": ["pass", "warn", "blocked"]},
+                    "findings": {"type": "array"},
+                }
+            )
+            required.extend(["status", "findings"])
+        elif name == "continuity_failure_report.yml":
+            properties.update(
+                {
+                    "status": {"enum": ["pass", "warn", "blocked"]},
+                    "blocking_issue_count": {
+                        "anyOf": [
+                            {"type": "integer", "minimum": 0},
+                            {"type": "string", "pattern": "^[0-9]+$"},
+                        ]
+                    },
+                    "failures": {"type": "array"},
+                }
+            )
+            required.extend(["status", "blocking_issue_count", "failures"])
+        elif name == "state_transition_proposal.yml":
+            properties.update(
+                {
+                    "status": {"const": "candidate"},
+                    "requires_user_promotion": {"enum": [True, "true"]},
+                    "events": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["scope"],
+                            "properties": {
+                                "scope": {"const": "candidate_only"},
+                            },
+                            "additionalProperties": True,
+                        },
+                    },
+                }
+            )
+            required.extend(["status", "requires_user_promotion", "events"])
+        elif name == "revision_or_rewrite_proposal.yml":
+            properties.update(
+                {
+                    "status": (
+                        {"const": "proposed"}
+                        if blocking_rewrite_required
+                        else {"enum": ["not_required", "proposed", "blocked"]}
+                    ),
+                    "rewrite_required": (
+                        {"enum": [True, "true"]}
+                        if blocking_rewrite_required
+                        else {"enum": [True, False, "true", "false"]}
+                    ),
+                    "direct_draft_edits": {"enum": [False, "false"]},
+                    "proposals": {
+                        "type": "array",
+                        "minItems": 1 if blocking_rewrite_required else 0,
+                    },
+                }
+            )
+            required.extend(
+                ["status", "rewrite_required", "direct_draft_edits", "proposals"]
+            )
+        return {
+            "type": "object",
+            "required": required,
+            "properties": properties,
+            "additionalProperties": True,
+        }
+
+    if len(required_outputs) == 1:
+        return {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            **content_schema(required_outputs[0]),
+        }
+
+    output_keys = {
+        name: name.removesuffix(".yml")
+        for name in required_outputs
+    }
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": list(output_keys.values()),
+        "properties": {
+            output_key: content_schema(name)
+            for name, output_key in output_keys.items()
+        },
+        "additionalProperties": False,
+    }
+
+
+def _find_narrative_heavy_audit_payload(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        if isinstance(value.get("files"), list):
+            return value
+        for child in value.values():
+            found = _find_narrative_heavy_audit_payload(child)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for child in reversed(value):
+            found = _find_narrative_heavy_audit_payload(child)
+            if found is not None:
+                return found
+    elif isinstance(value, str) and value.lstrip().startswith(("{", "[")):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+        return _find_narrative_heavy_audit_payload(parsed)
+    return None
+
+
+def _find_narrative_heavy_audit_bundle(
+    value: Any,
+    required: tuple[str, ...],
+) -> dict[str, dict[str, Any]] | None:
+    output_keys = {name: name.removesuffix(".yml") for name in required}
+    if isinstance(value, dict):
+        if all(
+            isinstance(value.get(output_key), dict)
+            for output_key in output_keys.values()
+        ):
+            return {
+                name: value[output_key]
+                for name, output_key in output_keys.items()
+            }
+        for child in reversed(list(value.values())):
+            found = _find_narrative_heavy_audit_bundle(child, required)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for child in reversed(value):
+            found = _find_narrative_heavy_audit_bundle(child, required)
+            if found is not None:
+                return found
+    elif isinstance(value, str) and value.lstrip().startswith(("{", "[")):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+        return _find_narrative_heavy_audit_bundle(parsed, required)
+    return None
+
+
+def _narrative_heavy_audit_content_keys(name: str) -> set[str]:
+    common = {"schema_version", "candidate_only", "production_modified"}
+    role_keys = {
+        "fiction_review.yml": {"status", "findings"},
+        "continuity_failure_report.yml": {
+            "status",
+            "blocking_issue_count",
+            "failures",
+        },
+        "state_transition_proposal.yml": {
+            "status",
+            "requires_user_promotion",
+            "events",
+        },
+        "revision_or_rewrite_proposal.yml": {
+            "status",
+            "rewrite_required",
+            "direct_draft_edits",
+            "proposals",
+        },
+    }
+    return common | role_keys.get(name, set())
+
+
+def _find_narrative_heavy_audit_content(
+    value: Any,
+    name: str,
+) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        if _narrative_heavy_audit_content_keys(name) <= set(value):
+            return value
+        for child in reversed(list(value.values())):
+            found = _find_narrative_heavy_audit_content(child, name)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for child in reversed(value):
+            found = _find_narrative_heavy_audit_content(child, name)
+            if found is not None:
+                return found
+    elif isinstance(value, str) and value.lstrip().startswith(("{", "[")):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+        return _find_narrative_heavy_audit_content(parsed, name)
+    return None
+
+
+def _canonicalize_narrative_heavy_audit_content(
+    content: dict[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(content)
+    if normalized.get("schema_version") == "1":
+        normalized["schema_version"] = 1
+    for key in (
+        "candidate_only",
+        "production_modified",
+        "requires_user_promotion",
+        "rewrite_required",
+        "direct_draft_edits",
+    ):
+        value = normalized.get(key)
+        if value == "true":
+            normalized[key] = True
+        elif value == "false":
+            normalized[key] = False
+    blocking_count = normalized.get("blocking_issue_count")
+    if isinstance(blocking_count, str) and blocking_count.isdigit():
+        normalized["blocking_issue_count"] = int(blocking_count)
+    return normalized
+
+
+def _narrative_heavy_audit_requires_rewrite(run_dir: Path) -> bool:
+    path = run_dir / "continuity_failure_report.yml"
+    try:
+        report = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return False
+    try:
+        blocking_count = int(report.get("blocking_issue_count") or 0)
+    except (TypeError, ValueError):
+        blocking_count = 0
+    return blocking_count > 0 or report.get("status") == "blocked"
+
+
+def _narrative_heavy_audit_blocks_from_output(
+    stdout: str,
+    agent_name: str,
+) -> str | None:
+    from agent_runtime.narrative_heavy_audit import HEAVY_AUDIT_OUTPUTS_BY_AGENT
+
+    try:
+        parsed: Any = json.loads(stdout.strip())
+    except json.JSONDecodeError:
+        parsed = []
+        for line in stdout.splitlines():
+            try:
+                parsed.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    required = HEAVY_AUDIT_OUTPUTS_BY_AGENT.get(agent_name, ())
+    materialized: dict[str, dict[str, Any]] = {}
+    if len(required) == 1:
+        content = _find_narrative_heavy_audit_content(parsed, required[0])
+        if content is not None:
+            materialized[required[0]] = _canonicalize_narrative_heavy_audit_content(
+                content
+            )
+    else:
+        bundle = _find_narrative_heavy_audit_bundle(parsed, required)
+        if bundle is not None:
+            materialized = {
+                name: _canonicalize_narrative_heavy_audit_content(content)
+                for name, content in bundle.items()
+            }
+        else:
+            payload = _find_narrative_heavy_audit_payload(parsed)
+            if payload is None:
+                return None
+            for item in payload.get("files", []):
+                if not isinstance(item, dict):
+                    return None
+                name = str(item.get("name") or "")
+                content = item.get("content")
+                if name not in required or name in materialized or not isinstance(content, dict):
+                    return None
+                materialized[name] = _canonicalize_narrative_heavy_audit_content(
+                    content
+                )
+    if set(materialized) != set(required):
+        return None
+    blocks = []
+    for name in required:
+        value = yaml.safe_dump(
+            materialized[name],
+            sort_keys=False,
+            allow_unicode=True,
+        ).rstrip()
+        blocks.append(
+            f"<!-- AGENTLAB_EDIT: {name} -->\n"
+            f"{value}\n"
+            "<!-- END AGENTLAB_EDIT -->"
+        )
+    return "\n\n".join(blocks)
 
 
 def _external_cli_usage(
@@ -817,6 +1150,7 @@ def _render_command(
     provider: str | None = None,
     model_id: str | None = None,
     model_key: str | None = None,
+    append_task_packet_path: bool = True,
 ) -> list[str]:
     """Expand the CLI command template and split into argv tokens.
 
@@ -843,7 +1177,7 @@ def _render_command(
             + ", ".join(f"{{{name}}}" for name in unresolved)
         )
 
-    if str(task_packet_path) not in rendered:
+    if append_task_packet_path and str(task_packet_path) not in rendered:
         rendered = rendered.rstrip() + f" {task_packet_path}"
     # Split respecting simple quoting (no shell glob expansion needed here)
     import shlex
@@ -1033,7 +1367,7 @@ def _contract_process_environment(
     environment = contract.get("environment") or {}
     if (
         str(role_profile.get("invocation_contract") or "").strip()
-        == "qwen_artifact"
+        in {"qwen", "qwen_artifact", "qwen_narrative_audit"}
         and isinstance(environment, dict)
     ):
         source_name = str(environment.get("api_key_source") or "")
@@ -2231,6 +2565,9 @@ def _hermes_supervisor_preflight(
         expected_provider,
         "-m",
         expected_model,
+        "--ignore-rules",
+        "--max-turns",
+        "6",
         "-q",
     ]
     command_bound = (
@@ -2976,6 +3313,20 @@ def run_cli_agent(
         "_runtime_capacity_selection_kind",
         str(role_profile.get("capacity_selection_kind") or "direct"),
     )
+    resolved_invocation_contract = _resolve_invocation_contract(
+        role_profile,
+        plan.agentlab_root,
+    )
+    contract_worker_id = str(
+        resolved_invocation_contract.get("worker_id") or ""
+    ).strip()
+    contract_model_profile = str(
+        resolved_invocation_contract.get("model_profile") or ""
+    ).strip()
+    if contract_worker_id:
+        role_profile["cli_agent"] = contract_worker_id
+    if contract_model_profile:
+        role_profile["default"] = contract_model_profile
     cli_agent_name: str = role_profile.get("cli_agent", "")
     cli_command_template: str = _resolve_invocation_contract_template(
         role_profile,
@@ -3147,9 +3498,22 @@ def run_cli_agent(
 
         manifest_path = run_dir / f"outbound_context_manifest_{agent_name.lower()}.yml"
         production_pack_session = task_messages is not None
-        approval_required = production_pack_session or (
+        narrative_heavy_audit_session = (
+            plan.route.route_key == "narrative_heavy_audit"
+            and agent_name in {"Supervisor", "Reviewer", "Scribe", "Verifier"}
+        )
+        narrative_rewrite_session = (
+            plan.route.route_key == "narrative_rewrite_plan"
+            and agent_name == "NarrativePlanner"
+        )
+        approval_required = (
+            production_pack_session
+            or narrative_heavy_audit_session
+            or narrative_rewrite_session
+            or (
             str(plan.task_id).startswith("task_narrative_eval_")
             or os.getenv("AGENTLAB_TRUSTED_LIVE_RUNNER") == "1"
+            )
         )
         approval_env_name = (
             PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME
@@ -3177,7 +3541,10 @@ def run_cli_agent(
             approval_env_name=approval_env_name,
             provider_shell_or_browser_requested=agent_name == "Researcher",
             source_inventory_required=(
-                production_pack_session or agent_name == "Researcher"
+                production_pack_session
+                or narrative_heavy_audit_session
+                or narrative_rewrite_session
+                or agent_name == "Researcher"
             ),
         )
         if not manifest.get("execution_allowed"):
@@ -3200,6 +3567,19 @@ def run_cli_agent(
 
     packet_path = run_dir / f"task_packet_{agent_name.lower()}.json"
     packet_path.write_text(packet_text, encoding="utf-8")
+    sealed_packet_stdin = (
+        bounded_messages
+        and resolved_invocation_contract.get("packet_delivery") == "stdin"
+    )
+    if (
+        resolved_invocation_contract.get("packet_delivery") == "stdin"
+        and not bounded_messages
+    ):
+        return CliAgentNotAvailable(
+            cli_agent=cli_agent_name,
+            reason="stdin_packet_requires_bounded_messages",
+            detail="stdin packet delivery is valid only for sealed role sessions",
+        )
     try:
         argv = _render_command(
             cli_command_template,
@@ -3208,6 +3588,7 @@ def run_cli_agent(
             provider=model_values["provider"],
             model_id=model_values["model_id"],
             model_key=model_values["model_key"],
+            append_task_packet_path=not sealed_packet_stdin,
         )
     except ValueError as exc:
         return CliAgentNotAvailable(
@@ -3305,6 +3686,23 @@ def run_cli_agent(
         execution_cwd = Path(plan.agentlab_root)
         if workspace_context is not None:
             execution_cwd = Path(workspace_context.name)
+            if (
+                resolved_invocation_contract.get("structured_output")
+                == "narrative_heavy_audit"
+            ):
+                (execution_cwd / "narrative_heavy_audit_output.schema.json").write_text(
+                    json.dumps(
+                        _narrative_heavy_audit_output_schema(
+                            agent_name,
+                            blocking_rewrite_required=(
+                                agent_name == "Verifier"
+                                and _narrative_heavy_audit_requires_rewrite(run_dir)
+                            ),
+                        ),
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
             if agent_name == "ArtifactProducer" and validated_artifact_inputs:
                 try:
                     from agent_runtime.protocols.artifact_task import (
@@ -3452,6 +3850,7 @@ def run_cli_agent(
                 provider=model_values["provider"],
                 model_id=model_values["model_id"],
                 model_key=model_values["model_key"],
+                append_task_packet_path=not sealed_packet_stdin,
             )
             if candidate_used:
                 argv[0] = candidate_used
@@ -3472,10 +3871,6 @@ def run_cli_agent(
             role_profile,
             argv,
             model_values,
-        )
-        resolved_invocation_contract = _resolve_invocation_contract(
-            role_profile,
-            plan.agentlab_root,
         )
         claude_preflight = _claude_runtime_preflight(
             role_profile,
@@ -3716,15 +4111,18 @@ def run_cli_agent(
         cli_log_path = _ensure_cli_log_file_arg(argv, run_dir, cli_agent_name)
         started_at = datetime.now(timezone.utc)
         try:
-            proc = subprocess.run(
-                argv,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=effective_timeout,
-                cwd=execution_cwd,
-                env=process_env,
-            )
+            run_kwargs: dict[str, Any] = {
+                "capture_output": True,
+                "text": True,
+                "timeout": effective_timeout,
+                "cwd": execution_cwd,
+                "env": process_env,
+            }
+            if sealed_packet_stdin:
+                run_kwargs["input"] = packet_text
+            else:
+                run_kwargs["stdin"] = subprocess.DEVNULL
+            proc = subprocess.run(argv, **run_kwargs)
             if observer_manifest and workspace_context is not None:
                 (
                     staged_input_manifest_path,
@@ -4327,6 +4725,17 @@ def run_cli_agent(
     """)
 
     body = _extract_cli_result_text(proc.stdout or "", cli_agent_name)
+    if (
+        resolved_invocation_contract.get("structured_output")
+        == "narrative_heavy_audit"
+    ):
+        body = (
+            _narrative_heavy_audit_blocks_from_output(
+                proc.stdout or "",
+                agent_name,
+            )
+            or body
+        )
     body = body if body else "(no stdout output)"
     stderr_section = (
         f"\n\n## stderr\n\n```\n{stderr_text}\n```" if stderr_text else ""
@@ -4384,6 +4793,10 @@ def run_cli_agent(
             "sealed_context": bounded_messages,
             "execution_workspace_isolated": bounded_messages,
             "inline_sealed_prompt": False,
+            "sealed_packet_stdin": sealed_packet_stdin,
+            "structured_output": resolved_invocation_contract.get(
+                "structured_output"
+            ),
             "observer_input_count": len(observer_manifest),
             "artifact_input_count": len(validated_artifact_inputs),
             **(

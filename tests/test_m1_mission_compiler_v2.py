@@ -185,6 +185,27 @@ class TestDomainAwareMissionCompiler:
         assert contract["task_domain"] == "creative_writing"
         assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
 
+    def test_blocking_crown_rewrite_selects_narrative_planner_route(self):
+        contract = build_mission_contract(
+            "根据 heavy audit 的 blocking findings 重写 Crown_of_Ash 第1章到第200章规划。",
+            project_id="Crown_of_Ash",
+            task_id="task_crown_rewrite_plan_ch001_ch200",
+        )
+        decision = contract["route_decision"]
+        assert decision["selected_route"] == "narrative_rewrite_plan"
+        assert decision["route_proposal"]["agents"] == [
+            "Supervisor",
+            "NarrativePlanner",
+        ]
+
+    def test_rewrite_question_remains_audit_instead_of_starting_rewrite(self):
+        contract = build_mission_contract(
+            "检查 Crown_of_Ash 前10章是否需要重写。",
+            project_id="Crown_of_Ash",
+            task_id="task_crown_check_rewrite_need",
+        )
+        assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
+
     def test_article_about_fiction_market_is_not_longform_chapter(self):
         contract = build_mission_contract(
             "写一篇关于小说市场的分析文章。",
@@ -216,6 +237,7 @@ class TestDomainAwareMissionCompiler:
         contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
         assert "continuity_ledger" in contract["memory_contract"]
         assert "character_state" in contract["memory_contract"]
+        assert "chapter_state_plan" in contract["memory_contract"]
 
     def test_creative_writing_route_forbids_generic_fallbacks(self):
         contract = build_mission_contract(PROMPT_CROWN_OF_ASH)

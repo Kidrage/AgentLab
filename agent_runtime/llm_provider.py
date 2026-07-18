@@ -22,26 +22,18 @@ from schemas import LLMCallResult, LLMSettings
 
 def resolve_llm_settings(
     agent_name: str,
-    agent_registry: dict,
     model_providers: dict,
-    model_profiles: dict,
+    agent_model_profiles: dict,
     model_catalog: dict | None = None,
     provider_override: str | None = None,
     model_override: str | None = None,
 ) -> LLMSettings:
     """Resolve provider/model settings for one agent."""
-    agent_config = agent_registry.get(agent_name, {})
-    profile_name = agent_config.get("model_profile", "")
-    profile_defaults = model_profiles.get("defaults", {})
-    profile = {
-        **profile_defaults,
-        **resolve_profile_config(
-            profile_name,
-            model_profiles=model_profiles,
-            model_catalog=model_catalog or {},
-            agent_name=agent_name,
-        ),
-    }
+    profile = resolve_profile_config(
+        model_catalog=model_catalog or {},
+        agent_name=agent_name,
+        agent_model_profiles=agent_model_profiles,
+    )
 
     provider_name = provider_override or resolve_env_value(
         profile.get("provider"),
@@ -67,7 +59,7 @@ def resolve_llm_settings(
         temperature=float(profile.get("temperature", 0.2)),
         top_p=float(profile.get("top_p", 1.0)),
         max_output_tokens=int(profile.get("max_output_tokens", 2000)),
-        profile_name=profile_name,
+        profile_name=str(profile.get("profile", "")),
     )
 
 

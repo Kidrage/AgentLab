@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import yaml
@@ -13,6 +14,7 @@ from cli_executor import CliAgentNotAvailable, resolve_cli_profile, run_cli_agen
 from config_loader import load_agentlab_configs
 from llm_provider import generate_text, resolve_env_value, resolve_llm_settings
 from policies import assert_path_allowed
+from role_keys import normalize_role_key
 from schemas import LLMCallResult, LLMSettings, WorkflowPlan
 
 
@@ -25,6 +27,7 @@ DEFAULT_REPORT_BY_AGENT = {
     "PromptEngineer": "05_coder_prompt.md",
     "Coder": "06_implementation_report.md",
     "ArtifactProducer": "artifact_producer_report.md",
+    "NarrativePlanner": "chapter_state_plan.yml",
     "Writer": "fiction_draft.md",
     "Reviewer": "fiction_review.yml",
     "Scribe": "continuity_ledger.yml",
@@ -43,21 +46,6 @@ LEGACY_REPORT_BY_AGENT = {
     "ArtifactProducer": "artifact_producer_report.md",
     "TesterAuditor": "audit_report.md",
     "Archivist": "archive_update.md",
-}
-
-ROLE_KEY_BY_AGENT = {
-    "supervisor": "supervisor",
-    "reposcout": "reposcout",
-    "researcher": "researcher",
-    "observer": "observer",
-    "interfacemapper": "interface_mapper",
-    "coder": "coder",
-    "artifactproducer": "artifact_producer",
-    "promptengineer": "prompt_engineer",
-    "testerauditor": "tester_auditor",
-    "verifier": "verifier",
-    "archivist": "archivist",
-    "writer": "writer",
 }
 
 _OBSERVER_TEXT_SUFFIXES = {
@@ -123,7 +111,7 @@ def is_placeholder_report(path: Path) -> bool:
 
 
 def load_text_if_exists(path: Path) -> str:
-    if not path.exists():
+    if not path.is_file():
         return f"[missing: {path}]"
     return path.read_text(encoding="utf-8")
 
@@ -228,6 +216,118 @@ def writer_context_source_files(
                 files.append(assert_path_allowed(path, agentlab_root))
             except Exception:
                 continue
+
+    output_resolved = output_path.resolve(strict=False)
+    result: list[Path] = []
+    seen: set[Path] = set()
+    for path in files:
+        resolved = path.resolve(strict=False)
+        if resolved == output_resolved or resolved in seen or not path.is_file():
+            continue
+        if _is_context_placeholder(path):
+            continue
+        seen.add(resolved)
+        result.append(path)
+    return result
+
+
+def supervisor_context_source_files(
+    agentlab_root: Path,
+    plan: WorkflowPlan,
+    output_path: Path,
+) -> list[Path]:
+    """Return every local file embedded in a sealed Supervisor payload."""
+
+    project_root = Path(plan.project_root)
+    run_dir = Path(plan.run_dir)
+    files = [
+        agentlab_root / "AGENTS.md",
+        agentlab_root / "config" / "repository_handoff_policy.yml",
+        agentlab_root / "PROJECT_HANDOFF.md",
+        agentlab_root / ".agentlab" / "HandOff.md",
+        agentlab_root / "config" / "harness_policy.yml",
+        project_root / "project_config.yml",
+        project_root / "PROJECT_HANDOFF.md",
+        project_root / ".agentlab" / "HandOff.md",
+        project_root / "agent_docs" / "HandOff.md",
+        project_root / "agent_docs" / "00_CONTEXT_PACK.md",
+        project_root / "agent_docs" / "01_REPO_MAP.md",
+        Path(plan.user_request_path),
+        run_dir / "workflow_plan.yml",
+        run_dir / "mission_contract.yml",
+    ]
+    configs = load_agentlab_configs(agentlab_root)
+    supervisor = (configs.get("agent_registry", {}).get("agents", {}) or {}).get(
+        "Supervisor",
+        {},
+    )
+    template_ref = str(supervisor.get("template_path") or "").strip()
+    if template_ref:
+        files.append(agentlab_root / template_ref)
+
+    output_resolved = output_path.resolve(strict=False)
+    result: list[Path] = []
+    seen: set[Path] = set()
+    for path in files:
+        resolved = path.resolve(strict=False)
+        if path.is_symlink():
+            path = resolved
+        if resolved == output_resolved or resolved in seen or not path.is_file():
+            continue
+        if _is_context_placeholder(path):
+            continue
+        seen.add(resolved)
+        result.append(path)
+    return result
+
+
+def narrative_heavy_audit_context_source_files(
+    agentlab_root: Path,
+    plan: WorkflowPlan,
+    agent_name: str,
+    output_path: Path,
+) -> list[Path]:
+    """Return the files embedded in a sealed narrative heavy-audit session."""
+
+    project_root = Path(plan.project_root)
+    run_dir = Path(plan.run_dir)
+    files = [
+        agentlab_root / "config" / "agent_registry.yml",
+        Path(plan.user_request_path),
+        run_dir / "workflow_plan.yml",
+        run_dir / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
+        run_dir / "mission_contract.yml",
+        run_dir / "narrative_audit_manifest.yml",
+        run_dir
+        / f"narrative_heavy_audit_{agent_name.lower()}_output_contract.yml",
+    ]
+    if agent_name == "Reviewer":
+        files.extend(
+            [
+                run_dir / "narrative_audit_context.md",
+                project_root / "project_brain" / "project_fact_snapshot.yml",
+                project_root / "project_artifact_index.yml",
+            ]
+        )
+    if agent_name in {"Scribe", "Verifier"}:
+        files.extend(
+            [
+                run_dir / "fiction_review.yml",
+                run_dir / "continuity_failure_report.yml",
+            ]
+        )
+    if agent_name == "Verifier":
+        files.append(run_dir / "state_transition_proposal.yml")
+
+    configs = load_agentlab_configs(agentlab_root)
+    agent_config = (
+        (configs.get("agent_registry", {}).get("agents", {}) or {}).get(
+            agent_name, {}
+        )
+    )
+    template_text = str(agent_config.get("template_path") or "").strip()
+    if template_text:
+        files.append(agentlab_root / template_text)
 
     output_resolved = output_path.resolve(strict=False)
     result: list[Path] = []
@@ -635,6 +735,93 @@ def artifact_producer_context_source_files(
     seen: set[Path] = set()
     for path in files:
         resolved = path.resolve(strict=False)
+        if path.is_symlink():
+            path = resolved
+        if resolved == output_resolved or resolved in seen or not path.is_file():
+            continue
+        seen.add(resolved)
+        result.append(path)
+    return result
+
+
+def _validated_narrative_rewrite_inputs(
+    agentlab_root: Path,
+    plan: WorkflowPlan,
+) -> list[Path]:
+    """Return hash-bound inputs from a valid narrative rewrite contract."""
+
+    contract_path = Path(plan.run_dir) / "narrative_rewrite_contract.yml"
+    if contract_path.is_symlink() or not contract_path.is_file():
+        raise ValueError("narrative_rewrite_contract_missing_or_symlinked")
+    try:
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError("narrative_rewrite_contract_invalid_yaml") from exc
+    if not isinstance(contract, dict):
+        raise ValueError("narrative_rewrite_contract_root_invalid")
+    expected = {
+        "schema_version": 1,
+        "project": plan.project,
+        "status": "candidate_contract",
+        "candidate_only": True,
+        "production_modified": False,
+        "blocking_evidence_confirmed": True,
+    }
+    if any(contract.get(key) != value for key, value in expected.items()):
+        raise ValueError("narrative_rewrite_contract_boundary_invalid")
+    chapter_range = contract.get("chapter_range")
+    if not (
+        isinstance(chapter_range, list)
+        and len(chapter_range) == 2
+        and all(type(item) is int and item > 0 for item in chapter_range)
+        and chapter_range[0] <= chapter_range[1]
+    ):
+        raise ValueError("narrative_rewrite_contract_chapter_range_invalid")
+    assigned_inputs = contract.get("assigned_inputs")
+    if not isinstance(assigned_inputs, list) or not assigned_inputs:
+        raise ValueError("narrative_rewrite_contract_inputs_missing")
+    try:
+        from agent_runtime.protocols.artifact_task import validate_artifact_task_inputs
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from protocols.artifact_task import validate_artifact_task_inputs
+    try:
+        validated = validate_artifact_task_inputs(agentlab_root, contract)
+    except ValueError as exc:
+        raise ValueError("narrative_rewrite_contract_input_validation_failed") from exc
+    if not validated:
+        raise ValueError("narrative_rewrite_contract_inputs_missing")
+    return [Path(item["_source_path"]) for item in validated]
+
+
+def narrative_planner_context_source_files(
+    agentlab_root: Path,
+    plan: WorkflowPlan,
+    output_path: Path,
+) -> list[Path]:
+    """Return the sealed governance files and hash-bound rewrite evidence."""
+
+    run_dir = Path(plan.run_dir)
+    files = [
+        Path(plan.user_request_path),
+        run_dir / "workflow_plan.yml",
+        run_dir / "mission_contract.yml",
+        run_dir / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
+        run_dir / "narrative_rewrite_contract.yml",
+    ]
+    try:
+        files.extend(_validated_narrative_rewrite_inputs(agentlab_root, plan))
+    except ValueError:
+        # Execution validates fail-closed before starting a provider process.
+        # Dry-run message composition still exposes the missing contract input.
+        pass
+
+    output_resolved = output_path.resolve(strict=False)
+    result: list[Path] = []
+    seen: set[Path] = set()
+    for path in files:
+        resolved = path.resolve(strict=False)
+        if path.is_symlink():
+            path = resolved
         if resolved == output_resolved or resolved in seen or not path.is_file():
             continue
         seen.add(resolved)
@@ -710,21 +897,31 @@ def _agent_plan_summary(plan: WorkflowPlan, agent_name: str) -> dict:
         key: current_agent.get(key)
         for key in (
             "template_path",
-            "model_profile",
-            "model_tier",
             "can_edit_source",
             "can_run_shell",
             "can_write_agent_docs",
             "source_write_policy",
             "shell_policy",
-            "execution_owner",
-            "secondary_executor",
-            "local_executor",
-            "allowed_backends",
             "required_inputs",
             "required_outputs",
         )
         if key in current_agent
+    }
+    resolved_execution = dict((plan.model_profiles or {}).get(agent_name) or {})
+    execution_profile = {
+        key: resolved_execution.get(key)
+        for key in (
+            "executor_type",
+            "cli_agent",
+            "invocation_contract",
+            "catalog_key",
+            "provider",
+            "model",
+            "capacity_route",
+            "resolved_mode",
+            "resolved_tier",
+        )
+        if key in resolved_execution
     }
     selected_skills = []
     for item in (plan.skills or {}).get("selected", []) or []:
@@ -756,6 +953,7 @@ def _agent_plan_summary(plan: WorkflowPlan, agent_name: str) -> dict:
             "rationale": plan.route.rationale,
         },
         "current_agent": current_agent,
+        "execution_profile": execution_profile,
         "token_budget": token_budget,
         "validation_gates": plan.validation_gates,
         "artifact_intent": plan.artifact_intent,
@@ -793,6 +991,7 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
         and agent_name
         in {"Supervisor", "Researcher", "ArtifactProducer", "Verifier"}
     )
+    narrative_rewrite_plan = plan.route.route_key == "narrative_rewrite_plan"
     narrative_heavy_audit = plan.route.route_key == "narrative_heavy_audit"
     media_visual_route = plan.route.route_key == "media_generation_task"
     if media_visual_route and agent_name == "Reviewer":
@@ -807,6 +1006,12 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             run_dir / "mission_contract.yml",
             agentlab_root / "config" / "production_packs.yml",
         ]
+    elif narrative_rewrite_plan and agent_name == "NarrativePlanner":
+        context_files = narrative_planner_context_source_files(
+            agentlab_root,
+            plan,
+            output_path,
+        )
     elif agent_name == "Writer":
         context_files = [
             Path(plan.user_request_path),
@@ -840,10 +1045,17 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             run_dir / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
             run_dir / "mission_contract.yml",
             run_dir / "narrative_audit_manifest.yml",
-            run_dir / "narrative_audit_context.md",
-            project_root / "project_brain" / "project_fact_snapshot.yml",
-            project_root / "project_artifact_index.yml",
+            run_dir
+            / f"narrative_heavy_audit_{agent_name.lower()}_output_contract.yml",
         ]
+        if agent_name == "Reviewer":
+            context_files.extend(
+                [
+                    run_dir / "narrative_audit_context.md",
+                    project_root / "project_brain" / "project_fact_snapshot.yml",
+                    project_root / "project_artifact_index.yml",
+                ]
+            )
         if agent_name in {"Scribe", "Verifier"}:
             context_files.extend(
                 [
@@ -1037,7 +1249,35 @@ Hard execution rules:
 - If information is missing, state what is missing and what should happen next.
 - Keep the report concise, auditable, and scoped to this task.
 """
-    if narrative_heavy_audit and agent_name in {"Reviewer", "Scribe", "Verifier"}:
+    if narrative_rewrite_plan and agent_name == "NarrativePlanner":
+        hard_rules = """
+Narrative rewrite planning role-session rules:
+- Use only the complete context embedded in this sealed task packet.
+- Do not request tools, shell commands, file reads, repository scans, browser
+  access, subagents, or workflow discovery.
+- Convert declared blocking audit evidence into one coherent, ordered chapter
+  state plan; do not write or revise manuscript prose.
+- Return raw YAML for chapter_state_plan.yml only, with candidate_only true and
+  production_modified false.
+- Do not edit project memory, establish canon, write production, approve
+  promotion, emit AGENTLAB_EDIT blocks, or claim AgentLab receipts are missing.
+- Preserve authority memory and make each scene goal, irreversible plot change,
+  and timeline slot specific and unique.
+"""
+    elif narrative_heavy_audit and agent_name == "Supervisor":
+        hard_rules = """
+Narrative heavy-audit Supervisor role-session rules:
+- Use only the complete context embedded in this sealed task packet.
+- Do not request tools, shell commands, file reads, repository scans, browser access,
+  subagents, or workflow discovery; all permitted evidence is already injected.
+- Produce the governed audit/rewrite plan requested by user_request.md directly.
+- Keep all deliverables candidate-only, production_modified false, and promotion disabled.
+- Do not draft manuscript prose, mutate files, or claim AgentLab receipts are missing;
+  AgentLab owns runtime receipt creation outside the model response.
+- If the request defines an exact machine-readable deliverable, return it completely
+  before ancillary governance commentary.
+"""
+    elif narrative_heavy_audit and agent_name in {"Reviewer", "Scribe", "Verifier"}:
         hard_rules = """
 Narrative heavy audit role-session rules:
 - Audit only the injected candidate drafts, ledgers, proposals, and authority memory.
@@ -1316,7 +1556,11 @@ Output contract:
 
 - Do not write a prose wrapper or target capture_report_path.
 - Emit exactly one complete full-file AGENTLAB_EDIT block for each required output below and no other edit blocks.
+- Use this exact envelope for every file: `<!-- AGENTLAB_EDIT: filename.yml -->`, then raw YAML, then `<!-- END AGENTLAB_EDIT -->`.
 - Every YAML file must set schema_version: 1, candidate_only: true, and production_modified: false.
+- Those three boundary keys are mandatory at the YAML document top level; nested copies do not satisfy the contract.
+- YAML sequence text containing `: ` must be quoted or written as a block scalar so the returned file parses deterministically.
+- If the CLI runtime enforces a structured-output schema, return its files/content object instead of hand-writing YAML; AgentLab will serialize the validated object into these same AGENTLAB_EDIT files.
 - fiction_review.yml: status pass|warn|blocked and findings list.
 - continuity_failure_report.yml: status pass|warn|blocked, blocking_issue_count integer, and failures list.
 - state_transition_proposal.yml: status candidate, requires_user_promotion: true, and events list; every event scope is candidate_only.
@@ -1390,6 +1634,45 @@ Output contract:
 Workflow plan summary:
 
 {yaml.safe_dump(_agent_plan_summary(plan, agent_name), sort_keys=False)}
+
+Available task context:
+
+{chr(10).join(context_sections)}
+"""
+    elif agent_name == "NarrativePlanner":
+        planner_plan_summary = {
+            "project": plan.project,
+            "task_id": plan.task_id,
+            "route": plan.route.model_dump(mode="json"),
+            "required_outputs": (
+                plan.included_agents.get("NarrativePlanner") or {}
+            ).get("required_outputs", []),
+            "validation_gates": plan.validation_gates,
+        }
+        user = f"""
+Produce the AgentLab narrative rewrite plan for:
+
+- project: {plan.project}
+- task_id: {plan.task_id}
+- target: chapter_state_plan.yml
+- execution_backend: {plan.execution_backend}
+
+Output contract:
+
+- Return one raw YAML mapping only. Do not wrap it in Markdown fences.
+- Use only the chapter range, authority memory, outlines, audit findings, and
+  rewrite proposals included in Available task context.
+- The root must set schema_version 1, project {plan.project}, status candidate,
+  candidate_only true, and production_modified false.
+- Include chapter_range, target_character_range, hard_character_range,
+  chapter_state_plan, and validation_contract.
+- Include one ordered, contiguous entry per chapter with every field required by
+  the NarrativePlanner template. Do not merge, skip, duplicate, or reset chapters.
+- Do not produce fiction prose, a review, a receipt, or any other file.
+
+Workflow plan summary:
+
+{yaml.safe_dump(planner_plan_summary, sort_keys=False, allow_unicode=True)}
 
 Available task context:
 
@@ -1801,9 +2084,8 @@ def resolve_agent_settings(
         return settings, configs
     settings = resolve_llm_settings(
         agent_name=agent_name,
-        agent_registry=configs.get("agent_registry", {}).get("agents", {}),
         model_providers=configs.get("model_providers", {}),
-        model_profiles=configs.get("model_profiles", {}),
+        agent_model_profiles=configs.get("agent_model_profiles", {}),
         model_catalog=configs.get("model_catalog", {}),
         provider_override=provider_override,
         model_override=model_override,
@@ -1812,7 +2094,7 @@ def resolve_agent_settings(
 
 
 def _role_key_for_agent(agent_name: str) -> str:
-    return ROLE_KEY_BY_AGENT.get(agent_name.lower(), agent_name.lower().replace(" ", "_"))
+    return normalize_role_key(agent_name)
 
 
 def _artifact_task_profile_for_plan(
@@ -2252,6 +2534,22 @@ def _resolve_cli_profile_for_agent(
             configs,
             cli_role_profile,
         )
+    route_config = (
+        (configs.get("routing_rules", {}).get("routes", {}) or {}).get(
+            route_key, {}
+        )
+    )
+    role_session_contracts = (
+        route_config.get("role_session_contracts", {})
+        if isinstance(route_config, dict)
+        else {}
+    )
+    contract_name = str(
+        role_session_contracts.get(agent_name) or ""
+    ).strip()
+    if contract_name and isinstance(cli_role_profile, dict):
+        cli_role_profile = dict(cli_role_profile)
+        cli_role_profile["invocation_contract"] = contract_name
     return configs, mode, agent_role_key, cli_role_profile
 
 
@@ -2566,6 +2864,26 @@ def run_agent_model(
     if operational_result is not None:
         return operational_result
 
+    if agent_name == "NarrativePlanner":
+        try:
+            _validated_narrative_rewrite_inputs(agentlab_root, plan)
+        except ValueError as exc:
+            return LLMCallResult(
+                provider="agentlab-protocol",
+                model="claude_code",
+                content=(
+                    "# NarrativePlanner input contract blocked\n\n"
+                    "The hash-bound narrative rewrite contract failed local "
+                    "validation. No provider process was started.\n"
+                ),
+                status="blocked_user_decision",
+                error=str(exc),
+                raw_usage={
+                    "usage_source": "protocol_gate",
+                    "provider_process_started": False,
+                },
+            )
+
     if (
         agent_name == "ArtifactProducer"
         and plan.route.route_key == "media_generation_task"
@@ -2730,7 +3048,31 @@ def run_agent_model(
         sealed_messages = None
         task_messages = None
         outbound_source_paths = None
-        if agent_name == "Writer":
+        if agent_name == "Supervisor":
+            sealed_messages = compose_agent_messages(
+                agentlab_root,
+                plan,
+                agent_name,
+                output_path,
+            )
+            outbound_source_paths = supervisor_context_source_files(
+                agentlab_root,
+                plan,
+                output_path,
+            )
+        elif agent_name == "NarrativePlanner":
+            sealed_messages = compose_agent_messages(
+                agentlab_root,
+                plan,
+                agent_name,
+                output_path,
+            )
+            outbound_source_paths = narrative_planner_context_source_files(
+                agentlab_root,
+                plan,
+                output_path,
+            )
+        elif agent_name == "Writer":
             sealed_messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
             outbound_source_paths = writer_context_source_files(
                 agentlab_root, plan, output_path
@@ -2754,6 +3096,22 @@ def run_agent_model(
                 output_path,
             )
             outbound_source_paths = visual_acceptance_context_source_files(
+                agentlab_root,
+                plan,
+                agent_name,
+                output_path,
+            )
+        elif (
+            plan.route.route_key == "narrative_heavy_audit"
+            and agent_name in {"Reviewer", "Scribe", "Verifier"}
+        ):
+            sealed_messages = compose_agent_messages(
+                agentlab_root,
+                plan,
+                agent_name,
+                output_path,
+            )
+            outbound_source_paths = narrative_heavy_audit_context_source_files(
                 agentlab_root,
                 plan,
                 agent_name,
@@ -3496,6 +3854,7 @@ def _role_for_agent(agent_name: str) -> str:
     return {
         "RepoScout": "repo_reader",
         "Researcher": "researcher",
+        "NarrativePlanner": "narrative_planner",
         "Archivist": "archivist",
     }.get(agent_name, agent_name.lower())
 

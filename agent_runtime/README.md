@@ -23,7 +23,7 @@ This runtime is intentionally conservative:
 Global workflow config lives in `../config/`:
 
 - `agent_registry.yml`: agent capabilities and permissions.
-- `model_profiles.yml`: model selection and generation settings.
+- `agent_model_profiles.yml`: canonical role backend and model selection.
 - `routing_rules.yml`: smallest-safe-route task routing.
 - `budget_profiles.yml`: token budget estimates and stop thresholds.
 - `execution_policy.yml`: DeepSeek brain requirement and Codex Coder quota decisions.

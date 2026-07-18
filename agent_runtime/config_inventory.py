@@ -17,38 +17,22 @@ except ImportError:  # pragma: no cover - package import path
 
 
 RUNTIME_CONFIG_NAMES = {
+    "backup_policy.local.example.yml",
     "backup_policy.local.yml",
     "local_private_topology.example.yml",
-    "worker_performance_ledger.yml",
     "test_external_agents.yml",
 }
 
 DERIVED_CONFIG_NAMES = {
     "config_ui_schema.yml",
     "shared_agent_directory.yml",
-    "worker_performance_ledger.yml",
 }
 
 FIXTURE_CONFIG_NAMES = {
     "generalization_fixtures.yml",
 }
 
-CANONICAL_SOURCE_NAMES = set(CONFIG_FILES.values()) | {
-    "agent_role_bindings.yml",
-    "agent_role_requirements.yml",
-    "artifact_task_policy.yml",
-    "capability_provider_registry.yml",
-    "capability_registry.yml",
-    "capability_routing_policy.yml",
-    "capability_schema.yml",
-    "ci_gate_policy.yml",
-    "domain_route_packs.yml",
-    "project_routing.yml",
-    "routing_rules.yml",
-    "worker_capability_defaults.yml",
-    "worker_fallback_policy.yml",
-    "worker_invocation_contracts.yml",
-}
+CANONICAL_SOURCE_NAMES = set(CONFIG_FILES.values())
 
 
 @dataclass(frozen=True)
@@ -63,10 +47,12 @@ def build_config_inventory(agentlab_root: Path) -> list[ConfigInventoryItem]:
     """Return a sorted inventory of top-level config YAML files."""
     config_dir = agentlab_root / "config"
     loader_by_file = {filename: key for key, filename in CONFIG_FILES.items()}
+    config_names = {path.name for path in config_dir.glob("*.yml")}
+    runtime_references = _runtime_config_references(agentlab_root, config_names)
     items: list[ConfigInventoryItem] = []
     for path in sorted(config_dir.glob("*.yml")):
         name = path.name
-        category = _classify_config(name)
+        category = _classify_config(name, runtime_references)
         items.append(
             ConfigInventoryItem(
                 path=str(path.relative_to(agentlab_root)),
@@ -102,7 +88,26 @@ def config_inventory_payload(agentlab_root: Path) -> dict[str, Any]:
     }
 
 
-def _classify_config(name: str) -> str:
+def _runtime_config_references(agentlab_root: Path, config_names: set[str]) -> set[str]:
+    references: set[str] = set()
+    source_paths: list[Path] = []
+    for dirname in ("agent_runtime", "scripts", "web_ui"):
+        source_root = agentlab_root / dirname
+        if source_root.is_dir():
+            source_paths.extend(source_root.rglob("*.py"))
+            source_paths.extend(source_root.rglob("*.sh"))
+    source_paths.extend(agentlab_root.glob("*.py"))
+    source_paths.extend(agentlab_root.glob("*.sh"))
+    for path in source_paths:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        references.update(name for name in config_names if name in text)
+    return references
+
+
+def _classify_config(name: str, runtime_references: set[str]) -> str:
     if name in FIXTURE_CONFIG_NAMES:
         return "fixture"
     if name in RUNTIME_CONFIG_NAMES:
@@ -111,12 +116,16 @@ def _classify_config(name: str) -> str:
         return "derived"
     if name in CANONICAL_SOURCE_NAMES:
         return "source"
+    if name in runtime_references:
+        return "direct_source"
     return "unclassified"
 
 
 def _cleanup_note(name: str, category: str) -> str:
     if category == "source":
         return "keep as hand-maintained source unless merged into a stronger authority"
+    if category == "direct_source":
+        return "runtime-owned source loaded directly by its component"
     if category == "derived":
         return "prefer generating from source configs"
     if category == "runtime":

@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import yaml
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
@@ -14,9 +15,12 @@ from agent_runtime.narrative_delivery import (
     build_chapter_packet,
     is_narrative_run,
     run_narrative_doctor,
+    narrative_planner_validation_issues,
+    validate_chapter_state_plan,
     validate_narrative_delivery,
     write_chapter_packet,
     write_narrative_delivery_receipt,
+    write_narrative_planner_validation,
 )
 from agent_runtime.pipeline_runner import _apply_archive_steward_if_needed
 
@@ -157,6 +161,162 @@ def test_candidate_chapter_packet_builds_intent_from_authoritative_route(tmp_pat
         "touch_or_reframe",
         "payoff_or_explicitly_defer",
     }
+
+
+def _state_plan_entry(chapter: int, *, scene_goal: str | None = None) -> dict:
+    return {
+        "chapter": chapter,
+        "title": f"Chapter {chapter}",
+        "volume": "Volume One",
+        "phase": "Opening",
+        "timeline_slot": f"day-{chapter}",
+        "pov": "Kane",
+        "opening_state": f"state before chapter {chapter}",
+        "scene_goal": scene_goal or f"complete distinct scene {chapter}",
+        "irreversible_plot_change": f"irreversible change {chapter}",
+        "character_state_change": f"character change {chapter}",
+        "relationship_or_worldline_change": f"worldline change {chapter}",
+        "foreshadowing_action": f"foreshadowing action {chapter}",
+        "closing_state": f"state after chapter {chapter}",
+        "must_not_repeat": [f"event from chapter {chapter - 1}"],
+    }
+
+
+def _state_plan_document(entries: list[dict]) -> dict:
+    chapters = [entry["chapter"] for entry in entries]
+    return {
+        "schema_version": 1,
+        "project": "Crown_of_Ash",
+        "status": "candidate",
+        "candidate_only": True,
+        "production_modified": False,
+        "chapter_range": [min(chapters), max(chapters)],
+        "target_character_range": [4500, 5500],
+        "hard_character_range": [3000, 8000],
+        "chapter_state_plan": entries,
+        "validation_contract": {
+            "exact_chapter_count": len(entries),
+            "ordered_unique_chapters": True,
+            "unique_scene_goals": True,
+            "unique_irreversible_plot_changes": True,
+            "monotonic_story_state": True,
+        },
+    }
+
+
+def test_candidate_chapter_packet_prefers_valid_run_local_state_plan(tmp_path: Path) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    plan_ref = "runs/task_plan/chapter_state_plan.yml"
+    _write_yaml(
+        project_root / plan_ref,
+        _state_plan_document([_state_plan_entry(1), _state_plan_entry(2)]),
+    )
+
+    packet = build_chapter_packet(
+        root,
+        "Crown_of_Ash",
+        "task_ch02_v2",
+        2,
+        baseline_mode="continuation",
+        chapter_state_plan=plan_ref,
+    )
+
+    assert packet["chapter_intent"]["source_kind"] == "candidate_chapter_state_plan"
+    assert packet["chapter_intent"]["plot_state_change"] == "irreversible change 2"
+    assert packet["chapter_intent"]["beat_plan"]["closing_state"] == "state after chapter 2"
+    assert plan_ref in packet["must_read"]
+    assert packet["story_authority"]["candidate_chapter_state_plan"] == plan_ref
+
+
+def test_chapter_state_plan_rejects_duplicate_scene_goals(tmp_path: Path) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    plan_ref = "runs/task_plan/chapter_state_plan.yml"
+    _write_yaml(
+        project_root / plan_ref,
+        _state_plan_document(
+            [
+                _state_plan_entry(1, scene_goal="repeat this scene"),
+                _state_plan_entry(2, scene_goal="repeat this scene"),
+            ]
+        ),
+    )
+
+    validation = validate_chapter_state_plan(
+        project_root,
+        plan_ref,
+        expected_chapters=[1, 2],
+    )
+
+    assert validation["status"] == "fail"
+    assert any(issue["check"] == "unique_scene_goal" for issue in validation["issues"])
+    with pytest.raises(ValueError, match="chapter state plan failed validation"):
+        build_chapter_packet(
+            root,
+            "Crown_of_Ash",
+            "task_ch02_v2",
+            2,
+            chapter_state_plan=plan_ref,
+        )
+
+
+def test_chapter_state_plan_rejects_unordered_scope_and_false_contract(
+    tmp_path: Path,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    plan_ref = "runs/task_plan/chapter_state_plan.yml"
+    document = _state_plan_document([_state_plan_entry(2), _state_plan_entry(1)])
+    document["chapter_range"] = [1, 3]
+    document["validation_contract"]["monotonic_story_state"] = False
+    _write_yaml(project_root / plan_ref, document)
+
+    validation = validate_chapter_state_plan(
+        project_root,
+        plan_ref,
+        expected_chapters=[1, 2],
+    )
+
+    checks = {issue["check"] for issue in validation["issues"]}
+    assert validation["status"] == "fail"
+    assert "ordered_contiguous_chapters" in checks
+    assert "chapter_range" in checks
+    assert "validation_contract" in checks
+
+
+def test_narrative_planner_validation_binds_output_to_rewrite_contract(
+    tmp_path: Path,
+) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    run_dir = project_root / "runs" / "task_rewrite_plan"
+    _write_yaml(run_dir / "narrative_rewrite_contract.yml", {"chapter_range": [1, 2]})
+    output_path = run_dir / "chapter_state_plan.yml"
+    _write_yaml(
+        output_path,
+        _state_plan_document([_state_plan_entry(1), _state_plan_entry(2)]),
+    )
+
+    validation = write_narrative_planner_validation(
+        project_root,
+        run_dir,
+        output_path,
+    )
+
+    assert validation["status"] == "pass"
+    assert validation["selected_chapter_count"] == 2
+    assert narrative_planner_validation_issues(validation) == []
+    assert (run_dir / "narrative_planner_validation.yml").is_file()
+
+    _write_yaml(output_path, _state_plan_document([_state_plan_entry(1)]))
+    failed = write_narrative_planner_validation(project_root, run_dir, output_path)
+    assert failed["status"] == "fail"
+    assert narrative_planner_validation_issues(failed)
+    assert any(
+        issue["check"] == "selected_chapter_present"
+        for issue in failed["issues"]
+    )
 
 
 def test_narrative_doctor_reports_missing_delivery_protocol(tmp_path: Path) -> None:

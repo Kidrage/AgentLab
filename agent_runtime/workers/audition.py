@@ -5,13 +5,16 @@ from typing import Any, Dict, List, Optional
 
 from agent_runtime.workers.worker_card import WorkerCard
 from agent_runtime.workers.registry import WorkerRegistry
-from agent_runtime.workers.performance_ledger import PerformanceLedger
+from agent_runtime.workers.performance_ledger import (
+    PerformanceLedger,
+    default_performance_ledger_path,
+)
 from agent_runtime.workers.audition_runner import run_worker_audition
 from agent_runtime.workers.audition_tasks import get_task_for_role
 
 
 def get_default_ledger_path(project_root: Path) -> Path:
-    return project_root / "config" / "worker_performance_ledger.yml"
+    return default_performance_ledger_path(project_root)
 
 
 def run_all_auditions(

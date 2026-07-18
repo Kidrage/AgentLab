@@ -44,8 +44,9 @@ AgentLab 演进为一个完整的 **Agent 软件公司 (Agent OS)**。本协议�
 ### 2.1 集中化工作站 (Centralized Workstations)
 *   **绝对路径**：`AgentLab/.agents/workspaces/`
 *   **运行机制**：
-    *   所有 Agents 的配置文件夹（如 `.claude`, `.gemini`, `.hermes`, `.qwen`, `.codex` 等）统一存放在 `AgentLab/.agents/workspaces/` 内，随仓库一同进行多端同步。
-    *   在本地 Mac 用户根目录 `~/` 下，创建对应的软链接（Symlinks）指向上述仓库目录，确保独立 CLI 终端可以正常读写，且不污染外部空间。
+    *   Agent CLI 的完整 home（如 `.claude`, `.gemini`, `.hermes`, `.qwen`, `.codex`）可统一放在该本地目录，并由 `~/` 下的软链接访问。
+    *   该目录包含认证、缓存、会话、插件和可执行包，属于 **local-only runtime**；不得通过 Git 或 Relay Hub 同步，也不得参与仓库索引、HandOff 扫描或项目备份。
+    *   跨端只同步经脱敏的 capability inventory、调用合同、角色配置与必要项目记忆。每个端点独立安装 CLI、完成认证并维护自身缓存。
 
 ### 2.2 三层产物隔离规范 (Three-Tier Artifact Structure)
 任何任务交付必须严格按照三层结构输出，坚决杜绝在仓库根目录直接写临时日志或混乱代码：
@@ -81,12 +82,12 @@ AgentLab 演进为一个完整的 **Agent 软件公司 (Agent OS)**。本协议�
     *   本地通过 `./agentlab.sh relay-sync --execute` 将变动推送至该节点。
 3.  **Cloud Runtime**（`<CLOUD_RUNTIME_HOST>`）：
     *   作为分公司**重型办公与执行环境**。
-    *   云端通过定时任务或 Git Hook 自动从 Relay Hub 拉取最新的 `.agents/workspaces/` 状态、代码仓库和技能，确保两端 Agents 在执行代码时拥有完全相同的运行时与会话历史。
+    *   云端通过 Git 或 Relay Hub 拉取 AgentLab 源码、脱敏配置、技能和项目记忆；CLI home、认证、缓存与会话历史由该端本地维护。
 
 ### 3.2 双轨同步与安全审计纪律 (Double-Track Sync & Safety Policy)
 1. **双轨同步机制**：
    * **方案 A (Git 仓库管理)**：适合对 AgentLab 系统自身结构、底层脚本、工作流定义（`agent_runtime/`, `config/` 等）进行修改时使用，走标准的 Git 提交并推送到公司内部代码库。
-   * **方案 B (Rsync 专轨同步)**：适合日常项目运行数据、运行账本、以及各 Agent 的实时会话状态（`.agents/workspaces/`）在公司内部多端流转。通过执行专属同步脚本 `./agentlab.sh truenas-sync` 直接与 61 中转站（TrueNAS）进行高频对齐。
+   * **方案 B (Rsync 专轨同步)**：适合日常项目运行数据、运行账本、脱敏 Agent 状态和项目记忆。`.agents/workspaces/` 必须排除。通过 `./agentlab.sh truenas-sync` 与 Relay Hub 对齐。
 2. **资产安全与外部隔离规范**：
    * **项目资产专存**：所有项目产出的商业资产（`projects/` 目录下的产物及 Sandbox 记录）仅允许通过方案 B 同步至 61 中转站，**绝对禁止推送至公共/外置 GitHub 仓库**。
    * **凭证绝对隔离 (Credential Isolation)**：所有的 API 密钥、密钥配置文件（如 `.env`, `.git-credentials` 等）禁止上传到任何代码版本库（包括方案 A 的 Git 仓库），也禁止在中转站暴露，仅物理留存于本地 Mac 的沙箱保护区中。

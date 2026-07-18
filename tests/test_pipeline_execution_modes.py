@@ -54,6 +54,14 @@ class ExecutionModeResolutionTests(TestCase):
         self.assertTrue(mode["allow_real_provider"])
         self.assertTrue(mode["allow_patches"])
 
+    def test_non_execute_modes_always_disable_patches(self) -> None:
+        for dry_run, fake_provider in ((True, True), (True, False), (False, True)):
+            mode = _resolve_execution_mode(
+                dry_run=dry_run,
+                fake_provider=fake_provider,
+            )
+            self.assertFalse(mode["allow_patches"])
+
 
 class DryRunNoRealCallTests(TestCase):
     def setUp(self) -> None:

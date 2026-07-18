@@ -405,7 +405,7 @@ def render_interface_map(metrics: dict[str, Any]) -> str:
         "# Interface Map\n\n"
         "## Checked Contracts\n\n"
         "- routing_rules.yml routes reference registered agents\n"
-        "- agent_registry.yml model_profile values reference model_profiles.yml profiles\n"
+        "- agent_model_profiles.yml role keys reference registered AgentLab roles\n"
         "- schemas.AgentName accepts route agents\n\n"
         f"## Issues\n\n```yaml\n{issue_text}\n```\n"
     )

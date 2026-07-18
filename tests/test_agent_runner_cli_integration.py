@@ -9,6 +9,7 @@ mocked so the dispatch logic is tested in isolation.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -125,6 +126,108 @@ def test_writer_without_explicit_opt_in_keeps_the_pure_writer_contract(
     assert profile.get("writer_workflow_activation_status") is None
     assert profile["invocation_contract"] == "claude_writer"
     assert profile["capacity_route"] == "Writer"
+
+
+def test_narrative_planner_resolves_fixed_claude_deepseek_route(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import _resolve_cli_profile_for_agent
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "narrative_rewrite_plan"
+    plan.route.agents = ["Supervisor", "NarrativePlanner"]
+
+    _configs, _mode, role, profile = _resolve_cli_profile_for_agent(
+        ROOT,
+        plan,
+        "NarrativePlanner",
+    )
+
+    assert role == "narrative_planner"
+    assert profile["cli_agent"] == "claude_code"
+    assert profile["invocation_contract"] == "claude_narrative_planner"
+    assert profile["default"] == "deepseek_v4_pro"
+    assert profile["capacity_route"] == "NarrativePlannerRewrite"
+
+
+def test_narrative_planner_missing_contract_blocks_before_provider(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "narrative_rewrite_plan"
+    plan.route.agents = ["Supervisor", "NarrativePlanner"]
+    provider_called = False
+
+    def forbidden_provider(*args, **kwargs):
+        nonlocal provider_called
+        provider_called = True
+        raise AssertionError("provider must not run without rewrite contract")
+
+    monkeypatch.setattr("agent_runner.run_cli_agent", forbidden_provider)
+    monkeypatch.setattr("agent_runner.generate_text", forbidden_provider)
+
+    result = run_agent_model(
+        tmp_path,
+        plan,
+        "NarrativePlanner",
+        Path(plan.run_dir) / "chapter_state_plan.yml",
+    )
+
+    assert result.status == "blocked_user_decision"
+    assert result.error == "narrative_rewrite_contract_missing_or_symlinked"
+    assert result.raw_usage["provider_process_started"] is False
+    assert provider_called is False
+
+
+def test_narrative_planner_context_accepts_only_hash_bound_inputs(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import narrative_planner_context_source_files
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "narrative_rewrite_plan"
+    plan.route.agents = ["Supervisor", "NarrativePlanner"]
+    run_dir = Path(plan.run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("user_request.md", "workflow_plan.yml", "mission_contract.yml"):
+        (run_dir / name).write_text(f"source: {name}\n", encoding="utf-8")
+    evidence = tmp_path / "audit" / "heavy_audit_summary.yml"
+    evidence.parent.mkdir(parents=True, exist_ok=True)
+    evidence.write_text("status: rewrite_required\n", encoding="utf-8")
+    payload = evidence.read_bytes()
+    _write_yaml(
+        run_dir / "narrative_rewrite_contract.yml",
+        {
+            "schema_version": 1,
+            "project": "TestProject",
+            "status": "candidate_contract",
+            "candidate_only": True,
+            "production_modified": False,
+            "blocking_evidence_confirmed": True,
+            "chapter_range": [1, 2],
+            "assigned_inputs": [
+                {
+                    "source_path": "audit/heavy_audit_summary.yml",
+                    "staged_path": "artifact_inputs/01_heavy_audit_summary.yml",
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                    "byte_count": len(payload),
+                    "read_only": True,
+                }
+            ],
+        },
+    )
+
+    sources = narrative_planner_context_source_files(
+        tmp_path,
+        plan,
+        run_dir / "chapter_state_plan.yml",
+    )
+
+    assert evidence in sources
+    assert run_dir / "narrative_rewrite_contract.yml" in sources
 
 
 def test_writer_ultracode_opt_in_reaches_cli_only_through_dedicated_route(
@@ -306,6 +409,31 @@ def test_artifact_producer_materializes_contract_before_cli_execution(
     assert result.raw_usage["capacity_route_id"] == "ArtifactProducerQwen"
 
 
+def test_artifact_producer_context_resolves_internal_project_config_symlink(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import artifact_producer_context_source_files
+
+    plan = _make_plan(tmp_path)
+    project_root = Path(plan.project_root)
+    agent_docs = project_root / "agent_docs"
+    agent_docs.mkdir(parents=True, exist_ok=True)
+    config_target = agent_docs / "project_config.yml"
+    config_target.write_text("project: TestProject\n", encoding="utf-8")
+    (project_root / "project_config.yml").symlink_to(
+        Path("agent_docs") / "project_config.yml"
+    )
+
+    sources = artifact_producer_context_source_files(
+        tmp_path,
+        plan,
+        Path(plan.run_dir) / "artifact_producer_report.md",
+    )
+
+    assert config_target.resolve() in sources
+    assert all(not source.is_symlink() for source in sources)
+
+
 def test_unsupported_audio_artifact_fails_with_capability_mismatch_before_provider(
     tmp_path: Path,
 ) -> None:
@@ -357,6 +485,8 @@ roles:
     allowed_workers: [agy]
   ArtifactProducer:
     allowed_workers: [grok, codex, qwen]
+  NarrativePlanner:
+    allowed_workers: [claude_code]
 workers:
   hermes:
     worker_capable: true
@@ -366,7 +496,7 @@ workers:
   claude_code:
     worker_capable: true
     worker_capabilities: [role_worker]
-    allowed_roles: [Supervisor, Coder, Writer]
+    allowed_roles: [Supervisor, Coder, NarrativePlanner, Writer]
     forbidden_roles: []
   codex:
     worker_capable: true
@@ -577,6 +707,10 @@ agents:
     (run_dir / "mission_contract.yml").write_text("task_domain: creative_writing\n", encoding="utf-8")
     (run_dir / "narrative_audit_manifest.yml").write_text("chapter_range: [1, 10]\n", encoding="utf-8")
     (run_dir / "narrative_audit_context.md").write_text("# Audit context\n", encoding="utf-8")
+    (run_dir / "narrative_heavy_audit_scribe_output_contract.yml").write_text(
+        "status: blocked\nissues:\n  - retry_feedback_marker\n",
+        encoding="utf-8",
+    )
     plan = _make_plan(tmp_path)
     plan.route.route_key = "narrative_heavy_audit"
     plan.route.agents = ["Supervisor", "Reviewer", "Scribe", "Verifier"]
@@ -599,7 +733,84 @@ agents:
         assert "production_modified: false" in text
         for output in outputs:
             assert output in text
-        assert "# Audit context" in text
+        if agent == "Reviewer":
+            assert "# Audit context" in text
+        else:
+            assert "# Audit context" not in text
+        if agent == "Scribe":
+            assert "retry_feedback_marker" in text
+            assert "top level" in text
+
+
+def test_narrative_heavy_audit_cli_roles_receive_sealed_context(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import run_agent_model
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "narrative_heavy_audit"
+    plan.route.agents = ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+    run_dir = Path(plan.run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    for name, value in {
+        "user_request.md": "Audit Crown chapters 1-20.\n",
+        "workflow_plan.yml": "route: narrative_heavy_audit\n",
+        "mission_contract.yml": "task_domain: creative_writing\n",
+        "01_supervisor_plan.md": "# Governed plan\n",
+        "narrative_audit_manifest.yml": "chapter_range: [1, 20]\n",
+        "narrative_audit_context.md": "# Complete bounded audit context\n",
+    }.items():
+        (run_dir / name).write_text(value, encoding="utf-8")
+    project_root = Path(plan.project_root)
+    (project_root / "project_brain").mkdir(parents=True, exist_ok=True)
+    (project_root / "project_brain" / "project_fact_snapshot.yml").write_text(
+        "facts: []\n",
+        encoding="utf-8",
+    )
+    (project_root / "project_artifact_index.yml").write_text(
+        "artifacts: []\n",
+        encoding="utf-8",
+    )
+
+    messages = [
+        {"role": "system", "content": "Use only the sealed audit context."},
+        {"role": "user", "content": "Return the exact required audit blocks."},
+    ]
+    observed: dict[str, object] = {}
+
+    def fake_cli(_plan, _agent, profile, **kwargs):
+        observed["profile"] = dict(profile)
+        observed["sealed_messages"] = kwargs.get("sealed_messages")
+        observed["outbound_source_paths"] = kwargs.get("outbound_source_paths")
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="qwen3.6-flash",
+            content="review complete",
+            status="completed",
+        )
+
+    with patch(
+        "operational_uploader.maybe_run_operational_agent", return_value=None
+    ), patch(
+        "agent_runner.compose_agent_messages", return_value=messages
+    ), patch("agent_runner.run_cli_agent", side_effect=fake_cli):
+        result = run_agent_model(
+            ROOT,
+            plan,
+            "Reviewer",
+            run_dir / "reviewer_role_session_capture.md",
+        )
+
+    assert result.status == "completed"
+    assert observed["sealed_messages"] == messages
+    profile = observed["profile"]
+    assert profile["invocation_contract"] == "qwen_narrative_audit"
+    source_names = {
+        Path(path).name for path in observed["outbound_source_paths"]
+    }
+    assert "narrative_audit_context.md" in source_names
+    assert "project_fact_snapshot.yml" in source_names
+    assert "project_artifact_index.yml" in source_names
 
 
 def test_coder_prompt_excludes_current_output_and_placeholder_reports(tmp_path: Path) -> None:
@@ -2423,6 +2634,7 @@ class TestConfigProfiles:
             "prompt_engineer": "PromptEngineer",
             "coder": "Coder",
             "artifact_producer": "ArtifactProducer",
+            "narrative_planner": "NarrativePlanner",
             "writer": "Writer",
             "reviewer": "Reviewer",
             "scribe": "Scribe",
@@ -2557,25 +2769,12 @@ class TestPromptEngineerMapping:
         assert prom_role.get("cli_agent") == "hermes"
         assert prom_role.get("invocation_contract") == "hermes"
 
-    def test_agent_runner_role_key_map_has_correct_promptengineer(self):
-        """The role key map in agent_runner maps promptengineer -> prompt_engineer."""
-        # We check the source of agent_runner.py directly
-        agent_runner_path = (
-            Path(__file__).parent.parent / "agent_runtime" / "agent_runner.py"
-        )
-        source = agent_runner_path.read_text()
-        # Should contain the correct mapping
-        assert '"promptengineer": "prompt_engineer"' in source, (
-            "agent_runner.py must map promptengineer -> prompt_engineer, not "
-            "execution_prompt_engineer"
-        )
-        assert '"artifactproducer": "artifact_producer"' in source, (
-            "agent_runner.py must map artifactproducer -> artifact_producer"
-        )
-        # Should NOT contain the old wrong mapping
-        assert '"promptengineer": "execution_prompt_engineer"' not in source, (
-            "agent_runner.py must NOT map promptengineer -> execution_prompt_engineer"
-        )
+    def test_shared_role_key_normalizer_handles_compact_names(self):
+        """Role aliases are owned by one shared normalizer, not agent_runner."""
+        from agent_runtime.role_keys import normalize_role_key
+
+        assert normalize_role_key("PromptEngineer") == "prompt_engineer"
+        assert normalize_role_key("ArtifactProducer") == "artifact_producer"
 
 
 # ── resolve_cli_profile call signature ────────────────────────────────────
@@ -2735,7 +2934,7 @@ class TestResolveCliProfileCallSignature:
         with patch(
             "agent_runner.run_cli_agent",
             return_value=CliAgentNotAvailable("hermes", "mock", "mock"),
-        ), patch(
+        ) as mock_cli_agent, patch(
             "agent_runner.generate_text",
             return_value=_api_fallback_result(),
         ):
@@ -2745,3 +2944,8 @@ class TestResolveCliProfileCallSignature:
             run_agent_model(tmp_path, plan, "Supervisor", output, apply_patches=False)
             # No crash = resolve_cli_profile was called correctly with budget_mode
             # as keyword, not positionally swapped
+            call = mock_cli_agent.call_args
+            assert call.kwargs["sealed_messages"] == [
+                {"role": "user", "content": "test"}
+            ]
+            assert call.kwargs["outbound_source_paths"] == []

@@ -16,6 +16,8 @@ roles:
     candidates: [claude_code, codex, aider, hermes]
   ArtifactProducer:
     candidates: [grok, codex, qwen]
+  NarrativePlanner:
+    candidates: [claude_code]
   Writer:
     candidates: [claude_code]
   Reviewer:
