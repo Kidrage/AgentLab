@@ -174,6 +174,32 @@ def test_route_task_writes_explainable_evidence(tmp_path: Path) -> None:
     assert "claude_code" in evidence.read_text(encoding="utf-8")
 
 
+def test_route_task_without_roles_uses_catalog_route_instead_of_coder_default(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "config").symlink_to(ROOT / "config", target_is_directory=True)
+    packet = tmp_path / "task_packet.yml"
+    packet.write_text(
+        yaml.safe_dump(
+            {
+                "task_packet": {
+                    "project_id": "Crown_of_Ash",
+                    "packet_id": "chapter_001",
+                    "objective": "写 Crown 第 1 章。",
+                    "available_workers": ["claude_code", "hermes"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    route_plan = route_task_packet(packet, root)["route_plan"]
+
+    assert route_plan["route_key"] == "narrative_light_chapter"
+    assert route_plan["role_source"] == "route_classifier"
+    assert [item["role"] for item in route_plan["decisions"]] == ["Supervisor", "Writer"]
+
+
 def test_router_cli_smoke(tmp_path: Path) -> None:
     runner = CliRunner()
     assigned = runner.invoke(app, [

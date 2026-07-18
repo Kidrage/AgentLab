@@ -1,4 +1,4 @@
-"""Codex Full-Driver Mode: Handoff Packet Builder (Phase C).
+"""Build a task handoff packet from AgentLab's durable run state.
 
 Responsibilities:
 1. Read state/progress/reports.
@@ -6,8 +6,8 @@ Responsibilities:
 3. Mark next_agent.
 4. Mark continuation mode options.
 
-CLI:
-    ./agentlab.sh codex-handoff --project <ProjectName> --task-id <task_id>
+The ``codex-handoff`` CLI name is retained for compatibility; the packet does
+not grant Codex or any other worker authority over the workflow route.
 """
 
 from __future__ import annotations
@@ -139,7 +139,7 @@ def build_handoff_packet(
     packet = {
         "task_id": task_id,
         "project": project_root.name,
-        "execution_mode": state.execution_mode or "codex_full_driver",
+        "execution_mode": state.execution_mode or "agentlab_orchestrated_cli",
         "status": status,
         "last_completed_agent": completed[-1] if completed else None,
         "next_agent": next_agent,
@@ -159,7 +159,8 @@ def build_handoff_packet(
             "known_risks": [],
         },
         "resume_instructions": {
-            "for_codex": f"Read handoff_packet.yml, then continue from {next_agent or 'start'}.",
+            "for_assigned_worker": f"Read the scoped role packet, then continue from {next_agent or 'start'}.",
+            "for_codex": f"Compatibility only: continue only if assigned the {next_agent or 'next'} role.",
             "for_api_agents": f"Run ./agentlab.sh continue-with-api --project {project_root.name} --task-id {task_id} --from handoff_packet.yml",
             "for_human": "Read 09_archive_update.md and 08_audit_report.md first.",
         },

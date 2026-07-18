@@ -296,6 +296,24 @@ def audit_pack_catalog(
     normalized = [_normalize_pack(pack) for pack in packs]
     issues: list[str] = []
     selector_overlaps: list[dict[str, Any]] = []
+    synthesis_policy = catalog.get("pack_synthesis_policy") or {}
+    synthesis_agents = _string_list(synthesis_policy.get("agents"))
+    routing_data = safe_read_yaml(Path(routing_path), default={}) or {}
+    configured_route_agents = {
+        str(agent)
+        for route in (routing_data.get("routes") or {}).values()
+        if isinstance(route, dict)
+        for agent in (route.get("agents") or [])
+    }
+    synthesis_policy_issues: list[str] = []
+    if synthesis_policy.get("enabled"):
+        if not synthesis_agents:
+            synthesis_policy_issues.append("pack_synthesis_policy.agents is required")
+        for agent in synthesis_agents:
+            if configured_route_agents and agent not in configured_route_agents:
+                synthesis_policy_issues.append(
+                    f"pack_synthesis_policy references unknown route agent: {agent}"
+                )
     route_reference_audit = _route_reference_audit(
         normalized,
         known_routes,
@@ -325,6 +343,7 @@ def audit_pack_catalog(
                         f"{route}: {left.get('pack_id')} and {right.get('pack_id')} have equal specificity"
                     )
     issues.extend(route_reference_audit["issues"])
+    issues.extend(synthesis_policy_issues)
 
     return {
         "schema_version": 1,
@@ -334,6 +353,11 @@ def audit_pack_catalog(
         "pack_count": len(normalized),
         "issues": issues,
         "selector_overlaps": selector_overlaps,
+        "synthesis_policy_audit": {
+            "status": "fail" if synthesis_policy_issues else "pass",
+            "agents": synthesis_agents,
+            "issues": synthesis_policy_issues,
+        },
         "route_reference_audit": route_reference_audit,
     }
 
@@ -532,12 +556,12 @@ def _domain_route_pack_audit(
             "rewrite_route": config.get("rewrite_route"),
         }
         forbidden = _string_list(config.get("forbidden_fallback_routes"))
-        route_proposals = {
-            "route_proposal": config.get("route_proposal"),
-            "batch_route_proposal": config.get("batch_route_proposal"),
-            "audit_route_proposal": config.get("audit_route_proposal"),
-            "rewrite_route_proposal": config.get("rewrite_route_proposal"),
-        }
+        deprecated_proposal_fields = (
+            "route_proposal",
+            "batch_route_proposal",
+            "audit_route_proposal",
+            "rewrite_route_proposal",
+        )
         route_refs: list[dict[str, Any]] = []
         for field, route in route_fields.items():
             if not route:
@@ -555,21 +579,11 @@ def _domain_route_pack_audit(
             if known_routes and not exists:
                 issues.append(f"domain {domain}.forbidden_fallback_routes references unknown route: {route}")
 
-        proposal_expected = {
-            "route_proposal": route_fields["recommended_route"],
-            "batch_route_proposal": route_fields["batch_route"],
-            "audit_route_proposal": route_fields["audit_route"],
-            "rewrite_route_proposal": route_fields["rewrite_route"],
-        }
-        for proposal_field, proposal in route_proposals.items():
-            if not isinstance(proposal, dict):
-                continue
-            proposed_route = proposal.get("route_key")
-            expected_route = proposal_expected.get(proposal_field)
-            if proposed_route and expected_route and str(proposed_route) != str(expected_route):
+        for proposal_field in deprecated_proposal_fields:
+            if proposal_field in config:
                 issues.append(
-                    f"domain {domain}.{proposal_field}.route_key={proposed_route} "
-                    f"does not match {expected_route}"
+                    f"domain {domain}.{proposal_field} is deprecated; "
+                    "domain packs select route keys and routing_rules.yml owns route agents"
                 )
 
         allowed_routes = {str(route) for route in route_fields.values() if route}

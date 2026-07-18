@@ -6,41 +6,15 @@
 const DEFAULT_SNAPSHOT = {
   generatedAt: new Date().toISOString(),
   project: "AgentLab",
-  taskId: "task_0004",
-  taskStatus: "进行中",
-  stage: "实现阶段",
-  coderProvider: "codex-plus",
-  coderQuotaRemaining: 8500,
-  coderQuotaWarningThreshold: 2000,
-  brainProvider: "DeepSeek",
-  route: ["Supervisor","RepoScout","Researcher","InterfaceMapper","Coder","CodexPromptGenerator","TesterAuditor","Archivist"],
-  agents: [
-    { name:"Supervisor", role:"确定范围、路线、Token 预算、停止规则和移交。", status:"complete", provider:"DeepSeek", model:"deepseek-v4-pro", owner:"管理层", canEdit:false, budgetTokens:2700, usedTokens:620 },
-    { name:"RepoScout", role:"读取仓库结构并报告相关上下文。", status:"complete", provider:"DeepSeek", model:"deepseek-v4-pro", owner:"管理层", canEdit:false, budgetTokens:3200, usedTokens:780 },
-    { name:"Researcher", role:"在需要时收集当前外部或参考上下文。", status:"skipped", provider:"DeepSeek", model:"deepseek-v4-pro", owner:"管理层", canEdit:false, budgetTokens:2800, usedTokens:0 },
-    { name:"InterfaceMapper", role:"追踪 UI、运行时、配置、I/O 和集成之间的边界。", status:"complete", provider:"DeepSeek", model:"deepseek-v4-pro", owner:"管理层", canEdit:false, budgetTokens:3200, usedTokens:540 },
-    { name:"Coder", role:"Codex Plus 通道：实际文件编辑、命令执行和本地验证。", status:"active", provider:"Codex Plus", model:"Codex", owner:"执行层", canEdit:true, budgetTokens:5400, usedTokens:1800 },
-    { name:"CodexPromptGenerator", role:"为 Codex Plus 起草简洁的实现移交说明。", status:"skipped", provider:"DeepSeek", model:"deepseek-v4-pro", owner:"管理层", canEdit:false, budgetTokens:1800, usedTokens:0 },
-    { name:"TesterAuditor", role:"在接受之前验证行为并审计差异。", status:"waiting", provider:"DeepSeek", model:"deepseek-v4-pro", owner:"审查层", canEdit:false, budgetTokens:3600, usedTokens:260 },
-    { name:"Archivist", role:"验证后更新项目记忆和连续性记录。", status:"waiting", provider:"DeepSeek", model:"deepseek-v4-pro", owner:"记忆层", canEdit:false, budgetTokens:2200, usedTokens:0 }
-  ],
-  events: [
-    { time:"12:22", level:"info", agent:"Supervisor", text:"Supervisor 创建了模拟任务路线和 Token 预算。" },
-    { time:"12:24", level:"info", agent:"RepoScout", text:"RepoScout 检查了 AgentLab 结构并选择了静态 UI 界面。" },
-    { time:"12:26", level:"info", agent:"InterfaceMapper", text:"InterfaceMapper 将 UI 文件与运行时和配置层分离。" },
-    { time:"12:30", level:"info", agent:"Coder", text:"Coder 添加了第一个本地状态面板骨架。" },
-    { time:"12:35", level:"warn", agent:"Supervisor", text:"Codex 配额警告：剩余 8500 tokens，接近阈值。" },
-    { time:"12:38", level:"decision", agent:"Supervisor", text:"用户决策：是否批准 Coder 的完整文件编辑权限？" },
-  ],
-  costLedger: [
-    { time:"12:22", agent:"Supervisor", provider:"DeepSeek", model:"deepseek-v4-pro", inputTokens:520, outputTokens:180, totalTokens:700, status:"ok" },
-    { time:"12:24", agent:"RepoScout", provider:"DeepSeek", model:"deepseek-v4-pro", inputTokens:680, outputTokens:100, totalTokens:780, status:"ok" },
-    { time:"12:26", agent:"InterfaceMapper", provider:"DeepSeek", model:"deepseek-v4-pro", inputTokens:400, outputTokens:140, totalTokens:540, status:"ok" },
-    { time:"12:30", agent:"Coder", provider:"Codex Plus", model:"Codex", inputTokens:1200, outputTokens:600, totalTokens:1800, status:"manual_logged" }
-  ],
-  decisions: [
-    { id:"dec_001", title:"Codex 配额决策", question:"Codex 配额可能不足以完成 Coder 阶段。请选择行动：", recommendations:["暂停直到 Codex 刷新","切换到 DeepSeek brain + Qwen Coder API","切换到 DeepSeek 全栈 API 编码"], default:"暂停直到 Codex 刷新", status:"pending" }
-  ]
+  taskId: "",
+  taskStatus: "未连接",
+  stage: "--",
+  workflowDriver: "--",
+  route: [],
+  agents: [],
+  events: [],
+  costLedger: [],
+  decisions: []
 };
 
 /* ───── 后端不可用时的最小演示数据 ───── */
@@ -55,19 +29,13 @@ const statusLabels = {
 /* ───── 应用状态 ───── */
 const state = {
   project: "AgentLab",
-  taskId: "task_0004",
+  taskId: "",
   activeTab: "dashboard",
   filter: "all",
   search: "",
   snapshot: { ...DEFAULT_SNAPSHOT },
-  qwenSelectedModel: "",
-  coderProvider: "codex-plus",
   theme: "light",
-  notifications: [
-    { id:1, level:"warn", text:"Coder 配额低于 20%，建议切换至 Qwen 或 DeepSeek", time: Date.now()-300000 },
-    { id:2, level:"decision", text:"task_0003 需要用户决策", time: Date.now()-600000 },
-    { id:3, level:"info", text:"Supervisor 已完成 task_0004 路线规划", time: Date.now()-900000 }
-  ],
+  notifications: [],
   darkMode: false,
   collapsedLogs: new Set(),
   _projects: DEMO_PROJECTS.slice(),
@@ -471,8 +439,6 @@ const AgentLab = {
     if (!agents.length) { el.innerHTML = '<div class="empty-state">没有匹配的 Agent</div>'; return; }
     el.innerHTML = agents.map(a => {
       const pct = a.budgetTokens > 0 ? Math.round((a.usedTokens / a.budgetTokens)*100) : 0;
-      const dp = a.name==="Coder" ? (state.coderProvider==="qwen" ? "Qwen" : "Codex Plus") : a.provider;
-      const dm = a.name==="Coder" ? (state.coderProvider==="qwen" ? (state.qwenSelectedModel||"qwen-plus") : "Codex") : a.model;
       const controls = a.status === "active"
         ? `<button class="btn btn-sm btn-warning" onclick="AgentLab.agentAction('${a.name}','pause')">⏸ 暂停</button><button class="btn btn-sm btn-danger" onclick="AgentLab.agentAction('${a.name}','stop')">⏹ 停止</button>`
         : a.status === "waiting"
@@ -487,9 +453,9 @@ const AgentLab = {
           <span class="status-badge" data-status="${a.status}">${statusLabels[a.status]||a.status}</span>
         </div>
         <div class="agent-meta">
-          <div class="meta-cell"><span>提供商</span><strong>${dp}</strong></div>
+          <div class="meta-cell"><span>执行壳</span><strong>${a.provider}</strong></div>
           <div class="meta-cell"><span>归属层</span><strong>${a.owner}</strong></div>
-          <div class="meta-cell"><span>模型</span><strong>${dm}</strong></div>
+          <div class="meta-cell"><span>模型</span><strong>${a.model}</strong></div>
           <div class="meta-cell"><span>编辑权限</span><strong>${a.canEdit?'允许编辑':'不可编辑'}</strong></div>
         </div>
         <div class="agent-progress">
@@ -686,7 +652,7 @@ const AgentLab = {
 
     const policyYaml = this._configData?.execution_policy
       ? JSON.stringify(this._configData.execution_policy, null, 2)
-      : "brain_policy:\n  required_provider: deepseek\n  deepseek_required_for_all_agentlab_tasks: true\n  codex_may_simulate_brain: false\n\ncoder_policy:\n  primary_executor: codex_plus_manual\n  api_fallback_executor: qwen\n  deepseek_coding_allowed: true\n  no_automatic_deepseek_coding: false";
+      : JSON.stringify({ status: "configuration_unavailable" }, null, 2);
 
     this.$("configPolicy", `<pre id="configPolicyPre">${this.esc(policyYaml)}</pre>`);
 
@@ -698,11 +664,13 @@ const AgentLab = {
     }).join("") || '<tr><td colspan="4" class="text-muted">未加载</td></tr>';
     this.$("configProviders", `<table><tr><th>Provider</th><th>Type</th><th>Model</th><th>API Key</th></tr>${provRows}</table>`);
 
-    const profiles = this._configData?.model_profiles?.profiles || {};
+    const modelProfiles = this._configData?.agent_model_profiles || {};
+    const activeMode = modelProfiles.default_mode || "";
+    const profiles = modelProfiles.modes?.[activeMode]?.tiers?.performance || {};
     const profRows = Object.entries(profiles).map(([name, cfg]) =>
-      `<tr><td>${name}</td><td>${cfg.provider||""}</td><td>${cfg.model||""}</td></tr>`
+      `<tr><td>${name}</td><td>${cfg.cli_agent||cfg.provider||""}</td><td>${cfg.default||""}</td></tr>`
     ).join("") || '<tr><td colspan="3" class="text-muted">未加载</td></tr>';
-    this.$("configProfiles", `<table><tr><th>Profile</th><th>Provider</th><th>Model</th></tr>${profRows}</table>`);
+    this.$("configProfiles", `<table><tr><th>Role</th><th>Worker</th><th>Model key</th></tr>${profRows}</table>`);
 
     const githubPolicy = this._configData?.github_policy || {};
     this.$("configGithub", `<pre>${this.esc(JSON.stringify(githubPolicy, null, 2))}</pre>`);
@@ -1291,12 +1259,10 @@ const AgentLab = {
     const project = this.$("newTaskProject")?.value || "AgentLab";
     const id = this.$("newTaskId")?.value || this.nextTaskId();
     const request = this.$("newTaskRequest")?.value || "";
-    const backend = this.$("newTaskBackend")?.value || "codex";
     const result = await this.apiPost("/api/task/create", {
       project,
       taskId: id,
       requestText: request || `# User Request\n\n${id}`,
-      backend,
     });
     if (result && result.success) {
       state.project = project;
@@ -1313,49 +1279,6 @@ const AgentLab = {
     this.showToast(result?.error || "任务创建失败，请检查后端服务", "error");
   },
 
-  /* ========== 模型切换 ========== */
-  switchBrainModel(mode) {
-    state.brainMode = mode;
-    const labels = { "default": "默认 (Supervisor: v4-pro + 其余: v4-flash)", "deepseek-v4-pro": "全 DeepSeek V4 Pro", "qwen": "全 Qwen" };
-    state.snapshot.brainProvider = mode === "qwen" ? "Qwen" : "DeepSeek";
-    this.addEvent("User", "info", `大脑层模式切换至: ${labels[mode] || mode}`);
-    this.showToast(`🧠 大脑层: ${labels[mode] || mode}`, "success");
-    if (state.activeTab === "agents") this.renderAgentGrid();
-  },
-  switchExecModel(modelId) {
-    state.execModel = modelId;
-    if (modelId === "codex-plus") {
-      state.coderProvider = "codex-plus";
-    } else if (modelId.startsWith("qwen")) {
-      state.coderProvider = "qwen";
-      state.qwenSelectedModel = modelId;
-    } else {
-      state.coderProvider = "deepseek";
-    }
-    this.addEvent("User", "info", `执行层模型切换至: ${modelId}`);
-    this.showToast(`⚡ 执行层已切换至 ${modelId}`, "success");
-    // Show/hide API key input based on selection
-    this._updateExecApiKeyUI(modelId);
-    if (state.activeTab === "agents") this.renderAgentGrid();
-  },
-  _updateExecApiKeyUI(modelId) {
-    const group = document.getElementById("execApiKeyGroup");
-    const note = document.getElementById("execApiKeyNote");
-    const label = document.getElementById("execApiKeyLabel");
-    if (!group) return;
-    if (modelId === "codex-plus") {
-      group.style.display = "none";
-      if (note) note.style.display = "block";
-    } else {
-      group.style.display = "grid";
-      if (note) note.style.display = "none";
-      if (label) {
-        if (modelId.startsWith("qwen")) label.textContent = "Qwen API Key";
-        else label.textContent = "DeepSeek API Key";
-      }
-    }
-  },
-
   /* ========== 聊天模式 ========== */
   chatMode: "subtask", // subtask | task | project
   setChatMode(mode, silent = false) {
@@ -1364,35 +1287,6 @@ const AgentLab = {
     this.renderCommandContext();
     const labels = { subtask: "追加子任务", task: "创建项目内新任务", project: "创建同级项目" };
     if (!silent) this.showToast(`聊天模式: ${labels[mode]}`, "info");
-  },
-
-  /* ========== 设置面板 ========== */
-  toggleSettings() {
-    const panel = document.getElementById("settingsPanel");
-    const backdrop = document.getElementById("settingsBackdrop");
-    if (!panel) return;
-    const isOpen = !panel.hidden;
-    if (isOpen) {
-      panel.hidden = true;
-      if (backdrop) backdrop.hidden = true;
-    } else {
-      panel.hidden = false;
-      if (backdrop) backdrop.hidden = false;
-      // Sync current exec model UI
-      this._updateExecApiKeyUI(state.execModel || state.coderProvider || "codex-plus");
-    }
-  },
-  setBrainApiKey(value) {
-    if (value) {
-      state._brainApiKey = value;
-      this.showToast("🧠 大脑层 API Key 已设置（本地存储，不会上传）", "success");
-    }
-  },
-  setExecApiKey(value) {
-    if (value) {
-      state._execApiKey = value;
-      this.showToast("⚡ 执行层 API Key 已设置（本地存储，不会上传）", "success");
-    }
   },
 
   /* ========== 主题切换 ========== */
@@ -1491,8 +1385,6 @@ async function init() {
   if (!state.snapshot.events) state.snapshot.events = DEFAULT_SNAPSHOT.events;
   if (!state.snapshot.costLedger) state.snapshot.costLedger = DEFAULT_SNAPSHOT.costLedger;
   if (!state.snapshot.decisions) state.snapshot.decisions = DEFAULT_SNAPSHOT.decisions;
-  state.coderProvider = state.snapshot.coderProvider || "codex-plus";
-
   // 同步任务列表并渲染
   state._taskData = await AgentLab.fetchTasks();
   AgentLab.renderAll();

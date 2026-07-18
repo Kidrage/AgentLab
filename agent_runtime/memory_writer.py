@@ -57,7 +57,7 @@ def allowed_memory_files(agentlab_root: Path) -> set[str]:
         "agent_docs/05_CHANGELOG_AGENT.md",
         "agent_docs/06_RISK_REGISTER.md",
         "agent_docs/07_DEVELOPMENT_LOG.md",
-        "agent_docs/08_CODEX_DIALOGUE_LOG.md",
+        "agent_docs/08_WORKER_DIALOGUE_LOG.md",
         "agent_docs/09_COST_LEDGER.yml",
         "agent_docs/10_SYNC_LEDGER.yml",
     }

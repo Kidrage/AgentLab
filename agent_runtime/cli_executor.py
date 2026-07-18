@@ -330,7 +330,7 @@ def _task_packet_payload(
             "agent": agent_name,
             "project": plan.project,
             "task_id": plan.task_id,
-            "execution_backend": plan.execution_backend,
+            "workflow_driver": plan.execution_backend,
             "budget_mode": plan.budget_mode,
             "risk_level": plan.risk_level,
             "context_policy": {
@@ -359,7 +359,7 @@ def _task_packet_payload(
             "agent": agent_name,
             "project": plan.project,
             "task_id": plan.task_id,
-            "execution_backend": plan.execution_backend,
+            "workflow_driver": plan.execution_backend,
             "budget_mode": plan.budget_mode,
             "risk_level": plan.risk_level,
             "context_policy": {
@@ -388,7 +388,7 @@ def _task_packet_payload(
         "project_root": plan.project_root,
         "run_dir": plan.run_dir,
         "user_request_path": plan.user_request_path,
-        "execution_backend": plan.execution_backend,
+        "workflow_driver": plan.execution_backend,
         "budget_mode": plan.budget_mode,
         "risk_level": plan.risk_level,
         "route": plan.route.model_dump(mode="json"),
@@ -397,11 +397,8 @@ def _task_packet_payload(
         "validation_gates": plan.validation_gates,
         "repository_handoff": {
             "policy": str(Path(plan.agentlab_root) / "config" / "repository_handoff_policy.yml"),
-            "project_local_candidates": [
-                str(Path(plan.project_root) / "PROJECT_HANDOFF.md"),
-                str(Path(plan.project_root) / ".agentlab" / "HandOff.md"),
-                str(Path(plan.project_root) / "agent_docs" / "HandOff.md"),
-            ],
+            "canonical_path": str(Path(plan.project_root) / "PROJECT_HANDOFF.md"),
+            "legacy_aliases_are_read_only": True,
             "discover_before_read": True,
             "create_if_missing_before_deep_read": True,
             "refresh_after_material_change": True,
@@ -3498,18 +3495,14 @@ def run_cli_agent(
 
         manifest_path = run_dir / f"outbound_context_manifest_{agent_name.lower()}.yml"
         production_pack_session = task_messages is not None
-        narrative_heavy_audit_session = (
-            plan.route.route_key == "narrative_heavy_audit"
-            and agent_name in {"Supervisor", "Reviewer", "Scribe", "Verifier"}
-        )
-        narrative_rewrite_session = (
-            plan.route.route_key == "narrative_rewrite_plan"
-            and agent_name == "NarrativePlanner"
+        pack_role_contracts = (plan.production_pack or {}).get("role_contracts") or {}
+        configured_pack_role_session = (
+            isinstance(pack_role_contracts, dict)
+            and agent_name in pack_role_contracts
         )
         approval_required = (
             production_pack_session
-            or narrative_heavy_audit_session
-            or narrative_rewrite_session
+            or configured_pack_role_session
             or (
             str(plan.task_id).startswith("task_narrative_eval_")
             or os.getenv("AGENTLAB_TRUSTED_LIVE_RUNNER") == "1"
@@ -3542,8 +3535,7 @@ def run_cli_agent(
             provider_shell_or_browser_requested=agent_name == "Researcher",
             source_inventory_required=(
                 production_pack_session
-                or narrative_heavy_audit_session
-                or narrative_rewrite_session
+                or configured_pack_role_session
                 or agent_name == "Researcher"
             ),
         )

@@ -20,6 +20,8 @@ import subprocess
 
 ROOT_PROJECT_HANDOFF = Path("PROJECT_HANDOFF.md")
 
+# Only PROJECT_HANDOFF.md is writable authority. The remaining paths are
+# discovery aliases retained for repositories created under older policies.
 HANDOFF_NAMES = (
     ROOT_PROJECT_HANDOFF,
     Path(".agentlab/HandOff.md"),
@@ -143,7 +145,12 @@ def _git_paths(root: Path) -> list[Path] | None:
         if not raw:
             continue
         path = Path(raw)
-        if _is_ignored_path(path):
+        absolute = root / path
+        if (
+            _is_ignored_path(path)
+            or absolute.is_symlink()
+            or not absolute.is_file()
+        ):
             continue
         paths.append(path)
     return sorted(set(paths), key=lambda item: item.as_posix())
@@ -296,7 +303,8 @@ def render_handoff(snapshot: dict[str, Any], *, existing: str = "") -> str:
         "## Repository Identity",
         "",
         f"- Repository ID: `{snapshot['repository_id']}`",
-        f"- Working root: `{snapshot['root']}`",
+        "- Working root: `.`",
+        f"- Repository name: `{Path(snapshot['root']).name}`",
         f"- Git repository: `{str(git['is_git']).lower()}`",
         f"- Generated at: `{snapshot['generated_at']}`",
         "",
@@ -317,7 +325,7 @@ def render_handoff(snapshot: dict[str, Any], *, existing: str = "") -> str:
         "- Remaining work / ETA: maintain in Agent Notes when it cannot be inferred deterministically.",
         "- Pending decisions: maintain in Agent Notes and refresh before final reporting.",
         "- Pending files / plans / acceptance artifacts: maintain in Agent Notes and task run ledgers.",
-        "- Fast reporting source: this root file plus the shared `memory/repositories/` mirror.",
+        "- Fast reporting source: this canonical root file; use the shared mirror only when explicitly written.",
         "",
         "## Active Work and Pending Items",
         "",
@@ -374,7 +382,7 @@ def render_handoff(snapshot: dict[str, Any], *, existing: str = "") -> str:
         "",
         "## Mandatory Update Rule",
         "",
-        "Refresh this Project Handoff after branch, commit, file, directory, schema, interface,",
+        "Refresh canonical PROJECT_HANDOFF.md after branch, commit, file, directory, schema, interface,",
         "related-repository, or material project-state changes, and before final handoff.",
         "",
     ])
@@ -428,14 +436,23 @@ def _atomic_write(path: Path, content: str) -> None:
     temporary.replace(path)
 
 
-def update_handoffs(root: Path, shared_memory_root: Path) -> dict[str, Any]:
+def update_handoffs(
+    root: Path,
+    shared_memory_root: Path,
+    *,
+    write_shared_copy: bool = False,
+) -> dict[str, Any]:
+    """Refresh canonical repository memory and optionally its shared fallback.
+
+    Legacy local aliases remain readable through ``discover_handoff`` but are
+    never rewritten. A shared copy is written only when explicitly requested or
+    when the canonical repository path is not writable.
+    """
     root = Path(root).expanduser().resolve()
     shared_memory_root = Path(shared_memory_root).expanduser().resolve()
     existing_path = discover_handoff(root, shared_memory_root)
     snapshot = scan_repository(root)
     root_path = root / ROOT_PROJECT_HANDOFF
-    local_path = root / ".agentlab" / "HandOff.md"
-    compatible_path = root / "agent_docs" / "HandOff.md"
     shared_path = shared_memory_root / snapshot["repository_id"] / "HandOff.md"
 
     existing = ""
@@ -447,28 +464,36 @@ def update_handoffs(root: Path, shared_memory_root: Path) -> dict[str, Any]:
     content = render_handoff(snapshot, existing=existing)
 
     written: list[str] = []
-    local_error = ""
+    canonical_error = ""
     try:
         _atomic_write(root_path, content)
         written.append(str(root_path))
     except OSError as exc:
-        local_error = str(exc)
-    try:
-        _atomic_write(local_path, content)
-        written.append(str(local_path))
-    except OSError as exc:
-        local_error = local_error or str(exc)
-    try:
-        _atomic_write(compatible_path, content)
-        written.append(str(compatible_path))
-    except OSError as exc:
-        local_error = local_error or str(exc)
-    _atomic_write(shared_path, content)
-    written.append(str(shared_path))
+        canonical_error = str(exc)
+
+    shared_copy_reason = None
+    if write_shared_copy or canonical_error:
+        _atomic_write(shared_path, content)
+        written.append(str(shared_path))
+        shared_copy_reason = (
+            "canonical_write_fallback" if canonical_error else "explicit_request"
+        )
+
+    legacy_paths = [
+        str(root / relative)
+        for relative in HANDOFF_NAMES[1:]
+        if (root / relative).is_file()
+    ]
     return {
         "repository_id": snapshot["repository_id"],
         "handoff_paths": written,
-        "local_write_error": local_error or None,
+        "canonical_handoff_path": str(root_path) if not canonical_error else None,
+        "source_handoff_path": str(existing_path) if existing_path else None,
+        "legacy_handoff_paths": legacy_paths,
+        "shared_handoff_path": str(shared_path) if shared_copy_reason else None,
+        "shared_copy_written": shared_copy_reason is not None,
+        "shared_copy_reason": shared_copy_reason,
+        "local_write_error": canonical_error or None,
         "path_count": snapshot["scan"]["path_count"],
         "truncated": snapshot["scan"]["truncated"],
     }

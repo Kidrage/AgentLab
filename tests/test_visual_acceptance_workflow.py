@@ -6,11 +6,12 @@ from pathlib import Path
 import yaml
 
 from agent_runtime.lifecycle_graph import create_lifecycle
-from agent_runtime.routing.route_catalog import DEFAULT_ROUTE_AGENTS
+from agent_runtime.routing.route_catalog import RouteCatalog
 from agent_runtime.visual_acceptance_workflow import materialize_visual_acceptance
 
 
 ROOT = Path(__file__).resolve().parents[1]
+ROUTE_CATALOG = RouteCatalog.from_file(ROOT / "config" / "routing_rules.yml")
 DIMENSIONS = ("aesthetic", "continuity", "technical", "factual_safety")
 VERIFICATION_CHECKS = (
     "asset_integrity",
@@ -151,7 +152,7 @@ def _complete_visual_evidence(run_dir: Path) -> None:
 
 
 def test_media_route_and_pack_require_post_production_visual_roles() -> None:
-    agents = DEFAULT_ROUTE_AGENTS["media_generation_task"]
+    agents = ROUTE_CATALOG.agents_for("media_generation_task")
     packs = yaml.safe_load((ROOT / "config" / "production_packs.yml").read_text())
     media_packs = {
         pack["pack_id"]: pack
@@ -177,7 +178,7 @@ def test_media_route_and_pack_require_post_production_visual_roles() -> None:
 
 def test_media_lifecycle_activates_only_post_production_visual_nodes(tmp_path: Path) -> None:
     plan = {
-        "route": {"agents": DEFAULT_ROUTE_AGENTS["media_generation_task"]},
+        "route": {"agents": ROUTE_CATALOG.agents_for("media_generation_task")},
         "production_pack": {
             "pack_id": "media_generation",
             "lifecycle_nodes": [

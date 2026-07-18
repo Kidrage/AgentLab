@@ -52,7 +52,7 @@ AgentLab 演进为一个完整的 **Agent 软件公司 (Agent OS)**。本协议�
 任何任务交付必须严格按照三层结构输出，坚决杜绝在仓库根目录直接写临时日志或混乱代码：
 1.  **工作进行区 (Task Sandbox)**：`projects/<ProjectName>/runs/<task_id>/`，存放开发过程中的临时修改和日志。
 2.  **阶段产物产生区 (Task Artifact Capture)**：`projects/<ProjectName>/runs/<task_id>/artifacts/`，存放本阶段生成的需要进行 QA 测试的待验证成果。
-3.  **项目最终交付区 (Project Production Area)**：`projects/<ProjectName>/artifacts/`，当且仅当通过阶段验收测试后，由行政/归档 Agent 将结果整理发布至此，保持干净的最终交付区。
+3.  **项目最终交付区 (Project Production Area)**：`projects/<ProjectName>/production/`，当且仅当通过阶段验收测试和显式 promotion 后，由 Archivist 将结果整理发布至此；`project_artifact_index.yml` 记录当前版本。
 
 ---
 

@@ -31,7 +31,6 @@ records:
     - USER_DECISION_REQUIRED.md
 
   project_memory:
-    - HandOff.md
     - 00_CONTEXT_PACK.md
     - 01_REPO_MAP.md
     - 02_TASK_LEDGER.yml
@@ -40,7 +39,7 @@ records:
     - 05_CHANGELOG_AGENT.md
     - 06_RISK_REGISTER.md
     - 07_DEVELOPMENT_LOG.md
-    - 08_CODEX_DIALOGUE_LOG.md
+    - 08_WORKER_DIALOGUE_LOG.md
     - 09_COST_LEDGER.yml
     - 10_SYNC_LEDGER.yml
 
@@ -52,11 +51,11 @@ drift_controls:
   - Never claim a test, build, or manual verification passed without evidence.
   - Trigger AgentLab only when the user explicitly asks to use AgentLab.
   - Record every AgentLab team action in the project development log.
-  - Record Codex Coder dialogue summaries and implementation actions in the dialogue log.
-  - Record DeepSeek token usage when available and Codex Plus execution as manual/unavailable for exact billing.
+  - Record assigned worker dialogue summaries and implementation actions in the dialogue log.
+  - Record provider/model usage from receipts; unknown subscription usage remains unknown.
   - Require safe full path/metadata inventory before repository work; it is exempt from traversal approval.
   - Require a brain traversal request before any bulk full-directory or full-repository content read.
-  - Discover or create HandOff.md before project content reads and refresh it after every material change.
+  - Read or refresh canonical PROJECT_HANDOFF.md before project content reads; legacy handoff names are read-only.
   - Stop and replan when repeated loops or task-goal drift are detected.
   - Treat AGENTS.md as a map into local memory and config, not a full duplicate of policy.
   - Promote repeated user feedback or audit findings into harness_policy, validation gates, scripts, or concise project memory.

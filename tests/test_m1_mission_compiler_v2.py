@@ -193,10 +193,7 @@ class TestDomainAwareMissionCompiler:
         )
         decision = contract["route_decision"]
         assert decision["selected_route"] == "narrative_rewrite_plan"
-        assert decision["route_proposal"]["agents"] == [
-            "Supervisor",
-            "NarrativePlanner",
-        ]
+        assert "route_proposal" not in decision
 
     def test_rewrite_question_remains_audit_instead_of_starting_rewrite(self):
         contract = build_mission_contract(
@@ -262,7 +259,7 @@ class TestDomainAwareMissionCompiler:
         decision = contract["route_decision"]
         assert decision["action"] == "refuse_current_route"
         assert decision["route_proposal"]["route_key"] == "narrative_light_chapter"
-        assert decision["route_proposal"]["agents"] == ["Supervisor", "Writer"]
+        assert "agents" not in decision["route_proposal"]
 
     def test_invalid_llm_assisted_compiler_output_falls_back_to_rules(self):
         def bad_generate(_messages):

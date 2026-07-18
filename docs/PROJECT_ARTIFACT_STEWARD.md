@@ -14,8 +14,10 @@
 
 - `projects/<Project>/runs/<task_id>/` is for process evidence: reports, logs, plans, task packets, state, progress, and validation material.
 - `projects/<Project>/runs/<task_id>/artifacts/` is for candidate deliverables produced by this task.
-- `projects/<Project>/artifacts/` is for current production deliverables only.
-- `projects/<Project>/artifacts/_archive/<artifact_id>/<timestamp>__<task_id>/` stores old production versions before replacement.
+- `projects/<Project>/production/` is the only current production root. Domain
+  subdirectories include `artifacts/`, `media/`, and `manuscript/`.
+- `projects/<Project>/archive/<artifact_id>/<timestamp>__<task_id>/` stores old
+  production versions before replacement.
 
 ## Fatal Gate Conditions
 

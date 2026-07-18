@@ -238,16 +238,20 @@ def build_artifact_intent(
     root = _project_root(agentlab_root, project)
     run_dir = _run_dir(agentlab_root, project, task_id)
     artifact_cfg = (project_config or {}).get("artifact_steward", {})
-    paths_cfg = (project_config or {}).get("paths", {})
-    production_dir = Path(_production_dir_for_pack(root, artifact_cfg, paths_cfg, production_pack))
+    production_dir = Path(_production_dir_for_pack(root, artifact_cfg, production_pack))
     if not production_dir.is_absolute():
         production_dir = root / production_dir
+    production_root = (root / "production").resolve(strict=False)
+    if not _is_relative_to(production_dir.resolve(strict=False), production_root):
+        raise ValueError(
+            f"production_dir must be under {production_root}: {production_dir}"
+        )
     candidate_dir = Path(artifact_cfg.get("candidate_dir") or run_dir / "artifacts")
     if not candidate_dir.is_absolute():
         candidate_dir = run_dir / candidate_dir
-    archive_dir = Path(artifact_cfg.get("archive_dir") or production_dir / "_archive")
+    archive_dir = Path(artifact_cfg.get("archive_dir") or root / "archive")
     if not archive_dir.is_absolute():
-        archive_dir = production_dir / archive_dir
+        archive_dir = root / archive_dir
     return {
         "version": 1,
         "project": project,
@@ -259,7 +263,7 @@ def build_artifact_intent(
         "declared_production_paths": list(artifact_cfg.get("declared_production_paths") or []),
         "allowed_overwrite_paths": list(artifact_cfg.get("allowed_overwrite_paths") or []),
         "forbidden_write_roots": [
-            str(root / "artifacts" / "_archive"),
+            str(root / "archive"),
             str(root / "agent_docs"),
         ],
         "archive_strategy": artifact_cfg.get("archive_strategy") or "copy_existing_before_replace",
@@ -267,7 +271,7 @@ def build_artifact_intent(
         "rules": [
             "runs/<task_id>/ contains process evidence and reports",
             "runs/<task_id>/artifacts/ contains candidate deliverables only",
-            "projects/<Project>/artifacts/ contains current production deliverables only",
+            "projects/<Project>/production/ contains current production deliverables only",
             "existing production files must be archived before replacement",
         ],
     }
@@ -276,7 +280,6 @@ def build_artifact_intent(
 def _production_dir_for_pack(
     project_root: Path,
     artifact_cfg: dict,
-    paths_cfg: dict,
     production_pack: dict | None,
 ) -> Path | str:
     pack_id = str((production_pack or {}).get("pack_id") or "")
@@ -287,25 +290,21 @@ def _production_dir_for_pack(
     if pack_id in media_packs:
         return (
             artifact_cfg.get("media_production_dir")
-            or paths_cfg.get("media_artifacts")
-            or project_root / "artifacts" / "media"
+            or project_root / "production" / "media"
         )
     if pack_id in artifact_packs:
         return (
             artifact_cfg.get("artifact_production_dir")
-            or paths_cfg.get("artifacts")
-            or project_root / "artifacts"
+            or project_root / "production" / "artifacts"
         )
     if pack_id in narrative_packs:
         return (
             artifact_cfg.get("production_dir")
-            or paths_cfg.get("manuscript")
             or project_root / "production" / "manuscript"
         )
     return (
         artifact_cfg.get("production_dir")
-        or paths_cfg.get("artifacts")
-        or project_root / "artifacts"
+        or project_root / "production" / "artifacts"
     )
 
 
@@ -471,6 +470,8 @@ def _resolve_production(
             target = candidate
         elif candidate.parts and candidate.parts[0] == "projects":
             target = agentlab_root / candidate
+        elif candidate.parts and candidate.parts[0] == "production":
+            target = project_root / candidate
         elif candidate.parts and candidate.parts[0] == "artifacts":
             target = project_root / candidate
         else:
@@ -865,7 +866,11 @@ def _path_matches_declared(path_text: str, declared: list[str], project: str) ->
 
 def _looks_like_production_path(path_text: str, intent: dict, project: str) -> bool:
     path_text = path_text.replace("\\", "/")
-    if path_text.startswith(f"projects/{project}/artifacts/") or path_text.startswith("artifacts/"):
+    if path_text.startswith(
+        (f"projects/{project}/production/", "production/")
+    ) or path_text.startswith(
+        (f"projects/{project}/artifacts/", "artifacts/")
+    ):
         return True
     candidate = Path(path_text)
     return candidate.is_absolute() and _is_relative_to(candidate, Path(intent["production_dir"]))
@@ -923,6 +928,15 @@ def validate_project_artifact_governance(
         if record.get("status") == "current":
             artifact_id = str(record.get("artifact_id") or "")
             current_by_id.setdefault(artifact_id, []).append(record)
+            production_path = str(record.get("production_path") or "")
+            if (
+                not record.get("evidence_only")
+                and not production_path.startswith(("production/", "project_brain/"))
+            ):
+                issues.append(
+                    "current artifact must point under production/ or project_brain/: "
+                    f"{artifact_id}: {production_path or '<missing>'}"
+                )
             if not record.get("source_task") and not record.get("evidence_only"):
                 issues.append(f"current artifact missing source_task in project_artifact_index.yml: {artifact_id}")
             if not record.get("source_run_artifact") and not record.get("evidence_only"):

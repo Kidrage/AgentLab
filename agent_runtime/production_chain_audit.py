@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from lifecycle_graph import LIFECYCLE_NODES
+    from lifecycle_graph import LIFECYCLE_NODES, LIFECYCLE_NODE_OWNER
 except ModuleNotFoundError:  # pragma: no cover - package import
-    from agent_runtime.lifecycle_graph import LIFECYCLE_NODES
+    from agent_runtime.lifecycle_graph import LIFECYCLE_NODES, LIFECYCLE_NODE_OWNER
 
 
 @dataclass(frozen=True)
@@ -22,27 +22,6 @@ class ChainScenario:
     expected_agents: tuple[str, ...]
     forbidden_agents: tuple[str, ...] = ()
     forbidden_effective_lifecycle_nodes: tuple[str, ...] = ()
-
-
-LIFECYCLE_NODE_AGENT = {
-    "SUPERVISOR_PLAN": "Supervisor",
-    "REPO_CONTEXT": "RepoScout",
-    "RESEARCH_OPTIONAL": "Researcher",
-    "OBSERVATION_OPTIONAL": "Observer",
-    "INTERFACE_OPTIONAL": "InterfaceMapper",
-    "NARRATIVE_REWRITE_PLAN": "NarrativePlanner",
-    "CODER_IMPLEMENTATION": "Coder",
-    "ARTIFACT_PRODUCTION": "ArtifactProducer",
-    "VISUAL_OBSERVATION": "Observer",
-    "VISUAL_REVIEW": "Reviewer",
-    "WRITER_DRAFT": "Writer",
-    "FICTION_REVIEW": "Reviewer",
-    "SCRIBE_LEDGER": "Scribe",
-    "VALIDATION": "TesterAuditor",
-    "AUDIT": "TesterAuditor",
-    "VERIFY": "Verifier",
-    "ARCHIVE": "Archivist",
-}
 
 
 SCENARIOS = [
@@ -143,7 +122,7 @@ def _effective_lifecycle_nodes(pack: dict[str, Any], route_agents: list[str]) ->
     effective: list[str] = []
     for node in lifecycle_nodes:
         node_id = str(node)
-        owner = LIFECYCLE_NODE_AGENT.get(node_id)
+        owner = LIFECYCLE_NODE_OWNER.get(node_id)
         if owner and owner not in route_agent_set:
             continue
         effective.append(node_id)
@@ -153,7 +132,7 @@ def _effective_lifecycle_nodes(pack: dict[str, Any], route_agents: list[str]) ->
 def _agent_lifecycle_coverage(route_agents: list[str], effective_lifecycle_nodes: list[str]) -> dict[str, Any]:
     node_owners: dict[str, list[str]] = {}
     for node in effective_lifecycle_nodes:
-        owner = LIFECYCLE_NODE_AGENT.get(str(node))
+        owner = LIFECYCLE_NODE_OWNER.get(str(node))
         if not owner:
             continue
         node_owners.setdefault(owner, []).append(str(node))

@@ -37,7 +37,7 @@ def default_root() -> Path:
 def artifact_dir(agentlab_root: Path, project: str | None = None, task_id: str | None = None) -> Path:
     if project and task_id:
         return agentlab_root / "projects" / project / "runs" / task_id / "artifacts"
-    return agentlab_root / "artifacts"
+    return agentlab_root / ".agentlab" / "artifacts" / "external_skills"
 
 
 def inventory_path(agentlab_root: Path) -> Path:

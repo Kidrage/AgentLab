@@ -192,6 +192,15 @@ routes:
       - Supervisor
       - Observer
 
+  # ── 本地确定性工作区扫描 ──────────────────────────────
+  workspace_analysis_task:
+    size: L2
+    description: 本地工作区目录与 Git 元数据扫描，不调用模型、不虚构生产角色
+    analysis_only: true
+    agents:
+      - Supervisor
+      - RepoScout
+
   # ── L3 评估/审计项目 — 分析路线，不做源码实现 ─────────────────────
   evaluation_task:
     size: L3
@@ -213,7 +222,7 @@ routes:
     agents:
       - Supervisor
       - Coder
-      # TesterAuditor 可选，由 Supervisor 决定
+      - TesterAuditor
 
   artifact_production_task:
     size: L2
@@ -266,10 +275,6 @@ routes:
       - Reviewer
       - Scribe
       - Verifier
-    role_session_contracts:
-      Reviewer: qwen_narrative_audit
-      Scribe: qwen_narrative_audit
-      Verifier: qwen_narrative_audit
 
   narrative_rewrite_plan:
     size: L3
@@ -278,11 +283,11 @@ routes:
     agents:
       - Supervisor
       - NarrativePlanner
-    role_session_contracts:
-      NarrativePlanner: claude_narrative_planner
 
   fiction_chapter_pipeline:
     size: L2
+    status: legacy_compatibility
+    default_selectable: false
     description: 兼容旧小说章节全流程路线；新任务默认使用 narrative_light_chapter 或 narrative_heavy_audit
     agents:
       - Supervisor

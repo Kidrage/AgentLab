@@ -5,7 +5,7 @@
 2. 清理超过保留期限的临时任务
 3. 支持保留标记（keep: true）
 4. 生成项目专属文档（开发流程、使用说明、CHANGELOG）
-5. 对应 Archivist Agent (T5归档层) bulk 文档整合模式
+5. 以确定性本地工具生成项目级文档，不启动额外 Agent
 """
 
 from __future__ import annotations
@@ -214,14 +214,14 @@ def generate_project_documentation(
     usage_lines = [
         f"# {project} 使用指南",
         "",
-        f"> 自动生成于 {_utc_now()}  |  DocManager Agent (T5)",
+        f"> 自动生成于 {_utc_now()}  |  AgentLab deterministic task-purge",
         "",
         "## 快速开始",
         "",
         "```bash",
-        "./agentlab.sh init-task --project {project} --task-id task_XXXX",
-        "./agentlab.sh prepare --project {project} --task-id task_XXXX --write-plan",
-        "./agentlab.sh run-agent Supervisor --project {project} --task-id task_XXXX --execute",
+        f"./agentlab.sh init-task --project {project} --task-id task_XXXX",
+        f"./agentlab.sh prepare --project {project} --task-id task_XXXX --write-plan",
+        f"./agentlab.sh run-pipeline --project {project} --task-id task_XXXX --execute",
         "```",
         "",
         "## CLI 命令参考",
@@ -234,7 +234,7 @@ def generate_project_documentation(
         "| `run-agent` | 运行 Agent (dry-run / --execute) |",
         "| `brain-status` | 查看大脑治理状态 |",
         "| `guard-status` | 查看守护状态 |",
-        "| `task-search` | 搜索任务 |",
+        "| `task-find` | 搜索任务 |",
         "| `chat` | 终端对话 |",
         "| `task-purge` | 归档清理 + 生成文档 |",
         "",
@@ -248,17 +248,17 @@ def generate_project_documentation(
         "### 新功能开发",
         "1. 创建任务: `./agentlab.sh init-task`",
         "2. 生成计划: `./agentlab.sh prepare --write-plan`",
-        "3. 运行大脑Agent: `./agentlab.sh run-agent Supervisor --execute`",
-        "4. 运行Coder: `./agentlab.sh run-agent Coder --execute`",
-        "5. 验证审计: `./agentlab.sh run-agent TesterAuditor --execute`",
+        "3. 检查 `workflow_plan.yml` 中的 route、角色和验证门禁",
+        "4. 按 production pack 运行: `./agentlab.sh run-pipeline --execute`",
+        "5. 检查任务声明的验证、交接和 promotion 状态",
         "",
         "### 任务清理",
         "```bash",
         "# 预览清理内容 (dry-run)",
-        "./agentlab.sh task-purge --project {project} --keep-days 7 --dry-run",
+        f"./agentlab.sh task-purge --project {project} --keep-days 7 --dry-run",
         "",
         "# 执行清理 + 生成文档",
-        "./agentlab.sh task-purge --project {project} --keep-days 7",
+        f"./agentlab.sh task-purge --project {project} --keep-days 7",
         "```",
     ]
 
@@ -271,7 +271,7 @@ def generate_project_documentation(
     changelog_lines = [
         f"# {project} 更新日志",
         "",
-        f"> 自动维护于 {_utc_now()}  |  DocManager Agent (T5)",
+        f"> 自动维护于 {_utc_now()}  |  AgentLab deterministic task-purge",
         "",
         "| 任务ID | 状态 | 标题 | 变更文件数 |",
         "|---|---|---|---|",

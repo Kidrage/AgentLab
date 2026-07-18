@@ -221,3 +221,35 @@ def test_init_task_code_request_keeps_implementation_shell():
     assert "Coder" in agents
     assert "06_implementation_report.md" in templates
     assert "05_coder_prompt.md" in templates
+
+
+def test_init_templates_do_not_expand_a_small_code_route_to_legacy_full_chain():
+    templates = _init_templates_for_agents(
+        "Fix one file and run its focused test.",
+        ["Supervisor", "Coder", "TesterAuditor"],
+    )
+
+    assert "05_coder_prompt.md" in templates
+    assert "07_validation_report.md" in templates
+    assert "02_reposcout_report.md" not in templates
+    assert "03_research_notes.md" not in templates
+    assert "04_interface_map.md" not in templates
+    assert "09_archive_update.md" not in templates
+
+
+def test_blank_init_request_stays_unclassified_and_supervisor_only():
+    agents, route_key = _init_agents_for_request(
+        "# User Request\n\nDescribe the task here.",
+        agentlab_root=ROOT,
+        project_name="AgentLab",
+        task_id="task_blank_init",
+    )
+
+    assert route_key == "unclassified_blank_request"
+    assert agents == ["Supervisor"]
+    assert set(_init_templates_for_agents("", agents)) == {
+        "user_request.md",
+        "01_supervisor_plan.md",
+        "cost_ledger.yml",
+        "brain_decisions.yml",
+    }

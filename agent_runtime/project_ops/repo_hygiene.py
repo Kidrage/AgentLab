@@ -94,12 +94,15 @@ def scan_repository_root(repo_root: Path, policy: dict[str, Any] | None = None) 
     allowed_files = _policy_set(policy, "allowed_root_files", DEFAULT_ALLOWED_ROOT_FILES)
     allowed_dirs = _policy_set(policy, "allowed_root_dirs", DEFAULT_ALLOWED_ROOT_DIRS)
     ignored_dirs = _policy_set(policy, "ignored_runtime_dirs", {".agentlab", ".venv", "__pycache__", ".pytest_cache"})
+    ignored_files = _policy_set(policy, "ignored_root_files", set())
     forbidden_patterns = list(policy.get("root_policy", {}).get("forbidden_root_patterns", DEFAULT_FORBIDDEN_PATTERNS))
 
     findings: list[HygieneFinding] = []
     for child in sorted(repo_root.iterdir(), key=lambda p: p.name):
         name = child.name
         if name in {".", ".."}:
+            continue
+        if name in ignored_files:
             continue
 
         if child.is_dir():
@@ -147,7 +150,8 @@ def scan_repository_root(repo_root: Path, policy: dict[str, Any] | None = None) 
                 text = child.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 continue
-            if ABSOLUTE_PATH_PATTERN.search(text):
+            text_without_urls = re.sub(r"\b[a-z][a-z0-9+.-]*://\S+", "", text)
+            if ABSOLUTE_PATH_PATTERN.search(text_without_urls):
                 findings.append(
                     HygieneFinding(
                         severity="warning",

@@ -74,10 +74,10 @@ goal_items:
   - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_responsive_smoke_report.json
   - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_responsive_desktop.png
   - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_responsive_mobile.png
-  - projects/AgentLab/artifacts/web_ui/index.html
-  - projects/AgentLab/artifacts/web_ui/styles.css
-  - projects/AgentLab/artifacts/web_ui/app.js
-  - projects/AgentLab/artifacts/web_ui/status.sample.json
+  - projects/AgentLab/production/artifacts/web_ui/index.html
+  - projects/AgentLab/production/artifacts/web_ui/styles.css
+  - projects/AgentLab/production/artifacts/web_ui/app.js
+  - projects/AgentLab/production/artifacts/web_ui/status.sample.json
   - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifact_promotion_plan.yml
   - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/archive_receipt.yml
   - projects/AgentLab/project_artifact_index.yml

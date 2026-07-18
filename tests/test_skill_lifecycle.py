@@ -120,7 +120,7 @@ def test_full_lifecycle_approve_stage_validate_promote_active(tmp_path: Path) ->
     assert (active_dir / "SKILL.md").exists()
     assert (active_dir / "metadata.yml").exists()
     assert (active_dir / "validation_report.yml").exists()
-    assert (active_dir / "usage_ledger.yml").exists()
+    assert not (active_dir / "usage_ledger.yml").exists()
 
     # registry updated
     registry = load_skill_registry(tmp_path)

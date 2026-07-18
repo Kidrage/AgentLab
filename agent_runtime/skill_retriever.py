@@ -16,6 +16,12 @@ DEFAULT_POLICY = {
         "min_confidence": 0.0,
         "high_risk_requires_approval": True,
         "default_injected_agents": ["Coder", "TesterAuditor"],
+        "route_injected_agents": {
+            "narrative_light_chapter": ["Writer"],
+            "narrative_batch_chapters": ["Writer"],
+            "narrative_heavy_audit": ["Reviewer", "Scribe"],
+            "fiction_chapter_pipeline": ["Writer", "Reviewer", "Scribe"],
+        },
     },
     "matching": {
         "trigger_weight": 3,
@@ -38,6 +44,26 @@ def load_skill_injection_policy(agentlab_root: Path) -> dict[str, Any]:
         else:
             policy[key] = value
     return policy
+
+
+def resolve_skill_injection_agents(
+    policy: dict[str, Any],
+    *,
+    route_key: str | None,
+    route_agents: list[str] | None = None,
+) -> list[str]:
+    retrieval = policy.get("retrieval") or {}
+    route_targets = retrieval.get("route_injected_agents") or {}
+    configured = route_targets.get(str(route_key)) if isinstance(route_targets, dict) else None
+    targets = (
+        list(configured)
+        if isinstance(configured, list)
+        else list(retrieval.get("default_injected_agents") or [])
+    )
+    if isinstance(configured, list) and route_agents is not None:
+        active = set(route_agents)
+        return [agent for agent in targets if agent in active]
+    return targets
 
 
 def _tokens(text: str) -> set[str]:

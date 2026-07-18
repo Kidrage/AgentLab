@@ -28,7 +28,10 @@ def test_external_skill_mcp_tools_are_readonly(tmp_path: Path) -> None:
     assert result["readonly"] is True
     assert result["skills"][0]["enabled"] is False
     call_tool("agentlab_get_skill_registry", {}, agentlab_root=tmp_path)
-    call_tool("agentlab_get_skill_incubation_candidates", {}, agentlab_root=tmp_path)
+    incubation = call_tool("agentlab_get_skill_incubation_candidates", {}, agentlab_root=tmp_path)
+    assert incubation["source"] == "task_id_required"
+    assert not (tmp_path / "artifacts").exists()
+    assert not (tmp_path / "skill_usage_ledger.yml").exists()
     after = registry_path.read_text(encoding="utf-8")
     assert after == before
 

@@ -90,7 +90,9 @@ def build_media_generation_contract(
             "generation_ledger": f"{artifact_root}generation_ledger.yml",
             "media_qc_report": f"{artifact_root}media_qc_report.yml",
             "production_artifacts": (
-                f"projects/{project_id}/artifacts/" if project_id else "projects/<Project>/artifacts/"
+                f"projects/{project_id}/production/media/"
+                if project_id
+                else "projects/<Project>/production/media/"
             ),
         },
         "acceptance_gates": [

@@ -7,6 +7,7 @@ where they should live in the long run, without moving or deleting anything.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import os
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,19 @@ FIXTURE_CONFIG_NAMES = {
 }
 
 CANONICAL_SOURCE_NAMES = set(CONFIG_FILES.values())
+IGNORED_SOURCE_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    "vendor",
+    "venv",
+}
 
 
 @dataclass(frozen=True)
@@ -90,21 +104,38 @@ def config_inventory_payload(agentlab_root: Path) -> dict[str, Any]:
 
 def _runtime_config_references(agentlab_root: Path, config_names: set[str]) -> set[str]:
     references: set[str] = set()
+    remaining = set(config_names)
     source_paths: list[Path] = []
     for dirname in ("agent_runtime", "scripts", "web_ui"):
         source_root = agentlab_root / dirname
         if source_root.is_dir():
-            source_paths.extend(source_root.rglob("*.py"))
-            source_paths.extend(source_root.rglob("*.sh"))
+            source_paths.extend(_iter_runtime_source_paths(source_root))
     source_paths.extend(agentlab_root.glob("*.py"))
     source_paths.extend(agentlab_root.glob("*.sh"))
     for path in source_paths:
+        if not remaining:
+            break
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        references.update(name for name in config_names if name in text)
+        found = {name for name in remaining if name in text}
+        references.update(found)
+        remaining.difference_update(found)
     return references
+
+
+def _iter_runtime_source_paths(source_root: Path) -> list[Path]:
+    paths: list[Path] = []
+    for current_root, dirnames, filenames in os.walk(source_root):
+        dirnames[:] = sorted(name for name in dirnames if name not in IGNORED_SOURCE_DIRS)
+        current = Path(current_root)
+        paths.extend(
+            current / name
+            for name in sorted(filenames)
+            if Path(name).suffix in {".py", ".sh"}
+        )
+    return paths
 
 
 def _classify_config(name: str, runtime_references: set[str]) -> str:

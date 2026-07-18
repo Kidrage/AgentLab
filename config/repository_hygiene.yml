@@ -25,9 +25,18 @@ root_policy:
     - .git
     - .github
     - .agentlab
+    - .agentlab_runtime
     - .agents
+    - .agy
+    - .claude
     - .clinerules
+    - .codex
+    - .gemini
+    - .hermes
+    - .openclaw
     - .pytest_cache
+    - .qwen
+    - .ruff_cache
     - .venv
     - __pycache__
     - _shared
@@ -49,9 +58,22 @@ root_policy:
     - web_ui
   ignored_runtime_dirs:
     - .agentlab
+    - .agentlab_runtime
+    - .agents
+    - .agy
+    - .claude
+    - .codex
+    - .gemini
+    - .hermes
+    - .openclaw
+    - .qwen
+    - .ruff_cache
     - .venv
     - __pycache__
     - .pytest_cache
+  ignored_root_files:
+    - .DS_Store
+    - .claude.json
   forbidden_root_patterns:
     - "*.tmp"
     - "*handoff*.md"

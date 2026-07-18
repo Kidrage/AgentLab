@@ -108,13 +108,15 @@ def test_repository_handoff_is_mandatory_for_every_agent() -> None:
     collaboration = _yaml("agent_collaboration.yml")["agent_collaboration"]
     directory = _yaml("shared_agent_directory.yml")
 
-    assert "PROJECT_HANDOFF.md" in policy["discovery"]["filenames"]
+    assert policy["discovery"]["canonical_filename"] == "PROJECT_HANDOFF.md"
+    assert ".agentlab/HandOff.md" in policy["discovery"]["legacy_read_only_filenames"]
     assert policy["discovery"]["always_before_repository_read"] is True
-    assert policy["placement"]["project_root_visible"] == "PROJECT_HANDOFF.md"
-    assert policy["placement"]["always_write_project_root_visible_copy"] is True
+    assert policy["placement"]["canonical"] == "PROJECT_HANDOFF.md"
+    assert policy["placement"]["default_write_mode"] == "canonical_only"
+    assert policy["placement"]["legacy_aliases_are_read_only"] is True
     assert policy["enforcement"]["all_agents_required"] is True
     assert policy["enforcement"]["missing_handoff_blocks_deep_read"] is True
-    assert policy["placement"]["always_write_shared_copy"] is True
+    assert policy["placement"]["shared_copy_mode"] == "explicit_flag_or_read_only_fallback"
     assert policy["safe_scan"]["principle"] == "complete_path_and_metadata_inventory_without_bulk_content_read"
     assert collaboration["repository_handoff"]["required_for_all_agents"] is True
     assert directory["repository_memory"]["applies_to_all_endpoints_and_agents"] is True

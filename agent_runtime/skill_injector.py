@@ -9,11 +9,19 @@ import yaml
 
 try:
     from agent_runtime.atomic_io import atomic_write_yaml
-    from agent_runtime.skill_retriever import load_skill_injection_policy, match_active_skills
+    from agent_runtime.skill_retriever import (
+        load_skill_injection_policy,
+        match_active_skills,
+        resolve_skill_injection_agents,
+    )
     from agent_runtime.skill_usage import record_skill_usage
 except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
     from atomic_io import atomic_write_yaml
-    from skill_retriever import load_skill_injection_policy, match_active_skills
+    from skill_retriever import (
+        load_skill_injection_policy,
+        match_active_skills,
+        resolve_skill_injection_agents,
+    )
     from skill_usage import record_skill_usage
 
 
@@ -161,9 +169,17 @@ def build_skill_plan(
     task_text: str,
     policy: dict[str, Any] | None = None,
     injected_agents: list[str] | None = None,
+    route_key: str | None = None,
+    route_agents: list[str] | None = None,
     record_usage: bool = True,
 ) -> dict[str, Any]:
     policy = policy or load_skill_injection_policy(agentlab_root)
+    if injected_agents is None and route_key:
+        injected_agents = resolve_skill_injection_agents(
+            policy,
+            route_key=route_key,
+            route_agents=route_agents,
+        )
     matches = match_active_skills(agentlab_root, task_text=task_text, policy=policy)
     selected = matches.get("selected", [])
     rejected = matches.get("rejected", [])
@@ -178,9 +194,13 @@ def build_skill_plan(
         rejected=rejected,
     )
     usage_paths = {}
-    if record_usage and policy.get("usage", {}).get("write_task_usage", True):
+    usage_policy = policy.get("usage", {})
+    write_run_usage = usage_policy.get(
+        "write_run_usage",
+        usage_policy.get("write_task_usage", True),
+    )
+    if record_usage and write_run_usage:
         usage_paths = record_skill_usage(
-            agentlab_root,
             run_dir,
             project=project,
             task_id=task_id,
@@ -221,25 +241,18 @@ def inject_skills_into_workflow_plan(
     if not isinstance(data, dict):
         data = {}
     run_dir = workflow_plan_path.parent
-    injected_agents = _route_skill_injection_agents(data)
+    route = data.get("route") or {}
+    route = route if isinstance(route, dict) else {}
     skills = build_skill_plan(
         agentlab_root,
         project=project,
         task_id=task_id,
         run_dir=run_dir,
         task_text=task_text,
-        injected_agents=injected_agents,
+        route_key=str(route.get("route_key") or "") or None,
+        route_agents=route.get("agents") if isinstance(route.get("agents"), list) else None,
         record_usage=record_usage,
     )
     data["skills"] = skills
     atomic_write_yaml(workflow_plan_path, data)
     return skills
-
-
-def _route_skill_injection_agents(workflow_plan: dict[str, Any]) -> list[str] | None:
-    route = workflow_plan.get("route", {})
-    agents = route.get("agents", []) if isinstance(route, dict) else []
-    if not isinstance(agents, list):
-        return None
-    creative_agents = [agent for agent in ("Writer", "Reviewer", "Scribe") if agent in agents]
-    return creative_agents or None

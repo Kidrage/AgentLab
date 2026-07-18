@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 from typer.testing import CliRunner
@@ -82,6 +83,8 @@ def _valid_proposal(path: Path, pack_id: str = "installation_show_control") -> N
             "pack": pack,
         },
     )
+
+
     atomic_write_yaml(
         path.parent / "domain_memory_contract.yml",
         {
@@ -106,6 +109,35 @@ def _valid_proposal(path: Path, pack_id: str = "installation_show_control") -> N
             "approval_gate": "user_or_supervisor_approval_before_pack_promotion",
         },
     )
+
+
+def test_route_contract_roles_and_outputs_follow_configured_route_authority() -> None:
+    catalog = yaml.safe_load(
+        (ROOT / "config" / "production_packs.yml").read_text(encoding="utf-8")
+    )
+    routes = yaml.safe_load(
+        (ROOT / "config" / "routing_rules.yml").read_text(encoding="utf-8")
+    )["routes"]
+
+    contract_routes = set()
+    for pack in catalog["packs"]:
+        for route_key, route_contract in (pack.get("route_contracts") or {}).items():
+            contract_routes.add(route_key)
+            assert route_key in pack["routes"]
+            configured_agents = set(routes[route_key]["agents"])
+            role_contracts = route_contract.get("roles") or {}
+            assert role_contracts
+            assert set(role_contracts) <= configured_agents
+            for role, contract in role_contracts.items():
+                assert contract.get("required_outputs"), (route_key, role)
+
+    assert {
+        "narrative_rewrite_plan",
+        "narrative_light_chapter",
+        "narrative_batch_chapters",
+        "narrative_heavy_audit",
+        "article_light_draft",
+    } <= contract_routes
 
 
 def test_empty_synthesis_artifact_is_not_promotable(tmp_path: Path) -> None:
@@ -302,7 +334,7 @@ def test_pack_catalog_audit_flags_equal_specificity_route_collision(tmp_path: Pa
     assert report["selector_overlaps"][0]["status"] == "ambiguous_equal_specificity"
 
 
-def test_pack_catalog_audit_allows_disambiguated_route_overlap() -> None:
+def test_pack_catalog_audit_allows_disambiguated_route_overlap(tmp_path: Path) -> None:
     report = audit_pack_catalog(ROOT / "config" / "production_packs.yml")
     media_overlap = next(
         item
@@ -313,6 +345,13 @@ def test_pack_catalog_audit_allows_disambiguated_route_overlap() -> None:
 
     assert report["status"] == "pass"
     assert report["issues"] == []
+    assert report["synthesis_policy_audit"]["status"] == "pass"
+    assert report["synthesis_policy_audit"]["agents"] == [
+        "Supervisor",
+        "Researcher",
+        "ArtifactProducer",
+        "Verifier",
+    ]
     assert report["route_reference_audit"]["status"] == "pass"
     assert report["route_reference_audit"]["known_route_count"] > 0
     creative_routes = next(
@@ -327,6 +366,16 @@ def test_pack_catalog_audit_allows_disambiguated_route_overlap() -> None:
     } in creative_routes
     assert media_overlap["status"] == "selector_disjoint"
     assert media_overlap["disambiguated_by"] == ["project_types"]
+
+    out = tmp_path / "pack_catalog_audit.yml"
+    with patch("production_pack_registry.audit_pack_catalog", return_value=report):
+        result = runner.invoke(app, ["pack-catalog-audit", "--out", str(out)])
+
+    assert result.exit_code == 0
+    written = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert written["report_type"] == "agentlab_production_pack_catalog_audit"
+    assert written["status"] == "pass"
+    assert written["issues"] == []
 
 
 def test_pack_catalog_audit_flags_unknown_pack_route(tmp_path: Path) -> None:
@@ -354,7 +403,7 @@ def test_pack_catalog_audit_flags_unknown_pack_route(tmp_path: Path) -> None:
     assert report["route_reference_audit"]["status"] == "fail"
 
 
-def test_pack_catalog_audit_flags_domain_route_mismatch(tmp_path: Path) -> None:
+def test_pack_catalog_audit_flags_deprecated_domain_route_proposal(tmp_path: Path) -> None:
     catalog = tmp_path / "production_packs.yml"
     routing = tmp_path / "routing_rules.yml"
     domain_routes = tmp_path / "domain_route_packs.yml"
@@ -389,7 +438,8 @@ def test_pack_catalog_audit_flags_domain_route_mismatch(tmp_path: Path) -> None:
         in report["issues"]
     )
     assert (
-        "domain creative_writing.route_proposal.route_key=article_light_draft does not match narrative_light_chapter"
+        "domain creative_writing.route_proposal is deprecated; "
+        "domain packs select route keys and routing_rules.yml owns route agents"
         in report["issues"]
     )
 
@@ -470,18 +520,6 @@ def test_pack_candidate_cli_validate_and_promote_dry_run(tmp_path: Path) -> None
     assert promote_result.exit_code == 0
     assert "dry_run" in promote_result.output
     assert yaml.safe_load(catalog.read_text(encoding="utf-8"))["packs"] == []
-
-
-def test_pack_catalog_audit_cli_writes_yaml(tmp_path: Path) -> None:
-    out = tmp_path / "pack_catalog_audit.yml"
-
-    result = runner.invoke(app, ["pack-catalog-audit", "--out", str(out)])
-
-    assert result.exit_code == 0
-    report = yaml.safe_load(out.read_text(encoding="utf-8"))
-    assert report["report_type"] == "agentlab_production_pack_catalog_audit"
-    assert report["status"] == "pass"
-    assert report["issues"] == []
 
 
 def test_pack_catalog_audit_cli_fails_on_ambiguous_catalog(tmp_path: Path) -> None:

@@ -48,7 +48,12 @@ def run_performance_evaluation(agentlab_root: Path, project: str, task_id: str) 
     )
     (run_dir / "user_request.md").write_text(request, encoding="utf-8")
 
-    plan = build_workflow_plan(agentlab_root, project, task_id, execution_backend="codex")
+    plan = build_workflow_plan(
+        agentlab_root,
+        project,
+        task_id,
+        execution_backend="agentlab_orchestrated_cli",
+    )
     (run_dir / "workflow_plan.yml").write_text(
         yaml.safe_dump(plan.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
         encoding="utf-8",
@@ -122,7 +127,12 @@ def evaluate_routing(agentlab_root: Path) -> dict[str, Any]:
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "user_request.md").write_text(case["text"], encoding="utf-8")
         try:
-            plan = build_workflow_plan(agentlab_root, "AgentLab", temp_task, execution_backend="codex")
+            plan = build_workflow_plan(
+                agentlab_root,
+                "AgentLab",
+                temp_task,
+                execution_backend="agentlab_orchestrated_cli",
+            )
         finally:
             shutil.rmtree(run_dir, ignore_errors=True)
         actual = plan.route.route_key

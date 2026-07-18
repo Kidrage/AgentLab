@@ -333,24 +333,21 @@ def _tool_get_skill_registry(agentlab_root: Path, args: dict[str, Any]) -> dict[
 def _tool_get_skill_incubation_candidates(agentlab_root: Path, args: dict[str, Any]) -> dict[str, Any]:
     project = args.get("project") or "AgentLab"
     task_id = args.get("task_id")
-    existing = None
-    if task_id:
-        run_artifact = agentlab_root / "projects" / str(project) / "runs" / str(task_id) / "artifacts" / "internal_skill_candidates.yml"
-        if run_artifact.exists():
-            existing = run_artifact
-    if existing is None:
-        root_artifact = agentlab_root / "artifacts" / "internal_skill_candidates.yml"
-        if root_artifact.exists():
-            existing = root_artifact
-    if existing is not None and existing.exists():
+    if not task_id:
+        return {
+            "candidates": [],
+            "readonly": True,
+            "source": "task_id_required",
+            "reason": "skill incubation evidence is run-local",
+        }
+    run_dir = agentlab_root / "projects" / str(project) / "runs" / str(task_id)
+    existing = run_dir / "artifacts" / "internal_skill_candidates.yml"
+    if existing.exists():
         data = safe_read_yaml(existing, default={"candidates": []})
         return {"candidates": _redact_candidate_paths(data, agentlab_root), "readonly": True, "source": "file"}
-    usage_path = agentlab_root / "skill_usage_ledger.yml"
-    if task_id:
-        run_dir = agentlab_root / "projects" / str(project) / "runs" / str(task_id)
-        usage_path = run_dir / "skill_usage_ledger.yml"
-        if not usage_path.exists() and (run_dir / "skill_usage.yml").exists():
-            usage_path = run_dir / "skill_usage.yml"
+    usage_path = run_dir / "skill_usage_ledger.yml"
+    if not usage_path.exists() and (run_dir / "skill_usage.yml").exists():
+        usage_path = run_dir / "skill_usage.yml"
     registry = load_external_skill_registry(agentlab_root)
     usage = load_skill_usage_ledger(usage_path)
     policy = load_incubation_policy(agentlab_root)

@@ -330,26 +330,12 @@ def test_explicit_pdf_summary_routes_to_observer() -> None:
         "总结这段长文本，并列出仍需核实的主张。",
         "观察这张图片 screenshot.png 并描述可见证据。",
         "转录这段音频 recording.mp3，并区分说话人。",
-    ],
-)
-def test_explicit_multimodal_inputs_route_to_observer(prompt: str) -> None:
-    route = recommend_route(prompt)
-
-    assert route.route_key == "observation_task"
-    assert route.agents == ["Supervisor", "Observer"]
-
-
-@pytest.mark.parametrize(
-    "prompt",
-    [
         "Create a summary of the attached PDF.",
         "Make a transcript of attached audio.",
         "Produce OCR transcript of this image.",
     ],
 )
-def test_artifact_verbs_do_not_override_attached_input_observation(
-    prompt: str,
-) -> None:
+def test_attached_multimodal_inputs_route_to_observer(prompt: str) -> None:
     route = recommend_route(prompt)
 
     assert route.route_key == "observation_task"

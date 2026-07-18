@@ -9,7 +9,6 @@ from agent_runtime.execution_economy.effective_cost import (
 )
 from agent_runtime.execution_economy.marginal_utility_gate import evaluate_marginal_utility
 from agent_runtime.execution_economy.role_activation_policy import RoleActivationPolicy
-from agent_runtime.execution_economy.role_coalescing import coalesce_roles
 from agent_runtime.execution_economy.context_reuse_policy import ContextReusePolicy
 from agent_runtime.execution_economy.escalation_ladder import EscalationLadder
 from agent_runtime.execution_economy.activation_decision import ActivationDecision

@@ -344,16 +344,6 @@ providers:
       - 保留作为通用扩展通道。当前默认不启用。
       - API key 仅在 agent_runtime/.env 中。
 
-  # ── 手动执行层 ──────────────────────────────────────────────────────
-  codex_plus_manual:
-    type: manual_codex
-    display_name: Codex Plus (Manual IDE)
-    default_model: Codex Plus
-    notes:
-      - Codex Plus 订阅用户的手动 IDE 执行。
-      - AgentLab 生成 handoff prompt，Codex Plus 在 IDE 中执行 Coder 阶段。
-      - AgentLab 不通过 API 调用 Codex Plus。
-
   external_ide_ai:
     type: external_ide_ai
     display_name: External IDE AI (Coder Window)

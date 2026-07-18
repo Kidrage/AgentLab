@@ -66,12 +66,14 @@ def register_routing_commands(app: typer.Typer, project_root: ProjectRootProvide
 
         production_pack = None
         try:
-            from config_loader import load_agentlab_configs
             from agent_runtime.production_packs import build_production_pack
             from agent_runtime.workflow_plan import _route_for_production_pack
 
-            configs = load_agentlab_configs(root)
-            production_pack = build_production_pack(root, mission if isinstance(mission, dict) else {}, route, configs)
+            production_pack = build_production_pack(
+                root,
+                mission if isinstance(mission, dict) else {},
+                route,
+            )
             route = _route_for_production_pack(route, production_pack)
         except Exception as exc:
             production_pack = {"error": f"{type(exc).__name__}: {exc}"}

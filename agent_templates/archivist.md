@@ -31,7 +31,7 @@
 - Record decisions, risks, changed interfaces, and validation outcomes.
 - Keep archival notes factual and concise.
 - Preserve historical records.
-- Never copy run reports, prompts, validation/audit reports, or temporary evidence into `projects/<Project>/artifacts/` unless the project ledger marks them `evidence_only`.
+- Never copy run reports, prompts, validation/audit reports, or temporary evidence into `projects/<Project>/production/`; evidence remains run-local unless the project ledger explicitly declares a production deliverable.
 - Before replacing a production artifact, archive the old file under `_archive/<artifact_id>/<timestamp>__<task_id>/`.
 - A completed archive must leave `artifact_lineage.yml`, `artifact_promotion_plan.yml`, `archive_receipt.yml`, and an updated `project_artifact_index.yml`.
 - Apply validated harness updates only after they are supported by Supervisor or Tester/Auditor reports. Keep `AGENTS.md` short and move detailed policy into `config/*.yml` or project memory.

@@ -29,21 +29,28 @@ External tools should write scratch material under `.agentlab/`:
 - `.agentlab/tmp/`
 - `.agentlab/external_handoffs/`
 - `.agentlab/external_reports/`
-- `.agentlab/HandOff.md` (canonical local repository memory)
 - `.agentlab/scratch/`
 - `.agentlab/rejected_artifacts/`
 
 `.agentlab/` is local-only and ignored by git.
 
+Managed CLI entrypoint directories (`.agy/`, `.claude/`, `.codex/`, `.gemini/`,
+`.hermes/`, `.openclaw/`, and `.qwen/`) and `.agentlab_runtime/` are also
+local-only. They contain wrappers, symlinks, caches, heartbeats, or authentication
+state; they are never project facts or deliverables and must remain Git-ignored.
+
 ## Repository Memory Exception
 
-Root-level `HandOff.md` files remain forbidden because they pollute product roots.
-All agents must instead use `.agentlab/HandOff.md` and mirror it to
-`memory/repositories/<repository_id>/HandOff.md`. AgentLab-managed projects may also
-expose `agent_docs/HandOff.md`. The required inventory enumerates repository paths
-and metadata safely; it must not recursively read file contents, binaries, secrets,
-dependency caches, or linked directory trees. Refresh the HandOff after every
-material project change and before final reporting.
+`PROJECT_HANDOFF.md` is the one allowed root-level repository-memory file and the
+only writable authority. Generic `HandOff.md` / `HANDOFF.md`,
+`.agentlab/HandOff.md`, and `agent_docs/HandOff.md` are legacy read-only discovery
+aliases and must not be regenerated. The optional
+`memory/repositories/<repository_id>/HandOff.md` copy is a cross-endpoint or
+read-only-repository fallback, not a second authority. The required inventory
+enumerates repository paths and metadata safely; it must not recursively read file
+contents, binaries, secrets, dependency caches, or linked directory trees. Refresh
+canonical `PROJECT_HANDOFF.md` after every material project change and before final
+reporting.
 
 ## Project State
 

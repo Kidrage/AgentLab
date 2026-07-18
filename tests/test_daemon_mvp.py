@@ -94,7 +94,7 @@ def test_daemon_heartbeat_written(tmp_path: Path) -> None:
     from daemon import run_daemon_once
 
     run_daemon_once(root, project=project, dispatch_webhooks=False)
-    heartbeat = root / ".agentlab_daemon_heartbeat.json"
+    heartbeat = root / ".agentlab_runtime" / "daemon" / "heartbeat.json"
     assert heartbeat.exists(), f"Heartbeat file not found at {heartbeat}"
 
 

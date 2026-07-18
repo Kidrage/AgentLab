@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 from typer.testing import CliRunner
@@ -171,6 +172,7 @@ def test_trusted_live_runner_collect_capability_accepts_strict_pass_report(
 
 def test_capability_acceptance_report_aggregates_current_evidence(
     private_crown_project_root: Path,
+    tmp_path: Path,
 ) -> None:
     report = build_capability_acceptance_report(private_crown_project_root)
     by_id = {item["id"]: item for item in report["capabilities"]}
@@ -647,18 +649,16 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     assert "finish_reason" in by_id["provider_reachability"]["details"]
     assert "raw_usage_keys" in by_id["provider_reachability"]["details"]
 
-
-def test_capability_acceptance_cli_writes_yaml_report(
-    tmp_path: Path,
-    private_crown_project_root: Path,
-) -> None:
-    del private_crown_project_root
     out = tmp_path / "capability_acceptance.yml"
 
-    result = runner.invoke(app, ["capability-acceptance", "--out", str(out)])
+    with patch(
+        "capability_acceptance.build_capability_acceptance_report",
+        return_value=report,
+    ):
+        result = runner.invoke(app, ["capability-acceptance", "--out", str(out)])
 
     assert out.exists()
-    report = yaml.safe_load(out.read_text(encoding="utf-8"))
+    written = yaml.safe_load(out.read_text(encoding="utf-8"))
     assert result.exit_code == (1 if report["overall_status"] == "fail" else 0)
-    assert report["report_type"] == "agentlab_capability_acceptance"
-    assert "code_factory_orchestration" in {item["id"] for item in report["capabilities"]}
+    assert written["report_type"] == "agentlab_capability_acceptance"
+    assert "code_factory_orchestration" in {item["id"] for item in written["capabilities"]}

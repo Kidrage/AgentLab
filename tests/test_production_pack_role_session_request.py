@@ -10,13 +10,15 @@ import yaml
 
 from agent_runtime.production_pack_role_session_request import (
     PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME,
-    ROLE_CHAIN,
     build_production_pack_role_session_request,
     write_production_pack_role_session_request,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
+ROLE_CHAIN = yaml.safe_load(
+    (ROOT / "config" / "production_packs.yml").read_text(encoding="utf-8")
+)["pack_synthesis_policy"]["agents"]
 SOURCE_REQUEST = (
     "设计一个沉浸式气味剧场装置生产流程。需要长期维护观众动线、气味提示、安全验收、"
     "场次状态、设备校准、异常回滚和多轮生成产物；AgentLab 应先研究所需内部能力与经批准的"
@@ -108,6 +110,7 @@ def test_request_secret_preflight_fails_without_writing_runner(
         production_pack={
             "status": "synthesis_candidate",
             "pack_id": "pack_synthesis_candidate",
+            "agents": ROLE_CHAIN,
         },
         route=SimpleNamespace(
             route_key="artifact_production_task",

@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 
 core_runtime:
   - task_run_state
@@ -11,6 +11,11 @@ core_runtime:
 pack_synthesis_policy:
   enabled: true
   trigger: no_configured_pack_for_non_code_domain
+  agents:
+    - Supervisor
+    - Researcher
+    - ArtifactProducer
+    - Verifier
   required_outputs:
     - production_pack_proposal.yml
     - domain_memory_contract.yml
@@ -95,6 +100,98 @@ packs:
       - propose_state_transitions
       - staged_audit_or_promotion
       - plan_blocking_rewrite_before_redraft
+    route_contracts:
+      narrative_rewrite_plan:
+        roles:
+          NarrativePlanner:
+            required_inputs:
+              - runs/task_xxxx/mission_contract.yml
+              - runs/task_xxxx/user_request.md
+              - runs/task_xxxx/narrative_rewrite_contract.yml
+              - heavy-audit aggregate and rewrite proposals declared by narrative_rewrite_contract.yml
+              - project_brain/project_fact_snapshot.yml
+              - project_artifact_index.yml
+            required_outputs:
+              - chapter_state_plan.yml
+        memory_records:
+          - narrative_rewrite_contract.yml
+          - chapter_state_plan.yml
+          - narrative_planner_validation.yml
+      narrative_light_chapter:
+        roles:
+          Writer:
+            required_inputs:
+              - runs/task_xxxx/mission_contract.yml
+              - runs/task_xxxx/user_request.md
+              - runs/task_xxxx/chapter_packet.yml
+              - project_brain/project_fact_snapshot.yml
+              - project_artifact_index.yml
+              - previous continuity_ledger.yml when available
+            required_outputs:
+              - fiction_draft.md
+              - continuity_ledger.yml
+              - state_transition_proposal.yml
+              - narrative_delivery_receipt.yml
+        memory_records:
+          - chapter_packet.yml
+          - fiction_draft.md
+          - continuity_ledger.yml
+          - state_transition_proposal.yml
+          - narrative_delivery_receipt.yml
+      narrative_batch_chapters:
+        roles:
+          Writer:
+            required_inputs:
+              - runs/task_xxxx/mission_contract.yml
+              - runs/task_xxxx/user_request.md
+              - project_brain/project_fact_snapshot.yml
+              - project_artifact_index.yml
+              - previous continuity_ledger.yml when available
+              - chapter range and batch constraints from Supervisor plan
+            required_outputs:
+              - chapter_batch_plan.yml
+              - chapters/
+              - batch_continuity_ledger.yml
+              - state_transition_proposal.yml
+              - narrative_batch_delivery_receipt.yml
+        memory_records:
+          - chapter_batch_plan.yml
+          - chapters/
+          - batch_continuity_ledger.yml
+          - state_transition_proposal.yml
+          - narrative_batch_delivery_receipt.yml
+      narrative_heavy_audit:
+        roles:
+          Reviewer:
+            required_inputs:
+              - runs/task_xxxx/fiction_draft.md
+              - runs/task_xxxx/continuity_ledger.yml
+              - runs/task_xxxx/state_transition_proposal.yml
+              - project_brain/project_fact_snapshot.yml
+              - project_artifact_index.yml
+            required_outputs:
+              - fiction_review.yml
+              - continuity_failure_report.yml
+          Scribe:
+            required_inputs:
+              - runs/task_xxxx/fiction_review.yml
+              - runs/task_xxxx/continuity_failure_report.yml
+            required_outputs:
+              - state_transition_proposal.yml
+          Verifier:
+            required_inputs:
+              - runs/task_xxxx/fiction_review.yml
+              - runs/task_xxxx/continuity_failure_report.yml
+              - runs/task_xxxx/state_transition_proposal.yml
+            required_outputs:
+              - revision_or_rewrite_proposal.yml
+        memory_records:
+          - fiction_draft.md
+          - continuity_ledger.yml
+          - state_transition_proposal.yml
+          - fiction_review.yml
+          - continuity_failure_report.yml
+          - revision_or_rewrite_proposal.yml
     memory_contract:
       - project_fact_snapshot
       - project_artifact_index
@@ -130,6 +227,20 @@ packs:
       - draft_article
       - structure_check
       - delivery_receipt
+    route_contracts:
+      article_light_draft:
+        roles:
+          ArtifactProducer:
+            required_inputs:
+              - runs/task_xxxx/mission_contract.yml
+              - runs/task_xxxx/user_request.md
+              - runs/task_xxxx/workflow_plan.yml
+            required_outputs:
+              - article_draft.md
+              - article_structure_check.yml
+        memory_records:
+          - article_draft.md
+          - article_structure_check.yml
     required_outputs:
       - article_draft.md
       - article_structure_check.yml

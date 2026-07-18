@@ -13,6 +13,23 @@ from state_store import load_state, save_state
 
 
 class HandoffBuilderTests(TestCase):
+    def test_missing_legacy_mode_defaults_to_agentlab_orchestration(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project_root = Path(td) / "projects" / "Demo"
+            run_dir = project_root / "runs" / "task_0001"
+            run_dir.mkdir(parents=True)
+            (run_dir / "workflow_plan.yml").write_text(
+                "route:\n  agents:\n    - Supervisor\n",
+                encoding="utf-8",
+            )
+
+            packet = build_handoff_packet(project_root, "task_0001")
+
+            self.assertEqual(
+                packet["execution_mode"], "agentlab_orchestrated_cli"
+            )
+            self.assertIn("for_assigned_worker", packet["resume_instructions"])
+
     def test_completed_task_has_no_resume_agent(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             project_root = Path(td) / "projects" / "Demo"

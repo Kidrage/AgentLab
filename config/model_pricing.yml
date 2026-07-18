@@ -177,12 +177,6 @@ models:
     verified_at: "2026-07-13"
     notes: "Exact input-image and output-video resolution/second prices."
 
-  codex_plus_manual:
-    input_per_1m_usd: null
-    output_per_1m_usd: null
-    pricing_confidence: none
-    notes: "Subscription quota; exact per-token API cost unavailable."
-
   deepseek-r1-distill-qwen-7b:
     input_per_1m_usd: null
     output_per_1m_usd: null

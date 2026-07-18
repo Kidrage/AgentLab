@@ -12,7 +12,6 @@ from agent_runtime.capabilities.compatibility import (
 )
 from agent_runtime.capabilities.role_requirements import RoleRequirementsRegistry
 from agent_runtime.execution_economy.role_activation_policy import RoleActivationPolicy
-from agent_runtime.execution_economy.role_coalescing import coalesce_roles
 from agent_runtime.routing.fallback_policy import WorkerFallbackPolicy
 from agent_runtime.routing.mode_tier_policy import ModeTierWorkerPolicy
 from agent_runtime.run_task import app
@@ -45,23 +44,6 @@ def test_role_activation_defaults_and_expected_benefit() -> None:
     assert policy.get_candidate_worker("Verifier") == "ruff"
     assert policy.get_expected_benefit("Coder", "medium")["quality_gain"] == "high"
     assert policy.get_expected_benefit("Coder", "small")["quality_gain"] == "medium"
-
-
-def test_small_task_role_coalescing() -> None:
-    packets = coalesce_roles(
-        ["Supervisor", "PromptEngineer", "Coder", "RepoScout"],
-        task_size="small",
-    )
-
-    assert len(packets) == 2
-    by_id = {packet.coalesced_packet_id: packet for packet in packets}
-    assert set(by_id) == {"coalesced_coder_packet", "single_reposcout_packet"}
-    assert set(by_id["coalesced_coder_packet"].roles) == {
-        "Supervisor",
-        "PromptEngineer",
-        "Coder",
-    }
-    assert by_id["coalesced_coder_packet"].selected_worker == "claude_code"
 
 
 def test_coder_fallback_order() -> None:

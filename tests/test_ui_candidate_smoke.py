@@ -152,7 +152,7 @@ def test_browser_expected_content_contract() -> None:
     <section id="lifecycle">INIT_TASK SUPERVISOR_PLAN</section>
     <section id="evidence-ledger">implementation_report</section>
     <section id="provider-health">deepseek codex</section>
-    <section id="project-memory">07_DEVELOPMENT_LOG.md 08_CODEX_DIALOGUE_LOG.md</section>
+    <section id="project-memory">07_DEVELOPMENT_LOG.md 08_WORKER_DIALOGUE_LOG.md</section>
     """
 
     assert all(ui_candidate_smoke._browser_expected_content(dom).values())

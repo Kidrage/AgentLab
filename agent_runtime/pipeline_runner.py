@@ -18,7 +18,7 @@ from atomic_io import atomic_write_yaml
 from lifecycle_graph import (
     load_lifecycle, save_lifecycle, next_node, mark_node_started,
     mark_node_completed, mark_node_failed,
-    LIFECYCLE_NODES, OPTIONAL_NODES,
+    LIFECYCLE_NODES, LIFECYCLE_NODE_OWNER, OPTIONAL_NODES,
     create_lifecycle,
     _production_pack_nodes,
     _skip_reason_for_node,
@@ -56,25 +56,7 @@ ARTIFACT_ALIASES = {
     "09_archive_update.md": "archive_update.md",
 }
 
-NODE_TO_AGENT = {
-    "SUPERVISOR_PLAN": "Supervisor",
-    "REPO_CONTEXT": "RepoScout",
-    "RESEARCH_OPTIONAL": "Researcher",
-    "OBSERVATION_OPTIONAL": "Observer",
-    "INTERFACE_OPTIONAL": "InterfaceMapper",
-    "NARRATIVE_REWRITE_PLAN": "NarrativePlanner",
-    "WRITER_DRAFT": "Writer",
-    "FICTION_REVIEW": "Reviewer",
-    "SCRIBE_LEDGER": "Scribe",
-    "CODER_IMPLEMENTATION": "Coder",
-    "ARTIFACT_PRODUCTION": "ArtifactProducer",
-    "VISUAL_OBSERVATION": "Observer",
-    "VISUAL_REVIEW": "Reviewer",
-    "VALIDATION": "TesterAuditor",
-    "AUDIT": "TesterAuditor",
-    "VERIFY": "Verifier",
-    "ARCHIVE": "Archivist",
-}
+NODE_TO_AGENT = dict(LIFECYCLE_NODE_OWNER)
 
 NODE_TO_REPORT = {
     "SUPERVISOR_PLAN": "01_supervisor_plan.md",
@@ -2158,7 +2140,8 @@ def run_next_node(
             )
             plan = build_workflow_plan(
                 agentlab_root, project, task_id,
-                execution_backend="codex", budget_mode=budget_mode,
+                execution_backend="agentlab_orchestrated_cli",
+                budget_mode=budget_mode,
             )
             plan_data = plan.model_dump(mode="json")
             plan_path.write_text(
@@ -2203,12 +2186,7 @@ def run_next_node(
         )
         lc = load_lifecycle(run_dir)
         if lc:
-            optional_requirements = {
-                node_id: agent_name
-                for node_id, agent_name in NODE_TO_AGENT.items()
-                if node_id in OPTIONAL_NODES
-            }
-            for node_id, agent_name in optional_requirements.items():
+            for node_id, agent_name in NODE_TO_AGENT.items():
                 node = lc.get("nodes", {}).get(node_id, {})
                 skip_reason = _skip_reason_for_node(node_id, route_agents, active_nodes, pack_id)
                 if skip_reason:
@@ -2785,7 +2763,7 @@ def run_next_node(
             )
 
         if result.status == "fallback_handoff":
-            fallback_path = run_dir / f"codex_fallback_{agent}.md"
+            fallback_path = run_dir / f"external_worker_handoff_{agent}.md"
             fallback_path.write_text(result.content or "", encoding="utf-8")
             return _block_task(
                 agentlab_root, run_dir, project, task_id, nid,
@@ -3392,10 +3370,10 @@ def run_full_pipeline(
         seen_signatures.add(sig)
 
         # Check terminal
+        lc = load_lifecycle(run_dir) or {"nodes": {}}
         if "FINALIZE=com" in sig or all(
             lc.get("nodes", {}).get(n, {}).get("status") in ("completed", "skipped")
             for n in LIFECYCLE_NODES
-            if (lc := (load_lifecycle(run_dir) or {"nodes": {}}))
         ):
             artifact_result = validate_artifacts(run_dir)
             write_artifact_manifest(run_dir, artifact_result)

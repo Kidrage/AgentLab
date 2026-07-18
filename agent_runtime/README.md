@@ -1,102 +1,79 @@
 # AgentLab Runtime
 
-Phase 2A/2B placeholder runtime for a reusable local multi-agent development workflow.
+`agent_runtime/` implements AgentLab's local task orchestration, role dispatch,
+state, evidence, validation, recovery, and artifact governance.
 
-This runtime is intentionally conservative:
+## Authority Boundaries
 
-- It does not install dependencies.
-- It does not edit source code automatically.
-- It does not create real secret files.
-- It prepares task context, agent definitions, policy checks, and report schemas only.
-- It reads local config files and produces an inspectable workflow plan.
+- `config/routing_rules.yml`: route membership and order.
+- `config/production_packs.yml`: domain lifecycle and output contracts.
+- `config/agent_registry.yml`: role permissions, inputs, outputs, and templates.
+- `config/agent_model_profiles.yml`: role backend/model selection.
+- `config/worker_invocation_contracts.yml`: CLI command contracts.
+- `config/model_capacity.yml`: approved same-role fallback routes.
+- `config/execution_modes.yml`: AgentLab workflow driver to backend-mode mapping.
 
-## Intended Flow
+Runtime code may enforce these contracts but must not maintain a second
+hard-coded role chain, model table, or active template registry.
 
-1. Configure `.env.example` values in a private `.env` outside version control when ready.
-2. Add or map a project under `projects/<ProjectName>/`.
-3. Create a new `runs/task_xxxx/` folder for each task.
-4. Ask agents to write reports into that run folder.
-5. Only apply source changes after explicit human review or instruction.
+## Planning And Execution
 
-## Config Layer
-
-Global workflow config lives in `../config/`:
-
-- `agent_registry.yml`: agent capabilities and permissions.
-- `agent_model_profiles.yml`: canonical role backend and model selection.
-- `routing_rules.yml`: smallest-safe-route task routing.
-- `budget_profiles.yml`: token budget estimates and stop thresholds.
-- `execution_policy.yml`: DeepSeek brain requirement and Codex Coder quota decisions.
-- `harness_policy.yml`: repo-local maps, feedback loops, mechanical gates, and guidance cleanup.
-- `validation_gates.yml`: evidence required before acceptance.
-- `memory_policy.yml`: local-first task state and project memory rules.
-
-These files are the preferred place to edit AgentLab behavior. The markdown
-templates define role prompts and report formats.
-
-## Task Routing
-
-`task_router.py` recommends the smallest safe set of agents for a task using
-`../config/routing_rules.yml`:
-
-- Small: Supervisor -> Coder -> Tester/Auditor
-- Medium: Supervisor -> RepoScout -> Coder -> Tester/Auditor -> Archivist
-- Interface-sensitive: adds Interface Mapper
-- Research-sensitive: adds Researcher
-- Large or risky: uses the full route when needed
-
-The route is advisory in Phase 2A; Supervisor still owns the final plan.
-
-## Workflow Plan
-
-`workflow_plan.py` combines:
-
-- project config
-- task request
-- agent registry
-- model profiles
-- routing rules
-- token budgets
-- validation gates
-- memory policy
-- optional Aider plan
-
-Example:
-
-```bash
-python run_task.py prepare --project ExampleProject --task-id task_0001
+```text
+mission_contract
+-> route_decision
+-> production_pack
+-> workflow_plan
+-> lifecycle / role sessions
+-> validation and independent review
+-> handoff or approved promotion
 ```
 
-Write the plan into `runs/task_xxxx/workflow_plan.yml`:
+`workflow_plan.py` builds a plan without model calls. The default driver is
+`agentlab_orchestrated_cli`, which resolves to the `full_cli` role matrix. Each
+role may use a different worker; the driver does not make one CLI shell the task
+host.
+
+`run_task.py` exposes the CLI. `pipeline_runner.py` advances the configured
+lifecycle, and `agent_runner.py` composes one role's bounded context and invokes
+the resolved backend. `cli_executor.py` renders the registered CLI contract and
+writes execution receipts.
 
 ```bash
-python run_task.py prepare --project ExampleProject --task-id task_0001 --write-plan
+./agentlab.sh prepare --project <Project> --task-id <task_id> --write-plan
+./agentlab.sh run-agent <Role> --project <Project> --task-id <task_id> --execute
+./agentlab.sh run-pipeline --project <Project> --task-id <task_id> --execute
 ```
 
-## CLI Commands
+Without `--execute`, execution commands remain dry-run/local planning paths.
+No provider, model, or worker may be silently substituted.
 
-- `init-task`: create a run folder and placeholder reports.
-- `prepare`: build and optionally save a workflow plan.
-- `status`: show state, route, missing inputs, and report files.
-- `models`: show provider/profile configuration without secrets.
-- `policy-status`: show the hard DeepSeek brain and Codex Coder policy.
-- `harness-status`: show whether the local harness map, project memory, and task feedback artifacts are healthy.
-- `request-coder-quota`: ask the user to pause or explicitly delegate coding when Codex quota is insufficient.
-- `run-agent`: dry-run or execute a single agent model call.
+## State And Artifacts
 
-`run-agent` does not call a model unless `--execute` is passed.
-When AgentLab is active, brain-stage agents must be executed through DeepSeek
-even for simulations and small tasks. DeepSeek failures block and ask the user
-instead of falling back to Codex simulation.
+- Run state: `projects/<Project>/runs/<task_id>/`.
+- Candidate capture: `projects/<Project>/runs/<task_id>/artifacts/`.
+- Formal deliverables: `projects/<Project>/production/` after declared review,
+  approval, and promotion.
+- Durable project facts: project brain and artifact index files declared by the
+  relevant production pack.
+- Runtime/daemon/watchdog state: `.agentlab_runtime/`, never a project fact.
 
-## Aider Adapter
+Persistent runtime writes should use `atomic_io.py`. Route-specific validators
+must derive required evidence from the production pack and role contracts, not
+from a fixed code-task report list.
 
-`aider_adapter.py` can build an Aider invocation plan for the Coder phase. It
-does not install or run Aider. Use it when you want AgentLab to keep ownership
-of planning, validation, and archival while Aider handles a tightly scoped edit.
+## Workers And Adapters
 
-Example:
+Workers such as Hermes, Claude Code, Codex, Aider, Agy, Grok, and Qwen are
+registered execution surfaces. A worker becomes usable for a role only when its
+role binding, invocation contract, model profile, and capability requirements
+all pass.
 
-```bash
-python run_task.py prepare --task-id task_0001 --execution-backend aider
-```
+The retired standalone Aider plan builder did not participate in workflow
+execution and has been removed. Aider remains available through the normal
+registered Coder worker contract; it does not have a separate planning path.
+
+## Verification
+
+Use focused tests during edits and the complete suite for shared runtime or
+authority changes. Default tests must not start live providers or production
+tasks. See `docs/TEST_SUITE_GOVERNANCE.md`.

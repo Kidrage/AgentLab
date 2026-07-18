@@ -49,7 +49,14 @@ class ProjectArtifactStewardTests(TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             run_dir = self._make_run(root)
-            production = root / "projects" / "Novel" / "artifacts" / "chapter_01.md"
+            production = (
+                root
+                / "projects"
+                / "Novel"
+                / "production"
+                / "artifacts"
+                / "chapter_01.md"
+            )
             production.parent.mkdir(parents=True)
             production.write_text("old chapter\n", encoding="utf-8")
             candidate = run_dir / "artifacts" / "chapter_01.md"
@@ -65,7 +72,7 @@ class ProjectArtifactStewardTests(TestCase):
                         {
                             "artifact_id": "chapter_01",
                             "source_run_artifact": "artifacts/chapter_01.md",
-                            "production_path": "artifacts/chapter_01.md",
+                            "production_path": "production/artifacts/chapter_01.md",
                             "action": "replace",
                         }
                     ],
@@ -91,13 +98,49 @@ class ProjectArtifactStewardTests(TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             self._make_run(root)
-            report = root / "projects" / "Novel" / "artifacts" / "07_validation_report.md"
+            report = (
+                root
+                / "projects"
+                / "Novel"
+                / "production"
+                / "artifacts"
+                / "07_validation_report.md"
+            )
             report.parent.mkdir(parents=True)
             report.write_text("# Validation Report\n", encoding="utf-8")
 
             issues = validate_project_artifact_governance(root, "Novel", "task_0001")
 
             self.assertTrue(any("contains evidence/report file" in issue for issue in issues))
+
+    def test_legacy_project_artifacts_path_is_not_current_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._make_run(root)
+            _write_yaml(
+                root / "projects" / "Novel" / "project_artifact_index.yml",
+                {
+                    "artifacts": [
+                        {
+                            "artifact_id": "legacy",
+                            "status": "current",
+                            "production_path": "artifacts/legacy.txt",
+                            "source_task": "task_0001",
+                            "source_run_artifact": "artifacts/legacy.txt",
+                        }
+                    ]
+                },
+            )
+
+            issues = validate_project_artifact_governance(
+                root,
+                "Novel",
+                "task_0001",
+            )
+
+            self.assertTrue(
+                any("must point under production/" in issue for issue in issues)
+            )
 
     def test_generated_promotion_plan_treats_patch_diffs_as_evidence_only(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -143,7 +186,7 @@ class ProjectArtifactStewardTests(TestCase):
 
             self.assertEqual(
                 intent["production_dir"],
-                str(project_root / "artifacts" / "media"),
+                str(project_root / "production" / "media"),
             )
 
     def test_article_pack_does_not_inherit_manuscript_production_dir(self) -> None:
@@ -159,7 +202,10 @@ class ProjectArtifactStewardTests(TestCase):
                 {"pack_id": "article_light"},
             )
 
-            self.assertEqual(intent["production_dir"], str(project_root / "artifacts"))
+            self.assertEqual(
+                intent["production_dir"],
+                str(project_root / "production" / "artifacts"),
+            )
 
     def test_narrative_pack_keeps_project_manuscript_production_dir(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -211,7 +257,7 @@ class ProjectArtifactStewardTests(TestCase):
                             "artifact_id": "chapter_01",
                             "status": "current",
                             "current_version": "v2",
-                            "production_path": "artifacts/chapter_01.md",
+                            "production_path": "production/artifacts/chapter_01.md",
                             "source_task": "task_0001",
                             "source_run_artifact": "artifacts/chapter_01.md",
                             "supersedes": "v1",
@@ -235,7 +281,9 @@ class ProjectArtifactStewardTests(TestCase):
                     "version": 1,
                     "project": "Novel",
                     "task_id": "task_0001",
-                    "added": [{"path": "projects/Novel/artifacts/chapter_02.md"}],
+                    "added": [
+                        {"path": "projects/Novel/production/artifacts/chapter_02.md"}
+                    ],
                 },
             )
 
@@ -491,7 +539,7 @@ class ProjectArtifactStewardTests(TestCase):
                         {
                             "artifact_id": "poster",
                             "source_run_artifact": "artifacts/poster.png",
-                            "production_path": "artifacts/poster.png",
+                            "production_path": "production/artifacts/poster.png",
                         }
                     ],
                 },
@@ -504,7 +552,16 @@ class ProjectArtifactStewardTests(TestCase):
             self.assertTrue(
                 any("visual promotion missing visual_acceptance_candidate.yml" in issue for issue in blocked["errors"])
             )
-            self.assertFalse((root / "projects" / "Novel" / "artifacts" / "poster.png").exists())
+            self.assertFalse(
+                (
+                    root
+                    / "projects"
+                    / "Novel"
+                    / "production"
+                    / "artifacts"
+                    / "poster.png"
+                ).exists()
+            )
 
             digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
             size_bytes = candidate.stat().st_size
@@ -591,7 +648,14 @@ class ProjectArtifactStewardTests(TestCase):
             self.assertEqual(accepted["visual_acceptance_gate"]["status"], "pass")
             self.assertEqual(accepted["visual_acceptance_gate"]["verified_sources"], ["artifacts/poster.png"])
             self.assertEqual(
-                (root / "projects" / "Novel" / "artifacts" / "poster.png").read_bytes(),
+                (
+                    root
+                    / "projects"
+                    / "Novel"
+                    / "production"
+                    / "artifacts"
+                    / "poster.png"
+                ).read_bytes(),
                 b"real-candidate-image",
             )
 
@@ -610,7 +674,7 @@ class ProjectArtifactStewardTests(TestCase):
                     "promotions": [
                         {
                             "source_run_artifact": "artifacts/poster.png",
-                            "production_path": "artifacts/poster.png",
+                            "production_path": "production/artifacts/poster.png",
                         }
                     ]
                 },
@@ -663,7 +727,16 @@ class ProjectArtifactStewardTests(TestCase):
 
             self.assertEqual(receipt["status"], "blocked")
             self.assertTrue(any("asset.sha256_mismatch" in issue for issue in receipt["errors"]))
-            self.assertFalse((root / "projects" / "Novel" / "artifacts" / "poster.png").exists())
+            self.assertFalse(
+                (
+                    root
+                    / "projects"
+                    / "Novel"
+                    / "production"
+                    / "artifacts"
+                    / "poster.png"
+                ).exists()
+            )
 
 
 if __name__ == "__main__":

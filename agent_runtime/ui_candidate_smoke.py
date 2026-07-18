@@ -480,7 +480,7 @@ def _browser_expected_content(dom: str) -> dict[str, bool]:
         "lifecycle": "INIT_TASK" in dom and "SUPERVISOR_PLAN" in dom,
         "evidence": "implementation_report" in dom,
         "provider": "deepseek" in dom and "codex" in dom,
-        "memory": "07_DEVELOPMENT_LOG.md" in dom and "08_CODEX_DIALOGUE_LOG.md" in dom,
+        "memory": "07_DEVELOPMENT_LOG.md" in dom and "08_WORKER_DIALOGUE_LOG.md" in dom,
     }
 
 

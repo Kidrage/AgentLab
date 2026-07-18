@@ -18,6 +18,7 @@ try:
     from agent_runtime.policies import ensure_safe_task_id
     from agent_runtime.protocols.enforcement import check_role_binding
     from agent_runtime.report_sanitizer import write_report_yaml
+    from agent_runtime.role_keys import normalize_role_key
     from agent_runtime.workflow_plan import build_workflow_plan
 except ModuleNotFoundError:  # pragma: no cover - direct script path
     from cli_executor import resolve_cli_profile
@@ -29,6 +30,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct script path
     from policies import ensure_safe_task_id
     from protocols.enforcement import check_role_binding
     from report_sanitizer import write_report_yaml
+    from role_keys import normalize_role_key
     from workflow_plan import build_workflow_plan
 
 
@@ -37,15 +39,6 @@ DEFAULT_SOURCE_TASK_ID = "task_production_pack_role_session_live_20260710"
 DEFAULT_TARGET_TASK_ID = (
     "task_production_pack_role_session_governed_20260710_01"
 )
-ROLE_CHAIN = ["Supervisor", "Researcher", "ArtifactProducer", "Verifier"]
-ROLE_KEYS = {
-    "Supervisor": "supervisor",
-    "Researcher": "researcher",
-    "ArtifactProducer": "artifact_producer",
-    "Verifier": "verifier",
-}
-
-
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -57,15 +50,18 @@ def _relative_path(root: Path, path: Path) -> str | None:
         return None
 
 
-def _role_surfaces(root: Path) -> tuple[dict[str, dict[str, Any]], list[str]]:
+def _role_surfaces(
+    root: Path,
+    role_chain: list[str],
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
     configs = load_agentlab_configs(root)
     profiles = configs.get("agent_model_profiles", {})
     surfaces: dict[str, dict[str, Any]] = {}
     issues: list[str] = []
-    for role in ROLE_CHAIN:
+    for role in role_chain:
         profile = resolve_cli_profile(
             profiles,
-            ROLE_KEYS[role],
+            normalize_role_key(role),
             budget_mode="max_quality",
             mode="full_cli",
         )
@@ -223,14 +219,17 @@ def build_production_pack_role_session_request(
     )
     if (plan.production_pack or {}).get("status") != "synthesis_candidate":
         issues.append("route_is_not_production_pack_synthesis_candidate")
-    if plan.route.agents != ROLE_CHAIN:
+    role_chain = list((plan.production_pack or {}).get("agents") or [])
+    if not role_chain:
+        issues.append("production_pack_role_chain_missing")
+    if plan.route.agents != role_chain:
         issues.append("role_chain_mismatch")
     if not plan.mission_contract:
         issues.append("mission_contract_preview_missing")
     if plan.mission_contract.get("compiler_source") != "rule_based":
         issues.append("mission_contract_preview_not_deterministic")
 
-    role_surfaces, surface_issues = _role_surfaces(root)
+    role_surfaces, surface_issues = _role_surfaces(root, role_chain)
     issues.extend(surface_issues)
     source_sha256 = _sha256(source_request) if source_request.is_file() else None
     return {
@@ -246,7 +245,7 @@ def build_production_pack_role_session_request(
         "target_run_dir": target_relative,
         "fresh_run_required": True,
         "provider_calls_executed": False,
-        "role_chain": ROLE_CHAIN,
+        "role_chain": role_chain,
         "role_surfaces": role_surfaces,
         "route_preview": {
             "route_key": plan.route.route_key,
@@ -294,7 +293,7 @@ def build_production_pack_role_session_request(
             "production_pack_verification_receipt.yml",
             *[
                 f"outbound_context_manifest_{role.lower()}.yml"
-                for role in ROLE_CHAIN
+                for role in role_chain
             ],
         ],
         "candidate_only": True,

@@ -190,6 +190,8 @@ agents:
 
   Reviewer:
     template_path: agent_templates/fiction_reviewer.md
+    template_variants:
+      media_generation_task: agent_templates/visual_reviewer.md
     role: >
       Independent route-specific review. Narrative routes check continuity,
       character state, timeline, POV, and style drift. Media routes use an

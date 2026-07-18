@@ -93,7 +93,8 @@ def create_task_packet(phase_plan_path: Path, executor_type: str, out_dir: Path)
             "safety_notes": phase.get("safety_notes") or ["Do not expose credentials.", "Only edit files in the allowed_files list."],
             "repository_handoff": {
                 "policy": "config/repository_handoff_policy.yml",
-                "project_root_visible_path": "PROJECT_HANDOFF.md",
+                "canonical_path": "PROJECT_HANDOFF.md",
+                "legacy_aliases_are_read_only": True,
                 "must_discover_before_repository_read": True,
                 "create_or_request_if_missing": True,
                 "safe_inventory_only": True,

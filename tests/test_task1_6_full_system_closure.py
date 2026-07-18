@@ -10,9 +10,8 @@ Simulates the complete closed-loop path:
 Uses temp directory, no real model calls, no real webhooks.
 
 ABSOLUTE RULES:
-- active skill directory, SKILL.md, metadata.yml, usage_ledger.yml MUST be created
-  by skill lifecycle code (promote_skill). Tests MUST NOT create them manually.
-  If promote_skill doesn't create them → FAIL.
+- active skill directory, SKILL.md, and metadata.yml MUST be created by skill
+  lifecycle code. Runtime usage must remain in the task run directory.
 - Webhook E2E must go through dispatch_event, not manual payload construction.
 - learning_review.yml MUST exist when blocked/validation_failure events exist.
 - At least 1 skill_candidate MUST be generated when blocked/validation_failure events exist.
@@ -79,9 +78,9 @@ def _setup_full_system_env(tmp_path: Path) -> tuple[Path, str, str, str]:
     # Skill injection policy
     (config / "skill_injection_policy.yml").write_text(
         yaml.safe_dump({
-            "schema_version": 1,
+            "schema_version": 2,
             "retrieval": {"max_skills_per_task": 3, "high_risk_requires_approval": True},
-            "usage": {"write_task_usage": True},
+            "usage": {"write_run_usage": True, "scope": "run_local"},
         }),
         encoding="utf-8",
     )
@@ -144,8 +143,7 @@ def _setup_full_system_env(tmp_path: Path) -> tuple[Path, str, str, str]:
     actual_skill_id = staged["skill_id"]
     promoted = promote_skill(root, actual_skill_id)
 
-    # ── RULE: Do NOT manually create active skill dir, SKILL.md, metadata.yml,
-    #       or usage_ledger.yml. promote_skill() must have created them. ──
+    # Do not manually create active skill package files. Promotion owns them.
     active_skill_dir = root / "skills" / "active" / actual_skill_id
     assert active_skill_dir.exists(), (
         f"PROMOTE FAILED: active skill dir not created at {active_skill_dir}. "
@@ -153,7 +151,7 @@ def _setup_full_system_env(tmp_path: Path) -> tuple[Path, str, str, str]:
     )
     assert (active_skill_dir / "SKILL.md").exists(), "SKILL.md must be created by promote_skill"
     assert (active_skill_dir / "metadata.yml").exists(), "metadata.yml must be created by promote_skill"
-    assert (active_skill_dir / "usage_ledger.yml").exists(), "usage_ledger.yml must be created by promote_skill"
+    assert not (active_skill_dir / "usage_ledger.yml").exists()
 
     # Verify metadata has triggers
     metadata = yaml.safe_load((active_skill_dir / "metadata.yml").read_text(encoding="utf-8")) or {}
@@ -413,7 +411,7 @@ def test_high_risk_skill_approval_strong_assertions(tmp_path: Path) -> None:
                 "high_risk_requires_approval": True,
             },
             "matching": {"trigger_weight": 3, "applies_to_weight": 2, "summary_weight": 1},
-            "usage": {"write_task_usage": True},
+            "usage": {"write_run_usage": True, "scope": "run_local"},
         }, sort_keys=False),
         encoding="utf-8",
     )
@@ -628,7 +626,7 @@ def test_task1_6_external_imported_skill_retrieval_cross_check(tmp_path: Path) -
             "enabled": True,
             "retrieval": {"max_skills_per_task": 3, "min_confidence": 0.0, "high_risk_requires_approval": True},
             "matching": {"trigger_weight": 3, "applies_to_weight": 2, "summary_weight": 1},
-            "usage": {"write_task_usage": True},
+            "usage": {"write_run_usage": True, "scope": "run_local"},
         }, sort_keys=False),
         encoding="utf-8",
     )

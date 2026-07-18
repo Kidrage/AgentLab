@@ -1,10 +1,10 @@
-schema_version: 2
+schema_version: 3
 authority:
   purpose: driver_mode_selection
   owns:
     - workflow_driver
-    - codex_full_driver_permission
     - driver_to_agent_backend_mode_mapping
+    - retired_driver_aliases
   does_not_own:
     - tier_role_executor
     - cli_command_templates
@@ -14,43 +14,40 @@ authority:
     - Driver modes decide who leads the workflow.
     - Agent backend modes decide how each AgentLab role is executed.
     - Do not add per-agent model or CLI command defaults here.
+    - A worker shell receives only its assigned AgentLab role; no shell may emulate the full route.
+default_mode: agentlab_orchestrated_cli
 execution_modes:
+  agentlab_orchestrated_cli:
+    description: "AgentLab owns the workflow and dispatches each role to its configured CLI worker."
+    driver_scope: agentlab_orchestrated
+    agent_backend_mode: full_cli
+    artifact_required: true
+    allow_worker_all_roles: false
+
   api_native:
     description: "AgentLab agents run through configured API providers."
     driver_scope: agentlab_orchestrated
     agent_backend_mode: full_api
     artifact_required: true
-    allow_codex_full_driver: false
+    allow_worker_all_roles: false
 
-  codex_coder_only:
-    description: "API agents plan/review; Codex only edits code and runs commands."
-    driver_scope: codex_coder_stage_only
+  hybrid_ide:
+    description: "AgentLab plans and reviews while one explicitly assigned IDE worker performs the Coder role."
+    driver_scope: assigned_coder_stage_only
     agent_backend_mode: hybrid_ide
     coder_provider: external_ide_ai
     artifact_required: true
-    allow_codex_full_driver: false
+    allow_worker_all_roles: false
 
+legacy_aliases:
+  codex_coder_only:
+    status: deprecated
+    replacement: hybrid_ide
+    read_compatibility_only: true
+    dispatch_allowed: false
   codex_full_driver:
-    description: "Codex emulates all AgentLab roles while writing all standard artifacts."
-    driver_scope: codex_all_roles
-    agent_backend_mode: external_driver
-    artifact_required: true
-    allow_codex_full_driver: true
-    requires_user_confirmation: true
-    requires_local_artifacts: true
-    max_audit_reentry_rounds: 3
-    allowed_roles:
-      - Supervisor
-      - RepoScout
-      - Researcher
-      - InterfaceMapper
-      - CodexPromptGenerator
-      - Coder
-      - TesterAuditor
-      - Archivist
-    forbidden:
-      - undocumented_role_merging
-      - editing_without_preflight
-      - skipping_validation
-      - skipping_handoff_packet
-      - pushing_without_self_check
+    status: retired
+    replacement: agentlab_orchestrated_cli
+    read_compatibility_only: true
+    dispatch_allowed: false
+    reason: "A single external shell must not impersonate an AgentLab role chain."

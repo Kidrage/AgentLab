@@ -5,7 +5,13 @@ import subprocess
 
 from typer.testing import CliRunner
 
-from agent_runtime.repository_handoff import discover_handoff, scan_repository, update_handoffs
+from agent_runtime.repository_handoff import (
+    MANUAL_NOTES_END,
+    MANUAL_NOTES_START,
+    discover_handoff,
+    scan_repository,
+    update_handoffs,
+)
 from agent_runtime.run_task import app
 
 
@@ -46,7 +52,21 @@ def test_safe_inventory_covers_modalities_without_dependency_cache(tmp_path: Pat
     assert all("node_modules" not in path for values in snapshot["category_examples"].values() for path in values)
 
 
-def test_update_writes_local_and_shared_handoff_and_preserves_notes(tmp_path: Path) -> None:
+def test_inventory_excludes_deleted_tracked_paths(tmp_path: Path) -> None:
+    root = _repository(tmp_path)
+    (root / "src" / "main.py").unlink()
+
+    snapshot = scan_repository(root)
+
+    assert snapshot["category_counts"].get("code", 0) == 0
+    assert all(
+        path != "src/main.py"
+        for values in snapshot["category_examples"].values()
+        for path in values
+    )
+
+
+def test_update_writes_only_canonical_handoff_and_preserves_notes(tmp_path: Path) -> None:
     root = _repository(tmp_path)
     shared = tmp_path / "shared-memory"
     first = update_handoffs(root, shared)
@@ -55,9 +75,14 @@ def test_update_writes_local_and_shared_handoff_and_preserves_notes(tmp_path: Pa
     local = root / ".agentlab" / "HandOff.md"
     compatible = root / "agent_docs" / "HandOff.md"
     mirror = shared / first["repository_id"] / "HandOff.md"
-    assert set(first["handoff_paths"]) == {str(root_handoff), str(local), str(compatible), str(mirror)}
-    assert root_handoff.is_file() and local.is_file() and compatible.is_file() and mirror.is_file()
+    assert first["handoff_paths"] == [str(root_handoff)]
+    assert first["canonical_handoff_path"] == str(root_handoff)
+    assert first["shared_copy_written"] is False
+    assert root_handoff.is_file()
+    assert not local.exists() and not compatible.exists() and not mirror.exists()
     content = root_handoff.read_text(encoding="utf-8")
+    assert f"Working root: `{root}`" not in content
+    assert "Working root: `.`" in content
     for heading in (
         "## Repository Identity",
         "## Current State",
@@ -81,12 +106,67 @@ def test_update_writes_local_and_shared_handoff_and_preserves_notes(tmp_path: Pa
     assert "src/new.py" in refreshed
 
 
+def test_update_writes_shared_copy_only_when_explicitly_requested(tmp_path: Path) -> None:
+    root = _repository(tmp_path)
+    shared = tmp_path / "shared-memory"
+
+    result = update_handoffs(root, shared, write_shared_copy=True)
+
+    mirror = shared / result["repository_id"] / "HandOff.md"
+    assert result["shared_copy_written"] is True
+    assert result["shared_copy_reason"] == "explicit_request"
+    assert mirror.is_file()
+    assert set(result["handoff_paths"]) == {
+        str(root / "PROJECT_HANDOFF.md"),
+        str(mirror),
+    }
+
+
 def test_discovery_supports_legacy_handoff_name(tmp_path: Path) -> None:
     root = tmp_path / "legacy"
     root.mkdir()
     legacy = root / "HANDOFF.md"
     legacy.write_text("# Legacy\n", encoding="utf-8")
     assert discover_handoff(root) == legacy
+
+
+def test_discovery_prefers_canonical_handoff_over_legacy_aliases(tmp_path: Path) -> None:
+    root = tmp_path / "mixed"
+    root.mkdir()
+    canonical = root / "PROJECT_HANDOFF.md"
+    legacy = root / ".agentlab" / "HandOff.md"
+    legacy.parent.mkdir()
+    canonical.write_text("# Canonical\n", encoding="utf-8")
+    legacy.write_text("# Legacy\n", encoding="utf-8")
+
+    assert discover_handoff(root) == canonical
+
+
+def test_update_imports_legacy_notes_without_rewriting_legacy_alias(tmp_path: Path) -> None:
+    root = _repository(tmp_path)
+    shared = tmp_path / "shared-memory"
+    legacy = root / ".agentlab" / "HandOff.md"
+    legacy.parent.mkdir()
+    legacy.write_text(
+        "\n".join(
+            [
+                "# Legacy",
+                MANUAL_NOTES_START,
+                "- Preserved legacy decision.",
+                MANUAL_NOTES_END,
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = update_handoffs(root, shared)
+
+    assert result["source_handoff_path"] == str(legacy)
+    assert result["legacy_handoff_paths"] == [str(legacy)]
+    assert legacy.read_text(encoding="utf-8").startswith("# Legacy")
+    assert "Preserved legacy decision" in (root / "PROJECT_HANDOFF.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_repository_handoff_cli_reports_missing_then_writes(tmp_path: Path) -> None:
@@ -105,4 +185,17 @@ def test_repository_handoff_cli_reports_missing_then_writes(tmp_path: Path) -> N
     assert write.exit_code == 0, write.output
     assert "status: updated" in write.output
     assert (root / "PROJECT_HANDOFF.md").is_file()
-    assert (root / ".agentlab" / "HandOff.md").is_file()
+    assert not (root / ".agentlab" / "HandOff.md").exists()
+    assert not shared.exists()
+
+    shared_write = runner.invoke(app, [
+        "repository-handoff",
+        "--repo",
+        str(root),
+        "--shared-memory-root",
+        str(shared),
+        "--write",
+        "--shared-copy",
+    ])
+    assert shared_write.exit_code == 0, shared_write.output
+    assert "shared_copy_written: true" in shared_write.output

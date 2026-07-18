@@ -149,14 +149,11 @@ def generate_text(
     fallback_providers: list[dict] | None = None,
     route: list[str] | None = None,
 ) -> LLMCallResult:
-    """Call a provider or produce a Codex Plus handoff.
+    """Call a provider or produce a declared external-worker handoff.
 
     When agent_name/run_dir/project/task_id are provided, the call is
     tracked via progress_tracker and failures are handled by provider_guard.
     """
-    if settings.provider_type == "manual_codex":
-        return _codex_handoff(settings, messages, "Provider is configured as manual Codex Plus.")
-
     if settings.provider_type == "external_ide_ai":
         return _external_ide_handoff(settings, messages, "Provider is configured as External IDE AI. AgentLab brain handles planning; external AI executes.")
 
@@ -384,24 +381,8 @@ def _fallback_or_raise(
     error: str,
 ) -> LLMCallResult:
     provider_config = model_providers.get("providers", {}).get(settings.provider, {})
-    fallback_provider = provider_config.get("fallback_provider") or model_providers.get("defaults", {}).get("fallback_provider")
-    fallback_provider = resolve_env_value(fallback_provider, "")
-    allowed = provider_config.get("fallback_on", [])
     requires_approval = bool(provider_config.get("requires_user_approval_before_fallback", False))
     unavailable_action = provider_config.get("unavailable_action", "")
-    if fallback_provider == "codex_plus_manual" and (reason in allowed or not allowed) and not requires_approval:
-        fallback_settings = LLMSettings(
-            provider="codex_plus_manual",
-            provider_type="manual_codex",
-            model="Codex Plus",
-            profile_name=settings.profile_name,
-        )
-        return _codex_handoff(
-            fallback_settings,
-            messages,
-            f"{settings.provider} unavailable: {reason}. {error}",
-            settings.provider,
-        )
     if unavailable_action == "ask_user" or requires_approval:
         return LLMCallResult(
             provider=settings.provider,
@@ -416,11 +397,11 @@ Failure class: {reason}
 Error:
 {error}
 
-AgentLab policy requires DeepSeek to perform the brain/planning/review layer.
-Codex must not silently take over this brain stage. Ask the user whether to:
+AgentLab policy does not permit an undeclared worker or model to take over this
+role. Ask the user whether to:
 
-1. Pause and retry after DeepSeek is available.
-2. Explicitly change policy for this task and allow Codex manual simulation.
+1. Pause and retry after the configured provider is available.
+2. Approve a declared capacity route or explicit task policy change.
 """,
             status="blocked_user_decision",
             error=f"{reason}. {error}",
@@ -434,12 +415,7 @@ def _external_ide_handoff(
     messages: list[dict[str, str]],
     reason: str,
 ) -> LLMCallResult:
-    """Generate a handoff prompt for external IDE AI (Codex, Claude, etc.) to execute the Coder phase.
-    
-    The key value: external AI receives a complete, structured prompt with all context baked in.
-    External AI does NOT need to plan, analyze architecture, or determine scope — AgentLab brain
-    (DeepSeek) has already done all of that. External AI only needs to execute what's specified.
-    """
+    """Generate a bounded Coder handoff for an explicitly selected IDE worker."""
     system = messages[0].get("content", "") if messages else ""
     user = messages[1].get("content", "") if len(messages) > 1 else ""
 
@@ -447,8 +423,8 @@ def _external_ide_handoff(
 
 ## Your Role: Thin Executor
 You are an external AI (IDE assistant) receiving a pre-planned task from AgentLab.
-AgentLab's brain (DeepSeek) has already done ALL planning, scoping, routing, research,
-and architectural decisions. Your ONLY job is to execute the Coder phase.
+AgentLab owns planning, scoping, routing, and architectural decisions. Your only
+job is to execute the assigned Coder contract.
 
 ### What You DO:
 - Read the context below and execute exactly what's specified
@@ -491,8 +467,8 @@ project. Protocol version: 1.1.
    ./agentlab.sh log-event --project <Project> --task-id <task> --agent Coder \
      --summary "brief summary" --files-changed "file1.ts,file2.js" --commands-run "cmd1,cmd2"
    ```
-5. After your execution is complete, AgentLab will continue with TesterAuditor → Verifier → Archivist.
-6. Do NOT continue with TesterAuditor yourself — AgentLab will handle that.
+5. After your execution is complete, AgentLab will continue the configured route.
+6. Do not execute any later role yourself.
 """
     return LLMCallResult(
         provider=settings.provider,
@@ -501,40 +477,4 @@ project. Protocol version: 1.1.
         status="fallback_handoff",
         error=reason,
         raw_usage={"external_ide_ai": True, "context_length": len(system) + len(user)},
-    )
-
-
-def _codex_handoff(
-    settings: LLMSettings,
-    messages: list[dict[str, str]],
-    reason: str,
-    fallback_from: str | None = None,
-) -> LLMCallResult:
-    system = messages[0].get("content", "") if messages else ""
-    user = messages[1].get("content", "") if len(messages) > 1 else ""
-    content = f"""# Codex Plus Handoff
-
-Status: fallback_handoff
-Reason: {reason}
-
-AgentLab cannot execute this stage through a normal API provider. Use this
-handoff in the current Codex Plus session, then write the requested report back
-into the active task folder.
-
-## System Context
-
-{system}
-
-## User Task Context
-
-{user}
-"""
-    return LLMCallResult(
-        provider=settings.provider,
-        model=settings.model,
-        content=content,
-        status="fallback_handoff",
-        fallback_from=fallback_from,
-        error=reason,
-        raw_usage={"fallback": True, "fallback_from": fallback_from or settings.provider},
     )

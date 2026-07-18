@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 from typer.testing import CliRunner
@@ -13,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
 
 
-def test_agent_role_chain_audit_covers_roles_workers_and_chains() -> None:
+def test_agent_role_chain_audit_covers_roles_workers_and_chains(tmp_path: Path) -> None:
     report = build_agent_role_chain_audit(ROOT)
     roles = {item["role"]: item for item in report["roles"]}
     chains = {item["scenario_id"]: item for item in report["production_chains"]}
@@ -83,15 +84,16 @@ def test_agent_role_chain_audit_covers_roles_workers_and_chains() -> None:
         for invariant in report["invariants"]
     )
     assert report["issues"] == []
-
-
-def test_agent_role_chain_audit_cli_writes_yaml(tmp_path: Path) -> None:
     out = tmp_path / "agent_role_chain_audit.yml"
 
-    result = runner.invoke(app, ["agent-role-chain-audit", "--out", str(out)])
+    with patch(
+        "agent_role_chain_audit.build_agent_role_chain_audit",
+        return_value=report,
+    ):
+        result = runner.invoke(app, ["agent-role-chain-audit", "--out", str(out)])
 
     assert result.exit_code == 0
-    report = yaml.safe_load(out.read_text(encoding="utf-8"))
-    assert report["report_type"] == "agentlab_agent_role_chain_audit"
-    assert report["status"] == "pass"
-    assert report["profile_contracts"]
+    written = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert written["report_type"] == "agentlab_agent_role_chain_audit"
+    assert written["status"] == "pass"
+    assert written["profile_contracts"]

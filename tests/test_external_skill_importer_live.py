@@ -46,11 +46,11 @@ def _write_configs(root: Path) -> None:
     (root / "config" / "skill_injection_policy.yml").write_text(
         yaml.safe_dump(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "enabled": True,
                 "retrieval": {"max_skills_per_task": 3, "min_confidence": 0.0, "high_risk_requires_approval": True},
                 "matching": {"trigger_weight": 3, "applies_to_weight": 2, "summary_weight": 1},
-                "usage": {"write_task_usage": True, "append_active_skill_ledger": True},
+                "usage": {"write_run_usage": True, "scope": "run_local"},
             },
             sort_keys=False,
         ),
@@ -82,7 +82,7 @@ def _write_configs(root: Path) -> None:
 
 def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
     """Full lifecycle: URL import → approve → stage → validate → promote
-    → task → retrieval/injection → usage ledger."""
+    → task → retrieval/injection → run-local usage."""
     import cost_tracker
 
     cost_tracker._PRICE_CACHE = None
@@ -134,7 +134,7 @@ def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
     assert active_skill_dir.exists(), f"Active skill dir not created: {active_skill_dir}"
     assert (active_skill_dir / "SKILL.md").exists()
     assert (active_skill_dir / "metadata.yml").exists()
-    assert (active_skill_dir / "usage_ledger.yml").exists()
+    assert not (active_skill_dir / "usage_ledger.yml").exists()
 
     # Step 6-7: Task retrieval/injection
     run_dir = tmp_path / "projects" / project / "runs" / "task_live"
@@ -164,13 +164,10 @@ def test_live_full_skill_import_and_injection_closure(tmp_path: Path) -> None:
     # skill_usage.yml exists
     usage_path = run_dir / "skill_usage.yml"
     assert usage_path.exists(), "skill_usage.yml missing"
-
-    # usage_ledger.yml appended
-    ledger_path = active_skill_dir / "usage_ledger.yml"
-    ledger = yaml.safe_load(ledger_path.read_text(encoding="utf-8")) or {}
-    entries = ledger.get("entries", [])
-    assert len(entries) >= 1, "usage_ledger.yml not appended"
-    assert entries[0]["task_id"] == "task_live"
+    usage = yaml.safe_load(usage_path.read_text(encoding="utf-8")) or {}
+    assert usage["scope"] == "run_local"
+    assert usage["entries"][0]["task_id"] == "task_live"
+    assert not (active_skill_dir / "usage_ledger.yml").exists()
 
 
 def test_promote_missing_if_no_active_skill_fails(tmp_path: Path) -> None:
@@ -207,4 +204,4 @@ def test_promote_missing_if_no_active_skill_fails(tmp_path: Path) -> None:
     assert active_dir.exists(), "promote_skill must create active skill directory"
     assert (active_dir / "SKILL.md").exists()
     assert (active_dir / "metadata.yml").exists()
-    assert (active_dir / "usage_ledger.yml").exists()
+    assert not (active_dir / "usage_ledger.yml").exists()

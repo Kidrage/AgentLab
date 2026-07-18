@@ -8,7 +8,7 @@ defaults:
   independent_multimodal_observer_required: true
   independent_aesthetic_reviewer_required: true
   run_artifact_dir: runs/<task_id>/artifacts/
-  production_artifact_dir: projects/<Project>/artifacts/
+  production_artifact_dir: projects/<Project>/production/media/
   required_ledgers:
     - artifact_manifest.yml
     - generation_ledger.yml

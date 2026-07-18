@@ -538,18 +538,14 @@ def test_qwen_role_contract_uses_explicit_dashscope_auth() -> None:
     }
 
 
-def test_narrative_heavy_audit_uses_bounded_qwen_stdin_contract() -> None:
+def test_narrative_route_does_not_override_model_matrix_contract() -> None:
     configs = _load_config("worker_invocation_contracts.yml")["contracts"]
     routing = _load_config("routing_rules.yml")["routes"][
         "narrative_heavy_audit"
     ]
     contract = configs["qwen_narrative_audit"]
 
-    assert routing["role_session_contracts"] == {
-        "Reviewer": "qwen_narrative_audit",
-        "Scribe": "qwen_narrative_audit",
-        "Verifier": "qwen_narrative_audit",
-    }
+    assert "role_session_contracts" not in routing
     assert contract["worker_id"] == "qwen"
     assert contract["model_profile"] == "qwen3_6_flash_dashscope"
     assert contract["packet_delivery"] == "stdin"
@@ -625,11 +621,15 @@ def test_driver_modes_map_to_agent_backend_modes_without_role_defaults() -> None
     backend_modes = set(_load_config("agent_model_profiles.yml")["modes"])
 
     assert execution_modes["authority"]["purpose"] == "driver_mode_selection"
+    assert execution_modes["default_mode"] == "agentlab_orchestrated_cli"
+    assert "codex_full_driver" not in execution_modes["execution_modes"]
+    assert "codex_coder_only" not in execution_modes["execution_modes"]
 
     for mode_name, mode in execution_modes["execution_modes"].items():
         assert "agent_backend_mode" in mode
         backend = mode["agent_backend_mode"]
-        assert backend in backend_modes or backend == "external_driver", mode_name
+        assert backend in backend_modes, mode_name
+        assert mode["allow_worker_all_roles"] is False
 
         serialized = yaml.safe_dump(mode)
         forbidden_role_keys = (
@@ -640,6 +640,11 @@ def test_driver_modes_map_to_agent_backend_modes_without_role_defaults() -> None
             "archivist:",
         )
         assert not any(key in serialized for key in forbidden_role_keys)
+
+    retired = execution_modes["legacy_aliases"]["codex_full_driver"]
+    assert retired["status"] == "retired"
+    assert retired["dispatch_allowed"] is False
+    assert retired["replacement"] == "agentlab_orchestrated_cli"
 
 
 def test_advisory_worker_policy_cannot_override_agent_backends() -> None:

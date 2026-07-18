@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 from typer.testing import CliRunner
 
@@ -169,16 +170,15 @@ def test_protocol_doctor_passes_repository_protocol_wiring():
     assert result["status"] == "pass"
     assert result["summary"]["failed"] == 0
 
+    with patch("agent_runtime.protocols.run_protocol_doctor", return_value=result):
+        cli_result = runner.invoke(app, ["protocol-doctor"])
+
+    assert cli_result.exit_code == 0
+    assert "status: pass" in cli_result.output
+
 
 def test_cli_role_session_exits_nonzero_for_invalid_frontdesk_worker():
     result = runner.invoke(app, ["role-session", "--role", "Supervisor", "--worker", "agy"])
 
     assert result.exit_code == 1
     assert "forbidden" in result.output
-
-
-def test_cli_protocol_doctor_passes():
-    result = runner.invoke(app, ["protocol-doctor"])
-
-    assert result.exit_code == 0
-    assert "status: pass" in result.output

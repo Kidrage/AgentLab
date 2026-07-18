@@ -22,6 +22,9 @@ import yaml
 # Make agent_runtime/ importable
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "agent_runtime"))
+SYNTHESIS_AGENTS = yaml.safe_load(
+    (ROOT / "config" / "production_packs.yml").read_text(encoding="utf-8")
+)["pack_synthesis_policy"]["agents"]
 
 from schemas import AgentRoute, LLMCallResult, WorkflowPlan  # noqa: E402
 
@@ -804,7 +807,7 @@ def test_narrative_heavy_audit_cli_roles_receive_sealed_context(
     assert result.status == "completed"
     assert observed["sealed_messages"] == messages
     profile = observed["profile"]
-    assert profile["invocation_contract"] == "qwen_narrative_audit"
+    assert profile["invocation_contract"] == "qwen"
     source_names = {
         Path(path).name for path in observed["outbound_source_paths"]
     }
@@ -1003,6 +1006,7 @@ agents:
     plan.production_pack = {
         "status": "synthesis_candidate",
         "pack_id": "pack_synthesis_candidate",
+        "agents": SYNTHESIS_AGENTS,
         "task_domain": "multimodal_asset_generation",
         "required_outputs": [
             "production_pack_proposal.yml",
@@ -1076,6 +1080,7 @@ agents:
     plan.production_pack = {
         "status": "synthesis_candidate",
         "pack_id": "pack_synthesis_candidate",
+        "agents": SYNTHESIS_AGENTS,
         "required_outputs": [
             "production_pack_proposal.yml",
             "domain_memory_contract.yml",
@@ -1180,6 +1185,7 @@ agents:
     plan.production_pack = {
         "status": "synthesis_candidate",
         "pack_id": "pack_synthesis_candidate",
+        "agents": SYNTHESIS_AGENTS,
         "required_outputs": [
             "production_pack_proposal.yml",
             "domain_memory_contract.yml",
@@ -1278,6 +1284,7 @@ def test_pack_synthesis_direct_api_fallback_cannot_bypass_outbound_gate(
     plan.production_pack = {
         "status": "synthesis_candidate",
         "pack_id": "pack_synthesis_candidate",
+        "agents": SYNTHESIS_AGENTS,
     }
     run_dir = Path(plan.run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -1331,6 +1338,7 @@ def test_pack_synthesis_cli_unavailable_does_not_switch_to_direct_api(
     plan.production_pack = {
         "status": "synthesis_candidate",
         "pack_id": "pack_synthesis_candidate",
+        "agents": SYNTHESIS_AGENTS,
     }
     run_dir = Path(plan.run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)

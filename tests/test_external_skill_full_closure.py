@@ -5,7 +5,7 @@ Canonical fixture: anthropics/skills → skill-creator/SKILL.md
 Verifies the complete lifecycle:
   fixture SKILL.md → import_skill_from_fixture → pending → approve → stage
   → fake validate → promote → active skill dir → retrieval → injection
-  → skill_usage.yml → usage_ledger.yml
+  → run-local skill_usage.yml
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ def _write_configs(root: Path) -> None:
     (config / "skill_injection_policy.yml").write_text(
         yaml.safe_dump(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "enabled": True,
                 "retrieval": {
                     "max_skills_per_task": 3,
@@ -82,8 +82,8 @@ def _write_configs(root: Path) -> None:
                     "summary_weight": 1,
                 },
                 "usage": {
-                    "write_task_usage": True,
-                    "append_active_skill_ledger": True,
+                    "write_run_usage": True,
+                    "scope": "run_local",
                 },
             },
             sort_keys=False,
@@ -146,7 +146,7 @@ def _promote_fixture_skill(root: Path) -> tuple[str, Path]:
     )
     assert (active_dir / "SKILL.md").exists()
     assert (active_dir / "metadata.yml").exists()
-    assert (active_dir / "usage_ledger.yml").exists()
+    assert not (active_dir / "usage_ledger.yml").exists()
 
     metadata = yaml.safe_load((active_dir / "metadata.yml").read_text(encoding="utf-8")) or {}
     assert metadata["source"]["type"] == "external_url"
@@ -158,7 +158,7 @@ def _promote_fixture_skill(root: Path) -> tuple[str, Path]:
 def test_external_skill_fixture_full_lifecycle_retrieval_injection_and_usage(
     tmp_path: Path,
 ) -> None:
-    """Full closure: fixture → promote → retrieval → injection → usage ledger."""
+    """Full closure: fixture → promote → retrieval → injection → run usage."""
     _write_configs(tmp_path)
     skill_id, active_dir = _promote_fixture_skill(tmp_path)
 
@@ -203,11 +203,7 @@ def test_external_skill_fixture_full_lifecycle_retrieval_injection_and_usage(
     usage_path = run_dir / "skill_usage.yml"
     assert usage_path.exists(), "skill_usage.yml must be written by injection"
     usage = yaml.safe_load(usage_path.read_text(encoding="utf-8")) or {}
+    assert usage["scope"] == "run_local"
     assert usage["selected"][0]["skill_id"] == skill_id
-
-    # Verify usage_ledger.yml appended
-    ledger = yaml.safe_load(
-        (active_dir / "usage_ledger.yml").read_text(encoding="utf-8")
-    ) or {}
-    assert ledger["entries"], "usage_ledger.yml must have entries after injection"
-    assert ledger["entries"][-1]["task_id"] == TASK_ID
+    assert usage["entries"][-1]["task_id"] == TASK_ID
+    assert not (active_dir / "usage_ledger.yml").exists()

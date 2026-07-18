@@ -63,7 +63,7 @@ def _yaml_file_status(path: Path) -> dict[str, Any]:
 
 
 def _media_production_files(project_root: Path) -> list[str]:
-    artifacts_root = project_root / "artifacts"
+    artifacts_root = project_root / "production" / "media"
     if not artifacts_root.exists():
         return []
     return [

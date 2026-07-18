@@ -16,9 +16,13 @@ from skill_retriever import match_active_skills
 
 def _write_policy(root: Path, *, max_skills: int = 3, high_risk_requires_approval: bool = True) -> None:
     (root / "config").mkdir(parents=True, exist_ok=True)
+    (root / "config" / "execution_modes.yml").write_text(
+        (ROOT / "config" / "execution_modes.yml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
     (root / "config" / "skill_injection_policy.yml").write_text(
         yaml.safe_dump({
-            "schema_version": 1,
+            "schema_version": 2,
             "enabled": True,
             "retrieval": {
                 "max_skills_per_task": max_skills,
@@ -27,7 +31,7 @@ def _write_policy(root: Path, *, max_skills: int = 3, high_risk_requires_approva
                 "default_injected_agents": ["Coder", "TesterAuditor"],
             },
             "matching": {"trigger_weight": 3, "applies_to_weight": 2, "summary_weight": 1},
-            "usage": {"write_task_usage": True, "append_active_skill_ledger": True},
+            "usage": {"write_run_usage": True, "scope": "run_local"},
         }, sort_keys=False),
         encoding="utf-8",
     )
@@ -65,10 +69,6 @@ def _active_skill(
         metadata["default_injection"] = default_injection
     (skill_dir / "metadata.yml").write_text(yaml.safe_dump(metadata, sort_keys=False), encoding="utf-8")
     (skill_dir / "SKILL.md").write_text(f"# {skill_id}\n", encoding="utf-8")
-    (skill_dir / "usage_ledger.yml").write_text(
-        yaml.safe_dump({"schema_version": 1, "skill_id": skill_id, "entries": []}, sort_keys=False),
-        encoding="utf-8",
-    )
     return skill_dir
 
 
@@ -148,7 +148,7 @@ def test_max_skills_per_task_respected(tmp_path: Path) -> None:
     assert any("max skills per task exceeded" in r["reason"] for r in result["rejected"])
 
 
-def test_workflow_plan_records_selected_skills_and_usage_ledgers(tmp_path: Path) -> None:
+def test_workflow_plan_records_selected_skills_in_run_local_usage(tmp_path: Path) -> None:
     _write_policy(tmp_path)
     _active_skill(tmp_path, "pytest_repair", triggers=["pytest failed"], applies_to=["test_repair"])
     run_dir = tmp_path / "projects" / "Demo" / "runs" / "task_0001_skill"
@@ -169,9 +169,11 @@ def test_workflow_plan_records_selected_skills_and_usage_ledgers(tmp_path: Path)
     assert plan["skills"]["selected"][0]["skill_id"] == "pytest_repair"
     assert result["selected"][0]["injected_into"] == ["Coder", "TesterAuditor"]
     usage = yaml.safe_load((run_dir / "skill_usage.yml").read_text(encoding="utf-8"))
+    assert usage["schema_version"] == 2
+    assert usage["scope"] == "run_local"
     assert usage["selected"][0]["skill_id"] == "pytest_repair"
-    ledger = yaml.safe_load((tmp_path / "skills" / "active" / "pytest_repair" / "usage_ledger.yml").read_text(encoding="utf-8"))
-    assert ledger["entries"][0]["task_id"] == "task_0001_skill"
+    assert usage["entries"][0]["task_id"] == "task_0001_skill"
+    assert not (tmp_path / "skills" / "active" / "pytest_repair" / "usage_ledger.yml").exists()
 
 
 def test_writer_route_injects_skills_into_writer_roles(tmp_path: Path) -> None:

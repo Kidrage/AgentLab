@@ -360,10 +360,19 @@ def _write_light_chapter_workflow_plan(
     *,
     writer_budget_mode: str = "balanced",
 ) -> Any | None:
+    try:
+        from agent_runtime.routing.route_catalog import RouteCatalog
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from routing.route_catalog import RouteCatalog
+
+    narrative_route_key = "narrative_light_chapter"
+    narrative_agents = RouteCatalog.from_file(
+        root / "config" / "routing_rules.yml"
+    ).agents_for(narrative_route_key)
     fallback = {
         "route": {
-            "route_key": "narrative_light_chapter",
-            "agents": ["Supervisor", "Writer"],
+            "route_key": narrative_route_key,
+            "agents": narrative_agents,
         },
         "production_pack": {
             "pack_id": "narrative_longform",
@@ -384,9 +393,9 @@ def _write_light_chapter_workflow_plan(
         data = plan.model_dump(mode="json") if hasattr(plan, "model_dump") else fallback
         route = data.setdefault("route", {})
         if route.get("route_key") == "fiction_chapter_pipeline":
-            route["route_key"] = "narrative_light_chapter"
-        route.setdefault("route_key", "narrative_light_chapter")
-        route.setdefault("agents", ["Supervisor", "Writer"])
+            route["route_key"] = narrative_route_key
+        route.setdefault("route_key", narrative_route_key)
+        route.setdefault("agents", narrative_agents)
         data.setdefault("production_pack", fallback["production_pack"])
     except Exception:
         plan = None

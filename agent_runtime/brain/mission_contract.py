@@ -161,12 +161,8 @@ def build_mission_contract(
             "action": "select_existing_route",
             "selected_route": "artifact_production_task",
             "reason": "mixed_artifact_requires_composite_adapter_fail_closed",
-            "route_proposal": {
-                "route_key": "artifact_production_task",
-                "agents": ["Supervisor", "ArtifactProducer", "Verifier"],
-                "artifact_components": artifact_components,
-                "execution_policy": "block_until_one_provider_or_composite_adapter_satisfies_all_components",
-            },
+            "artifact_components": artifact_components,
+            "execution_policy": "block_until_one_provider_or_composite_adapter_satisfies_all_components",
         }
         media_generation_contract = None
     elif len(artifact_components) > 1:
@@ -219,7 +215,6 @@ def build_mission_contract(
         "memory_contract": _memory_contract(domain_pack),
         "quality_gates": _quality_gates(domain_pack),
         "route_decision": route_decision,
-        "route_proposal": route_decision.get("route_proposal", {}),
         "compiler_source": "llm_assisted" if llm_draft else "rule_based",
     }
     if media_generation_contract:
@@ -415,7 +410,6 @@ def _mission_draft_messages(prompt: str) -> list[dict[str, str]]:
         "artifact_type": "longform_text|code_patch|cited_report|video_plan|media_generation_contract|audio_experiment_report|business_document|operational_runbook|unknown",
         "quality_gates": ["string"],
         "memory_contract": ["string"],
-        "route_proposal": {"route_key": "string", "agents": ["string"]},
     }
     return [
         {
@@ -423,7 +417,7 @@ def _mission_draft_messages(prompt: str) -> list[dict[str, str]]:
             "content": (
                 "You are Hermes mission intake. Return only compact JSON. "
                 "Classify the user's requested work into the provided schema. "
-                "Do not invent executable route keys beyond a route_proposal."
+                "Route selection and agent assignment are handled by local configuration."
             ),
         },
         {
@@ -458,11 +452,6 @@ def _validate_llm_mission_draft(data: dict[str, Any]) -> dict[str, Any] | None:
     for key in ("quality_gates", "memory_contract"):
         if isinstance(data.get(key), list) and all(isinstance(item, str) for item in data[key]):
             draft[key] = data[key]
-    route = data.get("route_proposal")
-    if isinstance(route, dict):
-        agents = route.get("agents", [])
-        if isinstance(route.get("route_key"), str) and isinstance(agents, list) and all(isinstance(a, str) for a in agents):
-            draft["route_proposal"] = {"route_key": route["route_key"], "agents": agents}
     return draft
 
 
@@ -554,44 +543,19 @@ def _quality_gates(domain_pack: dict[str, Any]) -> list[str]:
     return [str(item) for item in values] if isinstance(values, list) else []
 
 
-def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any], root: Path) -> tuple[str, str, dict[str, Any]]:
+def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any]) -> tuple[str, str]:
     from agent_runtime.narrative_intent import classify_narrative_intent
 
     intent = classify_narrative_intent(prompt, active_longform_project=True)
     if intent.kind == "rewrite":
-        return (
-            str(domain_pack.get("rewrite_route") or "narrative_rewrite_plan"),
-            intent.reason,
-            domain_pack.get("rewrite_route_proposal") or {
-                "route_key": "narrative_rewrite_plan",
-                "agents": ["Supervisor", "NarrativePlanner"],
-            },
-        )
+        return str(domain_pack.get("rewrite_route") or "narrative_rewrite_plan"), intent.reason
     if intent.kind == "audit":
-        return (
-            str(domain_pack.get("audit_route") or "narrative_heavy_audit"),
-            intent.reason,
-            domain_pack.get("audit_route_proposal") or {
-                "route_key": "narrative_heavy_audit",
-                "agents": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
-            },
-        )
+        return str(domain_pack.get("audit_route") or "narrative_heavy_audit"), intent.reason
     if intent.kind == "chapter_batch":
-        return (
-            str(domain_pack.get("batch_route") or "narrative_batch_chapters"),
-            intent.reason,
-            domain_pack.get("batch_route_proposal") or {
-                "route_key": "narrative_batch_chapters",
-                "agents": ["Supervisor", "Writer"],
-            },
-        )
+        return str(domain_pack.get("batch_route") or "narrative_batch_chapters"), intent.reason
     return (
         str(domain_pack.get("recommended_route") or "narrative_light_chapter"),
         intent.reason if intent.kind == "chapter" else "creative_writing_light_chapter_default",
-        domain_pack.get("route_proposal") or {
-            "route_key": "narrative_light_chapter",
-            "agents": ["Supervisor", "Writer"],
-        },
     )
 
 
@@ -636,17 +600,16 @@ def _build_route_decision(
             "reason": "domain_pack_recommendation" if route_key else "no_domain_route_available",
         }
         if route_key == "media_generation_task":
-            decision["route_proposal"] = domain_pack.get("route_proposal", {})
             decision["reason"] = "media_generation_requires_backend_contract_and_harness"
         return decision
 
-    selected_route, reason, proposal = _creative_route_key_for_prompt(prompt, domain_pack, root)
+    selected_route, reason = _creative_route_key_for_prompt(prompt, domain_pack)
+    proposal = {"route_key": selected_route}
     if selected_route and _route_exists(root, selected_route):
         return {
             "action": "select_existing_route",
             "selected_route": selected_route,
             "forbidden_routes": domain_pack.get("forbidden_fallback_routes", []),
-            "route_proposal": proposal,
             "reason": reason,
         }
     return {

@@ -25,10 +25,10 @@ repository_memory:
   policy: config/repository_handoff_policy.yml
   discover_command: ./agentlab.sh repository-handoff --repo "{repository_path}"
   refresh_command: ./agentlab.sh repository-handoff --repo "{repository_path}" --write
-  project_root_visible_path: PROJECT_HANDOFF.md
-  local_path: .agentlab/HandOff.md
-  compatible_project_memory_path: agent_docs/HandOff.md
-  shared_path: memory/repositories/{repository_id}/HandOff.md
+  canonical_path: PROJECT_HANDOFF.md
+  legacy_aliases_are_read_only: true
+  shared_fallback_path: memory/repositories/{repository_id}/HandOff.md
+  shared_copy_command: ./agentlab.sh repository-handoff --repo "{repository_path}" --write --shared-copy
 
 endpoints:
   local_source:

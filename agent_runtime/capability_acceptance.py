@@ -987,10 +987,10 @@ def _live_code_promotion(root: Path, run_dir: Path) -> dict[str, Any]:
     task_id = "task_live_code_ui_app_json_binding_20260707"
     project_root = root / "projects" / project
     production_required = [
-        project_root / "artifacts" / "web_ui" / "index.html",
-        project_root / "artifacts" / "web_ui" / "styles.css",
-        project_root / "artifacts" / "web_ui" / "app.js",
-        project_root / "artifacts" / "web_ui" / "status.sample.json",
+        project_root / "production" / "artifacts" / "web_ui" / "index.html",
+        project_root / "production" / "artifacts" / "web_ui" / "styles.css",
+        project_root / "production" / "artifacts" / "web_ui" / "app.js",
+        project_root / "production" / "artifacts" / "web_ui" / "status.sample.json",
     ]
     receipt_path = run_dir / "archive_receipt.yml"
     plan_path = run_dir / "artifact_promotion_plan.yml"

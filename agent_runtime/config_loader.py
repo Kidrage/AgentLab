@@ -1,7 +1,9 @@
 """Configuration loading helpers for AgentLab."""
 
+from copy import deepcopy
+from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 try:
     from policies import assert_path_allowed
@@ -57,17 +59,47 @@ CONFIG_FILES = {
 }
 
 
-def load_yaml(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    data = safe_read_yaml(path, default={})
+@lru_cache(maxsize=256)
+def _load_yaml_snapshot(
+    path_text: str,
+    modified_ns: int,
+    size: int,
+    inode: int,
+) -> dict[str, Any]:
+    del modified_ns, size, inode
+    data = safe_read_yaml(Path(path_text), default={})
     return data if isinstance(data, dict) else {}
 
 
-def load_agentlab_configs(agentlab_root: Path) -> dict[str, dict[str, Any]]:
+def load_yaml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        stat = path.stat()
+    except OSError:
+        return {}
+    snapshot = _load_yaml_snapshot(
+        str(path.resolve()),
+        stat.st_mtime_ns,
+        stat.st_size,
+        getattr(stat, "st_ino", 0),
+    )
+    return deepcopy(snapshot)
+
+
+def load_agentlab_configs(
+    agentlab_root: Path,
+    *,
+    keys: Iterable[str] | None = None,
+) -> dict[str, dict[str, Any]]:
     config_root = assert_path_allowed(agentlab_root / "config", agentlab_root)
+    selected_keys = tuple(CONFIG_FILES) if keys is None else tuple(dict.fromkeys(keys))
+    unknown_keys = sorted(set(selected_keys) - CONFIG_FILES.keys())
+    if unknown_keys:
+        raise KeyError(f"unknown AgentLab config keys: {', '.join(unknown_keys)}")
     configs: dict[str, dict[str, Any]] = {}
-    for key, filename in CONFIG_FILES.items():
+    for key in selected_keys:
+        filename = CONFIG_FILES[key]
         configs[key] = load_yaml(assert_path_allowed(config_root / filename, agentlab_root))
     return configs
 

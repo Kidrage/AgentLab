@@ -10,9 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import yaml
-
-from atomic_io import atomic_write_yaml
+from atomic_io import atomic_write_yaml, safe_read_yaml
 
 # ─── Canonical Lifecycle Nodes ────────────────────────────────────────────
 
@@ -43,6 +41,30 @@ LIFECYCLE_NODES = [
     "SYNC_OPTIONAL",
     "FINALIZE",
 ]
+
+LIFECYCLE_NODE_OWNER = {
+    "SUPERVISOR_PLAN": "Supervisor",
+    "REPO_CONTEXT": "RepoScout",
+    "RESEARCH_OPTIONAL": "Researcher",
+    "OBSERVATION_OPTIONAL": "Observer",
+    "INTERFACE_OPTIONAL": "InterfaceMapper",
+    "NARRATIVE_REWRITE_PLAN": "NarrativePlanner",
+    "WRITER_DRAFT": "Writer",
+    "FICTION_REVIEW": "Reviewer",
+    "SCRIBE_LEDGER": "Scribe",
+    "CODER_IMPLEMENTATION": "Coder",
+    "ARTIFACT_PRODUCTION": "ArtifactProducer",
+    "VISUAL_OBSERVATION": "Observer",
+    "VISUAL_REVIEW": "Reviewer",
+    "VALIDATION": "TesterAuditor",
+    "AUDIT": "TesterAuditor",
+    "VERIFY": "Verifier",
+    "ARCHIVE": "Archivist",
+}
+
+AGENT_LIFECYCLE_NODES: dict[str, set[str]] = {}
+for _node_id, _owner in LIFECYCLE_NODE_OWNER.items():
+    AGENT_LIFECYCLE_NODES.setdefault(_owner, set()).add(_node_id)
 
 # Node dependency: which artifacts each node requires to be marked completed
 NODE_REQUIRED_OUTPUTS = {
@@ -170,32 +192,9 @@ def _skip_reason_for_node(
         return None
     if active_nodes is not None and node_id not in active_nodes:
         return f"Production pack {pack_id} excludes {node_id}"
-    if node_id == "RESEARCH_OPTIONAL" and "Researcher" not in route:
-        return "Route does not include Researcher"
-    if node_id == "INTERFACE_OPTIONAL" and "InterfaceMapper" not in route:
-        return "Route does not include InterfaceMapper"
-    if node_id == "NARRATIVE_REWRITE_PLAN" and "NarrativePlanner" not in route:
-        return "Route does not include NarrativePlanner"
-    if node_id == "WRITER_DRAFT" and "Writer" not in route:
-        return "Route does not include Writer"
-    if node_id == "FICTION_REVIEW" and "Reviewer" not in route:
-        return "Route does not include Reviewer"
-    if node_id == "SCRIBE_LEDGER" and "Scribe" not in route:
-        return "Route does not include Scribe"
-    if node_id == "CODER_IMPLEMENTATION" and "Coder" not in route:
-        return "Route does not include Coder"
-    if node_id == "ARTIFACT_PRODUCTION" and "ArtifactProducer" not in route:
-        return "Route does not include ArtifactProducer"
-    if node_id == "VISUAL_OBSERVATION" and "Observer" not in route:
-        return "Route does not include Observer"
-    if node_id == "VISUAL_REVIEW" and "Reviewer" not in route:
-        return "Route does not include Reviewer"
-    if node_id in {"VALIDATION", "AUDIT"} and "TesterAuditor" not in route:
-        return "Route does not include TesterAuditor"
-    if node_id == "VERIFY" and "Verifier" not in route:
-        return "Route does not include Verifier"
-    if node_id == "ARCHIVE" and "Archivist" not in route:
-        return "Route does not include Archivist"
+    owner = LIFECYCLE_NODE_OWNER.get(node_id)
+    if owner and owner not in route:
+        return f"Route does not include {owner}"
     return None
 
 
@@ -212,13 +211,8 @@ def _production_pack_nodes(workflow_plan: dict) -> tuple[set[str] | None, str]:
 def load_lifecycle(run_dir: Path) -> Optional[dict]:
     """Load lifecycle.yml or return None."""
     path = lifecycle_path(run_dir)
-    if not path.exists():
-        return None
-    try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else None
-    except Exception:
-        return None
+    data = safe_read_yaml(path, default=None)
+    return data if isinstance(data, dict) else None
 
 
 def save_lifecycle(run_dir: Path, lifecycle: dict) -> Path:

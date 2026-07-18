@@ -14,6 +14,7 @@ from cli_executor import CliAgentNotAvailable, resolve_cli_profile, run_cli_agen
 from config_loader import load_agentlab_configs
 from llm_provider import generate_text, resolve_env_value, resolve_llm_settings
 from policies import assert_path_allowed
+from repository_handoff import discover_handoff
 from role_keys import normalize_role_key
 from schemas import LLMCallResult, LLMSettings, WorkflowPlan
 
@@ -121,6 +122,22 @@ def _is_context_placeholder(path: Path) -> bool:
     if path.name not in report_names:
         return False
     return is_placeholder_report(path)
+
+
+def _repository_handoff_context_files(*roots: Path) -> list[Path]:
+    """Select at most one authoritative or legacy handoff per repository."""
+    files: list[Path] = []
+    seen: set[Path] = set()
+    for root in roots:
+        handoff = discover_handoff(root)
+        if handoff is None:
+            continue
+        resolved = handoff.resolve(strict=False)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        files.append(handoff)
+    return files
 
 
 def _story_authority_context_files(project_root: Path, run_dir: Path) -> list[Path]:
@@ -243,19 +260,15 @@ def supervisor_context_source_files(
     files = [
         agentlab_root / "AGENTS.md",
         agentlab_root / "config" / "repository_handoff_policy.yml",
-        agentlab_root / "PROJECT_HANDOFF.md",
-        agentlab_root / ".agentlab" / "HandOff.md",
         agentlab_root / "config" / "harness_policy.yml",
         project_root / "project_config.yml",
-        project_root / "PROJECT_HANDOFF.md",
-        project_root / ".agentlab" / "HandOff.md",
-        project_root / "agent_docs" / "HandOff.md",
         project_root / "agent_docs" / "00_CONTEXT_PACK.md",
         project_root / "agent_docs" / "01_REPO_MAP.md",
         Path(plan.user_request_path),
         run_dir / "workflow_plan.yml",
         run_dir / "mission_contract.yml",
     ]
+    files[2:2] = _repository_handoff_context_files(agentlab_root, project_root)
     configs = load_agentlab_configs(agentlab_root)
     supervisor = (configs.get("agent_registry", {}).get("agents", {}) or {}).get(
         "Supervisor",
@@ -610,14 +623,7 @@ def production_pack_context_source_files(
     output_path: Path,
 ) -> list[Path]:
     """Return the minimal files embedded in a production-pack role packet."""
-    if (plan.production_pack or {}).get("status") != "synthesis_candidate":
-        return []
-    if agent_name not in {
-        "Supervisor",
-        "Researcher",
-        "ArtifactProducer",
-        "Verifier",
-    }:
+    if not _is_production_pack_synthesis_role(plan, agent_name):
         return []
 
     run_dir = Path(plan.run_dir)
@@ -838,9 +844,7 @@ def _production_pack_agent_plan_summary(
     return {
         "project": summary["project"],
         "task_id": summary["task_id"],
-        "agentlab_orchestrator_backend": summary[
-            "agentlab_orchestrator_backend"
-        ],
+        "workflow_driver": summary["workflow_driver"],
         "budget_mode": summary["budget_mode"],
         "budget_profile": summary["budget_profile"],
         "risk_level": summary["risk_level"],
@@ -940,7 +944,7 @@ def _agent_plan_summary(plan: WorkflowPlan, agent_name: str) -> dict:
         "repo_path": plan.repo_path,
         "run_dir": plan.run_dir,
         "user_request_path": plan.user_request_path,
-        "agentlab_orchestrator_backend": plan.execution_backend,
+        "workflow_driver": plan.execution_backend,
         "budget_mode": plan.budget_mode,
         "budget_profile": plan.budget_profile,
         "project_size": plan.project_size,
@@ -963,11 +967,25 @@ def _agent_plan_summary(plan: WorkflowPlan, agent_name: str) -> dict:
     }
 
 
+def _is_production_pack_synthesis_role(plan: WorkflowPlan, agent_name: str) -> bool:
+    pack = plan.production_pack or {}
+    configured_roles = list(pack.get("agents") or plan.route.agents or [])
+    return (
+        pack.get("status") == "synthesis_candidate"
+        and agent_name in set(configured_roles)
+    )
+
+
 def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: str, output_path: Path) -> list[dict[str, str]]:
     configs = load_agentlab_configs(agentlab_root)
     registry = configs.get("agent_registry", {}).get("agents", {})
     agent_config = registry.get(agent_name, {})
-    template_path = assert_path_allowed(agentlab_root / agent_config.get("template_path", ""), agentlab_root)
+    template_variants = agent_config.get("template_variants", {}) or {}
+    template_ref = template_variants.get(
+        plan.route.route_key,
+        agent_config.get("template_path", ""),
+    )
+    template_path = assert_path_allowed(agentlab_root / template_ref, agentlab_root)
     project_root = Path(plan.project_root)
     run_dir = Path(plan.run_dir)
     artifact_task: dict = {}
@@ -986,20 +1004,12 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
                 isinstance(routing, dict)
                 and routing.get("provider_type") == "cli"
             )
-    production_pack_role_session = (
-        (plan.production_pack or {}).get("status") == "synthesis_candidate"
-        and agent_name
-        in {"Supervisor", "Researcher", "ArtifactProducer", "Verifier"}
+    production_pack_role_session = _is_production_pack_synthesis_role(
+        plan, agent_name
     )
     narrative_rewrite_plan = plan.route.route_key == "narrative_rewrite_plan"
     narrative_heavy_audit = plan.route.route_key == "narrative_heavy_audit"
     media_visual_route = plan.route.route_key == "media_generation_task"
-    if media_visual_route and agent_name == "Reviewer":
-        template_path = assert_path_allowed(
-            agentlab_root / "agent_templates" / "visual_reviewer.md",
-            agentlab_root,
-        )
-
     if agent_name == "Supervisor" and production_pack_role_session:
         context_files = [
             Path(plan.user_request_path),
@@ -1146,13 +1156,8 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
         context_files = [
             agentlab_root / "AGENTS.md",
             agentlab_root / "config" / "repository_handoff_policy.yml",
-            agentlab_root / "PROJECT_HANDOFF.md",
-            agentlab_root / ".agentlab" / "HandOff.md",
             agentlab_root / "config" / "harness_policy.yml",
             project_root / "project_config.yml",
-            project_root / "PROJECT_HANDOFF.md",
-            project_root / ".agentlab" / "HandOff.md",
-            project_root / "agent_docs" / "HandOff.md",
             project_root / "agent_docs" / "00_CONTEXT_PACK.md",
             project_root / "agent_docs" / "01_REPO_MAP.md",
             Path(plan.user_request_path),
@@ -1167,6 +1172,10 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             run_dir / "artifact_promotion_plan.yml",
             run_dir / "archive_receipt.yml",
         ]
+        context_files[2:2] = _repository_handoff_context_files(
+            agentlab_root,
+            project_root,
+        )
 
     context_sections = []
     seen_context_texts: set[str] = set()
@@ -1235,8 +1244,9 @@ Hard execution rules:
   create it with `./agentlab.sh repository-handoff --repo <path> --write` before deep read.
 - Safe full path/metadata inventory is required; bulk content reads, binary/secret reads,
   symlink-directory traversal, and dependency-cache scans are forbidden.
-- After any material project change and before final reporting, refresh the root-visible,
-  local, compatible, and shared-memory HandOff copies.
+- After any material project change and before final reporting, refresh canonical
+  PROJECT_HANDOFF.md. Write a shared fallback only when explicitly requested or
+  when the repository is read-only; never rewrite legacy aliases.
 - Write a report only; do not claim source files were changed unless they actually were.
 - Follow `workflow_plan.yml` `artifact_intent`: Coder and ArtifactProducer may write
   candidate deliverables only under the declared candidate directory unless the
@@ -1586,7 +1596,7 @@ Produce the AgentLab production-pack synthesis Supervisor plan for:
 - project: {plan.project}
 - task_id: {plan.task_id}
 - target_report_path: {output_path.name}
-- execution_backend: {plan.execution_backend}
+- workflow_driver: {plan.execution_backend}
 
 Output contract:
 
@@ -1612,7 +1622,7 @@ Produce the AgentLab Coder implementation report for:
 - project: {plan.project}
 - task_id: {plan.task_id}
 - target_report_path: {output_path}
-- agentlab_orchestrator_backend: {plan.execution_backend}
+- workflow_driver: {plan.execution_backend}
 - coder_model_call_mode: direct_api_text_generation
 
 Output contract:
@@ -1655,7 +1665,7 @@ Produce the AgentLab narrative rewrite plan for:
 - project: {plan.project}
 - task_id: {plan.task_id}
 - target: chapter_state_plan.yml
-- execution_backend: {plan.execution_backend}
+- workflow_driver: {plan.execution_backend}
 
 Output contract:
 
@@ -1725,7 +1735,7 @@ Produce the AgentLab narrative candidate files for:
 - project: {plan.project}
 - task_id: {plan.task_id}
 - capture_report_path: {output_path.name}
-- execution_backend: {plan.execution_backend}
+- workflow_driver: {plan.execution_backend}
 
 Output contract:
 
@@ -1856,7 +1866,7 @@ Observe the bounded AgentLab evidence for:
 - project: {plan.project}
 - task_id: {plan.task_id}
 - target_report_path: {output_path.name}
-- execution_backend: {plan.execution_backend}
+- workflow_driver: {plan.execution_backend}
 
 Output contract:
 
@@ -1938,7 +1948,7 @@ Produce the AgentLab non-code candidate artifacts for:
 - project: {plan.project}
 - task_id: {plan.task_id}
 - capture_report_path: {output_path.name if synthesis_candidate else output_path}
-- execution_backend: {plan.execution_backend}
+- workflow_driver: {plan.execution_backend}
 - artifact_model_call_mode: {'isolated_cli_file_materialization' if artifact_cli_session else 'direct_api_text_generation'}
 
 Output contract:
@@ -1971,7 +1981,7 @@ Produce the AgentLab production-pack domain research brief for:
 - project: {plan.project}
 - task_id: {plan.task_id}
 - target_report_path: {output_path.name}
-- execution_backend: {plan.execution_backend}
+- workflow_driver: {plan.execution_backend}
 
 Output contract:
 
@@ -1998,7 +2008,7 @@ Verify the AgentLab production-pack candidate for:
 - project: {plan.project}
 - task_id: {plan.task_id}
 - target_report_path: {output_path.name}
-- execution_backend: {plan.execution_backend}
+- workflow_driver: {plan.execution_backend}
 
 Output contract:
 
@@ -2024,7 +2034,7 @@ Prepare the AgentLab report for:
 - project: {plan.project}
 - task_id: {plan.task_id}
 - target_report_path: {output_path}
-- execution_backend: {plan.execution_backend}
+- workflow_driver: {plan.execution_backend}
 
 Workflow plan summary:
 
@@ -2534,22 +2544,6 @@ def _resolve_cli_profile_for_agent(
             configs,
             cli_role_profile,
         )
-    route_config = (
-        (configs.get("routing_rules", {}).get("routes", {}) or {}).get(
-            route_key, {}
-        )
-    )
-    role_session_contracts = (
-        route_config.get("role_session_contracts", {})
-        if isinstance(route_config, dict)
-        else {}
-    )
-    contract_name = str(
-        role_session_contracts.get(agent_name) or ""
-    ).strip()
-    if contract_name and isinstance(cli_role_profile, dict):
-        cli_role_profile = dict(cli_role_profile)
-        cli_role_profile["invocation_contract"] = contract_name
     return configs, mode, agent_role_key, cli_role_profile
 
 
@@ -3117,11 +3111,7 @@ def run_agent_model(
                 agent_name,
                 output_path,
             )
-        elif (
-            (plan.production_pack or {}).get("status") == "synthesis_candidate"
-            and agent_name
-            in {"Supervisor", "Researcher", "ArtifactProducer", "Verifier"}
-        ):
+        elif _is_production_pack_synthesis_role(plan, agent_name):
             task_messages = compose_agent_messages(
                 agentlab_root,
                 plan,
@@ -3295,11 +3285,7 @@ def run_agent_model(
             }
             return cli_result
 
-        if (
-            (plan.production_pack or {}).get("status") == "synthesis_candidate"
-            and agent_name
-            in {"Supervisor", "Researcher", "ArtifactProducer", "Verifier"}
-        ):
+        if _is_production_pack_synthesis_role(plan, agent_name):
             return LLMCallResult(
                 provider="agentlab-cli-executor",
                 model=cli_configured_agent or "unknown_cli_worker",
@@ -3452,11 +3438,7 @@ def run_agent_model(
                     "outbound_context_status": manifest.get("status"),
                 },
             )
-    elif (
-        (plan.production_pack or {}).get("status") == "synthesis_candidate"
-        and agent_name
-        in {"Supervisor", "Researcher", "ArtifactProducer", "Verifier"}
-    ):
+    elif _is_production_pack_synthesis_role(plan, agent_name):
         try:
             from agent_runtime.outbound_context import (
                 PRODUCTION_PACK_CONTEXT_APPROVAL_ENV_NAME,

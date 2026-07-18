@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, Callable, Optional
+import copy
 import functools
 import yaml
 import json
@@ -69,6 +70,18 @@ def atomic_read_yaml(path):
     with open(str(path), 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
+
+@functools.lru_cache(maxsize=512)
+def _cached_read_yaml(
+    path: str,
+    mtime_ns: int,
+    ctime_ns: int,
+    size: int,
+    inode: int,
+):
+    del mtime_ns, ctime_ns, size, inode
+    return atomic_read_yaml(path)
+
 def atomic_read_json(path):
     """Read JSON from a file."""
     with open(str(path), 'r', encoding='utf-8') as f:
@@ -77,10 +90,18 @@ def atomic_read_json(path):
 def safe_read_yaml(path, default=None):
     """Safely read YAML file, returning default on failure."""
     try:
-        data = atomic_read_yaml(path)
-        return data if data is not None else default
+        path_obj = Path(str(path))
+        stat = path_obj.stat()
+        data = _cached_read_yaml(
+            str(path_obj),
+            stat.st_mtime_ns,
+            stat.st_ctime_ns,
+            stat.st_size,
+            stat.st_ino,
+        )
+        return copy.deepcopy(data if data is not None else default)
     except Exception:
-        return default
+        return copy.deepcopy(default)
 
 def safe_read_json(path, default=None):
     """Safely read JSON file, returning default on failure."""

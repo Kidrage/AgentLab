@@ -20,7 +20,7 @@ def evaluate_marginal_utility(
     """
     Evaluate the marginal utility of activating a worker.
     Returns (decision, verdict, reasons) where:
-      decision: spawn | skip | satisfy_by_deterministic | satisfy_by_cache | coalesce | defer | require_approval
+      decision: spawn | skip | satisfy_by_deterministic | satisfy_by_cache | defer | require_approval
       verdict: justified | not_justified | unknown_requires_approval
       reasons: list of strings explaining the decision
     """
@@ -64,10 +64,11 @@ def evaluate_marginal_utility(
             reasons.append("Cached startup context makes activation cheap, and expected benefit is meaningful.")
             return "spawn", "justified", reasons
             
-    # 5. Small tasks should coalesce if possible
+    # 5. Skip low-utility model roles on small tasks. AgentLab lifecycle roles
+    # retain independent receipts and are never merged by this cost estimator.
     if task_size == "small" and total_benefit < 3:
-        reasons.append("Small task should coalesce or skip low-utility workers to reduce coordination overhead.")
-        return "coalesce", "justified", reasons
+        reasons.append("Small task skips low-utility workers to reduce coordination overhead.")
+        return "skip", "not_justified", reasons
         
     # 6. Default decisions based on benefit score
     if total_benefit >= 4:

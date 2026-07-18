@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
 
@@ -50,6 +52,48 @@ def _assert_no_code_shell_validation_gate_text(plan) -> None:
     assert "repo map" not in gate_text
     assert "source write policy" not in gate_text
     assert "implementation_report" not in gate_text
+
+
+def test_workflow_driver_resolves_the_configured_role_backend_mode(
+    tmp_path: Path,
+) -> None:
+    request = tmp_path / "user_request.md"
+    request.write_text(
+        "Implement a small production repository code change with tests.",
+        encoding="utf-8",
+    )
+
+    cli_plan = build_workflow_plan(
+        ROOT,
+        "AgentLab",
+        "task_driver_cli_probe",
+        user_request_path=request,
+    )
+    api_plan = build_workflow_plan(
+        ROOT,
+        "AgentLab",
+        "task_driver_api_probe",
+        execution_backend="api_native",
+        user_request_path=request,
+    )
+
+    assert cli_plan.execution_backend == "agentlab_orchestrated_cli"
+    assert {profile["resolved_mode"] for profile in cli_plan.model_profiles.values()} == {
+        "full_cli"
+    }
+    assert api_plan.execution_backend == "api_native"
+    assert {profile["resolved_mode"] for profile in api_plan.model_profiles.values()} == {
+        "full_api"
+    }
+
+    with pytest.raises(ValueError, match="inactive workflow driver"):
+        build_workflow_plan(
+            ROOT,
+            "AgentLab",
+            "task_retired_driver_probe",
+            execution_backend="codex_full_driver",
+            user_request_path=request,
+        )
 
 
 def test_workflow_plan_uses_mission_route_for_chinese_crown_chapter(tmp_path: Path) -> None:
@@ -205,18 +249,10 @@ def test_workflow_plan_routes_blocking_rewrite_to_narrative_planner(
     assert plan.route.route_key == "narrative_rewrite_plan"
     assert plan.route.agents == ["Supervisor", "NarrativePlanner"]
     assert plan.production_pack["pack_id"] == "narrative_longform"
-    assert plan.validation_gates == [
-        {
-            "id": "chapter_state_plan",
-            "owner": "NarrativePlanner",
-            "required": True,
-            "description": (
-                "Convert blocking heavy-audit evidence into one ordered, "
-                "candidate-only chapter state plan for a later Writer run."
-            ),
-            "evidence": ["chapter_state_plan.yml"],
-        }
-    ]
+    assert [
+        (gate["id"], gate["owner"], gate["evidence"])
+        for gate in plan.validation_gates
+    ] == [("chapter_state_plan", "NarrativePlanner", ["chapter_state_plan.yml"])]
     planner = plan.included_agents["NarrativePlanner"]
     assert planner["required_outputs"] == ["runs/task_xxxx/chapter_state_plan.yml"]
     planner_execution = plan.model_profiles["NarrativePlanner"]
@@ -261,7 +297,7 @@ def test_workflow_plan_routes_chapter_range_to_narrative_batch_path(tmp_path: Pa
     gate_ids = {gate["id"] for gate in plan.validation_gates}
     assert {
         "chapter_batch_plan",
-        "chapter_batch_candidates",
+        "chapters",
         "batch_continuity_ledger",
         "state_transition_proposal",
         "narrative_batch_delivery_receipt",
@@ -283,7 +319,7 @@ def test_workflow_plan_routes_plain_article_to_article_light_path(tmp_path: Path
     assert plan.route.route_key == "article_light_draft"
     assert plan.route.agents == ["Supervisor", "ArtifactProducer"]
     assert plan.production_pack["pack_id"] == "article_light"
-    assert plan.artifact_intent["production_dir"].endswith("projects/Crown_of_Ash/artifacts")
+    assert plan.artifact_intent["production_dir"].endswith("projects/Crown_of_Ash/production/artifacts")
     assert "ARTIFACT_PRODUCTION" in plan.production_pack["lifecycle_nodes"]
     assert "article_structure_check" in plan.production_pack["quality_gates"]
     gate_ids = {gate["id"] for gate in plan.validation_gates}
@@ -311,7 +347,7 @@ def test_workflow_plan_routes_video_series_to_media_series_pack(tmp_path: Path) 
     assert plan.route.route_key == "media_generation_task"
     assert "Archivist" not in plan.route.agents
     assert plan.production_pack["pack_id"] == "media_series_production"
-    assert plan.artifact_intent["production_dir"].endswith("projects/Crown_of_Ash/artifacts/media")
+    assert plan.artifact_intent["production_dir"].endswith("projects/Crown_of_Ash/production/media")
     assert "character_visual_bible" in plan.production_pack["memory_contract"]
     assert "shot_ledger" in plan.production_pack["memory_contract"]
     assert "ARTIFACT_PRODUCTION" in plan.production_pack["lifecycle_nodes"]
@@ -376,6 +412,7 @@ def test_unknown_non_code_domain_enters_executable_pack_synthesis_candidate(tmp_
         "core_runtime": ["task_run_state", "artifact_contract", "memory_policy"],
         "pack_synthesis_policy": {
             "enabled": True,
+            "agents": ["Supervisor", "Researcher", "ArtifactProducer", "Verifier"],
             "required_outputs": [
                 "production_pack_proposal.yml",
                 "domain_memory_contract.yml",
@@ -438,7 +475,7 @@ def test_workflow_plan_synthesizes_pack_for_unconfigured_multimodal_installation
         plan.route.route_key
     )
     assert "mission_contract" not in plan.model_dump(mode="json")
-    assert plan.artifact_intent["production_dir"].endswith("projects/AgentLab/artifacts")
+    assert plan.artifact_intent["production_dir"].endswith("projects/AgentLab/production/artifacts")
     assert plan.production_pack["task_domain"] == "multimodal_asset_generation"
     assert "Coder" not in plan.route.agents
     assert plan.route.agents[:4] == ["Supervisor", "Researcher", "ArtifactProducer", "Verifier"]

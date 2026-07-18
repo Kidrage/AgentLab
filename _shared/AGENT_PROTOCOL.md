@@ -250,18 +250,20 @@ CLI 二进制名称不等于 AgentLab 角色。具体强执行配置与可交接
 1. 读取项目内容前，先依次查找根目录 `PROJECT_HANDOFF.md`、
    `.agentlab/HandOff.md`、`agent_docs/HandOff.md`、兼容旧名
    `HandOff.md` / `HANDOFF.md`，以及
-   `memory/repositories/<repository_id>/HandOff.md` 共享镜像。
+   `memory/repositories/<repository_id>/HandOff.md` 共享镜像。只有
+   `PROJECT_HANDOFF.md` 是可写权威；其余名称仅用于只读兼容发现。
 2. 不存在时，必须在深度读取前立即创建；当前 Agent 无写权限时，立即请求创建，
    同时至少在共享记忆区创建只读仓库镜像。确定性命令为：
-   `./agentlab.sh repository-handoff --repo <path> --write`。
+   `./agentlab.sh repository-handoff --repo <path> --write`。显式跨端镜像使用
+   `--shared-copy`；默认刷新不得制造本地别名副本。
 3. 允许且要求完整盘点路径、文件类型、大小等元数据和有限 Git 历史；禁止递归
    `cat`、读取二进制负载/密钥、跟随目录软链接、扫描依赖缓存或倾倒全部历史。
 4. HandOff 必须记录仓库/数据结构、目录路线、入口、变更历史、当前状态、项目
    进度面板、待执行决策/文件/计划/验收产物、相关仓库、媒体/文献路线、验证风险
    和可保留的 Agent 注记。
 5. 分支、commit、文件、目录、schema、接口、相关仓库或任务状态发生实质变化后，
-   以及最终报告前，实际修改者必须刷新根目录、`.agentlab/`、`agent_docs/` 和
-   共享记忆四份 HandOff。
+   以及最终报告前，实际修改者必须刷新唯一权威 `PROJECT_HANDOFF.md`。共享镜像
+   只在显式请求或仓库只读回退时刷新，旧别名不得重写。
 
 该门禁适用于“全新任务”和“继续任务”，不得因已有聊天上下文、Agent 身份或前端
 接线角色跳过。接线层在 `relay_only` 下可创建/刷新 HandOff 治理工件，但仍不得
@@ -418,7 +420,7 @@ Agent 启动或切换任务时，按以下顺序增量恢复（低 token 消耗�
 1. Repository HandOff（L4，始终执行）:
    搜索 `PROJECT_HANDOFF.md`、`.agentlab/HandOff.md`、`agent_docs/HandOff.md`、
    兼容旧名和共享镜像
-   → 找到：先读再继续
+   → 找到：优先读取唯一权威 `PROJECT_HANDOFF.md`；旧名只读兼容
    → 缺失：立即创建/请求创建，深度仓库读取在此之前不得开始
 
 2. Agent 状态 JSON（L5 快速通道, ~200 tok）:

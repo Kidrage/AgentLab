@@ -185,7 +185,6 @@ def validate_artifacts(run_dir: Path) -> dict:
         "lifecycle.yml",
         "self_check_report.yml",
         "task_card.yml",
-        "artifact_manifest.yml",
     ]
     all_artifact_names = list(dict.fromkeys(all_artifact_names))
 
@@ -746,13 +745,11 @@ def _artifact_node_skipped(run_dir: Path, fname: str) -> bool:
 
 
 def _lifecycle_node_status(run_dir: Path, node_id: str) -> str | None:
-    lc_path = run_dir / "lifecycle.yml"
-    if not lc_path.exists():
-        return None
     try:
-        lifecycle = yaml.safe_load(lc_path.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return None
+        from lifecycle_graph import load_lifecycle
+    except ModuleNotFoundError:  # pragma: no cover - package import path
+        from agent_runtime.lifecycle_graph import load_lifecycle
+    lifecycle = load_lifecycle(run_dir) or {}
     if not isinstance(lifecycle, dict):
         return None
     node = (lifecycle.get("nodes") or {}).get(node_id) or {}
