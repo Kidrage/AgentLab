@@ -6,7 +6,7 @@
 ## Repository Identity
 
 - Repository ID: `AgentLab-de62d90289e0`
-- Working root: `/Users/saintpeter/Desktop/AgentLab`
+- Working root: `<AGENTLAB_ROOT>`
 - Git repository: `true`
 - Generated at: `2026-07-17T17:14:06.294098+00:00`
 
