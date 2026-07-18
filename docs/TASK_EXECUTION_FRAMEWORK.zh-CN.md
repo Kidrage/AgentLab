@@ -52,6 +52,7 @@ provider capacity      -> capacity_wait -> same action after reset
 worker crash           -> failed_recoverable -> bounded retry
 last batch             -> final_acceptance -> completed
 unrecoverable issue    -> blocked
+blocked after repair   -> failed_recoverable (`retry-blocked --repair-reason ...`)
 ```
 
 `paused` 不会杀死已经启动的 worker。当前 attempt 完成后，receipt 仍会被消费一次，
@@ -66,6 +67,10 @@ unrecoverable issue    -> blocked
 5. capacity 用尽时保存可观测的 reset time，恢复后重试同一动作，不静默换模型。
 6. `completed` / `blocked` 写 `operator_feedback.yml`；完成时另写
    `completion_receipt.yml`，可复用 webhook 通知外部界面。
+
+Detached service 和 worker 显式携带仓库根目录及 `agent_runtime/` 的 Python 搜索路径，
+因此不依赖启动它的交互式 shell。`retry-blocked` 只在 action 已耗尽重试、无活动 worker
+且操作者声明修复原因时重开同一个 job；它会保留旧 receipts 和事件，不允许复制或抹除历史。
 
 机器可读合同见 `config/background_job_policy.yml`。当前后台实现只注册 Crown 长篇
 交付；通用 job registry 尚未实现，不能把它宣称为所有任务都已后台化。

@@ -57,6 +57,18 @@ def _validate_id(value: str, label: str) -> str:
     return value
 
 
+def _runtime_subprocess_env(root: Path) -> dict[str, str]:
+    """Preserve both package and legacy direct-module imports in detached workers."""
+    resolved_root = Path(root).resolve()
+    entries = [str(resolved_root), str(resolved_root / "agent_runtime")]
+    existing = os.environ.get("PYTHONPATH")
+    if existing:
+        entries.extend(existing.split(os.pathsep))
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(entry for entry in entries if entry))
+    return env
+
+
 def job_dir(root: Path, project: str, job_id: str) -> Path:
     _validate_id(project, "project")
     _validate_id(job_id, "job_id")
@@ -805,6 +817,59 @@ def resume_job(
         return state
 
 
+def retry_blocked_job(
+    root: Path,
+    *,
+    project: str,
+    job_id: str,
+    repair_reason: str,
+    now: str | None = None,
+) -> dict[str, Any]:
+    """Reopen one exhausted action after an explicit runtime/config repair."""
+    if not repair_reason.strip():
+        raise ValueError("repair_reason is required")
+    timestamp = _now(now)
+    with _controller_lock(root, project, job_id):
+        state = load_job_state(root, project, job_id)
+        retry_action = str(state.get("retry_action") or "")
+        if state.get("status") != "blocked":
+            raise ValueError("job is not blocked")
+        if state.get("active_attempt"):
+            raise ValueError("blocked job still has an active attempt")
+        if retry_action not in ACTION_RUNNING_STATE:
+            raise ValueError("blocked job has no retryable action")
+
+        previous_error = state.get("last_error")
+        retry_counts = dict(state.get("retry_counts") or {})
+        retry_counts[retry_action] = 0
+        state["retry_counts"] = retry_counts
+        state["status"] = "failed_recoverable"
+        state["last_error"] = None
+        _save_state(root, project, job_id, state, now=timestamp)
+
+        feedback_path = job_dir(root, project, job_id) / "operator_feedback.yml"
+        feedback = safe_read_yaml(feedback_path)
+        if isinstance(feedback, dict):
+            feedback["status"] = "superseded"
+            feedback["superseded_at"] = timestamp
+            feedback["superseded_reason"] = repair_reason.strip()
+            atomic_write_yaml(feedback_path, feedback)
+        _append_event(
+            root,
+            project,
+            job_id,
+            "BLOCKED_JOB_REOPENED_AFTER_REPAIR",
+            status=state["status"],
+            now=timestamp,
+            payload={
+                "retry_action": retry_action,
+                "previous_error": previous_error,
+                "repair_reason": repair_reason.strip(),
+            },
+        )
+        return state
+
+
 def launch_active_attempt(
     root: Path,
     *,
@@ -843,6 +908,7 @@ def launch_active_attempt(
         process = popen_factory(
             command,
             cwd=str(Path(root).resolve()),
+            env=_runtime_subprocess_env(root),
             stdout=stdout,
             stderr=stderr,
             start_new_session=True,
@@ -1018,6 +1084,7 @@ def launch_controller_service(
         process = popen_factory(
             command,
             cwd=str(Path(root).resolve()),
+            env=_runtime_subprocess_env(root),
             stdout=stdout,
             stderr=stderr,
             start_new_session=True,

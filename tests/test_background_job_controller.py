@@ -15,6 +15,7 @@ from agent_runtime.background_job_controller import (
     mark_attempt_started,
     pause_job,
     recover_orphaned_attempt,
+    retry_blocked_job,
     resume_job,
     schedule_next_attempt,
     write_process_receipt,
@@ -475,10 +476,52 @@ def test_launch_uses_isolated_worker_and_records_pid(tmp_path: Path) -> None:
         "agent_runtime.background_job_worker",
     ]
     assert observed["kwargs"]["start_new_session"] is True
+    python_path = observed["kwargs"]["env"]["PYTHONPATH"].split(":")
+    assert python_path[:2] == [str(tmp_path), str(tmp_path / "agent_runtime")]
     assert launched["worker_pid"] == 43210
     state = load_job_state(tmp_path, "Crown_of_Ash", "crown-200-v3")
     assert state["active_attempt"]["attempt_id"] == attempt["attempt_id"]
     assert state["active_attempt"]["worker_pid"] == 43210
+
+
+def test_retry_blocked_reopens_exhausted_action_after_explicit_repair(
+    tmp_path: Path,
+) -> None:
+    _create_job(tmp_path)
+    _reach_heavy_audit(tmp_path)
+    for attempt_number in range(4):
+        attempt = schedule_next_attempt(
+            tmp_path,
+            project="Crown_of_Ash",
+            job_id="crown-200-v3",
+            now=NOW,
+        )
+        assert attempt["action"] == "heavy_audit"
+        state = _complete_active(
+            tmp_path,
+            outcome="failed_recoverable",
+            result={"status": "failed", "reason": f"runtime failure {attempt_number}"},
+        )
+
+    assert state["status"] == "blocked"
+    reopened = retry_blocked_job(
+        tmp_path,
+        project="Crown_of_Ash",
+        job_id="crown-200-v3",
+        repair_reason="fixed detached worker import path",
+        now=NOW,
+    )
+
+    assert reopened["status"] == "failed_recoverable"
+    assert reopened["retry_counts"]["heavy_audit"] == 0
+    assert reopened["last_error"] is None
+    retry = schedule_next_attempt(
+        tmp_path,
+        project="Crown_of_Ash",
+        job_id="crown-200-v3",
+        now=NOW,
+    )
+    assert retry["action"] == "heavy_audit"
 
 
 def test_controller_cycle_consumes_returned_receipt_before_scheduling_next(

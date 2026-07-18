@@ -14,6 +14,7 @@ from agent_runtime.background_job_controller import (
     launch_controller_service,
     load_job_state,
     pause_job,
+    retry_blocked_job,
     resume_job,
     run_controller_loop,
 )
@@ -97,6 +98,20 @@ def register_background_job_commands(
         project: str = typer.Option("Crown_of_Ash", "--project"),
     ) -> None:
         state = resume_job(agentlab_root, project=project, job_id=job_id)
+        console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
+
+    @jobs.command("retry-blocked")
+    def retry_blocked(
+        job_id: str = typer.Option(..., "--job-id"),
+        repair_reason: str = typer.Option(..., "--repair-reason"),
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+    ) -> None:
+        state = retry_blocked_job(
+            agentlab_root,
+            project=project,
+            job_id=job_id,
+            repair_reason=repair_reason,
+        )
         console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
 
     @jobs.command("run")

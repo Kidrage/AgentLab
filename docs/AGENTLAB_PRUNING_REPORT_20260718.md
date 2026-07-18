@@ -45,6 +45,7 @@
 - Crown 批量审计不再把 Agy/Gemini 写成唯一合法 Writer。当前章节必须由 `workflow_plan.yml`、Writer role-session guard 和 model execution chain 互相印证 worker/provider/model，且不得出现未声明 fallback；旧 Agy 章节只通过冻结的兼容凭据验真。
 - 后台 Writer budget 现在真正贯穿 controller、narrative runtime 和 workflow plan。每章只构建一次 workflow plan，不再在同一 Writer 调用前重复解析配置。
 - 10 章分批生成会从上一章种入 continuity sources 和累计 candidate facts。恢复时一旦发现 delivery 或 Writer provenance 无效，会从该章起重建整个后缀，并归档被替换证据，防止新旧章节混接。
+- Detached controller/worker 显式继承 package 与历史 direct-module 两种 Python 搜索路径；后台 heavy audit 不再依赖交互式 `agentlab.sh` 恰好提供的导入环境。代码或配置修复后，可用带修复原因的 `background-job retry-blocked` 恢复同一持久 job，而不是复制任务或手改状态文件。
 
 ## 后台长任务
 

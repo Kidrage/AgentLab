@@ -20,4 +20,5 @@ def test_background_job_cli_is_registered() -> None:
     assert "tick" in result.stdout
     assert "pause" in result.stdout
     assert "resume" in result.stdout
+    assert "retry-blocked" in result.stdout
     assert "run" in result.stdout
