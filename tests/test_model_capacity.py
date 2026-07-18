@@ -162,6 +162,24 @@ def test_auth_and_model_failures_are_distinct_and_keep_unknown_times_null(tmp_pa
         assert observation["confidence"] == "unknown"
 
 
+def test_network_failure_stays_on_primary_route_without_cost_fallback(tmp_path):
+    capacity = ModelCapacity(_policy(), tmp_path / "ledger.yml", clock=lambda: NOW)
+
+    observation = capacity.record_failure(
+        "primary",
+        message="network required: API call failed with Connection error",
+        attempt_id="network-attempt",
+    )
+    decision = capacity.select_route(
+        "primary", role="observer", attempt_id="retry-attempt"
+    )
+
+    assert observation["failure_class"] == "network_required"
+    assert observation["reset_at"] is None
+    assert decision["status"] == "selected"
+    assert decision["route_id"] == "primary"
+
+
 def test_pool_breaker_blocks_every_route_in_pool_and_uses_approved_fallback(tmp_path):
     capacity = ModelCapacity(_policy(), tmp_path / "ledger.yml", clock=lambda: NOW)
     capacity.record_failure(

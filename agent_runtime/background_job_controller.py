@@ -153,6 +153,7 @@ def create_crown_delivery_job(
     writer_budget: str = "frugal",
     suite: str = "crown-longform-reset-v1",
     max_retries_per_action: int = 3,
+    transient_retry_seconds: int = 900,
     now: str | None = None,
 ) -> dict[str, Any]:
     """Create one project-scoped, candidate-only Crown delivery job."""
@@ -165,6 +166,8 @@ def create_crown_delivery_job(
         raise ValueError("batch size and heavy audit cadence must be positive")
     if max_retries_per_action < 0:
         raise ValueError("max retries must not be negative")
+    if transient_retry_seconds < 1:
+        raise ValueError("transient retry seconds must be positive")
     project_root = Path(root) / "projects" / project
     if not project_root.is_dir():
         raise FileNotFoundError(project_root)
@@ -196,6 +199,7 @@ def create_crown_delivery_job(
             "chapter_state_plan": chapter_state_plan,
             "writer_budget": writer_budget,
             "max_retries_per_action": max_retries_per_action,
+            "transient_retry_seconds": transient_retry_seconds,
             "allow_writer_cli_fallback": False,
         },
         "current_batch": _initial_batch(start_chapter, end_chapter, batch_size),
@@ -208,6 +212,8 @@ def create_crown_delivery_job(
         "last_action_results": {},
         "capacity_reset_at": None,
         "capacity_resume_count": 0,
+        "retry_at": None,
+        "retry_resume_count": 0,
         "pause_requested": False,
         "paused_from_status": None,
         "paused_at": None,
@@ -272,6 +278,18 @@ def _wake_capacity_if_due(state: dict[str, Any], now: str) -> bool:
     return True
 
 
+def _wake_retry_if_due(state: dict[str, Any], now: str) -> bool:
+    if state.get("status") != "retry_wait":
+        return False
+    retry_at = state.get("retry_at")
+    if not retry_at or _parse_timestamp(now) < _parse_timestamp(str(retry_at)):
+        return False
+    state["status"] = "failed_recoverable"
+    state["retry_at"] = None
+    state["retry_resume_count"] = int(state.get("retry_resume_count", 0)) + 1
+    return True
+
+
 def _attempt_request(
     root: Path,
     state: dict[str, Any],
@@ -316,13 +334,14 @@ def schedule_next_attempt(
         _ensure_completion_receipt(root, project, job_id, state, now=timestamp)
         return None
     woke_capacity = _wake_capacity_if_due(state, timestamp)
-    if state["status"] == "capacity_wait":
+    woke_retry = _wake_retry_if_due(state, timestamp)
+    if state["status"] in {"capacity_wait", "retry_wait"}:
         return None
     if state["status"] == "batch_sealed":
         _advance_sealed_batch(state)
     action = _action_for_state(state)
     if action is None:
-        if woke_capacity:
+        if woke_capacity or woke_retry:
             _save_state(root, project, job_id, state, now=timestamp)
         return None
 
@@ -411,10 +430,17 @@ def write_process_receipt(
     exit_code: int,
     result: dict[str, Any],
     capacity_reset_at: str | None = None,
+    retry_at: str | None = None,
     now: str | None = None,
 ) -> Path:
     """Atomically record a returned action result without applying it."""
-    if outcome not in {"success", "failed_recoverable", "failed", "capacity_wait"}:
+    if outcome not in {
+        "success",
+        "failed_recoverable",
+        "failed",
+        "capacity_wait",
+        "retry_wait",
+    }:
         raise ValueError(f"unsupported process outcome: {outcome}")
     path = process_receipt_path(root, project, job_id, attempt_id)
     payload = {
@@ -427,6 +453,7 @@ def write_process_receipt(
         "exit_code": int(exit_code),
         "completed_at": _now(now),
         "capacity_reset_at": capacity_reset_at,
+        "retry_at": retry_at,
         "result": result,
     }
     existing = safe_read_yaml(path)
@@ -637,6 +664,17 @@ def consume_process_receipt(
             state["capacity_reset_at"] = str(reset_at)
             state["retry_action"] = action
             state["last_error"] = result.get("reason") or "capacity_wait"
+    elif outcome == "retry_wait":
+        retry_at = receipt.get("retry_at")
+        if not retry_at:
+            state["status"] = "blocked"
+            state["last_error"] = "retry receipt did not include retry_at"
+        else:
+            _parse_timestamp(str(retry_at))
+            state["status"] = "retry_wait"
+            state["retry_at"] = str(retry_at)
+            state["retry_action"] = action
+            state["last_error"] = result.get("reason") or "transient_failure"
     else:
         counts = state.setdefault("retry_counts", {})
         counts[action] = int(counts.get(action, 0)) + 1
@@ -844,6 +882,7 @@ def retry_blocked_job(
         retry_counts[retry_action] = 0
         state["retry_counts"] = retry_counts
         state["status"] = "failed_recoverable"
+        state["retry_at"] = None
         state["last_error"] = None
         _save_state(root, project, job_id, state, now=timestamp)
 
@@ -1020,6 +1059,7 @@ def controller_cycle(
             "revision": state["revision"],
             "active_attempt": state.get("active_attempt"),
             "capacity_reset_at": state.get("capacity_reset_at"),
+            "retry_at": state.get("retry_at"),
             "pause_requested": bool(state.get("pause_requested")),
             "stopped": state["status"] in CONTROLLER_STOP_STATES,
             "terminal": state["status"] in TERMINAL_STATES,
@@ -1047,6 +1087,10 @@ def run_controller_loop(
         reset_at = result.get("capacity_reset_at")
         if result["status"] == "capacity_wait" and reset_at:
             remaining = (_parse_timestamp(reset_at) - datetime.now(timezone.utc)).total_seconds()
+            delay = max(0.05, min(delay, max(0.05, remaining)))
+        retry_at = result.get("retry_at")
+        if result["status"] == "retry_wait" and retry_at:
+            remaining = (_parse_timestamp(retry_at) - datetime.now(timezone.utc)).total_seconds()
             delay = max(0.05, min(delay, max(0.05, remaining)))
         time.sleep(delay)
     return controller_cycle(

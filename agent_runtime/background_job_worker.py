@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 from pathlib import Path
 import re
@@ -207,11 +207,59 @@ def _read_capacity_reset(run_dir: Path) -> str | None:
     return None
 
 
+_TRANSIENT_FAILURE_CLASSES = {"network_required", "provider_error", "timeout"}
+
+
+def _model_failure_classes(run_dir: Path) -> set[str]:
+    classes: set[str] = set()
+    for path in sorted(run_dir.glob("model_execution_chain_*.yml")):
+        payload = safe_read_yaml(path, default={}) or {}
+        if not isinstance(payload, dict):
+            continue
+        records = [payload.get("final"), *(payload.get("attempts") or [])]
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            for issue in record.get("failure_issues") or []:
+                prefix, separator, value = str(issue).partition(":")
+                if separator and prefix == "failure_class" and value:
+                    classes.add(value)
+    return classes
+
+
+def _transient_pipeline_failure(
+    pipeline: dict[str, Any], run_dir: Path
+) -> str | None:
+    classes = _model_failure_classes(run_dir)
+    reason = " ".join(
+        str(pipeline.get(key) or "") for key in ("blocked_reason", "error")
+    ).lower()
+    classes.update(
+        failure_class
+        for failure_class in _TRANSIENT_FAILURE_CLASSES
+        if failure_class in reason
+    )
+    return next(
+        (
+            failure_class
+            for failure_class in sorted(classes)
+            if failure_class in _TRANSIENT_FAILURE_CLASSES
+        ),
+        None,
+    )
+
+
+def _retry_timestamp(seconds: int) -> str:
+    now = datetime.fromisoformat(_utc_now().replace("Z", "+00:00"))
+    return (now + timedelta(seconds=max(1, seconds))).isoformat()
+
+
 def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
     from agent_runtime.narrative_heavy_audit import prepare_crown_narrative_heavy_audit
     from agent_runtime.pipeline_runner import run_full_pipeline
 
     root = Path(request["agentlab_root"])
+    config = request["config"]
     batch = request["batch"]
     clean_attempt = re.sub(r"[^A-Za-z0-9_-]+", "_", request["attempt_id"])
     task_id = (
@@ -255,6 +303,16 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
             return {
                 "outcome": "capacity_wait",
                 "capacity_reset_at": reset_at,
+                "result": result,
+            }
+        transient_failure = _transient_pipeline_failure(pipeline, run_dir)
+        if transient_failure:
+            retry_seconds = int(config.get("transient_retry_seconds") or 900)
+            result["reason"] = transient_failure
+            result["provider_failure_reason"] = pipeline.get("blocked_reason")
+            return {
+                "outcome": "retry_wait",
+                "retry_at": _retry_timestamp(retry_seconds),
                 "result": result,
             }
         return {"outcome": "failed_recoverable", "result": result}
@@ -449,11 +507,19 @@ def run_attempt(
         outcome = str(execution.get("outcome") or "failed")
         result = execution.get("result") if isinstance(execution.get("result"), dict) else {}
         capacity_reset_at = execution.get("capacity_reset_at")
-        exit_code = 0 if outcome == "success" else 75 if outcome == "capacity_wait" else 1
+        retry_at = execution.get("retry_at")
+        exit_code = (
+            0
+            if outcome == "success"
+            else 75
+            if outcome in {"capacity_wait", "retry_wait"}
+            else 1
+        )
     except Exception as exc:  # receipt must survive action-level failures
         outcome = "failed_recoverable"
         exit_code = 1
         capacity_reset_at = None
+        retry_at = None
         result = {
             "status": "failed",
             "reason": f"{type(exc).__name__}: {str(exc)[:500]}",
@@ -468,6 +534,7 @@ def run_attempt(
         exit_code=exit_code,
         result=result,
         capacity_reset_at=str(capacity_reset_at) if capacity_reset_at else None,
+        retry_at=str(retry_at) if retry_at else None,
         now=_utc_now(),
     )
     return exit_code

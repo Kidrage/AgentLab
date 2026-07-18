@@ -20,6 +20,8 @@ def test_classify_auth_required():
 def test_classify_network_required():
     assert classify_cli_error(1, "", "Could not resolve host") == CliErrorClass.NETWORK_REQUIRED
     assert classify_cli_error(1, "", "connection timed out") == CliErrorClass.NETWORK_REQUIRED
+    assert classify_cli_error(1, "API call failed: Connection error.", "") == CliErrorClass.NETWORK_REQUIRED
+    assert classify_cli_error(1, "API Error: Unable to connect (FailedToOpenSocket)", "") == CliErrorClass.NETWORK_REQUIRED
 
 def test_classify_rate_limited():
     assert classify_cli_error(1, "", "Rate limit exceeded. Try again in 10s.") == CliErrorClass.RATE_LIMITED

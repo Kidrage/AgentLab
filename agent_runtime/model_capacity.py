@@ -142,6 +142,19 @@ def _classify_failure(message: str, headers: Mapping[str, Any] | None = None) ->
         return "quota_exhausted"
     if "429" in lowered or "rate limit" in lowered or "too many requests" in lowered:
         return "rate_limited"
+    if any(
+        marker in lowered
+        for marker in (
+            "network required",
+            "connection error",
+            "connection failed",
+            "unable to connect",
+            "failedtoopensocket",
+            "failed to open socket",
+            "could not resolve",
+        )
+    ):
+        return "network_required"
     if (
         "model" in lowered
         and any(

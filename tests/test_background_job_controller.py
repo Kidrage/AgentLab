@@ -53,6 +53,7 @@ def _complete_active(
     outcome: str = "success",
     result: dict | None = None,
     capacity_reset_at: str | None = None,
+    retry_at: str | None = None,
 ) -> dict:
     state = load_job_state(root, "Crown_of_Ash", "crown-200-v3")
     active = state["active_attempt"]
@@ -66,6 +67,7 @@ def _complete_active(
         exit_code=0 if outcome == "success" else 1,
         result=result or {},
         capacity_reset_at=capacity_reset_at,
+        retry_at=retry_at,
         now=NOW,
     )
     return consume_process_receipt(
@@ -320,6 +322,41 @@ def test_capacity_wait_resumes_once_after_observed_reset(tmp_path: Path) -> None
     state = load_job_state(tmp_path, "Crown_of_Ash", "crown-200-v3")
     assert state["capacity_resume_count"] == 1
     assert state["capacity_reset_at"] is None
+
+
+def test_transient_retry_wait_resumes_without_spending_failure_retry(tmp_path: Path) -> None:
+    _create_job(tmp_path)
+    _pass_preflight(tmp_path)
+    first = schedule_next_attempt(
+        tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
+    )
+    state = _complete_active(
+        tmp_path,
+        outcome="retry_wait",
+        result={"status": "blocked", "reason": "network_required"},
+        retry_at="2026-07-17T15:15:00+00:00",
+    )
+
+    assert state["status"] == "retry_wait"
+    assert state["retry_counts"].get("generate_batch") is None
+    assert schedule_next_attempt(
+        tmp_path,
+        project="Crown_of_Ash",
+        job_id="crown-200-v3",
+        now="2026-07-17T15:14:59+00:00",
+    ) is None
+
+    resumed = schedule_next_attempt(
+        tmp_path,
+        project="Crown_of_Ash",
+        job_id="crown-200-v3",
+        now="2026-07-17T15:15:01+00:00",
+    )
+    assert resumed["action"] == "generate_batch"
+    assert resumed["attempt_id"] != first["attempt_id"]
+    state = load_job_state(tmp_path, "Crown_of_Ash", "crown-200-v3")
+    assert state["retry_resume_count"] == 1
+    assert state["retry_at"] is None
 
 
 def test_blocking_heavy_audit_requires_rewrite_then_deterministic_reaudit(

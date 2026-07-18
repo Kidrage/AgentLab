@@ -42,6 +42,9 @@ def register_background_job_commands(
         batch_size: int = typer.Option(10, "--batch-size", min=1),
         heavy_audit_cadence: int = typer.Option(10, "--heavy-audit-cadence", min=1),
         writer_budget: str = typer.Option("frugal", "--writer-budget"),
+        transient_retry_seconds: int = typer.Option(
+            900, "--transient-retry-seconds", min=1
+        ),
     ) -> None:
         state = create_crown_delivery_job(
             agentlab_root,
@@ -55,6 +58,7 @@ def register_background_job_commands(
             writer_worker=writer_worker,
             chapter_state_plan=chapter_state_plan,
             writer_budget=writer_budget,
+            transient_retry_seconds=transient_retry_seconds,
         )
         console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml
@@ -135,6 +137,35 @@ def test_generation_forwards_writer_budget_to_narrative_runtime(tmp_path: Path) 
     assert result["outcome"] == "success"
     assert observed["writer_budget_mode"] == "frugal"
     assert observed["allow_writer_cli_fallback"] is False
+
+
+def test_heavy_audit_network_failure_returns_durable_retry_wait(tmp_path: Path) -> None:
+    _project(tmp_path)
+    request = _request(tmp_path, "heavy_audit", end_chapter=10)
+    request["config"]["transient_retry_seconds"] = 60
+
+    pipeline_module = SimpleNamespace(
+        run_full_pipeline=lambda *_args, **_kwargs: {
+            "success": False,
+            "blocked_reason": "CLI agent network_required (exit 1).",
+        }
+    )
+    with patch(
+        "agent_runtime.narrative_heavy_audit.prepare_crown_narrative_heavy_audit",
+        return_value={"status": "ready", "issues": []},
+    ), patch.dict(
+        sys.modules,
+        {"agent_runtime.pipeline_runner": pipeline_module},
+    ), patch(
+        "agent_runtime.background_job_worker._utc_now",
+        return_value="2026-07-18T07:00:00+00:00",
+    ):
+        result = execute_action(request)
+
+    assert result["outcome"] == "retry_wait"
+    assert result["retry_at"] == "2026-07-18T07:01:00+00:00"
+    assert result["result"]["reason"] == "network_required"
+    assert result["result"]["provider_failure_reason"].startswith("CLI agent")
 
 
 def test_worker_always_writes_failure_receipt_for_exception(tmp_path: Path) -> None:
