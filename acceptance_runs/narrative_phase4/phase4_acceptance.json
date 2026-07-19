@@ -1,24 +1,27 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "phase": 4,
-  "status": "mechanism_complete_real_promotion_blocked",
+  "status": "deterministic_mechanism_complete_real_promotion_blocked",
   "candidate_only": true,
   "production_modified": false,
+  "commits": ["14e620d", "09bb2bb"],
   "implemented_behaviors": [
     "immutable_candidate_set_manifest",
-    "chapter_and_manifest_hash_binding",
+    "chapter_manifest_and_evidence_bundle_hash_binding",
     "audit_stale_on_artifact_change",
-    "exact_candidate_user_acceptance",
+    "approval_invalid_after_receipt_content_mutation",
+    "candidate_and_release_path_symlink_containment",
     "correctness_and_literary_zero_blocking_gate",
     "final_model_tier_gate",
     "first_publication_when_no_current_release",
     "release_uniqueness_by_slot_chapter_edition",
-    "staged_atomic_index_switch",
-    "rollback_on_index_write_interruption"
+    "immutable_release_object_before_atomic_index_switch",
+    "idempotent_resume_after_index_write_interruption"
   ],
   "verification": {
-    "focused_and_affected_tests": "71 passed",
-    "ruff_new_modules": "pass",
+    "consolidated_narrative_controller_cli_tests": "211 passed",
+    "ruff": "pass",
+    "compile": "pass",
     "git_diff_check": "pass"
   },
   "real_promotion_executed": false,
@@ -27,7 +30,8 @@
     "reasons": [
       "phase0_provider_backed_gate_not_passed",
       "phase3_positive_calibration_missing",
-      "phase3_human_blind_review_not_passed"
+      "phase3_human_blind_review_not_passed",
+      "phase3_provider_revision_uplift_unverified"
     ]
   }
 }

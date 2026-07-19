@@ -1,34 +1,41 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "phase": 2,
-  "status": "mechanism_complete_live_gate_deferred",
+  "status": "deterministic_mechanism_complete_live_efficiency_gate_blocked",
   "candidate_only": true,
   "production_modified": false,
+  "commits": ["38be986", "09bb2bb"],
   "frozen_baseline": "acceptance_runs/narrative_efficiency/baseline_metrics.json",
   "deterministic_comparison": {
-    "ordinary_chapter_model_roles_before": 4,
-    "ordinary_chapter_model_roles_after": 1,
+    "ordinary_clean_audit_primary_model_roles_before": 4,
+    "ordinary_clean_audit_primary_model_roles_after": 1,
     "ordinary_chapter_role_reduction_ratio": 0.75,
     "historical_heavy_audit_duplicate_context_ratio": 0.3645,
     "ordinary_single_judge_cross_role_duplicate_context_ratio_after": 0.0,
     "ten_chapter_full_reaudit_chapters_before": 10,
     "single_change_incremental_fixture_chapters_after": 5,
     "incremental_fixture_chapter_reduction_ratio": 0.5,
-    "quality_gate_changed": false
+    "successful_upstream_nodes_repeated_after_verifier_failure": 0,
+    "quality_gate_relaxed": false
   },
   "implemented_behaviors": [
     "content_addressed_immutable_context_bundle",
-    "ordinary_vs_high_risk_execution_plan",
-    "deterministic_precheck_before_judges",
-    "single_judge_for_ordinary_chapters",
-    "second_independent_judge_and_conflict_arbitration_contract_for_high_risk_chapters",
-    "incremental_changed_neighbor_and_fact_dependency_window",
-    "existing_node_local_retry_preserved"
+    "deterministic_precheck_before_any_judge",
+    "persisted_authoritative_incremental_audit_window",
+    "single_primary_judge_for_ordinary_chapters",
+    "second_independent_judge_only_for_high_risk_subset",
+    "fail_closed_conflict_arbitration",
+    "per_chapter_scorecard_and_receipt_coverage",
+    "separate_scribe_and_verifier_attempt_lease_deadline_receipts",
+    "node_local_verifier_retry"
   ],
   "verification": {
-    "focused_tests": "87 passed",
+    "consolidated_narrative_controller_cli_tests": "211 passed",
     "ruff": "pass",
-    "git_diff_check": "pass"
+    "compile": "pass",
+    "git_diff_check": "pass",
+    "independent_spec_review": "no unresolved hard findings",
+    "independent_standards_review": "no unresolved hard findings"
   },
   "provider_calls": 0,
   "live_wall_time_before_after": "unavailable_without_external_context_approval",

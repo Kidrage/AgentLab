@@ -2,44 +2,52 @@
 
 ## Verdict
 
-Phase 3 quality and revision mechanisms are complete. Live quality acceptance is
-blocked, as required, because the calibration set has no user-approved positive
-samples and no ten-pair human blind-review result. The implementation therefore
-does not claim that prose is now more intelligent or entertaining.
+Phase 3 contract and state-machine wiring is complete, but provider-backed
+revision and live quality acceptance are blocked. Per-chapter scorecards,
+scene-level revision contracts, independent re-audit, anonymous A/B selection,
+and regression-aware retention are implemented and tested. The background
+revision action deliberately returns `decision_required` until executable
+contracts and the live calibration gate are accepted.
+
+This is not evidence that prose is now more intelligent or entertaining.
 
 ## Baseline
 
 Ch26 and Ch30 remain immutable user-reported negative samples. The prior system
-could detect issues and rewrite, but had no mandatory six-dimension evidence
-contract, scene-local preservation boundary, anonymous old/new preference, or
-accepted-improvement cost receipt.
+could detect and rewrite issues but lacked mandatory per-chapter evidence,
+scene-local preservation boundaries, anonymous old/new preference, and accepted
+improvement receipts.
 
 ## Root Causes
 
-- Abstract findings were not compiled into executable scene constraints.
-- Literary blocking could be hidden by incomplete or averaged scoring.
+- Findings were abstract rather than executable scene constraints.
+- Batch-level or averaged scores could hide a bad chapter.
+- Literary blocking could be obscured by incomplete evidence.
 - Reviewers could know which draft was revised.
 - A revision could replace a candidate without proving a blind win and no new
   regression.
 
 ## Confirmed Issues
 
-- Reviewer structured output now requires `narrative_quality_scorecard.yml`.
-- All six dimensions require score 1–5, derived severity, exact chapter/scene/
-  locator evidence, reason, and revision target.
-- Scores 1–2 block. Causal reasoning, strategic competence, and character agency
-  remain explicit veto dimensions.
-- Scene-level revision closure passes only the bounded contract to Writer, keeps
-  unaffected scenes unchanged, runs deterministic validation and independent
-  re-audit, then submits anonymous A/B candidates.
-- A revised candidate replaces nothing if it loses, retains blocking, or creates
-  a regression.
+- `narrative_quality_scorecard.yml` is per chapter and requires all six dimensions,
+  score 1–5, derived severity, exact evidence, reason, and revision target.
+- Scores 1–2 block; causal reasoning, strategic competence, and character agency
+  are veto dimensions.
+- Verifier proposals require scene-level preservation, causal, knowledge, cost,
+  information, freedom, and regression fields.
+- The background revision action consumes the persisted Verifier output rather
+  than rebuilding a request from prose.
+- Deterministic checks and independent re-audit precede anonymous A/B selection;
+  a losing or regressing revision replaces nothing.
+- At most two automatic attempts remain authoritative; insufficient uplift
+  becomes `decision_required`.
 
 ## Rejected Hypotheses
 
-- A stronger Writer model alone is not treated as uplift evidence.
-- Schema validity and continuity are not treated as reader-quality proof.
-- Missing positive samples are not replaced with randomly selected chapters.
+- A stronger Writer model alone is not uplift evidence.
+- Schema validity and continuity are not reader-quality proof.
+- Missing positive samples cannot be replaced with random chapters.
+- A legacy single-root scorecard cannot prove coverage for a multi-chapter batch.
 
 ## Changed Modules
 
@@ -49,36 +57,39 @@ accepted-improvement cost receipt.
 - `agent_runtime/narrative/quality/uplift.py`
 - `agent_runtime/narrative/quality/calibration.py`
 - `agent_runtime/narrative/quality/workflow.py`
-- thin scorecard enforcement in narrative audit materialization, CLI structured
-  output, job defaults, and the canonical seal gate.
+- `agent_runtime/narrative/quality/background.py`
+- thin enforcement in narrative audit materialization, job defaults, CLI
+  structured output, controller dispatch, and the canonical seal gate
 
 ## State-Machine Changes
 
-The revision closure is now:
+The revision contract is:
 
-`finding → scene contract → local Writer revision → deterministic check → independent re-audit → anonymous A/B → retain or replace`.
+`finding → scene contract → bounded Writer revision → deterministic check → independent re-audit → anonymous A/B → retain or replace`.
 
-The existing maximum of two automatic rewrite attempts remains authoritative;
-insufficient uplift still becomes `decision_required`.
+The background action currently stops at `decision_required` when the provider
+revision gate or executable scene contracts are missing. It does not fabricate a
+quality win.
 
 ## Efficiency Before/After
 
 Phase 3 adds no unconditional multi-model work. Blind A/B and independent second
-judging remain risk/revision triggered. Provider time and token differences were
-not measured because no live provider call was authorized.
+judging are revision/risk triggered. Provider time and tokens were not measured.
 
 ## Quality Before/After
 
-Mechanically, the system can now calculate per-dimension deltas, resolved,
-unresolved and new blocking, blind preference, cost per accepted improvement,
-and time per accepted improvement. Actual literary uplift remains unproved.
+The system can record dimension deltas, resolved/unresolved/new blocking, blind
+preference, and cost/time per accepted improvement. Actual literary uplift is
+`unavailable`: positive samples 0/3–5, human blind pairs 0/10, live provider
+revisions 0.
 
 ## Test Results
 
-- Focused and affected narrative/controller/CLI regression: `158 passed`.
-- Ch26/Ch30 calibration identities and hashes are frozen.
-- Calibration claim gate correctly blocks with zero positives and zero human
-  pairs.
+- Final consolidated narrative/controller/CLI regression: `211 passed`.
+- Primary coverage: `tests/test_narrative_quality_gate.py` and
+  `tests/test_narrative_audit_closure.py`.
+- Ch26/Ch30 identities and hashes remain frozen.
+- The calibration claim gate blocks with zero positives and zero human pairs.
 
 ## Live Trial Results
 
@@ -86,16 +97,17 @@ Not run. Provider calls: 0. Human blind pairs: 0/10. Production unchanged.
 
 ## Remaining Risks
 
-- The user must provide 3–5 positive chapters.
+- The user must provide 3–5 accepted positive chapters.
 - At least ten human blind pairs must reach a 70% new-system win rate.
-- Provider-backed Judge independence and prose uplift remain unverified.
+- Provider-backed Writer/Judge behavior and actual prose uplift are unverified.
 
 ## Rollback Instructions
 
-Revert the dedicated Phase 3 commit. Candidate and Production artifacts require
-no migration.
+Revert hardening commit `09bb2bb`, then Phase 3 commit `d892e62` after reverting
+Phase 4 if present. Candidate and Production artifacts require no migration.
 
 ## Next Recommended Gate
 
-Implement Phase 4 immutable Candidate Set and promotion safety mechanisms, but
-keep every real promotion blocked until this Phase 3 quality gate passes.
+Supply the positive calibration set, authorize the isolated three-chapter trial,
+and perform ten human blind comparisons. Keep Phase 5 blocked until those formal
+receipts pass.

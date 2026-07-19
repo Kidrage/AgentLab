@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-19T05:16:34.613702+00:00`
+- Generated at: `2026-07-19T10:12:58.580968+00:00`
 
 ## Current State
 
 - Branch: `feature/narrative-production-closure`
-- HEAD: `2d504f9`
-- Indexed paths: 1846
+- HEAD: `09bb2bb`
+- Indexed paths: 1873
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,10 +43,10 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 531 |
+| `agent_runtime` | 549 |
 | `tests` | 445 |
-| `docs` | 311 |
-| `acceptance_runs` | 301 |
+| `docs` | 315 |
+| `acceptance_runs` | 306 |
 | `docs/archive` | 222 |
 | `config` | 122 |
 | `tests/fixtures` | 110 |
@@ -55,6 +55,7 @@
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 41 |
 | `acceptance_runs/s10_generalization_eval` | 32 |
+| `agent_runtime/narrative` | 30 |
 | `scripts` | 22 |
 | `agent_runtime/program_manager` | 21 |
 | `agent_runtime/recovery` | 21 |
@@ -71,7 +72,6 @@
 | `agent_runtime/config_center` | 13 |
 | `acceptance_runs/p2_closure` | 12 |
 | `agent_runtime/goals` | 12 |
-| `agent_runtime/narrative` | 12 |
 | `agent_runtime/brain` | 11 |
 | `agent_runtime/capability_broker` | 11 |
 | `agent_runtime/costs` | 11 |
@@ -88,18 +88,18 @@
 
 ### Categories
 
-- code: 916 files, 7355055 bytes
-- literature: 395 files, 2134174 bytes
+- code: 934 files, 7515234 bytes
+- literature: 399 files, 2161788 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 523 files, 2977371 bytes
+- structured_data: 528 files, 2984852 bytes
 
 ### Common Extensions
 
-- `.py`: 903
-- `.yml`: 500
-- `.md`: 356
+- `.py`: 921
+- `.yml`: 501
+- `.md`: 360
 - `.txt`: 39
-- `.json`: 18
+- `.json`: 22
 - `.sh`: 8
 - `[no extension]`: 5
 - `.js`: 5
@@ -230,6 +230,11 @@
 
 ## Change History
 
+- `09bb2bb 2026-07-19 fix(narrative): wire phase 2-4 closure`
+- `14e620d 2026-07-19 feat(narrative): complete phase 4 candidate governance`
+- `d892e62 2026-07-19 feat(narrative): complete phase 3 quality closure`
+- `38be986 2026-07-19 feat(narrative): complete phase 2 efficiency controls`
+- `96f28c1 2026-07-19 docs(narrative): record phase 1 acceptance`
 - `2d504f9 2026-07-19 fix(narrative): close phase 1 semantics and seal gates`
 - `69b3a2a 2026-07-19 docs(handoff): prioritize narrative closure plan`
 - `e3f9dc8 2026-07-19 fix(narrative): harden phase 0 evidence`
@@ -245,15 +250,19 @@
 - `424b983 2026-07-14 feat: govern agent roles and model capacity`
 - `a27c0b1 2026-07-13 docs: refresh AgentLab handoff`
 - `1b96c93 2026-07-13 fix: constrain Agy quota rotation`
-- `0bddbd4 2026-07-13 feat: rotate Agy writer quota model`
-- `a39918c 2026-07-13 fix: persist narrative quota resume metadata`
-- `6ae8488 2026-07-13 fix: archive rejected narrative attempts on resume`
-- `19fc00b 2026-07-13 fix: normalize relationship candidate event scope`
-- `6570d25 2026-07-13 fix: keep 250 activation on Agy OAuth`
 
 ## Current Changes
 
 - `## feature/narrative-production-closure`
+- ` M PROJECT_HANDOFF.md`
+- ` M acceptance_runs/narrative_phase2/phase2_acceptance.json`
+- ` M acceptance_runs/narrative_phase3/phase3_acceptance.json`
+- ` M acceptance_runs/narrative_phase4/phase4_acceptance.json`
+- ` M docs/narrative/NARRATIVE_PHASE2_ACCEPTANCE.md`
+- ` M docs/narrative/NARRATIVE_PHASE3_ACCEPTANCE.md`
+- ` M docs/narrative/NARRATIVE_PHASE4_ACCEPTANCE.md`
+- `?? acceptance_runs/narrative_phase2_phase5/`
+- `?? docs/narrative/NARRATIVE_PHASE2_PHASE5_FINAL_REPORT.md`
 
 ## Related Repositories
 
@@ -348,10 +357,12 @@
 - Product boundary: AgentLab is the producer, editorial department, version
   controller, and scheduler. A suitable Writer model creates prose. Do not turn
   every chapter into a fixed Supervisor→Writer→Reviewer→Scribe→Verifier meeting.
-- Current execution authorization: Phase 1 was explicitly approved and is now
-  deterministically complete. Stop before Phase 2 pending new user authorization.
-  Highest priority does not waive external disclosure, candidate-only, Production
-  safety, or later-phase approval gates.
+- Current execution authorization: the user authorized implementation and
+  reporting across Phases 2–5. Phases 2–4 were implemented only to the extent
+  permitted by candidate-only deterministic gates. Phase 5 remains prohibited
+  because the Phase 0 provider trial and Phase 3 positive/human quality gates are
+  unmet. Highest priority does not waive disclosure, Production safety, or gate
+  evidence.
 
 ## Non-negotiable invariants
 
@@ -420,7 +431,7 @@ Status: `COMPLETE / DETERMINISTIC ACCEPTANCE PASSED 2026-07-19`.
 
 ### Phase 2 — production and audit efficiency
 
-Status: `MECHANISM COMPLETE / DETERMINISTIC ACCEPTANCE PASSED 2026-07-19`.
+Status: `DETERMINISTIC MECHANISM COMPLETE / LIVE EFFICIENCY GATE BLOCKED`.
 
 - Build one immutable shared narrative context bundle; roles append only their
   specific inputs and record source/hash provenance.
@@ -436,7 +447,7 @@ Status: `MECHANISM COMPLETE / DETERMINISTIC ACCEPTANCE PASSED 2026-07-19`.
 
 ### Phase 3 — literary quality and verified revision uplift
 
-Status: `MECHANISM COMPLETE / LIVE QUALITY GATE BLOCKED ON USER SAMPLES AND HUMAN BLIND REVIEW`.
+Status: `CONTRACT/STATE WIRING COMPLETE / PROVIDER REVISION AND LIVE QUALITY GATE BLOCKED`.
 
 - Add evidence-backed six-dimensional scorecards. Causal reasoning, strategic
   competence, and character agency are veto dimensions, never averaged away.
@@ -452,7 +463,7 @@ Status: `MECHANISM COMPLETE / LIVE QUALITY GATE BLOCKED ON USER SAMPLES AND HUMA
 
 ### Phase 4 — immutable Candidate Sets and atomic promotion
 
-Status: `MECHANISM COMPLETE / REAL PROMOTION BLOCKED BY UPSTREAM LIVE QUALITY GATES`.
+Status: `DETERMINISTIC MECHANISM COMPLETE / REAL PROMOTION BLOCKED BY UPSTREAM LIVE QUALITY GATES`.
 
 - Freeze Candidate Set manifests when audit starts; any chapter hash change makes
   related audits stale and creates lineage to a new set.
@@ -508,12 +519,13 @@ without a progress row.
 | 2026-07-19 | Codex | Phase 1 semantics and seal gate | in_progress | User approved Phase 1; scope is immutable structured job identity, audit/generation/revision separation, canonical fail-closed seal decision, and two-rewrite stop; Production and Phase 2+ remain out of scope | start from `69b3a2a` on `feature/narrative-production-closure`; revert forthcoming Phase 1 commits to roll back | Write one public-behavior test at a time, keep central adapters thin, run full review/CI before completion |
 | 2026-07-19 | Codex | Phase 1 semantics and seal gate | completed | Added contract-driven audit/generation/revision identities, Crown audit adapter, hash-bound fail-closed gate, multi-batch audit findings closure, distinct independent re-audit receipts, lease deadlines, and per-batch two-rewrite stop; focused 169 passed, full 2,773 passed / 2 skipped / 11 warnings; Ruff/diff/compile and independent Standards/Spec reviews clear; `production_modified: false` | implementation `2d504f9` on `feature/narrative-production-closure`; `git revert 2d504f9` rolls back; acceptance: `docs/narrative/NARRATIVE_PHASE1_ACCEPTANCE.md` and `acceptance_runs/narrative_phase1/phase1_acceptance.json` | Stop before Phase 2; request explicit authorization. No live manuscript/provider trial or literary-uplift claim was made |
 | 2026-07-19 | Codex | Phase 2 efficiency | in_progress | User authorized Phase 2–5; Phase 2 starts with shared immutable context, risk-tiered execution, deterministic prechecks, incremental impact windows, and node-local retry through public behavior tests | start from acceptance `96f28c1` on `feature/narrative-production-closure`; revert forthcoming Phase 2 commit to roll back | Keep Production untouched; record measured frozen-fixture before/after evidence before marking complete |
-| 2026-07-19 | Codex | Phase 2 efficiency | completed | Added immutable content-addressed context bundles, persisted ordinary/high-risk execution plans, deterministic precheck, ordinary single-Judge dispatch, high-risk independent-Judge/arbitration seam, and incremental impact windows; focused/domain 87 passed; Ruff/diff checks pass; `production_modified: false` | acceptance: `docs/narrative/NARRATIVE_PHASE2_ACCEPTANCE.md` and `acceptance_runs/narrative_phase2/phase2_acceptance.json`; revert forthcoming Phase 2 commit | Provider-backed wall/token savings remain deferred; Phase 3 mechanism work begins without making a literary-uplift claim |
-| 2026-07-19 | Codex | Phase 3 quality closure | in_progress | Implement six-dimension evidence scorecards, scene-level revision contracts, local rewrite selection, anonymous A/B and regression-aware replacement | start from forthcoming Phase 2 commit; revert forthcoming Phase 3 commit independently | Positive calibration and 10-pair human 70% win gate remain blocked on user samples; do not claim uplift |
-| 2026-07-19 | Codex | Phase 3 quality closure | completed_mechanism_live_gate_blocked | Added evidence-required six-dimension scorecards and vetoes, scene-level contracts, local preservation, deterministic/independent review, blind A/B selection, regression blocking, uplift receipts, and immutable Ch26/Ch30 calibration; affected regression 158 passed; Production unchanged | acceptance: `docs/narrative/NARRATIVE_PHASE3_ACCEPTANCE.md`, `acceptance_runs/narrative_phase3/phase3_acceptance.json`, calibration manifest under `acceptance_runs/narrative_quality/` | Cannot claim literary uplift until user supplies 3–5 positives and 10 human blind pairs reach 70% wins |
-| 2026-07-19 | Codex | Phase 4 Candidate Set and promotion | in_progress | Implement immutable hash-bound Candidate Sets, stale-audit invalidation, matching acceptance receipts, first-publication semantics, and atomic promotion rollback | start from forthcoming Phase 3 commit; revert forthcoming Phase 4 commit independently | Do not execute real promotion; Phase 3 quality gate is blocked |
-| 2026-07-19 | Codex | Phase 4 Candidate Set and promotion | completed_mechanism_live_gate_blocked | Added immutable manifests, artifact/audit/approval hash binding, stale invalidation, first-publication semantics, final-tier and zero-blocking checks, staged editions, atomic index switching and interruption rollback; affected regression 71 passed; no real promotion | acceptance: `docs/narrative/NARRATIVE_PHASE4_ACCEPTANCE.md` and `acceptance_runs/narrative_phase4/phase4_acceptance.json`; revert forthcoming Phase 4 commit | Phase 5 may not start: Phase 0 provider trial and Phase 3 positive/human gates remain unmet |
+| 2026-07-19 | Codex | Phase 2 efficiency | completed_deterministic_live_gate_blocked | Added immutable context bundles, persisted risk plans, actual precheck-first audit wiring, authoritative impact windows, ordinary single-Judge/high-risk second-Judge execution, per-chapter evidence coverage, and node-local Scribe/Verifier receipts; consolidated narrative/controller/CLI regression 211 passed; Production unchanged | `38be986` plus hardening `09bb2bb`; revert `09bb2bb`, then `38be986` after dependents; acceptance: `docs/narrative/NARRATIVE_PHASE2_ACCEPTANCE.md` | Provider-backed wall/token/cost comparison remains blocked on governed Gate 1 |
+| 2026-07-19 | Codex | Phase 3 quality closure | in_progress | Implement six-dimension evidence scorecards, scene-level revision contracts, local rewrite selection, anonymous A/B and regression-aware replacement | start from `38be986`; revert Phase 3 independently after dependent Phase 4 | Positive calibration and 10-pair human 70% win gate remain blocked on user samples; do not claim uplift |
+| 2026-07-19 | Codex | Phase 3 quality closure | contract_state_complete_live_gate_blocked | Added per-chapter evidence scorecards/vetoes, executable scene contracts, deterministic and independent re-audit, blind A/B retention, two-attempt stop, and a background revision gate that fails to `decision_required` until live prerequisites exist; consolidated 211 passed; Production unchanged | `d892e62` plus hardening `09bb2bb`; revert `09bb2bb`, then `d892e62` after Phase 4; acceptance: `docs/narrative/NARRATIVE_PHASE3_ACCEPTANCE.md` | Cannot claim literary uplift: positives 0/3–5, human blind pairs 0/10, provider revisions 0 |
+| 2026-07-19 | Codex | Phase 4 Candidate Set and promotion | in_progress | Implement immutable hash-bound Candidate Sets, stale-audit invalidation, matching acceptance receipts, first-publication semantics, and atomic promotion rollback | start from `d892e62`; revert Phase 4 commit independently | Do not execute real promotion; Phase 3 quality gate is blocked |
+| 2026-07-19 | Codex | Phase 4 Candidate Set and promotion | completed_deterministic_real_gate_blocked | Added immutable manifests, evidence-content hash binding, stale invalidation, symlink-safe roots, first publication, immutable release objects, atomic index switching and idempotent interruption recovery; consolidated 211 passed; no real promotion | `14e620d` plus hardening `09bb2bb`; revert `09bb2bb`, then `14e620d`; acceptance: `docs/narrative/NARRATIVE_PHASE4_ACCEPTANCE.md` | Phase 5 may not start: Phase 0 provider trial and Phase 3 positive/human gates remain unmet |
 | 2026-07-19 | Codex | Phase 5 productization | blocked_not_started | No code changes: the plan explicitly permits Phase 5 only after Phases 0–4 pass | none | Requires governed 3-chapter live gate, 3–5 user positives, and 10 human blind pairs with at least 70% wins |
+| 2026-07-19 | Codex | Phase 2–5 hardening and final report | completed_with_phase5_blocked | Wired Phase 2–4 behavior into the real background path, closed review findings, independent Standards/Spec reviews clear, consolidated 211 passed, full repository 2,814 passed / 2 skipped / 11 warnings, hygiene 0/0, model doctor 0 issues / 135 profiles; final report `docs/narrative/NARRATIVE_PHASE2_PHASE5_FINAL_REPORT.md` | implementation `09bb2bb`; `git revert 09bb2bb`; final documentation commit recorded after validation | Push documentation and verify CI; next permitted work is Gate 1 evidence, not Phase 5 implementation |
 
 ## Stop conditions and immediate next actions
 
@@ -522,9 +534,11 @@ this handoff, Production must change, safety tests must be weakened, non-narrati
 work cannot be isolated, central modules would grow materially, two rewrites fail,
 or positive samples are missing while someone is about to claim literary uplift.
 
-Phase 1 is deterministically complete. Stop before Phase 2 and request explicit
-authorization. The Ch25–27 disclosure decision and 3–5 positive samples remain
-pending and must not be inferred from this completion.
+Phases 2 and 4 are deterministically complete; Phase 3 contract/state wiring is
+complete but provider-backed revision and literary uplift remain blocked. Phase 5
+is correctly not started. Next obtain Ch25–27 disclosure approval, 3–5 positive
+samples, Gate 1 metrics, and ten human blind reviews before re-evaluating the
+Phase 5 gate. Do not infer those approvals from this handoff.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule
