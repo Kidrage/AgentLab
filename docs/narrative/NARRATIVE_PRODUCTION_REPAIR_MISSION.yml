@@ -1,0 +1,58 @@
+schema_version: 1
+mission_id: narrative_production_repair_v2_20260720
+task_id: task_narrative_production_repair_v2
+project_id: AgentLab
+task_type: coding
+project_type: codebase_build_project
+priority: highest
+status: approved_for_phase_0r_only
+user_goal: >-
+  Repair AgentLab's narrative-production subsystem in evidence-gated phases while
+  keeping code-task governance and narrative-task governance as separate routes.
+intent_summary: >-
+  AgentLab remains the control plane and assigns implementation to the registered
+  Coder. Codex supervises scope, evidence, acceptance, and recovery. Phase 0R is
+  diagnosis and frozen replay only; later phases require explicit acceptance.
+active_product_domain: narrative_production
+governance_route: codebase_build_project
+required_capabilities:
+  - capability: local_search
+  - capability: filesystem_read
+  - capability: scoped_filesystem_write
+  - capability: deterministic_testing
+  - capability: evidence_packaging
+risk_flags:
+  - regression_risk
+  - route_confusion_risk
+  - production_contamination_risk
+  - literary_quality_claim_risk
+human_approval_required: true
+must_read_artifacts:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
+  - docs/narrative/NARRATIVE_PRODUCTION_REPAIR_EXECUTION.yml
+domain_boundary:
+  code_task_governance: separate_route
+  narrative_task_governance: separate_route
+  shared_primitives_only:
+    - structured_job_identity
+    - immutable_input_hashes
+    - leases_and_fencing
+    - node_local_retry
+    - evidence_receipts
+    - explicit_approval
+    - recovery_and_rollback
+  prohibited:
+    - infer_governance_route_from_narrative_keywords_after_compilation
+    - add_narrative_semantics_to_generic_job_engine
+    - change_code_task_routing_outside_an_accepted_phase
+execution:
+  control_plane_owner: AgentLab
+  implementation_owner: Coder
+  validation_owners: [TesterAuditor, Verifier]
+  supervisor: Codex
+  auto_phase_close: false
+  production_allowed: false
+  current_phase: phase_0r
+  later_phases_blocked_until_acceptance: true
+

@@ -1091,6 +1091,7 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
         context_files.extend(_story_authority_context_files(project_root, run_dir))
     elif agent_name == "Coder":
         context_files = [
+            run_dir / "task_packet.yml",
             project_root / "project_config.yml",
             project_root / "agent_docs" / "00_CONTEXT_PACK.md",
             project_root / "agent_docs" / "01_REPO_MAP.md",

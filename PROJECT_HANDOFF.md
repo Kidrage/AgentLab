@@ -343,6 +343,20 @@
 <!-- AGENT_NOTES_START -->
 # Highest-priority plan: narrative production, audit, and delivery closure
 
+- Current authority revision: `v2 / 2026-07-20`. Read
+  `docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md` and its machine
+  execution contract before dispatch. They supersede the remaining construction
+  sequence below while preserving prior evidence and completed safety mechanisms.
+- Domain boundary: this work strengthens only narrative production. Code-task
+  governance remains a separate route. Both domains may share generic identity,
+  lease, retry, receipt, approval, recovery, and rollback primitives, but neither
+  domain may place its compiler/test or canon/prose semantics in the generic core.
+- Execution mode: AgentLab owns staged planning, Coder dispatch, evidence,
+  acceptance, and recovery. Codex is supervisor-only and intervenes on blockers,
+  scope drift, unsafe mutation, repeated failure, or product decisions.
+- Frozen calibration v2: positives Ch01/Ch04/Ch09/Ch17, negative Ch26, conflict
+  holdout Ch30, and structural-fatigue probes Ch05/Ch07/Ch14. Ch23 prose exists;
+  its malformed heading is the assembly regression.
 - Priority: `P0 / HIGHEST`. This plan supersedes other AgentLab roadmap work until
   it reaches a user-approved pause, a documented stop condition, or completion.
 - Owner namespace: `agents/codex/`; implementation may be continued by another
@@ -352,12 +366,11 @@
 - Product boundary: AgentLab is the producer, editorial department, version
   controller, and scheduler. A suitable Writer model creates prose. Do not turn
   every chapter into a fixed Supervisor→Writer→Reviewer→Scribe→Verifier meeting.
-- Current execution authorization: the user authorized implementation and
-  reporting across Phases 2–5. Phases 2–4 were implemented only to the extent
-  permitted by candidate-only deterministic gates. Phase 5 remains prohibited
-  because the Phase 0 provider trial and Phase 3 positive/human quality gates are
-  unmet. Highest priority does not waive disclosure, Production safety, or gate
-  evidence.
+- Current execution authorization: the user authorized staged AgentLab self-repair
+  under Codex supervision. Start with Phase 0R only. Later phases remain blocked
+  until the preceding phase is accepted. Phase 5 remains prohibited until the
+  live quality and recovery gates pass. Highest priority does not waive
+  disclosure, Production safety, or gate evidence.
 
 ## Non-negotiable invariants
 
@@ -390,8 +403,9 @@
 Status: `MECHANISM COMPLETE / LIVE GATE BLOCKED`; the provider-backed
 three-chapter trial still requires external-context approval.
 
-- Freeze Ch25–27, continuous Ch21–30, negative Ch26/Ch30, and user-positive
-  samples. Positives remain `missing_user_samples`; never invent them.
+- Freeze the current Ch01–Ch30 baseline, positive Ch01/Ch04/Ch09/Ch17, negative
+  Ch26, conflict holdout Ch30, and structural-fatigue Ch05/Ch07/Ch14. Preserve
+  old calibration manifests and write a new immutable v2 manifest.
 - Measure wall/process/orchestration/queue timing, tokens, cost, calls, retries,
   provider rotation, final context size, role file loads, context duplication,
   findings, evidence density, revisions, regressions, and uplift availability.
@@ -442,7 +456,7 @@ Status: `DETERMINISTIC MECHANISM COMPLETE / LIVE EFFICIENCY GATE BLOCKED`.
 
 ### Phase 3 — literary quality and verified revision uplift
 
-Status: `CONTRACT/STATE WIRING COMPLETE / PROVIDER REVISION AND LIVE QUALITY GATE BLOCKED`.
+Status: `V1 CONTRACT/STATE WIRING COMPLETE / V2 REPAIR AND LIVE QUALITY GATE BLOCKED`.
 
 - Add evidence-backed six-dimensional scorecards. Causal reasoning, strategic
   competence, and character agency are veto dimensions, never averaged away.
@@ -454,7 +468,8 @@ Status: `CONTRACT/STATE WIRING COMPLETE / PROVIDER REVISION AND LIVE QUALITY GAT
 - Preserve old/new candidates and run anonymous A/B review with independent
   receipts. A revision replaces nothing unless it wins and introduces no blocking.
 - Require at least ten human blind comparisons and at least 70% new-system wins
-  before scaling production.
+  before scaling production. User-positive calibration is now available; human
+  A/B and provider-backed uplift remain incomplete.
 
 ### Phase 4 — immutable Candidate Sets and atomic promotion
 
@@ -471,7 +486,7 @@ Status: `DETERMINISTIC MECHANISM COMPLETE / REAL PROMOTION BLOCKED BY UPSTREAM L
 
 ### Phase 5 — generic background core, workbench, reader, and release package
 
-Status: `NOT STARTED / HARD-GATE BLOCKED: PHASES 0 AND 3 HAVE UNMET LIVE ACCEPTANCE`.
+Status: `NOT STARTED / HARD-GATE BLOCKED: PHASES 0R–4R AND LIVE ACCEPTANCE ARE NOT COMPLETE`.
 
 - Separate a generic job registry, global queue, capacity arbitration, leases,
   fencing, deadlines, retry wait, supervisor recovery, idempotent seal, and
@@ -526,21 +541,23 @@ without a progress row.
 | 2026-07-19 | Codex | Gate 1 legacy canon integration | in_progress | User approved external Ch25–27 use and required legacy world, character, timeline, and plot-state verification before generation; scope includes candidate-only legacy lineage, Writer must-read binding, explicit Ch24 predecessor, and Desktop positive-sample packet | start from `1664e0a` on `feature/narrative-production-closure`; revert forthcoming implementation/report commit | Diagnose exact migration hashes, selectively integrate safe character anchors, keep Production untouched, then attempt one stop-on-block live run |
 | 2026-07-19 | Codex | Gate 1 legacy canon integration | blocked_external_execution_policy | Confirmed world/plot files are exact legacy rebuild matches; confirmed female-character cards were absent from old Writer context; added hash-bound candidate overlay and 3-chapter state plan, exact-artifact Ch24 predecessor binding, and outbound inclusion; hash-bound preflight passed, focused 100 passed, full repository 2,816 passed / 2 skipped / 11 warnings; Ruff and two independent reviews clear; Production hash unchanged; Desktop Ch01–Ch30 bundle created | implementation `ed0efe0` on `feature/narrative-production-closure`; `git revert ed0efe0` rolls back tracked code/docs; local candidate/run/Desktop artifacts are removable without Production effect | Writer returned `network_required`; host denied approved unsandboxed private-context execution. New Ch25–27 drafts and A/B unavailable. User next selects 3–5 positives from Desktop bundle; Gate 2/Phase 5 remain blocked |
 | 2026-07-19 | Codex | Gate 1 adult dark-intimacy revision | candidate_planning_complete_live_blocked | User explicitly restored suggestive desire, dominance, submission, and dark intimacy for consenting adults while preserving independent goals, refusal, bargaining power, reciprocal risk, and consequences; Production bible/outlines remain primary and the overlay makes clause-level amendments; Ch25–Ch27 applies primarily to Kane–Isabella and keeps intelligence/infiltration causal priority; Liya/minors remain excluded; revision 2 hashes are overlay `a465141f…3076` and plan `40c23c95…9d32`; fresh 3/3 preflight passed, focused 75 passed, full suite had one unrelated 60-second pipeline timeout after 2,815 passes and its isolated rerun passed; two-axis review clear; Production untouched | evidence commit `8cf80d0` on `feature/narrative-production-closure`; `git revert 8cf80d0` rolls back tracked evidence; local planning revision is versioned against preserved v1/v1.1 hashes and can be restored from its lineage | External generation, deterministic/literary audit, human A/B, Gate 2, and Phase 5 remain blocked; v2 has not been sent to a provider and no quality-uplift claim is permitted |
+| 2026-07-20 01:55 CST | Codex (supervisor) | Narrative production repair v2 handoff | in_progress | Persist the diagnosis-driven Phase 0R–5 plan, explicitly isolate narrative governance from code-task governance, build a structured execution contract, and verify AgentLab can supervise staged Coder work without Production access | start from `9b3256a` on `feature/narrative-production-closure`; revert the forthcoming documentation commit to roll back | Do not implement repair code in this session; validate the dry-run dispatch boundary, then hand execution to AgentLab one phase at a time |
+| 2026-07-20 02:12 CST | Codex (supervisor) | Narrative production repair v2 bootstrap | completed_phase0r_ready | Natural-language dispatch misrouted to `narrative_heavy_audit` and was paused before provider execution. Added a structured `codebase_build_project` mission/Phase 0R packet and the minimum S8→Coder bridge: task identity, role/worker constraints, and the task packet now survive into Coder context. Red/green tests reproduced both missing identity and missing context; focused task-packet, routing, and prompt tests: 22 passed. Dry-run route is `explicit_roles` → `Coder` → `claude_code`; Production unchanged | start from `9b3256a`; revert the forthcoming bootstrap commit to remove the plan and bridge | AgentLab may now execute Phase 0R only. Codex reviews returned diff/evidence, accepts or rejects the phase, and intervenes only for blockers or scope drift; Phase 1R+ remain blocked |
 
 ## Stop conditions and immediate next actions
 
 Stop and report if the baseline cannot be trusted, project state conflicts with
 this handoff, Production must change, safety tests must be weakened, non-narrative
 work cannot be isolated, central modules would grow materially, two rewrites fail,
-or positive samples are missing while someone is about to claim literary uplift.
+or someone is about to claim literary uplift without the required human evidence.
 
-Phases 2 and 4 are deterministically complete; Phase 3 contract/state wiring is
-complete but provider-backed revision and literary uplift remain blocked. Gate 1
-legacy integration is candidate-ready and hash-bound, but the external Writer
-remains blocked by the execution environment. Phase 5 remains correctly not
-started. The user can now select 3–5 positive chapters from the Desktop Ch01–Ch30
-bundle while an authorized private-context execution surface is secured; ten
-human blind reviews are still required before re-evaluating Gate 1 or Phase 5.
+The v1 Phase 2 and 4 mechanisms remain reusable evidence, but v2 reopens their
+production-contract, memory, assembly, and live-quality gaps. AgentLab's next
+permitted task is Phase 0R re-baselining from the structured execution contract.
+Codex must supervise scope and acceptance without implementing the phase. Gate 1
+legacy integration remains candidate-ready and hash-bound, but external Writer
+execution is still environment-blocked. Ten human blind reviews remain required
+before scaling or starting Phase 5.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

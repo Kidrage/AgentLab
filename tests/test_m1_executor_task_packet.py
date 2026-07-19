@@ -69,3 +69,49 @@ def test_task_packet_schema_and_handoff(tmp_path: Path) -> None:
     handoff_content = handoff_file.read_text(encoding="utf-8")
     assert "Claude Code Instructions" in handoff_content
     assert "Testing M1 task packets" in handoff_content
+
+
+def test_task_packet_preserves_structured_governance_route(tmp_path: Path) -> None:
+    brain_dir = tmp_path / "project_brain"
+    brain_dir.mkdir()
+    for name in (
+        "project_brief.yml",
+        "roadmap.yml",
+        "acceptance_history.yml",
+        "next_actions.yml",
+    ):
+        (brain_dir / name).write_text("{}\n", encoding="utf-8")
+
+    phase_plan = tmp_path / "phase_plan.yml"
+    phase_plan.write_text(
+        yaml.safe_dump(
+            {
+                "project": "AgentLab",
+                "project_type": "codebase_build_project",
+                "task_id": "task_narrative_repair_phase0r",
+                "phase_id": "phase_0r",
+                "goal": "Repair the narrative subsystem from a structured phase plan",
+                "project_brain_dir": str(brain_dir),
+                "roles": ["Coder"],
+                "available_workers": ["claude_code"],
+                "approved_workers": ["claude_code"],
+                "required_capabilities": ["repo_patch", "test_generation"],
+                "assignment_mode": "hybrid_local_company",
+                "tier": "performance",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    packet = create_task_packet(phase_plan, "claude_code_handoff", tmp_path / "packet")
+    task = packet["task_packet"]
+
+    assert task["project_type"] == "codebase_build_project"
+    assert task["task_id"] == "task_narrative_repair_phase0r"
+    assert task["roles"] == ["Coder"]
+    assert task["available_workers"] == ["claude_code"]
+    assert task["approved_workers"] == ["claude_code"]
+    assert task["required_capabilities"] == ["repo_patch", "test_generation"]
+    assert task["assignment_mode"] == "hybrid_local_company"
+    assert task["tier"] == "performance"

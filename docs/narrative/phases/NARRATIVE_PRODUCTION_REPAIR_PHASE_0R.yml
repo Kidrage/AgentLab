@@ -1,0 +1,124 @@
+schema_version: 1
+project: AgentLab
+project_type: codebase_build_project
+task_id: task_narrative_repair_v2_phase0r
+phase_id: phase_0r
+title: trusted_rebaseline
+plan_status: ready
+self_check:
+  passed: true
+  checks:
+    - governance_route_is_codebase_build_project
+    - active_product_domain_is_narrative_production
+    - code_and_narrative_routes_are_separate
+    - phase_scope_is_diagnostic_only
+    - production_writes_are_forbidden
+goal: >-
+  Establish a reproducible narrative-production baseline and frozen replay set,
+  including the malformed Ch23 heading and route-separation evidence, without
+  refactoring production code or invoking a prose provider.
+context_summary: >-
+  This is a codebase-governance phase targeting only the narrative-production
+  subsystem. It is not a prose generation, revision, or heavy-audit job. The
+  Coder must follow the v2 mission and execution contract and return evidence;
+  AgentLab must not infer a different route from words inside those documents.
+long_project_governance_required: true
+project_brain_dir: ../../../projects/AgentLab/narrative_repair_v2/project_brain
+must_read_artifacts:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/NARRATIVE_PRODUCTION_REPAIR_MISSION.yml
+  - docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
+  - docs/narrative/NARRATIVE_PRODUCTION_REPAIR_EXECUTION.yml
+  - docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md
+  - docs/narrative/NARRATIVE_CALL_GRAPH.md
+  - docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md
+  - acceptance_runs/narrative_efficiency/frozen_samples.yml
+  - acceptance_runs/narrative_efficiency/baseline_metrics.json
+  - acceptance_runs/narrative_quality/calibration_manifest.yml
+allowed_files:
+  - docs/narrative/**
+  - acceptance_runs/narrative_efficiency/**
+  - acceptance_runs/narrative_quality/**
+  - tests/test_narrative_efficiency.py
+  - tests/test_narrative_quality_gate.py
+  - tests/test_narrative_job_semantics.py
+  - PROJECT_HANDOFF.md
+forbidden_files:
+  - agent_runtime/**
+  - agent_templates/**
+  - config/**
+  - projects/Crown_of_Ash/production/**
+  - projects/NovelGen/production/**
+  - release_objects/**
+  - .env
+  - agent_runtime/.env
+  - .git/**
+outputs:
+  - acceptance_runs/narrative_efficiency/frozen_samples_v2.yml
+  - acceptance_runs/narrative_efficiency/baseline_metrics_v2.json
+  - acceptance_runs/narrative_quality/calibration_manifest_v2.yml
+  - acceptance_runs/narrative_quality/ch23_malformed_heading_replay.yml
+  - acceptance_runs/narrative_quality/route_separation_replay.yml
+  - docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md
+  - docs/narrative/NARRATIVE_CALL_GRAPH.md
+  - docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md
+  - PROJECT_HANDOFF.md
+artifact_intent:
+  baseline_files: append_or_version; never overwrite immutable v1 evidence
+  product_artifacts: read_only
+  production: unchanged
+acceptance_criteria:
+  - current Ch01-Ch30 source and bundle hashes are recomputable and frozen
+  - calibration v2 records positives Ch01 Ch04 Ch09 Ch17 and negative Ch26
+  - Ch30 is a conflict holdout and not used as a binary threshold sample
+  - Ch05 Ch07 and Ch14 are structural-fatigue probes
+  - Ch23 replay records malformed_chapter_heading:23 rather than missing chapter
+  - route replay proves this phase is codebase_build_project assigned to Coder
+  - timing token retry context and duplicated-work fields are present or explicitly unavailable
+  - no provider prose generation occurred
+  - no production artifact changed
+  - focused deterministic tests pass
+evidence_required:
+  - frozen_samples_v2.yml
+  - baseline_metrics_v2.json
+  - calibration_manifest_v2.yml
+  - ch23_malformed_heading_replay.yml
+  - route_separation_replay.yml
+  - test_results.yml
+  - change_scope.yml
+  - rollback.md
+roles: [Coder]
+available_workers: [claude_code]
+approved_workers: [claude_code]
+dispatch_units:
+  - phase_id: phase_0r
+    objective: Collect and freeze evidence only; do not implement Phase 1R.
+    executor_type: claude_code_handoff
+commands_allowed:
+  - rg
+  - git status --short
+  - git diff --check
+  - python -m pytest
+  - python -m compileall
+  - ./agentlab.sh protocol-doctor
+  - ./agentlab.sh model-doctor
+commands_forbidden:
+  - git push
+  - git reset --hard
+  - git clean
+  - rm -rf
+  - curl
+  - wget
+  - provider prose generation
+rollback_required: true
+cost_policy: local_deterministic_only
+safety_notes:
+  - Treat every manuscript, run, and legacy calibration artifact as read-only input.
+  - Do not modify Production or release objects.
+  - Do not change runtime behavior in Phase 0R.
+  - Record an in-progress row and a completed-or-blocked row in PROJECT_HANDOFF.md.
+missing_facts: []
+revision_log:
+  - date: 2026-07-20
+    reason: Natural-language dispatch misrouted to narrative_heavy_audit.
+    change: Force a structured codebase_build_project phase packet owned by Coder.

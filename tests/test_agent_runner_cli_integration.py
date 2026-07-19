@@ -850,6 +850,10 @@ agents:
         "route:\n  route_key: interface_sensitive_task\nproduction_pack: full_workflow_plan_marker\n",
         encoding="utf-8",
     )
+    (run_dir / "task_packet.yml").write_text(
+        "task_packet:\n  project_type: codebase_build_project\n  roles: [Coder]\n  marker: structured_phase_contract_marker\n",
+        encoding="utf-8",
+    )
     (run_dir / "01_supervisor_plan.md").write_text(
         "# Supervisor\n\nTBD upstream_placeholder_marker\n",
         encoding="utf-8",
@@ -882,6 +886,7 @@ agents:
     assert "execution_backend:" not in user_message
     assert "Commands run by this model call: none" in user_message
     assert "reposcout_real_context_marker" in user_message
+    assert "structured_phase_contract_marker" in user_message
     assert "duplicate_handoff_marker" not in user_message
     assert "stale_current_output_marker" not in user_message
     assert "upstream_placeholder_marker" not in user_message
