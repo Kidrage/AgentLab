@@ -1845,6 +1845,34 @@ class TestRunCliAgentSubprocess:
                 "blocking_issue_count": 0,
                 "failures": [],
             },
+            "narrative_quality_scorecard": {
+                "schema_version": 1,
+                "status": "pass",
+                "candidate_only": True,
+                "production_modified": False,
+                "candidate_sha256": "candidate-sha",
+                "dimensions": {
+                    name: {
+                        "score": 5,
+                        "severity": "pass",
+                        "evidence": {
+                            "chapter": 1,
+                            "scene": "opening",
+                            "excerpt_or_locator": "paragraph 1",
+                        },
+                        "reason": "specific evidence",
+                        "revision_target": "none",
+                    }
+                    for name in (
+                        "causal_reasoning",
+                        "strategic_competence",
+                        "character_agency",
+                        "dramatic_tension",
+                        "reader_curiosity",
+                        "non_formulaic_progression",
+                    )
+                },
+            },
         }
         stdout = "\n".join(
             json.dumps(event)
@@ -1926,6 +1954,7 @@ class TestRunCliAgentSubprocess:
         assert not any(arg.endswith("task_packet_reviewer.json") for arg in argv)
         assert "<!-- AGENTLAB_EDIT: fiction_review.yml -->" in result.content
         assert "<!-- AGENTLAB_EDIT: continuity_failure_report.yml -->" in result.content
+        assert "<!-- AGENTLAB_EDIT: narrative_quality_scorecard.yml -->" in result.content
         assert "candidate_only: true" in result.content
         assert '\"type\": \"result\"' not in result.content
         assert result.input_tokens == 1234
@@ -1935,6 +1964,7 @@ class TestRunCliAgentSubprocess:
         assert observed["schema"]["required"] == [
             "fiction_review",
             "continuity_failure_report",
+            "narrative_quality_scorecard",
         ]
 
 

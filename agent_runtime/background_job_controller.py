@@ -233,7 +233,11 @@ def create_crown_delivery_job(
             "max_retries_per_action": max_retries_per_action,
             "transient_retry_seconds": transient_retry_seconds,
             "attempt_lease_seconds": attempt_lease_seconds,
-            "required_audits": ["fiction_review", "continuity_failure_report"],
+            "required_audits": [
+                "fiction_review",
+                "continuity_failure_report",
+                "narrative_quality_scorecard",
+            ],
             "narrative_adapter": "crown",
             "allow_writer_cli_fallback": False,
         },

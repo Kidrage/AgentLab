@@ -61,7 +61,11 @@ def _create_narrative_audit_state(
             "required_audits": list(
                 config.get(
                     "required_audits",
-                    ["fiction_review", "continuity_failure_report"],
+                    [
+                        "fiction_review",
+                        "continuity_failure_report",
+                        "narrative_quality_scorecard",
+                    ],
                 )
             ),
         }

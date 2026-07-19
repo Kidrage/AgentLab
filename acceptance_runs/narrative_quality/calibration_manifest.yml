@@ -1,0 +1,22 @@
+schema_version: 1
+calibration_set_id: narrative_quality_v1_20260719
+status: blocked_missing_user_positive_samples
+immutable: true
+candidate_only: true
+production_modified: false
+negative_samples:
+  - chapter_id: 26
+    authority: user_reported_negative
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: 8242a5997cd3ae275b070e9bd4e59d73d53342c639820e0363e76813113882a8
+  - chapter_id: 30
+    authority: user_reported_negative
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch30_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: c904b29588570b65db574eaeb4157b937ac55858470feef9ce32663b4a59a34b
+positive_samples: []
+positive_calibration_status: missing_user_samples
+human_blind_review:
+  required_pairs: 10
+  required_new_system_win_rate: 0.70
+  completed_pairs: 0
+  status: not_started

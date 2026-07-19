@@ -26,6 +26,34 @@ NOW = "2026-07-17T15:00:00+00:00"
 AUDIT_HASH = "candidate-hash-001"
 
 
+def _passing_quality_scorecard() -> dict:
+    return {
+        "status": "pass",
+        "candidate_sha256": AUDIT_HASH,
+        "dimensions": {
+            name: {
+                "score": 5,
+                "severity": "pass",
+                "evidence": {
+                    "chapter": 1,
+                    "scene": "opening",
+                    "excerpt_or_locator": "paragraph 1",
+                },
+                "reason": "specific evidence",
+                "revision_target": "none",
+            }
+            for name in (
+                "causal_reasoning",
+                "strategic_competence",
+                "character_agency",
+                "dramatic_tension",
+                "reader_curiosity",
+                "non_formulaic_progression",
+            )
+        },
+    }
+
+
 def _heavy_audit_result(*, blocked: bool = False, independent: bool = False) -> dict:
     result = {
         "status": "pass",
@@ -44,6 +72,7 @@ def _heavy_audit_result(*, blocked: bool = False, independent: bool = False) -> 
             "candidate_sha256": AUDIT_HASH,
             "blocking_issue_count": 0,
         },
+        "narrative_quality_scorecard": _passing_quality_scorecard(),
     }
     if independent:
         result["independent_reaudit"] = {

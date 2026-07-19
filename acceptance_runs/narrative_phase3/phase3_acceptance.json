@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "phase": 3,
+  "status": "mechanism_complete_live_quality_gate_blocked",
+  "candidate_only": true,
+  "production_modified": false,
+  "scorecard_dimensions": [
+    "causal_reasoning",
+    "strategic_competence",
+    "character_agency",
+    "dramatic_tension",
+    "reader_curiosity",
+    "non_formulaic_progression"
+  ],
+  "veto_dimensions": [
+    "causal_reasoning",
+    "strategic_competence",
+    "character_agency"
+  ],
+  "known_negative_samples": [26, 30],
+  "positive_calibration_status": "missing_user_samples",
+  "human_blind_pairs_completed": 0,
+  "human_blind_pairs_required": 10,
+  "required_new_system_win_rate": 0.7,
+  "implemented_behaviors": [
+    "evidence_required_six_dimension_scorecard",
+    "veto_dimensions_not_averaged",
+    "scene_level_revision_contract",
+    "scene_local_rewrite_preserves_unaffected_scenes",
+    "deterministic_check_before_reaudit",
+    "independent_reaudit_before_blind_selection",
+    "anonymous_ab_selection",
+    "revision_cannot_replace_on_new_or_remaining_blocking",
+    "measured_dimension_delta_and_accepted_improvement_cost",
+    "calibration_gate_blocks_quality_claim_without_user_samples"
+  ],
+  "verification": {
+    "focused_and_affected_tests": "158 passed"
+  },
+  "provider_calls": 0,
+  "literary_uplift_claimed": false,
+  "quality_uplift_claim_allowed": false
+}

@@ -436,7 +436,7 @@ Status: `MECHANISM COMPLETE / DETERMINISTIC ACCEPTANCE PASSED 2026-07-19`.
 
 ### Phase 3 — literary quality and verified revision uplift
 
-Status: `IN PROGRESS / MECHANISM WORK AUTHORIZED; LIVE UPLIFT GATE REQUIRES USER POSITIVE SAMPLES`.
+Status: `MECHANISM COMPLETE / LIVE QUALITY GATE BLOCKED ON USER SAMPLES AND HUMAN BLIND REVIEW`.
 
 - Add evidence-backed six-dimensional scorecards. Causal reasoning, strategic
   competence, and character agency are veto dimensions, never averaged away.
@@ -452,7 +452,7 @@ Status: `IN PROGRESS / MECHANISM WORK AUTHORIZED; LIVE UPLIFT GATE REQUIRES USER
 
 ### Phase 4 — immutable Candidate Sets and atomic promotion
 
-Status: `NOT STARTED / DEPENDS ON PHASE 3`.
+Status: `IN PROGRESS / SAFETY MECHANISMS AUTHORIZED; REAL PROMOTION REMAINS BLOCKED`.
 
 - Freeze Candidate Set manifests when audit starts; any chapter hash change makes
   related audits stale and creates lineage to a new set.
@@ -510,6 +510,8 @@ without a progress row.
 | 2026-07-19 | Codex | Phase 2 efficiency | in_progress | User authorized Phase 2–5; Phase 2 starts with shared immutable context, risk-tiered execution, deterministic prechecks, incremental impact windows, and node-local retry through public behavior tests | start from acceptance `96f28c1` on `feature/narrative-production-closure`; revert forthcoming Phase 2 commit to roll back | Keep Production untouched; record measured frozen-fixture before/after evidence before marking complete |
 | 2026-07-19 | Codex | Phase 2 efficiency | completed | Added immutable content-addressed context bundles, persisted ordinary/high-risk execution plans, deterministic precheck, ordinary single-Judge dispatch, high-risk independent-Judge/arbitration seam, and incremental impact windows; focused/domain 87 passed; Ruff/diff checks pass; `production_modified: false` | acceptance: `docs/narrative/NARRATIVE_PHASE2_ACCEPTANCE.md` and `acceptance_runs/narrative_phase2/phase2_acceptance.json`; revert forthcoming Phase 2 commit | Provider-backed wall/token savings remain deferred; Phase 3 mechanism work begins without making a literary-uplift claim |
 | 2026-07-19 | Codex | Phase 3 quality closure | in_progress | Implement six-dimension evidence scorecards, scene-level revision contracts, local rewrite selection, anonymous A/B and regression-aware replacement | start from forthcoming Phase 2 commit; revert forthcoming Phase 3 commit independently | Positive calibration and 10-pair human 70% win gate remain blocked on user samples; do not claim uplift |
+| 2026-07-19 | Codex | Phase 3 quality closure | completed_mechanism_live_gate_blocked | Added evidence-required six-dimension scorecards and vetoes, scene-level contracts, local preservation, deterministic/independent review, blind A/B selection, regression blocking, uplift receipts, and immutable Ch26/Ch30 calibration; affected regression 158 passed; Production unchanged | acceptance: `docs/narrative/NARRATIVE_PHASE3_ACCEPTANCE.md`, `acceptance_runs/narrative_phase3/phase3_acceptance.json`, calibration manifest under `acceptance_runs/narrative_quality/` | Cannot claim literary uplift until user supplies 3–5 positives and 10 human blind pairs reach 70% wins |
+| 2026-07-19 | Codex | Phase 4 Candidate Set and promotion | in_progress | Implement immutable hash-bound Candidate Sets, stale-audit invalidation, matching acceptance receipts, first-publication semantics, and atomic promotion rollback | start from forthcoming Phase 3 commit; revert forthcoming Phase 4 commit independently | Do not execute real promotion; Phase 3 quality gate is blocked |
 
 ## Stop conditions and immediate next actions
 

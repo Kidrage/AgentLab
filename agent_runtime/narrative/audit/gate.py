@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
+from agent_runtime.narrative.quality.scorecard import validate_quality_scorecard
+
 
 _BLOCKING_STATUSES = {"block", "blocked", "fail", "failed", "rejected"}
 _PASS_STATUSES = {"pass", "passed", "complete", "completed", "accepted"}
@@ -125,12 +127,14 @@ def evaluate_narrative_seal(
         if _has_blocking_status(continuity_failure_report) or blocking_count > 0:
             content.append("continuity_blocked")
     if isinstance(narrative_quality_scorecard, Mapping):
-        if _quality_is_blocking(narrative_quality_scorecard):
+        quality_validation = validate_quality_scorecard(
+            narrative_quality_scorecard,
+            candidate_sha256=str(candidate_sha256 or ""),
+        )
+        if quality_validation["valid"] is not True:
+            invalid.append("invalid_narrative_quality_scorecard")
+        elif quality_validation["status"] == "blocked":
             content.append("literary_quality_blocked")
-        elif _status(narrative_quality_scorecard) not in {
-            "pass", "passed", "warn", "warning"
-        }:
-            invalid.append("invalid_narrative_quality_scorecard_status")
     elif "narrative_quality_scorecard" in required:
         invalid.append("missing_narrative_quality_scorecard")
 

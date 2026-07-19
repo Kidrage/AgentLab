@@ -47,6 +47,37 @@ def test_materializes_reviewer_heavy_audit_outputs_transactionally(tmp_path: Pat
                     "failures": [],
                 },
             ),
+            _block(
+                "narrative_quality_scorecard.yml",
+                {
+                    "schema_version": 1,
+                    "status": "pass",
+                    "candidate_only": True,
+                    "production_modified": False,
+                    "candidate_sha256": "candidate-sha",
+                    "dimensions": {
+                        name: {
+                            "score": 5,
+                            "severity": "pass",
+                            "evidence": {
+                                "chapter": 1,
+                                "scene": "opening",
+                                "excerpt_or_locator": "paragraph 1",
+                            },
+                            "reason": "specific evidence",
+                            "revision_target": "none",
+                        }
+                        for name in (
+                            "causal_reasoning",
+                            "strategic_competence",
+                            "character_agency",
+                            "dramatic_tension",
+                            "reader_curiosity",
+                            "non_formulaic_progression",
+                        )
+                    },
+                },
+            ),
         ]
     )
 
@@ -58,6 +89,7 @@ def test_materializes_reviewer_heavy_audit_outputs_transactionally(tmp_path: Pat
     )
     assert (tmp_path / "fiction_review.yml").exists()
     assert (tmp_path / "continuity_failure_report.yml").exists()
+    assert (tmp_path / "narrative_quality_scorecard.yml").exists()
 
 
 def test_rejects_heavy_audit_attempt_to_replace_draft(tmp_path: Path) -> None:

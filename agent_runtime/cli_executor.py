@@ -852,6 +852,58 @@ def _narrative_heavy_audit_output_schema(
                 }
             )
             required.extend(["status", "blocking_issue_count", "failures"])
+        elif name == "narrative_quality_scorecard.yml":
+            dimension_names = (
+                "causal_reasoning",
+                "strategic_competence",
+                "character_agency",
+                "dramatic_tension",
+                "reader_curiosity",
+                "non_formulaic_progression",
+            )
+            evidence_schema = {
+                "type": "object",
+                "required": ["chapter", "scene", "excerpt_or_locator"],
+                "properties": {
+                    "chapter": {"type": "integer", "minimum": 1},
+                    "scene": {"type": "string", "minLength": 1},
+                    "excerpt_or_locator": {"type": "string", "minLength": 1},
+                },
+                "additionalProperties": True,
+            }
+            dimension_schema = {
+                "type": "object",
+                "required": [
+                    "score",
+                    "severity",
+                    "evidence",
+                    "reason",
+                    "revision_target",
+                ],
+                "properties": {
+                    "score": {"type": "integer", "minimum": 1, "maximum": 5},
+                    "severity": {"enum": ["blocking", "warn", "pass"]},
+                    "evidence": evidence_schema,
+                    "reason": {"type": "string", "minLength": 1},
+                    "revision_target": {"type": "string", "minLength": 1},
+                },
+                "additionalProperties": True,
+            }
+            properties.update(
+                {
+                    "status": {"enum": ["pass", "warn", "blocked"]},
+                    "candidate_sha256": {"type": "string", "minLength": 1},
+                    "dimensions": {
+                        "type": "object",
+                        "required": list(dimension_names),
+                        "properties": {
+                            dimension: dimension_schema for dimension in dimension_names
+                        },
+                        "additionalProperties": False,
+                    },
+                }
+            )
+            required.extend(["status", "candidate_sha256", "dimensions"])
         elif name == "state_transition_proposal.yml":
             properties.update(
                 {
@@ -985,6 +1037,11 @@ def _narrative_heavy_audit_content_keys(name: str) -> set[str]:
             "status",
             "blocking_issue_count",
             "failures",
+        },
+        "narrative_quality_scorecard.yml": {
+            "status",
+            "candidate_sha256",
+            "dimensions",
         },
         "state_transition_proposal.yml": {
             "status",

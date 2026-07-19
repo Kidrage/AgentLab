@@ -20,7 +20,11 @@ except ModuleNotFoundError:  # pragma: no cover - direct script path
 
 
 HEAVY_AUDIT_OUTPUTS_BY_AGENT: dict[str, tuple[str, ...]] = {
-    "Reviewer": ("fiction_review.yml", "continuity_failure_report.yml"),
+    "Reviewer": (
+        "fiction_review.yml",
+        "continuity_failure_report.yml",
+        "narrative_quality_scorecard.yml",
+    ),
     "Scribe": ("state_transition_proposal.yml",),
     "Verifier": ("revision_or_rewrite_proposal.yml",),
 }
@@ -80,6 +84,18 @@ def _schema_issues(name: str, value: str) -> list[str]:
             issues.append(f"invalid_heavy_audit_schema:{name}:blocking_issue_count")
         if not isinstance(data.get("failures"), list):
             issues.append(f"invalid_heavy_audit_schema:{name}:failures")
+    elif name == "narrative_quality_scorecard.yml":
+        from agent_runtime.narrative.quality.scorecard import validate_quality_scorecard
+
+        validation = validate_quality_scorecard(
+            data,
+            candidate_sha256=str(data.get("candidate_sha256") or ""),
+        )
+        if validation["valid"] is not True:
+            issues.extend(
+                f"invalid_heavy_audit_schema:{name}:{issue}"
+                for issue in validation["issues"]
+            )
     elif name == "state_transition_proposal.yml":
         events = data.get("events")
         if data.get("status") != "candidate":
