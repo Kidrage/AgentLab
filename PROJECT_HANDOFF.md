@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-19T10:12:58.580968+00:00`
+- Generated at: `2026-07-19T10:13:42.413795+00:00`
 
 ## Current State
 
 - Branch: `feature/narrative-production-closure`
-- HEAD: `09bb2bb`
+- HEAD: `c654f1d`
 - Indexed paths: 1873
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -89,7 +89,7 @@
 ### Categories
 
 - code: 934 files, 7515234 bytes
-- literature: 399 files, 2161788 bytes
+- literature: 399 files, 2162293 bytes
 - other: 12 files, 74102 bytes
 - structured_data: 528 files, 2984852 bytes
 
@@ -230,6 +230,7 @@
 
 ## Change History
 
+- `c654f1d 2026-07-19 docs(narrative): report phase 2-5 gate results`
 - `09bb2bb 2026-07-19 fix(narrative): wire phase 2-4 closure`
 - `14e620d 2026-07-19 feat(narrative): complete phase 4 candidate governance`
 - `d892e62 2026-07-19 feat(narrative): complete phase 3 quality closure`
@@ -249,20 +250,10 @@
 - `b098513 2026-07-14 docs: refresh AgentLab role overhaul handoff`
 - `424b983 2026-07-14 feat: govern agent roles and model capacity`
 - `a27c0b1 2026-07-13 docs: refresh AgentLab handoff`
-- `1b96c93 2026-07-13 fix: constrain Agy quota rotation`
 
 ## Current Changes
 
 - `## feature/narrative-production-closure`
-- ` M PROJECT_HANDOFF.md`
-- ` M acceptance_runs/narrative_phase2/phase2_acceptance.json`
-- ` M acceptance_runs/narrative_phase3/phase3_acceptance.json`
-- ` M acceptance_runs/narrative_phase4/phase4_acceptance.json`
-- ` M docs/narrative/NARRATIVE_PHASE2_ACCEPTANCE.md`
-- ` M docs/narrative/NARRATIVE_PHASE3_ACCEPTANCE.md`
-- ` M docs/narrative/NARRATIVE_PHASE4_ACCEPTANCE.md`
-- `?? acceptance_runs/narrative_phase2_phase5/`
-- `?? docs/narrative/NARRATIVE_PHASE2_PHASE5_FINAL_REPORT.md`
 
 ## Related Repositories
 
@@ -525,7 +516,7 @@ without a progress row.
 | 2026-07-19 | Codex | Phase 4 Candidate Set and promotion | in_progress | Implement immutable hash-bound Candidate Sets, stale-audit invalidation, matching acceptance receipts, first-publication semantics, and atomic promotion rollback | start from `d892e62`; revert Phase 4 commit independently | Do not execute real promotion; Phase 3 quality gate is blocked |
 | 2026-07-19 | Codex | Phase 4 Candidate Set and promotion | completed_deterministic_real_gate_blocked | Added immutable manifests, evidence-content hash binding, stale invalidation, symlink-safe roots, first publication, immutable release objects, atomic index switching and idempotent interruption recovery; consolidated 211 passed; no real promotion | `14e620d` plus hardening `09bb2bb`; revert `09bb2bb`, then `14e620d`; acceptance: `docs/narrative/NARRATIVE_PHASE4_ACCEPTANCE.md` | Phase 5 may not start: Phase 0 provider trial and Phase 3 positive/human gates remain unmet |
 | 2026-07-19 | Codex | Phase 5 productization | blocked_not_started | No code changes: the plan explicitly permits Phase 5 only after Phases 0–4 pass | none | Requires governed 3-chapter live gate, 3–5 user positives, and 10 human blind pairs with at least 70% wins |
-| 2026-07-19 | Codex | Phase 2–5 hardening and final report | completed_with_phase5_blocked | Wired Phase 2–4 behavior into the real background path, closed review findings, independent Standards/Spec reviews clear, consolidated 211 passed, full repository 2,814 passed / 2 skipped / 11 warnings, hygiene 0/0, model doctor 0 issues / 135 profiles; final report `docs/narrative/NARRATIVE_PHASE2_PHASE5_FINAL_REPORT.md` | implementation `09bb2bb`; `git revert 09bb2bb`; final documentation commit recorded after validation | Push documentation and verify CI; next permitted work is Gate 1 evidence, not Phase 5 implementation |
+| 2026-07-19 | Codex | Phase 2–5 hardening and final report | completed_with_phase5_blocked | Wired Phase 2–4 behavior into the real background path, closed review findings, independent Standards/Spec reviews clear, consolidated 211 passed, full repository 2,814 passed / 2 skipped / 11 warnings, hygiene 0/0, model doctor 0 issues / 135 profiles; final report `docs/narrative/NARRATIVE_PHASE2_PHASE5_FINAL_REPORT.md` | implementation `09bb2bb`, report `c654f1d`; revert report then implementation; final handoff refresh follows | Verify CI; next permitted work is Gate 1 evidence, not Phase 5 implementation |
 
 ## Stop conditions and immediate next actions
 
