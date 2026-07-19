@@ -1,0 +1,188 @@
+schema_version: 1
+baseline_id: narrative_efficiency_phase_0_20260719
+project: Crown_of_Ash
+candidate_only: true
+production_modified: false
+positive_calibration_status: missing_user_samples
+live_trial_receipt: acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/live_trial_receipt.json
+
+sample_groups:
+  primary_live_window:
+    chapter_range: [25, 27]
+    purpose: isolated live generation and audit probe containing known-negative Ch26
+  continuous_batch:
+    chapter_range: [21, 30]
+    purpose: batch audit, context duplication, and recovery baseline
+  historical_comparator:
+    chapter_range: [1, 3]
+    purpose: compare the existing three-chapter pilot with the isolated live probe
+  known_negative_chapters:
+    chapters: [26, 30]
+    calibration_authority: user_reported
+  positive_chapters:
+    chapters: []
+    status: missing_user_samples
+
+metric_cases:
+  - id: generation_ch01_ch03
+    kind: narrative_generation
+    chapter_range: [1, 3]
+    run_dirs:
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch02_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch03_crown_corrected_200_v3_writer
+
+  - id: generation_ch01_ch10
+    kind: narrative_generation
+    chapter_range: [1, 10]
+    run_dirs:
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch02_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch03_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch04_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch05_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch06_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch07_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch08_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch09_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch10_crown_corrected_200_v3_writer
+
+  - id: generation_ch01_ch30
+    kind: narrative_generation
+    chapter_range: [1, 30]
+    run_dirs:
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch02_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch03_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch04_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch05_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch06_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch07_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch08_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch09_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch10_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch11_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch12_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch13_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch14_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch15_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch16_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch17_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch18_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch19_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch20_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch21_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch22_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch23_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch24_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch25_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch27_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch28_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch29_crown_corrected_200_v3_writer
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch30_crown_corrected_200_v3_writer
+
+  - id: heavy_audit_ch01_ch03
+    kind: narrative_audit
+    chapter_range: [1, 3]
+    run_dirs:
+      - projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch001_ch003_crown_corrected_v3_pilot_v3
+
+  - id: heavy_audit_ch21_ch30_pre_repair
+    kind: narrative_audit
+    chapter_range: [21, 30]
+    run_dirs:
+      - projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch021_ch030_crown_corrected_v3_stage02
+
+  - id: heavy_audit_ch21_ch30_post_repair
+    kind: narrative_audit
+    chapter_range: [21, 30]
+    run_dirs:
+      - projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch021_ch030_crown_corrected_v3_stage02b_post_repair
+
+  - id: known_negative_ch26_revision
+    kind: narrative_revision
+    chapter_range: [26, 26]
+    run_dirs:
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer
+
+  - id: background_attempts_ch01_ch10
+    kind: narrative_background_recovery
+    chapter_range: [1, 10]
+    run_dirs:
+      - projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch001_ch010_attempt-0008-heavy-audit
+      - projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch001_ch010_attempt-0009-heavy-audit
+      - projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch001_ch010_attempt-0010-heavy-audit
+      - projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch001_ch010_attempt-0011-heavy-audit
+
+frozen_files:
+  - path: acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/live_trial_receipt.json
+    kind: live_trial_receipt
+  - path: config/agent_registry.yml
+    kind: runtime_config
+  - path: config/model_capacity.yml
+    kind: runtime_config
+  - path: config/worker_invocation_contracts.yml
+    kind: runtime_config
+  - path: config/routing_rules.yml
+    kind: runtime_config
+  - path: projects/Crown_of_Ash/project_artifact_index.yml
+    kind: project_index
+  - path: projects/Crown_of_Ash/project_brain/project_fact_snapshot.yml
+    kind: canon_snapshot
+  - path: projects/Crown_of_Ash/production/bible/世界观圣经.md
+    kind: canon
+  - path: projects/Crown_of_Ash/production/bible/势力圣经.md
+    kind: canon
+  - path: projects/Crown_of_Ash/production/bible/角色圣经.md
+    kind: canon
+  - path: projects/Crown_of_Ash/production/bible/魔法与代价体系.md
+    kind: canon
+  - path: projects/Crown_of_Ash/production/outlines/00_世界史诗编年史.md
+    kind: outline
+  - path: projects/Crown_of_Ash/production/outlines/00_重构总纲.md
+    kind: outline
+  - path: projects/Crown_of_Ash/production/outlines/01_完整故事蓝图.md
+    kind: outline
+  - path: projects/Crown_of_Ash/production/outlines/02_卷纲与章节路线.md
+    kind: outline
+  - path: projects/Crown_of_Ash/production/outlines/03_感情戏执行准则.md
+    kind: outline
+  - path: projects/Crown_of_Ash/production/outlines/卷纲_第一卷.md
+    kind: outline
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: historical_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch02_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: historical_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch03_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: historical_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch21_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: continuous_batch_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch22_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: continuous_batch_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch23_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: continuous_batch_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch24_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: continuous_batch_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch25_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: live_window_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: known_negative_candidate
+    calibration: user_reported_negative
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch27_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: live_window_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch28_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: continuous_batch_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch29_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: continuous_batch_candidate
+  - path: projects/Crown_of_Ash/runs/task_narrative_eval_ch30_crown_corrected_200_v3_writer/fiction_draft.md
+    kind: known_negative_candidate
+    calibration: user_reported_negative
+  - path: projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch021_ch030_crown_corrected_v3_stage02/fiction_review.yml
+    kind: pre_repair_audit
+  - path: projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch021_ch030_crown_corrected_v3_stage02b_post_repair/fiction_review.yml
+    kind: post_repair_audit
+  - path: projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch021_ch030_crown_corrected_v3_stage02b_post_repair/continuity_failure_report.yml
+    kind: post_repair_audit
+  - path: projects/Crown_of_Ash/runs/task_narrative_heavy_audit_ch021_ch030_crown_corrected_v3_stage02b_post_repair/revision_or_rewrite_proposal.yml
+    kind: post_repair_revision_proposal

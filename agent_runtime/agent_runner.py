@@ -3203,6 +3203,21 @@ def run_agent_model(
                 break
 
             _audit_annotate_cli_result(cli_result, selected_profile, "cli_executed")
+            from agent_runtime.narrative.diagnostics.telemetry import (
+                record_narrative_invocation,
+            )
+
+            record_narrative_invocation(
+                plan,
+                agent_name,
+                cli_result,
+                provider_surface=f"cli_agent:{cli_configured_agent}",
+                capacity_route=(
+                    str(capacity_decision["route_id"])
+                    if capacity_decision is not None
+                    else selected_profile.get("capacity_route")
+                ),
+            )
             if capacity_manager is None or capacity_decision is None:
                 finalized = _apply_agent_result_patches(
                     configs_for_cli,
@@ -3395,6 +3410,7 @@ def run_agent_model(
         )
 
     messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
+    narrative_context_manifest_path: Path | None = None
     if agent_name == "Writer":
         try:
             from agent_runtime.outbound_context import write_outbound_context_manifest
@@ -3405,9 +3421,12 @@ def run_agent_model(
             str(plan.task_id).startswith("task_narrative_eval_")
             or os.getenv("AGENTLAB_TRUSTED_LIVE_RUNNER") == "1"
         )
+        narrative_context_manifest_path = (
+            Path(plan.run_dir) / "outbound_context_manifest_writer.yml"
+        )
         manifest = write_outbound_context_manifest(
             agentlab_root,
-            Path(plan.run_dir) / "outbound_context_manifest_writer.yml",
+            narrative_context_manifest_path,
             item_id=str(plan.task_id),
             role="Writer",
             provider_surface=f"direct_api:{settings.provider}",
@@ -3524,6 +3543,18 @@ def run_agent_model(
         # Case 3/4: Direct API or special/skipped — annotate accordingly
         _audit_annotate_api_result_source(result, agent_model_profiles, agent_role_key, cli_mode, budget_mode)
     # ─────────────────────────────────────────────────────────────────────────
+
+    from agent_runtime.narrative.diagnostics.telemetry import (
+        record_narrative_invocation,
+    )
+
+    record_narrative_invocation(
+        plan,
+        agent_name,
+        result,
+        provider_surface=f"direct_api:{settings.provider}",
+        context_manifest_path=narrative_context_manifest_path,
+    )
 
     result = _apply_agent_result_patches(
         configs,
