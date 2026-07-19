@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-19T12:14:35.146717+00:00`
+- Generated at: `2026-07-19T12:53:36.923705+00:00`
 
 ## Current State
 
 - Branch: `feature/narrative-production-closure`
-- HEAD: `ed0efe0`
-- Indexed paths: 1905
+- HEAD: `bc9c60f`
+- Indexed paths: 1932
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -45,12 +45,12 @@
 |---|---:|
 | `agent_runtime` | 549 |
 | `tests` | 445 |
-| `acceptance_runs` | 337 |
+| `acceptance_runs` | 364 |
 | `docs` | 316 |
 | `docs/archive` | 222 |
 | `config` | 122 |
+| `acceptance_runs/narrative_eval` | 116 |
 | `tests/fixtures` | 110 |
-| `acceptance_runs/narrative_eval` | 89 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 41 |
@@ -89,14 +89,14 @@
 ### Categories
 
 - code: 934 files, 7523744 bytes
-- literature: 400 files, 2171048 bytes
+- literature: 400 files, 2173306 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 559 files, 3020859 bytes
+- structured_data: 586 files, 3051152 bytes
 
 ### Common Extensions
 
 - `.py`: 921
-- `.yml`: 531
+- `.yml`: 558
 - `.md`: 361
 - `.txt`: 39
 - `.json`: 23
@@ -230,6 +230,8 @@
 
 ## Change History
 
+- `bc9c60f 2026-07-19 docs(narrative): make Gate 1 evidence portable`
+- `dda36b0 2026-07-19 docs(narrative): record Gate 1 legacy handoff`
 - `ed0efe0 2026-07-19 fix(narrative): bind Gate 1 legacy context lineage`
 - `1664e0a 2026-07-19 docs(narrative): record blocked gate 1 trial`
 - `d7922cd 2026-07-19 docs(narrative): record final validation`
@@ -248,13 +250,14 @@
 - `2239ad7 2026-07-18 fix: delay transient background provider retries`
 - `faa0a60 2026-07-18 fix: preserve runtime imports in detached jobs`
 - `c7c193d 2026-07-18 docs: sanitize archived handoff path`
-- `0516cf7 2026-07-18 fix: prune AgentLab execution and durable longform flow`
-- `7b4a927 2026-07-14 docs: refresh capability reference handoff`
 
 ## Current Changes
 
 - `## feature/narrative-production-closure`
 - ` M PROJECT_HANDOFF.md`
+- ` M acceptance_runs/narrative_gate1/gate1_acceptance.json`
+- ` M docs/narrative/NARRATIVE_GATE1_ACCEPTANCE.md`
+- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integrated_live/`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integration_preflight/`
 
@@ -524,6 +527,7 @@ without a progress row.
 | 2026-07-19 | Codex | Gate 1 Ch25–27 live pilot | blocked | Preflight passed: Writer binding, Ch24 delivery/provenance, Crown L0 fact health, and governance simulation. The environment rejected private Crown context disclosure before the provider process started; no workaround attempted; provider calls/tokens/cost/candidates all 0; source and isolated Production hashes stayed `09f27f…c390` | distilled evidence: `docs/narrative/NARRATIVE_GATE1_ACCEPTANCE.md` and `acceptance_runs/narrative_gate1/gate1_acceptance.json`; revert forthcoming evidence commit; raw temp root is local-only | `blocked_external_execution_policy`; do not start Gate 2/Phase 5. Resume only on an authorized private-context execution surface or after separately approved local-model calibration; positives still 0 and human pairs 0/10 |
 | 2026-07-19 | Codex | Gate 1 legacy canon integration | in_progress | User approved external Ch25–27 use and required legacy world, character, timeline, and plot-state verification before generation; scope includes candidate-only legacy lineage, Writer must-read binding, explicit Ch24 predecessor, and Desktop positive-sample packet | start from `1664e0a` on `feature/narrative-production-closure`; revert forthcoming implementation/report commit | Diagnose exact migration hashes, selectively integrate safe character anchors, keep Production untouched, then attempt one stop-on-block live run |
 | 2026-07-19 | Codex | Gate 1 legacy canon integration | blocked_external_execution_policy | Confirmed world/plot files are exact legacy rebuild matches; confirmed female-character cards were absent from old Writer context; added hash-bound candidate overlay and 3-chapter state plan, exact-artifact Ch24 predecessor binding, and outbound inclusion; hash-bound preflight passed, focused 100 passed, full repository 2,816 passed / 2 skipped / 11 warnings; Ruff and two independent reviews clear; Production hash unchanged; Desktop Ch01–Ch30 bundle created | implementation `ed0efe0` on `feature/narrative-production-closure`; `git revert ed0efe0` rolls back tracked code/docs; local candidate/run/Desktop artifacts are removable without Production effect | Writer returned `network_required`; host denied approved unsandboxed private-context execution. New Ch25–27 drafts and A/B unavailable. User next selects 3–5 positives from Desktop bundle; Gate 2/Phase 5 remain blocked |
+| 2026-07-19 | Codex | Gate 1 adult dark-intimacy revision | candidate_planning_complete_live_blocked | User explicitly restored suggestive desire, dominance, submission, and dark intimacy for consenting adults while preserving independent goals, refusal, bargaining power, reciprocal risk, and consequences; Production bible/outlines remain primary and the overlay makes clause-level amendments; Ch25–Ch27 applies primarily to Kane–Isabella and keeps intelligence/infiltration causal priority; Liya/minors remain excluded; revision 2 hashes are overlay `a465141f…3076` and plan `40c23c95…9d32`; fresh 3/3 preflight passed, focused 75 passed, full suite had one unrelated 60-second pipeline timeout after 2,815 passes and its isolated rerun passed; two-axis review clear; Production untouched | tracked evidence follows `bc9c60f`; revert forthcoming evidence commit; local planning revision is versioned against preserved v1/v1.1 hashes and can be restored from its lineage | External generation, deterministic/literary audit, human A/B, Gate 2, and Phase 5 remain blocked; v2 has not been sent to a provider and no quality-uplift claim is permitted |
 
 ## Stop conditions and immediate next actions
 

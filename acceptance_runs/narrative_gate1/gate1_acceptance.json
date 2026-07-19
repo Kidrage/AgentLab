@@ -25,13 +25,16 @@
     "workaround_attempted": false
   },
   "legacy_integration": {
-    "status": "candidate_ready",
+    "status": "candidate_ready_revision_2",
     "worldbuilding_exact_hash_match": true,
     "plot_blueprint_exact_hash_match": true,
     "female_character_legacy_previously_in_writer_context": false,
-    "candidate_overlay_sha256": "f18e109c7c504ca59ae4f38393964c419930e68d6b7a5ceea252ba7147ebb75b",
-    "chapter_state_plan_sha256": "a07978d64349b6f6be6b22b101f647cba076ff0b2e0a44eb0ee6b2cd2ef0b8b9",
-    "writer_manifest_included_overlay": true,
+    "candidate_overlay_sha256": "a465141fe0169a764e5363b56f495aa5dc19861bd399d43e0e0b4c0c21533076",
+    "chapter_state_plan_sha256": "40c23c959859a92e7ff1f48869a5bcccd29b617655a8c94ef2ab4aa0cc0d9d32",
+    "adult_dark_intimacy_contract": "user_directed_agency_preserving",
+    "previous_outbound_manifest_stale": true,
+    "writer_manifest_included_overlay": false,
+    "historical_v1_writer_manifest_included_overlay": true,
     "production_modified": false
   },
   "preflight": {
@@ -42,9 +45,11 @@
     "ch24_artifact_integrity": "pass_four_hash_bound_artifacts",
     "ch24_writer_provenance": "pass_deepseek_v4_pro_no_fallback",
     "l0_fact_source_health": "pass",
-    "l3_governance_simulation": "pass"
+    "l3_governance_simulation": "pass",
+    "adult_dark_intimacy_v2_state_plan": "pass_manifest_v2_final2_20260719"
   },
-  "live_metrics": {
+  "historical_v1_live_metrics": {
+    "manifest_version": 1,
     "writer_process_started": true,
     "external_provider_result_received": false,
     "provider_call_count": "unavailable_network_required",
@@ -55,6 +60,13 @@
     "audit_eligible_candidate_count": 0,
     "final_usable_candidate_count": 0,
     "wall_time_comparison": "unavailable",
+    "literary_uplift": "unavailable"
+  },
+  "current_v2_live_metrics": {
+    "manifest_version": 2,
+    "status": "not_attempted",
+    "candidate_produced_count": 0,
+    "audit_eligible_candidate_count": 0,
     "literary_uplift": "unavailable"
   },
   "production_guard": {

@@ -110,10 +110,32 @@ wall-time, token, literary score, revision-uplift, or A/B comparison measurement
   `Desktop/Crown_of_Ash_Gate1_人工审读/01_正样本候选_Ch01-Ch30_合订本.txt`
   in the current user's home directory.
 
+### User-directed adult intimacy revision
+
+After reviewing attribution, the user explicitly restored suggestive desire,
+dominance, and dark intimacy between adult characters while requiring preserved
+agency. The revision retains the Production relationship guide's sensory
+implication and dynamic tension, constrains restraint/submission to preserve
+choice and consequence, and supersedes its absolute-submission, forced-intimacy,
+and conquest-as-reward clauses where they conflict with the character bible.
+
+Candidate planning bundle revision 2 therefore permits implication, metaphor, charged
+distance, ritual, wounds, clothing, breath, and interrupted action. Submission
+may be chosen or tactical; dominance must create reciprocal vulnerability; each
+participant retains an independent objective, refusal, bargaining power, and
+consequences. Minors, child-coded characters, and Liya remain outside this scope.
+Gate 1 prose stops before explicit anatomical or step-by-step sexual description.
+
+For Ch25–Ch27 this applies primarily to the adult Kane–Isabella relationship.
+The intelligence and infiltration plot remains controlling: subtext may deepen
+the scene but may not replace inference, evidence, or strategic disagreement.
+The prior failed Writer manifest remains historical evidence and is stale against
+the revised candidate hashes; no new provider attempt has been made.
+
 ## Next Safe Action
 
 Do not start Gate 2 or Phase 5. Gate 1 can resume only on an execution surface
-authorized to process the private Crown context under the same frozen model,
-budget, candidate-only, and receipt contracts, or after a separately approved
+authorized to process the private Crown context under the same model,
+budget, candidate-only, and revised hash-pinned contracts, or after a separately approved
 local-model calibration plan is established. Preserve this blocked receipt and
 resume from Ch25; no candidate work needs rollback.
