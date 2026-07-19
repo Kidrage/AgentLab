@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import shutil
 import sys
+import hashlib
 from pathlib import Path
 
 import yaml
 import pytest
+
+from agent_runtime.narrative.candidates.manifest import (
+    create_candidate_set,
+    freeze_candidate_set,
+    validate_candidate_set,
+)
+from agent_runtime.narrative.candidates.promotion import promote_candidate_set
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
@@ -444,3 +452,278 @@ def test_governance_migration_proposal_is_review_first(tmp_path: Path) -> None:
     assert applied["applied"] is True
     assert (run_dir / "change_request.yml").exists()
     assert (run_dir / "state_transition_proposal.yml").exists()
+
+
+def test_frozen_candidate_set_detects_any_chapter_hash_change(tmp_path: Path) -> None:
+    project_root = tmp_path / "projects" / "Novel"
+    artifact = project_root / "candidates" / "raw" / "chapter_001.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("original candidate\n", encoding="utf-8")
+    manifest = create_candidate_set(
+        project_root,
+        candidate_set_id="candidate-set-001",
+        created_at="2026-01-01T00:00:00+00:00",
+        canon_snapshot_sha256="canon-sha",
+        scorecard_version=1,
+        chapters=[
+            {
+                "chapter_id": 1,
+                "artifact_path": "candidates/raw/chapter_001.md",
+                "source_run_id": "run-ch001",
+                "source_model": "writer-model",
+                "model_tier": "final",
+                "context_manifest_sha256": "context-sha",
+                "predecessor_chapter_sha256": None,
+                "generation_receipt": "receipts/generation-ch001.yml",
+                "correctness_audit": "receipts/correctness-ch001.yml",
+                "literary_audit": "receipts/literary-ch001.yml",
+                "cost_receipt": "receipts/cost-ch001.yml",
+            }
+        ],
+    )
+    frozen = freeze_candidate_set(project_root, Path(manifest["manifest_path"]))
+
+    assert frozen["status"] == "frozen"
+    artifact.write_text("mutated after audit started\n", encoding="utf-8")
+    validation = validate_candidate_set(project_root, Path(manifest["manifest_path"]))
+
+    assert validation["status"] == "stale"
+    assert validation["stale_chapters"] == [1]
+    assert validation["audit_status"] == "stale"
+
+
+def test_first_publication_promotes_hash_bound_candidate_atomically(tmp_path: Path) -> None:
+    project_root = tmp_path / "projects" / "Novel"
+    artifact = project_root / "candidates" / "raw" / "chapter_001.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("first publication candidate\n", encoding="utf-8")
+    artifact_sha = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    receipts = project_root / "receipts"
+    receipts.mkdir()
+    for name in ("generation", "correctness", "literary", "cost"):
+        _write_yaml(
+            receipts / f"{name}-ch001.yml",
+            {
+                "status": "pass",
+                "artifact_sha256": artifact_sha,
+                "blocking_count": 0,
+            },
+        )
+    created = create_candidate_set(
+        project_root,
+        candidate_set_id="candidate-set-first",
+        created_at="2026-01-01T00:00:00+00:00",
+        canon_snapshot_sha256="canon-sha",
+        scorecard_version=1,
+        chapters=[
+            {
+                "chapter_id": 1,
+                "artifact_path": "candidates/raw/chapter_001.md",
+                "source_run_id": "run-ch001",
+                "source_model": "writer-model",
+                "model_tier": "final",
+                "context_manifest_sha256": "context-sha",
+                "predecessor_chapter_sha256": None,
+                "generation_receipt": "receipts/generation-ch001.yml",
+                "correctness_audit": "receipts/correctness-ch001.yml",
+                "literary_audit": "receipts/literary-ch001.yml",
+                "cost_receipt": "receipts/cost-ch001.yml",
+            }
+        ],
+    )
+    frozen = freeze_candidate_set(
+        project_root,
+        Path(created["manifest_path"]),
+        frozen_at="2026-01-01T00:01:00+00:00",
+    )
+    for path in receipts.glob("*.yml"):
+        receipt = yaml.safe_load(path.read_text(encoding="utf-8"))
+        receipt["candidate_set_sha256"] = frozen["candidate_set_sha256"]
+        _write_yaml(path, receipt)
+    approval = receipts / "user-acceptance.yml"
+    _write_yaml(
+        approval,
+        {
+            "status": "accepted",
+            "candidate_set_id": "candidate-set-first",
+            "candidate_set_sha256": frozen["candidate_set_sha256"],
+            "accepted_by": "user",
+        },
+    )
+
+    result = promote_candidate_set(
+        project_root,
+        manifest_path=Path(created["manifest_path"]),
+        user_acceptance_receipt=approval,
+        edition_id="edition-001",
+        release_slot="main",
+        promoted_at="2026-01-01T00:02:00+00:00",
+    )
+
+    assert result["status"] == "promoted"
+    assert result["first_publication"] is True
+    production = project_root / "production" / "editions" / "edition-001"
+    assert (production / "chapter_001.md").read_text(encoding="utf-8") == (
+        "first publication candidate\n"
+    )
+    index = yaml.safe_load(
+        (project_root / "project_artifact_index.yml").read_text(encoding="utf-8")
+    )
+    assert index["current_release"]["edition_id"] == "edition-001"
+
+
+def test_failed_promotion_keeps_existing_production_unchanged(tmp_path: Path) -> None:
+    project_root = tmp_path / "projects" / "Novel"
+    existing = project_root / "production" / "editions" / "edition-current"
+    existing.mkdir(parents=True)
+    (existing / "chapter_001.md").write_text("current production\n", encoding="utf-8")
+    _write_yaml(
+        project_root / "project_artifact_index.yml",
+        {
+            "schema_version": 1,
+            "current_release": {
+                "release_slot": "main",
+                "edition_id": "edition-current",
+                "chapter_ids": [1],
+            },
+            "releases": [],
+        },
+    )
+    before_index = (project_root / "project_artifact_index.yml").read_bytes()
+    before_production = (existing / "chapter_001.md").read_bytes()
+    candidate = project_root / "candidates" / "raw" / "chapter_001.md"
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text("unapproved candidate\n", encoding="utf-8")
+    created = create_candidate_set(
+        project_root,
+        candidate_set_id="candidate-set-stale-approval",
+        created_at="2026-01-01T00:00:00+00:00",
+        canon_snapshot_sha256="canon-sha",
+        scorecard_version=1,
+        chapters=[
+            {
+                "chapter_id": 1,
+                "artifact_path": "candidates/raw/chapter_001.md",
+                "source_run_id": "run-ch001",
+                "source_model": "writer-model",
+                "model_tier": "final",
+                "context_manifest_sha256": "context-sha",
+                "predecessor_chapter_sha256": None,
+                "generation_receipt": "receipts/generation.yml",
+                "correctness_audit": "receipts/correctness.yml",
+                "literary_audit": "receipts/literary.yml",
+                "cost_receipt": "receipts/cost.yml",
+            }
+        ],
+    )
+    freeze_candidate_set(
+        project_root,
+        Path(created["manifest_path"]),
+        frozen_at="2026-01-01T00:01:00+00:00",
+    )
+    approval = project_root / "receipts" / "stale-approval.yml"
+    approval.parent.mkdir()
+    _write_yaml(
+        approval,
+        {
+            "status": "accepted",
+            "candidate_set_id": "candidate-set-stale-approval",
+            "candidate_set_sha256": "old-candidate-set-hash",
+        },
+    )
+
+    with pytest.raises(ValueError, match="stale user acceptance receipt"):
+        promote_candidate_set(
+            project_root,
+            manifest_path=Path(created["manifest_path"]),
+            user_acceptance_receipt=approval,
+            edition_id="edition-rejected",
+            release_slot="main",
+            promoted_at="2026-01-01T00:02:00+00:00",
+        )
+
+    assert (project_root / "project_artifact_index.yml").read_bytes() == before_index
+    assert (existing / "chapter_001.md").read_bytes() == before_production
+    assert not (project_root / "production" / "editions" / "edition-rejected").exists()
+
+
+def test_index_write_failure_rolls_back_staged_production(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import agent_runtime.narrative.candidates.promotion as promotion_module
+
+    project_root = tmp_path / "projects" / "Novel"
+    artifact = project_root / "candidates" / "raw" / "chapter_001.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("candidate\n", encoding="utf-8")
+    artifact_sha = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    receipts = project_root / "receipts"
+    receipts.mkdir()
+    created = create_candidate_set(
+        project_root,
+        candidate_set_id="candidate-set-atomic",
+        created_at="2026-01-01T00:00:00+00:00",
+        canon_snapshot_sha256="canon-sha",
+        scorecard_version=1,
+        chapters=[
+            {
+                "chapter_id": 1,
+                "artifact_path": "candidates/raw/chapter_001.md",
+                "source_run_id": "run-ch001",
+                "source_model": "writer-model",
+                "model_tier": "final",
+                "context_manifest_sha256": "context-sha",
+                "predecessor_chapter_sha256": None,
+                "generation_receipt": "receipts/generation.yml",
+                "correctness_audit": "receipts/correctness.yml",
+                "literary_audit": "receipts/literary.yml",
+                "cost_receipt": "receipts/cost.yml",
+            }
+        ],
+    )
+    frozen = freeze_candidate_set(
+        project_root,
+        Path(created["manifest_path"]),
+        frozen_at="2026-01-01T00:01:00+00:00",
+    )
+    for name in ("generation", "correctness", "literary", "cost"):
+        _write_yaml(
+            receipts / f"{name}.yml",
+            {
+                "status": "pass",
+                "candidate_set_sha256": frozen["candidate_set_sha256"],
+                "artifact_sha256": artifact_sha,
+                "blocking_count": 0,
+            },
+        )
+    approval = receipts / "approval.yml"
+    _write_yaml(
+        approval,
+        {
+            "status": "accepted",
+            "candidate_set_id": "candidate-set-atomic",
+            "candidate_set_sha256": frozen["candidate_set_sha256"],
+        },
+    )
+    real_write = promotion_module.atomic_write_yaml
+
+    def fail_index_write(path: Path, data: dict) -> None:
+        if Path(path).name == "project_artifact_index.yml":
+            raise OSError("simulated index interruption")
+        real_write(path, data)
+
+    monkeypatch.setattr(promotion_module, "atomic_write_yaml", fail_index_write)
+
+    with pytest.raises(OSError, match="simulated index interruption"):
+        promote_candidate_set(
+            project_root,
+            manifest_path=Path(created["manifest_path"]),
+            user_acceptance_receipt=approval,
+            edition_id="edition-atomic",
+            release_slot="main",
+            promoted_at="2026-01-01T00:02:00+00:00",
+        )
+
+    assert not (project_root / "production" / "editions" / "edition-atomic").exists()
+    assert not (project_root / "project_artifact_index.yml").exists()

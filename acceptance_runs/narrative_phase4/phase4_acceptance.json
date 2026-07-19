@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "phase": 4,
+  "status": "mechanism_complete_real_promotion_blocked",
+  "candidate_only": true,
+  "production_modified": false,
+  "implemented_behaviors": [
+    "immutable_candidate_set_manifest",
+    "chapter_and_manifest_hash_binding",
+    "audit_stale_on_artifact_change",
+    "exact_candidate_user_acceptance",
+    "correctness_and_literary_zero_blocking_gate",
+    "final_model_tier_gate",
+    "first_publication_when_no_current_release",
+    "release_uniqueness_by_slot_chapter_edition",
+    "staged_atomic_index_switch",
+    "rollback_on_index_write_interruption"
+  ],
+  "verification": {
+    "focused_and_affected_tests": "71 passed",
+    "ruff_new_modules": "pass",
+    "git_diff_check": "pass"
+  },
+  "real_promotion_executed": false,
+  "phase5_gate": {
+    "allowed": false,
+    "reasons": [
+      "phase0_provider_backed_gate_not_passed",
+      "phase3_positive_calibration_missing",
+      "phase3_human_blind_review_not_passed"
+    ]
+  }
+}

@@ -452,7 +452,7 @@ Status: `MECHANISM COMPLETE / LIVE QUALITY GATE BLOCKED ON USER SAMPLES AND HUMA
 
 ### Phase 4 — immutable Candidate Sets and atomic promotion
 
-Status: `IN PROGRESS / SAFETY MECHANISMS AUTHORIZED; REAL PROMOTION REMAINS BLOCKED`.
+Status: `MECHANISM COMPLETE / REAL PROMOTION BLOCKED BY UPSTREAM LIVE QUALITY GATES`.
 
 - Freeze Candidate Set manifests when audit starts; any chapter hash change makes
   related audits stale and creates lineage to a new set.
@@ -465,7 +465,7 @@ Status: `IN PROGRESS / SAFETY MECHANISMS AUTHORIZED; REAL PROMOTION REMAINS BLOC
 
 ### Phase 5 — generic background core, workbench, reader, and release package
 
-Status: `NOT STARTED / ONLY AFTER PHASES 0–4 PASS`.
+Status: `NOT STARTED / HARD-GATE BLOCKED: PHASES 0 AND 3 HAVE UNMET LIVE ACCEPTANCE`.
 
 - Separate a generic job registry, global queue, capacity arbitration, leases,
   fencing, deadlines, retry wait, supervisor recovery, idempotent seal, and
@@ -512,6 +512,8 @@ without a progress row.
 | 2026-07-19 | Codex | Phase 3 quality closure | in_progress | Implement six-dimension evidence scorecards, scene-level revision contracts, local rewrite selection, anonymous A/B and regression-aware replacement | start from forthcoming Phase 2 commit; revert forthcoming Phase 3 commit independently | Positive calibration and 10-pair human 70% win gate remain blocked on user samples; do not claim uplift |
 | 2026-07-19 | Codex | Phase 3 quality closure | completed_mechanism_live_gate_blocked | Added evidence-required six-dimension scorecards and vetoes, scene-level contracts, local preservation, deterministic/independent review, blind A/B selection, regression blocking, uplift receipts, and immutable Ch26/Ch30 calibration; affected regression 158 passed; Production unchanged | acceptance: `docs/narrative/NARRATIVE_PHASE3_ACCEPTANCE.md`, `acceptance_runs/narrative_phase3/phase3_acceptance.json`, calibration manifest under `acceptance_runs/narrative_quality/` | Cannot claim literary uplift until user supplies 3–5 positives and 10 human blind pairs reach 70% wins |
 | 2026-07-19 | Codex | Phase 4 Candidate Set and promotion | in_progress | Implement immutable hash-bound Candidate Sets, stale-audit invalidation, matching acceptance receipts, first-publication semantics, and atomic promotion rollback | start from forthcoming Phase 3 commit; revert forthcoming Phase 4 commit independently | Do not execute real promotion; Phase 3 quality gate is blocked |
+| 2026-07-19 | Codex | Phase 4 Candidate Set and promotion | completed_mechanism_live_gate_blocked | Added immutable manifests, artifact/audit/approval hash binding, stale invalidation, first-publication semantics, final-tier and zero-blocking checks, staged editions, atomic index switching and interruption rollback; affected regression 71 passed; no real promotion | acceptance: `docs/narrative/NARRATIVE_PHASE4_ACCEPTANCE.md` and `acceptance_runs/narrative_phase4/phase4_acceptance.json`; revert forthcoming Phase 4 commit | Phase 5 may not start: Phase 0 provider trial and Phase 3 positive/human gates remain unmet |
+| 2026-07-19 | Codex | Phase 5 productization | blocked_not_started | No code changes: the plan explicitly permits Phase 5 only after Phases 0–4 pass | none | Requires governed 3-chapter live gate, 3–5 user positives, and 10 human blind pairs with at least 70% wins |
 
 ## Stop conditions and immediate next actions
 
