@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-19T04:01:02.640094+00:00`
+- Generated at: `2026-07-19T04:14:08.920857+00:00`
 
 ## Current State
 
 - Branch: `feature/narrative-production-closure`
-- HEAD: `047e1e6`
+- HEAD: `e3f9dc8`
 - Indexed paths: 1832
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -89,7 +89,7 @@
 ### Categories
 
 - code: 904 files, 7286273 bytes
-- literature: 394 files, 2120086 bytes
+- literature: 394 files, 2126662 bytes
 - other: 12 files, 74102 bytes
 - structured_data: 522 files, 2976192 bytes
 
@@ -230,6 +230,7 @@
 
 ## Change History
 
+- `e3f9dc8 2026-07-19 fix(narrative): harden phase 0 evidence`
 - `047e1e6 2026-07-19 feat(narrative): establish phase 0 diagnostic baseline`
 - `8456bc6 2026-07-18 refactor: prune AgentLab workflow governance`
 - `2239ad7 2026-07-18 fix: delay transient background provider retries`
@@ -249,32 +250,10 @@
 - `6570d25 2026-07-13 fix: keep 250 activation on Agy OAuth`
 - `49925d4 2026-07-13 fix: block repeated narrative passages`
 - `78f2a8d 2026-07-13 fix: bind narrative audit roles to CLI workers`
-- `d8afaa5 2026-07-13 test: consolidate fragmented M2 coverage`
 
 ## Current Changes
 
 - `## feature/narrative-production-closure`
-- ` M PROJECT_HANDOFF.md`
-- ` M acceptance_runs/narrative_efficiency/baseline_metrics.json`
-- ` M acceptance_runs/narrative_efficiency/frozen_samples.yml`
-- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/chapter_quality_matrix.yml`
-- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/live_execution_log.yml`
-- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/live_generation_error.yml`
-- ` M acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/live_trial_receipt.json`
-- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/longform_eval_report.yml`
-- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/model_execution_chain_writer.yml`
-- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/model_execution_receipt_writer_writer_6b3f6541fe8c.yml`
-- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/narrative_invocations.jsonl`
-- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/outbound_context_manifest_writer.yml`
-- ` M acceptance_runs/stabilization/text_integrity_audit.json`
-- ` M acceptance_runs/stabilization/text_integrity_audit.md`
-- ` M agent_runtime/agent_runner.py`
-- ` M agent_runtime/narrative/diagnostics/baseline.py`
-- ` M agent_runtime/narrative/diagnostics/telemetry.py`
-- ` M docs/narrative/NARRATIVE_CALL_GRAPH.md`
-- ` M docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md`
-- ` M docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md`
-- ` M tests/test_narrative_efficiency.py`
 
 ## Related Repositories
 
@@ -524,7 +503,7 @@ without a progress row.
 |---|---|---|---|---|---|---|
 | 2026-07-19 | Codex | Phase 0 baseline | completed | Added opt-in invocation telemetry, frozen historical baseline, call graph, diagnosis, deterministic red replays; initial local suite 2,739 passed | `047e1e6` on `feature/narrative-production-closure`; revert commit to roll back | CI exposed one absolute-path integrity failure; review hardening followed |
 | 2026-07-19 | Codex | Phase 0 review hardening | completed | Corrected timing semantics, added persisted queue-wait measurement, path normalization, measured safety, attribution, and distilled-only live receipt; focused 133 passed, full 2,741 passed / 2 skipped / 11 warnings; standards and spec verification both clear | dirty worktree after `047e1e6`; revert forthcoming correction commit to roll back | Commit/push feature branch, verify CI, sync Truenas; live Ch25–27 still requires explicit disclosure approval |
-| 2026-07-19 | Codex | Phase 0 delivery | in_progress | Root handoff refreshed as highest-priority Phase 0–5 authority; text integrity, Ruff, diff check, and repository hygiene pass | pending correction commit on `feature/narrative-production-closure` | Commit/push feature branch, verify remote hash and CI, sync distilled evidence/session summary to Truenas, then pause |
+| 2026-07-19 | Codex | Phase 0 delivery | completed | Root handoff is the highest-priority Phase 0–5 authority; local full suite 2,741 passed; GitHub CI `29672851321` passed every gate; Truenas reports/evidence/session/state hashes match local | implementation `e3f9dc8` on `feature/narrative-production-closure`; revert that commit to roll back review hardening | Pause: live Ch25–27 disclosure, 3–5 positive samples, and separate Phase 1 authorization remain user decisions |
 
 ## Stop conditions and immediate next actions
 
@@ -533,9 +512,8 @@ this handoff, Production must change, safety tests must be weakened, non-narrati
 work cannot be isolated, central modules would grow materially, two rewrites fail,
 or positive samples are missing while someone is about to claim literary uplift.
 
-Immediate sequence: finalize the Phase 0 corrective diff; rerun standards/spec
-review; commit and push only the feature branch; verify CI; sync distilled evidence
-and session state to Truenas; then stop for (1) explicit Ch25–27 external disclosure
+Phase 0 delivery is complete through implementation `e3f9dc8`, green GitHub CI,
+and hash-verified Truenas sync. Stop for (1) explicit Ch25–27 external disclosure
 approval, (2) 3–5 user-positive samples, and (3) separate Phase 1 authorization.
 <!-- AGENT_NOTES_END -->
 
