@@ -23,11 +23,18 @@ from agent_runtime.atomic_io import (
     atomic_write_yaml,
     safe_read_yaml,
 )
+from agent_runtime.narrative.jobs.identity import (
+    NarrativeJobIdentity,
+    lease_expiry,
+)
+from agent_runtime.narrative.jobs.crown_adapter import upgrade_crown_job_state
+from agent_runtime.narrative.audit.gate import SealDecision, evaluate_narrative_seal
+from agent_runtime.narrative.jobs.lifecycle import next_after_heavy_audit, record_audit_batch_result
 
 
-SCHEMA_VERSION = 1
-TERMINAL_STATES = {"completed", "blocked"}
-CONTROLLER_STOP_STATES = {"paused"}
+SCHEMA_VERSION = 2
+TERMINAL_STATES = {"completed", "completed_clean", "completed_with_findings", "blocked"}
+CONTROLLER_STOP_STATES = {"paused", "decision_required"}
 ACTION_RUNNING_STATE = {
     "preflight": "preflight",
     "generate_batch": "generating_batch",
@@ -84,7 +91,7 @@ def load_job_state(root: Path, project: str, job_id: str) -> dict[str, Any]:
     state = safe_read_yaml(path)
     if not isinstance(state, dict):
         raise FileNotFoundError(path)
-    return state
+    return upgrade_crown_job_state(state)
 
 
 def _save_state(
@@ -154,6 +161,11 @@ def create_crown_delivery_job(
     suite: str = "crown-longform-reset-v1",
     max_retries_per_action: int = 3,
     transient_retry_seconds: int = 900,
+    attempt_lease_seconds: int = 3600,
+    candidate_set_id: str | None = None,
+    source_job_id: str | None = None,
+    source_run_id: str | None = None,
+    triggered_by_audit_id: str | None = None,
     now: str | None = None,
 ) -> dict[str, Any]:
     """Create one project-scoped, candidate-only Crown delivery job."""
@@ -168,6 +180,8 @@ def create_crown_delivery_job(
         raise ValueError("max retries must not be negative")
     if transient_retry_seconds < 1:
         raise ValueError("transient retry seconds must be positive")
+    if attempt_lease_seconds < 1:
+        raise ValueError("attempt lease seconds must be positive")
     project_root = Path(root) / "projects" / project
     if not project_root.is_dir():
         raise FileNotFoundError(project_root)
@@ -176,10 +190,19 @@ def create_crown_delivery_job(
         raise FileExistsError(directory)
     directory.mkdir(parents=True)
     recorded_at = _now(now)
+    identity = NarrativeJobIdentity(
+        job_kind="narrative_generation",
+        run_mode="generate_candidate",
+        candidate_set_id=candidate_set_id,
+        source_job_id=source_job_id,
+        source_run_id=source_run_id,
+        triggered_by_audit_id=triggered_by_audit_id,
+    )
     state: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "job_id": job_id,
         "job_type": "crown_narrative_delivery",
+        **identity.to_dict(),
         "project": project,
         "status": "queued",
         "revision": 1,
@@ -200,6 +223,9 @@ def create_crown_delivery_job(
             "writer_budget": writer_budget,
             "max_retries_per_action": max_retries_per_action,
             "transient_retry_seconds": transient_retry_seconds,
+            "attempt_lease_seconds": attempt_lease_seconds,
+            "required_audits": ["fiction_review", "continuity_failure_report"],
+            "narrative_adapter": "crown",
             "allow_writer_cli_fallback": False,
         },
         "current_batch": _initial_batch(start_chapter, end_chapter, batch_size),
@@ -210,6 +236,10 @@ def create_crown_delivery_job(
         "retry_counts": {},
         "retry_action": None,
         "last_action_results": {},
+        "automatic_rewrite_count": 0,
+        "automatic_rewrite_exhausted": False,
+        "decision_reason": None,
+        "independent_reaudit_required": False,
         "capacity_reset_at": None,
         "capacity_resume_count": 0,
         "retry_at": None,
@@ -263,6 +293,10 @@ def _advance_sealed_batch(state: dict[str, Any]) -> None:
         "start": start,
         "end": min(int(config["end_chapter"]), start + int(config["batch_size"]) - 1),
     }
+    state["automatic_rewrite_count"] = 0
+    state["automatic_rewrite_exhausted"] = False
+    state["decision_reason"] = None
+    state["independent_reaudit_required"] = False
     state["status"] = "queued"
 
 
@@ -298,20 +332,52 @@ def _attempt_request(
     attempt_id: str,
     idempotency_key: str,
     now: str,
+    lease_token: str,
+    lease_expires_at: str,
 ) -> dict[str, Any]:
+    parent_identity = NarrativeJobIdentity.from_mapping(state)
+    prior_audit = (state.get("last_action_results") or {}).get("heavy_audit") or {}
+    if action == "rewrite_batch":
+        identity = NarrativeJobIdentity(
+            "narrative_revision",
+            "targeted_rewrite",
+            candidate_set_id=parent_identity.candidate_set_id,
+            source_job_id=str(state["job_id"]),
+            source_run_id=str(prior_audit.get("run_dir")) if prior_audit.get("run_dir") else None,
+            triggered_by_audit_id=str(prior_audit.get("task_id")) if prior_audit.get("task_id") else None,
+        )
+    elif action == "heavy_audit" and state.get("job_kind") != "narrative_audit":
+        identity = NarrativeJobIdentity(
+            "narrative_audit",
+            "independent_reaudit"
+            if state.get("independent_reaudit_required")
+            else "audit_only",
+            candidate_set_id=parent_identity.candidate_set_id,
+            source_job_id=str(state["job_id"]),
+            source_run_id=str(prior_audit.get("run_dir")) if prior_audit.get("run_dir") else None,
+            triggered_by_audit_id=str(prior_audit.get("task_id")) if prior_audit.get("task_id") else None,
+        )
+    else:
+        identity = parent_identity
+    identity = identity.for_attempt(attempt_id=attempt_id, lease_token=lease_token)
     return {
         "schema_version": SCHEMA_VERSION,
         "job_id": state["job_id"],
         "project": state["project"],
+        "parent_job_kind": parent_identity.job_kind,
+        "parent_run_mode": parent_identity.run_mode,
         "attempt_id": attempt_id,
+        **identity.to_dict(),
         "idempotency_key": idempotency_key,
         "action": action,
         "scheduled_at": now,
+        "lease_expires_at": lease_expires_at,
         "candidate_only": True,
         "production_allowed": False,
         "batch": dict(state["current_batch"]),
         "config": dict(state["config"]),
         "prior_results": dict(state.get("last_action_results") or {}),
+        "require_independent_reaudit": bool(state.get("independent_reaudit_required")),
         "agentlab_root": str(Path(root).resolve()),
     }
 
@@ -348,6 +414,11 @@ def schedule_next_attempt(
     sequence = int(state.get("attempt_sequence", 0)) + 1
     attempt_id = f"attempt-{sequence:04d}-{action.replace('_', '-')}"
     idempotency_key = f"{job_id}:{attempt_id}"
+    lease_token = f"{job_id}:lease-{sequence:04d}"
+    lease_expires_at = lease_expiry(
+        timestamp,
+        int(state.get("config", {}).get("attempt_lease_seconds") or 3600),
+    )
     attempt_dir = job_dir(root, project, job_id) / "attempts" / attempt_id
     request_path = attempt_dir / "action_request.yml"
     request = _attempt_request(
@@ -357,11 +428,15 @@ def schedule_next_attempt(
         attempt_id=attempt_id,
         idempotency_key=idempotency_key,
         now=timestamp,
+        lease_token=lease_token,
+        lease_expires_at=lease_expires_at,
     )
     atomic_write_yaml(request_path, request)
     active = {
         "attempt_id": attempt_id,
         "idempotency_key": idempotency_key,
+        "lease_token": lease_token,
+        "lease_expires_at": lease_expires_at,
         "action": action,
         "scheduled_at": timestamp,
         "worker_pid": None,
@@ -369,6 +444,8 @@ def schedule_next_attempt(
         "action_request_path": str(request_path),
     }
     state["attempt_sequence"] = sequence
+    state["attempt_id"] = attempt_id
+    state["lease_token"] = lease_token
     state["active_attempt"] = active
     state["status"] = ACTION_RUNNING_STATE[action]
     _save_state(root, project, job_id, state, now=timestamp)
@@ -426,6 +503,7 @@ def write_process_receipt(
     job_id: str,
     attempt_id: str,
     idempotency_key: str,
+    lease_token: str,
     outcome: str,
     exit_code: int,
     result: dict[str, Any],
@@ -449,6 +527,7 @@ def write_process_receipt(
         "project": project,
         "attempt_id": attempt_id,
         "idempotency_key": idempotency_key,
+        "lease_token": lease_token,
         "outcome": outcome,
         "exit_code": int(exit_code),
         "completed_at": _now(now),
@@ -464,15 +543,6 @@ def write_process_receipt(
         return path
     atomic_write_yaml(path, payload)
     return path
-
-
-def _requires_heavy_audit(state: dict[str, Any]) -> bool:
-    end = int(state["current_batch"]["end"])
-    config = state["config"]
-    return (
-        end >= int(config["end_chapter"])
-        or end % int(config["heavy_audit_cadence"]) == 0
-    )
 
 
 def _seal_current_batch(state: dict[str, Any], now: str) -> None:
@@ -495,20 +565,90 @@ def _successful_transition(state: dict[str, Any], action: str, result: dict[str,
     elif action == "generate_batch":
         state["status"] = "deterministic_check"
     elif action == "deterministic_check":
-        state["status"] = (
-            "awaiting_heavy_audit" if _requires_heavy_audit(state) else "batch_sealed"
-        )
-        if state["status"] == "batch_sealed":
-            _seal_current_batch(state, now)
+        state["status"] = "awaiting_heavy_audit"
     elif action == "heavy_audit":
-        if bool(result.get("requires_rewrite")):
-            state["status"] = "rewrite_required"
-        else:
+        decision = evaluate_narrative_seal(
+            fiction_review=result.get("fiction_review") if isinstance(result.get("fiction_review"), dict) else None,
+            continuity_failure_report=(
+                result.get("continuity_failure_report_data")
+                if isinstance(result.get("continuity_failure_report_data"), dict)
+                else result.get("continuity_failure_report")
+                if isinstance(result.get("continuity_failure_report"), dict)
+                else None
+            ),
+            narrative_quality_scorecard=(
+                result.get("narrative_quality_scorecard")
+                if isinstance(result.get("narrative_quality_scorecard"), dict)
+                else None
+            ),
+            candidate_sha256=str(result.get("candidate_sha256"))
+            if result.get("candidate_sha256")
+            else None,
+            audit_source_integrity=(
+                result.get("audit_source_integrity")
+                if isinstance(result.get("audit_source_integrity"), dict)
+                else None
+            ),
+            required_audits=tuple(
+                str(item)
+                for item in state.get("config", {}).get(
+                    "required_audits",
+                    ["fiction_review", "continuity_failure_report"],
+                )
+            ),
+            require_independent_reaudit=bool(state.get("independent_reaudit_required")),
+            independent_reaudit=(
+                result.get("independent_reaudit")
+                if isinstance(result.get("independent_reaudit"), dict)
+                else None
+            ),
+        ).to_dict()
+        transition = next_after_heavy_audit(
+            job_kind=str(state.get("job_kind") or ""),
+            decision=SealDecision.from_mapping(decision),
+            automatic_rewrite_count=int(state.get("automatic_rewrite_count") or 0),
+        )
+        if state.get("job_kind") == "narrative_audit":
+            findings: list[dict[str, Any]] = []
+            for document_name in (
+                "fiction_review",
+                "continuity_failure_report_data",
+                "narrative_quality_scorecard",
+            ):
+                document = result.get(document_name)
+                if not isinstance(document, dict):
+                    continue
+                for key in ("findings", "failures"):
+                    for finding in document.get(key) or []:
+                        findings.append(
+                            {
+                                "audit": document_name,
+                                "finding": finding,
+                            }
+                        )
+            record_audit_batch_result(
+                state,
+                decision=SealDecision.from_mapping(decision),
+                findings=findings,
+                now=now,
+            )
+            return
+        if transition.seal_candidate:
             _seal_current_batch(state, now)
+            state["independent_reaudit_required"] = False
+        else:
+            state["status"] = transition.status
+        state["automatic_rewrite_exhausted"] = transition.automatic_rewrite_exhausted
+        if transition.reason:
+            state["decision_reason"] = transition.reason
+            if transition.status == "blocked":
+                state["last_error"] = transition.reason
     elif action == "rewrite_batch":
+        state["automatic_rewrite_count"] = int(state.get("automatic_rewrite_count") or 0) + 1
         state["status"] = "deterministic_reaudit"
     elif action == "deterministic_reaudit":
-        _seal_current_batch(state, now)
+        state["independent_reaudit_required"] = True
+        state["status"] = "awaiting_heavy_audit"
     elif action == "final_acceptance":
         state["status"] = "completed"
 
@@ -521,7 +661,7 @@ def _ensure_completion_receipt(
     *,
     now: str,
 ) -> Path | None:
-    if state.get("status") != "completed":
+    if state.get("status") not in {"completed", "completed_clean", "completed_with_findings"}:
         return None
     path = job_dir(root, project, job_id) / "completion_receipt.yml"
     if not path.exists():
@@ -531,7 +671,7 @@ def _ensure_completion_receipt(
                 "schema_version": SCHEMA_VERSION,
                 "job_id": job_id,
                 "project": project,
-                "status": "completed",
+                "status": state["status"],
                 "completed_at": now,
                 "candidate_only": True,
                 "production_modified": False,
@@ -540,6 +680,8 @@ def _ensure_completion_receipt(
                     state["config"]["end_chapter"],
                 ],
                 "sealed_batches": state.get("sealed_batches", []),
+                "audited_batches": state.get("audited_batches", []),
+                "findings": state.get("findings", []),
                 "processed_receipt_keys": state.get("processed_receipt_keys", []),
             },
         )
@@ -563,7 +705,7 @@ def _ensure_terminal_feedback(
     if isinstance(existing, dict) and existing.get("status") in {"pass", "warn"}:
         return path
 
-    event = "COMPLETED" if status == "completed" else "BLOCKED"
+    event = "COMPLETED" if status.startswith("completed") else "BLOCKED"
     feedback_id = f"{job_id}:{status}"
     receipt: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -640,6 +782,12 @@ def consume_process_receipt(
     key = str(receipt.get("idempotency_key") or "")
     if key != active.get("idempotency_key"):
         raise ValueError("receipt idempotency key does not match active attempt")
+    if receipt.get("lease_token") != active.get("lease_token"):
+        raise ValueError("receipt lease token does not match active attempt")
+    if _parse_timestamp(str(receipt.get("completed_at") or "")) > _parse_timestamp(
+        str(active.get("lease_expires_at") or "")
+    ):
+        raise ValueError("receipt arrived after attempt lease expired")
     if key in state.get("processed_receipt_keys", []):
         return state
 
@@ -749,6 +897,7 @@ def recover_orphaned_attempt(
         job_id=job_id,
         attempt_id=active["attempt_id"],
         idempotency_key=active["idempotency_key"],
+        lease_token=active["lease_token"],
         outcome="failed_recoverable",
         exit_code=1,
         result={"status": "failed", "reason": "worker_exited_without_receipt"},

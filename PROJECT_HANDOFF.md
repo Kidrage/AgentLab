@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-19T04:14:08.920857+00:00`
+- Generated at: `2026-07-19T05:15:07.497792+00:00`
 
 ## Current State
 
 - Branch: `feature/narrative-production-closure`
-- HEAD: `e3f9dc8`
-- Indexed paths: 1832
+- HEAD: `69b3a2a`
+- Indexed paths: 1846
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,10 +43,10 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 523 |
-| `tests` | 441 |
-| `docs` | 310 |
-| `acceptance_runs` | 300 |
+| `agent_runtime` | 531 |
+| `tests` | 445 |
+| `docs` | 311 |
+| `acceptance_runs` | 301 |
 | `docs/archive` | 222 |
 | `config` | 122 |
 | `tests/fixtures` | 110 |
@@ -71,6 +71,7 @@
 | `agent_runtime/config_center` | 13 |
 | `acceptance_runs/p2_closure` | 12 |
 | `agent_runtime/goals` | 12 |
+| `agent_runtime/narrative` | 12 |
 | `agent_runtime/brain` | 11 |
 | `agent_runtime/capability_broker` | 11 |
 | `agent_runtime/costs` | 11 |
@@ -82,24 +83,23 @@
 | `agent_runtime/intelligence` | 10 |
 | `agent_runtime/router_update` | 10 |
 | `acceptance_runs/s12_productization` | 9 |
-| `agent_runtime/control_panel` | 9 |
 
 ## Data and File Structure
 
 ### Categories
 
-- code: 904 files, 7286273 bytes
-- literature: 394 files, 2126662 bytes
+- code: 916 files, 7355055 bytes
+- literature: 395 files, 2133479 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 522 files, 2976192 bytes
+- structured_data: 523 files, 2977371 bytes
 
 ### Common Extensions
 
-- `.py`: 891
+- `.py`: 903
 - `.yml`: 500
-- `.md`: 355
+- `.md`: 356
 - `.txt`: 39
-- `.json`: 17
+- `.json`: 18
 - `.sh`: 8
 - `[no extension]`: 5
 - `.js`: 5
@@ -230,6 +230,7 @@
 
 ## Change History
 
+- `69b3a2a 2026-07-19 docs(handoff): prioritize narrative closure plan`
 - `e3f9dc8 2026-07-19 fix(narrative): harden phase 0 evidence`
 - `047e1e6 2026-07-19 feat(narrative): establish phase 0 diagnostic baseline`
 - `8456bc6 2026-07-18 refactor: prune AgentLab workflow governance`
@@ -249,11 +250,26 @@
 - `19fc00b 2026-07-13 fix: normalize relationship candidate event scope`
 - `6570d25 2026-07-13 fix: keep 250 activation on Agy OAuth`
 - `49925d4 2026-07-13 fix: block repeated narrative passages`
-- `78f2a8d 2026-07-13 fix: bind narrative audit roles to CLI workers`
 
 ## Current Changes
 
 - `## feature/narrative-production-closure`
+- ` M PROJECT_HANDOFF.md`
+- ` M agent_runtime/background_job_controller.py`
+- ` M agent_runtime/background_job_worker.py`
+- ` M agent_runtime/brain/mission_contract.py`
+- ` M agent_runtime/cli/background_jobs.py`
+- ` M agent_runtime/narrative_intent.py`
+- ` M tests/test_background_job_controller.py`
+- ` M tests/test_background_job_worker.py`
+- `?? acceptance_runs/narrative_phase1/`
+- `?? agent_runtime/narrative/audit/`
+- `?? agent_runtime/narrative/jobs/`
+- `?? docs/narrative/NARRATIVE_PHASE1_ACCEPTANCE.md`
+- `?? tests/test_narrative_audit_closure.py`
+- `?? tests/test_narrative_background_recovery.py`
+- `?? tests/test_narrative_job_semantics.py`
+- `?? tests/test_narrative_quality_gate.py`
 
 ## Related Repositories
 
@@ -348,9 +364,10 @@
 - Product boundary: AgentLab is the producer, editorial department, version
   controller, and scheduler. A suitable Writer model creates prose. Do not turn
   every chapter into a fixed Supervisor→Writer→Reviewer→Scribe→Verifier meeting.
-- Current execution authorization: finish and harden Phase 0, then pause for an
-  explicit Phase 1 decision. Highest priority does not waive approval, external
-  disclosure, candidate-only, or Production safety gates.
+- Current execution authorization: Phase 1 was explicitly approved and is now
+  deterministically complete. Stop before Phase 2 pending new user authorization.
+  Highest priority does not waive external disclosure, candidate-only, Production
+  safety, or later-phase approval gates.
 
 ## Non-negotiable invariants
 
@@ -380,8 +397,8 @@
 
 ### Phase 0 — reproducible diagnosis and baseline
 
-Status: `IN_PROGRESS / CLOSING`; implementation and review corrections are local,
-but the live three-chapter trial is blocked by external-context approval.
+Status: `MECHANISM COMPLETE / LIVE GATE BLOCKED`; the provider-backed
+three-chapter trial still requires external-context approval.
 
 - Freeze Ch25–27, continuous Ch21–30, negative Ch26/Ch30, and user-positive
   samples. Positives remain `missing_user_samples`; never invent them.
@@ -406,7 +423,7 @@ but the live three-chapter trial is blocked by external-context approval.
 
 ### Phase 1 — durable semantics and fail-closed sealing
 
-Status: `NOT STARTED / USER APPROVAL REQUIRED AFTER PHASE 0`.
+Status: `COMPLETE / DETERMINISTIC ACCEPTANCE PASSED 2026-07-19`.
 
 - Introduce immutable structured job identity and keep audit, generation, and
   revision state machines distinct.
@@ -504,6 +521,8 @@ without a progress row.
 | 2026-07-19 | Codex | Phase 0 baseline | completed | Added opt-in invocation telemetry, frozen historical baseline, call graph, diagnosis, deterministic red replays; initial local suite 2,739 passed | `047e1e6` on `feature/narrative-production-closure`; revert commit to roll back | CI exposed one absolute-path integrity failure; review hardening followed |
 | 2026-07-19 | Codex | Phase 0 review hardening | completed | Corrected timing semantics, added persisted queue-wait measurement, path normalization, measured safety, attribution, and distilled-only live receipt; focused 133 passed, full 2,741 passed / 2 skipped / 11 warnings; standards and spec verification both clear | dirty worktree after `047e1e6`; revert forthcoming correction commit to roll back | Commit/push feature branch, verify CI, sync Truenas; live Ch25–27 still requires explicit disclosure approval |
 | 2026-07-19 | Codex | Phase 0 delivery | completed | Root handoff is the highest-priority Phase 0–5 authority; local full suite 2,741 passed; GitHub CI `29672851321` passed every gate; Truenas reports/evidence/session/state hashes match local | implementation `e3f9dc8` on `feature/narrative-production-closure`; revert that commit to roll back review hardening | Pause: live Ch25–27 disclosure, 3–5 positive samples, and separate Phase 1 authorization remain user decisions |
+| 2026-07-19 | Codex | Phase 1 semantics and seal gate | in_progress | User approved Phase 1; scope is immutable structured job identity, audit/generation/revision separation, canonical fail-closed seal decision, and two-rewrite stop; Production and Phase 2+ remain out of scope | start from `69b3a2a` on `feature/narrative-production-closure`; revert forthcoming Phase 1 commits to roll back | Write one public-behavior test at a time, keep central adapters thin, run full review/CI before completion |
+| 2026-07-19 | Codex | Phase 1 semantics and seal gate | completed | Added contract-driven audit/generation/revision identities, Crown audit adapter, hash-bound fail-closed gate, multi-batch audit findings closure, distinct independent re-audit receipts, lease deadlines, and per-batch two-rewrite stop; focused 169 passed, full 2,773 passed / 2 skipped / 11 warnings; Ruff/diff/compile and independent Standards/Spec reviews clear; `production_modified: false` | dirty worktree after `69b3a2a` on `feature/narrative-production-closure`; revert forthcoming Phase 1 commit to roll back; acceptance: `docs/narrative/NARRATIVE_PHASE1_ACCEPTANCE.md` and `acceptance_runs/narrative_phase1/phase1_acceptance.json` | Stop before Phase 2; request explicit authorization. No live manuscript/provider trial or literary-uplift claim was made |
 
 ## Stop conditions and immediate next actions
 
@@ -512,9 +531,9 @@ this handoff, Production must change, safety tests must be weakened, non-narrati
 work cannot be isolated, central modules would grow materially, two rewrites fail,
 or positive samples are missing while someone is about to claim literary uplift.
 
-Phase 0 delivery is complete through implementation `e3f9dc8`, green GitHub CI,
-and hash-verified Truenas sync. Stop for (1) explicit Ch25–27 external disclosure
-approval, (2) 3–5 user-positive samples, and (3) separate Phase 1 authorization.
+Phase 1 is deterministically complete. Stop before Phase 2 and request explicit
+authorization. The Ch25–27 disclosure decision and 3–5 positive samples remain
+pending and must not be inferred from this completion.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

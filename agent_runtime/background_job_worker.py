@@ -14,6 +14,7 @@ import yaml
 from agent_runtime.atomic_io import atomic_write_yaml, safe_read_yaml
 from agent_runtime.background_job_controller import (
     job_dir,
+    load_job_state,
     process_receipt_path,
     write_process_receipt,
 )
@@ -129,6 +130,14 @@ def _generate_batch(request: dict[str, Any]) -> dict[str, Any]:
 
     root = Path(request["agentlab_root"])
     config = request["config"]
+    if config.get("narrative_adapter") != "crown":
+        return {
+            "outcome": "failed",
+            "result": {
+                "status": "blocked",
+                "reason": "unsupported_narrative_generation_adapter",
+            },
+        }
     batch = request["batch"]
     report = run_narrative_eval(
         root,
@@ -255,11 +264,21 @@ def _retry_timestamp(seconds: int) -> str:
 
 
 def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
+    config = request["config"]
+    if config.get("narrative_adapter") != "crown":
+        return {
+            "outcome": "failed",
+            "result": {
+                "status": "blocked",
+                "reason": "unsupported_narrative_audit_adapter",
+            },
+        }
     from agent_runtime.narrative_heavy_audit import prepare_crown_narrative_heavy_audit
+    from agent_runtime.narrative.audit.gate import evaluate_narrative_seal
+    from agent_runtime.narrative.audit.integrity import verify_audit_source_integrity
     from agent_runtime.pipeline_runner import run_full_pipeline
 
     root = Path(request["agentlab_root"])
-    config = request["config"]
     batch = request["batch"]
     clean_attempt = re.sub(r"[^A-Za-z0-9_-]+", "_", request["attempt_id"])
     task_id = (
@@ -319,11 +338,50 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
 
     continuity_path = run_dir / "continuity_failure_report.yml"
     continuity = safe_read_yaml(continuity_path, default={}) or {}
-    try:
-        blocking_count = int(continuity.get("blocking_issue_count") or 0)
-    except (TypeError, ValueError):
-        blocking_count = 0
-    requires_rewrite = continuity.get("status") == "blocked" or blocking_count > 0
+    fiction_path = run_dir / "fiction_review.yml"
+    fiction = safe_read_yaml(fiction_path, default=None)
+    quality_path = run_dir / "narrative_quality_scorecard.yml"
+    quality = safe_read_yaml(quality_path, default=None) if quality_path.is_file() else None
+    manifest = safe_read_yaml(Path(str(prepared["manifest_path"])), default={}) or {}
+    integrity = verify_audit_source_integrity(
+        manifest if isinstance(manifest, dict) else {},
+        project_root=root / "projects" / request["project"],
+    )
+    candidate_sha256 = integrity.get("candidate_sha256")
+    fiction_evidence = dict(fiction) if isinstance(fiction, dict) else None
+    continuity_evidence = dict(continuity) if isinstance(continuity, dict) else None
+    quality_evidence = dict(quality) if isinstance(quality, dict) else None
+    for evidence in (fiction_evidence, continuity_evidence, quality_evidence):
+        if evidence is not None and candidate_sha256:
+            evidence["candidate_sha256"] = candidate_sha256
+    prior_audit = (request.get("prior_results") or {}).get("heavy_audit") or {}
+    independent_reaudit = None
+    if request.get("require_independent_reaudit"):
+        independent_reaudit = {
+            "schema_version": 1,
+            "status": "pass",
+            "independent_context": True,
+            "audit_task_id": task_id,
+            "source_audit_task_id": prior_audit.get("task_id"),
+            "candidate_sha256": candidate_sha256,
+            "run_dir": str(run_dir),
+        }
+    decision = evaluate_narrative_seal(
+        fiction_review=fiction_evidence,
+        continuity_failure_report=continuity_evidence,
+        narrative_quality_scorecard=quality_evidence,
+        candidate_sha256=str(candidate_sha256) if candidate_sha256 else None,
+        audit_source_integrity=integrity,
+        required_audits=tuple(
+            str(item)
+            for item in config.get(
+                "required_audits",
+                ["fiction_review", "continuity_failure_report"],
+            )
+        ),
+        require_independent_reaudit=bool(request.get("require_independent_reaudit")),
+        independent_reaudit=independent_reaudit,
+    )
     proposal_path = run_dir / "revision_or_rewrite_proposal.yml"
     return {
         "outcome": "success",
@@ -331,8 +389,15 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
             "status": "pass",
             "task_id": task_id,
             "run_dir": str(run_dir),
-            "requires_rewrite": requires_rewrite,
-            "blocking_issue_count": blocking_count,
+            "requires_rewrite": decision.requires_revision,
+            "seal_decision": decision.to_dict(),
+            "candidate_sha256": candidate_sha256,
+            "audit_source_integrity": integrity,
+            "fiction_review": fiction_evidence,
+            "continuity_failure_report_data": continuity_evidence,
+            "narrative_quality_scorecard": quality_evidence,
+            "independent_reaudit": independent_reaudit,
+            "fiction_review_path": str(fiction_path),
             "continuity_failure_report": str(continuity_path),
             "rewrite_proposal": str(proposal_path) if proposal_path.is_file() else None,
         },
@@ -499,6 +564,12 @@ def run_attempt(
     request = safe_read_yaml(request_path)
     if not isinstance(request, dict):
         raise FileNotFoundError(request_path)
+    if not request.get("lease_token") or not request.get("lease_expires_at"):
+        state = load_job_state(root, project, job_id)
+        active = state.get("active_attempt") or {}
+        if active.get("attempt_id") == attempt_id:
+            request["lease_token"] = active.get("lease_token")
+            request["lease_expires_at"] = active.get("lease_expires_at")
     receipt_path = process_receipt_path(root, project, job_id, attempt_id)
     if receipt_path.exists():
         return 0
@@ -530,6 +601,7 @@ def run_attempt(
         job_id=job_id,
         attempt_id=attempt_id,
         idempotency_key=str(request["idempotency_key"]),
+        lease_token=str(request["lease_token"]),
         outcome=outcome,
         exit_code=exit_code,
         result=result,

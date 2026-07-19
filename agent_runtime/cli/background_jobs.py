@@ -8,6 +8,7 @@ from rich.console import Console
 import typer
 import yaml
 
+from agent_runtime.atomic_io import safe_read_yaml
 from agent_runtime.background_job_controller import (
     controller_cycle,
     create_crown_delivery_job,
@@ -17,6 +18,9 @@ from agent_runtime.background_job_controller import (
     retry_blocked_job,
     resume_job,
     run_controller_loop,
+)
+from agent_runtime.narrative.jobs.crown_adapter import (
+    create_crown_audit_job_from_contract,
 )
 
 
@@ -59,6 +63,29 @@ def register_background_job_commands(
             chapter_state_plan=chapter_state_plan,
             writer_budget=writer_budget,
             transient_retry_seconds=transient_retry_seconds,
+        )
+        console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
+
+    @jobs.command("create-crown-audit")
+    def create_crown_audit(
+        mission_contract: Path = typer.Option(..., "--mission-contract"),
+        job_id: str = typer.Option(..., "--job-id"),
+        eval_id: str = typer.Option(..., "--eval-id"),
+        start_chapter: int = typer.Option(..., "--start-chapter", min=1),
+        end_chapter: int = typer.Option(..., "--end-chapter", min=1),
+        batch_size: int = typer.Option(10, "--batch-size", min=1),
+    ) -> None:
+        contract = safe_read_yaml(mission_contract)
+        if not isinstance(contract, dict):
+            raise typer.BadParameter("mission contract must be a YAML mapping")
+        state = create_crown_audit_job_from_contract(
+            agentlab_root,
+            mission_contract=contract,
+            job_id=job_id,
+            eval_id=eval_id,
+            start_chapter=start_chapter,
+            end_chapter=end_chapter,
+            batch_size=batch_size,
         )
         console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
 

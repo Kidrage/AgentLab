@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "phase": 1,
+  "status": "pass_deterministic",
+  "source_base": "69b3a2a0c5833fb94bd3b71c91bf2e248cbaf691",
+  "branch": "feature/narrative-production-closure",
+  "candidate_only": true,
+  "production_modified": false,
+  "provider_calls": 0,
+  "live_trial_run": false,
+  "checks": {
+    "structured_identity": "pass",
+    "audit_only_closure": "pass",
+    "false_green_veto": "pass",
+    "candidate_hash_binding": "pass",
+    "independent_reaudit": "pass",
+    "attempt_lease_deadline": "pass",
+    "per_batch_rewrite_ceiling": "pass",
+    "crown_adapter_isolation": "pass",
+    "central_module_net_addition": 149
+  },
+  "verification": {
+    "focused_pytest": {
+      "passed": 169,
+      "failed": 0
+    },
+    "full_pytest": {
+      "passed": 2773,
+      "skipped": 2,
+      "warnings": 11,
+      "duration_seconds": 214.63
+    },
+    "ruff": "pass",
+    "git_diff_check": "pass",
+    "compileall": "pass",
+    "standards_review": "clear",
+    "spec_review": "clear"
+  },
+  "quality_claim": "not_evaluated_no_literary_uplift_claim",
+  "efficiency_claim": "not_evaluated_phase_2_not_started",
+  "next_gate": "explicit_phase_2_authorization_required"
+}

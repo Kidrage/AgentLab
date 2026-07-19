@@ -52,6 +52,9 @@ def build_mission_contract(
         prompt,
         active_longform_project=_is_active_longform_content_project(project_id, root),
     )
+    from agent_runtime.narrative.jobs.identity import compile_narrative_job_identity
+
+    narrative_job_identity = compile_narrative_job_identity(narrative_intent)
     domain_keywords = load_domain_keywords(root / "config" / "mission_compiler_v2.yml")
     domain = _validated_legacy_domain(llm_draft) or classify_domain(prompt, domain_keywords)
     explicit_pack_synthesis = _explicit_pack_synthesis_request(prompt)
@@ -219,6 +222,8 @@ def build_mission_contract(
     }
     if media_generation_contract:
         contract["media_generation_contract"] = media_generation_contract
+    if narrative_job_identity:
+        contract["narrative_job_identity"] = narrative_job_identity.to_dict()
     return contract
 
 

@@ -28,6 +28,7 @@ def _request(root: Path, action: str, *, end_chapter: int = 2) -> dict:
         "agentlab_root": str(root),
         "batch": {"number": 1, "start": 1, "end": end_chapter},
         "config": {
+            "narrative_adapter": "crown",
             "eval_id": "eval-v1",
             "suite": "suite-v1",
             "start_chapter": 1,

@@ -23,6 +23,37 @@ from agent_runtime.background_job_controller import (
 
 
 NOW = "2026-07-17T15:00:00+00:00"
+AUDIT_HASH = "candidate-hash-001"
+
+
+def _heavy_audit_result(*, blocked: bool = False, independent: bool = False) -> dict:
+    result = {
+        "status": "pass",
+        "candidate_sha256": AUDIT_HASH,
+        "audit_source_integrity": {
+            "status": "pass",
+            "candidate_sha256": AUDIT_HASH,
+            "issues": [],
+        },
+        "fiction_review": {
+            "status": "blocked" if blocked else "pass",
+            "candidate_sha256": AUDIT_HASH,
+        },
+        "continuity_failure_report_data": {
+            "status": "pass",
+            "candidate_sha256": AUDIT_HASH,
+            "blocking_issue_count": 0,
+        },
+    }
+    if independent:
+        result["independent_reaudit"] = {
+            "status": "pass",
+            "independent_context": True,
+            "audit_task_id": "reaudit-1",
+            "source_audit_task_id": "audit-1",
+            "candidate_sha256": AUDIT_HASH,
+        }
+    return result
 
 
 def _create_job(
@@ -63,6 +94,7 @@ def _complete_active(
         job_id="crown-200-v3",
         attempt_id=active["attempt_id"],
         idempotency_key=active["idempotency_key"],
+        lease_token=active["lease_token"],
         outcome=outcome,
         exit_code=0 if outcome == "success" else 1,
         result=result or {},
@@ -196,6 +228,7 @@ def test_pause_during_worker_waits_for_receipt_then_keeps_next_state_paused(
         job_id="crown-200-v3",
         attempt_id=attempt["attempt_id"],
         idempotency_key=attempt["idempotency_key"],
+        lease_token=attempt["lease_token"],
         outcome="success",
         exit_code=0,
         result={"status": "pass"},
@@ -234,6 +267,7 @@ def test_receipt_is_consumed_once_after_controller_restart(tmp_path: Path) -> No
         job_id="crown-200-v3",
         attempt_id=active["attempt_id"],
         idempotency_key=active["idempotency_key"],
+        lease_token=active["lease_token"],
         outcome="success",
         exit_code=0,
         result={"status": "pass"},
@@ -369,7 +403,7 @@ def test_blocking_heavy_audit_requires_rewrite_then_deterministic_reaudit(
     )
     state = _complete_active(
         tmp_path,
-        result={"status": "pass", "requires_rewrite": True},
+        result=_heavy_audit_result(blocked=True),
     )
     assert state["status"] == "rewrite_required"
 
@@ -385,6 +419,14 @@ def test_blocking_heavy_audit_requires_rewrite_then_deterministic_reaudit(
     )
     assert reaudit["action"] == "deterministic_reaudit"
     state = _complete_active(tmp_path, result={"status": "pass"})
+    assert state["status"] == "awaiting_heavy_audit"
+    assert state["automatic_rewrite_count"] == 1
+
+    independent = schedule_next_attempt(
+        tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
+    )
+    assert independent["action"] == "heavy_audit"
+    state = _complete_active(tmp_path, result=_heavy_audit_result(independent=True))
     assert state["status"] == "batch_sealed"
 
 
@@ -395,7 +437,7 @@ def test_final_acceptance_writes_completion_receipt(tmp_path: Path) -> None:
         tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
     )
     state = _complete_active(
-        tmp_path, result={"status": "pass", "requires_rewrite": False}
+        tmp_path, result=_heavy_audit_result()
     )
     assert state["status"] == "batch_sealed"
 
@@ -432,7 +474,7 @@ def test_terminal_receipt_dispatches_existing_operator_feedback_once(
     schedule_next_attempt(
         tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
     )
-    _complete_active(tmp_path, result={"status": "pass", "requires_rewrite": False})
+    _complete_active(tmp_path, result=_heavy_audit_result())
     schedule_next_attempt(
         tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
     )
@@ -574,6 +616,7 @@ def test_controller_cycle_consumes_returned_receipt_before_scheduling_next(
         job_id="crown-200-v3",
         attempt_id=attempt["attempt_id"],
         idempotency_key=attempt["idempotency_key"],
+        lease_token=attempt["lease_token"],
         outcome="success",
         exit_code=0,
         result={"status": "pass"},

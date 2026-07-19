@@ -41,7 +41,10 @@ AUDIT_RE = re.compile(
     re.I,
 )
 
-REWRITE_ACTION_RE = re.compile(r"(rewrite|revise|重写|改写|重做)", re.I)
+REWRITE_ACTION_RE = re.compile(
+    r"((?:rewrite|revise)(?![\s_-]*proposal)|重写(?!建议)|改写(?!建议)|重做)",
+    re.I,
+)
 
 REWRITE_EVIDENCE_RE = re.compile(
     r"(heavy[\s_-]*audit|blocking|rewrite proposal|revision proposal|"
