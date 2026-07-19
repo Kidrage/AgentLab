@@ -276,7 +276,6 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
     from agent_runtime.narrative_heavy_audit import prepare_crown_narrative_heavy_audit
     from agent_runtime.narrative.audit.gate import evaluate_narrative_seal
     from agent_runtime.narrative.audit.integrity import verify_audit_source_integrity
-    from agent_runtime.pipeline_runner import run_full_pipeline
 
     root = Path(request["agentlab_root"])
     batch = request["batch"]
@@ -301,14 +300,37 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
                 "issues": prepared.get("issues", []),
             },
         }
-    pipeline = run_full_pipeline(
-        root,
-        request["project"],
-        task_id,
-        dry_run=False,
-        fake_provider=False,
-        budget_mode="max-quality",
+    execution_plan = request.get("narrative_execution_plan")
+    chapter_plans = (
+        execution_plan.get("chapters")
+        if isinstance(execution_plan, dict)
+        else None
     )
+    ordinary_only = bool(chapter_plans) and all(
+        isinstance(chapter_plan, dict)
+        and int(chapter_plan.get("judge_count") or 1) == 1
+        for chapter_plan in chapter_plans
+    )
+    if ordinary_only:
+        from agent_runtime.narrative.audit.runtime import run_single_judge_pipeline
+
+        pipeline = run_single_judge_pipeline(
+            root,
+            project=request["project"],
+            task_id=task_id,
+            budget_mode="balanced",
+        )
+    else:
+        from agent_runtime.pipeline_runner import run_full_pipeline
+
+        pipeline = run_full_pipeline(
+            root,
+            request["project"],
+            task_id,
+            dry_run=False,
+            fake_provider=False,
+            budget_mode="max-quality",
+        )
     run_dir = root / "projects" / request["project"] / "runs" / task_id
     if not pipeline.get("success"):
         reset_at = _read_capacity_reset(run_dir)

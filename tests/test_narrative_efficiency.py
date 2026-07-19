@@ -7,6 +7,11 @@ from types import SimpleNamespace
 
 import yaml
 
+from agent_runtime.background_job_controller import (
+    create_crown_delivery_job,
+    schedule_next_attempt,
+)
+from agent_runtime.background_job_worker import execute_action
 from agent_runtime.narrative.diagnostics.baseline import (
     aggregate_case_metrics,
     build_efficiency_baseline,
@@ -16,6 +21,13 @@ from agent_runtime.narrative.diagnostics.baseline import (
 from agent_runtime.narrative.diagnostics.telemetry import (
     NARRATIVE_DIAGNOSTICS_ENV,
     record_narrative_invocation,
+)
+from agent_runtime.narrative.audit.precheck import run_deterministic_precheck
+from agent_runtime.narrative.audit.execution import execute_tiered_audit
+from agent_runtime.narrative.efficiency.context_bundle import build_context_bundle
+from agent_runtime.narrative.efficiency.planning import (
+    compute_incremental_audit_window,
+    plan_chapter_execution,
 )
 from agent_runtime.schemas import LLMCallResult
 
@@ -384,3 +396,300 @@ def test_baseline_receipt_uses_relative_paths_and_measured_safety(tmp_path) -> N
         "measurement": "live_trial_production_tree_hash_match",
     }
     assert str(tmp_path) not in json.dumps(baseline)
+
+
+def test_shared_context_bundle_is_immutable_and_reused_by_hash(tmp_path) -> None:
+    sources = tmp_path / "sources"
+    sources.mkdir()
+    canon = sources / "canon.yml"
+    chapter = sources / "chapter_025.md"
+    reviewer = sources / "reviewer_rules.yml"
+    canon.write_text("facts: []\n", encoding="utf-8")
+    chapter.write_text("candidate prose\n", encoding="utf-8")
+    reviewer.write_text("dimensions: [tension]\n", encoding="utf-8")
+
+    first = build_context_bundle(
+        tmp_path / "bundles",
+        source_root=tmp_path,
+        canon_snapshot_sha256="canon-snapshot-sha",
+        chapter_window=[25],
+        shared_files=[canon, chapter],
+        role_specific_files={"Reviewer": [reviewer]},
+    )
+    second = build_context_bundle(
+        tmp_path / "bundles",
+        source_root=tmp_path,
+        canon_snapshot_sha256="canon-snapshot-sha",
+        chapter_window=[25],
+        shared_files=[canon, chapter],
+        role_specific_files={"Reviewer": [reviewer]},
+    )
+
+    assert first["context_bundle_id"] == second["context_bundle_id"]
+    assert first["manifest_sha256"] == second["manifest_sha256"]
+    assert first["reused"] is False
+    assert second["reused"] is True
+    assert first["shared_files"] == [
+        {
+            "path": "sources/canon.yml",
+            "bytes": 10,
+            "sha256": hashlib.sha256(b"facts: []\n").hexdigest(),
+        },
+        {
+            "path": "sources/chapter_025.md",
+            "bytes": 16,
+            "sha256": hashlib.sha256(b"candidate prose\n").hexdigest(),
+        },
+    ]
+    assert first["role_specific_files"]["Reviewer"][0]["path"] == (
+        "sources/reviewer_rules.yml"
+    )
+    assert len(list((tmp_path / "bundles").glob("*.yml"))) == 1
+
+
+def test_only_risk_triggered_chapters_use_multiple_candidates_and_judges() -> None:
+    plan = plan_chapter_execution(
+        [25, 26],
+        risk_signals={26: ["key_reveal", "existing_blocking"]},
+    )
+
+    assert plan["chapters"][0] == {
+        "chapter_id": 25,
+        "risk_tier": "ordinary",
+        "risk_signals": [],
+        "strategy_count": 1,
+        "candidate_count": 1,
+        "judge_count": 1,
+        "audit_stages": ["deterministic_precheck", "primary_literary_judge"],
+    }
+    assert plan["chapters"][1]["risk_tier"] == "high"
+    assert plan["chapters"][1]["strategy_count"] == 2
+    assert plan["chapters"][1]["candidate_count"] == 2
+    assert plan["chapters"][1]["judge_count"] == 2
+    assert plan["chapters"][1]["audit_stages"] == [
+        "deterministic_precheck",
+        "primary_literary_judge",
+        "independent_second_judge",
+        "conflict_arbitration_if_needed",
+    ]
+
+
+def test_incremental_reaudit_reads_only_changed_neighbors_and_fact_dependents() -> None:
+    result = compute_incremental_audit_window(
+        changed_chapters=[26],
+        available_chapters=range(21, 31),
+        fact_dependencies={26: [29, 30]},
+    )
+
+    assert result == {
+        "mode": "incremental",
+        "changed_chapters": [26],
+        "audit_chapters": [25, 26, 27, 29, 30],
+        "excluded_chapters": [21, 22, 23, 24, 28],
+        "reason": "changed_neighbors_and_fact_dependencies",
+    }
+
+
+def test_canon_or_arc_change_expands_incremental_reaudit_to_full_window() -> None:
+    result = compute_incremental_audit_window(
+        changed_chapters=[26],
+        available_chapters=range(21, 31),
+        fact_dependencies={},
+        full_reaudit_reason="canon_changed",
+    )
+
+    assert result["mode"] == "full"
+    assert result["audit_chapters"] == list(range(21, 31))
+    assert result["excluded_chapters"] == []
+    assert result["reason"] == "canon_changed"
+
+
+def test_deterministic_precheck_blocks_hash_version_and_metadata_defects(
+    tmp_path,
+) -> None:
+    chapter = tmp_path / "chapter_025.md"
+    chapter.write_text("A" * 220 + "\n", encoding="utf-8")
+    manifest = {
+        "manifest_version": 2,
+        "chapters": [
+            {
+                "chapter_id": 25,
+                "artifact_path": "chapter_025.md",
+                "artifact_sha256": "stale-hash",
+                "pov": "",
+                "timeline_slot": "not-a-slot",
+                "status": "candidate",
+            }
+        ],
+    }
+
+    result = run_deterministic_precheck(
+        manifest,
+        source_root=tmp_path,
+        required_chapters=[25, 26],
+        expected_manifest_version=1,
+    )
+
+    assert result["status"] == "blocked"
+    assert set(result["blocking_codes"]) == {
+        "artifact_hash_mismatch",
+        "invalid_manifest_version",
+        "invalid_timeline_slot",
+        "missing_chapter",
+        "missing_pov",
+    }
+
+
+def test_ordinary_chapter_runs_one_judge_after_deterministic_precheck() -> None:
+    calls: list[str] = []
+
+    def primary(_chapter_id: int) -> dict[str, object]:
+        calls.append("primary")
+        return {"status": "pass", "judge_id": "judge-primary", "blocking": []}
+
+    def forbidden_second(_chapter_id: int) -> dict[str, object]:
+        raise AssertionError("ordinary chapter must not run a second judge")
+
+    result = execute_tiered_audit(
+        {
+            "chapter_id": 25,
+            "risk_tier": "ordinary",
+            "judge_count": 1,
+        },
+        deterministic_precheck={"status": "pass", "blocking_codes": []},
+        primary_judge=primary,
+        second_judge=forbidden_second,
+    )
+
+    assert calls == ["primary"]
+    assert result["status"] == "pass"
+    assert result["judge_receipts"] == [
+        {"status": "pass", "judge_id": "judge-primary", "blocking": []}
+    ]
+    assert result["arbitration"] is None
+
+
+def test_high_risk_chapter_runs_independent_second_judge_and_arbitrates_conflict() -> None:
+    calls: list[str] = []
+
+    def primary(_chapter_id: int) -> dict[str, object]:
+        calls.append("primary")
+        return {
+            "status": "pass",
+            "judge_id": "judge-a",
+            "context_id": "context-a",
+        }
+
+    def second(_chapter_id: int) -> dict[str, object]:
+        calls.append("second")
+        return {
+            "status": "blocked",
+            "judge_id": "judge-b",
+            "context_id": "context-b",
+        }
+
+    def arbitrate(
+        _chapter_id: int,
+        _primary: dict[str, object],
+        _second: dict[str, object],
+    ) -> dict[str, object]:
+        calls.append("arbitrator")
+        return {"status": "blocked", "reason": "blocking_evidence_confirmed"}
+
+    result = execute_tiered_audit(
+        {"chapter_id": 26, "risk_tier": "high", "judge_count": 2},
+        deterministic_precheck={"status": "pass", "blocking_codes": []},
+        primary_judge=primary,
+        second_judge=second,
+        arbitrator=arbitrate,
+    )
+
+    assert calls == ["primary", "second", "arbitrator"]
+    assert result["status"] == "blocked"
+    assert result["arbitration"] == {
+        "status": "blocked",
+        "reason": "blocking_evidence_confirmed",
+    }
+
+
+def test_background_attempt_persists_risk_tier_plan_without_text_rerouting(
+    tmp_path,
+) -> None:
+    (tmp_path / "projects" / "Crown_of_Ash").mkdir(parents=True)
+    create_crown_delivery_job(
+        tmp_path,
+        project="Crown_of_Ash",
+        job_id="job-tiered",
+        eval_id="eval-tiered",
+        start_chapter=25,
+        end_chapter=26,
+        batch_size=2,
+        writer_worker="claude_code",
+        chapter_state_plan="plan.yml",
+        risk_signals={26: ["key_reveal"]},
+        now="2026-01-01T00:00:00+00:00",
+    )
+
+    active_attempt = schedule_next_attempt(
+        tmp_path,
+        project="Crown_of_Ash",
+        job_id="job-tiered",
+        now="2026-01-01T00:00:01+00:00",
+    )
+
+    assert active_attempt is not None
+    request = yaml.safe_load(
+        Path(active_attempt["action_request_path"]).read_text(encoding="utf-8")
+    )
+    assert request["narrative_execution_plan"]["chapters"][0]["judge_count"] == 1
+    assert request["narrative_execution_plan"]["chapters"][1]["judge_count"] == 2
+    assert request["job_kind"] == "narrative_generation"
+    assert request["run_mode"] == "generate_candidate"
+
+
+def test_ordinary_background_audit_uses_single_judge_runner(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    observed: list[str] = []
+
+    monkeypatch.setattr(
+        "agent_runtime.narrative_heavy_audit.prepare_crown_narrative_heavy_audit",
+        lambda *_args, **_kwargs: {"status": "ready"},
+    )
+    def single_judge(*_args, **_kwargs) -> dict[str, object]:
+        observed.append("single")
+        return {"success": False, "blocked_reason": "provider_unavailable"}
+
+    monkeypatch.setattr(
+        "agent_runtime.narrative.audit.runtime.run_single_judge_pipeline",
+        single_judge,
+    )
+    result = execute_action(
+        {
+            "action": "heavy_audit",
+            "candidate_only": True,
+            "production_allowed": False,
+            "agentlab_root": str(tmp_path),
+            "project": "Crown_of_Ash",
+            "job_id": "job-tiered",
+            "attempt_id": "attempt-ordinary",
+            "batch": {"start": 25, "end": 25},
+            "config": {
+                "eval_id": "eval-tiered",
+                "narrative_adapter": "crown",
+                "transient_retry_seconds": 1,
+            },
+            "narrative_execution_plan": {
+                "chapters": [
+                    {"chapter_id": 25, "risk_tier": "ordinary", "judge_count": 1}
+                ]
+            },
+            "prior_results": {},
+            "require_independent_reaudit": False,
+        }
+    )
+
+    assert observed == ["single"]
+    assert result["outcome"] == "failed_recoverable"
+    assert result["result"]["reason"] == "provider_unavailable"

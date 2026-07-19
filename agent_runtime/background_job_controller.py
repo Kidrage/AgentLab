@@ -29,6 +29,10 @@ from agent_runtime.narrative.jobs.identity import (
 )
 from agent_runtime.narrative.jobs.crown_adapter import upgrade_crown_job_state
 from agent_runtime.narrative.audit.gate import SealDecision, evaluate_narrative_seal
+from agent_runtime.narrative.efficiency.planning import (
+    plan_chapter_execution,
+    select_batch_plan,
+)
 from agent_runtime.narrative.jobs.lifecycle import next_after_heavy_audit, record_audit_batch_result
 
 
@@ -166,6 +170,7 @@ def create_crown_delivery_job(
     source_job_id: str | None = None,
     source_run_id: str | None = None,
     triggered_by_audit_id: str | None = None,
+    risk_signals: dict[int, list[str]] | None = None,
     now: str | None = None,
 ) -> dict[str, Any]:
     """Create one project-scoped, candidate-only Crown delivery job."""
@@ -211,6 +216,10 @@ def create_crown_delivery_job(
         "candidate_only": True,
         "production_allowed": False,
         "preflight_passed": False,
+        "narrative_execution_plan": plan_chapter_execution(
+            range(start_chapter, end_chapter + 1),
+            risk_signals=risk_signals,
+        ),
         "config": {
             "eval_id": eval_id,
             "suite": suite,
@@ -360,6 +369,12 @@ def _attempt_request(
     else:
         identity = parent_identity
     identity = identity.for_attempt(attempt_id=attempt_id, lease_token=lease_token)
+    batch = dict(state["current_batch"])
+    persisted_plan = state.get("narrative_execution_plan")
+    if not isinstance(persisted_plan, dict):
+        persisted_plan = plan_chapter_execution(
+            range(int(batch["start"]), int(batch["end"]) + 1)
+        )
     return {
         "schema_version": SCHEMA_VERSION,
         "job_id": state["job_id"],
@@ -374,7 +389,12 @@ def _attempt_request(
         "lease_expires_at": lease_expires_at,
         "candidate_only": True,
         "production_allowed": False,
-        "batch": dict(state["current_batch"]),
+        "batch": batch,
+        "narrative_execution_plan": select_batch_plan(
+            persisted_plan,
+            start_chapter=int(batch["start"]),
+            end_chapter=int(batch["end"]),
+        ),
         "config": dict(state["config"]),
         "prior_results": dict(state.get("last_action_results") or {}),
         "require_independent_reaudit": bool(state.get("independent_reaudit_required")),

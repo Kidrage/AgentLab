@@ -272,6 +272,13 @@ def test_prepares_fresh_provider_free_heavy_audit_bundle(tmp_path: Path) -> None
     assert "Chapter 1 draft" in context
     assert "Chapter 2 continuity ledger" in context
     assert report["sources"][0]["files"]["fiction_draft.md"]["sha256"]
+    assert report["context_bundle_id"].startswith("ctx-")
+    bundle_path = Path(report["context_bundle_manifest"])
+    bundle = yaml.safe_load(bundle_path.read_text(encoding="utf-8"))
+    assert bundle["chapter_window"] == [1, 2]
+    assert bundle["role_specific_files"]["Reviewer"][0]["path"].endswith(
+        "narrative_audit_context.md"
+    )
     assert not (run_dir / "fiction_draft.md").exists()
 
 

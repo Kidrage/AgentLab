@@ -11,9 +11,11 @@ import yaml
 
 try:
     from agent_runtime.narrative_delivery import validate_narrative_delivery
+    from agent_runtime.narrative.efficiency.context_bundle import build_context_bundle
     from agent_runtime.policies import ensure_safe_task_id
 except ModuleNotFoundError:  # pragma: no cover - direct script path
     from narrative_delivery import validate_narrative_delivery
+    from narrative.efficiency.context_bundle import build_context_bundle
     from policies import ensure_safe_task_id
 
 
@@ -438,7 +440,34 @@ def prepare_crown_narrative_heavy_audit(
         context_header + "\n\n".join(context_sections).rstrip() + "\n",
         encoding="utf-8",
     )
+    fact_snapshot = project_root / "project_brain" / "project_fact_snapshot.yml"
+    shared_files = [
+        path
+        for path in (
+            fact_snapshot,
+            project_root / "project_artifact_index.yml",
+        )
+        if path.is_file()
+    ]
+    context_path = target_run / "narrative_audit_context.md"
+    bundle = build_context_bundle(
+        target_run / "context_bundles",
+        source_root=root,
+        canon_snapshot_sha256=(
+            _sha256(fact_snapshot) if fact_snapshot.is_file() else "missing"
+        ),
+        chapter_window=range(start_chapter, end_chapter + 1),
+        shared_files=shared_files,
+        role_specific_files={"Reviewer": [context_path]},
+    )
+    report["context_bundle_id"] = bundle["context_bundle_id"]
+    report["context_bundle_manifest"] = bundle["manifest_path"]
+    report["context_bundle_manifest_sha256"] = bundle["manifest_sha256"]
     report["run_dir"] = str(target_run)
     report["manifest_path"] = str(target_run / "narrative_audit_manifest.yml")
-    report["context_path"] = str(target_run / "narrative_audit_context.md")
+    report["context_path"] = str(context_path)
+    (target_run / "narrative_audit_manifest.yml").write_text(
+        yaml.safe_dump(report, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
     return report

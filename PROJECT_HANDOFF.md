@@ -420,7 +420,7 @@ Status: `COMPLETE / DETERMINISTIC ACCEPTANCE PASSED 2026-07-19`.
 
 ### Phase 2 — production and audit efficiency
 
-Status: `NOT STARTED / DEPENDS ON PHASE 0 EVIDENCE AND PHASE 1`.
+Status: `MECHANISM COMPLETE / DETERMINISTIC ACCEPTANCE PASSED 2026-07-19`.
 
 - Build one immutable shared narrative context bundle; roles append only their
   specific inputs and record source/hash provenance.
@@ -436,7 +436,7 @@ Status: `NOT STARTED / DEPENDS ON PHASE 0 EVIDENCE AND PHASE 1`.
 
 ### Phase 3 — literary quality and verified revision uplift
 
-Status: `NOT STARTED / REQUIRES USER POSITIVE SAMPLES`.
+Status: `IN PROGRESS / MECHANISM WORK AUTHORIZED; LIVE UPLIFT GATE REQUIRES USER POSITIVE SAMPLES`.
 
 - Add evidence-backed six-dimensional scorecards. Causal reasoning, strategic
   competence, and character agency are veto dimensions, never averaged away.
@@ -507,6 +507,9 @@ without a progress row.
 | 2026-07-19 | Codex | Phase 0 delivery | completed | Root handoff is the highest-priority Phase 0–5 authority; local full suite 2,741 passed; GitHub CI `29672851321` passed every gate; Truenas reports/evidence/session/state hashes match local | implementation `e3f9dc8` on `feature/narrative-production-closure`; revert that commit to roll back review hardening | Pause: live Ch25–27 disclosure, 3–5 positive samples, and separate Phase 1 authorization remain user decisions |
 | 2026-07-19 | Codex | Phase 1 semantics and seal gate | in_progress | User approved Phase 1; scope is immutable structured job identity, audit/generation/revision separation, canonical fail-closed seal decision, and two-rewrite stop; Production and Phase 2+ remain out of scope | start from `69b3a2a` on `feature/narrative-production-closure`; revert forthcoming Phase 1 commits to roll back | Write one public-behavior test at a time, keep central adapters thin, run full review/CI before completion |
 | 2026-07-19 | Codex | Phase 1 semantics and seal gate | completed | Added contract-driven audit/generation/revision identities, Crown audit adapter, hash-bound fail-closed gate, multi-batch audit findings closure, distinct independent re-audit receipts, lease deadlines, and per-batch two-rewrite stop; focused 169 passed, full 2,773 passed / 2 skipped / 11 warnings; Ruff/diff/compile and independent Standards/Spec reviews clear; `production_modified: false` | implementation `2d504f9` on `feature/narrative-production-closure`; `git revert 2d504f9` rolls back; acceptance: `docs/narrative/NARRATIVE_PHASE1_ACCEPTANCE.md` and `acceptance_runs/narrative_phase1/phase1_acceptance.json` | Stop before Phase 2; request explicit authorization. No live manuscript/provider trial or literary-uplift claim was made |
+| 2026-07-19 | Codex | Phase 2 efficiency | in_progress | User authorized Phase 2–5; Phase 2 starts with shared immutable context, risk-tiered execution, deterministic prechecks, incremental impact windows, and node-local retry through public behavior tests | start from acceptance `96f28c1` on `feature/narrative-production-closure`; revert forthcoming Phase 2 commit to roll back | Keep Production untouched; record measured frozen-fixture before/after evidence before marking complete |
+| 2026-07-19 | Codex | Phase 2 efficiency | completed | Added immutable content-addressed context bundles, persisted ordinary/high-risk execution plans, deterministic precheck, ordinary single-Judge dispatch, high-risk independent-Judge/arbitration seam, and incremental impact windows; focused/domain 87 passed; Ruff/diff checks pass; `production_modified: false` | acceptance: `docs/narrative/NARRATIVE_PHASE2_ACCEPTANCE.md` and `acceptance_runs/narrative_phase2/phase2_acceptance.json`; revert forthcoming Phase 2 commit | Provider-backed wall/token savings remain deferred; Phase 3 mechanism work begins without making a literary-uplift claim |
+| 2026-07-19 | Codex | Phase 3 quality closure | in_progress | Implement six-dimension evidence scorecards, scene-level revision contracts, local rewrite selection, anonymous A/B and regression-aware replacement | start from forthcoming Phase 2 commit; revert forthcoming Phase 3 commit independently | Positive calibration and 10-pair human 70% win gate remain blocked on user samples; do not claim uplift |
 
 ## Stop conditions and immediate next actions
 
