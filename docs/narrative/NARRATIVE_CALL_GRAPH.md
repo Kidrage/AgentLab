@@ -1,5 +1,7 @@
 # AgentLab narrative call graph (Phase 0)
 
+> requested_agent: codex · invoked_agent: codex · reporting_agent: codex
+
 Status: diagnostic baseline, 2026-07-19. This document describes the code and
 artifacts at commit `8456bc6ad487d68c7404e6c14ef2a82ad2fe9706`; it does not
 claim that the 200-chapter workflow is stable.
@@ -170,9 +172,10 @@ surfaces:
 | `model_execution_receipt_*.yml` | provider/model/session/usage/cost evidence | older role manifests can be overwritten; some models are unpriced |
 | `cost_ledger.yml` | pipeline-accounted calls | historically omits paid calls after retry/materialization failure |
 | `outbound_context_manifest_*.yml` | packet/source bytes and hashes | one current role manifest can replace retry history |
-| `narrative_invocations.jsonl` | append-only per-attempt snapshot | Phase 0 opt-in; absent from historical runs |
+| `narrative_invocations.jsonl` | append-only per-attempt snapshot | Phase 0 opt-in, local-only raw ledger; absent from historical runs |
 | `project_artifact_index.yml` | project artifact lineage | not yet the sole workbench state source |
 
-The new event log contains metadata and hashes only; it deliberately excludes
-model output/prose and marks every Phase 0 event `candidate_only: true` and
-`production_modified: false`.
+The new event log contains metadata and hashes only and deliberately excludes
+model output/prose. Invocation-level safety fields remain null unless a caller
+supplies measured evidence; the isolated probe proves Production immutability
+separately with before/after tree hashes.

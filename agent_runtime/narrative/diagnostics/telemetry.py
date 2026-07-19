@@ -132,6 +132,9 @@ def record_narrative_invocation(
     provider_surface: str,
     capacity_route: str | None = None,
     context_manifest_path: str | Path | None = None,
+    local_orchestration_seconds: float | None = None,
+    queue_wait_seconds: float | None = None,
+    safety_evidence: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Persist one content-free provider-call snapshot when diagnostics are enabled."""
 
@@ -158,11 +161,18 @@ def record_narrative_invocation(
         for item in inventory.get("files", [])
         if isinstance(item, Mapping)
     ]
+    invoked_agent = provider_surface.partition(":")[2] or str(
+        getattr(result, "provider", "unknown")
+    )
+    safety = _mapping(safety_evidence)
 
     event = {
         "schema_version": _SCHEMA_VERSION,
         "invocation_id": uuid4().hex,
         "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "requested_agent": "agentlab",
+        "invoked_agent": invoked_agent,
+        "reporting_agent": "agentlab",
         "task": {
             "project": str(getattr(plan, "project", "")),
             "id": str(getattr(plan, "task_id", "")),
@@ -195,11 +205,25 @@ def record_narrative_invocation(
             ),
         },
         "timing": {
-            "model_active_seconds": raw_usage.get("duration_s"),
-            "measurement": (
-                "provider_reported"
+            "model_active_seconds": None,
+            "model_active_measurement": "unavailable_from_provider",
+            "provider_process_wall_seconds": raw_usage.get("duration_s"),
+            "provider_process_measurement": (
+                "external_cli_process_wall"
                 if raw_usage.get("duration_s") is not None
                 else "missing"
+            ),
+            "local_orchestration_seconds": local_orchestration_seconds,
+            "local_orchestration_measurement": (
+                "caller_measured"
+                if local_orchestration_seconds is not None
+                else "not_observed"
+            ),
+            "queue_wait_seconds": queue_wait_seconds,
+            "queue_wait_measurement": (
+                "caller_measured"
+                if queue_wait_seconds is not None
+                else "not_observed_at_invocation_boundary"
             ),
         },
         "usage": {
@@ -255,7 +279,13 @@ def record_narrative_invocation(
             "failure_class": raw_usage.get("failure_class"),
         },
         "evidence": {"model_receipt_path": _content_free_path(receipt_path, run_dir)},
-        "safety": {"candidate_only": True, "production_modified": False},
+        "safety": {
+            "candidate_only": safety.get("candidate_only"),
+            "production_modified": safety.get("production_modified"),
+            "measurement": safety.get(
+                "measurement", "not_observed_at_invocation_boundary"
+            ),
+        },
     }
     safe_event = _redact_string_values(event)
     _append_event(run_dir / INVOCATION_LOG_NAME, safe_event)

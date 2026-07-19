@@ -1,10 +1,16 @@
 schema_version: 1
 baseline_id: narrative_efficiency_phase_0_20260719
+source_git_head: 8456bc6ad487d68c7404e6c14ef2a82ad2fe9706
+requested_agent: codex
+invoked_agent: codex
+reporting_agent: codex
 project: Crown_of_Ash
 candidate_only: true
 production_modified: false
 positive_calibration_status: missing_user_samples
 live_trial_receipt: acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/live_trial_receipt.json
+background_job_dirs:
+  - projects/Crown_of_Ash/background_jobs/crown_production_200_20260718
 
 sample_groups:
   primary_live_window:

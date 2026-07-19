@@ -1,8 +1,0 @@
-suite: crown_reset_acceptance_v1
-chapters:
-- chapter: 25
-  task_id: task_narrative_eval_ch25_phase0_live_20260719
-  status: blocked
-  blocking_issue_count: 4
-  production_modified: false
-  resumed_existing: false

@@ -1,6 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "trial_id": "phase0_live_20260719",
+  "requested_agent": "codex",
+  "invoked_agent": "claude_code",
+  "reporting_agent": "codex",
   "status": "blocked_external_disclosure_approval_required",
   "project": "Crown_of_Ash",
   "requested_chapters": [25, 26, 27],
@@ -9,7 +12,8 @@
   "execution_isolation": {
     "kind": "temporary_agentlab_root",
     "candidate_only": true,
-    "production_modified": false
+    "production_modified": false,
+    "measurement": "before_after_production_tree_sha256"
   },
   "budget": {
     "cap_usd": 10.0,
@@ -22,12 +26,14 @@
     "chapter": 25,
     "result_status": "blocked_user_decision",
     "failure_class": "network_required",
-    "model_active_seconds": 173.956228,
+    "model_active_seconds": null,
+    "model_active_measurement": "unavailable_from_provider",
+    "provider_process_wall_seconds": 173.956228,
+    "provider_process_measurement": "external_cli_process_wall",
     "context_payload_bytes": 207910,
     "context_source_bytes": 211207,
     "context_source_count": 21,
-    "provider_process_started": true,
-    "provider_reported_session_id": "5c0e951a-9ae3-49cb-baac-75aea510d2a9"
+    "provider_process_started": true
   },
   "external_execution": {
     "requested": true,
@@ -41,14 +47,8 @@
     "match": true
   },
   "positive_calibration_status": "missing_user_samples",
-  "evidence": [
-    "longform_eval_report.yml",
-    "chapter_quality_matrix.yml",
-    "live_generation_error.yml",
-    "narrative_invocations.jsonl",
-    "outbound_context_manifest_writer.yml",
-    "model_execution_receipt_writer_writer_6b3f6541fe8c.yml",
-    "model_execution_chain_writer.yml",
-    "live_execution_log.yml"
-  ]
+  "evidence_policy": {
+    "committed": "distilled_content_free_receipt_only",
+    "raw_runtime_ledgers": "local_only_not_committed"
+  }
 }

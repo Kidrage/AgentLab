@@ -1,5 +1,7 @@
 # Narrative efficiency baseline (Phase 0)
 
+> requested_agent: codex · invoked_agent: codex · reporting_agent: codex
+
 Status: completed historical baseline; isolated live probe blocked pending explicit
 external-context disclosure approval. Source of record:
 `acceptance_runs/narrative_efficiency/baseline_metrics.json`.
@@ -27,7 +29,10 @@ Every numeric metric in the JSON uses this envelope:
 }
 ```
 
-`model_active_seconds` is the exact sum of provider-process start/end records.
+`model_active_seconds` is unavailable because the configured providers do not
+separate model compute from network and process overhead. The historical number
+reported below is `provider_process_wall_seconds`: the exact CLI/API process
+start/end span, not pure model-active time.
 Historical generation has no complete pipeline lifecycle, so its wall-clock value
 is a lower-bound span from the first recorded command to the last recorded command;
 the difference includes queue/idle gaps, retry delay, file I/O, and orchestration
@@ -38,7 +43,7 @@ are retained separately because the ledger is demonstrably incomplete.
 
 ## Generation baseline
 
-| Frozen set | Chapters | Provider calls | Derived repeated-role calls | Provider-active seconds | Observed elapsed span (lower bound) | All-model tokens | Receipt cost | Cost-ledger calls / cost | Packet bytes | Reusable source-byte ratio |
+| Frozen set | Chapters | Provider calls | Derived repeated-role calls | Provider-process seconds | Observed elapsed span (lower bound) | All-model tokens | Receipt cost | Cost-ledger calls / cost | Packet bytes | Repeated source-byte ratio (lower bound) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Ch01-Ch03 | 3 | 6 | 3 | 1,402.923 | 19,520.241 | 432,317 | $2.813345 | 1 / $0.367804 | 264,120 | 49.39% |
 | Ch01-Ch10 | 10 | 18 | 8 | 4,563.789 | 46,548.610 | 1,275,790 | $9.663902 | 3 / $1.694983 | 916,381 | 66.32% |
@@ -46,16 +51,17 @@ are retained separately because the ledger is demonstrably incomplete.
 
 Findings:
 
-- The average historical Writer/governance provider-active time is 388 seconds
-  per chapter across Ch01-Ch30. This is provider time, not total system time.
+- The average historical Writer/governance provider-process time is 388 seconds
+  per chapter across Ch01-Ch30. It includes process/network overhead and is not
+  model compute time or total system time.
 - There are 50 provider process records for 30 retained candidates. Repeated role
   calls account for 20 derived retries/redos.
 - All 30 runs contain the deterministic delivery files, but “final usable
   candidate count” remains missing because no literary scorecard, blind A/B, or
   human acceptance binds those candidates.
-- Context reuse becomes dominant as the series grows: 69.81% of source bytes in
-  the 30-chapter Writer manifests duplicate a SHA256 already sent in another
-  chapter run.
+- The surviving Writer manifests show a 69.81% repeated-source-byte lower bound
+  across 30 chapters. Retry manifests can be overwritten, so this is not a
+  complete high-confidence reuse measurement.
 - The historical cost ledger records only 12 of 50 provider processes in the
   30-chapter set and at least $4.80 versus $26.90 in immutable receipts. A failed
   or superseded paid attempt can therefore disappear from the product cost view.
@@ -107,7 +113,7 @@ model retry:
 | Metric | Ch26 observed value |
 |---|---:|
 | Provider calls | 2 |
-| Provider-active seconds | 287.364 |
+| Provider-process seconds | 287.364 |
 | First-to-last recorded span | 4,487.769 seconds (lower bound) |
 | Receipt total tokens | 144,919 |
 | All-model tokens | 146,728 |
@@ -141,9 +147,14 @@ blocked; attempt 0011 records 38.295 provider seconds and 42.367 non-provider
 seconds. The state machine has retry/recovery scaffolding, but historical attempt
 cost and token attribution is not recoverable from the cost ledger.
 
-No historical field cleanly separates queue wait, lease acquisition, local file
-I/O, and intentional backoff. These remain explicit missing measurements rather
-than guessed values.
+The persisted background event stream yields scheduling/queue wait separately
+from provider-process time. It still cannot split lease acquisition from local
+file I/O, and model-active compute remains unavailable; those fields stay
+explicitly missing rather than guessed.
+
+For the frozen 200-chapter job, nine closed scheduling intervals total 16.443
+seconds; no persisted `capacity_wait` or `retry_wait` interval occurred in that
+sample. This is controller scheduling latency, not provider or model time.
 
 ## Isolated live Ch25-Ch27 probe
 
@@ -177,7 +188,7 @@ Writer provider.
 
 ```bash
 python3 -m agent_runtime.narrative.diagnostics.baseline \
-  --root /Users/saintpeter/Desktop/AgentLab \
+  --root . \
   --manifest acceptance_runs/narrative_efficiency/frozen_samples.yml \
   --output acceptance_runs/narrative_efficiency/baseline_metrics.json
 ```

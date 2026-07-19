@@ -72,6 +72,18 @@ def _integer(value: Any) -> int:
     return int(value) if isinstance(value, (int, float)) else 0
 
 
+def _evidence_path(path: Path, root: Path | None) -> str:
+    """Return a portable evidence locator without exposing a workstation path."""
+
+    path = Path(path)
+    if root is not None:
+        try:
+            return path.resolve().relative_to(Path(root).resolve()).as_posix()
+        except (OSError, ValueError):
+            pass
+    return path.as_posix() if not path.is_absolute() else path.name
+
+
 def _provider_commands(run_dir: Path) -> list[dict[str, Any]]:
     log = _load_yaml(run_dir / "execution_log.yml")
     return [
@@ -138,7 +150,9 @@ def _unique_receipts(run_dir: Path) -> list[tuple[Path, dict[str, Any]]]:
     return receipts
 
 
-def _context_snapshot(run_dir: Path) -> dict[str, Any]:
+def _context_snapshot(
+    run_dir: Path, *, evidence_root: Path | None = None
+) -> dict[str, Any]:
     manifests: list[tuple[Path, dict[str, Any]]] = [
         (path, _load_yaml(path))
         for path in sorted(run_dir.glob("outbound_context_manifest_*.yml"))
@@ -169,7 +183,7 @@ def _context_snapshot(run_dir: Path) -> dict[str, Any]:
             "payload_sha256": payload.get("sha256"),
             "source_count": _integer(inventory.get("count")) or len(files),
             "source_bytes": role_source_bytes,
-            "manifest": str(path),
+            "manifest": _evidence_path(path, evidence_root),
         }
 
     unique_sources: dict[str, int] = {}
@@ -189,7 +203,7 @@ def _context_snapshot(run_dir: Path) -> dict[str, Any]:
         "duplicated_source_bytes": duplicated_bytes,
         "duplicate_ratio": duplicate_ratio,
         "by_role": by_role,
-        "sources": [str(path) for path, _ in manifests],
+        "sources": [_evidence_path(path, evidence_root) for path, _ in manifests],
         "source_occurrences": source_occurrences,
     }
 
@@ -223,34 +237,61 @@ def _finding_snapshot(run_dir: Path) -> dict[str, Any]:
             or item.get("chapter") is not None
         )
     ]
+    finding_ids = {
+        str(item.get("finding_id") or item.get("issue_id") or "").strip()
+        for item in findings
+        if str(item.get("finding_id") or item.get("issue_id") or "").strip()
+    }
+    finding_fingerprints = {
+        hashlib.sha256(
+            json.dumps(item, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+        for item in findings
+    }
+    proposal_refs = {
+        str(reference).strip()
+        for proposal in proposals
+        for reference in (
+            proposal.get("finding_refs") or proposal.get("issue_refs") or []
+        )
+        if str(reference).strip()
+    }
     return {
         "fiction_status": fiction.get("status"),
         "continuity_status": continuity.get("status"),
         "findings_count": len(findings),
+        "unique_findings_count": len(finding_fingerprints),
         "blocking_findings_count": sum(
             str(item.get("severity", "")).lower() == "blocking" for item in findings
         ),
         "findings_with_exact_evidence_count": len(evidence_findings),
         "continuity_failures_count": len(failures),
         "revision_proposals_count": len(proposals),
+        "findings_with_revision_proposal_count": len(finding_ids & proposal_refs),
+        "findings_resulting_in_actual_revision_count": None,
+        "findings_resolved_after_rewrite_count": None,
+        "new_regressions_after_rewrite_count": None,
+        "uplift_measurement": "missing_cross_version_finding_lineage",
         "rewrite_required": revision.get("rewrite_required"),
     }
 
 
-def collect_run_metrics(run_dir: Path) -> dict[str, Any]:
+def collect_run_metrics(
+    run_dir: Path, *, evidence_root: Path | None = None
+) -> dict[str, Any]:
     """Collect evidence-labelled metrics from one immutable historical run."""
 
     run_dir = Path(run_dir)
-    execution_source = str(run_dir / "execution_log.yml")
-    lifecycle_source = str(run_dir / "lifecycle.yml")
-    ledger_source = str(run_dir / "cost_ledger.yml")
+    execution_source = _evidence_path(run_dir / "execution_log.yml", evidence_root)
+    lifecycle_source = _evidence_path(run_dir / "lifecycle.yml", evidence_root)
+    ledger_source = _evidence_path(run_dir / "cost_ledger.yml", evidence_root)
     provider_commands = _provider_commands(run_dir)
     ledger_entries = _paid_ledger_entries(run_dir)
     receipts = _unique_receipts(run_dir)
-    context = _context_snapshot(run_dir)
+    context = _context_snapshot(run_dir, evidence_root=evidence_root)
     findings = _finding_snapshot(run_dir)
 
-    model_seconds_values = [
+    provider_process_seconds_values = [
         value
         for value in (
             _seconds(command.get("started_at"), command.get("completed_at"))
@@ -258,7 +299,7 @@ def collect_run_metrics(run_dir: Path) -> dict[str, Any]:
         )
         if value is not None
     ]
-    model_seconds = round(sum(model_seconds_values), 6)
+    provider_process_seconds = round(sum(provider_process_seconds_values), 6)
     lifecycle = _load_yaml(run_dir / "lifecycle.yml")
     wall_seconds = _seconds(lifecycle.get("created_at"), lifecycle.get("updated_at"))
     wall_measurement = "exact"
@@ -267,8 +308,8 @@ def collect_run_metrics(run_dir: Path) -> dict[str, Any]:
         wall_measurement = "lower_bound" if wall_seconds is not None else "missing"
     if wall_seconds is not None:
         wall_seconds = round(wall_seconds, 6)
-    non_model_seconds = (
-        round(max(0.0, wall_seconds - model_seconds), 6)
+    non_provider_seconds = (
+        round(max(0.0, wall_seconds - provider_process_seconds), 6)
         if wall_seconds is not None
         else None
     )
@@ -358,20 +399,20 @@ def collect_run_metrics(run_dir: Path) -> dict[str, Any]:
     ledger_usage_exact = all(
         row.get("exact_usage_available") is not False for row in ledger_entries
     )
-    model_active_by_role: dict[str, float] = {}
+    provider_process_by_role: dict[str, float] = {}
     for command in provider_commands:
         duration = _seconds(command.get("started_at"), command.get("completed_at"))
         if duration is None:
             continue
         role = str(command.get("agent") or command.get("node") or "unknown")
-        model_active_by_role[role] = round(
-            model_active_by_role.get(role, 0.0) + duration,
+        provider_process_by_role[role] = round(
+            provider_process_by_role.get(role, 0.0) + duration,
             6,
         )
-    receipt_sources = [str(path) for path, _ in receipts]
+    receipt_sources = [_evidence_path(path, evidence_root) for path, _ in receipts]
     context_sources = context["sources"]
     return {
-        "run_dir": str(run_dir),
+        "run_dir": _evidence_path(run_dir, evidence_root),
         "wall_clock_seconds": _metric(
             wall_seconds,
             "seconds",
@@ -384,18 +425,29 @@ def collect_run_metrics(run_dir: Path) -> dict[str, Any]:
             ),
         ),
         "model_active_seconds": _metric(
-            model_seconds,
+            None,
             "seconds",
-            "exact" if len(model_seconds_values) == call_count else "lower_bound",
-            [execution_source],
-            "high" if len(model_seconds_values) == call_count else "medium",
+            "missing_provider_compute_field",
+            [],
+            "low",
         ),
-        "non_model_wall_seconds": _metric(
-            non_model_seconds,
+        "provider_process_wall_seconds": _metric(
+            provider_process_seconds,
             "seconds",
-            "derived" if non_model_seconds is not None else "missing",
+            (
+                "exact_cli_process_wall"
+                if len(provider_process_seconds_values) == call_count
+                else "lower_bound"
+            ),
+            [execution_source],
+            "high" if len(provider_process_seconds_values) == call_count else "medium",
+        ),
+        "non_provider_wall_seconds": _metric(
+            non_provider_seconds,
+            "seconds",
+            "derived" if non_provider_seconds is not None else "missing",
             [lifecycle_source, execution_source],
-            "medium" if non_model_seconds is not None else "low",
+            "medium" if non_provider_seconds is not None else "low",
         ),
         "model_call_count": _metric(
             call_count, "calls", "exact", [execution_source], "high"
@@ -485,36 +537,42 @@ def collect_run_metrics(run_dir: Path) -> dict[str, Any]:
         "duplicated_context_bytes": _metric(
             context["duplicated_source_bytes"],
             "bytes",
-            "derived",
+            "lower_bound",
             context_sources,
-            "high",
+            "medium",
         ),
         "duplicated_context_ratio": _metric(
             context["duplicate_ratio"],
             "ratio",
-            "derived" if context["duplicate_ratio"] is not None else "missing",
+            "lower_bound" if context["duplicate_ratio"] is not None else "missing",
             context_sources,
-            "high" if context["duplicate_ratio"] is not None else "low",
+            "medium" if context["duplicate_ratio"] is not None else "low",
         ),
         "context_by_role": context["by_role"],
         "usage_by_role": usage_by_role,
-        "model_active_by_role_seconds": model_active_by_role,
+        "provider_process_by_role_seconds": provider_process_by_role,
         "stage_timings": _stage_timings(lifecycle),
         "findings": findings,
     }
 
 
-def aggregate_case_metrics(run_dirs: Sequence[Path]) -> dict[str, Any]:
+def aggregate_case_metrics(
+    run_dirs: Sequence[Path], *, evidence_root: Path | None = None
+) -> dict[str, Any]:
     """Aggregate a frozen case while retaining evidence and measurement quality."""
 
     paths = [Path(path) for path in run_dirs]
-    runs = [collect_run_metrics(path) for path in paths]
-    run_sources = [str(path) for path in paths]
+    runs = [
+        collect_run_metrics(path, evidence_root=evidence_root) for path in paths
+    ]
+    run_sources = [_evidence_path(path, evidence_root) for path in paths]
 
     def summed(key: str) -> float:
         return sum(_number(run[key]["value"]) for run in runs)
 
-    context_snapshots = [_context_snapshot(path) for path in paths]
+    context_snapshots = [
+        _context_snapshot(path, evidence_root=evidence_root) for path in paths
+    ]
     occurrences = [
         item
         for snapshot in context_snapshots
@@ -629,8 +687,8 @@ def aggregate_case_metrics(run_dirs: Sequence[Path]) -> dict[str, Any]:
         for path in paths
     )
     wall = round(summed("wall_clock_seconds"), 6)
-    model = round(summed("model_active_seconds"), 6)
-    non_model = round(summed("non_model_wall_seconds"), 6)
+    provider_process = round(summed("provider_process_wall_seconds"), 6)
+    non_provider = round(summed("non_provider_wall_seconds"), 6)
     unpriced = int(summed("unpriced_receipt_count"))
     wall_measurements = {run["wall_clock_seconds"]["measurement"] for run in runs}
     aggregate_wall_measurement = (
@@ -653,9 +711,18 @@ def aggregate_case_metrics(run_dirs: Sequence[Path]) -> dict[str, Any]:
                 else "medium" if aggregate_wall_measurement == "lower_bound" else "low"
             ),
         ),
-        "model_active_seconds": _metric(model, "seconds", "exact", run_sources, "high"),
-        "non_model_wall_seconds": _metric(
-            non_model, "seconds", "derived", run_sources, "medium"
+        "model_active_seconds": _metric(
+            None, "seconds", "missing_provider_compute_field", [], "low"
+        ),
+        "provider_process_wall_seconds": _metric(
+            provider_process,
+            "seconds",
+            "exact_cli_process_wall",
+            run_sources,
+            "high",
+        ),
+        "non_provider_wall_seconds": _metric(
+            non_provider, "seconds", "derived", run_sources, "medium"
         ),
         "model_call_count": _metric(
             int(summed("model_call_count")), "calls", "exact", run_sources, "high"
@@ -762,14 +829,18 @@ def aggregate_case_metrics(run_dirs: Sequence[Path]) -> dict[str, Any]:
             context_source_bytes, "bytes", "exact", run_sources, "high"
         ),
         "duplicated_context_bytes": _metric(
-            duplicated_context_bytes, "bytes", "derived", run_sources, "high"
+            duplicated_context_bytes,
+            "bytes",
+            "lower_bound",
+            run_sources,
+            "medium",
         ),
         "duplicated_context_ratio": _metric(
             duplicate_ratio,
             "ratio",
-            "derived" if duplicate_ratio is not None else "missing",
+            "lower_bound" if duplicate_ratio is not None else "missing",
             run_sources,
-            "high" if duplicate_ratio is not None else "low",
+            "medium" if duplicate_ratio is not None else "low",
         ),
         "context_by_role": context_by_role,
         "usage_by_role": usage_by_role,
@@ -783,6 +854,95 @@ def aggregate_case_metrics(run_dirs: Sequence[Path]) -> dict[str, Any]:
             None, "candidates", "missing", [], "low"
         ),
         "queue_wait_seconds": _metric(None, "seconds", "missing", [], "low"),
+    }
+
+
+def collect_background_job_metrics(
+    directory: Path, *, evidence_root: Path | None = None
+) -> dict[str, Any]:
+    """Measure persisted scheduling/capacity waits without guessing from process time."""
+
+    event_path = Path(directory) / "job_events.jsonl"
+    events: list[dict[str, Any]] = []
+    if event_path.is_file():
+        for line in event_path.read_text(encoding="utf-8").splitlines():
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, Mapping):
+                events.append(dict(value))
+
+    ready_since: str | None = None
+    wait_kind: str | None = None
+    scheduling_wait_seconds = 0.0
+    capacity_wait_seconds = 0.0
+    retry_wait_seconds = 0.0
+    measured_intervals = 0
+    for event in events:
+        event_type = str(event.get("event_type") or "")
+        status = str(event.get("status") or "")
+        recorded_at = str(event.get("recorded_at") or "")
+        if event_type == "ATTEMPT_SCHEDULED" and ready_since:
+            duration = _seconds(ready_since, recorded_at)
+            if duration is not None:
+                measured_intervals += 1
+                if wait_kind == "capacity_wait":
+                    capacity_wait_seconds += duration
+                elif wait_kind == "retry_wait":
+                    retry_wait_seconds += duration
+                else:
+                    scheduling_wait_seconds += duration
+            ready_since = None
+            wait_kind = None
+            continue
+        if event_type == "JOB_CREATED" or (
+            event_type
+            in {
+                "RECEIPT_CONSUMED",
+                "BLOCKED_JOB_REOPENED_AFTER_REPAIR",
+                "CAPACITY_WAIT_RESUMED",
+                "RETRY_WAIT_RESUMED",
+            }
+            and status in {"queued", "failed_recoverable", "capacity_wait", "retry_wait"}
+        ):
+            ready_since = recorded_at
+            wait_kind = status if status in {"capacity_wait", "retry_wait"} else "queue"
+
+    source = [_evidence_path(event_path, evidence_root)] if event_path.is_file() else []
+    return {
+        "job_dir": _evidence_path(Path(directory), evidence_root),
+        "event_count": _metric(len(events), "events", "exact", source, "high"),
+        "attempt_scheduled_count": _metric(
+            sum(event.get("event_type") == "ATTEMPT_SCHEDULED" for event in events),
+            "attempts",
+            "exact",
+            source,
+            "high",
+        ),
+        "queue_wait_seconds": _metric(
+            round(scheduling_wait_seconds, 6),
+            "seconds",
+            "derived_from_persisted_state_events",
+            source,
+            "medium",
+        ),
+        "capacity_wait_seconds": _metric(
+            round(capacity_wait_seconds, 6),
+            "seconds",
+            "derived_from_persisted_state_events",
+            source,
+            "medium",
+        ),
+        "retry_wait_seconds": _metric(
+            round(retry_wait_seconds, 6),
+            "seconds",
+            "derived_from_persisted_state_events",
+            source,
+            "medium",
+        ),
+        "measured_wait_intervals": measured_intervals,
+        "open_wait_interval": ready_since is not None,
     }
 
 
@@ -904,8 +1064,11 @@ def build_efficiency_baseline(root: Path, manifest_path: Path) -> dict[str, Any]
         cases[case_id] = {
             "kind": case_data.get("kind"),
             "chapter_range": case_data.get("chapter_range"),
-            "aggregate": aggregate_case_metrics(run_paths),
-            "runs": [collect_run_metrics(run_path) for run_path in run_paths],
+            "aggregate": aggregate_case_metrics(run_paths, evidence_root=root),
+            "runs": [
+                collect_run_metrics(run_path, evidence_root=root)
+                for run_path in run_paths
+            ],
         }
 
     frozen_files = []
@@ -923,26 +1086,57 @@ def build_efficiency_baseline(root: Path, manifest_path: Path) -> dict[str, Any]
             }
         )
 
+    live_trial_path = root / str(manifest.get("live_trial_receipt", ""))
+    live_trial = _load_json(live_trial_path)
+    execution_isolation = _mapping(live_trial.get("execution_isolation"))
+    production_guard = _mapping(live_trial.get("production_guard"))
+    production_hash_match = production_guard.get("match")
+    background_jobs = [
+        collect_background_job_metrics(
+            root / str(item),
+            evidence_root=root,
+        )
+        for item in manifest.get("background_job_dirs", [])
+    ]
+
     return {
         "schema_version": 1,
         "baseline_kind": "narrative_phase_0_diagnostic",
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "requested_agent": "codex",
+        "invoked_agent": "codex",
+        "reporting_agent": "codex",
         "git": {
-            "head": _git_value(root, "rev-parse", "HEAD"),
+            "source_head": manifest.get("source_git_head"),
             "branch": _git_value(root, "branch", "--show-current"),
         },
-        "root": str(root),
-        "manifest": str(manifest_path),
+        "root": ".",
+        "manifest": _evidence_path(manifest_path, root),
         "positive_calibration_status": manifest.get(
             "positive_calibration_status", "missing_user_samples"
         ),
-        "safety": {"candidate_only": True, "production_modified": False},
+        "safety": {
+            "candidate_only": execution_isolation.get("candidate_only"),
+            "production_modified": (
+                False if production_hash_match is True else None
+            ),
+            "measurement": (
+                "live_trial_production_tree_hash_match"
+                if production_hash_match is True
+                else "missing_live_production_tree_hash"
+            ),
+        },
         "frozen_files": frozen_files,
-        "live_trial": _load_json(root / str(manifest.get("live_trial_receipt", ""))),
+        "live_trial": live_trial,
+        "background_jobs": background_jobs,
         "cases": cases,
         "known_issue_checks": collect_known_issue_checks(),
         "measurement_notes": {
-            "queue_wait_time": "missing_historical_field",
+            "queue_wait_time": (
+                "derived_from_persisted_background_job_events"
+                if background_jobs
+                else "missing_historical_field"
+            ),
             "provider_rotation_count": "partially_available_in_capacity_receipts",
             "schema_valid_candidate_count": "missing_historical_field",
             "audit_eligible_candidate_count": "missing_historical_field",

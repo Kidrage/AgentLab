@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-18T13:07:22.096155+00:00`
+- Generated at: `2026-07-19T04:01:02.640094+00:00`
 
 ## Current State
 
-- Branch: `feature/agent-role-capacity-overhaul`
-- HEAD: `2239ad7`
-- Indexed paths: 1821
+- Branch: `feature/narrative-production-closure`
+- HEAD: `047e1e6`
+- Indexed paths: 1832
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,10 +43,10 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 519 |
-| `tests` | 440 |
-| `docs` | 307 |
-| `acceptance_runs` | 297 |
+| `agent_runtime` | 523 |
+| `tests` | 441 |
+| `docs` | 310 |
+| `acceptance_runs` | 300 |
 | `docs/archive` | 222 |
 | `config` | 122 |
 | `tests/fixtures` | 110 |
@@ -88,18 +88,18 @@
 
 ### Categories
 
-- code: 899 files, 7217257 bytes
-- literature: 391 files, 2090177 bytes
+- code: 904 files, 7286273 bytes
+- literature: 394 files, 2120086 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 519 files, 2090294 bytes
+- structured_data: 522 files, 2976192 bytes
 
 ### Common Extensions
 
-- `.py`: 886
-- `.yml`: 499
-- `.md`: 352
+- `.py`: 891
+- `.yml`: 500
+- `.md`: 355
 - `.txt`: 39
-- `.json`: 15
+- `.json`: 17
 - `.sh`: 8
 - `[no extension]`: 5
 - `.js`: 5
@@ -230,6 +230,8 @@
 
 ## Change History
 
+- `047e1e6 2026-07-19 feat(narrative): establish phase 0 diagnostic baseline`
+- `8456bc6 2026-07-18 refactor: prune AgentLab workflow governance`
 - `2239ad7 2026-07-18 fix: delay transient background provider retries`
 - `faa0a60 2026-07-18 fix: preserve runtime imports in detached jobs`
 - `c7c193d 2026-07-18 docs: sanitize archived handoff path`
@@ -248,193 +250,31 @@
 - `49925d4 2026-07-13 fix: block repeated narrative passages`
 - `78f2a8d 2026-07-13 fix: bind narrative audit roles to CLI workers`
 - `d8afaa5 2026-07-13 test: consolidate fragmented M2 coverage`
-- `715546c 2026-07-13 fix: close narrative heavy audit workflow`
-- `2c0c7cc 2026-07-13 fix: stop retrying exhausted Agy quota`
 
 ## Current Changes
 
-- `## feature/agent-role-capacity-overhaul`
-- ` M AGENTS.md`
-- ` M CLAUDE.md`
-- ` M CLI_ROADMAP.md`
-- ` M CONTEXT.md`
-- ` M DRIVER_PROTOCOL.md`
-- ` M OPERATING_MODEL.md`
+- `## feature/narrative-production-closure`
 - ` M PROJECT_HANDOFF.md`
-- ` M README.md`
-- ` M USAGE_PLAN.md`
-- ` M _shared/AGENT_HANDOFF.md`
-- ` M _shared/AGENT_PROTOCOL.md`
-- ` M acceptance_runs/agentlab_capability_acceptance/current.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml`
+- ` M acceptance_runs/narrative_efficiency/baseline_metrics.json`
+- ` M acceptance_runs/narrative_efficiency/frozen_samples.yml`
+- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/chapter_quality_matrix.yml`
+- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/live_execution_log.yml`
+- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/live_generation_error.yml`
+- ` M acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/live_trial_receipt.json`
+- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/longform_eval_report.yml`
+- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/model_execution_chain_writer.yml`
+- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/model_execution_receipt_writer_writer_6b3f6541fe8c.yml`
+- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/narrative_invocations.jsonl`
+- ` D acceptance_runs/narrative_efficiency/live_probe_phase0_20260719/outbound_context_manifest_writer.yml`
 - ` M acceptance_runs/stabilization/text_integrity_audit.json`
 - ` M acceptance_runs/stabilization/text_integrity_audit.md`
-- ` D agent_runtime/AIDER_ADAPTER.md`
-- ` M agent_runtime/README.md`
 - ` M agent_runtime/agent_runner.py`
-- ` D agent_runtime/agents_def.py`
-- ` D agent_runtime/aider_adapter.py`
-- ` M agent_runtime/api_continuation.py`
-- ` M agent_runtime/artifact_contract.py`
-- ` M agent_runtime/atomic_io.py`
-- ` M agent_runtime/brain/media_generation_router.py`
-- ` M agent_runtime/brain/mission_contract.py`
-- ` M agent_runtime/brain_governor.py`
-- ` M agent_runtime/capability_acceptance.py`
-- ` M agent_runtime/cli/protocol.py`
-- ` M agent_runtime/cli/routing.py`
-- ` M agent_runtime/cli_executor.py`
-- ` M agent_runtime/codex_artifact_validator.py`
-- ` M agent_runtime/config_inventory.py`
-- ` M agent_runtime/config_loader.py`
-- ` M agent_runtime/daemon.py`
-- ` M agent_runtime/execution_economy/__init__.py`
-- ` M agent_runtime/execution_economy/activation_plan.py`
-- ` M agent_runtime/execution_economy/marginal_utility_gate.py`
-- ` M agent_runtime/execution_economy/renderer.py`
-- ` D agent_runtime/execution_economy/role_coalescing.py`
-- ` M agent_runtime/executors/task_packet.py`
-- ` M agent_runtime/external_skills_cli.py`
-- ` M agent_runtime/handoff_builder.py`
-- ` M agent_runtime/lifecycle_graph.py`
-- ` M agent_runtime/llm_provider.py`
-- ` M agent_runtime/mcp_server.py`
-- ` M agent_runtime/media_series_scaffold_audit.py`
-- ` M agent_runtime/memory_writer.py`
-- ` M agent_runtime/migration_doctor.py`
-- ` M agent_runtime/narrative_eval.py`
-- ` M agent_runtime/p2_closure/evidence.py`
-- ` M agent_runtime/performance_evaluator.py`
-- ` M agent_runtime/pipeline_runner.py`
-- ` M agent_runtime/production_chain_audit.py`
-- ` M agent_runtime/production_pack_registry.py`
-- ` M agent_runtime/production_pack_role_session_request.py`
-- ` M agent_runtime/production_packs.py`
-- ` M agent_runtime/project_artifact_steward.py`
-- ` M agent_runtime/project_ops/project_router.py`
-- ` M agent_runtime/project_ops/repo_hygiene.py`
-- ` M agent_runtime/repo_index_cli.py`
-- ` M agent_runtime/repository_handoff.py`
-- ` M agent_runtime/routing/route_catalog.py`
-- ` M agent_runtime/routing/worker_router.py`
-- ` M agent_runtime/run_task.py`
-- ` M agent_runtime/schemas.py`
-- ` M agent_runtime/search/policy.py`
-- ` M agent_runtime/skill_evolution.py`
-- ` M agent_runtime/skill_injector.py`
-- ` M agent_runtime/skill_retriever.py`
-- ` M agent_runtime/skill_usage.py`
-- ` M agent_runtime/task_purge.py`
-- ` M agent_runtime/ui_candidate_smoke.py`
-- ` M agent_runtime/watchdog.py`
-- ` M agent_runtime/workflow_plan.py`
-- ` M agent_runtime/workspace_scanner.py`
-- ` M agent_templates/archivist.md`
-- ` D agent_templates/codex_full_driver/00_PRE_FLIGHT.md`
-- ` D agent_templates/codex_full_driver/01_SUPERVISOR.md`
-- ` D agent_templates/codex_full_driver/02_REPOSCOUT.md`
-- ` D agent_templates/codex_full_driver/03_RESEARCHER.md`
-- ` D agent_templates/codex_full_driver/04_INTERFACE_MAPPER.md`
-- ` D agent_templates/codex_full_driver/05_CODEX_PROMPT_GENERATOR.md`
-- ` D agent_templates/codex_full_driver/06_CODER.md`
-- ` D agent_templates/codex_full_driver/07_TESTER_AUDITOR.md`
-- ` D agent_templates/codex_full_driver/08_ARCHIVIST.md`
-- ` D agent_templates/codex_full_driver/09_HANDOFF.md`
-- ` D agent_templates/doc_manager.md`
-- ` D agent_templates/skill_distiller.md`
-- ` M agent_templates/tester_auditor.md`
-- ` M config/README.md`
-- ` M config/agent_collaboration.yml`
-- ` M config/agent_registry.yml`
-- ` M config/domain_route_packs.yml`
-- ` M config/execution_modes.yml`
-- ` M config/harness_policy.yml`
-- ` M config/media_generation_backends.yml`
-- ` M config/memory_policy.yml`
-- ` M config/model_pricing.yml`
-- ` M config/model_providers.yml`
-- ` M config/production_packs.yml`
-- ` M config/repository_handoff_policy.yml`
-- ` M config/repository_hygiene.yml`
-- ` M config/routing_rules.yml`
-- ` M config/shared_agent_directory.yml`
-- ` M config/skill_injection_policy.yml`
-- ` M config/workspace_entry_policy.yml`
-- ` D docs/AGENTLAB_250_GEMINI_ROUGH_WORKER_PLAN.md`
-- ` M docs/AGENTLAB_CAPABILITY_ACCEPTANCE_MATRIX.md`
-- ` D docs/AGENTLAB_CODEX_FULL_DRIVER_OPERATION_CHAIN_SPEC.md`
-- ` M docs/AGENTLAB_CORP_AND_COLLABORATION_PROTOCOL.md`
-- ` M docs/AGENTLAB_OPERATING_LOGIC.zh-CN.md`
-- ` M docs/AGENTLAB_PRUNING_REPORT_20260718.md`
-- ` M docs/AGENTLAB_SKILL_FEEDBACK_ROADMAP.md`
-- ` M docs/ANYSEARCH_INTEGRATION.md`
-- ` D docs/CLOSURE_MVP_REPORT.md`
-- ` M docs/CODEGRAPH_INTEGRATION.md`
-- ` M docs/CURRENT_VERSION_CAPABILITIES.en-US.md`
-- ` M docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md`
-- ` D docs/M2_REPAIR_PHASE_SUMMARY.md`
-- ` M docs/PROJECT_ARTIFACT_STEWARD.md`
-- ` M docs/README.en-US.md`
-- ` M docs/README.zh-CN.md`
-- ` M docs/REPOSITORY_DIRECTORY_CONSTITUTION.md`
-- ` D docs/V1_STABLE_INTERNAL_CLOSED_LOOP_PLAN.md`
-- `RM skills/active/skill_agentlab_narrative_chapter_writer_lite/usage_ledger.yml -> docs/archive/skill_usage_legacy_20260718/narrative-chapter-writer-lite_usage_ledger.yml`
-- `R  skills/active/skill_20260703174334298047_story-long-write/usage_ledger.yml -> docs/archive/skill_usage_legacy_20260718/story-long-write_usage_ledger.yml`
-- ` M pytest.ini`
-- ` D scripts/reader_server.py`
-- ` D scripts/write_chapters.py`
-- ` M tests/test_acceptance_docs_consistency.py`
-- ` M tests/test_agent_role_chain_audit.py`
-- ` M tests/test_agent_runner_cli_integration.py`
-- ` M tests/test_artifact_task_protocol.py`
-- ` M tests/test_capability_acceptance.py`
-- ` M tests/test_cleanup_refactor_invariants.py`
-- ` M tests/test_daemon_mvp.py`
-- ` M tests/test_execution_config_consolidation.py`
-- ` M tests/test_external_skill_artifact_paths.py`
-- ` M tests/test_external_skill_cli.py`
-- ` M tests/test_external_skill_full_closure.py`
-- ` M tests/test_external_skill_importer_live.py`
-- ` M tests/test_external_skill_mcp_readonly.py`
-- ` M tests/test_feedback_realtime_watchdog.py`
-- ` M tests/test_handoff_builder.py`
-- ` M tests/test_high_risk_skill_approval.py`
-- ` M tests/test_m1_mission_compiler_v2.py`
-- ` M tests/test_m1_project_init_cli.py`
-- ` M tests/test_m2_activation_plan_cli.py`
-- ` M tests/test_m2_role_assignment_router.py`
-- ` M tests/test_m2_worker_governance.py`
-- ` M tests/test_observer_lifecycle.py`
-- ` M tests/test_production_chain_audit.py`
-- ` M tests/test_production_pack_registry.py`
-- ` M tests/test_production_pack_role_session_request.py`
-- ` M tests/test_project_artifact_steward.py`
-- ` M tests/test_protocol_enforcement.py`
-- ` M tests/test_repo_hygiene.py`
-- ` M tests/test_repository_handoff.py`
-- ` M tests/test_shared_agent_protocol.py`
-- ` M tests/test_skill_lifecycle.py`
-- ` M tests/test_skill_retrieval_injection.py`
-- ` M tests/test_task1_6_full_system_closure.py`
-- ` M tests/test_ui_candidate_smoke.py`
-- ` M tests/test_visual_acceptance_workflow.py`
-- ` M tests/test_workflow_plan_routing.py`
-- ` M web_ui/agent_status.sample.json`
-- ` M web_ui/app.js`
-- ` M web_ui/index.html`
-- ` M web_ui/server.py`
-- `?? docs/TEST_SUITE_GOVERNANCE.md`
-- `?? docs/archive/acceptance_docs_legacy_20260718/`
-- `?? docs/archive/codex_full_driver_legacy_20260718/`
-- `?? docs/archive/current_capabilities_legacy_20260718/`
-- `?? docs/archive/legacy_plans_reports_20260718/`
-- `?? docs/archive/legacy_production_scripts_20260718/`
-- `?? docs/archive/readme_legacy_20260718/`
-- `?? docs/archive/retired_agent_templates_legacy_20260718/`
-- `?? docs/archive/retired_runtime_adapters_legacy_20260718/`
-- `?? docs/archive/root_agent_guides_legacy_20260718/`
-- `?? docs/archive/skill_usage_legacy_20260718/README.md`
+- ` M agent_runtime/narrative/diagnostics/baseline.py`
+- ` M agent_runtime/narrative/diagnostics/telemetry.py`
+- ` M docs/narrative/NARRATIVE_CALL_GRAPH.md`
+- ` M docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md`
+- ` M docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md`
+- ` M tests/test_narrative_efficiency.py`
 
 ## Related Repositories
 
@@ -518,21 +358,185 @@
 ## Agent Notes
 
 <!-- AGENT_NOTES_START -->
-# AgentLab pruning closure
+# Highest-priority plan: narrative production, audit, and delivery closure
 
-- Date: `2026-07-18`
-- Branch: `feature/agent-role-capacity-overhaul`
-- Scope: route/model/shell authority consolidation, artifact and handoff placement, legacy absorption, test governance, and performance repair.
-- Canonical report: `docs/AGENTLAB_PRUNING_REPORT_20260718.md`.
-- Full local regression: `2736 passed, 2 skipped, 11 warnings in 208.35s`.
-- Model registry doctor: 135 profiles, 0 issues.
-- Protocol doctor: 108 checks, 0 failed.
-- Repository hygiene: 0 hard violations, 0 warnings; text integrity: 1425 files, 0 suspicious.
-- Full CLI native capabilities may be used inside one bounded AgentLab role-session. Cross-lifecycle role coalescing remains forbidden.
-- Retired coalescing, full-driver, project-specific production scripts, old prompts, and stale reports are archive-only evidence under `docs/archive/`.
-- All AgentLab production is paused/stopped. No local AgentLab production controller, Writer, heavy-audit, narrative-eval, or trusted-runner process was active at final inspection.
-- Historical Crown job state and candidate artifacts remain durable but are not active execution authority. Resumption requires a new explicit instruction and a fresh status/preflight check.
-- The 250 workspace was intentionally skipped; no remote configuration or production sync was performed.
+- Priority: `P0 / HIGHEST`. This plan supersedes other AgentLab roadmap work until
+  it reaches a user-approved pause, a documented stop condition, or completion.
+- Owner namespace: `agents/codex/`; implementation may be continued by another
+  agent only after reading this entire handoff and the linked Phase 0 reports.
+- Branch: `feature/narrative-production-closure`; never push this work to `main`
+  without explicit user approval.
+- Product boundary: AgentLab is the producer, editorial department, version
+  controller, and scheduler. A suitable Writer model creates prose. Do not turn
+  every chapter into a fixed Supervisor→Writer→Reviewer→Scribe→Verifier meeting.
+- Current execution authorization: finish and harden Phase 0, then pause for an
+  explicit Phase 1 decision. Highest priority does not waive approval, external
+  disclosure, candidate-only, or Production safety gates.
+
+## Non-negotiable invariants
+
+1. Natural language is compiled once. Persist `job_kind`, `run_mode`,
+   `candidate_set_id`, lineage, attempt, lease, and fencing identity; never
+   reclassify an existing job from generated prose.
+2. `fiction_review=blocked`, continuity blocking, literary blocking, missing or
+   stale audits, hash drift, missing independent re-audit, stale approval, or an
+   expired lease always veto seal.
+3. Investigation and rollout remain `candidate_only: true`; Production is not
+   written without a hash-matching user acceptance receipt and atomic promotion.
+4. Formal product truth comes from manifests, receipts, approval, promotion, and
+   release records. `runs/*` is lineage/evidence, not the workbench database.
+5. At most two automatic rewrites. Insufficient verified uplift becomes
+   `decision_required / insufficient_revision_uplift`.
+6. Crown-specific migration logic stays outside queue, lease, retry, supervisor,
+   receipt, promotion, and release cores.
+7. Central modules receive thin adapters only. A phase adding more than 150 net
+   lines to a central module must stop and justify/extract the logic.
+8. Raw project runs and task ledgers stay local. Committed evidence is distilled,
+   content-free, path-normalized, attributed, and hash-bound.
+9. Tests remain consolidated in the six narrative domain files named in the
+   plan; do not weaken assertions or schemas to obtain green tests.
+10. No unattended full 200-chapter generation/audit before Gates 1 and 2 pass.
+
+## Phase plan and current status
+
+### Phase 0 — reproducible diagnosis and baseline
+
+Status: `IN_PROGRESS / CLOSING`; implementation and review corrections are local,
+but the live three-chapter trial is blocked by external-context approval.
+
+- Freeze Ch25–27, continuous Ch21–30, negative Ch26/Ch30, and user-positive
+  samples. Positives remain `missing_user_samples`; never invent them.
+- Measure wall/process/orchestration/queue timing, tokens, cost, calls, retries,
+  provider rotation, final context size, role file loads, context duplication,
+  findings, evidence density, revisions, regressions, and uplift availability.
+- Separate provider-process wall time from model-active compute. Model compute is
+  currently unavailable; do not relabel CLI/network time as model time.
+- Deliver diagnosis, call graph, efficiency report, frozen manifest, and generated
+  baseline JSON. Preserve two confirmed defects as red replays; do not fix them in
+  Phase 0.
+- Canonical evidence:
+  `docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md`,
+  `docs/narrative/NARRATIVE_CALL_GRAPH.md`,
+  `docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md`, and
+  `acceptance_runs/narrative_efficiency/baseline_metrics.json`.
+- Current evidence: Crown's 200-chapter job is blocked on batch 1 after 11
+  attempts, with zero sealed batches and no completion receipt. The isolated Ch25
+  attempt used zero tokens/cost and left Production hashes unchanged, but external
+  Ch25–27 execution needs explicit manuscript/canon disclosure approval under the
+  existing `$10` cap.
+
+### Phase 1 — durable semantics and fail-closed sealing
+
+Status: `NOT STARTED / USER APPROVAL REQUIRED AFTER PHASE 0`.
+
+- Introduce immutable structured job identity and keep audit, generation, and
+  revision state machines distinct.
+- Treat audit findings as `completed_with_findings`, not task failure and not an
+  implicit rewrite request.
+- Centralize the hash-bound seal gate and cover all false-green combinations,
+  missing/stale evidence, approval drift, independent re-audit, and expired leases.
+- Enforce the two-rewrite ceiling and persist `decision_required`.
+- Do not add quality prompts, UI, export, or global queue work in this phase.
+
+### Phase 2 — production and audit efficiency
+
+Status: `NOT STARTED / DEPENDS ON PHASE 0 EVIDENCE AND PHASE 1`.
+
+- Build one immutable shared narrative context bundle; roles append only their
+  specific inputs and record source/hash provenance.
+- Ordinary chapters use one scene contract, one candidate, deterministic precheck,
+  and one literary judge. Only risk triggers enable multiple strategies, A/B, or a
+  second judge.
+- Move completeness/hash/schema/POV/timeline/repetition/version checks to
+  deterministic code.
+- Re-audit only changed chapters and calculated impact windows; retry only failed
+  nodes. Expired workers cannot overwrite newer attempts.
+- Keep an optimization only when the same frozen sample and quality gate show no
+  blind-review quality regression.
+
+### Phase 3 — literary quality and verified revision uplift
+
+Status: `NOT STARTED / REQUIRES USER POSITIVE SAMPLES`.
+
+- Add evidence-backed six-dimensional scorecards. Causal reasoning, strategic
+  competence, and character agency are veto dimensions, never averaged away.
+- Compile findings into scene-level revision contracts with must-preserve/change,
+  character knowledge, causality, cost, new information, freedom, and forbidden
+  regression boundaries.
+- Prefer local scene/paragraph rewrites; use whole-chapter rewrites only for
+  structural failure.
+- Preserve old/new candidates and run anonymous A/B review with independent
+  receipts. A revision replaces nothing unless it wins and introduces no blocking.
+- Require at least ten human blind comparisons and at least 70% new-system wins
+  before scaling production.
+
+### Phase 4 — immutable Candidate Sets and atomic promotion
+
+Status: `NOT STARTED / DEPENDS ON PHASE 3`.
+
+- Freeze Candidate Set manifests when audit starts; any chapter hash change makes
+  related audits stale and creates lineage to a new set.
+- Bind correctness, literary audit, cost, model tier, context manifest, user
+  acceptance, and promotion receipts to exact candidate hashes.
+- Permit first publication when a release slot has no current artifact; enforce
+  uniqueness by `release_slot + chapter_id + edition_id`.
+- Stage and verify a complete immutable edition, atomically switch the index
+  pointer, and leave Production unchanged on every failure.
+
+### Phase 5 — generic background core, workbench, reader, and release package
+
+Status: `NOT STARTED / ONLY AFTER PHASES 0–4 PASS`.
+
+- Separate a generic job registry, global queue, capacity arbitration, leases,
+  fencing, deadlines, retry wait, supervisor recovery, idempotent seal, and
+  completion receipts from the narrative adapter.
+- Make the workbench read only formal manifests/receipts and show execution,
+  artifact completeness, correctness, literary pass, user acceptance, and
+  promotion as separate states.
+- Add Production/Candidate switching, per-chapter A/B, evidence, revision contract,
+  scores, impact, lineage, model, and cost views.
+- Export real immutable Markdown/TXT/DOCX/EPUB packages with contents, editorial
+  report, audit archive, receipts, changelog, and SHA256 manifest. PDF is deferred.
+
+## Rollout gates
+
+- Gate 1: isolated three-chapter quality/efficiency pilot; correct routing,
+  candidate-only hashes, complete metrics, verified uplift, and no false-green.
+- Gate 2: three consecutive 10-chapter batches; restart, network interruption,
+  capacity wait, node recovery, incremental audit, two-rewrite stop, and zero
+  Production contamination.
+- Gate 3: 200-chapter audit soak only after Gates 1–2; completion receipt, every
+  planned batch audited, eligible batches sealed, findings completed correctly,
+  provider receipts complete, recomputable manifests, consistent hashes,
+  recovery/idempotency green, and complete cost/efficiency report.
+
+## Mandatory construction progress protocol
+
+Every agent that touches this plan must update this section twice per construction
+session: once before edits (`in_progress`) and once after validation
+(`completed`, `blocked`, or `decision_required`). Append; do not erase prior rows.
+Each row must name agent, phase/gate, exact scope, files/modules, tests/evidence,
+metric delta when available, commit/branch, blocker, rollback, and next action.
+No agent may claim a phase complete from unit tests alone or leave uncommitted work
+without a progress row.
+
+| Updated (Asia/Shanghai) | Agent | Phase/Gate | Status | Scope and evidence | Commit / rollback | Blocker / next action |
+|---|---|---|---|---|---|---|
+| 2026-07-19 | Codex | Phase 0 baseline | completed | Added opt-in invocation telemetry, frozen historical baseline, call graph, diagnosis, deterministic red replays; initial local suite 2,739 passed | `047e1e6` on `feature/narrative-production-closure`; revert commit to roll back | CI exposed one absolute-path integrity failure; review hardening followed |
+| 2026-07-19 | Codex | Phase 0 review hardening | completed | Corrected timing semantics, added persisted queue-wait measurement, path normalization, measured safety, attribution, and distilled-only live receipt; focused 133 passed, full 2,741 passed / 2 skipped / 11 warnings; standards and spec verification both clear | dirty worktree after `047e1e6`; revert forthcoming correction commit to roll back | Commit/push feature branch, verify CI, sync Truenas; live Ch25–27 still requires explicit disclosure approval |
+| 2026-07-19 | Codex | Phase 0 delivery | in_progress | Root handoff refreshed as highest-priority Phase 0–5 authority; text integrity, Ruff, diff check, and repository hygiene pass | pending correction commit on `feature/narrative-production-closure` | Commit/push feature branch, verify remote hash and CI, sync distilled evidence/session summary to Truenas, then pause |
+
+## Stop conditions and immediate next actions
+
+Stop and report if the baseline cannot be trusted, project state conflicts with
+this handoff, Production must change, safety tests must be weakened, non-narrative
+work cannot be isolated, central modules would grow materially, two rewrites fail,
+or positive samples are missing while someone is about to claim literary uplift.
+
+Immediate sequence: finalize the Phase 0 corrective diff; rerun standards/spec
+review; commit and push only the feature branch; verify CI; sync distilled evidence
+and session state to Truenas; then stop for (1) explicit Ch25–27 external disclosure
+approval, (2) 3–5 user-positive samples, and (3) separate Phase 1 authorization.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

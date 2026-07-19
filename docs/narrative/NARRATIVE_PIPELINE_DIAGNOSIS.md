@@ -1,5 +1,7 @@
 # Narrative pipeline diagnosis (Phase 0 approval report)
 
+> requested_agent: codex · invoked_agent: codex · reporting_agent: codex
+
 ## Verdict
 
 AgentLab cannot currently be described as able to run all novel generation and
@@ -92,9 +94,10 @@ provider processes have no corresponding paid cost-ledger row. Ch26 records two
 calls but one ledger entry. The pre-repair 10-chapter audit records a repeated
 Scribe process that is absent from the cost ledger.
 
-Phase 0 mitigation: an opt-in, append-only, content-free
+Phase 0 mitigation: an opt-in, append-only, content-free, local-only
 `narrative_invocations.jsonl` snapshot is now written immediately after every
-narrative provider return and before materialization. This is observation, not a
+narrative provider return and before materialization. Distilled receipts may be
+committed, but the raw event ledger may not. This is observation, not a
 state-machine repair.
 
 ### 4. Context governance measures the wrong payload and does not reuse a bundle
@@ -241,9 +244,9 @@ Phase 0 domain tests cover:
 
 Validation result on this branch:
 
-- focused narrative/runtime regression set: 137 passed in 6.60 seconds;
-- full repository suite: 2,739 passed, 2 skipped, 11 existing missing-directory
-  warnings in 219.67 seconds;
+- focused narrative/runtime regression set: 133 passed in 7.34 seconds;
+- full repository suite: 2,741 passed, 2 skipped, 11 existing missing-directory
+  warnings in 249.45 seconds;
 - `ruff check`: pass;
 - `git diff --check`: pass.
 

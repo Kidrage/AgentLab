@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from time import monotonic
 from typing import Any
 from uuid import uuid4
 
@@ -2852,6 +2853,7 @@ def run_agent_model(
     apply_patches: bool = True,
     allow_cli_api_fallback: bool = False,
 ):
+    diagnostics_interval_started = monotonic()
     from operational_uploader import maybe_run_operational_agent
 
     operational_result = maybe_run_operational_agent(plan, agent_name)
@@ -3179,6 +3181,7 @@ def run_agent_model(
                     binding_reason,
                 )
             cli_attempted = True
+            local_orchestration_seconds = monotonic() - diagnostics_interval_started
             cli_result = run_cli_agent(
                 plan,
                 agent_name,
@@ -3217,7 +3220,9 @@ def run_agent_model(
                     if capacity_decision is not None
                     else selected_profile.get("capacity_route")
                 ),
+                local_orchestration_seconds=local_orchestration_seconds,
             )
+            diagnostics_interval_started = monotonic()
             if capacity_manager is None or capacity_decision is None:
                 finalized = _apply_agent_result_patches(
                     configs_for_cli,
@@ -3521,6 +3526,7 @@ def run_agent_model(
                     ),
                 },
             )
+    local_orchestration_seconds = monotonic() - diagnostics_interval_started
     result = generate_text(
         settings,
         configs.get("model_providers", {}),
@@ -3554,6 +3560,7 @@ def run_agent_model(
         result,
         provider_surface=f"direct_api:{settings.provider}",
         context_manifest_path=narrative_context_manifest_path,
+        local_orchestration_seconds=local_orchestration_seconds,
     )
 
     result = _apply_agent_result_patches(

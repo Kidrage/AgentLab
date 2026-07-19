@@ -1,9 +1,0 @@
-schema_version: 1
-status: blocked
-agent: Writer
-result_status: blocked_user_decision
-provider: agentlab-cli-executor
-model: claude_code
-error: CLI agent network_required (exit 1).
-failure_class: network_required
-capacity_status: unknown
