@@ -54,6 +54,14 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
                 "requests over five chapters."
             ),
         ),
+        predecessor_task_id: str | None = typer.Option(
+            None,
+            "--predecessor-task-id",
+            help=(
+                "Explicit hash-valid predecessor candidate run for the chapter immediately "
+                "before the requested window."
+            ),
+        ),
         writer_budget: str = typer.Option(
             "balanced",
             "--writer-budget",
@@ -76,6 +84,7 @@ def register_narrative_eval_commands(app: typer.Typer, project_root: Path, conso
             allow_writer_cli_fallback=allow_writer_cli_fallback,
             chapter_state_plan=chapter_state_plan,
             writer_budget_mode=writer_budget,
+            predecessor_task_id=predecessor_task_id,
         )
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result.get("status") == "fail":

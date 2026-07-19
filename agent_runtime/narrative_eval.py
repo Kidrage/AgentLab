@@ -14,6 +14,7 @@ import yaml
 
 from agent_runtime.narrative_delivery import (
     REQUIRED_REVIEW_GATES,
+    narrative_delivery_integrity_issues,
     validate_chapter_state_plan,
     validate_narrative_delivery,
     write_chapter_packet,
@@ -282,6 +283,25 @@ def _timestamp() -> str:
 def _safe_eval_task_id(chapter: int, eval_id: str) -> str:
     cleaned_eval_id = re.sub(r"[^A-Za-z0-9_-]+", "_", str(eval_id)).strip("_-") or "eval"
     return ensure_safe_task_id(f"task_narrative_eval_ch{chapter:02d}_{cleaned_eval_id}"[:85])
+
+
+def _predecessor_identity_issues(run_dir: Path, task_id: str, expected_chapter: int) -> list[str]:
+    packet_path = run_dir / "chapter_packet.yml"
+    if not packet_path.is_file():
+        return ["predecessor_chapter_packet_missing"]
+    try:
+        packet = yaml.safe_load(packet_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return ["predecessor_chapter_packet_invalid"]
+    issues: list[str] = []
+    if not isinstance(packet, dict):
+        return ["predecessor_chapter_packet_invalid"]
+    if packet.get("task_id") != task_id:
+        issues.append("predecessor_task_id_mismatch")
+    if packet.get("chapter") != expected_chapter:
+        issues.append("predecessor_chapter_mismatch")
+    issues.extend(narrative_delivery_integrity_issues(run_dir))
+    return issues
 
 
 def _candidate_chapter_sources(task_id: str) -> list[str]:
@@ -1017,6 +1037,7 @@ def _generate_chapters(
     allow_writer_cli_fallback: bool = False,
     chapter_state_plan: str | None = None,
     writer_budget_mode: str = "balanced",
+    predecessor_task_id: str | None = None,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     generated: list[dict[str, Any]] = []
@@ -1025,15 +1046,28 @@ def _generate_chapters(
     resume_chain_intact = True
     if chapters and chapters[0] > 1:
         previous_chapter = chapters[0] - 1
-        previous_task_id = _safe_eval_task_id(previous_chapter, eval_id)
+        previous_task_id = (
+            ensure_safe_task_id(predecessor_task_id)
+            if predecessor_task_id
+            else _safe_eval_task_id(previous_chapter, eval_id)
+        )
         previous_run_dir = project_root / "runs" / previous_task_id
         previous_delivery = validate_narrative_delivery(previous_run_dir)
+        predecessor_identity_issues = _predecessor_identity_issues(
+            previous_run_dir,
+            previous_task_id,
+            previous_chapter,
+        )
         previous_execution = (
             validate_writer_execution_contract(previous_run_dir, previous_task_id)
             if mode == "live"
             else {"status": "pass"}
         )
-        if not previous_delivery.get("valid") or previous_execution.get("status") != "pass":
+        if (
+            not previous_delivery.get("valid")
+            or previous_execution.get("status") != "pass"
+            or predecessor_identity_issues
+        ):
             return {
                 "status": "blocked",
                 "reason": "previous candidate chapter is unavailable or has invalid Writer provenance",
@@ -1045,9 +1079,11 @@ def _generate_chapters(
                 "allow_writer_cli_fallback": allow_writer_cli_fallback,
                 "chapter_state_plan": chapter_state_plan,
                 "writer_budget_mode": writer_budget_mode,
+                "predecessor_task_id": previous_task_id,
                 "previous_chapter": previous_chapter,
                 "previous_delivery": previous_delivery,
                 "previous_writer_execution": previous_execution,
+                "predecessor_identity_issues": predecessor_identity_issues,
                 "model_capacity_governance": "centralized",
             }
         previous_sources = _candidate_chapter_sources(previous_task_id)
@@ -1207,6 +1243,7 @@ def _generate_chapters(
         "allow_writer_cli_fallback": allow_writer_cli_fallback,
         "chapter_state_plan": chapter_state_plan,
         "writer_budget_mode": writer_budget_mode,
+        "predecessor_task_id": predecessor_task_id,
         "model_capacity_governance": "centralized",
     }
 
@@ -1426,6 +1463,7 @@ def run_narrative_eval(
     allow_writer_cli_fallback: bool = False,
     chapter_state_plan: str | None = None,
     writer_budget_mode: str = "balanced",
+    predecessor_task_id: str | None = None,
 ) -> dict[str, Any]:
     if mode not in VALID_MODES:
         raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
@@ -1506,6 +1544,7 @@ def run_narrative_eval(
             allow_writer_cli_fallback=allow_writer_cli_fallback,
             chapter_state_plan=chapter_state_plan,
             writer_budget_mode=writer_budget_mode,
+            predecessor_task_id=predecessor_task_id,
         )
 
     l3 = _build_scale_simulation(eval_dir, suite)
@@ -1526,6 +1565,7 @@ def run_narrative_eval(
         "allow_writer_cli_fallback": allow_writer_cli_fallback,
         "chapter_state_plan": chapter_state_plan,
         "writer_budget_mode": writer_budget_mode,
+        "predecessor_task_id": predecessor_task_id,
         "chapter_state_plan_validation": chapter_state_plan_validation,
         "model_capacity_governance": "centralized",
         "created_at": datetime.now(timezone.utc).isoformat(),

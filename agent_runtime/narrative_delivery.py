@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 from pathlib import Path
 from typing import Any
 import re
@@ -173,6 +174,35 @@ def _resolve_chapter_state_plan(project_root: Path, plan_ref: str) -> tuple[Path
     if not isinstance(data, dict):
         raise ValueError("chapter state plan root must be a mapping")
     return path, data
+
+
+def _state_plan_story_authority_refs(project_root: Path, plan_ref: str | None) -> list[str]:
+    if not plan_ref:
+        return []
+    _, data = _resolve_chapter_state_plan(project_root, plan_ref)
+    refs = data.get("story_authority_refs") or []
+    if not isinstance(refs, list):
+        raise ValueError("story_authority_refs must be a list")
+    resolved_refs: list[str] = []
+    project_root = project_root.resolve()
+    for item in refs:
+        if not isinstance(item, dict):
+            raise ValueError("story authority refs must contain path and sha256 mappings")
+        ref = str(item.get("path") or "").strip()
+        expected_sha256 = str(item.get("sha256") or "").strip().lower()
+        if not ref or Path(ref).is_absolute():
+            raise ValueError("story authority refs must be project-relative paths")
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+            raise ValueError(f"story authority ref has invalid sha256: {ref}")
+        path = (project_root / ref).resolve()
+        if not path.is_relative_to(project_root) or not path.is_file():
+            raise ValueError(f"story authority ref is missing or outside the project: {ref}")
+        actual_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual_sha256 != expected_sha256:
+            raise ValueError(f"story authority ref sha256 mismatch: {ref}")
+        if ref not in resolved_refs:
+            resolved_refs.append(ref)
+    return resolved_refs
 
 
 def _nonempty_plan_value(value: Any) -> bool:
@@ -757,6 +787,7 @@ def build_chapter_packet(
         if chapter_state_plan
         else _build_chapter_intent(project_root, outline_refs, chapter)
     )
+    candidate_story_authority_refs = _state_plan_story_authority_refs(project_root, chapter_state_plan)
     packet = {
         "schema_version": 1,
         "project": project,
@@ -784,12 +815,14 @@ def build_chapter_packet(
             *bible_refs,
             *outline_refs,
             *([chapter_state_plan] if chapter_state_plan else []),
+            *candidate_story_authority_refs,
             *([candidate_fact_ledger] if candidate_fact_ledger else []),
             *resolved_previous_chapters[-3:],
         ],
         "story_authority": {
             "bible_refs": bible_refs,
             "outline_refs": outline_refs,
+            "candidate_refs": candidate_story_authority_refs,
             "previous_chapters": resolved_previous_chapters[-3:],
             "candidate_fact_ledger": candidate_fact_ledger,
             "candidate_chapter_state_plan": chapter_state_plan,
@@ -880,9 +913,32 @@ def validate_narrative_delivery(run_dir: Path, *, include_receipt: bool = True) 
     }
 
 
+def narrative_delivery_integrity_issues(run_dir: Path) -> list[str]:
+    """Fail closed when a delivery receipt is not bound to its chapter artifacts."""
+    run_dir = Path(run_dir)
+    receipt = _read_yaml(run_dir / "narrative_delivery_receipt.yml", {}) or {}
+    artifact_sha256 = receipt.get("artifact_sha256") if isinstance(receipt, dict) else None
+    if not isinstance(artifact_sha256, dict):
+        return ["predecessor_artifact_hashes_missing"]
+    issues: list[str] = []
+    for filename in LIGHT_CHAPTER_DELIVERY_FILES:
+        path = run_dir / filename
+        expected = str(artifact_sha256.get(filename) or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", expected):
+            issues.append(f"predecessor_artifact_hash_missing:{filename}")
+        elif not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            issues.append(f"predecessor_artifact_hash_mismatch:{filename}")
+    return issues
+
+
 def write_narrative_delivery_receipt(run_dir: Path) -> dict[str, Any]:
     result = validate_narrative_delivery(run_dir, include_receipt=False)
     external_required_files = _delivery_files_for_run(Path(run_dir), include_receipt=True)
+    artifact_sha256 = {
+        filename: hashlib.sha256((Path(run_dir) / filename).read_bytes()).hexdigest()
+        for filename in LIGHT_CHAPTER_DELIVERY_FILES
+        if (Path(run_dir) / filename).is_file()
+    }
     receipt = {
         "schema_version": 1,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -890,6 +946,7 @@ def write_narrative_delivery_receipt(run_dir: Path) -> dict[str, Any]:
         "delivery_check": result,
         "preflight_required_files": result.get("required_files", []),
         "external_required_files": external_required_files,
+        "artifact_sha256": artifact_sha256,
     }
     _write_yaml(Path(run_dir) / "narrative_delivery_receipt.yml", receipt)
     return receipt

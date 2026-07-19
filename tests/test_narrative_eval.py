@@ -521,6 +521,73 @@ def test_narrative_eval_batch_seeds_previous_chapter_and_candidate_facts(
     assert facts["event_count"] == 3
 
 
+def test_narrative_eval_accepts_explicit_hash_valid_predecessor_run(tmp_path: Path) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    seed_timestamp = "seed_chain"
+    seed = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[1, 2, 3],
+        timestamp=seed_timestamp,
+    )
+    assert seed["layers"]["L2_real_chapter_sample"]["status"] == "pass"
+
+    result = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[4],
+        timestamp="new_gate",
+        predecessor_task_id="task_narrative_eval_ch03_seed_chain",
+    )
+
+    assert result["layers"]["L2_real_chapter_sample"]["status"] == "pass"
+    packet = yaml.safe_load(
+        (
+            project_root
+            / "runs"
+            / "task_narrative_eval_ch04_new_gate"
+            / "chapter_packet.yml"
+        ).read_text(encoding="utf-8")
+    )
+    assert packet["previous_candidate_sources"][0].endswith(
+        "task_narrative_eval_ch03_seed_chain/fiction_draft.md"
+    )
+
+    rejected = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[5],
+        timestamp="wrong_predecessor",
+        predecessor_task_id="task_narrative_eval_ch03_seed_chain",
+    )
+    l2 = rejected["layers"]["L2_real_chapter_sample"]
+    assert l2["status"] == "blocked"
+    assert l2["predecessor_identity_issues"] == ["predecessor_chapter_mismatch"]
+
+    predecessor_run = project_root / "runs" / "task_narrative_eval_ch03_seed_chain"
+    (predecessor_run / "fiction_draft.md").write_text(
+        "# mutated after receipt\n",
+        encoding="utf-8",
+    )
+    drifted = run_narrative_eval(
+        root,
+        "Crown_of_Ash",
+        mode="mock",
+        chapters=[4],
+        timestamp="drifted_predecessor",
+        predecessor_task_id="task_narrative_eval_ch03_seed_chain",
+    )
+    drifted_l2 = drifted["layers"]["L2_real_chapter_sample"]
+    assert drifted_l2["status"] == "blocked"
+    assert drifted_l2["predecessor_identity_issues"] == [
+        "predecessor_artifact_hash_mismatch:fiction_draft.md"
+    ]
+
+
 def test_narrative_eval_stop_on_block_prevents_later_chapter_generation(tmp_path: Path) -> None:
     root = _copy_config_root(tmp_path)
     project_root = _make_crown_project(root)

@@ -102,6 +102,49 @@ def test_prepare_chapter_packet_uses_current_story_sources(tmp_path: Path) -> No
     assert written["path"] == "projects/Crown_of_Ash/runs/task_ch02/chapter_packet.yml"
 
 
+def test_candidate_state_plan_adds_hash_bound_story_authority_overlay(tmp_path: Path) -> None:
+    root = _copy_config_root(tmp_path)
+    project_root = _make_crown_project(root)
+    overlay_ref = "candidates/gate1/legacy_character_integration.yml"
+    overlay = project_root / overlay_ref
+    overlay.parent.mkdir(parents=True)
+    overlay.write_text("schema_version: 1\nstatus: candidate\n", encoding="utf-8")
+    overlay_sha256 = hashlib.sha256(overlay.read_bytes()).hexdigest()
+    plan_ref = "candidates/gate1/chapter_state_plan.yml"
+    _write_yaml(
+        project_root / plan_ref,
+        {
+            **_state_plan_document([_state_plan_entry(25)]),
+            "story_authority_refs": [
+                {"path": overlay_ref, "sha256": overlay_sha256},
+            ],
+        },
+    )
+
+    packet = build_chapter_packet(
+        root,
+        "Crown_of_Ash",
+        "task_gate1_ch25",
+        25,
+        baseline_mode="continuation",
+        chapter_state_plan=plan_ref,
+    )
+
+    assert overlay_ref in packet["must_read"]
+    assert packet["story_authority"]["candidate_refs"] == [overlay_ref]
+
+    overlay.write_text("schema_version: 1\nstatus: changed\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="story authority ref sha256 mismatch"):
+        build_chapter_packet(
+            root,
+            "Crown_of_Ash",
+            "task_gate1_ch25_drifted",
+            25,
+            baseline_mode="continuation",
+            chapter_state_plan=plan_ref,
+        )
+
+
 def test_early_chapter_packet_uses_core_and_volume_one_outlines(tmp_path: Path) -> None:
     root = _copy_config_root(tmp_path)
     project_root = _make_crown_project(root)
