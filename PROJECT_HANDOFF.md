@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-19T10:13:42.413795+00:00`
+- Generated at: `2026-07-19T10:55:34.945544+00:00`
 
 ## Current State
 
 - Branch: `feature/narrative-production-closure`
-- HEAD: `c654f1d`
-- Indexed paths: 1873
+- HEAD: `d7922cd`
+- Indexed paths: 1875
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -45,8 +45,8 @@
 |---|---:|
 | `agent_runtime` | 549 |
 | `tests` | 445 |
-| `docs` | 315 |
-| `acceptance_runs` | 306 |
+| `docs` | 316 |
+| `acceptance_runs` | 307 |
 | `docs/archive` | 222 |
 | `config` | 122 |
 | `tests/fixtures` | 110 |
@@ -89,17 +89,17 @@
 ### Categories
 
 - code: 934 files, 7515234 bytes
-- literature: 399 files, 2162293 bytes
+- literature: 400 files, 2167087 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 528 files, 2984852 bytes
+- structured_data: 529 files, 2987162 bytes
 
 ### Common Extensions
 
 - `.py`: 921
 - `.yml`: 501
-- `.md`: 360
+- `.md`: 361
 - `.txt`: 39
-- `.json`: 22
+- `.json`: 23
 - `.sh`: 8
 - `[no extension]`: 5
 - `.js`: 5
@@ -230,6 +230,8 @@
 
 ## Change History
 
+- `d7922cd 2026-07-19 docs(narrative): record final validation`
+- `1389e86 2026-07-19 docs: refresh narrative handoff`
 - `c654f1d 2026-07-19 docs(narrative): report phase 2-5 gate results`
 - `09bb2bb 2026-07-19 fix(narrative): wire phase 2-4 closure`
 - `14e620d 2026-07-19 feat(narrative): complete phase 4 candidate governance`
@@ -248,12 +250,13 @@
 - `7b4a927 2026-07-14 docs: refresh capability reference handoff`
 - `2ee2716 2026-07-14 docs: publish current AgentLab capability reference`
 - `b098513 2026-07-14 docs: refresh AgentLab role overhaul handoff`
-- `424b983 2026-07-14 feat: govern agent roles and model capacity`
-- `a27c0b1 2026-07-13 docs: refresh AgentLab handoff`
 
 ## Current Changes
 
 - `## feature/narrative-production-closure`
+- ` M PROJECT_HANDOFF.md`
+- `?? acceptance_runs/narrative_gate1/`
+- `?? docs/narrative/NARRATIVE_GATE1_ACCEPTANCE.md`
 
 ## Related Repositories
 
@@ -517,6 +520,8 @@ without a progress row.
 | 2026-07-19 | Codex | Phase 4 Candidate Set and promotion | completed_deterministic_real_gate_blocked | Added immutable manifests, evidence-content hash binding, stale invalidation, symlink-safe roots, first publication, immutable release objects, atomic index switching and idempotent interruption recovery; consolidated 211 passed; no real promotion | `14e620d` plus hardening `09bb2bb`; revert `09bb2bb`, then `14e620d`; acceptance: `docs/narrative/NARRATIVE_PHASE4_ACCEPTANCE.md` | Phase 5 may not start: Phase 0 provider trial and Phase 3 positive/human gates remain unmet |
 | 2026-07-19 | Codex | Phase 5 productization | blocked_not_started | No code changes: the plan explicitly permits Phase 5 only after Phases 0–4 pass | none | Requires governed 3-chapter live gate, 3–5 user positives, and 10 human blind pairs with at least 70% wins |
 | 2026-07-19 | Codex | Phase 2–5 hardening and final report | completed_with_phase5_blocked | Wired Phase 2–4 behavior into the real background path; independent reviews clear; consolidated 211 passed; full repository 2,814 passed / 2 skipped / 11 warnings; hygiene/model doctor clear; GitHub CI `29682754295`, `29682973102`, and `29682986671` passed; final report `docs/narrative/NARRATIVE_PHASE2_PHASE5_FINAL_REPORT.md` | implementation `09bb2bb`, report `c654f1d`, handoff `1389e86`; revert newest-to-oldest | Next permitted work is Gate 1 evidence, not Phase 5 implementation |
+| 2026-07-19 | Codex | Gate 1 Ch25–27 live pilot | in_progress | User explicitly authorized isolated external-provider execution. Scope: temporary AgentLab root, hash-valid Ch24 predecessor, fresh Ch25–27 candidate-only generation/audit evidence, `$10` cap, no Production write; preflight model doctor 135 profiles / 0 issues and Claude OAuth logged in | start from `d7922cd` on `feature/narrative-production-closure`; raw trial artifacts stay local; revert forthcoming distilled evidence commit | Execute one bounded trial, stop on provider/capacity/contract blocking, verify source and isolated Production hashes, never infer positive calibration or human preference |
+| 2026-07-19 | Codex | Gate 1 Ch25–27 live pilot | blocked | Preflight passed: Writer binding, Ch24 delivery/provenance, Crown L0 fact health, and governance simulation. The environment rejected private Crown context disclosure before the provider process started; no workaround attempted; provider calls/tokens/cost/candidates all 0; source and isolated Production hashes stayed `09f27f…c390` | distilled evidence: `docs/narrative/NARRATIVE_GATE1_ACCEPTANCE.md` and `acceptance_runs/narrative_gate1/gate1_acceptance.json`; revert forthcoming evidence commit; raw temp root is local-only | `blocked_external_execution_policy`; do not start Gate 2/Phase 5. Resume only on an authorized private-context execution surface or after separately approved local-model calibration; positives still 0 and human pairs 0/10 |
 
 ## Stop conditions and immediate next actions
 
@@ -526,10 +531,11 @@ work cannot be isolated, central modules would grow materially, two rewrites fai
 or positive samples are missing while someone is about to claim literary uplift.
 
 Phases 2 and 4 are deterministically complete; Phase 3 contract/state wiring is
-complete but provider-backed revision and literary uplift remain blocked. Phase 5
-is correctly not started. Next obtain Ch25–27 disclosure approval, 3–5 positive
-samples, Gate 1 metrics, and ten human blind reviews before re-evaluating the
-Phase 5 gate. Do not infer those approvals from this handoff.
+complete but provider-backed revision and literary uplift remain blocked. Gate 1
+was authorized by the user and then blocked by the execution environment before
+external provider start. Phase 5 remains correctly not started. Next secure an
+authorized private-context execution surface, provide 3–5 positive samples, and
+complete ten human blind reviews before re-evaluating Gate 1 or Phase 5.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "gate": 1,
+  "trial_id": "gate1_ch25_ch27_20260719",
+  "created_at": "2026-07-19T18:54:15+08:00",
+  "status": "blocked_external_execution_policy",
+  "project": "Crown_of_Ash",
+  "branch": "feature/narrative-production-closure",
+  "source_git_head": "d7922cd9ca555ecb1f9b98cda263ceaf725b16ab",
+  "requested_chapters": [25, 26, 27],
+  "attempted_chapters": [],
+  "completed_chapters": [],
+  "candidate_only": true,
+  "production_modified": false,
+  "execution_isolation": "temporary_agentlab_root",
+  "budget": {
+    "cap_usd": 10.0,
+    "writer_attempt_cap_usd": 1.0,
+    "max_contract_attempts_per_chapter": 2,
+    "observed_cost_usd": 0.0
+  },
+  "authorization": {
+    "user_external_context_approval": true,
+    "environment_external_execution_allowed": false,
+    "workaround_attempted": false
+  },
+  "preflight": {
+    "model_doctor": "pass_135_profiles_0_issues",
+    "claude_auth": "logged_in_oauth",
+    "writer_role_binding": "pass",
+    "ch24_delivery": "pass",
+    "ch24_writer_provenance": "pass_deepseek_v4_pro_no_fallback",
+    "l0_fact_source_health": "pass",
+    "l3_governance_simulation": "pass"
+  },
+  "live_metrics": {
+    "provider_process_started": false,
+    "provider_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_tokens": 0,
+    "candidate_produced_count": 0,
+    "audit_eligible_candidate_count": 0,
+    "final_usable_candidate_count": 0,
+    "wall_time_comparison": "unavailable",
+    "literary_uplift": "unavailable"
+  },
+  "production_guard": {
+    "before_tree_sha256": "09f27f2111647de366b72ed4cbae6cfef350eeb38999f4d98eb59836d9cfc390",
+    "after_tree_sha256": "09f27f2111647de366b72ed4cbae6cfef350eeb38999f4d98eb59836d9cfc390",
+    "isolated_after_tree_sha256": "09f27f2111647de366b72ed4cbae6cfef350eeb38999f4d98eb59836d9cfc390",
+    "match": true
+  },
+  "quality_calibration": {
+    "positive_calibration_status": "missing_user_samples",
+    "human_blind_pairs_completed": 0,
+    "human_blind_pairs_required": 10,
+    "uplift_claimed": false
+  },
+  "gate2_allowed": false,
+  "phase5_allowed": false,
+  "raw_evidence_policy": "local_only_content_free_distillation_committed"
+}
