@@ -107,7 +107,8 @@ wall-time, token, literary score, revision-uplift, or A/B comparison measurement
   `4da6e59984a9d6b87ee500625f14e77aeb675b69185d4239a0d38c21dd6d7a86`.
 - Existing Ch01–Ch30 candidates were combined for human positive-sample
   selection at
-  `/Users/saintpeter/Desktop/Crown_of_Ash_Gate1_人工审读/01_正样本候选_Ch01-Ch30_合订本.txt`.
+  `Desktop/Crown_of_Ash_Gate1_人工审读/01_正样本候选_Ch01-Ch30_合订本.txt`
+  in the current user's home directory.
 
 ## Next Safe Action
 
