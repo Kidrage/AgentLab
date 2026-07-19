@@ -1,8 +1,8 @@
 # AgentLab Narrative Production Repair Plan v2
 
-Status: highest-priority narrative workstream  
-Execution posture: staged, AgentLab-supervised, candidate-only  
-Source diagnosis: `/Users/saintpeter/Downloads/7.20修改方案.md`  
+Status: highest-priority narrative workstream
+Execution posture: staged, AgentLab-supervised, candidate-only
+Source diagnosis: `/Users/saintpeter/Downloads/7.20修改方案.md`
 Machine contract: `docs/narrative/NARRATIVE_PRODUCTION_REPAIR_EXECUTION.yml`
 
 ## 1. Domain boundary

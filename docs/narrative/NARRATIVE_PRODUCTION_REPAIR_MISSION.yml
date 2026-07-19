@@ -55,4 +55,3 @@ execution:
   production_allowed: false
   current_phase: phase_0r
   later_phases_blocked_until_acceptance: true
-
