@@ -10,10 +10,12 @@ from typing import Any
 import yaml
 
 try:
+    from agent_runtime.atomic_io import atomic_write_yaml
     from agent_runtime.narrative_delivery import validate_narrative_delivery
     from agent_runtime.narrative.efficiency.context_bundle import build_context_bundle
     from agent_runtime.policies import ensure_safe_task_id
 except ModuleNotFoundError:  # pragma: no cover - direct script path
+    from atomic_io import atomic_write_yaml
     from narrative_delivery import validate_narrative_delivery
     from narrative.efficiency.context_bundle import build_context_bundle
     from policies import ensure_safe_task_id
@@ -118,6 +120,27 @@ def _schema_issues(name: str, value: str) -> list[str]:
             issues.append(f"invalid_heavy_audit_boundary:{name}:direct_draft_edits")
         if not isinstance(data.get("proposals"), list):
             issues.append(f"invalid_heavy_audit_schema:{name}:proposals")
+        elif data.get("rewrite_required") is True:
+            required_contract_fields = {
+                "chapter_id",
+                "target_scene",
+                "problem_type",
+                "evidence",
+                "must_preserve",
+                "must_change",
+                "allowed_freedom",
+                "causal_requirements",
+                "character_knowledge_before",
+                "character_knowledge_after",
+                "decision_cost",
+                "new_information",
+                "forbidden_regressions",
+            }
+            for index, proposal in enumerate(data["proposals"]):
+                if not isinstance(proposal, dict) or not required_contract_fields <= set(proposal):
+                    issues.append(
+                        f"invalid_heavy_audit_schema:{name}:scene_contract:{index}"
+                    )
     return issues
 
 
@@ -283,6 +306,40 @@ def fake_narrative_heavy_audit_content(agent_name: str) -> str:
             "blocking_issue_count": 0,
             "failures": [],
         },
+        "narrative_quality_scorecard.yml": {
+            "schema_version": 1,
+            "status": "pass",
+            "candidate_only": True,
+            "production_modified": False,
+            "candidate_sha256": "dry-run-candidate",
+            "chapters": [
+                {
+                    "chapter_id": 1,
+                    "status": "pass",
+                    "dimensions": {
+                        name: {
+                            "score": 5,
+                            "severity": "pass",
+                            "evidence": {
+                                "chapter": 1,
+                                "scene": "opening",
+                                "excerpt_or_locator": "paragraph 1",
+                            },
+                            "reason": "dry-run fixture evidence",
+                            "revision_target": "none",
+                        }
+                        for name in (
+                            "causal_reasoning",
+                            "strategic_competence",
+                            "character_agency",
+                            "dramatic_tension",
+                            "reader_curiosity",
+                            "non_formulaic_progression",
+                        )
+                    },
+                }
+            ],
+        },
         "state_transition_proposal.yml": {
             "schema_version": 1,
             "status": "candidate",
@@ -342,14 +399,24 @@ def prepare_crown_narrative_heavy_audit(
     start_chapter: int,
     end_chapter: int,
     task_id: str | None = None,
+    chapter_ids: list[int] | None = None,
 ) -> dict[str, Any]:
     """Create a fresh, provider-free audit bundle from valid candidate chapters."""
     root = Path(root).resolve()
     project_root = root / "projects" / "Crown_of_Ash"
-    chapter_count = end_chapter - start_chapter + 1
+    selected_chapters = (
+        sorted(set(int(chapter) for chapter in chapter_ids))
+        if chapter_ids is not None
+        else list(range(start_chapter, end_chapter + 1))
+    )
+    chapter_count = len(selected_chapters)
     issues: list[str] = []
     if start_chapter < 1 or end_chapter < start_chapter:
         issues.append("invalid_chapter_range")
+    if not selected_chapters or any(
+        chapter < start_chapter or chapter > end_chapter for chapter in selected_chapters
+    ):
+        issues.append("invalid_selected_chapters")
     if chapter_count > MAX_AUDIT_BUNDLE_CHAPTERS:
         issues.append(f"chapter_range_exceeds_limit:{MAX_AUDIT_BUNDLE_CHAPTERS}")
 
@@ -368,7 +435,7 @@ def prepare_crown_narrative_heavy_audit(
     source_records: list[dict[str, Any]] = []
     context_sections: list[str] = []
     if not issues:
-        for chapter in range(start_chapter, end_chapter + 1):
+        for chapter in selected_chapters:
             source_task_id = _audit_source_task_id(chapter, clean_eval_id)
             source_run = project_root / "runs" / source_task_id
             delivery = validate_narrative_delivery(source_run)
@@ -379,6 +446,7 @@ def prepare_crown_narrative_heavy_audit(
             chapter_values: dict[str, str] = {}
             for name in (
                 "fiction_draft.md",
+                "chapter_packet.yml",
                 "continuity_ledger.yml",
                 "state_transition_proposal.yml",
             ):
@@ -393,7 +461,7 @@ def prepare_crown_narrative_heavy_audit(
                     "sha256": _sha256(path),
                     "characters": len(value),
                 }
-            if len(chapter_values) != 3:
+            if len(chapter_values) != 4:
                 continue
             source_records.append(
                 {
@@ -405,6 +473,7 @@ def prepare_crown_narrative_heavy_audit(
             context_sections.extend(
                 [
                     f"## Chapter {chapter} draft\n\n{chapter_values['fiction_draft.md'].rstrip()}",
+                    f"## Chapter {chapter} contract\n\n```yaml\n{chapter_values['chapter_packet.yml'].rstrip()}\n```",
                     f"## Chapter {chapter} continuity ledger\n\n```yaml\n{chapter_values['continuity_ledger.yml'].rstrip()}\n```",
                     f"## Chapter {chapter} state transition proposal\n\n```yaml\n{chapter_values['state_transition_proposal.yml'].rstrip()}\n```",
                 ]
@@ -423,6 +492,7 @@ def prepare_crown_narrative_heavy_audit(
         "task_id": target_task_id,
         "chapter_range": [start_chapter, end_chapter],
         "chapter_count": chapter_count,
+        "selected_chapters": selected_chapters,
         "candidate_only": True,
         "production_modified": False,
         "production_manuscript_files": production_files,
@@ -442,10 +512,7 @@ def prepare_crown_narrative_heavy_audit(
     (target_run / "user_request.md").write_text(request, encoding="utf-8")
     (target_run / "brain_decisions.yml").write_text("decisions: []\n", encoding="utf-8")
     (target_run / "cost_ledger.yml").write_text("entries: []\n", encoding="utf-8")
-    (target_run / "narrative_audit_manifest.yml").write_text(
-        yaml.safe_dump(report, sort_keys=False, allow_unicode=True),
-        encoding="utf-8",
-    )
+    atomic_write_yaml(target_run / "narrative_audit_manifest.yml", report)
     context_header = (
         "# Narrative Heavy Audit Context\n\n"
         f"- Project: Crown_of_Ash\n"
@@ -472,7 +539,7 @@ def prepare_crown_narrative_heavy_audit(
         canon_snapshot_sha256=(
             _sha256(fact_snapshot) if fact_snapshot.is_file() else "missing"
         ),
-        chapter_window=range(start_chapter, end_chapter + 1),
+        chapter_window=selected_chapters,
         shared_files=shared_files,
         role_specific_files={"Reviewer": [context_path]},
     )
@@ -482,8 +549,5 @@ def prepare_crown_narrative_heavy_audit(
     report["run_dir"] = str(target_run)
     report["manifest_path"] = str(target_run / "narrative_audit_manifest.yml")
     report["context_path"] = str(context_path)
-    (target_run / "narrative_audit_manifest.yml").write_text(
-        yaml.safe_dump(report, sort_keys=False, allow_unicode=True),
-        encoding="utf-8",
-    )
+    atomic_write_yaml(target_run / "narrative_audit_manifest.yml", report)
     return report

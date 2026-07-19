@@ -14,6 +14,7 @@ from agent_runtime.narrative.quality.blind_review import select_candidate_after_
 from agent_runtime.narrative.quality.uplift import build_revision_uplift_receipt
 from agent_runtime.narrative.quality.calibration import evaluate_calibration_gate
 from agent_runtime.narrative.quality.workflow import run_local_revision_closure
+from agent_runtime.background_job_worker import execute_action
 
 
 HASH = "current-body"
@@ -211,6 +212,56 @@ def test_present_passing_required_literary_audit_can_seal() -> None:
     )
 
     assert decision.allow_seal is True
+
+
+def test_batch_scorecard_missing_one_chapter_fails_closed() -> None:
+    dimensions = _quality_scorecard()["dimensions"]
+    for value in dimensions.values():
+        value["evidence"]["chapter"] = 25
+    scorecard = {
+        "schema_version": 1,
+        "status": "pass",
+        "candidate_sha256": HASH,
+        "chapters": [
+            {"chapter_id": 25, "status": "pass", "dimensions": dimensions}
+        ],
+    }
+
+    decision = evaluate_narrative_seal(
+        fiction_review=PASS_FICTION,
+        continuity_failure_report=PASS_CONTINUITY,
+        narrative_quality_scorecard=scorecard,
+        candidate_sha256=HASH,
+        audit_source_integrity=SOURCE_INTEGRITY,
+        required_audits=(
+            "fiction_review",
+            "continuity_failure_report",
+            "narrative_quality_scorecard",
+        ),
+        required_quality_chapters=(25, 26),
+    )
+
+    assert decision.allow_seal is False
+    assert decision.requires_revision is False
+    assert "invalid_narrative_quality_scorecard" in decision.blocking_reasons
+
+
+def test_tiered_audit_missing_actual_window_chapter_fails_closed() -> None:
+    decision = evaluate_narrative_seal(
+        fiction_review=PASS_FICTION,
+        continuity_failure_report=PASS_CONTINUITY,
+        candidate_sha256=HASH,
+        audit_source_integrity=SOURCE_INTEGRITY,
+        tiered_audit={
+            "status": "pass",
+            "chapters": [{"chapter_id": 25, "status": "pass"}],
+        },
+        required_quality_chapters=(25, 26),
+    )
+
+    assert decision.allow_seal is False
+    assert decision.requires_revision is False
+    assert "missing_tiered_audit_chapter:26" in decision.blocking_reasons
 
 
 def test_audit_source_integrity_detects_body_change(tmp_path: Path) -> None:
@@ -531,3 +582,65 @@ def test_new_narrative_jobs_require_literary_scorecard_before_seal(tmp_path) -> 
         "continuity_failure_report",
         "narrative_quality_scorecard",
     ]
+
+
+def test_background_rewrite_calls_scene_closure_adapter(tmp_path, monkeypatch) -> None:
+    observed: dict[str, object] = {}
+
+    def run_revision(request: dict) -> dict[str, object]:
+        observed["request"] = request
+        return {
+            "status": "pass",
+            "changed_chapters": [26],
+            "fact_dependencies": {26: [29]},
+            "selected_revision_count": 1,
+        }
+
+    monkeypatch.setattr(
+        "agent_runtime.narrative.quality.background.run_background_revision",
+        run_revision,
+    )
+    result = execute_action(
+        {
+            "action": "rewrite_batch",
+            "candidate_only": True,
+            "production_allowed": False,
+            "agentlab_root": str(tmp_path),
+            "project": "Crown_of_Ash",
+            "job_id": "job-rewrite",
+            "attempt_id": "attempt-rewrite",
+            "batch": {"start": 25, "end": 30},
+            "config": {"eval_id": "eval", "narrative_adapter": "crown"},
+            "prior_results": {"heavy_audit": {"task_id": "audit-1"}},
+        }
+    )
+
+    assert result["outcome"] == "success"
+    assert result["result"]["changed_chapters"] == [26]
+    assert observed["request"]["job_kind"] == "narrative_revision"
+
+
+def test_background_revision_reads_node_local_verifier_proposal(tmp_path) -> None:
+    from agent_runtime.narrative.quality.background import run_background_revision
+
+    proposal = tmp_path / "revision_or_rewrite_proposal.yml"
+    proposal.write_text(
+        "status: proposed\nrewrite_required: true\nproposals:\n  - chapter_id: 26\n",
+        encoding="utf-8",
+    )
+    result = run_background_revision(
+        {
+            "agentlab_root": str(tmp_path),
+            "project": "Crown_of_Ash",
+            "job_id": "job-rewrite",
+            "attempt_id": "attempt-rewrite",
+            "batch": {"start": 25, "end": 30},
+            "prior_results": {
+                "heavy_audit": {"task_id": "audit-1", "rewrite_proposal": None},
+                "revision_support_verifier": {"output_path": str(proposal)},
+            },
+        }
+    )
+
+    assert result["reason"] == "provider_revision_gate_not_accepted"
+    assert result["revision_contract_count"] == 1

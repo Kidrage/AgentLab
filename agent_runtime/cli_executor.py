@@ -893,17 +893,31 @@ def _narrative_heavy_audit_output_schema(
                 {
                     "status": {"enum": ["pass", "warn", "blocked"]},
                     "candidate_sha256": {"type": "string", "minLength": 1},
-                    "dimensions": {
-                        "type": "object",
-                        "required": list(dimension_names),
-                        "properties": {
-                            dimension: dimension_schema for dimension in dimension_names
+                    "chapters": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "required": ["chapter_id", "status", "dimensions"],
+                            "properties": {
+                                "chapter_id": {"type": "integer", "minimum": 1},
+                                "status": {"enum": ["pass", "warn", "blocked"]},
+                                "dimensions": {
+                                    "type": "object",
+                                    "required": list(dimension_names),
+                                    "properties": {
+                                        dimension: dimension_schema
+                                        for dimension in dimension_names
+                                    },
+                                    "additionalProperties": False,
+                                },
+                            },
+                            "additionalProperties": False,
                         },
-                        "additionalProperties": False,
                     },
                 }
             )
-            required.extend(["status", "candidate_sha256", "dimensions"])
+            required.extend(["status", "candidate_sha256", "chapters"])
         elif name == "state_transition_proposal.yml":
             properties.update(
                 {
@@ -940,6 +954,40 @@ def _narrative_heavy_audit_output_schema(
                     "proposals": {
                         "type": "array",
                         "minItems": 1 if blocking_rewrite_required else 0,
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "chapter_id",
+                                "target_scene",
+                                "problem_type",
+                                "evidence",
+                                "must_preserve",
+                                "must_change",
+                                "allowed_freedom",
+                                "causal_requirements",
+                                "character_knowledge_before",
+                                "character_knowledge_after",
+                                "decision_cost",
+                                "new_information",
+                                "forbidden_regressions",
+                            ],
+                            "properties": {
+                                "chapter_id": {"type": "integer", "minimum": 1},
+                                "target_scene": {"type": "string", "minLength": 1},
+                                "problem_type": {"type": "string", "minLength": 1},
+                                "evidence": {"type": "string", "minLength": 1},
+                                "must_preserve": {"type": "array", "minItems": 1},
+                                "must_change": {"type": "array", "minItems": 1},
+                                "allowed_freedom": {"type": "string", "minLength": 1},
+                                "causal_requirements": {"type": "array", "minItems": 1},
+                                "character_knowledge_before": {"type": "array", "minItems": 1},
+                                "character_knowledge_after": {"type": "array", "minItems": 1},
+                                "decision_cost": {"type": "string", "minLength": 1},
+                                "new_information": {"type": "string", "minLength": 1},
+                                "forbidden_regressions": {"type": "array", "minItems": 1},
+                            },
+                            "additionalProperties": True,
+                        },
                     },
                 }
             )
@@ -1041,7 +1089,7 @@ def _narrative_heavy_audit_content_keys(name: str) -> set[str]:
         "narrative_quality_scorecard.yml": {
             "status",
             "candidate_sha256",
-            "dimensions",
+            "chapters",
         },
         "state_transition_proposal.yml": {
             "status",

@@ -84,6 +84,8 @@ def evaluate_narrative_seal(
     ),
     require_independent_reaudit: bool = False,
     independent_reaudit: Mapping[str, Any] | None = None,
+    tiered_audit: Mapping[str, Any] | None = None,
+    required_quality_chapters: tuple[int, ...] = (),
     promotion_requested: bool = False,
     user_acceptance_receipt: Mapping[str, Any] | None = None,
     expected_lease_token: str | None = None,
@@ -130,6 +132,7 @@ def evaluate_narrative_seal(
         quality_validation = validate_quality_scorecard(
             narrative_quality_scorecard,
             candidate_sha256=str(candidate_sha256 or ""),
+            required_chapters=required_quality_chapters,
         )
         if quality_validation["valid"] is not True:
             invalid.append("invalid_narrative_quality_scorecard")
@@ -166,6 +169,21 @@ def evaluate_narrative_seal(
             invalid.append("independent_reaudit_reused_source_task")
         elif candidate_sha256 and _candidate_hash(independent_reaudit) != candidate_sha256:
             invalid.append("independent_reaudit_candidate_hash_mismatch")
+
+    if isinstance(tiered_audit, Mapping):
+        tier_status = _status(tiered_audit)
+        if tier_status in _BLOCKING_STATUSES:
+            content.append("risk_tiered_literary_audit_blocked")
+        elif tier_status not in _PASS_STATUSES:
+            invalid.append("invalid_tiered_audit_status")
+        covered_tiered_chapters = {
+            int(item.get("chapter_id"))
+            for item in tiered_audit.get("chapters") or []
+            if isinstance(item, Mapping) and isinstance(item.get("chapter_id"), int)
+        }
+        for chapter in required_quality_chapters:
+            if int(chapter) not in covered_tiered_chapters:
+                invalid.append(f"missing_tiered_audit_chapter:{int(chapter)}")
 
     if promotion_requested:
         if not isinstance(user_acceptance_receipt, Mapping):

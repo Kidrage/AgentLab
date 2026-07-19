@@ -1851,27 +1851,33 @@ class TestRunCliAgentSubprocess:
                 "candidate_only": True,
                 "production_modified": False,
                 "candidate_sha256": "candidate-sha",
-                "dimensions": {
-                    name: {
-                        "score": 5,
-                        "severity": "pass",
-                        "evidence": {
-                            "chapter": 1,
-                            "scene": "opening",
-                            "excerpt_or_locator": "paragraph 1",
+                "chapters": [
+                    {
+                        "chapter_id": 1,
+                        "status": "pass",
+                        "dimensions": {
+                            name: {
+                                "score": 5,
+                                "severity": "pass",
+                                "evidence": {
+                                    "chapter": 1,
+                                    "scene": "opening",
+                                    "excerpt_or_locator": "paragraph 1",
+                                },
+                                "reason": "specific evidence",
+                                "revision_target": "none",
+                            }
+                            for name in (
+                                "causal_reasoning",
+                                "strategic_competence",
+                                "character_agency",
+                                "dramatic_tension",
+                                "reader_curiosity",
+                                "non_formulaic_progression",
+                            )
                         },
-                        "reason": "specific evidence",
-                        "revision_target": "none",
                     }
-                    for name in (
-                        "causal_reasoning",
-                        "strategic_competence",
-                        "character_agency",
-                        "dramatic_tension",
-                        "reader_curiosity",
-                        "non_formulaic_progression",
-                    )
-                },
+                ],
             },
         }
         stdout = "\n".join(

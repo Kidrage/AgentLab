@@ -9,6 +9,7 @@ from typing import Any, Mapping
 
 from agent_runtime.atomic_io import atomic_write_text, atomic_write_yaml
 from agent_runtime.narrative.jobs.identity import NarrativeJobIdentity
+from agent_runtime.narrative.efficiency.planning import plan_chapter_execution
 
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
@@ -83,6 +84,10 @@ def _create_narrative_audit_state(
         "candidate_only": True,
         "production_allowed": False,
         "preflight_passed": True,
+        "narrative_execution_plan": plan_chapter_execution(
+            range(start_chapter, end_chapter + 1),
+            risk_signals=config.get("risk_signals"),
+        ),
         "config": config,
         "current_batch": {
             "number": 1,
@@ -103,6 +108,7 @@ def _create_narrative_audit_state(
         "automatic_rewrite_exhausted": False,
         "decision_reason": None,
         "independent_reaudit_required": False,
+        "revision_audit_window": None,
         "capacity_reset_at": None,
         "capacity_resume_count": 0,
         "retry_at": None,

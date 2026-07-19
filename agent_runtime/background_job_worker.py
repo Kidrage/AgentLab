@@ -178,6 +178,45 @@ def _generate_batch(request: dict[str, Any]) -> dict[str, Any]:
 
 
 def _deterministic_check(request: dict[str, Any]) -> dict[str, Any]:
+    if request.get("action") == "deterministic_reaudit" and isinstance(
+        request.get("audit_window"), dict
+    ):
+        from agent_runtime.narrative.audit.background import prepare_and_precheck_audit
+
+        clean_attempt = re.sub(r"[^A-Za-z0-9_-]+", "_", request["attempt_id"])
+        preparation = prepare_and_precheck_audit(
+            request,
+            task_id=f"task_narrative_deterministic_reaudit_{clean_attempt}"[:120],
+        )
+        precheck = preparation.get("precheck")
+        output = _attempt_dir(request) / "deterministic_batch_audit.yml"
+        atomic_write_yaml(
+            output,
+            precheck
+            if isinstance(precheck, dict)
+            else {
+                "status": "blocked",
+                "blocking_codes": ["incremental_precheck_unavailable"],
+            },
+        )
+        status = (
+            "pass"
+            if isinstance(precheck, dict) and precheck.get("status") == "pass"
+            else "blocked"
+        )
+        return {
+            "outcome": "success" if status == "pass" else "failed",
+            "result": {
+                "status": status,
+                "report_path": str(output),
+                "issues": (
+                    precheck.get("findings", [])
+                    if isinstance(precheck, dict)
+                    else ["incremental_precheck_unavailable"]
+                ),
+                "audit_window": dict(request["audit_window"]),
+            },
+        }
     from agent_runtime.crown_candidate_audit import write_crown_completion_batch_audit
 
     output = _attempt_dir(request) / "deterministic_batch_audit.yml"
@@ -273,9 +312,12 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
                 "reason": "unsupported_narrative_audit_adapter",
             },
         }
-    from agent_runtime.narrative_heavy_audit import prepare_crown_narrative_heavy_audit
     from agent_runtime.narrative.audit.gate import evaluate_narrative_seal
     from agent_runtime.narrative.audit.integrity import verify_audit_source_integrity
+    from agent_runtime.narrative.audit.background import (
+        prepare_and_precheck_audit,
+        run_tiered_followup,
+    )
 
     root = Path(request["agentlab_root"])
     batch = request["batch"]
@@ -284,13 +326,8 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
         f"task_narrative_heavy_audit_ch{int(batch['start']):03d}_"
         f"ch{int(batch['end']):03d}_{clean_attempt}"
     )[:85]
-    prepared = prepare_crown_narrative_heavy_audit(
-        root,
-        eval_id=str(request["config"]["eval_id"]),
-        start_chapter=int(batch["start"]),
-        end_chapter=int(batch["end"]),
-        task_id=task_id,
-    )
+    preparation = prepare_and_precheck_audit(request, task_id=task_id)
+    prepared = preparation["prepared"]
     if prepared.get("status") != "ready":
         return {
             "outcome": "failed",
@@ -300,37 +337,42 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
                 "issues": prepared.get("issues", []),
             },
         }
+    precheck = preparation.get("precheck")
+    if not isinstance(precheck, dict) or precheck.get("status") != "pass":
+        return {
+            "outcome": "failed",
+            "result": {
+                "status": "blocked",
+                "reason": "deterministic_precheck_blocked",
+                "blocking_codes": (
+                    precheck.get("blocking_codes", [])
+                    if isinstance(precheck, dict)
+                    else ["missing_deterministic_precheck"]
+                ),
+                "deterministic_precheck": precheck,
+            },
+        }
     execution_plan = request.get("narrative_execution_plan")
     chapter_plans = (
         execution_plan.get("chapters")
         if isinstance(execution_plan, dict)
         else None
     )
-    ordinary_only = bool(chapter_plans) and all(
-        isinstance(chapter_plan, dict)
-        and int(chapter_plan.get("judge_count") or 1) == 1
-        for chapter_plan in chapter_plans
+    from agent_runtime.narrative.audit.runtime import run_single_judge_pipeline
+
+    pipeline = run_single_judge_pipeline(
+        root,
+        project=request["project"],
+        task_id=task_id,
+        budget_mode=(
+            "max-quality"
+            if any(
+                isinstance(item, dict) and int(item.get("judge_count") or 1) > 1
+                for item in (chapter_plans or [])
+            )
+            else "balanced"
+        ),
     )
-    if ordinary_only:
-        from agent_runtime.narrative.audit.runtime import run_single_judge_pipeline
-
-        pipeline = run_single_judge_pipeline(
-            root,
-            project=request["project"],
-            task_id=task_id,
-            budget_mode="balanced",
-        )
-    else:
-        from agent_runtime.pipeline_runner import run_full_pipeline
-
-        pipeline = run_full_pipeline(
-            root,
-            request["project"],
-            task_id,
-            dry_run=False,
-            fake_provider=False,
-            budget_mode="max-quality",
-        )
     run_dir = root / "projects" / request["project"] / "runs" / task_id
     if not pipeline.get("success"):
         reset_at = _read_capacity_reset(run_dir)
@@ -376,6 +418,20 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
     for evidence in (fiction_evidence, continuity_evidence, quality_evidence):
         if evidence is not None and candidate_sha256:
             evidence["candidate_sha256"] = candidate_sha256
+    tiered_audit = run_tiered_followup(
+        request,
+        primary_task_id=task_id,
+        primary_pipeline=pipeline,
+    )
+    if tiered_audit.get("status") == "execution_failed":
+        return {
+            "outcome": "failed_recoverable",
+            "result": {
+                "status": "blocked",
+                "reason": tiered_audit.get("reason"),
+                "tiered_audit": tiered_audit,
+            },
+        }
     prior_audit = (request.get("prior_results") or {}).get("heavy_audit") or {}
     independent_reaudit = None
     if request.get("require_independent_reaudit"):
@@ -388,21 +444,32 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
             "candidate_sha256": candidate_sha256,
             "run_dir": str(run_dir),
         }
+    configured_audits = tuple(
+        str(item)
+        for item in config.get(
+            "required_audits",
+            ["fiction_review", "continuity_failure_report"],
+        )
+    )
+    audit_window = request.get("audit_window")
+    required_quality_chapters = (
+        tuple(int(item) for item in audit_window.get("audit_chapters") or [])
+        if isinstance(audit_window, dict)
+        else tuple(range(int(batch["start"]), int(batch["end"]) + 1))
+    )
+    if "narrative_quality_scorecard" not in configured_audits:
+        required_quality_chapters = ()
     decision = evaluate_narrative_seal(
         fiction_review=fiction_evidence,
         continuity_failure_report=continuity_evidence,
         narrative_quality_scorecard=quality_evidence,
         candidate_sha256=str(candidate_sha256) if candidate_sha256 else None,
         audit_source_integrity=integrity,
-        required_audits=tuple(
-            str(item)
-            for item in config.get(
-                "required_audits",
-                ["fiction_review", "continuity_failure_report"],
-            )
-        ),
+        required_audits=configured_audits,
         require_independent_reaudit=bool(request.get("require_independent_reaudit")),
         independent_reaudit=independent_reaudit,
+        tiered_audit=tiered_audit,
+        required_quality_chapters=required_quality_chapters,
     )
     proposal_path = run_dir / "revision_or_rewrite_proposal.yml"
     return {
@@ -419,6 +486,7 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
             "continuity_failure_report_data": continuity_evidence,
             "narrative_quality_scorecard": quality_evidence,
             "independent_reaudit": independent_reaudit,
+            "tiered_audit": tiered_audit,
             "fiction_review_path": str(fiction_path),
             "continuity_failure_report": str(continuity_path),
             "rewrite_proposal": str(proposal_path) if proposal_path.is_file() else None,
@@ -426,29 +494,79 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _rewrite_handoff(request: dict[str, Any]) -> dict[str, Any]:
-    """Fail closed after preserving the heavy-audit rewrite proposal."""
+def _revision_support(request: dict[str, Any], *, role: str) -> dict[str, Any]:
+    """Run one post-finding role so retries never repeat successful audit nodes."""
+    from agent_runtime.narrative.audit.runtime import run_revision_support_role
+
     heavy = (request.get("prior_results") or {}).get("heavy_audit") or {}
-    output = _attempt_dir(request) / "rewrite_handoff.yml"
-    handoff = {
-        "schema_version": 1,
-        "status": "blocked",
-        "candidate_only": True,
-        "production_modified": False,
-        "chapter_range": [request["batch"]["start"], request["batch"]["end"]],
-        "heavy_audit_task_id": heavy.get("task_id"),
-        "continuity_failure_report": heavy.get("continuity_failure_report"),
-        "rewrite_proposal": heavy.get("rewrite_proposal"),
-        "reason": "automatic_rewrite_requires_a_validated_correction_state_plan",
-    }
-    atomic_write_yaml(output, handoff)
+    task_id = str(heavy.get("task_id") or "")
+    run_dir = Path(str(heavy.get("run_dir") or ""))
+    if not task_id or not run_dir.is_dir():
+        return {
+            "outcome": "failed",
+            "result": {
+                "status": "blocked",
+                "reason": "missing_heavy_audit_run_for_revision_support",
+            },
+        }
+    execution = run_revision_support_role(
+        Path(request["agentlab_root"]),
+        project=request["project"],
+        task_id=task_id,
+        role=role,
+        budget_mode="balanced",
+    )
+    if not execution.get("success"):
+        transient = _transient_pipeline_failure(
+            {"blocked_reason": execution.get("blocked_reason")},
+            run_dir,
+        )
+        result = {
+            "status": "blocked",
+            "reason": transient or execution.get("blocked_reason"),
+            "task_id": task_id,
+            "run_dir": str(run_dir),
+        }
+        if transient:
+            return {
+                "outcome": "retry_wait",
+                "retry_at": _retry_timestamp(
+                    int(request["config"].get("transient_retry_seconds") or 900)
+                ),
+                "result": result,
+            }
+        return {"outcome": "failed_recoverable", "result": result}
+    output_name = (
+        "state_transition_proposal.yml"
+        if role == "Scribe"
+        else "revision_or_rewrite_proposal.yml"
+    )
     return {
         "outcome": "success",
         "result": {
-            "status": "blocked",
-            "reason": handoff["reason"],
-            "rewrite_handoff": str(output),
+            "status": "pass",
+            "role": role,
+            "task_id": task_id,
+            "run_dir": str(run_dir),
+            "output_path": str(run_dir / output_name),
+            "role_receipt": execution.get("role_receipt"),
         },
+    }
+
+
+def _rewrite_handoff(request: dict[str, Any]) -> dict[str, Any]:
+    """Execute the scene-level revision adapter without reclassifying prose."""
+    from agent_runtime.narrative.quality.background import run_background_revision
+
+    revision_request = {
+        **request,
+        "job_kind": "narrative_revision",
+        "run_mode": "targeted_rewrite",
+    }
+    result = run_background_revision(revision_request)
+    return {
+        "outcome": "success",
+        "result": dict(result),
     }
 
 
@@ -563,6 +681,10 @@ def execute_action(request: dict[str, Any]) -> dict[str, Any]:
         return _deterministic_check(request)
     if action == "heavy_audit":
         return _heavy_audit(request)
+    if action == "revision_support_scribe":
+        return _revision_support(request, role="Scribe")
+    if action == "revision_support_verifier":
+        return _revision_support(request, role="Verifier")
     if action == "rewrite_batch":
         return _rewrite_handoff(request)
     if action == "final_acceptance":

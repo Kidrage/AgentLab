@@ -1574,8 +1574,9 @@ Output contract:
 - If the CLI runtime enforces a structured-output schema, return its files/content object instead of hand-writing YAML; AgentLab will serialize the validated object into these same AGENTLAB_EDIT files.
 - fiction_review.yml: status pass|warn|blocked and findings list.
 - continuity_failure_report.yml: status pass|warn|blocked, blocking_issue_count integer, and failures list.
+- narrative_quality_scorecard.yml: status pass|warn|blocked, candidate_sha256, and one chapter entry with all six evidence-bound quality dimensions for every audited chapter; batch summaries without complete per-chapter coverage are invalid.
 - state_transition_proposal.yml: status candidate, requires_user_promotion: true, and events list; every event scope is candidate_only.
-- revision_or_rewrite_proposal.yml: status not_required|proposed|blocked, rewrite_required boolean, direct_draft_edits: false, and proposals list.
+- revision_or_rewrite_proposal.yml: status not_required|proposed|blocked, rewrite_required boolean, direct_draft_edits: false, and proposals list. Every proposed rewrite must be a scene-level revision contract with chapter_id, target_scene, problem_type, exact evidence, must_preserve, must_change, allowed_freedom, causal_requirements, character knowledge before/after, decision_cost, new_information, and forbidden_regressions.
 - Do not emit fiction_draft.md or directly rewrite any chapter.
 
 Required outputs:

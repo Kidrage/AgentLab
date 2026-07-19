@@ -203,6 +203,25 @@ class DryRunClosureEvidenceTests(TestCase):
                     "schema_version: 1\nstatus: pass\ncandidate_only: true\n"
                     "production_modified: false\nblocking_issue_count: 0\nfailures: []\n"
                     "<!-- END AGENTLAB_EDIT -->",
+                    "<!-- AGENTLAB_EDIT: narrative_quality_scorecard.yml -->\n"
+                    "schema_version: 1\nstatus: pass\ncandidate_only: true\n"
+                    "production_modified: false\ncandidate_sha256: dry-run-candidate\n"
+                    "dimensions:\n"
+                    + "".join(
+                        f"  {name}:\n"
+                        "    score: 5\n    severity: pass\n"
+                        "    evidence: {chapter: 1, scene: opening, excerpt_or_locator: paragraph 1}\n"
+                        "    reason: fixture evidence\n    revision_target: none\n"
+                        for name in (
+                            "causal_reasoning",
+                            "strategic_competence",
+                            "character_agency",
+                            "dramatic_tension",
+                            "reader_curiosity",
+                            "non_formulaic_progression",
+                        )
+                    )
+                    + "<!-- END AGENTLAB_EDIT -->",
                 ]
             )
             model_result = LLMCallResult(

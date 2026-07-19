@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import sys
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml
@@ -145,18 +143,18 @@ def test_heavy_audit_network_failure_returns_durable_retry_wait(tmp_path: Path) 
     request = _request(tmp_path, "heavy_audit", end_chapter=10)
     request["config"]["transient_retry_seconds"] = 60
 
-    pipeline_module = SimpleNamespace(
-        run_full_pipeline=lambda *_args, **_kwargs: {
+    with patch(
+        "agent_runtime.narrative.audit.background.prepare_and_precheck_audit",
+        return_value={
+            "prepared": {"status": "ready", "issues": []},
+            "precheck": {"status": "pass", "blocking_codes": []},
+        },
+    ), patch(
+        "agent_runtime.narrative.audit.runtime.run_single_judge_pipeline",
+        return_value={
             "success": False,
             "blocked_reason": "CLI agent network_required (exit 1).",
-        }
-    )
-    with patch(
-        "agent_runtime.narrative_heavy_audit.prepare_crown_narrative_heavy_audit",
-        return_value={"status": "ready", "issues": []},
-    ), patch.dict(
-        sys.modules,
-        {"agent_runtime.pipeline_runner": pipeline_module},
+        },
     ), patch(
         "agent_runtime.background_job_worker._utc_now",
         return_value="2026-07-18T07:00:00+00:00",

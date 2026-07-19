@@ -42,6 +42,13 @@ def create_crown_audit_job_from_contract(
         adapter_config={
             "narrative_adapter": "crown",
             "eval_id": eval_id,
+            "risk_signals": {
+                int(chapter): [str(signal) for signal in signals]
+                for chapter, signals in (
+                    mission_contract.get("risk_signals") or {}
+                ).items()
+                if isinstance(signals, (list, tuple))
+            },
         },
         candidate_set_id=identity.candidate_set_id,
         source_job_id=identity.source_job_id,
@@ -70,6 +77,7 @@ def upgrade_crown_job_state(value: Mapping[str, Any]) -> dict[str, Any]:
         ("automatic_rewrite_exhausted", False),
         ("decision_reason", None),
         ("independent_reaudit_required", False),
+        ("revision_audit_window", None),
     ):
         state.setdefault(key, default)
     config = dict(state.get("config") or {})

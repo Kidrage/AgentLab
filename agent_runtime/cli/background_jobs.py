@@ -49,7 +49,22 @@ def register_background_job_commands(
         transient_retry_seconds: int = typer.Option(
             900, "--transient-retry-seconds", min=1
         ),
+        risk_signals: Path | None = typer.Option(
+            None,
+            "--risk-signals",
+            help="YAML mapping from chapter number to structured risk signals.",
+        ),
     ) -> None:
+        risk_signal_data = None
+        if risk_signals is not None:
+            raw_risks = safe_read_yaml(risk_signals)
+            if not isinstance(raw_risks, dict):
+                raise typer.BadParameter("risk signals must be a YAML mapping")
+            risk_signal_data = {
+                int(chapter): [str(signal) for signal in signals]
+                for chapter, signals in raw_risks.items()
+                if isinstance(signals, list)
+            }
         state = create_crown_delivery_job(
             agentlab_root,
             project=project,
@@ -63,6 +78,7 @@ def register_background_job_commands(
             chapter_state_plan=chapter_state_plan,
             writer_budget=writer_budget,
             transient_retry_seconds=transient_retry_seconds,
+            risk_signals=risk_signal_data,
         )
         console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
 

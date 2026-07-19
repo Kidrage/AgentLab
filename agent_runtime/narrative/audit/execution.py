@@ -40,7 +40,7 @@ def execute_tiered_audit(
         receipts.append(second)
         if (
             primary.get("judge_id") == second.get("judge_id")
-            or primary.get("context_id") == second.get("context_id")
+            and primary.get("context_id") == second.get("context_id")
         ):
             return {
                 "schema_version": 1,

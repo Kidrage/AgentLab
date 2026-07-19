@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import hashlib
-import sys
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml
@@ -32,31 +30,38 @@ AUDIT_CONTRACT = {
 }
 
 
-def _passing_quality_scorecard() -> dict:
+def _passing_quality_scorecard(start: int = 1, end: int = 10) -> dict:
     return {
         "status": "pass",
         "candidate_sha256": AUDIT_HASH,
-        "dimensions": {
-            name: {
-                "score": 5,
-                "severity": "pass",
-                "evidence": {
-                    "chapter": 1,
-                    "scene": "opening",
-                    "excerpt_or_locator": "paragraph 1",
+        "chapters": [
+            {
+                "chapter_id": chapter,
+                "status": "pass",
+                "dimensions": {
+                    name: {
+                        "score": 5,
+                        "severity": "pass",
+                        "evidence": {
+                            "chapter": chapter,
+                            "scene": "opening",
+                            "excerpt_or_locator": "paragraph 1",
+                        },
+                        "reason": "specific evidence",
+                        "revision_target": "none",
+                    }
+                    for name in (
+                        "causal_reasoning",
+                        "strategic_competence",
+                        "character_agency",
+                        "dramatic_tension",
+                        "reader_curiosity",
+                        "non_formulaic_progression",
+                    )
                 },
-                "reason": "specific evidence",
-                "revision_target": "none",
             }
-            for name in (
-                "causal_reasoning",
-                "strategic_competence",
-                "character_agency",
-                "dramatic_tension",
-                "reader_curiosity",
-                "non_formulaic_progression",
-            )
-        },
+            for chapter in range(start, end + 1)
+        ],
     }
 
 
@@ -101,6 +106,18 @@ def _audit_result(
 
 def _complete(root: Path, job_id: str, result: dict) -> dict:
     state = load_job_state(root, "Crown_of_Ash", job_id)
+    if isinstance(result.get("narrative_quality_scorecard"), dict):
+        batch = state["current_batch"]
+        result["narrative_quality_scorecard"] = _passing_quality_scorecard(
+            int(batch["start"]), int(batch["end"])
+        )
+        result["tiered_audit"] = {
+            "status": "pass",
+            "chapters": [
+                {"chapter_id": chapter, "status": "pass"}
+                for chapter in range(int(batch["start"]), int(batch["end"]) + 1)
+            ],
+        }
     active = state["active_attempt"]
     write_process_receipt(
         root,
@@ -117,6 +134,20 @@ def _complete(root: Path, job_id: str, result: dict) -> dict:
     return consume_process_receipt(
         root, project="Crown_of_Ash", job_id=job_id, now=NOW
     )
+
+
+def _complete_revision_support(root: Path, job_id: str = "candidate-v1") -> dict:
+    scribe = schedule_next_attempt(
+        root, project="Crown_of_Ash", job_id=job_id, now=NOW
+    )
+    assert scribe["action"] == "revision_support_scribe"
+    state = _complete(root, job_id, {"status": "pass", "role": "Scribe"})
+    assert state["status"] == "awaiting_revision_verifier"
+    verifier = schedule_next_attempt(
+        root, project="Crown_of_Ash", job_id=job_id, now=NOW
+    )
+    assert verifier["action"] == "revision_support_verifier"
+    return _complete(root, job_id, {"status": "pass", "role": "Verifier"})
 
 
 def _create_generation_job(root: Path, *, end_chapter: int = 10) -> None:
@@ -276,6 +307,8 @@ def test_two_failed_revision_cycles_stop_for_user_decision(tmp_path: Path) -> No
             "candidate-v1",
             _audit_result(blocked=True, independent=expected_count > 1),
         )
+        assert state["status"] == "awaiting_revision_scribe"
+        state = _complete_revision_support(tmp_path)
         assert state["status"] == "rewrite_required"
         rewrite = schedule_next_attempt(
             tmp_path, project="Crown_of_Ash", job_id="candidate-v1", now=NOW
@@ -313,6 +346,7 @@ def test_rewritten_batch_requires_hash_bound_independent_reaudit(tmp_path: Path)
         tmp_path, project="Crown_of_Ash", job_id="candidate-v1", now=NOW
     )
     _complete(tmp_path, "candidate-v1", _audit_result(blocked=True))
+    _complete_revision_support(tmp_path)
     for _ in range(2):
         schedule_next_attempt(
             tmp_path, project="Crown_of_Ash", job_id="candidate-v1", now=NOW
@@ -344,6 +378,8 @@ def test_controller_recomputes_false_green_worker_decision(tmp_path: Path) -> No
 
     state = _complete(tmp_path, "candidate-v1", result)
 
+    assert state["status"] == "awaiting_revision_scribe"
+    state = _complete_revision_support(tmp_path)
     assert state["status"] == "rewrite_required"
     assert state["sealed_batches"] == []
 
@@ -354,6 +390,7 @@ def test_automatic_rewrite_allowance_resets_for_each_batch(tmp_path: Path) -> No
         tmp_path, project="Crown_of_Ash", job_id="candidate-v1", now=NOW
     )
     _complete(tmp_path, "candidate-v1", _audit_result(blocked=True))
+    _complete_revision_support(tmp_path)
     for _ in range(2):
         schedule_next_attempt(
             tmp_path, project="Crown_of_Ash", job_id="candidate-v1", now=NOW
@@ -429,16 +466,25 @@ def test_worker_independent_reaudit_receipt_is_bound_to_fresh_run_and_hash(
         "require_independent_reaudit": True,
         "prior_results": {"heavy_audit": {"task_id": "audit-before-rewrite"}},
     }
-    pipeline_module = SimpleNamespace(
-        run_full_pipeline=lambda *_args, **_kwargs: {"success": True}
-    )
     with patch(
-        "agent_runtime.narrative_heavy_audit.prepare_crown_narrative_heavy_audit",
+        "agent_runtime.narrative.audit.background.prepare_and_precheck_audit",
         return_value={
-            "status": "ready",
-            "manifest_path": str(manifest_path),
+            "prepared": {
+                "status": "ready",
+                "manifest_path": str(manifest_path),
+            },
+            "precheck": {"status": "pass", "blocking_codes": []},
         },
-    ), patch.dict(sys.modules, {"agent_runtime.pipeline_runner": pipeline_module}):
+    ), patch(
+        "agent_runtime.narrative.audit.runtime.run_single_judge_pipeline",
+        return_value={
+            "success": True,
+            "judge_receipt": {
+                "judge_id": "Reviewer",
+                "context_id": task_id,
+            },
+        },
+    ):
         result = execute_action(request)
 
     receipt = result["result"]["independent_reaudit"]

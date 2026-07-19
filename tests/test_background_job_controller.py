@@ -26,31 +26,38 @@ NOW = "2026-07-17T15:00:00+00:00"
 AUDIT_HASH = "candidate-hash-001"
 
 
-def _passing_quality_scorecard() -> dict:
+def _passing_quality_scorecard(start: int = 1, end: int = 10) -> dict:
     return {
         "status": "pass",
         "candidate_sha256": AUDIT_HASH,
-        "dimensions": {
-            name: {
-                "score": 5,
-                "severity": "pass",
-                "evidence": {
-                    "chapter": 1,
-                    "scene": "opening",
-                    "excerpt_or_locator": "paragraph 1",
+        "chapters": [
+            {
+                "chapter_id": chapter,
+                "status": "pass",
+                "dimensions": {
+                    name: {
+                        "score": 5,
+                        "severity": "pass",
+                        "evidence": {
+                            "chapter": chapter,
+                            "scene": "opening",
+                            "excerpt_or_locator": "paragraph 1",
+                        },
+                        "reason": "specific evidence",
+                        "revision_target": "none",
+                    }
+                    for name in (
+                        "causal_reasoning",
+                        "strategic_competence",
+                        "character_agency",
+                        "dramatic_tension",
+                        "reader_curiosity",
+                        "non_formulaic_progression",
+                    )
                 },
-                "reason": "specific evidence",
-                "revision_target": "none",
             }
-            for name in (
-                "causal_reasoning",
-                "strategic_competence",
-                "character_agency",
-                "dramatic_tension",
-                "reader_curiosity",
-                "non_formulaic_progression",
-            )
-        },
+            for chapter in range(start, end + 1)
+        ],
     }
 
 
@@ -73,6 +80,13 @@ def _heavy_audit_result(*, blocked: bool = False, independent: bool = False) -> 
             "blocking_issue_count": 0,
         },
         "narrative_quality_scorecard": _passing_quality_scorecard(),
+        "tiered_audit": {
+            "status": "pass",
+            "chapters": [
+                {"chapter_id": chapter, "status": "pass"}
+                for chapter in range(1, 11)
+            ],
+        },
     }
     if independent:
         result["independent_reaudit"] = {
@@ -457,6 +471,55 @@ def test_blocking_heavy_audit_requires_rewrite_then_deterministic_reaudit(
     assert independent["action"] == "heavy_audit"
     state = _complete_active(tmp_path, result=_heavy_audit_result(independent=True))
     assert state["status"] == "batch_sealed"
+
+
+def test_revision_support_retries_only_failed_verifier_node(tmp_path: Path) -> None:
+    _create_job(tmp_path)
+    _reach_heavy_audit(tmp_path)
+    schedule_next_attempt(
+        tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
+    )
+    audit = _heavy_audit_result(blocked=True)
+    audit.update(
+        {
+            "task_id": "audit-findings-1",
+            "run_dir": str(
+                tmp_path / "projects" / "Crown_of_Ash" / "runs" / "audit-findings-1"
+            ),
+            "rewrite_proposal": None,
+        }
+    )
+    state = _complete_active(tmp_path, result=audit)
+    assert state["status"] == "awaiting_revision_scribe"
+
+    scribe = schedule_next_attempt(
+        tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
+    )
+    assert scribe["action"] == "revision_support_scribe"
+    state = _complete_active(tmp_path, result={"status": "pass", "role": "Scribe"})
+    assert state["status"] == "awaiting_revision_verifier"
+
+    verifier = schedule_next_attempt(
+        tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
+    )
+    assert verifier["action"] == "revision_support_verifier"
+    state = _complete_active(
+        tmp_path,
+        outcome="failed_recoverable",
+        result={"status": "blocked", "reason": "verifier_provider_error"},
+    )
+    assert state["status"] == "failed_recoverable"
+    assert state["retry_action"] == "revision_support_verifier"
+
+    retry = schedule_next_attempt(
+        tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
+    )
+    assert retry["action"] == "revision_support_verifier"
+    assert retry["attempt_id"] != verifier["attempt_id"]
+    assert all(
+        item["action"] != "revision_support_scribe"
+        for item in [retry]
+    )
 
 
 def test_final_acceptance_writes_completion_receipt(tmp_path: Path) -> None:

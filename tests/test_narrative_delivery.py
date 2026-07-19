@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E402 -- legacy pipeline modules still use direct sibling imports.
+
 import shutil
 import sys
 import hashlib
@@ -13,7 +15,10 @@ from agent_runtime.narrative.candidates.manifest import (
     freeze_candidate_set,
     validate_candidate_set,
 )
-from agent_runtime.narrative.candidates.promotion import promote_candidate_set
+from agent_runtime.narrative.candidates.promotion import (
+    evidence_bundle_sha256,
+    promote_candidate_set,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent_runtime"))
@@ -547,6 +552,7 @@ def test_first_publication_promotes_hash_bound_candidate_atomically(tmp_path: Pa
             "status": "accepted",
             "candidate_set_id": "candidate-set-first",
             "candidate_set_sha256": frozen["candidate_set_sha256"],
+            "evidence_bundle_sha256": evidence_bundle_sha256(project_root, frozen),
             "accepted_by": "user",
         },
     )
@@ -562,8 +568,8 @@ def test_first_publication_promotes_hash_bound_candidate_atomically(tmp_path: Pa
 
     assert result["status"] == "promoted"
     assert result["first_publication"] is True
-    production = project_root / "production" / "editions" / "edition-001"
-    assert (production / "chapter_001.md").read_text(encoding="utf-8") == (
+    release = project_root / "release_objects" / "editions" / "edition-001"
+    assert (release / "chapter_001.md").read_text(encoding="utf-8") == (
         "first publication candidate\n"
     )
     index = yaml.safe_load(
@@ -644,7 +650,7 @@ def test_failed_promotion_keeps_existing_production_unchanged(tmp_path: Path) ->
 
     assert (project_root / "project_artifact_index.yml").read_bytes() == before_index
     assert (existing / "chapter_001.md").read_bytes() == before_production
-    assert not (project_root / "production" / "editions" / "edition-rejected").exists()
+    assert not (project_root / "release_objects" / "editions" / "edition-rejected").exists()
 
 
 def test_index_write_failure_rolls_back_staged_production(
@@ -704,6 +710,7 @@ def test_index_write_failure_rolls_back_staged_production(
             "status": "accepted",
             "candidate_set_id": "candidate-set-atomic",
             "candidate_set_sha256": frozen["candidate_set_sha256"],
+            "evidence_bundle_sha256": evidence_bundle_sha256(project_root, frozen),
         },
     )
     real_write = promotion_module.atomic_write_yaml
@@ -725,5 +732,203 @@ def test_index_write_failure_rolls_back_staged_production(
             promoted_at="2026-01-01T00:02:00+00:00",
         )
 
-    assert not (project_root / "production" / "editions" / "edition-atomic").exists()
+    assert not (project_root / "release_objects" / "editions" / "edition-atomic").exists()
     assert not (project_root / "project_artifact_index.yml").exists()
+
+
+def test_unsafe_promotion_identifiers_are_rejected_before_filesystem_changes(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "projects" / "Novel"
+
+    with pytest.raises(ValueError, match="invalid edition_id"):
+        promote_candidate_set(
+            project_root,
+            manifest_path=project_root / "missing.yml",
+            user_acceptance_receipt=project_root / "missing-approval.yml",
+            edition_id="../escape",
+            release_slot="main",
+            promoted_at="2026-01-01T00:00:00+00:00",
+        )
+
+    assert not project_root.exists()
+
+
+def test_promotion_path_rejects_symlink_escape_from_project_root(tmp_path: Path) -> None:
+    from agent_runtime.narrative.candidates.promotion import _safe_child
+
+    project_root = tmp_path / "project"
+    outside = tmp_path / "outside"
+    project_root.mkdir()
+    outside.mkdir()
+    (project_root / ".promotion_staging").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError):
+        _safe_child(project_root, ".promotion_staging", "candidate-edition")
+
+    assert list(outside.iterdir()) == []
+
+
+def test_receipt_mutation_after_user_acceptance_makes_promotion_stale(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "projects" / "Novel"
+    artifact = project_root / "candidates" / "raw" / "chapter_001.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("candidate\n", encoding="utf-8")
+    artifact_sha = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    receipts = project_root / "receipts"
+    receipts.mkdir()
+    created = create_candidate_set(
+        project_root,
+        candidate_set_id="candidate-set-receipts",
+        created_at="2026-01-01T00:00:00+00:00",
+        canon_snapshot_sha256="canon-sha",
+        scorecard_version=1,
+        chapters=[
+            {
+                "chapter_id": 1,
+                "artifact_path": "candidates/raw/chapter_001.md",
+                "source_run_id": "run-ch001",
+                "source_model": "writer-model",
+                "model_tier": "final",
+                "context_manifest_sha256": "context-sha",
+                "predecessor_chapter_sha256": None,
+                "generation_receipt": "receipts/generation.yml",
+                "correctness_audit": "receipts/correctness.yml",
+                "literary_audit": "receipts/literary.yml",
+                "cost_receipt": "receipts/cost.yml",
+            }
+        ],
+    )
+    frozen = freeze_candidate_set(project_root, Path(created["manifest_path"]))
+    for name in ("generation", "correctness", "literary", "cost"):
+        _write_yaml(
+            receipts / f"{name}.yml",
+            {
+                "status": "pass",
+                "candidate_set_sha256": frozen["candidate_set_sha256"],
+                "artifact_sha256": artifact_sha,
+                "blocking_count": 0,
+            },
+        )
+    approval = receipts / "approval.yml"
+    _write_yaml(
+        approval,
+        {
+            "status": "accepted",
+            "candidate_set_id": frozen["candidate_set_id"],
+            "candidate_set_sha256": frozen["candidate_set_sha256"],
+            "evidence_bundle_sha256": evidence_bundle_sha256(
+                project_root, frozen
+            ),
+        },
+    )
+    literary = yaml.safe_load((receipts / "literary.yml").read_text(encoding="utf-8"))
+    literary["tampered_after_approval"] = True
+    _write_yaml(receipts / "literary.yml", literary)
+
+    with pytest.raises(ValueError, match="stale user acceptance evidence"):
+        promote_candidate_set(
+            project_root,
+            manifest_path=Path(created["manifest_path"]),
+            user_acceptance_receipt=approval,
+            edition_id="edition-receipts",
+            release_slot="main",
+            promoted_at="2026-01-01T00:02:00+00:00",
+        )
+
+    assert not (project_root / "release_objects" / "editions" / "edition-receipts").exists()
+
+
+def test_retry_recovers_target_left_after_process_interruption(tmp_path: Path) -> None:
+    project_root = tmp_path / "projects" / "Novel"
+    artifact = project_root / "candidates" / "raw" / "chapter_001.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("candidate\n", encoding="utf-8")
+    artifact_sha = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    receipts = project_root / "receipts"
+    receipts.mkdir()
+    created = create_candidate_set(
+        project_root,
+        candidate_set_id="candidate-set-recover",
+        created_at="2026-01-01T00:00:00+00:00",
+        canon_snapshot_sha256="canon-sha",
+        scorecard_version=1,
+        chapters=[
+            {
+                "chapter_id": 1,
+                "artifact_path": "candidates/raw/chapter_001.md",
+                "source_run_id": "run-ch001",
+                "source_model": "writer-model",
+                "model_tier": "final",
+                "context_manifest_sha256": "context-sha",
+                "predecessor_chapter_sha256": None,
+                "generation_receipt": "receipts/generation.yml",
+                "correctness_audit": "receipts/correctness.yml",
+                "literary_audit": "receipts/literary.yml",
+                "cost_receipt": "receipts/cost.yml",
+            }
+        ],
+    )
+    frozen = freeze_candidate_set(project_root, Path(created["manifest_path"]))
+    for name in ("generation", "correctness", "literary", "cost"):
+        _write_yaml(
+            receipts / f"{name}.yml",
+            {
+                "status": "pass",
+                "candidate_set_sha256": frozen["candidate_set_sha256"],
+                "artifact_sha256": artifact_sha,
+                "blocking_count": 0,
+            },
+        )
+    evidence_sha = evidence_bundle_sha256(project_root, frozen)
+    approval = receipts / "approval.yml"
+    _write_yaml(
+        approval,
+        {
+            "status": "accepted",
+            "candidate_set_id": frozen["candidate_set_id"],
+            "candidate_set_sha256": frozen["candidate_set_sha256"],
+            "evidence_bundle_sha256": evidence_sha,
+        },
+    )
+    interrupted_target = project_root / "release_objects" / "editions" / "edition-recover"
+    interrupted_target.mkdir(parents=True)
+    (interrupted_target / "chapter_001.md").write_bytes(artifact.read_bytes())
+    _write_yaml(
+        interrupted_target / "promotion_receipt.yml",
+        {
+            "schema_version": 1,
+            "status": "promoted",
+            "promoted_at": "2026-01-01T00:02:00+00:00",
+            "candidate_set_id": frozen["candidate_set_id"],
+            "candidate_set_sha256": frozen["candidate_set_sha256"],
+            "evidence_bundle_sha256": evidence_sha,
+            "edition_id": "edition-recover",
+            "release_slot": "main",
+            "user_acceptance_receipt": str(approval),
+            "chapters": [
+                {
+                    "chapter_id": 1,
+                    "artifact_path": "release_objects/editions/edition-recover/chapter_001.md",
+                    "artifact_sha256": artifact_sha,
+                }
+            ],
+            "production_modified": True,
+        },
+    )
+
+    result = promote_candidate_set(
+        project_root,
+        manifest_path=Path(created["manifest_path"]),
+        user_acceptance_receipt=approval,
+        edition_id="edition-recover",
+        release_slot="main",
+        promoted_at="2026-01-01T00:02:00+00:00",
+    )
+
+    assert result["status"] == "promoted"
+    assert yaml.safe_load(
+        (project_root / "project_artifact_index.yml").read_text(encoding="utf-8")
+    )["current_release"]["edition_id"] == "edition-recover"

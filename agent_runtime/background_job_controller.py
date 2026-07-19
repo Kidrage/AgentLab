@@ -30,6 +30,7 @@ from agent_runtime.narrative.jobs.identity import (
 from agent_runtime.narrative.jobs.crown_adapter import upgrade_crown_job_state
 from agent_runtime.narrative.audit.gate import SealDecision, evaluate_narrative_seal
 from agent_runtime.narrative.efficiency.planning import (
+    compute_incremental_audit_window,
     plan_chapter_execution,
     select_batch_plan,
 )
@@ -44,6 +45,8 @@ ACTION_RUNNING_STATE = {
     "generate_batch": "generating_batch",
     "deterministic_check": "deterministic_check",
     "heavy_audit": "heavy_auditing",
+    "revision_support_scribe": "revision_support_scribe",
+    "revision_support_verifier": "revision_support_verifier",
     "rewrite_batch": "rewriting",
     "deterministic_reaudit": "deterministic_reaudit",
     "final_acceptance": "final_acceptance",
@@ -253,6 +256,7 @@ def create_crown_delivery_job(
         "automatic_rewrite_exhausted": False,
         "decision_reason": None,
         "independent_reaudit_required": False,
+        "revision_audit_window": None,
         "capacity_reset_at": None,
         "capacity_resume_count": 0,
         "retry_at": None,
@@ -283,6 +287,10 @@ def _action_for_state(state: dict[str, Any]) -> str | None:
         return "deterministic_check"
     if status == "awaiting_heavy_audit":
         return "heavy_audit"
+    if status == "awaiting_revision_scribe":
+        return "revision_support_scribe"
+    if status == "awaiting_revision_verifier":
+        return "revision_support_verifier"
     if status == "rewrite_required":
         return "rewrite_batch"
     if status == "deterministic_reaudit":
@@ -310,6 +318,7 @@ def _advance_sealed_batch(state: dict[str, Any]) -> None:
     state["automatic_rewrite_exhausted"] = False
     state["decision_reason"] = None
     state["independent_reaudit_required"] = False
+    state["revision_audit_window"] = None
     state["status"] = "queued"
 
 
@@ -359,7 +368,11 @@ def _attempt_request(
             source_run_id=str(prior_audit.get("run_dir")) if prior_audit.get("run_dir") else None,
             triggered_by_audit_id=str(prior_audit.get("task_id")) if prior_audit.get("task_id") else None,
         )
-    elif action == "heavy_audit" and state.get("job_kind") != "narrative_audit":
+    elif action in {
+        "heavy_audit",
+        "revision_support_scribe",
+        "revision_support_verifier",
+    } and state.get("job_kind") != "narrative_audit":
         identity = NarrativeJobIdentity(
             "narrative_audit",
             "independent_reaudit"
@@ -379,7 +392,7 @@ def _attempt_request(
         persisted_plan = plan_chapter_execution(
             range(int(batch["start"]), int(batch["end"]) + 1)
         )
-    return {
+    request = {
         "schema_version": SCHEMA_VERSION,
         "job_id": state["job_id"],
         "project": state["project"],
@@ -404,6 +417,11 @@ def _attempt_request(
         "require_independent_reaudit": bool(state.get("independent_reaudit_required")),
         "agentlab_root": str(Path(root).resolve()),
     }
+    if action in {"deterministic_reaudit", "heavy_audit"} and isinstance(
+        state.get("revision_audit_window"), dict
+    ):
+        request["audit_window"] = dict(state["revision_audit_window"])
+    return request
 
 
 def schedule_next_attempt(
@@ -579,6 +597,10 @@ def _seal_current_batch(state: dict[str, Any], now: str) -> None:
 
 def _successful_transition(state: dict[str, Any], action: str, result: dict[str, Any], now: str) -> None:
     result_status = str(result.get("status") or "pass").lower()
+    if result_status == "decision_required":
+        state["status"] = "decision_required"
+        state["decision_reason"] = result.get("reason") or "revision_decision_required"
+        return
     if result_status not in {"pass", "completed", "ready", "success"}:
         state["status"] = "blocked"
         state["last_error"] = result.get("reason") or f"{action} returned {result_status}"
@@ -591,6 +613,26 @@ def _successful_transition(state: dict[str, Any], action: str, result: dict[str,
     elif action == "deterministic_check":
         state["status"] = "awaiting_heavy_audit"
     elif action == "heavy_audit":
+        configured_audits = tuple(
+            str(item)
+            for item in state.get("config", {}).get(
+                "required_audits",
+                ["fiction_review", "continuity_failure_report"],
+            )
+        )
+        revision_window = state.get("revision_audit_window")
+        required_quality_chapters = (
+            tuple(int(item) for item in revision_window.get("audit_chapters") or [])
+            if isinstance(revision_window, dict)
+            else tuple(
+                range(
+                    int(state["current_batch"]["start"]),
+                    int(state["current_batch"]["end"]) + 1,
+                )
+            )
+        )
+        if "narrative_quality_scorecard" not in configured_audits:
+            required_quality_chapters = ()
         decision = evaluate_narrative_seal(
             fiction_review=result.get("fiction_review") if isinstance(result.get("fiction_review"), dict) else None,
             continuity_failure_report=(
@@ -613,19 +655,19 @@ def _successful_transition(state: dict[str, Any], action: str, result: dict[str,
                 if isinstance(result.get("audit_source_integrity"), dict)
                 else None
             ),
-            required_audits=tuple(
-                str(item)
-                for item in state.get("config", {}).get(
-                    "required_audits",
-                    ["fiction_review", "continuity_failure_report"],
-                )
-            ),
+            required_audits=configured_audits,
             require_independent_reaudit=bool(state.get("independent_reaudit_required")),
             independent_reaudit=(
                 result.get("independent_reaudit")
                 if isinstance(result.get("independent_reaudit"), dict)
                 else None
             ),
+            tiered_audit=(
+                result.get("tiered_audit")
+                if isinstance(result.get("tiered_audit"), dict)
+                else None
+            ),
+            required_quality_chapters=required_quality_chapters,
         ).to_dict()
         transition = next_after_heavy_audit(
             job_kind=str(state.get("job_kind") or ""),
@@ -661,7 +703,15 @@ def _successful_transition(state: dict[str, Any], action: str, result: dict[str,
             _seal_current_batch(state, now)
             state["independent_reaudit_required"] = False
         else:
-            state["status"] = transition.status
+            if (
+                transition.status == "rewrite_required"
+                and result.get("task_id")
+                and result.get("run_dir")
+                and not result.get("rewrite_proposal")
+            ):
+                state["status"] = "awaiting_revision_scribe"
+            else:
+                state["status"] = transition.status
         state["automatic_rewrite_exhausted"] = transition.automatic_rewrite_exhausted
         if transition.reason:
             state["decision_reason"] = transition.reason
@@ -669,7 +719,22 @@ def _successful_transition(state: dict[str, Any], action: str, result: dict[str,
                 state["last_error"] = transition.reason
     elif action == "rewrite_batch":
         state["automatic_rewrite_count"] = int(state.get("automatic_rewrite_count") or 0) + 1
+        batch = state["current_batch"]
+        state["revision_audit_window"] = compute_incremental_audit_window(
+            changed_chapters=result.get("changed_chapters") or [],
+            available_chapters=range(int(batch["start"]), int(batch["end"]) + 1),
+            fact_dependencies=result.get("fact_dependencies") or {},
+            full_reaudit_reason=(
+                str(result.get("full_reaudit_reason"))
+                if result.get("full_reaudit_reason")
+                else None
+            ),
+        )
         state["status"] = "deterministic_reaudit"
+    elif action == "revision_support_scribe":
+        state["status"] = "awaiting_revision_verifier"
+    elif action == "revision_support_verifier":
+        state["status"] = "rewrite_required"
     elif action == "deterministic_reaudit":
         state["independent_reaudit_required"] = True
         state["status"] = "awaiting_heavy_audit"
