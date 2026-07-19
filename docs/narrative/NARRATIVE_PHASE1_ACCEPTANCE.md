@@ -107,7 +107,7 @@ Not run. This phase was deliberately candidate-only and provider-free. `producti
 
 ## Rollback Instructions
 
-Revert the Phase 1 commit as one unit with `git revert <phase-1-commit>`. The change does not migrate or modify Production. Existing schema-1 Crown job files remain recoverable because migration is applied from structured `job_type` in the Crown adapter; reverting restores the previous reader and worker behavior.
+Revert the Phase 1 implementation as one unit with `git revert 2d504f9`. The change does not migrate or modify Production. Existing schema-1 Crown job files remain recoverable because migration is applied from structured `job_type` in the Crown adapter; reverting restores the previous reader and worker behavior.
 
 ## Next Recommended Gate
 

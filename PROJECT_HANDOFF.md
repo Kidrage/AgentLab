@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-19T05:15:07.497792+00:00`
+- Generated at: `2026-07-19T05:16:34.613702+00:00`
 
 ## Current State
 
 - Branch: `feature/narrative-production-closure`
-- HEAD: `69b3a2a`
+- HEAD: `2d504f9`
 - Indexed paths: 1846
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -89,7 +89,7 @@
 ### Categories
 
 - code: 916 files, 7355055 bytes
-- literature: 395 files, 2133479 bytes
+- literature: 395 files, 2134174 bytes
 - other: 12 files, 74102 bytes
 - structured_data: 523 files, 2977371 bytes
 
@@ -230,6 +230,7 @@
 
 ## Change History
 
+- `2d504f9 2026-07-19 fix(narrative): close phase 1 semantics and seal gates`
 - `69b3a2a 2026-07-19 docs(handoff): prioritize narrative closure plan`
 - `e3f9dc8 2026-07-19 fix(narrative): harden phase 0 evidence`
 - `047e1e6 2026-07-19 feat(narrative): establish phase 0 diagnostic baseline`
@@ -249,27 +250,10 @@
 - `6ae8488 2026-07-13 fix: archive rejected narrative attempts on resume`
 - `19fc00b 2026-07-13 fix: normalize relationship candidate event scope`
 - `6570d25 2026-07-13 fix: keep 250 activation on Agy OAuth`
-- `49925d4 2026-07-13 fix: block repeated narrative passages`
 
 ## Current Changes
 
 - `## feature/narrative-production-closure`
-- ` M PROJECT_HANDOFF.md`
-- ` M agent_runtime/background_job_controller.py`
-- ` M agent_runtime/background_job_worker.py`
-- ` M agent_runtime/brain/mission_contract.py`
-- ` M agent_runtime/cli/background_jobs.py`
-- ` M agent_runtime/narrative_intent.py`
-- ` M tests/test_background_job_controller.py`
-- ` M tests/test_background_job_worker.py`
-- `?? acceptance_runs/narrative_phase1/`
-- `?? agent_runtime/narrative/audit/`
-- `?? agent_runtime/narrative/jobs/`
-- `?? docs/narrative/NARRATIVE_PHASE1_ACCEPTANCE.md`
-- `?? tests/test_narrative_audit_closure.py`
-- `?? tests/test_narrative_background_recovery.py`
-- `?? tests/test_narrative_job_semantics.py`
-- `?? tests/test_narrative_quality_gate.py`
 
 ## Related Repositories
 
@@ -522,7 +506,7 @@ without a progress row.
 | 2026-07-19 | Codex | Phase 0 review hardening | completed | Corrected timing semantics, added persisted queue-wait measurement, path normalization, measured safety, attribution, and distilled-only live receipt; focused 133 passed, full 2,741 passed / 2 skipped / 11 warnings; standards and spec verification both clear | dirty worktree after `047e1e6`; revert forthcoming correction commit to roll back | Commit/push feature branch, verify CI, sync Truenas; live Ch25–27 still requires explicit disclosure approval |
 | 2026-07-19 | Codex | Phase 0 delivery | completed | Root handoff is the highest-priority Phase 0–5 authority; local full suite 2,741 passed; GitHub CI `29672851321` passed every gate; Truenas reports/evidence/session/state hashes match local | implementation `e3f9dc8` on `feature/narrative-production-closure`; revert that commit to roll back review hardening | Pause: live Ch25–27 disclosure, 3–5 positive samples, and separate Phase 1 authorization remain user decisions |
 | 2026-07-19 | Codex | Phase 1 semantics and seal gate | in_progress | User approved Phase 1; scope is immutable structured job identity, audit/generation/revision separation, canonical fail-closed seal decision, and two-rewrite stop; Production and Phase 2+ remain out of scope | start from `69b3a2a` on `feature/narrative-production-closure`; revert forthcoming Phase 1 commits to roll back | Write one public-behavior test at a time, keep central adapters thin, run full review/CI before completion |
-| 2026-07-19 | Codex | Phase 1 semantics and seal gate | completed | Added contract-driven audit/generation/revision identities, Crown audit adapter, hash-bound fail-closed gate, multi-batch audit findings closure, distinct independent re-audit receipts, lease deadlines, and per-batch two-rewrite stop; focused 169 passed, full 2,773 passed / 2 skipped / 11 warnings; Ruff/diff/compile and independent Standards/Spec reviews clear; `production_modified: false` | dirty worktree after `69b3a2a` on `feature/narrative-production-closure`; revert forthcoming Phase 1 commit to roll back; acceptance: `docs/narrative/NARRATIVE_PHASE1_ACCEPTANCE.md` and `acceptance_runs/narrative_phase1/phase1_acceptance.json` | Stop before Phase 2; request explicit authorization. No live manuscript/provider trial or literary-uplift claim was made |
+| 2026-07-19 | Codex | Phase 1 semantics and seal gate | completed | Added contract-driven audit/generation/revision identities, Crown audit adapter, hash-bound fail-closed gate, multi-batch audit findings closure, distinct independent re-audit receipts, lease deadlines, and per-batch two-rewrite stop; focused 169 passed, full 2,773 passed / 2 skipped / 11 warnings; Ruff/diff/compile and independent Standards/Spec reviews clear; `production_modified: false` | implementation `2d504f9` on `feature/narrative-production-closure`; `git revert 2d504f9` rolls back; acceptance: `docs/narrative/NARRATIVE_PHASE1_ACCEPTANCE.md` and `acceptance_runs/narrative_phase1/phase1_acceptance.json` | Stop before Phase 2; request explicit authorization. No live manuscript/provider trial or literary-uplift claim was made |
 
 ## Stop conditions and immediate next actions
 

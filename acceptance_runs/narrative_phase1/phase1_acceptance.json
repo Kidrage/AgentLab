@@ -3,6 +3,7 @@
   "phase": 1,
   "status": "pass_deterministic",
   "source_base": "69b3a2a0c5833fb94bd3b71c91bf2e248cbaf691",
+  "implementation_commit": "2d504f9a8f2c5975e062e67dfdacec8dc509ada6",
   "branch": "feature/narrative-production-closure",
   "candidate_only": true,
   "production_modified": false,
