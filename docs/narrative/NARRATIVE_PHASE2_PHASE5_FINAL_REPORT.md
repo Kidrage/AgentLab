@@ -168,6 +168,8 @@ no live rewrite, no completed human A/B pair, and no 70% win-rate result exist.
 - Full repository: `2814 passed, 2 skipped, 11 warnings` in 223.37 seconds.
 - Repository hygiene: pass, 0 hard violations, 0 warnings.
 - Model doctor: pass, 0 issues across 135 resolved profiles.
+- GitHub CI: implementation run `29682754295`, report run `29682973102`, and
+  handoff run `29682986671` all passed.
 - Machine-readable result:
   `acceptance_runs/narrative_phase2_phase5/final_acceptance.json`.
 

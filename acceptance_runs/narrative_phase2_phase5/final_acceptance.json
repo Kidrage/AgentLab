@@ -25,6 +25,11 @@
     "git_diff_check": "pass",
     "repository_hygiene": "pass, 0 hard violations, 0 warnings",
     "model_doctor": "pass, 0 issues, 135 resolved profiles",
+    "github_ci": {
+      "implementation_29682754295": "success",
+      "report_29682973102": "success",
+      "handoff_29682986671": "success"
+    },
     "independent_spec_review": "no unresolved hard findings",
     "independent_standards_review": "no unresolved hard findings"
   },
