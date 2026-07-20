@@ -1,0 +1,45 @@
+schema_version: 1
+phase: phase_2r_node_a_context
+status: accepted_node_a
+executor: codex_supervisor
+
+focused_efficiency:
+  passed: 41
+  failed: 0
+  skipped: 0
+  duration_seconds: 0.58
+  baseline_tests: 24
+  original_node_tests: 8
+  coder_correction_tests: 7
+  supervisor_intervention_tests: 2
+
+frozen_false_green_replay:
+  passed: 6
+  failed: 0
+  covered:
+    - creative_brief_content_and_hash_in_manifest
+    - predecessor_receipt_hash_mismatch_blocks
+    - authoritative_pattern_fields_block
+    - caller_pattern_file_is_not_mutated
+    - cross_role_duplicate_promoted_once
+    - literary_status_alias_blocks
+
+narrative_domain:
+  passed: 219
+  failed: 0
+  skipped: 0
+  duration_seconds: 10.81
+
+static_checks:
+  compileall: pass
+  git_diff_check: pass
+
+full_repository:
+  passed: 2903
+  failed: 0
+  skipped: 2
+  warnings: 11
+  duration_seconds: 275.80
+production_modified: false
+prose_provider_calls: 0
+implementation_model_calls: 2

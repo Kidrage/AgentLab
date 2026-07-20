@@ -578,6 +578,8 @@ without a progress row.
 | 2026-07-20 20:31 CST | Codex (supervisor) | Generic Coder worker-chain validation | completed | Regenerated the deterministic full-CLI matrix, matrix/config/executor suite 92/0, and final full repository 2886 passed / 2 skipped / 0 failed / 11 warnings in 327.51s. Original wrapper repro now executes deepseek-v4-pro successfully; no debug instrumentation or source edits remain | commit this generic code-task infrastructure repair separately; rollback by reverting that commit | Dispatch only the first node-sized Phase 2R task, inspect its packet/token/heartbeat receipt before continuing later nodes |
 | 2026-07-20 20:35 CST | Codex (supervisor) | Phase 2R node A shared context | in_progress | Dispatch one bounded Coder node only: production ContextCompiler, required brief/canon/predecessor/hard-state binding, explicit relevant optional memory, one immutable shared bundle, isolated role slices and derived duplication/file metrics. No risk planner, quality gate, provider prose, Production or later Phase 2 nodes | start from generic Coder repair `d81ea22`; authority `docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_2R_NODE_A.yml`; revert forthcoming node commit to roll back | AgentLab Coder must prove actual deepseek_v4_pro identity and append its own progress. Codex accepts/rejects this node before any next dispatch |
 | 2026-07-20 20:45 CST | Codex (supervisor) | Phase 2R node A review | rejected_for_five_false_greens | Coder completed in 293.6s on actual deepseek_v4_pro with allowed-file scope and 32/0 self-tests, but independent replay passes a stale brief hash, accepts Ch01 as Ch25 predecessor, loads shared/private duplicate while reporting ratio 0, preserves literary pass/promotion authority in pattern signals, and omits CreativeBrief content from the manifest. Report also states ~260 lines while file is 345 and claims a root handoff deliverable that was not appended | preserve candidate patch and receipts as lineage; correction authority `docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_2R_NODE_A_CORRECTION_1.yml` | Retry only this node. Phase 2R later nodes, providers, Production and literary claims remain blocked |
+| 2026-07-20 20:58 CST | Codex (supervisor) | Phase 2R node A correction supervision | in_progress_intervention | AgentLab correction completed in 533.6s but retained four contract gaps: brief hash without brief content, no expected predecessor receipt hash, cross-role duplicate retained by first role, and silent pattern-authority dropping including literary_status bypass. Combined AgentLab construction used 8.31M reported tokens / ~$6.39 and correction ended 66.4s before deadline. Under the task-problem intervention rule, Codex added red tests then fixed only these frozen seams; focused 41/0 and narrative-domain 219/0 | preserve both Coder attempts as lineage; future node commit contains the corrected aggregate | Run full repository and evidence validation. Do not dispatch another Phase 2 node or claim context reduction |
+| 2026-07-20 21:08 CST | Codex (supervisor) | Phase 2R node A final acceptance | accepted_node_only | Accepted hash/content-bound CreativeBrief, explicit predecessor identity and receipt-hash check, required canon/hard state, one-copy cross-role promotion, actual duplicate metrics and fail-closed advisory signal authority. Focused 41/0, narrative domain 219/0, full repository 2903 passed / 2 skipped / 0 failed / 11 warnings in 275.80s; Production/prose-provider calls remain 0. This does not accept Phase 2R or its 25% target | evidence under `acceptance_runs/narrative_repair_v2/phase_2r/node_a/`; rollback by reverting the forthcoming independent Node A implementation commit | Next is measurement-only frozen before/after evidence. Do not spend another multi-million-token Coder call until packet overhead is narrowed |
 
 ## Stop conditions and immediate next actions
 
@@ -590,11 +592,12 @@ The v1 Phase 2 and 4 mechanisms remain reusable evidence, but v2 reopens their
 memory, assembly, and live-quality gaps. Phase 0R and Phase 1R structural
 contracts are accepted. AgentLab timed out on both Correction 3 and its resume;
 Codex completed the frozen failure seams under the explicit intervention rule.
-Focused tests are 155/0, narrative-domain tests are 202/0, and the post-hygiene
-full repository is 2886/0 with 2 skips. The direct Worker and repaired AgentLab
-wrapper smoke both pass on deepseek-v4-pro; wrapper context overhead is material.
-Phase 2R is ready only for node-sized dispatch with explicit model identity,
-packet/token telemetry and a pre-deadline checkpoint. Gate 1
+Phase 0R, Phase 1R and Phase 2R Node A are accepted. Current Node A verification
+is 41/0 focused, 219/0 narrative-domain and 2903/0 full-repository with 2 skips.
+The direct Worker and repaired AgentLab wrapper both run deepseek-v4-pro, but
+two Node A Coder attempts consumed 8.31M reported tokens and the correction came
+within 66.4s of deadline. Phase 2R now requires a measurement-only frozen
+before/after context comparison before any later implementation node. Gate 1
 legacy integration remains candidate-ready and hash-bound, but external Writer
 execution is still environment-blocked. Ten human blind reviews remain required
 before scaling or starting Phase 5.

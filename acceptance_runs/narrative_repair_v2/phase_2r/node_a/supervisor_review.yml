@@ -28,3 +28,36 @@ decision:
   next_action: node_local_correction_1
   later_phase2_nodes_blocked: true
   phase2r_accepted: false
+
+correction_1:
+  task_id: task_narrative_repair_v2_phase2r_node_a_context_correction1
+  status: candidate
+  coder: claude_code (deepseek-v4-pro)
+  false_greens_resolved: 5
+  adversarial_tests_added: 7
+  total_tests: 39
+  passed: 39
+  failed: 0
+  duration_seconds: 0.60
+  evidence_mismatches_resolved:
+    - context_compiler_lines_485_corrected
+    - project_handoff_progress_row_appended
+  changed_files:
+    - agent_runtime/narrative/production/context_compiler.py (485 lines)
+    - agent_runtime/narrative/efficiency/context_bundle.py (+12 net)
+    - tests/test_narrative_efficiency.py (849 lines, 39 tests)
+  coder_self_acceptance: false
+  candidate_only: true
+  requires_tester_auditor: true
+
+supervisor_intervention:
+  status: accepted_node_a
+  reason: correction_1_retained_four_public_false_greens_and_neared_deadline
+  frozen_seams_only: true
+  focused_tests: {passed: 41, failed: 0}
+  narrative_domain_tests: {passed: 219, failed: 0}
+  full_repository_tests: {passed: 2903, failed: 0, skipped: 2}
+  literary_uplift_claimed: false
+  phase2r_complete: false
+  accepted: true
+  next_action: measure_frozen_context_before_after_then_plan_node_b

@@ -17,6 +17,11 @@ from agent_runtime.narrative.production.chapter_engine import (
     ChapterOutcome,
     ChapterRequest,
 )
+from agent_runtime.narrative.production.context_compiler import (
+    ContextCompiler,
+    ContextRequest,
+    ContextResult,
+)
 from agent_runtime.narrative.production.delta_verifier import (
     DeltaVerifier,
     verify_state_delta,
@@ -56,6 +61,10 @@ __all__ = [
     "ChapterEngine",
     "ChapterOutcome",
     "ChapterRequest",
+    # Context
+    "ContextCompiler",
+    "ContextRequest",
+    "ContextResult",
     # Manifest
     "ChapterProductionManifest",
     "create_production_manifest",

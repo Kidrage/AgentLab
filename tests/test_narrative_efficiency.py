@@ -34,6 +34,15 @@ from agent_runtime.narrative.efficiency.planning import (
     compute_incremental_audit_window,
     plan_chapter_execution,
 )
+from agent_runtime.narrative.production.brief_compiler import (
+    CreativeBrief,
+    validate_creative_brief,
+)
+from agent_runtime.narrative.production.context_compiler import (
+    ContextCompiler,
+    ContextRequest,
+    ContextResult,
+)
 from agent_runtime.schemas import LLMCallResult
 
 
@@ -1183,3 +1192,890 @@ def test_deterministic_reaudit_executes_only_persisted_incremental_window(
     assert result["outcome"] == "success"
     assert result["result"]["audit_window"]["audit_chapters"] == [25, 26, 27, 29]
     assert observed["window"]["excluded_chapters"] == [21, 22, 23, 24, 28, 30]
+
+
+# ---------------------------------------------------------------------------
+# ContextCompiler tests — Phase 2R Node A
+# ---------------------------------------------------------------------------
+
+
+def _make_brief(chapter_id: int, tmp_path: Path) -> CreativeBrief:
+    """Build a minimal valid CreativeBrief for testing."""
+    canon = tmp_path / "canon.yml"
+    canon.write_text("characters: {Kane: {role: protagonist}}\n", encoding="utf-8")
+    canon_hash = hashlib.sha256(canon.read_bytes()).hexdigest()
+    data = {
+        "schema_version": 2,
+        "chapter_id": chapter_id,
+        "primary_function": "plot",
+        "pov": "Kane",
+        "opposing_wants": "survive vs truth",
+        "turn": "discovers betrayal",
+        "cost": "trust lost",
+        "reader_question": "who_is_the_traitor",
+        "must_preserve": ["magic_system_rules"],
+        "creative_freedom": ["dialogue_tone"],
+        "source_hashes": {str(canon.resolve()): canon_hash},
+    }
+    issues = validate_creative_brief(data)
+    assert not issues, f"test brief invalid: {issues}"
+    return CreativeBrief(data)
+
+
+def test_context_compiler_blocks_on_missing_required_inputs(tmp_path) -> None:
+    """Failing / missing-required-input cases.
+
+    - No creative brief → blocked.
+    - No canon snapshot → blocked.
+    - No hard state → blocked.
+    - chapter_id > 1 with no predecessor prose → blocked.
+    - chapter_id > 1 with no predecessor_chapter_id → blocked.
+    - chapter_id > 1 with wrong predecessor_chapter_id → blocked.
+    """
+    brief = _make_brief(25, tmp_path)
+    # canon.yml already set up by _make_brief — do not overwrite.
+    canon = tmp_path / "canon.yml"
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose content\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    # Missing creative brief.
+    r1 = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=None,  # type: ignore[arg-type]
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r1.status == "blocked"
+    assert any("creative_brief" in i for i in r1.issues)
+
+    # Missing canon snapshot.
+    r2 = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=tmp_path / "missing.yml",
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r2.status == "blocked"
+    assert any("canon_snapshot" in i for i in r2.issues)
+
+    # Missing hard state.
+    r3 = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=tmp_path / "missing.yml",
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r3.status == "blocked"
+    assert any("hard_state" in i for i in r3.issues)
+
+    # chapter_id > 1 with no predecessor prose.
+    r4 = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=None,
+            predecessor_chapter_id=24,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r4.status == "blocked"
+    assert any("predecessor" in i for i in r4.issues)
+
+    # chapter_id > 1 with no predecessor_chapter_id.
+    r5 = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=None,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r5.status == "blocked"
+    assert any("predecessor_chapter_id" in i for i in r5.issues)
+
+    # chapter_id > 1 with wrong predecessor_chapter_id.
+    r6 = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=23,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r6.status == "blocked"
+    assert any("wrong_predecessor_chapter_id" in i for i in r6.issues)
+
+
+def test_context_compiler_chapter_one_no_predecessor_required(tmp_path) -> None:
+    """Predecessor boundary: chapter 1 must NOT require predecessor prose."""
+    brief = _make_brief(1, tmp_path)
+    canon = tmp_path / "canon.yml"
+    canon.write_text("characters: {Kane: {role: protagonist}}\n", encoding="utf-8")
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    # Chapter 1 without predecessor — should pass.
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=1,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=None,
+            predecessor_chapter_id=None,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "pass", f"unexpected issues: {r.issues}"
+    assert r.context_bundle_id != ""
+
+    # Chapter 2 without predecessor — must block.
+    brief2 = _make_brief(2, tmp_path)
+    r2 = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=2,
+            creative_brief=brief2,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=None,
+            predecessor_chapter_id=None,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r2.status == "blocked"
+    assert any("predecessor" in i for i in r2.issues)
+
+
+def test_context_compiler_excludes_unrelated_chapter_prose(tmp_path) -> None:
+    """Unrelated chapter prose is not loaded — only the immediate predecessor."""
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"  # already written by _make_brief
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+
+    # Create several chapter prose files.
+    ch23 = tmp_path / "ch023.md"
+    ch23.write_text("chapter 23 content\n", encoding="utf-8")
+    ch24 = tmp_path / "ch024.md"
+    ch24.write_text("chapter 24 content\n", encoding="utf-8")
+    ch26 = tmp_path / "ch026.md"
+    ch26.write_text("chapter 26 content\n", encoding="utf-8")
+
+    output_dir = tmp_path / "bundles"
+
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=ch24,  # Only ch24 is the immediate predecessor.
+            predecessor_chapter_id=24,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "pass", f"unexpected issues: {r.issues}"
+
+    # The shared files must include ch24 (predecessor) but NOT ch23 or ch26.
+    shared_paths = {f["path"] for f in r.shared_files}
+    assert any("ch024" in p for p in shared_paths), (
+        f"immediate predecessor ch024 not in shared: {shared_paths}"
+    )
+    assert not any("ch023" in p for p in shared_paths), (
+        f"unrelated chapter ch023 leaked into shared: {shared_paths}"
+    )
+    assert not any("ch026" in p for p in shared_paths), (
+        f"future chapter ch026 leaked into shared: {shared_paths}"
+    )
+
+
+def test_context_compiler_shared_bundle_built_exactly_once(tmp_path, monkeypatch) -> None:
+    """Shared builder spy: build_context_bundle is called exactly once per compile."""
+    brief = _make_brief(25, tmp_path)
+    # canon.yml already set up by _make_brief — do not overwrite.
+    canon = tmp_path / "canon.yml"
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    call_count = [0]
+
+    def spy_build_context_bundle(*args, **kwargs):
+        call_count[0] += 1
+        return build_context_bundle(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "agent_runtime.narrative.production.context_compiler.build_context_bundle",
+        spy_build_context_bundle,
+    )
+
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "pass"
+    assert call_count[0] == 1, (
+        f"build_context_bundle called {call_count[0]} times, expected exactly 1"
+    )
+
+
+def test_context_compiler_role_private_slice_isolation(tmp_path) -> None:
+    """Each role gets the same shared bundle ID plus only its private slice."""
+    brief = _make_brief(25, tmp_path)
+    # canon.yml already set up by _make_brief — do not overwrite.
+    canon = tmp_path / "canon.yml"
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+    writer_rules = tmp_path / "writer_rules.yml"
+    writer_rules.write_text("voice: neutral\n", encoding="utf-8")
+    reviewer_rules = tmp_path / "reviewer_rules.yml"
+    reviewer_rules.write_text("dimensions: [tension]\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            role_slices={
+                "Writer": [writer_rules],
+                "Reviewer": [reviewer_rules],
+            },
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "pass", f"unexpected issues: {r.issues}"
+    assert r.context_bundle_id != ""
+
+    # Both roles are represented in role_specific_files.
+    assert "Writer" in r.role_specific_files
+    assert "Reviewer" in r.role_specific_files
+
+    # Writer slice contains only writer_rules, not reviewer_rules.
+    writer_paths = {f["path"] for f in r.role_specific_files["Writer"]}
+    assert any("writer_rules" in p for p in writer_paths)
+    assert not any("reviewer_rules" in p for p in writer_paths)
+
+    # Reviewer slice contains only reviewer_rules, not writer_rules.
+    reviewer_paths = {f["path"] for f in r.role_specific_files["Reviewer"]}
+    assert any("reviewer_rules" in p for p in reviewer_paths)
+    assert not any("writer_rules" in p for p in reviewer_paths)
+
+    # Shared files are identical for both roles (they share the same bundle ID).
+    assert len(r.shared_files) > 0
+
+
+def test_context_compiler_deterministic_bundle_reuse(tmp_path) -> None:
+    """Same inputs produce the same bundle ID; second call is reused."""
+    brief = _make_brief(25, tmp_path)
+    # canon.yml already set up by _make_brief — do not overwrite.
+    canon = tmp_path / "canon.yml"
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    def _compile():
+        return ContextCompiler.compile(
+            ContextRequest(
+                chapter_id=25,
+                creative_brief=brief,
+                canon_snapshot_path=canon,
+                hard_state_path=hard,
+                predecessor_prose_path=pred,
+                predecessor_chapter_id=24,
+                output_dir=output_dir,
+                source_root=tmp_path,
+            )
+        )
+
+    r1 = _compile()
+    assert r1.status == "pass", f"first compile issues: {r1.issues}"
+    assert r1.reused is False
+
+    r2 = _compile()
+    assert r2.status == "pass", f"second compile issues: {r2.issues}"
+    assert r2.reused is True
+    assert r2.context_bundle_id == r1.context_bundle_id
+    assert r2.manifest_sha256 == r1.manifest_sha256
+
+    # Only one manifest file on disk.
+    assert len(list(output_dir.glob("ctx-*.yml"))) == 1
+
+
+def test_context_compiler_metrics_derive_from_loaded_records(tmp_path) -> None:
+    """Metric receipt values (total_files_loaded, total_bytes_loaded) come from
+    actual loaded file records, not estimates."""
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"
+    canon.write_text("characters: {Kane: {role: protagonist}}\n", encoding="utf-8")
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts:\n  - fact: the_wall_is_breached\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("The predecessor prose content for chapter 24.\n", encoding="utf-8")
+    voice = tmp_path / "voice_memory.yml"
+    voice.write_text("voice_notes: [terse, rhythmic]\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            voice_memory_paths=[voice],
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "pass", f"unexpected issues: {r.issues}"
+
+    # total_files_loaded must match actual unique file count.
+    unique_paths: set[str] = set()
+    total_bytes = 0
+    for rec in r.shared_files:
+        unique_paths.add(str(rec["path"]))
+        total_bytes += int(rec["bytes"])
+    for role_recs in r.role_specific_files.values():
+        for rec in role_recs:
+            unique_paths.add(str(rec["path"]))
+            total_bytes += int(rec["bytes"])
+
+    assert r.total_files_loaded == len(unique_paths), (
+        f"total_files_loaded={r.total_files_loaded} != unique={len(unique_paths)}"
+    )
+    assert r.total_bytes_loaded == total_bytes, (
+        f"total_bytes_loaded={r.total_bytes_loaded} != computed={total_bytes}"
+    )
+    # Metrics are positive when files are loaded.
+    assert r.total_files_loaded > 0
+    assert r.total_bytes_loaded > 0
+
+
+def test_context_compiler_advisory_pattern_signals_are_tagged(tmp_path) -> None:
+    """Advisory pattern signals cannot set literary pass or promotion —
+    every signal is explicitly tagged ``advisory: true``."""
+    brief = _make_brief(25, tmp_path)
+    # canon.yml already set up by _make_brief — do not overwrite.
+    canon = tmp_path / "canon.yml"
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+    patterns = tmp_path / "patterns.yml"
+    patterns.write_text(
+        yaml.safe_dump(
+            [
+                {"signal": "repeated_opening_template", "severity": "low"},
+                {"signal": "high_explanation_density", "severity": "medium"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "bundles"
+
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            pattern_signal_paths=[patterns],
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "pass", f"unexpected issues: {r.issues}"
+
+    # Every pattern signal must be tagged advisory.
+    assert len(r.pattern_signals) == 2
+    for sig in r.pattern_signals:
+        assert sig.get("advisory") is True, (
+            f"pattern signal not tagged advisory: {sig}"
+        )
+
+    # Verify the compiled bundle has the right structure for metrics.
+    assert r.context_bundle_id != ""
+    assert r.manifest_sha256 != ""
+    assert len(r.shared_files) > 0
+
+
+# ---------------------------------------------------------------------------
+# Adversarial tests — Phase 2R Node A correction 1
+# ---------------------------------------------------------------------------
+
+
+def test_stale_or_mismatched_brief_source_hash_blocks(tmp_path) -> None:
+    """Recompute every declared source hash and block stale/mismatched files.
+
+    After the brief is created, the canon source file is overwritten with
+    different content.  The stale hash in the brief no longer matches, so
+    compilation must be blocked.
+    """
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"
+    # Overwrite canon with DIFFERENT content after brief creation.
+    canon.write_text("characters: {Aria: {role: antagonist}}\n", encoding="utf-8")
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose content\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "blocked", (
+        f"expected blocked on stale hash, got {r.status}: {r.issues}"
+    )
+    assert any(
+        "source_hash_mismatch" in i for i in r.issues
+    ), f"expected source_hash_mismatch in issues: {r.issues}"
+
+
+def test_creative_brief_bytes_and_hash_are_in_manifest_identity(tmp_path) -> None:
+    """The content-addressed manifest must include CreativeBrief bytes and SHA256.
+
+    Read the manifest file written to disk and verify ``creative_brief_sha256`` is
+    present and matches the brief's canonical serialization.
+    """
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"  # matches _make_brief content
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "pass", f"unexpected issues: {r.issues}"
+
+    # Read the manifest from disk and verify creative_brief_sha256 is present.
+    manifest_path = Path(r.manifest_path)
+    assert manifest_path.is_file(), f"manifest not found: {r.manifest_path}"
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    assert "creative_brief_sha256" in manifest, (
+        "manifest missing creative_brief_sha256; only storing source files"
+        " is not sufficient"
+    )
+
+    # The manifest's creative_brief_sha256 must match what we compute.
+    expected_sha = hashlib.sha256(
+        json.dumps(
+            brief.to_dict(),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    assert manifest["creative_brief_sha256"] == expected_sha, (
+        f"manifest creative_brief_sha256 mismatch:"
+        f" {manifest['creative_brief_sha256']} != {expected_sha}"
+    )
+    assert manifest["creative_brief"] == brief.to_dict()
+
+    # Verify the predecessor_sha256 is also present (chapter_id > 1).
+    assert "predecessor_sha256" in manifest, (
+        "manifest missing predecessor_sha256 for chapter_id > 1"
+    )
+    expected_pred_sha = hashlib.sha256(pred.read_bytes()).hexdigest()
+    assert manifest["predecessor_sha256"] == expected_pred_sha
+
+
+def test_wrong_predecessor_chapter_id_blocks(tmp_path) -> None:
+    """For chapter_id > 1, predecessor_chapter_id must equal chapter_id - 1.
+
+    Passing predecessor_chapter_id=20 for chapter_id=25 must block.
+    """
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"  # matches _make_brief content
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=20,  # WRONG — should be 24
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "blocked", (
+        f"expected blocked on wrong predecessor_chapter_id, got {r.status}"
+    )
+    assert any(
+        "wrong_predecessor_chapter_id" in i for i in r.issues
+    ), f"expected wrong_predecessor_chapter_id in issues: {r.issues}"
+
+
+def test_predecessor_hash_mismatch_blocks(tmp_path) -> None:
+    """The predecessor SHA256 is bound into the manifest identity; changing the
+    predecessor prose changes the manifest.
+
+    Two compilations with different predecessor content must produce different
+    manifest IDs and SHA256s.
+    """
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"  # matches _make_brief content
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("original predecessor prose\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    r1 = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            predecessor_prose_sha256=hashlib.sha256(pred.read_bytes()).hexdigest(),
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r1.status == "pass", f"first compile issues: {r1.issues}"
+
+    expected_pred_sha = hashlib.sha256(pred.read_bytes()).hexdigest()
+    # Change the predecessor prose content while retaining the prior receipt hash.
+    pred.write_text("tampered predecessor prose — different content\n", encoding="utf-8")
+    r2 = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            predecessor_prose_sha256=expected_pred_sha,
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r2.status == "blocked"
+    assert any("predecessor_prose_hash_mismatch" in issue for issue in r2.issues)
+
+
+def test_shared_role_and_cross_role_duplicates_are_loaded_once_and_metrics_are_nonzero(
+    tmp_path,
+) -> None:
+    """Cross-slice duplicates are removed before bundle construction.
+
+    A file already in shared context cannot remain private.  A file requested
+    by multiple roles becomes shared once.  ``duplicate_context_ratio`` must be
+    > 0.0 when duplication actually exists.
+    """
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"  # matches _make_brief content
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+    shared_also = tmp_path / "shared_also_used_by_writer.yml"
+    shared_also.write_text("rules: [pacing, dialogue]\n", encoding="utf-8")
+    writer_only = tmp_path / "writer_private.yml"
+    writer_only.write_text("style: experimental\n", encoding="utf-8")
+    reviewer_only = tmp_path / "reviewer_private.yml"
+    reviewer_only.write_text("criteria: [coherence]\n", encoding="utf-8")
+    output_dir = tmp_path / "bundles"
+
+    # shared_also is in BOTH the shared voice_memory_paths AND Writer's role slice.
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            voice_memory_paths=[shared_also],
+            role_slices={
+                "Writer": [shared_also, writer_only],
+                "Reviewer": [reviewer_only],
+            },
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "pass", f"unexpected issues: {r.issues}"
+
+    # shared_also must appear in shared_files (because it was in voice_memory_paths).
+    shared_paths = {f["path"] for f in r.shared_files}
+    assert any("shared_also_used_by_writer" in p for p in shared_paths), (
+        f"shared_also missing from shared files: {shared_paths}"
+    )
+
+    # shared_also must NOT appear in Writer's role_specific_files.
+    writer_slice = r.role_specific_files.get("Writer", [])
+    writer_paths = {f["path"] for f in writer_slice}
+    assert not any("shared_also_used_by_writer" in p for p in writer_paths), (
+        f"shared_also duplicated in Writer private slice: {writer_paths}"
+    )
+
+    # duplicate_context_ratio MUST be > 0 because shared_also was in both places.
+    assert r.duplicate_context_ratio > 0.0, (
+        f"duplicate_context_ratio is {r.duplicate_context_ratio}; "
+        f"expected > 0.0 since shared_also appears in both shared and role slices"
+    )
+    assert r.duplicate_bytes_saved > 0, (
+        f"duplicate_bytes_saved is {r.duplicate_bytes_saved}; expected > 0"
+    )
+
+
+def test_authoritative_pattern_signal_fields_block(tmp_path) -> None:
+    """Pattern signals containing authoritative fields are rejected.
+
+    Fields like status, pass, accept, seal, promotion must not be returned
+    — even with advisory=true.  Signals with these fields are excluded.
+    """
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"  # matches _make_brief content
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+    patterns = tmp_path / "patterns.yml"
+    patterns.write_text(
+        yaml.safe_dump(
+            [
+                {"signal": "bad_opening", "severity": "low", "pass": True},
+                {"signal": "good_pacing", "severity": "low"},
+                {"signal": "elevated_risk", "severity": "high", "status": "accepted"},
+                {"signal": "malicious", "promotion": "publish", "seal": "approved"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "bundles"
+
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            pattern_signal_paths=[patterns],
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "blocked"
+    assert any("authoritative_pattern_signal_field" in issue for issue in r.issues)
+    assert r.pattern_signals == []
+
+
+def test_caller_owned_pattern_data_is_not_mutated(tmp_path) -> None:
+    """Caller-owned pattern signal data must never be mutated.
+
+    Even when signals contain authoritative fields, the original in-memory
+    dict is left untouched.
+    """
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"  # matches _make_brief content
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+
+    # Create pattern data with authoritative fields.
+    original_item = {
+        "signal": "high_tension",
+        "severity": "critical",
+        "pass": True,
+        "status": "accepted",
+        "promotion": "urgent",
+    }
+    patterns = tmp_path / "patterns.yml"
+    patterns.write_text(
+        yaml.safe_dump([original_item]),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "bundles"
+
+    r = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            pattern_signal_paths=[patterns],
+            output_dir=output_dir,
+            source_root=tmp_path,
+        )
+    )
+    assert r.status == "blocked"
+
+    # The signal with authoritative fields must be rejected.
+    assert len(r.pattern_signals) == 0, (
+        f"expected 0 signals (all rejected), got: {r.pattern_signals}"
+    )
+
+    # The original dict (re-read from disk) must be unchanged — no mutation.
+    raw_roundtrip = yaml.safe_load(patterns.read_text(encoding="utf-8"))
+    assert isinstance(raw_roundtrip, list) and len(raw_roundtrip) == 1
+    rt_item = raw_roundtrip[0]
+    assert rt_item.get("pass") is True, "caller data was mutated: pass removed"
+    assert rt_item.get("status") == "accepted", "caller data was mutated: status changed"
+    assert rt_item.get("promotion") == "urgent", "caller data was mutated: promotion removed"
+    # advisory must NOT have been injected into the caller's data.
+    assert "advisory" not in rt_item, (
+        "caller data was mutated: advisory tag injected into original dict"
+    )
+
+
+def test_cross_role_duplicate_is_promoted_to_shared_and_removed_from_all_roles(
+    tmp_path,
+) -> None:
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+    common = tmp_path / "common_rules.yml"
+    common.write_text("rules: [tension]\n", encoding="utf-8")
+
+    result = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            role_slices={"Writer": [common], "Reviewer": [common]},
+            output_dir=tmp_path / "bundles",
+            source_root=tmp_path,
+        )
+    )
+
+    assert result.status == "pass"
+    assert [record["path"] for record in result.shared_files].count(
+        "common_rules.yml"
+    ) == 1
+    assert all(
+        record["path"] != "common_rules.yml"
+        for records in result.role_specific_files.values()
+        for record in records
+    )
+
+
+def test_literary_status_alias_cannot_bypass_advisory_signal_gate(tmp_path) -> None:
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    pred = tmp_path / "ch024.md"
+    pred.write_text("predecessor prose\n", encoding="utf-8")
+    patterns = tmp_path / "patterns.yml"
+    patterns.write_text(
+        yaml.safe_dump({"signal": "false_green", "literary_status": "pass"}),
+        encoding="utf-8",
+    )
+
+    result = ContextCompiler.compile(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=pred,
+            predecessor_chapter_id=24,
+            pattern_signal_paths=[patterns],
+            output_dir=tmp_path / "bundles",
+            source_root=tmp_path,
+        )
+    )
+
+    assert result.status == "blocked"
+    assert any("literary_status" in issue for issue in result.issues)

@@ -1,0 +1,58 @@
+schema_version: 1
+phase: phase_2r_node_a_context
+status: accepted_node_a_with_construction_efficiency_blocking_phase2
+
+implementation_execution:
+  initial_node:
+    duration_seconds: 293.637152
+    input_tokens: 82406
+    cache_read_input_tokens: 3143552
+    output_tokens: 20916
+    reported_total_tokens: 3246874
+    cost_usd: 2.506706
+  correction_1:
+    duration_seconds: 533.577954
+    input_tokens: 93195
+    cache_read_input_tokens: 4936448
+    output_tokens: 37924
+    reported_total_tokens: 5067567
+    cost_usd: 3.882299
+  combined:
+    duration_seconds: 827.215106
+    reported_total_tokens: 8314441
+    cost_usd: 6.389005
+  actual_worker: claude_code
+  actual_model_key: deepseek_v4_pro
+  exit_codes: [0, 0]
+  deadline_seconds_per_attempt: 600
+  correction_deadline_margin_seconds: 66.422046
+
+code_metrics:
+  context_compiler_lines: 521
+  context_bundle_lines: 104
+  context_bundle_net_delta: 15
+  production_init_net_delta: 9
+  efficiency_test_lines: 2081
+  efficiency_test_net_delta: 896
+
+runtime_context_metrics:
+  loaded_file_metrics_derived_from_records: true
+  cross_slice_duplicate_ratio_reported: true
+  creative_brief_content_hash_bound: true
+  predecessor_content_hash_bound: true
+  frozen_before_after_context_reduction_measured: false
+  ordinary_context_reduction_target_met: not_evaluated
+
+safety:
+  prose_provider_calls: 0
+  implementation_model_calls: 2
+  production_writes: 0
+  candidate_only: true
+  later_phase2_nodes_started: false
+
+efficiency_verdict: >-
+  Runtime context deduplication behavior is structurally implemented, but the
+  AgentLab Coder construction path is still inefficient: two bounded node
+  attempts consumed 8.31M reported tokens and the correction finished only
+  66.4 seconds before its executor deadline. Phase 2R efficiency targets are
+  not yet accepted or claimed.

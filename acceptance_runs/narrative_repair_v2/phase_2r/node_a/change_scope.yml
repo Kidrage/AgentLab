@@ -1,0 +1,26 @@
+schema_version: 1
+phase: phase_2r_node_a_context
+status: accepted_node_a
+
+changed_runtime:
+  - agent_runtime/narrative/production/context_compiler.py
+  - agent_runtime/narrative/production/__init__.py
+  - agent_runtime/narrative/efficiency/context_bundle.py
+changed_tests:
+  - tests/test_narrative_efficiency.py
+changed_evidence:
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/test_results.yml
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/change_scope.yml
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/metrics.yml
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/rollback.md
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/supervisor_review.yml
+  - docs/narrative/NARRATIVE_PHASE2R_NODE_A_ACCEPTANCE.md
+  - PROJECT_HANDOFF.md
+
+forbidden_files_touched: []
+central_runtime_entrypoints_touched: []
+configuration_touched: []
+production_modified: false
+prose_provider_calls: 0
+implementation_model_calls: 2
+later_phase2_nodes_started: false

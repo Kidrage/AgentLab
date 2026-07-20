@@ -31,8 +31,17 @@ def build_context_bundle(
     chapter_window: Iterable[int],
     shared_files: Iterable[Path],
     role_specific_files: Mapping[str, Iterable[Path]],
+    creative_brief: Mapping[str, object] | None = None,
+    creative_brief_sha256: str | None = None,
+    predecessor_sha256: str | None = None,
 ) -> dict[str, object]:
-    """Build or reuse one content-addressed narrative context manifest."""
+    """Build or reuse one content-addressed narrative context manifest.
+
+    Identity payload includes ``creative_brief_sha256`` and
+    ``predecessor_sha256`` when provided, so the manifest is truly
+    content-addressed — not just the source files but also the editorial
+    contract and predecessor provenance.
+    """
     root = Path(source_root).resolve()
     shared = sorted(
         (_source_record(path, source_root=root) for path in shared_files),
@@ -45,12 +54,18 @@ def build_context_bundle(
         )
         for role, paths in sorted(role_specific_files.items())
     }
-    identity_payload = {
+    identity_payload: dict[str, object] = {
         "canon_snapshot_sha256": canon_snapshot_sha256,
         "chapter_window": sorted(set(int(chapter) for chapter in chapter_window)),
         "shared_files": shared,
         "role_specific_files": role_specific,
     }
+    if creative_brief is not None:
+        identity_payload["creative_brief"] = dict(creative_brief)
+    if creative_brief_sha256:
+        identity_payload["creative_brief_sha256"] = creative_brief_sha256
+    if predecessor_sha256:
+        identity_payload["predecessor_sha256"] = predecessor_sha256
     context_bundle_id = "ctx-" + hashlib.sha256(
         json.dumps(
             identity_payload,
