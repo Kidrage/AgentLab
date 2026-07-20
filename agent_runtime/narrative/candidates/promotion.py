@@ -18,6 +18,39 @@ _PASS = {"pass", "passed", "completed", "accepted"}
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
+def _sync_release_knowledge(
+    project_root: Path,
+    *,
+    edition_id: str,
+    chapter_ids: list[int],
+) -> dict[str, Any]:
+    from agent_runtime.knowledge_system import sync_committed
+
+    root = Path(project_root).resolve()
+    agentlab_root = root.parent.parent
+    project = root.name
+    edition_prefix = Path("projects") / project / "release_objects" / "editions" / edition_id
+    promoted_paths = [
+        (edition_prefix / f"chapter_{chapter_id:03d}.md").as_posix()
+        for chapter_id in chapter_ids
+    ]
+    promoted_paths.extend(
+        [
+            (edition_prefix / "promotion_receipt.yml").as_posix(),
+            (Path("projects") / project / "project_artifact_index.yml").as_posix(),
+        ]
+    )
+    return sync_committed(
+        {
+            "agentlab_root": agentlab_root,
+            "project": project,
+            "status": "promoted",
+            "domain": "longform_narrative",
+            "promoted_paths": promoted_paths,
+        }
+    ).as_dict()
+
+
 def _load_mapping(path: Path, *, label: str) -> dict[str, Any]:
     value = safe_read_yaml(path, default=None)
     if not isinstance(value, dict):
@@ -185,7 +218,7 @@ def promote_candidate_set(
         and current_release.get("candidate_set_id") == candidate_set_id
         and current_release.get("candidate_set_sha256") == candidate_set_sha256
     ):
-        return {
+        result = {
             "status": "promoted",
             "first_publication": False,
             "edition_id": edition_id,
@@ -198,6 +231,12 @@ def promote_candidate_set(
             "production_modified": False,
             "idempotent_replay": True,
         }
+        result["knowledge_sync"] = _sync_release_knowledge(
+            root,
+            edition_id=edition_id,
+            chapter_ids=[int(value) for value in current_release.get("chapter_ids") or []],
+        )
+        return result
     for release in existing_releases:
         if not isinstance(release, Mapping):
             continue
@@ -287,7 +326,7 @@ def promote_candidate_set(
         if staging.exists():
             shutil.rmtree(staging)
         raise
-    return {
+    result = {
         "status": "promoted",
         "first_publication": first_publication,
         "edition_id": edition_id,
@@ -297,3 +336,9 @@ def promote_candidate_set(
         "promotion_receipt": str(target / "promotion_receipt.yml"),
         "production_modified": True,
     }
+    result["knowledge_sync"] = _sync_release_knowledge(
+        root,
+        edition_id=edition_id,
+        chapter_ids=[int(record["chapter_id"]) for record in chapters],
+    )
+    return result

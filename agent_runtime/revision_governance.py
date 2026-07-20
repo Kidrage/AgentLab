@@ -227,6 +227,16 @@ def apply_revision(agentlab_root: Path, project: str, task_id: str, *, accepted_
     }
     atomic_write_yaml(target_dir / REVISION_ACCEPTANCE_FILE, result)
     append_revision_log(agentlab_root, project, task_id, result)
+    from agent_runtime.knowledge_system import sync_committed
+
+    result["knowledge_sync"] = sync_committed(
+        {
+            "agentlab_root": Path(agentlab_root).resolve(),
+            "project": project,
+            "status": "committed",
+        }
+    ).as_dict()
+    atomic_write_yaml(target_dir / REVISION_ACCEPTANCE_FILE, result)
     return result
 
 

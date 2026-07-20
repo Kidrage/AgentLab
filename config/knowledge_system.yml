@@ -1,7 +1,8 @@
-version: 1
+version: 2
 
-# Rollout is deliberately opt-in. Existing context behavior is unchanged in off mode.
-mode: off
+# The validated production default is non-blocking assist. Shadow and off remain
+# rollback modes; enforce requires a successful validation of the preceding stage.
+mode: assist
 
 # Retrieval may propose memory changes, but existing acceptance and promotion remain authoritative.
 auto_memory: propose_only
@@ -16,6 +17,10 @@ storage:
 indexing:
   system_sources: true
   project_sources: true
+  # Full builds and governance commit receipts refresh indexes. Normal tasks only
+  # bootstrap missing spaces, avoiding a repository rescan on every request.
+  refresh_on_prepare: false
+  bootstrap_missing_spaces: true
   max_file_bytes: 1000000
   media_payload: metadata_only
 

@@ -17,9 +17,12 @@ storage:
 records:
   workspace_knowledge:
     - AGENTS.md
+    - OPERATING_MODEL.md
+    - _shared/AGENT_PROTOCOL.md
     - config/harness_policy.yml
     - config/brain_governance.yml
     - config/validation_gates.yml
+    - config/knowledge_system.yml
 
   task_state:
     - user_request.md

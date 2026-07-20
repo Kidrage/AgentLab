@@ -12,10 +12,14 @@ from agent_runtime.knowledge_system import (
     KnowledgeTaskRequest,
     Modality,
     SourceRef,
+    activate_knowledge_mode,
+    build_knowledge_base,
     evaluate_outcome,
     import_legacy_jsonl,
+    knowledge_status,
     prepare_task,
     sync_committed,
+    validate_knowledge_stage,
 )
 from agent_runtime.local_search.document import Document, SourceCategory
 from agent_runtime.local_search.storage import save_index
@@ -28,6 +32,8 @@ def _write_config(
     mode: str = "assist",
     required_channels: list[str] | None = None,
     keyword_backend: str = "auto",
+    refresh_on_prepare: bool | None = None,
+    bootstrap_missing_spaces: bool | None = None,
 ) -> None:
     config_dir = root / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -38,6 +44,18 @@ def _write_config(
                 "mode": mode,
                 "auto_memory": "propose_only",
                 "storage": {"keyword_backend": keyword_backend},
+                "indexing": {
+                    **(
+                        {"refresh_on_prepare": refresh_on_prepare}
+                        if refresh_on_prepare is not None
+                        else {}
+                    ),
+                    **(
+                        {"bootstrap_missing_spaces": bootstrap_missing_spaces}
+                        if bootstrap_missing_spaces is not None
+                        else {}
+                    ),
+                },
                 "retrieval": {
                     "top_k": 6,
                     "required_channels": required_channels or ["keyword"],
@@ -47,6 +65,296 @@ def _write_config(
         ),
         encoding="utf-8",
     )
+
+
+def test_build_knowledge_base_discovers_system_project_and_domain_spaces(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root, mode="off")
+    system_source = root / "agent_runtime" / "engine.py"
+    system_source.parent.mkdir(parents=True)
+    system_source.write_text("AGENTLAB-SCAFFOLD-EVIDENCE\n", encoding="utf-8")
+    protocol = root / "_shared" / "AGENT_PROTOCOL.md"
+    protocol.parent.mkdir(parents=True)
+    protocol.write_text("GOVERNED-PROTOCOL-EVIDENCE\n", encoding="utf-8")
+
+    project = root / "projects" / "Crown_of_Ash"
+    project_sources = {
+        "project_brain/world.yml": "canon: ASH-WORLD-CANON\n",
+        "production/chapter_001.md": "ASH-CHAPTER-ACCEPTED\n",
+        "candidates/chapter_002.md": "ASH-DRAFT-CANDIDATE\n",
+        "runs/task_001/audit.md": "ASH-RUN-AUDIT\n",
+        "参考资料/source.md": "ASH-EXTERNAL-REFERENCE\n",
+    }
+    for relative, content in project_sources.items():
+        path = project / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    receipt = build_knowledge_base(root, include_all_projects=True)
+    status = knowledge_status(root)
+
+    assert receipt["status"] == "BUILT"
+    assert receipt["projects"] == ["Crown_of_Ash"]
+    assert receipt["project_domains"] == {"Crown_of_Ash": "longform_narrative"}
+    assert set(receipt["namespaces"]) == {
+        "system.agentlab",
+        "domain.longform_narrative",
+        "project.Crown_of_Ash",
+    }
+    assert status["mode"] == "off"
+    assert status["storage_inside_agentlab"] is True
+    spaces = {item["namespace"]: item for item in status["spaces"]}
+    assert spaces["system.agentlab"]["record_count"] >= 2
+    assert spaces["project.Crown_of_Ash"]["authority_counts"] == {
+        "accepted": 1,
+        "audit": 1,
+        "candidate": 1,
+        "canonical": 1,
+        "external": 1,
+    }
+    assert spaces["domain.longform_narrative"]["record_count"] == 5
+
+
+def test_system_archives_are_auditable_but_never_eligible_evidence(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    current = root / "docs" / "current.md"
+    archived = root / "docs" / "archive" / "old.md"
+    current.parent.mkdir(parents=True)
+    archived.parent.mkdir(parents=True)
+    current.write_text("CURRENT-SYSTEM-TEAL-EVIDENCE\n", encoding="utf-8")
+    archived.write_text("ARCHIVED-SYSTEM-TEAL-EVIDENCE\n", encoding="utf-8")
+
+    build_knowledge_base(root)
+
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+    assert store.search(
+        ("system.agentlab",),
+        "CURRENT-SYSTEM-TEAL-EVIDENCE",
+        max_results=10,
+    )
+    assert store.search(
+        ("system.agentlab",),
+        "ARCHIVED-SYSTEM-TEAL-EVIDENCE",
+        max_results=10,
+    ) == []
+    space = knowledge_status(root)["spaces"][0]
+    assert space["authority_counts"] == {"audit": 1, "canonical": 2}
+    assert space["lifecycle_counts"] == {"active": 2, "deprecated": 1}
+
+
+def test_system_scaffold_covers_runtime_tests_scripts_templates_and_web_ui(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    sources = {
+        "agentlab.sh": "ROOT-ENTRY-COPPER-EVIDENCE\n",
+        "tests/test_runtime.py": "TEST-CONTRACT-COPPER-EVIDENCE\n",
+        "scripts/verify.py": "SCRIPT-COPPER-EVIDENCE\n",
+        "agent_templates/coder.md": "TEMPLATE-COPPER-EVIDENCE\n",
+        "web_ui/server.py": "WEB-COPPER-EVIDENCE\n",
+        ".github/workflows/ci.yml": "CI-COPPER-EVIDENCE\n",
+    }
+    for relative, content in sources.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    build_knowledge_base(root)
+
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+    hits = store.search(
+        ("system.agentlab",),
+        "COPPER-EVIDENCE",
+        max_results=20,
+    )
+    assert {hit.source.path for hit in hits} >= set(sources)
+
+
+def test_activation_is_sequential_validated_and_auditable(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root, mode="off")
+    source = root / "agent_runtime" / "governance.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("STAGED-RAG-GOVERNANCE-EVIDENCE\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="build the knowledge base"):
+        activate_knowledge_mode(root, "shadow", actor="tester", reason="start rollout")
+
+    build_knowledge_base(root)
+    shadow = activate_knowledge_mode(root, "shadow", actor="tester", reason="observe retrieval")
+    assert shadow["transition"] == "off->shadow"
+
+    with pytest.raises(ValueError, match="validate shadow"):
+        activate_knowledge_mode(root, "assist", actor="tester", reason="inject evidence")
+
+    shadow_validation = validate_knowledge_stage(
+        root,
+        project="AgentLab",
+        task_id="task_shadow_validation",
+        request_text="STAGED-RAG-GOVERNANCE-EVIDENCE",
+        domain="code_engineering",
+    )
+    assert shadow_validation["status"] == "PASS"
+    assert shadow_validation["mode"] == "shadow"
+
+    assist = activate_knowledge_mode(root, "assist", actor="tester", reason="inject evidence")
+    assert assist["transition"] == "shadow->assist"
+    with pytest.raises(ValueError, match="validate assist"):
+        activate_knowledge_mode(root, "enforce", actor="tester", reason="enforce evidence")
+
+    assist_validation = validate_knowledge_stage(
+        root,
+        project="AgentLab",
+        task_id="task_assist_validation",
+        request_text="STAGED-RAG-GOVERNANCE-EVIDENCE",
+        domain="code_engineering",
+    )
+    assert assist_validation["status"] == "PASS"
+    enforce = activate_knowledge_mode(root, "enforce", actor="tester", reason="enforce evidence")
+    assert enforce["transition"] == "assist->enforce"
+
+    rollback = activate_knowledge_mode(root, "assist", actor="tester", reason="keep normal tasks non-blocking")
+    assert rollback["transition"] == "enforce->assist"
+    assert knowledge_status(root)["mode"] == "assist"
+    receipts = root / ".agentlab_runtime" / "knowledge" / "receipts"
+    assert (receipts / "latest_activation.json").is_file()
+    assert (receipts / "latest_validation.json").is_file()
+
+
+def test_task_bootstraps_missing_spaces_once_without_rescanning_every_request(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(
+        root,
+        mode="assist",
+        refresh_on_prepare=False,
+        bootstrap_missing_spaces=True,
+    )
+    source = root / "projects" / "Crown_of_Ash" / "project_brain" / "world.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text("fact: ONCE-INDEXED-ASH-EVIDENCE\n", encoding="utf-8")
+    request = KnowledgeTaskRequest(
+        root,
+        "Crown_of_Ash",
+        "task_bootstrap_001",
+        "ONCE-INDEXED-ASH-EVIDENCE",
+        "longform_narrative",
+    )
+
+    first = prepare_task(request)
+    first_status = knowledge_status(root)
+    source.write_text("fact: CHANGED-BUT-NOT-COMMITTED\n", encoding="utf-8")
+    second = prepare_task(
+        KnowledgeTaskRequest(
+            root,
+            "Crown_of_Ash",
+            "task_bootstrap_002",
+            "ONCE-INDEXED-ASH-EVIDENCE",
+            "longform_narrative",
+        )
+    )
+    second_status = knowledge_status(root)
+
+    assert first.status == "READY"
+    assert second.status == "READY"
+    first_paths = [item.source.path for item in first.evidence_bundle.items]
+    assert len(first_paths) == len(set(first_paths))
+    assert first.evidence_bundle.items[0].namespace == "project.Crown_of_Ash"
+    spaces = {item["namespace"]: item for item in first_status["spaces"]}
+    assert spaces["system.agentlab"]["record_count"] >= 1
+    assert spaces["project.Crown_of_Ash"]["record_count"] == 1
+    assert spaces["domain.longform_narrative"]["record_count"] == 1
+    assert {
+        item["namespace"]: item["revision"] for item in first_status["spaces"]
+    } == {
+        item["namespace"]: item["revision"] for item in second_status["spaces"]
+    }
+
+
+def test_task_bootstraps_its_domain_membership_when_domain_already_exists(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(
+        root,
+        mode="assist",
+        refresh_on_prepare=False,
+        bootstrap_missing_spaces=True,
+    )
+    for project, marker in (
+        ("NovelOne", "NOVEL-ONE-LILAC"),
+        ("NovelTwo", "NOVEL-TWO-LILAC"),
+    ):
+        path = root / "projects" / project / "project_brain" / "world.yml"
+        path.parent.mkdir(parents=True)
+        path.write_text(f"fact: {marker}\n", encoding="utf-8")
+
+    for project, marker in (
+        ("NovelOne", "NOVEL-ONE-LILAC"),
+        ("NovelTwo", "NOVEL-TWO-LILAC"),
+    ):
+        prepared = prepare_task(
+            KnowledgeTaskRequest(
+                root,
+                project,
+                f"task_{project.lower()}",
+                marker,
+                "longform_narrative",
+            )
+        )
+        assert prepared.status == "READY"
+
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+    hits = store.search(
+        ("domain.longform_narrative",),
+        "LILAC",
+        max_results=10,
+    )
+    assert {hit.project_id for hit in hits} == {"NovelOne", "NovelTwo"}
+
+
+def test_global_build_indexes_large_media_as_metadata_only(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root, mode="off")
+    media = root / "projects" / "Film" / "production" / "score.wav"
+    media.parent.mkdir(parents=True)
+    media.write_bytes(b"RIFF" + (b"0" * 1_000_100))
+
+    build_knowledge_base(root, projects=["Film"], project_domains={"Film": "media_production"})
+    status = knowledge_status(root)
+
+    spaces = {item["namespace"]: item for item in status["spaces"]}
+    assert spaces["project.Film"]["record_count"] == 1
+    assert spaces["project.Film"]["modality_counts"] == {"audio": 1}
+    store = KnowledgeStore(root)
+    hits = store.search(
+        ["project.Film"],
+        "score.wav",
+        max_results=3,
+        authorities=["accepted"],
+        modalities=["audio"],
+    )
+    assert hits[0].metadata["raw_payload_indexed"] is False
+
+
+def test_rebuild_reclassifies_project_domain_and_tombstones_previous_membership(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root, mode="off")
+    source = root / "projects" / "AgentLab" / "project_brain" / "chapter_pipeline.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text("feature: chapter narrative governance\n", encoding="utf-8")
+
+    build_knowledge_base(
+        root,
+        projects=["AgentLab"],
+        project_domains={"AgentLab": "longform_narrative"},
+    )
+    (root / ".agentlab_runtime" / "knowledge" / "receipts" / "latest_build.json").unlink()
+    rebuilt = build_knowledge_base(root, projects=["AgentLab"])
+    status = knowledge_status(root)
+
+    assert rebuilt["project_domains"] == {"AgentLab": "code_engineering"}
+    spaces = {item["namespace"]: item for item in status["spaces"]}
+    assert spaces["domain.code_engineering"]["eligible_record_count"] == 1
+    assert spaces["domain.longform_narrative"]["eligible_record_count"] == 0
+    assert spaces["domain.longform_narrative"]["lifecycle_counts"] == {"tombstoned": 1}
 
 
 def test_prepare_task_builds_namespaced_auditable_evidence(tmp_path: Path) -> None:
@@ -370,6 +678,7 @@ def test_sync_committed_indexes_only_governed_project_truth(tmp_path: Path) -> N
 
     assert rejected.status == "REJECTED"
     assert synced.status == "SYNCED"
+    assert synced.namespaces == ("project.Alpha", "domain.code_engineering")
     assert synced.indexed_paths == ("projects/Alpha/production/spec.md",)
     assert prepared.status == "READY"
     assert {item.source.path for item in prepared.evidence_bundle.items} == {
@@ -397,9 +706,188 @@ def test_sync_failure_marks_index_stale_without_touching_committed_truth(tmp_pat
     )
 
     assert receipt.status == "INDEX_STALE"
-    assert receipt.stale_namespaces == ("project.Alpha",)
+    assert receipt.stale_namespaces == (
+        "project.Alpha",
+        "domain.code_engineering",
+    )
     assert production.read_text(encoding="utf-8") == "durable production truth\n"
     assert any("truth was not rolled back" in warning for warning in receipt.warnings)
+
+
+def test_sync_committed_preserves_authority_and_updates_domain_shard(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    canonical = root / "projects" / "Novel" / "project_brain" / "canon.md"
+    accepted = root / "projects" / "Novel" / "release_objects" / "edition" / "chapter.md"
+    canonical.parent.mkdir(parents=True)
+    accepted.parent.mkdir(parents=True)
+    canonical.write_text("CANON-VIOLET-EVIDENCE\n", encoding="utf-8")
+    accepted.write_text("CHAPTER-VIOLET-EVIDENCE\n", encoding="utf-8")
+
+    receipt = sync_committed(
+        {
+            "agentlab_root": root,
+            "project": "Novel",
+            "status": "promoted",
+            "domain": "longform_narrative",
+            "promoted_paths": [
+                "projects/Novel/project_brain/canon.md",
+                "projects/Novel/release_objects/edition/chapter.md",
+            ],
+        }
+    )
+
+    assert receipt.status == "SYNCED"
+    assert receipt.namespaces == (
+        "project.Novel",
+        "domain.longform_narrative",
+    )
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+    project_hits = store.search(
+        ("project.Novel",),
+        "VIOLET-EVIDENCE",
+        max_results=10,
+        authorities=(AuthorityLevel.CANONICAL, AuthorityLevel.ACCEPTED),
+    )
+    domain_hits = store.search(
+        ("domain.longform_narrative",),
+        "VIOLET-EVIDENCE",
+        max_results=10,
+        authorities=(AuthorityLevel.CANONICAL, AuthorityLevel.ACCEPTED),
+    )
+    assert {hit.authority for hit in project_hits} == {
+        AuthorityLevel.CANONICAL.value,
+        AuthorityLevel.ACCEPTED.value,
+    }
+    assert {hit.source.path for hit in domain_hits} == {
+        "projects/Novel/project_brain/canon.md",
+        "projects/Novel/release_objects/edition/chapter.md",
+    }
+
+
+def test_sync_committed_rejects_missing_governed_path(tmp_path: Path) -> None:
+    _write_config(tmp_path)
+
+    receipt = sync_committed(
+        {
+            "agentlab_root": tmp_path,
+            "project": "Alpha",
+            "status": "promoted",
+            "promoted_paths": ["projects/Alpha/production/missing.md"],
+        }
+    )
+
+    assert receipt.status == "REJECTED"
+    assert "missing" in receipt.warnings[0]
+
+
+def test_incremental_domain_membership_is_retired_after_reclassification(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    path = root / "projects" / "Alpha" / "production" / "spec.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("RECLASSIFY-ORANGE-EVIDENCE\n", encoding="utf-8")
+    synced = sync_committed(
+        {
+            "agentlab_root": root,
+            "project": "Alpha",
+            "status": "promoted",
+            "domain": "code_engineering",
+            "promoted_paths": ["projects/Alpha/production/spec.md"],
+        }
+    )
+    assert synced.status == "SYNCED"
+
+    build_knowledge_base(
+        root,
+        projects=("Alpha",),
+        project_domains={"Alpha": "research"},
+    )
+
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+    old_hits = store.search(
+        ("domain.code_engineering",),
+        "RECLASSIFY-ORANGE-EVIDENCE",
+        max_results=10,
+    )
+    new_hits = store.search(
+        ("domain.research",),
+        "RECLASSIFY-ORANGE-EVIDENCE",
+        max_results=10,
+    )
+    assert old_hits == []
+    assert {hit.source.path for hit in new_hits} == {
+        "projects/Alpha/production/spec.md"
+    }
+
+
+def test_full_build_retires_bootstrapped_project_records_deleted_from_truth(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root, refresh_on_prepare=False, bootstrap_missing_spaces=True)
+    path = root / "projects" / "Alpha" / "production" / "obsolete.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("OBSOLETE-AZURE-EVIDENCE\n", encoding="utf-8")
+    prepared = prepare_task(
+        KnowledgeTaskRequest(
+            agentlab_root=root,
+            project="Alpha",
+            task_id="task_bootstrap_obsolete",
+            request_text="OBSOLETE-AZURE-EVIDENCE",
+            domain="code_engineering",
+        )
+    )
+    assert prepared.status == "READY"
+
+    path.unlink()
+    build_knowledge_base(root, projects=("Alpha",))
+
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+    assert store.search(
+        ("project.Alpha",),
+        "OBSOLETE-AZURE-EVIDENCE",
+        max_results=10,
+    ) == []
+
+
+def test_full_build_indexes_only_current_formal_narrative_edition(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    project = root / "projects" / "Novel"
+    old = project / "release_objects" / "editions" / "edition-001" / "chapter_001.md"
+    current = project / "release_objects" / "editions" / "edition-002" / "chapter_001.md"
+    old.parent.mkdir(parents=True)
+    current.parent.mkdir(parents=True)
+    old.write_text("HISTORICAL-SCARLET-EDITION\n", encoding="utf-8")
+    current.write_text("CURRENT-SCARLET-EDITION\n", encoding="utf-8")
+    (project / "project_artifact_index.yml").write_text(
+        yaml.safe_dump(
+            {
+                "current_release": {
+                    "edition_id": "edition-002",
+                    "chapter_ids": [1],
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    build_knowledge_base(root, projects=("Novel",))
+
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+    assert store.search(
+        ("project.Novel",),
+        "HISTORICAL-SCARLET-EDITION",
+        max_results=10,
+    ) == []
+    current_hits = store.search(
+        ("project.Novel",),
+        "CURRENT-SCARLET-EDITION",
+        max_results=10,
+    )
+    assert {hit.source.path for hit in current_hits} == {
+        "projects/Novel/release_objects/editions/edition-002/chapter_001.md"
+    }
 
 
 def test_keyword_retrieval_has_explicit_bm25_degraded_mode(tmp_path: Path) -> None:

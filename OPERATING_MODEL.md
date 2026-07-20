@@ -164,13 +164,23 @@ declared targets, review/approval evidence, and archive receipts before updating
 For longform narrative work, the minimum memory closure is the fact snapshot,
 artifact index, chapter packet, previous continuity ledger, current draft,
 continuity ledger, and state-transition proposal. New facts hidden only in prose
-are not durable facts. RAG or external MCP retrieval may provide evidence later,
-but cannot replace the structured fact authority.
+are not durable facts. AgentLab's governed knowledge retrieval automatically
+provides eligible evidence to task Context Packs in `assist` mode, but cannot
+replace the structured fact authority.
 
 The local knowledge catalog and its per-space SQLite shards live under
 `.agentlab_runtime/knowledge/`. They are rebuildable indexes, not project memory,
 are never promoted or replicated as truth, and may only propose updates for the
-existing acceptance, promotion, and Project Brain mechanisms to commit.
+existing acceptance, promotion, and Project Brain mechanisms to commit. Operators
+use `./agentlab.sh knowledge build --all-projects`, `knowledge status`,
+`knowledge validate`, `knowledge activate`, and `knowledge doctor`; mode elevation
+is sequential and receipt-backed. Normal tasks bootstrap missing spaces but do not
+rescan the repository on every request. Successful artifact and narrative release
+promotions, accepted phase transitions, and accepted revision transitions refresh
+both their project and inferred domain shards; an indexing failure marks those
+derived shards stale without rolling back committed truth. Accepted changes to
+AgentLab's own code, configuration, governance, or docs finish with
+`knowledge build --project AgentLab` to refresh the global system scaffold.
 
 ## 8. Cost And Capacity
 

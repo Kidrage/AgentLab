@@ -27,6 +27,8 @@ class KnowledgeSystemConfig:
     max_file_bytes: int = 1_000_000
     index_system_sources: bool = True
     index_project_sources: bool = True
+    refresh_on_prepare: bool = True
+    bootstrap_missing_spaces: bool = False
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any] | None) -> "KnowledgeSystemConfig":
@@ -62,6 +64,8 @@ class KnowledgeSystemConfig:
             max_file_bytes=max(1024, int(indexing.get("max_file_bytes") or 1_000_000)),
             index_system_sources=bool(indexing.get("system_sources", True)),
             index_project_sources=bool(indexing.get("project_sources", True)),
+            refresh_on_prepare=bool(indexing.get("refresh_on_prepare", True)),
+            bootstrap_missing_spaces=bool(indexing.get("bootstrap_missing_spaces", False)),
         )
 
 

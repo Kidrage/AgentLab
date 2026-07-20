@@ -516,6 +516,11 @@ def test_revision_apply_merges_events_and_unblocks_dispatch(tmp_path):
     ready = revision_dispatch_status(root, "NovelGen", "task_revision")
 
     assert result["applied"] is True
+    assert result["knowledge_sync"]["status"] == "SYNCED"
+    assert result["knowledge_sync"]["namespaces"] == [
+        "project.NovelGen",
+        "domain.longform_narrative",
+    ]
     assert ready["blocked"] is False
     assert (root / "projects" / "NovelGen" / "project_brain" / "project_fact_events.jsonl").exists()
     assert (root / "projects" / "NovelGen" / "project_brain" / "revision_log.jsonl").exists()

@@ -2,14 +2,38 @@
 
 ## Status
 
-Implemented — core governed rollout
+Operationally absorbed — governed assist is the normal task default
 
-The local-first core is implemented in `agent_runtime/knowledge_system/` and
-configured by `config/knowledge_system.yml`. Keyword retrieval uses SQLite FTS5
-with the existing BM25 engine as an explicit degraded fallback. Semantic and
-graph channels remain optional adapters and fail visibly when requested but not
-configured. Existing acceptance, promotion, production, and Project Brain
-authorities remain unchanged.
+The local-first implementation lives entirely in AgentLab under
+`agent_runtime/knowledge_system/`, `agent_runtime/cli/knowledge.py`,
+`config/knowledge_system.yml`, and `.agentlab_runtime/knowledge/`. System,
+domain, and project spaces are automatically discovered and built with
+`./agentlab.sh knowledge build --all-projects`; large media is indexed as
+metadata only. Keyword retrieval uses SQLite FTS5 with the existing BM25 engine
+as an explicit degraded fallback. Semantic and graph channels remain optional
+adapters and fail visibly when requested but not configured.
+
+Rollout is receipt-backed and sequential: `off → shadow → assist → enforce`.
+AgentLab has validated every stage, including fail-closed enforcement, and then
+returned to `assist` as the production default so later tasks receive governed
+evidence without being blocked by a sparse query. `enforce` remains available
+after a successful `assist` validation. Existing acceptance, promotion,
+production, and Project Brain authorities remain unchanged; automatic memory
+updates stay `propose_only`. Successful general artifact promotions, formal
+narrative edition promotions, and accepted Project Brain phase/revision transitions
+now issue derived-index sync receipts and refresh both project and domain shards
+automatically. Sync failure marks the index stale without rolling back authoritative
+files. AgentLab repository changes are folded back into the global scaffold with
+`knowledge build --project AgentLab` at handoff.
+
+Operational commands:
+
+- `./agentlab.sh knowledge build --all-projects`
+- `./agentlab.sh knowledge status`
+- `./agentlab.sh knowledge search --project ... --task-id ... --domain ... --query ...`
+- `./agentlab.sh knowledge validate --project ... --task-id ... --domain ... --request ...`
+- `./agentlab.sh knowledge activate --mode ... --actor ... --reason ...`
+- `./agentlab.sh knowledge doctor`
 
 ## Objective
 

@@ -15,6 +15,7 @@ from agent_runtime.knowledge_system import (
     prepare_task,
 )
 from agent_runtime.knowledge_system.config import load_knowledge_config
+from agent_runtime.knowledge_system.sources import SourceCollector
 
 from .compression_policy import build_compression_trace
 from .context_budget import build_context_budget
@@ -106,13 +107,19 @@ def _prepare_knowledge_context(
     config = load_knowledge_config(agentlab_root)
     if config.mode == "off":
         return None
+    domain = _knowledge_domain(information_type)
+    if domain == "general_production":
+        domain = SourceCollector(
+            agentlab_root,
+            max_file_bytes=config.max_file_bytes,
+        ).infer_project_domain(project)
     prepared = prepare_task(
         KnowledgeTaskRequest(
             agentlab_root=agentlab_root,
             project=project,
             task_id=task_id,
             request_text=request_text,
-            domain=_knowledge_domain(information_type),
+            domain=domain,
             file_hints=tuple(file_hints or ()),
         )
     )

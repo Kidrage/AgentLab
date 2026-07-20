@@ -218,6 +218,9 @@ register_background_job_commands(app, _PROJECT_ROOT, console)
 from agent_runtime.cli.run_retention import register_run_retention_commands
 register_run_retention_commands(app, _PROJECT_ROOT, console)
 
+from agent_runtime.cli.knowledge import register_knowledge_commands
+register_knowledge_commands(app, _PROJECT_ROOT, console)
+
 def _run_external_skills_cli(args: list[str]) -> None:
     from external_skills_cli import main as external_skills_main
 

@@ -659,6 +659,25 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
         "visual_acceptance_gate": visual_acceptance_gate,
         "errors": errors,
     }
+    if receipt["status"] == "completed":
+        try:
+            from agent_runtime.knowledge_system import sync_committed
+        except ModuleNotFoundError:
+            from knowledge_system import sync_committed
+
+        promoted_paths = [
+            f"projects/{project}/{item['production_path']}"
+            for item in promotions_applied
+        ]
+        promoted_paths.append(f"projects/{project}/project_artifact_index.yml")
+        receipt["knowledge_sync"] = sync_committed(
+            {
+                "agentlab_root": Path(agentlab_root).resolve(),
+                "project": project,
+                "status": "committed",
+                "promoted_paths": promoted_paths,
+            }
+        ).as_dict()
     atomic_write_yaml(run_dir / "archive_receipt.yml", receipt)
     return receipt
 

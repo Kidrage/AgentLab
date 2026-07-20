@@ -504,6 +504,99 @@ class KnowledgeStore:
         values = [dict(row) for row in rows]
         return stable_digest(values, prefix="idx_")
 
+    def describe_spaces(self) -> list[dict]:
+        """Return portable catalog health and governed record counts."""
+        with self._catalog() as connection:
+            rows = connection.execute(
+                """
+                SELECT namespace, db_name, schema_version, revision, status, backend, updated_at
+                FROM spaces ORDER BY namespace
+                """
+            ).fetchall()
+        descriptions: list[dict] = []
+        for row in rows:
+            path = assert_path_allowed(self.spaces_root / row["db_name"], self.root)
+            with self._shard(path) as connection:
+                record_count = int(connection.execute("SELECT COUNT(*) FROM records").fetchone()[0])
+                eligible_count = int(
+                    connection.execute(
+                        """
+                        SELECT COUNT(*) FROM records
+                        WHERE lifecycle = ? AND authority IN (?, ?)
+                        """,
+                        (
+                            KnowledgeLifecycle.ACTIVE.value,
+                            AuthorityLevel.CANONICAL.value,
+                            AuthorityLevel.ACCEPTED.value,
+                        ),
+                    ).fetchone()[0]
+                )
+                authority_rows = connection.execute(
+                    "SELECT authority, COUNT(*) AS count FROM records GROUP BY authority ORDER BY authority"
+                ).fetchall()
+                lifecycle_rows = connection.execute(
+                    "SELECT lifecycle, COUNT(*) AS count FROM records GROUP BY lifecycle ORDER BY lifecycle"
+                ).fetchall()
+                modality_rows = connection.execute(
+                    "SELECT modality, COUNT(*) AS count FROM records GROUP BY modality ORDER BY modality"
+                ).fetchall()
+            descriptions.append(
+                {
+                    "namespace": row["namespace"],
+                    "schema_version": int(row["schema_version"]),
+                    "revision": int(row["revision"]),
+                    "status": row["status"],
+                    "backend": row["backend"],
+                    "updated_at": row["updated_at"],
+                    "record_count": record_count,
+                    "eligible_record_count": eligible_count,
+                    "authority_counts": {item["authority"]: int(item["count"]) for item in authority_rows},
+                    "lifecycle_counts": {item["lifecycle"]: int(item["count"]) for item in lifecycle_rows},
+                    "modality_counts": {item["modality"]: int(item["count"]) for item in modality_rows},
+                }
+            )
+        return descriptions
+
+    def record_count(self, namespace: str) -> int:
+        """Return the number of records in one namespace without changing it."""
+        row = self._space_row(validate_namespace(namespace))
+        path = assert_path_allowed(self.spaces_root / row["db_name"], self.root)
+        with self._shard(path) as connection:
+            return int(connection.execute("SELECT COUNT(*) FROM records").fetchone()[0])
+
+    def active_scope_record_count(self, namespace: str, scope: str) -> int:
+        """Return active records for one build scope without changing it."""
+        row = self._space_row(validate_namespace(namespace))
+        path = assert_path_allowed(self.spaces_root / row["db_name"], self.root)
+        with self._shard(path) as connection:
+            return int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM records WHERE scope = ? AND lifecycle = ?",
+                    (scope, KnowledgeLifecycle.ACTIVE.value),
+                ).fetchone()[0]
+            )
+
+    def project_domain_memberships(self, project: str) -> list[tuple[str, str]]:
+        """Return derived domain namespace/scope memberships for one project."""
+        with self._catalog() as connection:
+            rows = connection.execute(
+                "SELECT namespace, db_name FROM spaces WHERE namespace LIKE 'domain.%' ORDER BY namespace"
+            ).fetchall()
+        memberships: list[tuple[str, str]] = []
+        for row in rows:
+            path = assert_path_allowed(self.spaces_root / row["db_name"], self.root)
+            with self._shard(path) as connection:
+                scopes = connection.execute(
+                    """
+                    SELECT DISTINCT scope FROM records
+                    WHERE project_id = ? AND scope LIKE 'domain:%:project:%'
+                    ORDER BY scope
+                    """,
+                    (project,),
+                ).fetchall()
+            memberships.extend((row["namespace"], item["scope"]) for item in scopes)
+        return memberships
+
 
 def _excerpt(content: str, query: str) -> tuple[str, int, int]:
     lines = content.splitlines() or [""]

@@ -171,6 +171,27 @@ def test_knowledge_assist_injects_governed_evidence(tmp_path: Path):
     assert knowledge_ref["retrieval_trace_id"]
 
 
+def test_knowledge_context_uses_project_domain_for_short_narrative_requests(tmp_path: Path):
+    root = tmp_path
+    _enable_knowledge(root, "assist")
+    fact = root / "projects" / "Crown_of_Ash" / "project_brain" / "world.yml"
+    fact.parent.mkdir(parents=True)
+    fact.write_text("fact: ASH-SHORT-PROMPT-EVIDENCE\n", encoding="utf-8")
+
+    artifacts = build_context_artifacts(
+        root,
+        "Crown_of_Ash",
+        "task_crown_short",
+        request_text="ASH-SHORT-PROMPT-EVIDENCE",
+    )
+
+    assert artifacts["context_profile"]["information_type"] == "short_prompt"
+    assert artifacts["knowledge_context"]["requirement"]["domain"] == "longform_narrative"
+    assert artifacts["knowledge_context"]["evidence_bundle"]["items"][0]["namespace"] == (
+        "project.Crown_of_Ash"
+    )
+
+
 def test_knowledge_enforce_fails_closed_when_evidence_is_missing(tmp_path: Path):
     root = tmp_path
     _enable_knowledge(root, "enforce")

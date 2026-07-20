@@ -34,6 +34,16 @@ Before deep repository reads, use the canonical handoff:
 - `config/repository_handoff_policy.yml`: repository discovery and handoff rules.
 - `config/knowledge_system.yml`: derived knowledge retrieval rollout, storage, and evidence policy.
 
+The governed knowledge system is part of normal task preparation. Its validated
+default is non-blocking `assist`; use `./agentlab.sh knowledge doctor` to verify
+the local build and `./agentlab.sh knowledge status` to inspect namespaces.
+Formal project and narrative promotions, plus accepted Project Brain phase and
+revision transitions, update their project and domain shards automatically.
+After accepted AgentLab code, configuration, governance, or docs changes, run
+`./agentlab.sh knowledge build --project AgentLab` before handoff so the system
+scaffold reflects the new repository state. Never edit SQLite shards directly or
+treat them as source authority.
+
 Never infer a role, model, provider, fallback, or command from a CLI name or an
 old report. Configuration wins.
 

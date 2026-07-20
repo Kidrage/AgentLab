@@ -611,6 +611,10 @@ def test_first_publication_promotes_hash_bound_candidate_atomically(tmp_path: Pa
 
     assert result["status"] == "promoted"
     assert result["first_publication"] is True
+    assert result["knowledge_sync"]["status"] == "SYNCED"
+    assert "projects/Novel/release_objects/editions/edition-001/chapter_001.md" in (
+        result["knowledge_sync"]["indexed_paths"]
+    )
     release = project_root / "release_objects" / "editions" / "edition-001"
     assert (release / "chapter_001.md").read_text(encoding="utf-8") == (
         "first publication candidate\n"

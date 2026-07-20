@@ -104,17 +104,36 @@ def prepare_task(request: KnowledgeTaskRequest | Mapping[str, Any]) -> PreparedK
     for namespace in namespaces:
         store.ensure_space(namespace)
     collector = SourceCollector(root, max_file_bytes=config.max_file_bytes)
-    if config.index_system_sources:
+    refresh_system = config.refresh_on_prepare or (
+        config.bootstrap_missing_spaces and store.record_count("system.agentlab") == 0
+    )
+    project_namespace = f"project.{project}"
+    domain_namespace = f"domain.{domain}"
+    refresh_project = config.refresh_on_prepare or (
+        config.bootstrap_missing_spaces and store.record_count(project_namespace) == 0
+    )
+    domain_scope = f"domain:{domain}:project:{project}"
+    bootstrap_domain = (
+        config.bootstrap_missing_spaces
+        and store.active_scope_record_count(domain_namespace, domain_scope) == 0
+    )
+    if config.index_system_sources and refresh_system:
         store.sync_records(
             "system.agentlab",
             collector.collect_system(),
-            scope="system_sources",
+            scope="system:global_sources",
         )
-    if config.index_project_sources:
+    if config.index_project_sources and refresh_project:
         store.sync_records(
-            f"project.{project}",
+            project_namespace,
             collector.collect_project(project, domain=domain),
-            scope=f"project:{project}:authoritative_sources",
+            scope=f"project:{project}:global_sources",
+        )
+    if config.index_project_sources and bootstrap_domain:
+        store.sync_records(
+            domain_namespace,
+            collector.collect_project(project, domain=domain, namespace=domain_namespace),
+            scope=domain_scope,
         )
 
     channel_hits: dict[str, list[SearchHit]] = {}
@@ -283,14 +302,22 @@ def sync_committed(commit_receipt: Mapping[str, Any]) -> KnowledgeSyncReceipt:
     root = Path(raw["agentlab_root"]).resolve()
     project = _safe_identifier(str(raw["project"]), "project")
     committed_status = str(raw.get("status") or raw.get("verdict") or "").lower()
-    namespace = f"project.{project}"
+    collector = SourceCollector(root)
+    domain = _safe_identifier(
+        str(raw.get("domain") or collector.infer_project_domain(project)),
+        "domain",
+    )
+    namespaces = (
+        validate_namespace(f"project.{project}"),
+        validate_namespace(f"domain.{domain}"),
+    )
     receipt_id = stable_digest(raw, prefix="ksync_")
     if committed_status not in {"committed", "promoted", "accepted", "pass"}:
         return KnowledgeSyncReceipt(
             receipt_id=receipt_id,
             status="REJECTED",
             project=project,
-            namespaces=(namespace,),
+            namespaces=namespaces,
             index_snapshot=None,
             warnings=("commit receipt does not prove accepted or promoted state",),
         )
@@ -301,82 +328,143 @@ def sync_committed(commit_receipt: Mapping[str, Any]) -> KnowledgeSyncReceipt:
             receipt_id=receipt_id,
             status="REJECTED",
             project=project,
-            namespaces=(namespace,),
+            namespaces=namespaces,
             index_snapshot=None,
             warnings=(
                 "commit receipt includes paths outside production, Project Brain, or the artifact index: "
                 + ", ".join(invalid_paths),
             ),
         )
+    missing_paths = tuple(
+        path for path in paths if not assert_path_allowed(path, root).is_file()
+    )
+    if missing_paths:
+        return KnowledgeSyncReceipt(
+            receipt_id=receipt_id,
+            status="REJECTED",
+            project=project,
+            namespaces=namespaces,
+            index_snapshot=None,
+            warnings=(
+                "commit receipt includes governed paths that are missing or not files: "
+                + ", ".join(missing_paths),
+            ),
+        )
     store: KnowledgeStore | None = None
     try:
         config = load_knowledge_config(root)
         store = KnowledgeStore(root, config.runtime_path, config.keyword_backend)
-        store.ensure_space(namespace)
         collector = SourceCollector(root, max_file_bytes=config.max_file_bytes)
+        for namespace in namespaces:
+            store.ensure_space(namespace)
+        records_by_namespace: dict[str, list] = {}
         if paths:
-            records = collector.collect_paths(
-                paths,
-                namespace=namespace,
-                project_id=project,
-                authority=AuthorityLevel.ACCEPTED,
-                object_kind="committed_artifact",
+            canonical_paths = tuple(
+                path for path in paths if _governed_truth_authority(root, project, path) is AuthorityLevel.CANONICAL
             )
-            store.sync_records(
-                namespace,
-                records,
-                scope=f"project:{project}:authoritative_sources",
-                tombstone_missing=False,
-            )
+            accepted_paths = tuple(path for path in paths if path not in canonical_paths)
+            for namespace in namespaces:
+                records = [
+                    *collector.collect_paths(
+                        canonical_paths,
+                        namespace=namespace,
+                        project_id=project,
+                        authority=AuthorityLevel.CANONICAL,
+                        object_kind="committed_project_fact",
+                    ),
+                    *collector.collect_paths(
+                        accepted_paths,
+                        namespace=namespace,
+                        project_id=project,
+                        authority=AuthorityLevel.ACCEPTED,
+                        object_kind="committed_artifact",
+                    ),
+                ]
+                records_by_namespace[namespace] = records
+                store.sync_records(
+                    namespace,
+                    records,
+                    scope=_source_scope(namespace, project=project, domain=domain),
+                    tombstone_missing=False,
+                )
         else:
-            records = collector.collect_project(project, domain=str(raw.get("domain") or "general"))
-            store.sync_records(
-                namespace,
-                records,
-                scope=f"project:{project}:authoritative_sources",
-            )
-        snapshot = store.index_snapshot((namespace,))
+            for namespace in namespaces:
+                records = collector.collect_project(
+                    project,
+                    domain=domain,
+                    namespace=namespace,
+                )
+                records_by_namespace[namespace] = records
+                store.sync_records(
+                    namespace,
+                    records,
+                    scope=_source_scope(namespace, project=project, domain=domain),
+                )
+        snapshot = store.index_snapshot(namespaces)
+        indexed_paths = {
+            record.source.path
+            for records in records_by_namespace.values()
+            for record in records
+        }
         return KnowledgeSyncReceipt(
             receipt_id=receipt_id,
             status="SYNCED",
             project=project,
-            namespaces=(namespace,),
+            namespaces=namespaces,
             index_snapshot=snapshot,
-            indexed_paths=tuple(sorted(record.source.path for record in records)),
+            indexed_paths=tuple(sorted(indexed_paths)),
         )
     except Exception as exc:
         snapshot = None
         if store is not None:
             try:
-                store.mark_stale(namespace)
-                snapshot = store.index_snapshot((namespace,))
+                for namespace in namespaces:
+                    store.mark_stale(namespace)
+                snapshot = store.index_snapshot(namespaces)
             except Exception:
                 snapshot = None
         return KnowledgeSyncReceipt(
             receipt_id=receipt_id,
             status="INDEX_STALE",
             project=project,
-            namespaces=(namespace,),
+            namespaces=namespaces,
             index_snapshot=snapshot,
-            stale_namespaces=(namespace,),
+            stale_namespaces=namespaces,
             warnings=(f"derived index refresh failed; committed truth was not rolled back: {exc}",),
         )
 
 
 def _is_governed_truth_path(root: Path, project: str, raw_path: str) -> bool:
+    return _governed_truth_authority(root, project, raw_path) is not None
+
+
+def _governed_truth_authority(
+    root: Path,
+    project: str,
+    raw_path: str,
+) -> AuthorityLevel | None:
     try:
         path = assert_path_allowed(raw_path, root)
     except ValueError:
-        return False
+        return None
     project_root = assert_path_allowed(root / "projects" / project, root)
     production_root = project_root / "production"
+    release_objects_root = project_root / "release_objects"
     brain_root = project_root / "project_brain"
     artifact_index = project_root / "project_artifact_index.yml"
-    return (
-        path == artifact_index.resolve()
-        or path.is_relative_to(production_root.resolve())
-        or path.is_relative_to(brain_root.resolve())
-    )
+    if path == artifact_index.resolve() or path.is_relative_to(brain_root.resolve()):
+        return AuthorityLevel.CANONICAL
+    if path.is_relative_to(production_root.resolve()) or path.is_relative_to(
+        release_objects_root.resolve()
+    ):
+        return AuthorityLevel.ACCEPTED
+    return None
+
+
+def _source_scope(namespace: str, *, project: str, domain: str) -> str:
+    if namespace == f"domain.{domain}":
+        return f"domain:{domain}:project:{project}"
+    return f"project:{project}:global_sources"
 
 
 def _disabled_context(
@@ -415,19 +503,42 @@ def _reciprocal_rank_fusion(
     scores: dict[str, float] = defaultdict(float)
     selected: dict[str, tuple[SearchHit, str]] = {}
     for channel in sorted(channel_hits):
+        seen_in_channel: set[str] = set()
         for rank, hit in enumerate(channel_hits[channel], start=1):
-            scores[hit.record_id] += 1.0 / (60 + rank)
-            selected.setdefault(hit.record_id, (hit, channel))
+            identity = f"{hit.source.path}:{hit.source.content_hash}"
+            if identity in seen_in_channel:
+                current = selected.get(identity)
+                if current is not None and _namespace_priority(hit.namespace) < _namespace_priority(
+                    current[0].namespace
+                ):
+                    selected[identity] = (hit, channel)
+                continue
+            seen_in_channel.add(identity)
+            scores[identity] += 1.0 / (60 + rank)
+            current = selected.get(identity)
+            if current is None or _namespace_priority(hit.namespace) < _namespace_priority(
+                current[0].namespace
+            ):
+                selected[identity] = (hit, channel)
     ordered = sorted(
         selected,
-        key=lambda record_id: (
-            -scores[record_id],
-            selected[record_id][0].namespace,
-            selected[record_id][0].source.path,
-            record_id,
+        key=lambda identity: (
+            -scores[identity],
+            _namespace_priority(selected[identity][0].namespace),
+            selected[identity][0].namespace,
+            selected[identity][0].source.path,
+            identity,
         ),
     )
-    return [(*selected[record_id], scores[record_id]) for record_id in ordered[:limit]]
+    return [(*selected[identity], scores[identity]) for identity in ordered[:limit]]
+
+
+def _namespace_priority(namespace: str) -> int:
+    if namespace.startswith("project."):
+        return 0
+    if namespace.startswith("domain."):
+        return 1
+    return 2
 
 
 def _evidence_item(hit: SearchHit, channel: str, rank: int, score: float) -> EvidenceItem:

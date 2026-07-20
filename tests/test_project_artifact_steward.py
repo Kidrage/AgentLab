@@ -82,6 +82,11 @@ class ProjectArtifactStewardTests(TestCase):
             receipt = apply_archive_protocol(root, "Novel", "task_0001")
 
             self.assertEqual(receipt["status"], "completed")
+            self.assertEqual(receipt["knowledge_sync"]["status"], "SYNCED")
+            self.assertEqual(
+                receipt["knowledge_sync"]["namespaces"],
+                ["project.Novel", "domain.longform_narrative"],
+            )
             self.assertEqual(production.read_text(encoding="utf-8"), "new chapter\n")
             archived = receipt["promotions_applied"][0]["archive_path"]
             self.assertTrue((root / "projects" / "Novel" / archived).exists())
