@@ -1,0 +1,44 @@
+schema_version: 2
+chapter_id: 26
+candidate_only: true
+production_modified: false
+categories:
+  voice_examples:
+    - source: &ch25
+        path: projects/Crown_of_Ash/runs/task_narrative_eval_ch25_crown_corrected_200_v3_writer/fiction_draft.md
+        sha256: abe5a32ffc71086308907c54412f2aa9e0a150343eb3a25649ac86896159c16c
+      locator: {kind: line_range, start: 45, end: 45}
+      relevance:
+        reason_code: same_pov_or_character_voice
+        source_chapter_id: 25
+        applies_to: [Kane, Roderick]
+  emotional_debts:
+    - source: &state_plan
+        path: projects/Crown_of_Ash/candidates/gate1_legacy_integrated_ch25_ch27_20260719/chapter_state_plan_ch025_ch027.yml
+        sha256: 40c23c959859a92e7ff1f48869a5bcccd29b617655a8c94ef2ab4aa0cc0d9d32
+      locator: {kind: yaml_path, value: "chapter_state_plan[1].relationship_or_worldline_change"}
+      relevance:
+        reason_code: unresolved_relationship_or_obligation
+        source_chapter_id: 26
+        applies_to: [Kane, Isabella]
+  life_detail_anchors:
+    - source: *ch25
+      locator: {kind: line_range, start: 19, end: 19}
+      relevance:
+        reason_code: concrete_carried_life_detail
+        source_chapter_id: 25
+        applies_to: [Isabella]
+  recent_scene_signatures:
+    - source: *ch25
+      locator: {kind: line_range, start: 53, end: 53}
+      relevance:
+        reason_code: recent_scene_pattern
+        source_chapter_id: 25
+        applies_to: [Kane, Roderick]
+  unresolved_reader_questions:
+    - source: *state_plan
+      locator: {kind: yaml_path, value: "chapter_state_plan[1].unresolved_hooks[0]"}
+      relevance:
+        reason_code: open_reader_question
+        source_chapter_id: 26
+        applies_to: [Kane, Isabella]

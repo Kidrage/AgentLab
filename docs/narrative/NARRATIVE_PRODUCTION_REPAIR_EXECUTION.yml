@@ -132,7 +132,7 @@ phases:
 
   - phase_id: phase_2r
     title: context_literary_memory_and_efficiency
-    status: node_a_accepted_node_b_preview_verified_product_blocked
+    status: node_a_accepted_node_b_preview_verified_node_c_memory_in_progress
     implementation_kind: code_change
     pre_dispatch_checks:
       - direct_claude_code_deepseek_v4_pro_smoke_without_private_manuscript
@@ -144,16 +144,14 @@ phases:
       required_model_key: deepseek_v4_pro
       require_node_sized_packets: true
     active_node:
-      node_id: phase_2r_node_b_writer_packet_preview_correction1
-      task_id: codex_supervised_phase2r_node_b_correction1
-      authority: docs/narrative/NARRATIVE_PHASE2R_NODE_B_ACCEPTANCE.md
+      node_id: phase_2r_node_c_literary_memory
+      task_id: codex_supervised_phase2r_node_c_memory
+      authority: docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_2R_NODE_C_MEMORY.yml
       later_nodes_blocked: true
-      acceptance: acceptance_runs/narrative_repair_v2/phase_2r/measurement_readiness.yml
+      acceptance: docs/narrative/NARRATIVE_PHASE2R_NODE_C_ACCEPTANCE.md
       accepted: false
-      preview_implementation_review: passed
-      full_repository_tests: {passed: 2908, skipped: 2, failed: 0}
     next_required_step:
-      kind: live_writer_adapter_and_structured_literary_memory
+      kind: finish_node_c_review_then_live_writer_adapter
       code_changes_allowed: true
       later_node_dispatch_allowed: false
       measurement_readiness: acceptance_runs/narrative_repair_v2/phase_2r/measurement_readiness.yml

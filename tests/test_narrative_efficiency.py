@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import yaml
+import pytest
 
 from agent_runtime.background_job_controller import (
     load_job_state,
@@ -2395,3 +2396,318 @@ def test_frozen_writer_packet_measurement_is_reproducible_and_keeps_candidate_sc
     assert first["production_writes"] == 0
     assert first["target"]["quality_preserving_evaluated"] is False
     assert first["target"]["phase_acceptance_met"] is False
+
+
+def test_literary_memory_compiler_emits_hash_bound_chapter_snapshot(tmp_path) -> None:
+    from agent_runtime.narrative.production.literary_memory import (
+        compile_literary_memory_snapshot,
+    )
+
+    source = tmp_path / "projects" / "ProbeNovel" / "candidates" / "memory_source.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        """
+voice_examples: Her answer is brief because she is testing what he already knows.
+emotional_debts: He owes her the truth about the missing map edge.
+life_detail_anchors: She warms the ink bottle before recording the frost readings.
+recent_scene_signatures: The prior scene ended with a conditional bargain, not agreement.
+unresolved_reader_questions: Who removed the lower level from the map?
+""".lstrip(),
+        encoding="utf-8",
+    )
+    source_ref = {
+        "path": source.relative_to(tmp_path).as_posix(),
+        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+    }
+    values = {
+        "voice_examples": "Her answer is brief because she is testing what he already knows.",
+        "emotional_debts": "He owes her the truth about the missing map edge.",
+        "life_detail_anchors": "She warms the ink bottle before recording the frost readings.",
+        "recent_scene_signatures": "The prior scene ended with a conditional bargain, not agreement.",
+        "unresolved_reader_questions": "Who removed the lower level from the map?",
+    }
+    selection = tmp_path / "selection.yml"
+    selection.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "chapter_id": 25,
+                "candidate_only": True,
+                "production_modified": False,
+                "categories": {
+                    category: [
+                        {
+                            "source": source_ref,
+                            "locator": {"kind": "yaml_path", "value": category},
+                            "relevance": {
+                                "reason_code": {
+                                    "voice_examples": "same_pov_or_character_voice",
+                                    "emotional_debts": "unresolved_relationship_or_obligation",
+                                    "life_detail_anchors": "concrete_carried_life_detail",
+                                    "recent_scene_signatures": "recent_scene_pattern",
+                                    "unresolved_reader_questions": "open_reader_question",
+                                }[category],
+                                "source_chapter_id": 24,
+                                "applies_to": ["Kane"],
+                            },
+                        }
+                    ]
+                    for category, text in values.items()
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    output = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "ch025"
+        / "narrative_memory_snapshot.yml"
+    )
+
+    result = compile_literary_memory_snapshot(
+        chapter_id=25,
+        selection_path=selection,
+        output_path=output,
+        source_root=tmp_path,
+    )
+
+    assert result.status == "pass", result.issues
+    assert result.snapshot_path == str(output)
+    assert result.snapshot_sha256 == hashlib.sha256(output.read_bytes()).hexdigest()
+    snapshot = yaml.safe_load(output.read_text(encoding="utf-8"))
+    assert snapshot["schema_version"] == 2
+    assert snapshot["chapter_id"] == 25
+    assert snapshot["candidate_only"] is True
+    assert snapshot["production_modified"] is False
+    assert set(snapshot["categories"]) == set(values)
+    assert snapshot["source_hashes"] == {source_ref["path"]: source_ref["sha256"]}
+    assert snapshot["quality_equivalent_memory_complete"] is True
+    assert snapshot["metrics"]["source_read_count"] == 1
+    assert snapshot["metrics"]["unique_source_count"] == 1
+    assert snapshot["metrics"]["duplicate_source_reloads"] == 0
+
+
+def test_literary_memory_compiler_blocks_incomplete_or_stale_selection(tmp_path) -> None:
+    from agent_runtime.narrative.production.literary_memory import (
+        compile_literary_memory_snapshot,
+    )
+
+    source = tmp_path / "memory_source.yml"
+    source.write_text("voice: bounded evidence\n", encoding="utf-8")
+    selection = tmp_path / "selection.yml"
+    selection.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "chapter_id": 3,
+                "candidate_only": True,
+                "production_modified": False,
+                "categories": {
+                    "voice_examples": [
+                        {
+                            "text": "bounded evidence",
+                            "source": {
+                                "path": "memory_source.yml",
+                                "sha256": "0" * 64,
+                            },
+                            "locator": "voice",
+                        }
+                    ]
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "projects" / "ProbeNovel" / "candidates" / "memory.yml"
+
+    result = compile_literary_memory_snapshot(
+        chapter_id=3,
+        selection_path=selection,
+        output_path=output,
+        source_root=tmp_path,
+    )
+
+    assert result.status == "blocked"
+    assert "memory_source_hash_mismatch:memory_source.yml" in result.issues
+    for category in (
+        "emotional_debts",
+        "life_detail_anchors",
+        "recent_scene_signatures",
+        "unresolved_reader_questions",
+    ):
+        assert f"memory_category_missing:{category}" in result.issues
+    assert not output.exists()
+
+
+def test_literary_memory_compiler_reads_v1_and_writes_v2_compatibility(tmp_path) -> None:
+    from agent_runtime.narrative.production.literary_memory import (
+        MEMORY_CATEGORIES,
+        compile_literary_memory_snapshot,
+    )
+
+    source = tmp_path / "legacy_memory.md"
+    source.write_text(
+        "\n".join(f"legacy evidence {category}" for category in MEMORY_CATEGORIES),
+        encoding="utf-8",
+    )
+    source_ref = {
+        "path": "legacy_memory.md",
+        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+    }
+    selection = tmp_path / "selection_v1.yml"
+    selection.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "chapter_id": 25,
+                "candidate_only": True,
+                "production_modified": False,
+                "categories": {
+                    category: [
+                        {
+                            "text": f"legacy evidence {category}",
+                            "source": source_ref,
+                            "locator": category,
+                        }
+                    ]
+                    for category in MEMORY_CATEGORIES
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    output = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "legacy"
+        / "narrative_memory_snapshot.yml"
+    )
+
+    result = compile_literary_memory_snapshot(
+        chapter_id=25,
+        selection_path=selection,
+        output_path=output,
+        source_root=tmp_path,
+    )
+
+    assert result.status == "pass", result.issues
+    snapshot = yaml.safe_load(output.read_text(encoding="utf-8"))
+    assert snapshot["schema_version"] == 2
+    assert snapshot["selection"]["schema_version"] == 1
+    assert snapshot["memory_contract_complete"] is True
+    assert snapshot["quality_equivalent_memory_complete"] is False
+    assert snapshot["metrics"]["source_read_count"] == 1
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_issue"),
+    [
+        ("unsafe_output", "memory_output_must_be_candidate_snapshot"),
+        ("malformed_chapter", "memory_chapter_id_must_be_positive_integer"),
+        (
+            "reused_evidence",
+            "memory_evidence_reused_across_categories:emotional_debts:0",
+        ),
+        (
+            "outside_window",
+            "memory_relevance_chapter_outside_window:voice_examples:0",
+        ),
+        ("non_utf8_source", "memory_source_must_be_utf8:memory_source.yml"),
+        (
+            "item_limit",
+            "memory_category_item_limit_exceeded:voice_examples",
+        ),
+    ],
+)
+def test_literary_memory_compiler_blocks_untrusted_or_unbounded_input(
+    tmp_path,
+    case: str,
+    expected_issue: str,
+) -> None:
+    from agent_runtime.narrative.production.literary_memory import (
+        MEMORY_CATEGORIES,
+        MEMORY_REASON_CODES,
+        compile_literary_memory_snapshot,
+    )
+
+    source = tmp_path / "memory_source.yml"
+    if case == "non_utf8_source":
+        source.write_bytes(b"\xff\xfe")
+    else:
+        source.write_text(
+            yaml.safe_dump(
+                {category: f"evidence for {category}" for category in MEMORY_CATEGORIES}
+            ),
+            encoding="utf-8",
+        )
+    source_ref = {
+        "path": "memory_source.yml",
+        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+    }
+    chapter_id = "twenty-five" if case == "malformed_chapter" else 25
+    categories = {
+        category: [
+            {
+                "source": source_ref,
+                "locator": {"kind": "yaml_path", "value": category},
+                "relevance": {
+                    "reason_code": MEMORY_REASON_CODES[category],
+                    "source_chapter_id": 1 if case == "outside_window" else 24,
+                    "applies_to": ["Kane"],
+                },
+            }
+        ]
+        for category in MEMORY_CATEGORIES
+    }
+    if case == "reused_evidence":
+        categories["emotional_debts"][0]["locator"]["value"] = "voice_examples"
+    if case == "item_limit":
+        categories["voice_examples"] = categories["voice_examples"] * 4
+    selection = tmp_path / "selection.yml"
+    selection.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "chapter_id": chapter_id,
+                "candidate_only": True,
+                "production_modified": False,
+                "categories": categories,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    if case == "unsafe_output":
+        output = tmp_path / "runs" / "narrative_memory_snapshot.yml"
+    else:
+        output = (
+            tmp_path
+            / "projects"
+            / "ProbeNovel"
+            / "candidates"
+            / "ch025"
+            / "narrative_memory_snapshot.yml"
+        )
+
+    result = compile_literary_memory_snapshot(
+        chapter_id=chapter_id,
+        selection_path=selection,
+        output_path=output,
+        source_root=tmp_path,
+    )
+
+    assert result.status == "blocked"
+    assert expected_issue in result.issues
+    if case == "non_utf8_source":
+        assert result.metrics["source_read_count"] == 1
+        assert result.metrics["unique_source_count"] == 1
+        assert result.metrics["duplicate_source_reloads"] == 0
+    assert not output.exists()

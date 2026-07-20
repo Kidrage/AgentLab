@@ -43,6 +43,11 @@ from agent_runtime.narrative.production.writer_packet_preview import (
     WriterPacketPreview,
     build_writer_packet_preview,
 )
+from agent_runtime.narrative.production.literary_memory import (
+    MEMORY_CATEGORIES,
+    LiteraryMemoryResult,
+    compile_literary_memory_snapshot,
+)
 
 __all__ = [
     # Brief
@@ -56,6 +61,9 @@ __all__ = [
     "validate_writer_v2_output",
     "WriterPacketPreview",
     "build_writer_packet_preview",
+    "MEMORY_CATEGORIES",
+    "LiteraryMemoryResult",
+    "compile_literary_memory_snapshot",
     # State
     "StateDelta",
     "StateProjector",

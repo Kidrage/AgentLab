@@ -1,0 +1,68 @@
+schema_version: 2
+phase_id: phase_2r_node_c_literary_memory
+project: Crown_of_Ash
+chapters: [25, 26, 27]
+status: correction_1_pending_independent_rereview
+candidate_only: true
+production_modified: false
+provider_calls: 0
+production_writes: 0
+required_category_count: 5
+selection_contract:
+  schema_version: 2
+  submitted_excerpt_text: false
+  machine_locator_required: true
+  category_reason_code_required: true
+  distinct_evidence_per_category_required: true
+  recent_chapter_window: 5
+compiler_limits:
+  max_items_per_category: 3
+  max_unique_sources: 8
+  max_selection_bytes: 131072
+  max_source_bytes: 262144
+  max_total_source_bytes: 524288
+  max_excerpt_chars: 1000
+  max_line_range: 20
+source_inventory:
+  chapter_state_plan:
+    path: projects/Crown_of_Ash/candidates/gate1_legacy_integrated_ch25_ch27_20260719/chapter_state_plan_ch025_ch027.yml
+    bytes: 10049
+    sha256: 40c23c959859a92e7ff1f48869a5bcccd29b617655a8c94ef2ab4aa0cc0d9d32
+  predecessor_ch024:
+    path: projects/Crown_of_Ash/runs/task_narrative_eval_ch24_crown_corrected_200_v3_writer/fiction_draft.md
+    bytes: 11578
+    sha256: df4a30855118c33c41c11989ad4651ab5fa899ccfabc4a9568e23cc85bc21b8e
+  predecessor_ch025:
+    path: projects/Crown_of_Ash/runs/task_narrative_eval_ch25_crown_corrected_200_v3_writer/fiction_draft.md
+    bytes: 16151
+    sha256: abe5a32ffc71086308907c54412f2aa9e0a150343eb3a25649ac86896159c16c
+  predecessor_ch026:
+    path: projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer/fiction_draft.md
+    bytes: 11532
+    sha256: 8242a5997cd3ae275b070e9bd4e59d73d53342c639820e0363e76813113882a8
+rows:
+  - chapter_id: 25
+    selection: {path: acceptance_runs/narrative_efficiency/phase2r_node_c/selections/ch025.yml, bytes: 1713, sha256: f58e75751174ab1553f0c76c07d4a3f3734a9c73c993649179997f7144c36a87}
+    snapshot: {path: projects/Crown_of_Ash/candidates/phase2r_node_c_memory_20260720/ch025/narrative_memory_snapshot.yml, bytes: 4995, sha256: 9779a7bea2c0c85997484b596c1114bb6e99f0b77fc34ed7042a5dca77e8aa05}
+    category_count: 5
+    quality_equivalent_memory_complete: true
+    metrics: {selection_read_count: 1, source_read_count: 2, unique_source_count: 2, duplicate_source_reloads: 0, selection_bytes_loaded: 1713, source_bytes_loaded: 21627}
+  - chapter_id: 26
+    selection: {path: acceptance_runs/narrative_efficiency/phase2r_node_c/selections/ch026.yml, bytes: 1724, sha256: 1a582d433acd5fef5519d22f93398eaf5018963d565f7b12092148963c9cfcf3}
+    snapshot: {path: projects/Crown_of_Ash/candidates/phase2r_node_c_memory_20260720/ch026/narrative_memory_snapshot.yml, bytes: 5079, sha256: 7e6383d8d35b4abe71b1f251995b4e48d35a07e430fbf0519cf7a0e8eb036d05}
+    category_count: 5
+    quality_equivalent_memory_complete: true
+    metrics: {selection_read_count: 1, source_read_count: 2, unique_source_count: 2, duplicate_source_reloads: 0, selection_bytes_loaded: 1724, source_bytes_loaded: 26200}
+  - chapter_id: 27
+    selection: {path: acceptance_runs/narrative_efficiency/phase2r_node_c/selections/ch027.yml, bytes: 1714, sha256: af9a07eca90b23f7d8ad7cd508f3856f403999d3f384378b196608273a67b9f9}
+    snapshot: {path: projects/Crown_of_Ash/candidates/phase2r_node_c_memory_20260720/ch027/narrative_memory_snapshot.yml, bytes: 4978, sha256: 159845d567228e68e42b132aabd6c0f132d8cdee83240ae36678ce4a4ef364bf}
+    category_count: 5
+    quality_equivalent_memory_complete: true
+    metrics: {selection_read_count: 1, source_read_count: 2, unique_source_count: 2, duplicate_source_reloads: 0, selection_bytes_loaded: 1714, source_bytes_loaded: 21581}
+tests:
+  focused_file: {passed: 54, failed: 0}
+  narrative_domain: {passed: 194, failed: 0}
+quality_boundary:
+  selection_relevance_semantically_proven: false
+  literary_uplift_proven: false
+  reason: mechanically_validated_memory_inputs_are_not_writer_output_or_blind_review
