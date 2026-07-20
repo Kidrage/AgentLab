@@ -2079,3 +2079,319 @@ def test_literary_status_alias_cannot_bypass_advisory_signal_gate(tmp_path) -> N
 
     assert result.status == "blocked"
     assert any("literary_status" in issue for issue in result.issues)
+
+
+def test_candidate_writer_packet_preview_uses_compiled_context_only(tmp_path) -> None:
+    from agent_runtime.narrative.production.writer_packet_preview import (
+        build_writer_packet_preview,
+    )
+
+    canon = tmp_path / "canon.yml"
+    canon.write_text("canon_marker: fixed\n", encoding="utf-8")
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("hard_state_marker: chapter_24\n", encoding="utf-8")
+    predecessor = tmp_path / "ch024.md"
+    predecessor.write_text("predecessor_prose_marker\n", encoding="utf-8")
+    brief_source = tmp_path / "chapter_plan.yml"
+    brief_source.write_text("brief_source_marker: chapter_25\n", encoding="utf-8")
+    writer_notes = tmp_path / "writer_notes.yml"
+    writer_notes.write_text("writer_private_marker: preserve_voice\n", encoding="utf-8")
+    reviewer_notes = tmp_path / "reviewer_notes.yml"
+    reviewer_notes.write_text("reviewer_private_marker: hidden\n", encoding="utf-8")
+    unrelated = tmp_path / "ch001.md"
+    unrelated.write_text("unrelated_chapter_marker\n", encoding="utf-8")
+    brief = CreativeBrief(
+        {
+            "schema_version": 2,
+            "chapter_id": 25,
+            "primary_function": "plot",
+            "pov": "Kane",
+            "opposing_wants": "verify the map without exposing distrust",
+            "turn": "the map omission becomes an investigation target",
+            "cost": "accepting the mission narrows retreat options",
+            "reader_question": "what is hidden below the monastery",
+            "must_preserve": ["the second underground level remains unknown"],
+            "creative_freedom": ["choose scene blocking and sensory detail"],
+            "word_count_target": [4500, 5500],
+            "source_hashes": {
+                str(brief_source.resolve()): hashlib.sha256(
+                    brief_source.read_bytes()
+                ).hexdigest()
+            },
+        }
+    )
+
+    preview = build_writer_packet_preview(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=predecessor,
+            predecessor_chapter_id=24,
+            role_slices={"Writer": [writer_notes], "Reviewer": [reviewer_notes]},
+            output_dir=tmp_path / "bundles",
+            source_root=tmp_path,
+        ),
+        project="ProbeNovel",
+        task_id="task_ch025_preview",
+    )
+
+    assert preview.status == "pass"
+    assert preview.payload is not None
+    assert preview.payload["schema_version"] == 2
+    assert preview.payload["packet_type"] == "agentlab_sealed_role_session"
+    assert preview.payload["agent"] == "Writer"
+    assert preview.payload["required_outputs"] == ["fiction_draft.md"]
+    assert preview.payload["context_policy"]["mode"] == "sealed_messages_only"
+    assert preview.candidate_only is True
+    assert preview.production_modified is False
+    assert preview.payload["context_policy"]["additional_file_reads_allowed"] is False
+    rendered = json.dumps(preview.payload, ensure_ascii=False, sort_keys=True)
+    for marker in (
+        "canon_marker",
+        "hard_state_marker",
+        "predecessor_prose_marker",
+        "brief_source_marker",
+        "writer_private_marker",
+    ):
+        assert marker in rendered
+    assert "reviewer_private_marker" not in rendered
+    assert "unrelated_chapter_marker" not in rendered
+    assert str(tmp_path) not in rendered
+    assert preview.payload_bytes == len(preview.payload_json.encode("utf-8"))
+    assert preview.token_estimate == (preview.payload_bytes + 3) // 4
+    assert preview.loaded_file_count == 5
+    expected_writer_bytes = sum(
+        path.stat().st_size
+        for path in (canon, hard, predecessor, brief_source, writer_notes)
+    )
+    assert preview.loaded_context_bytes == expected_writer_bytes
+    assert f"loaded_context_bytes: {expected_writer_bytes}" in rendered
+    assert "word_count_target" in rendered
+    assert "4500" in rendered and "5500" in rendered
+
+
+def test_writer_packet_preview_blocks_production_output_before_compile(tmp_path) -> None:
+    from agent_runtime.narrative.production.writer_packet_preview import (
+        build_writer_packet_preview,
+    )
+
+    canon = tmp_path / "canon.yml"
+    canon.write_text("canon: fixed\n", encoding="utf-8")
+    hard = tmp_path / "hard_state.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    predecessor = tmp_path / "ch024.md"
+    predecessor.write_text("previous chapter\n", encoding="utf-8")
+    brief_source = tmp_path / "chapter_plan.yml"
+    brief_source.write_text("chapter: 25\n", encoding="utf-8")
+    brief = CreativeBrief(
+        {
+            "schema_version": 2,
+            "chapter_id": 25,
+            "primary_function": "plot",
+            "pov": "Kane",
+            "opposing_wants": "verify the map without exposing distrust",
+            "turn": "the omission becomes an investigation target",
+            "cost": "the accepted mission narrows retreat options",
+            "reader_question": "what is hidden below the monastery",
+            "must_preserve": ["the lower level remains unknown"],
+            "creative_freedom": ["choose scene blocking"],
+            "source_hashes": {
+                str(brief_source.resolve()): hashlib.sha256(
+                    brief_source.read_bytes()
+                ).hexdigest()
+            },
+        }
+    )
+    production_output = tmp_path / "projects" / "ProbeNovel" / "production" / "context"
+
+    preview = build_writer_packet_preview(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=predecessor,
+            predecessor_chapter_id=24,
+            output_dir=production_output,
+            source_root=tmp_path,
+        ),
+        project="ProbeNovel",
+        task_id="task_ch025_production_probe",
+    )
+
+    assert preview.status == "blocked"
+    assert "preview_output_dir_is_production" in preview.issues
+    assert preview.payload is None
+    assert preview.production_modified is False
+    assert not production_output.exists()
+
+    other_project_production = (
+        tmp_path / "projects" / "OtherNovel" / "production" / "context"
+    )
+    mismatch = build_writer_packet_preview(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=predecessor,
+            predecessor_chapter_id=24,
+            output_dir=other_project_production,
+            source_root=tmp_path,
+        ),
+        project="ProbeNovel",
+        task_id="task_ch025_cross_project_production_probe",
+    )
+    assert mismatch.status == "blocked"
+    assert "preview_output_dir_is_production" in mismatch.issues
+    assert not other_project_production.exists()
+
+
+def test_writer_packet_preview_measures_duplicate_writer_inputs(tmp_path) -> None:
+    from agent_runtime.narrative.production.writer_packet_preview import (
+        build_writer_packet_preview,
+    )
+
+    brief = _make_brief(25, tmp_path)
+    canon = tmp_path / "canon.yml"
+    hard = tmp_path / "hard.yml"
+    predecessor = tmp_path / "ch024.md"
+    repeated = tmp_path / "writer_memory.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+    predecessor.write_text("previous prose\n", encoding="utf-8")
+    repeated.write_text("voice: restrained\n", encoding="utf-8")
+
+    preview = build_writer_packet_preview(
+        ContextRequest(
+            chapter_id=25,
+            creative_brief=brief,
+            canon_snapshot_path=canon,
+            hard_state_path=hard,
+            predecessor_prose_path=predecessor,
+            predecessor_chapter_id=24,
+            role_slices={"Writer": [repeated, repeated]},
+            output_dir=tmp_path / "bundles",
+            source_root=tmp_path,
+        ),
+        project="ProbeNovel",
+        task_id="task_ch025_duplicate_writer_input",
+    )
+
+    assert preview.status == "pass"
+    assert preview.duplicate_context_ratio > 0.0
+    assert preview.loaded_file_count == 4
+
+
+def test_frozen_writer_packet_measurement_is_reproducible_and_keeps_candidate_scope(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.writer_packet_measurement import (
+        measure_frozen_writer_packets,
+    )
+
+    project_root = tmp_path / "projects" / "ProbeNovel"
+    source_dir = project_root / "candidates" / "frozen_source"
+    source_dir.mkdir(parents=True)
+    source_plan = source_dir / "chapter_state_plan.yml"
+    source_plan.write_text(
+        yaml.safe_dump(
+            {
+                "target_character_range": [4500, 5500],
+                "hard_character_range": [3000, 8000],
+                "chapter_state_plan": [
+                    {
+                        "chapter": 2,
+                        "pov": "Kane",
+                        "scene_goal": "verify the map",
+                        "irreversible_plot_change": "the omission becomes actionable",
+                        "closing_state": "the route is conditionally accepted",
+                        "reader_question": "what was removed",
+                        "must_preserve": ["the lower level remains unknown"],
+                        "creative_freedom": ["choose scene blocking"],
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    canon = source_dir / "canon.yml"
+    canon.write_text("canon: fixed\n", encoding="utf-8")
+    memory = source_dir / "memory.yml"
+    memory.write_text("open_reader_questions: [what was removed]\n", encoding="utf-8")
+    writer_template = source_dir / "writer.md"
+    writer_template.write_text("Writer prose-only contract\n", encoding="utf-8")
+    predecessor = source_dir / "ch001.md"
+    predecessor.write_text("previous prose\n", encoding="utf-8")
+    hard = source_dir / "hard.yml"
+    hard.write_text("facts: []\n", encoding="utf-8")
+
+    def ref(path: Path) -> dict[str, str]:
+        return {
+            "path": path.relative_to(tmp_path).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    manifest_path = tmp_path / "measurement.yml"
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                "freeze_id": "probe_measurement",
+                "project": "ProbeNovel",
+                "candidate_only": True,
+                "derived_candidate_dir": (
+                    "projects/ProbeNovel/candidates/phase2r_preview"
+                ),
+                "source_plan": ref(source_plan),
+                "canon_snapshot": ref(canon),
+                "shared_memory_sources": [ref(memory)],
+                "writer_private_sources": [ref(writer_template)],
+                "chapter_inputs": [
+                    {
+                        "chapter_id": 2,
+                        "predecessor_prose": ref(predecessor),
+                        "hard_state": ref(hard),
+                    }
+                ],
+                "legacy_baseline_sources": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    baseline_refs = []
+    for chapter_id in (1, 2, 3):
+        baseline = source_dir / f"legacy_{chapter_id}.yml"
+        baseline.write_text(
+            yaml.safe_dump(
+                {
+                    "payload": {"bytes": 100000},
+                    "source_inventory": {
+                        "count": 10,
+                        "files": [{"bytes": 50000}],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        baseline_refs.append(ref(baseline))
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    manifest["legacy_baseline_sources"] = baseline_refs
+    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8")
+
+    first = measure_frozen_writer_packets(manifest_path, repository_root=tmp_path)
+    second = measure_frozen_writer_packets(manifest_path, repository_root=tmp_path)
+
+    assert first == second
+    assert first["packet_contract"] == "agentlab_sealed_role_session_v2_preview"
+    assert first["rows"][0]["word_count_target"] == [4500, 5500]
+    assert first["checks"]["writer_template_present"] is True
+    derived = tmp_path / first["derived_sources"][0]["path"]
+    assert derived.is_file()
+    assert project_root / "production" not in derived.parents
+    assert first["production_writes"] == 0
+    assert first["target"]["quality_preserving_evaluated"] is False
+    assert first["target"]["phase_acceptance_met"] is False

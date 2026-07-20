@@ -39,6 +39,10 @@ from agent_runtime.narrative.production.writer_contract import (
     WriterV2Contract,
     validate_writer_v2_output,
 )
+from agent_runtime.narrative.production.writer_packet_preview import (
+    WriterPacketPreview,
+    build_writer_packet_preview,
+)
 
 __all__ = [
     # Brief
@@ -50,6 +54,8 @@ __all__ = [
     # Writer
     "WriterV2Contract",
     "validate_writer_v2_output",
+    "WriterPacketPreview",
+    "build_writer_packet_preview",
     # State
     "StateDelta",
     "StateProjector",

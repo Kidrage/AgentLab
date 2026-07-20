@@ -1,7 +1,7 @@
-schema_version: 1
+schema_version: 2
 phase: phase_2r
 measurement: ordinary_context_before_after
-status: blocked_pending_real_packet_integration
+status: blocked_pending_live_writer_adapter_and_structured_literary_memory
 quality_equivalent_comparison_available: false
 
 frozen_legacy_baseline:
@@ -16,27 +16,46 @@ frozen_legacy_baseline:
   inventory_files_median: 19
   inventory_bytes_median: 112827
 
-new_pipeline_measurement:
-  payload_bytes: unavailable
-  input_tokens: unavailable
-  reason: >-
-    ContextCompiler is not yet wired into the real Writer packet preview path,
-    and no frozen quality-equivalent canon snapshot exists for Ch25-Ch27.
-    Test-fixture bundle bytes cannot be compared with the sealed legacy payload.
+corrected_provider_free_preview:
+  source: acceptance_runs/narrative_efficiency/phase2r_node_b/preview_metrics.json
+  packet_contract: agentlab_sealed_role_session_v2_preview
+  rows:
+    - {chapter_id: 25, payload_bytes: 62448, token_estimate: 15612, loaded_files: 10, loaded_context_bytes: 57317}
+    - {chapter_id: 26, payload_bytes: 69474, token_estimate: 17369, loaded_files: 10, loaded_context_bytes: 64368}
+    - {chapter_id: 27, payload_bytes: 62220, token_estimate: 15555, loaded_files: 10, loaded_context_bytes: 57055}
+  payload_bytes_median: 62448
+  token_estimate_median: 15612
+  loaded_files_median: 10
+  loaded_context_bytes_median: 57317
+  payload_reduction_percent: 37.6878
+  file_count_reduction_percent: 47.3684
+  context_bytes_reduction_percent: 49.1992
+  comparison_scope: deterministic_input_contract_preview_only
+  literary_output_equivalence_proven: false
 
-blocking_requirements:
-  - wire_context_compiler_to_candidate_only_writer_packet_preview
-  - freeze_ch25_ch27_creative_briefs_and_quality_equivalent_canon_snapshots
-  - render_payload_without_provider_execution
-  - compare_exact_payload_bytes_token_estimate_loaded_files_and_duplicate_ratio
-  - verify_required_canon_predecessor_hard_state_and_relevant_memory_are_present
+completed_corrections:
+  - production_output_directory_blocks_before_context_manifest_write
+  - preview_uses_schema_v2_sealed_role_session_envelope
+  - writer_only_bytes_and_duplicate_ratio_are_measured
+  - source_root_character_ranges_are_inherited_into_each_brief
+  - current_writer_prose_only_template_is_included
+  - detailed_manuscript_content_is_not_committed_as_acceptance_evidence
+  - checked_in_driver_reproduces_derived_candidate_inputs_and_exact_metrics
 
 target:
   ordinary_input_context_median_reduction_percent: 25
-  evaluated: false
-  met: not_evaluated
+  input_contract_evaluated: true
+  input_contract_met: true
+  quality_preserving_evaluated: false
+  phase_acceptance_met: false
 
 safety:
   provider_calls: 0
   production_writes: 0
   candidate_only: true
+
+blocking_requirements:
+  - wire_compiled_packet_into_the_registered_writer_runtime_path
+  - build_and_select_structured_literary_memory_for_each_chapter
+  - rerun_quality_equivalent_measurement_after_both_inputs_exist
+  - prove_live_writer_output_with_gate1_and_human_blind_review

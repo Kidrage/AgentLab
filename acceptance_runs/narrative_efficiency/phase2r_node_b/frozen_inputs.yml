@@ -1,0 +1,68 @@
+schema_version: 2
+freeze_id: crown_ch025_ch027_phase2r_node_b_20260720_correction1
+project: Crown_of_Ash
+chapters: [25, 26, 27]
+candidate_only: true
+production_modified: false
+
+# The reproducible driver derives chapter-local files here. This path is under
+# the ignored project candidate tree, never committed evidence or Production.
+derived_candidate_dir: projects/Crown_of_Ash/candidates/phase2r_node_b_preview_20260720
+
+source_plan:
+  path: projects/Crown_of_Ash/candidates/gate1_legacy_integrated_ch25_ch27_20260719/chapter_state_plan_ch025_ch027.yml
+  sha256: 40c23c959859a92e7ff1f48869a5bcccd29b617655a8c94ef2ab4aa0cc0d9d32
+  selector: chapter_state_plan[chapter=<chapter_id>]
+  inherited_root_fields: [target_character_range, hard_character_range]
+
+canon_snapshot:
+  path: projects/Crown_of_Ash/candidates/gate1_legacy_integrated_ch25_ch27_20260719/legacy_story_authority_overlay.yml
+  sha256: a465141fe0169a764e5363b56f495aa5dc19861bd399d43e0e0b4c0c21533076
+
+shared_memory_sources:
+  - {path: projects/Crown_of_Ash/project_brain/project_fact_snapshot.yml, sha256: 08ae96cbec5b799785f39f9ba9ff1692aaadc8bc0bbd9d87819a9fbd56f25731}
+  - {path: projects/Crown_of_Ash/production/bible/世界观圣经.md, sha256: 07a0ef21c536626d9c2596de1610b54df3dd730bc011085a09c7b983da823503}
+  - {path: projects/Crown_of_Ash/production/bible/势力圣经.md, sha256: dd88a2b3565cf837783434024e70385e1c4601ffd6a22dbbdc17a82d1d5a75d1}
+  - {path: projects/Crown_of_Ash/production/bible/角色圣经.md, sha256: 5af7b67d2c00debff8827b07a135c054ab38f0ab4a7698fa1cf2ad7efbb4bb0a}
+  - {path: projects/Crown_of_Ash/production/bible/魔法与代价体系.md, sha256: 9857f73cb023246ac07ce99a2c3b64d924de753a0385e25159d775baa947f98b}
+
+writer_private_sources:
+  - {path: agent_templates/writer.md, sha256: b4a21d66ea22d73206681a49b49b16296c8f4327111bf173151b7e33df122347}
+
+chapter_inputs:
+  - chapter_id: 25
+    predecessor_prose: {path: projects/Crown_of_Ash/runs/task_narrative_eval_ch24_crown_corrected_200_v3_writer/fiction_draft.md, sha256: df4a30855118c33c41c11989ad4651ab5fa899ccfabc4a9568e23cc85bc21b8e}
+    hard_state: {path: projects/Crown_of_Ash/runs/task_narrative_eval_ch24_crown_corrected_200_v3_writer/continuity_ledger.yml, sha256: 6858ab7ce849f0c10bfb1705ba094c959d08c60d90558034148b28b0a7b4c9a4}
+  - chapter_id: 26
+    predecessor_prose: {path: projects/Crown_of_Ash/runs/task_narrative_eval_ch25_crown_corrected_200_v3_writer/fiction_draft.md, sha256: abe5a32ffc71086308907c54412f2aa9e0a150343eb3a25649ac86896159c16c}
+    hard_state: {path: projects/Crown_of_Ash/runs/task_narrative_eval_ch25_crown_corrected_200_v3_writer/continuity_ledger.yml, sha256: b3b8666bb60e9268bc38d02c0b65449765976fc91a424bd1061ec59002062ec3}
+  - chapter_id: 27
+    predecessor_prose: {path: projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer/fiction_draft.md, sha256: 8242a5997cd3ae275b070e9bd4e59d73d53342c639820e0363e76813113882a8}
+    hard_state: {path: projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer/continuity_ledger.yml, sha256: c5d92f32a4738da31464b1a378af07bbc3ae1fd61b423ef17daf14ace6db199f}
+
+legacy_baseline_sources:
+  - chapter_id: 25
+    path: projects/Crown_of_Ash/runs/task_narrative_eval_ch25_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml
+    sha256: 8f79653308bc08b7e5fa81d2e28189868d4ee0eadc9e3aff9d98d79f9e99e2cf
+  - chapter_id: 26
+    path: projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml
+    sha256: 4570695903f124458a3f9fd41cb0d7eeca516600a77d9f0e7cbdd18d5661ac87
+  - chapter_id: 27
+    path: projects/Crown_of_Ash/runs/task_narrative_eval_ch27_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml
+    sha256: ac552af661fbe8a7c377257dc9e53743ee4ae95e9017fd90eef38c3c61a81dec
+
+quality_equivalence:
+  status: blocked_missing_structured_literary_memory_and_live_adapter
+  preserved_inputs:
+    - chapter_local_state_and_root_character_ranges
+    - legacy_character_relationship_overlay
+    - fact_snapshot_and_current_bibles
+    - immediate_predecessor_prose_and_continuity_state
+    - current_writer_prose_only_template
+  missing_inputs:
+    - selected_voice_examples
+    - explicit_emotional_debts
+    - life_detail_anchors
+    - recent_scene_signatures
+    - unresolved_reader_questions_snapshot
+  literary_output_equivalence_proven: false

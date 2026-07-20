@@ -132,7 +132,7 @@ phases:
 
   - phase_id: phase_2r
     title: context_literary_memory_and_efficiency
-    status: node_a_accepted_node_b_integration_required
+    status: node_a_accepted_node_b_preview_verified_product_blocked
     implementation_kind: code_change
     pre_dispatch_checks:
       - direct_claude_code_deepseek_v4_pro_smoke_without_private_manuscript
@@ -144,17 +144,30 @@ phases:
       required_model_key: deepseek_v4_pro
       require_node_sized_packets: true
     active_node:
-      node_id: phase_2r_node_a_context
-      task_id: task_narrative_repair_v2_phase2r_node_a_context_correction1
-      authority: docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_2R_NODE_A_CORRECTION_1.yml
+      node_id: phase_2r_node_b_writer_packet_preview_correction1
+      task_id: codex_supervised_phase2r_node_b_correction1
+      authority: docs/narrative/NARRATIVE_PHASE2R_NODE_B_ACCEPTANCE.md
       later_nodes_blocked: true
-      acceptance: acceptance_runs/narrative_repair_v2/phase_2r/node_a/supervisor_review.yml
-      accepted: true
+      acceptance: acceptance_runs/narrative_repair_v2/phase_2r/measurement_readiness.yml
+      accepted: false
+      preview_implementation_review: passed
+      full_repository_tests: {passed: 2908, skipped: 2, failed: 0}
     next_required_step:
-      kind: candidate_only_context_packet_integration
+      kind: live_writer_adapter_and_structured_literary_memory
       code_changes_allowed: true
       later_node_dispatch_allowed: false
       measurement_readiness: acceptance_runs/narrative_repair_v2/phase_2r/measurement_readiness.yml
+    completed_nodes:
+      - node_id: phase_2r_node_a_context
+        status: accepted
+        acceptance: docs/narrative/NARRATIVE_PHASE2R_NODE_A_ACCEPTANCE.md
+      - node_id: phase_2r_node_b_writer_packet_preview_attempt1
+        status: rejected_false_green_corrected_preview_still_blocked
+        acceptance: docs/narrative/NARRATIVE_PHASE2R_NODE_B_ACCEPTANCE.md
+        payload_median_reduction_percent: 37.6878
+        phase_acceptance_met: false
+        provider_calls: 0
+        production_writes: 0
     allowed_roots:
       - agent_runtime/narrative/production/
       - agent_runtime/narrative/efficiency/
