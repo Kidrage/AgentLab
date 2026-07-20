@@ -36,7 +36,9 @@ The first full-repository run produced 2,884 passes and two failures. The
 Phase 1R Writer-template regression was fixed and its direct replay passes. The
 remaining failure is a local absolute path already present in accepted Phase 0R
 evidence at base commit `1dd5008`; it must be repaired separately with its
-evidence pointer rehashed before Phase 2R dispatch.
+evidence pointer rehashed before Phase 2R dispatch. That separate repair was
+then completed: the pointer hash was recomputed and the post-hygiene full suite
+passed with **2,886 passed, 2 skipped, 0 failed**.
 
 ## Execution reliability finding
 
@@ -55,9 +57,11 @@ Engine bytes, injectable projector behavior and arbitrary projector failures.
 - Gate 1 literary uplift: not evaluated
 - Production writes: 0
 
-Phase 2R may be dispatched only after the Phase 0 evidence-locator hygiene
-repair is independently verified. Phase 3R quality claims, Gate 2, Phase 5 and
-Production promotion remain blocked by their original gates.
+Phase 2R may be dispatched only after a direct local smoke of the registered
+`claude_code / deepseek-v4-pro` combination compares startup, heartbeat,
+deadline, exit and receipt behavior with the AgentLab wrapper. Phase 3R quality
+claims, Gate 2, Phase 5 and Production promotion remain blocked by their
+original gates.
 
 ## Rollback
 

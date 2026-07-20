@@ -65,7 +65,7 @@ state_transition_status:
   - no state transition proposal supplied
   proposal_supplied: false
   proposal: null
-  project_brain_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/narrative_repair_v2/project_brain
+  project_brain_dir: projects/AgentLab/narrative_repair_v2/project_brain
 test_results: null
 supervisor_validation:
   status: passed
@@ -91,8 +91,8 @@ policy:
   human_review_blocks_acceptance: true
 acceptance_history_status:
   recorded: true
-  project_brain_dir: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/narrative_repair_v2/project_brain
-  history_path: /Users/saintpeter/Desktop/AgentLab/projects/AgentLab/narrative_repair_v2/project_brain/acceptance_history.yml
+  project_brain_dir: projects/AgentLab/narrative_repair_v2/project_brain
+  history_path: projects/AgentLab/narrative_repair_v2/project_brain/acceptance_history.yml
   entry_count: 2
   next_actions_updated: true
   next_actions:

@@ -51,6 +51,14 @@ preliminary_full_repository:
       resolution: separate_hash_preserving_phase0_evidence_hygiene_required
       direct_replay: still_failing_before_hygiene
 
+post_hygiene_full_repository:
+  passed: 2886
+  failed: 0
+  skipped: 2
+  warnings: 11
+  duration_seconds: 346.80
+  result: pass
+
 provider_calls: 0
 production_modified: false
 candidate_only: true

@@ -6,7 +6,7 @@ verdict: ACCEPTED_STRUCTURAL_CONTRACTS_ONLY
 accepted: true
 accepted_at: "2026-07-20 19:58 CST"
 accepted_by: codex_supervisor
-recommended_next_action: sanitize_phase0_absolute_locator_then_dispatch_phase2r
+recommended_next_action: run_worker_chain_preflight_then_dispatch_phase2r
 rationale: >-
   Independent adversarial review now proves the prose-only Writer contract,
   canonical live-file source hashes, exact run target, observed provenance,
@@ -38,6 +38,12 @@ acceptance_evidence:
     notes:
       - writer_template_regression_was_fixed_and_direct_replay_passed
       - remaining_failure_is_preexisting_phase0_absolute_path_in_acceptance_evidence
+  post_hygiene_full_repository:
+    passed: 2886
+    failed: 0
+    skipped: 2
+    warnings: 11
+    duration_seconds: 346.80
 
 criteria:
   prose_only_writer_v2: pass
@@ -66,7 +72,7 @@ known_limitations:
   - no_live_writer_provider_call_was_made
   - positive_calibration_status_is_missing_user_samples
   - gate1_human_blind_review_has_not_run
-  - phase0_acceptance_locator_hygiene_must_be_fixed_before_phase2_dispatch
+  - direct_claude_code_deepseek_v4_pro_worker_smoke_required_before_phase2_dispatch
 
 policy:
   candidate_only: true

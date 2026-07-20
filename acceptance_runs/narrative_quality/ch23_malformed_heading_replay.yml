@@ -13,7 +13,7 @@ defect:
   chapter_id: 23
   severity: assembly_blocking
   confirmed_by: source_diagnosis
-  diagnosis_source: /Users/saintpeter/Downloads/7.20修改方案.md
+  diagnosis_source: user_supplied_7_20_modification_plan
   plan_authority: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
 
 description: |

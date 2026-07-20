@@ -52,6 +52,8 @@ execution_policy:
   human_supervisor: Codex
   human_supervisor_actions:
     - inspect_pre_dispatch_scope
+    - run_direct_worker_smoke_after_timeout_before_blame_assignment
+    - compare_direct_worker_and_agentlab_wrapper_timing_and_receipts
     - inspect_returned_diff_and_evidence
     - approve_or_reject_phase_acceptance
     - intervene_on_blocker_or_scope_drift
@@ -130,8 +132,12 @@ phases:
 
   - phase_id: phase_2r
     title: context_literary_memory_and_efficiency
-    status: blocked_by_phase0_evidence_hygiene
+    status: ready_for_worker_chain_preflight
     implementation_kind: code_change
+    pre_dispatch_checks:
+      - direct_claude_code_deepseek_v4_pro_smoke_without_private_manuscript
+      - compare_startup_first_output_heartbeat_deadline_exit_and_receipt
+      - distinguish_worker_failure_from_agentlab_wrapper_failure
     allowed_roots:
       - agent_runtime/narrative/production/
       - agent_runtime/narrative/efficiency/
