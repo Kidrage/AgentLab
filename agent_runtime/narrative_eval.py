@@ -1595,3 +1595,26 @@ def run_narrative_eval(
     }
     write_report_yaml(eval_dir / "longform_eval_report.yml", report, root)
     return report
+
+
+# ---------------------------------------------------------------------------
+# v2 thin adapter — independent state delta verification
+# ---------------------------------------------------------------------------
+
+
+def verify_narrative_state_delta_v2(
+    prose_path: str,
+    delta: dict[str, Any],
+) -> dict[str, Any]:
+    """Thin v2 adapter: verify a state delta against its source prose.
+
+    Delegates to ``agent_runtime.narrative.production.delta_verifier``.
+    The verifier checks that every evidence location resolves to real text,
+    the prose hash matches, and facts/observations are structurally valid.
+    Retrying this does NOT trigger a Writer re-run.
+    """
+    from agent_runtime.narrative.production.delta_verifier import (
+        verify_state_delta,
+    )
+
+    return verify_state_delta(prose_path, delta)

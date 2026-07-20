@@ -975,3 +975,449 @@ def test_retry_recovers_target_left_after_process_interruption(tmp_path: Path) -
     assert yaml.safe_load(
         (project_root / "project_artifact_index.yml").read_text(encoding="utf-8")
     )["current_release"]["edition_id"] == "edition-recover"
+
+
+# ---------------------------------------------------------------------------
+# Phase 1R — creative brief compilation and validation
+# ---------------------------------------------------------------------------
+
+
+_V1_PLAN_ENTRY: dict = {
+    "chapter": 5,
+    "title": "失败与请求",
+    "pov": "third_person_limited",
+    "scene_goal": "凯恩在训练中再次失败，向伊莎贝拉寻求帮助",
+    "irreversible_plot_change": "凯恩接受烙印的不完全控制",
+    "character_state_change": "凯恩从抗拒转为接受辅助",
+    "relationship_or_worldline_change": "伊莎贝拉对凯恩的态度软化",
+    "foreshadowing_action": "暗示烙印与灰烬王朝的联系",
+    "closing_state": "凯恩带着新的决心离开",
+    "must_not_repeat": ["重复的训练失败场景", "过多技术解释"],
+    "creative_freedom": ["训练的具体细节", "对话风格"],
+}
+
+
+def test_compile_v2_brief_from_v1_state_plan(tmp_path: Path) -> None:
+    """creative_brief compiled from v1 state plan has correct primary function."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        compile_creative_brief,
+    )
+
+    source = tmp_path / "bible" / "characters.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text("characters:\n  - name: Kane\n", encoding="utf-8")
+
+    brief = compile_creative_brief(
+        _V1_PLAN_ENTRY, chapter_id=5, source_paths=[str(source)]
+    )
+    # The fixture has character_state_change populated first (now recognized
+    # via singular field alias), so "character" is the correct primary.
+    assert brief.primary_function == "character"
+    assert brief.chapter_id == 5
+    assert brief.pov == "third_person_limited"
+    data = brief.to_dict()
+    assert data.get("v1_source") is True
+    assert data["schema_version"] == 2
+    assert len(data["source_hashes"]) == 1
+    assert all(
+        len(v) == 64 and v == v.lower()
+        for v in data["source_hashes"].values()
+    )
+
+
+def test_creative_brief_rejects_multiple_secondary_functions() -> None:
+    """creative_brief_rejects_multiple_secondary_functions — passing a list
+    as secondary_function is rejected."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 7,
+        "primary_function": "character",
+        "secondary_function": ["relationship", "world"],  # illegal list
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {_VALID_SOURCE_PATH: _VALID_SOURCE_HASH},
+    }
+    issues = validate_creative_brief(data)
+    assert any("secondary_function_must_be_single_string" in i for i in issues)
+
+
+_VALID_SOURCE_PATH = str(Path(__file__).resolve())
+_VALID_SOURCE_HASH = hashlib.sha256(
+    Path(_VALID_SOURCE_PATH).read_bytes()
+).hexdigest()
+
+
+def test_static_life_relationship_consequence_atmosphere_briefs_validate() -> (
+    None
+):
+    """static_life_relationship_consequence_atmosphere_briefs_validate —
+    all non-advancing chapter functions are accepted."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    for func in ("static", "life", "relationship_only", "consequence", "atmosphere"):
+        data: dict = {
+            "schema_version": 2,
+            "chapter_id": 8,
+            "primary_function": func,
+            "pov": "third_person_limited",
+            "opposing_wants": "want vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what happens?",
+            "must_preserve": ["voice"],
+            "creative_freedom": ["dialogue"],
+            "source_hashes": {_VALID_SOURCE_PATH: _VALID_SOURCE_HASH},
+        }
+        issues = validate_creative_brief(data)
+        assert not issues, f"function {func!r} produced issues: {issues}"
+
+
+def test_no_all_dimensions_every_chapter_requirement() -> None:
+    """no_all_dimensions_every_chapter_requirement — a brief with only one
+    function (plot) is valid; it does not require all six dimensions."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 10,
+        "primary_function": "plot",
+        # No secondary_function — explicitly allowed.
+        "pov": "third_person_limited",
+        "opposing_wants": "want vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {_VALID_SOURCE_PATH: _VALID_SOURCE_HASH},
+    }
+    issues = validate_creative_brief(data)
+    assert not issues
+
+
+def test_legacy_v1_plan_still_readable() -> None:
+    """legacy_v1_inputs_remain_readable — an existing v1 validate still works."""
+    from agent_runtime.narrative_delivery import validate_chapter_state_plan
+
+    result = validate_chapter_state_plan(
+        Path("/nonexistent"),
+        "nonexistent.yml",
+    )
+    assert result["status"] == "fail"
+    # The failure is from the missing file, not a code change.
+    assert any("does not exist" in i["message"] for i in result["issues"])
+
+
+_V1_LEGACY_FIXTURE = {
+    "chapter": 12,
+    "pov": "third_person_limited",
+    "scene_goal": "主角在废墟中发现了一件古老遗物并知晓了敌人的计划",
+    "irreversible_plot_change": "势力平衡被遗物打破",
+    "opening_state": "主角正躲避巡逻队",
+    "closing_state": "主角带着遗物逃离，敌人锁定其位置",
+    "reader_question": "遗物的主人是否会追索这件神器？",
+    "plot_state_changes": ["遗物归属", "势力平衡打破"],
+    "character_state_change": "主角从逃亡者变为遗物持有者",
+    "relationship_or_worldline_change": "凯恩—伊莎贝拉从盟友变为秘密合作者",
+    "foreshadowing_action": "反派在废墟入口埋设了未触发的符文陷阱",
+    "timeline_slot": "第三日午夜后两小时",
+    "must_preserve": ["遗物的力量设定", "凯恩的人格底线"],
+    "creative_freedom": ["对话节奏", "战斗场景细节"],
+    "recent_patterns_to_avoid": ["连续使用回忆杀"],
+    "risk_signals": ["不要弱化反派威胁"],
+}
+
+
+def test_legacy_v1_fixture_converts_to_v2_brief(tmp_path: Path) -> None:
+    """valid_legacy_v1_input_reads_and_converts — a realistic v1 fixture
+    with singular field names converts to a valid v2 creative brief."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        compile_creative_brief,
+    )
+
+    source = tmp_path / "bible" / "characters.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text("characters:\n  - name: Kane\n", encoding="utf-8")
+
+    brief = compile_creative_brief(
+        _V1_LEGACY_FIXTURE, chapter_id=12, source_paths=[str(source)]
+    )
+    assert brief.chapter_id == 12
+    assert brief.primary_function in ("plot", "character", "relationship",
+                                       "world", "foreshadowing", "time")
+    data = brief.to_dict()
+    assert data.get("v1_source") is True
+    assert data["schema_version"] == 2
+    # POV and structural fields must be populated.
+    assert data["pov"] != ""
+    assert data["turn"] != ""
+    assert data["cost"] != ""
+    assert len(data["source_hashes"]) == 1
+
+
+def test_singular_v1_fields_map_to_correct_functions() -> None:
+    """Singular v1 field aliases (character_state_change, timeline_slot, etc.)
+    are recognized and mapped to the correct v2 chapter function."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        BriefCompiler,
+    )
+    import copy
+
+    # Only singular character_state_change — should be primary = character.
+    plan: dict = copy.deepcopy(_V1_LEGACY_FIXTURE)
+    plan.pop("plot_state_changes", None)
+    plan.pop("character_changes", None)
+    plan.pop("relationship_or_worldline_changes", None)
+    plan.pop("foreshadowing", None)
+    plan.pop("timeline", None)
+    primary = BriefCompiler._infer_primary_function(plan)
+    assert primary == "character"
+
+    # Only foreshadowing_action — should be primary = foreshadowing.
+    plan2: dict = copy.deepcopy(_V1_LEGACY_FIXTURE)
+    plan2.pop("plot_state_changes", None)
+    plan2.pop("character_state_change", None)
+    plan2.pop("relationship_or_worldline_change", None)
+    plan2.pop("timeline_slot", None)
+    plan2.pop("character_changes", None)
+    plan2.pop("relationship_or_worldline_changes", None)
+    plan2.pop("foreshadowing", None)
+    plan2.pop("timeline", None)
+    primary2 = BriefCompiler._infer_primary_function(plan2)
+    assert primary2 == "foreshadowing"
+
+    # Only timeline_slot — should be primary = time.
+    plan3: dict = copy.deepcopy(_V1_LEGACY_FIXTURE)
+    plan3.pop("plot_state_changes", None)
+    plan3.pop("character_state_change", None)
+    plan3.pop("relationship_or_worldline_change", None)
+    plan3.pop("foreshadowing_action", None)
+    plan3.pop("character_changes", None)
+    plan3.pop("relationship_or_worldline_changes", None)
+    plan3.pop("foreshadowing", None)
+    plan3.pop("timeline", None)
+    primary3 = BriefCompiler._infer_primary_function(plan3)
+    assert primary3 == "time"
+
+
+def test_empty_source_hashes_are_rejected() -> None:
+    """empty_missing_invalid_and_collision_source_cases_are_proven —
+    a creative brief with empty source_hashes is blocked."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 11,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {},
+    }
+    issues = validate_creative_brief(data)
+    assert any("source_hashes_must_not_be_empty" in i for i in issues)
+
+
+def test_missing_source_hashes_key_is_rejected() -> None:
+    """A creative brief missing the source_hashes key entirely is rejected."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 12,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+    }
+    issues = validate_creative_brief(data)
+    assert any("source_hashes_must_be_mapping" in i for i in issues)
+
+
+def test_placeholder_source_hash_is_rejected() -> None:
+    """source hash values of 'unavailable' or 'unknown' are rejected."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 13,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {_VALID_SOURCE_PATH: "unavailable"},
+    }
+    issues = validate_creative_brief(data)
+    assert any("source_hash_is_placeholder" in i for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# Phase 1R correction 3 — canonical absolute source-hash keys
+# ---------------------------------------------------------------------------
+
+
+def test_relative_source_hash_key_is_rejected() -> None:
+    """canonical_absolute_source_hash_keys_are_required — a source_hashes
+    entry whose key is a relative path (not starting with '/') is rejected.
+    Adversarial replay proves relative keys pass through silent."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 22,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {
+            "characters.yml": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        },
+    }
+    issues = validate_creative_brief(data)
+    assert any("source_hash_key_not_canonical_absolute" in i for i in issues)
+
+
+def test_mixed_absolute_and_relative_keys_relative_is_rejected() -> None:
+    """If any source_hashes key is relative, validation fails for that key
+    even when other keys are absolute."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 23,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {
+            _VALID_SOURCE_PATH: _VALID_SOURCE_HASH,
+            "outlines/plot.yml": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        },
+    }
+    issues = validate_creative_brief(data)
+    assert any("source_hash_key_not_canonical_absolute" in i for i in issues)
+    # Exactly one key is flagged.
+    assert sum(1 for i in issues if "canonical_absolute" in i) >= 1
+
+
+def test_absolute_source_hash_key_passes_validation() -> None:
+    """An absolute path key (starting with '/') passes validation."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 24,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {
+            _VALID_SOURCE_PATH: _VALID_SOURCE_HASH,
+        },
+    }
+    issues = validate_creative_brief(data)
+    assert not issues
+
+
+def test_source_hash_key_cannot_be_a_directory(tmp_path: Path) -> None:
+    """A canonical absolute directory is not a source file path."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 25,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {str(tmp_path.resolve()): "a" * 64},
+    }
+
+    issues = validate_creative_brief(data)
+    assert any("source_hash_key_not_file" in issue for issue in issues)
+
+
+def test_source_hash_key_must_exist_and_match_bytes(tmp_path: Path) -> None:
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    missing = tmp_path / "missing.yml"
+    common = {
+        "schema_version": 2,
+        "chapter_id": 26,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+    }
+    missing_issues = validate_creative_brief(
+        {**common, "source_hashes": {str(missing.resolve()): "a" * 64}}
+    )
+    assert any("source_hash_key_not_file" in issue for issue in missing_issues)
+
+    source = tmp_path / "source.yml"
+    source.write_bytes(b"actual source bytes\n")
+    wrong_hash_issues = validate_creative_brief(
+        {**common, "source_hashes": {str(source.resolve()): "b" * 64}}
+    )
+    assert any("source_hash_mismatch" in issue for issue in wrong_hash_issues)

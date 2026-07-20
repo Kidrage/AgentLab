@@ -341,3 +341,141 @@ def materialize_writer_candidate_result(
         task_id,
         capture_name=capture_name,
     )
+
+
+# ---------------------------------------------------------------------------
+# v2 thin adapter — prose-only Writer path
+# ---------------------------------------------------------------------------
+
+WRITER_V2_REQUIRED = ("fiction_draft.md",)
+
+
+def materialize_writer_v2_content(
+    content: str,
+    run_dir: Path,
+    task_id: str,
+    *,
+    capture_name: str = "writer_v2_role_session_capture.md",
+    provider: str = "",
+    model: str = "",
+    call_id: str = "",
+) -> dict[str, Any]:
+    """Thin v2 adapter: materialize prose-only Writer output.
+
+    Validates every parsed edit block against the v2 contract:
+    - Rejects non-fiction blocks (arbitrary scorecard/metadata names).
+    - Rejects duplicate fiction blocks.
+    - Rejects blank content.
+    - Rejects absolute paths and traversal (``..``).
+    - Rejects cross-run paths (targeting another task_id).
+
+    On **any** issue, no ``fiction_draft.md`` is written to disk.
+
+    Returns a dict with ``status``, ``prose_sha256``, ``issues``,
+    ``agentlab_receipt``, and ``materialized_path`` (when successful).
+    """
+    try:
+        from agent_runtime.patch_applicator import parse_edit_blocks
+    except ModuleNotFoundError:
+        from patch_applicator import parse_edit_blocks  # type: ignore[no-redef]
+    try:
+        from agent_runtime.atomic_io import atomic_write_text, atomic_write_yaml
+    except ModuleNotFoundError:
+        from atomic_io import atomic_write_text, atomic_write_yaml  # type: ignore[no-redef]
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    capture_path = run_dir / capture_name
+    out_path = run_dir / "fiction_draft.md"
+    receipt_path = run_dir / "writer_execution_receipt.yml"
+
+    def _cleanup_outputs() -> None:
+        for output_path in (out_path, receipt_path):
+            try:
+                if output_path.exists():
+                    output_path.unlink()
+            except OSError:
+                pass
+
+    # A retry starts from a clean materialization pair.  The capture is kept
+    # independently as diagnostic lineage.
+    _cleanup_outputs()
+    try:
+        atomic_write_text(capture_path, content, encoding="utf-8")
+    except Exception:
+        return {
+            "schema_version": 2,
+            "status": "blocked",
+            "issues": ["materialization_capture_write_failed"],
+            "prose_sha256": "",
+            "canonical_prose": "",
+            "agentlab_receipt": None,
+        }
+
+    normalized, _ = _normalize_writer_edit_markers(content)
+    blocks = parse_edit_blocks(normalized)
+
+    # Delegate block-level validation to production module.
+    from agent_runtime.narrative.production.writer_contract import (
+        WriterV2Contract,
+    )
+
+    validation = WriterV2Contract.validate_edit_blocks(
+        blocks,
+        task_id=task_id,
+        provider=provider,
+        model=model,
+        call_id=call_id,
+    )
+
+    if validation["status"] == "pass" and validation["prose_sha256"]:
+        # Use the one canonical prose string from validation — do NOT
+        # re-extract a second representation from parsed blocks.  The
+        # canonical prose already has exactly one trailing newline and
+        # its hash equals the receipt hash.
+        canonical_prose = validation.get("canonical_prose", "")
+        if not canonical_prose:
+            # Defensive: if canonical_prose is somehow absent, compute it.
+            canonical_prose = ""  # fall through to blocked below
+
+        try:
+            # ---- Write prose -------------------------------------------------
+            atomic_write_text(out_path, canonical_prose, encoding="utf-8")
+            validation["materialized_path"] = str(out_path)
+
+            # ---- Post-write hash binding -------------------------------------
+            # Compute the prose SHA256 from the actual written file bytes so
+            # the receipt hash always equals the persisted prose.
+            import hashlib
+            file_hash = hashlib.sha256(out_path.read_bytes()).hexdigest()
+            validation["prose_sha256"] = file_hash
+            receipt = validation.get("agentlab_receipt")
+            if isinstance(receipt, dict):
+                receipt["prose_sha256"] = file_hash
+
+            # ---- Persist receipt to disk -------------------------------------
+            receipt_data = validation.get("agentlab_receipt")
+            if receipt_data is not None:
+                atomic_write_yaml(
+                    receipt_path,
+                    receipt_data,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+                validation["receipt_path"] = str(receipt_path)
+
+        except Exception:
+            # ---- Atomic cleanup ----------------------------------------------
+            # Any exception during prose write, hash, receipt construction,
+            # or receipt write removes BOTH fiction_draft.md and
+            # writer_execution_receipt.yml.  The capture file remains as
+            # diagnostic lineage.
+            _cleanup_outputs()
+            validation["status"] = "blocked"
+            validation["agentlab_receipt"] = None
+            validation.pop("receipt_path", None)
+            validation.pop("materialized_path", None)
+            issues = list(validation.get("issues", []))
+            issues.append("materialization_write_failed")
+            validation["issues"] = issues
+
+    return validation

@@ -109,7 +109,7 @@ phases:
 
   - phase_id: phase_1r
     title: prose_only_writer_and_creative_brief
-    status: ready_for_dispatch
+    status: accepted
     implementation_kind: code_change
     allowed_roots:
       - agent_runtime/narrative/production/
@@ -130,7 +130,7 @@ phases:
 
   - phase_id: phase_2r
     title: context_literary_memory_and_efficiency
-    status: blocked_by_phase_1r
+    status: blocked_by_phase0_evidence_hygiene
     implementation_kind: code_change
     allowed_roots:
       - agent_runtime/narrative/production/

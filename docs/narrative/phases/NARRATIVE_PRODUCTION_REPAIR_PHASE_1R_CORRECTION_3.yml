@@ -1,0 +1,162 @@
+schema_version: 1
+project: AgentLab
+project_type: codebase_build_project
+task_id: task_narrative_repair_v2_phase1r_correction3
+phase_id: phase_1r_correction3
+title: close_phase1r_exact_path_provenance_and_projector_false_greens
+plan_status: ready
+long_project_governance_required: true
+project_brain_dir: ../../../projects/AgentLab/narrative_repair_v2/project_brain
+goal: >-
+  Close the remaining public-contract false greens proven by the Supervisor:
+  canonical source-path validation, exact Writer target equality, mandatory
+  observed provenance, success-only receipts with the required filename, and
+  an observable post-selection projector boundary.
+context_summary: >-
+  Correction 2 reports 121 passing tests, but independent adversarial replay
+  proves that empty and relative source-hash keys pass, a nested fiction target
+  passes, missing provider/model/call_id still materializes prose and a receipt,
+  blocked validations still carry receipts, the persisted receipt filename does
+  not match the contract, and no projector call-order spy exists. Phase 1R is
+  rejected; this task must fix public behavior rather than amend claims.
+allowed_files:
+  - agent_runtime/narrative/production/**
+  - agent_runtime/writer_output_materializer.py
+  - tests/test_narrative_delivery.py
+  - tests/test_narrative_efficiency.py
+  - tests/test_narrative_quality_gate.py
+  - tests/test_writer_output_materializer.py
+  - agent_templates/writer.md
+  - docs/narrative/NARRATIVE_PHASE1R_ACCEPTANCE.md
+  - acceptance_runs/narrative_repair_v2/phase_1r/**
+  - PROJECT_HANDOFF.md
+forbidden_files:
+  - agent_runtime/run_task.py
+  - agent_runtime/pipeline_runner.py
+  - agent_runtime/workflow_plan.py
+  - agent_runtime/narrative_delivery.py
+  - agent_runtime/narrative_eval.py
+  - agent_runtime/operator_os/**
+  - agent_runtime/background_jobs/**
+  - config/**
+  - projects/Crown_of_Ash/**
+  - projects/NovelGen/**
+  - release_objects/**
+  - .git/**
+must_read_artifacts:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_1R_CORRECTION_2.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase1r_correction2/06_implementation_report.md
+state_contract:
+  attempt: correction_3
+  prior_result_status: rejected_for_exact_path_provenance_and_projector_false_greens
+  supervisor_replay_facts:
+    focused_tests: 121_passed_0_failed_but_insufficient
+    empty_source_key_issues: []
+    relative_source_key_issues: []
+    nested_target_status: pass
+    missing_provenance_status: pass
+    missing_provenance_wrote_fiction: true
+    required_receipt_filename_present: false
+    wrong_receipt_filename_present: true
+    projector_call_order_spy_present: false
+  correction_requirements:
+    - >-
+      validate_creative_brief must reject every source_hashes key that is not a
+      non-empty canonical absolute file path. Empty, whitespace, relative,
+      dot-segment, and directory-only keys block. Values remain lowercase
+      64-hex. Keep compile_creative_brief raw-byte hashing, missing-file failure,
+      and same-basename collision preservation. Add parameterized public tests.
+    - >-
+      Require each normalized edit-block path to equal exactly
+      runs/<task_id>/fiction_draft.md. Prefix equality is not sufficient.
+      Explicitly reject nested paths, sibling paths, missing runs prefix,
+      substring task IDs, absolute paths, traversal, alternate names, duplicate
+      blocks, and any extra block. Do not rely only on basename.
+    - >-
+      Successful Writer v2 validation and materialization require non-empty,
+      stripped observed provider, model, and call_id. Add provenance fields to
+      ChapterRequest or the equivalent public engine input and pass them through
+      Writer validation so ChapterEngine success remains reachable. Empty or
+      whitespace provenance blocks before any prose or receipt write.
+    - >-
+      Build agentlab_receipt only when the final validation status is pass.
+      Blocked results must expose no success receipt. Writer-authored receipt
+      fields or receipt blocks remain forbidden. Update tests that currently
+      expect an AgentLab receipt on blocked output.
+    - >-
+      Use one canonical prose byte representation for validation, hashing, and
+      writing: UTF-8 with exactly one final newline. Return or carry that
+      canonical content internally instead of re-extracting a different string
+      in the materializer. The receipt hash must equal the exact persisted
+      fiction_draft.md bytes.
+    - >-
+      Persist the AgentLab-owned receipt at exactly
+      writer_execution_receipt.yml, and only after fiction_draft.md is written
+      successfully. If validation, prose writing, receipt construction, or
+      receipt writing fails, clean up both files and return blocked; the capture
+      file may remain as diagnostic lineage. Add a failure-injection test for
+      receipt-write failure, not just validation failure.
+    - >-
+      Make the post-selection projector/result seam observable and testable.
+      A spy must prove zero projector/result consumption before prose_selected
+      and exactly one invocation/consumption after selection. A populated result
+      must pass through ChapterEngine hash and locator verification. Empty,
+      exception, hash mismatch, locator failure, and node-local retry outcomes
+      must keep writer_rerun_needed false and preserve the selected prose SHA256.
+    - >-
+      Run all four focused test files. Keep Phase 1R evidence accepted: false
+      and pending Supervisor review. Append Coder in-progress and completed rows
+      to PROJECT_HANDOFF.md. Do not start Phase 2R, call a prose provider, touch
+      generic engines, or write Production.
+acceptance_criteria:
+  - canonical_absolute_source_hash_keys_are_required
+  - writer_target_equals_exact_run_fiction_path
+  - observed_provenance_is_required_on_all_success_paths
+  - blocked_writer_results_have_no_receipt
+  - canonical_prose_bytes_are_shared_by_validation_write_and_hash
+  - required_writer_execution_receipt_is_persisted_atomically
+  - projector_call_order_and_reachable_pass_are_publicly_proven
+  - projector_and_verifier_failures_preserve_selected_prose_without_writer_rerun
+  - candidate_remains_pending_supervisor_review
+  - all_four_focused_test_files_pass_with_zero_failures
+  - no_forbidden_or_production_changes
+outputs:
+  - corrected Phase 1R implementation and consolidated tests
+  - docs/narrative/NARRATIVE_PHASE1R_ACCEPTANCE.md
+  - acceptance_runs/narrative_repair_v2/phase_1r/phase1r_acceptance.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/test_results.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/change_scope.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/rollback.md
+  - PROJECT_HANDOFF.md
+roles: [Coder]
+available_workers: [claude_code]
+approved_workers: [claude_code]
+dispatch_units:
+  - phase_id: phase_1r_correction3
+    objective: Close the exact-path, provenance, receipt, and projector false greens.
+    executor_type: claude_code_handoff
+commands_allowed:
+  - rg
+  - git diff --check
+  - git diff --numstat
+  - PYTHONPATH=.:agent_runtime python -m pytest
+  - python -m compileall
+commands_forbidden:
+  - git push
+  - git reset --hard
+  - git clean
+  - rm -rf
+  - provider prose generation
+  - production promotion
+evidence_required:
+  - phase1r_acceptance.yml
+  - test_results.yml
+  - change_scope.yml
+  - rollback.md
+rollback_required: true
+cost_policy: implementation_model_allowed_no_prose_provider
+safety_notes:
+  - Do not change Phase 0R evidence or accepted commit 1dd5008.
+  - Do not start Phase 2R or any live gate.
+  - Coder cannot accept the phase.

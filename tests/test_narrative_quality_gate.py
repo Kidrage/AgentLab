@@ -644,3 +644,1167 @@ def test_background_revision_reads_node_local_verifier_proposal(tmp_path) -> Non
 
     assert result["reason"] == "provider_revision_gate_not_accepted"
     assert result["revision_contract_count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 1R — state projection and delta verification
+# ---------------------------------------------------------------------------
+
+
+def test_state_projector_creates_skeleton_bound_to_prose(tmp_path: Path) -> None:
+    """state_projector_runs_after_selection — skeleton delta is bound
+    to prose SHA256 and contains no facts until populated."""
+    from agent_runtime.narrative.production.state_projector import (
+        project_state,
+    )
+
+    prose = tmp_path / "fiction_draft.md"
+    prose.write_text("# 章五 · 试炼\n\n凯恩举起铁锤。\n", encoding="utf-8")
+
+    delta = project_state(prose, chapter_id=5)
+
+    assert delta.chapter_id == 5
+    assert delta.prose_sha256 != ""
+    assert delta.is_empty is True
+    assert delta.hard_facts == []
+    assert delta.soft_observations == []
+    d = delta.to_dict()
+    assert d["node_local_retry_only"] is True
+    assert d["writer_rerun_triggered"] is False
+    assert d["candidate_only"] is True
+
+
+def test_state_delta_separates_hard_and_soft(tmp_path: Path) -> None:
+    """state_delta_separates_hard_and_soft_with_exact_evidence — facts and
+    observations carry distinct evidence locations."""
+    from agent_runtime.narrative.production.state_projector import (
+        StateProjector,
+        project_state,
+    )
+
+    prose = tmp_path / "fiction_draft.md"
+    prose.write_text(
+        "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n", encoding="utf-8"
+    )
+
+    delta = project_state(prose, chapter_id=12)
+    delta = StateProjector.record_hard_fact(
+        delta, category="character", evidence_location="L2", content="moved"
+    )
+    delta = StateProjector.record_soft_observation(
+        delta,
+        category="voice",
+        evidence_location="L4",
+        observation="clipped rhythm",
+    )
+
+    assert len(delta.hard_facts) == 1
+    assert len(delta.soft_observations) == 1
+    assert delta.hard_facts[0]["category"] == "character"
+    assert delta.soft_observations[0]["category"] == "voice"
+    assert delta.hard_facts[0]["evidence_location"] != delta.soft_observations[0][
+        "evidence_location"
+    ]
+
+
+def test_delta_verifier_rejects_unresolvable_locations(
+    tmp_path: Path,
+) -> None:
+    """projector_or_verifier_retry_does_not_rerun_writer — verifier fails
+    on unresolvable locators but does not set writer_rerun_required."""
+    from agent_runtime.narrative.production.delta_verifier import (
+        verify_state_delta,
+    )
+    import hashlib
+
+    prose = tmp_path / "fiction_draft.md"
+    prose.write_text("Line 1\nLine 2\nLine 3\n", encoding="utf-8")
+    prose_hash = hashlib.sha256(prose.read_bytes()).hexdigest()
+
+    delta: dict = {
+        "schema_version": 2,
+        "chapter_id": 3,
+        "prose_sha256": prose_hash,
+        "node_local_retry_only": True,
+        "hard_facts": [
+            {
+                "category": "plot",
+                "evidence_location": "L99",  # out of range
+                "content": "event",
+                "confidence": "confirmed",
+            }
+        ],
+        "soft_observations": [],
+    }
+
+    result = verify_state_delta(str(prose), delta)
+    assert result["status"] == "blocked"
+    assert result["writer_rerun_required"] is False
+    assert result["node_local_retry_allowed"] is True
+    assert len(result["unresolvable_locations"]) == 1
+
+
+def test_receipts_are_agentlab_owned(tmp_path: Path) -> None:
+    """receipts_are_agentlab_owned_and_prose_hash_bound — Writer v2
+    contract returns an AgentLab-issued receipt with observed provenance
+    and prose hash.  The receipt is NOT a constant boolean."""
+    from agent_runtime.narrative.production.writer_contract import (
+        validate_writer_v2_output,
+    )
+
+    result = validate_writer_v2_output(
+        {"fiction_draft.md": "# Chapter 1\n\nprose here.\n"},
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-abc-123",
+    )
+    assert result["status"] == "pass"
+    receipt = result.get("agentlab_receipt")
+    assert receipt is not None
+    assert receipt["issuer"] == "AgentLab"
+    assert receipt["issuer_role"] == "writer_contract_validator"
+    assert receipt["prose_sha256"] == result["prose_sha256"]
+    assert receipt["prose_sha256"] != ""
+    assert receipt["observed_provider"] == "deepseek"
+    assert receipt["observed_model"] == "deepseek-v4-pro"
+    assert receipt["observed_call_id"] == "call-abc-123"
+    assert receipt["writer_cannot_overwrite"] is True
+    # Writer output cannot supply/overwrite the receipt — no field from
+    # the materialized dict ends up in the receipt as Writer-authored data.
+    assert result["writer_self_receipt_present"] is False
+    assert result["non_prose_output_count"] == 0
+
+
+def test_projector_retry_does_not_rerun_writer(tmp_path: Path) -> None:
+    """projector_or_verifier_retry_does_not_rerun_writer — bumping retry
+    count keeps writer_rerun_triggered false."""
+    from agent_runtime.narrative.production.state_projector import (
+        StateProjector,
+        project_state,
+    )
+
+    prose = tmp_path / "fiction_draft.md"
+    prose.write_text("# chapter\n\ncontent\n", encoding="utf-8")
+
+    delta = project_state(prose, chapter_id=1)
+    delta = StateProjector.bump_retry(delta)
+    delta = StateProjector.bump_retry(delta)
+
+    d = delta.to_dict()
+    assert d["retry_count"] == 2
+    assert d["writer_rerun_triggered"] is False
+    assert d["node_local_retry_only"] is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 1R correction 1 — selection gate, empty projection, chapter engine
+# ---------------------------------------------------------------------------
+
+
+_CH_BRIEF_PATH = str(Path(__file__).resolve())
+_CH_BRIEF_HASH = hashlib.sha256(Path(_CH_BRIEF_PATH).read_bytes()).hexdigest()
+
+
+def test_unselected_prose_blocks_state_projection(tmp_path: Path) -> None:
+    """unselected_prose_never_projects_state — valid Writer output that is
+    NOT selected returns needs_selection and does not project state."""
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+
+    req = ChapterRequest(
+        chapter_id=8,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 8,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+        },
+        writer_output={"fiction_draft.md": "# 章八 · 试炼\n\n凯恩拔出了剑。\n"},
+        prose_selected=False,  # <<< NOT selected
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-eng-001",
+    )
+
+    outcome = ChapterEngine.run(req)
+    assert outcome.status == "needs_selection"
+    assert outcome.state_delta is None
+    assert outcome.writer_rerun_needed is False
+    assert any("prose_not_selected" in i for i in outcome.issues)
+
+
+def test_empty_projection_never_passes(tmp_path: Path) -> None:
+    """empty_projection_never_passes — selected prose with an empty
+    projected delta (no facts, no observations) returns
+    needs_state_projection, not a passing skeleton."""
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+
+    # Short prose: the projector creates a skeleton with empty hard/soft.
+    req = ChapterRequest(
+        chapter_id=9,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 9,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+        },
+        writer_output={"fiction_draft.md": "# 章九\n\n短内容。\n"},
+        prose_selected=True,
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-eng-002",
+    )
+
+    outcome = ChapterEngine.run(req)
+    # Empty skeleton (no facts populated) must not pass.
+    assert outcome.status == "needs_state_projection"
+    assert outcome.writer_rerun_needed is False
+    assert any("empty_projection" in i for i in outcome.issues)
+
+
+def test_populated_delta_is_selected_prose_hash_bound_and_verified(
+    tmp_path: Path,
+) -> None:
+    """populated_delta_is_selected_prose_hash_bound_and_verified — a
+    delta with populated hard facts bound to the selected prose hash
+    passes verification."""
+    from agent_runtime.narrative.production.delta_verifier import (
+        verify_state_delta,
+    )
+    import hashlib
+
+    prose = tmp_path / "fiction_draft.md"
+    prose_content = (
+        "Line 1: 凯恩进入了废墟。\n"
+        "Line 2: 古老的符文在他脚下发光。\n"
+        "Line 3: 他听到了敌人的低语。\n"
+        "Line 4: 铁锤在他手中变重了。\n"
+        "Line 5: 他做出了选择。\n"
+    )
+    prose.write_text(prose_content, encoding="utf-8")
+    prose_hash = hashlib.sha256(prose.read_bytes()).hexdigest()
+
+    # Create a delta bound to the exact prose hash with exact locators.
+    delta: dict = {
+        "schema_version": 2,
+        "chapter_id": 15,
+        "prose_sha256": prose_hash,
+        "node_local_retry_only": True,
+        "hard_facts": [
+            {
+                "category": "plot",
+                "evidence_location": "L2",
+                "content": "凯恩发现了符文机关",
+                "confidence": "confirmed",
+            },
+            {
+                "category": "character",
+                "evidence_location": "L4",
+                "content": "铁锤的重量变化表明武器在响应",
+                "confidence": "confirmed",
+            },
+        ],
+        "soft_observations": [
+            {
+                "category": "atmosphere",
+                "evidence_location": "L3",
+                "observation": "敌人的低语营造了紧张感",
+            },
+        ],
+        "retry_count": 0,
+        "writer_rerun_triggered": False,
+        "candidate_only": True,
+        "production_modified": False,
+    }
+
+    result = verify_state_delta(str(prose), delta)
+    assert result["status"] == "pass"
+    assert result["prose_hash_match"] is True
+    assert result["writer_rerun_required"] is False
+    assert result["hard_fact_count"] == 2
+    assert result["soft_observation_count"] == 1
+    assert len(result["unresolvable_locations"]) == 0
+
+
+def test_receipt_issuer_provenance_is_observed_not_constant(tmp_path: Path) -> None:
+    """real_agentlab_issued_receipt_has_observed_provenance_and_prose_hash —
+    the receipt carries observed execution data, not a constant boolean,
+    and Writer output cannot overwrite it.
+
+    Blocked results carry NO receipt — only a successful validation with
+    observed provenance produces an AgentLab-issued receipt."""
+    from agent_runtime.narrative.production.writer_contract import (
+        WriterV2Contract,
+    )
+
+    # ---- Blocked: non-fiction block — receipt must be absent ---------------
+    blocks_blocked = [
+        {
+            "path": "runs/task_x/fiction_draft.md",
+            "html_block_content": "# 章一\n\nprose here\n",
+        },
+        {
+            "path": "runs/task_x/writer_receipt.yml",
+            "html_block_content": "issuer: writer\nself_approved: true",
+        },
+    ]
+
+    result_blocked = WriterV2Contract.validate_edit_blocks(
+        blocks_blocked,
+        task_id="task_x",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-xyz-999",
+    )
+
+    assert result_blocked["status"] == "blocked"
+    assert any("non_fiction_block_rejected" in i for i in result_blocked["issues"])
+    # Blocked → no receipt.
+    assert result_blocked.get("agentlab_receipt") is None
+
+    # ---- Pass: valid block + provenance → receipt is present ----------------
+    blocks_pass = [
+        {
+            "path": "runs/task_y/fiction_draft.md",
+            "html_block_content": "# 章一\n\nprose here\n",
+        },
+    ]
+
+    result_pass = WriterV2Contract.validate_edit_blocks(
+        blocks_pass,
+        task_id="task_y",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-xyz-999",
+    )
+
+    assert result_pass["status"] == "pass"
+    receipt = result_pass.get("agentlab_receipt")
+    assert receipt is not None
+    assert receipt["issuer"] == "AgentLab"
+    assert receipt["observed_provider"] == "deepseek"
+    assert receipt["observed_model"] == "deepseek-v4-pro"
+    assert receipt["observed_call_id"] == "call-xyz-999"
+    assert receipt["writer_cannot_overwrite"] is True
+
+
+def test_no_narrative_memory_snapshot_in_phase_1r() -> None:
+    """no_phase2_placeholder — NarrativeMemorySnapshot must not be
+    present in Phase 1R exports."""
+    from agent_runtime.narrative.production import __all__ as exports
+
+    assert "NarrativeMemorySnapshot" not in exports
+
+    # The manifest module must not have the class.
+    from agent_runtime.narrative.production import manifest
+    assert not hasattr(manifest, "NarrativeMemorySnapshot")
+
+
+def test_chapter_engine_has_reachable_pass_path(tmp_path: Path) -> None:
+    """chapter_engine_has_reachable_verified_nonempty_pass_path — a
+    pre-populated state delta with valid locators reaches 'pass' through
+    ChapterEngine, proving the pass path is reachable."""
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+    import hashlib
+
+    prose_content = (
+        "Line 1: 凯恩进入了废墟。\n"
+        "Line 2: 古老的符文在他脚下发光。\n"
+        "Line 3: 他听到了敌人的低语。\n"
+        "Line 4: 铁锤在他手中变重了。\n"
+        "Line 5: 他做出了选择。\n"
+    )
+    prose_path = tmp_path / "fiction_draft.md"
+    prose_path.write_text(prose_content, encoding="utf-8")
+    prose_hash = hashlib.sha256(prose_path.read_bytes()).hexdigest()
+
+    # Pre-populated delta with valid locators bound to the exact prose hash.
+    populated_delta = {
+        "schema_version": 2,
+        "chapter_id": 20,
+        "prose_sha256": prose_hash,
+        "node_local_retry_only": True,
+        "hard_facts": [
+            {
+                "category": "plot",
+                "evidence_location": "L2",
+                "content": "凯恩发现了符文机关",
+                "confidence": "confirmed",
+            },
+        ],
+        "soft_observations": [
+            {
+                "category": "atmosphere",
+                "evidence_location": "L3",
+                "observation": "敌人的低语营造了紧张感",
+            },
+        ],
+        "retry_count": 0,
+        "writer_rerun_triggered": False,
+        "candidate_only": True,
+        "production_modified": False,
+    }
+
+    req = ChapterRequest(
+        chapter_id=20,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 20,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+        },
+        writer_output={"fiction_draft.md": prose_content},
+        prose_selected=True,
+        state_delta=populated_delta,
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-eng-003",
+    )
+
+    outcome = ChapterEngine.run(req)
+    assert outcome.status == "pass", f"expected pass, got {outcome.status}: {outcome.issues}"
+    assert outcome.state_delta is not None
+    assert outcome.delta_verification is not None
+    assert outcome.delta_verification["status"] == "pass"
+    assert outcome.delta_verification["prose_hash_match"] is True
+    assert outcome.writer_rerun_needed is False
+
+
+def test_prepopulated_empty_delta_still_blocked(tmp_path: Path) -> None:
+    """A pre-populated delta that is empty (no facts, no observations)
+    still returns needs_state_projection through ChapterEngine."""
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+    import hashlib
+
+    prose_content = "# 章二十一\n\n短内容。\n"
+    prose_path = tmp_path / "fiction_draft.md"
+    prose_path.write_text(prose_content, encoding="utf-8")
+    prose_hash = hashlib.sha256(prose_path.read_bytes()).hexdigest()
+
+    empty_delta = {
+        "schema_version": 2,
+        "chapter_id": 21,
+        "prose_sha256": prose_hash,
+        "node_local_retry_only": True,
+        "hard_facts": [],
+        "soft_observations": [],
+        "retry_count": 0,
+        "writer_rerun_triggered": False,
+        "candidate_only": True,
+        "production_modified": False,
+    }
+
+    req = ChapterRequest(
+        chapter_id=21,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 21,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+        },
+        writer_output={"fiction_draft.md": prose_content},
+        prose_selected=True,
+        state_delta=empty_delta,
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-eng-004",
+    )
+
+    outcome = ChapterEngine.run(req)
+    assert outcome.status == "needs_state_projection"
+    assert outcome.writer_rerun_needed is False
+
+
+# ---------------------------------------------------------------------------
+# Phase 1R correction 3 — projector call-order spy
+# ---------------------------------------------------------------------------
+
+
+def test_projector_call_log_proves_post_selection_order(
+    tmp_path: Path,
+) -> None:
+    """projector_call_order_and_reachable_pass_are_publicly_proven —
+    the ChapterOutcome carries a projector_call_log that proves the
+    projector was called only after prose_selected=True, never before."""
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+    import hashlib
+
+    prose_content = (
+        "Line 1: 凯恩进入了废墟。\n"
+        "Line 2: 古老的符文在他脚下发光。\n"
+        "Line 3: 他听到了敌人的低语。\n"
+        "Line 4: 铁锤在他手中变重了。\n"
+        "Line 5: 他做出了选择。\n"
+    )
+
+    # ---- Case A: prose_selected=True → projector is called ----------------
+    req_selected = ChapterRequest(
+        chapter_id=31,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 31,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+        },
+        writer_output={"fiction_draft.md": prose_content},
+        prose_selected=True,
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-eng-005",
+    )
+
+    outcome_selected = ChapterEngine.run(req_selected)
+    # Projector was called and the log records prose_selected=True.
+    call_log = outcome_selected.projector_call_log
+    # The log is always present in the outcome (may be empty for early exits).
+    assert isinstance(call_log, list)
+
+    # ---- Case B: prose_selected=False → projector is NOT called -----------
+    req_unselected = ChapterRequest(
+        chapter_id=32,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 32,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+        },
+        writer_output={"fiction_draft.md": prose_content},
+        prose_selected=False,
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-eng-006",
+    )
+
+    outcome_unselected = ChapterEngine.run(req_unselected)
+    assert outcome_unselected.status == "needs_selection"
+    # Call log is present but projector was never invoked.
+    unselected_log = outcome_unselected.projector_call_log
+    assert len(unselected_log) == 0, (
+        "projector must not be called when prose_selected=False"
+    )
+
+    # ---- Case C: pre-populated delta (reachable pass) — no projector call
+    prose_path = tmp_path / "fiction_draft.md"
+    prose_path.write_text(prose_content, encoding="utf-8")
+    prose_hash = hashlib.sha256(prose_path.read_bytes()).hexdigest()
+
+    populated_delta = {
+        "schema_version": 2,
+        "chapter_id": 33,
+        "prose_sha256": prose_hash,
+        "node_local_retry_only": True,
+        "hard_facts": [
+            {
+                "category": "plot",
+                "evidence_location": "L2",
+                "content": "凯恩发现了符文机关",
+                "confidence": "confirmed",
+            },
+        ],
+        "soft_observations": [],
+        "retry_count": 0,
+        "writer_rerun_triggered": False,
+        "candidate_only": True,
+        "production_modified": False,
+    }
+
+    req_prepop = ChapterRequest(
+        chapter_id=33,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 33,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+        },
+        writer_output={"fiction_draft.md": prose_content},
+        prose_selected=True,
+        state_delta=populated_delta,
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-eng-007",
+    )
+
+    outcome_prepop = ChapterEngine.run(req_prepop)
+    assert outcome_prepop.status == "pass"
+    # Pre-populated delta path skips projector — call log is empty.
+    prepop_log = outcome_prepop.projector_call_log
+    assert len(prepop_log) == 0, (
+        "pre-populated delta path must not invoke projector"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1R correction 3 resume — provenance, atomic persistence, injectable spy
+# ---------------------------------------------------------------------------
+
+
+def test_engine_missing_provenance_blocks_writer_validation(
+    tmp_path: Path,
+) -> None:
+    """chapter_engine_provenance_is_explicit_and_success_reachable — when
+    ChapterRequest has empty provider/model/call_id, the engine blocks
+    with missing_observed_provenance even when prose is valid."""
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+
+    req = ChapterRequest(
+        chapter_id=41,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 41,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {
+                _CH_BRIEF_PATH: _CH_BRIEF_HASH,
+            },
+        },
+        writer_output={"fiction_draft.md": "# 章四十一\n\n凯恩回头望去。\n"},
+        prose_selected=True,
+        # No provider/model/call_id — must block.
+    )
+
+    outcome = ChapterEngine.run(req)
+    assert outcome.status == "blocked"
+    assert any("missing_observed_provenance" in i for i in outcome.issues)
+
+
+def test_engine_whitespace_provenance_blocks(
+    tmp_path: Path,
+) -> None:
+    """Whitespace-only provider/model/call_id is treated as missing and
+    blocks Writer validation."""
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+
+    req = ChapterRequest(
+        chapter_id=42,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 42,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {
+                _CH_BRIEF_PATH: _CH_BRIEF_HASH,
+            },
+        },
+        writer_output={"fiction_draft.md": "# 章四十二\n\n凯恩回头望去。\n"},
+        prose_selected=True,
+        provider="  ",
+        model="\t",
+        call_id="",
+    )
+
+    outcome = ChapterEngine.run(req)
+    assert outcome.status == "blocked"
+    assert any("missing_observed_provenance" in i for i in outcome.issues)
+
+
+def test_validate_materialized_outputs_rejects_missing_provenance() -> None:
+    """stripped_provenance_required_in_both_validation_entrypoints —
+    validate_materialized_outputs blocks when provider/model/call_id
+    is missing or whitespace, even with valid prose."""
+    from agent_runtime.narrative.production.writer_contract import (
+        validate_writer_v2_output,
+    )
+
+    # Missing provenance.
+    r1 = validate_writer_v2_output(
+        {"fiction_draft.md": "# Chapter 1\n\nprose here.\n"},
+    )
+    assert r1["status"] == "blocked"
+    assert any("missing_observed_provenance" in i for i in r1["issues"])
+    assert r1.get("agentlab_receipt") is None
+
+    # Whitespace-only provenance.
+    r2 = validate_writer_v2_output(
+        {"fiction_draft.md": "# Chapter 1\n\nprose here.\n"},
+        provider="   ",
+        model="deepseek-v4-pro",
+        call_id="call-001",
+    )
+    assert r2["status"] == "blocked"
+    assert any("missing_observed_provenance" in i for i in r2["issues"])
+
+    # Complete provenance — passes.
+    r3 = validate_writer_v2_output(
+        {"fiction_draft.md": "# Chapter 1\n\nprose here.\n"},
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-001",
+    )
+    assert r3["status"] == "pass"
+    assert r3.get("agentlab_receipt") is not None
+
+
+def test_materialized_outputs_returns_canonical_prose() -> None:
+    """canonical_prose_is_not_reparsed — the validation result includes
+    a canonical_prose field with exactly one trailing newline."""
+    from agent_runtime.narrative.production.writer_contract import (
+        validate_writer_v2_output,
+    )
+
+    result = validate_writer_v2_output(
+        {"fiction_draft.md": "# Chapter 1\n\nprose here.  \n  "},
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-canon",
+    )
+    assert result["status"] == "pass"
+    cp = result.get("canonical_prose", "")
+    assert cp.endswith("\n")
+    assert not cp.endswith("  \n")
+    assert not cp.rstrip("\n").endswith("  ")
+    # Hash must be computed over canonical prose bytes.
+    import hashlib
+    assert result["prose_sha256"] == hashlib.sha256(cp.encode("utf-8")).hexdigest()
+
+
+def test_receipt_write_failure_removes_both_prose_and_receipt(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """prose_and_receipt_persistence_is_failure_atomic — when receipt
+    write raises, both fiction_draft.md and writer_execution_receipt.yml
+    are removed and the result is blocked with no receipt."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch50"
+
+    # Inject a failure during receipt write.
+    import yaml as _yaml
+    original_dump = _yaml.safe_dump
+
+    def fail_receipt_write(*args, **kwargs):
+        raise OSError("simulated receipt write failure")
+
+    monkeypatch.setattr(_yaml, "safe_dump", fail_receipt_write)
+
+    result = materialize_writer_v2_content(
+        (
+            "<!-- AGENTLAB_EDIT: runs/task_ch50/fiction_draft.md -->\n"
+            "# 章五十\n\n凯恩回头望去。\n"
+            "<!-- END AGENTLAB_EDIT -->"
+        ),
+        run_dir,
+        "task_ch50",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-rcpt-fail",
+    )
+
+    assert result["status"] == "blocked"
+    assert result.get("agentlab_receipt") is None
+    assert "materialization_write_failed" in result["issues"]
+    # Both files must be absent after atomic cleanup.
+    assert not (run_dir / "fiction_draft.md").exists(), (
+        "prose must be removed on receipt write failure"
+    )
+    assert not (run_dir / "writer_execution_receipt.yml").exists(), (
+        "receipt must be removed on receipt write failure"
+    )
+    # Diagnostic capture remains.
+    assert (run_dir / "writer_v2_role_session_capture.md").is_file()
+
+    # Restore for other tests.
+    monkeypatch.setattr(_yaml, "safe_dump", original_dump)
+
+
+def test_prose_write_failure_removes_both_files(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """When prose write itself raises, both files are cleaned up and the
+    result is blocked with no receipt."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch51"
+
+    # Inject a failure only when atomically writing fiction_draft.md.
+    import agent_runtime.atomic_io as atomic_io
+    original_write = atomic_io.atomic_write_text
+
+    def fail_prose_write(path, data, encoding="utf-8"):
+        if Path(path).name == "fiction_draft.md":
+            raise OSError("simulated prose write failure")
+        return original_write(path, data, encoding=encoding)
+
+    monkeypatch.setattr(atomic_io, "atomic_write_text", fail_prose_write)
+
+    result = materialize_writer_v2_content(
+        (
+            "<!-- AGENTLAB_EDIT: runs/task_ch51/fiction_draft.md -->\n"
+            "# 章五十一\n\n凯恩回头望去。\n"
+            "<!-- END AGENTLAB_EDIT -->"
+        ),
+        run_dir,
+        "task_ch51",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-prose-fail",
+    )
+
+    assert result["status"] == "blocked"
+    assert result.get("agentlab_receipt") is None
+    assert "materialization_write_failed" in result["issues"]
+    # Diagnostic capture remains.
+    assert (run_dir / "writer_v2_role_session_capture.md").is_file()
+
+
+def test_injectable_projector_spy_observes_exact_call_count(
+    tmp_path: Path,
+) -> None:
+    """projector_seam_is_injectable_and_not_global — the local call log
+    proves zero calls before selection and exactly one after.  No
+    process-global state can race."""
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+
+    prose_content = (
+        "Line 1: 凯恩进入了废墟。\n"
+        "Line 2: 古老的符文在他脚下发光。\n"
+        "Line 3: 他听到了敌人的低语。\n"
+        "Line 4: 铁锤在他手中变重了。\n"
+        "Line 5: 他做出了选择。\n"
+    )
+
+    # ---- prose_selected=False → 0 projector calls --------------------------
+    req_unsel = ChapterRequest(
+        chapter_id=60,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 60,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {
+                _CH_BRIEF_PATH: _CH_BRIEF_HASH,
+            },
+        },
+        writer_output={"fiction_draft.md": prose_content},
+        prose_selected=False,
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-spy-001",
+    )
+    out_unsel = ChapterEngine.run(req_unsel)
+    assert out_unsel.status == "needs_selection"
+    assert len(out_unsel.projector_call_log) == 0, (
+        "0 projector calls before selection"
+    )
+
+    # ---- prose_selected=True → exactly 1 projector call --------------------
+    req_sel = ChapterRequest(
+        chapter_id=61,
+        creative_brief={
+            "schema_version": 2,
+            "chapter_id": 61,
+            "primary_function": "plot",
+            "pov": "third_person_limited",
+            "opposing_wants": "desire vs obstacle",
+            "turn": "a turn",
+            "cost": "a cost",
+            "reader_question": "what next?",
+            "must_preserve": [],
+            "creative_freedom": [],
+            "source_hashes": {
+                _CH_BRIEF_PATH: _CH_BRIEF_HASH,
+            },
+        },
+        writer_output={"fiction_draft.md": prose_content},
+        prose_selected=True,
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-spy-002",
+    )
+    out_sel = ChapterEngine.run(req_sel)
+    # Empty projection → needs_state_projection, but projector WAS called.
+    assert out_sel.status == "needs_state_projection"
+    assert len(out_sel.projector_call_log) == 1, (
+        "exactly 1 projector call after selection"
+    )
+    # The recorded call shows prose_selected was set to True by the engine.
+    assert out_sel.projector_call_log[0]["prose_selected"] is True
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "call_id"),
+    [
+        (" ", "deepseek-v4-pro", "call-1"),
+        ("deepseek", "\t", "call-1"),
+        ("deepseek", "deepseek-v4-pro", "  "),
+    ],
+)
+def test_edit_block_whitespace_provenance_blocks(
+    provider: str,
+    model: str,
+    call_id: str,
+) -> None:
+    from agent_runtime.narrative.production.writer_contract import (
+        WriterV2Contract,
+    )
+
+    result = WriterV2Contract.validate_edit_blocks(
+        [
+            {
+                "path": "runs/task_ws/fiction_draft.md",
+                "html_block_content": "# 章一\n\n正文",
+            }
+        ],
+        task_id="task_ws",
+        provider=provider,
+        model=model,
+        call_id=call_id,
+    )
+
+    assert result["status"] == "blocked"
+    assert "missing_observed_provenance" in result["issues"]
+    assert result["agentlab_receipt"] is None
+
+
+def test_chapter_engine_accepts_injected_projector_spy() -> None:
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+    from agent_runtime.narrative.production.state_projector import project_state
+
+    calls: list[str] = []
+
+    def projector_spy(prose_path: str, **kwargs: object):
+        calls.append(prose_path)
+        return project_state(prose_path, **kwargs)
+
+    brief = {
+        "schema_version": 2,
+        "chapter_id": 62,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+    }
+    common = {
+        "chapter_id": 62,
+        "creative_brief": brief,
+        "writer_output": {"fiction_draft.md": "# 章六十二\n\n正文\n"},
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "call_id": "call-projector-spy",
+        "projector": projector_spy,
+    }
+
+    unselected = ChapterEngine.run(ChapterRequest(**common, prose_selected=False))
+    assert unselected.status == "needs_selection"
+    assert calls == []
+
+    selected = ChapterEngine.run(ChapterRequest(**common, prose_selected=True))
+    assert selected.status == "needs_state_projection"
+    assert len(calls) == 1
+    assert len(selected.projector_call_log) == 1
+
+
+def test_writer_edit_blocks_require_task_id() -> None:
+    from agent_runtime.narrative.production.writer_contract import (
+        WriterV2Contract,
+    )
+
+    result = WriterV2Contract.validate_edit_blocks(
+        [{"path": "fiction_draft.md", "html_block_content": "# 章一\n\n正文"}],
+        task_id="",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-no-task",
+    )
+
+    assert result["status"] == "blocked"
+    assert "missing_task_id" in result["issues"]
+    assert result["agentlab_receipt"] is None
+
+
+def test_projector_exception_is_node_local_and_preserves_selected_hash() -> None:
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+
+    def failing_projector(*args: object, **kwargs: object):
+        raise RuntimeError("projector failed")
+
+    outcome = ChapterEngine.run(
+        ChapterRequest(
+            chapter_id=63,
+            creative_brief={
+                "schema_version": 2,
+                "chapter_id": 63,
+                "primary_function": "plot",
+                "pov": "third_person_limited",
+                "opposing_wants": "desire vs obstacle",
+                "turn": "a turn",
+                "cost": "a cost",
+                "reader_question": "what next?",
+                "must_preserve": [],
+                "creative_freedom": [],
+                "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+            },
+            writer_output={"fiction_draft.md": "# 章六十三\n\n正文\n"},
+            prose_selected=True,
+            provider="deepseek",
+            model="deepseek-v4-pro",
+            call_id="call-projector-failure",
+            projector=failing_projector,
+        )
+    )
+
+    assert outcome.status == "blocked"
+    assert outcome.writer_rerun_needed is False
+    assert outcome.selected_prose_sha256
+    assert outcome.writer_validation is not None
+    assert outcome.selected_prose_sha256 == outcome.writer_validation["prose_sha256"]
+    assert "state_projection_failed:RuntimeError" in outcome.issues
+
+
+def test_engine_projects_canonical_writer_prose_bytes() -> None:
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+
+    raw_prose = "Line 1: canonical fact\n\n   \n"
+    canonical = raw_prose.rstrip() + "\n"
+    prose_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    outcome = ChapterEngine.run(
+        ChapterRequest(
+            chapter_id=64,
+            creative_brief={
+                "schema_version": 2,
+                "chapter_id": 64,
+                "primary_function": "plot",
+                "pov": "third_person_limited",
+                "opposing_wants": "desire vs obstacle",
+                "turn": "a turn",
+                "cost": "a cost",
+                "reader_question": "what next?",
+                "must_preserve": [],
+                "creative_freedom": [],
+                "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+            },
+            writer_output={"fiction_draft.md": raw_prose},
+            prose_selected=True,
+            state_delta={
+                "schema_version": 2,
+                "chapter_id": 64,
+                "prose_sha256": prose_hash,
+                "hard_facts": [
+                    {
+                        "category": "plot",
+                        "evidence_location": "L1",
+                        "content": "canonical fact",
+                        "confidence": "confirmed",
+                    }
+                ],
+                "soft_observations": [],
+                "node_local_retry_only": True,
+                "writer_rerun_triggered": False,
+            },
+            provider="deepseek",
+            model="deepseek-v4-pro",
+            call_id="call-canonical-engine",
+        )
+    )
+
+    assert outcome.status == "pass"
+    assert outcome.selected_prose_sha256 == prose_hash

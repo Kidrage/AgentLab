@@ -1,0 +1,154 @@
+schema_version: 1
+project: AgentLab
+project_type: codebase_build_project
+task_id: task_narrative_repair_v2_phase1r_correction1
+phase_id: phase_1r_correction1
+title: close_false_green_production_seam
+plan_status: ready
+long_project_governance_required: true
+project_brain_dir: ../../../projects/AgentLab/narrative_repair_v2/project_brain
+goal: >-
+  Correct the rejected Phase 1R implementation so prose-only materialization,
+  hash-bound briefs, selection-gated state projection, AgentLab-issued receipts,
+  node-local retry, and real v1 compatibility are proven by public behavior.
+context_summary: >-
+  The first Phase 1R Coder result is rejected despite green tests. It contains
+  false-green seams and self-acceptance. Preserve it as lineage and change the
+  implementation/tests/evidence until every correction requirement is true.
+allowed_files:
+  - agent_runtime/narrative/production/**
+  - agent_runtime/narrative_delivery.py
+  - agent_runtime/narrative_eval.py
+  - agent_runtime/writer_output_materializer.py
+  - agent_templates/writer.md
+  - tests/test_narrative_delivery.py
+  - tests/test_narrative_efficiency.py
+  - tests/test_narrative_quality_gate.py
+  - tests/test_writer_output_materializer.py
+  - docs/narrative/NARRATIVE_PHASE1R_ACCEPTANCE.md
+  - acceptance_runs/narrative_repair_v2/phase_1r/**
+  - PROJECT_HANDOFF.md
+forbidden_files:
+  - agent_runtime/run_task.py
+  - agent_runtime/pipeline_runner.py
+  - agent_runtime/workflow_plan.py
+  - agent_runtime/operator_os/**
+  - agent_runtime/background_jobs/**
+  - config/**
+  - projects/Crown_of_Ash/production/**
+  - projects/NovelGen/production/**
+  - projects/Crown_of_Ash/runs/**
+  - release_objects/**
+  - .git/**
+must_read_artifacts:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_1R.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase1r/06_implementation_report.md
+  - acceptance_runs/narrative_repair_v2/phase_1r/phase1r_acceptance.yml
+state_contract:
+  attempt: correction_1
+  prior_result_status: rejected_for_false_green
+  correction_requirements:
+    - >-
+      Coder must never accept its own phase. phase1r_acceptance.yml and the
+      acceptance document must say candidate_complete_pending_supervisor_review,
+      accepted: false, until Codex records an independent acceptance.
+    - >-
+      materialize_writer_v2_content must validate the parsed edit-block list,
+      not a lossy dict. Reject every non-fiction block (including arbitrary
+      scorecard/metadata names), duplicate fiction blocks, blank content,
+      absolute paths, traversal, and a fiction path targeting another task/run.
+      On any issue write no fiction_draft.md. Add public behavior tests for each
+      boundary, including unknown output, duplicate prose, and cross-run path.
+    - >-
+      Creative brief source_hashes must be non-empty canonical path-to-SHA256
+      mappings. Hash raw bytes, require lowercase 64-hex values, preserve two
+      same-basename paths without collision, and fail on missing/unreadable
+      sources. Never persist unavailable/unknown placeholders.
+    - >-
+      Correct the v1 adapter for actual legacy fields, including singular
+      character_state_change, relationship_or_worldline_change,
+      foreshadowing_action, timeline_slot, and their known plural aliases.
+      Add a valid legacy v1 fixture that passes the existing reader and proves
+      conversion; a missing-file failure is not compatibility evidence.
+    - >-
+      ChapterEngine must have an explicit prose-selection gate. Valid Writer
+      output that is not selected must not trigger StateProjector. Selected
+      prose without a populated projected delta must return
+      needs_state_projection, not pass an empty skeleton.
+    - >-
+      A passing ChapterOutcome must verify a non-empty projected delta bound to
+      the exact selected prose hash with exact locators. Projector/verifier
+      blocking or retry must preserve the selected prose hash and report
+      writer_rerun_needed: false. Temporary files must be cleaned in finally.
+    - >-
+      Implement a real AgentLab-issued, prose-hash-bound Writer execution or
+      delivery receipt from observed execution input (provider/model/call ID or
+      equivalent). Do not prove ownership with a constant boolean. Writer output
+      must not be able to supply or overwrite the receipt. Test the receipt
+      issuer, provenance, and prose hash.
+    - >-
+      Remove the Phase 2R NarrativeMemorySnapshot placeholder and any other
+      speculative Phase 2 implementation. Phase 1R should expose only the deep
+      seams it actually needs.
+    - >-
+      Update Writer v2 instructions so successful output is narrative prose
+      only, uses the standard '# 第N章 · title' heading, and never embeds Writer
+      notes in prose. Missing canon must block drafting rather than add a note.
+    - >-
+      Run all four allowed consolidated test files together and record the real
+      aggregate count with zero failures. Update strict YAML receipts and do not
+      claim acceptance.
+acceptance_criteria:
+  - coder_evidence_is_pending_supervisor_not_self_accepted
+  - arbitrary_duplicate_and_cross_run_writer_blocks_fail_closed
+  - source_hashes_are_nonempty_exact_and_collision_safe
+  - valid_legacy_v1_input_reads_and_converts
+  - unselected_prose_never_projects_state
+  - empty_projection_never_passes
+  - populated_delta_is_selected_prose_hash_bound_and_verified
+  - projector_verifier_retry_never_reruns_writer
+  - real_agentlab_issued_receipt_has_observed_provenance_and_prose_hash
+  - no_phase2_placeholder
+  - writer_template_is_prose_only_and_standard_heading
+  - all_four_focused_test_files_pass_with_zero_failures
+  - no_forbidden_or_production_changes
+outputs:
+  - corrected Phase 1R implementation and existing consolidated tests
+  - docs/narrative/NARRATIVE_PHASE1R_ACCEPTANCE.md
+  - acceptance_runs/narrative_repair_v2/phase_1r/phase1r_acceptance.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/test_results.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/change_scope.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/rollback.md
+  - PROJECT_HANDOFF.md
+roles: [Coder]
+available_workers: [claude_code]
+approved_workers: [claude_code]
+dispatch_units:
+  - phase_id: phase_1r_correction1
+    objective: Correct the false-green Phase 1R seams without starting Phase 2R.
+    executor_type: claude_code_handoff
+commands_allowed:
+  - rg
+  - git diff --check
+  - git diff --numstat
+  - PYTHONPATH=.:agent_runtime python -m pytest
+  - python -m compileall
+commands_forbidden:
+  - git push
+  - git reset --hard
+  - git clean
+  - rm -rf
+  - provider prose generation
+  - production promotion
+evidence_required:
+  - phase1r_acceptance.yml
+  - test_results.yml
+  - change_scope.yml
+  - rollback.md
+rollback_required: true
+cost_policy: implementation_model_allowed_no_prose_provider
+safety_notes:
+  - Preserve Phase 0R evidence and the original Phase 1R attempt as lineage.
+  - Do not modify manuscripts, Production, release objects, config, or generic job engines.
+  - Do not start Phase 2R or any live gate.

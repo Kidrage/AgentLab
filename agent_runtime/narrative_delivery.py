@@ -1004,3 +1004,43 @@ def run_narrative_doctor(root: Path, project: str) -> dict[str, Any]:
         "issue_count": len(issues),
         "issues": issues,
     }
+
+
+# ---------------------------------------------------------------------------
+# v2 thin adapter — creative brief compilation
+# ---------------------------------------------------------------------------
+
+
+def compile_chapter_creative_brief_v2(
+    state_plan: dict[str, Any],
+    *,
+    chapter_id: int | None = None,
+    source_paths: list[str] | None = None,
+) -> dict[str, Any]:
+    """Thin v2 adapter: convert a legacy v1 chapter state plan into a v2
+    creative brief.
+
+    Delegates to ``agent_runtime.narrative.production.brief_compiler``.
+    Returns a dict with the compiled brief data or ``status: blocked``.
+    """
+    from agent_runtime.narrative.production.brief_compiler import (
+        compile_creative_brief,
+        validate_creative_brief,
+    )
+
+    try:
+        brief = compile_creative_brief(
+            state_plan,
+            chapter_id=chapter_id,
+            source_paths=source_paths,
+        )
+    except ValueError as exc:
+        return {"status": "blocked", "issues": [str(exc)]}
+
+    data = brief.to_dict()
+    issues = validate_creative_brief(data)
+    return {
+        "status": "pass" if not issues else "blocked",
+        "creative_brief": data if not issues else None,
+        "issues": issues,
+    }

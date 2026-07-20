@@ -1,0 +1,149 @@
+schema_version: 1
+project: AgentLab
+project_type: codebase_build_project
+task_id: task_narrative_repair_v2_phase1r
+phase_id: phase_1r
+title: prose_only_writer_and_creative_brief
+plan_status: ready
+long_project_governance_required: true
+project_brain_dir: ../../../projects/AgentLab/narrative_repair_v2/project_brain
+goal: >-
+  Implement the smallest v2 narrative-production path that gives Writer a
+  bounded creative brief and accepts prose only, while AgentLab owns receipts,
+  post-selection state projection, independent delta verification, node-local
+  retry, and legacy-v1 read compatibility.
+context_summary: >-
+  Phase 0R is accepted. This is a codebase implementation phase for the
+  narrative-production subsystem, not a prose generation/rewrite/audit job.
+  Code-task governance remains separate. Do not invoke providers, modify any
+  manuscript, or start Phase 2R.
+allowed_files:
+  - agent_runtime/narrative/production/**
+  - agent_runtime/narrative_delivery.py
+  - agent_runtime/narrative_eval.py
+  - agent_runtime/writer_output_materializer.py
+  - agent_templates/writer.md
+  - config/production_packs.yml
+  - tests/test_narrative_delivery.py
+  - tests/test_narrative_efficiency.py
+  - tests/test_narrative_quality_gate.py
+  - tests/test_writer_output_materializer.py
+  - docs/narrative/**
+  - acceptance_runs/narrative_repair_v2/phase_1r/**
+  - PROJECT_HANDOFF.md
+forbidden_files:
+  - agent_runtime/run_task.py
+  - agent_runtime/pipeline_runner.py
+  - agent_runtime/workflow_plan.py
+  - agent_runtime/operator_os/**
+  - agent_runtime/background_jobs/**
+  - projects/Crown_of_Ash/production/**
+  - projects/NovelGen/production/**
+  - projects/Crown_of_Ash/runs/**
+  - release_objects/**
+  - .env
+  - agent_runtime/.env
+  - .git/**
+must_read_artifacts:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
+  - docs/narrative/NARRATIVE_PRODUCTION_REPAIR_EXECUTION.yml
+  - docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md
+  - acceptance_runs/narrative_repair_v2/phase_0r/phase_acceptance.yml
+  - /Users/saintpeter/Downloads/7.20修改方案.md
+state_contract:
+  source_head: 1dd5008
+  phase_0r_status: accepted
+  implementation_requirements:
+    - >-
+      Add a deep agent_runtime/narrative/production package. Keep existing
+      central narrative files as thin compatibility adapters; no allowed
+      pre-existing central file may gain more than 150 net lines.
+    - >-
+      Define a versioned chapter_creative_brief contract with one required
+      primary_function, at most one optional secondary_function, POV, opposing
+      wants, turn, cost, reader question, must-preserve constraints, creative
+      freedom, recent patterns to avoid, risk signals, and source hashes.
+    - >-
+      Validate ordinary and non-action chapters without demanding every literary
+      dimension or a fixed beat sheet. Include frozen deterministic cases for
+      static, life-detail, relationship, consequence, and atmosphere chapters.
+    - >-
+      Provide a legacy-v1 chapter state-plan adapter that reads existing inputs
+      and compiles a v2 creative brief without modifying legacy artifacts.
+    - >-
+      Define the v2 Writer contract so fiction_draft.md is the only Writer
+      content output. Reject or separate Writer-authored state JSON, receipts,
+      scorecards, and operational metadata. AgentLab constructs execution and
+      delivery receipts from observed execution data and prose SHA256.
+    - >-
+      Run StateProjector only after a prose candidate is selected. Its delta must
+      separate hard facts from soft literary observations, bind to the selected
+      prose SHA256, and contain exact evidence locators.
+    - >-
+      Independently verify projected state against prose. A StateProjector or
+      verifier failure/retry must not rerun a successful Writer or replace the
+      selected prose artifact.
+    - >-
+      Preserve legacy-v1 read behavior and default existing public paths to v1
+      unless the caller explicitly supplies the v2 contract/version.
+    - >-
+      Use test-first public behavior tests in existing consolidated narrative
+      test files. Do not weaken schemas, delete tests, or turn blocking failures
+      into warnings.
+acceptance_criteria:
+  - writer_v2_content_outputs_exactly_fiction_draft_md
+  - writer_non_prose_content_output_count_is_zero
+  - creative_brief_rejects_multiple_secondary_functions
+  - static_life_relationship_consequence_atmosphere_briefs_validate
+  - no_all_dimensions_every_chapter_requirement
+  - receipts_are_agentlab_owned_and_prose_hash_bound
+  - state_projector_runs_after_selection
+  - state_delta_separates_hard_and_soft_with_exact_evidence
+  - projector_or_verifier_retry_does_not_rerun_writer
+  - legacy_v1_inputs_remain_readable
+  - central_file_net_growth_each_at_most_150_lines
+  - no_provider_calls_and_no_production_changes
+  - focused_tests_pass_with_zero_failures
+outputs:
+  - implementation code under agent_runtime/narrative/production/
+  - public behavior tests in existing consolidated narrative test files
+  - docs/narrative/NARRATIVE_PHASE1R_ACCEPTANCE.md
+  - acceptance_runs/narrative_repair_v2/phase_1r/phase1r_acceptance.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/test_results.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/change_scope.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/rollback.md
+  - PROJECT_HANDOFF.md
+roles: [Coder]
+available_workers: [claude_code]
+approved_workers: [claude_code]
+dispatch_units:
+  - phase_id: phase_1r
+    objective: Implement and locally verify the v2 prose-only production seam.
+    executor_type: claude_code_handoff
+commands_allowed:
+  - rg
+  - git diff --check
+  - git diff --numstat
+  - python -m pytest
+  - PYTHONPATH=.:agent_runtime python -m pytest
+  - python -m compileall
+commands_forbidden:
+  - git push
+  - git reset --hard
+  - git clean
+  - rm -rf
+  - provider prose generation
+  - production promotion
+evidence_required:
+  - phase1r_acceptance.yml
+  - test_results.yml
+  - change_scope.yml
+  - rollback.md
+rollback_required: true
+cost_policy: implementation_model_allowed_no_prose_provider
+safety_notes:
+  - All manuscript, candidate, Production, and release artifacts are read-only.
+  - Keep code-task and narrative-task governance routes separate.
+  - Shared primitives may be reused, but narrative semantics stay in narrative modules.
+  - Do not start Phase 2R or any live gate.

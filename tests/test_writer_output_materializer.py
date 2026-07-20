@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -330,3 +331,563 @@ def test_materializer_rejects_substantive_paragraph_copied_from_previous_chapter
         issue.startswith("draft_repeats_previous_candidate:")
         for issue in contract["issues"]
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1R — v2 prose-only Writer tests
+# ---------------------------------------------------------------------------
+
+
+def _v2_prose_block(task_id: str = "task_ch10") -> str:
+    return (
+        f"<!-- AGENTLAB_EDIT: runs/{task_id}/fiction_draft.md -->\n"
+        "# 章十 · 试炼之焰\n\n"
+        "烈焰在凯恩指尖跳跃，不是灼烧，是辨认。\n"
+        "<!-- END AGENTLAB_EDIT -->"
+    )
+
+
+def _v2_blocks_with_forbidden_outputs(task_id: str = "task_ch10") -> str:
+    """Writer v2 content that illegally includes v1 artifacts."""
+    prose = (
+        f"<!-- AGENTLAB_EDIT: runs/{task_id}/fiction_draft.md -->\n"
+        "# 章十 · 试炼之焰\n\n"
+        "烈焰在凯恩指尖跳跃。\n"
+        "<!-- END AGENTLAB_EDIT -->"
+    )
+    ledger = (
+        f"<!-- AGENTLAB_EDIT: runs/{task_id}/continuity_ledger.yml -->\n"
+        "schema_version: 1\nchapter: 10\n"
+        "<!-- END AGENTLAB_EDIT -->"
+    )
+    receipt = (
+        f"<!-- AGENTLAB_EDIT: runs/{task_id}/narrative_delivery_receipt.yml -->\n"
+        "schema_version: 1\nstatus: pass\ncandidate_only: true\n"
+        "<!-- END AGENTLAB_EDIT -->"
+    )
+    return "\n".join([prose, ledger, receipt])
+
+
+def test_writer_v2_materializes_only_fiction_draft(tmp_path: Path) -> None:
+    """writer_v2_content_outputs_exactly_fiction_draft_md"""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch10"
+    result = materialize_writer_v2_content(
+        _v2_prose_block(), run_dir, "task_ch10",
+        provider="deepseek", model="deepseek-v4-pro", call_id="call-001",
+    )
+
+    assert result["status"] == "pass"
+    assert result["non_prose_output_count"] == 0
+    assert result["writer_self_receipt_present"] is False
+    assert result["prose_sha256"] != ""
+    receipt = result.get("agentlab_receipt")
+    assert receipt is not None
+    assert receipt["issuer"] == "AgentLab"
+    assert receipt["prose_sha256"] == result["prose_sha256"]
+    assert receipt["observed_provider"] == "deepseek"
+    assert receipt["observed_model"] == "deepseek-v4-pro"
+    assert receipt["observed_call_id"] == "call-001"
+    assert receipt["writer_cannot_overwrite"] is True
+    assert (run_dir / "fiction_draft.md").is_file()
+    content = (run_dir / "fiction_draft.md").read_text(encoding="utf-8")
+    assert "章十" in content
+
+
+def test_writer_v2_rejects_forbidden_v1_outputs(tmp_path: Path) -> None:
+    """writer_non_prose_content_output_count_is_zero — forbidden v1 outputs
+    (ledger, receipt) are rejected at the edit-block level and block the run."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch10"
+    result = materialize_writer_v2_content(
+        _v2_blocks_with_forbidden_outputs(), run_dir, "task_ch10"
+    )
+
+    assert result["status"] == "blocked"
+    assert result["non_prose_output_count"] > 0
+    assert not (run_dir / "fiction_draft.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# Phase 1R correction 1 — boundary tests for materialize_writer_v2_content
+# ---------------------------------------------------------------------------
+
+
+def _v2_block_raw(path: str, content: str) -> str:
+    return (
+        f"<!-- AGENTLAB_EDIT: {path} -->\n"
+        f"{content}\n"
+        "<!-- END AGENTLAB_EDIT -->"
+    )
+
+
+def test_v2_materializer_rejects_non_fiction_block(tmp_path: Path) -> None:
+    """Arbitrary scorecard/metadata blocks are rejected."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    content = "\n".join([
+        _v2_block_raw("runs/task_ch01/fiction_draft.md", "# 章一 · 开始\n\nprose"),
+        _v2_block_raw("runs/task_ch01/scorecard.yml", "score: 5"),
+    ])
+
+    result = materialize_writer_v2_content(content, run_dir, "task_ch01")
+    assert result["status"] == "blocked"
+    assert any("non_fiction_block_rejected" in i for i in result["issues"])
+    assert not (run_dir / "fiction_draft.md").exists()
+
+
+def test_v2_materializer_rejects_unknown_output_name(tmp_path: Path) -> None:
+    """An arbitrary metadata name (not fiction_draft.md) blocks the run."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    content = "\n".join([
+        _v2_block_raw("runs/task_ch01/fiction_draft.md", "# 章一 · 开始\n\nprose"),
+        _v2_block_raw("runs/task_ch01/metadata.yml", "key: value"),
+    ])
+
+    result = materialize_writer_v2_content(content, run_dir, "task_ch01")
+    assert result["status"] == "blocked"
+    assert any("non_fiction_block_rejected" in i for i in result["issues"])
+
+
+def test_v2_materializer_rejects_duplicate_fiction_block(tmp_path: Path) -> None:
+    """Duplicate fiction_draft.md blocks are rejected."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    content = "\n".join([
+        _v2_block_raw("runs/task_ch01/fiction_draft.md", "# 章一 · 开始\n\nprose A"),
+        _v2_block_raw("runs/task_ch01/fiction_draft.md", "# 章一 · 开始\n\nprose B"),
+    ])
+
+    result = materialize_writer_v2_content(content, run_dir, "task_ch01")
+    assert result["status"] == "blocked"
+    assert any("duplicate_fiction_draft_block" in i for i in result["issues"])
+    assert not (run_dir / "fiction_draft.md").exists()
+
+
+def test_v2_materializer_rejects_blank_fiction_block(tmp_path: Path) -> None:
+    """A fiction_draft.md block with only whitespace is rejected —
+    the parse layer may drop it (missing_fiction_draft_md) or the validator
+    may reject it as empty (fiction_draft_block_empty)."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    # Use whitespace so the block is syntactically present but semantically empty.
+    content = _v2_block_raw("runs/task_ch01/fiction_draft.md", "   ")
+
+    result = materialize_writer_v2_content(content, run_dir, "task_ch01")
+    assert result["status"] == "blocked"
+    assert any(
+        "fiction_draft_block_empty" in i
+        or "missing_fiction_draft_md" in i
+        for i in result["issues"]
+    )
+    assert not (run_dir / "fiction_draft.md").exists()
+
+
+def test_v2_materializer_rejects_absolute_path(tmp_path: Path) -> None:
+    """Absolute paths in edit blocks are rejected."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    content = _v2_block_raw("/etc/fiction_draft.md", "# prose")
+
+    result = materialize_writer_v2_content(content, run_dir, "task_ch01")
+    assert result["status"] == "blocked"
+    assert any("absolute_path_rejected" in i for i in result["issues"])
+    assert not (run_dir / "fiction_draft.md").exists()
+
+
+def test_v2_materializer_rejects_traversal_path(tmp_path: Path) -> None:
+    """Traversal (..) in edit block paths is rejected."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    content = _v2_block_raw(
+        "runs/task_ch01/../other/fiction_draft.md", "# prose"
+    )
+
+    result = materialize_writer_v2_content(content, run_dir, "task_ch01")
+    assert result["status"] == "blocked"
+    assert any("traversal_path_rejected" in i for i in result["issues"])
+    assert not (run_dir / "fiction_draft.md").exists()
+
+
+def test_v2_materializer_rejects_cross_run_path(tmp_path: Path) -> None:
+    """A fiction_draft.md targeting another task_id is rejected."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    content = _v2_block_raw(
+        "runs/task_ch02/fiction_draft.md", "# 章二\n\nprose for ch02"
+    )
+
+    result = materialize_writer_v2_content(content, run_dir, "task_ch01")
+    assert result["status"] == "blocked"
+    assert any("cross_run_path_rejected" in i for i in result["issues"])
+    assert not (run_dir / "fiction_draft.md").exists()
+
+
+def test_v2_cross_run_substring_is_not_a_match(tmp_path: Path) -> None:
+    """writer_target_path_is_exact_not_substring — a path like
+    runs/task_ch01_extra/fiction_draft.md must NOT match task_id task_ch01."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    # task_id is "task_ch01" but the path uses "task_ch01_extra" — substring
+    # would incorrectly match; exact path-component match rejects it.
+    content = _v2_block_raw(
+        "runs/task_ch01_extra/fiction_draft.md",
+        "# 章一\n\nprose for extra task\n",
+    )
+
+    result = materialize_writer_v2_content(content, run_dir, "task_ch01")
+    assert result["status"] == "blocked"
+    assert any("cross_run_path_rejected" in i for i in result["issues"])
+    assert not (run_dir / "fiction_draft.md").exists()
+
+
+def test_v2_persisted_receipt_hash_equals_written_prose_bytes(
+    tmp_path: Path,
+) -> None:
+    """persisted_receipt_hash_equals_written_prose_bytes — the receipt
+    hash is computed from the actual written file bytes, not the
+    pre-write string, and the receipt is persisted to disk."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+    import hashlib
+    import yaml as _yaml
+
+    run_dir = tmp_path / "runs" / "task_ch20"
+    result = materialize_writer_v2_content(
+        _v2_prose_block("task_ch20"), run_dir, "task_ch20",
+        provider="deepseek", model="deepseek-v4-pro", call_id="call-rcpt",
+    )
+
+    assert result["status"] == "pass"
+    assert (run_dir / "fiction_draft.md").is_file()
+
+    # Receipt must be persisted to disk.
+    receipt_path = run_dir / "writer_execution_receipt.yml"
+    assert receipt_path.is_file(), "receipt not persisted to disk"
+    receipt_on_disk = _yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+    assert receipt_on_disk["issuer"] == "AgentLab"
+    assert receipt_on_disk["observed_provider"] == "deepseek"
+
+    # Hash in receipt must equal hash of the actual written file bytes.
+    file_hash = hashlib.sha256(
+        (run_dir / "fiction_draft.md").read_bytes()
+    ).hexdigest()
+    assert result["prose_sha256"] == file_hash
+    assert receipt_on_disk["prose_sha256"] == file_hash
+    assert result.get("agentlab_receipt", {}).get("prose_sha256") == file_hash
+    assert result.get("receipt_path") == str(receipt_path)
+
+
+def test_v2_failed_materialization_leaves_no_prose_or_receipt(
+    tmp_path: Path,
+) -> None:
+    """failed_materialization_leaves_no_prose_or_receipt — on any block
+    issue, neither fiction_draft.md nor the receipt is written."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    # Include a forbidden non-fiction block to trigger failure.
+    content = "\n".join([
+        _v2_block_raw("runs/task_ch01/fiction_draft.md", "# 章一\n\nprose"),
+        _v2_block_raw("runs/task_ch01/scorecard.yml", "score: 5"),
+    ])
+
+    result = materialize_writer_v2_content(content, run_dir, "task_ch01")
+    assert result["status"] == "blocked"
+    assert not (run_dir / "fiction_draft.md").exists()
+    assert not (run_dir / "writer_execution_receipt.yml").exists()
+
+
+def test_v2_validation_failure_removes_stale_prose_and_receipt(
+    tmp_path: Path,
+) -> None:
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_stale"
+    run_dir.mkdir(parents=True)
+    (run_dir / "fiction_draft.md").write_text("stale prose", encoding="utf-8")
+    (run_dir / "writer_execution_receipt.yml").write_text(
+        "issuer: stale\n", encoding="utf-8"
+    )
+
+    result = materialize_writer_v2_content(
+        _v2_block_raw("runs/other_task/fiction_draft.md", "invalid"),
+        run_dir,
+        "task_stale",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        call_id="call-stale-cleanup",
+    )
+
+    assert result["status"] == "blocked"
+    assert not (run_dir / "fiction_draft.md").exists()
+    assert not (run_dir / "writer_execution_receipt.yml").exists()
+
+
+def test_v2_materializer_rejects_empty_source_hashes_in_brief(
+    tmp_path: Path,
+) -> None:
+    """A creative brief with empty source_hashes is rejected at
+    validation time."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 14,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {},
+    }
+    issues = validate_creative_brief(data)
+    assert any("source_hashes_must_not_be_empty" in i for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# Phase 1R correction 3 — nested path, provenance, and canonical bytes
+# ---------------------------------------------------------------------------
+
+
+def test_v2_materializer_rejects_nested_target_path(tmp_path: Path) -> None:
+    """writer_target_equals_exact_run_fiction_path — a path like
+    runs/task_ch01/sub/fiction_draft.md is NOT the contract target and
+    must be rejected.  Only runs/<task_id>/fiction_draft.md is valid."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    content = _v2_block_raw(
+        "runs/task_ch01/sub/fiction_draft.md",
+        "# 章一\n\n嵌套路径中的散文。\n",
+    )
+
+    result = materialize_writer_v2_content(
+        content, run_dir, "task_ch01",
+        provider="deepseek", model="deepseek-v4-pro", call_id="call-nested",
+    )
+    assert result["status"] == "blocked"
+    assert any("cross_run_path_rejected" in i for i in result["issues"])
+    assert not (run_dir / "fiction_draft.md").exists()
+
+
+def test_v2_materializer_rejects_missing_provenance(tmp_path: Path) -> None:
+    """observed_provenance_is_required_on_all_success_paths — when
+    provider, model, or call_id is missing, the result is blocked even
+    if every other check passes."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch99"
+
+    # Empty provider.
+    result1 = materialize_writer_v2_content(
+        _v2_prose_block("task_ch99"), run_dir, "task_ch99",
+        provider="", model="deepseek-v4-pro", call_id="call-001",
+    )
+    assert result1["status"] == "blocked"
+    assert any("missing_observed_provenance" in i for i in result1["issues"])
+    assert result1.get("agentlab_receipt") is None
+    assert not (run_dir / "fiction_draft.md").exists()
+
+    # Empty model.
+    run_dir2 = tmp_path / "runs" / "task_ch98"
+    result2 = materialize_writer_v2_content(
+        _v2_prose_block("task_ch98"), run_dir2, "task_ch98",
+        provider="deepseek", model="", call_id="call-001",
+    )
+    assert result2["status"] == "blocked"
+    assert any("missing_observed_provenance" in i for i in result2["issues"])
+
+    # All provenance present — passes.
+    run_dir3 = tmp_path / "runs" / "task_ch97"
+    result3 = materialize_writer_v2_content(
+        _v2_prose_block("task_ch97"), run_dir3, "task_ch97",
+        provider="deepseek", model="deepseek-v4-pro", call_id="call-001",
+    )
+    assert result3["status"] == "pass"
+    assert result3.get("agentlab_receipt") is not None
+
+
+def test_v2_receipt_filename_is_writer_execution_receipt(tmp_path: Path) -> None:
+    """required_writer_execution_receipt_is_persisted_atomically — the
+    receipt filename on disk must be writer_execution_receipt.yml, not
+    agentlab_writer_receipt.yml."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch30"
+    result = materialize_writer_v2_content(
+        _v2_prose_block("task_ch30"), run_dir, "task_ch30",
+        provider="deepseek", model="deepseek-v4-pro", call_id="call-fname",
+    )
+
+    assert result["status"] == "pass"
+    # Exact filename per contract.
+    receipt_path = run_dir / "writer_execution_receipt.yml"
+    assert receipt_path.is_file(), f"expected {receipt_path} to exist"
+    # Old name must NOT exist.
+    assert not (run_dir / "agentlab_writer_receipt.yml").exists()
+    assert result.get("receipt_path") == str(receipt_path)
+
+
+def test_v2_canonical_prose_bytes_match_written_file(
+    tmp_path: Path,
+) -> None:
+    """canonical_prose_bytes_are_shared_by_validation_write_and_hash —
+    prose with trailing whitespace is canonicalised to one newline before
+    hashing, so the receipt hash always equals the written file hash."""
+    from agent_runtime.writer_output_materializer import (
+        materialize_writer_v2_content,
+    )
+    import hashlib
+
+    run_dir = tmp_path / "runs" / "task_ch40"
+    # Prose with trailing whitespace (not just newline).
+    prose_with_whitespace = "# 章四十\n\n结尾有空白。  \n  \n"
+    block = _v2_block_raw("runs/task_ch40/fiction_draft.md", prose_with_whitespace)
+
+    result = materialize_writer_v2_content(
+        block, run_dir, "task_ch40",
+        provider="deepseek", model="deepseek-v4-pro", call_id="call-canon",
+    )
+
+    assert result["status"] == "pass"
+    assert (run_dir / "fiction_draft.md").is_file()
+
+    # Hash in result MUST equal hash of the written file bytes.
+    file_bytes = (run_dir / "fiction_draft.md").read_bytes()
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+    assert result["prose_sha256"] == file_hash
+
+    # The receipt on disk must agree.
+    import yaml as _yaml
+    receipt = _yaml.safe_load(
+        (run_dir / "writer_execution_receipt.yml").read_text(encoding="utf-8")
+    )
+    assert receipt["prose_sha256"] == file_hash
+
+
+# ---------------------------------------------------------------------------
+# Phase 1R correction 3 resume — pathlib source-key validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "key,expected_issue_substring",
+    [
+        ("", "source_hash_key_empty_or_whitespace"),
+        ("   ", "source_hash_key_empty_or_whitespace"),
+        ("\t", "source_hash_key_empty_or_whitespace"),
+        ("relative/path.yml", "source_hash_key_not_canonical_absolute"),
+        ("/", "source_hash_key_not_canonical"),
+        ("//etc/passwd", "source_hash_key_not_canonical"),
+        ("/a/./b/file.yml", "source_hash_key_has_dot_segments"),
+        ("/a/../b/file.yml", "source_hash_key_has_dot_segments"),
+    ],
+)
+def test_noncanonical_source_hash_keys_are_rejected(
+    key: str, expected_issue_substring: str
+) -> None:
+    """canonical_existing_file_source_keys_only — every non-canonical form
+    (empty, whitespace, relative, root-dir, double-slash, dot-segments) is
+    rejected by pathlib semantics, not startswith."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 30,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {
+            key: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        },
+    }
+    issues = validate_creative_brief(data)
+    assert any(expected_issue_substring in i for i in issues), (
+        f"expected '{expected_issue_substring}' in issues for key={key!r}, got {issues}"
+    )
+
+
+def test_valid_resolved_tmp_file_passes_source_key_validation(
+    tmp_path: Path,
+) -> None:
+    """A resolved absolute path to an existing file passes validation."""
+    from agent_runtime.narrative.production.brief_compiler import (
+        validate_creative_brief,
+    )
+
+    src = tmp_path / "bible" / "characters.yml"
+    src.parent.mkdir(parents=True)
+    src.write_text("characters:\n  - name: Kane\n", encoding="utf-8")
+
+    data = {
+        "schema_version": 2,
+        "chapter_id": 31,
+        "primary_function": "plot",
+        "pov": "third_person_limited",
+        "opposing_wants": "desire vs obstacle",
+        "turn": "a turn",
+        "cost": "a cost",
+        "reader_question": "what next?",
+        "must_preserve": [],
+        "creative_freedom": [],
+        "source_hashes": {
+            str(src.resolve()): hashlib.sha256(src.read_bytes()).hexdigest(),
+        },
+    }
+    issues = validate_creative_brief(data)
+    assert not issues, f"unexpected issues for valid key: {issues}"

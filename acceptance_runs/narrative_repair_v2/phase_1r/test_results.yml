@@ -1,0 +1,56 @@
+schema_version: 1
+phase_id: phase_1r
+executor: codex_supervisor
+result: pass_with_preexisting_repository_hygiene_followup
+
+focused_tests:
+  command_scope:
+    - tests/test_writer_output_materializer.py
+    - tests/test_narrative_delivery.py
+    - tests/test_narrative_quality_gate.py
+    - tests/test_narrative_efficiency.py
+  passed: 155
+  failed: 0
+  skipped: 0
+  duration_seconds: 0.95
+
+narrative_domain_tests:
+  files:
+    - tests/test_narrative_job_semantics.py
+    - tests/test_narrative_audit_closure.py
+    - tests/test_narrative_background_recovery.py
+    - tests/test_narrative_delivery.py
+    - tests/test_narrative_efficiency.py
+    - tests/test_narrative_eval.py
+    - tests/test_narrative_heavy_audit_materializer.py
+    - tests/test_narrative_quality_gate.py
+    - tests/test_writer_output_materializer.py
+  passed: 202
+  failed: 0
+  skipped: 0
+  duration_seconds: 9.25
+
+static_checks:
+  compileall: pass
+  git_diff_check: pass
+  forbidden_scope_diff: empty
+
+preliminary_full_repository:
+  passed: 2884
+  failed: 2
+  skipped: 2
+  warnings: 11
+  duration_seconds: 225.15
+  triage:
+    - test: tests/test_task_packet.py::test_writer_light_contract_has_one_unambiguous_four_file_response
+      relationship: phase1r_related
+      resolution: fixed_writer_v1_exact_phrase
+      direct_replay: pass
+    - test: tests/test_repository_integrity.py::test_acceptance_artifacts_have_no_local_absolute_paths
+      relationship: preexisting_at_accepted_phase0_commit_1dd5008
+      resolution: separate_hash_preserving_phase0_evidence_hygiene_required
+      direct_replay: still_failing_before_hygiene
+
+provider_calls: 0
+production_modified: false
+candidate_only: true
