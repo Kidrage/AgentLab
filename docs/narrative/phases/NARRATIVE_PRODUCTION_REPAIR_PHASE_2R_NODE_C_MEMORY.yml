@@ -1,7 +1,7 @@
 schema_version: 2
 phase_id: phase_2r_node_c_literary_memory
 priority: highest
-status: correction_1_pending_independent_rereview
+status: paused_correction_1_pending_independent_rereview
 authority: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
 objective: >-
   Build one hash-bound, chapter-selected narrative memory snapshot per Writer

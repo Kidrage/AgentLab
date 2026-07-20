@@ -132,7 +132,7 @@ phases:
 
   - phase_id: phase_2r
     title: context_literary_memory_and_efficiency
-    status: node_a_accepted_node_b_preview_verified_node_c_memory_in_progress
+    status: node_a_accepted_node_b_preview_verified_node_c_correction_paused
     implementation_kind: code_change
     pre_dispatch_checks:
       - direct_claude_code_deepseek_v4_pro_smoke_without_private_manuscript
@@ -150,9 +150,12 @@ phases:
       later_nodes_blocked: true
       acceptance: docs/narrative/NARRATIVE_PHASE2R_NODE_C_ACCEPTANCE.md
       accepted: false
+      paused: true
+      review_state: correction_rereviews_interrupted_before_completion
+      checkpoint_commit: 05e9ecfc9498ed9fa9a81acbd0bf3f73dc8ea5fa
     next_required_step:
-      kind: finish_node_c_review_then_live_writer_adapter
-      code_changes_allowed: true
+      kind: resume_node_c_independent_rereviews
+      code_changes_allowed: false
       later_node_dispatch_allowed: false
       measurement_readiness: acceptance_runs/narrative_repair_v2/phase_2r/measurement_readiness.yml
     completed_nodes:

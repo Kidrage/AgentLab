@@ -2,7 +2,9 @@
 
 ## Verdict
 
-Correction 1 is complete and awaiting independent Standards/Spec re-review.
+Correction 1 is saved at commit `05e9ecf` and paused while awaiting independent
+Standards/Spec re-review. Both re-reviews were interrupted before completion at
+the user's explicit pause, so this node is not accepted.
 The first review rejected the implementation for schema-v1 output, hash/parse
 TOCTOU reads, repeated source loads, declarative locators and an unsafe output
 boundary. Those findings were treated as hard acceptance failures rather than

@@ -2,7 +2,7 @@ schema_version: 2
 phase_id: phase_2r_node_c_literary_memory
 project: Crown_of_Ash
 chapters: [25, 26, 27]
-status: correction_1_pending_independent_rereview
+status: paused_correction_1_pending_independent_rereview
 candidate_only: true
 production_modified: false
 provider_calls: 0

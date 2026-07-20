@@ -587,6 +587,7 @@ without a progress row.
 | 2026-07-20 22:32 CST | Codex (supervisor) | Phase 2R Node B independent review and correction 1 | rejected_attempt1_correction_in_progress | Standards/Spec review invalidated the 22:05 acceptance: custom packet was not the registered schema, Production safety was declarative, word-count/Writer-template inputs were missing, detailed Crown content was committed, metrics mixed role slices, and literary memory/live wiring were absent. Correction 1 now uses the live schema-v2 envelope builder, blocks any project Production path before compile, restores length/template inputs, records Writer-only duplication and bytes, removes manuscript text from committed evidence, atomically derives candidate inputs, and hash-binds both sides of the replay. Corrected input-only median is 62448 bytes, 37.69% below legacy; quality-equivalent and phase acceptance remain false | supersedes the prior Node B acceptance claim; evidence `docs/narrative/NARRATIVE_PHASE2R_NODE_B_ACCEPTANCE.md` | Finish live narrative-only Writer adapter and structured literary-memory snapshot, then review and remeasure before later Phase 2R nodes |
 | 2026-07-20 22:48 CST | Codex (supervisor) | Phase 2R Node B correction 1 verification | preview_implementation_passed_node_b_product_blocked | Independent Standards and Spec re-review pass the corrected preview, Production boundary, Writer-only duplication metric, content-free evidence, atomic candidate derivation and hash-bound reproduction. Exact frozen replay matches; efficiency 45/0, narrative domain 184/0, full repository 2908 passed / 2 skipped / 0 failed / 11 warnings in 326.30s. No provider or Production write occurred. Node B itself is not accepted because the registered live Writer still does not consume the compiled packet and no chapter-selected structured literary-memory snapshot exists | correction is a local independent Node B commit; rollback by reverting it; evidence `docs/narrative/NARRATIVE_PHASE2R_NODE_B_ACCEPTANCE.md` | Implement the narrative-only live adapter and structured memory as separate reviewed nodes, then rerun quality-equivalent measurement and Gate 1 |
 | 2026-07-20 22:58 CST | Codex (supervisor) | Phase 2R Node C structured literary memory | in_progress | Opened an independent narrative-only node to compile explicit, hash-bound per-chapter voice examples, emotional debts, life-detail anchors, recent scene signatures and unresolved reader questions. Missing categories or stale source hashes block quality equivalence. Candidate-only; provider and Production writes forbidden | authority `docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_2R_NODE_C_MEMORY.yml`; rollback forthcoming Node C commit | Red tracer, implementation, Crown Ch25–Ch27 local candidate snapshots, review and regression before live Writer adapter |
+| 2026-07-20 23:29 CST | Codex (supervisor) | Phase 2R pause checkpoint | paused_node_c_correction_pending_rereview | Saved corrected Node C at local commit `05e9ecf`: selection v1/v2 read with v2-only snapshots, single-byte-stream hash/parse, one read per unique source, machine locators, bounded relevance window and exact Candidate output boundary. Crown Ch25–Ch27 snapshots regenerate from excerpt-free recipes; focused 54/0 and narrative-domain 194/0. The first Standards/Spec review rejected the pre-correction version; correction re-reviews were explicitly interrupted before completion, so Node C is not accepted. No Node D, provider call, Production write or full regression was started | resume authority `docs/narrative/NARRATIVE_PHASE2R_NODE_C_ACCEPTANCE.md`; local branch `feature/narrative-production-closure`; do not treat untracked Gate 1 directories or `docs/AGENTLAB_KNOWLEDGE_SYSTEM_RAG_GOVERNANCE_UPGRADE_PLAN.md` as part of this checkpoint | Resume both independent reviews against `ac2a23c..05e9ecf`; fix any finding, run full repository, accept Node C, then open a separate live Writer adapter Node D |
 
 ## Stop conditions and immediate next actions
 
@@ -599,16 +600,19 @@ The v1 Phase 2 and 4 mechanisms remain reusable evidence, but v2 reopens their
 memory, assembly, and live-quality gaps. Phase 0R and Phase 1R structural
 contracts are accepted. AgentLab timed out on both Correction 3 and its resume;
 Codex completed the frozen failure seams under the explicit intervention rule.
-Phase 0R, Phase 1R and Phase 2R Node A are accepted; Node B is reopened after
-independent review. Current Node A verification
+Phase 0R, Phase 1R and Phase 2R Node A are accepted. Node B's corrected
+provider-free preview passed review but remains product-blocked on the live
+Writer adapter. Current Node A verification
 is 41/0 focused, 219/0 narrative-domain and 2903/0 full-repository with 2 skips.
 The direct Worker and repaired AgentLab wrapper both run deepseek-v4-pro, but
 two Node A Coder attempts consumed 8.31M reported tokens and the correction came
 within 66.4s of deadline. Node B meets the deterministic ordinary-context
 input preview shows a provisional 37.69% median reduction, but it is not a
-quality-equivalent or live-runtime acceptance. Literary-memory, live Writer
-adapter, risk-tier, incremental-reaudit and node-local retry work remain before
-Phase 2R can close. Gate 1
+quality-equivalent or live-runtime acceptance. Node C correction is saved at
+`05e9ecf` with 54/0 focused and 194/0 narrative-domain tests, but its independent
+re-review was interrupted by the user's pause and therefore remains unaccepted.
+The live Writer adapter, risk-tier, incremental-reaudit and node-local retry work
+remain before Phase 2R can close. Gate 1
 legacy integration remains candidate-ready and hash-bound, but external Writer
 execution is still environment-blocked. Ten human blind reviews remain required
 before scaling or starting Phase 5.
