@@ -124,7 +124,8 @@ contracts:
       - changed_files_or_findings.yml
       - validation_evidence.yml
     template: >-
-      claude --model "{model_id}" --permission-mode bypassPermissions --output-format json -p "Read the task packet at {task_packet_path};
+      claude --model "{model_id}" --safe-mode --no-session-persistence
+      --permission-mode bypassPermissions --output-format json -p "Read the task packet at {task_packet_path};
       perform only the assigned work and report actual changed files and validation."
     required_placeholders:
       - task_packet_path
@@ -136,6 +137,8 @@ contracts:
       argv_prefix:
         - claude
         - --model
+        - --safe-mode
+        - --no-session-persistence
         - --permission-mode
         - bypassPermissions
         - --output-format

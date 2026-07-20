@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 from pathlib import Path
 
 import yaml
@@ -106,6 +107,17 @@ def test_cli_profiles_reference_worker_invocation_contracts() -> None:
                     f"{contract_name!r}, whose template has unsupported placeholders "
                     f"{sorted(template_placeholders - runtime_supported_placeholders)}"
                 )
+
+
+def test_generic_claude_coder_contract_isolates_project_customizations() -> None:
+    contract = _load_config("worker_invocation_contracts.yml")["contracts"]["claude"]
+    argv = shlex.split(contract["template"].format(
+        task_packet_path="/tmp/task_packet.yml",
+        model_id="deepseek-v4-pro",
+    ))
+
+    assert "--safe-mode" in argv
+    assert "--no-session-persistence" in argv
 
 
 def test_profile_role_keys_resolve_to_registered_roles() -> None:
