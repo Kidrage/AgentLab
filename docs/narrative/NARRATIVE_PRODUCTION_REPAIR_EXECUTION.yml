@@ -132,12 +132,17 @@ phases:
 
   - phase_id: phase_2r
     title: context_literary_memory_and_efficiency
-    status: ready_for_worker_chain_preflight
+    status: ready_for_node_sized_dispatch
     implementation_kind: code_change
     pre_dispatch_checks:
       - direct_claude_code_deepseek_v4_pro_smoke_without_private_manuscript
       - compare_startup_first_output_heartbeat_deadline_exit_and_receipt
       - distinguish_worker_failure_from_agentlab_wrapper_failure
+    pre_dispatch_result:
+      status: passed_with_context_overhead_warning
+      evidence: acceptance_runs/worker_chain/coder_deepseek_preflight_20260720.yml
+      required_model_key: deepseek_v4_pro
+      require_node_sized_packets: true
     allowed_roots:
       - agent_runtime/narrative/production/
       - agent_runtime/narrative/efficiency/

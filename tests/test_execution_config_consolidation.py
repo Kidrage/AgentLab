@@ -213,7 +213,7 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["prompt_engineer"]["default"] == "deepseek_v4_flash"
 
     assert tier["coder"]["cli_agent"] == "claude_code"
-    assert tier["coder"]["default"] == "qwen3_coder_plus_dashscope"
+    assert tier["coder"]["default"] == "deepseek_v4_pro"
 
     assert tier["artifact_producer"]["cli_agent"] == "grok"
     assert tier["artifact_producer"]["invocation_contract"] == "grok_media"

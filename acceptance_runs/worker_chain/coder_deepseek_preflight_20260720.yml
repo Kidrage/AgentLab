@@ -1,0 +1,95 @@
+schema_version: 1
+preflight_id: coder_deepseek_preflight_20260720
+domain: generic_code_task_infrastructure
+status: pass_with_efficiency_warning
+production_modified: false
+private_manuscript_sent: false
+
+registered_combination:
+  role: Coder
+  worker: claude_code
+  model: deepseek-v4-pro
+  execution_mode: full_cli
+  tier: performance
+
+direct_worker_smoke:
+  status: pass
+  result_marker: AGENTLAB_CODER_SMOKE_OK
+  duration_ms: 16621
+  time_to_first_token_ms: 10240
+  input_tokens: 8148
+  cache_read_input_tokens: 8576
+  output_tokens: 975
+  cost_usd: 0.069403
+
+agentlab_wrapper_before_fix:
+  status: blocked_user_decision
+  expected_model: deepseek-v4-pro
+  actual_model: qwen3-coder-plus
+  actual_provider: qwen-coder
+  exit_code: 1
+  duration_seconds: 3.743894
+  input_tokens: 0
+  output_tokens: 0
+  error: >-
+    API Error 400: the Claude Code gateway supports deepseek-v4-pro or
+    deepseek-v4-flash, but AgentLab passed qwen3-coder-plus.
+  second_paired_override_replay:
+    status: same_failure
+    duration_seconds: 2.944336
+    note: run-agent provider/model preview changed but the persisted CLI profile remained qwen
+
+root_cause:
+  path: config/agent_model_profiles.yml
+  field: modes.full_cli.tiers.performance.coder.default
+  before: qwen3_coder_plus_dashscope
+  after: deepseek_v4_pro
+  classification: incompatible_worker_model_profile
+
+agentlab_wrapper_after_fix:
+  status: completed
+  result_marker: AGENTLAB_WRAPPED_CODER_SMOKE_OK
+  actual_model: deepseek-v4-pro
+  actual_provider: deepseek
+  exit_code: 0
+  duration_seconds: 36.92524
+  input_tokens: 34661
+  cache_read_input_tokens: 169472
+  output_tokens: 2358
+  reported_total_tokens: 206491
+  cost_usd: 0.316991
+  fallback_used: false
+  source_files_modified: false
+
+verification:
+  red_test: tests/test_execution_config_consolidation.py::test_full_cli_performance_defaults_match_role_policy
+  red_result: 1_failed
+  focused_result: 89_passed_0_failed
+  focused_files:
+    - tests/test_execution_config_consolidation.py
+    - tests/test_agent_runner_cli_integration.py
+  matrix_and_focused_result: 92_passed_0_failed
+  full_repository:
+    passed: 2886
+    failed: 0
+    skipped: 2
+    warnings: 11
+    duration_seconds: 327.51
+
+remaining_findings:
+  - wrapper_context_and_template_overhead_is_material_even_for_a_marker_only_task
+  - run_agent_provider_model_preview_does_not_override_cli_profile_authority
+  - prior_600_second_timeouts_require_node_sizing_and_checkpoint_analysis
+  - direct_worker_success_does_not_by_itself_prove_long_task_completion
+
+phase2_dispatch_constraints:
+  - assert_resolved_cli_model_key_is_deepseek_v4_pro_before_execute
+  - use_node_sized_task_packets_instead_of_one_large_phase_packet
+  - record_task_packet_bytes_input_cache_and_output_tokens
+  - persist_checkpoint_before_the_600_second_deadline
+  - compare_direct_worker_and_wrapper_time_for_each_baseline_fixture
+
+postmortem:
+  correct_hypothesis: full_cli_performance_coder_used_an_incompatible_qwen_model_for_claude_code
+  prevented_by: worker_model_compatibility_assertion_and_real_marker_smoke
+  original_reproduction_after_fix: pass_on_deepseek_v4_pro

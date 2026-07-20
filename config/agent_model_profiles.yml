@@ -169,7 +169,7 @@ modes:
           binary_candidates:
             - claude
             - ccs
-          default: qwen3_coder_plus_dashscope
+          default: deepseek_v4_pro
           external_ide_allowed: true
         artifact_producer:
           executor_type: cli_agent
