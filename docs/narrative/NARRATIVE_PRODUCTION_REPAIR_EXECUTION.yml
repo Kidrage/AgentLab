@@ -132,7 +132,7 @@ phases:
 
   - phase_id: phase_2r
     title: context_literary_memory_and_efficiency
-    status: in_progress_node_a_context
+    status: node_a_correction_required
     implementation_kind: code_change
     pre_dispatch_checks:
       - direct_claude_code_deepseek_v4_pro_smoke_without_private_manuscript
@@ -145,8 +145,8 @@ phases:
       require_node_sized_packets: true
     active_node:
       node_id: phase_2r_node_a_context
-      task_id: task_narrative_repair_v2_phase2r_node_a_context
-      authority: docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_2R_NODE_A.yml
+      task_id: task_narrative_repair_v2_phase2r_node_a_context_correction1
+      authority: docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_2R_NODE_A_CORRECTION_1.yml
       later_nodes_blocked: true
     allowed_roots:
       - agent_runtime/narrative/production/

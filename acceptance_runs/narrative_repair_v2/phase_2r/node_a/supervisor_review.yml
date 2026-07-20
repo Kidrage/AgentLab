@@ -1,0 +1,30 @@
+schema_version: 1
+phase: phase_2r_node_a_context
+reviewer: codex_supervisor
+status: rejected_for_correction
+accepted: false
+coder_result_preserved_as_lineage: true
+
+independent_replay:
+  focused_tests: {passed: 32, failed: 0, duration_seconds: 0.53}
+  adversarial_status: pass_when_blocking_was_required
+  observed_false_greens:
+    - invalid_creative_brief_source_hash_was_accepted
+    - chapter_1_prose_was_accepted_as_chapter_25_predecessor
+    - shared_and_role_duplicate_was_loaded_twice_but_ratio_reported_zero
+    - authoritative_literary_pass_and_promotion_fields_survived_as_advisory_signal
+    - creative_brief_content_was_absent_from_manifest
+  evidence_receipt_mismatch:
+    - context_compiler_actual_lines_345_not_reported_260
+    - root_project_handoff_progress_row_missing
+
+scope_review:
+  forbidden_files_touched: false
+  production_modified: false
+  provider_prose_calls: 0
+  actual_cli_model_key: deepseek_v4_pro
+
+decision:
+  next_action: node_local_correction_1
+  later_phase2_nodes_blocked: true
+  phase2r_accepted: false
