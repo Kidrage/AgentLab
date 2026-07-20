@@ -32,6 +32,7 @@ Before deep repository reads, use the canonical handoff:
 - `config/model_catalog.yml` and `config/model_providers.yml`: model/provider facts.
 - `config/model_capacity.yml`: declared capacity fallback routes.
 - `config/repository_handoff_policy.yml`: repository discovery and handoff rules.
+- `config/knowledge_system.yml`: derived knowledge retrieval rollout, storage, and evidence policy.
 
 Never infer a role, model, provider, fallback, or command from a CLI name or an
 old report. Configuration wins.

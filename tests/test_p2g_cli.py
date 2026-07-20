@@ -14,7 +14,7 @@ def test_context_commands_help_and_write(
 ):
     monkeypatch.setenv("AGENTLAB_ROOT", str(isolated_agentlab_root))
     runner = CliRunner()
-    for cmd in ["context-profile", "context-budget", "context-pack", "context-show", "context-audit"]:
+    for cmd in ["context-profile", "context-budget", "context-pack", "context-show", "context-audit", "context-build"]:
         result = runner.invoke(app, [cmd, "--help"])
         assert result.exit_code == 0
     task_id = "task_p2g_cli"
@@ -25,3 +25,19 @@ def test_context_commands_help_and_write(
     assert result.exit_code == 0, result.output
     assert "Context Governance Summary" in result.output
     assert (run_dir / "context_pack.yml").exists()
+
+    build_result = runner.invoke(
+        app,
+        [
+            "context-build",
+            "--project",
+            "AgentLab",
+            "--task-id",
+            task_id,
+            "--request",
+            "csv table dataframe",
+        ],
+    )
+    assert build_result.exit_code == 0, build_result.output
+    assert "Context artifacts built" in build_result.output
+    assert (run_dir / "compression_trace.yml").exists()

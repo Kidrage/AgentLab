@@ -1,0 +1,34 @@
+version: 1
+
+# Rollout is deliberately opt-in. Existing context behavior is unchanged in off mode.
+mode: off
+
+# Retrieval may propose memory changes, but existing acceptance and promotion remain authoritative.
+auto_memory: propose_only
+
+storage:
+  runtime_path: .agentlab_runtime/knowledge
+  keyword_backend: auto
+  catalog: sqlite
+  shard_per_space: true
+  replicate_derived_databases: false
+
+indexing:
+  system_sources: true
+  project_sources: true
+  max_file_bytes: 1000000
+  media_payload: metadata_only
+
+retrieval:
+  top_k: 8
+  required_channels:
+    - keyword
+  optional_channels:
+    - semantic
+    - graph
+  fusion: deterministic_rrf
+  eligible_authority:
+    - canonical
+    - accepted
+  eligible_lifecycle:
+    - active

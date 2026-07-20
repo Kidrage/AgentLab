@@ -2990,39 +2990,20 @@ def context_build_cmd(
     """Build all standard context artifacts for a task run."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
-    from context_governance.runtime_wiring import build_context_pack_for_task
+    from context_governance import write_context_artifacts
 
-    try:
-        result = build_context_pack_for_task(
-            task_id=task_id,
-            project=project_name,
-            agentlab_root=agentlab_root,
-            request_text=request_text,
-            route_profile=route_profile,
-            budget_mode=budget_mode,
-        )
-    except Exception as exc:
-        # Minimal fallback
-        console.print(f"[red]Error building context pack: {exc}[/red]")
-        from context_governance.runtime_wiring import build_context_pack_for_task
-
-        result = build_context_pack_for_task(
-            task_id=task_id,
-            project=project_name,
-            agentlab_root=agentlab_root,
-            request_text=request_text or "",
-        )
+    written_paths = write_context_artifacts(
+        agentlab_root,
+        project_name,
+        task_id,
+        request_text=request_text,
+    )
 
     console.print("[bold green]Context artifacts built:[/bold green]")
-    for name, path in result.get("written_paths", {}).items():
+    for name, path in written_paths.items():
         console.print(f"  {name}: {path}")
-    audit = result.get("compression_audit", {})
-    if audit.get("fallback_used"):
-        console.print("[yellow]Note: fallback mode was used.[/yellow]")
-    if audit.get("warnings"):
-        console.print("[yellow]Warnings:[/yellow]")
-        for w in audit["warnings"]:
-            console.print(f"  - {w}")
+    if route_profile or budget_mode:
+        console.print("[yellow]Route/budget hints are retained for CLI compatibility; active config owns policy.[/yellow]")
 
 
 @app.command("context-status")
@@ -3074,19 +3055,18 @@ def context_smoke_cmd(
 ) -> None:
     """Smoke-test context governance: create fixtures, build artifacts, validate schema."""
     agentlab_root, project_name = runtime_context(project)
-    from context_governance.runtime_wiring import build_context_pack_for_task
+    from context_governance import write_context_artifacts
 
     smoke_task_id = "task_ctx_smoke"
     smoke_request = "This is a smoke test for context governance. Run validation and verify artifacts."
 
-    result = build_context_pack_for_task(
-        task_id=smoke_task_id,
-        project=project_name,
-        agentlab_root=agentlab_root,
+    paths = write_context_artifacts(
+        agentlab_root,
+        project_name,
+        smoke_task_id,
         request_text=smoke_request,
     )
 
-    paths = result.get("written_paths", {})
     console.print("[bold green]Smoke test passed![/bold green]")
     console.print(f"  Task ID: {smoke_task_id}")
     console.print("  Artifacts:")
@@ -3095,22 +3075,22 @@ def context_smoke_cmd(
 
     # Validate schema
     import json
-    audit_path = Path(paths.get("compression_audit", ""))
-    if audit_path.exists():
+    audit_path = Path(paths["compression_audit"]) if paths.get("compression_audit") else None
+    if audit_path is not None and audit_path.exists():
         audit = json.loads(audit_path.read_text(encoding="utf-8"))
         assert audit.get("task_id") == smoke_task_id, "audit task_id mismatch"
         assert audit.get("estimated_tokens_before", 0) > 0, "audit tokens_before empty"
         assert isinstance(audit.get("compression_ratio"), (int, float)), "compression_ratio wrong type"
         console.print("  [green]Audit schema validated.[/green]")
 
-    sources_path = Path(paths.get("context_sources", ""))
-    if sources_path.exists():
+    sources_path = Path(paths["context_sources"]) if paths.get("context_sources") else None
+    if sources_path is not None and sources_path.exists():
         sources = json.loads(sources_path.read_text(encoding="utf-8"))
         assert isinstance(sources.get("sources"), list), "sources must be a list"
         console.print("  [green]Sources schema validated.[/green]")
 
-    pack_path = Path(paths.get("context_pack", ""))
-    if pack_path.exists():
+    pack_path = Path(paths["context_pack"]) if paths.get("context_pack") else None
+    if pack_path is not None and pack_path.exists():
         pack = yaml.safe_load(pack_path.read_text(encoding="utf-8"))
         assert pack is not None, "context_pack.yml not parseable"
         console.print("  [green]Context pack schema validated.[/green]")

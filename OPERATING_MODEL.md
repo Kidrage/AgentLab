@@ -19,6 +19,11 @@ progress snapshots. Those facts have machine-readable owners listed below.
 | Lifecycle graph | `agent_runtime/lifecycle_graph.py` plus the selected production pack |
 | Task state and event projection | run-local state files and `agent_runtime/task_index.py` |
 | Promotion | `agent_runtime/project_artifact_steward.py` and project artifact index |
+| Structured project facts | Project Brain events and the projected fact snapshot |
+| Current project artifacts | `production/` plus `project_artifact_index.yml` |
+| Task evidence | run-local evidence bundles, traces, reports, and receipts |
+| Operator-maintained memory | project `agent_docs/` governed by `config/memory_policy.yml` |
+| Derived knowledge retrieval | `agent_runtime/knowledge_system/` and `config/knowledge_system.yml` |
 | Current acceptance | `acceptance_runs/agentlab_capability_acceptance/current.yml` |
 
 No lower layer may redefine an upper-layer concern. In particular, route config
@@ -161,6 +166,11 @@ artifact index, chapter packet, previous continuity ledger, current draft,
 continuity ledger, and state-transition proposal. New facts hidden only in prose
 are not durable facts. RAG or external MCP retrieval may provide evidence later,
 but cannot replace the structured fact authority.
+
+The local knowledge catalog and its per-space SQLite shards live under
+`.agentlab_runtime/knowledge/`. They are rebuildable indexes, not project memory,
+are never promoted or replicated as truth, and may only propose updates for the
+existing acceptance, promotion, and Project Brain mechanisms to commit.
 
 ## 8. Cost And Capacity
 

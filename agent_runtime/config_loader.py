@@ -52,6 +52,7 @@ CONFIG_FILES = {
     "version_policy": "version_policy.yml",
     "worker_invocation_contracts": "worker_invocation_contracts.yml",
     "memory_policy": "memory_policy.yml",
+    "knowledge_system": "knowledge_system.yml",
     "migration_profile": "migration_profile.yml",
     "media_generation_backends": "media_generation_backends.yml",
     "production_packs": "production_packs.yml",
