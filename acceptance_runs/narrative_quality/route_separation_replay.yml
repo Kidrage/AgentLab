@@ -1,0 +1,87 @@
+schema_version: 1
+replay_id: route_separation_phase0r_20260720
+replay_kind: green_replay
+status: confirmed_route_separation
+generated_at: '2026-07-20T00:00:00.000000+00:00'
+generated_by: Coder
+generated_by_worker: claude_code
+generated_by_model: deepseek-v4-pro
+
+proof:
+  claim: |
+    The narrative-production repair Phase 0R is routed as a codebase_build_project
+    assigned to Coder, not as a narrative_heavy_audit or prose-generation task.
+    Code-task governance and narrative-task governance remain separate routes.
+
+  evidence:
+    - evidence_type: mission_contract
+      path: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_MISSION.yml
+      field: governance_route
+      value: codebase_build_project
+    - evidence_type: mission_contract
+      path: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_MISSION.yml
+      field: project_type
+      value: codebase_build_project
+    - evidence_type: task_packet
+      path: projects/AgentLab/runs/task_narrative_repair_v2_phase0r/task_packet.yml
+      field: project_type
+      value: codebase_build_project
+    - evidence_type: task_packet
+      path: projects/AgentLab/runs/task_narrative_repair_v2_phase0r/task_packet_coder.json
+      field: included_agents.Coder.role
+      value_contains: 代码实现与文件编辑
+    - evidence_type: routing_decision
+      path: projects/AgentLab/runs/task_narrative_repair_v2_phase0r/routing/route_decision_coder.yml
+      field: role
+      value: Coder
+    - evidence_type: routing_decision
+      path: projects/AgentLab/runs/task_narrative_repair_v2_phase0r/routing/route_decision_coder.yml
+      field: selected_worker
+      value: claude_code
+    - evidence_type: execution_contract
+      path: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_EXECUTION.yml
+      field: domain_boundary.active_domain
+      value: narrative_production
+    - evidence_type: execution_contract
+      path: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_EXECUTION.yml
+      field: domain_boundary.code_task_governance
+      value: separate_unchanged_route
+    - evidence_type: phase_assignment
+      path: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_EXECUTION.yml
+      field: phases[phase_0r].implementation_kind
+      value: diagnosis_and_frozen_replay
+
+  negative_checks:
+    - check: no_narrative_heavy_audit_routing
+      result: passed
+      detail: The previous natural-language dispatch misrouted to narrative_heavy_audit;
+        the structured codebase_build_project packet corrected this.
+    - check: no_provider_prose_generation
+      result: passed
+      detail: Phase 0R forbids provider prose generation; none occurred.
+    - check: no_production_write
+      result: passed
+      detail: candidate_only is true; production_modified is false.
+    - check: code_route_unchanged
+      result: passed
+      detail: No code-task routing behavior was altered by this phase.
+
+  route_chain:
+    dispatch: codebase_build_project
+    assigned_role: Coder
+    routing_selection:
+      selected_worker: claude_code
+      selected_command: ccs
+      mode: hybrid_local_company
+      tier: performance
+    actual_executor:
+      cli_binary: claude
+      model: deepseek-v4-pro
+      provider: deepseek-coder
+      note: |
+        Routing selected claude_code via the ccs command wrapper. The actual
+        CLI binary invoked was `claude`, running the deepseek-v4-pro model.
+        Routing selection and actual executor are separately recorded.
+
+rollback: |
+  No rollback needed. This is a route-separation proof replay, not a code change.

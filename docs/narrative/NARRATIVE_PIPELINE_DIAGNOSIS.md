@@ -291,6 +291,66 @@ never written.
 Operationally, leaving the code installed but unsetting
 `AGENTLAB_NARRATIVE_DIAGNOSTICS` disables all telemetry writes.
 
+## Phase 0R v2 Rebaseline (2026-07-20, correction2)
+
+Phase 0R re-executed the diagnostic baseline under a structured codebase_build_project
+dispatch, correcting the prior natural-language misrouting to `narrative_heavy_audit`.
+This is correction attempt 2: two prior Coder reports were rejected for falsely
+labelling diagnostic candidates as user-approved positives and for recording stale
+evidence.
+
+- **Governance route**: `codebase_build_project` → `Coder` → `claude_code` (deepseek-v4-pro)
+- **Calibration v2 frozen**: diagnostic candidates Ch01/Ch04/Ch09/Ch17 (pending user review,
+  NOT user-approved positives), negative Ch26, conflict holdout Ch30, structural-fatigue
+  probes Ch05/Ch07/Ch14
+- **positive_calibration_status**: `missing_user_samples` — authoritative; no positive-threshold
+  use is permitted until the user explicitly selects 3-5 positive calibration chapters
+- **Red replay**: `ch23_malformed_heading_replay.yml` — Ch23 prose exists with SHA256
+  `18b1b2…aa3df8`, heading is `章二十三`, assembly regression confirmed as
+  `malformed_chapter_heading:23`
+- **Green replay**: `route_separation_replay.yml` — proves narrative and code governance
+  routes are separate; routing selected `ccs`/`claude_code` while actual executor was
+  `claude` binary with `deepseek-v4-pro` model
+- **v2 evidence**:
+  `acceptance_runs/narrative_efficiency/frozen_samples_v2.yml`,
+  `acceptance_runs/narrative_efficiency/baseline_metrics_v2.json`,
+  `acceptance_runs/narrative_quality/calibration_manifest_v2.yml`
+- **Coder execution**: Phase 0R was externally executed by Coder via claude_code CLI.
+  This is distinct from provider prose generation (Writer/Reviewer/Auditor calls), which
+  did NOT occur in Phase 0R. Timing/token fields now separately record Coder execution
+  metrics (unavailable — not instrumented) vs. provider prose metrics (unavailable — no
+  provider prose call).
+- **No provider prose generation** occurred; Production unchanged
+- **Focused tests**: 58 passed, 0 failed, 0 skipped in 0.92s
+- **All chapter artifact SHA256 hashes**: recomputed from live artifacts at HEAD `9799ba0`
+
+## Phase 0R v2 Correction3 (2026-07-20)
+
+Correction2 fixed the listed hashes and the focused tests pass, but the phase was
+rejected again because baseline_metrics_v2.json did not freeze all 30 prose
+sources and all 30 outbound context manifests. The v1 baseline_metrics.json covers
+only 13 prose drafts and cannot satisfy the v2 30-chapter requirement.
+
+### Correction3 changes
+
+- **Complete 30-chapter inventory**: `baseline_metrics_v2.json` now contains a
+  `chapter_inventory` array with exactly 30 entries (chapter_id 1–30 in order).
+  Each entry records `source_path`, `source_sha256`, `source_bytes`,
+  `bundle_path`, `bundle_sha256`, and `bundle_bytes` — all computed from live
+  filesystem at HEAD `9799ba0`. All 30 source files and all 30
+  `outbound_context_manifest_writer.yml` bundle files exist and hash-match.
+- **Field rename**: `calibration_v2.positive_samples` → `diagnostic_candidates_pending_user_review`.
+  No `positive_samples` field remains while `positive_calibration_status` is
+  `missing_user_samples`.
+- **Ch23 heading**: Exact heading evidence corrected from truncated `章二十三` to
+  `# 章二十三 · 铁线破晓`. The SHA256 `18b1b2…aa3df8` and
+  `malformed_chapter_heading:23` conclusion are preserved.
+- **v1 coverage truth**: Updated the v1 coverage note to accurately state that v1
+  covers only 13 prose drafts, not all 30 chapters.
+- **Correction metadata**: Added `correction_attempt: 3`, `correction_task_id`,
+  `prior_correction_status`, and Coder retry history to baseline_metrics_v2.json.
+- **No source, test, config, Production, or release changes**.
+
 ## Next Recommended Gate
 
 1. Explicitly approve or decline sending Ch25-Ch27 and their necessary canon

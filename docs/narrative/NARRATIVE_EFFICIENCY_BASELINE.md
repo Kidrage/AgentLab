@@ -196,3 +196,44 @@ python3 -m agent_runtime.narrative.diagnostics.baseline \
 This command is read-only with respect to project artifacts. It rewrites only the
 generated baseline JSON. It does not invoke a model, modify Production, or repair
 the confirmed defects.
+
+## Phase 0R v2 Rebaseline (2026-07-20, correction2)
+
+Phase 0R re-established the efficiency baseline under the corrected
+`codebase_build_project` governance route. No efficiency measurements changed —
+the v1 frozen file hashes, metric cases, and sample groups remain authoritative.
+
+- **v2 manifest**: `acceptance_runs/narrative_efficiency/frozen_samples_v2.yml`
+  adds calibration v2 references, red/green replays, and SHA256 recomputability
+  notes without overwriting v1.
+- **v2 metrics**: `acceptance_runs/narrative_efficiency/baseline_metrics_v2.json`
+  records the v2 calibration structure. Coder execution (claude_code / deepseek-v4-pro)
+  is recorded separately from provider prose generation. Provider-prose timing, token,
+  and retry fields are explicitly unavailable (no provider prose call occurred in
+  Phase 0R). Focused tests: 58 passed / 0 failed / 0 skipped.
+- **Calibration**: v1 had `positive_calibration_status: missing_user_samples`;
+  v2 records four diagnostic candidates (Ch01/Ch04/Ch09/Ch17) pending user review —
+  NOT user-approved positives. `positive_calibration_status` remains
+  `missing_user_samples`. Structural-fatigue probes (Ch05/Ch07/Ch14) and conflict
+  holdout (Ch30) are frozen with real SHA256 values.
+- **Provider prose generation**: 0 calls, 0 candidates, 0 tokens, 0 cost.
+  Production unchanged.
+- **All artifact hashes**: recomputed at HEAD `9799ba0` via `shasum -a 256` and
+  recorded in `calibration_manifest_v2.yml`.
+
+## Phase 0R v2 Correction3 (2026-07-20)
+
+Correction2 was rejected because the v2 baseline lacked a complete 30-chapter
+source and outbound-context-bundle hash inventory. Correction3 completes it.
+
+- **Complete hash table**: `baseline_metrics_v2.json` `chapter_inventory` now
+  freezes all 30 chapters (1–30 in order). Every chapter entry has verified
+  `source_sha256`, `source_bytes`, `bundle_sha256`, and `bundle_bytes` computed
+  from live filesystem at HEAD `9799ba0`. All 60 paths (30 source + 30 bundle)
+  exist and independently hash-match.
+- **Field rename**: `positive_samples` renamed to `diagnostic_candidates_pending_user_review`.
+  No misleading field name while `positive_calibration_status` is `missing_user_samples`.
+- **Ch23 heading**: Corrected to exact `# 章二十三 · 铁线破晓`.
+- **v1 coverage**: Updated to truthfully note v1 covers only 13 prose drafts.
+- **No efficiency measurement, source, config, Production, or release changes**.
+- **Focused tests**: 58 passed, 0 failed, 0 skipped.

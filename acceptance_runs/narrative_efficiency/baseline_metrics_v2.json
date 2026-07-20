@@ -1,0 +1,167 @@
+{
+  "schema_version": 2,
+  "baseline_kind": "narrative_phase_0r_v2_rebaseline",
+  "correction_attempt": 3,
+  "correction_task_id": "task_narrative_repair_v2_phase0r_correction3",
+  "prior_correction_status": "rejected_for_correction_3",
+  "generated_at": "2026-07-20T04:30:00.000000+00:00",
+  "generated_by": "Coder",
+  "generated_by_worker": "claude_code",
+  "generated_by_model": "deepseek-v4-pro",
+  "governance_route": "codebase_build_project",
+  "supersedes": "acceptance_runs/narrative_efficiency/baseline_metrics.json",
+  "supersedes_policy": "append_or_version_never_overwrite_immutable_v1",
+  "git": {
+    "source_head": "9799ba019197b27361ff44f7c9f19654ee4f9215",
+    "branch": "feature/narrative-production-closure",
+    "v1_baseline_head": "8456bc6ad487d68c7404e6c14ef2a82ad2fe9706",
+    "note": "Phase 0R correction3 applies at current HEAD 9799ba0; v1 baseline was frozen at 8456bc6"
+  },
+  "root": ".",
+  "v1_manifest": "acceptance_runs/narrative_efficiency/frozen_samples.yml",
+  "v2_manifest": "acceptance_runs/narrative_efficiency/frozen_samples_v2.yml",
+  "calibration_manifest": "acceptance_runs/narrative_quality/calibration_manifest_v2.yml",
+  "calibration_status": "missing_user_samples",
+  "safety": {
+    "candidate_only": true,
+    "production_modified": false,
+    "measurement": "phase_0r_correction3_no_source_changes_no_provider_prose"
+  },
+  "calibration_v2": {
+    "diagnostic_candidates_pending_user_review": [1, 4, 9, 17],
+    "diagnostic_authority": "diagnostic_candidate_pending_user_review",
+    "negative_samples": [26],
+    "negative_authority": "user_reported_negative",
+    "conflict_holdout": [30],
+    "holdout_reason": "thematic_strength_versus_reading_fatigue",
+    "structural_fatigue_probes": [5, 7, 14],
+    "trait_tags": {
+      "1": ["strong_opening", "character_establishment", "world_introduction"],
+      "4": ["pacing", "dramatic_tension", "character_agency"],
+      "9": ["causal_reasoning", "strategic_competence", "world_depth"],
+      "17": ["character_arc", "emotional_resonance", "reader_curiosity"]
+    },
+    "note": "No positive_samples field exists; diagnostic candidates are NOT user-approved. positive_calibration_status remains missing_user_samples."
+  },
+  "chapter_inventory": {
+    "description": "Complete 30-chapter source and outbound-context-bundle inventory. All SHA256 and byte values computed from live filesystem at HEAD 9799ba0.",
+    "canonical_run_pattern": "projects/Crown_of_Ash/runs/task_narrative_eval_ch{id}_crown_corrected_200_v3_writer",
+    "source_file": "fiction_draft.md",
+    "bundle_file": "outbound_context_manifest_writer.yml",
+    "chapters": [
+      {"chapter_id": 1, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch01_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "09f7a476d6ea2978a0501b3627b5407c21c95dc9606648ba79651ee4bfc98579", "source_bytes": 14234, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch01_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "b315797fd9d6bad23e82c6ff1f7f2c39949cc47e2d1a2db0c2c737b6a8e3b514", "bundle_bytes": 5781},
+      {"chapter_id": 2, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch02_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "46853692e77edefe2a421e168b8135d343f28f9c65399352407d3c5df3708dc5", "source_bytes": 14425, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch02_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "a39587f6941a345759e21ad536dc2999b944df622d19727978d2e428d9aa8a20", "bundle_bytes": 6685},
+      {"chapter_id": 3, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch03_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "3cc385341063916d0967291d106626814167f398eed235ec6a3d8f7e59b3f27c", "source_bytes": 12965, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch03_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "70190406deeb116a908db1a8795d91f6139dded6aa0ab10fb9d3b4555978edab", "bundle_bytes": 6393},
+      {"chapter_id": 4, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch04_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "07c67176889a441518faf4b4993f6964f8c0b44e08f687416f57f2a3bba9f4ff", "source_bytes": 12424, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch04_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "dce9aacb22af764feef6f1cf906f76ceeb6b63158759bf27252550e8ceb47754", "bundle_bytes": 5768},
+      {"chapter_id": 5, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch05_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "cb36c83beb3b0a2b9ab83f9f115fcb2054575446de23a206905852d6d5424cf4", "source_bytes": 9826, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch05_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "2474d31b00a63b0cd4609c3c3929dfbf831acaf2e6d3d0d9231410c63044065d", "bundle_bytes": 6077},
+      {"chapter_id": 6, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch06_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "0d845e4a633c5b4b953a14f2c04e53f5aa1f776f8a5c951ec2a3de0a64958b9d", "source_bytes": 17651, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch06_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "f3508b75d1fbf33b1b9abcfe74514d08f8ed47bd59b3e504ee045ce0f9c11951", "bundle_bytes": 5769},
+      {"chapter_id": 7, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch07_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "5964e635ff78e45e587589956e46445ab6fa41adadcdc68ffeaab5317e63ca47", "source_bytes": 11750, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch07_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "25417f806314d0c1ae16f9be652b3c77e1667ef26044ab9e885c011ef9fe36e9", "bundle_bytes": 5769},
+      {"chapter_id": 8, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch08_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "94f48958e17e10cf4fc96453cf1f6ef72a10f4f1cf814b833042321ff0a357ce", "source_bytes": 14623, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch08_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "01051db88e948bf124e95147a79fd7b289879978f0d1fc7d6dc791245a41bfb8", "bundle_bytes": 5769},
+      {"chapter_id": 9, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch09_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "22a54cba6dcb6b23a18f82491edffa8e21a15149590ab976a55af174a5c5530f", "source_bytes": 21433, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch09_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "8aafea5131f56a9337fec318fd3a237feac7c240a7540d1cc90fd7468ef23533", "bundle_bytes": 6080},
+      {"chapter_id": 10, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch10_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "c748a48a7418061f483008a23f2d9b787bb3a46199cd7a395d3ffe5806eba162", "source_bytes": 16316, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch10_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "7647113370d1c1d52cf772cf101f00aeb8f3832fb2b371b2a281ddc30c6ebeaa", "bundle_bytes": 6080},
+      {"chapter_id": 11, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch11_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "fbb62d3a1ec7cc3e587c2267ecc06f1324d6cacc92f2da9261913f0e5e284adc", "source_bytes": 13956, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch11_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "b10c693a05340725e27ee584da308cfa132b575cf92d45051ce1767b1fee5081", "bundle_bytes": 5769},
+      {"chapter_id": 12, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch12_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "5c7987fa20a901dccd35dd6617de33fa3b2a379276d75b4804aece768206a26c", "source_bytes": 12562, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch12_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "e9821792a4267561dea19d484fcb6f638ef5441b84d65615917183fc257b4fdc", "bundle_bytes": 5769},
+      {"chapter_id": 13, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch13_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "878fcd8b20022afc536be8faf9cf3a7d438059f3fabd6a0d275c897378d8b8f3", "source_bytes": 15660, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch13_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "87e2c666b76387505e421fa9b7d85f3ee5cd739f9430bc3e69a60a0c0cd21f2a", "bundle_bytes": 5769},
+      {"chapter_id": 14, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch14_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "fca81c7978a9f704cbe91173f76124c00c4924c028f69d4340dbcd7774f94a6a", "source_bytes": 15199, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch14_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "aa90c8d763200e7541d025eaebe4a33c8dc371cfc8fafc0b1d51d188d624838e", "bundle_bytes": 5769},
+      {"chapter_id": 15, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch15_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "a0c251862b70701f74c3ad2908e74ef49cc405ac3f4beaa8b8593127747c9d9b", "source_bytes": 16252, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch15_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "c766b0b34e65fa85e76b4c2bf10a7f47d2d95439ed2040dc68ba739f845ec8e4", "bundle_bytes": 5769},
+      {"chapter_id": 16, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch16_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "072e53b978daf3e4ca3ccf46e536d3884ca046e048e56c7cf728528f54b85e20", "source_bytes": 13899, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch16_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "fd01279cccf42d63a64668e41727589554ce7af56a5ce45e09d560b254c0ff1f", "bundle_bytes": 5769},
+      {"chapter_id": 17, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch17_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "af75351ad6d3459cf0d85113857329c8fce2d58c6fbb6eda37c52c1c4b9972f3", "source_bytes": 19295, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch17_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "08405d730427f55105ec10abc617c18ff80736eb48eacfe8b1880e5e2fb09289", "bundle_bytes": 5770},
+      {"chapter_id": 18, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch18_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "7d00cdacb90de0b2f3bddf6b0c45065f0233647f81d77b7d5bbefa21771b5f23", "source_bytes": 12795, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch18_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "828fced293e7837ef291adbb6caca3b190f4b4db35fa9aafc3dbe668068e4ad1", "bundle_bytes": 5770},
+      {"chapter_id": 19, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch19_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "f50110b3ac3f1b73da83cae31fcdbf6ec777b9f379beb8b3aeb32bbc09138174", "source_bytes": 14774, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch19_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "fcad69cb5f0ca524e57b79c6b8ccb0770c5927d3cd94338d30c624d703549fab", "bundle_bytes": 5770},
+      {"chapter_id": 20, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch20_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "ffaa288591314f17ad3b83ddebf237d06e38726829072c40b0598d005c7bf238", "source_bytes": 14399, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch20_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "ffc545c02a71ad9d4fa79ea8e0f4f4859eadb6fd6427d6d09dbb63826bf9d26b", "bundle_bytes": 6079},
+      {"chapter_id": 21, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch21_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "690533d4e9bb71e444a5370a5c14626199f562219af098435a7213ac0b57c774", "source_bytes": 12407, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch21_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "9e13da9786e29e4ce53e996c1307e41ee918b2d5eb2a06f0f2c71aa6c68bffa6", "bundle_bytes": 5770},
+      {"chapter_id": 22, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch22_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "882dade99a9dbe4f213aec8cc8ce1032a577bdb71ce3f4632cf851e556ab9ac7", "source_bytes": 11769, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch22_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "60c40e74b3b0a316a286e66c412ad62542763b67f222b7fba74109e4d4e60f69", "bundle_bytes": 5769},
+      {"chapter_id": 23, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch23_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "18b1b2b81dc1fcb94848c2b9dc8e3839f0bacd79819283ae037061818aaa3df8", "source_bytes": 9080, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch23_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "89d0c986d7add88fbaad6fb05c0cc91e43677287156e7bf0c1a6a2b608e606c7", "bundle_bytes": 6078},
+      {"chapter_id": 24, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch24_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "df4a30855118c33c41c11989ad4651ab5fa899ccfabc4a9568e23cc85bc21b8e", "source_bytes": 11578, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch24_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "9c2e1604013c65f59ec0a7b090eda398195b9565c1ba9c99215b3a133d7768ae", "bundle_bytes": 6081},
+      {"chapter_id": 25, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch25_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "abe5a32ffc71086308907c54412f2aa9e0a150343eb3a25649ac86896159c16c", "source_bytes": 16151, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch25_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "8f79653308bc08b7e5fa81d2e28189868d4ee0eadc9e3aff9d98d79f9e99e2cf", "bundle_bytes": 6080},
+      {"chapter_id": 26, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "8242a5997cd3ae275b070e9bd4e59d73d53342c639820e0363e76813113882a8", "source_bytes": 11532, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "4570695903f124458a3f9fd41cb0d7eeca516600a77d9f0e7cbdd18d5661ac87", "bundle_bytes": 6081},
+      {"chapter_id": 27, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch27_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "bf51170c09b2c0e29533c00244143ee21fcbfd6164a56d54d1ae8ba35e8d919d", "source_bytes": 10112, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch27_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "ac552af661fbe8a7c377257dc9e53743ee4ae95e9017fd90eef38c3c61a81dec", "bundle_bytes": 6079},
+      {"chapter_id": 28, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch28_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "8bd5fc19ab31dea01ee82f94599ef0defc9399f3a397e0545fd8cf0a9c72c9a4", "source_bytes": 12281, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch28_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "27e9ca546c2b04c036d323bf5f0bea6bd43e78029054c4d06425c517921d5b97", "bundle_bytes": 5769},
+      {"chapter_id": 29, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch29_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "1d424dd8565b8e82ee03fc4ca79c9b6e37fc54aa25ad36fc1c02315abd3f07b9", "source_bytes": 11150, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch29_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "e009b8be34a11d2e4f6c9e7db8aaf2bdccabf3b11ca3b718ef69f45d8d9fdec6", "bundle_bytes": 6079},
+      {"chapter_id": 30, "source_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch30_crown_corrected_200_v3_writer/fiction_draft.md", "source_sha256": "c904b29588570b65db574eaeb4157b937ac55858470feef9ce32663b4a59a34b", "source_bytes": 10599, "bundle_path": "projects/Crown_of_Ash/runs/task_narrative_eval_ch30_crown_corrected_200_v3_writer/outbound_context_manifest_writer.yml", "bundle_sha256": "711d0524265865a764eb3d11eb235063f87fef37a0995783de0e352a456e58f9", "bundle_bytes": 5769}
+    ]
+  },
+  "confirmed_defects": {
+    "malformed_chapter_heading_23": {
+      "chapter": 23,
+      "prose_exists": true,
+      "heading_value": "# 章二十三 · 铁线破晓",
+      "failure_mode": "assembly_regression",
+      "replay": "acceptance_runs/narrative_quality/ch23_malformed_heading_replay.yml"
+    }
+  },
+  "route_separation": {
+    "proved": true,
+    "replay": "acceptance_runs/narrative_quality/route_separation_replay.yml",
+    "governance_route": "codebase_build_project",
+    "assigned_role": "Coder",
+    "assigned_worker": "claude_code"
+  },
+  "timing": {
+    "model_active_seconds": "unavailable_from_provider",
+    "model_active_measurement": "unavailable_from_provider",
+    "provider_process_wall_seconds": "unavailable_no_provider_prose_call_in_phase_0r",
+    "orchestration_wall_seconds": "measured_external_coder_execution_claude_code",
+    "coder_execution": {
+      "occurred": true,
+      "worker": "claude_code",
+      "model": "deepseek-v4-pro",
+      "command": "ccs",
+      "task_id": "task_narrative_repair_v2_phase0r_correction3",
+      "note": "Phase 0R correction3 was externally executed by Coder via claude_code CLI with deepseek-v4-pro. This is distinct from provider prose generation (Writer/Reviewer calls), which did NOT occur in Phase 0R."
+    }
+  },
+  "tokens": {
+    "coder_worker_input_tokens": "unavailable_coder_token_metrics_not_recorded_in_phase_0r",
+    "coder_worker_output_tokens": "unavailable_coder_token_metrics_not_recorded_in_phase_0r",
+    "provider_prose_input_tokens": "unavailable_no_provider_prose_call_in_phase_0r",
+    "provider_prose_output_tokens": "unavailable_no_provider_prose_call_in_phase_0r",
+    "note": "Phase 0R invoked Coder externally via claude_code (deepseek-v4-pro) for evidence creation and correction, but Coder token metrics were not recorded. No provider prose generation (Writer/Reviewer/Auditor) occurred."
+  },
+  "retries": {
+    "coder_correction_attempt": 3,
+    "coder_prior_attempts": ["cmd_0003", "cmd_0005", "correction2"],
+    "provider_prose_retries": "unavailable_no_provider_prose_call_in_phase_0r",
+    "note": "Correction3 is the third Coder attempt for Phase 0R evidence. No provider prose retries occurred."
+  },
+  "context_duplication": {
+    "measured": false,
+    "status": "unavailable_no_provider_context_built_in_phase_0r",
+    "note": "Context bundle construction and duplication measurement belong to Phase 2R live gate"
+  },
+  "duplicated_work": {
+    "detected": false,
+    "status": "not_applicable_phase_0r_has_no_generation_work"
+  },
+  "provider_prose_generation": {
+    "occurred": false,
+    "calls": 0,
+    "candidates_produced": 0
+  },
+  "production_artifacts_changed": {
+    "changed": false,
+    "paths": []
+  },
+  "focused_tests": {
+    "status": "executed_and_passed",
+    "passed": 58,
+    "failed": 0,
+    "skipped": 0,
+    "duration_seconds": 0.92,
+    "command": "PYTHONPATH=.:agent_runtime python -m pytest tests/test_narrative_efficiency.py tests/test_narrative_quality_gate.py tests/test_narrative_job_semantics.py",
+    "target_files": [
+      "tests/test_narrative_efficiency.py",
+      "tests/test_narrative_quality_gate.py",
+      "tests/test_narrative_job_semantics.py"
+    ]
+  },
+  "v1_preservation": {
+    "v1_manifest": "acceptance_runs/narrative_efficiency/frozen_samples.yml",
+    "v1_baseline": "acceptance_runs/narrative_efficiency/baseline_metrics.json",
+    "v1_calibration": "acceptance_runs/narrative_quality/calibration_manifest.yml",
+    "overwrite_policy": "never",
+    "v1_sha256_coverage": "13_prose_drafts_only_not_full_30",
+    "v1_positive_calibration_status": "missing_user_samples",
+    "note": "v1 baseline_metrics.json covers only 13 prose drafts (frozen_files entries). It does not contain a full 30-chapter source+bundle inventory. v2 correction3 adds the complete 30-by-2 hash table."
+  }
+}

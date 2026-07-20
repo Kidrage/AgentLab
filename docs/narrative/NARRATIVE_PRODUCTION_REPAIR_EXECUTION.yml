@@ -78,7 +78,7 @@ global_forbidden_roots:
 phases:
   - phase_id: phase_0r
     title: trusted_rebaseline
-    status: ready
+    status: accepted
     implementation_kind: diagnosis_and_frozen_replay
     goals:
       - freeze_current_30_chapter_hashes
@@ -109,7 +109,7 @@ phases:
 
   - phase_id: phase_1r
     title: prose_only_writer_and_creative_brief
-    status: blocked_by_phase_0r
+    status: ready_for_dispatch
     implementation_kind: code_change
     allowed_roots:
       - agent_runtime/narrative/production/

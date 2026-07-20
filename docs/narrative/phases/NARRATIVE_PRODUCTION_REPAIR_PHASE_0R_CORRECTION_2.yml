@@ -1,0 +1,138 @@
+schema_version: 1
+project: AgentLab
+project_type: codebase_build_project
+task_id: task_narrative_repair_v2_phase0r_correction2
+phase_id: phase_0r_correction2
+title: correct_rejected_phase_0r_evidence
+plan_status: ready
+long_project_governance_required: true
+project_brain_dir: ../../../projects/AgentLab/narrative_repair_v2/project_brain
+goal: >-
+  Edit the existing Phase 0R v2 evidence and documentation so every rejected
+  claim is corrected and every deterministic acceptance check passes. This is
+  a correction task, not a fresh diagnosis and not a prose-generation task.
+context_summary: >-
+  Two prior Coder reports claimed completion without satisfying the correction
+  contract. Treat those reports as rejected lineage. Do not merely summarize or
+  re-validate the existing files: change the files until all requirements below
+  are true, then run the exact test command and report its real result.
+allowed_files:
+  - docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md
+  - docs/narrative/NARRATIVE_CALL_GRAPH.md
+  - docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md
+  - acceptance_runs/narrative_efficiency/frozen_samples_v2.yml
+  - acceptance_runs/narrative_efficiency/baseline_metrics_v2.json
+  - acceptance_runs/narrative_quality/calibration_manifest_v2.yml
+  - acceptance_runs/narrative_quality/ch23_malformed_heading_replay.yml
+  - acceptance_runs/narrative_quality/route_separation_replay.yml
+  - PROJECT_HANDOFF.md
+forbidden_files:
+  - agent_runtime/**
+  - agent_templates/**
+  - config/**
+  - tests/**
+  - projects/Crown_of_Ash/production/**
+  - projects/NovelGen/production/**
+  - release_objects/**
+  - .env
+  - agent_runtime/.env
+  - .git/**
+must_read_artifacts:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_0R.yml
+  - acceptance_runs/narrative_efficiency/frozen_samples_v2.yml
+  - acceptance_runs/narrative_efficiency/baseline_metrics_v2.json
+  - acceptance_runs/narrative_quality/calibration_manifest_v2.yml
+  - acceptance_runs/narrative_quality/ch23_malformed_heading_replay.yml
+  - acceptance_runs/narrative_quality/route_separation_replay.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r/execution_log.yml
+correction_requirements: &correction_requirements
+  - >-
+    Ch01, Ch04, Ch09, and Ch17 are diagnostic high-quality candidates pending
+    user review. They are not user-approved positive samples and must not use
+    user_reported_positive, user_approved, or equivalent authority labels.
+  - >-
+    Persist positive_calibration_status: missing_user_samples and explicitly
+    prohibit using those diagnostic candidates to set positive quality
+    thresholds until the user accepts 3-5 samples.
+  - >-
+    Compute the current SHA256 for every referenced chapter artifact, including
+    Ch04, Ch05, Ch07, Ch09, Ch14, and Ch17. No unavailable, unknown, null, or
+    placeholder hash is acceptable.
+  - >-
+    Record source_head as exactly
+    9799ba019197b27361ff44f7c9f19654ee4f9215, the verified pre-attempt HEAD.
+  - >-
+    Ch23 replay must bind to the actual prose artifact and hash, show the actual
+    malformed heading evidence, and conclude malformed_chapter_heading:23 rather
+    than missing_chapter.
+  - >-
+    Route evidence must distinguish the route decision selected_command (ccs)
+    from the actual execution binary (claude), model (deepseek-v4-pro), resolved
+    tier (full), and recorded Coder command receipts.
+  - >-
+    Baseline evidence must distinguish zero narrative-pipeline prose/model work
+    from the external AgentLab Coder executions used to construct and correct
+    the evidence. Do not claim that Phase 0R as a whole had no external execution.
+  - >-
+    Run exactly: PYTHONPATH=.:agent_runtime python -m pytest -q
+    tests/test_narrative_efficiency.py tests/test_narrative_quality_gate.py
+    tests/test_narrative_job_semantics.py. Acceptance requires 58 passed and zero
+    failures; do not classify a failure as pre-existing.
+  - >-
+    Remove or supersede every contradictory completion claim in the v2 evidence,
+    three diagnosis documents, and the current handoff state. Preserve the prior
+    Coder rows as lineage, but append this correction task's in-progress and
+    completed-or-blocked progress rows.
+state_contract:
+  attempt: correction_2
+  prior_attempts: [cmd_0003, cmd_0005]
+  prior_result_status: rejected_for_correction_2
+  correction_requirements: *correction_requirements
+acceptance_criteria:
+  - no false positive-sample authority remains in any v2 evidence
+  - positive_calibration_status remains missing_user_samples
+  - every referenced artifact hash is real and recomputable
+  - source_head equals the verified pre-attempt HEAD
+  - Ch23 red replay is hash-bound and identifies malformed heading
+  - route selection and actual executor are separately recorded
+  - narrative pipeline metrics and Coder execution receipts are separately recorded
+  - focused deterministic tests pass with 58 passed and zero failures
+  - no source, configuration, Production, or release artifact changes
+outputs:
+  - acceptance_runs/narrative_efficiency/frozen_samples_v2.yml
+  - acceptance_runs/narrative_efficiency/baseline_metrics_v2.json
+  - acceptance_runs/narrative_quality/calibration_manifest_v2.yml
+  - acceptance_runs/narrative_quality/ch23_malformed_heading_replay.yml
+  - acceptance_runs/narrative_quality/route_separation_replay.yml
+  - docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md
+  - docs/narrative/NARRATIVE_CALL_GRAPH.md
+  - docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md
+  - PROJECT_HANDOFF.md
+roles: [Coder]
+available_workers: [claude_code]
+approved_workers: [claude_code]
+dispatch_units:
+  - phase_id: phase_0r_correction2
+    objective: Correct rejected Phase 0R evidence in place and prove every acceptance check.
+    executor_type: claude_code_handoff
+commands_allowed:
+  - rg
+  - shasum -a 256
+  - git rev-parse HEAD
+  - git status --short
+  - git diff --check
+  - PYTHONPATH=.:agent_runtime python -m pytest
+commands_forbidden:
+  - git push
+  - git reset --hard
+  - git clean
+  - rm -rf
+  - provider prose generation
+rollback_required: true
+cost_policy: local_deterministic_only
+safety_notes:
+  - Production and release objects are read-only.
+  - Do not alter runtime code, configuration, or tests.
+  - Do not start Phase 1R.
+  - A report that only restates existing files is a failed correction.

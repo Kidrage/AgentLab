@@ -4,7 +4,7 @@ project_type: codebase_build_project
 task_id: task_narrative_repair_v2_phase0r
 phase_id: phase_0r
 title: trusted_rebaseline
-plan_status: ready
+plan_status: accepted
 self_check:
   passed: true
   checks:
@@ -67,9 +67,20 @@ artifact_intent:
   baseline_files: append_or_version; never overwrite immutable v1 evidence
   product_artifacts: read_only
   production: unchanged
+state_contract:
+  attempt: correction_1
+  prior_result_status: rejected_for_correction
+  correction_requirements:
+    - label Ch01 Ch04 Ch09 Ch17 as diagnostic candidates pending user review, never user-approved positives
+    - persist positive_calibration_status as missing_user_samples and prohibit positive-threshold use
+    - compute current SHA256 values for every referenced chapter artifact; no unavailable placeholders
+    - rerun all three focused files with PYTHONPATH set and require a zero-failure result
+    - bind source_head to the actual pre-attempt HEAD and distinguish routing selection from the actual CLI binary/model
+    - distinguish narrative-pipeline metrics from the Coder execution receipt; do not claim Phase 0R had no external execution
 acceptance_criteria:
   - current Ch01-Ch30 source and bundle hashes are recomputable and frozen
-  - calibration v2 records positives Ch01 Ch04 Ch09 Ch17 and negative Ch26
+  - calibration v2 records Ch01 Ch04 Ch09 Ch17 only as diagnostic positive candidates pending user review
+  - positive_calibration_status remains missing_user_samples
   - Ch30 is a conflict holdout and not used as a binary threshold sample
   - Ch05 Ch07 and Ch14 are structural-fatigue probes
   - Ch23 replay records malformed_chapter_heading:23 rather than missing chapter
@@ -99,6 +110,7 @@ commands_allowed:
   - git status --short
   - git diff --check
   - python -m pytest
+  - PYTHONPATH=.:agent_runtime python -m pytest
   - python -m compileall
   - ./agentlab.sh protocol-doctor
   - ./agentlab.sh model-doctor
@@ -122,3 +134,6 @@ revision_log:
   - date: 2026-07-20
     reason: Natural-language dispatch misrouted to narrative_heavy_audit.
     change: Force a structured codebase_build_project phase packet owned by Coder.
+  - date: 2026-07-20
+    reason: First Phase 0R result falsely treated diagnostic candidates as user-approved positives.
+    change: Require missing_user_samples until the user explicitly accepts 3-5 chapters.

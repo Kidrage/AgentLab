@@ -58,13 +58,17 @@ Corrections to the source diagnosis:
 - Not every textual symptom worsens monotonically. Confirmed long-range signals
   include falling life-detail density and rising pseudo-precision.
 
-Calibration v2 is immutable once written:
+Calibration v2 remains provisional until the user completes review:
 
-- Positive, trait-tagged: Ch01, Ch04, Ch09, Ch17.
+- Diagnostic high-quality candidates, not user-approved positives: Ch01, Ch04,
+  Ch09, Ch17. They may carry trait tags for review but cannot establish a
+  positive threshold.
 - Negative: Ch26.
 - Conflict holdout: Ch30; it tests thematic strength versus reading fatigue and
   is excluded from binary positive/negative thresholds.
 - Structural-fatigue probes: Ch05, Ch07, Ch14.
+- `positive_calibration_status: missing_user_samples` remains authoritative
+  until the user explicitly accepts 3–5 samples.
 - The current Ch01-Ch30 manuscript and source runs remain a read-only baseline.
 
 All implementation and live trials remain:

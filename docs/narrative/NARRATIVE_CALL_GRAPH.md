@@ -179,3 +179,42 @@ The new event log contains metadata and hashes only and deliberately excludes
 model output/prose. Invocation-level safety fields remain null unless a caller
 supplies measured evidence; the isolated probe proves Production immutability
 separately with before/after tree hashes.
+
+## Phase 0R v2 Update (2026-07-20, correction2)
+
+This call graph and the code it describes are unchanged from the v1 baseline at
+`8456bc6`. Phase 0R is a diagnosis-and-evidence-only phase that does not modify
+source code, routing, or runtime behavior. Current HEAD at time of correction2:
+`9799ba0`.
+
+- **Dispatch correction**: The Phase 0R task was dispatched as `codebase_build_project`
+  → `Coder` → `claude_code` (routing selection `ccs`), executed by the `claude` binary
+  with `deepseek-v4-pro` model. Routing selection and actual executor are separately
+  recorded in `acceptance_runs/narrative_quality/route_separation_replay.yml`.
+- **No call-graph changes**: Narrative entry points, routing classifiers, audit
+  pipelines, and background job wiring remain identical to the frozen v1 baseline.
+- **v2 calibration**: The frozen calibration manifest v2 records four diagnostic
+  candidates (Ch01/Ch04/Ch09/Ch17) pending explicit user review — NOT user-approved
+  positives. `positive_calibration_status` remains `missing_user_samples`.
+  Structural-fatigue probes (Ch05/Ch07/Ch14) and conflict holdout (Ch30) are
+  also frozen. All chapter artifact SHA256 values are recomputable from live
+  artifacts at HEAD `9799ba0`.
+- **Coder execution vs. provider prose**: The Coder was externally executed via
+  claude_code (deepseek-v4-pro) to create evidence files. No provider prose
+  generation (Writer/Reviewer/Auditor) occurred in Phase 0R.
+
+## Phase 0R v2 Correction3 (2026-07-20)
+
+Correction3 completes the v2 baseline by adding the full 30-chapter source and
+outbound-context-bundle hash inventory. No call-graph or runtime changes.
+
+- **Full inventory**: `baseline_metrics_v2.json` `chapter_inventory` now records
+  all 30 chapters (1–30 in order) with source SHA256/bytes and
+  `outbound_context_manifest_writer.yml` bundle SHA256/bytes. All computed from
+  live filesystem at HEAD `9799ba0`.
+- **No `positive_samples` field**: Renamed to `diagnostic_candidates_pending_user_review`.
+  `positive_calibration_status` remains `missing_user_samples`.
+- **Ch23 heading**: Exact first Markdown heading `# 章二十三 · 铁线破晓` recorded.
+- **v1 limitation**: v1 baseline_metrics.json contains only 13 prose draft hashes;
+  the full 30-by-2 table exists only in v2 correction3.
+- **No call-graph, source, config, Production, or release changes**.
