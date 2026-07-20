@@ -132,7 +132,7 @@ phases:
 
   - phase_id: phase_2r
     title: context_literary_memory_and_efficiency
-    status: node_a_accepted_measurement_pending
+    status: node_a_accepted_node_b_integration_required
     implementation_kind: code_change
     pre_dispatch_checks:
       - direct_claude_code_deepseek_v4_pro_smoke_without_private_manuscript
@@ -151,9 +151,10 @@ phases:
       acceptance: acceptance_runs/narrative_repair_v2/phase_2r/node_a/supervisor_review.yml
       accepted: true
     next_required_step:
-      kind: frozen_before_after_measurement
-      code_changes_allowed: false
+      kind: candidate_only_context_packet_integration
+      code_changes_allowed: true
       later_node_dispatch_allowed: false
+      measurement_readiness: acceptance_runs/narrative_repair_v2/phase_2r/measurement_readiness.yml
     allowed_roots:
       - agent_runtime/narrative/production/
       - agent_runtime/narrative/efficiency/

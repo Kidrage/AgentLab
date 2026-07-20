@@ -1,0 +1,42 @@
+schema_version: 1
+phase: phase_2r
+measurement: ordinary_context_before_after
+status: blocked_pending_real_packet_integration
+quality_equivalent_comparison_available: false
+
+frozen_legacy_baseline:
+  project: Crown_of_Ash
+  chapters: [25, 26, 27]
+  source: outbound_context_manifest_writer.yml
+  rows:
+    - {chapter_id: 25, payload_bytes: 104788, inventory_files: 19, inventory_bytes: 117378}
+    - {chapter_id: 26, payload_bytes: 100218, inventory_files: 19, inventory_bytes: 112827}
+    - {chapter_id: 27, payload_bytes: 96065, inventory_files: 19, inventory_bytes: 108767}
+  payload_bytes_median: 100218
+  inventory_files_median: 19
+  inventory_bytes_median: 112827
+
+new_pipeline_measurement:
+  payload_bytes: unavailable
+  input_tokens: unavailable
+  reason: >-
+    ContextCompiler is not yet wired into the real Writer packet preview path,
+    and no frozen quality-equivalent canon snapshot exists for Ch25-Ch27.
+    Test-fixture bundle bytes cannot be compared with the sealed legacy payload.
+
+blocking_requirements:
+  - wire_context_compiler_to_candidate_only_writer_packet_preview
+  - freeze_ch25_ch27_creative_briefs_and_quality_equivalent_canon_snapshots
+  - render_payload_without_provider_execution
+  - compare_exact_payload_bytes_token_estimate_loaded_files_and_duplicate_ratio
+  - verify_required_canon_predecessor_hard_state_and_relevant_memory_are_present
+
+target:
+  ordinary_input_context_median_reduction_percent: 25
+  evaluated: false
+  met: not_evaluated
+
+safety:
+  provider_calls: 0
+  production_writes: 0
+  candidate_only: true
