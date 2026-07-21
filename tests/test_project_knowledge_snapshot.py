@@ -6,6 +6,7 @@ import os
 import subprocess
 
 import yaml
+from click.utils import strip_ansi
 
 from agent_runtime.artifact_digest import artifact_sha256
 from agent_runtime.knowledge_system import (
@@ -93,8 +94,16 @@ def test_knowledge_build_cli_exposes_project_snapshot_seal() -> None:
         capture_output=True,
         text=True,
         check=False,
-        env={**os.environ, "COLUMNS": "180"},
+        env={
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"FORCE_COLOR", "CLICOLOR_FORCE"}
+            },
+            "COLUMNS": "180",
+            "NO_COLOR": "1",
+        },
     )
 
     assert result.returncode == 0, result.stderr
-    assert "--seal-project-snapshot" in result.stdout
+    assert "--seal-project-snapshot" in strip_ansi(result.stdout)

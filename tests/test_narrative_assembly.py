@@ -1,9 +1,11 @@
 from pathlib import Path
 import hashlib
+import os
 import subprocess
 
 import yaml
 import pytest
+from click.utils import strip_ansi
 
 from agent_runtime.narrative.assembly import (
     NarrativeAssemblyError,
@@ -153,8 +155,18 @@ def test_narrative_assemble_cli_is_registered() -> None:
         capture_output=True,
         text=True,
         check=False,
+        env={
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"FORCE_COLOR", "CLICOLOR_FORCE"}
+            },
+            "COLUMNS": "180",
+            "NO_COLOR": "1",
+        },
     )
 
     assert result.returncode == 0, result.stderr
-    assert "--audit-manifest" in result.stdout
-    assert "--output" in result.stdout
+    stdout = strip_ansi(result.stdout)
+    assert "--audit-manifest" in stdout
+    assert "--output" in stdout

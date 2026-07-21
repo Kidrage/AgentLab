@@ -4,6 +4,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from click.utils import strip_ansi
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,9 +35,18 @@ def test_create_crown_cli_exposes_parent_and_rag_cadence_contract() -> None:
         capture_output=True,
         text=True,
         check=False,
-        env={**os.environ, "COLUMNS": "180"},
+        env={
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"FORCE_COLOR", "CLICOLOR_FORCE"}
+            },
+            "COLUMNS": "180",
+            "NO_COLOR": "1",
+        },
     )
     assert result.returncode == 0, result.stderr
-    assert "--parent-task-id" in result.stdout
-    assert "--continuity-checkpoint-cadence" in result.stdout
-    assert "--knowledge-contract-required" in result.stdout
+    stdout = strip_ansi(result.stdout)
+    assert "--parent-task-id" in stdout
+    assert "--continuity-checkpoint-cadence" in stdout
+    assert "--knowledge-contract-required" in stdout

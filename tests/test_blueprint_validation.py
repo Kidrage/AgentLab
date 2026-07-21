@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 import hashlib
+import os
 import subprocess
 
 import pytest
 import yaml
+from click.utils import strip_ansi
 
 from agent_runtime.narrative.blueprint_validation import (
     seal_crown_blueprint,
@@ -250,11 +252,21 @@ def test_validate_blueprint_cli_is_registered() -> None:
         capture_output=True,
         text=True,
         check=False,
+        env={
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"FORCE_COLOR", "CLICOLOR_FORCE"}
+            },
+            "COLUMNS": "180",
+            "NO_COLOR": "1",
+        },
     )
 
     assert result.returncode == 0, result.stderr
-    assert "--chapter-start" in result.stdout
-    assert "--chapter-end" in result.stdout
+    stdout = strip_ansi(result.stdout)
+    assert "--chapter-start" in stdout
+    assert "--chapter-end" in stdout
 
 
 def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_roots(
