@@ -787,13 +787,49 @@ def load_or_build_plan(
     budget_mode: Optional[str] = None,
 ):
     plan_path = agentlab_root / "projects" / project_name / "runs" / task_id / "workflow_plan.yml"
-    if plan_path.exists() and user_request is None and budget_mode is None:
-        from project_artifact_steward import ensure_workflow_artifact_intent
+    if plan_path.exists():
+        from agent_runtime.narrative.production.live_writer_preflight import (
+            load_validated_workflow_plan_data,
+        )
 
-        data = ensure_workflow_artifact_intent(agentlab_root, project_name, task_id, plan_path)
-        from schemas import WorkflowPlan
+        data = load_validated_workflow_plan_data(
+            agentlab_root=agentlab_root,
+            project=project_name,
+            task_id=task_id,
+            plan_path=plan_path,
+        )
+        activated = bool(str(data.get("sealed_user_request_content") or ""))
+        if activated:
+            if user_request is not None and Path(user_request).absolute() != Path(
+                str(data.get("user_request_path") or "")
+            ).absolute():
+                raise ValueError("live_writer_activated_request_override_forbidden")
+            if budget_mode is not None and budget_mode != data.get("budget_mode"):
+                raise ValueError("live_writer_activated_budget_override_mismatch")
+            if execution_backend != data.get("execution_backend"):
+                raise ValueError("live_writer_activated_backend_override_mismatch")
+        if (user_request is None and budget_mode is None) or activated:
+            if not isinstance(data.get("artifact_intent"), dict):
+                from project_artifact_steward import ensure_workflow_artifact_intent
 
-        return WorkflowPlan(**data)
+                data = ensure_workflow_artifact_intent(
+                    agentlab_root,
+                    project_name,
+                    task_id,
+                    plan_path,
+                )
+            from schemas import WorkflowPlan
+
+            return WorkflowPlan(**data)
+        if not isinstance(data.get("artifact_intent"), dict):
+            from project_artifact_steward import ensure_workflow_artifact_intent
+
+            data = ensure_workflow_artifact_intent(
+                agentlab_root,
+                project_name,
+                task_id,
+                plan_path,
+            )
     return build_workflow_plan(
         agentlab_root=agentlab_root,
         project_name=project_name,

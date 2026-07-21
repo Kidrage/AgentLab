@@ -81,7 +81,11 @@ def prepare_live_writer_session(
         return None
     activation_run_dir = raw_run_dir if raw_run_dir.is_absolute() else root / raw_run_dir
     activation_path = activation_run_dir / LIVE_WRITER_REQUEST_NAME
-    if not activation_path.exists() and not activation_path.is_symlink():
+    sealed_request = str(
+        getattr(plan, "sealed_user_request_content", "") or ""
+    )
+    request_missing = not activation_path.exists() and not activation_path.is_symlink()
+    if request_missing and not sealed_request:
         return None
     project = str(getattr(plan, "project", "") or "").strip()
     task_id = str(getattr(plan, "task_id", "") or "").strip()
@@ -112,15 +116,36 @@ def prepare_live_writer_session(
 
     receipt_path = run_dir / LIVE_WRITER_RECEIPT_NAME
     _remove_stale_receipt(receipt_path)
+    if request_missing:
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            ["live_writer_request_missing_after_activation"],
+        )
     if request_path.is_symlink() or _has_symlink_component(root, request_path):
-        return _blocked("live_writer_request_symlink_forbidden")
-    raw = _read_bounded(request_path, MAX_REQUEST_BYTES, "live_writer_request", issues)
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            ["live_writer_request_symlink_forbidden"],
+        )
+    if sealed_request:
+        raw = sealed_request.encode("utf-8")
+        if len(raw) > MAX_REQUEST_BYTES:
+            issues.append("live_writer_request_too_large")
+            raw = b""
+    else:
+        raw = _read_bounded(
+            request_path,
+            MAX_REQUEST_BYTES,
+            "live_writer_request",
+            issues,
+        )
     if not raw:
-        return LiveWriterSession(status="blocked", issues=issues)
+        return _blocked_live_writer_preflight(run_dir, task_id, issues)
     request_sha256 = hashlib.sha256(raw).hexdigest()
     request = _decode_mapping(raw, "live_writer_request", issues)
     if not request:
-        return LiveWriterSession(status="blocked", issues=issues)
+        return _blocked_live_writer_preflight(run_dir, task_id, issues)
 
     _validate_identity(request, project, task_id, issues)
     chapter_id = request.get("chapter_id")
@@ -324,7 +349,7 @@ def prepare_live_writer_session(
                     f"live_writer_creative_brief_invalid:{type(exc).__name__}"
                 )
     if issues:
-        return LiveWriterSession(status="blocked", issues=list(dict.fromkeys(issues)))
+        return _blocked_live_writer_preflight(run_dir, task_id, issues)
 
     reference_snapshots = _reference_snapshots(
         request=request,
@@ -358,7 +383,11 @@ def prepare_live_writer_session(
     candidate_root = (root / "projects" / project / "candidates").resolve()
     output_dir = candidate_root / "live_writer_context" / task_id
     if _has_symlink_component(root, output_dir):
-        return _blocked("live_writer_context_output_symlink_forbidden")
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            ["live_writer_context_output_symlink_forbidden"],
+        )
     optional_context = _dedupe_paths([literary_memory, *supplemental])
     preview = build_writer_packet_preview(
         ContextRequest(
@@ -378,14 +407,19 @@ def prepare_live_writer_session(
         task_id=task_id,
     )
     if preview.status != "pass" or preview.payload is None:
-        return LiveWriterSession(
-            status="blocked",
-            issues=[f"live_writer_packet_blocked:{issue}" for issue in preview.issues],
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            [f"live_writer_packet_blocked:{issue}" for issue in preview.issues],
         )
 
     changed_issues = _changed_reference_issues(reference_snapshots)
     if changed_issues:
-        return LiveWriterSession(status="blocked", issues=changed_issues)
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            changed_issues,
+        )
 
     messages = _live_messages(preview.payload, project, task_id)
     packet = copy.deepcopy(preview.payload)
@@ -398,16 +432,51 @@ def prepare_live_writer_session(
     )
     packet_sha256 = hashlib.sha256(packet_json.encode("utf-8")).hexdigest()
     context_manifest = Path(preview.context_manifest_path).resolve()
-    if hashlib.sha256(request_path.read_bytes()).hexdigest() != request_sha256:
-        return _blocked("live_writer_request_changed_during_compile")
-    if (
-        hashlib.sha256(context_manifest.read_bytes()).hexdigest()
-        != preview.context_manifest_sha256
-    ):
-        return _blocked("live_writer_context_manifest_changed_during_compile")
+    try:
+        current_request_sha256 = hashlib.sha256(request_path.read_bytes()).hexdigest()
+    except FileNotFoundError:
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            ["live_writer_request_missing_during_compile"],
+        )
+    except OSError:
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            ["live_writer_request_unreadable_during_compile"],
+        )
+    if current_request_sha256 != request_sha256:
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            ["live_writer_request_changed_during_compile"],
+        )
+    try:
+        current_context_manifest_sha256 = hashlib.sha256(
+            context_manifest.read_bytes()
+        ).hexdigest()
+    except FileNotFoundError:
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            ["live_writer_context_manifest_missing_during_compile"],
+        )
+    except OSError:
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            ["live_writer_context_manifest_unreadable_during_compile"],
+        )
+    if current_context_manifest_sha256 != preview.context_manifest_sha256:
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            ["live_writer_context_manifest_changed_during_compile"],
+        )
     source_paths = _context_source_paths(root, context_manifest, issues)
     if issues:
-        return LiveWriterSession(status="blocked", issues=list(dict.fromkeys(issues)))
+        return _blocked_live_writer_preflight(run_dir, task_id, issues)
     source_paths = _dedupe_paths([request_path, context_manifest, *source_paths])
     receipt = {
         "schema_version": 1,
@@ -498,6 +567,15 @@ def materialize_live_writer_result(
                 or ""
             ),
         )
+    _persist_live_writer_output_contract(run_dir, task_id, validation)
+    return validation
+
+
+def _persist_live_writer_output_contract(
+    run_dir: Path,
+    task_id: str,
+    validation: dict[str, Any],
+) -> None:
     contract = {
         "schema_version": 1,
         "status": validation.get("status"),
@@ -524,7 +602,29 @@ def materialize_live_writer_result(
         sort_keys=False,
         allow_unicode=True,
     )
-    return validation
+
+
+def _blocked_live_writer_preflight(
+    run_dir: Path,
+    task_id: str,
+    issues: list[str],
+) -> LiveWriterSession:
+    normalized_issues = list(dict.fromkeys(str(issue) for issue in issues if issue))
+    if not normalized_issues:
+        normalized_issues = ["live_writer_preflight_blocked"]
+    _remove_delivery_success_outputs(run_dir)
+    _persist_live_writer_output_contract(
+        run_dir,
+        task_id,
+        {
+            "status": "blocked",
+            "issues": normalized_issues,
+            "prose_sha256": "",
+            "non_prose_output_count": 0,
+            "writer_self_receipt_present": False,
+        },
+    )
+    return LiveWriterSession(status="blocked", issues=normalized_issues)
 
 
 def materialize_registered_writer_result(
@@ -657,10 +757,6 @@ def _remove_delivery_success_outputs(run_dir: Path) -> None:
                 path.unlink()
         except OSError:
             pass
-
-
-def _blocked(issue: str) -> LiveWriterSession:
-    return LiveWriterSession(status="blocked", issues=[issue])
 
 
 def _validate_identity(

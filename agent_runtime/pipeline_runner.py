@@ -551,11 +551,58 @@ def _workflow_plan_for_run(run_dir: Path) -> dict:
     plan_path = run_dir / "workflow_plan.yml"
     if not plan_path.exists():
         return {}
+    if (
+        run_dir.parent.name == "runs"
+        and len(run_dir.parents) > 3
+        and run_dir.parents[2].name == "projects"
+    ):
+        from agent_runtime.narrative.production.live_writer_preflight import (
+            LiveWriterPlanActivationError,
+            load_validated_workflow_plan_data,
+        )
+
+        try:
+            return load_validated_workflow_plan_data(
+                agentlab_root=run_dir.parents[3],
+                project=run_dir.parents[1].name,
+                task_id=run_dir.name,
+                plan_path=plan_path,
+            )
+        except LiveWriterPlanActivationError:
+            raise
+        except Exception:
+            return {}
     try:
         data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _is_activated_preflight_plan(plan_data: dict) -> bool:
+    return bool(str(plan_data.get("sealed_user_request_content") or ""))
+
+
+def _execution_plan_for_run(
+    agentlab_root: Path,
+    project: str,
+    task_id: str,
+    workflow_plan_data: dict,
+    *,
+    budget_mode: str | None,
+):
+    if _is_activated_preflight_plan(workflow_plan_data):
+        from schemas import WorkflowPlan
+
+        return WorkflowPlan(**workflow_plan_data)
+    from workflow_plan import build_workflow_plan
+
+    return build_workflow_plan(
+        agentlab_root,
+        project,
+        task_id,
+        budget_mode=budget_mode,
+    )
 
 
 def _write_synthesis_domain_research_brief(
@@ -2022,22 +2069,20 @@ def run_next_node(
     """
     effective_execution_mode = execution_mode or ("mock_provider" if fake_provider else "execute")
     run_dir = agentlab_root / "projects" / project / "runs" / task_id
+    workflow_plan_data = _workflow_plan_for_run(run_dir)
     state = load_state(run_dir, project, task_id)
     progress = load_progress(run_dir)
     if progress is None or "provider_status" not in progress:
-        route_agents = []
-        plan_path = run_dir / "workflow_plan.yml"
-        if plan_path.exists():
-            plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
-            route_agents = plan_data.get("route", {}).get("agents", [])
+        route_agents = workflow_plan_data.get("route", {}).get("agents", [])
         progress = create_progress(run_dir, project, task_id, route_agents)
 
     if load_lifecycle(run_dir) is None:
-        plan_path = run_dir / "workflow_plan.yml"
-        workflow_plan = {}
-        if plan_path.exists():
-            workflow_plan = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
-        create_lifecycle(run_dir, workflow_plan)
+        lifecycle_plan = {
+            key: value
+            for key, value in workflow_plan_data.items()
+            if key != "sealed_user_request_content"
+        }
+        create_lifecycle(run_dir, lifecycle_plan)
     else:
         _ensure_lifecycle_shape(run_dir)
         _skip_stale_context_nodes(run_dir)
@@ -2158,12 +2203,13 @@ def run_next_node(
             )
             route_agents = plan.route.agents
         else:
-            plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
-            if "artifact_intent" not in plan_data:
+            plan_data = workflow_plan_data
+            activated_preflight = _is_activated_preflight_plan(plan_data)
+            if not activated_preflight and "artifact_intent" not in plan_data:
                 from project_artifact_steward import ensure_workflow_artifact_intent
 
                 plan_data = ensure_workflow_artifact_intent(agentlab_root, project, task_id, plan_path)
-            if not mission_path.exists():
+            if not activated_preflight and not mission_path.exists():
                 from workflow_plan import write_mission_contract_artifacts
 
                 write_mission_contract_artifacts(
@@ -2175,15 +2221,17 @@ def run_next_node(
                 )
             route_agents = plan_data.get("route", {}).get("agents", [])
         active_nodes, pack_id = _production_pack_nodes(plan_data)
-        from skill_injector import inject_skills_into_workflow_plan
-        inject_skills_into_workflow_plan(
-            agentlab_root,
-            plan_path,
-            project=project,
-            task_id=task_id,
-            task_text=task_text,
-            record_usage=True,
-        )
+        if not _is_activated_preflight_plan(plan_data):
+            from skill_injector import inject_skills_into_workflow_plan
+
+            inject_skills_into_workflow_plan(
+                agentlab_root,
+                plan_path,
+                project=project,
+                task_id=task_id,
+                task_text=task_text,
+                record_usage=True,
+            )
         lc = load_lifecycle(run_dir)
         if lc:
             for node_id, agent_name in NODE_TO_AGENT.items():
@@ -2352,7 +2400,6 @@ def run_next_node(
     # Agent output nodes
     agent = NODE_TO_AGENT.get(nid)
     report_file = NODE_TO_REPORT.get(nid)
-    workflow_plan_data = _workflow_plan_for_run(run_dir)
     route_data = workflow_plan_data.get("route", {})
     route_key = route_data.get("route_key") if isinstance(route_data, dict) else None
     narrative_heavy_audit = route_key == "narrative_heavy_audit"
@@ -2567,9 +2614,14 @@ def run_next_node(
     elif agent and not fake_provider:
         # ─── execute mode: call real LLM API via agent_runner ───
         from agent_runner import run_agent_model, report_path_for_agent
-        from workflow_plan import build_workflow_plan
 
-        plan = build_workflow_plan(agentlab_root, project, task_id, budget_mode=budget_mode)
+        plan = _execution_plan_for_run(
+            agentlab_root,
+            project,
+            task_id,
+            workflow_plan_data,
+            budget_mode=budget_mode,
+        )
         plan_route = getattr(plan, "route", None)
         narrative_heavy_audit = (
             getattr(plan_route, "route_key", route_key) == "narrative_heavy_audit"

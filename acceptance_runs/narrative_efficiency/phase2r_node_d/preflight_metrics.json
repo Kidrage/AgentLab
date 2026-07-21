@@ -1,4 +1,8 @@
 {
+  "activation_receipt": {
+    "path": "projects/Crown_of_Ash/runs/_narrative_v2_preflight_batches/b7587019872c14b60354be2ec91bb3e51e0fbd99342e17e1c0c8d7ff3b668a5e.yml",
+    "sha256": "562095451c83d8b675ef6761a0201b0127ae7ebecfb95c387a7b26fedac0d7a9"
+  },
   "candidate_only": true,
   "chapters": [
     25,
@@ -55,7 +59,9 @@
       "request_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch025/narrative_v2_writer_request.yml",
       "request_sha256": "e7e2059128defa48c7c837d5fd659bc0611b5e8fe8ee9704d8bc27b5418c4646",
       "task_id": "task_narrative_v2_gate1_preflight_ch025",
-      "token_estimate": 17013
+      "token_estimate": 17013,
+      "workflow_plan_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch025/workflow_plan.yml",
+      "workflow_plan_sha256": "f626bf9bb5ce25387889c9fbbcc5706548cb3f0741acdea4385bc2a6bb1704ac"
     },
     {
       "byte_stable_across_two_compiles": true,
@@ -74,7 +80,9 @@
       "request_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch026/narrative_v2_writer_request.yml",
       "request_sha256": "5eb0d4ad2b8bb777ba758fb471fc2e9eef85862d610457b948b96fe206672dec",
       "task_id": "task_narrative_v2_gate1_preflight_ch026",
-      "token_estimate": 18791
+      "token_estimate": 18791,
+      "workflow_plan_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch026/workflow_plan.yml",
+      "workflow_plan_sha256": "99936f3d635ca127e100bdf0f61fc5ae7969bab18d33f0b55d543c3db76092f9"
     },
     {
       "byte_stable_across_two_compiles": true,
@@ -93,7 +101,9 @@
       "request_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch027/narrative_v2_writer_request.yml",
       "request_sha256": "9d971611a19c212876c9ebfe65d9ed5a4ab45e54a7d8c74ae38dd0fafe293180",
       "task_id": "task_narrative_v2_gate1_preflight_ch027",
-      "token_estimate": 16952
+      "token_estimate": 16952,
+      "workflow_plan_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch027/workflow_plan.yml",
+      "workflow_plan_sha256": "c7550f47156f7f76fd1d9530d728f7a11fe7766b38f63dcfcc2859dd7fb1cd24"
     }
   ],
   "schema_version": 1,

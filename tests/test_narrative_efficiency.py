@@ -3814,3 +3814,767 @@ def test_live_writer_preflight_does_not_write_through_symlinked_run_dir(
         preflight_live_writer_sessions(spec_path, repository_root=tmp_path)
 
     assert not (outside / "narrative_v2_writer_request.yml").exists()
+
+
+def test_live_writer_preflight_persists_exact_operator_workflow_plan(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        preflight_live_writer_sessions,
+    )
+    import agent_runtime.narrative.production.live_writer_preflight as preflight_module
+    import agent_runtime.narrative.production.live_writer as live_writer_module
+    from agent_runtime.narrative.production.live_writer import (
+        prepare_live_writer_session,
+    )
+    from agent_runtime.agent_runner import run_agent_model
+    from agent_runtime.pipeline_runner import (
+        _execution_plan_for_run,
+        _workflow_plan_for_run,
+        run_next_node,
+    )
+    from agent_runtime.run_task import load_or_build_plan
+
+    source_plan, _request_path, literary_memory = _live_writer_fixture(tmp_path)
+    writer_manifest = (
+        tmp_path
+        / "projects"
+        / source_plan.project
+        / "candidates"
+        / "gate1"
+        / "writer_input_manifest.yml"
+    )
+
+    def ref(path: Path) -> dict[str, str]:
+        return {
+            "path": path.relative_to(tmp_path).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    spec_path = tmp_path / "preflight.yml"
+    spec_path.write_text(
+        yaml.safe_dump(
+            {
+                "candidate_only": True,
+                "project": source_plan.project,
+                "task_prefix": "gate1_operator",
+                "chapters": [25],
+                "writer_input_manifest": ref(writer_manifest),
+                "literary_memories": [
+                    {"chapter_id": 25, "snapshot": ref(literary_memory)}
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    creative_brief = writer_manifest.with_name("creative_brief_source_ch025.yml")
+    monkeypatch.setattr(
+        "agent_runtime.narrative.production.live_writer_preflight.measure_frozen_writer_packets",
+        lambda *_args, **_kwargs: {
+            "derived_sources": [{"chapter_id": 25, **ref(creative_brief)}],
+            "legacy_medians": {
+                "payload_bytes": 100_000,
+                "inventory_bytes": 100_000,
+            },
+        },
+    )
+
+    result = preflight_live_writer_sessions(
+        spec_path,
+        repository_root=tmp_path,
+    )
+    repeated = preflight_live_writer_sessions(
+        spec_path,
+        repository_root=tmp_path,
+    )
+
+    row = result["rows"][0]
+    assert repeated["rows"][0]["workflow_plan_sha256"] == row[
+        "workflow_plan_sha256"
+    ]
+    plan_path = tmp_path / row["workflow_plan_path"]
+    assert plan_path.is_file()
+    loaded = load_or_build_plan(
+        tmp_path,
+        source_plan.project,
+        row["task_id"],
+        "agentlab_orchestrated_cli",
+    )
+    assert loaded.route.route_key == "narrative_generation_v2"
+    assert loaded.route.agents == ["Writer"]
+    assert loaded.user_request_path == str(tmp_path / row["request_path"])
+    assert loaded.execution_policy["external_context_approval_required"] is True
+    same_budget = load_or_build_plan(
+        tmp_path,
+        source_plan.project,
+        row["task_id"],
+        "agentlab_orchestrated_cli",
+        budget_mode="balanced",
+    )
+    assert same_budget.route.route_key == "narrative_generation_v2"
+    assert same_budget.route.agents == ["Writer"]
+    with pytest.raises(
+        ValueError,
+        match="live_writer_activated_budget_override_mismatch",
+    ):
+        load_or_build_plan(
+            tmp_path,
+            source_plan.project,
+            row["task_id"],
+            "agentlab_orchestrated_cli",
+            budget_mode="max-quality",
+        )
+    with pytest.raises(
+        ValueError,
+        match="live_writer_activated_backend_override_mismatch",
+    ):
+        load_or_build_plan(
+            tmp_path,
+            source_plan.project,
+            row["task_id"],
+            "direct_api",
+        )
+    with pytest.raises(
+        ValueError,
+        match="live_writer_activated_request_override_forbidden",
+    ):
+        load_or_build_plan(
+            tmp_path,
+            source_plan.project,
+            row["task_id"],
+            "agentlab_orchestrated_cli",
+            user_request=tmp_path / "alternate_request.md",
+        )
+    pipeline_data = _workflow_plan_for_run(plan_path.parent)
+    pipeline_plan = _execution_plan_for_run(
+        tmp_path,
+        source_plan.project,
+        row["task_id"],
+        pipeline_data,
+        budget_mode=None,
+    )
+    assert pipeline_plan.route.route_key == "narrative_generation_v2"
+    assert pipeline_plan.sealed_user_request_content
+    plan_before_prepare = plan_path.read_bytes()
+    first_node = run_next_node(
+        tmp_path,
+        source_plan.project,
+        row["task_id"],
+        fake_provider=True,
+    )
+    from lifecycle_graph import load_lifecycle, save_lifecycle
+
+    lifecycle = load_lifecycle(plan_path.parent)
+    assert lifecycle is not None
+    for node_id in ("CONTEXT_PROFILE", "CONTEXT_BUDGET", "CONTEXT_PACK"):
+        lifecycle["nodes"][node_id]["status"] = "completed"
+    lifecycle["nodes"]["PREPARE_PLAN"]["status"] = "waiting"
+    save_lifecycle(plan_path.parent, lifecycle)
+    second_node = run_next_node(
+        tmp_path,
+        source_plan.project,
+        row["task_id"],
+        fake_provider=True,
+    )
+    assert [first_node["node"], second_node["node"]] == [
+        "INIT_TASK",
+        "PREPARE_PLAN",
+    ]
+    assert plan_path.read_bytes() == plan_before_prepare
+    activation_path = tmp_path / result["activation_receipt"]["path"]
+    assert activation_path.is_file()
+    original_plan = plan_path.read_text(encoding="utf-8")
+    original_reader = preflight_module._read_root_relative_bytes
+    replaced = False
+
+    def replace_plan_after_sealed_read(root, path):
+        nonlocal replaced
+        content = original_reader(root, path)
+        if Path(path) == plan_path and not replaced:
+            replaced = True
+            plan_path.write_text("project: concurrent_owner\n", encoding="utf-8")
+        return content
+
+    monkeypatch.setattr(
+        preflight_module,
+        "_read_root_relative_bytes",
+        replace_plan_after_sealed_read,
+    )
+    sealed = load_or_build_plan(
+        tmp_path,
+        source_plan.project,
+        row["task_id"],
+        "agentlab_orchestrated_cli",
+    )
+    assert sealed.route.route_key == "narrative_generation_v2"
+    assert plan_path.read_text(encoding="utf-8") == "project: concurrent_owner\n"
+    monkeypatch.setattr(
+        preflight_module,
+        "_read_root_relative_bytes",
+        original_reader,
+    )
+    plan_path.write_text(original_plan, encoding="utf-8")
+    request_path = tmp_path / row["request_path"]
+    original_request = request_path.read_text(encoding="utf-8")
+    request_replaced = False
+
+    def replace_request_after_sealed_read(root, path):
+        nonlocal request_replaced
+        content = original_reader(root, path)
+        if Path(path) == request_path and not request_replaced:
+            request_replaced = True
+            request_path.write_text(
+                original_request + "changed: true\n",
+                encoding="utf-8",
+            )
+        return content
+
+    monkeypatch.setattr(
+        preflight_module,
+        "_read_root_relative_bytes",
+        replace_request_after_sealed_read,
+    )
+    sealed_request_plan = load_or_build_plan(
+        tmp_path,
+        source_plan.project,
+        row["task_id"],
+        "agentlab_orchestrated_cli",
+    )
+    monkeypatch.setattr(
+        preflight_module,
+        "_read_root_relative_bytes",
+        original_reader,
+    )
+    blocked_session = prepare_live_writer_session(tmp_path, sealed_request_plan)
+    assert blocked_session is not None and blocked_session.status == "blocked"
+    assert blocked_session.issues == ["live_writer_request_changed_during_compile"]
+    request_path.write_text(original_request, encoding="utf-8")
+    stale_session_receipt = (
+        request_path.parent / "narrative_v2_writer_session_receipt.yml"
+    )
+    stale_session_receipt.write_text("status: pass\n", encoding="utf-8")
+    stale_fiction = request_path.parent / "fiction_draft.md"
+    stale_execution_receipt = request_path.parent / "writer_execution_receipt.yml"
+    stale_output_contract = request_path.parent / "writer_v2_output_contract.yml"
+    stale_fiction.write_text("old candidate\n", encoding="utf-8")
+    stale_execution_receipt.write_text("status: pass\n", encoding="utf-8")
+    stale_output_contract.write_text("status: pass\n", encoding="utf-8")
+    request_path.unlink()
+    deleted_request_result = run_agent_model(
+        tmp_path,
+        sealed_request_plan,
+        "Writer",
+        request_path.parent / "writer_model_output.md",
+    )
+    assert deleted_request_result.status == "blocked_user_decision"
+    assert deleted_request_result.raw_usage["provider_process_started"] is False
+    deleted_request_payload = yaml.safe_load(deleted_request_result.content)
+    assert deleted_request_payload["issues"] == [
+        "live_writer_request_missing_after_activation"
+    ]
+    assert not stale_session_receipt.exists()
+    assert not stale_fiction.exists()
+    assert not stale_execution_receipt.exists()
+    blocked_output_contract = yaml.safe_load(
+        stale_output_contract.read_text(encoding="utf-8")
+    )
+    assert blocked_output_contract["status"] == "blocked"
+    assert blocked_output_contract["issues"] == [
+        "live_writer_request_missing_after_activation"
+    ]
+    request_path.write_text(original_request, encoding="utf-8")
+    stale_session_receipt.write_text("status: pass\n", encoding="utf-8")
+    stale_fiction.write_text("old candidate\n", encoding="utf-8")
+    stale_execution_receipt.write_text("status: pass\n", encoding="utf-8")
+    stale_output_contract.write_text("status: pass\n", encoding="utf-8")
+    original_packet_preview = live_writer_module.build_writer_packet_preview
+
+    def delete_request_during_packet_compile(*args, **kwargs):
+        preview = original_packet_preview(*args, **kwargs)
+        request_path.unlink()
+        return preview
+
+    monkeypatch.setattr(
+        live_writer_module,
+        "build_writer_packet_preview",
+        delete_request_during_packet_compile,
+    )
+    deleted_during_compile = run_agent_model(
+        tmp_path,
+        sealed_request_plan,
+        "Writer",
+        request_path.parent / "writer_model_output.md",
+    )
+    assert deleted_during_compile.status == "blocked_user_decision"
+    deleted_during_payload = yaml.safe_load(deleted_during_compile.content)
+    assert deleted_during_payload["issues"] == [
+        "live_writer_request_missing_during_compile"
+    ]
+    assert not stale_session_receipt.exists()
+    assert not stale_fiction.exists()
+    assert not stale_execution_receipt.exists()
+    blocked_output_contract = yaml.safe_load(
+        stale_output_contract.read_text(encoding="utf-8")
+    )
+    assert blocked_output_contract["status"] == "blocked"
+    assert blocked_output_contract["issues"] == [
+        "live_writer_request_missing_during_compile"
+    ]
+    monkeypatch.setattr(
+        live_writer_module,
+        "build_writer_packet_preview",
+        original_packet_preview,
+    )
+    request_path.write_text(original_request, encoding="utf-8")
+    plan_path.write_text(original_plan + "changed: true\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="live_writer_plan_activation_hash_mismatch"):
+        load_or_build_plan(
+            tmp_path,
+            source_plan.project,
+            row["task_id"],
+            "agentlab_orchestrated_cli",
+        )
+    plan_path.write_text(original_plan, encoding="utf-8")
+    original_activation = activation_path.read_text(encoding="utf-8")
+    forged_plan = yaml.safe_load(original_plan)
+    forged_plan["sealed_user_request_content"] = "forged persisted content"
+    plan_path.write_text(
+        yaml.safe_dump(forged_plan, sort_keys=False),
+        encoding="utf-8",
+    )
+    forged_activation = yaml.safe_load(original_activation)
+    forged_activation["tasks"][0]["workflow_plan_sha256"] = hashlib.sha256(
+        plan_path.read_bytes()
+    ).hexdigest()
+    activation_path.write_text(
+        yaml.safe_dump(forged_activation, sort_keys=False),
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        ValueError,
+        match="live_writer_plan_runtime_field_persisted",
+    ):
+        load_or_build_plan(
+            tmp_path,
+            source_plan.project,
+            row["task_id"],
+            "agentlab_orchestrated_cli",
+        )
+    plan_path.write_text(original_plan, encoding="utf-8")
+    activation_path.write_text(original_activation, encoding="utf-8")
+    activation_path.unlink()
+    with pytest.raises(ValueError, match="live_writer_plan_activation_missing"):
+        load_or_build_plan(
+            tmp_path,
+            source_plan.project,
+            row["task_id"],
+            "agentlab_orchestrated_cli",
+        )
+
+
+def _stub_live_preflight_spec(tmp_path: Path, chapters: list[int]) -> Path:
+    project = "ProbeNovel"
+    source_root = tmp_path / "inputs"
+    source_root.mkdir()
+
+    def source(name: str, content: str) -> Path:
+        path = source_root / name
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    def ref(path: Path) -> dict[str, str]:
+        return {
+            "path": path.relative_to(tmp_path).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    canon = source("canon.yml", "canon: frozen\n")
+    chapter_inputs = []
+    memories = []
+    for chapter_id in chapters:
+        predecessor = source(f"chapter_{chapter_id - 1:03d}.md", "prior\n")
+        hard_state = source(f"hard_state_{chapter_id:03d}.yml", "facts: []\n")
+        memory = source(f"memory_{chapter_id:03d}.yml", "schema_version: 2\n")
+        chapter_inputs.append(
+            {
+                "chapter_id": chapter_id,
+                "predecessor_prose": ref(predecessor),
+                "hard_state": ref(hard_state),
+            }
+        )
+        memories.append({"chapter_id": chapter_id, "snapshot": ref(memory)})
+    manifest = source_root / "writer_manifest.yml"
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "project": project,
+                "canon_snapshot": ref(canon),
+                "chapter_inputs": chapter_inputs,
+                "shared_memory_sources": [],
+                "writer_private_sources": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    spec_path = tmp_path / "preflight.yml"
+    spec_path.write_text(
+        yaml.safe_dump(
+            {
+                "candidate_only": True,
+                "project": project,
+                "task_prefix": "gate1_transaction",
+                "chapters": chapters,
+                "writer_input_manifest": ref(manifest),
+                "literary_memories": memories,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return spec_path
+
+
+def _passing_stub_live_session(root: Path, plan) -> SimpleNamespace:
+    request = yaml.safe_load(Path(plan.user_request_path).read_text(encoding="utf-8"))
+    memory = root / request["literary_memory"]["path"]
+    return SimpleNamespace(
+        status="pass",
+        issues=[],
+        packet_sha256="a" * 64,
+        packet_bytes=100,
+        context_manifest_sha256="b" * 64,
+        token_estimate=25,
+        loaded_file_count=1,
+        loaded_context_bytes=80,
+        duplicate_context_ratio=0.0,
+        context_bundle_id="ctx-test",
+        literary_memory_sha256=hashlib.sha256(memory.read_bytes()).hexdigest(),
+        source_paths=[memory],
+        provider_calls=0,
+    )
+
+
+def test_live_writer_preflight_does_not_publish_partial_batch_plans(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        preflight_live_writer_sessions,
+    )
+
+    chapters = [25, 26]
+    spec_path = _stub_live_preflight_spec(tmp_path, chapters)
+    monkeypatch.setattr(
+        "agent_runtime.narrative.production.live_writer_preflight.measure_frozen_writer_packets",
+        lambda *_args, **_kwargs: {
+            "derived_sources": [
+                {
+                    "chapter_id": chapter_id,
+                    "path": f"inputs/brief_{chapter_id:03d}.yml",
+                    "sha256": "c" * 64,
+                }
+                for chapter_id in chapters
+            ],
+            "legacy_medians": {},
+        },
+    )
+    calls = 0
+
+    def compile_session(root, plan):
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            return SimpleNamespace(status="blocked", issues=["later_chapter_failed"])
+        return _passing_stub_live_session(root, plan)
+
+    monkeypatch.setattr(
+        "agent_runtime.narrative.production.live_writer_preflight.prepare_live_writer_session",
+        compile_session,
+    )
+
+    with pytest.raises(ValueError, match="later_chapter_failed"):
+        preflight_live_writer_sessions(spec_path, repository_root=tmp_path)
+
+    for chapter_id in chapters:
+        plan_path = (
+            tmp_path
+            / "projects"
+            / "ProbeNovel"
+            / "runs"
+            / f"gate1_transaction_ch{chapter_id:03d}"
+            / "workflow_plan.yml"
+        )
+        assert not plan_path.exists()
+
+
+def test_live_writer_preflight_crash_before_activation_leaves_inert_plan(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        preflight_live_writer_sessions,
+    )
+    from agent_runtime.pipeline_runner import _workflow_plan_for_run
+    from agent_runtime.run_task import load_or_build_plan
+
+    spec_path = _stub_live_preflight_spec(tmp_path, [25])
+    monkeypatch.setattr(
+        "agent_runtime.narrative.production.live_writer_preflight.measure_frozen_writer_packets",
+        lambda *_args, **_kwargs: {
+            "derived_sources": [
+                {
+                    "chapter_id": 25,
+                    "path": "inputs/brief_025.yml",
+                    "sha256": "c" * 64,
+                }
+            ],
+            "legacy_medians": {},
+        },
+    )
+    monkeypatch.setattr(
+        "agent_runtime.narrative.production.live_writer_preflight.prepare_live_writer_session",
+        _passing_stub_live_session,
+    )
+    monkeypatch.setattr(
+        "agent_runtime.narrative.production.live_writer_preflight._publish_batch_activation",
+        lambda **_kwargs: (_ for _ in ()).throw(OSError("injected_activation_crash")),
+    )
+
+    with pytest.raises(OSError, match="injected_activation_crash"):
+        preflight_live_writer_sessions(spec_path, repository_root=tmp_path)
+
+    task_id = "gate1_transaction_ch025"
+    plan_path = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "runs"
+        / task_id
+        / "workflow_plan.yml"
+    )
+    assert plan_path.is_file()
+    with pytest.raises(ValueError, match="live_writer_plan_activation_missing"):
+        load_or_build_plan(
+            tmp_path,
+            "ProbeNovel",
+            task_id,
+            "agentlab_orchestrated_cli",
+        )
+    with pytest.raises(ValueError, match="live_writer_plan_activation_missing"):
+        _workflow_plan_for_run(plan_path.parent)
+
+
+def test_live_writer_preflight_refuses_conflicting_existing_operator_slot(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        preflight_live_writer_sessions,
+    )
+
+    spec_path = _stub_live_preflight_spec(tmp_path, [25])
+    run_dir = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "runs"
+        / "gate1_transaction_ch025"
+    )
+    run_dir.mkdir(parents=True)
+    plan_path = run_dir / "workflow_plan.yml"
+    request_path = run_dir / "narrative_v2_writer_request.yml"
+    plan_path.write_text("project: foreign\n", encoding="utf-8")
+    request_path.write_text("task_id: foreign\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "agent_runtime.narrative.production.live_writer_preflight.measure_frozen_writer_packets",
+        lambda *_args, **_kwargs: {
+            "derived_sources": [
+                {
+                    "chapter_id": 25,
+                    "path": "inputs/brief_025.yml",
+                    "sha256": "c" * 64,
+                }
+            ],
+            "legacy_medians": {},
+        },
+    )
+    monkeypatch.setattr(
+        "agent_runtime.narrative.production.live_writer_preflight.prepare_live_writer_session",
+        _passing_stub_live_session,
+    )
+
+    with pytest.raises(ValueError, match="live_preflight_existing_plan_conflict"):
+        preflight_live_writer_sessions(spec_path, repository_root=tmp_path)
+
+    assert plan_path.read_text(encoding="utf-8") == "project: foreign\n"
+    assert request_path.read_text(encoding="utf-8") == "task_id: foreign\n"
+
+
+def test_live_writer_preflight_rolls_back_partial_plan_publish(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import agent_runtime.narrative.production.live_writer_preflight as preflight
+
+    pending = []
+    for index in (1, 2):
+        run_dir = tmp_path / f"run_{index}"
+        run_dir.mkdir()
+        request_path = run_dir / "narrative_v2_writer_request.yml"
+        request_content = f"task_id: task_{index}\n"
+        request_path.write_text(request_content, encoding="utf-8")
+        pending.append(
+            (
+                run_dir / "workflow_plan.yml",
+                f"task_id: task_{index}\n",
+                request_path,
+                request_content,
+                (run_dir.stat().st_dev, run_dir.stat().st_ino),
+            )
+        )
+    original_publish = preflight._publish_text_exclusive
+    plan_writes = 0
+
+    def fail_second_plan(
+        path,
+        content,
+        *,
+        conflict_error,
+        expected_parent_identity=None,
+        slot=None,
+    ):
+        nonlocal plan_writes
+        if Path(path).name == "workflow_plan.yml":
+            plan_writes += 1
+            if plan_writes == 2:
+                raise OSError("injected_plan_publish_failure")
+        return original_publish(
+            path,
+            content,
+            conflict_error=conflict_error,
+            expected_parent_identity=expected_parent_identity,
+            slot=slot,
+        )
+
+    monkeypatch.setattr(preflight, "_publish_text_exclusive", fail_second_plan)
+
+    with pytest.raises(OSError, match="injected_plan_publish_failure"):
+        preflight._publish_operator_plans(pending)
+
+    assert all(not item[0].exists() for item in pending)
+
+
+def test_live_writer_preflight_exclusive_publish_preserves_concurrent_owner(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import agent_runtime.narrative.production.live_writer_preflight as preflight
+
+    target = tmp_path / "workflow_plan.yml"
+    original_link = preflight.os.link
+
+    def concurrent_occupy(source, destination, **kwargs):
+        fd = preflight.os.open(
+            destination,
+            preflight.os.O_WRONLY | preflight.os.O_CREAT | preflight.os.O_EXCL,
+            0o600,
+            dir_fd=kwargs["dst_dir_fd"],
+        )
+        with preflight.os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write("project: concurrent_owner\n")
+        return original_link(source, destination, **kwargs)
+
+    monkeypatch.setattr(preflight.os, "link", concurrent_occupy)
+
+    with pytest.raises(ValueError, match="live_preflight_existing_plan_conflict"):
+        preflight._publish_text_exclusive(
+            target,
+            "project: expected\n",
+            conflict_error="live_preflight_existing_plan_conflict",
+        )
+
+    assert target.read_text(encoding="utf-8") == "project: concurrent_owner\n"
+
+
+def test_live_writer_plan_publish_does_not_follow_concurrent_parent_swap(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import agent_runtime.narrative.production.live_writer_preflight as preflight
+
+    run_dir = tmp_path / "run"
+    renamed_dir = tmp_path / "renamed_run"
+    outside = tmp_path / "outside"
+    run_dir.mkdir()
+    outside.mkdir()
+    request_path = run_dir / "narrative_v2_writer_request.yml"
+    request_content = "task_id: expected\n"
+    request_path.write_text(request_content, encoding="utf-8")
+    stat = run_dir.stat(follow_symlinks=False)
+    pending = [
+        (
+            run_dir / "workflow_plan.yml",
+            "task_id: expected\n",
+            request_path,
+            request_content,
+            (stat.st_dev, stat.st_ino),
+        )
+    ]
+    original_link = preflight.os.link
+    swapped = False
+
+    def swap_parent_before_link(source, destination, **kwargs):
+        nonlocal swapped
+        if not swapped:
+            swapped = True
+            run_dir.rename(renamed_dir)
+            run_dir.symlink_to(outside, target_is_directory=True)
+        return original_link(source, destination, **kwargs)
+
+    monkeypatch.setattr(preflight.os, "link", swap_parent_before_link)
+
+    with pytest.raises(ValueError, match="live_preflight_run_dir_changed"):
+        preflight._publish_operator_plans(pending)
+
+    assert not (outside / "workflow_plan.yml").exists()
+    assert not (renamed_dir / "workflow_plan.yml").exists()
+
+
+def test_live_writer_plan_locks_are_acquired_in_canonical_order(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import agent_runtime.narrative.production.live_writer_preflight as preflight
+
+    pending = []
+    for name in ("run_b", "run_a"):
+        run_dir = tmp_path / name
+        run_dir.mkdir()
+        request_path = run_dir / "narrative_v2_writer_request.yml"
+        request_content = f"task_id: {name}\n"
+        request_path.write_text(request_content, encoding="utf-8")
+        stat = run_dir.stat(follow_symlinks=False)
+        pending.append(
+            (
+                run_dir / "workflow_plan.yml",
+                f"task_id: {name}\n",
+                request_path,
+                request_content,
+                (stat.st_dev, stat.st_ino),
+            )
+        )
+    acquired = []
+    original_lock = preflight._locked_run_slot
+
+    def record_lock(run_dir, identity):
+        acquired.append(run_dir.name)
+        return original_lock(run_dir, identity)
+
+    monkeypatch.setattr(preflight, "_locked_run_slot", record_lock)
+
+    preflight._publish_operator_plans(pending)
+
+    assert acquired == ["run_a", "run_b"]

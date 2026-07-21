@@ -86,6 +86,7 @@ class WorkflowPlan(BaseModel):
     repo_path: str
     run_dir: str
     user_request_path: str
+    sealed_user_request_content: str = Field(default="", exclude=True)
     execution_backend: ExecutionBackend = "agentlab_orchestrated_cli"
     budget_mode: str = "balanced"
     budget_profile: str = ""
