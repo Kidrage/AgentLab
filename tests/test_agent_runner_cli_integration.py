@@ -1227,6 +1227,8 @@ def test_artifact_supervisor_receives_governance_metadata_not_source_content(
     assert "task_ledger_marker" in rendered
     assert "Artifact governance Supervisor rules" in rendered
     assert "Do not request tools, shell commands, file reads" in rendered
+    assert "ArtifactTask routing is authoritative" in rendered
+    assert "must not block its run-local candidate" in rendered
     assert "source_content_must_not_reach_supervisor" not in rendered
 
 

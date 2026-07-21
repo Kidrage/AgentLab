@@ -58,6 +58,7 @@ def build_token_budgets(route: AgentRoute, budget_config: dict, budget_mode: str
     profile = profiles.get(profile_key, {})
 
     budgets: list[TokenBudget] = []
+    represented_agents: set[str] = set()
     for phase in profile.get("phases", []):
         agent = phase.get("agent")
         if agent and agent not in route.agents:
@@ -75,6 +76,36 @@ def build_token_budgets(route: AgentRoute, budget_config: dict, budget_mode: str
                 warning_threshold_tokens=int(estimated_total * warning_ratio),
                 stop_threshold_tokens=int(estimated_total * stop_ratio),
                 notes=phase.get("notes", ""),
+            )
+        )
+        if agent:
+            represented_agents.add(str(agent))
+
+    fallback_budgets = defaults.get("agent_fallback_budgets") or {}
+    for agent in route.agents:
+        if agent in represented_agents:
+            continue
+        fallback = fallback_budgets.get(agent) or {}
+        if not isinstance(fallback, dict) or not fallback:
+            continue
+        estimated_input = int(fallback.get("estimated_input_tokens", 0))
+        estimated_output = int(fallback.get("estimated_output_tokens", 0))
+        estimated_total = int(
+            fallback.get("estimated_total_tokens")
+            or estimated_input + estimated_output
+        )
+        budgets.append(
+            TokenBudget(
+                phase=str(fallback.get("phase") or f"{agent} execution"),
+                estimated_input_tokens=estimated_input,
+                estimated_output_tokens=estimated_output,
+                estimated_total_tokens=estimated_total,
+                warning_threshold_tokens=int(estimated_total * warning_ratio),
+                stop_threshold_tokens=int(estimated_total * stop_ratio),
+                notes=str(
+                    fallback.get("notes")
+                    or "Route-agent fallback budget used because the selected profile omits this role."
+                ),
             )
         )
 

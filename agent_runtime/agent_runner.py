@@ -1468,6 +1468,14 @@ Artifact governance Supervisor rules:
   access, subagents, or workflow discovery.
 - Approve or block the declared ArtifactTask from its explicit inputs, hashes,
   output contract, candidate-only boundary, role order, and validation gates.
+- ArtifactTask routing is authoritative for ArtifactProducer; a generic
+  workflow-plan role profile is only a fallback and is not a backend conflict.
+- A declared run-local candidate path satisfies this phase. A separately
+  requested final or production path must not block its run-local candidate;
+  keep later materialization gated instead.
+- Generic code-build classification, long-project construction gaps, and an
+  empty repository harness summary do not block a complete candidate-only
+  ArtifactTask that requires no repository mutation.
 - Do not inspect or reproduce source content, create the artifact, mutate files,
   promote candidates, or claim AgentLab-owned receipts are missing.
 - If a declared governance field is absent, name that exact field and block;
