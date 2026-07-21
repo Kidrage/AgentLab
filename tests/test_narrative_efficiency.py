@@ -42,7 +42,6 @@ from agent_runtime.narrative.production.brief_compiler import (
 from agent_runtime.narrative.production.context_compiler import (
     ContextCompiler,
     ContextRequest,
-    ContextResult,
 )
 from agent_runtime.schemas import LLMCallResult
 
@@ -2403,7 +2402,13 @@ def test_literary_memory_compiler_emits_hash_bound_chapter_snapshot(tmp_path) ->
         compile_literary_memory_snapshot,
     )
 
-    source = tmp_path / "projects" / "ProbeNovel" / "candidates" / "memory_source.yml"
+    source = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "chapter_024_memory_source.yml"
+    )
     source.parent.mkdir(parents=True)
     source.write_text(
         """
@@ -2469,6 +2474,7 @@ unresolved_reader_questions: Who removed the lower level from the map?
     )
 
     result = compile_literary_memory_snapshot(
+        project_id="ProbeNovel",
         chapter_id=25,
         selection_path=selection,
         output_path=output,
@@ -2491,12 +2497,352 @@ unresolved_reader_questions: Who removed the lower level from the map?
     assert snapshot["metrics"]["duplicate_source_reloads"] == 0
 
 
+def test_literary_memory_compiler_blocks_malformed_path_inputs(tmp_path) -> None:
+    from agent_runtime.narrative.production.literary_memory import (
+        compile_literary_memory_snapshot,
+    )
+
+    result = compile_literary_memory_snapshot(
+        project_id="ProbeNovel",
+        chapter_id=25,
+        selection_path=None,
+        output_path=None,
+        source_root=tmp_path,
+    )
+
+    assert result.status == "blocked"
+    assert "memory_selection_path_unresolvable" in result.issues
+    assert "memory_output_path_unresolvable" in result.issues
+
+
+def test_literary_memory_compiler_does_not_read_selection_outside_source_root(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.literary_memory import (
+        compile_literary_memory_snapshot,
+    )
+
+    source_root = tmp_path / "source_root"
+    source_root.mkdir()
+    selection = tmp_path / "outside_selection.yml"
+    selection.write_text("schema_version: 2\nchapter_id: 25\n", encoding="utf-8")
+    output = (
+        source_root
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "ch025"
+        / "narrative_memory_snapshot.yml"
+    )
+
+    result = compile_literary_memory_snapshot(
+        project_id="ProbeNovel",
+        chapter_id=25,
+        selection_path=selection,
+        output_path=output,
+        source_root=source_root,
+    )
+
+    assert result.status == "blocked"
+    assert "memory_selection_outside_source_root" in result.issues
+    assert result.metrics["selection_read_count"] == 0
+    assert result.metrics["selection_bytes_loaded"] == 0
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    ("source_project", "source_chapter", "expected_issue"),
+    [
+        (
+            "OtherNovel",
+            99,
+            "memory_source_outside_project:projects/OtherNovel/candidates/chapter_099.yml",
+        ),
+        (
+            "ProbeNovel",
+            1,
+            "memory_source_chapter_mismatch:voice_examples:0",
+        ),
+    ],
+)
+def test_literary_memory_compiler_binds_source_project_and_real_chapter(
+    tmp_path,
+    source_project: str,
+    source_chapter: int,
+    expected_issue: str,
+) -> None:
+    from agent_runtime.narrative.production.literary_memory import (
+        MEMORY_CATEGORIES,
+        MEMORY_REASON_CODES,
+        compile_literary_memory_snapshot,
+    )
+
+    source = (
+        tmp_path
+        / "projects"
+        / source_project
+        / "candidates"
+        / f"chapter_{source_chapter:03d}.yml"
+    )
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        yaml.safe_dump(
+            {category: f"distinct {category} evidence" for category in MEMORY_CATEGORIES}
+        ),
+        encoding="utf-8",
+    )
+    source_ref = {
+        "path": source.relative_to(tmp_path).as_posix(),
+        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+    }
+    selection = tmp_path / "selection.yml"
+    selection.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "chapter_id": 25,
+                "candidate_only": True,
+                "production_modified": False,
+                "categories": {
+                    category: [
+                        {
+                            "source": source_ref,
+                            "locator": {"kind": "yaml_path", "value": category},
+                            "relevance": {
+                                "reason_code": MEMORY_REASON_CODES[category],
+                                "source_chapter_id": 24,
+                                "applies_to": ["Kane"],
+                            },
+                        }
+                    ]
+                    for category in MEMORY_CATEGORIES
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    output = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "ch025"
+        / "narrative_memory_snapshot.yml"
+    )
+
+    result = compile_literary_memory_snapshot(
+        project_id="ProbeNovel",
+        chapter_id=25,
+        selection_path=selection,
+        output_path=output,
+        source_root=tmp_path,
+    )
+
+    assert result.status == "blocked"
+    assert expected_issue in result.issues
+    assert not output.exists()
+
+
+def test_literary_memory_compiler_blocks_conflicting_yaml_chapter_authorities(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.literary_memory import (
+        MEMORY_CATEGORIES,
+        MEMORY_REASON_CODES,
+        compile_literary_memory_snapshot,
+    )
+
+    source = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "chapter_024.yml"
+    )
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        yaml.safe_dump(
+            {
+                "chapter_id": 24,
+                "entries": {
+                    category: {
+                        "chapter_id": 99 if category == "voice_examples" else 24,
+                        "text": f"distinct {category} evidence",
+                    }
+                    for category in MEMORY_CATEGORIES
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    source_ref = {
+        "path": source.relative_to(tmp_path).as_posix(),
+        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+    }
+    selection = tmp_path / "selection.yml"
+    selection.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "chapter_id": 25,
+                "candidate_only": True,
+                "production_modified": False,
+                "categories": {
+                    category: [
+                        {
+                            "source": source_ref,
+                            "locator": {
+                                "kind": "yaml_path",
+                                "value": f"entries.{category}.text",
+                            },
+                            "relevance": {
+                                "reason_code": MEMORY_REASON_CODES[category],
+                                "source_chapter_id": 24,
+                                "applies_to": ["Kane"],
+                            },
+                        }
+                    ]
+                    for category in MEMORY_CATEGORIES
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    output = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "ch025"
+        / "narrative_memory_snapshot.yml"
+    )
+
+    result = compile_literary_memory_snapshot(
+        project_id="ProbeNovel",
+        chapter_id=25,
+        selection_path=selection,
+        output_path=output,
+        source_root=tmp_path,
+    )
+
+    assert result.status == "blocked"
+    assert "memory_source_chapter_conflict:voice_examples:0" in result.issues
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("case", ["duplicate_yaml_text", "overlapping_lines"])
+def test_literary_memory_compiler_rejects_repackaged_or_overlapping_evidence(
+    tmp_path,
+    case: str,
+) -> None:
+    from agent_runtime.narrative.production.literary_memory import (
+        MEMORY_CATEGORIES,
+        MEMORY_REASON_CODES,
+        compile_literary_memory_snapshot,
+    )
+
+    suffix = ".yml" if case == "duplicate_yaml_text" else ".md"
+    source = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / f"chapter_024{suffix}"
+    )
+    source.parent.mkdir(parents=True)
+    if case == "duplicate_yaml_text":
+        values = {category: f"distinct {category}" for category in MEMORY_CATEGORIES}
+        values["emotional_debts"] = values["voice_examples"]
+        source.write_text(yaml.safe_dump(values), encoding="utf-8")
+        locators = {
+            category: {"kind": "yaml_path", "value": category}
+            for category in MEMORY_CATEGORIES
+        }
+    else:
+        source.write_text(
+            "\n".join(f"line {number}" for number in range(1, 10)) + "\n",
+            encoding="utf-8",
+        )
+        locators = {
+            "voice_examples": {"kind": "line_range", "start": 1, "end": 2},
+            "emotional_debts": {"kind": "line_range", "start": 2, "end": 3},
+            "life_detail_anchors": {"kind": "line_range", "start": 4, "end": 4},
+            "recent_scene_signatures": {"kind": "line_range", "start": 5, "end": 5},
+            "unresolved_reader_questions": {
+                "kind": "line_range",
+                "start": 6,
+                "end": 6,
+            },
+        }
+    source_ref = {
+        "path": source.relative_to(tmp_path).as_posix(),
+        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+    }
+    selection = tmp_path / "selection.yml"
+    selection.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "chapter_id": 25,
+                "candidate_only": True,
+                "production_modified": False,
+                "categories": {
+                    category: [
+                        {
+                            "source": source_ref,
+                            "locator": locators[category],
+                            "relevance": {
+                                "reason_code": MEMORY_REASON_CODES[category],
+                                "source_chapter_id": 24,
+                                "applies_to": ["Kane"],
+                            },
+                        }
+                    ]
+                    for category in MEMORY_CATEGORIES
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    output = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "ch025"
+        / "narrative_memory_snapshot.yml"
+    )
+
+    result = compile_literary_memory_snapshot(
+        project_id="ProbeNovel",
+        chapter_id=25,
+        selection_path=selection,
+        output_path=output,
+        source_root=tmp_path,
+    )
+
+    assert result.status == "blocked"
+    assert "memory_evidence_reused_across_categories:emotional_debts:0" in result.issues
+    assert not output.exists()
+
+
 def test_literary_memory_compiler_blocks_incomplete_or_stale_selection(tmp_path) -> None:
     from agent_runtime.narrative.production.literary_memory import (
         compile_literary_memory_snapshot,
     )
 
-    source = tmp_path / "memory_source.yml"
+    source = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "chapter_002_memory_source.yml"
+    )
+    source.parent.mkdir(parents=True)
     source.write_text("voice: bounded evidence\n", encoding="utf-8")
     selection = tmp_path / "selection.yml"
     selection.write_text(
@@ -2511,7 +2857,7 @@ def test_literary_memory_compiler_blocks_incomplete_or_stale_selection(tmp_path)
                         {
                             "text": "bounded evidence",
                             "source": {
-                                "path": "memory_source.yml",
+                                "path": source.relative_to(tmp_path).as_posix(),
                                 "sha256": "0" * 64,
                             },
                             "locator": "voice",
@@ -2523,9 +2869,17 @@ def test_literary_memory_compiler_blocks_incomplete_or_stale_selection(tmp_path)
         ),
         encoding="utf-8",
     )
-    output = tmp_path / "projects" / "ProbeNovel" / "candidates" / "memory.yml"
+    output = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "ch003"
+        / "narrative_memory_snapshot.yml"
+    )
 
     result = compile_literary_memory_snapshot(
+        project_id="ProbeNovel",
         chapter_id=3,
         selection_path=selection,
         output_path=output,
@@ -2533,7 +2887,10 @@ def test_literary_memory_compiler_blocks_incomplete_or_stale_selection(tmp_path)
     )
 
     assert result.status == "blocked"
-    assert "memory_source_hash_mismatch:memory_source.yml" in result.issues
+    assert (
+        "memory_source_hash_mismatch:"
+        "projects/ProbeNovel/candidates/chapter_002_memory_source.yml"
+    ) in result.issues
     for category in (
         "emotional_debts",
         "life_detail_anchors",
@@ -2550,13 +2907,20 @@ def test_literary_memory_compiler_reads_v1_and_writes_v2_compatibility(tmp_path)
         compile_literary_memory_snapshot,
     )
 
-    source = tmp_path / "legacy_memory.md"
+    source = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "chapter_024_legacy_memory.md"
+    )
+    source.parent.mkdir(parents=True)
     source.write_text(
         "\n".join(f"legacy evidence {category}" for category in MEMORY_CATEGORIES),
         encoding="utf-8",
     )
     source_ref = {
-        "path": "legacy_memory.md",
+        "path": source.relative_to(tmp_path).as_posix(),
         "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
     }
     selection = tmp_path / "selection_v1.yml"
@@ -2592,6 +2956,7 @@ def test_literary_memory_compiler_reads_v1_and_writes_v2_compatibility(tmp_path)
     )
 
     result = compile_literary_memory_snapshot(
+        project_id="ProbeNovel",
         chapter_id=25,
         selection_path=selection,
         output_path=output,
@@ -2611,6 +2976,7 @@ def test_literary_memory_compiler_reads_v1_and_writes_v2_compatibility(tmp_path)
     ("case", "expected_issue"),
     [
         ("unsafe_output", "memory_output_must_be_candidate_snapshot"),
+        ("wrong_project_output", "memory_output_must_be_candidate_snapshot"),
         ("malformed_chapter", "memory_chapter_id_must_be_positive_integer"),
         (
             "reused_evidence",
@@ -2620,7 +2986,11 @@ def test_literary_memory_compiler_reads_v1_and_writes_v2_compatibility(tmp_path)
             "outside_window",
             "memory_relevance_chapter_outside_window:voice_examples:0",
         ),
-        ("non_utf8_source", "memory_source_must_be_utf8:memory_source.yml"),
+        (
+            "non_utf8_source",
+            "memory_source_must_be_utf8:"
+            "projects/ProbeNovel/candidates/chapter_024_memory_source.yml",
+        ),
         (
             "item_limit",
             "memory_category_item_limit_exceeded:voice_examples",
@@ -2638,7 +3008,14 @@ def test_literary_memory_compiler_blocks_untrusted_or_unbounded_input(
         compile_literary_memory_snapshot,
     )
 
-    source = tmp_path / "memory_source.yml"
+    source = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "chapter_024_memory_source.yml"
+    )
+    source.parent.mkdir(parents=True)
     if case == "non_utf8_source":
         source.write_bytes(b"\xff\xfe")
     else:
@@ -2649,7 +3026,7 @@ def test_literary_memory_compiler_blocks_untrusted_or_unbounded_input(
             encoding="utf-8",
         )
     source_ref = {
-        "path": "memory_source.yml",
+        "path": source.relative_to(tmp_path).as_posix(),
         "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
     }
     chapter_id = "twenty-five" if case == "malformed_chapter" else 25
@@ -2687,6 +3064,15 @@ def test_literary_memory_compiler_blocks_untrusted_or_unbounded_input(
     )
     if case == "unsafe_output":
         output = tmp_path / "runs" / "narrative_memory_snapshot.yml"
+    elif case == "wrong_project_output":
+        output = (
+            tmp_path
+            / "projects"
+            / "OtherNovel"
+            / "candidates"
+            / "ch025"
+            / "narrative_memory_snapshot.yml"
+        )
     else:
         output = (
             tmp_path
@@ -2698,6 +3084,7 @@ def test_literary_memory_compiler_blocks_untrusted_or_unbounded_input(
         )
 
     result = compile_literary_memory_snapshot(
+        project_id="ProbeNovel",
         chapter_id=chapter_id,
         selection_path=selection,
         output_path=output,

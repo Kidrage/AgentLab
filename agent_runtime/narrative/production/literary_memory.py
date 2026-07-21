@@ -40,6 +40,11 @@ MAX_LINE_RANGE = 20
 MAX_APPLIES_TO = 8
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+_CHAPTER_PATH_RE = re.compile(
+    r"(?:^|[_-])(?:chapter|ch)[_-]?0*(\d+)(?=[_.-]|$)",
+    flags=re.IGNORECASE,
+)
 _YAML_PATH_SEGMENT_RE = re.compile(
     r"^(?P<key>[A-Za-z_][A-Za-z0-9_-]*)(?P<indexes>(?:\[\d+\])*)$"
 )
@@ -68,12 +73,19 @@ class _SourceArtifact:
     sha256: str
 
 
+@dataclass(frozen=True)
+class _ChapterObservation:
+    chapter_id: int | None = None
+    conflicting_authorities: bool = False
+
+
 def compile_literary_memory_snapshot(
     *,
+    project_id: str,
     chapter_id: int,
-    selection_path: Path,
-    output_path: Path,
-    source_root: Path,
+    selection_path: str | Path | None,
+    output_path: str | Path | None,
+    source_root: str | Path | None,
 ) -> LiteraryMemoryResult:
     """Validate a bounded selection and atomically write a schema-v2 snapshot.
 
@@ -94,33 +106,48 @@ def compile_literary_memory_snapshot(
     }
     if safe_chapter_id == 0:
         issues.append("memory_chapter_id_must_be_positive_integer")
+    safe_project_id = str(project_id or "").strip()
+    if not _PROJECT_ID_RE.fullmatch(safe_project_id):
+        issues.append("memory_project_id_invalid")
 
     root = _resolve_path(source_root, "memory_source_root_unresolvable", issues)
-    raw_selection_path = Path(selection_path)
-    raw_output_path = Path(output_path)
-    if raw_output_path.is_symlink():
+    raw_selection_path = _coerce_path(
+        selection_path, "memory_selection_path_unresolvable", issues
+    )
+    raw_output_path = _coerce_path(
+        output_path, "memory_output_path_unresolvable", issues
+    )
+    if raw_output_path is not None and raw_output_path.is_symlink():
         issues.append("memory_output_must_not_be_symlink")
     if root is None:
         return _blocked(safe_chapter_id, issues, metrics)
 
-    selection = _resolve_path(
-        raw_selection_path, "memory_selection_path_unresolvable", issues
+    selection = (
+        _resolve_path(raw_selection_path, "memory_selection_path_unresolvable", issues)
+        if raw_selection_path is not None
+        else None
     )
-    output = _resolve_path(raw_output_path, "memory_output_path_unresolvable", issues)
+    output = (
+        _resolve_path(raw_output_path, "memory_output_path_unresolvable", issues)
+        if raw_output_path is not None
+        else None
+    )
     selection_relative = _relative_to_root(
         selection, root, "memory_selection_outside_source_root", issues
     )
     output_relative = _relative_to_root(
         output, root, "memory_output_outside_source_root", issues
     )
-    if output_relative is not None and not _is_candidate_snapshot_path(output_relative):
+    if output_relative is not None and not _is_candidate_snapshot_path(
+        output_relative, safe_project_id
+    ):
         issues.append("memory_output_must_be_candidate_snapshot")
     if selection is not None and output is not None and selection == output:
         issues.append("memory_output_must_not_overwrite_selection")
 
     selection_raw = b""
     selection_data: Any = {}
-    if selection is not None:
+    if selection is not None and selection_relative is not None:
         selection_raw = _read_bounded_bytes(
             selection,
             MAX_SELECTION_BYTES,
@@ -158,7 +185,8 @@ def compile_literary_memory_snapshot(
     source_cache: dict[str, _SourceArtifact | None] = {}
     source_inventory: dict[str, dict[str, Any]] = {}
     compiled_categories: dict[str, list[dict[str, Any]]] = {}
-    used_evidence: set[tuple[str, str]] = set()
+    used_text_hashes: set[str] = set()
+    used_line_ranges: dict[str, list[tuple[int, int]]] = {}
     legacy_item_count = 0
 
     for category in MEMORY_CATEGORIES:
@@ -185,6 +213,7 @@ def compile_literary_memory_snapshot(
                 continue
             artifact = _load_source_once(
                 root=root,
+                project_id=safe_project_id,
                 relative=relative,
                 cache=source_cache,
                 metrics=metrics,
@@ -228,14 +257,34 @@ def compile_literary_memory_snapshot(
             if relevance is None or extracted is None:
                 continue
             text, locator = extracted
-            evidence_key = (
-                artifact.relative_path,
-                yaml.safe_dump(locator, sort_keys=True),
-            )
-            if evidence_key in used_evidence:
+            chapter_observation = _observed_source_chapter_id(artifact, locator)
+            if chapter_observation.conflicting_authorities:
+                issues.append(f"memory_source_chapter_conflict:{category}:{index}")
+                continue
+            observed_chapter_id = chapter_observation.chapter_id
+            if observed_chapter_id is None:
+                issues.append(f"memory_source_chapter_unverifiable:{category}:{index}")
+                continue
+            if selection_schema == 2:
+                if relevance["source_chapter_id"] != observed_chapter_id:
+                    issues.append(f"memory_source_chapter_mismatch:{category}:{index}")
+                    continue
+            else:
+                relevance["source_chapter_id"] = observed_chapter_id
+                if not _chapter_is_in_window(observed_chapter_id, safe_chapter_id):
+                    issues.append(
+                        f"memory_relevance_chapter_outside_window:{category}:{index}"
+                    )
+                    continue
+            if _evidence_is_reused(
+                artifact=artifact,
+                text=text,
+                locator=locator,
+                used_text_hashes=used_text_hashes,
+                used_line_ranges=used_line_ranges,
+            ):
                 issues.append(f"memory_evidence_reused_across_categories:{category}:{index}")
                 continue
-            used_evidence.add(evidence_key)
             source_inventory[artifact.relative_path] = {
                 "path": artifact.relative_path,
                 "sha256": artifact.sha256,
@@ -334,7 +383,15 @@ def _is_positive_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
-def _resolve_path(path: Path, issue: str, issues: list[str]) -> Path | None:
+def _coerce_path(value: Any, issue: str, issues: list[str]) -> Path | None:
+    try:
+        return Path(value)
+    except (OSError, RuntimeError, ValueError, TypeError):
+        issues.append(issue)
+        return None
+
+
+def _resolve_path(path: Any, issue: str, issues: list[str]) -> Path | None:
     try:
         return Path(path).resolve()
     except (OSError, RuntimeError, ValueError, TypeError):
@@ -357,12 +414,12 @@ def _relative_to_root(
         return None
 
 
-def _is_candidate_snapshot_path(relative: Path) -> bool:
+def _is_candidate_snapshot_path(relative: Path, project_id: str) -> bool:
     parts = relative.parts
     return (
         len(parts) >= 5
         and parts[0] == "projects"
-        and bool(parts[1])
+        and parts[1] == project_id
         and parts[2] == "candidates"
         and bool(parts[3])
         and parts[-1] == "narrative_memory_snapshot.yml"
@@ -405,12 +462,13 @@ def _decode_yaml(raw: bytes, prefix: str, issues: list[str]) -> Any:
 def _load_source_once(
     *,
     root: Path,
+    project_id: str,
     relative: str,
     cache: dict[str, _SourceArtifact | None],
     metrics: dict[str, int],
     issues: list[str],
 ) -> _SourceArtifact | None:
-    resolved = _resolve_source(root, relative, issues)
+    resolved = _resolve_source(root, project_id, relative, issues)
     if resolved is None:
         return None
     source, normalized_relative = resolved
@@ -448,6 +506,7 @@ def _load_source_once(
 
 def _resolve_source(
     root: Path,
+    project_id: str,
     relative: str,
     issues: list[str],
 ) -> tuple[Path, str] | None:
@@ -463,10 +522,105 @@ def _resolve_source(
     )
     if source is None or canonical is None:
         return None
+    expected_project_root = Path("projects") / project_id
+    try:
+        canonical.relative_to(expected_project_root)
+    except ValueError:
+        issues.append(f"memory_source_outside_project:{relative}")
+        return None
     if not source.is_file():
         issues.append(f"memory_source_missing:{relative}")
         return None
     return source, canonical.as_posix()
+
+
+def _observed_source_chapter_id(
+    artifact: _SourceArtifact,
+    locator: dict[str, Any],
+) -> _ChapterObservation:
+    if locator.get("kind") == "yaml_path":
+        observed = _yaml_locator_chapter_id(
+            artifact.raw,
+            str(locator.get("value") or ""),
+        )
+        if observed.conflicting_authorities or observed.chapter_id is not None:
+            return observed
+    path_matches = {
+        int(match)
+        for part in Path(artifact.relative_path).parts
+        for match in _CHAPTER_PATH_RE.findall(part)
+    }
+    if len(path_matches) == 1:
+        return _ChapterObservation(chapter_id=next(iter(path_matches)))
+    return _ChapterObservation()
+
+
+def _yaml_locator_chapter_id(raw: bytes, path: str) -> _ChapterObservation:
+    try:
+        current: Any = yaml.safe_load(raw.decode("utf-8"))
+    except (UnicodeDecodeError, yaml.YAMLError):
+        return _ChapterObservation()
+    observed: set[int] = set()
+    for segment in path.split("."):
+        match = _YAML_PATH_SEGMENT_RE.fullmatch(segment)
+        if match is None or not isinstance(current, dict):
+            return _ChapterObservation()
+        _collect_mapping_chapter_id(current, observed)
+        key = match.group("key")
+        if key not in current:
+            return _ChapterObservation()
+        current = current[key]
+        for raw_index in _YAML_PATH_INDEX_RE.findall(match.group("indexes")):
+            item_index = int(raw_index)
+            if not isinstance(current, list) or item_index >= len(current):
+                return _ChapterObservation()
+            current = current[item_index]
+            if isinstance(current, dict):
+                _collect_mapping_chapter_id(current, observed)
+    if isinstance(current, dict):
+        _collect_mapping_chapter_id(current, observed)
+    if len(observed) == 1:
+        return _ChapterObservation(chapter_id=next(iter(observed)))
+    if len(observed) > 1:
+        return _ChapterObservation(conflicting_authorities=True)
+    return _ChapterObservation()
+
+
+def _collect_mapping_chapter_id(mapping: dict[str, Any], observed: set[int]) -> None:
+    for key in ("chapter_id", "chapter", "chapter_number"):
+        value = mapping.get(key)
+        if _is_positive_int(value):
+            observed.add(value)
+
+
+def _chapter_is_in_window(source_chapter_id: int, chapter_id: int) -> bool:
+    return (
+        source_chapter_id <= chapter_id
+        and source_chapter_id >= max(1, chapter_id - MEMORY_CHAPTER_WINDOW)
+    )
+
+
+def _evidence_is_reused(
+    *,
+    artifact: _SourceArtifact,
+    text: str,
+    locator: dict[str, Any],
+    used_text_hashes: set[str],
+    used_line_ranges: dict[str, list[tuple[int, int]]],
+) -> bool:
+    normalized_text = " ".join(text.split()).casefold()
+    text_hash = hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()
+    if text_hash in used_text_hashes:
+        return True
+    if locator.get("kind") == "line_range":
+        start = int(locator["start"])
+        end = int(locator["end"])
+        ranges = used_line_ranges.setdefault(artifact.relative_path, [])
+        if any(max(start, old_start) <= min(end, old_end) for old_start, old_end in ranges):
+            return True
+        ranges.append((start, end))
+    used_text_hashes.add(text_hash)
+    return False
 
 
 def _validate_relevance(
@@ -487,10 +641,8 @@ def _validate_relevance(
     if reason_code != MEMORY_REASON_CODES[category]:
         issues.append(f"memory_relevance_reason_invalid:{category}:{index}")
         valid = False
-    if (
-        not _is_positive_int(source_chapter_id)
-        or source_chapter_id > chapter_id
-        or source_chapter_id < max(1, chapter_id - MEMORY_CHAPTER_WINDOW)
+    if not _is_positive_int(source_chapter_id) or not _chapter_is_in_window(
+        source_chapter_id, chapter_id
     ):
         issues.append(f"memory_relevance_chapter_outside_window:{category}:{index}")
         valid = False

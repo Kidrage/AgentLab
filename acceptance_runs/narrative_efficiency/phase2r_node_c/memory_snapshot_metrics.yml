@@ -2,7 +2,7 @@ schema_version: 2
 phase_id: phase_2r_node_c_literary_memory
 project: Crown_of_Ash
 chapters: [25, 26, 27]
-status: paused_correction_1_pending_independent_rereview
+status: accepted_node_c
 candidate_only: true
 production_modified: false
 provider_calls: 0
@@ -14,6 +14,12 @@ selection_contract:
   machine_locator_required: true
   category_reason_code_required: true
   distinct_evidence_per_category_required: true
+  normalized_text_reuse_blocked: true
+  overlapping_line_ranges_blocked: true
+  source_chapter_metadata_required: true
+  requested_project_binding_required: true
+  conflicting_yaml_chapter_authorities_blocked: true
+  outside_root_selection_read_count_required: 0
   recent_chapter_window: 5
 compiler_limits:
   max_items_per_category: 3
@@ -60,8 +66,12 @@ rows:
     quality_equivalent_memory_complete: true
     metrics: {selection_read_count: 1, source_read_count: 2, unique_source_count: 2, duplicate_source_reloads: 0, selection_bytes_loaded: 1714, source_bytes_loaded: 21581}
 tests:
-  focused_file: {passed: 54, failed: 0}
-  narrative_domain: {passed: 194, failed: 0}
+  focused_file: {passed: 62, failed: 0}
+  narrative_domain: {passed: 208, failed: 0}
+  full_repository: {passed: 2974, failed: 0, skipped: 2, warnings: 11, duration_seconds: 235.27}
+independent_review:
+  standards: pass
+  spec: pass
 quality_boundary:
   selection_relevance_semantically_proven: false
   literary_uplift_proven: false

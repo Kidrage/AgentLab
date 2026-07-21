@@ -1,7 +1,7 @@
 schema_version: 2
 phase_id: phase_2r_node_c_literary_memory
 priority: highest
-status: paused_correction_1_pending_independent_rereview
+status: accepted_node_c
 authority: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
 objective: >-
   Build one hash-bound, chapter-selected narrative memory snapshot per Writer
@@ -24,6 +24,11 @@ invariants:
   - category_specific_relevance_reason_is_required
   - evidence_cannot_be_reused_across_categories
   - source_chapter_is_inside_bounded_recent_window
+  - source_chapter_matches_path_or_yaml_node_metadata
+  - source_and_output_are_bound_to_requested_project
+  - normalized_text_and_overlapping_ranges_cannot_be_reused
+  - conflicting_yaml_chapter_authorities_fail_closed_without_path_fallback
+  - a_selection_outside_source_root_is_not_read
   - selection_item_source_and_excerpt_limits_are_enforced
   - chapter_id_matches_request
   - candidate_only_true
