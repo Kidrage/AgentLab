@@ -3294,6 +3294,50 @@ def _live_writer_fixture(tmp_path: Path) -> tuple[WorkflowPlan, Path, Path]:
         model_profiles={},
         execution_policy={"external_context_approval_required": True},
     )
+    spec_sha256 = "b" * 64
+    plan.notes = [f"narrative_live_preflight_spec_sha256:{spec_sha256}"]
+    plan_path = run_dir / "workflow_plan.yml"
+    plan_path.write_text(
+        yaml.safe_dump(
+            plan.model_dump(
+                exclude={"sealed_user_request_content", "mission_contract"}
+            ),
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    activation_dir = project_root / "runs" / "_narrative_v2_preflight_batches"
+    activation_dir.mkdir()
+    (activation_dir / f"{spec_sha256}.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "active",
+                "project": project,
+                "preflight_spec_sha256": spec_sha256,
+                "candidate_only": True,
+                "production_modified": False,
+                "task_count": 1,
+                "tasks": [
+                    {
+                        "task_id": task_id,
+                        "request_path": request_path.relative_to(tmp_path).as_posix(),
+                        "request_sha256": hashlib.sha256(
+                            request_path.read_bytes()
+                        ).hexdigest(),
+                        "workflow_plan_path": plan_path.relative_to(
+                            tmp_path
+                        ).as_posix(),
+                        "workflow_plan_sha256": hashlib.sha256(
+                            plan_path.read_bytes()
+                        ).hexdigest(),
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
     return plan, request_path, literary_memory
 
 
@@ -3324,6 +3368,167 @@ def test_live_writer_session_consumes_compiled_packet_and_memory_once(tmp_path) 
     assert receipt["literary_memory_sha256"] == hashlib.sha256(
         literary_memory.read_bytes()
     ).hexdigest()
+
+
+def test_live_writer_session_binds_chinese_prose_length_contract(tmp_path) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        prepare_live_writer_session,
+    )
+
+    plan, _request_path, _literary_memory = _live_writer_fixture(tmp_path)
+
+    session = prepare_live_writer_session(tmp_path, plan)
+
+    assert session is not None and session.status == "pass"
+    receipt = yaml.safe_load(Path(session.receipt_path).read_text(encoding="utf-8"))
+    assert receipt["prose_length_contract"] == {
+        "unit": "han_characters_excluding_markdown_headings",
+        "minimum": 4500,
+        "maximum": 5500,
+    }
+    assert "4,500–5,500 Han characters" in session.messages[0]["content"]
+
+
+def test_live_writer_materializer_blocks_overlong_chinese_prose(tmp_path) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+        prepare_live_writer_session,
+    )
+
+    plan, _request_path, _literary_memory = _live_writer_fixture(tmp_path)
+    session = prepare_live_writer_session(tmp_path, plan)
+    assert session is not None and session.status == "pass"
+    target = f"runs/{plan.task_id}/fiction_draft.md"
+    result = LLMCallResult(
+        provider="agentlab-cli-executor",
+        model="deepseek-v4-pro",
+        content=(
+            f"<!-- AGENTLAB_EDIT: {target} -->\n"
+            "# 第二十五章 · 心之遗物\n\n"
+            + ("字" * 13_373)
+            + "\n<!-- END AGENTLAB_EDIT -->"
+        ),
+        raw_usage={"command_id": "cmd-overlong"},
+    )
+
+    validation = materialize_live_writer_result(
+        result,
+        Path(plan.run_dir),
+        plan.task_id,
+    )
+
+    assert validation["status"] == "blocked"
+    assert validation["han_character_count"] == 13_373
+    assert validation["issues"] == [
+        "fiction_draft_han_characters_above_maximum:13373>5500"
+    ]
+    assert not (Path(plan.run_dir) / "fiction_draft.md").exists()
+    assert not (Path(plan.run_dir) / "writer_execution_receipt.yml").exists()
+    contract = yaml.safe_load(
+        (Path(plan.run_dir) / "writer_v2_output_contract.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert contract["status"] == "blocked"
+    assert contract["han_character_count"] == 13_373
+
+
+def test_live_writer_materializer_rejects_forged_length_receipt(tmp_path) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+        prepare_live_writer_session,
+    )
+
+    plan, _request_path, _literary_memory = _live_writer_fixture(tmp_path)
+    session = prepare_live_writer_session(tmp_path, plan)
+    assert session is not None and session.status == "pass"
+    receipt_path = Path(session.receipt_path)
+    receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+    receipt["prose_length_contract"]["maximum"] = 50_000
+    receipt_path.write_text(
+        yaml.safe_dump(receipt, sort_keys=False), encoding="utf-8"
+    )
+    target = f"runs/{plan.task_id}/fiction_draft.md"
+    result = LLMCallResult(
+        provider="agentlab-cli-executor",
+        model="deepseek-v4-pro",
+        content=(
+            f"<!-- AGENTLAB_EDIT: {target} -->\n"
+            "# 第二十五章 · 心之遗物\n\n"
+            + ("字" * 6000)
+            + "\n<!-- END AGENTLAB_EDIT -->"
+        ),
+        raw_usage={"command_id": "cmd-forged-length"},
+    )
+
+    validation = materialize_live_writer_result(
+        result,
+        Path(plan.run_dir),
+        plan.task_id,
+    )
+
+    assert validation["status"] == "blocked"
+    assert validation["issues"] == [
+        "live_writer_session_prose_length_contract_mismatch"
+    ]
+    assert not (Path(plan.run_dir) / "fiction_draft.md").exists()
+
+
+def test_live_writer_materializer_rejects_coordinated_request_brief_forgery(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+        prepare_live_writer_session,
+    )
+
+    plan, request_path, _literary_memory = _live_writer_fixture(tmp_path)
+    session = prepare_live_writer_session(tmp_path, plan)
+    assert session is not None and session.status == "pass"
+    request = yaml.safe_load(request_path.read_text(encoding="utf-8"))
+    brief_path = tmp_path / request["creative_brief_source"]["path"]
+    brief = yaml.safe_load(brief_path.read_text(encoding="utf-8"))
+    brief["target_character_range"] = [4500, 20_000]
+    brief_path.write_text(
+        yaml.safe_dump(brief, sort_keys=False), encoding="utf-8"
+    )
+    request["creative_brief_source"]["sha256"] = hashlib.sha256(
+        brief_path.read_bytes()
+    ).hexdigest()
+    request_path.write_text(
+        yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+    )
+    receipt_path = Path(session.receipt_path)
+    receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+    receipt["request_sha256"] = hashlib.sha256(request_path.read_bytes()).hexdigest()
+    receipt["prose_length_contract"]["maximum"] = 20_000
+    receipt_path.write_text(
+        yaml.safe_dump(receipt, sort_keys=False), encoding="utf-8"
+    )
+    target = f"runs/{plan.task_id}/fiction_draft.md"
+    result = LLMCallResult(
+        provider="agentlab-cli-executor",
+        model="deepseek-v4-pro",
+        content=(
+            f"<!-- AGENTLAB_EDIT: {target} -->\n"
+            "# 第二十五章 · 心之遗物\n\n"
+            + ("字" * 13_373)
+            + "\n<!-- END AGENTLAB_EDIT -->"
+        ),
+        raw_usage={"command_id": "cmd-coordinated-forgery"},
+    )
+
+    validation = materialize_live_writer_result(
+        result,
+        Path(plan.run_dir),
+        plan.task_id,
+    )
+
+    assert validation["status"] == "blocked"
+    assert validation["issues"] == [
+        "live_writer_session_plan_activation_invalid"
+    ]
+    assert not (Path(plan.run_dir) / "fiction_draft.md").exists()
 
 
 def test_live_writer_session_blocks_stale_memory_before_provider(tmp_path) -> None:

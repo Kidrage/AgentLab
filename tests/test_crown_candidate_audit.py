@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 
 import yaml
 from typer.testing import CliRunner
@@ -45,6 +46,140 @@ def test_crown_live_candidate_audit_cli_writes_yaml(
     report = yaml.safe_load(out.read_text(encoding="utf-8"))
     assert report["report_type"] == "agentlab_crown_live_candidate_audit"
     assert report["status"] == "pass"
+
+
+def test_crown_live_candidate_audit_uses_v2_prose_only_contract(tmp_path: Path) -> None:
+    task_id = "task_narrative_v2_gate1_preflight_ch025"
+    project_root = tmp_path / "projects" / "Crown_of_Ash"
+    run_dir = project_root / "runs" / task_id
+    brief = project_root / "candidates" / "gate1" / "brief_ch025.yml"
+    run_dir.mkdir(parents=True)
+    brief.parent.mkdir(parents=True)
+    brief.write_text(
+        yaml.safe_dump(
+            {
+                "chapter": 25,
+                "pov": "Kane",
+                "scene_goal": "verify the map",
+                "irreversible_plot_change": "the forged route is exposed",
+                "closing_state": "trust has a price",
+                "character_state_change": "Kane chooses verification",
+                "reader_question": "Who forged it?",
+                "target_character_range": [4500, 5500],
+                "must_preserve": ["Kane reasons from evidence"],
+                "creative_freedom": ["dialogue rhythm"],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    brief_ref = {
+        "path": brief.relative_to(tmp_path).as_posix(),
+        "sha256": hashlib.sha256(brief.read_bytes()).hexdigest(),
+    }
+    request = {
+        "schema_version": 1,
+        "job_kind": "narrative_generation",
+        "run_mode": "generate_candidate",
+        "project": "Crown_of_Ash",
+        "task_id": task_id,
+        "chapter_id": 25,
+        "candidate_only": True,
+        "production_modified": False,
+        "external_context_approval_required": True,
+        "creative_brief_source": brief_ref,
+    }
+    request_path = run_dir / "narrative_v2_writer_request.yml"
+    request_path.write_text(
+        yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+    )
+    prose = "# 第二十五章 · 心之遗物\n\n" + ("字" * 5501) + "\n"
+    draft = run_dir / "fiction_draft.md"
+    draft.write_text(prose, encoding="utf-8")
+    prose_hash = hashlib.sha256(draft.read_bytes()).hexdigest()
+    (run_dir / "narrative_v2_writer_session_receipt.yml").write_text(
+        yaml.safe_dump(
+            {
+                **{key: request[key] for key in (
+                    "schema_version",
+                    "job_kind",
+                    "run_mode",
+                    "project",
+                    "task_id",
+                    "chapter_id",
+                    "candidate_only",
+                    "production_modified",
+                    "external_context_approval_required",
+                )},
+                "status": "pass",
+                "request_sha256": hashlib.sha256(request_path.read_bytes()).hexdigest(),
+                "compiled_packet_sha256": "a" * 64,
+                "prose_length_contract": {
+                    "unit": "han_characters_excluding_markdown_headings",
+                    "minimum": 4500,
+                    "maximum": 5500,
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "writer_v2_output_contract.yml").write_text(
+        yaml.safe_dump(
+            {
+                "status": "pass",
+                "candidate_only": True,
+                "production_modified": False,
+                "issues": [],
+                "prose_sha256": prose_hash,
+                "writer_execution_receipt": "writer_execution_receipt.yml",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "writer_execution_receipt.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "issuer": "AgentLab",
+                "issuer_role": "writer_contract_validator",
+                "prose_sha256": prose_hash,
+                "observed_provider": "agentlab-cli-executor",
+                "observed_model": "deepseek-v4-pro",
+                "observed_call_id": "cmd-v2-audit",
+                "writer_cannot_overwrite": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+    by_id = {item["id"]: item for item in report["checks"]}
+
+    assert report["status"] == "fail"
+    assert report["contract_version"] == 2
+    assert "required_files_present" not in by_id
+    assert by_id["v2_prose_only_artifacts"]["status"] == "pass"
+    assert by_id["prose_length_contract"]["status"] == "fail"
+    assert by_id["prose_length_contract"]["observed"] == 5501
+
+    forged_receipt = yaml.safe_load(
+        (run_dir / "writer_execution_receipt.yml").read_text(encoding="utf-8")
+    )
+    forged_receipt["issuer"] = "Writer"
+    forged_receipt["writer_cannot_overwrite"] = False
+    (run_dir / "writer_execution_receipt.yml").write_text(
+        yaml.safe_dump(forged_receipt, sort_keys=False), encoding="utf-8"
+    )
+
+    forged_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+    forged_by_id = {item["id"]: item for item in forged_report["checks"]}
+
+    assert forged_by_id["v2_output_contract_and_hashes"]["status"] == "fail"
+    assert forged_by_id["v2_output_contract_and_hashes"][
+        "agentlab_execution_receipt_valid"
+    ] is False
 
 
 def _write_batch_chapter(root: Path, chapter: int, eval_id: str) -> None:

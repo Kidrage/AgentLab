@@ -21,7 +21,6 @@ from __future__ import annotations
 import os
 import tempfile
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Callable
 
 from agent_runtime.narrative.production.brief_compiler import (
@@ -38,6 +37,9 @@ from agent_runtime.narrative.production.state_projector import (
 )
 from agent_runtime.narrative.production.writer_contract import (
     validate_writer_v2_output,
+)
+from agent_runtime.narrative.quality.prose_length import (
+    build_han_character_contract,
 )
 
 
@@ -170,6 +172,9 @@ class ChapterEngine:
             provider=request.provider,
             model=request.model,
             call_id=request.call_id,
+            prose_length_contract=build_han_character_contract(
+                brief.word_count_target
+            ),
         )
         if writer_val["status"] != "pass":
             issues.append("writer_v2_validation_failed")

@@ -15,7 +15,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 # The Writer v2 produces only prose.
 WRITER_V2_REQUIRED_OUTPUTS: tuple[str, ...] = ("fiction_draft.md",)
@@ -34,6 +34,31 @@ _ABSOLUTE_PATH_PREFIX: str = os.sep
 def _has_complete_provenance(provider: str, model: str, call_id: str) -> bool:
     """Return whether all observed execution identifiers are non-blank."""
     return all((value or "").strip() for value in (provider, model, call_id))
+
+
+def _apply_prose_length_contract(
+    result: dict[str, Any],
+    prose_length_contract: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if result["status"] != "pass" or prose_length_contract is None:
+        return result
+    from agent_runtime.narrative.quality.prose_length import (
+        evaluate_han_character_contract,
+    )
+
+    length_result = evaluate_han_character_contract(
+        str(result.get("canonical_prose") or ""),
+        prose_length_contract,
+    )
+    result["han_character_count"] = length_result["han_character_count"]
+    result["prose_length_contract"] = length_result["contract"]
+    if length_result["status"] != "pass":
+        result["status"] = "blocked"
+        result["issues"] = [str(length_result["issue"])]
+        result["prose_sha256"] = ""
+        result["canonical_prose"] = ""
+        result["agentlab_receipt"] = None
+    return result
 
 
 def _issuer_receipt(
@@ -74,6 +99,7 @@ class WriterV2Contract:
         provider: str = "",
         model: str = "",
         call_id: str = "",
+        prose_length_contract: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Check that Writer produced exactly ``fiction_draft.md`` and nothing else.
 
@@ -114,13 +140,16 @@ class WriterV2Contract:
         if not issues and not _has_complete_provenance(provider, model, call_id):
             issues.append("missing_observed_provenance")
 
-        return WriterV2Contract._result(
-            "pass" if not issues else "blocked",
-            issues,
-            prose,
-            provider=provider,
-            model=model,
-            call_id=call_id,
+        return _apply_prose_length_contract(
+            WriterV2Contract._result(
+                "pass" if not issues else "blocked",
+                issues,
+                prose,
+                provider=provider,
+                model=model,
+                call_id=call_id,
+            ),
+            prose_length_contract,
         )
 
     @staticmethod
@@ -131,6 +160,7 @@ class WriterV2Contract:
         provider: str = "",
         model: str = "",
         call_id: str = "",
+        prose_length_contract: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Validate parsed edit blocks from Writer output for v2 compliance.
 
@@ -233,7 +263,7 @@ class WriterV2Contract:
         if not issues and not _has_complete_provenance(provider, model, call_id):
             issues.append("missing_observed_provenance")
 
-        return WriterV2Contract._result(
+        result = WriterV2Contract._result(
             "pass" if not issues else "blocked",
             issues,
             prose_content,
@@ -241,6 +271,7 @@ class WriterV2Contract:
             model=model,
             call_id=call_id,
         )
+        return _apply_prose_length_contract(result, prose_length_contract)
 
     @staticmethod
     def _result(
@@ -302,6 +333,7 @@ def validate_writer_v2_output(
     provider: str = "",
     model: str = "",
     call_id: str = "",
+    prose_length_contract: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Public entry-point: validate Writer v2 materialized outputs."""
     return WriterV2Contract.validate_materialized_outputs(
@@ -309,4 +341,5 @@ def validate_writer_v2_output(
         provider=provider,
         model=model,
         call_id=call_id,
+        prose_length_contract=prose_length_contract,
     )

@@ -418,6 +418,28 @@ def test_writer_v2_rejects_forbidden_v1_outputs(tmp_path: Path) -> None:
 
 def _write_live_writer_session_binding(run_dir: Path, task_id: str) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
+    project_root = run_dir.parent.parent
+    root = project_root.parent.parent
+    brief_path = project_root / "candidates" / "test" / "brief_ch010.yml"
+    brief_path.parent.mkdir(parents=True, exist_ok=True)
+    brief_path.write_text(
+        yaml.safe_dump(
+            {
+                "chapter": 10,
+                "pov": "Kane",
+                "scene_goal": "test the flame",
+                "irreversible_plot_change": "the flame identifies Kane",
+                "closing_state": "the trial continues",
+                "character_state_change": "Kane chooses observation",
+                "reader_question": "What does the flame know?",
+                "target_character_range": [1, 100],
+                "must_preserve": ["Kane remains active"],
+                "creative_freedom": ["dialogue rhythm"],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
     request_path = run_dir / "narrative_v2_writer_request.yml"
     request_path.write_text(
         yaml.safe_dump(
@@ -431,6 +453,75 @@ def _write_live_writer_session_binding(run_dir: Path, task_id: str) -> None:
                 "candidate_only": True,
                 "production_modified": False,
                 "external_context_approval_required": True,
+                "creative_brief_source": {
+                    "path": brief_path.relative_to(root).as_posix(),
+                    "sha256": hashlib.sha256(brief_path.read_bytes()).hexdigest(),
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    spec_sha256 = "b" * 64
+    plan_path = run_dir / "workflow_plan.yml"
+    plan_path.write_text(
+        yaml.safe_dump(
+            {
+                "project": "ProbeNovel",
+                "task_id": task_id,
+                "agentlab_root": str(root),
+                "project_root": str(project_root),
+                "repo_path": str(project_root / "repo"),
+                "run_dir": str(run_dir),
+                "user_request_path": str(request_path),
+                "execution_backend": "agentlab_orchestrated_cli",
+                "budget_mode": "balanced",
+                "route": {
+                    "task_size": "small",
+                    "agents": ["Writer"],
+                    "route_key": "narrative_generation_v2",
+                },
+                "included_agents": {
+                    "Writer": {"required_outputs": ["fiction_draft.md"]}
+                },
+                "execution_policy": {
+                    "external_context_approval_required": True
+                },
+                "notes": [
+                    f"narrative_live_preflight_spec_sha256:{spec_sha256}"
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    activation_dir = project_root / "runs" / "_narrative_v2_preflight_batches"
+    activation_dir.mkdir()
+    (activation_dir / f"{spec_sha256}.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "active",
+                "project": "ProbeNovel",
+                "preflight_spec_sha256": spec_sha256,
+                "candidate_only": True,
+                "production_modified": False,
+                "task_count": 1,
+                "tasks": [
+                    {
+                        "task_id": task_id,
+                        "request_path": request_path.relative_to(root).as_posix(),
+                        "request_sha256": hashlib.sha256(
+                            request_path.read_bytes()
+                        ).hexdigest(),
+                        "workflow_plan_path": plan_path.relative_to(
+                            root
+                        ).as_posix(),
+                        "workflow_plan_sha256": hashlib.sha256(
+                            plan_path.read_bytes()
+                        ).hexdigest(),
+                    }
+                ],
             },
             sort_keys=False,
         ),
@@ -451,6 +542,11 @@ def _write_live_writer_session_binding(run_dir: Path, task_id: str) -> None:
                 "external_context_approval_required": True,
                 "request_sha256": hashlib.sha256(request_path.read_bytes()).hexdigest(),
                 "compiled_packet_sha256": "a" * 64,
+                "prose_length_contract": {
+                    "unit": "han_characters_excluding_markdown_headings",
+                    "minimum": 1,
+                    "maximum": 100,
+                },
             },
             sort_keys=False,
         ),
@@ -465,7 +561,7 @@ def test_live_writer_delivery_materializes_prose_and_agentlab_receipt(
         materialize_live_writer_result,
     )
 
-    run_dir = tmp_path / "runs" / "task_ch10"
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / "task_ch10"
     _write_live_writer_session_binding(run_dir, "task_ch10")
     result = SimpleNamespace(
         status="completed",
@@ -500,7 +596,7 @@ def test_live_writer_delivery_failure_keeps_no_prose_or_success_receipt(
         materialize_live_writer_result,
     )
 
-    run_dir = tmp_path / "runs" / "task_ch10"
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / "task_ch10"
     _write_live_writer_session_binding(run_dir, "task_ch10")
     result = SimpleNamespace(
         status="completed",
@@ -529,7 +625,7 @@ def test_live_writer_delivery_rejects_noncompleted_result_before_materializing(
         materialize_live_writer_result,
     )
 
-    run_dir = tmp_path / "runs" / "task_ch10"
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / "task_ch10"
     _write_live_writer_session_binding(run_dir, "task_ch10")
     result = SimpleNamespace(
         status="failed",
@@ -554,7 +650,7 @@ def test_live_writer_delivery_rejects_stale_session_binding(
         materialize_live_writer_result,
     )
 
-    run_dir = tmp_path / "runs" / "task_ch10"
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / "task_ch10"
     _write_live_writer_session_binding(run_dir, "task_ch10")
     request_path = run_dir / "narrative_v2_writer_request.yml"
     request_path.write_text(
@@ -584,7 +680,7 @@ def test_registered_writer_delivery_selects_v2_materializer_from_request(
         materialize_registered_writer_result,
     )
 
-    run_dir = tmp_path / "runs" / "task_ch10"
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / "task_ch10"
     _write_live_writer_session_binding(run_dir, "task_ch10")
     result = SimpleNamespace(
         status="completed",

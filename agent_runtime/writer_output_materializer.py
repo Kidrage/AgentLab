@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
 
@@ -359,6 +359,7 @@ def materialize_writer_v2_content(
     provider: str = "",
     model: str = "",
     call_id: str = "",
+    prose_length_contract: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Thin v2 adapter: materialize prose-only Writer output.
 
@@ -425,6 +426,7 @@ def materialize_writer_v2_content(
         provider=provider,
         model=model,
         call_id=call_id,
+        prose_length_contract=prose_length_contract,
     )
 
     if validation["status"] == "pass" and validation["prose_sha256"]:

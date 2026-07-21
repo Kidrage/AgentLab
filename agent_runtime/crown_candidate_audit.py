@@ -102,6 +102,13 @@ def build_crown_live_candidate_audit(
     root = root.resolve()
     project_root = root / "projects" / "Crown_of_Ash"
     run_dir = project_root / "runs" / task_id
+    if (run_dir / "narrative_v2_writer_request.yml").is_file():
+        return _build_crown_v2_live_candidate_audit(
+            root,
+            project_root,
+            run_dir,
+            task_id,
+        )
     required = [
         "chapter_packet.yml",
         "fiction_draft.md",
@@ -200,6 +207,188 @@ def build_crown_live_candidate_audit(
         },
         "issues": issues,
     }
+
+
+def _build_crown_v2_live_candidate_audit(
+    root: Path,
+    project_root: Path,
+    run_dir: Path,
+    task_id: str,
+) -> dict[str, Any]:
+    """Audit the prose-only v2 contract without requiring legacy Writer files."""
+    from agent_runtime.narrative.quality.prose_length import (
+        evaluate_han_character_contract,
+        normalize_han_character_contract,
+    )
+
+    required = (
+        "narrative_v2_writer_request.yml",
+        "narrative_v2_writer_session_receipt.yml",
+        "fiction_draft.md",
+        "writer_execution_receipt.yml",
+        "writer_v2_output_contract.yml",
+    )
+    missing = [name for name in required if not (run_dir / name).is_file()]
+    request_path = run_dir / "narrative_v2_writer_request.yml"
+    request = _read_yaml(request_path)
+    session = _read_yaml(run_dir / "narrative_v2_writer_session_receipt.yml")
+    output = _read_yaml(run_dir / "writer_v2_output_contract.yml")
+    execution = _read_yaml(run_dir / "writer_execution_receipt.yml")
+    draft_path = run_dir / "fiction_draft.md"
+    prose = draft_path.read_text(encoding="utf-8", errors="replace") if draft_path.is_file() else ""
+    prose_hash = hashlib.sha256(draft_path.read_bytes()).hexdigest() if draft_path.is_file() else ""
+    receipt_length_contract = normalize_han_character_contract(
+        session.get("prose_length_contract")
+    )
+    length_contract = _v2_length_contract_from_brief(root, request)
+    receipt_length_matches = (
+        "prose_length_contract" not in session
+        or (
+            receipt_length_contract is not None
+            and receipt_length_contract == length_contract
+        )
+    )
+    length_result = evaluate_han_character_contract(prose, length_contract)
+    identity_matches = all(
+        request.get(key) == session.get(key) == expected
+        for key, expected in {
+            "schema_version": 1,
+            "job_kind": "narrative_generation",
+            "run_mode": "generate_candidate",
+            "project": "Crown_of_Ash",
+            "task_id": task_id,
+            "candidate_only": True,
+            "production_modified": False,
+            "external_context_approval_required": True,
+        }.items()
+    )
+    request_hash_matches = bool(request_path.is_file()) and session.get(
+        "request_sha256"
+    ) == hashlib.sha256(request_path.read_bytes()).hexdigest()
+    contract_hashes_match = bool(prose_hash) and all(
+        value == prose_hash
+        for value in (
+            output.get("prose_sha256"),
+            execution.get("prose_sha256"),
+        )
+    )
+    agentlab_execution_receipt_valid = bool(
+        execution.get("schema_version") == 2
+        and execution.get("issuer") == "AgentLab"
+        and execution.get("issuer_role") == "writer_contract_validator"
+        and execution.get("writer_cannot_overwrite") is True
+        and all(
+            str(execution.get(key) or "").strip()
+            for key in (
+                "observed_provider",
+                "observed_model",
+                "observed_call_id",
+            )
+        )
+    )
+    production_files = _production_manuscript_files(project_root)
+    draft_clean = bool(
+        prose.lstrip().startswith("#")
+        and "AGENTLAB_EDIT" not in prose
+        and "```yaml" not in prose
+    )
+    checks = [
+        {
+            "id": "v2_prose_only_artifacts",
+            "status": "pass" if not missing else "fail",
+            "missing": missing,
+        },
+        {
+            "id": "v2_session_identity_and_request_hash",
+            "status": "pass" if identity_matches and request_hash_matches else "fail",
+            "identity_matches": identity_matches,
+            "request_hash_matches": request_hash_matches,
+        },
+        {
+            "id": "v2_output_contract_and_hashes",
+            "status": "pass"
+            if output.get("status") == "pass"
+            and output.get("candidate_only") is True
+            and output.get("production_modified") is False
+            and output.get("issues") == []
+            and output.get("writer_execution_receipt")
+            == "writer_execution_receipt.yml"
+            and contract_hashes_match
+            and agentlab_execution_receipt_valid
+            else "fail",
+            "output_status": output.get("status"),
+            "hashes_match": contract_hashes_match,
+            "agentlab_execution_receipt_valid": agentlab_execution_receipt_valid,
+        },
+        {
+            "id": "prose_length_contract",
+            "status": "pass"
+            if length_result["status"] == "pass" and receipt_length_matches
+            else "fail",
+            "unit": (length_result.get("contract") or {}).get("unit"),
+            "minimum": (length_result.get("contract") or {}).get("minimum"),
+            "maximum": (length_result.get("contract") or {}).get("maximum"),
+            "observed": length_result["han_character_count"],
+            "issue": length_result["issue"],
+            "receipt_matches_hash_bound_brief": receipt_length_matches,
+        },
+        {
+            "id": "draft_is_prose_only",
+            "status": "pass" if draft_clean else "fail",
+        },
+        {
+            "id": "production_manuscript_not_modified",
+            "status": "pass" if not production_files else "fail",
+            "production_manuscript_files": list(production_files),
+        },
+    ]
+    issues = [check for check in checks if check["status"] != "pass"]
+    return {
+        "schema_version": 1,
+        "report_type": "agentlab_crown_live_candidate_audit",
+        "contract_version": 2,
+        "root": str(root),
+        "project": "Crown_of_Ash",
+        "task_id": task_id,
+        "run_dir": str(run_dir),
+        "status": "pass" if not issues else "fail",
+        "checks": checks,
+        "evidence": [str(run_dir / name) for name in required],
+        "summary": {
+            "draft_lines": len(prose.splitlines()),
+            "draft_bytes": len(prose.encode("utf-8")),
+            "han_character_count": length_result["han_character_count"],
+            "candidate_chapter": request.get("chapter_id"),
+            "candidate_only": output.get("candidate_only") is True,
+            "production_manuscript_files": list(production_files),
+        },
+        "issues": issues,
+    }
+
+
+def _v2_length_contract_from_brief(
+    root: Path,
+    request: dict[str, Any],
+) -> dict[str, Any] | None:
+    from agent_runtime.narrative.quality.prose_length import (
+        build_han_character_contract,
+    )
+
+    ref = request.get("creative_brief_source")
+    if not isinstance(ref, dict) or not isinstance(ref.get("path"), str):
+        return None
+    try:
+        path = (root / ref["path"]).resolve()
+        path.relative_to(root)
+    except (OSError, ValueError):
+        return None
+    if not path.is_file() or path.is_symlink():
+        return None
+    if ref.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
+        return None
+    brief = _read_yaml(path)
+    target = brief.get("target_character_range") or brief.get("word_count_target")
+    return build_han_character_contract(target)
 
 
 def write_crown_live_candidate_audit(root: Path, out: Path, *, task_id: str = DEFAULT_CROWN_LIVE_RUN) -> dict[str, Any]:

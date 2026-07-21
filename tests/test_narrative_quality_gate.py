@@ -842,6 +842,48 @@ def test_unselected_prose_blocks_state_projection(tmp_path: Path) -> None:
     assert any("prose_not_selected" in i for i in outcome.issues)
 
 
+def test_chapter_engine_blocks_overlong_v2_writer_output() -> None:
+    from agent_runtime.narrative.production.chapter_engine import (
+        ChapterEngine,
+        ChapterRequest,
+    )
+
+    outcome = ChapterEngine.run(
+        ChapterRequest(
+            chapter_id=25,
+            creative_brief={
+                "schema_version": 2,
+                "chapter_id": 25,
+                "primary_function": "plot",
+                "pov": "Kane",
+                "opposing_wants": "verify the map vs accept the bargain",
+                "turn": "Kane identifies a forged route",
+                "cost": "the alliance becomes conditional",
+                "reader_question": "Who forged the route?",
+                "must_preserve": ["Kane reasons from evidence"],
+                "creative_freedom": ["dialogue rhythm"],
+                "source_hashes": {_CH_BRIEF_PATH: _CH_BRIEF_HASH},
+                "word_count_target": [4500, 5500],
+            },
+            writer_output={
+                "fiction_draft.md": "# 第二十五章 · 心之遗物\n\n" + ("字" * 13_373) + "\n"
+            },
+            prose_selected=False,
+            provider="deepseek",
+            model="deepseek-v4-pro",
+            call_id="call-overlong-engine",
+        )
+    )
+
+    assert outcome.status == "blocked"
+    assert outcome.writer_validation is not None
+    assert outcome.writer_validation["han_character_count"] == 13_373
+    assert outcome.writer_validation["issues"] == [
+        "fiction_draft_han_characters_above_maximum:13373>5500"
+    ]
+    assert outcome.state_delta is None
+
+
 def test_empty_projection_never_passes(tmp_path: Path) -> None:
     """empty_projection_never_passes — selected prose with an empty
     projected delta (no facts, no observations) returns

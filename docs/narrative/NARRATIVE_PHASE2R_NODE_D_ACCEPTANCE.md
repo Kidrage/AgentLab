@@ -114,8 +114,8 @@ corrections. Focused narrative/output/run-next verification remains 141/0; Ruff
 and Python compilation pass. Correction nine then passed final independent
 Standards and Spec review. The authoritative repository regression completed
 with 3,012 passed, 2 skipped and 11 warnings in 240.28 seconds. Provider calls
-and Production writes remain zero. Commit/CI are the final prerequisites before
-execution.
+and Production writes remain zero. Exact-plan commit `bf1c056` and CI
+`29821763472` are green.
 
 The first authorized Gate 1 Ch25 execution then exposed a separate live command
 contract defect. The sandbox attempt returned `network_required` with zero tokens
@@ -131,7 +131,32 @@ retains its exact model, effort, budget, Plan and JSON bindings. Focused Writer,
 executor, capability and Claude preflight verification is 218/0. Both independent
 Standards and Spec reviews pass. The authoritative repository regression is
 3,013 passed, 2 skipped and 0 failed with 11 expected warnings in 234.22 seconds.
-Commit/CI remain required before the single Ch25 retry.
+Writer-delivery commit `668d4b7` and CI `29823501327` are green.
+
+The authorized Ch25 retry then consumed the sealed packet successfully on
+DeepSeek V4 Pro with no fallback. It completed in 281.18 seconds at an exact
+provider-reported cost of $0.455408 and produced a hash-bound prose-only
+candidate while leaving the Production digest exactly
+`8ef9cf76a84154fbbaf809451066b87f1267a67e5a7a9c92641dc4bc2daf7556`.
+Deterministic v2 audit nevertheless blocks the candidate: the brief requires
+4,500–5,500 Chinese body Han characters and the candidate contains 13,373.
+Ch26/27 were therefore not started.
+
+The closure makes that target an explicit prompt/session contract and a hard
+pre-materialization veto shared by edit-block and ChapterEngine materialized
+output paths. Materialization re-derives the range from the request's
+SHA256-bound CreativeBrief and revalidates the immutable operator-plan batch
+activation, rather than trusting mutable session evidence. The v2 Crown audit
+no longer requires legacy Writer-owned ledger/state/receipt files and validates
+the AgentLab-issued execution receipt, prose hashes and length contract. Three
+independent false-green replays—forged length receipt, coordinated
+brief/request/receipt mutation, and Writer-forged execution receipt—failed
+before correction and now pass. ChapterEngine's alternate 13,373-character
+path is also blocked before selection. Final Standards and Spec reviews pass;
+the extended focused set is 346/0 and the authoritative repository regression
+is 3,019 passed, 2 skipped and 0 failed with 11 expected warnings in 268.32
+seconds. This length-closure unit still requires its own commit/CI before a new
+targeted Ch25 revision attempt.
 
 The registered Writer path now activates v2 only when its run directory contains
 `narrative_v2_writer_request.yml` with structured narrative-generation identity,

@@ -21,6 +21,10 @@ from agent_runtime.narrative.production.literary_memory import (
 from agent_runtime.narrative.production.writer_packet_preview import (
     build_writer_packet_preview,
 )
+from agent_runtime.narrative.quality.prose_length import (
+    build_han_character_contract,
+    normalize_han_character_contract,
+)
 
 
 LIVE_WRITER_REQUEST_NAME = "narrative_v2_writer_request.yml"
@@ -421,7 +425,19 @@ def prepare_live_writer_session(
             changed_issues,
         )
 
-    messages = _live_messages(preview.payload, project, task_id)
+    prose_length_contract = build_han_character_contract(brief.word_count_target)
+    if prose_length_contract is None:
+        return _blocked_live_writer_preflight(
+            run_dir,
+            task_id,
+            ["live_writer_prose_length_contract_missing_or_invalid"],
+        )
+    messages = _live_messages(
+        preview.payload,
+        project,
+        task_id,
+        prose_length_contract,
+    )
     packet = copy.deepcopy(preview.payload)
     packet["messages"] = messages
     packet_json = json.dumps(
@@ -500,6 +516,7 @@ def prepare_live_writer_session(
         "context_bundle_id": preview.context_bundle_id,
         "context_manifest_sha256": preview.context_manifest_sha256,
         "literary_memory_sha256": memory_sha256,
+        "prose_length_contract": prose_length_contract,
         "source_inventory": [
             {
                 "path": path.relative_to(root).as_posix(),
@@ -538,10 +555,14 @@ def materialize_live_writer_result(
 
     run_dir = Path(run_dir)
     issues: list[str] = []
+    session_receipt: dict[str, Any] = {}
     if getattr(result, "status", None) != "completed":
         issues.append("live_writer_result_not_completed")
     else:
-        issues.extend(_validate_delivery_session(run_dir, task_id))
+        binding_issues, session_receipt = _validate_delivery_session(
+            run_dir, task_id
+        )
+        issues.extend(binding_issues)
     if issues:
         _remove_delivery_success_outputs(run_dir)
         validation = {
@@ -566,6 +587,7 @@ def materialize_live_writer_result(
                 or usage.get("command_id")
                 or ""
             ),
+            prose_length_contract=session_receipt.get("prose_length_contract"),
         )
     _persist_live_writer_output_contract(run_dir, task_id, validation)
     return validation
@@ -595,6 +617,8 @@ def _persist_live_writer_output_contract(
             if validation.get("status") == "pass"
             else None
         ),
+        "han_character_count": validation.get("han_character_count"),
+        "prose_length_contract": validation.get("prose_length_contract"),
     }
     atomic_write_yaml(
         run_dir / LIVE_WRITER_OUTPUT_CONTRACT_NAME,
@@ -711,21 +735,25 @@ def materialize_registered_writer_result(
     }
 
 
-def _validate_delivery_session(run_dir: Path, task_id: str) -> list[str]:
+def _validate_delivery_session(
+    run_dir: Path, task_id: str
+) -> tuple[list[str], dict[str, Any]]:
     request_path = run_dir / LIVE_WRITER_REQUEST_NAME
     receipt_path = run_dir / LIVE_WRITER_RECEIPT_NAME
     if request_path.is_symlink() or receipt_path.is_symlink():
-        return ["live_writer_session_binding_symlinked"]
+        return ["live_writer_session_binding_symlinked"], {}
     try:
         request_raw = request_path.read_bytes()
         request = yaml.safe_load(request_raw.decode("utf-8")) or {}
         receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8")) or {}
     except (OSError, UnicodeDecodeError, yaml.YAMLError):
-        return ["live_writer_session_binding_missing_or_invalid"]
+        return ["live_writer_session_binding_missing_or_invalid"], {}
     if not isinstance(request, dict) or not isinstance(receipt, dict):
-        return ["live_writer_session_binding_missing_or_invalid"]
+        return ["live_writer_session_binding_missing_or_invalid"], {}
     if receipt.get("request_sha256") != hashlib.sha256(request_raw).hexdigest():
-        return ["live_writer_session_request_hash_mismatch"]
+        return ["live_writer_session_request_hash_mismatch"], {}
+    if not _request_matches_active_operator_plan(run_dir, request_raw, request):
+        return ["live_writer_session_plan_activation_invalid"], {}
     expected = {
         "schema_version": 1,
         "job_kind": "narrative_generation",
@@ -737,16 +765,112 @@ def _validate_delivery_session(run_dir: Path, task_id: str) -> list[str]:
     }
     for key, value in expected.items():
         if request.get(key) != value or receipt.get(key) != value:
-            return [f"live_writer_session_binding_mismatch:{key}"]
+            return [f"live_writer_session_binding_mismatch:{key}"], {}
     if receipt.get("status") != "pass":
-        return ["live_writer_session_receipt_not_pass"]
+        return ["live_writer_session_receipt_not_pass"], {}
     if request.get("project") != receipt.get("project"):
-        return ["live_writer_session_binding_mismatch:project"]
+        return ["live_writer_session_binding_mismatch:project"], {}
     if request.get("chapter_id") != receipt.get("chapter_id"):
-        return ["live_writer_session_binding_mismatch:chapter_id"]
+        return ["live_writer_session_binding_mismatch:chapter_id"], {}
     if not _SHA256_RE.fullmatch(str(receipt.get("compiled_packet_sha256") or "")):
-        return ["live_writer_session_packet_hash_invalid"]
-    return []
+        return ["live_writer_session_packet_hash_invalid"], {}
+    prose_length_contract, length_issue = _bound_prose_length_contract(
+        run_dir,
+        request,
+    )
+    if length_issue:
+        return [length_issue], {}
+    if normalize_han_character_contract(
+        receipt.get("prose_length_contract")
+    ) != prose_length_contract:
+        return ["live_writer_session_prose_length_contract_mismatch"], {}
+    if prose_length_contract is None:
+        return ["live_writer_session_prose_length_contract_invalid"], {}
+    receipt = dict(receipt)
+    receipt["prose_length_contract"] = prose_length_contract
+    return [], receipt
+
+
+def _request_matches_active_operator_plan(
+    run_dir: Path,
+    request_raw: bytes,
+    request: dict[str, Any],
+) -> bool:
+    try:
+        resolved_run = run_dir.resolve(strict=True)
+        project_root = resolved_run.parent.parent
+        root = project_root.parent.parent
+        from agent_runtime.narrative.production.live_writer_preflight import (
+            load_validated_workflow_plan_data,
+        )
+
+        sealed_plan = load_validated_workflow_plan_data(
+            agentlab_root=root,
+            project=str(request.get("project") or ""),
+            task_id=str(request.get("task_id") or ""),
+            plan_path=resolved_run / "workflow_plan.yml",
+        )
+        sealed_request = str(
+            sealed_plan.get("sealed_user_request_content") or ""
+        ).encode("utf-8")
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return False
+    return sealed_request == request_raw
+
+
+def _bound_prose_length_contract(
+    run_dir: Path,
+    request: dict[str, Any],
+) -> tuple[dict[str, Any] | None, str]:
+    """Re-derive the length range from the request's hash-bound brief."""
+    project = str(request.get("project") or "")
+    try:
+        resolved_run = run_dir.resolve(strict=True)
+        project_root = resolved_run.parent.parent
+        root = project_root.parent.parent
+    except (OSError, RuntimeError):
+        return None, "live_writer_session_run_dir_invalid"
+    if (
+        resolved_run.name != str(request.get("task_id") or "")
+        or resolved_run.parent.name != "runs"
+        or project_root.name != project
+        or project_root.parent.name != "projects"
+    ):
+        return None, "live_writer_session_run_dir_invalid"
+    normalized = _normalized_ref(request.get("creative_brief_source"))
+    if normalized is None or not normalized[0] or not _SHA256_RE.fullmatch(
+        normalized[1]
+    ):
+        return None, "live_writer_session_creative_brief_reference_invalid"
+    brief_path = root / normalized[0]
+    if brief_path.is_symlink() or _has_symlink_component(root, brief_path):
+        return None, "live_writer_session_creative_brief_reference_invalid"
+    try:
+        brief_path = brief_path.resolve(strict=True)
+        brief_path.relative_to(root)
+        brief_raw = brief_path.read_bytes()
+    except (OSError, ValueError):
+        return None, "live_writer_session_creative_brief_reference_invalid"
+    if hashlib.sha256(brief_raw).hexdigest() != normalized[1]:
+        return None, "live_writer_session_creative_brief_hash_mismatch"
+    issues: list[str] = []
+    brief_data = _decode_mapping(
+        brief_raw,
+        "live_writer_session_creative_brief",
+        issues,
+    )
+    try:
+        brief = BriefCompiler.from_v1_state_plan(
+            brief_data,
+            chapter_id=int(request.get("chapter_id") or 0),
+            source_paths=[str(brief_path)],
+        )
+    except (OSError, TypeError, ValueError):
+        return None, "live_writer_session_creative_brief_invalid"
+    contract = build_han_character_contract(brief.word_count_target)
+    if issues or contract is None:
+        return None, "live_writer_session_creative_brief_invalid"
+    return contract, ""
 
 
 def _remove_delivery_success_outputs(run_dir: Path) -> None:
@@ -1115,16 +1239,23 @@ def _supplemental_source_is_allowlisted(
 
 
 def _live_messages(
-    payload: dict[str, Any], project: str, task_id: str
+    payload: dict[str, Any],
+    project: str,
+    task_id: str,
+    prose_length_contract: dict[str, Any],
 ) -> list[dict[str, str]]:
     messages = copy.deepcopy(payload.get("messages") or [])
     target = f"runs/{task_id}/fiction_draft.md"
+    minimum = int(prose_length_contract["minimum"])
+    maximum = int(prose_length_contract["maximum"])
     messages[0]["content"] = (
         "Act only as the prose Writer for this chapter. Preserve the sealed "
         "CreativeBrief, canon, state, and literary memory. Return exactly one "
         f"full-file AGENTLAB_EDIT block targeting {target}. The block body must "
         "contain only the complete chapter prose. Do not emit any other file, "
-        "report, audit, state ledger, receipt, promotion decision, or commentary."
+        "report, audit, state ledger, receipt, promotion decision, or commentary. "
+        f"For Chinese prose, the hard length contract is {minimum:,}–{maximum:,} "
+        "Han characters after excluding Markdown headings; do not exceed it."
     )
     messages[1]["content"] = (
         f"Project: {project}\nTask: {task_id}\nRequired target: {target}\n\n"
