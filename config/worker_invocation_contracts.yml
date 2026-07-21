@@ -359,7 +359,7 @@ contracts:
       - supervisor_plan.md
     template: >-
       codex exec --json --model "{model_id}" -c 'model_reasoning_effort="xhigh"'
-      --sandbox read-only --ephemeral --ignore-rules -C "{workspace_path}"
+      --sandbox read-only --ephemeral --ignore-rules --skip-git-repo-check -C "{workspace_path}"
       "Read the AgentLab Supervisor task packet at {task_packet_path}; own planning,
       decomposition, progress, recovery, and final synthesis only. Do not take over
       producer work or edit repository files. Return only the governed plan."

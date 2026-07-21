@@ -519,6 +519,7 @@ def test_codex_supervisor_uses_native_gpt_56_sol_at_xhigh_effort() -> None:
     assert "model_reasoning_effort=\"xhigh\"" in codex_template
     assert "--sandbox read-only" in codex_template
     assert "--ephemeral" in codex_template
+    assert "--skip-git-repo-check" in codex_template
     supervisor_contract = contracts["codex_supervisor"]
     assert supervisor_contract["requested_reasoning_label"] == "extra"
     assert supervisor_contract["resolved_reasoning_effort"] == "xhigh"

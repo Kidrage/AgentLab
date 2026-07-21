@@ -915,6 +915,7 @@ class TestRunCliAgentSubprocess:
                                 "codex exec --json --model {model_id} "
                                 "-c 'model_reasoning_effort=\"xhigh\"' "
                                 "--sandbox read-only --ephemeral --ignore-rules "
+                                "--skip-git-repo-check "
                                 "-C {workspace_path} 'Read {task_packet_path}'"
                             ),
                             "requested_reasoning_label": "extra",
@@ -933,6 +934,7 @@ class TestRunCliAgentSubprocess:
                         "codex_gpt_5_6_sol_xhigh_cli_oauth": {
                             "provider": "codex_cli_oauth",
                             "runtime_provider": "codex-cli",
+                            "cli_provider": "codex",
                             "model_id": "gpt-5.6-sol",
                             "reasoning_effort": "xhigh",
                         }
@@ -996,6 +998,7 @@ class TestRunCliAgentSubprocess:
                                 "codex exec --json --model {model_id} "
                                 "-c 'model_reasoning_effort=\"xhigh\"' "
                                 "--sandbox read-only --ephemeral --ignore-rules "
+                                "--skip-git-repo-check "
                                 "-C {workspace_path} 'Read {task_packet_path}'"
                             ),
                             "requested_reasoning_label": "extra",

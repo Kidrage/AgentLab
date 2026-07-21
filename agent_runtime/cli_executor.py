@@ -1355,10 +1355,10 @@ def _runtime_provider_for_catalog_model(model_entry: dict[str, Any]) -> str:
     catalog_provider = str(model_entry.get("provider", ""))
     model_id = str(model_entry.get("model_id", ""))
 
-    if model_entry.get("cli_provider"):
-        return str(model_entry["cli_provider"])
     if model_entry.get("runtime_provider"):
         return str(model_entry["runtime_provider"])
+    if model_entry.get("cli_provider"):
+        return str(model_entry["cli_provider"])
     if catalog_provider == "deepseek_official":
         return "deepseek"
     if catalog_provider in {"dashscope_cn", "dashscope_intl"}:
@@ -2636,14 +2636,15 @@ def _hermes_supervisor_preflight(
             "read-only",
             "--ephemeral",
             "--ignore-rules",
+            "--skip-git-repo-check",
             "-C",
         ]
         command_bound = (
-            len(argv) == 14
+            len(argv) == 15
             and Path(argv[0]).name == "codex"
-            and argv[1:12] == expected_prefix
-            and bool(str(argv[12]).strip())
+            and argv[1:13] == expected_prefix
             and bool(str(argv[13]).strip())
+            and bool(str(argv[14]).strip())
         )
         if not command_bound:
             issues.append("supervisor_command_binding_mismatch")
