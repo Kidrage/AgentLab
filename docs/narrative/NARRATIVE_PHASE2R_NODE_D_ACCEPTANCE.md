@@ -117,6 +117,22 @@ with 3,012 passed, 2 skipped and 11 warnings in 240.28 seconds. Provider calls
 and Production writes remain zero. Commit/CI are the final prerequisites before
 execution.
 
+The first authorized Gate 1 Ch25 execution then exposed a separate live command
+contract defect. The sandbox attempt returned `network_required` with zero tokens
+and zero cost. An approved unsandboxed retry reached the selected DeepSeek V4 Pro
+model and reported 9,726 input, 3,335 output and 40,448 cache-read tokens at
+$0.152229, but returned an inability report instead of prose: `claude_writer`
+disabled all tools and used Plan mode while only telling the model to read a task
+packet path. The artifact gate correctly blocked `missing_fiction_draft_md`; no
+candidate or Production file was accepted. A deterministic fake-CLI replay over
+the real contract proved stdin was `DEVNULL`. The pure Writer contract now uses
+the executor's existing sealed-packet stdin interface, keeps tools disabled and
+retains its exact model, effort, budget, Plan and JSON bindings. Focused Writer,
+executor, capability and Claude preflight verification is 218/0. Both independent
+Standards and Spec reviews pass. The authoritative repository regression is
+3,013 passed, 2 skipped and 0 failed with 11 expected warnings in 234.22 seconds.
+Commit/CI remain required before the single Ch25 retry.
+
 The registered Writer path now activates v2 only when its run directory contains
 `narrative_v2_writer_request.yml` with structured narrative-generation identity,
 candidate-only flags and a mandatory external-context-approval policy. Natural

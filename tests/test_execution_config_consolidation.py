@@ -592,6 +592,10 @@ def test_writer_is_claude_deepseek_with_bounded_optional_ultracode() -> None:
     assert "--effort max" in writer["template"]
     assert "--max-budget-usd" in writer["template"]
     assert "final Chinese prose" in writer["template"]
+    assert writer["invocation_style"] == "sealed_packet_stdin"
+    assert writer["packet_delivery"] == "stdin"
+    assert writer["required_placeholders"] == ["model_id"]
+    assert "{task_packet_path}" not in writer["template"]
     assert writer["safe_probe"] == ["claude", "--help"]
     ultracode = contracts["claude_writer_ultracode"]
     assert ultracode["opt_in_only"] is True

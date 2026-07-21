@@ -2346,6 +2346,96 @@ class TestRunCliAgentSubprocess:
             assert result.raw_usage["failure_class"] == "model_unavailable"
             assert "provider_reported_model_mismatch" in receipt["issues"]
 
+    def test_real_claude_writer_contract_delivers_sealed_packet_on_stdin(
+        self,
+        tmp_path,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        repository_root = Path(__file__).parent.parent
+        real_contracts = yaml.safe_load(
+            (repository_root / "config" / "worker_invocation_contracts.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        writer_contract = real_contracts["contracts"]["claude_writer"]
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {"contracts": {"claude_writer": writer_contract}},
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  deepseek_v4_pro:
+    provider: deepseek_official
+    model_id: deepseek-v4-pro
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "claude_code",
+            "invocation_contract": "claude_writer",
+            "default": "deepseek_v4_pro",
+            "capacity_selected_route": "Writer",
+            "capacity_pool": "deepseek_metered_api",
+        }
+        provider_payload = {
+            "type": "result",
+            "result": "writer candidate envelopes",
+            "session_id": "writer-stdin-session",
+            "usage": {"input_tokens": 40, "output_tokens": 10},
+            "modelUsage": {"deepseek-v4-pro": {"outputTokens": 10}},
+        }
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            observed["argv"] = list(argv)
+            observed["kwargs"] = dict(kwargs)
+            return self._mock_proc(
+                0,
+                stdout=json.dumps(provider_payload),
+                stderr="",
+            )
+
+        with patch(
+            "cli_executor.shutil.which",
+            return_value="/usr/bin/claude",
+        ), patch(
+            "cli_executor.subprocess.run",
+            side_effect=fake_run,
+        ):
+            result = run_cli_agent(
+                plan,
+                "Writer",
+                role_profile,
+                sealed_messages=[
+                    {"role": "user", "content": "bounded chapter context"}
+                ],
+            )
+
+        assert result.status == "completed"
+        kwargs = observed["kwargs"]
+        assert "stdin" not in kwargs
+        packet_text = kwargs["input"]
+        packet = json.loads(packet_text)
+        assert packet["packet_type"] == "agentlab_sealed_role_session"
+        assert packet["messages"] == [
+            {"role": "user", "content": "bounded chapter context"}
+        ]
+        argv = observed["argv"]
+        assert not any("task_packet_writer.json" in arg for arg in argv)
+        assert result.raw_usage["sealed_packet_stdin"] is True
+
     def test_claude_supervisor_fallback_writes_approved_fallback_chain(self, tmp_path):
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))

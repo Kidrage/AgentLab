@@ -187,9 +187,10 @@ agents:
         perform only the assigned work and report actual changes."
       writer: >-
         claude --model deepseek-v4-pro --effort max --max-budget-usd 1.00
-        --permission-mode plan --output-format json --tools "" -p "Read only
-        the sealed Writer packet at {task_packet_path}; return final Chinese
-        prose candidate envelopes and native usage metadata."
+        --permission-mode plan --output-format json --tools "" -p "Treat the
+        complete sealed Writer packet on stdin as the only task context; return
+        final Chinese prose candidate envelopes and native usage metadata."
+      writer_packet_delivery: stdin
       narrative_planner: >-
         claude --model deepseek-v4-pro --effort max --max-budget-usd 2.00
         --permission-mode plan --output-format json --tools "" -p "Read only

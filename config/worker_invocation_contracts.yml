@@ -161,7 +161,8 @@ contracts:
     worker_id: claude_code
     display_name: Claude Shell DeepSeek Writer
     command: claude
-    invocation_style: sealed_writer_task_packet
+    invocation_style: sealed_packet_stdin
+    packet_delivery: stdin
     workflow_shell: true
     coalescing_allowed: false
     required_receipts:
@@ -171,14 +172,15 @@ contracts:
       - narrative_delivery_receipt.yml
     template: >-
       claude --model "{model_id}" --effort max --max-budget-usd 1.00
-      --permission-mode plan --output-format json --tools "" -p "Read only the
-      sealed AgentLab Writer packet at {task_packet_path}. Act as a pure Writer:
-      produce high-quality final Chinese prose while preserving voice, POV,
-      continuity, and length constraints. Do not browse, edit source files,
-      plan other roles, or invoke subagents. Return only the required candidate
-      output envelopes. AgentLab owns the model execution receipt and derives
-      observed provider/model/session/usage fields from Claude's JSON envelope."
-    required_placeholders: [task_packet_path, model_id]
+      --permission-mode plan --output-format json --tools "" -p "Treat the
+      complete sealed AgentLab Writer packet on stdin as the only task context.
+      Follow its messages in order and act as a pure Writer: produce high-quality
+      final Chinese prose while preserving voice, POV, continuity, and length
+      constraints. Do not browse, read workspace files, edit source files, plan
+      other roles, or invoke subagents. Return only the required candidate output
+      envelopes. AgentLab owns the model execution receipt and derives observed
+      provider/model/session/usage fields from Claude's JSON envelope."
+    required_placeholders: [model_id]
     safe_probe: [claude, --help]
     max_budget_usd: 1.00
     output_parser: claude_json

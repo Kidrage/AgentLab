@@ -56,6 +56,9 @@ def _ultracode_plan(
 ULTRACODE_SEALED_MESSAGES = [
     {"role": "user", "content": "Prepare a bounded revision plan."}
 ]
+PURE_WRITER_SEALED_MESSAGES = [
+    {"role": "user", "content": "Write the bounded final chapter candidate."}
+]
 
 
 def _runtime_from_real_config(
@@ -204,6 +207,11 @@ def test_writer_and_supervisor_fallback_reject_missing_or_weakened_runtime_bindi
             _make_plan(runtime_root),
             agent_name,
             _role_profile(contract_name),
+            **(
+                {"sealed_messages": PURE_WRITER_SEALED_MESSAGES}
+                if contract_name == "claude_writer"
+                else {}
+            ),
         )
 
     _assert_blocked_before_provider(result, process)
@@ -443,6 +451,8 @@ def test_real_claude_contract_executes_only_with_exact_runtime_binding(
             **(
                 {"sealed_messages": ULTRACODE_SEALED_MESSAGES}
                 if contract_name == "claude_writer_ultracode"
+                else {"sealed_messages": PURE_WRITER_SEALED_MESSAGES}
+                if contract_name == "claude_writer"
                 else {}
             ),
         )
@@ -457,6 +467,12 @@ def test_real_claude_contract_executes_only_with_exact_runtime_binding(
     if requires_effort_and_empty_tools:
         assert argv[argv.index("--effort") + 1] == "max"
         assert argv[argv.index("--tools") + 1] == ""
+    if contract_name == "claude_writer":
+        kwargs = process.call_args.kwargs
+        assert "stdin" not in kwargs
+        packet = json.loads(kwargs["input"])
+        assert packet["messages"] == PURE_WRITER_SEALED_MESSAGES
+        assert result.raw_usage["sealed_packet_stdin"] is True
     assert "--dangerously-skip-permissions" not in argv
     assert "--fallback-model" not in argv
     assert "--remote" not in argv
