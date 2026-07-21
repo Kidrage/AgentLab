@@ -706,7 +706,9 @@ contracts:
     display_name: Agy Gemini Subscription Narrative Planner
     command: agy
     invocation_style: governed_narrative_planner_task_packet
+    structured_output: narrative_chapter_state_plan
     workflow_shell: true
+    coalescing_allowed: false
     workflow_shell_registry: config/cli_workflow_shells.yml
     required_receipts:
       - outbound_context_manifest_narrativeplanner.yml
@@ -714,7 +716,7 @@ contracts:
       - model_execution_receipt_narrativeplanner_<route>_<attempt>.yml
       - chapter_state_plan.yml
     template: >-
-      agy --sandbox --model "{model_id}" -p "Read the sealed AgentLab
+      agy --sandbox --mode plan --model "{model_id}" -p "Read the sealed AgentLab
       NarrativePlanner task packet at {task_packet_path}. Convert its bounded
       evidence into one coherent candidate chapter state plan. Do not browse,
       invoke subagents, draft prose, edit production, promote facts, or change
@@ -725,7 +727,7 @@ contracts:
       - model_id
     safe_probe: [agy, --help]
     expected_parse:
-      argv_prefix: [agy, --sandbox, --model]
+      argv_prefix: [agy, --sandbox, --mode, plan, --model]
     validation:
       shlex_parse_required: true
       allow_unquoted_placeholders: true

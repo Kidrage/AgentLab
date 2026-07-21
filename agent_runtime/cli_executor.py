@@ -1547,6 +1547,12 @@ def _agy_oauth_preflight(
         )
         if governed:
             command_binding_verified = command_binding_verified and "--sandbox" in argv
+        if contract_name == "agy_narrative_planner":
+            command_binding_verified = command_binding_verified and (
+                "--mode" in argv
+                and argv.index("--mode") + 1 < len(argv)
+                and argv[argv.index("--mode") + 1] == "plan"
+            )
 
     issues: list[str] = []
     if governed and not profile_binding_verified:
@@ -4966,7 +4972,15 @@ def run_cli_agent(
             "AgentLab blocked the result and recorded the mismatch."
         )
 
-    full_content = header + "\n## Output\n\n" + body + stderr_section
+    planner_yaml_output = (
+        resolved_invocation_contract.get("structured_output")
+        == "narrative_chapter_state_plan"
+    )
+    full_content = (
+        body
+        if success and planner_yaml_output
+        else header + "\n## Output\n\n" + body + stderr_section
+    )
 
     result_status: str
     result_error: str | None

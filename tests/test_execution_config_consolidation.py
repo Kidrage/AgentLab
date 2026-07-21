@@ -359,6 +359,9 @@ def test_performance_narrative_planner_uses_agy_subscription_route() -> None:
     }
     contract = contracts["agy_narrative_planner"]
     assert contract["worker_id"] == "agy"
+    assert contract["structured_output"] == "narrative_chapter_state_plan"
+    assert contract["coalescing_allowed"] is False
+    assert "--mode plan" in contract["template"]
     assert '--model "{model_id}"' in contract["template"]
     assert "NarrativePlanner" in contract["template"]
     assert "raw YAML" in contract["template"]
@@ -366,6 +369,10 @@ def test_performance_narrative_planner_uses_agy_subscription_route() -> None:
     assert "chapter_state_plan.yml" in contract["required_receipts"]
     assert "agy" in bindings["roles"]["NarrativePlanner"]["allowed_workers"]
     assert "NarrativePlanner" in bindings["workers"]["agy"]["allowed_roles"]
+
+    shell = _load_config("cli_workflow_shells.yml")["shells"]["agy"]
+    delivery_receipts = set(shell["delivery_contract"]["required_receipts"])
+    assert set(contract["required_receipts"]) <= delivery_receipts
 
 
 def test_narrative_planner_keeps_pro_for_full_and_existing_low_tiers() -> None:

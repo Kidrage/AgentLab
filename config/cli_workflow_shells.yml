@@ -499,6 +499,8 @@ shells:
       - model_execution_chain_reviewer.yml
       - model_execution_receipt_reviewer_<route>_<attempt>.yml
       - model_execution_chain_narrativeplanner.yml
+      - model_execution_receipt_narrativeplanner_<route>_<attempt>.yml
+      - outbound_context_manifest_narrativeplanner.yml
       - observation_report.yml
       - visual_review_report.yml
       - chapter_state_plan.yml
@@ -522,6 +524,10 @@ shells:
         - model_execution_receipt_observer_<route>_<attempt>.yml
         - model_execution_chain_reviewer.yml
         - model_execution_receipt_reviewer_<route>_<attempt>.yml
+        - outbound_context_manifest_narrativeplanner.yml
+        - model_execution_chain_narrativeplanner.yml
+        - model_execution_receipt_narrativeplanner_<route>_<attempt>.yml
+        - chapter_state_plan.yml
         - observation_report.yml
         - visual_review_report.yml
       shell_state_counts_as_memory: false

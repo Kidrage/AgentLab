@@ -1702,6 +1702,10 @@ class TestRunCliAgentSubprocess:
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import run_cli_agent
+        from agent_runtime.narrative_delivery import (
+            narrative_planner_validation_issues,
+            write_narrative_planner_validation,
+        )
 
         plan = _make_plan(tmp_path)
         Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
@@ -1710,15 +1714,78 @@ class TestRunCliAgentSubprocess:
             {
                 "invocation_contract": "agy_narrative_planner",
                 "capacity_selected_route": "NarrativePlannerAgy",
+                "default": "gemini_3_5_flash_high_agy_oauth",
             }
+        )
+        repo_root = Path(__file__).resolve().parents[1]
+        source_catalog = yaml.safe_load(
+            (repo_root / "config" / "model_catalog.yml").read_text(encoding="utf-8")
+        )
+        catalog_path = tmp_path / "config" / "model_catalog.yml"
+        catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+        catalog["models"]["gemini_3_5_flash_high_agy_oauth"] = source_catalog[
+            "models"
+        ]["gemini_3_5_flash_high_agy_oauth"]
+        catalog_path.write_text(
+            yaml.safe_dump(catalog, sort_keys=False),
+            encoding="utf-8",
         )
         contracts_path = tmp_path / "config" / "worker_invocation_contracts.yml"
         contracts = yaml.safe_load(contracts_path.read_text(encoding="utf-8"))
-        contracts["contracts"]["agy_narrative_planner"] = contracts["contracts"].pop(
-            "agy_observer"
+        source_contracts = yaml.safe_load(
+            (repo_root / "config" / "worker_invocation_contracts.yml").read_text(
+                encoding="utf-8"
+            )
         )
+        contracts["contracts"]["agy_narrative_planner"] = source_contracts[
+            "contracts"
+        ]["agy_narrative_planner"]
         contracts_path.write_text(
             yaml.safe_dump(contracts, sort_keys=False),
+            encoding="utf-8",
+        )
+        planner_document = {
+            "schema_version": 1,
+            "project": "TestProject",
+            "status": "candidate",
+            "candidate_only": True,
+            "production_modified": False,
+            "chapter_range": [1, 1],
+            "target_character_range": [4500, 5500],
+            "hard_character_range": [3000, 8000],
+            "chapter_state_plan": [
+                {
+                    "chapter": 1,
+                    "title": "Opening",
+                    "volume": "Volume One",
+                    "phase": "Opening",
+                    "timeline_slot": "day-1",
+                    "pov": "Kane",
+                    "opening_state": "before",
+                    "scene_goal": "complete the first bargain",
+                    "irreversible_plot_change": "the bargain is sealed",
+                    "character_state_change": "Kane accepts the cost",
+                    "relationship_or_worldline_change": "the archive now knows Kane",
+                    "foreshadowing_action": "defer the hidden price",
+                    "closing_state": "after",
+                    "must_not_repeat": ["the opening bargain"],
+                }
+            ],
+            "validation_contract": {
+                "exact_chapter_count": 1,
+                "ordered_unique_chapters": True,
+                "unique_scene_goals": True,
+                "unique_irreversible_plot_changes": True,
+                "monotonic_story_state": True,
+            },
+        }
+        planner_yaml = yaml.safe_dump(
+            planner_document,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+        (Path(plan.run_dir) / "narrative_rewrite_contract.yml").write_text(
+            yaml.safe_dump({"chapter_range": [1, 1]}),
             encoding="utf-8",
         )
 
@@ -1726,11 +1793,21 @@ class TestRunCliAgentSubprocess:
             "cli_executor.shutil.which", return_value="/usr/bin/agy"
         ), patch(
             "cli_executor.subprocess.run",
-            return_value=self._mock_proc(0, stdout="# Governed narrative plan\n"),
+            return_value=self._mock_proc(0, stdout=planner_yaml),
         ):
             result = run_cli_agent(plan, "NarrativePlanner", role_profile)
 
         assert result.status == "completed"
+        assert result.content == planner_yaml.strip()
+        assert not result.content.startswith("# NarrativePlanner Report")
+        output_path = Path(plan.run_dir) / "chapter_state_plan.yml"
+        output_path.write_text(result.content, encoding="utf-8")
+        validation = write_narrative_planner_validation(
+            Path(plan.project_root),
+            Path(plan.run_dir),
+            output_path,
+        )
+        assert narrative_planner_validation_issues(validation) == []
         preflight = result.raw_usage["agy_oauth_preflight"]
         assert preflight["governed"] is True
         assert preflight["status"] == "pass"
