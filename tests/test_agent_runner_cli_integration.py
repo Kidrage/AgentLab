@@ -310,6 +310,40 @@ def test_artifact_producer_profile_is_selected_by_artifact_capability(tmp_path: 
     assert "no approved cli provider satisfies audio" in reason
 
 
+def test_artifact_producer_honors_prebound_native_codex_yaml_route(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import _check_cli_role_binding, _resolve_cli_profile_for_agent
+    from protocols.artifact_task import build_artifact_task_contract
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "artifact_production_task"
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    request_path = Path(plan.user_request_path)
+    request_path.parent.mkdir(parents=True, exist_ok=True)
+    request_path.write_text("Create fact_distillation.yml as YAML.", encoding="utf-8")
+    contract = build_artifact_task_contract(
+        ROOT,
+        request_path.read_text(encoding="utf-8"),
+        artifact_type="text",
+        output_path="runs/task_test_001/artifacts/fact_distillation.yml",
+        project="TestProject",
+        task_id="task_test_001",
+        preferred_provider="codex_cli",
+    )
+    _write_yaml(Path(plan.run_dir) / "artifact_task.yml", contract)
+
+    _configs, _mode, _role, profile = _resolve_cli_profile_for_agent(
+        ROOT, plan, "ArtifactProducer"
+    )
+
+    assert profile["artifact_provider"] == "codex_cli"
+    assert profile["cli_agent"] == "codex"
+    assert profile["invocation_contract"] == "codex"
+    assert profile["capacity_route"] == "ArtifactProducerCodex"
+    assert _check_cli_role_binding(ROOT, "ArtifactProducer", profile)[0] is True
+
+
 def test_artifact_producer_full_api_uses_explicit_text_api_only(
     tmp_path: Path,
     monkeypatch,

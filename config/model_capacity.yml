@@ -255,6 +255,15 @@ routes:
     approved_fallbacks: []
     fallback_on: []
 
+  ArtifactProducerCodex:
+    role: artifact_producer
+    worker: codex
+    invocation_contract: codex
+    model_key: codex_gpt_5_6_sol_xhigh_cli_oauth
+    pool: codex_cli_agentic
+    approved_fallbacks: []
+    fallback_on: []
+
   ArtifactProducerQwenMax:
     role: artifact_producer
     worker: qwen

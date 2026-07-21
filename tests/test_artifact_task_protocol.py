@@ -71,6 +71,28 @@ def test_text_artifact_contract_preserves_explicit_yaml_format():
     assert packet["routing"]["selected"]["provider_id"] == "qwen_cli"
 
 
+def test_yaml_artifact_can_prefer_native_codex_cli():
+    packet = build_artifact_task_contract(
+        ROOT,
+        "Create fact_distillation.yml as machine-readable YAML.",
+        artifact_type="text",
+        output_path="projects/AgentLab/runs/task_yaml/artifacts/fact_distillation.yml",
+        project="AgentLab",
+        task_id="task_yaml",
+        preferred_provider="codex_cli",
+    )
+
+    assert packet["output"]["format"] == "yaml"
+    assert packet["routing"]["status"] == "routed"
+    assert packet["routing"]["selected"] == {
+        "provider_id": "codex_cli",
+        "worker": "codex",
+        "priority": 90,
+        "fallback": False,
+        "reason": "codex_cli handles text with required capabilities",
+    }
+
+
 def test_media_artifact_routes_to_grok_producer():
     route = route_artifact_provider(ROOT, "image")
 
