@@ -110,6 +110,7 @@ def _enable_knowledge(root: Path, mode: str) -> None:
                 "version": 1,
                 "mode": mode,
                 "auto_memory": "propose_only",
+                "indexing": {"project_allowlist": ["*"]},
                 "retrieval": {"top_k": 4, "required_channels": ["keyword"]},
             },
             sort_keys=False,

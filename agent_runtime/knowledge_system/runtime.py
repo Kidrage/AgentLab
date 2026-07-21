@@ -55,11 +55,35 @@ def prepare_task(request: KnowledgeTaskRequest | Mapping[str, Any]) -> PreparedK
     task_id = ensure_safe_task_id(task.task_id)
     domain = _safe_identifier(task.domain or _infer_domain(task.request_text), "domain")
     config = load_knowledge_config(root)
-    namespaces = (
-        "system.agentlab",
-        validate_namespace(f"domain.{domain}"),
-        validate_namespace(f"project.{project}"),
-    )
+    project_allowed = config.allows_project(project)
+    project_namespace = validate_namespace(f"project.{project}")
+    domain_namespace = validate_namespace(f"domain.{domain}")
+    store: KnowledgeStore | None = None
+    if project_allowed:
+        namespaces = (
+            "system.agentlab",
+            domain_namespace,
+            project_namespace,
+        )
+    else:
+        if config.mode != "off":
+            store = KnowledgeStore(root, config.runtime_path, config.keyword_backend)
+        namespaces = (
+            ("system.agentlab", domain_namespace)
+            if store is not None and store.space_exists(domain_namespace)
+            else ("system.agentlab",)
+        )
+    warnings: list[str] = []
+    if not project_allowed:
+        retrieval_scope = (
+            "system and existing shared domain knowledge"
+            if domain_namespace in namespaces
+            else "system knowledge"
+        )
+        warnings.append(
+            f"project {project} is excluded by knowledge indexing.project_allowlist; "
+            f"retrieval is limited to {retrieval_scope}"
+        )
     modalities = tuple(item.value for item in task.modalities) or _modalities_for(domain)
     required_channels = task.required_channels or config.required_channels
     requirement_id = stable_digest(
@@ -100,20 +124,20 @@ def prepare_task(request: KnowledgeTaskRequest | Mapping[str, Any]) -> PreparedK
     if config.mode == "off":
         return _disabled_context(config, requirement, view)
 
-    store = KnowledgeStore(root, config.runtime_path, config.keyword_backend)
+    if store is None:
+        store = KnowledgeStore(root, config.runtime_path, config.keyword_backend)
     for namespace in namespaces:
         store.ensure_space(namespace)
     collector = SourceCollector(root, max_file_bytes=config.max_file_bytes)
     refresh_system = config.refresh_on_prepare or (
         config.bootstrap_missing_spaces and store.record_count("system.agentlab") == 0
     )
-    project_namespace = f"project.{project}"
-    domain_namespace = f"domain.{domain}"
-    refresh_project = config.refresh_on_prepare or (
-        config.bootstrap_missing_spaces and store.record_count(project_namespace) == 0
+    refresh_project = project_allowed and (
+        config.refresh_on_prepare
+        or (config.bootstrap_missing_spaces and store.record_count(project_namespace) == 0)
     )
     domain_scope = f"domain:{domain}:project:{project}"
-    bootstrap_domain = (
+    bootstrap_domain = project_allowed and (
         config.bootstrap_missing_spaces
         and store.active_scope_record_count(domain_namespace, domain_scope) == 0
     )
@@ -144,7 +168,6 @@ def prepare_task(request: KnowledgeTaskRequest | Mapping[str, Any]) -> PreparedK
             "eligible_lifecycle": ["active"],
         }
     ]
-    warnings: list[str] = []
     degraded = False
     for channel in required_channels:
         if channel == "keyword":
@@ -302,7 +325,8 @@ def sync_committed(commit_receipt: Mapping[str, Any]) -> KnowledgeSyncReceipt:
     root = Path(raw["agentlab_root"]).resolve()
     project = _safe_identifier(str(raw["project"]), "project")
     committed_status = str(raw.get("status") or raw.get("verdict") or "").lower()
-    collector = SourceCollector(root)
+    config = load_knowledge_config(root)
+    collector = SourceCollector(root, max_file_bytes=config.max_file_bytes)
     domain = _safe_identifier(
         str(raw.get("domain") or collector.infer_project_domain(project)),
         "domain",
@@ -320,6 +344,17 @@ def sync_committed(commit_receipt: Mapping[str, Any]) -> KnowledgeSyncReceipt:
             namespaces=namespaces,
             index_snapshot=None,
             warnings=("commit receipt does not prove accepted or promoted state",),
+        )
+    if not config.allows_project(project):
+        return KnowledgeSyncReceipt(
+            receipt_id=receipt_id,
+            status="REJECTED",
+            project=project,
+            namespaces=namespaces,
+            index_snapshot=None,
+            warnings=(
+                f"project {project} is excluded by knowledge indexing.project_allowlist",
+            ),
         )
     paths = tuple(str(item) for item in raw.get("committed_paths") or raw.get("promoted_paths") or ())
     invalid_paths = tuple(path for path in paths if not _is_governed_truth_path(root, project, path))
@@ -352,9 +387,7 @@ def sync_committed(commit_receipt: Mapping[str, Any]) -> KnowledgeSyncReceipt:
         )
     store: KnowledgeStore | None = None
     try:
-        config = load_knowledge_config(root)
         store = KnowledgeStore(root, config.runtime_path, config.keyword_backend)
-        collector = SourceCollector(root, max_file_bytes=config.max_file_bytes)
         for namespace in namespaces:
             store.ensure_space(namespace)
         records_by_namespace: dict[str, list] = {}

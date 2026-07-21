@@ -37,6 +37,10 @@ Before deep repository reads, use the canonical handoff:
 The governed knowledge system is part of normal task preparation. Its validated
 default is non-blocking `assist`; use `./agentlab.sh knowledge doctor` to verify
 the local build and `./agentlab.sh knowledge status` to inspect namespaces.
+`config/knowledge_system.yml#indexing.project_allowlist` is the sole authority
+for projects that may own project/domain RAG records. Projects outside it may
+still run and may read existing shared-domain evidence, but cannot create or sync
+durable derived project memory.
 Formal project and narrative promotions, plus accepted Project Brain phase and
 revision transitions, update their project and domain shards automatically.
 After accepted AgentLab code, configuration, governance, or docs changes, run

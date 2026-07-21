@@ -28,8 +28,16 @@ def register_knowledge_commands(app: typer.Typer, project_root: Path, console: C
 
     @knowledge.command("build")
     def build(
-        project: list[str] | None = typer.Option(None, "--project", help="Project to index; repeatable."),
-        all_projects: bool = typer.Option(False, "--all-projects", help="Discover and index every project."),
+        project: list[str] | None = typer.Option(
+            None,
+            "--project",
+            help="Allowlisted project to index; repeatable.",
+        ),
+        all_projects: bool = typer.Option(
+            False,
+            "--all-projects",
+            help="Discover, reconcile, and index every configured allowlisted project.",
+        ),
         domain: list[str] | None = typer.Option(
             None,
             "--domain",

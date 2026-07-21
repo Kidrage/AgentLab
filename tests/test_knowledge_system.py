@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import hashlib
+import sqlite3
 
 import pytest
 import yaml
@@ -34,6 +35,7 @@ def _write_config(
     keyword_backend: str = "auto",
     refresh_on_prepare: bool | None = None,
     bootstrap_missing_spaces: bool | None = None,
+    project_allowlist: list[str] | None = None,
 ) -> None:
     config_dir = root / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -45,6 +47,9 @@ def _write_config(
                 "auto_memory": "propose_only",
                 "storage": {"keyword_backend": keyword_backend},
                 "indexing": {
+                    "project_allowlist": (
+                        project_allowlist if project_allowlist is not None else ["*"]
+                    ),
                     **(
                         {"refresh_on_prepare": refresh_on_prepare}
                         if refresh_on_prepare is not None
@@ -65,6 +70,91 @@ def _write_config(
         ),
         encoding="utf-8",
     )
+
+
+def test_global_build_reconciles_indexes_to_configured_project_allowlist(tmp_path: Path) -> None:
+    root = tmp_path
+    projects = {
+        "AgentLab": "AGENTLAB-ALLOWLIST-EVIDENCE",
+        "Crown_of_Ash": "CROWN-ALLOWLIST-EVIDENCE",
+        "NovelGen": "NOVELGEN-ALLOWLIST-EVIDENCE",
+        "DemoProject": "DEMO-MEMORY-POLLUTION",
+        "demo_video_generation": "DEMO-VIDEO-MEMORY-POLLUTION",
+    }
+    for project, marker in projects.items():
+        source = root / "projects" / project / "project_brain" / "facts.yml"
+        source.parent.mkdir(parents=True)
+        source.write_text(f"fact: {marker}\n", encoding="utf-8")
+
+    _write_config(root)
+    first = build_knowledge_base(root, include_all_projects=True)
+    assert "project.DemoProject" in first["namespaces"]
+
+    _write_config(
+        root,
+        project_allowlist=["AgentLab", "Crown_of_Ash", "NovelGen"],
+    )
+    receipt = build_knowledge_base(root, include_all_projects=True)
+    status = knowledge_status(root)
+
+    assert receipt["projects"] == ["AgentLab", "Crown_of_Ash", "NovelGen"]
+    assert status["project_allowlist"] == ["AgentLab", "Crown_of_Ash", "NovelGen"]
+    assert set(receipt["retired_namespaces"]) == {
+        "project.DemoProject",
+        "project.demo_video_generation",
+        "domain.media_production",
+    }
+    assert receipt["purged_record_counts"]["domain.code_engineering"] > 0
+    assert receipt["purged_record_counts"]["domain.media_production"] > 0
+    assert {item["namespace"] for item in status["spaces"]} == {
+        "system.agentlab",
+        "project.AgentLab",
+        "project.Crown_of_Ash",
+        "project.NovelGen",
+        "domain.code_engineering",
+        "domain.longform_narrative",
+    }
+    assert (root / "projects" / "DemoProject" / "project_brain" / "facts.yml").is_file()
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+    assert store.search(
+        ("domain.code_engineering", "domain.longform_narrative"),
+        "DEMO-MEMORY-POLLUTION",
+        max_results=10,
+    ) == []
+
+
+def test_retire_spaces_rejects_catalog_paths_outside_managed_shard_directory(
+    tmp_path: Path,
+) -> None:
+    store = KnowledgeStore(tmp_path, ".agentlab_runtime/knowledge", "auto")
+    store.ensure_space("project.DemoProject")
+    protected = store.root / "protected.txt"
+    protected.write_text("must survive\n", encoding="utf-8")
+    with sqlite3.connect(store.catalog_path) as catalog:
+        catalog.execute(
+            "UPDATE spaces SET db_name = ? WHERE namespace = ?",
+            ("../protected.txt", "project.DemoProject"),
+        )
+
+    with pytest.raises(ValueError, match="invalid knowledge shard filename"):
+        store.retire_spaces(("project.DemoProject",))
+
+    assert protected.read_text(encoding="utf-8") == "must survive\n"
+    assert store.space_exists("project.DemoProject") is True
+
+
+def test_explicit_build_rejects_project_outside_allowlist(tmp_path: Path) -> None:
+    root = tmp_path
+    demo_source = root / "projects" / "DemoProject" / "project_brain" / "facts.yml"
+    demo_source.parent.mkdir(parents=True)
+    demo_source.write_text("fact: MUST-NOT-BE-INDEXED\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="project_allowlist: DemoProject"):
+        build_knowledge_base(root, projects=["DemoProject"])
+
+    assert {item["namespace"] for item in knowledge_status(root)["spaces"]} == {
+        "system.agentlab"
+    }
 
 
 def test_build_knowledge_base_discovers_system_project_and_domain_spaces(tmp_path: Path) -> None:
@@ -267,6 +357,92 @@ def test_task_bootstraps_missing_spaces_once_without_rescanning_every_request(tm
         item["namespace"]: item["revision"] for item in first_status["spaces"]
     } == {
         item["namespace"]: item["revision"] for item in second_status["spaces"]
+    }
+
+
+def test_task_outside_allowlist_uses_system_knowledge_without_creating_project_memory(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    _write_config(
+        root,
+        mode="assist",
+        refresh_on_prepare=False,
+        bootstrap_missing_spaces=True,
+        project_allowlist=["AgentLab", "Crown_of_Ash", "NovelGen"],
+    )
+    system_source = root / "agent_runtime" / "policy.py"
+    system_source.parent.mkdir(parents=True)
+    system_source.write_text("SYSTEM-ONLY-GOVERNANCE-EVIDENCE\n", encoding="utf-8")
+    demo_source = root / "projects" / "DemoProject" / "project_brain" / "facts.yml"
+    demo_source.parent.mkdir(parents=True)
+    demo_source.write_text("fact: DEMO-MUST-STAY-OUT\n", encoding="utf-8")
+
+    prepared = prepare_task(
+        KnowledgeTaskRequest(
+            root,
+            "DemoProject",
+            "task_demo_without_memory",
+            "SYSTEM-ONLY-GOVERNANCE-EVIDENCE",
+            "code_engineering",
+        )
+    )
+
+    assert prepared.status == "READY"
+    assert prepared.requirement.namespaces == ("system.agentlab",)
+    assert prepared.warnings == (
+        "project DemoProject is excluded by knowledge indexing.project_allowlist; "
+        "retrieval is limited to system knowledge",
+    )
+    assert {item["namespace"] for item in knowledge_status(root)["spaces"]} == {
+        "system.agentlab"
+    }
+    assert all(item.source.path != "projects/DemoProject/project_brain/facts.yml" for item in prepared.evidence_bundle.items)
+
+
+def test_task_outside_allowlist_can_read_existing_shared_domain_without_writing_to_it(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    _write_config(
+        root,
+        mode="assist",
+        refresh_on_prepare=False,
+        bootstrap_missing_spaces=True,
+        project_allowlist=["AgentLab", "Crown_of_Ash", "NovelGen"],
+    )
+    source = root / "projects" / "AgentLab" / "project_brain" / "facts.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text("fact: SHARED-CODE-DOMAIN-EVIDENCE\n", encoding="utf-8")
+    build_knowledge_base(root, projects=["AgentLab"])
+    before = {
+        item["namespace"]: item["revision"] for item in knowledge_status(root)["spaces"]
+    }
+
+    prepared = prepare_task(
+        KnowledgeTaskRequest(
+            root,
+            "DemoProject",
+            "task_demo_shared_domain",
+            "SHARED-CODE-DOMAIN-EVIDENCE",
+            "code_engineering",
+        )
+    )
+    after_status = knowledge_status(root)
+
+    assert prepared.status == "READY"
+    assert prepared.requirement.namespaces == (
+        "system.agentlab",
+        "domain.code_engineering",
+    )
+    assert {item.namespace for item in prepared.evidence_bundle.items} == {
+        "domain.code_engineering"
+    }
+    assert "project.DemoProject" not in {
+        item["namespace"] for item in after_status["spaces"]
+    }
+    assert before == {
+        item["namespace"]: item["revision"] for item in after_status["spaces"]
     }
 
 
@@ -638,6 +814,32 @@ def test_evaluate_outcome_requires_evidence_and_only_proposes_candidate_memory(t
     )
     assert stale.status == "INSUFFICIENT_EVIDENCE"
     assert any("source hash changed" in error for error in stale.errors)
+
+
+def test_sync_committed_rejects_project_outside_allowlist_without_creating_memory(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    _write_config(root, project_allowlist=["AgentLab", "Crown_of_Ash", "NovelGen"])
+    production = root / "projects" / "DemoProject" / "production" / "spec.md"
+    production.parent.mkdir(parents=True)
+    production.write_text("DEMO-PROMOTION-MUST-STAY-OUT\n", encoding="utf-8")
+
+    receipt = sync_committed(
+        {
+            "agentlab_root": root,
+            "project": "DemoProject",
+            "status": "promoted",
+            "promoted_paths": ["projects/DemoProject/production/spec.md"],
+        }
+    )
+
+    assert receipt.status == "REJECTED"
+    assert receipt.index_snapshot is None
+    assert receipt.warnings == (
+        "project DemoProject is excluded by knowledge indexing.project_allowlist",
+    )
+    assert knowledge_status(root)["spaces"] == []
 
 
 def test_sync_committed_indexes_only_governed_project_truth(tmp_path: Path) -> None:

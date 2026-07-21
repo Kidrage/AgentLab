@@ -48,6 +48,10 @@ class ProjectArtifactStewardTests(TestCase):
     def test_archive_protocol_promotes_candidate_archives_old_and_updates_index(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
+            _write_yaml(
+                root / "config" / "knowledge_system.yml",
+                {"indexing": {"project_allowlist": ["Novel"]}},
+            )
             run_dir = self._make_run(root)
             production = (
                 root

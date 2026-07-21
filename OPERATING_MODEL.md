@@ -181,6 +181,12 @@ both their project and inferred domain shards; an indexing failure marks those
 derived shards stale without rolling back committed truth. Accepted changes to
 AgentLab's own code, configuration, governance, or docs finish with
 `knowledge build --project AgentLab` to refresh the global system scaffold.
+`config/knowledge_system.yml#indexing.project_allowlist` is the sole authority
+for the project-memory set. `--all-projects` reconciles the catalog to that set,
+purges excluded project records from shared domains, and retires empty derived
+shards. Tasks and promotion receipts outside the allowlist cannot create project
+memory; tasks may read system and existing shared-domain evidence without writing
+to those domains, while their source directories remain untouched.
 
 ## 8. Cost And Capacity
 

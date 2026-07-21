@@ -112,6 +112,97 @@ class KnowledgeStore:
             )
         return path
 
+    def _managed_shard_path(self, db_name: str) -> Path:
+        if re.fullmatch(r"[0-9a-f]{24}\.sqlite3", db_name) is None:
+            raise ValueError(f"invalid knowledge shard filename in catalog: {db_name}")
+        return assert_path_allowed(self.spaces_root / db_name, self.spaces_root)
+
+    def space_exists(self, namespace: str) -> bool:
+        """Return whether a namespace is already cataloged without creating it."""
+        with self._catalog() as catalog:
+            return catalog.execute(
+                "SELECT 1 FROM spaces WHERE namespace = ?",
+                (validate_namespace(namespace),),
+            ).fetchone() is not None
+
+    def retire_spaces(self, namespaces: Iterable[str]) -> tuple[str, ...]:
+        """Remove rebuildable namespace catalog entries and their SQLite shards."""
+        ordered = tuple(sorted({validate_namespace(item) for item in namespaces}))
+        if not ordered:
+            return ()
+        placeholders = ",".join("?" for _ in ordered)
+        with self._catalog() as catalog:
+            rows = catalog.execute(
+                f"SELECT namespace, db_name FROM spaces WHERE namespace IN ({placeholders})",
+                ordered,
+            ).fetchall()
+        managed_rows = [
+            (row["namespace"], self._managed_shard_path(row["db_name"]))
+            for row in rows
+        ]
+        with self._catalog() as catalog:
+            catalog.execute(
+                f"DELETE FROM spaces WHERE namespace IN ({placeholders})",
+                ordered,
+            )
+        retired: list[str] = []
+        for namespace, path in managed_rows:
+            for candidate in (path, Path(f"{path}-wal"), Path(f"{path}-shm")):
+                assert_path_allowed(candidate, self.spaces_root).unlink(missing_ok=True)
+            retired.append(namespace)
+        return tuple(sorted(retired))
+
+    def prune_project_records(
+        self,
+        namespace: str,
+        retained_projects: Iterable[str],
+    ) -> tuple[int, int]:
+        """Delete excluded project records and return deleted/remaining counts."""
+        namespace = validate_namespace(namespace)
+        retained = tuple(sorted({str(item) for item in retained_projects}))
+        with self._catalog() as catalog:
+            row = catalog.execute(
+                "SELECT db_name FROM spaces WHERE namespace = ?",
+                (namespace,),
+            ).fetchone()
+        if row is None:
+            return 0, 0
+        path = self._managed_shard_path(row["db_name"])
+        now = _utc_now()
+        with self._shard(path) as connection:
+            if retained:
+                placeholders = ",".join("?" for _ in retained)
+                cursor = connection.execute(
+                    f"DELETE FROM records WHERE project_id IS NOT NULL "
+                    f"AND project_id NOT IN ({placeholders})",
+                    retained,
+                )
+            else:
+                cursor = connection.execute(
+                    "DELETE FROM records WHERE project_id IS NOT NULL"
+                )
+            deleted = max(0, cursor.rowcount)
+            remaining = int(connection.execute("SELECT COUNT(*) FROM records").fetchone()[0])
+            revision = int(
+                connection.execute(
+                    "SELECT value FROM shard_meta WHERE key = 'revision'"
+                ).fetchone()[0]
+            )
+            if deleted:
+                revision += 1
+                connection.execute(
+                    "UPDATE shard_meta SET value = ? WHERE key = 'revision'",
+                    (str(revision),),
+                )
+        if deleted:
+            with self._catalog() as catalog:
+                catalog.execute(
+                    "UPDATE spaces SET revision = ?, status = 'active', updated_at = ? "
+                    "WHERE namespace = ?",
+                    (revision, now, namespace),
+                )
+        return deleted, remaining
+
     def _initialize_shard(self, path: Path) -> str:
         with self._shard(path) as connection:
             connection.execute(

@@ -43,6 +43,7 @@ def _copy_config_root(tmp_path: Path) -> Path:
         "visual_acceptance.yml",
         "frontdesk_policy.yml",
         "content_project_governance.yml",
+        "knowledge_system.yml",
     ]:
         shutil.copy(ROOT / "config" / name, root / "config" / name)
     return root

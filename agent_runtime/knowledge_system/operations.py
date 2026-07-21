@@ -36,9 +36,44 @@ def build_knowledge_base(
     system_records = collector.collect_system(include_ineligible=True)
     store.sync_records("system.agentlab", system_records, scope="system:global_sources")
 
-    selected = set(str(item) for item in projects)
+    requested = set(str(item) for item in projects)
+    disallowed = sorted(project for project in requested if not config.allows_project(project))
+    if disallowed:
+        raise ValueError(
+            "projects are excluded by knowledge indexing.project_allowlist: "
+            + ", ".join(disallowed)
+        )
+    selected = set(requested)
     if include_all_projects:
-        selected.update(collector.discover_projects())
+        selected.update(
+            project
+            for project in collector.discover_projects()
+            if config.allows_project(project)
+        )
+    retired_namespaces: tuple[str, ...] = ()
+    purged_record_counts: dict[str, int] = {}
+    if include_all_projects:
+        keep_project_namespaces = {f"project.{project}" for project in selected}
+        spaces = store.describe_spaces()
+        empty_domain_namespaces: list[str] = []
+        for item in spaces:
+            namespace = item["namespace"]
+            if not namespace.startswith("domain."):
+                continue
+            deleted, remaining = store.prune_project_records(namespace, selected)
+            if deleted:
+                purged_record_counts[namespace] = deleted
+            if remaining == 0:
+                empty_domain_namespaces.append(namespace)
+        retired_namespaces = store.retire_spaces(
+            [
+                item["namespace"]
+                for item in spaces
+                if item["namespace"].startswith("project.")
+                and item["namespace"] not in keep_project_namespaces
+            ]
+            + empty_domain_namespaces
+        )
     domains = dict(project_domains or {})
     resolved_domains: dict[str, str] = {}
     namespaces = {"system.agentlab"}
@@ -88,7 +123,15 @@ def build_knowledge_base(
     built_at = datetime.now(timezone.utc).isoformat()
     receipt = {
         "status": "BUILT",
-        "receipt_id": stable_digest(snapshot, sorted(selected), resolved_domains, record_counts, prefix="kbuild_"),
+        "receipt_id": stable_digest(
+            snapshot,
+            sorted(selected),
+            resolved_domains,
+            record_counts,
+            retired_namespaces,
+            purged_record_counts,
+            prefix="kbuild_",
+        ),
         "built_at": built_at,
         "projects": sorted(selected),
         "project_domains": resolved_domains,
@@ -96,6 +139,8 @@ def build_knowledge_base(
         "record_counts": record_counts,
         "index_snapshot": snapshot,
         "runtime_path": store.root.relative_to(root).as_posix(),
+        "retired_namespaces": list(retired_namespaces),
+        "purged_record_counts": purged_record_counts,
     }
     atomic_write_json(receipts_dir / "latest_build.json", receipt, ensure_ascii=False, indent=2)
     return receipt
@@ -116,6 +161,7 @@ def knowledge_status(agentlab_root: Path) -> dict:
         "status": "READY" if spaces else "EMPTY",
         "mode": config.mode,
         "auto_memory": config.auto_memory,
+        "project_allowlist": list(config.project_allowlist),
         "runtime_path": store.root.relative_to(root).as_posix(),
         "storage_inside_agentlab": storage_inside_agentlab,
         "space_count": len(spaces),

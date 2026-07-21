@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-19T12:54:34.530164+00:00`
+- Generated at: `2026-07-21T03:13:43.489673+00:00`
 
 ## Current State
 
-- Branch: `feature/narrative-production-closure`
-- HEAD: `8cf80d0`
-- Indexed paths: 1932
+- Branch: `feature/knowledge-system-rag-governance`
+- HEAD: `ae41eff`
+- Indexed paths: 2005
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,35 +43,38 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 549 |
-| `tests` | 445 |
-| `acceptance_runs` | 364 |
-| `docs` | 316 |
+| `agent_runtime` | 569 |
+| `tests` | 446 |
+| `acceptance_runs` | 395 |
+| `docs` | 336 |
 | `docs/archive` | 222 |
-| `config` | 122 |
+| `config` | 123 |
 | `acceptance_runs/narrative_eval` | 116 |
 | `tests/fixtures` | 110 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 41 |
+| `agent_runtime/narrative` | 41 |
 | `acceptance_runs/s10_generalization_eval` | 32 |
-| `agent_runtime/narrative` | 30 |
+| `docs/narrative` | 28 |
 | `scripts` | 22 |
 | `agent_runtime/program_manager` | 21 |
 | `agent_runtime/recovery` | 21 |
 | `agent_runtime/workers` | 21 |
 | `acceptance_runs/mainline_r0_r5` | 20 |
 | `agent_runtime/context_governance` | 20 |
+| `acceptance_runs/narrative_repair_v2` | 18 |
 | `agent_runtime/executors` | 18 |
 | `.` | 16 |
 | `acceptance_runs/m2_operator_demo` | 16 |
 | `agent_templates` | 16 |
 | `agent_runtime/capabilities` | 15 |
+| `agent_runtime/cli` | 15 |
 | `agent_runtime/ingestion` | 15 |
-| `agent_runtime/cli` | 14 |
 | `agent_runtime/config_center` | 13 |
 | `acceptance_runs/p2_closure` | 12 |
 | `agent_runtime/goals` | 12 |
+| `acceptance_runs/narrative_efficiency` | 11 |
 | `agent_runtime/brain` | 11 |
 | `agent_runtime/capability_broker` | 11 |
 | `agent_runtime/costs` | 11 |
@@ -80,26 +83,23 @@
 | `acceptance_runs/e2e_minimal_task` | 10 |
 | `acceptance_runs/p2_provider_governance` | 10 |
 | `acceptance_runs/s0_remote_raw_repair` | 10 |
-| `agent_runtime/intelligence` | 10 |
-| `agent_runtime/router_update` | 10 |
-| `acceptance_runs/s12_productization` | 9 |
 
 ## Data and File Structure
 
 ### Categories
 
-- code: 934 files, 7523744 bytes
-- literature: 400 files, 2173549 bytes
+- code: 955 files, 7969040 bytes
+- literature: 410 files, 2262874 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 586 files, 3051152 bytes
+- structured_data: 628 files, 3217127 bytes
 
 ### Common Extensions
 
-- `.py`: 921
-- `.yml`: 558
-- `.md`: 361
+- `.py`: 942
+- `.yml`: 597
+- `.md`: 371
 - `.txt`: 39
-- `.json`: 23
+- `.json`: 26
 - `.sh`: 8
 - `[no extension]`: 5
 - `.js`: 5
@@ -166,10 +166,13 @@
 - `agent_runtime/goals/models.py`
 - `agent_runtime/governance/models.py`
 - `agent_runtime/ingestion/ingestion_contract.py`
+- `agent_runtime/knowledge_system/migration.py`
+- `agent_runtime/knowledge_system/models.py`
 - `agent_runtime/langgraph_schema.py`
 - `agent_runtime/migration_doctor.py`
 - `agent_runtime/model_capacity.py`
 - `agent_runtime/model_resolver.py`
+- `agent_runtime/narrative/production/writer_contract.py`
 - `agent_runtime/observation_contract.py`
 - `agent_runtime/operator_os/action_contract.py`
 - `agent_runtime/operator_os/state_model.py`
@@ -191,9 +194,6 @@
 - `config/config_ui_schema.yml`
 - `config/hermes_brain_model_groups.yml`
 - `config/migration_profile.yml`
-- `config/model_capacity.yml`
-- `config/model_catalog.yml`
-- `config/model_cost_profiles.yml`
 
 ## Key Entrypoints and Guides
 
@@ -230,31 +230,46 @@
 
 ## Change History
 
+- `ae41eff 2026-07-21 feat(knowledge): absorb governed RAG into AgentLab`
+- `a6058e0 2026-07-21 docs(narrative): remove local path from repair plan`
+- `1a00c9a 2026-07-21 feat(knowledge): add governed federated retrieval`
+- `6edaf89 2026-07-20 docs(narrative): checkpoint paused phase 2r work`
+- `05e9ecf 2026-07-20 feat(narrative): compile chapter literary memory`
+- `ac2a23c 2026-07-20 feat(narrative): add governed writer packet preview`
+- `25a9639 2026-07-20 fix(workers): isolate generic claude coder context`
+- `19cb81f 2026-07-20 docs(narrative): freeze phase 2r context measurement readiness`
+- `b638158 2026-07-20 feat(narrative): add hash-bound shared context compiler`
+- `d5ce288 2026-07-20 docs(narrative): reject phase 2r context false greens`
+- `140ad98 2026-07-20 docs(narrative): dispatch phase 2r context node`
+- `d81ea22 2026-07-20 fix(config): bind performance Coder to supported deepseek model`
+- `1f2d98c 2026-07-20 fix(narrative): sanitize accepted evidence locators`
+- `f81bcdb 2026-07-20 feat(narrative): close phase 1r production contracts`
+- `1dd5008 2026-07-20 docs(narrative): accept trusted phase 0r baseline`
+- `9799ba0 2026-07-20 docs(narrative): clean repair handoff formatting`
+- `7a91e70 2026-07-20 fix(governance): preserve structured phase dispatch`
+- `9b3256a 2026-07-19 docs(narrative): record adult intimacy handoff`
 - `8cf80d0 2026-07-19 docs(narrative): restore adult dark intimacy contract`
 - `bc9c60f 2026-07-19 docs(narrative): make Gate 1 evidence portable`
-- `dda36b0 2026-07-19 docs(narrative): record Gate 1 legacy handoff`
-- `ed0efe0 2026-07-19 fix(narrative): bind Gate 1 legacy context lineage`
-- `1664e0a 2026-07-19 docs(narrative): record blocked gate 1 trial`
-- `d7922cd 2026-07-19 docs(narrative): record final validation`
-- `1389e86 2026-07-19 docs: refresh narrative handoff`
-- `c654f1d 2026-07-19 docs(narrative): report phase 2-5 gate results`
-- `09bb2bb 2026-07-19 fix(narrative): wire phase 2-4 closure`
-- `14e620d 2026-07-19 feat(narrative): complete phase 4 candidate governance`
-- `d892e62 2026-07-19 feat(narrative): complete phase 3 quality closure`
-- `38be986 2026-07-19 feat(narrative): complete phase 2 efficiency controls`
-- `96f28c1 2026-07-19 docs(narrative): record phase 1 acceptance`
-- `2d504f9 2026-07-19 fix(narrative): close phase 1 semantics and seal gates`
-- `69b3a2a 2026-07-19 docs(handoff): prioritize narrative closure plan`
-- `e3f9dc8 2026-07-19 fix(narrative): harden phase 0 evidence`
-- `047e1e6 2026-07-19 feat(narrative): establish phase 0 diagnostic baseline`
-- `8456bc6 2026-07-18 refactor: prune AgentLab workflow governance`
-- `2239ad7 2026-07-18 fix: delay transient background provider retries`
-- `faa0a60 2026-07-18 fix: preserve runtime imports in detached jobs`
 
 ## Current Changes
 
-- `## feature/narrative-production-closure`
-- ` M PROJECT_HANDOFF.md`
+- `## feature/knowledge-system-rag-governance`
+- ` M AGENTS.md`
+- ` M OPERATING_MODEL.md`
+- ` M agent_runtime/cli/knowledge.py`
+- ` M agent_runtime/knowledge_system/config.py`
+- ` M agent_runtime/knowledge_system/operations.py`
+- ` M agent_runtime/knowledge_system/runtime.py`
+- ` M agent_runtime/knowledge_system/storage.py`
+- ` M config/knowledge_system.yml`
+- ` M docs/AGENTLAB_KNOWLEDGE_SYSTEM_RAG_GOVERNANCE_UPGRADE_PLAN.md`
+- ` M tests/test_knowledge_system.py`
+- ` M tests/test_models_and_governance_cli.py`
+- ` M tests/test_narrative_delivery.py`
+- ` M tests/test_p2g_cli.py`
+- ` M tests/test_p2g_context_packers.py`
+- ` M tests/test_project_artifact_steward.py`
+- ` M tests/test_project_fact_state_machine.py`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integrated_live/`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integration_preflight/`

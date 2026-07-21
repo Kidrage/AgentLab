@@ -107,6 +107,15 @@ def test_acceptance_applies_valid_state_transition_proposal(tmp_path: Path) -> N
 
 
 def test_managed_project_brain_acceptance_refreshes_knowledge_shards(tmp_path: Path) -> None:
+    config = tmp_path / "config" / "knowledge_system.yml"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        yaml.safe_dump(
+            {"indexing": {"project_allowlist": ["NovelDemo"]}},
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
     brain = tmp_path / "projects" / "NovelDemo" / "project_brain"
     brain.mkdir(parents=True)
     build_project_brain(_mission(tmp_path / "mission.yml"), "NovelDemo", brain)

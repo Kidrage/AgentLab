@@ -63,6 +63,9 @@ def test_knowledge_commands_build_activate_validate_and_search(
     assert help_result.exit_code == 0, help_result.output
     for command in ("build", "status", "activate", "validate", "search", "doctor"):
         assert command in help_result.output
+    build_help = runner.invoke(app, ["knowledge", "build", "--help"])
+    assert build_help.exit_code == 0, build_help.output
+    assert "allowlisted project" in build_help.output
 
     built = runner.invoke(app, ["knowledge", "build", "--all-projects"])
     assert built.exit_code == 0, built.output

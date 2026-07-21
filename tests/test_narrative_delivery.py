@@ -541,6 +541,10 @@ def test_frozen_candidate_set_detects_any_chapter_hash_change(tmp_path: Path) ->
 
 
 def test_first_publication_promotes_hash_bound_candidate_atomically(tmp_path: Path) -> None:
+    _write_yaml(
+        tmp_path / "config" / "knowledge_system.yml",
+        {"indexing": {"project_allowlist": ["Novel"]}},
+    )
     project_root = tmp_path / "projects" / "Novel"
     artifact = project_root / "candidates" / "raw" / "chapter_001.md"
     artifact.parent.mkdir(parents=True)

@@ -29,6 +29,11 @@ class KnowledgeSystemConfig:
     index_project_sources: bool = True
     refresh_on_prepare: bool = True
     bootstrap_missing_spaces: bool = False
+    project_allowlist: tuple[str, ...] = ()
+
+    def allows_project(self, project: str) -> bool:
+        """Return whether a project may own derived knowledge indexes."""
+        return "*" in self.project_allowlist or project in self.project_allowlist
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any] | None) -> "KnowledgeSystemConfig":
@@ -54,6 +59,19 @@ class KnowledgeSystemConfig:
             raise ValueError(
                 f"knowledge keyword backend must be one of {sorted(VALID_KEYWORD_BACKENDS)}"
             )
+        raw_project_allowlist = indexing.get(
+            "project_allowlist",
+            (),
+        )
+        if not isinstance(raw_project_allowlist, (list, tuple)):
+            raise ValueError("knowledge indexing.project_allowlist must be a sequence")
+        project_allowlist = tuple(
+            dict.fromkeys(
+                str(item).strip()
+                for item in raw_project_allowlist
+                if str(item).strip()
+            )
+        )
         return cls(
             mode=mode,
             auto_memory=auto_memory,
@@ -66,6 +84,7 @@ class KnowledgeSystemConfig:
             index_project_sources=bool(indexing.get("project_sources", True)),
             refresh_on_prepare=bool(indexing.get("refresh_on_prepare", True)),
             bootstrap_missing_spaces=bool(indexing.get("bootstrap_missing_spaces", False)),
+            project_allowlist=project_allowlist,
         )
 
 

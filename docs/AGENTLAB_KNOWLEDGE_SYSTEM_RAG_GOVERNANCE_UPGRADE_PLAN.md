@@ -7,8 +7,13 @@ Operationally absorbed — governed assist is the normal task default
 The local-first implementation lives entirely in AgentLab under
 `agent_runtime/knowledge_system/`, `agent_runtime/cli/knowledge.py`,
 `config/knowledge_system.yml`, and `.agentlab_runtime/knowledge/`. System,
-domain, and project spaces are automatically discovered and built with
-`./agentlab.sh knowledge build --all-projects`; large media is indexed as
+domain, and project spaces are automatically discovered and built for the
+configured production allowlist with `./agentlab.sh knowledge build --all-projects`;
+`config/knowledge_system.yml#indexing.project_allowlist` is the sole project-set
+authority. This command purges excluded records from shared domains and retires
+empty derived shards without deleting project sources. Tasks and promotion
+receipts outside the allowlist cannot reintroduce project memory; tasks may read
+system and existing shared-domain evidence without writing it. Large media is indexed as
 metadata only. Keyword retrieval uses SQLite FTS5 with the existing BM25 engine
 as an explicit degraded fallback. Semantic and graph channels remain optional
 adapters and fail visibly when requested but not configured.

@@ -17,6 +17,12 @@ storage:
 indexing:
   system_sources: true
   project_sources: true
+  # Only production projects may own durable derived memory. Other projects can
+  # still run tasks, but cannot create project/domain shards or sync into them.
+  project_allowlist:
+    - AgentLab
+    - Crown_of_Ash
+    - NovelGen
   # Full builds and governance commit receipts refresh indexes. Normal tasks only
   # bootstrap missing spaces, avoiding a repository rescan on every request.
   refresh_on_prepare: false
