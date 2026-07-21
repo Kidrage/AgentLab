@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-21T16:21:23.724968+00:00`
+- Generated at: `2026-07-21T23:05:07.720242+00:00`
 
 ## Current State
 
 - Branch: `feature/narrative-gate1-resume`
-- HEAD: `c990809`
+- HEAD: `6c35230`
 - Indexed paths: 2021
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,10 +88,10 @@
 
 ### Categories
 
-- code: 965 files, 8439726 bytes
-- literature: 412 files, 2343591 bytes
+- code: 965 files, 8447334 bytes
+- literature: 412 files, 2343541 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 632 files, 3243652 bytes
+- structured_data: 632 files, 3246718 bytes
 
 ### Common Extensions
 
@@ -230,6 +230,8 @@
 
 ## Change History
 
+- `6c35230 2026-07-22 fix: deliver Agy planner YAML`
+- `f26d1f1 2026-07-22 checkpoint(narrative): preserve Gate 1 runtime work`
 - `c990809 2026-07-22 fix: align default routes with native Codex`
 - `b7ff2ed 2026-07-21 fix(narrative): bind revision candidate audits`
 - `53a645b 2026-07-21 fix(narrative): harden targeted revision attempts`
@@ -248,31 +250,13 @@
 - `6edaf89 2026-07-20 docs(narrative): checkpoint paused phase 2r work`
 - `05e9ecf 2026-07-20 feat(narrative): compile chapter literary memory`
 - `ac2a23c 2026-07-20 feat(narrative): add governed writer packet preview`
-- `25a9639 2026-07-20 fix(workers): isolate generic claude coder context`
-- `19cb81f 2026-07-20 docs(narrative): freeze phase 2r context measurement readiness`
 
 ## Current Changes
 
 - `## feature/narrative-gate1-resume`
-- ` M PROJECT_HANDOFF.md`
-- ` M agent_runtime/agent_runner.py`
-- ` M agent_runtime/cli_executor.py`
-- ` M agent_runtime/narrative/production/revision_attempts.py`
-- ` M agent_runtime/narrative/quality/blind_review.py`
-- ` M config/model_capacity.yml`
-- ` M config/worker_invocation_contracts.yml`
-- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
-- ` M tests/test_agent_runner_cli_integration.py`
-- ` M tests/test_cli_executor.py`
-- ` M tests/test_execution_config_consolidation.py`
-- ` M tests/test_narrative_efficiency.py`
-- ` M tests/test_narrative_quality_gate.py`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integrated_live/`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integration_preflight/`
-- `?? agent_runtime/narrative/quality/live_editor.py`
-- `?? agent_runtime/narrative/quality/live_editor_preflight.py`
-- `?? agent_runtime/narrative/quality/live_editor_runtime.py`
 
 ## Related Repositories
 
@@ -659,7 +643,7 @@ without a progress row.
 | 2026-07-21 22:14 CST | Codex | Gate 1 Ch25 governed literary Editor and anonymous A/B | in_progress | Audit-identity commit `b7ff2ed` is pushed and CI `29837411315` passed. Knowledge was rebuilt in default `assist` mode with receipt `kbuild_6406d0…e49d`, snapshot `idx_6db0e3…b7a6`; doctor PASS with 31,765 records / 1,561 eligible. The next unit is an exact, candidate-only Qwen 3.7 Max Reviewer role-session that sees anonymous A/B prose plus hash-bound story context, returns both literary scorecards and one blind preference receipt, and cannot read workspace tools or mutate candidates | Ch25 original/revision hashes and Production remain frozen; Ch26/27, promotion and user-facing quality claims remain blocked. New behavior must stay inside narrative quality plus thin generic structured-output/capacity seams; code-task routes are out of scope | Red/green the provider-free preflight, anonymous mapping, strict scorecard/selection and model-route receipt first. Independent review/full CI precede the authorized external Editor call; a non-winning or blocking attempt-02 result must persist `decision_required / insufficient_revision_uplift` |
 
 | 2026-07-21 22:30 CST | Codex | Default model/worker execution-surface correction | superseded | Commit `c990809` correctly moved the default Supervisor to native Codex/GPT, but incorrectly generalized that correction to unrelated `full_cli` roles. The following scoped correction replaces that overbroad rule | Preserve as historical evidence only; do not treat its every-Codex-role statement as current routing authority | Use the exact role/tier matrix below; never extrapolate one role correction globally |
-| 2026-07-22 06:35 CST | Codex | Scoped default model routes and Agy performance planner | accepted_local_pending_commit_ci | User selected Verifier option 1 and clarified exact scope: default performance RepoScout, InterfaceMapper, and TesterAuditor use Claude Code + DeepSeek V4 Pro; Verifier uses Claude Code + DeepSeek V4 Flash; Supervisor alone uses native Codex + GPT-5.6 Sol xhigh. Default performance NarrativePlanner temporarily uses Agy + Gemini 3.5 Flash High through the shared OAuth subscription quota window, while full retains Claude Code + DeepSeek V4 Pro. The Agy planner contract is fail-closed, no-fallback, sandboxed plan mode and returns validated raw `chapter_state_plan.yml` YAML without the generic Markdown wrapper. Both independent Spec and Standards rereviews pass; focused routing/protocol checks pass 88/88, Agy executor checks pass 9/9, model doctor passes 135 profiles / 0 issues, protocol doctor passes 110 checks / 0 failures, and the full repository passes 3,070 with 2 skipped | Keep all other modes, tiers, Gate 1 work, and Qwen literary Editor behavior untouched; Agy shares the existing subscription pool and remaining/reset quota stays unknown until provider evidence | Commit and push the five-file delivery correction plus this memory receipt, rebuild RAG from that commit, then verify CI |
+| 2026-07-22 06:35 CST | Codex | Scoped default model routes and Agy performance planner | delivered | User selected Verifier option 1 and clarified exact scope: default performance RepoScout, InterfaceMapper, and TesterAuditor use Claude Code + DeepSeek V4 Pro; Verifier uses Claude Code + DeepSeek V4 Flash; Supervisor alone uses native Codex + GPT-5.6 Sol xhigh. Default performance NarrativePlanner temporarily uses Agy + Gemini 3.5 Flash High through the shared OAuth subscription quota window, while full retains Claude Code + DeepSeek V4 Pro. The Agy planner contract is fail-closed, no-fallback, sandboxed plan mode and returns validated raw `chapter_state_plan.yml` YAML without the generic Markdown wrapper. Both independent Spec and Standards rereviews pass; focused routing/protocol checks pass 88/88, Agy executor checks pass 9/9, model doctor passes 135 profiles / 0 issues, protocol doctor passes 110 checks / 0 failures, and the full repository passes 3,070 with 2 skipped. Delivery commit `6c35230` is pushed; CI run `29875729144` passed all jobs; post-commit RAG build receipt `kbuild_a9480a…ba62e` and knowledge doctor/search validation passed | Keep all other modes, tiers, Gate 1 work, and Qwen literary Editor behavior untouched; Agy shares the existing subscription pool and remaining/reset quota stays unknown until provider evidence | Treat this exact role/tier matrix and Agy planner contract as current authority; do not generalize the correction to other modes or tiers |
 
 ## Stop conditions and immediate next actions
 
