@@ -524,6 +524,7 @@ def test_codex_supervisor_uses_native_gpt_56_sol_at_xhigh_effort() -> None:
     assert supervisor_contract["requested_reasoning_label"] == "extra"
     assert supervisor_contract["resolved_reasoning_effort"] == "xhigh"
     assert supervisor_contract["fallback"] == {"on_binary_missing": "capacity_manager"}
+    assert "--skip-git-repo-check" in contracts["codex"]["template"]
     for tier in ("full", "performance", "low"):
         route = profiles["modes"]["full_cli"]["tiers"][tier]["supervisor"]
         assert route["cli_agent"] == "codex"

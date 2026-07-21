@@ -405,7 +405,7 @@ contracts:
       - changed_files_or_findings.yml
       - validation_evidence.yml
     template: >-
-      codex exec --json --model "{model_id}" -C "{workspace_path}" "Read the task packet at
+      codex exec --json --model "{model_id}" --skip-git-repo-check -C "{workspace_path}" "Read the task packet at
       {task_packet_path}; perform only the assigned work and report actual changes."
     required_placeholders:
       - workspace_path
