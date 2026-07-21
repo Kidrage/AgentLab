@@ -269,6 +269,18 @@ def supervisor_context_source_files(
         run_dir / "workflow_plan.yml",
         run_dir / "mission_contract.yml",
     ]
+    if plan.route.route_key == "artifact_production_task":
+        files.extend(
+            [
+                run_dir / "artifact_task.yml",
+                project_root / "project_artifact_index.yml",
+                project_root / "project_brain" / "artifact_version_policy.yml",
+                project_root
+                / "project_brain"
+                / "local_asset_cleanup_receipt.yml",
+                project_root / "agent_docs" / "02_TASK_LEDGER.yml",
+            ]
+        )
     files[2:2] = _repository_handoff_context_files(agentlab_root, project_root)
     configs = load_agentlab_configs(agentlab_root)
     supervisor = (configs.get("agent_registry", {}).get("agents", {}) or {}).get(
@@ -1139,6 +1151,12 @@ def compose_agent_messages(agentlab_root: Path, plan: WorkflowPlan, agent_name: 
             run_dir / "mission_contract.yml",
             run_dir / DEFAULT_REPORT_BY_AGENT.get("Supervisor", "01_supervisor_plan.md"),
         ]
+    elif agent_name == "Supervisor":
+        context_files = supervisor_context_source_files(
+            agentlab_root,
+            plan,
+            output_path,
+        )
     elif agent_name == "Verifier" and (plan.production_pack or {}).get(
         "status"
     ) == "synthesis_candidate":
@@ -1438,6 +1456,22 @@ Production-pack synthesis Verifier rules:
   state/memory records, automatic promotion, or unreviewed external evidence.
 - Do not edit candidate files, configuration, project memory, or production.
 - Report a clear pass/block decision and every blocking contract issue.
+"""
+    elif (
+        agent_name == "Supervisor"
+        and plan.route.route_key == "artifact_production_task"
+    ):
+        hard_rules = """
+Artifact governance Supervisor rules:
+- Use only the governance metadata embedded in this sealed task packet.
+- Do not request tools, shell commands, file reads, repository scans, browser
+  access, subagents, or workflow discovery.
+- Approve or block the declared ArtifactTask from its explicit inputs, hashes,
+  output contract, candidate-only boundary, role order, and validation gates.
+- Do not inspect or reproduce source content, create the artifact, mutate files,
+  promote candidates, or claim AgentLab-owned receipts are missing.
+- If a declared governance field is absent, name that exact field and block;
+  otherwise dispatch the approved downstream roles without adding requirements.
 """
     elif agent_name == "Coder":
         hard_rules += """
@@ -2238,6 +2272,7 @@ def _artifact_task_profile_for_plan(
             "markdown": {".md", ".markdown"},
             "txt": {".txt"},
             "docx": {".docx"},
+            "yaml": {".yml", ".yaml"},
             "xlsx": {".xlsx"},
             "csv": {".csv"},
             "pptx": {".pptx"},

@@ -1128,6 +1128,74 @@ agents:
     }
 
 
+def test_artifact_supervisor_receives_governance_metadata_not_source_content(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import compose_agent_messages, supervisor_context_source_files
+
+    project_root = tmp_path / "projects" / "TestProject"
+    run_dir = project_root / "runs" / "task_test_001"
+    (tmp_path / "config").mkdir(parents=True)
+    (tmp_path / "agent_templates").mkdir()
+    (project_root / "agent_docs").mkdir(parents=True)
+    (project_root / "project_brain").mkdir()
+    (project_root / "production" / "bible").mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (tmp_path / "config" / "agent_registry.yml").write_text(
+        "agents:\n  Supervisor:\n    template_path: agent_templates/supervisor.md\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "agent_templates" / "supervisor.md").write_text(
+        "# Supervisor\n\nApprove the bounded contract.\n", encoding="utf-8"
+    )
+    for path, marker in (
+        (run_dir / "user_request.md", "request_marker"),
+        (run_dir / "workflow_plan.yml", "workflow_marker"),
+        (run_dir / "mission_contract.yml", "mission_marker"),
+        (run_dir / "artifact_task.yml", "artifact_task_marker"),
+        (project_root / "project_artifact_index.yml", "artifact_index_marker"),
+        (
+            project_root / "project_brain" / "artifact_version_policy.yml",
+            "version_policy_marker",
+        ),
+        (
+            project_root / "project_brain" / "local_asset_cleanup_receipt.yml",
+            "cleanup_receipt_marker",
+        ),
+        (project_root / "agent_docs" / "02_TASK_LEDGER.yml", "task_ledger_marker"),
+        (
+            project_root / "production" / "bible" / "world.md",
+            "source_content_must_not_reach_supervisor",
+        ),
+    ):
+        path.write_text(f"marker: {marker}\n", encoding="utf-8")
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "artifact_production_task"
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    output_path = run_dir / "01_supervisor_plan.md"
+
+    sources = supervisor_context_source_files(tmp_path, plan, output_path)
+    messages = compose_agent_messages(tmp_path, plan, "Supervisor", output_path)
+    rendered = "\n".join(item["content"] for item in messages)
+
+    assert {path.name for path in sources} >= {
+        "artifact_task.yml",
+        "project_artifact_index.yml",
+        "artifact_version_policy.yml",
+        "local_asset_cleanup_receipt.yml",
+        "02_TASK_LEDGER.yml",
+    }
+    assert "artifact_task_marker" in rendered
+    assert "artifact_index_marker" in rendered
+    assert "version_policy_marker" in rendered
+    assert "cleanup_receipt_marker" in rendered
+    assert "task_ledger_marker" in rendered
+    assert "Artifact governance Supervisor rules" in rendered
+    assert "Do not request tools, shell commands, file reads" in rendered
+    assert "source_content_must_not_reach_supervisor" not in rendered
+
+
 def test_pack_synthesis_artifact_and_verifier_prompts_bind_returned_contracts(
     tmp_path: Path,
 ) -> None:

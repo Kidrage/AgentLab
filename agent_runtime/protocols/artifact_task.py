@@ -125,12 +125,13 @@ OUTPUT_FORMAT_HINTS: dict[str, tuple[str, ...]] = {
     "mov": ("mov",),
     "wav": ("wav",),
     "mp3": ("mp3",),
+    "yaml": ("yaml", "yml", ".yaml", ".yml"),
     "markdown": ("markdown", ".md"),
     "txt": ("plain text", ".txt"),
 }
 
 _OUTPUT_FORMATS_BY_TYPE = {
-    "text": {"markdown", "txt", "docx"},
+    "text": {"markdown", "txt", "docx", "yaml"},
     "image": {"png", "jpg", "webp"},
     "video": {"mp4", "mov"},
     "audio": {"wav", "mp3"},
