@@ -162,6 +162,26 @@ remaining_limitations:
   - Live Writer and Reviewer model prompts do not yet consume the prepared knowledge evidence.
   - Semantic and graph retrieval adapters are not configured.
   - Live literary quality and efficiency remain Gate 1 evidence questions, not knowledge-index claims.
+delivery:
+  implementation_commit: 889b1ede720df7583d0815387c5cb8b8b04e8f55
+  push:
+    performed_by: repository_commit_hook
+    remote_branch: feature/knowledge-system-rag-governance
+    remote_head_verified: true
+  ci:
+    run_id: 29802203892
+    status: success
+  post_commit_knowledge_build:
+    receipt_id: kbuild_ce311f94db31f0b23a44e881e7872b86c36092141ca8cfec5d87bfb10f058890
+    index_snapshot: idx_d1a9e22327bc3acfa484133768871920c7ac197c6aeb206fdf44995ab9a407c6
+    spaces: 6
+    records: 31382
+    eligible_records: 1552
+    doctor: PASS
+  repository_hygiene:
+    status: fail_preexisting_unknown_root
+    finding: Root agents/ collaboration namespace is outside the repository constitution.
+    changed_by_this_phase: false
 rollback:
   instruction: >-
     Revert the dedicated default-assist hardening commit; remove only the 10
