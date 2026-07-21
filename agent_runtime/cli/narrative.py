@@ -8,6 +8,14 @@ import typer
 import yaml
 from rich.console import Console
 
+from agent_runtime.narrative.assembly import (
+    NarrativeAssemblyError,
+    assemble_candidate_chapters,
+)
+from agent_runtime.narrative.blueprint_validation import (
+    seal_crown_blueprint,
+    validate_crown_blueprint,
+)
 from agent_runtime.narrative_delivery import (
     run_narrative_doctor,
     validate_narrative_delivery,
@@ -52,5 +60,57 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         valid = result.get("delivery_check", result).get("valid")
         if not valid:
             raise typer.Exit(code=1)
+
+    @narrative_app.command("assemble")
+    def assemble(
+        project: str = typer.Option(..., "--project", help="Project name under projects/."),
+        audit_manifest: Path = typer.Option(
+            ..., "--audit-manifest", help="Passed continuous-audit manifest."
+        ),
+        output: Path = typer.Option(..., "--output", help="UTF-8 omnibus TXT path."),
+        delivery_manifest: Path = typer.Option(
+            ..., "--delivery-manifest", help="Assembly receipt YAML path."
+        ),
+    ) -> None:
+        """Assemble only hash-bound candidate chapters approved by one audit."""
+        try:
+            result = assemble_candidate_chapters(
+                project_root,
+                project=project,
+                audit_manifest=audit_manifest,
+                output_path=output,
+                delivery_manifest=delivery_manifest,
+            )
+        except NarrativeAssemblyError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @narrative_app.command("validate-blueprint")
+    def validate_blueprint(
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+        chapter_start: int = typer.Option(1, "--chapter-start", min=1),
+        chapter_end: int = typer.Option(20, "--chapter-end", min=1),
+    ) -> None:
+        """Validate AgentLab-authored scale decisions, canon shards, and chapter cards."""
+        result = validate_crown_blueprint(
+            project_root,
+            project=project,
+            chapter_start=chapter_start,
+            chapter_end=chapter_end,
+        )
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+        if result["status"] != "pass":
+            raise typer.Exit(code=1)
+
+    @narrative_app.command("seal-blueprint")
+    def seal_blueprint(
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+    ) -> None:
+        """Hash and register AgentLab-authored blueprint artifacts without editing content."""
+        try:
+            result = seal_crown_blueprint(project_root, project=project)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
 
     app.add_typer(narrative_app, name="narrative")

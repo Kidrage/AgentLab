@@ -44,6 +44,7 @@ ACTION_RUNNING_STATE = {
     "preflight": "preflight",
     "generate_batch": "generating_batch",
     "deterministic_check": "deterministic_check",
+    "continuity_checkpoint": "continuity_checkpoint",
     "heavy_audit": "heavy_auditing",
     "revision_support_scribe": "revision_support_scribe",
     "revision_support_verifier": "revision_support_verifier",
@@ -161,9 +162,12 @@ def create_crown_delivery_job(
     start_chapter: int,
     end_chapter: int,
     batch_size: int = 10,
+    continuity_checkpoint_cadence: int | None = None,
     heavy_audit_cadence: int = 10,
     writer_worker: str,
     chapter_state_plan: str,
+    parent_task_id: str | None = None,
+    knowledge_contract_required: bool = False,
     writer_budget: str = "frugal",
     suite: str = "crown-longform-reset-v1",
     max_retries_per_action: int = 3,
@@ -182,14 +186,17 @@ def create_crown_delivery_job(
     _validate_id(eval_id, "eval_id")
     if start_chapter < 1 or end_chapter < start_chapter:
         raise ValueError("invalid chapter range")
-    if batch_size < 1 or heavy_audit_cadence < 1:
-        raise ValueError("batch size and heavy audit cadence must be positive")
+    resolved_checkpoint_cadence = continuity_checkpoint_cadence or batch_size
+    if batch_size < 1 or resolved_checkpoint_cadence < 1 or heavy_audit_cadence < 1:
+        raise ValueError("batch size and audit/checkpoint cadences must be positive")
     if max_retries_per_action < 0:
         raise ValueError("max retries must not be negative")
     if transient_retry_seconds < 1:
         raise ValueError("transient retry seconds must be positive")
     if attempt_lease_seconds < 1:
         raise ValueError("attempt lease seconds must be positive")
+    if parent_task_id is not None:
+        _validate_id(parent_task_id, "parent_task_id")
     project_root = Path(root) / "projects" / project
     if not project_root.is_dir():
         raise FileNotFoundError(project_root)
@@ -210,6 +217,7 @@ def create_crown_delivery_job(
         "schema_version": SCHEMA_VERSION,
         "job_id": job_id,
         "job_type": "crown_narrative_delivery",
+        "parent_task_id": parent_task_id,
         **identity.to_dict(),
         "project": project,
         "status": "queued",
@@ -229,10 +237,12 @@ def create_crown_delivery_job(
             "start_chapter": start_chapter,
             "end_chapter": end_chapter,
             "batch_size": batch_size,
+            "continuity_checkpoint_cadence": resolved_checkpoint_cadence,
             "heavy_audit_cadence": heavy_audit_cadence,
             "writer_worker": writer_worker,
             "chapter_state_plan": chapter_state_plan,
             "writer_budget": writer_budget,
+            "knowledge_contract_required": bool(knowledge_contract_required),
             "max_retries_per_action": max_retries_per_action,
             "transient_retry_seconds": transient_retry_seconds,
             "attempt_lease_seconds": attempt_lease_seconds,
@@ -285,6 +295,8 @@ def _action_for_state(state: dict[str, Any]) -> str | None:
         return "generate_batch" if state.get("preflight_passed") else "preflight"
     if status == "deterministic_check":
         return "deterministic_check"
+    if status == "awaiting_continuity_checkpoint":
+        return "continuity_checkpoint"
     if status == "awaiting_heavy_audit":
         return "heavy_audit"
     if status == "awaiting_revision_scribe":
@@ -387,6 +399,27 @@ def _attempt_request(
         identity = parent_identity
     identity = identity.for_attempt(attempt_id=attempt_id, lease_token=lease_token)
     batch = dict(state["current_batch"])
+    full_audit_window: dict[str, Any] | None = None
+    if (
+        action == "heavy_audit"
+        and bool(state.get("config", {}).get("knowledge_contract_required"))
+        and not isinstance(state.get("revision_audit_window"), dict)
+    ):
+        audit_end = int(batch["end"])
+        cadence = int(state["config"].get("heavy_audit_cadence") or 1)
+        audit_start = max(
+            int(state["config"].get("start_chapter") or batch["start"]),
+            audit_end - cadence + 1,
+        )
+        batch["start"] = audit_start
+        batch["end"] = audit_end
+        full_audit_window = {
+            "mode": "full",
+            "changed_chapters": [],
+            "audit_chapters": list(range(audit_start, audit_end + 1)),
+            "excluded_chapters": [],
+            "reason": "configured_heavy_audit_cadence",
+        }
     persisted_plan = state.get("narrative_execution_plan")
     if not isinstance(persisted_plan, dict):
         persisted_plan = plan_chapter_execution(
@@ -421,6 +454,8 @@ def _attempt_request(
         state.get("revision_audit_window"), dict
     ):
         request["audit_window"] = dict(state["revision_audit_window"])
+    elif full_audit_window is not None:
+        request["audit_window"] = full_audit_window
     return request
 
 
@@ -611,7 +646,22 @@ def _successful_transition(state: dict[str, Any], action: str, result: dict[str,
     elif action == "generate_batch":
         state["status"] = "deterministic_check"
     elif action == "deterministic_check":
-        state["status"] = "awaiting_heavy_audit"
+        config = state.get("config") or {}
+        batch_end = int(state["current_batch"]["end"])
+        final_end = int(config.get("end_chapter") or batch_end)
+        heavy_cadence = int(config.get("heavy_audit_cadence") or 1)
+        checkpoint_only = (
+            bool(config.get("knowledge_contract_required"))
+            and batch_end < final_end
+            and batch_end % heavy_cadence != 0
+        )
+        state["status"] = (
+            "awaiting_continuity_checkpoint"
+            if checkpoint_only
+            else "awaiting_heavy_audit"
+        )
+    elif action == "continuity_checkpoint":
+        _seal_current_batch(state, now)
     elif action == "heavy_audit":
         configured_audits = tuple(
             str(item)
@@ -621,8 +671,11 @@ def _successful_transition(state: dict[str, Any], action: str, result: dict[str,
             )
         )
         revision_window = state.get("revision_audit_window")
+        result_audit_chapters = result.get("audit_chapters")
         required_quality_chapters = (
-            tuple(int(item) for item in revision_window.get("audit_chapters") or [])
+            tuple(int(item) for item in result_audit_chapters)
+            if isinstance(result_audit_chapters, list)
+            else tuple(int(item) for item in revision_window.get("audit_chapters") or [])
             if isinstance(revision_window, dict)
             else tuple(
                 range(

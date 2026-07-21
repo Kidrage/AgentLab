@@ -1038,6 +1038,7 @@ def _generate_chapters(
     chapter_state_plan: str | None = None,
     writer_budget_mode: str = "balanced",
     predecessor_task_id: str | None = None,
+    require_knowledge_contract: bool = False,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     generated: list[dict[str, Any]] = []
@@ -1172,6 +1173,7 @@ def _generate_chapters(
             deprecated_sources=deprecated_sources,
             candidate_fact_ledger=candidate_fact_ledger,
             chapter_state_plan=chapter_state_plan,
+            require_knowledge_contract=require_knowledge_contract,
         )
         if mode == "mock":
             _write_mock_chapter_outputs(run_dir, project, chapter, previous_sources, baseline_mode)
@@ -1464,6 +1466,7 @@ def run_narrative_eval(
     chapter_state_plan: str | None = None,
     writer_budget_mode: str = "balanced",
     predecessor_task_id: str | None = None,
+    require_knowledge_contract: bool = False,
 ) -> dict[str, Any]:
     if mode not in VALID_MODES:
         raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
@@ -1545,6 +1548,7 @@ def run_narrative_eval(
             chapter_state_plan=chapter_state_plan,
             writer_budget_mode=writer_budget_mode,
             predecessor_task_id=predecessor_task_id,
+            require_knowledge_contract=require_knowledge_contract,
         )
 
     l3 = _build_scale_simulation(eval_dir, suite)
