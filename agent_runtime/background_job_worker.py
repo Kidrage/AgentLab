@@ -83,6 +83,32 @@ def _preflight(request: dict[str, Any]) -> dict[str, Any]:
     if plan_validation.get("status") != "pass":
         issues.append("chapter_state_plan_invalid")
 
+    blueprint_seal: dict[str, Any] | None = None
+    knowledge_snapshot: dict[str, Any] | None = None
+    if config.get("knowledge_contract_required"):
+        from agent_runtime.narrative.blueprint_validation import validate_blueprint_seal
+
+        blueprint_seal = validate_blueprint_seal(
+            Path(request["agentlab_root"]),
+            project=str(request["project"]),
+            chapter_start=int(config["start_chapter"]),
+            chapter_end=int(config["end_chapter"]),
+        )
+        if blueprint_seal.get("status") != "pass":
+            issues.append("blueprint_seal_invalid")
+        snapshot_path = project_root / "project_brain" / "knowledge_index_snapshot.yml"
+        knowledge_snapshot = safe_read_yaml(snapshot_path)
+        if not isinstance(knowledge_snapshot, dict):
+            issues.append("missing_knowledge_index_snapshot")
+        elif (
+            knowledge_snapshot.get("namespace")
+            != f"project.{request['project']}"
+            or knowledge_snapshot.get("formal_fact_roots")
+            != ["production", "project_brain"]
+            or not knowledge_snapshot.get("index_snapshot")
+        ):
+            issues.append("knowledge_index_snapshot_invalid")
+
     prior_chain = None
     if int(config["start_chapter"]) > 1:
         from agent_runtime.crown_candidate_audit import build_crown_completion_batch_audit
@@ -98,6 +124,8 @@ def _preflight(request: dict[str, Any]) -> dict[str, Any]:
         "status": "pass" if not issues else "blocked",
         "issues": issues,
         "plan_validation": plan_validation,
+        "blueprint_seal": blueprint_seal,
+        "knowledge_index_snapshot": knowledge_snapshot,
         "prior_chain_status": prior_chain.get("status") if prior_chain else "not_required",
         "production_manuscript_files": production_files,
     }
@@ -596,7 +624,8 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
     fiction = safe_read_yaml(fiction_path, default=None)
     quality_path = run_dir / "narrative_quality_scorecard.yml"
     quality = safe_read_yaml(quality_path, default=None) if quality_path.is_file() else None
-    manifest = safe_read_yaml(Path(str(prepared["manifest_path"])), default={}) or {}
+    audit_source_manifest_path = Path(str(prepared["manifest_path"]))
+    manifest = safe_read_yaml(audit_source_manifest_path, default={}) or {}
     integrity = verify_audit_source_integrity(
         manifest if isinstance(manifest, dict) else {},
         project_root=root / "projects" / request["project"],
@@ -632,6 +661,8 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
             "audit_task_id": task_id,
             "source_audit_task_id": prior_audit.get("task_id"),
             "candidate_sha256": candidate_sha256,
+            "audit_source_manifest_path": str(audit_source_manifest_path),
+            "audit_source_manifest_sha256": _sha256(audit_source_manifest_path),
             "run_dir": str(run_dir),
         }
     configured_audits = tuple(
@@ -671,6 +702,8 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
             "requires_rewrite": decision.requires_revision,
             "seal_decision": decision.to_dict(),
             "candidate_sha256": candidate_sha256,
+            "audit_source_manifest_path": str(audit_source_manifest_path),
+            "audit_source_manifest_sha256": _sha256(audit_source_manifest_path),
             "audit_source_integrity": integrity,
             "fiction_review": fiction_evidence,
             "continuity_failure_report_data": continuity_evidence,
@@ -686,6 +719,9 @@ def _heavy_audit(request: dict[str, Any]) -> dict[str, Any]:
             "fiction_review_path": str(fiction_path),
             "continuity_failure_report": str(continuity_path),
             "rewrite_proposal": str(proposal_path) if proposal_path.is_file() else None,
+            "rewrite_proposal_sha256": (
+                _sha256(proposal_path) if proposal_path.is_file() else None
+            ),
         },
     }
 
@@ -737,6 +773,7 @@ def _revision_support(request: dict[str, Any], *, role: str) -> dict[str, Any]:
         if role == "Scribe"
         else "revision_or_rewrite_proposal.yml"
     )
+    output_path = run_dir / output_name
     return {
         "outcome": "success",
         "result": {
@@ -744,7 +781,8 @@ def _revision_support(request: dict[str, Any], *, role: str) -> dict[str, Any]:
             "role": role,
             "task_id": task_id,
             "run_dir": str(run_dir),
-            "output_path": str(run_dir / output_name),
+            "output_path": str(output_path),
+            "output_sha256": _sha256(output_path),
             "role_receipt": execution.get("role_receipt"),
         },
     }
@@ -761,7 +799,7 @@ def _rewrite_handoff(request: dict[str, Any]) -> dict[str, Any]:
     }
     result = run_background_revision(revision_request)
     return {
-        "outcome": "success",
+        "outcome": "success" if result.get("status") == "pass" else "failed",
         "result": dict(result),
     }
 
@@ -793,6 +831,62 @@ def _continuous_audit_manifest(
             issues.append("knowledge_contract_validation_not_passed")
         if [int(item.get("chapter") or 0) for item in knowledge_records] != expected:
             issues.append("knowledge_contract_validation_not_exact_chapter_range")
+    audit_source_integrity: dict[str, Any] | None = None
+    audit_manifest_path = Path(str(heavy.get("audit_source_manifest_path") or ""))
+    root = Path(str(request.get("agentlab_root") or "")).resolve()
+    project_root = (root / "projects" / str(request.get("project") or "")).resolve()
+    try:
+        resolved_manifest = audit_manifest_path.resolve()
+        resolved_manifest.relative_to(project_root)
+    except (OSError, ValueError):
+        resolved_manifest = audit_manifest_path
+        issues.append("heavy_audit_source_manifest_unsafe")
+    if not resolved_manifest.is_file():
+        issues.append("heavy_audit_source_manifest_missing")
+    elif _sha256(resolved_manifest) != str(
+        heavy.get("audit_source_manifest_sha256") or ""
+    ):
+        issues.append("heavy_audit_source_manifest_hash_drift")
+    else:
+        from agent_runtime.narrative.audit.integrity import verify_audit_source_integrity
+
+        audit_manifest = safe_read_yaml(resolved_manifest, default={}) or {}
+        if not isinstance(audit_manifest, dict):
+            audit_manifest = {}
+        audit_source_integrity = verify_audit_source_integrity(
+            audit_manifest,
+            project_root=project_root,
+        )
+        if audit_source_integrity.get("status") != "pass":
+            issues.append("heavy_audit_source_integrity_drift")
+        if not heavy.get("candidate_sha256") or heavy.get("candidate_sha256") != (
+            audit_source_integrity.get("candidate_sha256")
+        ):
+            issues.append("heavy_audit_candidate_snapshot_mismatch")
+        audited_drafts: dict[int, tuple[str, str]] = {}
+        for source in audit_manifest.get("sources") or []:
+            if not isinstance(source, dict):
+                continue
+            files = source.get("files")
+            draft = files.get("fiction_draft.md") if isinstance(files, dict) else None
+            if not isinstance(draft, dict):
+                continue
+            audited_drafts[int(source.get("chapter") or 0)] = (
+                str(draft.get("path") or ""),
+                str(draft.get("sha256") or ""),
+            )
+        for record in chapter_records:
+            chapter = int(record.get("chapter") or 0)
+            audited_path, audited_hash = audited_drafts.get(chapter, ("", ""))
+            current_project_path = str(record.get("path") or "")
+            project_prefix = f"projects/{request.get('project')}/"
+            if current_project_path.startswith(project_prefix):
+                current_project_path = current_project_path[len(project_prefix) :]
+            if (
+                audited_path != current_project_path
+                or audited_hash != str(record.get("sha256") or "")
+            ):
+                issues.append(f"audited_candidate_binding_mismatch:{chapter}")
     return {
         "schema_version": 1,
         "status": "pass" if not issues else "blocked",
@@ -804,6 +898,9 @@ def _continuous_audit_manifest(
         "heavy_audit_task_id": heavy.get("task_id"),
         "heavy_audit_run_dir": heavy.get("run_dir"),
         "candidate_sha256": heavy.get("candidate_sha256"),
+        "audit_source_manifest": str(resolved_manifest),
+        "audit_source_manifest_sha256": heavy.get("audit_source_manifest_sha256"),
+        "audit_source_integrity": audit_source_integrity,
         "knowledge_evidence_versions": {
             str(item["chapter"]): item.get("knowledge_evidence_version")
             for item in knowledge_records
@@ -819,6 +916,7 @@ def _candidate_package(request: dict[str, Any]) -> dict[str, Any]:
     from agent_runtime.crown_candidate_audit import production_manuscript_files
     from agent_runtime.narrative_delivery import validate_narrative_delivery
     from agent_runtime.narrative_eval import _safe_eval_task_id
+    from agent_runtime.narrative_heavy_audit import validate_revision_draft_binding
 
     root = Path(request["agentlab_root"])
     project_root = _project_root(request)
@@ -839,20 +937,53 @@ def _candidate_package(request: dict[str, Any]) -> dict[str, Any]:
 
     chapter_records: list[dict[str, Any]] = []
     chapter_texts: list[str] = []
+    try:
+        from agent_runtime.narrative.quality.selection import (
+            load_selected_revision_records,
+        )
+
+        revision_bindings = load_selected_revision_records(request)
+    except ValueError as exc:
+        return {
+            "outcome": "failed",
+            "result": {"status": "blocked", "issues": [str(exc)]},
+        }
     for chapter in range(
         int(config["start_chapter"]), int(config["end_chapter"]) + 1
     ):
         task_id = _safe_eval_task_id(chapter, str(config["eval_id"]))
         run_dir = project_root / "runs" / task_id
         validation = validate_narrative_delivery(run_dir)
-        draft = run_dir / "fiction_draft.md"
+        revision_binding = revision_bindings.get(chapter)
+        draft_task_id = (
+            str(revision_binding["task_id"])
+            if revision_binding is not None
+            else task_id
+        )
+        draft_run = project_root / "runs" / draft_task_id
+        draft = draft_run / "fiction_draft.md"
+        if draft_task_id != task_id:
+            binding = validate_revision_draft_binding(
+                project_root,
+                chapter=chapter,
+                source_task_id=task_id,
+                revision_task_id=draft_task_id,
+                expected_binding=revision_binding,
+            )
+            if binding.get("status") != "pass":
+                issues.extend(
+                    f"invalid_revision_candidate:{chapter}:{item}"
+                    for item in binding.get("issues") or []
+                )
+                continue
         if not validation.get("valid") or not draft.is_file():
             issues.append(f"invalid_candidate_chapter:{chapter}")
             continue
         chapter_records.append(
             {
                 "chapter": chapter,
-                "task_id": task_id,
+                "task_id": draft_task_id,
+                "source_task_id": task_id,
                 "source": str(draft),
                 "path": draft.relative_to(root).as_posix(),
                 "sha256": _sha256(draft),

@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import yaml
+import pytest
 
 from agent_runtime.background_job_controller import (
     controller_cycle,
@@ -24,6 +25,22 @@ from agent_runtime.background_job_controller import (
 
 NOW = "2026-07-17T15:00:00+00:00"
 AUDIT_HASH = "candidate-hash-001"
+
+
+def test_create_job_rejects_ids_longer_than_revision_contract_limit(tmp_path: Path) -> None:
+    (tmp_path / "projects" / "Crown_of_Ash").mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="invalid job_id"):
+        create_crown_delivery_job(
+            tmp_path,
+            project="Crown_of_Ash",
+            job_id="j" * 129,
+            eval_id="eval",
+            start_chapter=1,
+            end_chapter=1,
+            writer_worker="claude_code",
+            chapter_state_plan="plan.yml",
+        )
 
 
 def _passing_quality_scorecard(start: int = 1, end: int = 10) -> dict:

@@ -13,6 +13,7 @@ from agent_runtime.project_reset import (
     ProjectResetApplyError,
     ProjectResetError,
     apply_project_reset,
+    fact_distillation_issues,
     plan_project_reset,
 )
 from agent_runtime.cli.project_reset import register_project_reset_commands
@@ -44,6 +45,38 @@ def test_reset_plan_is_blocked_by_active_collaboration_lock(tmp_path: Path) -> N
         )
 
     assert not (tmp_path / "projects" / "Crown_of_Ash" / "reset_manifests").exists()
+
+
+def test_reset_plan_is_blocked_by_nonterminal_blocked_lock(tmp_path: Path) -> None:
+    _project(tmp_path)
+    locks = tmp_path / ".agents" / "locks"
+    locks.mkdir(parents=True)
+    (locks / "crown-blocked.lock").write_text(
+        "agent: codex\nstatus: blocked\npaths:\n  - projects/Crown_of_Ash\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ActiveProjectResetError, match="crown-blocked.lock"):
+        plan_project_reset(tmp_path, project="Crown_of_Ash", targets=("runs",))
+
+
+def test_reset_plan_is_blocked_by_absolute_project_lock_path(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    locks = tmp_path / ".agents" / "locks"
+    locks.mkdir(parents=True)
+    (locks / "crown-absolute.lock").write_text(
+        pytest.importorskip("yaml").safe_dump(
+            {
+                "agent": "codex",
+                "status": "blocked",
+                "paths": [str(project)],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ActiveProjectResetError, match="crown-absolute.lock"):
+        plan_project_reset(tmp_path, project="Crown_of_Ash", targets=("runs",))
 
 
 def test_reset_plan_is_blocked_by_active_background_job(tmp_path: Path) -> None:
@@ -273,6 +306,190 @@ def test_reset_apply_reinitializes_declared_state_contract_files(tmp_path: Path)
     assert contract["formal_fact_roots"] == ["production", "project_brain"]
     assert (brain / "revision_log.jsonl").read_text(encoding="utf-8") == ""
     assert "old" not in (project / "PROJECT_HANDOFF.md").read_text(encoding="utf-8")
+
+
+def test_reset_preserves_hash_bound_metadata_only_fact_distillation(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    source = project / "production" / "bible" / "canon.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text("stable_id: character.kane\n", encoding="utf-8")
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+    old_brain = project / "project_brain"
+    old_brain.mkdir()
+    (old_brain / "old_memory.yml").write_text("legacy: true\n", encoding="utf-8")
+    seed = project / "reset_manifests" / "fact_distillation.yml"
+    seed.parent.mkdir()
+    seed.write_text(
+        pytest.importorskip("yaml").safe_dump(
+            {
+                "schema_version": 1,
+                "status": "approved",
+                "legacy_prose_retained": False,
+                "facts": [
+                    {
+                        "id": "fact.character.kane.identity",
+                        "kind": "character_fact",
+                        "value": {"character_ref": "character.kane"},
+                        "source_hashes": [source_hash],
+                        "conflict_status": "resolved",
+                        "conflict_conclusion": "canonical identity retained",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    plan = plan_project_reset(
+        tmp_path,
+        project="Crown_of_Ash",
+        targets=("production", "project_brain", "runs"),
+        plan_id="reset-001",
+        distillation_seed="reset_manifests/fact_distillation.yml",
+    )
+
+    assert plan["preserved_distillation"] == {
+        "path": "reset_manifests/fact_distillation.yml",
+        "sha256": hashlib.sha256(seed.read_bytes()).hexdigest(),
+        "fact_count": 1,
+        "status": "validated",
+    }
+    assert "canonical identity retained" not in str(plan)
+
+    apply_project_reset(tmp_path, plan=plan, confirm_project="Crown_of_Ash")
+
+    restored = pytest.importorskip("yaml").safe_load(
+        (project / "project_brain" / "fact_distillation.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    snapshot = pytest.importorskip("yaml").safe_load(
+        (project / "project_brain" / "project_fact_snapshot.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert restored["facts"][0]["id"] == "fact.character.kane.identity"
+    assert snapshot["facts"] == restored["facts"]
+    assert snapshot["source_hashes"] == {
+        "fact.character.kane.identity": [source_hash]
+    }
+    assert not (project / "production").exists()
+    assert not (project / "project_brain" / "old_memory.yml").exists()
+    assert list((project / "runs").iterdir()) == []
+
+
+def test_reset_apply_rejects_plan_with_preservation_binding_removed(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    source = project / "production" / "facts.yml"
+    source.parent.mkdir()
+    source.write_text("fact: stable\n", encoding="utf-8")
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+    seed = project / "reset_manifests" / "fact_distillation.yml"
+    seed.parent.mkdir()
+    seed.write_text(
+        pytest.importorskip("yaml").safe_dump(
+            {
+                "schema_version": 1,
+                "status": "approved",
+                "legacy_prose_retained": False,
+                "facts": [
+                    {
+                        "id": "fact.stable",
+                        "kind": "world_fact",
+                        "value": "stable",
+                        "source_hashes": [source_hash],
+                        "conflict_status": "resolved",
+                        "conflict_conclusion": "retained",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    plan = plan_project_reset(
+        tmp_path,
+        project="Crown_of_Ash",
+        targets=("production", "project_brain", "runs"),
+        plan_id="reset-001",
+        distillation_seed="reset_manifests/fact_distillation.yml",
+    )
+    plan.pop("preserved_distillation")
+
+    with pytest.raises(ProjectResetError, match="plan binding digest|distillation"):
+        apply_project_reset(tmp_path, plan=plan, confirm_project="Crown_of_Ash")
+
+    assert source.is_file()
+
+
+def test_reset_plan_rejects_distillation_seed_through_symlink(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    source = project / "production" / "facts.yml"
+    source.parent.mkdir()
+    source.write_text("fact: stable\n", encoding="utf-8")
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+    actual = project / "project_brain" / "seed.yml"
+    actual.parent.mkdir()
+    actual.write_text(
+        pytest.importorskip("yaml").safe_dump(
+            {
+                "schema_version": 1,
+                "status": "approved",
+                "legacy_prose_retained": False,
+                "facts": [
+                    {
+                        "id": "fact.stable",
+                        "kind": "world_fact",
+                        "value": "stable",
+                        "source_hashes": [source_hash],
+                        "conflict_status": "resolved",
+                        "conflict_conclusion": "retained",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    seed = project / "reset_manifests" / "fact_distillation.yml"
+    seed.parent.mkdir()
+    seed.symlink_to(actual)
+
+    with pytest.raises(ProjectResetError, match="symlink|surviving"):
+        plan_project_reset(
+            tmp_path,
+            project="Crown_of_Ash",
+            targets=("production", "project_brain", "runs"),
+            distillation_seed="reset_manifests/fact_distillation.yml",
+        )
+
+
+def test_fact_distillation_rejects_nested_prose_and_malformed_schema() -> None:
+    nested = {
+        "schema_version": 1,
+        "status": "approved",
+        "legacy_prose_retained": False,
+        "facts": [
+            {
+                "id": "fact.hidden",
+                "kind": "world_fact",
+                "value": {"raw_prose": "legacy paragraph\n" * 20},
+                "source_hashes": ["a" * 64],
+                "conflict_status": "resolved",
+                "conflict_conclusion": "retained",
+            }
+        ],
+    }
+    assert any("forbidden_payload_key" in issue for issue in fact_distillation_issues(nested))
+
+    malformed = {**nested, "schema_version": {"invalid": True}}
+    malformed["facts"][0][3] = "mixed key"
+    issues = fact_distillation_issues(malformed)
+    assert "invalid_schema_version" in issues
+    assert any("invalid_field_key" in issue for issue in issues)
 
 
 def test_project_reset_cli_plan_writes_exact_manifest(tmp_path: Path) -> None:

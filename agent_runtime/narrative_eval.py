@@ -445,7 +445,12 @@ def _production_chapters(project_root: Path) -> list[dict[str, Any]]:
     return sorted(chapters, key=lambda item: (item["chapter"] is None, item["chapter"] or 0, item["path"]))
 
 
-def _audit_fact_sources(project_root: Path, project: str) -> dict[str, Any]:
+def _audit_fact_sources(
+    project_root: Path,
+    project: str,
+    *,
+    require_knowledge_contract: bool = False,
+) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
     required_files = [
@@ -456,12 +461,36 @@ def _audit_fact_sources(project_root: Path, project: str) -> dict[str, Any]:
         if not path.exists():
             issues.append({"severity": "error", "check": check, "message": f"missing {_rel(path, project_root)}"})
 
-    bible_refs = _collect(project_root, ["production/bible/**/*.md"], limit=20)
-    outline_refs = _collect(project_root, ["production/outlines/**/*.md"], limit=20)
-    if not bible_refs:
-        issues.append({"severity": "error", "check": "bible_present", "message": "missing production/bible/**/*.md"})
-    if not outline_refs:
-        issues.append({"severity": "error", "check": "outline_present", "message": "missing production/outlines/**/*.md"})
+    bible_refs: list[str] = []
+    outline_refs: list[str] = []
+    blueprint_refs: list[str] = []
+    if require_knowledge_contract:
+        blueprint_required = (
+            "production/series_scale_decision.yml",
+            "production/chapter_length_policy.yml",
+            "production/canonical/index.yml",
+            "production/chapter_cards/index.yml",
+            "project_brain/blueprint_validation_receipt.yml",
+            "project_brain/knowledge_index_snapshot.yml",
+        )
+        for relative in blueprint_required:
+            if (project_root / relative).is_file():
+                blueprint_refs.append(relative)
+            else:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "check": "sealed_rag_blueprint_present",
+                        "message": f"missing {relative}",
+                    }
+                )
+    else:
+        bible_refs = _collect(project_root, ["production/bible/**/*.md"], limit=20)
+        outline_refs = _collect(project_root, ["production/outlines/**/*.md"], limit=20)
+        if not bible_refs:
+            issues.append({"severity": "error", "check": "bible_present", "message": "missing production/bible/**/*.md"})
+        if not outline_refs:
+            issues.append({"severity": "error", "check": "outline_present", "message": "missing production/outlines/**/*.md"})
 
     revision_log = project_root / "project_brain" / "revision_log.jsonl"
     if not revision_log.exists():
@@ -477,6 +506,7 @@ def _audit_fact_sources(project_root: Path, project: str) -> dict[str, Any]:
             "fact_snapshot": "project_brain/project_fact_snapshot.yml",
             "bible_refs": bible_refs,
             "outline_refs": outline_refs,
+            "blueprint_refs": blueprint_refs,
         },
         "deprecated_production_chapters": deprecated_chapters,
         "issues": issues + warnings,
@@ -1477,7 +1507,11 @@ def run_narrative_eval(
     eval_dir = root / "acceptance_runs" / "narrative_eval" / project / suite / eval_id
     eval_dir.mkdir(parents=True, exist_ok=True)
 
-    l0 = _audit_fact_sources(project_root, project)
+    l0 = _audit_fact_sources(
+        project_root,
+        project,
+        require_knowledge_contract=require_knowledge_contract,
+    )
     l1 = _audit_history(project_root)
     deprecated_sources = [item["path"] for item in l1["deprecated_production_chapters"]]
     reset_proposal = _write_reset_proposal(eval_dir, project, deprecated_sources)

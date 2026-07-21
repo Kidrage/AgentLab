@@ -42,6 +42,11 @@ def register_project_reset_commands(
         plan_id: str = typer.Option(..., "--plan-id"),
         manifest: Path = typer.Option(..., "--manifest"),
         target: list[str] | None = typer.Option(None, "--target"),
+        distillation_seed: str | None = typer.Option(
+            None,
+            "--distillation-seed",
+            help="Validated metadata-only fact seed under project reset_manifests/.",
+        ),
     ) -> None:
         try:
             result = plan_project_reset(
@@ -49,6 +54,7 @@ def register_project_reset_commands(
                 project=project,
                 targets=tuple(target or CROWN_RESET_TARGETS),
                 plan_id=plan_id,
+                distillation_seed=distillation_seed,
             )
             output = _safe_manifest_path(agentlab_root, manifest)
             atomic_write_yaml(output, result)

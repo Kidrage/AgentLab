@@ -67,7 +67,7 @@ def _parse_timestamp(value: str) -> datetime:
 
 
 def _validate_id(value: str, label: str) -> str:
-    if not SAFE_ID.fullmatch(value):
+    if len(value) > 128 or not SAFE_ID.fullmatch(value):
         raise ValueError(f"invalid {label}: {value!r}")
     return value
 
@@ -186,9 +186,17 @@ def create_crown_delivery_job(
     _validate_id(eval_id, "eval_id")
     if start_chapter < 1 or end_chapter < start_chapter:
         raise ValueError("invalid chapter range")
-    resolved_checkpoint_cadence = continuity_checkpoint_cadence or batch_size
+    resolved_checkpoint_cadence = (
+        batch_size
+        if continuity_checkpoint_cadence is None
+        else continuity_checkpoint_cadence
+    )
     if batch_size < 1 or resolved_checkpoint_cadence < 1 or heavy_audit_cadence < 1:
         raise ValueError("batch size and audit/checkpoint cadences must be positive")
+    if resolved_checkpoint_cadence != batch_size:
+        raise ValueError(
+            "continuity checkpoint cadence must equal batch size for deterministic batches"
+        )
     if max_retries_per_action < 0:
         raise ValueError("max retries must not be negative")
     if transient_retry_seconds < 1:
@@ -197,6 +205,14 @@ def create_crown_delivery_job(
         raise ValueError("attempt lease seconds must be positive")
     if parent_task_id is not None:
         _validate_id(parent_task_id, "parent_task_id")
+    for label, value in (
+        ("candidate_set_id", candidate_set_id),
+        ("source_job_id", source_job_id),
+        ("source_run_id", source_run_id),
+        ("triggered_by_audit_id", triggered_by_audit_id),
+    ):
+        if value is not None:
+            _validate_id(value, label)
     project_root = Path(root) / "projects" / project
     if not project_root.is_dir():
         raise FileNotFoundError(project_root)
@@ -420,6 +436,16 @@ def _attempt_request(
             "excluded_chapters": [],
             "reason": "configured_heavy_audit_cadence",
         }
+    revision_window = state.get("revision_audit_window")
+    if action in {"deterministic_reaudit", "heavy_audit"} and isinstance(
+        revision_window, dict
+    ):
+        audit_chapters = sorted(
+            {int(item) for item in revision_window.get("audit_chapters") or []}
+        )
+        if audit_chapters:
+            batch["start"] = audit_chapters[0]
+            batch["end"] = audit_chapters[-1]
     persisted_plan = state.get("narrative_execution_plan")
     if not isinstance(persisted_plan, dict):
         persisted_plan = plan_chapter_execution(
@@ -447,6 +473,7 @@ def _attempt_request(
         ),
         "config": dict(state["config"]),
         "prior_results": dict(state.get("last_action_results") or {}),
+        "automatic_rewrite_count": int(state.get("automatic_rewrite_count") or 0),
         "require_independent_reaudit": bool(state.get("independent_reaudit_required")),
         "agentlab_root": str(Path(root).resolve()),
     }
@@ -755,6 +782,7 @@ def _successful_transition(state: dict[str, Any], action: str, result: dict[str,
         if transition.seal_candidate:
             _seal_current_batch(state, now)
             state["independent_reaudit_required"] = False
+            state["revision_audit_window"] = None
         else:
             if (
                 transition.status == "rewrite_required"
@@ -773,12 +801,23 @@ def _successful_transition(state: dict[str, Any], action: str, result: dict[str,
     elif action == "rewrite_batch":
         state["automatic_rewrite_count"] = int(state.get("automatic_rewrite_count") or 0) + 1
         batch = state["current_batch"]
+        rag_reset = bool(state.get("config", {}).get("knowledge_contract_required"))
+        available_chapters = (
+            range(
+                int(state["config"]["start_chapter"]),
+                int(state["config"]["end_chapter"]) + 1,
+            )
+            if rag_reset
+            else range(int(batch["start"]), int(batch["end"]) + 1)
+        )
         state["revision_audit_window"] = compute_incremental_audit_window(
             changed_chapters=result.get("changed_chapters") or [],
-            available_chapters=range(int(batch["start"]), int(batch["end"]) + 1),
+            available_chapters=available_chapters,
             fact_dependencies=result.get("fact_dependencies") or {},
             full_reaudit_reason=(
-                str(result.get("full_reaudit_reason"))
+                "rag_reset_grouped_revision_requires_full_reaudit"
+                if rag_reset
+                else str(result.get("full_reaudit_reason"))
                 if result.get("full_reaudit_reason")
                 else None
             ),

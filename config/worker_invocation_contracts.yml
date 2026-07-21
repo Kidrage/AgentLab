@@ -348,6 +348,8 @@ contracts:
 
   codex_supervisor:
     worker_id: codex
+    required_runtime_provider: codex-cli
+    required_model_key: codex_gpt_5_6_sol_xhigh_cli_oauth
     display_name: Codex Native GPT Supervisor
     command: codex
     invocation_style: governed_supervisor_task_packet

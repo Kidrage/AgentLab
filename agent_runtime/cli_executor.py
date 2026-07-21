@@ -2612,11 +2612,23 @@ def _hermes_supervisor_preflight(
     invocation_contract = str(role_profile.get("invocation_contract") or "")
     contract = _resolve_invocation_contract(role_profile, agentlab_root)
     if invocation_contract == "codex_supervisor":
-        expected_provider = "codex-cli"
-        expected_model = "gpt-5.6-sol"
-        expected_model_key = "codex_gpt_5_6_sol_xhigh_cli_oauth"
-        expected_reasoning = "xhigh"
+        expected_model_key = str(contract.get("required_model_key") or "")
+        expected_provider = str(contract.get("required_runtime_provider") or "")
+        expected_reasoning = str(contract.get("resolved_reasoning_effort") or "")
+        configured_values = _model_invocation_values(
+            {"default": expected_model_key},
+            agentlab_root,
+        )
+        expected_model = str(configured_values.get("model_id") or "")
         issues: list[str] = []
+        if not expected_model_key:
+            issues.append("required_model_key_missing")
+        if not expected_provider:
+            issues.append("required_runtime_provider_missing")
+        if not expected_reasoning:
+            issues.append("reasoning_effort_missing")
+        if str(role_profile.get("default") or "") != expected_model_key:
+            issues.append("configured_model_key_mismatch")
         if model_values.get("provider") != expected_provider:
             issues.append("catalog_provider_mismatch")
         if model_values.get("model_id") != expected_model:
@@ -2631,7 +2643,7 @@ def _hermes_supervisor_preflight(
             "--model",
             expected_model,
             "-c",
-            'model_reasoning_effort="xhigh"',
+            f'model_reasoning_effort="{expected_reasoning}"',
             "--sandbox",
             "read-only",
             "--ephemeral",

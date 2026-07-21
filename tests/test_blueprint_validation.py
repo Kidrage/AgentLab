@@ -4,6 +4,7 @@ from pathlib import Path
 import hashlib
 import subprocess
 
+import pytest
 import yaml
 
 from agent_runtime.narrative.blueprint_validation import (
@@ -65,10 +66,23 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
             "facts": [
                 {
                     "id": "fact.origin",
+                    "kind": "world_fact",
+                    "value": {"worldline_ref": "worldline.primary"},
                     "source_hashes": ["a" * 64],
                     "conflict_status": "resolved",
+                    "conflict_conclusion": "canonical origin retained",
                 }
             ],
+        },
+    )
+    _write_yaml(
+        project / "project_brain" / "project_fact_snapshot.yml",
+        {
+            "schema_version": 1,
+            "project": "Crown_of_Ash",
+            "facts": [{"id": "fact.origin"}],
+            "source_hashes": {"fact.origin": ["a" * 64]},
+            "conflicts": [],
         },
     )
     records = [
@@ -270,5 +284,106 @@ def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_r
         "production/canonical",
         "production/chapter_cards",
     }
+    receipt = yaml.safe_load(
+        (project / "project_brain" / "blueprint_validation_receipt.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert receipt["status"] == "pass"
+    assert receipt["validation"]["status"] == "pass"
     assert all(item["status"] == "current" for item in artifact_index["artifacts"])
     assert validate_crown_blueprint(tmp_path)["status"] == "pass"
+
+
+def test_seal_refuses_invalid_blueprint_before_registering_artifacts(
+    tmp_path: Path,
+) -> None:
+    fragment, records = _valid_blueprint(tmp_path)
+    records.append({"id": "character.kane", "kind": "character"})
+    _write_yaml(fragment, {"schema_version": 1, "records": records})
+    project = fragment.parents[2]
+
+    with pytest.raises(ValueError, match="blueprint validation blocked"):
+        seal_crown_blueprint(tmp_path)
+
+    assert not (project / "project_artifact_index.yml").exists()
+    assert not (
+        project / "project_brain" / "blueprint_validation_receipt.yml"
+    ).exists()
+
+
+def test_blueprint_validation_blocks_malformed_model_numbers_without_traceback(
+    tmp_path: Path,
+) -> None:
+    _fragment, _records = _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    scale_path = project / "production" / "series_scale_decision.yml"
+    scale = yaml.safe_load(scale_path.read_text(encoding="utf-8"))
+    scale["planned_total_chapters"] = "many"
+    scale["parts"][0]["planned_chapters"] = {"invalid": True}
+    _write_yaml(scale_path, scale)
+    card_path = project / "production" / "chapter_cards" / "ch001.yml"
+    card = yaml.safe_load(card_path.read_text(encoding="utf-8"))
+    card["chapter"] = "first"
+    _write_yaml(card_path, card)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert any("invalid_integer" in issue for issue in result["issues"])
+
+
+def test_fact_distillation_requires_unique_ids_conclusions_and_closed_schema(
+    tmp_path: Path,
+) -> None:
+    _fragment, _records = _valid_blueprint(tmp_path)
+    distillation_path = (
+        tmp_path
+        / "projects"
+        / "Crown_of_Ash"
+        / "project_brain"
+        / "fact_distillation.yml"
+    )
+    distillation = yaml.safe_load(distillation_path.read_text(encoding="utf-8"))
+    distillation["facts"] = [
+        {
+            "id": "fact.duplicate",
+            "source_hashes": ["a" * 64],
+            "conflict_status": "resolved",
+            "conflict_conclusion": "",
+            "legacy_excerpt": "forbidden prose",
+        },
+        {
+            "id": "fact.duplicate",
+            "source_hashes": ["a" * 64],
+            "conflict_status": "resolved",
+            "conflict_conclusion": "same id",
+        },
+    ]
+    _write_yaml(distillation_path, distillation)
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert "fact_distillation:duplicate_id:fact.duplicate" in result["issues"]
+    assert "fact_distillation:missing_conflict_conclusion:fact.duplicate" in result["issues"]
+    assert "fact_distillation:forbidden_field:fact.duplicate:legacy_excerpt" in result["issues"]
+
+
+def test_blueprint_seal_binds_distillation_and_fact_snapshot_hashes(
+    tmp_path: Path,
+) -> None:
+    _fragment, _records = _valid_blueprint(tmp_path)
+    seal_crown_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    distillation_path = project / "project_brain" / "fact_distillation.yml"
+    distillation = yaml.safe_load(distillation_path.read_text(encoding="utf-8"))
+    distillation["facts"][0]["value"] = {"worldline_ref": "worldline.alternate"}
+    _write_yaml(distillation_path, distillation)
+
+    from agent_runtime.narrative.blueprint_validation import validate_blueprint_seal
+
+    result = validate_blueprint_seal(tmp_path)
+
+    assert result["status"] == "blocked"
+    assert "blueprint_artifact_hash_drift" in result["issues"]

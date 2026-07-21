@@ -37,6 +37,48 @@ class RevisionAttemptLockError(RuntimeError):
     """The authoritative revision ledger could not be locked safely."""
 
 
+def revision_attempt_count(
+    *,
+    root: Path,
+    project: str,
+    source_run_id: str,
+    candidate_set_id: str,
+) -> int:
+    """Return the authoritative per-source count under the revision ledger lock."""
+    for value in (project, source_run_id, candidate_set_id):
+        if not _IDENTIFIER_RE.fullmatch(value):
+            raise ValueError("live_revision_attempt_count_identity_invalid")
+    attempt_dir = _safe_attempt_dir(
+        root,
+        project=project,
+        source_run_id=source_run_id,
+    )
+    stat = attempt_dir.stat(follow_symlinks=False)
+    identity = (stat.st_dev, stat.st_ino)
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        _locked_run_slot,
+        _read_slot_file,
+    )
+
+    receipts: list[dict[str, Any]] = []
+    with _locked_run_slot(attempt_dir, identity) as slot:
+        for number in range(1, MAX_AUTOMATIC_REWRITES + 1):
+            content = _read_slot_file(slot, f"attempt-{number:02d}.yml")
+            if content is None:
+                continue
+            receipt = _mapping(content, "live_revision_attempt_lineage_corrupt")
+            if not _valid_receipt_shape(receipt, number=number):
+                raise ValueError("live_revision_attempt_lineage_corrupt")
+            receipts.append(receipt)
+    if [int(item["automatic_rewrite_number"]) for item in receipts] != list(
+        range(1, len(receipts) + 1)
+    ):
+        raise ValueError("live_revision_attempt_lineage_corrupt")
+    if any(item.get("candidate_set_id") != candidate_set_id for item in receipts):
+        raise ValueError("live_revision_candidate_set_mismatch")
+    return len(receipts)
+
+
 @contextmanager
 def hold_revision_attempt_lock(
     *,

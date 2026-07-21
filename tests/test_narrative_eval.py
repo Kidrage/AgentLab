@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 from agent_runtime.cli.narrative_eval import register_narrative_eval_commands  # noqa: E402
 from agent_runtime.narrative_eval import (  # noqa: E402
+    _audit_fact_sources,
     _audit_history,
     _clear_chapter_attempt_outputs,
     _write_writer_contract_retry_feedback,
@@ -384,6 +385,44 @@ def test_narrative_eval_blocks_generation_when_fact_snapshot_missing(tmp_path: P
     assert result["layers"]["L2_real_chapter_sample"]["status"] == "blocked"
     generated_runs = list((project_root / "runs").glob("task_narrative_eval_ch*")) if (project_root / "runs").exists() else []
     assert generated_runs == []
+
+
+def test_rag_generation_l0_uses_sealed_blueprint_instead_of_legacy_bible_dirs(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    _write_yaml(project / "project_artifact_index.yml", {"artifacts": []})
+    _write_yaml(project / "project_brain" / "project_fact_snapshot.yml", {"facts": []})
+    _write_yaml(
+        project / "project_brain" / "blueprint_validation_receipt.yml",
+        {"status": "pass", "project": "Crown_of_Ash"},
+    )
+    _write_yaml(
+        project / "project_brain" / "knowledge_index_snapshot.yml",
+        {
+            "namespace": "project.Crown_of_Ash",
+            "formal_fact_roots": ["production", "project_brain"],
+            "index_snapshot": "snapshot-1",
+        },
+    )
+    for relative in (
+        "production/series_scale_decision.yml",
+        "production/chapter_length_policy.yml",
+        "production/canonical/index.yml",
+        "production/chapter_cards/index.yml",
+    ):
+        _write_yaml(project / relative, {"schema_version": 1})
+
+    result = _audit_fact_sources(
+        project,
+        "Crown_of_Ash",
+        require_knowledge_contract=True,
+    )
+
+    assert result["status"] == "pass"
+    checks = {item["check"] for item in result["issues"]}
+    assert "bible_present" not in checks
+    assert "outline_present" not in checks
 
 
 def test_narrative_eval_resume_reuses_valid_chapters_and_rebuilds_continuity_chain(

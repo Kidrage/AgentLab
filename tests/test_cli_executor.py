@@ -217,6 +217,87 @@ def test_hermes_supervisor_rejects_trailing_command_overrides_before_provider(
     assert "supervisor_command_binding_mismatch" in preflight["issues"]
 
 
+def test_codex_supervisor_preflight_derives_model_binding_from_config(
+    tmp_path: Path,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _hermes_supervisor_preflight
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "codex_supervisor": {
+                        "worker_id": "codex",
+                        "required_runtime_provider": "codex-cli",
+                        "required_model_key": "codex_next_supervisor",
+                        "resolved_reasoning_effort": "high",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "codex_next_supervisor": {
+                        "provider": "codex_cli_oauth",
+                        "runtime_provider": "codex-cli",
+                        "model_id": "gpt-next",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    role_profile = {
+        "invocation_contract": "codex_supervisor",
+        "default": "codex_next_supervisor",
+    }
+    argv = [
+        "codex",
+        "exec",
+        "--json",
+        "--model",
+        "gpt-next",
+        "-c",
+        'model_reasoning_effort="high"',
+        "--sandbox",
+        "read-only",
+        "--ephemeral",
+        "--ignore-rules",
+        "--skip-git-repo-check",
+        "-C",
+        "/sealed/workspace",
+        "Read /sealed/workspace/task_packet.json",
+    ]
+
+    result = _hermes_supervisor_preflight(
+        role_profile,
+        tmp_path,
+        {},
+        argv,
+        {
+            "provider": "codex-cli",
+            "model_id": "gpt-next",
+            "model_key": "codex_next_supervisor",
+        },
+    )
+
+    assert result["status"] == "pass"
+    assert result["required_shell_state"] == {
+        "model.provider": "codex-cli",
+        "model.default": "gpt-next",
+        "agent.reasoning_effort": "high",
+    }
+
+
 def _agy_observer_fixture(tmp_path: Path) -> dict:
     config_dir = tmp_path / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -911,6 +992,8 @@ class TestRunCliAgentSubprocess:
                     "contracts": {
                         "codex_supervisor": {
                             "worker_id": "codex",
+                            "required_runtime_provider": "codex-cli",
+                            "required_model_key": "codex_gpt_5_6_sol_xhigh_cli_oauth",
                             "template": (
                                 "codex exec --json --model {model_id} "
                                 "-c 'model_reasoning_effort=\"xhigh\"' "
@@ -994,6 +1077,8 @@ class TestRunCliAgentSubprocess:
                     "contracts": {
                         "codex_supervisor": {
                             "worker_id": "codex",
+                            "required_runtime_provider": "codex-cli",
+                            "required_model_key": "codex_gpt_5_6_sol_xhigh_cli_oauth",
                             "template": (
                                 "codex exec --json --model {model_id} "
                                 "-c 'model_reasoning_effort=\"xhigh\"' "
