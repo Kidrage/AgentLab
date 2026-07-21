@@ -232,8 +232,7 @@ shells:
         examples:
           - hermes -z <prompt>
           - hermes --provider <provider> -m <model> -z <prompt>
-          - hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.6-sol --ignore-rules --max-turns 6 -q <prompt>
-        agentlab_use: bounded role-session execution with a task packet; Supervisor must use the isolated chat profile because -z does not apply its reasoning-effort state
+        agentlab_use: bounded non-Supervisor role-session execution with a task packet
       model_and_fallback:
         examples:
           - hermes model
@@ -316,7 +315,7 @@ shells:
       - existing xAI OAuth shell path for Grok media backend
     efficiency_gains:
       - avoids rebuilding skills/plugins/MCP/session/hook orchestration inside AgentLab
-      - lets Supervisor/Verifier-style roles use established Hermes workflow machinery
+      - lets non-default Verifier-style roles use established Hermes workflow machinery
       - reuses existing OAuth/provider routing for media handoff
     delivery_contract:
       required_receipts:
@@ -550,8 +549,9 @@ shells:
       exec_and_review:
         examples:
           - codex exec <prompt>
+          - codex exec --model gpt-5.6-sol -c model_reasoning_effort="xhigh" <prompt>
           - codex review
-        agentlab_use: code/task execution and review when Codex is selected as a role worker
+        agentlab_use: Supervisor planning plus code/task execution and review when Codex is selected as a role worker
       mcp_plugins_sandbox:
         examples:
           - codex mcp
@@ -564,6 +564,7 @@ shells:
           - codex cloud
         agentlab_use: session continuity and cloud-task observation when explicitly scoped
     allowed_roles:
+      - Supervisor
       - RepoScout
       - InterfaceMapper
       - Coder
@@ -573,7 +574,6 @@ shells:
       - Verifier
     forbidden_as:
       - Writer
-      - Supervisor
       - production_promotion_gate
     required_outputs:
       - role_session_receipt.yml

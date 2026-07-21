@@ -20,7 +20,7 @@ capability_profiles:
   core_config_editor: reserved for confirmed AgentLab config commands; no worker owns it by default
 roles:
   Supervisor:
-    allowed_workers: [hermes, qwen, claude_code]
+    allowed_workers: [codex, hermes, qwen, claude_code]
     required_session: true
   Observer:
     allowed_workers: [agy]
@@ -89,8 +89,8 @@ workers:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [candidate_artifact_worker, role_worker, workflow_shell]
-    allowed_roles: [RepoScout, InterfaceMapper, Coder, ArtifactProducer, Scribe, TesterAuditor, Verifier]
-    forbidden_roles: [Supervisor, Observer, Researcher, PromptEngineer, NarrativePlanner, Writer, Reviewer, Archivist]
+    allowed_roles: [Supervisor, RepoScout, InterfaceMapper, Coder, ArtifactProducer, Scribe, TesterAuditor, Verifier]
+    forbidden_roles: [Observer, Researcher, PromptEngineer, NarrativePlanner, Writer, Reviewer, Archivist]
   claude_code:
     frontdesk_capable: false
     worker_capable: true

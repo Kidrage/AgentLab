@@ -2603,18 +2603,83 @@ def _hermes_supervisor_preflight(
     argv: list[str],
     model_values: dict[str, str],
 ) -> dict[str, Any]:
-    """Verify the exact Hermes Supervisor request path before provider launch.
+    """Verify the exact governed Supervisor request path before provider launch.
 
-    Hermes' ``-z`` one-shot path does not apply ``agent.reasoning_effort``.
-    The governed Supervisor contract therefore uses a named profile with the
-    classic ``chat -q`` path. This preflight proves the profile state, exact
-    command binding, and absence of Hermes-internal fallbacks without calling a
-    provider or printing the rest of the private Hermes configuration.
+    Native Codex is verified from its exact argv/model/reasoning binding. The
+    retained Hermes compatibility contract additionally verifies its isolated
+    profile state. Neither path calls a provider during preflight.
     """
-    if str(role_profile.get("invocation_contract") or "") != "hermes_supervisor":
+    invocation_contract = str(role_profile.get("invocation_contract") or "")
+    contract = _resolve_invocation_contract(role_profile, agentlab_root)
+    if invocation_contract == "codex_supervisor":
+        expected_provider = "codex-cli"
+        expected_model = "gpt-5.6-sol"
+        expected_model_key = "codex_gpt_5_6_sol_xhigh_cli_oauth"
+        expected_reasoning = "xhigh"
+        issues: list[str] = []
+        if model_values.get("provider") != expected_provider:
+            issues.append("catalog_provider_mismatch")
+        if model_values.get("model_id") != expected_model:
+            issues.append("catalog_model_mismatch")
+        if model_values.get("model_key") != expected_model_key:
+            issues.append("catalog_model_key_mismatch")
+        if contract.get("resolved_reasoning_effort") != expected_reasoning:
+            issues.append("reasoning_effort_mismatch")
+        expected_prefix = [
+            "exec",
+            "--json",
+            "--model",
+            expected_model,
+            "-c",
+            'model_reasoning_effort="xhigh"',
+            "--sandbox",
+            "read-only",
+            "--ephemeral",
+            "--ignore-rules",
+            "-C",
+        ]
+        command_bound = (
+            len(argv) == 14
+            and Path(argv[0]).name == "codex"
+            and argv[1:12] == expected_prefix
+            and bool(str(argv[12]).strip())
+            and bool(str(argv[13]).strip())
+        )
+        if not command_bound:
+            issues.append("supervisor_command_binding_mismatch")
+        return {
+            "applicable": True,
+            "status": "pass" if not issues else "fail",
+            "issues": sorted(set(issues)),
+            "worker": "codex",
+            "invocation_contract": invocation_contract,
+            "required_shell_state": {
+                "model.provider": expected_provider,
+                "model.default": expected_model,
+                "agent.reasoning_effort": expected_reasoning,
+            },
+            "observed_shell_state": {
+                "model.provider": model_values.get("provider"),
+                "model.default": model_values.get("model_id"),
+                "agent.reasoning_effort": contract.get("resolved_reasoning_effort"),
+            },
+            "command_binding_verified": command_bound,
+            "requested_reasoning_label": contract.get("requested_reasoning_label"),
+            "resolved_reasoning_effort": contract.get("resolved_reasoning_effort"),
+            "capacity_route": (
+                role_profile.get("capacity_selected_route")
+                or role_profile.get("capacity_route")
+            ),
+            "capacity_pool": role_profile.get("capacity_pool"),
+            "attempt_id": role_profile.get("_runtime_model_execution_attempt_id"),
+            "selection_kind": role_profile.get("_runtime_capacity_selection_kind"),
+            "provider_process_started": False,
+            "evidence_source": "runtime_verified_codex_argv",
+        }
+
+    if invocation_contract != "hermes_supervisor":
         return {"applicable": False, "status": "not_applicable", "issues": []}
 
-    contract = _resolve_invocation_contract(role_profile, agentlab_root)
     profile_name = str(contract.get("workflow_shell_profile") or "").strip()
     required = (
         contract.get("required_shell_state")
@@ -2701,6 +2766,9 @@ def _hermes_supervisor_preflight(
         "attempt_id": role_profile.get("_runtime_model_execution_attempt_id"),
         "selection_kind": role_profile.get("_runtime_capacity_selection_kind"),
         "provider_process_started": False,
+        "worker": "hermes",
+        "invocation_contract": invocation_contract,
+        "evidence_source": "runtime_verified_argv_and_hermes_profile",
     }
 
 
@@ -2724,8 +2792,8 @@ def _write_hermes_supervisor_model_receipt(
         "schema_version": 1,
         "status": status,
         "role": "Supervisor",
-        "worker": "hermes",
-        "invocation_contract": "hermes_supervisor",
+        "worker": preflight.get("worker") or "hermes",
+        "invocation_contract": preflight.get("invocation_contract") or "hermes_supervisor",
         "requested_reasoning_label": preflight.get("requested_reasoning_label"),
         "provider": (preflight.get("required_shell_state") or {}).get("model.provider"),
         "model": (preflight.get("required_shell_state") or {}).get("model.default"),
@@ -2738,7 +2806,7 @@ def _write_hermes_supervisor_model_receipt(
         "fallback_chain": [],
         "provider_process_started": provider_process_started,
         "provider_response_metadata_observed": False,
-        "evidence_source": "runtime_verified_argv_and_hermes_profile",
+        "evidence_source": preflight.get("evidence_source") or "runtime_verified_supervisor_argv",
         "exit_code": exit_code,
         "stdout_nonempty": stdout_nonempty,
         "timed_out": timed_out,
@@ -4015,17 +4083,17 @@ def run_cli_agent(
                 model=cli_agent_name,
                 content=(
                     "# Supervisor model execution blocked\n\n"
-                    "The isolated Hermes profile or exact command binding did not "
-                    "match openai-codex / gpt-5.6-sol / xhigh with an empty fallback "
-                    "chain. No provider process was started.\n"
+                    "The resolved Supervisor provider, model, reasoning effort, or "
+                    "exact command binding did not match the governed route. No "
+                    "provider process was started.\n"
                 ),
                 status="blocked_user_decision",
-                error="hermes_profile_preflight_failed",
+                error="supervisor_model_preflight_failed",
                 raw_usage={
                     "cli_agent": cli_agent_name,
                     "cli_runtime_provider": model_values["provider"],
                     "provider_process_started": False,
-                    "hermes_profile_preflight": hermes_preflight,
+                    "supervisor_model_preflight": hermes_preflight,
                     **(
                         {"model_execution_receipt": model_receipt_path}
                         if model_receipt_path

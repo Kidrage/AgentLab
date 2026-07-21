@@ -109,6 +109,27 @@ pools:
         source_kind: unknown
         confidence: unknown
 
+  codex_cli_agentic:
+    shared_pool_id: codex_cli_agentic
+    provider: codex_cli_oauth
+    billing_mode: subscription
+    probe: [codex, --version]
+    declared_windows:
+      rolling:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+      weekly:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+
   xai_subscription_shared:
     shared_pool_id: xai_subscription_shared
     provider: hermes_xai_oauth
@@ -161,10 +182,10 @@ pools:
 routes:
   Supervisor:
     role: supervisor
-    worker: hermes
-    invocation_contract: hermes_supervisor
-    model_key: codex_gpt_5_6_sol_xhigh_hermes_oauth
-    pool: openai_codex_agentic
+    worker: codex
+    invocation_contract: codex_supervisor
+    model_key: codex_gpt_5_6_sol_xhigh_cli_oauth
+    pool: codex_cli_agentic
     approved_fallbacks: [SupervisorDeepSeek]
     fallback_on: [rate_limited, quota_exhausted, auth_missing, model_unavailable]
   SupervisorDeepSeek:

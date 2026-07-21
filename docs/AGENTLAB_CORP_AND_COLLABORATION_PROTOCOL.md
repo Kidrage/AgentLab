@@ -30,9 +30,9 @@ AgentLab 演进为一个完整的 **Agent 软件公司 (Agent OS)**。本协议�
 
 ### 1.2 协作机制
 *   **小任务模式**：独立 Agent CLI（如 Claude Code）在承接日常微小 Bugfix 时，自动读取本地 MCP 记忆与项目 `agent_docs` 中的上下文，执行自检审计通过后归档。
-*   **大项目模式**：由 Supervisor Agent (Hermes) 生成全局实施方案，并将模块开发任务作为 Task Pack 分配路由给独立 Coder Agents。
+*   **大项目模式**：由 Supervisor Agent（默认 Codex CLI + GPT）生成全局实施方案，并将模块开发任务作为 Task Pack 分配路由给独立 Coder Agents。
 *   **财务与预算超额治理（试运营）**：
-    *   **集中账本监控**：引入统一的财务审计。由 Supervisor (Hermes) 集中监管 Task Sandbox 中的 `cost_ledger.yml`（费用总账），记录所有 Agent 雇员的接口开销。
+    *   **集中账本监控**：引入统一的财务审计。由 Supervisor（默认 Codex CLI）集中监管 Task Sandbox 中的 `cost_ledger.yml`（费用总账），记录所有 Agent 雇员的接口开销。
     *   **预算超额拦截 (Budget Grill)**：在下发下一步指令前，Supervisor 进行总账核销。若预算耗尽或超标，自动挂起任务运行并触发 `Budget Grill` 面试，由用户选择追加配额或削减 Scope。此机制目前处于试运营阶段，未来会根据执行损耗与效果进行微调。
 
 ---

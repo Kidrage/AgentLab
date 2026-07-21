@@ -4,7 +4,7 @@ version: 2
 # 分层架构 (Model Tier Architecture) v3.0:
 #
 #   Agent backend 选择由 config/agent_model_profiles.yml 负责。
-#   full_cli 默认大脑层 Supervisor — Hermes Codex OAuth / gpt-5.6-sol xhigh
+#   full_cli 默认大脑层 Supervisor — Codex CLI OAuth / gpt-5.6-sol xhigh
 #   full_cli Observer — Agy Gemini/Claude OAuth 独立容量池
 #   full_cli Writer — Claude shell / DeepSeek V4
 #   full_cli Researcher/ArtifactProducer — Hermes Grok OAuth（独立合同）
@@ -27,6 +27,29 @@ defaults:
   fallback_provider: env:LLM_FALLBACK_PROVIDER:qwen3
 
 providers:
+
+  codex-cli:
+    type: oauth_cli
+    display_name: Codex CLI OAuth
+    command: codex
+    default_model: gpt-5.6-sol
+    reasoning_effort: xhigh
+    auth: local_codex_oauth_session
+    billing:
+      source: codex_cli_oauth
+      metering: subscription_or_oauth_quota
+      shared_pool_id: codex_cli_agentic
+    capacity_source: config/model_capacity.yml
+    unavailable_action: capacity_manager
+    requires_user_approval_before_fallback: false
+    blocked_on:
+      - missing_cli
+      - oauth_session_expired
+      - provider_error
+    notes:
+      - Native Codex CLI worker and OAuth session.
+      - Verified local defaults are gpt-5.6-sol with xhigh reasoning.
+      - Do not confuse this provider with Hermes' internal openai-codex provider.
 
   # ── T1 大脑层 Provider ──────────────────────────────────────────────
   deepseek:

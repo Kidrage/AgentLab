@@ -11,7 +11,7 @@ authority:
 modes:
   single_cli_company:
     role_preferences:
-      Supervisor: [claude_code, hermes]
+      Supervisor: [codex, claude_code, hermes]
       PromptEngineer: [claude_code, hermes]
       Coder: [claude_code, codex, aider]
       ArtifactProducer: [grok, codex, qwen]
@@ -32,12 +32,12 @@ modes:
       Archivist: [git]
   max_quality_swarm:
     role_preferences:
-      Supervisor: [hermes, claude_code, qwen, gemini]
+      Supervisor: [codex, claude_code, hermes, qwen, gemini]
       Coder: [claude_code, aider]
       ArtifactProducer: [grok, codex, qwen]
   frontdesk_gateway:
     role_preferences:
-      Supervisor: [hermes, qwen, gemini]
+      Supervisor: [codex, hermes, qwen, gemini]
 tiers:
   low:
     cost_ceiling: low

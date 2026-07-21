@@ -1,15 +1,16 @@
 schema_version: 1
 policy_id: hermes_brain_model_groups
 summary: >
-  Hermes is the brain/supervisor layer. It owns model routing, durable plan
-  handoffs, feedback interpretation, and budget-aware escalation before
-  execution-layer agents receive task packets. Executable fallback selection
-  belongs only to config/model_capacity.yml.
+  AgentLab's default brain/supervisor layer runs through the native Codex CLI.
+  It owns durable plan handoffs, feedback interpretation, and budget-aware
+  escalation before execution-layer agents receive task packets. Hermes remains
+  a non-default workflow/frontdesk shell. Executable fallback selection belongs
+  only to config/model_capacity.yml.
 
 default_recommendation:
   model_mix: codex_gpt56_sol_supervisor_with_specialists
   rationale:
-    - Hermes with Codex GPT-5.6 Sol xhigh is the strongest registered Supervisor route.
+    - Native Codex CLI with GPT-5.6 Sol xhigh is the default registered Supervisor route.
     - Claude shell with DeepSeek owns bounded Chinese Writer work.
     - Agy observes multimodal evidence; it does not write final prose or claim image generation.
     - Grok/xAI owns sourced social/web research and registered image/video tool orchestration.
@@ -44,7 +45,7 @@ providers:
       - architecture_refactor
       - tool_heavy_execution
     default_models:
-      - codex_gpt_5_6_sol_xhigh_hermes_oauth
+      - codex_gpt_5_6_sol_xhigh_cli_oauth
     quota_policy:
       source: config/model_capacity.yml
       refresh_window_hours: null
@@ -68,7 +69,7 @@ brain_layouts:
   recommended:
     name: codex_gpt56_sol_supervisor_with_specialists
     brain_chain:
-      supervisor: codex_gpt_5_6_sol_xhigh_hermes_oauth
+      supervisor: codex_gpt_5_6_sol_xhigh_cli_oauth
       writer: deepseek_v4_pro
       multimodal_observer: gemini_3_5_flash_high_agy_oauth
       observer_fallback: claude_sonnet_4_6_agy_oauth
@@ -76,7 +77,7 @@ brain_layouts:
       artifact_producer: grok_4_3_hermes_oauth
       independent_verifier: deepseek_v4_flash
     execution_rule: >
-      Hermes with Codex GPT-5.6 Sol keeps Supervisor plan ownership and routes
+      Native Codex CLI with GPT-5.6 Sol keeps Supervisor plan ownership and routes
       only verified task packets to the separate Writer, Observer, Researcher,
       ArtifactProducer, and independent Verifier roles. Producers cannot
       self-approve, and capacity changes must follow config/model_capacity.yml.
@@ -104,14 +105,15 @@ brain_layouts:
   premium_codex_brain:
     name: codex_gpt56_sol_supervisor
     brain_chain:
-      planner: codex_gpt_5_6_sol_xhigh_hermes_oauth
+      planner: codex_gpt_5_6_sol_xhigh_cli_oauth
       reviewer: qwen3_6_flash_dashscope
       writer: deepseek_v4_pro
       multimodal_observer: gemini_3_5_flash_high_agy_oauth
       social_web_research: grok_4_3_hermes_oauth
     execution_rule: >
-      Codex GPT-5.6 Sol xhigh acts as the Hermes Supervisor brain. It must emit the standard
-      Hermes handoff contract (plan_status, missing_facts, must_read_artifacts,
+      Codex GPT-5.6 Sol xhigh acts through the native Codex Supervisor shell. It
+      must emit the standard AgentLab handoff contract (plan_status,
+      missing_facts, must_read_artifacts,
       dispatch_units, self_check, revision_log). Coder execution must be
       dispatched through role-session. Writer, Observer, Researcher, and
       ArtifactProducer remain separate producers and cannot self-approve.
@@ -130,7 +132,7 @@ handoff_requirements:
   - revision_log
 
 feedback_interpretation:
-  hermes_must_extract:
+  supervisor_must_extract:
     - blocked_reason
     - artifact_paths
     - test_or_review_evidence

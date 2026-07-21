@@ -147,9 +147,9 @@ agents:
     explicit_named_delegation_mode: relay_only
     may_edit_task_files_when_relaying: false
   hermes:
-    display_name: Hermes CLI Frontdesk and Supervisor Shell
-    class: frontdesk_and_supervisor_cli
-    primary_roles: [user_intake, supervisor, task_routing, planning, decomposition, coordination, recovery, global_memory]
+    display_name: Hermes CLI Frontdesk and Workflow Shell
+    class: frontdesk_and_workflow_cli
+    primary_roles: [user_intake, task_routing, planning, decomposition, coordination, recovery, global_memory]
     invocation:
       command: hermes
       frontdesk_session: >-
@@ -157,11 +157,6 @@ agents:
       one_shot: >-
         hermes -z "Read the task packet at {task_packet_path}; perform only the assigned role;
         return findings, actions, verification, changed files, and blockers."
-      supervisor: >-
-        hermes -p agentlabsupervisor chat -Q --provider openai-codex -m
-        gpt-5.6-sol --ignore-rules --max-turns 6 -q "Read the AgentLab Supervisor packet at
-        {task_packet_path}; return the governed plan. AgentLab writes the
-        runtime-verified model execution receipt."
     frontdesk_model: deepseek_v4_pro
     frontdesk_provider: deepseek
     frontdesk_model_id: deepseek-v4-pro
@@ -169,12 +164,16 @@ agents:
   codex:
     display_name: Codex
     class: coding_agent
-    primary_roles: [scoped_implementation, refactor, review, ci_repair]
+    primary_roles: [supervisor, scoped_implementation, refactor, review, ci_repair]
     invocation:
       command: codex
       noninteractive: >-
         codex exec --json -C "{workspace_path}" "Read the task packet at
         {task_packet_path}; perform only the assigned work and report actual changes." < /dev/null
+      supervisor: >-
+        codex exec --json --model gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'
+        --sandbox read-only --ephemeral --ignore-rules -C "{workspace_path}"
+        "Read the AgentLab Supervisor packet at {task_packet_path}; return the governed plan."
     high_risk: true
   claude_code:
     display_name: Claude Code
