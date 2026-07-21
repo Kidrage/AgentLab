@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+from contextlib import nullcontext
 from dataclasses import dataclass, field
+from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
@@ -17,6 +19,15 @@ from agent_runtime.narrative.production.brief_compiler import BriefCompiler
 from agent_runtime.narrative.production.context_compiler import ContextRequest
 from agent_runtime.narrative.production.literary_memory import (
     validate_literary_memory_snapshot,
+)
+from agent_runtime.narrative.production.live_revision import (
+    revision_lease_issue,
+    validate_live_revision_request,
+)
+from agent_runtime.narrative.production.revision_attempts import (
+    RevisionAttemptLockError,
+    hold_revision_attempt_lock,
+    validate_revision_attempt_receipt,
 )
 from agent_runtime.narrative.production.writer_packet_preview import (
     build_writer_packet_preview,
@@ -76,6 +87,8 @@ class _ReferenceSnapshot:
 def prepare_live_writer_session(
     agentlab_root: Path,
     plan: Any,
+    *,
+    now: datetime | None = None,
 ) -> LiveWriterSession | None:
     """Compile one live v2 Writer session, or return ``None`` for legacy runs."""
     root = Path(agentlab_root).resolve()
@@ -152,6 +165,12 @@ def prepare_live_writer_session(
         return _blocked_live_writer_preflight(run_dir, task_id, issues)
 
     _validate_identity(request, project, task_id, issues)
+    if request.get("job_kind") == "narrative_revision":
+        lease_issue = revision_lease_issue(request, now=now)
+        if lease_issue:
+            issues.append(lease_issue)
+    if issues:
+        return _blocked_live_writer_preflight(run_dir, task_id, issues)
     chapter_id = request.get("chapter_id")
     if not _positive_int(chapter_id):
         issues.append("live_writer_chapter_id_invalid")
@@ -227,6 +246,66 @@ def prepare_live_writer_session(
         project_scoped=True,
         required_project_area="candidates",
     )
+    revision_paths: dict[str, Path | None] = {}
+    revision_contract_data: dict[str, Any] = {}
+    if request.get("job_kind") == "narrative_revision":
+        revision_paths = {
+            "source_writer_request": _verified_ref(
+                root,
+                project,
+                request.get("source_writer_request"),
+                "source_writer_request",
+                issues,
+                project_scoped=True,
+                required_project_area="runs",
+            ),
+            "source_candidate": _verified_ref(
+                root,
+                project,
+                request.get("source_candidate"),
+                "source_candidate",
+                issues,
+                project_scoped=True,
+                required_project_area="runs",
+            ),
+            "triggering_audit": _verified_ref(
+                root,
+                project,
+                request.get("triggering_audit"),
+                "triggering_audit",
+                issues,
+                project_scoped=True,
+                required_project_area="runs",
+            ),
+            "revision_contract": _verified_ref(
+                root,
+                project,
+                request.get("revision_contract"),
+                "revision_contract",
+                issues,
+                project_scoped=True,
+                required_project_area="candidates",
+            ),
+            "attempt_receipt": _verified_ref(
+                root,
+                project,
+                request.get("attempt_receipt"),
+                "attempt_receipt",
+                issues,
+                project_scoped=True,
+                required_project_area="candidates",
+            ),
+        }
+        revision_contract_data, revision_issues = validate_live_revision_request(
+            root=root,
+            project=project,
+            task_id=task_id,
+            request=request,
+            chapter_id=int(chapter_id or 0),
+            paths=revision_paths,
+            now=now,
+        )
+        issues.extend(revision_issues)
     supplemental = _verified_ref_list(
         root,
         project,
@@ -364,6 +443,7 @@ def prepare_live_writer_session(
             "hard_state": hard_state,
             "predecessor_prose": predecessor,
             "literary_memory": literary_memory,
+            **revision_paths,
         },
         list_paths={
             "supplemental_context_sources": supplemental,
@@ -392,7 +472,13 @@ def prepare_live_writer_session(
             task_id,
             ["live_writer_context_output_symlink_forbidden"],
         )
-    optional_context = _dedupe_paths([literary_memory, *supplemental])
+    revision_writer_context = [
+        revision_paths.get("source_candidate"),
+        revision_paths.get("revision_contract"),
+    ]
+    optional_context = _dedupe_paths(
+        [literary_memory, *supplemental, *revision_writer_context]
+    )
     preview = build_writer_packet_preview(
         ContextRequest(
             chapter_id=int(chapter_id),
@@ -437,6 +523,8 @@ def prepare_live_writer_session(
         project,
         task_id,
         prose_length_contract,
+        request=request,
+        revision_contract=revision_contract_data,
     )
     packet = copy.deepcopy(preview.payload)
     packet["messages"] = messages
@@ -497,8 +585,8 @@ def prepare_live_writer_session(
     receipt = {
         "schema_version": 1,
         "status": "pass",
-        "job_kind": "narrative_generation",
-        "run_mode": "generate_candidate",
+        "job_kind": request.get("job_kind"),
+        "run_mode": request.get("run_mode"),
         "project": project,
         "task_id": task_id,
         "chapter_id": chapter_id,
@@ -526,6 +614,21 @@ def prepare_live_writer_session(
             for path in source_paths
         ],
     }
+    if request.get("job_kind") == "narrative_revision":
+        for key in (
+            "candidate_set_id",
+            "source_job_id",
+            "source_run_id",
+            "triggered_by_audit_id",
+            "attempt_id",
+            "lease_token",
+            "lease_expires_at",
+            "automatic_rewrite_count",
+            "automatic_rewrite_number",
+            "fencing_token",
+            "attempt_receipt",
+        ):
+            receipt[key] = request.get(key)
     atomic_write_yaml(receipt_path, receipt, sort_keys=False, allow_unicode=True)
     return LiveWriterSession(
         status="pass",
@@ -549,18 +652,55 @@ def materialize_live_writer_result(
     result: Any,
     run_dir: Path,
     task_id: str,
+    *,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     """Materialize the one prose envelope and persist a content-free contract."""
+    run_dir = Path(run_dir)
+    try:
+        guard = _revision_materialization_guard(run_dir)
+        with guard:
+            return _materialize_live_writer_result_locked(
+                result,
+                run_dir,
+                task_id,
+                now=now,
+            )
+    except RevisionAttemptLockError:
+        _remove_delivery_success_outputs(run_dir)
+        validation = {
+            "status": "blocked",
+            "issues": ["live_writer_revision_attempt_lock_invalid"],
+            "prose_sha256": "",
+            "non_prose_output_count": 0,
+            "writer_self_receipt_present": False,
+        }
+        _persist_live_writer_output_contract(run_dir, task_id, validation)
+        return validation
+
+
+def _materialize_live_writer_result_locked(
+    result: Any,
+    run_dir: Path,
+    task_id: str,
+    *,
+    now: datetime | None,
+) -> dict[str, Any]:
+    """Materialize while any revision fence is held at its linearization point."""
     from agent_runtime.writer_output_materializer import materialize_writer_v2_content
 
-    run_dir = Path(run_dir)
+    existing_success = _existing_live_writer_success(run_dir, task_id)
+    if existing_success is not None:
+        return existing_success
     issues: list[str] = []
     session_receipt: dict[str, Any] = {}
     if getattr(result, "status", None) != "completed":
         issues.append("live_writer_result_not_completed")
     else:
         binding_issues, session_receipt = _validate_delivery_session(
-            run_dir, task_id
+            run_dir,
+            task_id,
+            now=now,
         )
         issues.extend(binding_issues)
     if issues:
@@ -591,6 +731,90 @@ def materialize_live_writer_result(
         )
     _persist_live_writer_output_contract(run_dir, task_id, validation)
     return validation
+
+
+def _revision_materialization_guard(run_dir: Path):
+    request_path = run_dir / LIVE_WRITER_REQUEST_NAME
+    try:
+        request = yaml.safe_load(request_path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return nullcontext()
+    if not isinstance(request, dict) or request.get("job_kind") != "narrative_revision":
+        return nullcontext()
+    try:
+        resolved_run = run_dir.resolve(strict=True)
+        project_root = resolved_run.parent.parent
+        root = project_root.parent.parent
+    except (OSError, RuntimeError) as exc:
+        raise RevisionAttemptLockError(
+            "live_writer_revision_attempt_lock_invalid"
+        ) from exc
+    return hold_revision_attempt_lock(
+        root=root,
+        project=str(request.get("project") or ""),
+        source_run_id=str(request.get("source_run_id") or ""),
+    )
+
+
+def _existing_live_writer_success(
+    run_dir: Path,
+    task_id: str,
+) -> dict[str, Any] | None:
+    """Return the immutable first success so delayed workers cannot replace it."""
+    draft_path = run_dir / "fiction_draft.md"
+    execution_path = run_dir / "writer_execution_receipt.yml"
+    output_path = run_dir / LIVE_WRITER_OUTPUT_CONTRACT_NAME
+    request_path = run_dir / LIVE_WRITER_REQUEST_NAME
+    if not all(
+        path.is_file() and not path.is_symlink()
+        for path in (draft_path, execution_path, output_path, request_path)
+    ):
+        return None
+    try:
+        prose_sha256 = hashlib.sha256(draft_path.read_bytes()).hexdigest()
+        request_raw = request_path.read_bytes()
+        request = yaml.safe_load(request_raw.decode("utf-8")) or {}
+        execution = yaml.safe_load(execution_path.read_text(encoding="utf-8")) or {}
+        output = yaml.safe_load(output_path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return None
+    if not all(isinstance(value, dict) for value in (request, execution, output)):
+        return None
+    if not _request_matches_active_operator_plan(run_dir, request_raw, request):
+        return None
+    if (
+        request.get("task_id") != task_id
+        or output.get("status") != "pass"
+        or output.get("task_id") != task_id
+        or output.get("candidate_only") is not True
+        or output.get("production_modified") is not False
+        or output.get("prose_sha256") != prose_sha256
+        or execution.get("schema_version") != 2
+        or execution.get("issuer") != "AgentLab"
+        or execution.get("issuer_role") != "writer_contract_validator"
+        or execution.get("writer_cannot_overwrite") is not True
+        or execution.get("prose_sha256") != prose_sha256
+        or not all(
+            str(execution.get(key) or "").strip()
+            for key in ("observed_provider", "observed_model", "observed_call_id")
+        )
+    ):
+        return None
+    return {
+        "schema_version": 2,
+        "status": "pass",
+        "issues": [],
+        "prose_sha256": prose_sha256,
+        "han_character_count": output.get("han_character_count"),
+        "prose_length_contract": output.get("prose_length_contract"),
+        "non_prose_output_count": int(output.get("non_prose_output_count") or 0),
+        "writer_self_receipt_present": bool(
+            output.get("writer_self_receipt_present")
+        ),
+        "materialized_path": str(draft_path),
+        "receipt_path": str(execution_path),
+        "idempotent_existing_success": True,
+    }
 
 
 def _persist_live_writer_output_contract(
@@ -636,6 +860,8 @@ def _blocked_live_writer_preflight(
     normalized_issues = list(dict.fromkeys(str(issue) for issue in issues if issue))
     if not normalized_issues:
         normalized_issues = ["live_writer_preflight_blocked"]
+    if _existing_live_writer_success(run_dir, task_id) is not None:
+        return LiveWriterSession(status="blocked", issues=normalized_issues)
     _remove_delivery_success_outputs(run_dir)
     _persist_live_writer_output_contract(
         run_dir,
@@ -736,7 +962,10 @@ def materialize_registered_writer_result(
 
 
 def _validate_delivery_session(
-    run_dir: Path, task_id: str
+    run_dir: Path,
+    task_id: str,
+    *,
+    now: datetime | None = None,
 ) -> tuple[list[str], dict[str, Any]]:
     request_path = run_dir / LIVE_WRITER_REQUEST_NAME
     receipt_path = run_dir / LIVE_WRITER_RECEIPT_NAME
@@ -754,10 +983,17 @@ def _validate_delivery_session(
         return ["live_writer_session_request_hash_mismatch"], {}
     if not _request_matches_active_operator_plan(run_dir, request_raw, request):
         return ["live_writer_session_plan_activation_invalid"], {}
+    if request.get("job_kind") == "narrative_revision":
+        lease_issue = revision_lease_issue(request, now=now)
+        if lease_issue:
+            return [lease_issue], {}
+        fencing_issues = _revision_delivery_fencing_issues(run_dir, request)
+        if fencing_issues:
+            return fencing_issues, {}
     expected = {
         "schema_version": 1,
-        "job_kind": "narrative_generation",
-        "run_mode": "generate_candidate",
+        "job_kind": request.get("job_kind"),
+        "run_mode": request.get("run_mode"),
         "task_id": task_id,
         "candidate_only": True,
         "production_modified": False,
@@ -772,6 +1008,22 @@ def _validate_delivery_session(
         return ["live_writer_session_binding_mismatch:project"], {}
     if request.get("chapter_id") != receipt.get("chapter_id"):
         return ["live_writer_session_binding_mismatch:chapter_id"], {}
+    if request.get("job_kind") == "narrative_revision":
+        for key in (
+            "candidate_set_id",
+            "source_job_id",
+            "source_run_id",
+            "triggered_by_audit_id",
+            "attempt_id",
+            "lease_token",
+            "lease_expires_at",
+            "automatic_rewrite_count",
+            "automatic_rewrite_number",
+            "fencing_token",
+            "attempt_receipt",
+        ):
+            if request.get(key) != receipt.get(key):
+                return [f"live_writer_session_binding_mismatch:{key}"], {}
     if not _SHA256_RE.fullmatch(str(receipt.get("compiled_packet_sha256") or "")):
         return ["live_writer_session_packet_hash_invalid"], {}
     prose_length_contract, length_issue = _bound_prose_length_contract(
@@ -816,6 +1068,37 @@ def _request_matches_active_operator_plan(
     except (OSError, RuntimeError, TypeError, ValueError):
         return False
     return sealed_request == request_raw
+
+
+def _revision_delivery_fencing_issues(
+    run_dir: Path,
+    request: dict[str, Any],
+) -> list[str]:
+    try:
+        resolved_run = run_dir.resolve(strict=True)
+        project_root = resolved_run.parent.parent
+        root = project_root.parent.parent
+    except (OSError, RuntimeError):
+        return ["live_writer_revision_run_dir_invalid"]
+    project = str(request.get("project") or "")
+    issues: list[str] = []
+    receipt_path = _verified_ref(
+        root,
+        project,
+        request.get("attempt_receipt"),
+        "attempt_receipt",
+        issues,
+        project_scoped=True,
+        required_project_area="candidates",
+    )
+    if issues:
+        return issues
+    return validate_revision_attempt_receipt(
+        root=root,
+        project=project,
+        request=request,
+        receipt_path=receipt_path,
+    )
 
 
 def _bound_prose_length_contract(
@@ -886,10 +1169,11 @@ def _remove_delivery_success_outputs(run_dir: Path) -> None:
 def _validate_identity(
     request: dict[str, Any], project: str, task_id: str, issues: list[str]
 ) -> None:
+    is_revision = request.get("job_kind") == "narrative_revision"
     expected = {
         "schema_version": 1,
-        "job_kind": "narrative_generation",
-        "run_mode": "generate_candidate",
+        "job_kind": "narrative_revision" if is_revision else "narrative_generation",
+        "run_mode": "targeted_rewrite" if is_revision else "generate_candidate",
         "project": project,
         "task_id": task_id,
         "candidate_only": True,
@@ -1243,20 +1527,41 @@ def _live_messages(
     project: str,
     task_id: str,
     prose_length_contract: dict[str, Any],
+    *,
+    request: dict[str, Any],
+    revision_contract: dict[str, Any],
 ) -> list[dict[str, str]]:
     messages = copy.deepcopy(payload.get("messages") or [])
     target = f"runs/{task_id}/fiction_draft.md"
     minimum = int(prose_length_contract["minimum"])
     maximum = int(prose_length_contract["maximum"])
-    messages[0]["content"] = (
-        "Act only as the prose Writer for this chapter. Preserve the sealed "
-        "CreativeBrief, canon, state, and literary memory. Return exactly one "
-        f"full-file AGENTLAB_EDIT block targeting {target}. The block body must "
-        "contain only the complete chapter prose. Do not emit any other file, "
-        "report, audit, state ledger, receipt, promotion decision, or commentary. "
-        f"For Chinese prose, the hard length contract is {minimum:,}–{maximum:,} "
-        "Han characters after excluding Markdown headings; do not exceed it."
-    )
+    if request.get("job_kind") == "narrative_revision":
+        scope = str(revision_contract.get("rewrite_scope") or "scene")
+        target_scene = str(revision_contract.get("target_scene") or "")
+        messages[0]["content"] = (
+            "Act only as the prose Writer for this targeted revision. Treat the "
+            "sealed source candidate and revision contract as authoritative. "
+            "Preserve every must_preserve, causal, knowledge-state, and forbidden-"
+            "regression constraint. Apply only the contracted change; do not copy "
+            "audit language or explain the revision. "
+            f"The rewrite scope is {scope} and the target scene is {target_scene}. "
+            f"Return exactly one full-file AGENTLAB_EDIT block targeting {target}. "
+            "The block body must contain only the complete revised chapter prose. "
+            "Do not emit any other file, report, audit, state ledger, receipt, "
+            "promotion decision, or commentary. "
+            f"For Chinese prose, the hard length contract is {minimum:,}–{maximum:,} "
+            "Han characters after excluding Markdown headings; do not exceed it."
+        )
+    else:
+        messages[0]["content"] = (
+            "Act only as the prose Writer for this chapter. Preserve the sealed "
+            "CreativeBrief, canon, state, and literary memory. Return exactly one "
+            f"full-file AGENTLAB_EDIT block targeting {target}. The block body must "
+            "contain only the complete chapter prose. Do not emit any other file, "
+            "report, audit, state ledger, receipt, promotion decision, or commentary. "
+            f"For Chinese prose, the hard length contract is {minimum:,}–{maximum:,} "
+            "Han characters after excluding Markdown headings; do not exceed it."
+        )
     messages[1]["content"] = (
         f"Project: {project}\nTask: {task_id}\nRequired target: {target}\n\n"
         + messages[1]["content"]

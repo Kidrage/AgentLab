@@ -3370,6 +3370,1309 @@ def test_live_writer_session_consumes_compiled_packet_and_memory_once(tmp_path) 
     ).hexdigest()
 
 
+def _live_revision_preflight_fixture(tmp_path) -> dict[str, object]:
+    source_plan, source_request_path, _literary_memory = _live_writer_fixture(tmp_path)
+    source_run = Path(source_plan.run_dir)
+    source_candidate = source_run / "fiction_draft.md"
+    source_candidate.write_text(
+        "# 第二十五章\n\nSOURCE_CANDIDATE_ONLY_MARKER：原稿保留，修订另存。\n",
+        encoding="utf-8",
+    )
+    source_candidate_sha256 = hashlib.sha256(source_candidate.read_bytes()).hexdigest()
+    (source_run / "writer_v2_output_contract.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "pass",
+                "task_id": source_plan.task_id,
+                "candidate_only": True,
+                "production_modified": False,
+                "prose_sha256": source_candidate_sha256,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    audit_id = "audit-gate1-ch025-length-v2"
+    audit_run = (
+        tmp_path / "projects" / source_plan.project / "runs" / audit_id
+    )
+    audit_run.mkdir(parents=True)
+    triggering_audit = audit_run / "deterministic_candidate_audit_v2.yml"
+    triggering_audit.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "report_type": "agentlab_live_candidate_audit",
+                "contract_version": 2,
+                "project": source_plan.project,
+                "task_id": source_plan.task_id,
+                "candidate_sha256": source_candidate_sha256,
+                "status": "fail",
+                "issues": [
+                    {
+                        "id": "prose_length_contract",
+                        "status": "fail",
+                        "issue": "RAW_AUDIT_MUST_NOT_ENTER_WRITER",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    triggering_audit_sha256 = hashlib.sha256(triggering_audit.read_bytes()).hexdigest()
+    contract_path = (
+        tmp_path
+        / "projects"
+        / source_plan.project
+        / "candidates"
+        / "gate1"
+        / "revision_contract_ch025_attempt001.yml"
+    )
+    contract_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "revision_contract_id": "rev-ch025-length-attempt001",
+                "chapter_id": 25,
+                "target_scene": "complete_chapter",
+                "rewrite_scope": "chapter",
+                "problem_type": "chapter_structure_failure",
+                "evidence": "The candidate exceeds the sealed length maximum.",
+                "must_preserve": ["canon", "causal order", "character agency"],
+                "must_change": ["compress the complete chapter to the hard range"],
+                "allowed_freedom": "scene compression and prose rhythm",
+                "causal_requirements": ["preserve every irreversible state change"],
+                "character_knowledge_before": ["preserve the opening knowledge state"],
+                "character_knowledge_after": ["preserve the closing knowledge state"],
+                "decision_cost": "preserve the original decision cost",
+                "new_information": "introduce no facts absent from the source candidate",
+                "forbidden_regressions": ["new canon", "POV drift", "report-like prose"],
+                "source_candidate_sha256": source_candidate_sha256,
+                "triggering_audit_sha256": triggering_audit_sha256,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    def ref(path: Path) -> dict[str, str]:
+        return {
+            "path": path.relative_to(tmp_path).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    source_snapshot = {
+        path.relative_to(source_run).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in source_run.iterdir()
+        if path.is_file()
+    }
+    revision_task_id = "task_narrative_v2_revision1_ch025"
+    spec_path = tmp_path / "revision_preflight.yml"
+    spec_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "project": source_plan.project,
+                "task_id": revision_task_id,
+                "chapter_id": 25,
+                "candidate_only": True,
+                "candidate_set_id": "gate1-ch025",
+                "source_job_id": source_plan.task_id,
+                "source_run_id": source_plan.task_id,
+                "triggered_by_audit_id": audit_id,
+                "attempt_id": "attempt-0001",
+                "lease_token": "lease-attempt-0001",
+                "lease_expires_at": "2099-01-01T00:00:00+00:00",
+                "automatic_rewrite_count": 0,
+                "source_writer_request": ref(source_request_path),
+                "source_candidate": ref(source_candidate),
+                "triggering_audit": ref(triggering_audit),
+                "revision_contract": ref(contract_path),
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    return {
+        "source_plan": source_plan,
+        "source_run": source_run,
+        "source_snapshot": source_snapshot,
+        "source_candidate": source_candidate,
+        "audit_run": audit_run,
+        "triggering_audit": triggering_audit,
+        "revision_contract": contract_path,
+        "revision_task_id": revision_task_id,
+        "spec_path": spec_path,
+    }
+
+
+def test_live_writer_revision_preflight_activates_hash_bound_lineage_without_touching_source(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        prepare_live_writer_session,
+    )
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        load_validated_workflow_plan_data,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    source_plan = fixture["source_plan"]
+    assert isinstance(source_plan, WorkflowPlan)
+    source_run = fixture["source_run"]
+    assert isinstance(source_run, Path)
+    source_snapshot = fixture["source_snapshot"]
+    revision_task_id = str(fixture["revision_task_id"])
+    spec_path = fixture["spec_path"]
+    assert isinstance(spec_path, Path)
+
+    result = preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+
+    assert result["status"] == "pass"
+    assert result["provider_calls"] == 0
+    assert result["candidate_only"] is True
+    assert result["production_modified"] is False
+    assert result["source_run_unchanged"] is True
+    assert {
+        path.relative_to(source_run).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in source_run.iterdir()
+        if path.is_file()
+    } == source_snapshot
+    revision_run = tmp_path / "projects" / source_plan.project / "runs" / revision_task_id
+    request_path = revision_run / "narrative_v2_writer_request.yml"
+    request = yaml.safe_load(request_path.read_text(encoding="utf-8"))
+    assert request["job_kind"] == "narrative_revision"
+    assert request["run_mode"] == "targeted_rewrite"
+    assert request["source_job_id"] == source_plan.task_id
+    assert request["source_run_id"] == source_plan.task_id
+    assert request["triggered_by_audit_id"] == "audit-gate1-ch025-length-v2"
+    assert Path(request["triggering_audit"]["path"]).parent.name == request[
+        "triggered_by_audit_id"
+    ]
+    assert request["attempt_id"] == "attempt-0001"
+    assert request["automatic_rewrite_count"] == 0
+    sealed_plan = load_validated_workflow_plan_data(
+        agentlab_root=tmp_path,
+        project=source_plan.project,
+        task_id=revision_task_id,
+        plan_path=revision_run / "workflow_plan.yml",
+    )
+    revision_plan = WorkflowPlan.model_validate(sealed_plan)
+    session = prepare_live_writer_session(tmp_path, revision_plan)
+    assert session is not None and session.status == "pass", session.issues
+    sealed_text = "\n".join(message["content"] for message in session.messages)
+    assert sealed_text.count("SOURCE_CANDIDATE_ONLY_MARKER") == 1
+    assert sealed_text.count("rev-ch025-length-attempt001") == 1
+    assert "RAW_AUDIT_MUST_NOT_ENTER_WRITER" not in sealed_text
+
+
+def test_live_writer_revision_preflight_rejects_stale_source_before_new_run(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    source_candidate = fixture["source_candidate"]
+    assert isinstance(source_candidate, Path)
+    source_candidate.write_text("changed after the revision spec was sealed\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="live_preflight_reference_hash_mismatch"):
+        preflight_live_writer_revision(
+            fixture["spec_path"],  # type: ignore[arg-type]
+            repository_root=tmp_path,
+        )
+
+    revision_run = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "runs"
+        / str(fixture["revision_task_id"])
+    )
+    assert not revision_run.exists()
+
+
+def test_live_writer_revision_preflight_rejects_old_audit_after_coordinated_source_refresh(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    source_candidate = fixture["source_candidate"]
+    source_run = fixture["source_run"]
+    contract_path = fixture["revision_contract"]
+    spec_path = fixture["spec_path"]
+    assert isinstance(source_candidate, Path)
+    assert isinstance(source_run, Path)
+    assert isinstance(contract_path, Path)
+    assert isinstance(spec_path, Path)
+    source_candidate.write_text("# 第二十五章\n\ncoordinated replacement\n", encoding="utf-8")
+    replacement_sha256 = hashlib.sha256(source_candidate.read_bytes()).hexdigest()
+    output = yaml.safe_load(
+        (source_run / "writer_v2_output_contract.yml").read_text(encoding="utf-8")
+    )
+    output["prose_sha256"] = replacement_sha256
+    (source_run / "writer_v2_output_contract.yml").write_text(
+        yaml.safe_dump(output, sort_keys=False),
+        encoding="utf-8",
+    )
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contract["source_candidate_sha256"] = replacement_sha256
+    contract_path.write_text(
+        yaml.safe_dump(contract, sort_keys=False),
+        encoding="utf-8",
+    )
+    spec = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+    spec["source_candidate"]["sha256"] = replacement_sha256
+    spec["revision_contract"]["sha256"] = hashlib.sha256(
+        contract_path.read_bytes()
+    ).hexdigest()
+    spec_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="live_revision_audit_source_hash_mismatch"):
+        preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+
+
+def test_live_writer_revision_preflight_rejects_expired_attempt_before_publication(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    spec_path = fixture["spec_path"]
+    assert isinstance(spec_path, Path)
+    spec = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+    spec["lease_expires_at"] = "2000-01-01T00:00:00+00:00"
+    spec_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="live_revision_lease_expired"):
+        preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+
+    revision_run = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "runs"
+        / str(fixture["revision_task_id"])
+    )
+    assert not revision_run.exists()
+
+
+def test_live_writer_revision_preflight_uses_authoritative_two_attempt_lineage(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    first_spec = fixture["spec_path"]
+    assert isinstance(first_spec, Path)
+    first = preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+    assert first["automatic_rewrite_number"] == 1
+    assert first["automatic_rewrite_count"] == 0
+
+    base = yaml.safe_load(first_spec.read_text(encoding="utf-8"))
+
+    def write_attempt(number: int, claimed_count: int) -> Path:
+        spec = dict(base)
+        spec["task_id"] = f"task_narrative_v2_revision{number}_ch025"
+        spec["attempt_id"] = f"attempt-{number:04d}"
+        spec["lease_token"] = f"lease-attempt-{number:04d}"
+        spec["automatic_rewrite_count"] = claimed_count
+        path = tmp_path / f"revision_preflight_attempt{number}.yml"
+        path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+        return path
+
+    second = preflight_live_writer_revision(
+        write_attempt(2, 1),
+        repository_root=tmp_path,
+    )
+    assert second["automatic_rewrite_number"] == 2
+    assert second["automatic_rewrite_count"] == 1
+
+    with pytest.raises(
+        ValueError,
+        match="live_revision_automatic_rewrite_limit_reached",
+    ):
+        preflight_live_writer_revision(
+            write_attempt(3, 0),
+            repository_root=tmp_path,
+        )
+
+    attempt_root = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "_narrative_revision_attempts"
+        / "task_narrative_v2_ch025"
+    )
+    receipts = sorted(attempt_root.glob("attempt-*.yml"))
+    assert [path.name for path in receipts] == ["attempt-01.yml", "attempt-02.yml"]
+    assert all(
+        yaml.safe_load(path.read_text(encoding="utf-8"))["fencing_token"]
+        for path in receipts
+    )
+    decision = yaml.safe_load(
+        (attempt_root / "decision_required.yml").read_text(encoding="utf-8")
+    )
+    assert decision["status"] == "decision_required"
+    assert decision["automatic_rewrite_exhausted"] is True
+    assert decision["reason"] == "insufficient_revision_uplift"
+
+
+def test_live_writer_revision_exact_spec_retry_is_idempotent(tmp_path) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    spec_path = fixture["spec_path"]
+    assert isinstance(spec_path, Path)
+
+    first = preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+    second = preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+
+    assert second["attempt_receipt"] == first["attempt_receipt"]
+    assert second["fencing_token"] == first["fencing_token"]
+    assert second["activation_receipt"] == first["activation_receipt"]
+
+
+def test_live_writer_revision_candidate_set_cannot_reset_source_attempt_limit(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    first_spec = fixture["spec_path"]
+    assert isinstance(first_spec, Path)
+    preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+    reset = yaml.safe_load(first_spec.read_text(encoding="utf-8"))
+    reset.update(
+        {
+            "candidate_set_id": "caller-reset-candidate-set",
+            "task_id": "task_narrative_v2_revision_reset_ch025",
+            "attempt_id": "attempt-reset-0001",
+            "lease_token": "lease-reset-0001",
+            "automatic_rewrite_count": 0,
+        }
+    )
+    reset_spec = tmp_path / "revision_preflight_reset.yml"
+    reset_spec.write_text(
+        yaml.safe_dump(reset, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="live_revision_candidate_set_mismatch"):
+        preflight_live_writer_revision(reset_spec, repository_root=tmp_path)
+
+
+def test_live_writer_revision_new_fence_blocks_older_worker_before_lease_expiry(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    first_spec = fixture["spec_path"]
+    assert isinstance(first_spec, Path)
+    preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+    second_spec_data = yaml.safe_load(first_spec.read_text(encoding="utf-8"))
+    second_spec_data.update(
+        {
+            "task_id": "task_narrative_v2_revision2_ch025",
+            "attempt_id": "attempt-0002",
+            "lease_token": "lease-attempt-0002",
+            "automatic_rewrite_count": 1,
+        }
+    )
+    second_spec = tmp_path / "revision_preflight_attempt2.yml"
+    second_spec.write_text(
+        yaml.safe_dump(second_spec_data, sort_keys=False),
+        encoding="utf-8",
+    )
+    preflight_live_writer_revision(second_spec, repository_root=tmp_path)
+
+    first_task = str(fixture["revision_task_id"])
+    first_run = tmp_path / "projects" / "ProbeNovel" / "runs" / first_task
+    delayed = LLMCallResult(
+        provider="agentlab-cli-executor",
+        model="deepseek-v4-pro",
+        content=(
+            f"<!-- AGENTLAB_EDIT: runs/{first_task}/fiction_draft.md -->\n"
+            "# 第二十五章\n\n"
+            + ("旧" * 4_800)
+            + "\n<!-- END AGENTLAB_EDIT -->"
+        ),
+        raw_usage={"command_id": "cmd-old-fence"},
+    )
+
+    validation = materialize_live_writer_result(delayed, first_run, first_task)
+
+    assert validation["status"] == "blocked"
+    assert validation["issues"] == ["live_writer_revision_fencing_token_stale"]
+    assert not (first_run / "fiction_draft.md").exists()
+    assert not (first_run / "writer_execution_receipt.yml").exists()
+
+
+def test_live_writer_revision_deleted_successor_cannot_revive_older_fence(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    first_spec = fixture["spec_path"]
+    assert isinstance(first_spec, Path)
+    preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+    second_data = yaml.safe_load(first_spec.read_text(encoding="utf-8"))
+    second_data.update(
+        {
+            "task_id": "task_narrative_v2_revision2_ch025",
+            "attempt_id": "attempt-0002",
+            "lease_token": "lease-attempt-0002",
+            "automatic_rewrite_count": 1,
+        }
+    )
+    second_spec = tmp_path / "revision_preflight_attempt2.yml"
+    second_spec.write_text(
+        yaml.safe_dump(second_data, sort_keys=False),
+        encoding="utf-8",
+    )
+    preflight_live_writer_revision(second_spec, repository_root=tmp_path)
+    attempt_root = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "_narrative_revision_attempts"
+        / "task_narrative_v2_ch025"
+    )
+    (attempt_root / "attempt-02.yml").unlink()
+    with pytest.raises(ValueError, match="live_writer_revision_fencing_token_stale"):
+        preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+    head = yaml.safe_load(
+        (attempt_root / "fence-head.yml").read_text(encoding="utf-8")
+    )
+    assert head["issued_attempt_count"] == 2
+    first_task = str(fixture["revision_task_id"])
+    first_run = tmp_path / "projects" / "ProbeNovel" / "runs" / first_task
+    delayed = LLMCallResult(
+        provider="agentlab-cli-executor",
+        model="deepseek-v4-pro",
+        content=(
+            f"<!-- AGENTLAB_EDIT: runs/{first_task}/fiction_draft.md -->\n"
+            "# 第二十五章\n\n"
+            + ("旧" * 4_800)
+            + "\n<!-- END AGENTLAB_EDIT -->"
+        ),
+        raw_usage={"command_id": "cmd-deleted-successor"},
+    )
+
+    validation = materialize_live_writer_result(delayed, first_run, first_task)
+
+    assert validation["status"] == "blocked"
+    assert validation["issues"]
+    assert not (first_run / "fiction_draft.md").exists()
+
+
+def test_live_writer_revision_missing_prior_receipt_blocks_latest_delivery(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    first_spec = fixture["spec_path"]
+    assert isinstance(first_spec, Path)
+    preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+    second_data = yaml.safe_load(first_spec.read_text(encoding="utf-8"))
+    second_task = "task_narrative_v2_revision2_ch025"
+    second_data.update(
+        {
+            "task_id": second_task,
+            "attempt_id": "attempt-0002",
+            "lease_token": "lease-attempt-0002",
+            "automatic_rewrite_count": 1,
+        }
+    )
+    second_spec = tmp_path / "revision_preflight_attempt2.yml"
+    second_spec.write_text(
+        yaml.safe_dump(second_data, sort_keys=False),
+        encoding="utf-8",
+    )
+    preflight_live_writer_revision(second_spec, repository_root=tmp_path)
+    attempt_root = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "_narrative_revision_attempts"
+        / "task_narrative_v2_ch025"
+    )
+    (attempt_root / "attempt-01.yml").unlink()
+    second_run = tmp_path / "projects" / "ProbeNovel" / "runs" / second_task
+    result = LLMCallResult(
+        provider="agentlab-cli-executor",
+        model="deepseek-v4-pro",
+        content=(
+            f"<!-- AGENTLAB_EDIT: runs/{second_task}/fiction_draft.md -->\n"
+            "# 第二十五章\n\n"
+            + ("新" * 4_800)
+            + "\n<!-- END AGENTLAB_EDIT -->"
+        ),
+        raw_usage={"command_id": "cmd-missing-prior-receipt"},
+    )
+
+    validation = materialize_live_writer_result(result, second_run, second_task)
+
+    assert validation["status"] == "blocked"
+    assert validation["issues"] == [
+        "live_writer_revision_attempt_lineage_corrupt"
+    ]
+    assert not (second_run / "fiction_draft.md").exists()
+
+
+def test_live_writer_revision_delivery_serializes_against_new_reservation(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import threading
+
+    import agent_runtime.writer_output_materializer as output_materializer
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    first_spec = fixture["spec_path"]
+    assert isinstance(first_spec, Path)
+    preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+    first_task = str(fixture["revision_task_id"])
+    first_run = tmp_path / "projects" / "ProbeNovel" / "runs" / first_task
+    entered_materializer = threading.Event()
+    allow_materializer = threading.Event()
+    second_done = threading.Event()
+    original_materializer = output_materializer.materialize_writer_v2_content
+
+    def paused_materializer(*args, **kwargs):
+        entered_materializer.set()
+        assert allow_materializer.wait(timeout=5)
+        return original_materializer(*args, **kwargs)
+
+    monkeypatch.setattr(
+        output_materializer,
+        "materialize_writer_v2_content",
+        paused_materializer,
+    )
+    outcomes: dict[str, object] = {}
+
+    def deliver_first() -> None:
+        outcomes["first"] = materialize_live_writer_result(
+            LLMCallResult(
+                provider="agentlab-cli-executor",
+                model="deepseek-v4-pro",
+                content=(
+                    f"<!-- AGENTLAB_EDIT: runs/{first_task}/fiction_draft.md -->\n"
+                    "# 第二十五章\n\n"
+                    + ("字" * 4_800)
+                    + "\n<!-- END AGENTLAB_EDIT -->"
+                ),
+                raw_usage={"command_id": "cmd-linearized-first"},
+            ),
+            first_run,
+            first_task,
+        )
+
+    second_data = yaml.safe_load(first_spec.read_text(encoding="utf-8"))
+    second_data.update(
+        {
+            "task_id": "task_narrative_v2_revision2_ch025",
+            "attempt_id": "attempt-0002",
+            "lease_token": "lease-attempt-0002",
+            "automatic_rewrite_count": 1,
+        }
+    )
+    second_spec = tmp_path / "revision_preflight_attempt2.yml"
+    second_spec.write_text(
+        yaml.safe_dump(second_data, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    def reserve_second() -> None:
+        outcomes["second"] = preflight_live_writer_revision(
+            second_spec,
+            repository_root=tmp_path,
+        )
+        second_done.set()
+
+    delivery_thread = threading.Thread(target=deliver_first)
+    delivery_thread.start()
+    assert entered_materializer.wait(timeout=5)
+    reservation_thread = threading.Thread(target=reserve_second)
+    reservation_thread.start()
+    assert second_done.wait(timeout=0.2) is False
+    allow_materializer.set()
+    delivery_thread.join(timeout=5)
+    reservation_thread.join(timeout=5)
+
+    assert delivery_thread.is_alive() is False
+    assert reservation_thread.is_alive() is False
+    assert outcomes["first"]["status"] == "pass"  # type: ignore[index]
+    assert outcomes["second"]["automatic_rewrite_number"] == 2  # type: ignore[index]
+
+
+def test_live_writer_revision_delivery_rejects_replaced_ledger_directory(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import shutil
+    import threading
+
+    import agent_runtime.writer_output_materializer as output_materializer
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    first_spec = fixture["spec_path"]
+    assert isinstance(first_spec, Path)
+    preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+    first_task = str(fixture["revision_task_id"])
+    first_run = tmp_path / "projects" / "ProbeNovel" / "runs" / first_task
+    entered_materializer = threading.Event()
+    allow_materializer = threading.Event()
+    original_materializer = output_materializer.materialize_writer_v2_content
+
+    def paused_materializer(*args, **kwargs):
+        entered_materializer.set()
+        assert allow_materializer.wait(timeout=5)
+        return original_materializer(*args, **kwargs)
+
+    monkeypatch.setattr(
+        output_materializer,
+        "materialize_writer_v2_content",
+        paused_materializer,
+    )
+    outcomes: dict[str, object] = {}
+
+    def deliver_first() -> None:
+        outcomes["first"] = materialize_live_writer_result(
+            LLMCallResult(
+                provider="agentlab-cli-executor",
+                model="deepseek-v4-pro",
+                content=(
+                    f"<!-- AGENTLAB_EDIT: runs/{first_task}/fiction_draft.md -->\n"
+                    "# 第二十五章\n\n"
+                    + ("字" * 4_800)
+                    + "\n<!-- END AGENTLAB_EDIT -->"
+                ),
+                raw_usage={"command_id": "cmd-replaced-ledger"},
+            ),
+            first_run,
+            first_task,
+        )
+
+    delivery_thread = threading.Thread(target=deliver_first)
+    delivery_thread.start()
+    assert entered_materializer.wait(timeout=5)
+    ledger = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "_narrative_revision_attempts"
+        / "task_narrative_v2_ch025"
+    )
+    moved_ledger = ledger.with_name("task_narrative_v2_ch025_moved")
+    ledger.rename(moved_ledger)
+    shutil.copytree(moved_ledger, ledger)
+    second_data = yaml.safe_load(first_spec.read_text(encoding="utf-8"))
+    second_data.update(
+        {
+            "task_id": "task_narrative_v2_revision2_ch025",
+            "attempt_id": "attempt-0002",
+            "lease_token": "lease-attempt-0002",
+            "automatic_rewrite_count": 1,
+        }
+    )
+    second_spec = tmp_path / "revision_preflight_attempt2.yml"
+    second_spec.write_text(
+        yaml.safe_dump(second_data, sort_keys=False),
+        encoding="utf-8",
+    )
+    second = preflight_live_writer_revision(second_spec, repository_root=tmp_path)
+    allow_materializer.set()
+    delivery_thread.join(timeout=5)
+
+    assert delivery_thread.is_alive() is False
+    assert second["automatic_rewrite_number"] == 2
+    assert outcomes["first"]["status"] == "blocked"  # type: ignore[index]
+    assert outcomes["first"]["issues"] == [  # type: ignore[index]
+        "live_writer_revision_attempt_lock_invalid"
+    ]
+    assert not (first_run / "fiction_draft.md").exists()
+
+
+def test_live_writer_revision_idempotent_retry_rejects_gapped_attempt_ledger(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    first_spec = fixture["spec_path"]
+    assert isinstance(first_spec, Path)
+    preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+    second_data = yaml.safe_load(first_spec.read_text(encoding="utf-8"))
+    second_data.update(
+        {
+            "task_id": "task_narrative_v2_revision2_ch025",
+            "attempt_id": "attempt-0002",
+            "lease_token": "lease-attempt-0002",
+            "automatic_rewrite_count": 1,
+        }
+    )
+    second_spec = tmp_path / "revision_preflight_attempt2.yml"
+    second_spec.write_text(
+        yaml.safe_dump(second_data, sort_keys=False),
+        encoding="utf-8",
+    )
+    preflight_live_writer_revision(second_spec, repository_root=tmp_path)
+    attempt_root = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "_narrative_revision_attempts"
+        / "task_narrative_v2_ch025"
+    )
+    (attempt_root / "attempt-01.yml").unlink()
+
+    with pytest.raises(ValueError, match="live_revision_attempt_lineage_corrupt"):
+        preflight_live_writer_revision(second_spec, repository_root=tmp_path)
+
+
+def test_live_writer_revision_older_replay_cannot_roll_back_fence_head(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    first_spec = fixture["spec_path"]
+    assert isinstance(first_spec, Path)
+    preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+    second_data = yaml.safe_load(first_spec.read_text(encoding="utf-8"))
+    second_data.update(
+        {
+            "task_id": "task_narrative_v2_revision2_ch025",
+            "attempt_id": "attempt-0002",
+            "lease_token": "lease-attempt-0002",
+            "automatic_rewrite_count": 1,
+        }
+    )
+    second_spec = tmp_path / "revision_preflight_attempt2.yml"
+    second_spec.write_text(
+        yaml.safe_dump(second_data, sort_keys=False),
+        encoding="utf-8",
+    )
+    preflight_live_writer_revision(second_spec, repository_root=tmp_path)
+
+    with pytest.raises(ValueError, match="live_writer_revision_fencing_token_stale"):
+        preflight_live_writer_revision(first_spec, repository_root=tmp_path)
+
+    head_path = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "_narrative_revision_attempts"
+        / "task_narrative_v2_ch025"
+        / "fence-head.yml"
+    )
+    head = yaml.safe_load(head_path.read_text(encoding="utf-8"))
+    assert head["issued_attempt_count"] == 2
+    assert head["latest_attempt_receipt"] == "attempt-02.yml"
+
+
+def test_live_writer_revision_session_blocks_when_lease_expires_before_provider(
+    tmp_path,
+) -> None:
+    from datetime import datetime, timezone
+
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        prepare_live_writer_session,
+    )
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        load_validated_workflow_plan_data,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    spec_path = fixture["spec_path"]
+    assert isinstance(spec_path, Path)
+    preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+    task_id = str(fixture["revision_task_id"])
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / task_id
+    plan_data = load_validated_workflow_plan_data(
+        agentlab_root=tmp_path,
+        project="ProbeNovel",
+        task_id=task_id,
+        plan_path=run_dir / "workflow_plan.yml",
+    )
+
+    session = prepare_live_writer_session(
+        tmp_path,
+        WorkflowPlan.model_validate(plan_data),
+        now=datetime(2100, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert session is not None
+    assert session.status == "blocked"
+    assert session.issues == ["live_writer_revision_lease_expired"]
+
+
+def test_live_writer_revision_materializer_rejects_worker_return_after_lease_expiry(
+    tmp_path,
+) -> None:
+    from datetime import datetime, timezone
+
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    spec_path = fixture["spec_path"]
+    assert isinstance(spec_path, Path)
+    preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+    task_id = str(fixture["revision_task_id"])
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / task_id
+    source_run = fixture["source_run"]
+    assert isinstance(source_run, Path)
+    source_before = {
+        path.relative_to(source_run).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in source_run.iterdir()
+        if path.is_file()
+    }
+    result = LLMCallResult(
+        provider="agentlab-cli-executor",
+        model="deepseek-v4-pro",
+        content=(
+            f"<!-- AGENTLAB_EDIT: runs/{task_id}/fiction_draft.md -->\n"
+            "# 第二十五章\n\n"
+            + ("字" * 4_800)
+            + "\n<!-- END AGENTLAB_EDIT -->"
+        ),
+        raw_usage={"command_id": "cmd-expired-revision"},
+    )
+
+    validation = materialize_live_writer_result(
+        result,
+        run_dir,
+        task_id,
+        now=datetime(2100, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert validation["status"] == "blocked"
+    assert validation["issues"] == ["live_writer_revision_lease_expired"]
+    assert not (run_dir / "fiction_draft.md").exists()
+    assert {
+        path.relative_to(source_run).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in source_run.iterdir()
+        if path.is_file()
+    } == source_before
+
+
+def test_live_writer_revision_delayed_stale_return_preserves_first_success(
+    tmp_path,
+) -> None:
+    from datetime import datetime, timezone
+
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    spec_path = fixture["spec_path"]
+    assert isinstance(spec_path, Path)
+    preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+    task_id = str(fixture["revision_task_id"])
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / task_id
+
+    def result(marker: str, command_id: str) -> LLMCallResult:
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="deepseek-v4-pro",
+            content=(
+                f"<!-- AGENTLAB_EDIT: runs/{task_id}/fiction_draft.md -->\n"
+                "# 第二十五章\n\n"
+                + (marker * 4_800)
+                + "\n<!-- END AGENTLAB_EDIT -->"
+            ),
+            raw_usage={"command_id": command_id},
+        )
+
+    accepted = materialize_live_writer_result(
+        result("字", "cmd-current-worker"),
+        run_dir,
+        task_id,
+    )
+    assert accepted["status"] == "pass"
+    first_success = {
+        name: hashlib.sha256((run_dir / name).read_bytes()).hexdigest()
+        for name in (
+            "fiction_draft.md",
+            "writer_execution_receipt.yml",
+            "writer_v2_output_contract.yml",
+        )
+    }
+
+    delayed = materialize_live_writer_result(
+        result("旧", "cmd-delayed-stale-worker"),
+        run_dir,
+        task_id,
+        now=datetime(2100, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert delayed["status"] == "pass"
+    assert delayed["idempotent_existing_success"] is True
+    assert {
+        name: hashlib.sha256((run_dir / name).read_bytes()).hexdigest()
+        for name in first_success
+    } == first_success
+
+
+def test_live_writer_revision_expired_reprepare_preserves_first_success(
+    tmp_path,
+) -> None:
+    from datetime import datetime, timezone
+
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+        prepare_live_writer_session,
+    )
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        load_validated_workflow_plan_data,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    spec_path = fixture["spec_path"]
+    assert isinstance(spec_path, Path)
+    preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+    task_id = str(fixture["revision_task_id"])
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / task_id
+    accepted = materialize_live_writer_result(
+        LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="deepseek-v4-pro",
+            content=(
+                f"<!-- AGENTLAB_EDIT: runs/{task_id}/fiction_draft.md -->\n"
+                "# 第二十五章\n\n"
+                + ("字" * 4_800)
+                + "\n<!-- END AGENTLAB_EDIT -->"
+            ),
+            raw_usage={"command_id": "cmd-first-success"},
+        ),
+        run_dir,
+        task_id,
+    )
+    assert accepted["status"] == "pass"
+    first_success = {
+        name: hashlib.sha256((run_dir / name).read_bytes()).hexdigest()
+        for name in (
+            "fiction_draft.md",
+            "writer_execution_receipt.yml",
+            "writer_v2_output_contract.yml",
+        )
+    }
+    plan_data = load_validated_workflow_plan_data(
+        agentlab_root=tmp_path,
+        project="ProbeNovel",
+        task_id=task_id,
+        plan_path=run_dir / "workflow_plan.yml",
+    )
+
+    session = prepare_live_writer_session(
+        tmp_path,
+        WorkflowPlan.model_validate(plan_data),
+        now=datetime(2100, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert session is not None
+    assert session.status == "blocked"
+    assert session.issues == ["live_writer_revision_lease_expired"]
+    assert {
+        name: hashlib.sha256((run_dir / name).read_bytes()).hexdigest()
+        for name in first_success
+    } == first_success
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_issue"),
+    [
+        ("wrong_contract_chapter", "live_revision_contract_identity_mismatch"),
+        ("cross_project_candidate", "live_revision_source_lineage_path_mismatch"),
+        ("wrong_audit_project", "live_revision_audit_not_actionable"),
+        ("symlink_source_candidate", "live_preflight_reference_symlinked"),
+        ("rewrite_count_exhausted", "live_revision_automatic_rewrite_limit_reached"),
+    ],
+)
+def test_live_writer_revision_preflight_rejects_untrusted_lineage_before_publication(
+    tmp_path,
+    case: str,
+    expected_issue: str,
+) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    spec_path = fixture["spec_path"]
+    assert isinstance(spec_path, Path)
+    spec = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+    if case == "wrong_contract_chapter":
+        contract = fixture["revision_contract"]
+        assert isinstance(contract, Path)
+        data = yaml.safe_load(contract.read_text(encoding="utf-8"))
+        data["chapter_id"] = 26
+        contract.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        spec["revision_contract"]["sha256"] = hashlib.sha256(
+            contract.read_bytes()
+        ).hexdigest()
+    elif case == "cross_project_candidate":
+        foreign = tmp_path / "projects" / "OtherNovel" / "runs" / "source" / "fiction_draft.md"
+        foreign.parent.mkdir(parents=True)
+        foreign.write_text("foreign candidate\n", encoding="utf-8")
+        spec["source_candidate"] = {
+            "path": foreign.relative_to(tmp_path).as_posix(),
+            "sha256": hashlib.sha256(foreign.read_bytes()).hexdigest(),
+        }
+    elif case == "wrong_audit_project":
+        audit_path = fixture["triggering_audit"]
+        assert isinstance(audit_path, Path)
+        audit = yaml.safe_load(audit_path.read_text(encoding="utf-8"))
+        audit["project"] = "OtherNovel"
+        audit_path.write_text(
+            yaml.safe_dump(audit, sort_keys=False),
+            encoding="utf-8",
+        )
+        spec["triggering_audit"]["sha256"] = hashlib.sha256(
+            audit_path.read_bytes()
+        ).hexdigest()
+        contract_path = fixture["revision_contract"]
+        assert isinstance(contract_path, Path)
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+        contract["triggering_audit_sha256"] = spec["triggering_audit"]["sha256"]
+        contract_path.write_text(
+            yaml.safe_dump(contract, sort_keys=False),
+            encoding="utf-8",
+        )
+        spec["revision_contract"]["sha256"] = hashlib.sha256(
+            contract_path.read_bytes()
+        ).hexdigest()
+    elif case == "symlink_source_candidate":
+        source_candidate = fixture["source_candidate"]
+        assert isinstance(source_candidate, Path)
+        copy_path = tmp_path / "source-candidate-copy.md"
+        copy_path.write_bytes(source_candidate.read_bytes())
+        source_candidate.unlink()
+        source_candidate.symlink_to(copy_path)
+    else:
+        spec["automatic_rewrite_count"] = 2
+    spec_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=expected_issue):
+        preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+
+    revision_run = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "runs"
+        / str(fixture["revision_task_id"])
+    )
+    assert not revision_run.exists()
+
+
+def test_live_writer_revision_attempt_ledger_rejects_symlink_alias(tmp_path) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    ledger_root = (
+        tmp_path
+        / "projects"
+        / "ProbeNovel"
+        / "candidates"
+        / "_narrative_revision_attempts"
+    )
+    aliased = ledger_root / "aliased-source-run"
+    aliased.mkdir(parents=True)
+    (ledger_root / "task_narrative_v2_ch025").symlink_to(
+        aliased,
+        target_is_directory=True,
+    )
+
+    with pytest.raises(ValueError, match="live_revision_attempt_dir_symlinked"):
+        preflight_live_writer_revision(
+            fixture["spec_path"],  # type: ignore[arg-type]
+            repository_root=tmp_path,
+        )
+
+
+def test_live_writer_revision_activation_becomes_inert_if_source_changes_during_publish(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import agent_runtime.narrative.production.live_revision_preflight as revision_preflight
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        LiveWriterPlanActivationError,
+        load_validated_workflow_plan_data,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    spec_path = fixture["spec_path"]
+    source_candidate = fixture["source_candidate"]
+    assert isinstance(spec_path, Path)
+    assert isinstance(source_candidate, Path)
+    original_publish = revision_preflight._publish_batch_activation
+
+    def publish_then_mutate(**kwargs):
+        receipt = original_publish(**kwargs)
+        source_candidate.write_text(
+            "# 第二十五章\n\nchanged inside activation window\n",
+            encoding="utf-8",
+        )
+        return receipt
+
+    monkeypatch.setattr(
+        revision_preflight,
+        "_publish_batch_activation",
+        publish_then_mutate,
+    )
+
+    with pytest.raises(ValueError, match="live_revision_source_run_modified"):
+        revision_preflight.preflight_live_writer_revision(
+            spec_path,
+            repository_root=tmp_path,
+        )
+
+    task_id = str(fixture["revision_task_id"])
+    plan_path = tmp_path / "projects" / "ProbeNovel" / "runs" / task_id / "workflow_plan.yml"
+    with pytest.raises(
+        LiveWriterPlanActivationError,
+        match="live_writer_plan_activation_source_hash_mismatch",
+    ):
+        load_validated_workflow_plan_data(
+            agentlab_root=tmp_path,
+            project="ProbeNovel",
+            task_id=task_id,
+            plan_path=plan_path,
+        )
+
+
+def test_live_writer_revision_materializes_only_the_new_hash_bound_run(tmp_path) -> None:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    spec_path = fixture["spec_path"]
+    assert isinstance(spec_path, Path)
+    preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+    task_id = str(fixture["revision_task_id"])
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / task_id
+    source_run = fixture["source_run"]
+    assert isinstance(source_run, Path)
+    source_before = {
+        path.relative_to(source_run).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in source_run.iterdir()
+        if path.is_file()
+    }
+    result = LLMCallResult(
+        provider="agentlab-cli-executor",
+        model="deepseek-v4-pro",
+        content=(
+            f"<!-- AGENTLAB_EDIT: runs/{task_id}/fiction_draft.md -->\n"
+            "# 第二十五章\n\n"
+            + ("字" * 4_800)
+            + "\n<!-- END AGENTLAB_EDIT -->"
+        ),
+        raw_usage={"command_id": "cmd-revision-pass"},
+    )
+
+    validation = materialize_live_writer_result(result, run_dir, task_id)
+
+    assert validation["status"] == "pass", validation["issues"]
+    assert validation["han_character_count"] == 4_800
+    assert (run_dir / "fiction_draft.md").is_file()
+    receipt = yaml.safe_load(
+        (run_dir / "narrative_v2_writer_session_receipt.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert receipt["job_kind"] == "narrative_revision"
+    assert receipt["run_mode"] == "targeted_rewrite"
+    assert receipt["source_run_id"] == "task_narrative_v2_ch025"
+    assert receipt["attempt_id"] == "attempt-0001"
+    assert {
+        path.relative_to(source_run).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in source_run.iterdir()
+        if path.is_file()
+    } == source_before
+
+
 def test_live_writer_session_binds_chinese_prose_length_contract(tmp_path) -> None:
     from agent_runtime.narrative.production.live_writer import (
         prepare_live_writer_session,
@@ -3610,6 +4913,83 @@ def test_registered_writer_executes_compiled_live_session_once(
     assert not (Path(plan.run_dir) / "fiction_draft.md").exists()
 
 
+def test_registered_writer_executes_compiled_targeted_revision_once(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.agent_runner import run_agent_model
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        load_validated_workflow_plan_data,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    spec_path = fixture["spec_path"]
+    assert isinstance(spec_path, Path)
+    preflight_live_writer_revision(spec_path, repository_root=tmp_path)
+    task_id = str(fixture["revision_task_id"])
+    run_dir = tmp_path / "projects" / "ProbeNovel" / "runs" / task_id
+    plan = WorkflowPlan.model_validate(
+        load_validated_workflow_plan_data(
+            agentlab_root=tmp_path,
+            project="ProbeNovel",
+            task_id=task_id,
+            plan_path=run_dir / "workflow_plan.yml",
+        )
+    )
+    observed: dict[str, object] = {"calls": 0}
+    monkeypatch.setattr(
+        "agent_runtime.agent_runner._resolve_cli_profile_for_agent",
+        lambda *_args, **_kwargs: (
+            {"agent_model_profiles": {}, "model_capacity": {}},
+            "full_cli",
+            "writer",
+            {"cli_agent": "fake_writer", "capacity_route": ""},
+        ),
+    )
+    monkeypatch.setattr(
+        "agent_runtime.agent_runner._check_cli_role_binding",
+        lambda *_args, **_kwargs: (True, "allowed"),
+    )
+
+    def run_cli(_plan, _agent, _profile, **kwargs):
+        observed["calls"] = int(observed["calls"]) + 1
+        observed["messages"] = kwargs["sealed_messages"]
+        observed["sources"] = kwargs["outbound_source_paths"]
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="fake-writer-model",
+            content="revision candidate envelope",
+        )
+
+    monkeypatch.setattr("agent_runtime.agent_runner.run_cli_agent", run_cli)
+
+    result = run_agent_model(
+        tmp_path,
+        plan,
+        "Writer",
+        run_dir / "fiction_draft.md",
+        apply_patches=False,
+    )
+
+    assert result.status == "completed"
+    assert observed["calls"] == 1
+    messages = observed["messages"]
+    assert isinstance(messages, list)
+    sealed_text = "\n".join(message["content"] for message in messages)
+    assert "targeted revision" in sealed_text
+    assert sealed_text.count("SOURCE_CANDIDATE_ONLY_MARKER") == 1
+    assert sealed_text.count("rev-ch025-length-attempt001") == 1
+    assert "RAW_AUDIT_MUST_NOT_ENTER_WRITER" not in sealed_text
+    sources = observed["sources"]
+    assert isinstance(sources, list)
+    assert fixture["source_candidate"] in sources
+    assert fixture["revision_contract"] in sources
+    assert fixture["triggering_audit"] not in sources
+
+
 @pytest.mark.parametrize(
     ("case", "expected_issue"),
     [
@@ -3675,7 +5055,7 @@ def test_live_writer_structured_activation_fails_closed(
         }
 
     if case == "wrong_job_kind":
-        request["job_kind"] = "narrative_revision"
+        request["job_kind"] = "narrative_audit"
     elif case == "missing_approval_request":
         request.pop("external_context_approval_required")
     elif case == "cross_project_canon":

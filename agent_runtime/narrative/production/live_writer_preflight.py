@@ -438,6 +438,49 @@ def load_validated_workflow_plan_data(
         raise LiveWriterPlanActivationError(
             "live_writer_plan_activation_hash_mismatch"
         )
+    bound_references = row.get("activation_bound_references")
+    if bound_references is not None:
+        if not isinstance(bound_references, list) or len(bound_references) > 16:
+            raise LiveWriterPlanActivationError(
+                "live_writer_plan_activation_source_integrity_invalid"
+            )
+        for reference in bound_references:
+            if not isinstance(reference, dict):
+                raise LiveWriterPlanActivationError(
+                    "live_writer_plan_activation_source_integrity_invalid"
+                )
+            relative = Path(str(reference.get("path") or ""))
+            expected_sha256 = str(reference.get("sha256") or "")
+            if (
+                not relative.parts
+                or relative.is_absolute()
+                or ".." in relative.parts
+                or not re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
+            ):
+                raise LiveWriterPlanActivationError(
+                    "live_writer_plan_activation_source_integrity_invalid"
+                )
+            try:
+                observed = hashlib.sha256(
+                    _read_root_relative_bytes(root, root / relative)
+                ).hexdigest()
+            except (OSError, ValueError) as exc:
+                raise LiveWriterPlanActivationError(
+                    "live_writer_plan_activation_source_hash_mismatch"
+                ) from exc
+            if observed != expected_sha256:
+                raise LiveWriterPlanActivationError(
+                    "live_writer_plan_activation_source_hash_mismatch"
+                )
+        production_digest = str(row.get("activation_production_digest") or "")
+        if not re.fullmatch(r"[0-9a-f]{64}", production_digest):
+            raise LiveWriterPlanActivationError(
+                "live_writer_plan_activation_source_integrity_invalid"
+            )
+        if _tree_digest(root / "projects" / project / "production") != production_digest:
+            raise LiveWriterPlanActivationError(
+                "live_writer_plan_activation_production_changed"
+            )
     sealed_plan = dict(plan)
     try:
         sealed_plan["sealed_user_request_content"] = request_bytes.decode("utf-8")
@@ -487,6 +530,18 @@ def _publish_batch_activation(
                 "request_sha256": row["request_sha256"],
                 "workflow_plan_path": row["workflow_plan_path"],
                 "workflow_plan_sha256": row["workflow_plan_sha256"],
+                **(
+                    {
+                        "activation_bound_references": row[
+                            "activation_bound_references"
+                        ],
+                        "activation_production_digest": row[
+                            "activation_production_digest"
+                        ],
+                    }
+                    if row.get("activation_bound_references") is not None
+                    else {}
+                ),
             }
             for row in rows
         ],

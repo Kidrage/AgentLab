@@ -159,6 +159,7 @@ def test_crown_live_candidate_audit_uses_v2_prose_only_contract(tmp_path: Path) 
 
     assert report["status"] == "fail"
     assert report["contract_version"] == 2
+    assert report["candidate_sha256"] == prose_hash
     assert "required_files_present" not in by_id
     assert by_id["v2_prose_only_artifacts"]["status"] == "pass"
     assert by_id["prose_length_contract"]["status"] == "fail"

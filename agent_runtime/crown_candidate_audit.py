@@ -350,6 +350,7 @@ def _build_crown_v2_live_candidate_audit(
         "root": str(root),
         "project": "Crown_of_Ash",
         "task_id": task_id,
+        "candidate_sha256": prose_hash,
         "run_dir": str(run_dir),
         "status": "pass" if not issues else "fail",
         "checks": checks,
