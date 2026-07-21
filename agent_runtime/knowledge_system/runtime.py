@@ -76,7 +76,7 @@ def prepare_task(request: KnowledgeTaskRequest | Mapping[str, Any]) -> PreparedK
     warnings: list[str] = []
     if not project_allowed:
         retrieval_scope = (
-            "system and existing shared domain knowledge"
+            "system and project-neutral shared domain knowledge"
             if domain_namespace in namespaces
             else "system knowledge"
         )
@@ -159,6 +159,11 @@ def prepare_task(request: KnowledgeTaskRequest | Mapping[str, Any]) -> PreparedK
             collector.collect_project(project, domain=domain, namespace=domain_namespace),
             scope=domain_scope,
         )
+    inactive_namespaces = store.inactive_spaces(namespaces)
+    if inactive_namespaces:
+        warnings.append(
+            "stale knowledge spaces skipped: " + ", ".join(inactive_namespaces)
+        )
 
     channel_hits: dict[str, list[SearchHit]] = {}
     steps: list[dict[str, Any]] = [
@@ -177,6 +182,7 @@ def prepare_task(request: KnowledgeTaskRequest | Mapping[str, Any]) -> PreparedK
                 max_results=config.top_k,
                 modalities=modalities,
                 path_hints=task.file_hints,
+                project_id=project,
             )
             channel_hits[channel] = hits
             backends = sorted({hit.backend for hit in hits})
@@ -385,6 +391,28 @@ def sync_committed(commit_receipt: Mapping[str, Any]) -> KnowledgeSyncReceipt:
                 + ", ".join(missing_paths),
             ),
         )
+    if paths:
+        selected_paths = {
+            record.source.path
+            for record in collector.collect_project(
+                project,
+                domain=domain,
+                namespace=validate_namespace(f"project.{project}"),
+            )
+        }
+        unselected_paths = tuple(path for path in paths if path not in selected_paths)
+        if unselected_paths:
+            return KnowledgeSyncReceipt(
+                receipt_id=receipt_id,
+                status="REJECTED",
+                project=project,
+                namespaces=namespaces,
+                index_snapshot=None,
+                warnings=(
+                    "commit receipt includes paths not selected by current project truth: "
+                    + ", ".join(unselected_paths),
+                ),
+            )
     store: KnowledgeStore | None = None
     try:
         store = KnowledgeStore(root, config.runtime_path, config.keyword_backend)

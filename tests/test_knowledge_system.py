@@ -7,6 +7,7 @@ import sqlite3
 import pytest
 import yaml
 
+from agent_runtime.artifact_digest import artifact_sha256
 from agent_runtime.knowledge_system import (
     AuthorityLevel,
     KnowledgeRecord,
@@ -65,6 +66,33 @@ def _write_config(
                     "top_k": 6,
                     "required_channels": required_channels or ["keyword"],
                 },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_current_artifacts(root: Path, project: str, *production_paths: str) -> None:
+    artifact_index = root / "projects" / project / "project_artifact_index.yml"
+    artifact_index.parent.mkdir(parents=True, exist_ok=True)
+    artifact_index.write_text(
+        yaml.safe_dump(
+            {
+                "version": 2,
+                "project": project,
+                "artifacts": [
+                    {
+                        "artifact_id": f"current_{index}",
+                        "status": "current",
+                        "production_path": production_path,
+                        "production_sha256": artifact_sha256(
+                            root / "projects" / project / production_path
+                        ),
+                        "evidence_only": False,
+                    }
+                    for index, production_path in enumerate(production_paths, start=1)
+                ],
             },
             sort_keys=False,
         ),
@@ -179,6 +207,7 @@ def test_build_knowledge_base_discovers_system_project_and_domain_spaces(tmp_pat
         path = project / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+    _write_current_artifacts(root, "Crown_of_Ash", "production/chapter_001.md")
 
     receipt = build_knowledge_base(root, include_all_projects=True)
     status = knowledge_status(root)
@@ -199,10 +228,273 @@ def test_build_knowledge_base_discovers_system_project_and_domain_spaces(tmp_pat
         "accepted": 1,
         "audit": 1,
         "candidate": 1,
-        "canonical": 1,
+        "canonical": 2,
         "external": 1,
     }
-    assert spaces["domain.longform_narrative"]["record_count"] == 5
+    assert spaces["domain.longform_narrative"]["record_count"] == 6
+
+
+def test_project_retrieval_uses_only_manifest_selected_production(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    project = root / "projects" / "Novel"
+    selected = project / "production" / "selected.md"
+    selected.parent.mkdir(parents=True)
+    selected.write_text("SELECTED-PRODUCTION-GOLD-EVIDENCE\n", encoding="utf-8")
+    for relative in (
+        "production/orphan.md",
+        "artifacts/draft.md",
+        "agent_docs/handoff.md",
+        "docs/notes.md",
+        "prompt_templates/writer.md",
+        "skills/story/SKILL.md",
+        "tasks/task.yml",
+    ):
+        path = project / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("UNGOVERNED-PROJECT-SCARLET-EVIDENCE\n", encoding="utf-8")
+    _write_current_artifacts(
+        root,
+        "Novel",
+        "production/selected.md",
+        "artifacts/draft.md",
+    )
+
+    selected_result = prepare_task(
+        KnowledgeTaskRequest(
+            root,
+            "Novel",
+            "task_selected_production",
+            "SELECTED-PRODUCTION-GOLD-EVIDENCE",
+            "longform_narrative",
+        )
+    )
+    ungoverned_result = prepare_task(
+        KnowledgeTaskRequest(
+            root,
+            "Novel",
+            "task_unselected_sources",
+            "UNGOVERNED-PROJECT-SCARLET-EVIDENCE",
+            "longform_narrative",
+        )
+    )
+
+    assert selected_result.status == "READY"
+    assert {item.source.path for item in selected_result.evidence_bundle.items} == {
+        "projects/Novel/production/selected.md"
+    }
+    assert ungoverned_result.status == "INSUFFICIENT_EVIDENCE"
+    assert ungoverned_result.evidence_bundle.items == ()
+
+
+def test_manifest_selected_production_is_rejected_after_hash_tamper(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    selected = root / "projects" / "Novel" / "production" / "selected.md"
+    selected.parent.mkdir(parents=True)
+    selected.write_text("ORIGINALONLYZEBRA123\n", encoding="utf-8")
+    _write_current_artifacts(root, "Novel", "production/selected.md")
+    request = KnowledgeTaskRequest(
+        root,
+        "Novel",
+        "task_manifest_hash",
+        "ORIGINALONLYZEBRA123",
+        "longform_narrative",
+    )
+    assert prepare_task(request).status == "READY"
+
+    selected.write_text("TAMPEREDONLYRUBY456\n", encoding="utf-8")
+    prepared = prepare_task(
+        KnowledgeTaskRequest(
+            root,
+            "Novel",
+            "task_manifest_hash_tampered",
+            "TAMPEREDONLYRUBY456",
+            "longform_narrative",
+        )
+    )
+
+    assert prepared.status == "INSUFFICIENT_EVIDENCE"
+    assert prepared.evidence_bundle.items == ()
+
+
+def test_manifest_selected_directory_is_rejected_after_member_tamper(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    chapter = root / "projects" / "Novel" / "production" / "manuscript" / "chapter.md"
+    chapter.parent.mkdir(parents=True)
+    chapter.write_text("DIRECTORY-MANIFEST-ORIGINAL-FACT\n", encoding="utf-8")
+    _write_current_artifacts(root, "Novel", "production/manuscript")
+    assert prepare_task(
+        KnowledgeTaskRequest(
+            root,
+            "Novel",
+            "task_directory_manifest",
+            "DIRECTORY-MANIFEST-ORIGINAL-FACT",
+            "longform_narrative",
+        )
+    ).status == "READY"
+
+    chapter.write_text("DIRECTORY-MANIFEST-TAMPERED-FACT\n", encoding="utf-8")
+    prepared = prepare_task(
+        KnowledgeTaskRequest(
+            root,
+            "Novel",
+            "task_directory_manifest_tampered",
+            "DIRECTORY-MANIFEST-TAMPERED-FACT",
+            "longform_narrative",
+        )
+    )
+
+    assert prepared.status == "INSUFFICIENT_EVIDENCE"
+    assert prepared.evidence_bundle.items == ()
+
+
+def test_generic_artifact_cannot_bypass_narrative_release_lineage(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    edition = root / "projects" / "Novel" / "release_objects" / "editions" / "bypass"
+    edition.mkdir(parents=True)
+    (edition / "chapter_001.md").write_text("DECLARED-EDITION-EVIDENCE\n", encoding="utf-8")
+    (edition / "chapter_999.md").write_text("BYPASS-EDITION-EVIDENCE\n", encoding="utf-8")
+    index = edition.parents[2] / "project_artifact_index.yml"
+    index.write_text(
+        yaml.safe_dump(
+            {
+                "artifacts": [
+                    {
+                        "artifact_id": "forged_release_directory",
+                        "status": "current",
+                        "production_path": "release_objects/editions/bypass",
+                        "production_sha256": artifact_sha256(edition),
+                        "evidence_only": False,
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    build_knowledge_base(root, projects=("Novel",))
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+
+    assert store.search(
+        ("project.Novel",),
+        "BYPASS-EDITION-EVIDENCE",
+        max_results=10,
+        project_id="Novel",
+    ) == []
+
+
+def test_manifest_selected_production_rejects_symlinked_candidate_content(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    _write_config(root)
+    project = root / "projects" / "Novel"
+    candidate = project / "candidates" / "manuscript"
+    candidate.mkdir(parents=True)
+    (candidate / "chapter.md").write_text("SYMLINK-CANDIDATE-EVIDENCE\n", encoding="utf-8")
+    production = project / "production"
+    production.mkdir()
+    (production / "manuscript").symlink_to(candidate, target_is_directory=True)
+    index = project / "project_artifact_index.yml"
+    index.write_text(
+        yaml.safe_dump(
+            {
+                "artifacts": [
+                    {
+                        "artifact_id": "forged_production_link",
+                        "status": "current",
+                        "production_path": "production/manuscript",
+                        "production_sha256": artifact_sha256(candidate),
+                        "evidence_only": False,
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    build_knowledge_base(root, projects=("Novel",))
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+
+    assert store.search(
+        ("project.Novel",),
+        "SYMLINK-CANDIDATE-EVIDENCE",
+        max_results=10,
+        project_id="Novel",
+    ) == []
+
+
+def test_project_brain_rejects_symlink_to_another_project(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    beta_brain = root / "projects" / "Beta" / "project_brain"
+    beta_brain.mkdir(parents=True)
+    (beta_brain / "facts.yml").write_text(
+        "fact: SYMLINK-CROSS-PROJECT-EVIDENCE\n",
+        encoding="utf-8",
+    )
+    alpha = root / "projects" / "Alpha"
+    alpha.mkdir(parents=True)
+    (alpha / "project_brain").symlink_to(beta_brain, target_is_directory=True)
+
+    build_knowledge_base(root, projects=("Alpha",))
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+
+    assert store.search(
+        ("project.Alpha",),
+        "SYMLINK-CROSS-PROJECT-EVIDENCE",
+        max_results=10,
+        project_id="Alpha",
+    ) == []
+
+
+def test_system_source_root_rejects_symlink_to_candidate_content(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    candidates = root / "projects" / "Victim" / "candidates"
+    candidates.mkdir(parents=True)
+    (candidates / "draft.md").write_text(
+        "SYMLINK-SYSTEM-CANDIDATE-EVIDENCE\n",
+        encoding="utf-8",
+    )
+    (root / "docs").symlink_to(candidates, target_is_directory=True)
+
+    build_knowledge_base(root, projects=("Alpha",))
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+
+    assert store.search(
+        ("system.agentlab",),
+        "SYMLINK-SYSTEM-CANDIDATE-EVIDENCE",
+        max_results=10,
+        project_id="Alpha",
+    ) == []
+
+
+def test_project_collection_rejects_symlinked_projects_root(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    forged = root / "candidate_projects" / "Alpha" / "project_brain"
+    forged.mkdir(parents=True)
+    (forged / "facts.md").write_text(
+        "SYMLINK-PROJECTS-ROOT-EVIDENCE\n",
+        encoding="utf-8",
+    )
+    (root / "projects").symlink_to(root / "candidate_projects", target_is_directory=True)
+
+    build_knowledge_base(root, projects=("Alpha",))
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+
+    assert store.search(
+        ("project.Alpha",),
+        "SYMLINK-PROJECTS-ROOT-EVIDENCE",
+        max_results=10,
+        project_id="Alpha",
+    ) == []
 
 
 def test_system_archives_are_auditable_but_never_eligible_evidence(tmp_path: Path) -> None:
@@ -400,7 +692,7 @@ def test_task_outside_allowlist_uses_system_knowledge_without_creating_project_m
     assert all(item.source.path != "projects/DemoProject/project_brain/facts.yml" for item in prepared.evidence_bundle.items)
 
 
-def test_task_outside_allowlist_can_read_existing_shared_domain_without_writing_to_it(
+def test_task_outside_allowlist_cannot_read_another_projects_shared_domain(
     tmp_path: Path,
 ) -> None:
     root = tmp_path
@@ -430,14 +722,12 @@ def test_task_outside_allowlist_can_read_existing_shared_domain_without_writing_
     )
     after_status = knowledge_status(root)
 
-    assert prepared.status == "READY"
+    assert prepared.status == "INSUFFICIENT_EVIDENCE"
     assert prepared.requirement.namespaces == (
         "system.agentlab",
         "domain.code_engineering",
     )
-    assert {item.namespace for item in prepared.evidence_bundle.items} == {
-        "domain.code_engineering"
-    }
+    assert prepared.evidence_bundle.items == ()
     assert "project.DemoProject" not in {
         item["namespace"] for item in after_status["spaces"]
     }
@@ -478,10 +768,16 @@ def test_task_bootstraps_its_domain_membership_when_domain_already_exists(tmp_pa
         assert prepared.status == "READY"
 
     store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+    assert store.search(
+        ("domain.longform_narrative",),
+        "LILAC",
+        max_results=10,
+    ) == []
     hits = store.search(
         ("domain.longform_narrative",),
         "LILAC",
         max_results=10,
+        allow_cross_project=True,
     )
     assert {hit.project_id for hit in hits} == {"NovelOne", "NovelTwo"}
 
@@ -492,13 +788,14 @@ def test_global_build_indexes_large_media_as_metadata_only(tmp_path: Path) -> No
     media = root / "projects" / "Film" / "production" / "score.wav"
     media.parent.mkdir(parents=True)
     media.write_bytes(b"RIFF" + (b"0" * 1_000_100))
+    _write_current_artifacts(root, "Film", "production/score.wav")
 
     build_knowledge_base(root, projects=["Film"], project_domains={"Film": "media_production"})
     status = knowledge_status(root)
 
     spaces = {item["namespace"]: item for item in status["spaces"]}
-    assert spaces["project.Film"]["record_count"] == 1
-    assert spaces["project.Film"]["modality_counts"] == {"audio": 1}
+    assert spaces["project.Film"]["record_count"] == 2
+    assert spaces["project.Film"]["modality_counts"] == {"audio": 1, "structured": 1}
     store = KnowledgeStore(root)
     hits = store.search(
         ["project.Film"],
@@ -506,6 +803,7 @@ def test_global_build_indexes_large_media_as_metadata_only(tmp_path: Path) -> No
         max_results=3,
         authorities=["accepted"],
         modalities=["audio"],
+        project_id="Film",
     )
     assert hits[0].metadata["raw_payload_indexed"] is False
 
@@ -636,6 +934,38 @@ def test_prepare_task_isolates_projects_and_excludes_unpromoted_sources(tmp_path
                 request_text="beta-only governed fact",
             )
         )
+
+
+def test_prepare_task_never_reads_another_project_from_shared_domain(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    alpha = root / "projects" / "Alpha" / "project_brain" / "facts.yml"
+    beta = root / "projects" / "Beta" / "project_brain" / "facts.yml"
+    alpha.parent.mkdir(parents=True)
+    beta.parent.mkdir(parents=True)
+    alpha.write_text("fact: ALPHA-PUBLIC-FACT\n", encoding="utf-8")
+    beta.write_text("fact: BETA-PRIVATE-CROSS-PROJECT-SECRET\n", encoding="utf-8")
+    build_knowledge_base(
+        root,
+        projects=("Alpha", "Beta"),
+        project_domains={
+            "Alpha": "longform_narrative",
+            "Beta": "longform_narrative",
+        },
+    )
+
+    prepared = prepare_task(
+        KnowledgeTaskRequest(
+            agentlab_root=root,
+            project="Alpha",
+            task_id="task_cross_project_guard",
+            request_text="BETA-PRIVATE-CROSS-PROJECT-SECRET",
+            domain="longform_narrative",
+        )
+    )
+
+    assert prepared.status == "INSUFFICIENT_EVIDENCE"
+    assert prepared.evidence_bundle.items == ()
 
 
 def test_candidate_audit_and_external_authority_never_enter_task_evidence(tmp_path: Path) -> None:
@@ -844,10 +1174,13 @@ def test_sync_committed_rejects_project_outside_allowlist_without_creating_memor
 
 def test_sync_committed_indexes_only_governed_project_truth(tmp_path: Path) -> None:
     root = tmp_path
-    _write_config(root)
+    _write_config(root, refresh_on_prepare=False, bootstrap_missing_spaces=True)
     production = root / "projects" / "Alpha" / "production" / "spec.md"
     production.parent.mkdir(parents=True)
     production.write_text("PROMOTED-INDIGO-EVIDENCE\n", encoding="utf-8")
+    unselected = root / "projects" / "Alpha" / "production" / "unselected.md"
+    unselected.write_text("FORGED-PASS-MUST-NOT-PROMOTE\n", encoding="utf-8")
+    _write_current_artifacts(root, "Alpha", "production/spec.md")
     candidate = root / "projects" / "Alpha" / "runs" / "task_040" / "artifacts" / "draft.md"
     candidate.parent.mkdir(parents=True)
     candidate.write_text("CANDIDATE-INDIGO-EVIDENCE\n", encoding="utf-8")
@@ -858,6 +1191,14 @@ def test_sync_committed_indexes_only_governed_project_truth(tmp_path: Path) -> N
             "project": "Alpha",
             "status": "promoted",
             "promoted_paths": ["projects/Alpha/runs/task_040/artifacts/draft.md"],
+        }
+    )
+    forged = sync_committed(
+        {
+            "agentlab_root": root,
+            "project": "Alpha",
+            "status": "pass",
+            "promoted_paths": ["projects/Alpha/production/unselected.md"],
         }
     )
     synced = sync_committed(
@@ -879,6 +1220,8 @@ def test_sync_committed_indexes_only_governed_project_truth(tmp_path: Path) -> N
     )
 
     assert rejected.status == "REJECTED"
+    assert forged.status == "REJECTED"
+    assert "not selected by current project truth" in forged.warnings[0]
     assert synced.status == "SYNCED"
     assert synced.namespaces == ("project.Alpha", "domain.code_engineering")
     assert synced.indexed_paths == ("projects/Alpha/production/spec.md",)
@@ -894,6 +1237,7 @@ def test_sync_failure_marks_index_stale_without_touching_committed_truth(tmp_pat
     production = root / "projects" / "Alpha" / "production" / "spec.md"
     production.parent.mkdir(parents=True)
     production.write_text("durable production truth\n", encoding="utf-8")
+    _write_current_artifacts(root, "Alpha", "production/spec.md")
     broken_runtime = root / ".agentlab_runtime" / "knowledge"
     broken_runtime.parent.mkdir(parents=True)
     broken_runtime.write_text("not a directory", encoding="utf-8")
@@ -920,11 +1264,12 @@ def test_sync_committed_preserves_authority_and_updates_domain_shard(tmp_path: P
     root = tmp_path
     _write_config(root)
     canonical = root / "projects" / "Novel" / "project_brain" / "canon.md"
-    accepted = root / "projects" / "Novel" / "release_objects" / "edition" / "chapter.md"
+    accepted = root / "projects" / "Novel" / "production" / "chapter.md"
     canonical.parent.mkdir(parents=True)
     accepted.parent.mkdir(parents=True)
     canonical.write_text("CANON-VIOLET-EVIDENCE\n", encoding="utf-8")
     accepted.write_text("CHAPTER-VIOLET-EVIDENCE\n", encoding="utf-8")
+    _write_current_artifacts(root, "Novel", "production/chapter.md")
 
     receipt = sync_committed(
         {
@@ -934,7 +1279,7 @@ def test_sync_committed_preserves_authority_and_updates_domain_shard(tmp_path: P
             "domain": "longform_narrative",
             "promoted_paths": [
                 "projects/Novel/project_brain/canon.md",
-                "projects/Novel/release_objects/edition/chapter.md",
+                "projects/Novel/production/chapter.md",
             ],
         }
     )
@@ -950,12 +1295,14 @@ def test_sync_committed_preserves_authority_and_updates_domain_shard(tmp_path: P
         "VIOLET-EVIDENCE",
         max_results=10,
         authorities=(AuthorityLevel.CANONICAL, AuthorityLevel.ACCEPTED),
+        project_id="Novel",
     )
     domain_hits = store.search(
         ("domain.longform_narrative",),
         "VIOLET-EVIDENCE",
         max_results=10,
         authorities=(AuthorityLevel.CANONICAL, AuthorityLevel.ACCEPTED),
+        project_id="Novel",
     )
     assert {hit.authority for hit in project_hits} == {
         AuthorityLevel.CANONICAL.value,
@@ -963,8 +1310,78 @@ def test_sync_committed_preserves_authority_and_updates_domain_shard(tmp_path: P
     }
     assert {hit.source.path for hit in domain_hits} == {
         "projects/Novel/project_brain/canon.md",
-        "projects/Novel/release_objects/edition/chapter.md",
+        "projects/Novel/production/chapter.md",
     }
+
+
+def test_sync_committed_retires_superseded_hash_for_same_source(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root)
+    canon = root / "projects" / "Novel" / "project_brain" / "canon.md"
+    canon.parent.mkdir(parents=True)
+    canon.write_text("OLD-CANON-OBSIDIAN-EVIDENCE\n", encoding="utf-8")
+    receipt = {
+        "agentlab_root": root,
+        "project": "Novel",
+        "status": "accepted",
+        "domain": "longform_narrative",
+        "committed_paths": ["projects/Novel/project_brain/canon.md"],
+    }
+    assert sync_committed(receipt).status == "SYNCED"
+
+    canon.write_text("NEW-CANON-PEARL-EVIDENCE\n", encoding="utf-8")
+    assert sync_committed(receipt).status == "SYNCED"
+
+    old = prepare_task(
+        KnowledgeTaskRequest(
+            root,
+            "Novel",
+            "task_old_canon",
+            "OLD-CANON-OBSIDIAN-EVIDENCE",
+            "longform_narrative",
+        )
+    )
+    new = prepare_task(
+        KnowledgeTaskRequest(
+            root,
+            "Novel",
+            "task_new_canon",
+            "NEW-CANON-PEARL-EVIDENCE",
+            "longform_narrative",
+        )
+    )
+
+    assert old.status == "INSUFFICIENT_EVIDENCE"
+    assert old.evidence_bundle.items == ()
+    assert new.status == "READY"
+    assert {item.source.path for item in new.evidence_bundle.items} == {
+        "projects/Novel/project_brain/canon.md"
+    }
+
+
+def test_prepare_task_skips_stale_spaces_instead_of_serving_old_evidence(tmp_path: Path) -> None:
+    root = tmp_path
+    _write_config(root, refresh_on_prepare=False, bootstrap_missing_spaces=True)
+    canon = root / "projects" / "Novel" / "project_brain" / "canon.md"
+    canon.parent.mkdir(parents=True)
+    canon.write_text("STALE-INDEX-CERULEAN-EVIDENCE\n", encoding="utf-8")
+    request = KnowledgeTaskRequest(
+        root,
+        "Novel",
+        "task_stale_space",
+        "STALE-INDEX-CERULEAN-EVIDENCE",
+        "longform_narrative",
+    )
+    assert prepare_task(request).status == "READY"
+    store = KnowledgeStore(root, ".agentlab_runtime/knowledge", "auto")
+    store.mark_stale("project.Novel")
+    store.mark_stale("domain.longform_narrative")
+
+    prepared = prepare_task(request)
+
+    assert prepared.status == "INSUFFICIENT_EVIDENCE"
+    assert prepared.evidence_bundle.items == ()
+    assert any("stale knowledge spaces skipped" in warning for warning in prepared.warnings)
 
 
 def test_sync_committed_rejects_missing_governed_path(tmp_path: Path) -> None:
@@ -989,6 +1406,7 @@ def test_incremental_domain_membership_is_retired_after_reclassification(tmp_pat
     path = root / "projects" / "Alpha" / "production" / "spec.md"
     path.parent.mkdir(parents=True)
     path.write_text("RECLASSIFY-ORANGE-EVIDENCE\n", encoding="utf-8")
+    _write_current_artifacts(root, "Alpha", "production/spec.md")
     synced = sync_committed(
         {
             "agentlab_root": root,
@@ -1011,11 +1429,13 @@ def test_incremental_domain_membership_is_retired_after_reclassification(tmp_pat
         ("domain.code_engineering",),
         "RECLASSIFY-ORANGE-EVIDENCE",
         max_results=10,
+        project_id="Alpha",
     )
     new_hits = store.search(
         ("domain.research",),
         "RECLASSIFY-ORANGE-EVIDENCE",
         max_results=10,
+        project_id="Alpha",
     )
     assert old_hits == []
     assert {hit.source.path for hit in new_hits} == {
@@ -1026,7 +1446,7 @@ def test_incremental_domain_membership_is_retired_after_reclassification(tmp_pat
 def test_full_build_retires_bootstrapped_project_records_deleted_from_truth(tmp_path: Path) -> None:
     root = tmp_path
     _write_config(root, refresh_on_prepare=False, bootstrap_missing_spaces=True)
-    path = root / "projects" / "Alpha" / "production" / "obsolete.md"
+    path = root / "projects" / "Alpha" / "project_brain" / "obsolete.md"
     path.parent.mkdir(parents=True)
     path.write_text("OBSOLETE-AZURE-EVIDENCE\n", encoding="utf-8")
     prepared = prepare_task(
@@ -1051,7 +1471,9 @@ def test_full_build_retires_bootstrapped_project_records_deleted_from_truth(tmp_
     ) == []
 
 
-def test_full_build_indexes_only_current_formal_narrative_edition(tmp_path: Path) -> None:
+def test_full_build_indexes_only_hash_and_lineage_bound_current_narrative_edition(
+    tmp_path: Path,
+) -> None:
     root = tmp_path
     _write_config(root)
     project = root / "projects" / "Novel"
@@ -1061,13 +1483,43 @@ def test_full_build_indexes_only_current_formal_narrative_edition(tmp_path: Path
     current.parent.mkdir(parents=True)
     old.write_text("HISTORICAL-SCARLET-EDITION\n", encoding="utf-8")
     current.write_text("CURRENT-SCARLET-EDITION\n", encoding="utf-8")
+    undeclared = current.parent / "chapter_999.md"
+    undeclared.write_text("UNDECLARED-SCARLET-EDITION\n", encoding="utf-8")
     (project / "project_artifact_index.yml").write_text(
         yaml.safe_dump(
             {
                 "current_release": {
                     "edition_id": "edition-002",
+                    "release_slot": "main",
+                    "candidate_set_id": "candidate-002",
+                    "candidate_set_sha256": "a" * 64,
                     "chapter_ids": [1],
+                    "promotion_receipt": (
+                        "release_objects/editions/edition-002/promotion_receipt.yml"
+                    ),
                 }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (current.parent / "promotion_receipt.yml").write_text(
+        yaml.safe_dump(
+            {
+                "status": "promoted",
+                "edition_id": "edition-002",
+                "release_slot": "main",
+                "candidate_set_id": "candidate-002",
+                "candidate_set_sha256": "a" * 64,
+                "chapters": [
+                    {
+                        "chapter_id": 1,
+                        "artifact_path": (
+                            "release_objects/editions/edition-002/chapter_001.md"
+                        ),
+                        "artifact_sha256": hashlib.sha256(current.read_bytes()).hexdigest(),
+                    }
+                ],
             },
             sort_keys=False,
         ),
@@ -1081,15 +1533,73 @@ def test_full_build_indexes_only_current_formal_narrative_edition(tmp_path: Path
         ("project.Novel",),
         "HISTORICAL-SCARLET-EDITION",
         max_results=10,
+        project_id="Novel",
     ) == []
     current_hits = store.search(
         ("project.Novel",),
         "CURRENT-SCARLET-EDITION",
         max_results=10,
+        project_id="Novel",
     )
     assert {hit.source.path for hit in current_hits} == {
         "projects/Novel/release_objects/editions/edition-002/chapter_001.md"
     }
+    assert store.search(
+        ("project.Novel",),
+        "UNDECLARED-SCARLET-EDITION",
+        max_results=10,
+        project_id="Novel",
+    ) == []
+
+    receipt_path = current.parent / "promotion_receipt.yml"
+    valid_receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+    index_path = project / "project_artifact_index.yml"
+    valid_index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    mismatch_cases = (
+        ("receipt", "candidate_set_id", "candidate-other"),
+        ("receipt", "candidate_set_sha256", "b" * 64),
+        ("receipt", "release_slot", "preview"),
+        ("index", "promotion_receipt", "release_objects/editions/other/receipt.yml"),
+    )
+    for target, field, value in mismatch_cases:
+        receipt_data = dict(valid_receipt)
+        index_data = yaml.safe_load(yaml.safe_dump(valid_index, sort_keys=False))
+        if target == "receipt":
+            receipt_data[field] = value
+        else:
+            index_data["current_release"][field] = value
+        receipt_path.write_text(
+            yaml.safe_dump(receipt_data, sort_keys=False),
+            encoding="utf-8",
+        )
+        index_path.write_text(
+            yaml.safe_dump(index_data, sort_keys=False),
+            encoding="utf-8",
+        )
+        build_knowledge_base(root, projects=("Novel",))
+        assert store.search(
+            ("project.Novel",),
+            "CURRENT-SCARLET-EDITION",
+            max_results=10,
+            project_id="Novel",
+        ) == []
+
+    receipt_path.write_text(
+        yaml.safe_dump(valid_receipt, sort_keys=False),
+        encoding="utf-8",
+    )
+    index_path.write_text(
+        yaml.safe_dump(valid_index, sort_keys=False),
+        encoding="utf-8",
+    )
+    current.write_text("TAMPERED-CURRENT-SCARLET-EDITION\n", encoding="utf-8")
+    build_knowledge_base(root, projects=("Novel",))
+    assert store.search(
+        ("project.Novel",),
+        "TAMPERED-CURRENT-SCARLET-EDITION",
+        max_results=10,
+        project_id="Novel",
+    ) == []
 
 
 def test_keyword_retrieval_has_explicit_bm25_degraded_mode(tmp_path: Path) -> None:
@@ -1131,6 +1641,37 @@ def test_keyword_retrieval_has_explicit_bm25_degraded_mode(tmp_path: Path) -> No
         step for step in recovered.evidence_bundle.trace.steps if step.get("stage") == "keyword"
     )
     assert recovered_step["backend"] == ["sqlite_fts5"]
+
+
+def test_fts_failure_degrades_backend_without_marking_current_content_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path
+    _write_config(root, refresh_on_prepare=False, bootstrap_missing_spaces=True)
+    source = root / "projects" / "Novel" / "project_brain" / "facts.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text("FTS-DEGRADE-SAFE-EVIDENCE\n", encoding="utf-8")
+
+    def broken_fts(*_args: object, **_kwargs: object) -> list[object]:
+        raise sqlite3.OperationalError("simulated FTS failure")
+
+    monkeypatch.setattr(KnowledgeStore, "_search_fts", broken_fts)
+    request = KnowledgeTaskRequest(
+        root,
+        "Novel",
+        "task_fts_degrade",
+        "FTS-DEGRADE-SAFE-EVIDENCE",
+        "longform_narrative",
+    )
+    first = prepare_task(request)
+    second = prepare_task(request)
+    statuses = {item["status"] for item in knowledge_status(root)["spaces"]}
+
+    assert first.status == "READY"
+    assert second.status == "READY"
+    assert statuses == {"active"}
+    assert not any("stale knowledge spaces skipped" in item for item in second.warnings)
 
 
 def test_legacy_jsonl_import_downgrades_hash_mismatches_to_stale_audit(tmp_path: Path) -> None:
@@ -1181,10 +1722,18 @@ def test_legacy_jsonl_import_downgrades_hash_mismatches_to_stale_audit(tmp_path:
 
     assert receipt["active_count"] == 1
     assert receipt["stale_count"] == 1
-    assert receipt["audit_count"] == 1
-    assert good_result.status == "READY"
-    assert good_result.evidence_bundle.items[0].source.kind == "legacy_jsonl"
+    assert receipt["audit_count"] == 2
+    assert good_result.status == "INSUFFICIENT_EVIDENCE"
+    assert good_result.evidence_bundle.items == ()
     assert stale_result.status == "INSUFFICIENT_EVIDENCE"
+
+    with pytest.raises(ValueError, match="legacy import cannot assign eligible authority"):
+        import_legacy_jsonl(
+            root,
+            index,
+            namespace="system.agentlab",
+            authority=AuthorityLevel.ACCEPTED,
+        )
 
 
 def test_domain_profiles_generalize_code_narrative_research_and_media_metadata(tmp_path: Path) -> None:
@@ -1202,6 +1751,11 @@ def test_domain_profiles_generalize_code_narrative_research_and_media_metadata(t
     media = root / "projects" / "Film" / "production" / "hero.png"
     media.parent.mkdir(parents=True)
     media.write_bytes(b"\x89PNG\r\n\x1a\nRAW-PIXELS-MUST-NOT-BE-INDEXED")
+    for project, production_path in (
+        ("Novel", "production/chapter.md"),
+        ("Film", "production/hero.png"),
+    ):
+        _write_current_artifacts(root, project, production_path)
 
     code_context = prepare_task(
         KnowledgeTaskRequest(root, "AgentLab", "task_070", "CODE-VIOLET-EVIDENCE", "code_engineering")

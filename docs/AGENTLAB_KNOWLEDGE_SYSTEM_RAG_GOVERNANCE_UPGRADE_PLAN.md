@@ -2,7 +2,8 @@
 
 ## Status
 
-Operationally absorbed — governed assist is the normal task default
+Operational foundation active — governed assist is the normal task default;
+role-specific consumers remain staged
 
 The local-first implementation lives entirely in AgentLab under
 `agent_runtime/knowledge_system/`, `agent_runtime/cli/knowledge.py`,
@@ -12,23 +13,29 @@ configured production allowlist with `./agentlab.sh knowledge build --all-projec
 `config/knowledge_system.yml#indexing.project_allowlist` is the sole project-set
 authority. This command purges excluded records from shared domains and retires
 empty derived shards without deleting project sources. Tasks and promotion
-receipts outside the allowlist cannot reintroduce project memory; tasks may read
-system and existing shared-domain evidence without writing it. Large media is indexed as
-metadata only. Keyword retrieval uses SQLite FTS5 with the existing BM25 engine
+receipts outside the allowlist cannot reintroduce project memory. Every task may
+read system and project-neutral domain evidence; project/domain records are
+filtered to the requesting project even when several allowlisted projects share
+one domain shard. Large media is indexed as metadata only. Keyword retrieval uses SQLite FTS5 with the existing BM25 engine
 as an explicit degraded fallback. Semantic and graph channels remain optional
 adapters and fail visibly when requested but not configured.
 
 Rollout is receipt-backed and sequential: `off → shadow → assist → enforce`.
 AgentLab has validated every stage, including fail-closed enforcement, and then
-returned to `assist` as the production default so later tasks receive governed
-evidence without being blocked by a sparse query. `enforce` remains available
+returned to `assist` as the production default so task preparation receives
+governed evidence without being blocked by a sparse query. Evidence is persisted
+in task context artifacts; each live role still requires an explicit bounded
+consumer adapter before the evidence may enter its model prompt. `enforce` remains available
 after a successful `assist` validation. Existing acceptance, promotion,
 production, and Project Brain authorities remain unchanged; automatic memory
 updates stay `propose_only`. Successful general artifact promotions, formal
 narrative edition promotions, and accepted Project Brain phase/revision transitions
 now issue derived-index sync receipts and refresh both project and domain shards
-automatically. Sync failure marks the index stale without rolling back authoritative
-files. AgentLab repository changes are folded back into the global scaffold with
+automatically. Only artifact-index-selected current Production/release objects
+and governed Project Brain/config sources are retrieval-eligible. Legacy imports
+cannot assign canonical or accepted authority. Superseded source hashes are
+tombstoned, and a stale shard is skipped until a successful refresh; index failure
+never rolls back authoritative files. AgentLab repository changes are folded back into the global scaffold with
 `knowledge build --project AgentLab` at handoff.
 
 Operational commands:

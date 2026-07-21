@@ -101,6 +101,10 @@ class ProjectArtifactStewardTests(TestCase):
             self.assertEqual(len(current), 1)
             self.assertEqual(current[0]["source_task"], "task_0001")
             self.assertEqual(current[0]["source_run_artifact"], "artifacts/chapter_01.md")
+            self.assertEqual(
+                current[0]["production_sha256"],
+                hashlib.sha256(production.read_bytes()).hexdigest(),
+            )
             self.assertFalse(validate_project_artifact_governance(root, "Novel", "task_0001"))
 
     def test_production_report_contamination_fails(self) -> None:

@@ -27,9 +27,11 @@ def import_legacy_jsonl(
     namespace: str,
     project_id: str | None = None,
     source_root: Path | None = None,
-    authority: AuthorityLevel = AuthorityLevel.ACCEPTED,
+    authority: AuthorityLevel = AuthorityLevel.AUDIT,
 ) -> dict[str, Any]:
     """Import legacy Documents, downgrading unverifiable entries to stale audit data."""
+    if authority in {AuthorityLevel.CANONICAL, AuthorityLevel.ACCEPTED}:
+        raise ValueError("legacy import cannot assign eligible authority without promotion")
     root = Path(agentlab_root).resolve()
     index_path = assert_path_allowed(index_path, root)
     source_root = assert_path_allowed(source_root or root, root)
@@ -49,6 +51,7 @@ def import_legacy_jsonl(
             lifecycle = KnowledgeLifecycle.STALE if mismatch else KnowledgeLifecycle.ACTIVE
             if mismatch:
                 stale_count += 1
+            if record_authority is AuthorityLevel.AUDIT:
                 audit_count += 1
             records.append(
                 KnowledgeRecord.create(

@@ -125,6 +125,15 @@ class KnowledgeStore:
                 (validate_namespace(namespace),),
             ).fetchone() is not None
 
+    def inactive_spaces(self, namespaces: Sequence[str]) -> tuple[str, ...]:
+        """Return requested namespaces that are cataloged but not safe to read."""
+        inactive: list[str] = []
+        for namespace in namespaces:
+            row = self._space_row(validate_namespace(namespace))
+            if row["status"] != "active":
+                inactive.append(namespace)
+        return tuple(inactive)
+
     def retire_spaces(self, namespaces: Iterable[str]) -> tuple[str, ...]:
         """Remove rebuildable namespace catalog entries and their SQLite shards."""
         ordered = tuple(sorted({validate_namespace(item) for item in namespaces}))
@@ -308,6 +317,22 @@ class KnowledgeStore:
         with self._shard(path) as connection:
             connection.execute("BEGIN IMMEDIATE")
             for record in records:
+                superseded = connection.execute(
+                    """
+                    UPDATE records SET lifecycle = ?, updated_at = ?
+                    WHERE scope = ? AND source_path = ? AND record_id != ?
+                      AND lifecycle = ?
+                    """,
+                    (
+                        KnowledgeLifecycle.TOMBSTONED.value,
+                        now,
+                        scope,
+                        record.source.path,
+                        record.record_id,
+                        KnowledgeLifecycle.ACTIVE.value,
+                    ),
+                )
+                changed = changed or superseded.rowcount > 0
                 serialized = (
                     record.namespace,
                     record.project_id,
@@ -418,10 +443,14 @@ class KnowledgeStore:
         authorities: Sequence[str] = ELIGIBLE_AUTHORITIES,
         modalities: Sequence[str] = (),
         path_hints: Sequence[str] = (),
+        project_id: str | None = None,
+        allow_cross_project: bool = False,
     ) -> list[SearchHit]:
         hits: list[SearchHit] = []
         for namespace in namespaces:
             row = self._space_row(validate_namespace(namespace))
+            if row["status"] != "active":
+                continue
             path = assert_path_allowed(self.spaces_root / row["db_name"], self.root)
             if row["backend"] == "sqlite_fts5":
                 try:
@@ -433,6 +462,8 @@ class KnowledgeStore:
                             authorities,
                             modalities=modalities,
                             path_hints=path_hints,
+                            project_id=project_id,
+                            allow_cross_project=allow_cross_project,
                         )
                     )
                     continue
@@ -446,6 +477,8 @@ class KnowledgeStore:
                     authorities,
                     modalities=modalities,
                     path_hints=path_hints,
+                    project_id=project_id,
+                    allow_cross_project=allow_cross_project,
                 )
             )
         hits.sort(key=lambda item: (-item.score, item.namespace, item.source.path, item.record_id))
@@ -460,6 +493,8 @@ class KnowledgeStore:
         *,
         modalities: Sequence[str],
         path_hints: Sequence[str],
+        project_id: str | None,
+        allow_cross_project: bool,
     ) -> list[SearchHit]:
         tokens = [token for token in re.findall(r"[\w-]+", query, flags=re.UNICODE) if token]
         if not tokens:
@@ -472,6 +507,13 @@ class KnowledgeStore:
             f"records.authority IN ({authority_placeholders})",
         ]
         parameters: list[object] = [match_query, KnowledgeLifecycle.ACTIVE.value, *authorities]
+        if allow_cross_project:
+            pass
+        elif project_id is None:
+            conditions.append("records.project_id IS NULL")
+        else:
+            conditions.append("(records.project_id IS NULL OR records.project_id = ?)")
+            parameters.append(project_id)
         if modalities:
             modality_placeholders = ",".join("?" for _ in modalities)
             conditions.append(f"records.modality IN ({modality_placeholders})")
@@ -505,16 +547,30 @@ class KnowledgeStore:
         *,
         modalities: Sequence[str],
         path_hints: Sequence[str],
+        project_id: str | None,
+        allow_cross_project: bool,
     ) -> list[SearchHit]:
         authority_placeholders = ",".join("?" for _ in authorities)
+        conditions = [
+            "lifecycle = ?",
+            f"authority IN ({authority_placeholders})",
+        ]
+        parameters: list[object] = [KnowledgeLifecycle.ACTIVE.value, *authorities]
+        if allow_cross_project:
+            pass
+        elif project_id is None:
+            conditions.append("project_id IS NULL")
+        else:
+            conditions.append("(project_id IS NULL OR project_id = ?)")
+            parameters.append(project_id)
         with self._shard(path) as connection:
             rows = connection.execute(
                 f"""
                 SELECT * FROM records
-                WHERE lifecycle = ? AND authority IN ({authority_placeholders})
+                WHERE {' AND '.join(conditions)}
                 ORDER BY record_id
                 """,
-                (KnowledgeLifecycle.ACTIVE.value, *authorities),
+                parameters,
             ).fetchall()
         normalized_hints = tuple(item.replace("\\", "/").lower() for item in path_hints)
         rows = [
@@ -568,7 +624,7 @@ class KnowledgeStore:
     def _set_backend(self, namespace: str, backend: str) -> None:
         with self._catalog() as connection:
             connection.execute(
-                "UPDATE spaces SET backend = ?, status = 'stale', updated_at = ? WHERE namespace = ?",
+                "UPDATE spaces SET backend = ?, status = 'active', updated_at = ? WHERE namespace = ?",
                 (backend, _utc_now(), namespace),
             )
 

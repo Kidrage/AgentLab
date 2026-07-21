@@ -17,6 +17,7 @@ from typing import Any
 
 import yaml
 
+from artifact_digest import artifact_sha256
 from atomic_io import atomic_write_yaml
 
 
@@ -494,6 +495,7 @@ def _record_index_promotion(
     source_task: str,
     source_prompt_summary: str,
     source_run_artifact: str,
+    production_sha256: str,
     archive_rel: str | None,
     promoted_at: str,
 ) -> None:
@@ -529,6 +531,7 @@ def _record_index_promotion(
             "source_task": source_task,
             "source_prompt_summary": source_prompt_summary,
             "source_run_artifact": source_run_artifact,
+            "production_sha256": production_sha256,
             "supersedes": previous_version,
             "superseded_by": None,
             "archived_versions": archived_versions,
@@ -630,6 +633,7 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
             source_task=task_id,
             source_prompt_summary=source_prompt_summary,
             source_run_artifact=source_rel,
+            production_sha256=artifact_sha256(target),
             archive_rel=archive_rel,
             promoted_at=promoted_at,
         )

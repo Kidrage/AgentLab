@@ -10,6 +10,7 @@ from typing import Iterable
 
 import yaml
 
+from agent_runtime.artifact_digest import artifact_sha256
 from agent_runtime.policies import assert_path_allowed
 
 from .models import AuthorityLevel, KnowledgeLifecycle, KnowledgeRecord, Modality, SourceRef
@@ -32,16 +33,14 @@ HARD_EXCLUDED_PARTS = {
 
 PROJECT_SOURCE_GROUPS = (
     (AuthorityLevel.CANONICAL, KnowledgeLifecycle.ACTIVE, "project_fact", (
-        "project_brain", "memory_snapshot", "config", "tasks",
-    )),
-    (AuthorityLevel.ACCEPTED, KnowledgeLifecycle.ACTIVE, "production_artifact", (
-        "production", "artifacts", "agent_docs", "docs", "prompt_templates", "skills",
+        "project_brain", "config",
     )),
     (AuthorityLevel.CANDIDATE, KnowledgeLifecycle.ACTIVE, "candidate_artifact", (
-        "candidates", "candidate", "revisions",
+        "candidates", "candidate", "revisions", "artifacts", "memory_snapshot",
     )),
     (AuthorityLevel.AUDIT, KnowledgeLifecycle.ACTIVE, "audit_evidence", (
         "acceptance", "evaluation_runs", "runs", "background_jobs", "observability", "cost",
+        "agent_docs", "docs", "prompt_templates", "skills", "tasks", "production",
     )),
     (AuthorityLevel.EXTERNAL, KnowledgeLifecycle.ACTIVE, "external_reference", (
         "references", "reference", "sources", "research", "参考资料", "对标",
@@ -82,7 +81,11 @@ class SourceCollector:
             ".codex/MAINLINE.md",
         ):
             path = self.root / name
-            if path.is_file() and not path.is_symlink():
+            if (
+                not _has_symlink_component(path, self.root)
+                and path.is_file()
+                and not path.is_symlink()
+            ):
                 sources[path] = (AuthorityLevel.CANONICAL, KnowledgeLifecycle.ACTIVE, "agentlab_source")
         for relative in (
             "agent_runtime",
@@ -98,7 +101,7 @@ class SourceCollector:
             ".clinerules",
         ):
             directory = self.root / relative
-            if directory.is_dir():
+            if not _has_symlink_component(directory, self.root) and directory.is_dir():
                 for path in self._walk(directory):
                     if relative == "docs" and "archive" in path.relative_to(directory).parts:
                         if include_ineligible:
@@ -115,7 +118,11 @@ class SourceCollector:
                     )
         for relative in ("_shared/AGENT_PROTOCOL.md", "_shared/AGENT_HANDOFF.md"):
             path = self.root / relative
-            if path.is_file() and not path.is_symlink():
+            if (
+                not _has_symlink_component(path, self.root)
+                and path.is_file()
+                and not path.is_symlink()
+            ):
                 sources[path] = (
                     AuthorityLevel.CANONICAL,
                     KnowledgeLifecycle.ACTIVE,
@@ -147,7 +154,10 @@ class SourceCollector:
         ]
 
     def discover_projects(self) -> list[str]:
-        projects_root = assert_path_allowed(self.root / "projects", self.root)
+        raw_projects_root = self.root / "projects"
+        if _has_symlink_component(raw_projects_root, self.root):
+            return []
+        projects_root = assert_path_allowed(raw_projects_root, self.root)
         if not projects_root.is_dir():
             return []
         return sorted(
@@ -157,7 +167,10 @@ class SourceCollector:
         )
 
     def infer_project_domain(self, project: str) -> str:
-        project_root = assert_path_allowed(self.root / "projects" / project, self.root)
+        raw_project_root = self.root / "projects" / project
+        if _has_symlink_component(raw_project_root, self.root / "projects"):
+            return "code_engineering"
+        project_root = assert_path_allowed(raw_project_root, self.root)
         normalized = project.lower()
         if any(hint in normalized for hint in CODE_HINTS):
             return "code_engineering"
@@ -184,7 +197,10 @@ class SourceCollector:
         namespace: str | None = None,
         include_ineligible: bool = False,
     ) -> list[KnowledgeRecord]:
-        project_root = assert_path_allowed(self.root / "projects" / project, self.root)
+        raw_project_root = self.root / "projects" / project
+        if _has_symlink_component(raw_project_root, self.root / "projects"):
+            return []
+        project_root = assert_path_allowed(raw_project_root, self.root)
         if not project_root.is_dir():
             return []
         target_namespace = namespace or f"project.{project}"
@@ -196,9 +212,13 @@ class SourceCollector:
                 KnowledgeLifecycle.ACTIVE,
                 "artifact_index",
             )
-            current_release = _current_release_directory(project_root, artifact_index)
-            if current_release is not None:
-                for path in self._walk(current_release):
+            for selected_root in _current_artifact_roots(project_root, artifact_index):
+                selected_paths = (
+                    (selected_root,)
+                    if selected_root.is_file()
+                    else self._walk(selected_root)
+                )
+                for path in selected_paths:
                     sources[path] = (
                         AuthorityLevel.ACCEPTED,
                         KnowledgeLifecycle.ACTIVE,
@@ -210,6 +230,8 @@ class SourceCollector:
                 continue
             for relative in relatives:
                 directory = project_root / relative
+                if _has_symlink_component(directory, project_root):
+                    continue
                 if directory.is_dir():
                     for path in self._walk(directory):
                         sources.setdefault(path, (authority, lifecycle, kind))
@@ -257,6 +279,8 @@ class SourceCollector:
 
     def _walk(self, directory: Path) -> Iterable[Path]:
         for path in directory.rglob("*"):
+            if _has_symlink_component(path, directory):
+                continue
             if not path.is_file() or path.is_symlink():
                 continue
             relative_parts = path.relative_to(self.root).parts
@@ -330,19 +354,158 @@ class SourceCollector:
         )
 
 
-def _current_release_directory(project_root: Path, artifact_index: Path) -> Path | None:
+def _current_release_paths(project_root: Path, artifact_index: Path) -> tuple[Path, ...]:
     try:
         raw = yaml.safe_load(artifact_index.read_text(encoding="utf-8")) or {}
     except (OSError, UnicodeError, yaml.YAMLError):
-        return None
+        return ()
     current_release = raw.get("current_release") if isinstance(raw, dict) else None
     if not isinstance(current_release, dict):
-        return None
+        return ()
     edition_id = str(current_release.get("edition_id") or "")
     if not SAFE_RELEASE_ID.fullmatch(edition_id):
-        return None
+        return ()
+    release_slot = str(current_release.get("release_slot") or "")
+    candidate_set_id = str(current_release.get("candidate_set_id") or "")
+    candidate_set_sha256 = str(current_release.get("candidate_set_sha256") or "")
+    if not SAFE_RELEASE_ID.fullmatch(release_slot):
+        return ()
+    if not SAFE_RELEASE_ID.fullmatch(candidate_set_id):
+        return ()
+    if not re.fullmatch(r"[0-9a-f]{64}", candidate_set_sha256):
+        return ()
     directory = project_root / "release_objects" / "editions" / edition_id
-    return directory if directory.is_dir() and not directory.is_symlink() else None
+    if _has_symlink_component(directory, project_root):
+        return ()
+    if not directory.is_dir() or directory.is_symlink():
+        return ()
+    receipt_path = directory / "promotion_receipt.yml"
+    if not receipt_path.is_file() or receipt_path.is_symlink():
+        return ()
+    expected_receipt_path = (
+        Path("release_objects") / "editions" / edition_id / "promotion_receipt.yml"
+    ).as_posix()
+    if str(current_release.get("promotion_receipt") or "") != expected_receipt_path:
+        return ()
+    try:
+        receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return ()
+    if not isinstance(receipt, dict) or str(receipt.get("status") or "").lower() != "promoted":
+        return ()
+    if str(receipt.get("edition_id") or "") != edition_id:
+        return ()
+    if str(receipt.get("release_slot") or "") != release_slot:
+        return ()
+    if str(receipt.get("candidate_set_id") or "") != candidate_set_id:
+        return ()
+    if str(receipt.get("candidate_set_sha256") or "") != candidate_set_sha256:
+        return ()
+    chapters = receipt.get("chapters")
+    if not isinstance(chapters, list) or not chapters:
+        return ()
+    try:
+        expected_ids = {int(value) for value in current_release.get("chapter_ids") or []}
+    except (TypeError, ValueError):
+        return ()
+    if not expected_ids:
+        return ()
+    observed_ids: set[int] = set()
+    selected_paths = [receipt_path]
+    for chapter in chapters:
+        if not isinstance(chapter, dict):
+            return ()
+        try:
+            chapter_id = int(chapter.get("chapter_id"))
+        except (TypeError, ValueError):
+            return ()
+        if chapter_id in observed_ids:
+            return ()
+        expected_sha256 = str(chapter.get("artifact_sha256") or "")
+        chapter_path = directory / f"chapter_{chapter_id:03d}.md"
+        expected_artifact_path = (
+            Path("release_objects")
+            / "editions"
+            / edition_id
+            / f"chapter_{chapter_id:03d}.md"
+        ).as_posix()
+        if str(chapter.get("artifact_path") or "") != expected_artifact_path:
+            return ()
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+            return ()
+        if not chapter_path.is_file() or chapter_path.is_symlink():
+            return ()
+        if _sha256_file(chapter_path) != expected_sha256:
+            return ()
+        observed_ids.add(chapter_id)
+        selected_paths.append(chapter_path)
+    if observed_ids != expected_ids:
+        return ()
+    return tuple(selected_paths)
+
+
+def _current_artifact_roots(project_root: Path, artifact_index: Path) -> tuple[Path, ...]:
+    roots = list(_current_release_paths(project_root, artifact_index))
+    try:
+        raw = yaml.safe_load(artifact_index.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return tuple(roots)
+    artifacts = raw.get("artifacts") if isinstance(raw, dict) else None
+    if not isinstance(artifacts, list):
+        return tuple(roots)
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            continue
+        if str(artifact.get("status") or "").lower() != "current":
+            continue
+        if bool(artifact.get("evidence_only", False)):
+            continue
+        raw_path = str(artifact.get("production_path") or "")
+        relative = Path(raw_path)
+        if not raw_path or relative.is_absolute() or ".." in relative.parts:
+            continue
+        if not relative.parts or relative.parts[0] != "production":
+            continue
+        raw_selected = project_root / relative
+        if _has_symlink_component(raw_selected, project_root):
+            continue
+        try:
+            selected = assert_path_allowed(raw_selected, project_root / "production")
+        except ValueError:
+            continue
+        if selected.is_symlink() or not (selected.is_file() or selected.is_dir()):
+            continue
+        expected_sha256 = str(artifact.get("production_sha256") or "")
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+            continue
+        try:
+            actual_sha256 = artifact_sha256(selected)
+        except (OSError, ValueError):
+            continue
+        if actual_sha256 != expected_sha256:
+            continue
+        roots.append(selected)
+    return tuple(dict.fromkeys(roots))
+
+
+def _has_symlink_component(path: Path, root: Path) -> bool:
+    """Return true before resolution if any path component below *root* is a symlink."""
+    lexical_root = Path(root).absolute()
+    if lexical_root.is_symlink():
+        return True
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = lexical_root / candidate
+    try:
+        relative = candidate.relative_to(lexical_root)
+    except ValueError:
+        return True
+    current = lexical_root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            return True
+    return False
 
 
 def _modality_for(path: Path) -> Modality:
