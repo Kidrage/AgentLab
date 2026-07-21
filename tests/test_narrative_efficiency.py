@@ -3509,6 +3509,503 @@ def _live_revision_preflight_fixture(tmp_path) -> dict[str, object]:
     }
 
 
+def _literary_ab_preflight_fixture(tmp_path) -> dict[str, object]:
+    from agent_runtime.narrative.production.live_revision_preflight import (
+        preflight_live_writer_revision,
+    )
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    revision_result = preflight_live_writer_revision(
+        fixture["spec_path"],  # type: ignore[arg-type]
+        repository_root=tmp_path,
+    )
+    source_plan = fixture["source_plan"]
+    assert isinstance(source_plan, WorkflowPlan)
+    source_candidate = fixture["source_candidate"]
+    assert isinstance(source_candidate, Path)
+    revision_task_id = str(fixture["revision_task_id"])
+    revision_run = (
+        tmp_path
+        / "projects"
+        / source_plan.project
+        / "runs"
+        / revision_task_id
+    )
+    revised_candidate = revision_run / "fiction_draft.md"
+    revised_candidate.write_text(
+        "# 第二十五章\n\nREVISED_CANDIDATE_ONLY_MARKER：代价先于决定，人物保留拒绝权。\n",
+        encoding="utf-8",
+    )
+    revised_sha256 = hashlib.sha256(revised_candidate.read_bytes()).hexdigest()
+    (revision_run / "writer_v2_output_contract.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "pass",
+                "task_id": revision_task_id,
+                "candidate_only": True,
+                "production_modified": False,
+                "prose_sha256": revised_sha256,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    audit_run = (
+        tmp_path
+        / "projects"
+        / source_plan.project
+        / "runs"
+        / "audit-literary-ab-revised"
+    )
+    audit_run.mkdir()
+    audit = {
+        "schema_version": 1,
+        "report_type": "agentlab_live_candidate_audit",
+        "contract_version": 2,
+        "project": source_plan.project,
+        "task_id": revision_task_id,
+        "candidate_sha256": revised_sha256,
+        "status": "pass",
+        "checks": [
+            {"id": name, "status": "pass"}
+            for name in (
+                "v2_required_artifacts",
+                "v2_artifact_snapshot_stable",
+                "session_identity_and_request_hash",
+                "output_contract_and_hash",
+                "prose_length_contract",
+                "draft_is_prose_only",
+                "production_manuscript_not_modified",
+            )
+        ],
+        "issues": [],
+    }
+    audit_path = audit_run / "deterministic_candidate_audit_v2.yml"
+    audit_path.write_text(
+        yaml.safe_dump(audit, sort_keys=False),
+        encoding="utf-8",
+    )
+    literary_spec = tmp_path / "literary_ab_preflight.yml"
+    literary_spec.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "job_kind": "narrative_audit",
+                "run_mode": "independent_reaudit",
+                "project": source_plan.project,
+                "task_id": "task_narrative_literary_ab_ch025",
+                "chapter_id": 25,
+                "pair_id": "gate1-ch25-pair",
+                "original_run_id": source_plan.task_id,
+                "revised_run_id": revision_task_id,
+                "deterministic_audit": {
+                    "path": audit_path.relative_to(tmp_path).as_posix(),
+                    "sha256": hashlib.sha256(audit_path.read_bytes()).hexdigest(),
+                },
+                "candidate_only": True,
+                "production_modified": False,
+                "external_context_approval_required": True,
+                "review_model_route": "NarrativeEditor",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return {
+        **fixture,
+        "revision_result": revision_result,
+        "revision_run": revision_run,
+        "revised_candidate": revised_candidate,
+        "revised_sha256": revised_sha256,
+        "audit": audit,
+        "audit_path": audit_path,
+        "literary_spec": literary_spec,
+    }
+
+
+def _literary_ab_runtime_payload(
+    *,
+    pair_id: str,
+    preferred_label: str,
+    stronger_label: str,
+) -> dict[str, object]:
+    from agent_runtime.narrative.quality.live_editor import (
+        LITERARY_EDITOR_DIMENSIONS,
+    )
+
+    def scorecard(score: int) -> dict[str, object]:
+        severity = "blocking" if score <= 2 else "warn" if score == 3 else "pass"
+        status = "blocked" if score <= 2 else "warn" if score == 3 else "pass"
+        return {
+            "status": status,
+            "dimensions": {
+                name: {
+                    "score": score,
+                    "severity": severity,
+                    "evidence": {
+                        "chapter": 25,
+                        "scene": "中段决定",
+                        "excerpt_or_locator": f"{name} 的可核验场景定位",
+                    },
+                    "reason": f"{name} 的独立文学判断",
+                    "revision_target": f"保留并继续校准 {name}",
+                }
+                for name in LITERARY_EDITOR_DIMENSIONS
+            },
+        }
+
+    return {
+        "schema_version": 1,
+        "status": "completed",
+        "pair_id": pair_id,
+        "anonymous_scorecards": {
+            label: scorecard(4 if label == stronger_label else 3)
+            for label in ("A", "B")
+        },
+        "blind_review": {
+            "preferred_version": preferred_label,
+            "preference_strength": "strong",
+            "reason": "较强稿件让人物选择、因果代价与阅读推进相互咬合。",
+            "comparative_evidence": [
+                "较强稿件在中段决定前给出可追踪的信息与约束。",
+                "较强稿件结尾留下由人物行为自然生成的后续问题。",
+            ],
+        },
+    }
+
+
+def test_literary_ab_preflight_publishes_anonymous_exact_packet_without_provider(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.quality.live_editor_preflight import (
+        preflight_literary_ab_review,
+    )
+
+    fixture = _literary_ab_preflight_fixture(tmp_path)
+    result = preflight_literary_ab_review(
+        fixture["literary_spec"],  # type: ignore[arg-type]
+        repository_root=tmp_path,
+        deterministic_audit_rebuilder=lambda _root, _task: fixture["audit"],
+    )
+
+    assert result["status"] == "ready"
+    assert result["job_kind"] == "narrative_audit"
+    assert result["run_mode"] == "independent_reaudit"
+    assert result["review_model_route"] == "NarrativeEditor"
+    assert result["provider_calls"] == 0
+    assert result["candidate_only"] is True
+    assert result["production_modified"] is False
+    context = Path(result["context_path"]).read_text(encoding="utf-8")
+    assert "## Manuscript A" in context
+    assert "## Manuscript B" in context
+    assert context.count("SOURCE_CANDIDATE_ONLY_MARKER") == 1
+    assert context.count("REVISED_CANDIDATE_ONLY_MARKER") == 1
+    assert str(fixture["revision_task_id"]) not in context
+    source_plan = fixture["source_plan"]
+    assert isinstance(source_plan, WorkflowPlan)
+    assert source_plan.task_id not in context
+    mapping = yaml.safe_load(Path(result["mapping_path"]).read_text(encoding="utf-8"))
+    assert mapping["status"] == "sealed_until_judge_completed"
+    assert set(mapping["mapping"]) == {"A", "B"}
+    assert {
+        item["candidate_sha256"] for item in mapping["mapping"].values()
+    } == {
+        hashlib.sha256(
+            Path(fixture["source_candidate"]).read_bytes()  # type: ignore[arg-type]
+        ).hexdigest(),
+        fixture["revised_sha256"],
+    }
+
+
+def test_literary_ab_preflight_rejects_stale_revised_candidate(tmp_path) -> None:
+    from agent_runtime.narrative.quality.live_editor_preflight import (
+        preflight_literary_ab_review,
+    )
+
+    fixture = _literary_ab_preflight_fixture(tmp_path)
+    revised = fixture["revised_candidate"]
+    assert isinstance(revised, Path)
+    revised.write_text("mutated after deterministic audit\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="literary_ab_output_contract_mismatch"):
+        preflight_literary_ab_review(
+            fixture["literary_spec"],  # type: ignore[arg-type]
+            repository_root=tmp_path,
+            deterministic_audit_rebuilder=lambda _root, _task: fixture["audit"],
+        )
+
+
+def test_literary_ab_preflight_rejects_audit_that_does_not_rebuild_exactly(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.quality.live_editor_preflight import (
+        preflight_literary_ab_review,
+    )
+
+    fixture = _literary_ab_preflight_fixture(tmp_path)
+    rebuilt = dict(fixture["audit"])
+    rebuilt["status"] = "fail"
+
+    with pytest.raises(ValueError, match="literary_ab_deterministic_audit_stale"):
+        preflight_literary_ab_review(
+            fixture["literary_spec"],  # type: ignore[arg-type]
+            repository_root=tmp_path,
+            deterministic_audit_rebuilder=lambda _root, _task: rebuilt,
+        )
+
+
+def test_literary_ab_runtime_calls_one_editor_and_never_applies_selection(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.narrative.quality.live_editor_preflight import (
+        preflight_literary_ab_review,
+    )
+    from agent_runtime.narrative.quality.live_editor_runtime import (
+        run_literary_ab_review,
+    )
+
+    fixture = _literary_ab_preflight_fixture(tmp_path)
+    preflight = preflight_literary_ab_review(
+        fixture["literary_spec"],  # type: ignore[arg-type]
+        repository_root=tmp_path,
+        deterministic_audit_rebuilder=lambda _root, _task: fixture["audit"],
+    )
+    run_dir = Path(preflight["run_dir"])
+    source_plan = fixture["source_plan"]
+    assert isinstance(source_plan, WorkflowPlan)
+    plan = source_plan.model_copy(
+        update={
+            "task_id": preflight["task_id"],
+            "run_dir": str(run_dir),
+            "user_request_path": str(run_dir / "user_request.md"),
+            "route": AgentRoute(
+                task_size="medium",
+                agents=["Reviewer"],
+                route_key="narrative_heavy_audit",
+            ),
+        }
+    )
+    monkeypatch.setattr(
+        "agent_runtime.workflow_plan.build_workflow_plan",
+        lambda *_args, **_kwargs: plan,
+    )
+    original = Path(fixture["source_candidate"])
+    revised = Path(fixture["revised_candidate"])
+    production = tmp_path / "projects" / source_plan.project / "production"
+    before = {
+        "original": original.read_bytes(),
+        "revised": revised.read_bytes(),
+        "production": {
+            path.relative_to(production).as_posix(): path.read_bytes()
+            for path in production.rglob("*")
+            if path.is_file()
+        },
+    }
+    observed: dict[str, object] = {"calls": 0}
+
+    def fake_editor(*args, **kwargs):
+        observed["calls"] = int(observed["calls"]) + 1
+        observed["agent"] = args[2]
+        observed["apply_patches"] = kwargs["apply_patches"]
+        observed["capacity_route_override"] = kwargs["capacity_route_override"]
+        mapping = yaml.safe_load(
+            (run_dir / "blind_mapping.yml").read_text(encoding="utf-8")
+        )
+        assert mapping["status"] == "sealed_until_judge_completed"
+        revised_label = next(
+            label
+            for label, item in mapping["mapping"].items()
+            if item["candidate_sha256"] == fixture["revised_sha256"]
+        )
+        payload = _literary_ab_runtime_payload(
+            pair_id="gate1-ch25-pair",
+            preferred_label=revised_label,
+            stronger_label=revised_label,
+        )
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="qwen3.7-max",
+            content=json.dumps(payload, ensure_ascii=False),
+            input_tokens=1200,
+            output_tokens=800,
+            total_tokens=2000,
+            raw_usage={
+                "cli_model_id": "qwen3.7-max",
+                "cli_model_key": "qwen3_7_max_dashscope",
+                "capacity_route_id": "NarrativeEditor",
+                "duration_s": 12.5,
+                "model_execution_receipt": str(
+                    run_dir / "model_execution_receipt_reviewer.yml"
+                ),
+            },
+        )
+
+    result = run_literary_ab_review(
+        tmp_path,
+        project=source_plan.project,
+        task_id=str(preflight["task_id"]),
+        deterministic_audit_rebuilder=lambda _root, _task: fixture["audit"],
+        agent_runner=fake_editor,
+    )
+
+    assert result["status"] == "accepted_revision"
+    assert result["replace_current_candidate"] is True
+    assert result["selection_applied"] is False
+    assert result["user_acceptance_required"] is True
+    assert observed == {
+        "calls": 1,
+        "agent": "Reviewer",
+        "apply_patches": False,
+        "capacity_route_override": "NarrativeEditor",
+    }
+    assert original.read_bytes() == before["original"]
+    assert revised.read_bytes() == before["revised"]
+    assert {
+        path.relative_to(production).as_posix(): path.read_bytes()
+        for path in production.rglob("*")
+        if path.is_file()
+    } == before["production"]
+    revealed = yaml.safe_load(
+        (run_dir / "blind_mapping.yml").read_text(encoding="utf-8")
+    )
+    assert revealed["status"] == "revealed_after_judge_completed"
+    assert (run_dir / "narrative_quality_scorecard_original.yml").is_file()
+    assert (run_dir / "narrative_quality_scorecard_revised.yml").is_file()
+
+
+def test_literary_ab_runtime_provider_failure_keeps_mapping_sealed(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.narrative.quality.live_editor_preflight import (
+        preflight_literary_ab_review,
+    )
+    from agent_runtime.narrative.quality.live_editor_runtime import (
+        run_literary_ab_review,
+    )
+
+    fixture = _literary_ab_preflight_fixture(tmp_path)
+    preflight = preflight_literary_ab_review(
+        fixture["literary_spec"],  # type: ignore[arg-type]
+        repository_root=tmp_path,
+        deterministic_audit_rebuilder=lambda _root, _task: fixture["audit"],
+    )
+    run_dir = Path(preflight["run_dir"])
+    source_plan = fixture["source_plan"]
+    assert isinstance(source_plan, WorkflowPlan)
+    plan = source_plan.model_copy(
+        update={
+            "task_id": preflight["task_id"],
+            "run_dir": str(run_dir),
+            "route": AgentRoute(
+                task_size="medium",
+                agents=["Reviewer"],
+                route_key="narrative_heavy_audit",
+            ),
+        }
+    )
+    monkeypatch.setattr(
+        "agent_runtime.workflow_plan.build_workflow_plan",
+        lambda *_args, **_kwargs: plan,
+    )
+
+    result = run_literary_ab_review(
+        tmp_path,
+        project=source_plan.project,
+        task_id=str(preflight["task_id"]),
+        deterministic_audit_rebuilder=lambda _root, _task: fixture["audit"],
+        agent_runner=lambda *_args, **_kwargs: LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="qwen3.7-max",
+            content="provider timed out",
+            status="fallback_handoff",
+            error="timeout",
+            raw_usage={"provider_process_started": True},
+        ),
+    )
+
+    assert result["status"] == "blocked"
+    assert result["reason"] == "timeout"
+    mapping = yaml.safe_load(
+        (run_dir / "blind_mapping.yml").read_text(encoding="utf-8")
+    )
+    assert mapping["status"] == "sealed_until_judge_completed"
+    assert not (run_dir / "narrative_quality_scorecard_revised.yml").exists()
+
+
+def test_literary_ab_runtime_rejects_candidate_changed_during_editor_call(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.narrative.quality.live_editor_preflight import (
+        preflight_literary_ab_review,
+    )
+    from agent_runtime.narrative.quality.live_editor_runtime import (
+        run_literary_ab_review,
+    )
+
+    fixture = _literary_ab_preflight_fixture(tmp_path)
+    preflight = preflight_literary_ab_review(
+        fixture["literary_spec"],  # type: ignore[arg-type]
+        repository_root=tmp_path,
+        deterministic_audit_rebuilder=lambda _root, _task: fixture["audit"],
+    )
+    run_dir = Path(preflight["run_dir"])
+    source_plan = fixture["source_plan"]
+    assert isinstance(source_plan, WorkflowPlan)
+    plan = source_plan.model_copy(
+        update={
+            "task_id": preflight["task_id"],
+            "run_dir": str(run_dir),
+            "route": AgentRoute(
+                task_size="medium",
+                agents=["Reviewer"],
+                route_key="narrative_heavy_audit",
+            ),
+        }
+    )
+    monkeypatch.setattr(
+        "agent_runtime.workflow_plan.build_workflow_plan",
+        lambda *_args, **_kwargs: plan,
+    )
+
+    def mutate_candidate(*_args, **_kwargs):
+        Path(fixture["revised_candidate"]).write_text(
+            "mutated while Editor was running\n",
+            encoding="utf-8",
+        )
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="qwen3.7-max",
+            content=json.dumps(
+                _literary_ab_runtime_payload(
+                    pair_id="gate1-ch25-pair",
+                    preferred_label="A",
+                    stronger_label="A",
+                ),
+                ensure_ascii=False,
+            ),
+            raw_usage={"cli_model_id": "qwen3.7-max"},
+        )
+
+    with pytest.raises(ValueError, match="candidate_changed_during_literary_review"):
+        run_literary_ab_review(
+            tmp_path,
+            project=source_plan.project,
+            task_id=str(preflight["task_id"]),
+            deterministic_audit_rebuilder=lambda _root, _task: fixture["audit"],
+            agent_runner=mutate_candidate,
+        )
+
+    mapping = yaml.safe_load(
+        (run_dir / "blind_mapping.yml").read_text(encoding="utf-8")
+    )
+    assert mapping["status"] == "sealed_until_judge_completed"
+    assert not (run_dir / "narrative_literary_ab_review_receipt.yml").exists()
+
+
 def test_live_writer_revision_preflight_activates_hash_bound_lineage_without_touching_source(
     tmp_path,
 ) -> None:

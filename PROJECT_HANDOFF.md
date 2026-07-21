@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-21T03:13:43.489673+00:00`
+- Generated at: `2026-07-21T16:21:23.724968+00:00`
 
 ## Current State
 
-- Branch: `feature/knowledge-system-rag-governance`
-- HEAD: `ae41eff`
-- Indexed paths: 2005
+- Branch: `feature/narrative-gate1-resume`
+- HEAD: `c990809`
+- Indexed paths: 2021
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,20 +43,20 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 569 |
+| `agent_runtime` | 579 |
 | `tests` | 446 |
-| `acceptance_runs` | 395 |
-| `docs` | 336 |
+| `acceptance_runs` | 398 |
+| `docs` | 339 |
 | `docs/archive` | 222 |
 | `config` | 123 |
 | `acceptance_runs/narrative_eval` | 116 |
 | `tests/fixtures` | 110 |
+| `agent_runtime/narrative` | 50 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 41 |
-| `agent_runtime/narrative` | 41 |
 | `acceptance_runs/s10_generalization_eval` | 32 |
-| `docs/narrative` | 28 |
+| `docs/narrative` | 31 |
 | `scripts` | 22 |
 | `agent_runtime/program_manager` | 21 |
 | `agent_runtime/recovery` | 21 |
@@ -71,10 +71,10 @@
 | `agent_runtime/capabilities` | 15 |
 | `agent_runtime/cli` | 15 |
 | `agent_runtime/ingestion` | 15 |
+| `acceptance_runs/narrative_efficiency` | 13 |
 | `agent_runtime/config_center` | 13 |
 | `acceptance_runs/p2_closure` | 12 |
 | `agent_runtime/goals` | 12 |
-| `acceptance_runs/narrative_efficiency` | 11 |
 | `agent_runtime/brain` | 11 |
 | `agent_runtime/capability_broker` | 11 |
 | `agent_runtime/costs` | 11 |
@@ -88,18 +88,18 @@
 
 ### Categories
 
-- code: 955 files, 7969040 bytes
-- literature: 410 files, 2262874 bytes
+- code: 965 files, 8439726 bytes
+- literature: 412 files, 2343591 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 628 files, 3217127 bytes
+- structured_data: 632 files, 3243652 bytes
 
 ### Common Extensions
 
-- `.py`: 942
-- `.yml`: 597
-- `.md`: 371
+- `.py`: 952
+- `.yml`: 600
+- `.md`: 373
 - `.txt`: 39
-- `.json`: 26
+- `.json`: 27
 - `.sh`: 8
 - `[no extension]`: 5
 - `.js`: 5
@@ -230,6 +230,18 @@
 
 ## Change History
 
+- `c990809 2026-07-22 fix: align default routes with native Codex`
+- `b7ff2ed 2026-07-21 fix(narrative): bind revision candidate audits`
+- `53a645b 2026-07-21 fix(narrative): harden targeted revision attempts`
+- `479ebcf 2026-07-21 fix(narrative): enforce Gate 1 prose length`
+- `668d4b7 2026-07-21 fix(narrative): deliver sealed Writer packet on stdin`
+- `bf1c056 2026-07-21 fix(narrative): seal Gate 1 operator plans`
+- `a6ed77b 2026-07-21 fix(narrative): align writer operator materialization`
+- `2452bf9 2026-07-21 feat(narrative): seal live writer packet path`
+- `c8ac0a1 2026-07-21 fix(narrative): bind literary memory evidence`
+- `78b4c3f 2026-07-21 docs(knowledge): record hardened assist acceptance`
+- `889b1ed 2026-07-21 fix(knowledge): harden default assist authority`
+- `e69cb90 2026-07-21 feat(knowledge): restrict project memory to allowlist`
 - `ae41eff 2026-07-21 feat(knowledge): absorb governed RAG into AgentLab`
 - `a6058e0 2026-07-21 docs(narrative): remove local path from repair plan`
 - `1a00c9a 2026-07-21 feat(knowledge): add governed federated retrieval`
@@ -238,41 +250,29 @@
 - `ac2a23c 2026-07-20 feat(narrative): add governed writer packet preview`
 - `25a9639 2026-07-20 fix(workers): isolate generic claude coder context`
 - `19cb81f 2026-07-20 docs(narrative): freeze phase 2r context measurement readiness`
-- `b638158 2026-07-20 feat(narrative): add hash-bound shared context compiler`
-- `d5ce288 2026-07-20 docs(narrative): reject phase 2r context false greens`
-- `140ad98 2026-07-20 docs(narrative): dispatch phase 2r context node`
-- `d81ea22 2026-07-20 fix(config): bind performance Coder to supported deepseek model`
-- `1f2d98c 2026-07-20 fix(narrative): sanitize accepted evidence locators`
-- `f81bcdb 2026-07-20 feat(narrative): close phase 1r production contracts`
-- `1dd5008 2026-07-20 docs(narrative): accept trusted phase 0r baseline`
-- `9799ba0 2026-07-20 docs(narrative): clean repair handoff formatting`
-- `7a91e70 2026-07-20 fix(governance): preserve structured phase dispatch`
-- `9b3256a 2026-07-19 docs(narrative): record adult intimacy handoff`
-- `8cf80d0 2026-07-19 docs(narrative): restore adult dark intimacy contract`
-- `bc9c60f 2026-07-19 docs(narrative): make Gate 1 evidence portable`
 
 ## Current Changes
 
-- `## feature/knowledge-system-rag-governance`
-- ` M AGENTS.md`
-- ` M OPERATING_MODEL.md`
-- ` M agent_runtime/cli/knowledge.py`
-- ` M agent_runtime/knowledge_system/config.py`
-- ` M agent_runtime/knowledge_system/operations.py`
-- ` M agent_runtime/knowledge_system/runtime.py`
-- ` M agent_runtime/knowledge_system/storage.py`
-- ` M config/knowledge_system.yml`
-- ` M docs/AGENTLAB_KNOWLEDGE_SYSTEM_RAG_GOVERNANCE_UPGRADE_PLAN.md`
-- ` M tests/test_knowledge_system.py`
-- ` M tests/test_models_and_governance_cli.py`
-- ` M tests/test_narrative_delivery.py`
-- ` M tests/test_p2g_cli.py`
-- ` M tests/test_p2g_context_packers.py`
-- ` M tests/test_project_artifact_steward.py`
-- ` M tests/test_project_fact_state_machine.py`
+- `## feature/narrative-gate1-resume`
+- ` M PROJECT_HANDOFF.md`
+- ` M agent_runtime/agent_runner.py`
+- ` M agent_runtime/cli_executor.py`
+- ` M agent_runtime/narrative/production/revision_attempts.py`
+- ` M agent_runtime/narrative/quality/blind_review.py`
+- ` M config/model_capacity.yml`
+- ` M config/worker_invocation_contracts.yml`
+- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
+- ` M tests/test_agent_runner_cli_integration.py`
+- ` M tests/test_cli_executor.py`
+- ` M tests/test_execution_config_consolidation.py`
+- ` M tests/test_narrative_efficiency.py`
+- ` M tests/test_narrative_quality_gate.py`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integrated_live/`
 - `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integration_preflight/`
+- `?? agent_runtime/narrative/quality/live_editor.py`
+- `?? agent_runtime/narrative/quality/live_editor_preflight.py`
+- `?? agent_runtime/narrative/quality/live_editor_runtime.py`
 
 ## Related Repositories
 
@@ -656,6 +656,10 @@ without a progress row.
 | 2026-07-21 20:45 CST | Codex | Gate 1 Ch25 targeted revision correction 5 | correction_complete_final_rereview_pending | `_write_fence_head` now validates existing head state and never rewrites a greater issued count with a lower replay. The successor-deletion + predecessor-replay test preserves head=2 and blocks the old result. Delivery now checks canonical ledger path/inode before releasing its lock; a rename-and-copy replacement can issue attempt-02 on its own inode, but the old delivery is converted to blocked and its just-written prose/receipt are removed. Targeted 34/0; narrative domain 195/0; Crown audit 7/0; Ruff/compile/diff pass; providers and Production remain 0 | changes remain in the narrative revision ledger and Writer result boundary; no queue, code route, legacy generation or Production behavior changed | Fresh independent PASS from both axes remains mandatory before full repository regression and commit/CI |
 | 2026-07-21 20:53 CST | Codex | Gate 1 Ch25 targeted revision final local acceptance | accepted_local_pending_commit_ci | Final Standards and Spec both PASS after source-run attempt anchoring, candidate-set binding, exact replay, persistent decision_required exhaustion, candidate-hash audit binding, monotonic fence head, deletion/gap recovery, directory-replacement detection, first-success preservation and delivery/reservation serialization. Targeted 34/0; narrative domain 195/0; Crown audit 7/0; authoritative full repository 3,046 passed / 2 skipped / 11 warnings in 369.89s; Ruff/compile/diff pass. Original Ch25 SHA remains `a361c1a5…360` and Crown Production digest remains `8ef9cf…7556`; provider calls remain 0 | narrative-only deep modules plus optional activation-bound reference fields; no central runner/queue, code-task route, legacy generation or Production mutation | Stage the exact tracked/new implementation, tests, acceptance and handoff files only; preserve three unrelated untracked Gate 1 directories; commit/push feature branch, verify CI and rebuild knowledge before real provider-free Ch25 audit/contract/spec |
 | 2026-07-21 22:02 CST | Codex | Gate 1 Ch25 live targeted revision and deterministic re-audit | accepted_local_pending_commit_ci | Attempt 01 reached DeepSeek V4 Pro with no fallback at `$0.593190` but was rejected at 5,834>5,500 Han characters. Final automatic attempt 02 used 36,591 input / 17,045 output / 45,184 cache-read tokens in 260.39s at `$0.631672`, producing 4,762 Han characters and candidate SHA `42036e…046a`. Its first audit exposed a v2 generation-only identity assumption. After five independent rejection/correction rounds, the adapter now validates strict generation/revision pairs, complete revision lineage, the authoritative attempt ledger/fence, root-bounded nofollow files, immutable per-artifact byte snapshots and end-of-audit stability. Final Standards/Spec both PASS; narrative set 195/0; full repository 3,049 passed / 2 skipped / 11 warnings in 375.63s; real audit 7/7 PASS | code only in `agent_runtime/crown_candidate_audit.py`, consolidated tests in `tests/test_crown_candidate_audit.py`, live evidence in the targeted-revision acceptance doc and ignored Crown run receipts. Original SHA `a361c1…360` and Production digest `8ef9cf…7556` remain unchanged; Ch26/27 were not started | Commit/push this audit-identity closure, verify CI and rebuild knowledge. Then implement/use the governed Qwen 3.7 Max literary Editor and anonymous A/B receipt path for Ch25; do not claim uplift, select the revision, start Ch26, or write Production before those gates |
+| 2026-07-21 22:14 CST | Codex | Gate 1 Ch25 governed literary Editor and anonymous A/B | in_progress | Audit-identity commit `b7ff2ed` is pushed and CI `29837411315` passed. Knowledge was rebuilt in default `assist` mode with receipt `kbuild_6406d0…e49d`, snapshot `idx_6db0e3…b7a6`; doctor PASS with 31,765 records / 1,561 eligible. The next unit is an exact, candidate-only Qwen 3.7 Max Reviewer role-session that sees anonymous A/B prose plus hash-bound story context, returns both literary scorecards and one blind preference receipt, and cannot read workspace tools or mutate candidates | Ch25 original/revision hashes and Production remain frozen; Ch26/27, promotion and user-facing quality claims remain blocked. New behavior must stay inside narrative quality plus thin generic structured-output/capacity seams; code-task routes are out of scope | Red/green the provider-free preflight, anonymous mapping, strict scorecard/selection and model-route receipt first. Independent review/full CI precede the authorized external Editor call; a non-winning or blocking attempt-02 result must persist `decision_required / insufficient_revision_uplift` |
+
+| 2026-07-21 22:30 CST | Codex | Default model/worker execution-surface correction | superseded | Commit `c990809` correctly moved the default Supervisor to native Codex/GPT, but incorrectly generalized that correction to unrelated `full_cli` roles. The following scoped correction replaces that overbroad rule | Preserve as historical evidence only; do not treat its every-Codex-role statement as current routing authority | Use the exact role/tier matrix below; never extrapolate one role correction globally |
+| 2026-07-22 06:35 CST | Codex | Scoped default model routes and Agy performance planner | in_progress | User selected Verifier option 1 and clarified exact scope: default performance RepoScout, InterfaceMapper, and TesterAuditor use Claude Code + DeepSeek V4 Pro; Verifier uses Claude Code + DeepSeek V4 Flash; Supervisor alone uses native Codex + GPT-5.6 Sol xhigh. Default performance NarrativePlanner temporarily uses Agy + Gemini 3.5 Flash High through the shared OAuth subscription quota window, while full retains Claude Code + DeepSeek V4 Pro. Focused routing tests pass 59/59, Agy executor tests pass 9/9, model doctor passes 135 profiles / 0 issues, and protocol doctor passes 110 checks / 0 failures | Keep all other modes, tiers, Gate 1 work, and Qwen literary Editor changes untouched; Agy has no automatic fallback and remaining/reset quota remains unknown until provider evidence | Complete staged-snapshot/full regression and independent review, then commit/push, rebuild RAG knowledge, refresh this receipt and verify CI |
 
 ## Stop conditions and immediate next actions
 
@@ -670,8 +674,8 @@ packet delivery, Han-character enforcement and the source-run-anchored two-slot
 revision ledger are delivered with green CI. Crown Ch25 revision attempt 02 is
 now a hash-valid, 4,762-Han, candidate-only draft with a 7/7 deterministic audit;
 the original Ch25 and Production remain byte-identical. The audit identity and
-snapshot correction has passed both independent review axes and the 3,049-test
-full regression but still awaits its own commit/CI and knowledge rebuild.
+snapshot correction is delivered as `b7ff2ed`; CI `29837411315`, the follow-up
+knowledge rebuild, and knowledge doctor all passed.
 Ch25 has not passed literary review or anonymous A/B selection, and Ch26/27 have
 not started. Literary uplift and Gate 1 acceptance therefore remain unclaimed.
 User-positive calibration is still missing and ten human blind pairs at 70% new

@@ -915,6 +915,7 @@ class TestRunCliAgentSubprocess:
                                 "codex exec --json --model {model_id} "
                                 "-c 'model_reasoning_effort=\"xhigh\"' "
                                 "--sandbox read-only --ephemeral --ignore-rules "
+                                "--skip-git-repo-check "
                                 "-C {workspace_path} 'Read {task_packet_path}'"
                             ),
                             "requested_reasoning_label": "extra",
@@ -1694,6 +1695,57 @@ class TestRunCliAgentSubprocess:
         assert receipt["fallback_detected"] is False
         assert receipt["fallback_chain"] == []
 
+    def test_agy_narrative_planner_governs_subscription_model_and_receipt(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile = _agy_observer_fixture(tmp_path)
+        role_profile.update(
+            {
+                "invocation_contract": "agy_narrative_planner",
+                "capacity_selected_route": "NarrativePlannerAgy",
+            }
+        )
+        contracts_path = tmp_path / "config" / "worker_invocation_contracts.yml"
+        contracts = yaml.safe_load(contracts_path.read_text(encoding="utf-8"))
+        contracts["contracts"]["agy_narrative_planner"] = contracts["contracts"].pop(
+            "agy_observer"
+        )
+        contracts_path.write_text(
+            yaml.safe_dump(contracts, sort_keys=False),
+            encoding="utf-8",
+        )
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/agy"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(0, stdout="# Governed narrative plan\n"),
+        ):
+            result = run_cli_agent(plan, "NarrativePlanner", role_profile)
+
+        assert result.status == "completed"
+        preflight = result.raw_usage["agy_oauth_preflight"]
+        assert preflight["governed"] is True
+        assert preflight["status"] == "pass"
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["role"] == "NarrativePlanner"
+        assert receipt["invocation_contract"] == "agy_narrative_planner"
+        assert receipt["provider"] == "agy-gemini-oauth"
+        assert receipt["capacity_route"] == "NarrativePlannerAgy"
+        assert receipt["capacity_pool"] == "agy_gemini_observer"
+        assert receipt["command_binding_verified"] is True
+
     def test_agy_observer_command_model_mismatch_blocks_before_provider_process(
         self,
         tmp_path,
@@ -2124,6 +2176,171 @@ class TestRunCliAgentSubprocess:
             "continuity_failure_report",
             "narrative_quality_scorecard",
         ]
+
+    def test_qwen_literary_ab_stages_strict_schema_and_extracts_anonymous_result(
+        self,
+        tmp_path,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+        from agent_runtime.narrative.quality.live_editor import (
+            LITERARY_EDITOR_DIMENSIONS,
+        )
+
+        plan = _make_plan(tmp_path)
+        plan.route.route_key = "narrative_heavy_audit"
+        plan.route.agents = ["Reviewer"]
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        source = run_dir / "narrative_audit_context.md"
+        source.write_text("anonymous manuscripts A and B\n", encoding="utf-8")
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "contracts": {
+                        "qwen_narrative_literary_ab": {
+                            "worker_id": "qwen",
+                            "model_profile": "qwen3_7_max_dashscope",
+                            "packet_delivery": "stdin",
+                            "structured_output": "narrative_literary_ab",
+                            "environment": {
+                                "api_key_source": "DASHSCOPE_API_KEY",
+                                "api_key_target": "OPENAI_API_KEY",
+                                "base_url_target": "OPENAI_BASE_URL",
+                                "base_url": "https://dashscope.example/v1",
+                            },
+                            "template": (
+                                "qwen --bare --auth-type openai "
+                                "--openai-base-url https://dashscope.example/v1 "
+                                "--model {model_id} --approval-mode default "
+                                "--exclude-tools read_file,write_file,edit,grep_search,glob,"
+                                "run_shell_command,list_directory,agent "
+                                "--max-tool-calls 1 "
+                                "--json-schema @narrative_literary_ab_output.schema.json "
+                                "--output-format stream-json"
+                            ),
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "models": {
+                        "qwen3_7_max_dashscope": {
+                            "provider": "dashscope_cn",
+                            "model_id": "qwen3.7-max",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "qwen",
+            "invocation_contract": "qwen_narrative_literary_ab",
+            "default": "qwen3_7_max_dashscope",
+        }
+        dimensions = {
+            name: {
+                "score": 4,
+                "severity": "pass",
+                "evidence": {
+                    "chapter": 25,
+                    "scene": "archive bargain",
+                    "excerpt_or_locator": "middle decision exchange",
+                },
+                "reason": f"specific {name} evidence",
+                "revision_target": "retain",
+            }
+            for name in LITERARY_EDITOR_DIMENSIONS
+        }
+        structured_result = {
+            "schema_version": 1,
+            "status": "completed",
+            "pair_id": "gate1-ch25-pair",
+            "anonymous_scorecards": {
+                "A": {"status": "pass", "dimensions": dimensions},
+                "B": {"status": "pass", "dimensions": dimensions},
+            },
+            "blind_review": {
+                "preferred_version": "B",
+                "preference_strength": "strong",
+                "reason": "B has clearer causal pressure",
+                "comparative_evidence": ["A locator", "B locator"],
+            },
+        }
+        stdout = "\n".join(
+            json.dumps(event)
+            for event in [
+                {"type": "system", "subtype": "init"},
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "result": structured_result,
+                    "usage": {
+                        "input_tokens": 2000,
+                        "output_tokens": 500,
+                        "total_tokens": 2500,
+                    },
+                },
+            ]
+        )
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            observed["argv"] = list(argv)
+            schema_path = Path(kwargs["cwd"]) / "narrative_literary_ab_output.schema.json"
+            observed["schema"] = json.loads(schema_path.read_text(encoding="utf-8"))
+            return self._mock_proc(0, stdout=stdout, stderr="")
+
+        with patch.dict(
+            "cli_executor.os.environ",
+            {
+                "DASHSCOPE_API_KEY": "private-test-key",
+                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
+            },
+            clear=False,
+        ), patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/qwen"
+        ), patch(
+            "cli_executor.subprocess.run", side_effect=fake_run
+        ):
+            result = run_cli_agent(
+                plan,
+                "Reviewer",
+                role_profile,
+                sealed_messages=[
+                    {"role": "system", "content": "No tools."},
+                    {"role": "user", "content": "Judge anonymous A/B."},
+                ],
+                outbound_source_paths=[source],
+            )
+
+        assert result.status == "completed"
+        argv = observed["argv"]
+        assert argv[argv.index("--model") + 1] == "qwen3.7-max"
+        assert argv[argv.index("--json-schema") + 1] == (
+            "@narrative_literary_ab_output.schema.json"
+        )
+        assert observed["schema"]["properties"]["anonymous_scorecards"][
+            "required"
+        ] == ["A", "B"]
+        assert '"pair_id": "gate1-ch25-pair"' in result.content
+        assert '"anonymous_scorecards"' in result.content
+        assert '"type": "result"' not in result.content
+        assert result.raw_usage["structured_output"] == "narrative_literary_ab"
+        assert result.input_tokens == 2000
+        assert result.output_tokens == 500
 
 
     def test_narrative_heavy_audit_structured_schema_requires_scribe_boundaries(

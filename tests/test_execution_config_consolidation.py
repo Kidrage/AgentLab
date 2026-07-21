@@ -211,18 +211,20 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["observer"]["cli_agent"] == "agy"
     assert tier["observer"]["invocation_contract"] == "agy_observer"
 
-    assert tier["reposcout"]["cli_agent"] == "codex"
-    assert tier["reposcout"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+    assert tier["reposcout"]["cli_agent"] == "claude_code"
+    assert tier["reposcout"]["invocation_contract"] == "claude"
+    assert tier["reposcout"]["default"] == "deepseek_v4_pro"
 
-    assert tier["interface_mapper"]["cli_agent"] == "codex"
-    assert tier["interface_mapper"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+    assert tier["interface_mapper"]["cli_agent"] == "claude_code"
+    assert tier["interface_mapper"]["invocation_contract"] == "claude"
+    assert tier["interface_mapper"]["default"] == "deepseek_v4_pro"
 
     assert tier["researcher"]["cli_agent"] == "grok"
     assert tier["researcher"]["invocation_contract"] == "grok_research"
     assert tier["researcher"]["default"] == "grok_4_3_hermes_oauth"
 
-    assert tier["prompt_engineer"]["cli_agent"] == "claude_code"
-    assert tier["prompt_engineer"]["invocation_contract"] == "claude"
+    assert tier["prompt_engineer"]["cli_agent"] == "hermes"
+    assert tier["prompt_engineer"]["invocation_contract"] == "hermes"
     assert tier["prompt_engineer"]["default"] == "deepseek_v4_flash"
 
     assert tier["coder"]["cli_agent"] == "claude_code"
@@ -233,16 +235,18 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["artifact_producer"]["default"] == "grok_4_3_hermes_oauth"
     assert tier["artifact_producer"]["artifact_backend"] == "hermes_grok_oauth"
 
-    assert tier["narrative_planner"]["cli_agent"] == "claude_code"
-    assert tier["narrative_planner"]["invocation_contract"] == "claude_narrative_planner"
-    assert tier["narrative_planner"]["default"] == "deepseek_v4_pro"
-    assert tier["narrative_planner"]["capacity_route"] == "NarrativePlannerRewrite"
+    assert tier["narrative_planner"]["cli_agent"] == "agy"
+    assert tier["narrative_planner"]["invocation_contract"] == "agy_narrative_planner"
+    assert tier["narrative_planner"]["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert tier["narrative_planner"]["capacity_route"] == "NarrativePlannerAgy"
 
-    assert tier["tester_auditor"]["cli_agent"] == "codex"
-    assert tier["tester_auditor"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+    assert tier["tester_auditor"]["cli_agent"] == "claude_code"
+    assert tier["tester_auditor"]["invocation_contract"] == "claude"
+    assert tier["tester_auditor"]["default"] == "deepseek_v4_pro"
 
-    assert tier["verifier"]["cli_agent"] == "codex"
-    assert tier["verifier"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+    assert tier["verifier"]["cli_agent"] == "claude_code"
+    assert tier["verifier"]["invocation_contract"] == "claude"
+    assert tier["verifier"]["default"] == "deepseek_v4_flash"
 
     assert tier["archivist"]["cli_agent"] == "claude_code"
     assert tier["archivist"]["default"] == "deepseek_v4_pro"
@@ -262,11 +266,13 @@ def test_full_cli_full_tier_matches_operator_matrix() -> None:
     assert tier["supervisor"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
     assert tier["observer"]["invocation_contract"] == "agy_observer"
 
-    assert tier["reposcout"]["cli_agent"] == "codex"
-    assert tier["reposcout"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+    assert tier["reposcout"]["cli_agent"] == "claude_code"
+    assert tier["reposcout"]["invocation_contract"] == "claude"
+    assert tier["reposcout"]["default"] == "deepseek_v4_pro"
 
-    assert tier["interface_mapper"]["cli_agent"] == "codex"
-    assert tier["interface_mapper"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+    assert tier["interface_mapper"]["cli_agent"] == "claude_code"
+    assert tier["interface_mapper"]["invocation_contract"] == "claude"
+    assert tier["interface_mapper"]["default"] == "deepseek_v4_pro"
 
     assert tier["researcher"]["cli_agent"] == "grok"
     assert tier["researcher"]["invocation_contract"] == "grok_research"
@@ -322,9 +328,49 @@ def test_narrative_planner_capacity_route_has_no_fallback() -> None:
     }
 
 
-def test_narrative_planner_is_fixed_to_pro_in_every_full_cli_tier() -> None:
+def test_performance_narrative_planner_uses_agy_subscription_route() -> None:
+    profiles = _load_config("agent_model_profiles.yml")["modes"]["full_cli"]["tiers"]
+    contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
+    capacity = _load_config("model_capacity.yml")
+    bindings = _load_config("agent_role_bindings.yml")
+    catalog = _load_config("model_catalog.yml")["models"]
+
+    performance = profiles["performance"]["narrative_planner"]
+    assert performance == {
+        "executor_type": "cli_agent",
+        "cli_agent": "agy",
+        "invocation_contract": "agy_narrative_planner",
+        "default": "gemini_3_5_flash_high_agy_oauth",
+        "capacity_route": "NarrativePlannerAgy",
+    }
+    assert profiles["full"]["narrative_planner"]["default"] == "deepseek_v4_pro"
+    assert profiles["full"]["narrative_planner"]["cli_agent"] == "claude_code"
+    assert _cost_source(catalog[performance["default"]], {}) == "oauth/subscription quota"
+
+    route = capacity["routes"]["NarrativePlannerAgy"]
+    assert route == {
+        "role": "narrative_planner",
+        "worker": "agy",
+        "invocation_contract": "agy_narrative_planner",
+        "model_key": "gemini_3_5_flash_high_agy_oauth",
+        "pool": "agy_gemini_observer",
+        "approved_fallbacks": [],
+        "fallback_on": [],
+    }
+    contract = contracts["agy_narrative_planner"]
+    assert contract["worker_id"] == "agy"
+    assert '--model "{model_id}"' in contract["template"]
+    assert "NarrativePlanner" in contract["template"]
+    assert "raw YAML" in contract["template"]
+    assert "chapter_state_plan.yml" in contract["template"]
+    assert "chapter_state_plan.yml" in contract["required_receipts"]
+    assert "agy" in bindings["roles"]["NarrativePlanner"]["allowed_workers"]
+    assert "NarrativePlanner" in bindings["workers"]["agy"]["allowed_roles"]
+
+
+def test_narrative_planner_keeps_pro_for_full_and_existing_low_tiers() -> None:
     tiers = _load_config("agent_model_profiles.yml")["modes"]["full_cli"]["tiers"]
-    for tier_name in ("full", "performance", "low"):
+    for tier_name in ("full", "low"):
         planner = tiers[tier_name]["narrative_planner"]
         assert planner["executor_type"] == "cli_agent"
         assert planner["cli_agent"] == "claude_code"
@@ -530,34 +576,6 @@ def test_codex_supervisor_uses_native_gpt_56_sol_at_xhigh_effort() -> None:
         assert route["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
 
 
-def test_full_cli_codex_workers_only_use_codex_cli_models() -> None:
-    profiles = _load_config("agent_model_profiles.yml")
-    catalog = _load_config("model_catalog.yml")["models"]
-    providers = _load_config("model_providers.yml")["providers"]
-
-    for tier_name, tier in profiles["modes"]["full_cli"]["tiers"].items():
-        for role_name, route in tier.items():
-            if not isinstance(route, dict) or route.get("cli_agent") != "codex":
-                continue
-            model = catalog[route["default"]]
-            provider = providers[model["runtime_provider"]]
-            assert provider["command"] == "codex", f"{tier_name}/{role_name}"
-
-
-def test_full_cli_deepseek_models_only_use_claude_shell() -> None:
-    profiles = _load_config("agent_model_profiles.yml")
-    catalog = _load_config("model_catalog.yml")["models"]
-
-    for tier_name, tier in profiles["modes"]["full_cli"]["tiers"].items():
-        for role_name, route in tier.items():
-            if not isinstance(route, dict):
-                continue
-            model = catalog[route["default"]]
-            if model["provider"] != "deepseek_official":
-                continue
-            assert route["cli_agent"] == "claude_code", f"{tier_name}/{role_name}"
-
-
 def test_qwen_role_contract_uses_explicit_dashscope_auth() -> None:
     contract = _load_config("worker_invocation_contracts.yml")["contracts"]["qwen"]
 
@@ -594,6 +612,35 @@ def test_narrative_route_does_not_override_model_matrix_contract() -> None:
         "template"
     ]
     assert "{task_packet_path}" not in contract["template"]
+    assert contract["fallback"] == {"on_binary_missing": "stop_and_report"}
+
+
+def test_gate1_narrative_editor_is_sealed_qwen_max_with_no_fallback() -> None:
+    contract = _load_config("worker_invocation_contracts.yml")["contracts"][
+        "qwen_narrative_literary_ab"
+    ]
+    route = _load_config("model_capacity.yml")["routes"]["NarrativeEditor"]
+
+    assert route == {
+        "role": "reviewer",
+        "worker": "qwen",
+        "invocation_contract": "qwen_narrative_literary_ab",
+        "model_key": "qwen3_7_max_dashscope",
+        "pool": "dashscope_metered_api",
+        "approved_fallbacks": [],
+        "fallback_on": [],
+    }
+    assert contract["worker_id"] == "qwen"
+    assert contract["model_profile"] == "qwen3_7_max_dashscope"
+    assert contract["packet_delivery"] == "stdin"
+    assert contract["structured_output"] == "narrative_literary_ab"
+    assert "--json-schema @narrative_literary_ab_output.schema.json" in contract[
+        "template"
+    ]
+    excluded = set(
+        contract["template"].split("--exclude-tools ", 1)[1].split()[0].split(",")
+    )
+    assert {"read_file", "grep_search", "glob", "run_shell_command", "agent"} <= excluded
     assert contract["fallback"] == {"on_binary_missing": "stop_and_report"}
 
 

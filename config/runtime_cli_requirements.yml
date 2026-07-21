@@ -31,7 +31,7 @@ components:
     version_probe: claude --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker claude
     live_smoke: claude --model deepseek-v4-pro --effort max --max-budget-usd 0.01 --permission-mode plan --output-format json --tools "" -p "Return AGENTLAB_CLAUDE_WRITER_SMOKE_OK only."
-    notes: Pure Writer and NarrativePlanner use explicit DeepSeek models, native JSON usage, sealed packets, and hard CLI budgets. NarrativePlanner is fixed to deepseek-v4-pro for blocking rewrite planning and has no provider/model fallback. Ultracode remains a separate opt-in developmental contract, never final prose.
+    notes: Claude owns the default RepoScout, InterfaceMapper, TesterAuditor, and Verifier DeepSeek routes plus Writer and the full-tier DeepSeek NarrativePlanner. The default performance NarrativePlanner is a separate Agy subscription route. Writer/planner specialized contracts retain native JSON usage, sealed packets, and hard CLI budgets; Ultracode remains opt-in and never final prose.
   codex:
     kind: agent_cli
     release_requirement: required
@@ -44,7 +44,7 @@ components:
     live_smoke: codex exec --json --model gpt-5.6-sol -c 'model_reasoning_effort="xhigh"' "Return AGENTLAB_CODEX_SMOKE_OK only."
     capacity_source: config/model_capacity.yml
     capacity_probe: codex --version
-    notes: Native Supervisor and code-analysis worker. Default full_cli Codex roles use the explicit gpt-5.6-sol/xhigh Codex CLI model key and never borrow a DeepSeek or Hermes provider identity.
+    notes: Native default Supervisor and optional code-analysis worker. The Supervisor alone is explicitly bound here to gpt-5.6-sol/xhigh; do not generalize that binding to every Codex role or tier.
   qwen:
     kind: agent_cli
     release_requirement: required
@@ -69,7 +69,7 @@ components:
     capacity_source: config/model_capacity.yml
     capacity_probe: agy models
     quota_visibility: failure_observation_only
-    notes: Multimodal Observer and the isolated visual Reviewer use Gemini with a separately tracked Claude fallback pool when modality-compatible. Agy has no quota/status command, so remaining/reset stay unknown until provider error evidence; never use GEMINI_API_KEY.
+    notes: Multimodal Observer, isolated visual Reviewer, and the default performance NarrativePlanner use Gemini through the shared Agy subscription pool. The full-tier NarrativePlanner remains Claude/DeepSeek V4 Pro. Agy has no quota/status command, so remaining/reset stay unknown until provider error evidence; never use GEMINI_API_KEY.
   grok:
     kind: agent_cli_backend
     release_requirement: required_for_social_research_optional_for_media

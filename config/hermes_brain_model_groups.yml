@@ -12,6 +12,7 @@ default_recommendation:
   rationale:
     - Native Codex CLI with GPT-5.6 Sol xhigh is the default registered Supervisor route.
     - Claude shell with DeepSeek owns bounded Chinese Writer work.
+    - Default performance NarrativePlanner uses Agy Gemini subscription capacity; full tier retains Claude/DeepSeek V4 Pro.
     - Agy observes multimodal evidence; it does not write final prose or claim image generation.
     - Grok/xAI owns sourced social/web research and registered image/video tool orchestration.
 
@@ -75,6 +76,8 @@ brain_layouts:
       observer_fallback: claude_sonnet_4_6_agy_oauth
       social_web_research: grok_4_3_hermes_oauth
       artifact_producer: grok_4_3_hermes_oauth
+      performance_narrative_planner: gemini_3_5_flash_high_agy_oauth
+      full_narrative_planner: deepseek_v4_pro
       independent_verifier: deepseek_v4_flash
     execution_rule: >
       Native Codex CLI with GPT-5.6 Sol keeps Supervisor plan ownership and routes
@@ -88,8 +91,9 @@ brain_layouts:
       - claude_sonnet_4_6_agy_oauth
       - qwen3_6_plus_dashscope
     collaboration_mode: >
-      Agy models stay inside Observer or VisualReviewer role sessions and emit
-      evidence reports. Qwen Plus may support explicitly assigned text roles;
+      Agy models stay inside Observer, VisualReviewer, or performance
+      NarrativePlanner role sessions and emit evidence or planning reports.
+      Qwen Plus may support explicitly assigned text roles;
       this layout does not imply an automatic worker or provider fallback.
   pure_api_lowest_tier:
     name: deepseek_qwen_text_only

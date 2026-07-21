@@ -400,6 +400,8 @@ def test_recommended_brain_topology_and_model_facts_match_current_roles():
         "observer_fallback": "claude_sonnet_4_6_agy_oauth",
         "social_web_research": "grok_4_3_hermes_oauth",
         "artifact_producer": "grok_4_3_hermes_oauth",
+        "performance_narrative_planner": "gemini_3_5_flash_high_agy_oauth",
+        "full_narrative_planner": "deepseek_v4_pro",
         "independent_verifier": "deepseek_v4_flash",
     }
 

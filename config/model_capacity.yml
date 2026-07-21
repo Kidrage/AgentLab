@@ -290,6 +290,24 @@ routes:
     fallback_on: []
     activation_policy: blocking_narrative_rewrite_only
 
+  NarrativePlannerAgy:
+    role: narrative_planner
+    worker: agy
+    invocation_contract: agy_narrative_planner
+    model_key: gemini_3_5_flash_high_agy_oauth
+    pool: agy_gemini_observer
+    approved_fallbacks: []
+    fallback_on: []
+
+  NarrativeEditor:
+    role: reviewer
+    worker: qwen
+    invocation_contract: qwen_narrative_literary_ab
+    model_key: qwen3_7_max_dashscope
+    pool: dashscope_metered_api
+    approved_fallbacks: []
+    fallback_on: []
+
   Writer:
     role: writer
     worker: claude_code

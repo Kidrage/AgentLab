@@ -101,7 +101,7 @@ models:
     capacity_pool: agy_gemini_observer
     strengths: [oauth_cli, fast, high_throughput, long_context, multimodal_understanding, scientific_analysis, subscription_quota]
     weaknesses: [requires_regional_network_access, cli_session_required, text_output_only, no_image_generation]
-    suitable_agents: [observer, visual_reviewer, frontdesk_gateway]
+    suitable_agents: [observer, visual_reviewer, narrative_planner, frontdesk_gateway]
     capabilities:
       input_modalities: [text, image, video, audio, pdf]
       output_modalities: [text]
@@ -111,9 +111,11 @@ models:
       currency: subscription_or_oauth_quota
       billing_source: agy_oauth
     notes: >
-      Agy/Antigravity Observer 默认模型。Agy 接的是 Gemini 模型，走本地 OAuth
+      Agy/Antigravity Observer 和默认 performance NarrativePlanner 模型。Agy 接的是 Gemini 模型，走本地 OAuth
       会话和地区网络条件，不使用 GEMINI_API_KEY，也不按本地 Gemini API
-      key 计费。它理解多模态材料但只输出文本，不能被登记为真实图片生成器。
+      key 计费。NarrativePlanner 与 Observer 共享同一订阅额度池和未知重置窗口；
+      remaining/reset 没有运行时证据时必须保持 null。它理解多模态材料但只输出文本，
+      不能被登记为真实图片生成器或最终 prose Writer。
     evidence:
       official_model: https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash
       local_cli_models_verified: "2026-07-13"

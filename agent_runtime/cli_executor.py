@@ -1355,10 +1355,10 @@ def _runtime_provider_for_catalog_model(model_entry: dict[str, Any]) -> str:
     catalog_provider = str(model_entry.get("provider", ""))
     model_id = str(model_entry.get("model_id", ""))
 
-    if model_entry.get("cli_provider"):
-        return str(model_entry["cli_provider"])
     if model_entry.get("runtime_provider"):
         return str(model_entry["runtime_provider"])
+    if model_entry.get("cli_provider"):
+        return str(model_entry["cli_provider"])
     if catalog_provider == "deepseek_official":
         return "deepseek"
     if catalog_provider in {"dashscope_cn", "dashscope_intl"}:
@@ -1469,7 +1469,12 @@ def _contract_process_environment(
     environment = contract.get("environment") or {}
     if (
         str(role_profile.get("invocation_contract") or "").strip()
-        in {"qwen", "qwen_artifact", "qwen_narrative_audit"}
+        in {
+            "qwen",
+            "qwen_artifact",
+            "qwen_narrative_audit",
+            "qwen_narrative_literary_ab",
+        }
         and isinstance(environment, dict)
     ):
         source_name = str(environment.get("api_key_source") or "")
@@ -1520,7 +1525,11 @@ def _agy_oauth_preflight(
         return {"applicable": False, "status": "not_applicable", "issues": []}
 
     contract_name = str(role_profile.get("invocation_contract") or "").strip()
-    governed = contract_name in {"agy_observer", "agy_visual_reviewer"}
+    governed = contract_name in {
+        "agy_observer",
+        "agy_visual_reviewer",
+        "agy_narrative_planner",
+    }
     requested_model_key = str(model_values.get("model_key") or "")
     requested_cli_model_id = str(model_values.get("model_id") or "")
     requested_model_id = str(model_values.get("catalog_model_id") or "")
@@ -2636,14 +2645,15 @@ def _hermes_supervisor_preflight(
             "read-only",
             "--ephemeral",
             "--ignore-rules",
+            "--skip-git-repo-check",
             "-C",
         ]
         command_bound = (
-            len(argv) == 14
+            len(argv) == 15
             and Path(argv[0]).name == "codex"
-            and argv[1:12] == expected_prefix
-            and bool(str(argv[12]).strip())
+            and argv[1:13] == expected_prefix
             and bool(str(argv[13]).strip())
+            and bool(str(argv[14]).strip())
         )
         if not command_bound:
             issues.append("supervisor_command_binding_mismatch")
@@ -3873,6 +3883,23 @@ def run_cli_agent(
                     ),
                     encoding="utf-8",
                 )
+            elif (
+                resolved_invocation_contract.get("structured_output")
+                == "narrative_literary_ab"
+            ):
+                from agent_runtime.narrative.quality.live_editor import (
+                    build_literary_ab_output_schema,
+                )
+
+                (
+                    execution_cwd / "narrative_literary_ab_output.schema.json"
+                ).write_text(
+                    json.dumps(
+                        build_literary_ab_output_schema(),
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
             if agent_name == "ArtifactProducer" and validated_artifact_inputs:
                 try:
                     from agent_runtime.protocols.artifact_task import (
@@ -4906,6 +4933,22 @@ def run_cli_agent(
             )
             or body
         )
+    elif (
+        resolved_invocation_contract.get("structured_output")
+        == "narrative_literary_ab"
+    ):
+        from agent_runtime.narrative.quality.live_editor import (
+            find_literary_ab_payload_in_output,
+        )
+
+        literary_payload = find_literary_ab_payload_in_output(proc.stdout or "")
+        if literary_payload is not None:
+            body = json.dumps(
+                literary_payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+            )
     body = body if body else "(no stdout output)"
     stderr_section = (
         f"\n\n## stderr\n\n```\n{stderr_text}\n```" if stderr_text else ""

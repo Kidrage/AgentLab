@@ -13,6 +13,7 @@ modes:
     role_preferences:
       Supervisor: [codex, claude_code, hermes]
       PromptEngineer: [claude_code, hermes]
+      NarrativePlanner: [agy, claude_code]
       Coder: [claude_code, codex, aider]
       ArtifactProducer: [grok, codex, qwen]
   hybrid_local_company:
@@ -33,6 +34,7 @@ modes:
   max_quality_swarm:
     role_preferences:
       Supervisor: [codex, claude_code, hermes, qwen, gemini]
+      NarrativePlanner: [claude_code, agy]
       Coder: [claude_code, aider]
       ArtifactProducer: [grok, codex, qwen]
   frontdesk_gateway:

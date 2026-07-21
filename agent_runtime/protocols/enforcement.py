@@ -641,14 +641,15 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
     agy_info = ((shared_directory.get("agents") or {}).get("agy") or {})
     checks.extend([
         _check(
-            agy_info.get("class") == "frontdesk_and_multimodal_perception_cli",
-            "agy_registered_as_observer",
-            "agy is registered as the frontdesk-capable multimodal Observer",
+            agy_info.get("class") == "frontdesk_perception_and_planning_cli",
+            "agy_registered_for_perception_and_planning",
+            "agy is registered for frontdesk, multimodal perception, and bounded planning",
         ),
         _check(
-            agy_info.get("may_execute_agentlab_roles_directly") == ["Observer", "Reviewer"],
-            "agy_role_scope_is_perception_only",
-            "agy direct role scope is limited to Observer and Reviewer",
+            agy_info.get("may_execute_agentlab_roles_directly")
+            == ["Observer", "Reviewer", "NarrativePlanner"],
+            "agy_role_scope_is_bounded",
+            "agy direct role scope is limited to Observer, Reviewer, and NarrativePlanner",
         ),
     ])
 

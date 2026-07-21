@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
 
 
-def test_workspace_entry_binds_agy_as_frontdesk_not_worker():
+def test_workspace_entry_binds_agy_as_frontdesk_and_bounded_worker():
     packet = build_workspace_entry(ROOT, "agy", project="AgentLab")
 
     assert packet["packet_type"] == "agentlab_workspace_entry"
@@ -34,6 +34,7 @@ def test_workspace_entry_binds_agy_as_frontdesk_not_worker():
     assert packet["allowed_profiles"]["allowed_roles"] == [
         "Observer",
         "Reviewer",
+        "NarrativePlanner",
     ]
     assert "rediscover_agentlab_by_full_repo_scan" in packet["forbidden_actions"]
     assert packet["known_projects"] == ["Crown_of_Ash", "NovelGen"]

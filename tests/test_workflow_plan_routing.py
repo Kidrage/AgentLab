@@ -256,8 +256,8 @@ def test_workflow_plan_routes_blocking_rewrite_to_narrative_planner(
     planner = plan.included_agents["NarrativePlanner"]
     assert planner["required_outputs"] == ["runs/task_xxxx/chapter_state_plan.yml"]
     planner_execution = plan.model_profiles["NarrativePlanner"]
-    assert planner_execution["cli_agent"] == "claude_code"
-    assert planner_execution["invocation_contract"] == "claude_narrative_planner"
+    assert planner_execution["cli_agent"] == "agy"
+    assert planner_execution["invocation_contract"] == "agy_narrative_planner"
     assert {
         "narrative_rewrite_contract.yml",
         "chapter_state_plan.yml",

@@ -44,7 +44,7 @@ roles:
     allowed_workers: [grok, codex, qwen]
     required_session: true
   NarrativePlanner:
-    allowed_workers: [claude_code]
+    allowed_workers: [claude_code, agy]
     required_session: true
   Writer:
     allowed_workers: [claude_code]
@@ -70,8 +70,8 @@ workers:
     worker_capable: true
     worker_capabilities: [frontdesk_gateway, role_worker, workflow_shell]
     frontdesk_profiles: [local_chat_gateway]
-    allowed_roles: [Observer, Reviewer]
-    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, NarrativePlanner, Writer, Scribe, TesterAuditor, Verifier, Archivist]
+    allowed_roles: [Observer, Reviewer, NarrativePlanner]
+    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, Writer, Scribe, TesterAuditor, Verifier, Archivist]
   grok:
     frontdesk_capable: false
     worker_capable: true

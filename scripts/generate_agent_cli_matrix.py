@@ -120,9 +120,7 @@ def _artifact_dispatch_summary(
 def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     config = root / "config"
     profiles = _read_yaml(config / "agent_model_profiles.yml")
-    catalog_config = _read_yaml(config / "model_catalog.yml")
-    catalog = catalog_config.get("models") or {}
-    catalog_providers = catalog_config.get("providers") or {}
+    catalog = (_read_yaml(config / "model_catalog.yml").get("models") or {})
     capacity = _read_yaml(config / "model_capacity.yml")
     capacity_routes = capacity.get("routes") or {}
     capacity_pools = capacity.get("pools") or {}
@@ -136,6 +134,22 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
 
     errors: list[str] = []
     matrix_rows: list[dict[str, str]] = []
+    required_performance_routes = {
+        "supervisor": (
+            "codex",
+            "codex_supervisor",
+            "codex_gpt_5_6_sol_xhigh_cli_oauth",
+        ),
+        "reposcout": ("claude_code", "claude", "deepseek_v4_pro"),
+        "interface_mapper": ("claude_code", "claude", "deepseek_v4_pro"),
+        "narrative_planner": (
+            "agy",
+            "agy_narrative_planner",
+            "gemini_3_5_flash_high_agy_oauth",
+        ),
+        "tester_auditor": ("claude_code", "claude", "deepseek_v4_pro"),
+        "verifier": ("claude_code", "claude", "deepseek_v4_flash"),
+    }
     full_cli = (((profiles.get("modes") or {}).get("full_cli") or {}).get("tiers") or {})
     for tier, tier_config in full_cli.items():
         for role_key, role_config in (tier_config or {}).items():
@@ -192,27 +206,16 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
 
             if model_key and model_key not in catalog:
                 errors.append(f"full_cli.{tier}.{role_key}: unknown model {model_key!r}")
-            provider_key = str(model.get("provider") or "")
-            provider_command = str(
-                ((catalog_providers.get(provider_key) or {}).get("command") or "")
+            expected_route = (
+                required_performance_routes.get(str(role_key))
+                if str(tier) == "performance"
+                else None
             )
-            contract_command = str(
-                ((contracts.get(contract_id) or {}).get("command") or "")
-            )
-            incompatible_cli_surface = (
-                cli_agent == "codex" and provider_command != "codex"
-            ) or (
-                provider_key == "deepseek_official" and cli_agent != "claude_code"
-            ) or (
-                bool(provider_command)
-                and bool(contract_command)
-                and provider_command != contract_command
-            )
-            if incompatible_cli_surface:
+            actual_route = (cli_agent, contract_id, model_key)
+            if expected_route is not None and actual_route != expected_route:
                 errors.append(
-                    f"full_cli.{tier}.{role_key}: model provider {provider_key!r} "
-                    f"uses CLI {provider_command or 'none'!r}, not contract command "
-                    f"{contract_command or 'none'!r}"
+                    f"full_cli.performance.{role_key}: required default route "
+                    f"{expected_route!r}, got {actual_route!r}"
                 )
 
             if binding_role == "ArtifactProducer":

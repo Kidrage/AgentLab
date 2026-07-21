@@ -19,7 +19,6 @@ authority:
   notes:
     - This file is the single runtime source for selecting each AgentLab role backend.
     - CLI command strings are resolved from invocation_contract keys, not duplicated here.
-    - A CLI-owned provider/model may only be assigned to the worker whose command owns that provider surface; Codex worker routes must use Codex CLI model facts, never DeepSeek or Hermes provider identities.
     - Automatic fallback is executable only when a capacity_route delegates to config/model_capacity.yml.
     - Every failure outside a capacity-approved route stops and reports without switching worker, model, or provider.
     - trusted_headless_cli is an explicit safety-gated exception and must never be default.
@@ -54,14 +53,14 @@ modes:
           capacity_route: Observer
         reposcout:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         researcher:
           executor_type: cli_agent
           cli_agent: grok
@@ -144,14 +143,14 @@ modes:
           capacity_route: Observer
         reposcout:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         interface_mapper:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         researcher:
           executor_type: cli_agent
           cli_agent: grok
@@ -160,8 +159,8 @@ modes:
           capacity_route: Researcher
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude
+          cli_agent: hermes
+          invocation_contract: hermes
           default: deepseek_v4_flash
         coder:
           executor_type: cli_agent
@@ -181,20 +180,20 @@ modes:
           capacity_route: ArtifactProducer
         narrative_planner:
           executor_type: cli_agent
-          cli_agent: claude_code
-          invocation_contract: claude_narrative_planner
-          default: deepseek_v4_pro
-          capacity_route: NarrativePlannerRewrite
+          cli_agent: agy
+          invocation_contract: agy_narrative_planner
+          default: gemini_3_5_flash_high_agy_oauth
+          capacity_route: NarrativePlannerAgy
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_pro
         verifier:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_flash
         archivist:
           executor_type: cli_agent
           cli_agent: claude_code
@@ -239,7 +238,7 @@ modes:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          default: qwen3_6_flash_dashscope
         interface_mapper: skip
         researcher:
           executor_type: cli_agent
@@ -276,14 +275,14 @@ modes:
           capacity_route: NarrativePlannerRewrite
         tester_auditor:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_flash
         verifier:
           executor_type: cli_agent
-          cli_agent: codex
-          invocation_contract: codex
-          default: codex_gpt_5_6_sol_xhigh_cli_oauth
+          cli_agent: claude_code
+          invocation_contract: claude
+          default: deepseek_v4_flash
         archivist:
           executor_type: cli_agent
           cli_agent: claude_code

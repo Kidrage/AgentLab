@@ -488,6 +488,7 @@ shells:
     allowed_roles:
       - Observer
       - Reviewer
+      - NarrativePlanner
     forbidden_as:
       - production_promotion_gate
       - project_memory_source
@@ -497,8 +498,10 @@ shells:
       - model_execution_receipt_observer_<route>_<attempt>.yml
       - model_execution_chain_reviewer.yml
       - model_execution_receipt_reviewer_<route>_<attempt>.yml
+      - model_execution_chain_narrativeplanner.yml
       - observation_report.yml
       - visual_review_report.yml
+      - chapter_state_plan.yml
     common_capabilities:
       - one_shot_role_execution
       - session_and_checkpoint_reuse
@@ -506,12 +509,12 @@ shells:
       - workspace_context_control
       - permission_and_sandbox_control
     unique_capabilities:
-      - default Gemini OAuth path for read-only multimodal observation and isolated visual review
+      - default Gemini OAuth path for read-only multimodal observation, isolated visual review, and performance-tier narrative planning
       - sandbox flag suited to role-session isolation
       - project/conversation flags for local continuity
     efficiency_gains:
       - avoids rebuilding Gemini OAuth CLI session handling
-      - supports fast evidence-bound Observer/Reviewer execution through existing local auth
+      - supports fast evidence-bound Observer/Reviewer and planning execution through existing local auth
     delivery_contract:
       required_receipts:
         - role_session_receipt.yml
@@ -523,7 +526,7 @@ shells:
         - visual_review_report.yml
       shell_state_counts_as_memory: false
     risk_controls:
-      - Gemini API-key fallback is forbidden for Agy Observer/Reviewer routes
+      - Gemini API-key fallback is forbidden for Agy Observer/Reviewer/NarrativePlanner routes
       - private project context requires role-session acceptance gate
 
   codex:

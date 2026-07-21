@@ -2852,6 +2852,7 @@ def run_agent_model(
     provider_override: str | None = None,
     model_override: str | None = None,
     cli_model_override: str | None = None,
+    capacity_route_override: str | None = None,
     apply_patches: bool = True,
     allow_cli_api_fallback: bool = False,
 ):
@@ -2995,7 +2996,9 @@ def run_agent_model(
             cli_role_profile = overridden_profile
 
         capacity_policy = configs_for_cli.get("model_capacity") or {}
-        primary_capacity_route = str(cli_role_profile.get("capacity_route") or "").strip()
+        primary_capacity_route = str(
+            capacity_route_override or cli_role_profile.get("capacity_route") or ""
+        ).strip()
         capacity_manager = None
         capacity_decision: dict | None = None
         capacity_required_modalities: list[str] = []

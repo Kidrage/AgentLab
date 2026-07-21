@@ -131,7 +131,7 @@ def test_writer_without_explicit_opt_in_keeps_the_pure_writer_contract(
     assert profile["capacity_route"] == "Writer"
 
 
-def test_narrative_planner_resolves_fixed_claude_deepseek_route(
+def test_narrative_planner_resolves_fixed_agy_gemini_route(
     tmp_path: Path,
 ) -> None:
     from agent_runner import _resolve_cli_profile_for_agent
@@ -147,10 +147,10 @@ def test_narrative_planner_resolves_fixed_claude_deepseek_route(
     )
 
     assert role == "narrative_planner"
-    assert profile["cli_agent"] == "claude_code"
-    assert profile["invocation_contract"] == "claude_narrative_planner"
-    assert profile["default"] == "deepseek_v4_pro"
-    assert profile["capacity_route"] == "NarrativePlannerRewrite"
+    assert profile["cli_agent"] == "agy"
+    assert profile["invocation_contract"] == "agy_narrative_planner"
+    assert profile["default"] == "gemini_3_5_flash_high_agy_oauth"
+    assert profile["capacity_route"] == "NarrativePlannerAgy"
 
 
 def test_narrative_planner_missing_contract_blocks_before_provider(
@@ -490,6 +490,8 @@ roles:
     allowed_workers: [grok, codex, qwen]
   NarrativePlanner:
     allowed_workers: [claude_code]
+  Reviewer:
+    allowed_workers: [qwen]
 workers:
   hermes:
     worker_capable: true
@@ -515,6 +517,11 @@ workers:
     worker_capable: true
     worker_capabilities: [artifact_producer]
     allowed_roles: [ArtifactProducer]
+    forbidden_roles: [Supervisor, Coder, Writer, Observer]
+  qwen:
+    worker_capable: true
+    worker_capabilities: [role_worker]
+    allowed_roles: [Reviewer]
     forbidden_roles: [Supervisor, Coder, Writer, Observer]
 """.strip()
         + "\n",
@@ -1982,6 +1989,89 @@ class TestAgentRunnerCliDispatch:
         )
         assert ledger["pools"]["codex_pool"]["failure_class"] == "quota_exhausted"
         assert ledger["pools"]["deepseek_pool"]["status"] == "closed"
+
+    def test_explicit_same_role_capacity_route_runs_qwen_max_narrative_editor(
+        self, tmp_path, monkeypatch
+    ):
+        plan = _make_plan(tmp_path)
+        plan.route.route_key = "narrative_heavy_audit"
+        plan.route.agents = ["Reviewer"]
+        plan.execution_policy = {"external_context_approval_required": True}
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True)
+        capacity_policy = {
+            "ledger": {"filename": "model_capacity_ledger.yml"},
+            "pools": {"dashscope_metered_api": {}},
+            "routes": {
+                "NarrativeEditor": {
+                    "role": "reviewer",
+                    "worker": "qwen",
+                    "invocation_contract": "qwen_narrative_literary_ab",
+                    "model_key": "qwen3_7_max_dashscope",
+                    "pool": "dashscope_metered_api",
+                    "approved_fallbacks": [],
+                    "fallback_on": [],
+                }
+            },
+        }
+        monkeypatch.setattr(
+            "agent_runner.load_agentlab_configs",
+            lambda *_a, **_kw: {
+                "agent_model_profiles": {
+                    "profiles": {
+                        "balanced": {
+                            "reviewer": {
+                                "executor_type": "cli_agent",
+                                "cli_agent": "qwen",
+                                "invocation_contract": "qwen",
+                                "default": "qwen3_6_flash_dashscope",
+                            }
+                        }
+                    }
+                },
+                "model_capacity": capacity_policy,
+                "agent_registry": {"agents": {}},
+            },
+        )
+        monkeypatch.setattr(
+            "operational_uploader.maybe_run_operational_agent",
+            lambda *a, **kw: None,
+        )
+        monkeypatch.setattr(
+            "agent_runner.compose_agent_messages",
+            lambda *a, **kw: [{"role": "user", "content": "anonymous A/B"}],
+        )
+        observed: list[dict] = []
+
+        def fake_cli(_plan, _agent, role_profile, **_kwargs):
+            observed.append(dict(role_profile))
+            return LLMCallResult(
+                provider="agentlab-cli-executor",
+                model="qwen",
+                content="completed",
+                status="completed",
+                raw_usage={"cli_model_id": "qwen3.7-max"},
+            )
+
+        monkeypatch.setattr("agent_runner.run_cli_agent", fake_cli)
+        with patch("agent_runner.generate_text") as direct_api:
+            from agent_runner import run_agent_model
+
+            result = run_agent_model(
+                tmp_path,
+                plan,
+                "Reviewer",
+                run_dir / "reviewer_capture.md",
+                apply_patches=False,
+                capacity_route_override="NarrativeEditor",
+            )
+
+        direct_api.assert_not_called()
+        assert result.status == "completed"
+        assert observed[0]["cli_agent"] == "qwen"
+        assert observed[0]["invocation_contract"] == "qwen_narrative_literary_ab"
+        assert observed[0]["default"] == "qwen3_7_max_dashscope"
+        assert result.raw_usage["capacity_route_id"] == "NarrativeEditor"
 
     def test_capacity_reselecting_attempted_route_marks_chain_exhausted(
         self, tmp_path, monkeypatch

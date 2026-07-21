@@ -359,7 +359,7 @@ contracts:
       - supervisor_plan.md
     template: >-
       codex exec --json --model "{model_id}" -c 'model_reasoning_effort="xhigh"'
-      --sandbox read-only --ephemeral --ignore-rules -C "{workspace_path}"
+      --sandbox read-only --ephemeral --ignore-rules --skip-git-repo-check -C "{workspace_path}"
       "Read the AgentLab Supervisor task packet at {task_packet_path}; own planning,
       decomposition, progress, recovery, and final synthesis only. Do not take over
       producer work or edit repository files. Return only the governed plan."
@@ -526,6 +526,48 @@ contracts:
     fallback:
       on_binary_missing: stop_and_report
 
+  qwen_narrative_literary_ab:
+    worker_id: qwen
+    display_name: Qwen 3.7 Max Sealed Narrative Literary Editor
+    model_profile: qwen3_7_max_dashscope
+    command: qwen
+    invocation_style: sealed_packet_stdin
+    packet_delivery: stdin
+    structured_output: narrative_literary_ab
+    workflow_shell: true
+    coalescing_allowed: false
+    required_receipts:
+      - role_session_receipt.yml
+      - narrative_literary_ab_review_receipt.yml
+    environment:
+      api_key_source: DASHSCOPE_API_KEY
+      api_key_target: OPENAI_API_KEY
+      base_url_target: OPENAI_BASE_URL
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    template: >-
+      qwen --bare --auth-type openai --openai-base-url
+      "https://dashscope.aliyuncs.com/compatible-mode/v1" --model "{model_id}"
+      --approval-mode default --max-session-turns 6 --max-wall-time 9m
+      --exclude-tools
+      edit,write_file,read_file,grep_search,glob,run_shell_command,todo_write,save_memory,agent,skill,exit_plan_mode,enter_plan_mode,web_fetch,list_directory,lsp,ask_user_question,cron_create,cron_list,cron_delete,loop_wakeup,task_stop,task_create,task_update,task_list,team_create,team_delete,send_message,monitor,notebook_edit,tool_search,enter_worktree,exit_worktree,workflow,artifact
+      --max-tool-calls 1 --json-schema
+      @narrative_literary_ab_output.schema.json --output-format stream-json -p "Treat
+      the complete AgentLab sealed role-session packet on stdin as the only task
+      context. Do not call workspace tools and do not infer which anonymous
+      manuscript is newer. Score both A and B on every enforced dimension, cite
+      exact scene locators, then return one A/B/tie preference. Return exactly the
+      enforced structured-output JSON object; never JSON-encode an object or array
+      into a string and never rewrite prose."
+    required_placeholders:
+      - model_id
+    safe_probe: [qwen, --help]
+    expected_parse:
+      argv_prefix: [qwen, --bare]
+    validation:
+      shlex_parse_required: true
+    fallback:
+      on_binary_missing: stop_and_report
+
   qwen_artifact:
     worker_id: qwen
     display_name: Qwen Code Bounded Artifact Producer
@@ -658,6 +700,38 @@ contracts:
     fallback:
       on_binary_missing: stop_and_report
       on_quota_exhausted: capacity_manager
+
+  agy_narrative_planner:
+    worker_id: agy
+    display_name: Agy Gemini Subscription Narrative Planner
+    command: agy
+    invocation_style: governed_narrative_planner_task_packet
+    workflow_shell: true
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    required_receipts:
+      - outbound_context_manifest_narrativeplanner.yml
+      - model_execution_chain_narrativeplanner.yml
+      - model_execution_receipt_narrativeplanner_<route>_<attempt>.yml
+      - chapter_state_plan.yml
+    template: >-
+      agy --sandbox --model "{model_id}" -p "Read the sealed AgentLab
+      NarrativePlanner task packet at {task_packet_path}. Convert its bounded
+      evidence into one coherent candidate chapter state plan. Do not browse,
+      invoke subagents, draft prose, edit production, promote facts, or change
+      project memory. Return raw YAML for chapter_state_plan.yml only; AgentLab
+      owns receipts and validation."
+    required_placeholders:
+      - task_packet_path
+      - model_id
+    safe_probe: [agy, --help]
+    expected_parse:
+      argv_prefix: [agy, --sandbox, --model]
+    validation:
+      shlex_parse_required: true
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_quota_exhausted: stop_and_report
 
   agy_visual_reviewer:
     worker_id: agy

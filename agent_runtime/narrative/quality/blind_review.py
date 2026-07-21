@@ -25,9 +25,9 @@ def select_candidate_after_blind_review(
     ):
         raise ValueError("blind review receipt is incomplete")
     preferred = str(blind_receipt["preferred_version"])
-    if preferred not in blind_mapping:
+    if preferred not in {*blind_mapping, "tie"}:
         raise ValueError("blind review preference is not an anonymous candidate label")
-    preferred_hash = blind_mapping[preferred]
+    preferred_hash = blind_mapping.get(preferred)
     remaining = blind_receipt.get("remaining_blocking") or []
     regressions = blind_receipt.get("new_regressions") or []
     if preferred_hash == revised_sha256 and not remaining and not regressions:

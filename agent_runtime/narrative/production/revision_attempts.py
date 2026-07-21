@@ -236,6 +236,68 @@ def reserve_revision_attempt(
         )
 
 
+def persist_insufficient_revision_uplift(
+    *,
+    root: Path,
+    project: str,
+    source_run_id: str,
+    candidate_set_id: str,
+    automatic_rewrite_number: int,
+) -> Path:
+    """Persist the two-attempt terminal decision after governed literary review."""
+    if automatic_rewrite_number != MAX_AUTOMATIC_REWRITES:
+        raise ValueError("live_revision_automatic_rewrite_not_exhausted")
+    attempt_dir = _attempt_dir(
+        root,
+        project=project,
+        source_run_id=source_run_id,
+    )
+    if not attempt_dir.is_dir() or attempt_dir.is_symlink():
+        raise ValueError("live_revision_attempt_lineage_corrupt")
+    stat = attempt_dir.stat(follow_symlinks=False)
+    identity = (stat.st_dev, stat.st_ino)
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        _locked_run_slot,
+        _read_slot_file,
+    )
+
+    with _locked_run_slot(attempt_dir, identity) as slot:
+        receipts: list[dict[str, Any]] = []
+        for number in range(1, MAX_AUTOMATIC_REWRITES + 1):
+            content = _read_slot_file(slot, f"attempt-{number:02d}.yml")
+            if content is None:
+                raise ValueError("live_revision_attempt_lineage_corrupt")
+            receipt = _mapping(content, "live_revision_attempt_lineage_corrupt")
+            if (
+                not _valid_receipt_shape(receipt, number=number)
+                or receipt.get("project") != project
+                or receipt.get("source_run_id") != source_run_id
+                or receipt.get("candidate_set_id") != candidate_set_id
+            ):
+                raise ValueError("live_revision_attempt_lineage_corrupt")
+            receipts.append(receipt)
+        head_content = _read_slot_file(slot, "fence-head.yml")
+        if head_content is None:
+            raise ValueError("live_revision_attempt_lineage_corrupt")
+        head = _mapping(head_content, "live_revision_attempt_lineage_corrupt")
+        latest_content = _read_slot_file(slot, "attempt-02.yml")
+        if (
+            latest_content is None
+            or head.get("issued_attempt_count") != MAX_AUTOMATIC_REWRITES
+            or head.get("latest_attempt_receipt") != "attempt-02.yml"
+            or head.get("latest_attempt_receipt_sha256")
+            != hashlib.sha256(latest_content.encode("utf-8")).hexdigest()
+            or head.get("latest_fencing_token") != receipts[-1].get("fencing_token")
+        ):
+            raise ValueError("live_revision_attempt_lineage_corrupt")
+        _persist_rewrite_exhaustion(
+            attempt_dir=attempt_dir,
+            slot=slot,
+            latest_receipt=receipts[-1],
+        )
+    return attempt_dir / "decision_required.yml"
+
+
 def _write_fence_head(
     *,
     attempt_dir: Path,

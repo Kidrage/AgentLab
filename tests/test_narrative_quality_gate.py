@@ -14,6 +14,11 @@ from agent_runtime.narrative.quality.blind_review import select_candidate_after_
 from agent_runtime.narrative.quality.uplift import build_revision_uplift_receipt
 from agent_runtime.narrative.quality.calibration import evaluate_calibration_gate
 from agent_runtime.narrative.quality.workflow import run_local_revision_closure
+from agent_runtime.narrative.quality.live_editor import (
+    LITERARY_EDITOR_DIMENSIONS,
+    build_literary_ab_output_schema,
+    finalize_literary_ab_review,
+)
 from agent_runtime.background_job_worker import execute_action
 
 
@@ -58,6 +63,64 @@ def _quality_scorecard(
         "status": "blocked" if blocking_dimension else "pass",
         "candidate_sha256": HASH,
         "dimensions": dimensions,
+    }
+
+
+def _anonymous_editor_scorecard(
+    *,
+    chapter_id: int = 25,
+    score_overrides: dict[str, int] | None = None,
+) -> dict:
+    overrides = score_overrides or {}
+    dimensions = {}
+    for name in LITERARY_EDITOR_DIMENSIONS:
+        score = overrides.get(name, 4)
+        dimensions[name] = {
+            "score": score,
+            "severity": "blocking" if score <= 2 else "warn" if score == 3 else "pass",
+            "evidence": {
+                "chapter": chapter_id,
+                "scene": "the archive bargain",
+                "excerpt_or_locator": "middle scene, decision exchange",
+            },
+            "reason": f"specific {name} evidence",
+            "revision_target": "retain" if score >= 4 else f"repair {name}",
+        }
+    return {
+        "status": (
+            "blocked"
+            if any(item["score"] <= 2 for item in dimensions.values())
+            else "warn"
+            if any(item["score"] == 3 for item in dimensions.values())
+            else "pass"
+        ),
+        "dimensions": dimensions,
+    }
+
+
+def _literary_ab_payload(
+    *,
+    preferred_version: str = "B",
+    scorecards: dict[str, dict] | None = None,
+) -> dict:
+    return {
+        "schema_version": 1,
+        "status": "completed",
+        "pair_id": "gate1-ch25-pair",
+        "anonymous_scorecards": scorecards
+        or {
+            "A": _anonymous_editor_scorecard(),
+            "B": _anonymous_editor_scorecard(),
+        },
+        "blind_review": {
+            "preferred_version": preferred_version,
+            "preference_strength": "strong",
+            "reason": "B makes the bargain causal without flattening either character",
+            "comparative_evidence": [
+                "A delays the decision until after the consequence",
+                "B makes the cost visible before consent",
+            ],
+        },
     }
 
 
@@ -451,6 +514,159 @@ def test_blind_winner_with_new_blocking_regression_cannot_replace_original() -> 
     assert result["replace_current_candidate"] is False
     assert result["selected_sha256"] == "original-sha"
     assert result["reason"] == "revision_introduced_or_retained_blocking"
+
+
+def test_literary_ab_schema_requires_both_anonymous_thirteen_dimension_scorecards() -> None:
+    schema = build_literary_ab_output_schema()
+
+    assert schema["required"] == [
+        "schema_version",
+        "status",
+        "pair_id",
+        "anonymous_scorecards",
+        "blind_review",
+    ]
+    scorecards = schema["properties"]["anonymous_scorecards"]
+    assert scorecards["required"] == ["A", "B"]
+    dimensions = scorecards["properties"]["A"]["properties"]["dimensions"]
+    assert dimensions["required"] == list(LITERARY_EDITOR_DIMENSIONS)
+    assert len(LITERARY_EDITOR_DIMENSIONS) == 13
+
+
+def test_literary_ab_accepts_only_clean_anonymous_revision_win() -> None:
+    result = finalize_literary_ab_review(
+        _literary_ab_payload(preferred_version="B"),
+        chapter_id=25,
+        expected_pair_id="gate1-ch25-pair",
+        blind_mapping={"A": "original-sha", "B": "revised-sha"},
+        original_sha256="original-sha",
+        revised_sha256="revised-sha",
+        automatic_rewrite_number=2,
+        judge_receipt={
+            "judge_id": "Reviewer",
+            "provider": "agentlab-cli-executor",
+            "model": "qwen3.7-max",
+            "context_id": "gate1-ch25-editor",
+        },
+        production_digest_before="production-sha",
+        production_digest_after="production-sha",
+    )
+
+    assert result["status"] == "accepted_revision"
+    assert result["replace_current_candidate"] is True
+    assert result["selected_sha256"] == "revised-sha"
+    assert result["candidate_only"] is True
+    assert result["production_modified"] is False
+    assert result["judge_receipt"]["model"] == "qwen3.7-max"
+    assert result["original_scorecard"]["candidate_sha256"] == "original-sha"
+    assert result["revised_scorecard"]["candidate_sha256"] == "revised-sha"
+    assert "blind_mapping" not in result
+    assert len(result["blind_mapping_sha256"]) == 64
+
+
+def test_literary_ab_tie_after_second_attempt_requires_user_decision() -> None:
+    result = finalize_literary_ab_review(
+        _literary_ab_payload(preferred_version="tie"),
+        chapter_id=25,
+        expected_pair_id="gate1-ch25-pair",
+        blind_mapping={"A": "revised-sha", "B": "original-sha"},
+        original_sha256="original-sha",
+        revised_sha256="revised-sha",
+        automatic_rewrite_number=2,
+        judge_receipt={
+            "judge_id": "Reviewer",
+            "provider": "agentlab-cli-executor",
+            "model": "qwen3.7-max",
+            "context_id": "gate1-ch25-editor",
+        },
+        production_digest_before="production-sha",
+        production_digest_after="production-sha",
+    )
+
+    assert result["status"] == "decision_required"
+    assert result["replace_current_candidate"] is False
+    assert result["selected_sha256"] == "original-sha"
+    assert result["reason"] == "insufficient_revision_uplift"
+    assert result["automatic_rewrite_exhausted"] is True
+
+
+def test_literary_ab_preferred_revision_with_new_blocking_is_not_accepted() -> None:
+    scorecards = {
+        "A": _anonymous_editor_scorecard(),
+        "B": _anonymous_editor_scorecard(
+            score_overrides={"strategic_competence": 2}
+        ),
+    }
+    result = finalize_literary_ab_review(
+        _literary_ab_payload(preferred_version="B", scorecards=scorecards),
+        chapter_id=25,
+        expected_pair_id="gate1-ch25-pair",
+        blind_mapping={"A": "original-sha", "B": "revised-sha"},
+        original_sha256="original-sha",
+        revised_sha256="revised-sha",
+        automatic_rewrite_number=2,
+        judge_receipt={
+            "judge_id": "Reviewer",
+            "provider": "agentlab-cli-executor",
+            "model": "qwen3.7-max",
+            "context_id": "gate1-ch25-editor",
+        },
+        production_digest_before="production-sha",
+        production_digest_after="production-sha",
+    )
+
+    assert result["status"] == "decision_required"
+    assert result["replace_current_candidate"] is False
+    assert result["remaining_blocking"] == ["strategic_competence"]
+    assert result["new_regressions"] == ["strategic_competence"]
+
+
+@pytest.mark.parametrize(
+    ("mutation", "issue"),
+    [
+        (
+            lambda payload: payload["anonymous_scorecards"].pop("A"),
+            "anonymous_scorecards_must_be_exactly_A_B",
+        ),
+        (
+            lambda payload: payload["anonymous_scorecards"]["A"]["dimensions"][
+                "causal_reasoning"
+            ].__setitem__("score", True),
+            "invalid_score:A:causal_reasoning",
+        ),
+        (
+            lambda payload: payload["blind_review"].__setitem__(
+                "preferred_version", "revised"
+            ),
+            "invalid_blind_preference",
+        ),
+    ],
+)
+def test_literary_ab_payload_fails_closed_on_incomplete_or_identity_leaking_output(
+    mutation,
+    issue: str,
+) -> None:
+    payload = _literary_ab_payload()
+    mutation(payload)
+
+    with pytest.raises(ValueError, match=issue):
+        finalize_literary_ab_review(
+            payload,
+            chapter_id=25,
+            expected_pair_id="gate1-ch25-pair",
+            blind_mapping={"A": "original-sha", "B": "revised-sha"},
+            original_sha256="original-sha",
+            revised_sha256="revised-sha",
+            automatic_rewrite_number=2,
+            judge_receipt={
+                "judge_id": "Reviewer",
+                "provider": "agentlab-cli-executor",
+                "model": "qwen3.7-max",
+                "context_id": "gate1-ch25-editor",
+            },
+            production_digest_before="production-sha",
+            production_digest_after="production-sha",
+        )
 
 
 def test_revision_uplift_receipt_records_dimension_delta_and_accepted_cost() -> None:

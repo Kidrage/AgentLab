@@ -51,10 +51,12 @@ treat them as source authority.
 Never infer a role, model, provider, fallback, or command from a CLI name or an
 old report. Configuration wins.
 
-CLI-owned model surfaces must also agree with the selected worker: a Codex
-worker uses a Codex CLI provider/model key, while DeepSeek models require a
-contracted DeepSeek-capable shell such as Claude Code. Never label a foreign
-provider model as if the selected worker could execute it natively.
+Do not generalize a correction for one default role into a global worker/model
+rule. The canonical `full_cli/performance` exceptions are explicit in
+`config/agent_model_profiles.yml`: Supervisor uses native Codex/GPT;
+RepoScout, InterfaceMapper, TesterAuditor, and Verifier use their contracted
+Claude/DeepSeek routes; NarrativePlanner uses the governed Agy subscription
+route. Other modes and tiers keep their own declared mappings.
 
 ## Repository Layout
 

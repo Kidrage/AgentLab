@@ -85,19 +85,21 @@ def test_checked_in_csv_matrices_are_deterministic(tmp_path: Path) -> None:
     assert _read_csv(cli_out) == _read_csv(ROOT / "docs" / "AGENTLAB_CLI_REQUIREMENTS.csv")
 
 
-def test_matrix_rejects_foreign_provider_model_on_codex_worker(tmp_path: Path) -> None:
+def test_matrix_rejects_regression_of_scoped_default_performance_route(
+    tmp_path: Path,
+) -> None:
     shutil.copytree(ROOT / "config", tmp_path / "config")
     profiles_path = tmp_path / "config" / "agent_model_profiles.yml"
     profiles = yaml.safe_load(profiles_path.read_text(encoding="utf-8"))
-    profiles["modes"]["full_cli"]["tiers"]["performance"]["reposcout"][
-        "default"
-    ] = "deepseek_v4_pro"
+    route = profiles["modes"]["full_cli"]["tiers"]["performance"]["reposcout"]
+    route["cli_agent"] = "codex"
+    route["invocation_contract"] = "codex"
     profiles_path.write_text(
         yaml.safe_dump(profiles, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="model provider 'deepseek_official'.*not contract command 'codex'"):
+    with pytest.raises(ValueError, match="required default route.*claude_code"):
         build_matrices(tmp_path)
 
 
