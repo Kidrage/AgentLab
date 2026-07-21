@@ -66,6 +66,32 @@ models:
       local_model_cache_verified: "2026-07-13"
       local_hermes_reasoning_verified: xhigh
 
+  codex_gpt_5_6_sol_xhigh_cli_oauth:
+    provider: codex_cli_oauth
+    runtime_provider: codex-cli
+    cli_provider: codex
+    model_id: gpt-5.6-sol
+    reasoning_effort: xhigh
+    reasoning_effort_label: extra
+    context_window: 272000
+    capacity_pool: codex_cli_agentic
+    strengths: [oauth_cli, high_reasoning, supervision, planning, code_navigation, code_review, agentic_control]
+    weaknesses: [requires_codex_oauth_session, subscription_or_oauth_quota]
+    suitable_agents: [supervisor, reposcout, interface_mapper, tester_auditor, verifier]
+    pricing:
+      currency: subscription_or_oauth_quota
+      billing_source: codex_cli_oauth
+    notes: >
+      GPT-5.6 Sol through the native Codex CLI and its local OAuth session.
+      This model key must only be assigned to the Codex worker; it is distinct
+      from the Hermes openai-codex provider surface. The verified local Codex
+      configuration uses gpt-5.6-sol with xhigh reasoning.
+    evidence:
+      official_model: https://developers.openai.com/api/docs/models/gpt-5.6-sol
+      local_codex_cli_verified: "2026-07-21"
+      local_codex_version: "0.144.6"
+      local_reasoning_verified: xhigh
+
   gemini_3_5_flash_high_agy_oauth:
     provider: agy_gemini_oauth
     runtime_provider: agy-gemini-oauth
@@ -305,6 +331,19 @@ models:
 # ── Provider 配置 ──────────────────────────────────────────────────────
 
 providers:
+  codex_cli_oauth:
+    display: Codex CLI OAuth
+    currency: subscription_or_oauth_quota
+    auth: local_codex_oauth_session
+    command: codex
+    runtime_provider: codex-cli
+    default_model: gpt-5.6-sol
+    reasoning_effort: xhigh
+    notes: >
+      Native Codex CLI provider for AgentLab role workers. Do not assign this
+      provider to Hermes or represent Hermes' internal openai-codex provider as
+      the Codex worker.
+
   deepseek_official:
     display: DeepSeek 官方 API
     currency: USD
@@ -347,7 +386,7 @@ providers:
     default_model: gpt-5.6-sol
     reasoning_effort: xhigh
     notes: >
-      Hermes 内部的 Codex OAuth provider。用于 Supervisor 等脑力层通过
+      Hermes 内部的 Codex OAuth provider。仅保留给非默认/兼容 Supervisor 路径通过
       hermes --provider openai-codex -m gpt-5.6-sol 调用，并要求 xhigh reasoning effort；
       不等同于 Codex CLI worker。
 

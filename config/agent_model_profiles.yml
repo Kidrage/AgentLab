@@ -19,6 +19,7 @@ authority:
   notes:
     - This file is the single runtime source for selecting each AgentLab role backend.
     - CLI command strings are resolved from invocation_contract keys, not duplicated here.
+    - A CLI-owned provider/model may only be assigned to the worker whose command owns that provider surface; Codex worker routes must use Codex CLI model facts, never DeepSeek or Hermes provider identities.
     - Automatic fallback is executable only when a capacity_route delegates to config/model_capacity.yml.
     - Every failure outside a capacity-approved route stops and reports without switching worker, model, or provider.
     - trusted_headless_cli is an explicit safety-gated exception and must never be default.
@@ -41,9 +42,9 @@ modes:
       full:
         supervisor:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes_supervisor
-          default: codex_gpt_5_6_sol_xhigh_hermes_oauth
+          cli_agent: codex
+          invocation_contract: codex_supervisor
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
           capacity_route: Supervisor
         observer:
           executor_type: cli_agent
@@ -55,12 +56,12 @@ modes:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: deepseek_v4_pro
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
         interface_mapper:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: deepseek_v4_pro
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
         researcher:
           executor_type: cli_agent
           cli_agent: grok
@@ -131,9 +132,9 @@ modes:
       performance:
         supervisor:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes_supervisor
-          default: codex_gpt_5_6_sol_xhigh_hermes_oauth
+          cli_agent: codex
+          invocation_contract: codex_supervisor
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
           capacity_route: Supervisor
         observer:
           executor_type: cli_agent
@@ -145,12 +146,12 @@ modes:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: deepseek_v4_pro
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
         interface_mapper:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: deepseek_v4_pro
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
         researcher:
           executor_type: cli_agent
           cli_agent: grok
@@ -159,8 +160,8 @@ modes:
           capacity_route: Researcher
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
+          cli_agent: claude_code
+          invocation_contract: claude
           default: deepseek_v4_flash
         coder:
           executor_type: cli_agent
@@ -188,12 +189,12 @@ modes:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: deepseek_v4_pro
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
         verifier:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: deepseek_v4_flash
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
         archivist:
           executor_type: cli_agent
           cli_agent: claude_code
@@ -224,9 +225,9 @@ modes:
       low:
         supervisor:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes_supervisor
-          default: codex_gpt_5_6_sol_xhigh_hermes_oauth
+          cli_agent: codex
+          invocation_contract: codex_supervisor
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
           capacity_route: Supervisor
         observer:
           executor_type: cli_agent
@@ -238,7 +239,7 @@ modes:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: qwen3_6_flash_dashscope
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
         interface_mapper: skip
         researcher:
           executor_type: cli_agent
@@ -277,12 +278,12 @@ modes:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: deepseek_v4_flash
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
         verifier:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: deepseek_v4_flash
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
         archivist:
           executor_type: cli_agent
           cli_agent: claude_code

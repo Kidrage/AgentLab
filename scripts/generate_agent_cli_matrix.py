@@ -120,7 +120,9 @@ def _artifact_dispatch_summary(
 def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     config = root / "config"
     profiles = _read_yaml(config / "agent_model_profiles.yml")
-    catalog = (_read_yaml(config / "model_catalog.yml").get("models") or {})
+    catalog_config = _read_yaml(config / "model_catalog.yml")
+    catalog = catalog_config.get("models") or {}
+    catalog_providers = catalog_config.get("providers") or {}
     capacity = _read_yaml(config / "model_capacity.yml")
     capacity_routes = capacity.get("routes") or {}
     capacity_pools = capacity.get("pools") or {}
@@ -190,6 +192,28 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
 
             if model_key and model_key not in catalog:
                 errors.append(f"full_cli.{tier}.{role_key}: unknown model {model_key!r}")
+            provider_key = str(model.get("provider") or "")
+            provider_command = str(
+                ((catalog_providers.get(provider_key) or {}).get("command") or "")
+            )
+            contract_command = str(
+                ((contracts.get(contract_id) or {}).get("command") or "")
+            )
+            incompatible_cli_surface = (
+                cli_agent == "codex" and provider_command != "codex"
+            ) or (
+                provider_key == "deepseek_official" and cli_agent != "claude_code"
+            ) or (
+                bool(provider_command)
+                and bool(contract_command)
+                and provider_command != contract_command
+            )
+            if incompatible_cli_surface:
+                errors.append(
+                    f"full_cli.{tier}.{role_key}: model provider {provider_key!r} "
+                    f"uses CLI {provider_command or 'none'!r}, not contract command "
+                    f"{contract_command or 'none'!r}"
+                )
 
             if binding_role == "ArtifactProducer":
                 artifact_types, artifact_dispatch, selected_artifact_rows = (

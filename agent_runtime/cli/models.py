@@ -159,7 +159,7 @@ def _cost_source(model_entry: dict[str, Any], provider_entry: dict[str, Any]) ->
         return "unknown"
     if billing == "token_plan":
         return "subscription/token plan"
-    if billing == "codex_oauth":
+    if billing in {"codex_oauth", "codex_cli_oauth"}:
         return "oauth/subscription quota"
     if billing == "agy_oauth":
         return "oauth/subscription quota"

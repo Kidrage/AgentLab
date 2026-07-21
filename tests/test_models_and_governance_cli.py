@@ -72,7 +72,8 @@ def test_models_show_lists_observer_supervisor_and_grok_research_routes():
     assert "agy" in observer.output
     assert "gemini_3_5_flash_high_agy_oauth" in observer.output
     assert supervisor.exit_code == 0
-    assert "codex_gpt_5_6_sol_xhigh_hermes_oauth" in supervisor.output
+    assert "codex_gpt_5_6_sol_xhigh_cli_oauth" in supervisor.output
+    assert "codex" in supervisor.output
     assert researcher.exit_code == 0
     assert "grok" in researcher.output
     assert "grok_4_3_hermes_oauth" in researcher.output
@@ -161,7 +162,7 @@ def test_model_proposal_rejects_forbidden_worker_and_contract_model_drift(tmp_pa
             "--role",
             "Supervisor",
             "--cli",
-            "hermes",
+            "codex",
             "--model",
             "deepseek_v4_pro",
         ],
@@ -393,7 +394,7 @@ def test_recommended_brain_topology_and_model_facts_match_current_roles():
     )
     chain = groups["brain_layouts"]["recommended"]["brain_chain"]
     assert chain == {
-        "supervisor": "codex_gpt_5_6_sol_xhigh_hermes_oauth",
+        "supervisor": "codex_gpt_5_6_sol_xhigh_cli_oauth",
         "writer": "deepseek_v4_pro",
         "multimodal_observer": "gemini_3_5_flash_high_agy_oauth",
         "observer_fallback": "claude_sonnet_4_6_agy_oauth",

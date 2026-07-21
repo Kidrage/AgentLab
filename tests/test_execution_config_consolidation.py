@@ -204,24 +204,25 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     profiles = _load_config("agent_model_profiles.yml")
     tier = profiles["modes"]["full_cli"]["tiers"]["performance"]
 
-    assert tier["supervisor"]["cli_agent"] == "hermes"
-    assert tier["supervisor"]["invocation_contract"] == "hermes_supervisor"
-    assert tier["supervisor"]["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+    assert tier["supervisor"]["cli_agent"] == "codex"
+    assert tier["supervisor"]["invocation_contract"] == "codex_supervisor"
+    assert tier["supervisor"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
     assert tier["supervisor"]["capacity_route"] == "Supervisor"
     assert tier["observer"]["cli_agent"] == "agy"
     assert tier["observer"]["invocation_contract"] == "agy_observer"
 
     assert tier["reposcout"]["cli_agent"] == "codex"
-    assert tier["reposcout"]["default"] == "deepseek_v4_pro"
+    assert tier["reposcout"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
 
     assert tier["interface_mapper"]["cli_agent"] == "codex"
-    assert tier["interface_mapper"]["default"] == "deepseek_v4_pro"
+    assert tier["interface_mapper"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
 
     assert tier["researcher"]["cli_agent"] == "grok"
     assert tier["researcher"]["invocation_contract"] == "grok_research"
     assert tier["researcher"]["default"] == "grok_4_3_hermes_oauth"
 
-    assert tier["prompt_engineer"]["cli_agent"] == "hermes"
+    assert tier["prompt_engineer"]["cli_agent"] == "claude_code"
+    assert tier["prompt_engineer"]["invocation_contract"] == "claude"
     assert tier["prompt_engineer"]["default"] == "deepseek_v4_flash"
 
     assert tier["coder"]["cli_agent"] == "claude_code"
@@ -238,10 +239,10 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["narrative_planner"]["capacity_route"] == "NarrativePlannerRewrite"
 
     assert tier["tester_auditor"]["cli_agent"] == "codex"
-    assert tier["tester_auditor"]["default"] == "deepseek_v4_pro"
+    assert tier["tester_auditor"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
 
     assert tier["verifier"]["cli_agent"] == "codex"
-    assert tier["verifier"]["default"] == "deepseek_v4_flash"
+    assert tier["verifier"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
 
     assert tier["archivist"]["cli_agent"] == "claude_code"
     assert tier["archivist"]["default"] == "deepseek_v4_pro"
@@ -256,16 +257,16 @@ def test_full_cli_full_tier_matches_operator_matrix() -> None:
     profiles = _load_config("agent_model_profiles.yml")
     tier = profiles["modes"]["full_cli"]["tiers"]["full"]
 
-    assert tier["supervisor"]["cli_agent"] == "hermes"
-    assert tier["supervisor"]["invocation_contract"] == "hermes_supervisor"
-    assert tier["supervisor"]["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+    assert tier["supervisor"]["cli_agent"] == "codex"
+    assert tier["supervisor"]["invocation_contract"] == "codex_supervisor"
+    assert tier["supervisor"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
     assert tier["observer"]["invocation_contract"] == "agy_observer"
 
     assert tier["reposcout"]["cli_agent"] == "codex"
-    assert tier["reposcout"]["default"] == "deepseek_v4_pro"
+    assert tier["reposcout"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
 
     assert tier["interface_mapper"]["cli_agent"] == "codex"
-    assert tier["interface_mapper"]["default"] == "deepseek_v4_pro"
+    assert tier["interface_mapper"]["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
 
     assert tier["researcher"]["cli_agent"] == "grok"
     assert tier["researcher"]["invocation_contract"] == "grok_research"
@@ -489,52 +490,72 @@ def test_writer_light_contract_has_one_unambiguous_four_file_response() -> None:
     assert "no preamble" in skill
 
 
-def test_hermes_supervisor_uses_gpt_56_sol_at_strongest_supported_effort() -> None:
+def test_codex_supervisor_uses_native_gpt_56_sol_at_xhigh_effort() -> None:
     profiles = _load_config("agent_model_profiles.yml")
     catalog = _load_config("model_catalog.yml")
     providers = _load_config("model_providers.yml")["providers"]
     contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
 
-    model = catalog["models"]["codex_gpt_5_6_sol_xhigh_hermes_oauth"]
-    assert model["provider"] == "hermes_codex_oauth"
+    model = catalog["models"]["codex_gpt_5_6_sol_xhigh_cli_oauth"]
+    assert model["provider"] == "codex_cli_oauth"
     assert model["provider"] in catalog["providers"]
-    assert model["runtime_provider"] == "openai-codex"
+    assert model["runtime_provider"] == "codex-cli"
     assert model["runtime_provider"] in providers
-    assert model["cli_provider"] == "openai-codex"
+    assert model["cli_provider"] == "codex"
     assert model["model_id"] == "gpt-5.6-sol"
     assert model["reasoning_effort"] == "xhigh"
     assert model["reasoning_effort_label"] == "extra"
     assert _cost_source(model, {}) == "oauth/subscription quota"
 
-    provider = providers["openai-codex"]
+    provider = providers["codex-cli"]
     assert provider["type"] == "oauth_cli"
-    assert provider["command"] == "hermes"
+    assert provider["command"] == "codex"
     assert provider["default_model"] == "gpt-5.6-sol"
     assert provider["reasoning_effort"] == "xhigh"
 
-    hermes_template = contracts["hermes_supervisor"]["template"]
-    assert "-p agentlabsupervisor chat -Q" in hermes_template
-    assert "--provider {provider}" in hermes_template
-    assert "-m {model_id}" in hermes_template
-    assert "--ignore-rules" in hermes_template
-    assert "--max-turns 6" in hermes_template
-    assert " -q " in hermes_template
-    assert " -z " not in hermes_template
-    supervisor_contract = contracts["hermes_supervisor"]
-    assert supervisor_contract["workflow_shell_profile"] == "agentlabsupervisor"
+    codex_template = contracts["codex_supervisor"]["template"]
+    assert "codex exec --json" in codex_template
+    assert '--model "{model_id}"' in codex_template
+    assert "model_reasoning_effort=\"xhigh\"" in codex_template
+    assert "--sandbox read-only" in codex_template
+    assert "--ephemeral" in codex_template
+    supervisor_contract = contracts["codex_supervisor"]
     assert supervisor_contract["requested_reasoning_label"] == "extra"
     assert supervisor_contract["resolved_reasoning_effort"] == "xhigh"
-    assert supervisor_contract["required_shell_state"] == {
-        "model.provider": "openai-codex",
-        "model.default": "gpt-5.6-sol",
-        "agent.reasoning_effort": "xhigh",
-        "fallback_providers": [],
-        "fallback_model": None,
-    }
+    assert supervisor_contract["fallback"] == {"on_binary_missing": "capacity_manager"}
     for tier in ("full", "performance", "low"):
         route = profiles["modes"]["full_cli"]["tiers"][tier]["supervisor"]
-        assert route["invocation_contract"] == "hermes_supervisor"
-        assert route["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+        assert route["cli_agent"] == "codex"
+        assert route["invocation_contract"] == "codex_supervisor"
+        assert route["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+
+
+def test_full_cli_codex_workers_only_use_codex_cli_models() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
+    catalog = _load_config("model_catalog.yml")["models"]
+    providers = _load_config("model_providers.yml")["providers"]
+
+    for tier_name, tier in profiles["modes"]["full_cli"]["tiers"].items():
+        for role_name, route in tier.items():
+            if not isinstance(route, dict) or route.get("cli_agent") != "codex":
+                continue
+            model = catalog[route["default"]]
+            provider = providers[model["runtime_provider"]]
+            assert provider["command"] == "codex", f"{tier_name}/{role_name}"
+
+
+def test_full_cli_deepseek_models_only_use_claude_shell() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
+    catalog = _load_config("model_catalog.yml")["models"]
+
+    for tier_name, tier in profiles["modes"]["full_cli"]["tiers"].items():
+        for role_name, route in tier.items():
+            if not isinstance(route, dict):
+                continue
+            model = catalog[route["default"]]
+            if model["provider"] != "deepseek_official":
+                continue
+            assert route["cli_agent"] == "claude_code", f"{tier_name}/{role_name}"
 
 
 def test_qwen_role_contract_uses_explicit_dashscope_auth() -> None:

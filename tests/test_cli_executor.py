@@ -211,8 +211,8 @@ def test_hermes_supervisor_rejects_trailing_command_overrides_before_provider(
 
     provider_process.assert_not_called()
     assert result.status == "blocked_user_decision"
-    assert result.error == "hermes_profile_preflight_failed"
-    preflight = result.raw_usage["hermes_profile_preflight"]
+    assert result.error == "supervisor_model_preflight_failed"
+    preflight = result.raw_usage["supervisor_model_preflight"]
     assert preflight["command_binding_verified"] is False
     assert "supervisor_command_binding_mismatch" in preflight["issues"]
 
@@ -495,8 +495,8 @@ def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
 class TestResolveCliProfileSchemaV4:
     """Prove resolve_cli_profile supports schema v4 modes/tiers layout."""
 
-    def test_real_default_full_cli_supervisor_resolves_to_hermes_codex(self):
-        """The real default mode/tier keeps Supervisor on Hermes Codex OAuth."""
+    def test_real_default_full_cli_supervisor_resolves_to_native_codex(self):
+        """The real default mode/tier keeps Supervisor on native Codex OAuth."""
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import resolve_cli_profile
@@ -509,9 +509,9 @@ class TestResolveCliProfileSchemaV4:
         assert result is not None
         assert result["resolved_mode"] == "full_cli"
         assert result["resolved_tier"] == "performance"
-        assert result["cli_agent"] == "hermes"
-        assert result["invocation_contract"] == "hermes_supervisor"
-        assert result["default"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+        assert result["cli_agent"] == "codex"
+        assert result["invocation_contract"] == "codex_supervisor"
+        assert result["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
         assert result["capacity_route"] == "Supervisor"
         assert "fallback" not in result
 
@@ -896,6 +896,158 @@ class TestRunCliAgentSubprocess:
         proc.stdout = stdout
         proc.stderr = stderr
         return proc
+
+    def test_codex_supervisor_writes_verified_model_execution_receipt(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "contracts": {
+                        "codex_supervisor": {
+                            "worker_id": "codex",
+                            "template": (
+                                "codex exec --json --model {model_id} "
+                                "-c 'model_reasoning_effort=\"xhigh\"' "
+                                "--sandbox read-only --ephemeral --ignore-rules "
+                                "-C {workspace_path} 'Read {task_packet_path}'"
+                            ),
+                            "requested_reasoning_label": "extra",
+                            "resolved_reasoning_effort": "xhigh",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "models": {
+                        "codex_gpt_5_6_sol_xhigh_cli_oauth": {
+                            "provider": "codex_cli_oauth",
+                            "runtime_provider": "codex-cli",
+                            "model_id": "gpt-5.6-sol",
+                            "reasoning_effort": "xhigh",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "codex",
+            "invocation_contract": "codex_supervisor",
+            "default": "codex_gpt_5_6_sol_xhigh_cli_oauth",
+            "capacity_route": "Supervisor",
+        }
+        stdout = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "governed plan"},
+            }
+        )
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/codex"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(0, stdout=stdout),
+        ):
+            result = run_cli_agent(plan, "Supervisor", role_profile)
+
+        assert result.status == "completed"
+        receipt_path = Path(result.raw_usage["model_execution_receipt"])
+        receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+        assert receipt["worker"] == "codex"
+        assert receipt["invocation_contract"] == "codex_supervisor"
+        assert receipt["provider"] == "codex-cli"
+        assert receipt["model"] == "gpt-5.6-sol"
+        assert receipt["reasoning_effort"] == "xhigh"
+        assert receipt["command_binding_verified"] is True
+        assert (Path(plan.run_dir) / "model_execution_chain_supervisor.yml").is_file()
+
+    def test_codex_supervisor_model_mismatch_blocks_before_provider_process(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "contracts": {
+                        "codex_supervisor": {
+                            "worker_id": "codex",
+                            "template": (
+                                "codex exec --json --model {model_id} "
+                                "-c 'model_reasoning_effort=\"xhigh\"' "
+                                "--sandbox read-only --ephemeral --ignore-rules "
+                                "-C {workspace_path} 'Read {task_packet_path}'"
+                            ),
+                            "requested_reasoning_label": "extra",
+                            "resolved_reasoning_effort": "xhigh",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "models": {
+                        "codex_gpt_5_6_sol_xhigh_cli_oauth": {
+                            "provider": "hermes_codex_oauth",
+                            "runtime_provider": "openai-codex",
+                            "model_id": "gpt-5.6-sol",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "codex",
+            "invocation_contract": "codex_supervisor",
+            "default": "codex_gpt_5_6_sol_xhigh_cli_oauth",
+        }
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/codex"
+        ), patch("cli_executor.subprocess.run") as provider_process:
+            result = run_cli_agent(plan, "Supervisor", role_profile)
+
+        provider_process.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert result.error == "supervisor_model_preflight_failed"
+        preflight = result.raw_usage["supervisor_model_preflight"]
+        assert "catalog_provider_mismatch" in preflight["issues"]
+        assert "Hermes" not in result.content
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["worker"] == "codex"
+        assert receipt["status"] == "fail"
+        assert receipt["provider_process_started"] is False
 
     def test_runtime_model_receipts_are_role_scoped_and_do_not_overwrite(
         self,
@@ -1684,9 +1836,9 @@ class TestRunCliAgentSubprocess:
 
         provider_process.assert_not_called()
         assert result.status == "blocked_user_decision"
-        assert result.error == "hermes_profile_preflight_failed"
+        assert result.error == "supervisor_model_preflight_failed"
         assert result.raw_usage["provider_process_started"] is False
-        assert expected_issue in result.raw_usage["hermes_profile_preflight"]["issues"]
+        assert expected_issue in result.raw_usage["supervisor_model_preflight"]["issues"]
         receipt = yaml.safe_load(
             Path(result.raw_usage["model_execution_receipt"]).read_text(encoding="utf-8")
         )

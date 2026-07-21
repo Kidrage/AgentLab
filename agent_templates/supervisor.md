@@ -36,7 +36,7 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - Starting a phase without a token budget and stop condition.
 - Exceeding the approved token budget by more than 15% without pausing and asking for approval.
 - Starting all seven agents by default when a smaller route is sufficient.
-- Letting other agents silently simulate Supervisor/brain work when `config/execution_policy.yml` requires Hermes / DeepSeek.
+- Letting another worker silently simulate Supervisor/brain work when the resolved AgentLab route requires native Codex CLI or an explicitly approved capacity fallback.
 - Guessing missing information. If scope, target files, constraints, or success criteria are unclear, write `USER_DECISION_REQUIRED.md` with specific questions. Do not proceed until clarified.
 
 ## Required Inputs
@@ -57,7 +57,7 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - runs/task_xxxx/supervisor_plan.md.
 - Task assignments and acceptance criteria.
 - A list of risks, constraints, and validation expectations.
-- Brain provider metadata showing Hermes / DeepSeek was called, or a blocker requesting user approval.
+- Brain provider metadata showing the resolved Codex CLI model/effort and model-execution receipt, or an approved capacity-fallback receipt/blocker.
 - A token budget table for each phase, including estimated input tokens, estimated output tokens, total budget, warning threshold, stop threshold, and actual usage when available.
 - A harness status summary covering map health, stale project memory, feedback artifacts, and any recommended rule promotion.
 - An artifact intent summary: candidate directory, production directory, allowed overwrite paths, forbidden write paths, and archive strategy for any task that creates or replaces deliverables.

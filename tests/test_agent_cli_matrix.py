@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+import shutil
 import sys
 from types import SimpleNamespace
+
+import pytest
+import yaml
 
 from scripts.generate_agent_cli_matrix import build_matrices, generate
 
@@ -23,8 +27,8 @@ def test_matrix_references_are_valid_and_full_cli_full_matches_required_defaults
     full_cli, cli = build_matrices(ROOT)
     rows = {(row["tier"], row["profile_key"]): row for row in full_cli}
 
-    assert rows[("full", "supervisor")]["cli_agent"] == "hermes"
-    assert rows[("full", "supervisor")]["model_key"] == "codex_gpt_5_6_sol_xhigh_hermes_oauth"
+    assert rows[("full", "supervisor")]["cli_agent"] == "codex"
+    assert rows[("full", "supervisor")]["model_key"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
     assert rows[("full", "supervisor")]["capacity_route"] == "Supervisor"
     assert rows[("full", "supervisor")]["fallback_routes"] == "SupervisorDeepSeek"
     assert rows[("full", "supervisor")]["fallback_cli_agent"] == "claude_code"
@@ -79,6 +83,22 @@ def test_checked_in_csv_matrices_are_deterministic(tmp_path: Path) -> None:
 
     assert _read_csv(full_cli_out) == _read_csv(ROOT / "docs" / "AGENTLAB_FULL_CLI_MATRIX.csv")
     assert _read_csv(cli_out) == _read_csv(ROOT / "docs" / "AGENTLAB_CLI_REQUIREMENTS.csv")
+
+
+def test_matrix_rejects_foreign_provider_model_on_codex_worker(tmp_path: Path) -> None:
+    shutil.copytree(ROOT / "config", tmp_path / "config")
+    profiles_path = tmp_path / "config" / "agent_model_profiles.yml"
+    profiles = yaml.safe_load(profiles_path.read_text(encoding="utf-8"))
+    profiles["modes"]["full_cli"]["tiers"]["performance"]["reposcout"][
+        "default"
+    ] = "deepseek_v4_pro"
+    profiles_path.write_text(
+        yaml.safe_dump(profiles, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="model provider 'deepseek_official'.*not contract command 'codex'"):
+        build_matrices(tmp_path)
 
 
 def test_heavy_audit_alias_roles_resolve_to_bound_cli_workers() -> None:

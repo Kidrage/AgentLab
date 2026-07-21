@@ -51,6 +51,11 @@ treat them as source authority.
 Never infer a role, model, provider, fallback, or command from a CLI name or an
 old report. Configuration wins.
 
+CLI-owned model surfaces must also agree with the selected worker: a Codex
+worker uses a Codex CLI provider/model key, while DeepSeek models require a
+contracted DeepSeek-capable shell such as Claude Code. Never label a foreign
+provider model as if the selected worker could execute it natively.
+
 ## Repository Layout
 
 - `agent_runtime/`: runtime, routing, lifecycle, state, and CLI implementation.
