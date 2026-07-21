@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 import hashlib
 import os
+import re
 import subprocess
 
 import pytest
 import yaml
-from click.utils import strip_ansi
 
 from agent_runtime.narrative.blueprint_validation import (
     seal_crown_blueprint,
@@ -264,7 +264,7 @@ def test_validate_blueprint_cli_is_registered() -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    stdout = strip_ansi(result.stdout)
+    stdout = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", result.stdout)
     assert "--chapter-start" in stdout
     assert "--chapter-end" in stdout
 

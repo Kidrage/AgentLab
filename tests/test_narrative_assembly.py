@@ -1,11 +1,11 @@
 from pathlib import Path
 import hashlib
 import os
+import re
 import subprocess
 
 import yaml
 import pytest
-from click.utils import strip_ansi
 
 from agent_runtime.narrative.assembly import (
     NarrativeAssemblyError,
@@ -167,6 +167,6 @@ def test_narrative_assemble_cli_is_registered() -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    stdout = strip_ansi(result.stdout)
+    stdout = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", result.stdout)
     assert "--audit-manifest" in stdout
     assert "--output" in stdout

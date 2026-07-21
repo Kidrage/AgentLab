@@ -3,10 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 import hashlib
 import os
+import re
 import subprocess
 
 import yaml
-from click.utils import strip_ansi
 
 from agent_runtime.artifact_digest import artifact_sha256
 from agent_runtime.knowledge_system import (
@@ -106,4 +106,5 @@ def test_knowledge_build_cli_exposes_project_snapshot_seal() -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "--seal-project-snapshot" in strip_ansi(result.stdout)
+    stdout = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", result.stdout)
+    assert "--seal-project-snapshot" in stdout

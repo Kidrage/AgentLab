@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
-
-from click.utils import strip_ansi
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,7 +45,7 @@ def test_create_crown_cli_exposes_parent_and_rag_cadence_contract() -> None:
         },
     )
     assert result.returncode == 0, result.stderr
-    stdout = strip_ansi(result.stdout)
+    stdout = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", result.stdout)
     assert "--parent-task-id" in stdout
     assert "--continuity-checkpoint-cadence" in stdout
     assert "--knowledge-contract-required" in stdout
