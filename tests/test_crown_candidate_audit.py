@@ -3,12 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 import hashlib
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
+import agent_runtime.crown_candidate_audit as crown_audit_module
 from agent_runtime.crown_candidate_audit import (
     build_crown_completion_batch_audit,
     build_crown_live_candidate_audit,
+)
+from agent_runtime.narrative.production.revision_attempts import (
+    reserve_revision_attempt,
 )
 from agent_runtime.run_task import app
 
@@ -48,7 +53,22 @@ def test_crown_live_candidate_audit_cli_writes_yaml(
     assert report["status"] == "pass"
 
 
-def test_crown_live_candidate_audit_uses_v2_prose_only_contract(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("job_kind", "run_mode", "identity_status"),
+    [
+        ("narrative_generation", "generate_candidate", "pass"),
+        ("narrative_revision", "targeted_rewrite", "pass"),
+        ("narrative_revision", "generate_candidate", "fail"),
+        ("narrative_generation", "targeted_rewrite", "fail"),
+    ],
+)
+def test_crown_live_candidate_audit_uses_v2_prose_only_contract(
+    tmp_path: Path,
+    job_kind: str,
+    run_mode: str,
+    identity_status: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     task_id = "task_narrative_v2_gate1_preflight_ch025"
     project_root = tmp_path / "projects" / "Crown_of_Ash"
     run_dir = project_root / "runs" / task_id
@@ -79,8 +99,8 @@ def test_crown_live_candidate_audit_uses_v2_prose_only_contract(tmp_path: Path) 
     }
     request = {
         "schema_version": 1,
-        "job_kind": "narrative_generation",
-        "run_mode": "generate_candidate",
+        "job_kind": job_kind,
+        "run_mode": run_mode,
         "project": "Crown_of_Ash",
         "task_id": task_id,
         "chapter_id": 25,
@@ -89,6 +109,56 @@ def test_crown_live_candidate_audit_uses_v2_prose_only_contract(tmp_path: Path) 
         "external_context_approval_required": True,
         "creative_brief_source": brief_ref,
     }
+    revision_identity = {}
+    if job_kind == "narrative_revision":
+        evidence_dir = project_root / "candidates" / "gate1" / "evidence"
+        evidence_dir.mkdir(parents=True)
+        evidence_refs = {}
+        for name in (
+            "source_candidate",
+            "triggering_audit",
+            "revision_contract",
+        ):
+            evidence_path = evidence_dir / f"{name}.yml"
+            evidence_path.write_text(f"kind: {name}\n", encoding="utf-8")
+            evidence_refs[name] = {
+                "path": evidence_path.relative_to(tmp_path).as_posix(),
+                "sha256": hashlib.sha256(evidence_path.read_bytes()).hexdigest(),
+            }
+        reservation = reserve_revision_attempt(
+            root=tmp_path,
+            project="Crown_of_Ash",
+            candidate_set_id="candidate-set-1",
+            source_job_id="source-job-1",
+            source_run_id="source-run-1",
+            triggered_by_audit_id="audit-1",
+            task_id=task_id,
+            attempt_id="attempt-0001",
+            lease_token="lease-1",
+            lease_expires_at="2030-01-01T00:00:00+00:00",
+            preflight_spec_sha256="e" * 64,
+            claimed_rewrite_count=0,
+            source_candidate_sha256=evidence_refs["source_candidate"]["sha256"],
+            triggering_audit_sha256=evidence_refs["triggering_audit"]["sha256"],
+            revision_contract_sha256=evidence_refs["revision_contract"]["sha256"],
+        )
+        attempt_receipt = reservation.receipt_path
+        attempt_receipt_bytes = attempt_receipt.read_bytes()
+        revision_identity = {
+            "candidate_set_id": "candidate-set-1",
+            "source_job_id": "source-job-1",
+            "source_run_id": "source-run-1",
+            "triggered_by_audit_id": "audit-1",
+            "attempt_id": "attempt-0001",
+            "lease_token": "lease-1",
+            "lease_expires_at": "2030-01-01T00:00:00+00:00",
+            "automatic_rewrite_count": 0,
+            "automatic_rewrite_number": 1,
+            "fencing_token": reservation.fencing_token,
+            "attempt_receipt": reservation.reference(tmp_path),
+            **evidence_refs,
+        }
+        request.update(revision_identity)
     request_path = run_dir / "narrative_v2_writer_request.yml"
     request_path.write_text(
         yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
@@ -97,32 +167,31 @@ def test_crown_live_candidate_audit_uses_v2_prose_only_contract(tmp_path: Path) 
     draft = run_dir / "fiction_draft.md"
     draft.write_text(prose, encoding="utf-8")
     prose_hash = hashlib.sha256(draft.read_bytes()).hexdigest()
-    (run_dir / "narrative_v2_writer_session_receipt.yml").write_text(
-        yaml.safe_dump(
-            {
-                **{key: request[key] for key in (
-                    "schema_version",
-                    "job_kind",
-                    "run_mode",
-                    "project",
-                    "task_id",
-                    "chapter_id",
-                    "candidate_only",
-                    "production_modified",
-                    "external_context_approval_required",
-                )},
-                "status": "pass",
-                "request_sha256": hashlib.sha256(request_path.read_bytes()).hexdigest(),
-                "compiled_packet_sha256": "a" * 64,
-                "prose_length_contract": {
-                    "unit": "han_characters_excluding_markdown_headings",
-                    "minimum": 4500,
-                    "maximum": 5500,
-                },
-            },
-            sort_keys=False,
-        ),
-        encoding="utf-8",
+    session = {
+        **{key: request[key] for key in (
+            "schema_version",
+            "job_kind",
+            "run_mode",
+            "project",
+            "task_id",
+            "chapter_id",
+            "candidate_only",
+            "production_modified",
+            "external_context_approval_required",
+        )},
+        **revision_identity,
+        "status": "pass",
+        "request_sha256": hashlib.sha256(request_path.read_bytes()).hexdigest(),
+        "compiled_packet_sha256": "a" * 64,
+        "prose_length_contract": {
+            "unit": "han_characters_excluding_markdown_headings",
+            "minimum": 4500,
+            "maximum": 5500,
+        },
+    }
+    session_path = run_dir / "narrative_v2_writer_session_receipt.yml"
+    session_path.write_text(
+        yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
     )
     (run_dir / "writer_v2_output_contract.yml").write_text(
         yaml.safe_dump(
@@ -162,8 +231,334 @@ def test_crown_live_candidate_audit_uses_v2_prose_only_contract(tmp_path: Path) 
     assert report["candidate_sha256"] == prose_hash
     assert "required_files_present" not in by_id
     assert by_id["v2_prose_only_artifacts"]["status"] == "pass"
+    assert by_id["v2_session_identity_and_request_hash"]["status"] == identity_status
     assert by_id["prose_length_contract"]["status"] == "fail"
     assert by_id["prose_length_contract"]["observed"] == 5501
+
+    if identity_status == "pass":
+        for key, spoofed in {
+            "schema_version": True,
+            "candidate_only": 1,
+            "production_modified": 0,
+            "external_context_approval_required": 1,
+        }.items():
+            original_request = request[key]
+            original_session = session[key]
+            request[key] = spoofed
+            session[key] = spoofed
+            request_path.write_text(
+                yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+            )
+            session["request_sha256"] = hashlib.sha256(
+                request_path.read_bytes()
+            ).hexdigest()
+            session_path.write_text(
+                yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+            )
+            spoofed_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+            spoofed_by_id = {item["id"]: item for item in spoofed_report["checks"]}
+            assert spoofed_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+            request[key] = original_request
+            session[key] = original_session
+        request_path.write_text(
+            yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+        )
+        session["request_sha256"] = hashlib.sha256(
+            request_path.read_bytes()
+        ).hexdigest()
+
+        request_bytes = request_path.read_bytes()
+        outside_request = tmp_path.parent / f"{tmp_path.name}-outside-request.yml"
+        outside_request.write_bytes(request_bytes)
+        request_path.unlink()
+        request_path.symlink_to(outside_request)
+        request_link_report = build_crown_live_candidate_audit(
+            tmp_path,
+            task_id=task_id,
+        )
+        request_link_by_id = {
+            item["id"]: item for item in request_link_report["checks"]
+        }
+        assert request_link_by_id["v2_prose_only_artifacts"]["status"] == "fail"
+        assert "narrative_v2_writer_request.yml" in request_link_by_id[
+            "v2_prose_only_artifacts"
+        ]["missing"]
+        request_path.unlink()
+        request_path.write_bytes(request_bytes)
+
+        draft_bytes = draft.read_bytes()
+        outside_draft = tmp_path.parent / f"{tmp_path.name}-outside-draft.md"
+        outside_draft.write_bytes(draft_bytes)
+        draft.unlink()
+        draft.symlink_to(outside_draft)
+        draft_link_report = build_crown_live_candidate_audit(
+            tmp_path,
+            task_id=task_id,
+        )
+        draft_link_by_id = {
+            item["id"]: item for item in draft_link_report["checks"]
+        }
+        assert draft_link_by_id["v2_prose_only_artifacts"]["status"] == "fail"
+        assert "fiction_draft.md" in draft_link_by_id["v2_prose_only_artifacts"][
+            "missing"
+        ]
+        draft.unlink()
+        draft.write_bytes(draft_bytes)
+
+        if job_kind == "narrative_generation":
+            request_path.write_text(
+                yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+            )
+            request_bytes = request_path.read_bytes()
+            session["request_sha256"] = hashlib.sha256(request_bytes).hexdigest()
+            session_path.write_text(
+                yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+            )
+            mutated_request = {**request, "job_kind": "code_generation"}
+            mutated_request_bytes = yaml.safe_dump(
+                mutated_request,
+                sort_keys=False,
+            ).encode("utf-8")
+            session["request_sha256"] = hashlib.sha256(
+                mutated_request_bytes
+            ).hexdigest()
+            session_path.write_text(
+                yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+            )
+            original_reader = crown_audit_module._root_snapshot_bytes
+            request_mutated = False
+
+            def mutate_request_after_snapshot(root: Path, path: Path) -> bytes | None:
+                nonlocal request_mutated
+                raw = original_reader(root, path)
+                if path == request_path and not request_mutated:
+                    request_mutated = True
+                    request_path.write_bytes(mutated_request_bytes)
+                return raw
+
+            with monkeypatch.context() as patch_context:
+                patch_context.setattr(
+                    crown_audit_module,
+                    "_root_snapshot_bytes",
+                    mutate_request_after_snapshot,
+                )
+                request_mutation_report = build_crown_live_candidate_audit(
+                    tmp_path,
+                    task_id=task_id,
+                )
+            request_mutation_by_id = {
+                item["id"]: item for item in request_mutation_report["checks"]
+            }
+            assert request_mutation_report["status"] == "fail"
+            assert request_mutation_by_id["v2_artifact_snapshot_stable"][
+                "status"
+            ] == "fail"
+            request_path.write_bytes(request_bytes)
+
+            session["request_sha256"] = hashlib.sha256(request_bytes).hexdigest()
+            session_path.write_text(
+                yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+            )
+            mutated_draft_bytes = draft_bytes + "变".encode("utf-8")
+            draft_mutated = False
+
+            def mutate_draft_after_snapshot(root: Path, path: Path) -> bytes | None:
+                nonlocal draft_mutated
+                raw = original_reader(root, path)
+                if path == draft and not draft_mutated:
+                    draft_mutated = True
+                    draft.write_bytes(mutated_draft_bytes)
+                return raw
+
+            with monkeypatch.context() as patch_context:
+                patch_context.setattr(
+                    crown_audit_module,
+                    "_root_snapshot_bytes",
+                    mutate_draft_after_snapshot,
+                )
+                draft_mutation_report = build_crown_live_candidate_audit(
+                    tmp_path,
+                    task_id=task_id,
+                )
+            draft_mutation_by_id = {
+                item["id"]: item for item in draft_mutation_report["checks"]
+            }
+            assert draft_mutation_by_id["v2_artifact_snapshot_stable"][
+                "status"
+            ] == "fail"
+            draft.write_bytes(draft_bytes)
+
+    if job_kind == "narrative_revision" and run_mode == "targeted_rewrite":
+        for key in revision_identity:
+            request_value = request.pop(key)
+            session_value = session.pop(key)
+            request_path.write_text(
+                yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+            )
+            session["request_sha256"] = hashlib.sha256(
+                request_path.read_bytes()
+            ).hexdigest()
+            session_path.write_text(
+                yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+            )
+            missing_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+            missing_by_id = {item["id"]: item for item in missing_report["checks"]}
+            assert missing_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+            request[key] = request_value
+            session[key] = session_value
+        request_path.write_text(
+            yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+        )
+        session["request_sha256"] = hashlib.sha256(
+            request_path.read_bytes()
+        ).hexdigest()
+
+        session["candidate_set_id"] = "different-candidate-set"
+        session_path.write_text(
+            yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+        )
+        mismatch_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+        mismatch_by_id = {item["id"]: item for item in mismatch_report["checks"]}
+        assert mismatch_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+        session["candidate_set_id"] = request["candidate_set_id"]
+
+        attempt_receipt.write_text("status: tampered\n", encoding="utf-8")
+        session_path.write_text(
+            yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+        )
+        stale_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+        stale_by_id = {item["id"]: item for item in stale_report["checks"]}
+        assert stale_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+        attempt_receipt.write_bytes(attempt_receipt_bytes)
+
+        original_receipt_ref = request["attempt_receipt"]
+        alias_receipt = project_root / "candidates" / "not-a-ledger-receipt.yml"
+        alias_receipt.write_bytes(attempt_receipt_bytes)
+        alias_ref = {
+            "path": alias_receipt.relative_to(tmp_path).as_posix(),
+            "sha256": hashlib.sha256(alias_receipt.read_bytes()).hexdigest(),
+        }
+        request["attempt_receipt"] = alias_ref
+        session["attempt_receipt"] = alias_ref
+        request_path.write_text(
+            yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+        )
+        session["request_sha256"] = hashlib.sha256(
+            request_path.read_bytes()
+        ).hexdigest()
+        session_path.write_text(
+            yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+        )
+        alias_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+        alias_by_id = {item["id"]: item for item in alias_report["checks"]}
+        assert alias_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+        request["attempt_receipt"] = original_receipt_ref
+        session["attempt_receipt"] = original_receipt_ref
+
+        original_audit_id = request["triggered_by_audit_id"]
+        request["triggered_by_audit_id"] = request["source_run_id"]
+        session["triggered_by_audit_id"] = request["source_run_id"]
+        request_path.write_text(
+            yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+        )
+        session["request_sha256"] = hashlib.sha256(
+            request_path.read_bytes()
+        ).hexdigest()
+        session_path.write_text(
+            yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+        )
+        same_run_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+        same_run_by_id = {item["id"]: item for item in same_run_report["checks"]}
+        assert same_run_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+        request["triggered_by_audit_id"] = original_audit_id
+        session["triggered_by_audit_id"] = original_audit_id
+
+        request["automatic_rewrite_number"] = True
+        session["automatic_rewrite_number"] = True
+        request_path.write_text(
+            yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+        )
+        session["request_sha256"] = hashlib.sha256(
+            request_path.read_bytes()
+        ).hexdigest()
+        session_path.write_text(
+            yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+        )
+        bool_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+        bool_by_id = {item["id"]: item for item in bool_report["checks"]}
+        assert bool_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+        request["automatic_rewrite_number"] = 1
+        session["automatic_rewrite_number"] = 1
+
+        session["automatic_rewrite_count"] = False
+        session["automatic_rewrite_number"] = True
+        request_path.write_text(
+            yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+        )
+        session["request_sha256"] = hashlib.sha256(
+            request_path.read_bytes()
+        ).hexdigest()
+        session_path.write_text(
+            yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+        )
+        session_bool_report = build_crown_live_candidate_audit(
+            tmp_path,
+            task_id=task_id,
+        )
+        session_bool_by_id = {
+            item["id"]: item for item in session_bool_report["checks"]
+        }
+        assert session_bool_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+        session["automatic_rewrite_count"] = 0
+        session["automatic_rewrite_number"] = 1
+
+    session["chapter_id"] = 26
+    session_path.write_text(
+        yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+    )
+    chapter_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+    chapter_by_id = {item["id"]: item for item in chapter_report["checks"]}
+    assert chapter_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+    session["chapter_id"] = 25
+
+    request["chapter_id"] = 1
+    session["chapter_id"] = True
+    request_path.write_text(
+        yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+    )
+    session["request_sha256"] = hashlib.sha256(request_path.read_bytes()).hexdigest()
+    session_path.write_text(
+        yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+    )
+    chapter_bool_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+    chapter_bool_by_id = {
+        item["id"]: item for item in chapter_bool_report["checks"]
+    }
+    assert chapter_bool_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+    request["chapter_id"] = 25
+    session["chapter_id"] = 25
+
+    request["job_kind"] = [job_kind]
+    session["job_kind"] = [job_kind]
+    request_path.write_text(
+        yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+    )
+    session["request_sha256"] = hashlib.sha256(request_path.read_bytes()).hexdigest()
+    session_path.write_text(
+        yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+    )
+    malformed_report = build_crown_live_candidate_audit(tmp_path, task_id=task_id)
+    malformed_by_id = {item["id"]: item for item in malformed_report["checks"]}
+    assert malformed_by_id["v2_session_identity_and_request_hash"]["status"] == "fail"
+    request["job_kind"] = job_kind
+    session["job_kind"] = job_kind
+    request_path.write_text(
+        yaml.safe_dump(request, sort_keys=False), encoding="utf-8"
+    )
+    session["request_sha256"] = hashlib.sha256(request_path.read_bytes()).hexdigest()
+    session_path.write_text(
+        yaml.safe_dump(session, sort_keys=False), encoding="utf-8"
+    )
 
     forged_receipt = yaml.safe_load(
         (run_dir / "writer_execution_receipt.yml").read_text(encoding="utf-8")

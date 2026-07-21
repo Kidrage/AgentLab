@@ -655,6 +655,7 @@ without a progress row.
 | 2026-07-21 20:42 CST | Codex | Gate 1 Ch25 targeted revision review 4 | standards_rejected_spec_rejected | Spec combined successor deletion with predecessor replay and showed the repair path could still downgrade head 2 to 1. Standards replaced the source ledger directory while delivery held the old inode lock and reproduced a new reservation on the replacement inode before the old result wrote. Each individual replay had passed; their combined TOCTOU forms had not | retain both combinations as required recovery tests; provider/Production remain 0 | Make head advancement explicitly monotonic against existing state and make delivery verify the canonical ledger path still points to its locked inode before accepting output |
 | 2026-07-21 20:45 CST | Codex | Gate 1 Ch25 targeted revision correction 5 | correction_complete_final_rereview_pending | `_write_fence_head` now validates existing head state and never rewrites a greater issued count with a lower replay. The successor-deletion + predecessor-replay test preserves head=2 and blocks the old result. Delivery now checks canonical ledger path/inode before releasing its lock; a rename-and-copy replacement can issue attempt-02 on its own inode, but the old delivery is converted to blocked and its just-written prose/receipt are removed. Targeted 34/0; narrative domain 195/0; Crown audit 7/0; Ruff/compile/diff pass; providers and Production remain 0 | changes remain in the narrative revision ledger and Writer result boundary; no queue, code route, legacy generation or Production behavior changed | Fresh independent PASS from both axes remains mandatory before full repository regression and commit/CI |
 | 2026-07-21 20:53 CST | Codex | Gate 1 Ch25 targeted revision final local acceptance | accepted_local_pending_commit_ci | Final Standards and Spec both PASS after source-run attempt anchoring, candidate-set binding, exact replay, persistent decision_required exhaustion, candidate-hash audit binding, monotonic fence head, deletion/gap recovery, directory-replacement detection, first-success preservation and delivery/reservation serialization. Targeted 34/0; narrative domain 195/0; Crown audit 7/0; authoritative full repository 3,046 passed / 2 skipped / 11 warnings in 369.89s; Ruff/compile/diff pass. Original Ch25 SHA remains `a361c1a5…360` and Crown Production digest remains `8ef9cf…7556`; provider calls remain 0 | narrative-only deep modules plus optional activation-bound reference fields; no central runner/queue, code-task route, legacy generation or Production mutation | Stage the exact tracked/new implementation, tests, acceptance and handoff files only; preserve three unrelated untracked Gate 1 directories; commit/push feature branch, verify CI and rebuild knowledge before real provider-free Ch25 audit/contract/spec |
+| 2026-07-21 22:02 CST | Codex | Gate 1 Ch25 live targeted revision and deterministic re-audit | accepted_local_pending_commit_ci | Attempt 01 reached DeepSeek V4 Pro with no fallback at `$0.593190` but was rejected at 5,834>5,500 Han characters. Final automatic attempt 02 used 36,591 input / 17,045 output / 45,184 cache-read tokens in 260.39s at `$0.631672`, producing 4,762 Han characters and candidate SHA `42036e…046a`. Its first audit exposed a v2 generation-only identity assumption. After five independent rejection/correction rounds, the adapter now validates strict generation/revision pairs, complete revision lineage, the authoritative attempt ledger/fence, root-bounded nofollow files, immutable per-artifact byte snapshots and end-of-audit stability. Final Standards/Spec both PASS; narrative set 195/0; full repository 3,049 passed / 2 skipped / 11 warnings in 375.63s; real audit 7/7 PASS | code only in `agent_runtime/crown_candidate_audit.py`, consolidated tests in `tests/test_crown_candidate_audit.py`, live evidence in the targeted-revision acceptance doc and ignored Crown run receipts. Original SHA `a361c1…360` and Production digest `8ef9cf…7556` remain unchanged; Ch26/27 were not started | Commit/push this audit-identity closure, verify CI and rebuild knowledge. Then implement/use the governed Qwen 3.7 Max literary Editor and anonymous A/B receipt path for Ch25; do not claim uplift, select the revision, start Ch26, or write Production before those gates |
 
 ## Stop conditions and immediate next actions
 
@@ -663,25 +664,18 @@ this handoff, Production must change, safety tests must be weakened, non-narrati
 work cannot be isolated, central modules would grow materially, two rewrites fail,
 or someone is about to claim literary uplift without the required human evidence.
 
-Phase 0R and Phase 1R structural contracts are accepted. Phase 2R Nodes A-D,
-default-assist knowledge safety and direct/pipeline Writer materialization parity
-are accepted and committed. The exact Gate 1 operator-plan transaction has now
-passed focused verification, both independent review axes and the authoritative
-3,012-test repository regression; commit `bf1c056` and CI `29821763472` are
-green. Crown Ch25-Ch27
-provider-free preflight remains 3/3 with the recorded 32.10% packet and 44.77%
-context reductions and Production unchanged. The first authorized Ch25 call
-reached the configured model but produced no accepted prose because the sealed
-packet was not delivered; Writer-delivery commit `668d4b7` and CI `29823501327`
-are green. The next authorized Ch25 call generated a hash-valid run-local draft
-without Production mutation, but deterministic v2 audit correctly blocks its
-13,373 body Han characters against the 4,500–5,500 brief. The hard length closure
-has passed both review axes and the 3,019-test full regression and now awaits its
-separate commit/CI. Ch26/27, a passing Ch25 candidate, literary audit, anonymous
-A/B packaging and human review have not run, so literary uplift and Gate 1
-acceptance remain unclaimed. User-positive calibration is still missing and ten
-human blind pairs at 70% new-system preference remain required before Gate 2
-scaling or Phase 5.
+Phase 0R and Phase 1R structural contracts and Phase 2R Nodes A-D are accepted
+and committed. Default-assist knowledge safety, exact Writer plans, sealed
+packet delivery, Han-character enforcement and the source-run-anchored two-slot
+revision ledger are delivered with green CI. Crown Ch25 revision attempt 02 is
+now a hash-valid, 4,762-Han, candidate-only draft with a 7/7 deterministic audit;
+the original Ch25 and Production remain byte-identical. The audit identity and
+snapshot correction has passed both independent review axes and the 3,049-test
+full regression but still awaits its own commit/CI and knowledge rebuild.
+Ch25 has not passed literary review or anonymous A/B selection, and Ch26/27 have
+not started. Literary uplift and Gate 1 acceptance therefore remain unclaimed.
+User-positive calibration is still missing and ten human blind pairs at 70% new
+system preference remain required before Gate 2 scaling or Phase 5.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

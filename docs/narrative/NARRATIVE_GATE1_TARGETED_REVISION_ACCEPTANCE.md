@@ -1,6 +1,6 @@
 # Gate 1 Targeted Revision Acceptance
 
-Status: `accepted_local_pending_commit_ci`
+Status: `live_ch25_deterministic_pass_literary_review_pending`
 
 This unit closes the provider gate between a failed v2 candidate audit and one
 new candidate-only Writer attempt. It does not claim literary uplift, select a
@@ -99,8 +99,49 @@ central runner, code-task route or Production promotion interface changed.
 - Provider calls during this unit: `0`.
 - Production writes during this unit: `0`.
 
-Commit/CI and knowledge rebuild remain required before the real Ch25 revision
-preflight or any external model call.
+At initial local acceptance, commit/CI and a knowledge rebuild were required
+before the real Ch25 revision preflight or any external model call; the live
+outcome below records what happened after those gates passed.
+
+## Live Ch25 outcome
+
+The targeted-revision implementation was delivered as commit `53a645b`; CI run
+`29832096183` passed before the live attempts began.
+
+- Attempt 1 used DeepSeek V4 Pro with no fallback and cost exactly `$0.593190`.
+  Its 5,834 Han characters exceeded the 5,500 hard maximum, so AgentLab rejected
+  the output and did not materialize an accepted candidate.
+- Attempt 2 used the same model with no fallback, took `260.39s`, used 36,591
+  input / 17,045 output / 45,184 cache-read tokens, and cost exactly `$0.631672`.
+  It produced 4,762 Han characters with prose SHA256
+  `42036edef00667c23bdbd49aec09a08f21bfe3fc0dcc2d8f18d92e1a5f4b046a`.
+- The original source remains SHA256
+  `a361c1a579539b57efbd5324a8bbe22d98b3192f38c2405c506e3fee32bcd360`.
+- The Crown Production digest remains
+  `8ef9cf76a84154fbbaf809451066b87f1267a67e5a7a9c92641dc4bc2daf7556`.
+
+The first independent deterministic audit exposed a false-red: the Crown v2
+adapter still assumed every candidate was
+`narrative_generation / generate_candidate`. The correction now accepts only
+the two valid candidate pairs and requires a targeted revision's complete,
+strictly typed lineage to match its session and authoritative attempt
+ledger/fence. All five v2 audit artifacts are read once through a root-bounded,
+nofollow byte snapshot; parsing, prose checks and hashes share that snapshot,
+and a final byte-stability check blocks concurrent replacement.
+
+Final local evidence for that correction:
+
+- Independent Standards review: `PASS`.
+- Independent Spec review: `PASS`.
+- Narrative semantics/quality/efficiency set: `195 passed`.
+- Full repository: `3,049 passed, 2 skipped, 11 warnings` in `375.63s`.
+- Real Ch25 revision-2 deterministic audit: `7/7 PASS`.
+- Ruff, compile and `git diff --check`: pass.
+
+This is not literary acceptance. Ch25 still needs an independent literary
+scorecard and anonymous original/revised A/B selection. Ch26 and Ch27 remain
+stopped, and no candidate may replace the source or enter Production before
+those gates and the user's review.
 
 ## Rollback
 

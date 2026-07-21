@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import hashlib
 from pathlib import Path
 import re
@@ -54,6 +55,23 @@ BATCH_RECEIPT_CHECKS = (
     "deprecated_sources_excluded",
 )
 AGY_HIGH_MODEL_LABEL = "Gemini 3.5 Flash (High)"
+_V2_CANDIDATE_JOB_MODES = frozenset(
+    {
+        ("narrative_generation", "generate_candidate"),
+        ("narrative_revision", "targeted_rewrite"),
+    }
+)
+_V2_REVISION_IDENTITY_FIELDS = (
+    "candidate_set_id",
+    "source_job_id",
+    "source_run_id",
+    "triggered_by_audit_id",
+    "attempt_id",
+    "lease_token",
+    "lease_expires_at",
+    "fencing_token",
+)
+_V2_REVISION_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -61,6 +79,156 @@ def _read_yaml(path: Path) -> dict[str, Any]:
         return {}
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return data if isinstance(data, dict) else {}
+
+
+def _root_snapshot_bytes(root: Path, path: Path) -> bytes | None:
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        _read_root_relative_bytes,
+    )
+
+    try:
+        return _read_root_relative_bytes(root, path)
+    except (OSError, ValueError):
+        return None
+
+
+def _read_yaml_snapshot(raw: bytes | None) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    try:
+        data = yaml.safe_load(raw.decode("utf-8")) or {}
+    except (UnicodeDecodeError, yaml.YAMLError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _bound_file_reference_path(root: Path, reference: Any) -> Path | None:
+    if not isinstance(reference, dict):
+        return None
+    raw_path = reference.get("path")
+    expected_hash = reference.get("sha256")
+    if (
+        not isinstance(raw_path, str)
+        or not raw_path.strip()
+        or Path(raw_path).is_absolute()
+        or not isinstance(expected_hash, str)
+        or re.fullmatch(r"[0-9a-f]{64}", expected_hash) is None
+    ):
+        return None
+    lexical_path = root / raw_path
+    raw = _root_snapshot_bytes(root, lexical_path)
+    if raw is None or hashlib.sha256(raw).hexdigest() != expected_hash:
+        return None
+    try:
+        path = lexical_path.resolve()
+        path.relative_to(root.resolve())
+    except (OSError, ValueError):
+        return None
+    if not path.is_file() or path.is_symlink():
+        return None
+    return path
+
+
+def _v2_candidate_identity_matches(
+    root: Path,
+    request: dict[str, Any],
+    session: dict[str, Any],
+    task_id: str,
+) -> bool:
+    job_kind = request.get("job_kind")
+    run_mode = request.get("run_mode")
+    if (
+        not isinstance(job_kind, str)
+        or not isinstance(run_mode, str)
+        or (job_kind, run_mode) not in _V2_CANDIDATE_JOB_MODES
+        or session.get("job_kind") != job_kind
+        or session.get("run_mode") != run_mode
+    ):
+        return False
+    if (
+        type(request.get("schema_version")) is not int
+        or request.get("schema_version") != 1
+        or type(session.get("schema_version")) is not int
+        or session.get("schema_version") != 1
+        or request.get("project") != "Crown_of_Ash"
+        or session.get("project") != "Crown_of_Ash"
+        or request.get("task_id") != session.get("task_id")
+        or request.get("task_id") != task_id
+        or request.get("candidate_only") is not True
+        or session.get("candidate_only") is not True
+        or request.get("production_modified") is not False
+        or session.get("production_modified") is not False
+        or request.get("external_context_approval_required") is not True
+        or session.get("external_context_approval_required") is not True
+    ):
+        return False
+    chapter_id = request.get("chapter_id")
+    if (
+        not isinstance(chapter_id, int)
+        or isinstance(chapter_id, bool)
+        or chapter_id < 1
+        or type(session.get("chapter_id")) is not int
+        or session.get("chapter_id") != chapter_id
+    ):
+        return False
+    if job_kind == "narrative_generation":
+        return True
+    if any(
+        not isinstance(request.get(key), str)
+        or _V2_REVISION_IDENTIFIER.fullmatch(str(request[key])) is None
+        or session.get(key) != request[key]
+        for key in _V2_REVISION_IDENTITY_FIELDS
+        if key != "lease_expires_at"
+    ):
+        return False
+    lease_expires_at = request.get("lease_expires_at")
+    if not isinstance(lease_expires_at, str):
+        return False
+    try:
+        parsed_expiry = datetime.fromisoformat(
+            str(lease_expires_at).replace("Z", "+00:00")
+        )
+    except (TypeError, ValueError):
+        return False
+    if parsed_expiry.tzinfo is None or session.get("lease_expires_at") != lease_expires_at:
+        return False
+    if request["task_id"] in {
+        request["source_job_id"],
+        request["source_run_id"],
+        request["triggered_by_audit_id"],
+    } or request["triggered_by_audit_id"] == request["source_run_id"]:
+        return False
+    rewrite_count = request.get("automatic_rewrite_count")
+    rewrite_number = request.get("automatic_rewrite_number")
+    if (
+        not isinstance(rewrite_count, int)
+        or isinstance(rewrite_count, bool)
+        or rewrite_count not in {0, 1}
+        or not isinstance(rewrite_number, int)
+        or isinstance(rewrite_number, bool)
+        or rewrite_number != rewrite_count + 1
+        or session.get("automatic_rewrite_count") != rewrite_count
+        or session.get("automatic_rewrite_number") != rewrite_number
+        or type(session.get("automatic_rewrite_count")) is not int
+        or type(session.get("automatic_rewrite_number")) is not int
+    ):
+        return False
+    attempt_receipt = request.get("attempt_receipt")
+    if session.get("attempt_receipt") != attempt_receipt:
+        return False
+    receipt_path = _bound_file_reference_path(root, attempt_receipt)
+    if receipt_path is None:
+        return False
+    from agent_runtime.narrative.production.revision_attempts import (
+        validate_revision_attempt_receipt,
+    )
+
+    return not validate_revision_attempt_receipt(
+        root=root,
+        project="Crown_of_Ash",
+        request=request,
+        receipt_path=receipt_path,
+    )
 
 
 def _draft_metrics(path: Path) -> dict[str, Any]:
@@ -102,7 +270,8 @@ def build_crown_live_candidate_audit(
     root = root.resolve()
     project_root = root / "projects" / "Crown_of_Ash"
     run_dir = project_root / "runs" / task_id
-    if (run_dir / "narrative_v2_writer_request.yml").is_file():
+    v2_request_path = run_dir / "narrative_v2_writer_request.yml"
+    if v2_request_path.exists() or v2_request_path.is_symlink():
         return _build_crown_v2_live_candidate_audit(
             root,
             project_root,
@@ -228,15 +397,21 @@ def _build_crown_v2_live_candidate_audit(
         "writer_execution_receipt.yml",
         "writer_v2_output_contract.yml",
     )
-    missing = [name for name in required if not (run_dir / name).is_file()]
+    snapshots = {
+        name: _root_snapshot_bytes(root, run_dir / name)
+        for name in required
+    }
+    missing = [name for name, raw in snapshots.items() if raw is None]
     request_path = run_dir / "narrative_v2_writer_request.yml"
-    request = _read_yaml(request_path)
-    session = _read_yaml(run_dir / "narrative_v2_writer_session_receipt.yml")
-    output = _read_yaml(run_dir / "writer_v2_output_contract.yml")
-    execution = _read_yaml(run_dir / "writer_execution_receipt.yml")
-    draft_path = run_dir / "fiction_draft.md"
-    prose = draft_path.read_text(encoding="utf-8", errors="replace") if draft_path.is_file() else ""
-    prose_hash = hashlib.sha256(draft_path.read_bytes()).hexdigest() if draft_path.is_file() else ""
+    request = _read_yaml_snapshot(snapshots[request_path.name])
+    session = _read_yaml_snapshot(
+        snapshots["narrative_v2_writer_session_receipt.yml"]
+    )
+    output = _read_yaml_snapshot(snapshots["writer_v2_output_contract.yml"])
+    execution = _read_yaml_snapshot(snapshots["writer_execution_receipt.yml"])
+    draft_snapshot = snapshots["fiction_draft.md"]
+    prose = draft_snapshot.decode("utf-8", errors="replace") if draft_snapshot is not None else ""
+    prose_hash = hashlib.sha256(draft_snapshot).hexdigest() if draft_snapshot is not None else ""
     receipt_length_contract = normalize_han_character_contract(
         session.get("prose_length_contract")
     )
@@ -249,22 +424,16 @@ def _build_crown_v2_live_candidate_audit(
         )
     )
     length_result = evaluate_han_character_contract(prose, length_contract)
-    identity_matches = all(
-        request.get(key) == session.get(key) == expected
-        for key, expected in {
-            "schema_version": 1,
-            "job_kind": "narrative_generation",
-            "run_mode": "generate_candidate",
-            "project": "Crown_of_Ash",
-            "task_id": task_id,
-            "candidate_only": True,
-            "production_modified": False,
-            "external_context_approval_required": True,
-        }.items()
+    identity_matches = _v2_candidate_identity_matches(
+        root,
+        request,
+        session,
+        task_id,
     )
-    request_hash_matches = bool(request_path.is_file()) and session.get(
+    request_snapshot = snapshots[request_path.name]
+    request_hash_matches = request_snapshot is not None and session.get(
         "request_sha256"
-    ) == hashlib.sha256(request_path.read_bytes()).hexdigest()
+    ) == hashlib.sha256(request_snapshot).hexdigest()
     contract_hashes_match = bool(prose_hash) and all(
         value == prose_hash
         for value in (
@@ -292,11 +461,19 @@ def _build_crown_v2_live_candidate_audit(
         and "AGENTLAB_EDIT" not in prose
         and "```yaml" not in prose
     )
+    snapshot_stable = not missing and all(
+        _root_snapshot_bytes(root, run_dir / name) == raw
+        for name, raw in snapshots.items()
+    )
     checks = [
         {
             "id": "v2_prose_only_artifacts",
             "status": "pass" if not missing else "fail",
             "missing": missing,
+        },
+        {
+            "id": "v2_artifact_snapshot_stable",
+            "status": "pass" if snapshot_stable else "fail",
         },
         {
             "id": "v2_session_identity_and_request_hash",
