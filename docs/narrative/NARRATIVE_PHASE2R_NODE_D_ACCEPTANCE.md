@@ -8,6 +8,22 @@ pass. Earlier review rounds rejected real authority gaps; every reported seam
 now has a deterministic replay and a verified correction. A bounded Gate 1 live
 Writer call is now permitted under the existing candidate-only authorization.
 
+Post-acceptance operator-path inspection found that `run-agent Writer --execute`
+still selected the legacy four-output materializer after a successful v2 call,
+even though `run-pipeline` selected the v2 prose-only contract. A shared
+run-local identity dispatcher now serves both entry points. Its focused
+regression passes. Standards review then reproduced a success-to-blocked legacy
+retry that retained the prior four candidate artifacts; the dispatcher now
+removes those explicit run-local outputs on a blocked retry while preserving the
+failure contract. Spec review additionally reproduced an empty completed retry
+that removed the outputs but left the prior passing contract; every blocked
+legacy retry now atomically persists a blocked contract with zero materialized
+outputs and an explicit issue. The focused set is 133/0. Final correction review
+and the repository rerun passed: both Standards and Spec returned PASS, and the
+authoritative full repository run completed with 3,004 passed, 2 skipped and 11
+warnings in 232.09 seconds. The direct live command is now permitted once its
+exact frozen workflow plan has been persisted and revalidated.
+
 The registered Writer path now activates v2 only when its run directory contains
 `narrative_v2_writer_request.yml` with structured narrative-generation identity,
 candidate-only flags and a mandatory external-context-approval policy. Natural

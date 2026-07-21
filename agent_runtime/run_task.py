@@ -3627,33 +3627,26 @@ def run_agent(
     gate_issues = []
     if agent_name == "Writer":
         try:
-            from agent_runtime.writer_output_materializer import materialize_writer_candidate_result
+            from agent_runtime.narrative.production.live_writer import (
+                materialize_registered_writer_result,
+            )
         except ModuleNotFoundError:  # pragma: no cover - direct script path
-            from writer_output_materializer import materialize_writer_candidate_result
+            from narrative.production.live_writer import (
+                materialize_registered_writer_result,
+            )
 
-        materialized = materialize_writer_candidate_result(
+        delivery = materialize_registered_writer_result(
             result,
             Path(plan.run_dir),
             task_id,
             capture_name=model_output_path.name,
         )
-        if materialized:
-            output_path = Path(plan.run_dir) / "fiction_draft.md"
-            output_content = output_path.read_text(encoding="utf-8", errors="replace")
-        else:
-            contract_path = Path(plan.run_dir) / "writer_output_contract.yml"
-            contract = (
-                yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
-                if contract_path.exists()
-                else {}
-            )
-            gate_issues.extend(
-                str(issue) for issue in contract.get("issues", [])
-            )
+        output_path = Path(str(delivery["output_path"]))
+        output_content = str(delivery["output_content"])
+        if delivery.get("status") != "pass":
+            gate_issues.extend(str(issue) for issue in delivery.get("issues", []))
             if not gate_issues:
-                gate_issues.append("Writer did not return the four required candidate output blocks")
-            output_path = contract_path
-            output_content = result.content or ""
+                gate_issues.append("Writer output contract did not pass")
     else:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(result.content, encoding="utf-8")

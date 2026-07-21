@@ -52,6 +52,7 @@ from agent_runtime.narrative.production.literary_memory import (
 from agent_runtime.narrative.production.live_writer import (
     LiveWriterSession,
     materialize_live_writer_result,
+    materialize_registered_writer_result,
     prepare_live_writer_session,
 )
 
@@ -74,6 +75,7 @@ __all__ = [
     "LiveWriterSession",
     "prepare_live_writer_session",
     "materialize_live_writer_result",
+    "materialize_registered_writer_result",
     # State
     "StateDelta",
     "StateProjector",

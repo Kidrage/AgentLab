@@ -2890,42 +2890,17 @@ def run_next_node(
                     report_path=run_dir / "narrative_planner_validation.yml",
                 )
         elif agent == "Writer":
-            v2_request = run_dir / "narrative_v2_writer_request.yml"
-            if v2_request.is_file():
-                from agent_runtime.narrative.production.live_writer import (
-                    LIVE_WRITER_OUTPUT_CONTRACT_NAME,
-                    materialize_live_writer_result,
-                )
+            from agent_runtime.narrative.production.live_writer import (
+                materialize_registered_writer_result,
+            )
 
-                writer_result = materialize_live_writer_result(
-                    result,
-                    run_dir,
-                    task_id,
-                )
-                contract_path = run_dir / LIVE_WRITER_OUTPUT_CONTRACT_NAME
-                writer_passed = writer_result.get("status") == "pass"
-                issues = [str(issue) for issue in writer_result.get("issues", [])]
-            else:
-                try:
-                    from agent_runtime.writer_output_materializer import materialize_writer_candidate_result
-                except ModuleNotFoundError:  # pragma: no cover - direct script path
-                    from writer_output_materializer import materialize_writer_candidate_result
-
-                writer_passed = materialize_writer_candidate_result(
-                    result,
-                    run_dir,
-                    task_id,
-                )
-                contract_path = run_dir / "writer_output_contract.yml"
-                contract = (
-                    yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
-                    if contract_path.exists()
-                    else {}
-                )
-                issues = [str(issue) for issue in contract.get("issues", [])] or [
-                    "Writer did not return the four required candidate output blocks"
-                ]
+            delivery = materialize_registered_writer_result(result, run_dir, task_id)
+            writer_passed = delivery.get("status") == "pass"
+            contract_path = Path(str(delivery["contract_path"]))
+            issues = [str(issue) for issue in delivery.get("issues", [])]
             if not writer_passed:
+                if not issues:
+                    issues = ["Writer output contract did not pass"]
                 return _block_on_artifact_gate(
                     agentlab_root,
                     run_dir,
@@ -2936,8 +2911,8 @@ def run_next_node(
                     issues,
                     report_path=contract_path,
                 )
-            report_path = run_dir / "fiction_draft.md"
-            report_content = report_path.read_text(encoding="utf-8", errors="replace")
+            report_path = Path(str(delivery["output_path"]))
+            report_content = str(delivery["output_content"])
         elif narrative_heavy_audit and agent in {"Reviewer", "Scribe", "Verifier"}:
             from agent_runtime.narrative_heavy_audit import (
                 HEAVY_AUDIT_OUTPUTS_BY_AGENT,

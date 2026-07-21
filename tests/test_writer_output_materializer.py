@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from agent_runtime.writer_output_materializer import (
+    REQUIRED_WRITER_OUTPUTS,
     materialize_writer_candidate_content,
 )
 
@@ -574,6 +575,101 @@ def test_live_writer_delivery_rejects_stale_session_binding(
     assert delivery["issues"] == ["live_writer_session_request_hash_mismatch"]
     assert not (run_dir / "fiction_draft.md").exists()
     assert not (run_dir / "writer_execution_receipt.yml").exists()
+
+
+def test_registered_writer_delivery_selects_v2_materializer_from_request(
+    tmp_path: Path,
+) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_registered_writer_result,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch10"
+    _write_live_writer_session_binding(run_dir, "task_ch10")
+    result = SimpleNamespace(
+        status="completed",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        content=_v2_prose_block(),
+        raw_usage={"provider_session_id": "writer-call-2"},
+    )
+
+    delivery = materialize_registered_writer_result(result, run_dir, "task_ch10")
+
+    assert delivery["status"] == "pass"
+    assert Path(delivery["contract_path"]).name == "writer_v2_output_contract.yml"
+    assert Path(delivery["output_path"]).name == "fiction_draft.md"
+    assert (run_dir / "writer_execution_receipt.yml").is_file()
+
+
+def test_registered_writer_delivery_preserves_legacy_four_output_path(
+    tmp_path: Path,
+) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_registered_writer_result,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    result = SimpleNamespace(
+        status="completed",
+        provider="legacy",
+        model="legacy-model",
+        content=_blocks("task_ch01"),
+        raw_usage={},
+    )
+
+    delivery = materialize_registered_writer_result(result, run_dir, "task_ch01")
+
+    assert delivery["status"] == "pass"
+    assert Path(delivery["contract_path"]).name == "writer_output_contract.yml"
+    assert (run_dir / "fiction_draft.md").is_file()
+    assert (run_dir / "continuity_ledger.yml").is_file()
+
+
+@pytest.mark.parametrize("invalid_content", ["not structured", ""])
+def test_registered_writer_delivery_clears_stale_legacy_outputs_after_failure(
+    tmp_path: Path,
+    invalid_content: str,
+) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_registered_writer_result,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch01"
+    valid_result = SimpleNamespace(
+        status="completed",
+        provider="legacy",
+        model="legacy-model",
+        content=_blocks("task_ch01"),
+        raw_usage={},
+    )
+    invalid_result = SimpleNamespace(
+        status="completed",
+        provider="legacy",
+        model="legacy-model",
+        content=invalid_content,
+        raw_usage={},
+    )
+
+    first_delivery = materialize_registered_writer_result(
+        valid_result,
+        run_dir,
+        "task_ch01",
+    )
+    retry_delivery = materialize_registered_writer_result(
+        invalid_result,
+        run_dir,
+        "task_ch01",
+    )
+
+    assert first_delivery["status"] == "pass"
+    assert retry_delivery["status"] == "blocked"
+    assert Path(retry_delivery["contract_path"]).name == "writer_output_contract.yml"
+    assert all(not (run_dir / name).exists() for name in REQUIRED_WRITER_OUTPUTS)
+    contract = yaml.safe_load(
+        (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
+    )
+    assert contract["status"] == "blocked"
 
 
 # ---------------------------------------------------------------------------

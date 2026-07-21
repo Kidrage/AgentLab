@@ -527,6 +527,90 @@ def materialize_live_writer_result(
     return validation
 
 
+def materialize_registered_writer_result(
+    result: Any,
+    run_dir: Path,
+    task_id: str,
+    *,
+    capture_name: str = "writer_role_session_capture.md",
+) -> dict[str, Any]:
+    """Select the v2 or legacy Writer materializer from run-local identity."""
+    run_dir = Path(run_dir)
+    request_path = run_dir / LIVE_WRITER_REQUEST_NAME
+    if request_path.is_file() or request_path.is_symlink():
+        validation = materialize_live_writer_result(result, run_dir, task_id)
+        contract_path = run_dir / LIVE_WRITER_OUTPUT_CONTRACT_NAME
+    else:
+        from agent_runtime.writer_output_materializer import (
+            REQUIRED_WRITER_OUTPUTS,
+            materialize_writer_candidate_result,
+        )
+
+        passed = materialize_writer_candidate_result(
+            result,
+            run_dir,
+            task_id,
+            capture_name=capture_name,
+        )
+        contract_path = run_dir / "writer_output_contract.yml"
+        contract = (
+            _decode_mapping(
+                contract_path.read_bytes(),
+                "writer_output_contract",
+                [],
+            )
+            if contract_path.is_file()
+            else {}
+        )
+        if not passed:
+            issues = list(contract.get("issues") or [])
+            if not issues:
+                issues = [
+                    "writer_result_not_completed"
+                    if getattr(result, "status", None) != "completed"
+                    else "writer_result_empty"
+                ]
+            contract = {
+                **contract,
+                "schema_version": 1,
+                "status": "blocked",
+                "task_id": task_id,
+                "capture_path": capture_name,
+                "required_outputs": list(REQUIRED_WRITER_OUTPUTS),
+                "materialized_outputs": [],
+                "candidate_only": True,
+                "harness_generated_story_state": False,
+                "issues": issues,
+            }
+            atomic_write_yaml(
+                contract_path,
+                contract,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+            for name in REQUIRED_WRITER_OUTPUTS:
+                candidate_path = run_dir / name
+                if candidate_path.is_file() or candidate_path.is_symlink():
+                    candidate_path.unlink()
+        validation = {
+            "status": "pass" if passed else "blocked",
+            "issues": list(contract.get("issues") or []),
+        }
+    passed = validation.get("status") == "pass"
+    output_path = run_dir / "fiction_draft.md" if passed else contract_path
+    output_content = (
+        output_path.read_text(encoding="utf-8", errors="replace")
+        if output_path.is_file()
+        else str(getattr(result, "content", "") or "")
+    )
+    return {
+        **validation,
+        "contract_path": str(contract_path),
+        "output_path": str(output_path),
+        "output_content": output_content,
+    }
+
+
 def _validate_delivery_session(run_dir: Path, task_id: str) -> list[str]:
     request_path = run_dir / LIVE_WRITER_REQUEST_NAME
     receipt_path = run_dir / LIVE_WRITER_RECEIPT_NAME
