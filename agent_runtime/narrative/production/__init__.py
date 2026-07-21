@@ -47,6 +47,12 @@ from agent_runtime.narrative.production.literary_memory import (
     MEMORY_CATEGORIES,
     LiteraryMemoryResult,
     compile_literary_memory_snapshot,
+    validate_literary_memory_snapshot,
+)
+from agent_runtime.narrative.production.live_writer import (
+    LiveWriterSession,
+    materialize_live_writer_result,
+    prepare_live_writer_session,
 )
 
 __all__ = [
@@ -64,6 +70,10 @@ __all__ = [
     "MEMORY_CATEGORIES",
     "LiteraryMemoryResult",
     "compile_literary_memory_snapshot",
+    "validate_literary_memory_snapshot",
+    "LiveWriterSession",
+    "prepare_live_writer_session",
+    "materialize_live_writer_result",
     # State
     "StateDelta",
     "StateProjector",

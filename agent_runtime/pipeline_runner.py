@@ -2890,12 +2890,32 @@ def run_next_node(
                     report_path=run_dir / "narrative_planner_validation.yml",
                 )
         elif agent == "Writer":
-            try:
-                from agent_runtime.writer_output_materializer import materialize_writer_candidate_result
-            except ModuleNotFoundError:  # pragma: no cover - direct script path
-                from writer_output_materializer import materialize_writer_candidate_result
+            v2_request = run_dir / "narrative_v2_writer_request.yml"
+            if v2_request.is_file():
+                from agent_runtime.narrative.production.live_writer import (
+                    LIVE_WRITER_OUTPUT_CONTRACT_NAME,
+                    materialize_live_writer_result,
+                )
 
-            if not materialize_writer_candidate_result(result, run_dir, task_id):
+                writer_result = materialize_live_writer_result(
+                    result,
+                    run_dir,
+                    task_id,
+                )
+                contract_path = run_dir / LIVE_WRITER_OUTPUT_CONTRACT_NAME
+                writer_passed = writer_result.get("status") == "pass"
+                issues = [str(issue) for issue in writer_result.get("issues", [])]
+            else:
+                try:
+                    from agent_runtime.writer_output_materializer import materialize_writer_candidate_result
+                except ModuleNotFoundError:  # pragma: no cover - direct script path
+                    from writer_output_materializer import materialize_writer_candidate_result
+
+                writer_passed = materialize_writer_candidate_result(
+                    result,
+                    run_dir,
+                    task_id,
+                )
                 contract_path = run_dir / "writer_output_contract.yml"
                 contract = (
                     yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
@@ -2905,6 +2925,7 @@ def run_next_node(
                 issues = [str(issue) for issue in contract.get("issues", [])] or [
                     "Writer did not return the four required candidate output blocks"
                 ]
+            if not writer_passed:
                 return _block_on_artifact_gate(
                     agentlab_root,
                     run_dir,

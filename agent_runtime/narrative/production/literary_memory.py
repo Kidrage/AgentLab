@@ -58,6 +58,7 @@ class LiteraryMemoryResult:
     snapshot_path: str = ""
     snapshot_sha256: str = ""
     source_paths: list[str] = field(default_factory=list)
+    dependency_hashes: dict[str, str] = field(default_factory=dict)
     issues: list[str] = field(default_factory=list)
     metrics: dict[str, int] = field(default_factory=dict)
     candidate_only: bool = True
@@ -362,8 +363,264 @@ def compile_literary_memory_snapshot(
         snapshot_path=str(output),
         snapshot_sha256=hashlib.sha256(serialized.encode("utf-8")).hexdigest(),
         source_paths=sorted(source_hashes),
+        dependency_hashes={
+            **(
+                {
+                    selection_relative.as_posix(): hashlib.sha256(
+                        selection_raw
+                    ).hexdigest()
+                }
+                if selection_relative is not None
+                else {}
+            ),
+            **source_hashes,
+        },
         metrics=dict(metrics),
     )
+
+
+def validate_literary_memory_snapshot(
+    *,
+    project_id: str,
+    chapter_id: int,
+    snapshot_path: str | Path,
+    source_root: str | Path,
+) -> LiteraryMemoryResult:
+    """Revalidate a compiled v2 snapshot and every evidence locator it binds."""
+    issues: list[str] = []
+    metrics = {
+        "selection_read_count": 0,
+        "source_read_count": 0,
+        "unique_source_count": 0,
+        "duplicate_source_reloads": 0,
+        "selection_bytes_loaded": 0,
+        "source_bytes_loaded": 0,
+    }
+    root = _resolve_path(source_root, "memory_source_root_unresolvable", issues)
+    raw_snapshot = _coerce_path(
+        snapshot_path,
+        "memory_snapshot_path_unresolvable",
+        issues,
+    )
+    if root is None or raw_snapshot is None:
+        return _blocked(chapter_id, issues, metrics)
+    lexical_snapshot = (
+        raw_snapshot if raw_snapshot.is_absolute() else root / raw_snapshot
+    )
+    if _path_has_symlink_component(root, lexical_snapshot):
+        issues.append("memory_snapshot_symlink_forbidden")
+        return _blocked(chapter_id, issues, metrics)
+    snapshot = _resolve_path(
+        lexical_snapshot,
+        "memory_snapshot_path_unresolvable",
+        issues,
+    )
+    snapshot_relative = _relative_to_root(
+        snapshot,
+        root,
+        "memory_snapshot_outside_source_root",
+        issues,
+    )
+    if snapshot_relative is None:
+        return _blocked(chapter_id, issues, metrics)
+    if not _is_candidate_snapshot_path(snapshot_relative, project_id):
+        issues.append("memory_snapshot_must_be_project_candidate")
+        return _blocked(chapter_id, issues, metrics)
+    raw = _read_bounded_bytes(snapshot, MAX_SOURCE_BYTES, "memory_snapshot", issues)
+    data = _decode_yaml(raw, "memory_snapshot", issues) if raw else {}
+    if not isinstance(data, dict):
+        issues.append("memory_snapshot_root_must_be_mapping")
+        return _blocked(chapter_id, issues, metrics)
+
+    expected = {
+        "schema_version": 2,
+        "chapter_id": chapter_id,
+        "candidate_only": True,
+        "production_modified": False,
+        "memory_contract_complete": True,
+        "quality_equivalent_memory_complete": True,
+    }
+    for key, value in expected.items():
+        if data.get(key) != value:
+            issues.append(f"memory_snapshot_mismatch:{key}")
+
+    dependencies: dict[str, str] = {}
+    selection = data.get("selection")
+    if not isinstance(selection, dict) or selection.get("schema_version") != 2:
+        issues.append("memory_snapshot_selection_invalid")
+    else:
+        selection_relative = str(selection.get("path") or "").strip()
+        selection_hash = str(selection.get("sha256") or "").strip().lower()
+        resolved_selection = _verified_root_reference(
+            root,
+            selection_relative,
+            selection_hash,
+            "memory_snapshot_selection",
+            issues,
+        )
+        if resolved_selection is not None:
+            dependencies[resolved_selection.relative_to(root).as_posix()] = selection_hash
+
+    derivation = data.get("derivation")
+    if (
+        not isinstance(derivation, dict)
+        or derivation.get("compiler") != "literary_memory_v2"
+        or derivation.get("chapter_window") != MEMORY_CHAPTER_WINDOW
+        or derivation.get("legacy_item_count") != 0
+    ):
+        issues.append("memory_snapshot_derivation_invalid")
+
+    source_hashes = data.get("source_hashes")
+    if not isinstance(source_hashes, dict) or not source_hashes:
+        issues.append("memory_snapshot_source_hashes_invalid")
+        source_hashes = {}
+    elif any(
+        not isinstance(path, str)
+        or not _SHA256_RE.fullmatch(str(digest or "").lower())
+        for path, digest in source_hashes.items()
+    ):
+        issues.append("memory_snapshot_source_hashes_invalid")
+
+    source_cache: dict[str, _SourceArtifact | None] = {}
+    used_text_hashes: set[str] = set()
+    used_line_ranges: dict[str, list[tuple[int, int]]] = {}
+    categories = data.get("categories")
+    if not isinstance(categories, dict):
+        categories = {}
+        issues.append("memory_snapshot_categories_invalid")
+    for category in MEMORY_CATEGORIES:
+        items = categories.get(category)
+        if not isinstance(items, list) or not items or len(items) > MAX_ITEMS_PER_CATEGORY:
+            issues.append(f"memory_snapshot_category_invalid:{category}")
+            continue
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                issues.append(f"memory_snapshot_item_invalid:{category}:{index}")
+                continue
+            relative = str(item.get("source_path") or "").strip()
+            declared_hash = str(item.get("source_sha256") or "").strip().lower()
+            if source_hashes.get(relative) != declared_hash:
+                issues.append(f"memory_snapshot_source_binding_invalid:{category}:{index}")
+                continue
+            artifact = _load_source_once(
+                root=root,
+                project_id=project_id,
+                relative=relative,
+                cache=source_cache,
+                metrics=metrics,
+                issues=issues,
+            )
+            if artifact is None or artifact.sha256 != declared_hash:
+                issues.append(f"memory_snapshot_source_hash_mismatch:{category}:{index}")
+                continue
+            relevance = _validate_relevance(
+                item.get("relevance"),
+                category=category,
+                chapter_id=chapter_id,
+                index=index,
+                issues=issues,
+            )
+            extracted = _extract_v2_locator(
+                artifact,
+                item.get("locator"),
+                category=category,
+                index=index,
+                issues=issues,
+            )
+            if relevance is None or extracted is None:
+                continue
+            text, locator = extracted
+            if str(item.get("text") or "").strip() != text:
+                issues.append(f"memory_snapshot_excerpt_mismatch:{category}:{index}")
+            observation = _observed_source_chapter_id(artifact, locator)
+            if observation.conflicting_authorities:
+                issues.append(f"memory_snapshot_source_chapter_conflict:{category}:{index}")
+            elif observation.chapter_id != relevance["source_chapter_id"]:
+                issues.append(f"memory_snapshot_source_chapter_mismatch:{category}:{index}")
+            if _evidence_is_reused(
+                artifact=artifact,
+                text=text,
+                locator=locator,
+                used_text_hashes=used_text_hashes,
+                used_line_ranges=used_line_ranges,
+            ):
+                issues.append(f"memory_snapshot_evidence_reused:{category}:{index}")
+
+    metrics["unique_source_count"] = len(source_cache)
+    dependencies.update(
+        {
+            artifact.relative_path: artifact.sha256
+            for artifact in source_cache.values()
+            if artifact is not None
+        }
+    )
+    inventory = derivation.get("source_inventory") if isinstance(derivation, dict) else None
+    expected_inventory = {
+        (
+            str(item.get("path") or ""),
+            str(item.get("sha256") or "").lower(),
+            item.get("bytes"),
+        )
+        for item in inventory or []
+        if isinstance(item, dict)
+    }
+    observed_inventory = {
+        (artifact.relative_path, artifact.sha256, len(artifact.raw))
+        for artifact in source_cache.values()
+        if artifact is not None
+    }
+    if not isinstance(inventory, list) or expected_inventory != observed_inventory:
+        issues.append("memory_snapshot_source_inventory_invalid")
+    if set(source_hashes) != {item[0] for item in observed_inventory}:
+        issues.append("memory_snapshot_source_set_invalid")
+    if issues:
+        return _blocked(chapter_id, issues, metrics)
+    return LiteraryMemoryResult(
+        chapter_id=chapter_id,
+        status="pass",
+        snapshot_path=str(snapshot),
+        snapshot_sha256=hashlib.sha256(raw).hexdigest(),
+        source_paths=list(dependencies),
+        dependency_hashes=dict(dependencies),
+        metrics=metrics,
+    )
+
+
+def _verified_root_reference(
+    root: Path,
+    relative: str,
+    declared_hash: str,
+    prefix: str,
+    issues: list[str],
+) -> Path | None:
+    if (
+        not relative
+        or Path(relative).is_absolute()
+        or ".." in Path(relative).parts
+        or not _SHA256_RE.fullmatch(declared_hash)
+    ):
+        issues.append(f"{prefix}_reference_invalid")
+        return None
+    path = _resolve_path(root / relative, f"{prefix}_unresolvable", issues)
+    if path is None or _relative_to_root(path, root, f"{prefix}_outside_root", issues) is None:
+        return None
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != declared_hash:
+        issues.append(f"{prefix}_hash_mismatch")
+        return None
+    return path
+
+
+def _path_has_symlink_component(root: Path, path: Path) -> bool:
+    try:
+        relative = path.absolute().relative_to(root.absolute())
+    except ValueError:
+        return True
+    current = root.absolute()
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
 
 
 def _blocked(

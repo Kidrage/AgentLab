@@ -2862,6 +2862,36 @@ def run_agent_model(
     if operational_result is not None:
         return operational_result
 
+    live_writer_session = None
+    if agent_name == "Writer":
+        from agent_runtime.narrative.production.live_writer import (
+            prepare_live_writer_session,
+        )
+
+        live_writer_session = prepare_live_writer_session(agentlab_root, plan)
+        if live_writer_session is not None and live_writer_session.status != "pass":
+            return LLMCallResult(
+                provider="agentlab-narrative-v2",
+                model="preflight",
+                content=yaml.safe_dump(
+                    {
+                        "status": "blocked",
+                        "issues": live_writer_session.issues,
+                        "candidate_only": True,
+                        "production_modified": False,
+                    },
+                    sort_keys=False,
+                    allow_unicode=True,
+                ),
+                status="blocked_user_decision",
+                error="narrative_v2_writer_preflight_blocked",
+                raw_usage={
+                    "provider_process_started": False,
+                    "provider_surface_changed": False,
+                    "narrative_v2_writer_preflight": "blocked",
+                },
+            )
+
     if agent_name == "NarrativePlanner":
         try:
             _validated_narrative_rewrite_inputs(agentlab_root, plan)
@@ -3071,9 +3101,15 @@ def run_agent_model(
                 output_path,
             )
         elif agent_name == "Writer":
-            sealed_messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
-            outbound_source_paths = writer_context_source_files(
-                agentlab_root, plan, output_path
+            sealed_messages = (
+                live_writer_session.messages
+                if live_writer_session is not None
+                else compose_agent_messages(agentlab_root, plan, agent_name, output_path)
+            )
+            outbound_source_paths = (
+                live_writer_session.source_paths
+                if live_writer_session is not None
+                else writer_context_source_files(agentlab_root, plan, output_path)
             )
         elif agent_name == "Observer":
             sealed_messages = compose_agent_messages(
@@ -3416,7 +3452,11 @@ def run_agent_model(
             error=f"{agent_name} 已超过 token 预算 stop 阈值 (used={used}, budget={budget}, stop_at={stop_at})",
         )
 
-    messages = compose_agent_messages(agentlab_root, plan, agent_name, output_path)
+    messages = (
+        live_writer_session.messages
+        if live_writer_session is not None
+        else compose_agent_messages(agentlab_root, plan, agent_name, output_path)
+    )
     narrative_context_manifest_path: Path | None = None
     if agent_name == "Writer":
         try:
@@ -3425,6 +3465,12 @@ def run_agent_model(
             from outbound_context import write_outbound_context_manifest
 
         approval_required = (
+            bool(
+                (getattr(plan, "execution_policy", {}) or {}).get(
+                    "external_context_approval_required"
+                )
+            )
+            or
             str(plan.task_id).startswith("task_narrative_eval_")
             or os.getenv("AGENTLAB_TRUSTED_LIVE_RUNNER") == "1"
         )
@@ -3439,7 +3485,11 @@ def run_agent_model(
             provider_surface=f"direct_api:{settings.provider}",
             payload_kind="writer_direct_api_messages",
             payload_text=json.dumps(messages, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
-            source_paths=writer_context_source_files(agentlab_root, plan, output_path),
+            source_paths=(
+                live_writer_session.source_paths
+                if live_writer_session is not None
+                else writer_context_source_files(agentlab_root, plan, output_path)
+            ),
             private_context=True,
             exact_payload=True,
             sealed_context=True,
@@ -3615,6 +3665,12 @@ def _apply_agent_result_patches(
     apply_patches: bool,
 ) -> LLMCallResult:
     """Materialize governed text edit envelopes from API or isolated CLI output."""
+
+    if (
+        agent_name == "Writer"
+        and (Path(plan.run_dir) / "narrative_v2_writer_request.yml").is_file()
+    ):
+        return result
 
     patch_application_allowed = _patch_application_enabled(
         configs,

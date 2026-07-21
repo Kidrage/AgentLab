@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -412,6 +413,167 @@ def test_writer_v2_rejects_forbidden_v1_outputs(tmp_path: Path) -> None:
     assert result["status"] == "blocked"
     assert result["non_prose_output_count"] > 0
     assert not (run_dir / "fiction_draft.md").exists()
+
+
+def _write_live_writer_session_binding(run_dir: Path, task_id: str) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    request_path = run_dir / "narrative_v2_writer_request.yml"
+    request_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "job_kind": "narrative_generation",
+                "run_mode": "generate_candidate",
+                "project": "ProbeNovel",
+                "task_id": task_id,
+                "chapter_id": 10,
+                "candidate_only": True,
+                "production_modified": False,
+                "external_context_approval_required": True,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "narrative_v2_writer_session_receipt.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "pass",
+                "job_kind": "narrative_generation",
+                "run_mode": "generate_candidate",
+                "project": "ProbeNovel",
+                "task_id": task_id,
+                "chapter_id": 10,
+                "candidate_only": True,
+                "production_modified": False,
+                "external_context_approval_required": True,
+                "request_sha256": hashlib.sha256(request_path.read_bytes()).hexdigest(),
+                "compiled_packet_sha256": "a" * 64,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_live_writer_delivery_materializes_prose_and_agentlab_receipt(
+    tmp_path: Path,
+) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch10"
+    _write_live_writer_session_binding(run_dir, "task_ch10")
+    result = SimpleNamespace(
+        status="completed",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        content=_v2_prose_block(),
+        raw_usage={"provider_session_id": "writer-call-1"},
+    )
+
+    delivery = materialize_live_writer_result(result, run_dir, "task_ch10")
+
+    assert delivery["status"] == "pass"
+    prose_hash = hashlib.sha256((run_dir / "fiction_draft.md").read_bytes()).hexdigest()
+    receipt = yaml.safe_load(
+        (run_dir / "writer_execution_receipt.yml").read_text(encoding="utf-8")
+    )
+    contract = yaml.safe_load(
+        (run_dir / "writer_v2_output_contract.yml").read_text(encoding="utf-8")
+    )
+    assert receipt["issuer"] == "AgentLab"
+    assert receipt["prose_sha256"] == prose_hash
+    assert contract["status"] == "pass"
+    assert contract["prose_sha256"] == prose_hash
+    assert contract["non_prose_output_count"] == 0
+    assert contract["writer_self_receipt_present"] is False
+
+
+def test_live_writer_delivery_failure_keeps_no_prose_or_success_receipt(
+    tmp_path: Path,
+) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch10"
+    _write_live_writer_session_binding(run_dir, "task_ch10")
+    result = SimpleNamespace(
+        status="completed",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        content=_v2_blocks_with_forbidden_outputs(),
+        raw_usage={},
+    )
+
+    delivery = materialize_live_writer_result(result, run_dir, "task_ch10")
+
+    assert delivery["status"] == "blocked"
+    assert not (run_dir / "fiction_draft.md").exists()
+    assert not (run_dir / "writer_execution_receipt.yml").exists()
+    contract = yaml.safe_load(
+        (run_dir / "writer_v2_output_contract.yml").read_text(encoding="utf-8")
+    )
+    assert contract["status"] == "blocked"
+    assert contract["issues"]
+
+
+def test_live_writer_delivery_rejects_noncompleted_result_before_materializing(
+    tmp_path: Path,
+) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch10"
+    _write_live_writer_session_binding(run_dir, "task_ch10")
+    result = SimpleNamespace(
+        status="failed",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        content=_v2_prose_block(),
+        raw_usage={},
+    )
+
+    delivery = materialize_live_writer_result(result, run_dir, "task_ch10")
+
+    assert delivery["status"] == "blocked"
+    assert delivery["issues"] == ["live_writer_result_not_completed"]
+    assert not (run_dir / "fiction_draft.md").exists()
+    assert not (run_dir / "writer_execution_receipt.yml").exists()
+
+
+def test_live_writer_delivery_rejects_stale_session_binding(
+    tmp_path: Path,
+) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        materialize_live_writer_result,
+    )
+
+    run_dir = tmp_path / "runs" / "task_ch10"
+    _write_live_writer_session_binding(run_dir, "task_ch10")
+    request_path = run_dir / "narrative_v2_writer_request.yml"
+    request_path.write_text(
+        request_path.read_text(encoding="utf-8") + "changed: true\n",
+        encoding="utf-8",
+    )
+    result = SimpleNamespace(
+        status="completed",
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        content=_v2_prose_block(),
+        raw_usage={},
+    )
+
+    delivery = materialize_live_writer_result(result, run_dir, "task_ch10")
+
+    assert delivery["status"] == "blocked"
+    assert delivery["issues"] == ["live_writer_session_request_hash_mismatch"]
+    assert not (run_dir / "fiction_draft.md").exists()
+    assert not (run_dir / "writer_execution_receipt.yml").exists()
 
 
 # ---------------------------------------------------------------------------

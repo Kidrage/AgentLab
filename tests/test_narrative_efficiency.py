@@ -43,7 +43,7 @@ from agent_runtime.narrative.production.context_compiler import (
     ContextCompiler,
     ContextRequest,
 )
-from agent_runtime.schemas import LLMCallResult
+from agent_runtime.schemas import AgentRoute, LLMCallResult, WorkflowPlan
 
 
 def _plan(run_dir: Path, route_key: str = "narrative_heavy_audit") -> SimpleNamespace:
@@ -2439,6 +2439,7 @@ unresolved_reader_questions: Who removed the lower level from the map?
                 "chapter_id": 25,
                 "candidate_only": True,
                 "production_modified": False,
+                "external_context_approval_required": True,
                 "categories": {
                     category: [
                         {
@@ -3098,3 +3099,718 @@ def test_literary_memory_compiler_blocks_untrusted_or_unbounded_input(
         assert result.metrics["unique_source_count"] == 1
         assert result.metrics["duplicate_source_reloads"] == 0
     assert not output.exists()
+
+
+def _live_writer_fixture(tmp_path: Path) -> tuple[WorkflowPlan, Path, Path]:
+    project = "ProbeNovel"
+    task_id = "task_narrative_v2_ch025"
+    project_root = tmp_path / "projects" / project
+    run_dir = project_root / "runs" / task_id
+    predecessor_run = project_root / "runs" / "task_narrative_v2_ch024"
+    candidate_dir = project_root / "candidates" / "gate1"
+    run_dir.mkdir(parents=True)
+    predecessor_run.mkdir(parents=True)
+    candidate_dir.mkdir(parents=True)
+    (tmp_path / "agent_templates").mkdir()
+
+    brief_data = {
+        "chapter": 25,
+        "pov": "Kane",
+        "scene_goal": "Kane tests the map while Isabella tests Kane.",
+        "irreversible_plot_change": "They expose one forged route.",
+        "closing_state": "Trust now has a visible price.",
+        "character_state_change": "Kane chooses verification over obedience.",
+        "reader_question": "Who benefits from the forged route?",
+        "target_character_range": [4500, 5500],
+        "must_preserve": ["Kane does not know the future route"],
+        "creative_freedom": ["dialogue rhythm", "physical business"],
+    }
+    brief_source = candidate_dir / "creative_brief_source_ch025.yml"
+    brief_source.write_text(
+        yaml.safe_dump(brief_data, sort_keys=False),
+        encoding="utf-8",
+    )
+    source_plan = candidate_dir / "chapter_state_plan_ch025.yml"
+    source_plan.write_text(
+        yaml.safe_dump(
+            {
+                "target_character_range": [4500, 5500],
+                "chapter_state_plan": [brief_data],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    canon = candidate_dir / "canon_snapshot.yml"
+    canon.write_text("characters: {Kane: {agency: active}}\n", encoding="utf-8")
+    hard_state = predecessor_run / "hard_state.yml"
+    hard_state.write_text("facts: [map_is_incomplete]\n", encoding="utf-8")
+    predecessor = predecessor_run / "chapter_024.md"
+    predecessor.write_text("# Chapter 24\n\nThe bargain remains conditional.\n", encoding="utf-8")
+    memory_source = candidate_dir / "chapter_024_memory_source.yml"
+    memory_source.write_text(
+        yaml.safe_dump(
+            {
+                "chapter_id": 24,
+                "voice_examples": "Kane asks before he assumes.",
+                "emotional_debts": "Isabella is owed a choice.",
+                "life_detail_anchors": "The map smells of lamp oil.",
+                "recent_scene_signatures": "A bargain ended the scene.",
+                "unresolved_reader_questions": "Who forged the route?",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    literary_memory = candidate_dir / "ch025" / "narrative_memory_snapshot.yml"
+    literary_memory.parent.mkdir()
+    writer_template = tmp_path / "agent_templates" / "writer.md"
+    writer_template.write_text(
+        "Write dramatic prose with causal choices and character agency.\n",
+        encoding="utf-8",
+    )
+
+    def ref(path: Path) -> dict[str, str]:
+        return {
+            "path": path.relative_to(tmp_path).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    from agent_runtime.narrative.production.literary_memory import (
+        MEMORY_CATEGORIES,
+        MEMORY_REASON_CODES,
+        compile_literary_memory_snapshot,
+    )
+
+    memory_selection = candidate_dir / "ch025" / "memory_selection.yml"
+    memory_selection.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "chapter_id": 25,
+                "candidate_only": True,
+                "production_modified": False,
+                "categories": {
+                    category: [
+                        {
+                            "source": ref(memory_source),
+                            "locator": {"kind": "yaml_path", "value": category},
+                            "relevance": {
+                                "reason_code": MEMORY_REASON_CODES[category],
+                                "source_chapter_id": 24,
+                                "applies_to": ["Kane"],
+                            },
+                        }
+                    ]
+                    for category in MEMORY_CATEGORIES
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    memory_result = compile_literary_memory_snapshot(
+        project_id=project,
+        chapter_id=25,
+        selection_path=memory_selection,
+        output_path=literary_memory,
+        source_root=tmp_path,
+    )
+    assert memory_result.status == "pass", memory_result.issues
+
+    writer_manifest = candidate_dir / "writer_input_manifest.yml"
+    writer_manifest.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "project": project,
+                "chapters": [25],
+                "candidate_only": True,
+                "production_modified": False,
+                "derived_candidate_dir": candidate_dir.relative_to(tmp_path).as_posix(),
+                "source_plan": ref(source_plan),
+                "canon_snapshot": ref(canon),
+                "shared_memory_sources": [],
+                "writer_private_sources": [ref(writer_template)],
+                "chapter_inputs": [
+                    {
+                        "chapter_id": 25,
+                        "predecessor_prose": ref(predecessor),
+                        "hard_state": ref(hard_state),
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    request_path = run_dir / "narrative_v2_writer_request.yml"
+    request_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "job_kind": "narrative_generation",
+                "run_mode": "generate_candidate",
+                "project": project,
+                "task_id": task_id,
+                "chapter_id": 25,
+                "candidate_only": True,
+                "production_modified": False,
+                "external_context_approval_required": True,
+                "writer_input_manifest": ref(writer_manifest),
+                "creative_brief_source": ref(brief_source),
+                "canon_snapshot": ref(canon),
+                "hard_state": ref(hard_state),
+                "predecessor_prose": {
+                    **ref(predecessor),
+                    "chapter_id": 24,
+                },
+                "literary_memory": ref(literary_memory),
+                "supplemental_context_sources": [],
+                "writer_private_sources": [ref(writer_template)],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    plan = WorkflowPlan(
+        project=project,
+        task_id=task_id,
+        agentlab_root=str(tmp_path),
+        project_root=str(project_root),
+        repo_path=str(project_root / "repo"),
+        run_dir=str(run_dir),
+        user_request_path=str(request_path),
+        included_agents={"Writer": {"required_outputs": ["fiction_draft.md"]}},
+        route=AgentRoute(
+            task_size="small",
+            route_key="narrative_generation_v2",
+            agents=["Writer"],
+        ),
+        execution_backend="agentlab_orchestrated_cli",
+        budget_mode="balanced",
+        risk_level="candidate_only",
+        model_profiles={},
+        execution_policy={"external_context_approval_required": True},
+    )
+    return plan, request_path, literary_memory
+
+
+def test_live_writer_session_consumes_compiled_packet_and_memory_once(tmp_path) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        prepare_live_writer_session,
+    )
+
+    plan, request_path, literary_memory = _live_writer_fixture(tmp_path)
+
+    session = prepare_live_writer_session(tmp_path, plan)
+
+    assert session is not None
+    assert session.status == "pass", session.issues
+    assert session.candidate_only is True
+    assert session.production_modified is False
+    assert session.provider_calls == 0
+    assert session.messages[0]["content"].count("AGENTLAB_EDIT") == 1
+    assert session.messages[1]["content"].count(
+        literary_memory.relative_to(tmp_path).as_posix()
+    ) == 1
+    assert session.source_paths.count(literary_memory) == 1
+    assert request_path in session.source_paths
+    assert Path(session.receipt_path).is_file()
+    receipt = yaml.safe_load(Path(session.receipt_path).read_text(encoding="utf-8"))
+    assert receipt["status"] == "pass"
+    assert receipt["compiled_packet_sha256"] == session.packet_sha256
+    assert receipt["literary_memory_sha256"] == hashlib.sha256(
+        literary_memory.read_bytes()
+    ).hexdigest()
+
+
+def test_live_writer_session_blocks_stale_memory_before_provider(tmp_path) -> None:
+    from agent_runtime.agent_runner import run_agent_model
+
+    plan, _request_path, literary_memory = _live_writer_fixture(tmp_path)
+    literary_memory.write_text("stale: true\n", encoding="utf-8")
+
+    result = run_agent_model(
+        tmp_path,
+        plan,
+        "Writer",
+        Path(plan.run_dir) / "fiction_draft.md",
+    )
+
+    assert result.status == "blocked_user_decision"
+    assert result.error == "narrative_v2_writer_preflight_blocked"
+    assert "live_writer_reference_hash_mismatch:literary_memory" in result.content
+    assert result.raw_usage["provider_process_started"] is False
+    assert not (Path(plan.run_dir) / "narrative_v2_writer_session_receipt.yml").exists()
+
+
+def test_registered_writer_executes_compiled_live_session_once(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.agent_runner import run_agent_model
+
+    plan, _request_path, literary_memory = _live_writer_fixture(tmp_path)
+    observed: dict[str, object] = {"calls": 0}
+
+    monkeypatch.setattr(
+        "agent_runtime.agent_runner._resolve_cli_profile_for_agent",
+        lambda *_args, **_kwargs: (
+            {"agent_model_profiles": {}, "model_capacity": {}},
+            "full_cli",
+            "writer",
+            {"cli_agent": "fake_writer", "capacity_route": ""},
+        ),
+    )
+    monkeypatch.setattr(
+        "agent_runtime.agent_runner._check_cli_role_binding",
+        lambda *_args, **_kwargs: (True, "allowed"),
+    )
+
+    def run_cli(_plan, _agent, _profile, **kwargs):
+        observed["calls"] = int(observed["calls"]) + 1
+        observed["messages"] = kwargs["sealed_messages"]
+        observed["sources"] = kwargs["outbound_source_paths"]
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="fake-writer-model",
+            content=(
+                "<!-- AGENTLAB_EDIT: "
+                f"runs/{plan.task_id}/fiction_draft.md -->\n"
+                "# Chapter 25\n\nKane verifies the route before choosing.\n"
+                "<!-- END AGENTLAB_EDIT -->"
+            ),
+        )
+
+    monkeypatch.setattr("agent_runtime.agent_runner.run_cli_agent", run_cli)
+
+    result = run_agent_model(
+        tmp_path,
+        plan,
+        "Writer",
+        Path(plan.run_dir) / "fiction_draft.md",
+        apply_patches=False,
+    )
+
+    assert result.status == "completed"
+    assert observed["calls"] == 1
+    messages = observed["messages"]
+    assert isinstance(messages, list)
+    assert messages[0]["content"].count("AGENTLAB_EDIT") == 1
+    sources = observed["sources"]
+    assert isinstance(sources, list)
+    assert sources.count(literary_memory) == 1
+    assert not (Path(plan.run_dir) / "fiction_draft.md").exists()
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_issue"),
+    [
+        ("wrong_job_kind", "live_writer_identity_mismatch:job_kind"),
+        (
+            "missing_approval_request",
+            "live_writer_identity_mismatch:external_context_approval_required",
+        ),
+        (
+            "cross_project_canon",
+            "live_writer_reference_outside_project:canon_snapshot",
+        ),
+        (
+            "future_canon",
+            "live_writer_manifest_reference_mismatch:canon_snapshot",
+        ),
+        (
+            "alternate_creative_brief",
+            "live_writer_manifest_reference_mismatch:creative_brief_source",
+        ),
+        (
+            "future_predecessor",
+            "live_writer_source_chapter_mismatch:predecessor_prose",
+        ),
+        (
+            "symlink_memory",
+            "live_writer_reference_symlink_forbidden:literary_memory",
+        ),
+        (
+            "incomplete_memory_item",
+            "live_writer_memory_locator_must_be_mapping:voice_examples:0",
+        ),
+        (
+            "code_route",
+            "live_writer_runtime_route_is_not_narrative_generation",
+        ),
+        (
+            "future_supplemental",
+            "live_writer_supplemental_source_not_allowlisted:0",
+        ),
+        (
+            "missing_approval_policy",
+            "live_writer_external_context_approval_policy_required",
+        ),
+    ],
+)
+def test_live_writer_structured_activation_fails_closed(
+    tmp_path,
+    case: str,
+    expected_issue: str,
+) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        prepare_live_writer_session,
+    )
+
+    plan, request_path, literary_memory = _live_writer_fixture(tmp_path)
+    request = yaml.safe_load(request_path.read_text(encoding="utf-8"))
+
+    def ref(path: Path) -> dict[str, str]:
+        return {
+            "path": path.relative_to(tmp_path).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    if case == "wrong_job_kind":
+        request["job_kind"] = "narrative_revision"
+    elif case == "missing_approval_request":
+        request.pop("external_context_approval_required")
+    elif case == "cross_project_canon":
+        other = tmp_path / "projects" / "OtherNovel" / "candidates" / "canon.yml"
+        other.parent.mkdir(parents=True)
+        other.write_text("canon: other\n", encoding="utf-8")
+        request["canon_snapshot"] = ref(other)
+    elif case == "future_canon":
+        future_canon = (
+            tmp_path
+            / "projects"
+            / "ProbeNovel"
+            / "runs"
+            / "task_narrative_v2_ch099"
+            / "chapter_099_canon.yml"
+        )
+        future_canon.parent.mkdir(parents=True)
+        future_canon.write_text("chapter_id: 99\nfuture: true\n", encoding="utf-8")
+        request["canon_snapshot"] = ref(future_canon)
+    elif case == "alternate_creative_brief":
+        alternate = (
+            tmp_path
+            / "projects"
+            / "ProbeNovel"
+            / "candidates"
+            / "alternate"
+            / "creative_brief_source_ch025.yml"
+        )
+        alternate.parent.mkdir(parents=True)
+        alternate.write_text(
+            yaml.safe_dump(
+                {
+                    "chapter": 25,
+                    "pov": "Kane",
+                    "scene_goal": "Kane follows an unapproved future-shaped plan.",
+                    "irreversible_plot_change": "The wrong plan replaces the frozen one.",
+                    "closing_state": "The manifest no longer governs the packet.",
+                    "character_state_change": "Kane obeys the substituted brief.",
+                    "reader_question": "Why was this allowed?",
+                    "target_character_range": [4500, 5500],
+                    "must_preserve": ["chapter identity"],
+                    "creative_freedom": ["dialogue rhythm"],
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        request["creative_brief_source"] = ref(alternate)
+    elif case == "future_predecessor":
+        future_run = (
+            tmp_path
+            / "projects"
+            / "ProbeNovel"
+            / "runs"
+            / "task_narrative_v2_ch099"
+        )
+        future_run.mkdir(parents=True)
+        future_prose = future_run / "chapter_099.md"
+        future_prose.write_text("future prose\n", encoding="utf-8")
+        future_state = future_run / "hard_state.yml"
+        future_state.write_text("facts: [future]\n", encoding="utf-8")
+        request["predecessor_prose"] = {**ref(future_prose), "chapter_id": 24}
+        request["hard_state"] = ref(future_state)
+    elif case == "symlink_memory":
+        linked = literary_memory.parent / "memory_link.yml"
+        linked.symlink_to(literary_memory)
+        request["literary_memory"] = ref(linked)
+    elif case == "incomplete_memory_item":
+        memory = yaml.safe_load(literary_memory.read_text(encoding="utf-8"))
+        memory["categories"]["voice_examples"][0].pop("locator")
+        literary_memory.write_text(
+            yaml.safe_dump(memory, sort_keys=False),
+            encoding="utf-8",
+        )
+        request["literary_memory"] = ref(literary_memory)
+    elif case == "future_supplemental":
+        future = (
+            tmp_path
+            / "projects"
+            / "ProbeNovel"
+            / "runs"
+            / "task_narrative_v2_ch099"
+            / "chapter_099.md"
+        )
+        future.parent.mkdir(parents=True)
+        future.write_text("future chapter\n", encoding="utf-8")
+        request["supplemental_context_sources"] = [ref(future)]
+    elif case == "missing_approval_policy":
+        plan.execution_policy = {}
+    else:
+        plan.route = SimpleNamespace(route_key="code_change", agents=[])
+    request_path.write_text(
+        yaml.safe_dump(request, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    session = prepare_live_writer_session(tmp_path, plan)
+
+    assert session is not None
+    assert session.status == "blocked"
+    assert expected_issue in session.issues
+    assert session.provider_calls == 0
+    assert not (Path(plan.run_dir) / "narrative_v2_writer_session_receipt.yml").exists()
+
+
+def test_live_writer_does_not_activate_without_structured_request(tmp_path) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        prepare_live_writer_session,
+    )
+
+    plan, request_path, _memory = _live_writer_fixture(tmp_path)
+    request_path.unlink()
+    plan.route = SimpleNamespace(
+        route_key="code_change_with_narrative_writer_words",
+        agents=[],
+    )
+    plan.project = "invalid/project/name"
+    plan.task_id = "invalid/task/name"
+
+    assert prepare_live_writer_session(tmp_path, plan) is None
+
+
+def test_live_writer_removes_stale_pass_receipt_when_source_changes(tmp_path) -> None:
+    from agent_runtime.narrative.production.live_writer import (
+        prepare_live_writer_session,
+    )
+
+    plan, _request_path, literary_memory = _live_writer_fixture(tmp_path)
+    first = prepare_live_writer_session(tmp_path, plan)
+    receipt_path = Path(plan.run_dir) / "narrative_v2_writer_session_receipt.yml"
+    assert first is not None and first.status == "pass"
+    assert receipt_path.is_file()
+
+    literary_memory.write_text("stale: true\n", encoding="utf-8")
+    second = prepare_live_writer_session(tmp_path, plan)
+
+    assert second is not None and second.status == "blocked"
+    assert "live_writer_reference_hash_mismatch:literary_memory" in second.issues
+    assert not receipt_path.exists()
+
+
+def test_live_writer_blocks_source_changed_while_packet_compiles(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import agent_runtime.narrative.production.live_writer as live_writer
+
+    plan, request_path, _memory = _live_writer_fixture(tmp_path)
+    request = yaml.safe_load(request_path.read_text(encoding="utf-8"))
+    canon = tmp_path / request["canon_snapshot"]["path"]
+    original_preview = live_writer.build_writer_packet_preview
+
+    def mutate_after_preview(*args, **kwargs):
+        preview = original_preview(*args, **kwargs)
+        canon.write_text("chapter_id: 99\nmutated: true\n", encoding="utf-8")
+        return preview
+
+    monkeypatch.setattr(live_writer, "build_writer_packet_preview", mutate_after_preview)
+
+    session = live_writer.prepare_live_writer_session(tmp_path, plan)
+
+    assert session is not None and session.status == "blocked"
+    assert "live_writer_reference_changed_during_compile:canon_snapshot" in session.issues
+    assert session.provider_calls == 0
+    assert not (Path(plan.run_dir) / "narrative_v2_writer_session_receipt.yml").exists()
+
+
+def test_live_writer_uses_declared_memory_dependency_hash_for_compile_recheck(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import agent_runtime.narrative.production.live_writer as live_writer
+
+    plan, _request_path, literary_memory = _live_writer_fixture(tmp_path)
+    memory = yaml.safe_load(literary_memory.read_text(encoding="utf-8"))
+    source = tmp_path / next(iter(memory["source_hashes"]))
+    original_validator = live_writer.validate_literary_memory_snapshot
+
+    def mutate_after_validation(**kwargs):
+        result = original_validator(**kwargs)
+        source.write_text("chapter_id: 24\nmutated: true\n", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(
+        live_writer,
+        "validate_literary_memory_snapshot",
+        mutate_after_validation,
+    )
+
+    session = live_writer.prepare_live_writer_session(tmp_path, plan)
+
+    assert session is not None and session.status == "blocked"
+    assert any(
+        issue.startswith(
+            "live_writer_reference_changed_during_compile:literary_memory_dependency:"
+        )
+        for issue in session.issues
+    )
+    assert session.provider_calls == 0
+
+
+def test_public_literary_memory_validator_binds_snapshot_to_project_candidate(
+    tmp_path,
+) -> None:
+    from agent_runtime.narrative.production.literary_memory import (
+        validate_literary_memory_snapshot,
+    )
+
+    _plan, _request_path, literary_memory = _live_writer_fixture(tmp_path)
+    cross_project = (
+        tmp_path
+        / "projects"
+        / "OtherNovel"
+        / "candidates"
+        / "ch025"
+        / "narrative_memory_snapshot.yml"
+    )
+    cross_project.parent.mkdir(parents=True)
+    cross_project.write_bytes(literary_memory.read_bytes())
+    symlinked = literary_memory.with_name("linked_narrative_memory_snapshot.yml")
+    symlinked.symlink_to(literary_memory)
+
+    cross_result = validate_literary_memory_snapshot(
+        project_id="ProbeNovel",
+        chapter_id=25,
+        snapshot_path=cross_project,
+        source_root=tmp_path,
+    )
+    symlink_result = validate_literary_memory_snapshot(
+        project_id="ProbeNovel",
+        chapter_id=25,
+        snapshot_path=symlinked,
+        source_root=tmp_path,
+    )
+
+    assert cross_result.status == "blocked"
+    assert "memory_snapshot_must_be_project_candidate" in cross_result.issues
+    assert symlink_result.status == "blocked"
+    assert "memory_snapshot_symlink_forbidden" in symlink_result.issues
+
+
+@pytest.mark.parametrize("field", ["project", "task_prefix"])
+def test_live_writer_preflight_rejects_unsafe_identifiers_before_writes(
+    tmp_path,
+    field: str,
+) -> None:
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        preflight_live_writer_sessions,
+    )
+
+    spec = {
+        "candidate_only": True,
+        "project": "ProbeNovel",
+        "task_prefix": "gate1_preflight",
+        "writer_input_manifest": {"path": "missing.yml", "sha256": "0" * 64},
+    }
+    spec[field] = "../escape"
+    spec_path = tmp_path / "preflight.yml"
+    spec_path.write_text(yaml.safe_dump(spec), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=f"live_preflight_{field}_invalid"):
+        preflight_live_writer_sessions(spec_path, repository_root=tmp_path)
+
+    assert not (tmp_path / "projects").exists()
+
+
+def test_live_writer_preflight_does_not_write_through_symlinked_run_dir(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.narrative.production.live_writer_preflight import (
+        preflight_live_writer_sessions,
+    )
+
+    project = "ProbeNovel"
+    task_prefix = "gate1_preflight"
+    chapter_id = 25
+    source = tmp_path / "source.yml"
+    source.write_text("chapter_id: 25\n", encoding="utf-8")
+    memory = tmp_path / "memory.yml"
+    memory.write_text("schema_version: 2\n", encoding="utf-8")
+
+    def ref(path: Path) -> dict[str, str]:
+        return {
+            "path": path.relative_to(tmp_path).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    manifest_path = tmp_path / "writer_manifest.yml"
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                "project": project,
+                "chapter_inputs": [
+                    {
+                        "chapter_id": chapter_id,
+                        "predecessor_prose": ref(source),
+                        "hard_state": ref(source),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    spec_path = tmp_path / "preflight.yml"
+    spec_path.write_text(
+        yaml.safe_dump(
+            {
+                "candidate_only": True,
+                "project": project,
+                "task_prefix": task_prefix,
+                "chapters": [chapter_id],
+                "writer_input_manifest": ref(manifest_path),
+                "literary_memories": [
+                    {"chapter_id": chapter_id, "snapshot": ref(memory)}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "agent_runtime.narrative.production.live_writer_preflight.measure_frozen_writer_packets",
+        lambda *_args, **_kwargs: {
+            "derived_sources": [{"chapter_id": chapter_id, **ref(source)}],
+            "legacy_medians": {},
+        },
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    run_dir = (
+        tmp_path
+        / "projects"
+        / project
+        / "runs"
+        / f"{task_prefix}_ch{chapter_id:03d}"
+    )
+    run_dir.parent.mkdir(parents=True)
+    run_dir.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="live_preflight_run_dir_symlinked"):
+        preflight_live_writer_sessions(spec_path, repository_root=tmp_path)
+
+    assert not (outside / "narrative_v2_writer_request.yml").exists()

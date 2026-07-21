@@ -3608,6 +3608,11 @@ def run_cli_agent(
         approval_required = (
             production_pack_session
             or configured_pack_role_session
+            or bool(
+                (getattr(plan, "execution_policy", {}) or {}).get(
+                    "external_context_approval_required"
+                )
+            )
             or (
             str(plan.task_id).startswith("task_narrative_eval_")
             or os.getenv("AGENTLAB_TRUSTED_LIVE_RUNNER") == "1"
