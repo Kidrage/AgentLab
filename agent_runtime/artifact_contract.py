@@ -591,7 +591,15 @@ def _artifact_task_required_outputs(run_dir: Path) -> list[str]:
         path = Path(str(raw))
         if path.is_absolute() or ".." in path.parts:
             continue
-        if path.parts[:2] == ("runs", run_dir.name):
+        project_run_prefix = (
+            "projects",
+            run_dir.parent.parent.name,
+            "runs",
+            run_dir.name,
+        )
+        if path.parts[:4] == project_run_prefix:
+            path = Path(*path.parts[4:])
+        elif path.parts[:2] == ("runs", run_dir.name):
             path = Path(*path.parts[2:])
         elif path.parts[:1] == ("runs",):
             continue
@@ -1056,7 +1064,22 @@ def _check_search_repo_intelligence_evidence(fname: str, content: str, run_dir: 
 
     repo_ledger = _load_yaml_artifact(run_dir, "repo_index_ledger.yml")
     semantic_exists = _json_artifact_exists(run_dir, "repo_semantic_library.json", "repo_index")
-    if "indexed repo" in lowered:
+    claims_repo_indexing = bool(
+        re.search(
+            r"(?m)^\s*(?:[-*]\s*)?(?:i\s+|we\s+)?indexed\s+(?:the\s+)?(?:repo|repository)\b",
+            lowered,
+        )
+        or any(
+            phrase in lowered
+            for phrase in (
+                "repo indexing performed",
+                "repository indexing performed",
+                "ran repo-index",
+                "ran repo index",
+            )
+        )
+    )
+    if claims_repo_indexing:
         if not repo_ledger or not (repo_ledger.get("index") or {}).get("performed"):
             issues.append("Report claims repo indexing but repo_index_ledger.yml index.performed=true evidence is missing.")
     if "queried codegraph" in lowered and not (repo_ledger.get("queries") or []):

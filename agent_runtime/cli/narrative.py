@@ -106,10 +106,20 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
     @narrative_app.command("seal-blueprint")
     def seal_blueprint(
         project: str = typer.Option("Crown_of_Ash", "--project"),
+        source_task: str | None = typer.Option(None, "--source-task"),
+        source_run_artifact: str | None = typer.Option(
+            None,
+            "--source-run-artifact",
+        ),
     ) -> None:
         """Hash and register AgentLab-authored blueprint artifacts without editing content."""
         try:
-            result = seal_crown_blueprint(project_root, project=project)
+            result = seal_crown_blueprint(
+                project_root,
+                project=project,
+                source_task=source_task,
+                source_run_artifact=source_run_artifact,
+            )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())

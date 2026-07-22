@@ -154,6 +154,35 @@ def test_fact_distillation_output_runs_authoritative_semantic_validator(
     } in issues
 
 
+def test_artifact_task_accepts_repo_relative_path_for_its_own_run(
+    tmp_path: Path,
+) -> None:
+    run_dir = (
+        tmp_path
+        / "projects"
+        / "Crown_of_Ash"
+        / "runs"
+        / "task_blueprint"
+    )
+    artifact = run_dir / "artifacts" / "blueprint_bundle.yml"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("status: approved\n", encoding="utf-8")
+    contract = {
+        "validation": {
+            "required_paths": [
+                "projects/Crown_of_Ash/runs/task_blueprint/"
+                "artifacts/blueprint_bundle.yml"
+            ]
+        }
+    }
+    (run_dir / "artifact_task.yml").write_text(
+        yaml.safe_dump(contract, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    assert validate_artifact_task_outputs(run_dir) == []
+
+
 def test_media_artifact_routes_to_grok_producer():
     route = route_artifact_provider(ROOT, "image")
 

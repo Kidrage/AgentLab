@@ -288,10 +288,40 @@ def seal_crown_blueprint(
     agentlab_root: Path,
     *,
     project: str = "Crown_of_Ash",
+    source_task: str | None = None,
+    source_run_artifact: str | None = None,
 ) -> dict[str, Any]:
     """Hash AgentLab-authored blueprint files without changing their decisions."""
     root = Path(agentlab_root).resolve()
     project_root = (root / "projects" / project).resolve()
+    if bool(source_task) != bool(source_run_artifact):
+        raise ValueError(
+            "source_task and source_run_artifact must be provided together"
+        )
+    lineage: dict[str, str] = {}
+    if source_task and source_run_artifact:
+        task = PurePosixPath(source_task)
+        artifact = PurePosixPath(source_run_artifact)
+        if len(task.parts) != 1 or task.parts[0] in {"", ".", ".."}:
+            raise ValueError("source_task must be one safe task id")
+        if (
+            artifact.is_absolute()
+            or len(artifact.parts) < 2
+            or artifact.parts[0] != "artifacts"
+            or any(part in {"", ".", ".."} for part in artifact.parts)
+        ):
+            raise ValueError(
+                "source_run_artifact must stay under the task artifacts directory"
+            )
+        source = _candidate_blueprint_bundle_path(
+            project_root,
+            project_root / "runs" / task.as_posix() / Path(*artifact.parts),
+        )
+        lineage = {
+            "source_task": task.as_posix(),
+            "source_run_artifact": artifact.as_posix(),
+            "source_run_artifact_sha256": _sha256(source),
+        }
     index_path = project_root / "production" / "canonical" / "index.yml"
     try:
         index = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
@@ -348,6 +378,7 @@ def seal_crown_blueprint(
                 "production_path": relative,
                 "production_sha256": artifact_hashes[relative],
                 "evidence_only": False,
+                **lineage,
             }
         )
     artifact_index = {

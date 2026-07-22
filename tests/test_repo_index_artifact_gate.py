@@ -13,3 +13,26 @@ def test_artifact_gate_detects_codegraph_claim_without_ledger(tmp_path: Path) ->
     issues = artifact_content_issues("06_implementation_report.md", "I queried CodeGraph and used code graph.", tmp_path)
     assert any("repo_index_ledger" in issue or "repo_semantic_library" in issue for issue in issues)
 
+
+def test_artifact_gate_detects_explicit_repo_index_claim_without_ledger(
+    tmp_path: Path,
+) -> None:
+    issues = artifact_content_issues(
+        "verification_report.md",
+        "# Verification\n\nWe indexed the repository before validation.",
+        tmp_path,
+    )
+
+    assert any("repo_index_ledger" in issue for issue in issues)
+
+
+def test_artifact_gate_does_not_misread_attributive_indexed_phrase(
+    tmp_path: Path,
+) -> None:
+    issues = artifact_content_issues(
+        "verification_report.md",
+        "# Verification\n\nInspected the indexed repository definitions read-only.",
+        tmp_path,
+    )
+
+    assert not any("repo_index_ledger" in issue for issue in issues)

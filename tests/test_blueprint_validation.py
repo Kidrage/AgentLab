@@ -429,6 +429,42 @@ def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_r
     assert validate_crown_blueprint(tmp_path)["status"] == "pass"
 
 
+def test_seal_blueprint_registers_candidate_source_lineage(tmp_path: Path) -> None:
+    _fragment, _records = _valid_blueprint(tmp_path)
+    task_id = "task_blueprint"
+    source_rel = "artifacts/blueprint_bundle.corrected.yml"
+    source = (
+        tmp_path
+        / "projects"
+        / "Crown_of_Ash"
+        / "runs"
+        / task_id
+        / source_rel
+    )
+    source.parent.mkdir(parents=True)
+    source.write_text("status: approved\n", encoding="utf-8")
+
+    seal_crown_blueprint(
+        tmp_path,
+        source_task=task_id,
+        source_run_artifact=source_rel,
+    )
+
+    artifact_index = yaml.safe_load(
+        (
+            tmp_path
+            / "projects"
+            / "Crown_of_Ash"
+            / "project_artifact_index.yml"
+        ).read_text(encoding="utf-8")
+    )
+    assert all(item["source_task"] == task_id for item in artifact_index["artifacts"])
+    assert all(
+        item["source_run_artifact"] == source_rel
+        for item in artifact_index["artifacts"]
+    )
+
+
 def test_seal_refuses_invalid_blueprint_before_registering_artifacts(
     tmp_path: Path,
 ) -> None:
