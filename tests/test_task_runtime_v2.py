@@ -39,6 +39,7 @@ def test_create_task_appends_authoritative_event_and_rebuilds_projection(
         "title": "Deliver one governed result",
         "user_goal": "Produce and review one result without splitting the goal.",
         "goal_fingerprint": created["task"]["goal_fingerprint"],
+        "input_classification": created["task"]["input_classification"],
         "status": "created",
         "created_at": created["task"]["created_at"],
         "updated_at": created["task"]["updated_at"],

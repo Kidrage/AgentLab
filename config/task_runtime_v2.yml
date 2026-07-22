@@ -28,6 +28,15 @@ authority:
   idempotency_required: true
   active_attempts_per_work_item: 1
 
+input_intake:
+  policy: config/task_input_tiers.yml
+  classification_source: declared_facts_only
+  missing_or_unknown_profile: L3
+  prompt_keyword_downgrade_allowed: false
+  decision_recorded_in: TASK_CREATED
+  prose_build_scope_authority: brain
+  prose_build_quality_authority: brain
+
 compatibility:
   phase: staged_cutover
   read_mode:

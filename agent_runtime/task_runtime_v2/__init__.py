@@ -13,6 +13,7 @@ from .runtime import (
 )
 from .migration import LegacyRunMigrator, MigrationPlanChanged
 from .retention import AttemptLogRetention, RetentionPlanChanged
+from .input_tiers import TaskInputClassifier
 
 __all__ = [
     "ActiveAttemptExists",
@@ -28,4 +29,5 @@ __all__ = [
     "RetentionPlanChanged",
     "TaskRuntime",
     "TaskRuntimeError",
+    "TaskInputClassifier",
 ]

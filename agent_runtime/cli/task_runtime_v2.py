@@ -11,7 +11,12 @@ import typer
 import yaml
 from rich.console import Console
 
-from agent_runtime.task_runtime_v2 import AttemptLogRetention, LegacyRunMigrator, TaskRuntime
+from agent_runtime.task_runtime_v2 import (
+    AttemptLogRetention,
+    LegacyRunMigrator,
+    TaskInputClassifier,
+    TaskRuntime,
+)
 
 
 RootProvider = Path | Callable[[], Path]
@@ -54,6 +59,7 @@ def register_task_runtime_commands(
         task_id: str = typer.Option(..., "--task-id"),
         title: str = typer.Option(..., "--title"),
         goal: str = typer.Option(..., "--goal"),
+        input_profile_json: str | None = typer.Option(None, "--input-profile-json"),
         idempotency_key: str = typer.Option(..., "--idempotency-key"),
         allow_duplicate_goal: bool = typer.Option(False, "--allow-duplicate-goal"),
         independent_boundary_reason: str | None = typer.Option(
@@ -65,10 +71,27 @@ def register_task_runtime_commands(
                 task_id=task_id,
                 title=title,
                 user_goal=goal,
+                input_profile=(
+                    json_mapping(input_profile_json, field="input_profile")
+                    if input_profile_json is not None
+                    else None
+                ),
                 idempotency_key=idempotency_key,
                 allow_duplicate_goal=allow_duplicate_goal,
                 independent_boundary_reason=independent_boundary_reason,
             )["task"]
+        )
+
+    @task_app.command("classify")
+    def task_classify(
+        input_profile_json: str = typer.Option(..., "--input-profile-json"),
+    ) -> None:
+        """Preview the fail-closed execution tier without creating a Task."""
+
+        emit(
+            TaskInputClassifier(current_root()).classify(
+                json_mapping(input_profile_json, field="input_profile")
+            )
         )
 
     @task_app.command("show")

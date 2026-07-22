@@ -83,3 +83,44 @@ def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
     assert "status: paused" in paused_again.output
     assert doctor.exit_code == 0, doctor.output
     assert "ok: true" in doctor.output.lower()
+
+
+def test_task_cli_previews_and_records_strict_input_tier(tmp_path: Path) -> None:
+    app = typer.Typer()
+    register_task_runtime_commands(app, tmp_path, Console(width=120))
+    runner = CliRunner()
+    profile = (
+        '{"kind":"prose_build","scope":"multi_chapter","target_count":0,'
+        '"canon_impact":"canonical","risk_flags":["longform_continuity"]}'
+    )
+
+    preview = runner.invoke(
+        app,
+        ["task", "classify", "--input-profile-json", profile],
+    )
+    created = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "--project",
+            "Demo",
+            "--task-id",
+            "task-prose",
+            "--title",
+            "First governed prose build",
+            "--goal",
+            "Let the Brain choose and govern the first prose build.",
+            "--input-profile-json",
+            profile,
+            "--idempotency-key",
+            "request-prose",
+        ],
+    )
+
+    assert preview.exit_code == 0, preview.output
+    assert "tier: L3" in preview.output
+    assert "route: governed_pipeline" in preview.output
+    assert created.exit_code == 0, created.output
+    assert "input_classification:" in created.output
+    assert "brain_decision_required: true" in created.output.lower()

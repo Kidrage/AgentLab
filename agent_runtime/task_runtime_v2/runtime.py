@@ -16,6 +16,7 @@ import uuid
 import yaml
 
 from agent_runtime.atomic_io import atomic_write_yaml
+from .input_tiers import TaskInputClassifier
 
 
 EVENT_SCHEMA = "task-runtime-event/v2"
@@ -128,6 +129,7 @@ class TaskRuntime:
         title: str,
         user_goal: str,
         idempotency_key: str,
+        input_profile: dict[str, Any] | None = None,
         legacy_source: dict[str, Any] | None = None,
         allow_duplicate_goal: bool = False,
         independent_boundary_reason: str | None = None,
@@ -141,16 +143,24 @@ class TaskRuntime:
             raise ValueError("title and user_goal are required")
         if legacy_source is not None and not isinstance(legacy_source, dict):
             raise ValueError("legacy_source must be a mapping")
+        if input_profile is not None and not isinstance(input_profile, dict):
+            raise ValueError("input_profile must be a mapping")
         boundary_reason = str(independent_boundary_reason or "").strip()
         if allow_duplicate_goal and not boundary_reason:
             raise ValueError(
                 "independent_boundary_reason is required when allowing a duplicate goal"
             )
+        declared_input_profile = dict(input_profile or {})
+        input_classification = TaskInputClassifier(self.agentlab_root).classify(
+            input_profile
+        )
         payload: dict[str, Any] = {
             "title": title,
             "user_goal": user_goal,
             "goal_fingerprint": _goal_fingerprint(user_goal),
             "default_job": {"job_id": "job-main", "kind": "inline"},
+            "input_profile": declared_input_profile,
+            "input_classification": input_classification,
         }
         if legacy_source is not None:
             payload["legacy_source"] = legacy_source
@@ -1085,6 +1095,10 @@ class TaskRuntime:
                     "user_goal": event["payload"]["user_goal"],
                     "goal_fingerprint": event["payload"].get("goal_fingerprint")
                     or _goal_fingerprint(event["payload"]["user_goal"]),
+                    "input_classification": event["payload"].get(
+                        "input_classification"
+                    )
+                    or TaskInputClassifier(self.agentlab_root).classify(None),
                     "status": "created",
                     "created_at": event["recorded_at"],
                     "updated_at": event["recorded_at"],

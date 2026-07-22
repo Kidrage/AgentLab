@@ -1,0 +1,107 @@
+schema_version: task-input-tier-policy/v1
+
+# Classification is fact-based. Natural-language keywords never lower a route.
+# Unknown or missing facts fail closed to L3 so the Brain must plan the work.
+tiers:
+  L0:
+    label: exact_micro_patch
+    route: brain_direct
+    worker_limit: 0
+    brain_decision_required: false
+    full_audit_required: false
+    validation_gates:
+      - schema_validation
+      - targeted_diff_check
+    required_records:
+      - input_classification
+      - change_receipt
+      - memory_update
+  L1:
+    label: local_creative_patch
+    route: single_worker
+    worker_limit: 1
+    brain_decision_required: false
+    full_audit_required: false
+    validation_gates:
+      - schema_validation
+      - targeted_diff_check
+      - local_quality_check
+    required_records:
+      - input_classification
+      - worker_attempt_receipt
+      - change_receipt
+      - memory_update
+  L2:
+    label: guarded_local_patch
+    route: single_worker_checked
+    worker_limit: 1
+    brain_decision_required: false
+    full_audit_required: false
+    validation_gates:
+      - schema_validation
+      - targeted_diff_check
+      - targeted_continuity_check
+      - local_quality_check
+    required_records:
+      - input_classification
+      - worker_attempt_receipt
+      - targeted_validation_receipt
+      - change_receipt
+      - memory_update
+  L3:
+    label: governed_pipeline
+    route: governed_pipeline
+    worker_limit: null
+    brain_decision_required: true
+    full_audit_required: true
+    validation_gates:
+      - brain_plan_gate
+      - input_snapshot_gate
+      - full_quality_gate
+      - continuity_gate
+      - evidence_selection_gate
+    required_records:
+      - input_classification
+      - brain_scope_decision
+      - execution_plan
+      - worker_attempt_receipts
+      - quality_receipt
+      - evidence_binding
+      - memory_update
+
+classification:
+  kind_minimum:
+    exact_patch: L0
+    creative_patch: L1
+    consistency_patch: L2
+    prose_build: L3
+    structural_change: L3
+    audit_review: L3
+    canon_promotion: L3
+    unclassified: L3
+  scope_minimum:
+    single_detail: L0
+    localized: L1
+    cross_artifact: L3
+    multi_chapter: L3
+    project_wide: L3
+    unknown: L3
+  canon_impact_minimum:
+    none: L0
+    candidate: L0
+    canonical: L2
+    unknown: L3
+  risk_minimum:
+    age_continuity: L2
+    relationship_continuity: L2
+    magic_cost_continuity: L2
+    sensitive_content: L2
+    longform_continuity: L3
+    main_arc_change: L3
+    world_model_change: L3
+    destructive_change: L3
+  target_count:
+    l0_max: 1
+    l1_max: 3
+    l2_max: 3
+

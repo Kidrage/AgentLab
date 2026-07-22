@@ -43,6 +43,27 @@ Everything below `projections/` is a cache rebuilt from the ledger:
 `runtime/task_index.yml` and `runtime/knowledge/selected_artifacts.yml` are also
 rebuildable project projections. Editing them never changes Task truth.
 
+## Strict input tiers
+
+Task intake uses declared facts from `config/task_input_tiers.yml`; it does not
+guess a cheaper route from prompt keywords. The resulting classification is
+written into the `TASK_CREATED` event and every rebuilt Task projection.
+Missing or unknown facts fail closed to L3.
+
+| Tier | Intended input | Route | Audit scope |
+| --- | --- | --- | --- |
+| L0 | One exact, non-canonical detail or text patch | Brain edits directly | schema + targeted diff |
+| L1 | A small localized creative patch | one Worker | local quality + targeted diff |
+| L2 | A localized patch affecting canon, age, relationships, magic costs, or another continuity-sensitive fact | one Worker plus targeted checks | targeted continuity + local quality |
+| L3 | Prose construction, multi-chapter/cross-artifact work, project-wide structure, full audit, or canon promotion | Brain-governed pipeline | Brain plan + full quality/continuity/evidence gates |
+
+Every tier requires an input classification, change receipt, and memory update;
+worker tiers additionally require immutable Attempt receipts. L3 also requires
+the Brain's scope decision, execution plan, quality receipt, and evidence
+binding. A caller may request a higher tier but cannot downgrade the minimum
+derived from the declared facts. In particular, prose construction always
+leaves length, batch boundaries, and quality thresholds to the Brain plan.
+
 ## Why this avoids evidence ambiguity
 
 An Attempt is immutable and has one worker, provider, execution-contract hash,
@@ -91,7 +112,10 @@ The v2 commands are registered on `agentlab.sh`:
 ```bash
 ./agentlab.sh task create --project Demo --task-id task-demo \
   --title "One result" --goal "Produce and review one result" \
+  --input-profile-json '{"kind":"creative_patch","scope":"localized","target_count":1,"canon_impact":"candidate","risk_flags":[]}' \
   --idempotency-key request-001
+./agentlab.sh task classify \
+  --input-profile-json '{"kind":"prose_build","scope":"multi_chapter","target_count":0,"canon_impact":"canonical","risk_flags":["longform_continuity"]}'
 ./agentlab.sh task show --project Demo --task-id task-demo
 ./agentlab.sh task list --project Demo
 ./agentlab.sh task pause --project Demo --task-id task-demo \
