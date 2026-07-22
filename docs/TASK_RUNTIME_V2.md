@@ -1,0 +1,155 @@
+# AgentLab Task Runtime v2
+
+## Outcome
+
+Runtime v2 keeps one user-visible business goal under one stable `Task`. It no
+longer treats every chapter, reviewer pass, retry, fallback, or candidate
+revision as another task directory.
+
+```text
+Task (one business goal and acceptance boundary)
+  └─ Job (inline/detached or alternative execution strategy)
+      └─ WorkItem (chapter, review, test, batch unit, dependency node)
+          └─ Attempt (one worker invocation, retry, or fallback)
+              └─ ArtifactVersion + EvidenceBinding
+```
+
+Use a new Task only when the requested outcome can be accepted, cancelled, and
+promoted independently. Use a Job for another strategy, a WorkItem for another
+unit of the same goal, and an Attempt for a retry. Exact normalized goal matches
+are blocked across Task IDs unless the caller explicitly declares an independent
+acceptance boundary with `--allow-duplicate-goal` and an auditable
+`--independent-boundary-reason`.
+
+## Authority and storage
+
+The only Task authority is:
+
+```text
+projects/<Project>/runtime/tasks/<task_id>/events.jsonl
+```
+
+Each line is canonical JSON with a sequence number, idempotency key, prior-event
+hash, and its own SHA256. Appends are serialized by file locks, flushed, and
+`fsync`ed. Hash, sequence, project, task, transition, duplicate-entity, missing
+reference, and active-attempt violations fail closed.
+
+Everything below `projections/` is a cache rebuilt from the ledger:
+
+- `task.yml`, `jobs.yml`, `work_items.yml`, `attempts.yml`
+- `artifact_index.yml`, `evidence.yml`
+- `progress.yml`, `handoff.yml`
+
+`runtime/task_index.yml` and `runtime/knowledge/selected_artifacts.yml` are also
+rebuildable project projections. Editing them never changes Task truth.
+
+## Why this avoids evidence ambiguity
+
+An Attempt is immutable and has one worker, provider, execution-contract hash,
+ordinal, status, outcome, duration/cost data, and producer relationship. Only a
+successful Attempt can create an ArtifactVersion. The version records file path,
+size, media type, and SHA256; recording materializes a version-specific immutable
+copy under `artifacts/versions/<version_id>/`. Selection is blocked until an
+EvidenceBinding pins the input manifest hash, RAG index snapshot, source hashes,
+audit result, and the producer execution receipt.
+
+This permits multiple revisions without growing one ambiguous “current state”
+file: the ledger retains history, while projections show the current selection.
+
+## RAG boundary
+
+RAG remains project-level. Runtime v2 does not create a vector/keyword database
+per Task. The only runtime file eligible for the project knowledge collector is:
+
+```text
+projects/<Project>/runtime/knowledge/selected_artifacts.yml
+```
+
+Raw ledgers, attempt logs, failed outputs, and candidate artifact bytes are not
+indexed. Canonical project facts and accepted content remain under
+`project_brain/` and `production/`. Stable source and content hashes let the
+existing knowledge system chunk and tombstone changed sources without copying
+each Task into a separate knowledge base.
+
+## Lifecycle and scheduling
+
+Tasks use `created`, `ready`, `running`, `waiting`, `blocked`, `paused`,
+`completed`, `failed`, and `cancelled`. WorkItems hold dependency edges. A
+dependent WorkItem changes from `pending` to `ready` only when every dependency
+is `accepted`.
+
+Each WorkItem may have only one `scheduled` or `running` Attempt at a time. A
+failed Attempt releases that lease; a retry receives a new Attempt ID and ordinal
+inside the same WorkItem and Task. This makes Hermes+Ark primary execution and an
+explicit Claude+Ark fallback distinct, auditable Attempts rather than parallel
+Task chains.
+
+## CLI
+
+The v2 commands are registered on `agentlab.sh`:
+
+```bash
+./agentlab.sh task create --project Demo --task-id task-demo \
+  --title "One result" --goal "Produce and review one result" \
+  --idempotency-key request-001
+./agentlab.sh task show --project Demo --task-id task-demo
+./agentlab.sh task list --project Demo
+./agentlab.sh task pause --project Demo --task-id task-demo \
+  --idempotency-key pause-001
+./agentlab.sh task resume --project Demo --task-id task-demo --status ready \
+  --idempotency-key resume-001
+
+./agentlab.sh job create ...
+./agentlab.sh work-item create ...
+./agentlab.sh work-item status ...
+./agentlab.sh attempt schedule ...
+./agentlab.sh attempt status ...
+./agentlab.sh artifact record ...
+./agentlab.sh evidence bind ...
+./agentlab.sh artifact select ...
+./agentlab.sh evidence verify ...
+
+./agentlab.sh runtime-v2 rebuild --project Demo
+./agentlab.sh runtime-v2 doctor --project Demo
+```
+
+Every mutating command requires an idempotency key, including Task
+pause/resume/cancel. A later pause after a resume must use a new key; retrying the
+same pause request reuses its original key.
+
+## Legacy migration
+
+During the staged cutover, `task list` reads both v2 ledgers and legacy
+`projects/<Project>/runs/*/state.yml`; v2 wins if an ID exists in both places.
+The new `task`/`job`/`work-item`/`attempt` commands write only to v2. Existing
+legacy pipeline entrypoints remain maintenance-only until their projects are
+migrated; they are not a second authority for a v2 Task.
+
+Migration is preview/apply and never edits or deletes legacy runs:
+
+```bash
+./agentlab.sh runtime-v2 migrate-legacy --project Demo
+./agentlab.sh runtime-v2 migrate-legacy --project Demo --apply \
+  --expected-plan-hash <approved_sha256>
+```
+
+If a legacy state or request changes after preview, apply fails. A repeated apply
+recognizes matching imported source hashes and does not duplicate events.
+
+## Retention and recovery
+
+Ledgers, hashes, evidence, costs, audits, and selection history are permanent.
+Attempt logs older than seven days may be losslessly replaced with verified gzip
+files only through a hash-gated compaction plan. The receipt records original and
+compressed hashes; no policy purges the compressed evidence.
+
+```bash
+./agentlab.sh runtime-v2 compact-logs --project Demo
+./agentlab.sh runtime-v2 compact-logs --project Demo --apply \
+  --expected-plan-hash <approved_sha256>
+```
+
+Use `runtime-v2 doctor` to detect ledger or artifact tampering. Use
+`runtime-v2 rebuild` to discard and recreate every projection and the curated RAG
+manifest. Never repair a damaged ledger by editing its hashes; stop execution and
+recover from a verified copy or an explicit governance decision.

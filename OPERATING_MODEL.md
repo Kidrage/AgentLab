@@ -17,11 +17,11 @@ progress snapshots. Those facts have machine-readable owners listed below.
 | Provider and model facts | `config/model_providers.yml`, `config/model_catalog.yml` |
 | Capacity fallback | `config/model_capacity.yml` |
 | Lifecycle graph | `agent_runtime/lifecycle_graph.py` plus the selected production pack |
-| Task state and event projection | run-local state files and `agent_runtime/task_index.py` |
+| Task state and event projection | Runtime v2 hash-chained task ledger; v2 treats legacy `runs/` as read-only migration sources |
 | Promotion | `agent_runtime/project_artifact_steward.py` and project artifact index |
 | Structured project facts | Project Brain events and the projected fact snapshot |
 | Current project artifacts | `production/` plus `project_artifact_index.yml` |
-| Task evidence | run-local evidence bundles, traces, reports, and receipts |
+| Task evidence | Runtime v2 ArtifactVersion/EvidenceBinding events plus immutable receipts |
 | Operator-maintained memory | project `agent_docs/` governed by `config/memory_policy.yml` |
 | Derived knowledge retrieval | `agent_runtime/knowledge_system/` and `config/knowledge_system.yml` |
 | Current acceptance | `acceptance_runs/agentlab_capability_acceptance/current.yml` |
@@ -42,12 +42,15 @@ user request
   -> Supervisor plan
   -> only the configured route roles
   -> deterministic local checks and declared review gates
-  -> run-local receipts and task events
+  -> Attempt receipts and hash-chained task events
   -> completed candidate or explicit blocked/paused state
   -> separate approval and promotion when required
 ```
 
-`init-task` creates a run boundary. `prepare --write-plan` resolves the route,
+For Runtime v2 callers, `task create` creates a business-goal boundary; chapters,
+reviews, retries, and fallbacks remain WorkItems or Attempts inside it. Legacy
+`init-task` continues to create a read-compatible run during migration.
+`prepare --write-plan` resolves the route,
 pack, lifecycle, budgets, model profiles, inputs, outputs, and artifact intent
 without needing a production model call. `run-agent` executes one assigned role;
 `run-pipeline` advances the configured route. Neither command grants promotion.
@@ -97,8 +100,22 @@ Claude, or another shell owns the task. Retired full-driver prompts remain under
 
 ## 5. State Machine
 
-Each task is recoverable from files under
-`projects/<Project>/runs/<task_id>/`. Important records are:
+Each new Task is recoverable from the sole authority at
+`projects/<Project>/runtime/tasks/<task_id>/events.jsonl`. Every event is
+idempotent, sequenced, hash-chained, and serialized under a ledger lock. The
+following files under `projections/` are disposable views rebuilt from it:
+
+- `task.yml`, `jobs.yml`, `work_items.yml`, and `attempts.yml`.
+- `artifact_index.yml` and `evidence.yml`.
+- `progress.yml` and `handoff.yml`.
+
+One business goal owns one Task. Alternative strategies are Jobs, chapters and
+review units are WorkItems, retries/fallbacks are Attempts, and immutable results
+are ArtifactVersions. A WorkItem cannot have overlapping active Attempts.
+
+Runtime v2 never writes legacy tasks under `projects/<Project>/runs/<task_id>/`;
+legacy maintenance entrypoints may still update them until the project completes
+hash-gated migration. Their important records are:
 
 - `mission_contract.yml`: normalized intent, risk, route basis, and boundaries.
 - `workflow_plan.yml`: resolved route, pack, lifecycle, profiles, budgets, gates,
@@ -110,7 +127,7 @@ Each task is recoverable from files under
 - `decision_cards/*.yml`: explicit approval or recovery decisions.
 - role reports and receipts: evidence that a node actually completed.
 
-The canonical task index normalizes legacy aliases such as `complete` to
+The legacy task index normalizes aliases such as `complete` to
 `completed`, `in_progress` to `running`, and `failed_recoverable` to
 `recoverable`. New operator surfaces should use:
 
@@ -123,7 +140,9 @@ new -> planned -> running -> completed
                     `----> archived (after retention/archive handling)
 ```
 
-Lifecycle nodes separately use `pending`, `running`, `completed`, `skipped`,
+Runtime v2 WorkItems separately use `pending`, `ready`, `running`,
+`waiting_review`, `accepted`, `blocked`, `failed`, or `cancelled`. Legacy
+lifecycle nodes use `pending`, `running`, `completed`, `skipped`,
 `paused`, or `failed`. A task cannot be called complete merely because a worker
 process exited; required node receipts and gates must also close.
 
@@ -147,10 +166,12 @@ provider-backed work only with explicit execution authorization.
 ## 7. Artifact And Memory Boundaries
 
 ```text
+projects/<Project>/runtime/tasks/<task_id>/
+  event authority, disposable projections, logs, and candidate artifacts
+projects/<Project>/runtime/knowledge/selected_artifacts.yml
+  the only Task Runtime surface eligible for project RAG
 projects/<Project>/runs/<task_id>/
-  process state, reports, prompts, evidence
-projects/<Project>/runs/<task_id>/artifacts/
-  candidate deliverables from this task
+  legacy compatibility process state during staged migration
 projects/<Project>/production/
   explicitly promoted current deliverables
 projects/<Project>/archive/
@@ -167,6 +188,12 @@ continuity ledger, and state-transition proposal. New facts hidden only in prose
 are not durable facts. AgentLab's governed knowledge retrieval automatically
 provides eligible evidence to task Context Packs in `assist` mode, but cannot
 replace the structured fact authority.
+
+Raw Runtime v2 ledgers, Attempts, logs, failed outputs, and candidate bytes are
+excluded from knowledge indexing. RAG remains project-level; Runtime v2 never
+creates one knowledge database per Task. Only the curated selected-artifact
+manifest is indexed alongside canonical `project_brain/` and accepted
+`production/` sources.
 
 The local knowledge catalog and its per-space SQLite shards live under
 `.agentlab_runtime/knowledge/`. They are rebuildable indexes, not project memory,

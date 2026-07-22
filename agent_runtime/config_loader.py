@@ -48,6 +48,7 @@ CONFIG_FILES = {
     "self_check_policy": "self_check_policy.yml",
     "skill_injection_policy": "skill_injection_policy.yml",
     "task_index_policy": "task_index_policy.yml",
+    "task_runtime_v2": "task_runtime_v2.yml",
     "validation_gates": "validation_gates.yml",
     "version_policy": "version_policy.yml",
     "worker_invocation_contracts": "worker_invocation_contracts.yml",

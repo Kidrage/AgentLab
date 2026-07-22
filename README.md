@@ -34,6 +34,7 @@ Configuration authorities / 配置权威：
 - `config/agent_model_profiles.yml`: per-role worker/model / 角色壳与模型
 - `config/worker_invocation_contracts.yml`: shell commands / 壳命令
 - `config/model_capacity.yml`: declared fallback / 已声明 fallback
+- `config/task_runtime_v2.yml`: Task/Job/WorkItem/Attempt identity and evidence policy
 
 Route profiles / 路由配置: code factory routes (`small_task`, `medium_task`, `interface_sensitive_task`, `research_sensitive_task`, `large_or_risky_task`) plus governed production-pack routes such as `narrative_light_chapter`, `narrative_batch_chapters`, `narrative_heavy_audit`, `article_light_draft`, and `media_generation_task`.
 
@@ -49,6 +50,11 @@ Route profiles / 路由配置: code factory routes (`small_task`, `medium_task`,
 ./agentlab.sh route-probe "Implement a small CLI fix with tests"
 
 # Create and prepare / 创建与准备
+./agentlab.sh task create --project AgentLab --task-id task_0001 \
+  --title "Implement one CLI fix" --goal "Implement a small CLI fix with tests" \
+  --idempotency-key request-0001
+
+# Legacy compatibility during Runtime v2 migration
 ./agentlab.sh init-task --project AgentLab --task-id task_0001 \
   --request-text "Implement a small CLI fix with tests"
 ./agentlab.sh prepare --project AgentLab --task-id task_0001 --write-plan
@@ -63,8 +69,8 @@ Do not rely on a copied command count or model table.
 ## Artifact Boundary / 产物边界
 
 ```text
-projects/<Project>/runs/<task_id>/             state, reports, evidence
-projects/<Project>/runs/<task_id>/artifacts/   candidate deliverables
+projects/<Project>/runtime/tasks/<task_id>/    v2 event ledger, projections, evidence
+projects/<Project>/runs/<task_id>/             legacy staged-migration compatibility
 projects/<Project>/production/                 promoted current deliverables
 projects/<Project>/archive/                    superseded formal deliverables
 ```
@@ -78,10 +84,10 @@ ledger 和 state proposal 维护；检索只能提供证据，不能替代事实
 
 ## State And Recovery / 状态与恢复
 
-Each run records `workflow_plan.yml`, `state.yml`, `lifecycle.yml`,
-`progress.yml`, `task_events.jsonl`, decision cards, reports, and receipts. Web
-UI, TUI, daemon, watchdog, and future sessions rebuild status from these files,
-not from chat history.
+New Tasks use one hash-chained `events.jsonl` authority and rebuildable Task,
+Job, WorkItem, Attempt, artifact, evidence, progress, and handoff projections.
+Legacy runs remain dual-read during migration, while all Runtime v2 writes stay
+under `runtime/tasks/`. See `docs/TASK_RUNTIME_V2.md`.
 
 每个 run 都有可恢复计划、状态、生命周期、事件、决策和 receipts。后台或新会话从
 这些文件查询进度，不需要持续占用一个前台对话盯任务。

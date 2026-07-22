@@ -224,6 +224,19 @@ class SourceCollector:
                         KnowledgeLifecycle.ACTIVE,
                         "formal_release",
                     )
+        # Runtime v2 exposes one curated metadata surface. Raw ledgers, attempts,
+        # failed drafts, and task artifact bytes remain deliberately unindexed.
+        runtime_selected = project_root / "runtime" / "knowledge" / "selected_artifacts.yml"
+        if (
+            not _has_symlink_component(runtime_selected, project_root)
+            and runtime_selected.is_file()
+            and not runtime_selected.is_symlink()
+        ):
+            sources[runtime_selected] = (
+                AuthorityLevel.CANONICAL,
+                KnowledgeLifecycle.ACTIVE,
+                "task_runtime_selected_manifest",
+            )
         allowed = {AuthorityLevel.CANONICAL, AuthorityLevel.ACCEPTED}
         for authority, lifecycle, kind, relatives in PROJECT_SOURCE_GROUPS:
             if not include_ineligible and authority not in allowed:
