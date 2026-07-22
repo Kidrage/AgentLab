@@ -1090,6 +1090,14 @@ def test_live_narrative_eval_retries_two_full_contract_redos(
     }
     assert retry["attempts"][1]["retry_kind"] == "full_contract_redo"
     assert retry["attempts"][2]["materialized"] is True
+    stamped_receipt = yaml.safe_load(
+        (run_dir / "narrative_delivery_receipt.yml").read_text(encoding="utf-8")
+    )
+    assert set(stamped_receipt["artifact_sha256"]) == {
+        "fiction_draft.md",
+        "continuity_ledger.yml",
+        "state_transition_proposal.yml",
+    }
 
 
 def test_live_narrative_eval_failed_retry_cannot_reuse_stale_candidate_outputs(

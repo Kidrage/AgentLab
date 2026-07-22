@@ -953,6 +953,11 @@ def narrative_delivery_integrity_issues(run_dir: Path) -> list[str]:
 
 def write_narrative_delivery_receipt(run_dir: Path) -> dict[str, Any]:
     result = validate_narrative_delivery(run_dir, include_receipt=False)
+    existing_receipt = _read_yaml(
+        Path(run_dir) / "narrative_delivery_receipt.yml", {}
+    ) or {}
+    if not isinstance(existing_receipt, dict):
+        existing_receipt = {}
     external_required_files = _delivery_files_for_run(Path(run_dir), include_receipt=True)
     artifact_sha256 = {
         filename: hashlib.sha256((Path(run_dir) / filename).read_bytes()).hexdigest()
@@ -960,6 +965,7 @@ def write_narrative_delivery_receipt(run_dir: Path) -> dict[str, Any]:
         if (Path(run_dir) / filename).is_file()
     }
     receipt = {
+        **existing_receipt,
         "schema_version": 1,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "pass" if result.get("valid") else "blocked",

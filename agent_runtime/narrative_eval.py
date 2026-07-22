@@ -1099,6 +1099,7 @@ def _write_live_chapter_outputs(
                 "harness_generated_story_state": False,
             },
         )
+        write_narrative_delivery_receipt(run_dir)
     except Exception as exc:
         _write_yaml(
             run_dir / "live_generation_error.yml",
