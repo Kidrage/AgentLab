@@ -522,6 +522,68 @@ def test_agy_observer_models_use_independent_honest_capacity_pools() -> None:
     assert contracts["agy_observer"]["worker_id"] == "agy"
 
 
+def test_seedance_agent_plan_is_registered_as_task_only_artifact_backend() -> None:
+    catalog = _load_config("model_catalog.yml")
+    providers = _load_config("model_providers.yml")["providers"]
+    backends = _load_config("media_generation_backends.yml")["backends"]
+    bindings = _load_config("agent_role_bindings.yml")
+    contracts = _load_config("worker_invocation_contracts.yml")["contracts"]
+
+    model_2 = catalog["models"]["seedance_2_0_ark_agent_plan"]
+    assert model_2["provider"] == "ark_agent_plan"
+    assert model_2["runtime_provider"] == "ark-agent-plan"
+    assert model_2["model_id"] == "doubao-seedance-2.0"
+    assert model_2["cli_provider"] == "hermes_ark"
+    assert model_2["usage_policy"]["explicit_task_override_only"] is True
+    assert model_2["usage_policy"]["never_default"] is True
+
+    assert providers["ark-agent-plan"]["command"] == "hermes"
+    assert providers["ark-agent-plan"]["worker"] == "hermes_ark"
+    assert providers["ark-agent-plan"]["fallback_worker"] == "claude_ark"
+    assert providers["ark-agent-plan"]["default_model"] == "doubao-seedance-2.0"
+
+    primary = backends["hermes_ark_seedance_skill"]
+    assert primary["selection_scope"] == "explicit_task_override_only"
+    assert primary["worker_id"] == "hermes_ark"
+    assert primary["adapter_kind"] == "local_hermes_ark_skill"
+    assert primary["invocation_contract"] == "hermes_ark_artifact_producer"
+    assert primary["preload_skills"] == ["arkcli-gen", "arkcli-video-gen"]
+    assert primary["models"]["video"] == "skill_auto"
+    assert primary["provider_model_aliases"]["video"][
+        "doubao-seedance-2.0"
+    ] == "doubao-seedance-2-0-260128"
+    assert primary["fallback_backend"] == "claude_seedance_agent_plan_skill"
+
+    fallback = backends["claude_seedance_agent_plan_skill"]
+    assert fallback["worker_id"] == "claude_ark"
+    assert fallback["adapter_kind"] == "local_claude_skill"
+    assert fallback["fallback_only"] is True
+    assert fallback["fallback_from"] == ["hermes_ark_seedance_skill"]
+    assert fallback["invocation_contract"] == "claude_seedance_artifact_fallback"
+
+    hermes_contract = contracts["hermes_ark_artifact_producer"]
+    assert hermes_contract["worker_id"] == "hermes_ark"
+    assert "-s arkcli-gen" in hermes_contract["template"]
+    assert "-s arkcli-video-gen" in hermes_contract["template"]
+    assert "Do not copy a visual model ID from AgentLab" in hermes_contract["template"]
+    assert hermes_contract["fallback"]["on_worker_error"] == "claude_seedance_artifact_fallback"
+    claude_contract = contracts["claude_seedance_artifact_fallback"]
+    assert claude_contract["worker_id"] == "claude_ark"
+    assert claude_contract["fallback_only"] is True
+    assert "--model" in claude_contract["template"]  # explicitly forbidden in the instruction
+
+    for policy in _load_config("media_generation_backends.yml")["policies"].values():
+        chain = policy.get("backend_chain") or []
+        assert "hermes_ark_seedance_skill" not in chain
+        assert "claude_seedance_agent_plan_skill" not in chain
+    assert "hermes_ark" in bindings["roles"]["ArtifactProducer"]["allowed_workers"]
+    assert "claude_ark" in bindings["roles"]["ArtifactProducer"]["allowed_workers"]
+    assert bindings["workers"]["hermes_ark"]["allowed_roles"] == ["ArtifactProducer"]
+    assert bindings["workers"]["claude_ark"]["allowed_roles"] == ["ArtifactProducer"]
+    assert "ArtifactProducer" not in bindings["workers"]["hermes"]["allowed_roles"]
+    assert "ArtifactProducer" not in bindings["workers"]["claude_code"]["allowed_roles"]
+
+
 def test_writer_light_contract_has_one_unambiguous_four_file_response() -> None:
     registry = _load_config("agent_registry.yml")
     writer = registry["agents"]["Writer"]

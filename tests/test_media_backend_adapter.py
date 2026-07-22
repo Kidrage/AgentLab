@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -10,6 +11,8 @@ import yaml
 from typer.testing import CliRunner
 
 from agent_runtime.media_backend_adapter import (
+    build_claude_skill_payload_plan,
+    build_hermes_ark_payload_plan,
     build_grok_cli_payload_plan,
     build_xai_payload_plan,
     execute_media_contract,
@@ -485,6 +488,30 @@ def _oauth_contract() -> dict:
     return contract
 
 
+def _seedance_skill_contract() -> dict:
+    return {
+        "schema_version": 1,
+        "contract_type": "media_generation_contract",
+        "project_id": "Crown_of_Ash",
+        "task_id": "task_crown_episode_001_seedance",
+        "modality": "video",
+        "prompt": "A cinematic dark-fantasy opening in Grey Valley.",
+        "selected_backend": "hermes_ark_seedance_skill",
+        "task_backend_override": "hermes_ark_seedance_skill",
+        "user_authorized_live_generation": True,
+        "artifact_producer_worker": "hermes_ark",
+        "generation_parameters": {
+            "resolution": "720p",
+            "ratio": "16:9",
+            "duration": 10,
+            "generate_audio": True,
+            "watermark": False,
+            "service_tier": "default",
+            "open_after_generation": False,
+        },
+    }
+
+
 def _write_verified_pipeline_media_outputs(
     run_dir: Path,
     out_dir: Path,
@@ -533,12 +560,13 @@ def _write_verified_pipeline_media_outputs(
 
 def _artifact_role_session(contract: dict | None = None) -> dict:
     contract = contract or _contract()
+    worker = str(contract.get("artifact_producer_worker") or "grok")
     return {
         "packet_type": "agentlab_role_session",
         "schema_version": 1,
-        "role_session_id": f"{contract.get('task_id')}:ArtifactProducer:grok",
+        "role_session_id": f"{contract.get('task_id')}:ArtifactProducer:{worker}",
         "role": "ArtifactProducer",
-        "worker": "grok",
+        "worker": worker,
         "binding": {"allowed": True, "reason": "role binding allowed"},
         "project": contract.get("project_id"),
         "task_id": contract.get("task_id"),
@@ -617,6 +645,170 @@ def test_preflight_rejects_stale_audio_contract_before_provider_execution() -> N
     assert "audio" not in modality_check["configured_modalities"]
 
 
+def test_task_only_hermes_ark_preflight_requires_override_and_authorization() -> None:
+    contract = _seedance_skill_contract()
+    contract.pop("task_backend_override")
+
+    report = preflight_media_contract(contract, ROOT, command_probe=lambda _backend: True)
+
+    assert report["status"] == "blocked"
+    assert report["block_reason"] == "task_backend_override_required"
+
+    contract["task_backend_override"] = contract["selected_backend"]
+    contract["user_authorized_live_generation"] = False
+    report = preflight_media_contract(contract, ROOT, command_probe=lambda _backend: True)
+    assert report["block_reason"] == "user_authorization_required"
+
+    contract["user_authorized_live_generation"] = True
+    report = preflight_media_contract(contract, ROOT, command_probe=lambda _backend: True)
+    assert report["status"] == "ready"
+    assert report["backend"]["selection_scope"] == "explicit_task_override_only"
+    assert report["backend"]["worker_id"] == "hermes_ark"
+    assert report["backend"]["skill_id"] == "arkcli-video-gen"
+    assert report["backend"]["fallback_backend"] == "claude_seedance_agent_plan_skill"
+
+
+def test_hermes_ark_execution_verifies_seedance_asset_and_receipts(tmp_path: Path) -> None:
+    contract = _seedance_skill_contract()
+    asset = tmp_path / "assets" / "task-video.mp4"
+
+    def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
+        assert timeout == 600
+        assert args[0] == "hermes"
+        assert args[args.index("--provider") + 1] == "openai-codex"
+        assert args[args.index("-m") + 1] == "gpt-5.6-sol"
+        assert args.count("-s") == 2
+        assert "arkcli-gen" in args
+        assert "arkcli-video-gen" in args
+        assert "--model" not in args
+        prompt = args[args.index("-z") + 1]
+        assert "arkcli-video-gen" in prompt
+        assert "Do not copy a visual model ID from AgentLab" in prompt
+        assert contract["prompt"] in prompt
+        asset.parent.mkdir(parents=True, exist_ok=True)
+        asset.write_bytes(b"fake-seedance-video")
+        worker_result = {
+            "status": "completed",
+            "task_id": "task-seedance-001",
+            "model": "doubao-seedance-2.0",
+            "generated_assets": [str(asset)],
+        }
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=json.dumps(worker_result),
+            stderr="",
+        )
+
+    result = execute_media_contract(
+        contract,
+        ROOT,
+        tmp_path,
+        live=True,
+        timeout_seconds=600,
+        command_runner=fake_runner,
+        role_session=_artifact_role_session(contract),
+    )
+
+    assert result["status"] == "completed"
+    assert result["producer_worker"] == "hermes_ark"
+    assert result["provider_task_id"] == "task-seedance-001"
+    assert result["generation_model"] == "doubao-seedance-2.0"
+    assert result["provider_model"] == "skill_auto"
+    assert result["provider_reported_model"] == "doubao-seedance-2.0"
+    assert result["generated_assets"] == [str(asset.resolve())]
+    assert result["artifact_generation_verified"] is True
+    ledger = yaml.safe_load((tmp_path / "generation_ledger.yml").read_text())
+    assert ledger["provider_status"] == "completed"
+    assert ledger["provider_model"] == "skill_auto"
+    assert ledger["producer_worker"] == "hermes_ark"
+    assert ledger["generated_assets"] == ["assets/task-video.mp4"]
+    assert ledger["generated_asset_receipts"][0]["sha256"] == hashlib.sha256(
+        b"fake-seedance-video"
+    ).hexdigest()
+    assert ledger["generated_asset_receipts"][0]["path"] == "assets/task-video.mp4"
+    receipt = yaml.safe_load((tmp_path / "generation_receipt.yml").read_text())
+    assert receipt["status"] == "complete"
+    assert receipt["model_source"] == "provider_response_normalized_alias"
+    assert receipt["producer"]["worker"] == "hermes_ark"
+    assert receipt["prompt_parameters"]["generation_parameters"]["duration"] == 10
+    manifest = yaml.safe_load((tmp_path / "outbound_context_manifest_media.yml").read_text())
+    assert manifest["status"] == "pass"
+    assert manifest["authorization"]["approval_observed"] is True
+
+
+def test_build_hermes_ark_payload_plan_registers_skill_instruction(
+    tmp_path: Path,
+) -> None:
+    backend = preflight_media_contract(
+        _seedance_skill_contract(), ROOT, command_probe=lambda _backend: True
+    )["backend"]
+
+    plan = build_hermes_ark_payload_plan(
+        _seedance_skill_contract(), backend, out_dir=tmp_path
+    )
+
+    assert plan["skill_id"] == "arkcli-video-gen"
+    assert plan["invocation_contract"] == "hermes_ark_artifact_producer"
+    assert plan["model_selection"] == "worker_skill_auto"
+    assert plan["provider_model"] == "skill_auto"
+    assert plan["args"][0] == "hermes"
+    assert "--model" not in plan["args"]
+    prompt = plan["args"][plan["args"].index("-z") + 1]
+    assert "Do not copy a visual model ID from AgentLab" in prompt
+    assert str((tmp_path / "assets").resolve()) in prompt
+    assert plan["auth_mode"] == "hermes_shell_arkcli_profile"
+    assert plan["fallback_backend"] == "claude_seedance_agent_plan_skill"
+
+
+def test_hermes_ark_worker_failure_exposes_registered_claude_fallback(
+    tmp_path: Path,
+) -> None:
+    def failed_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout="",
+            stderr="worker transport unavailable",
+        )
+
+    contract = _seedance_skill_contract()
+    result = execute_media_contract(
+        contract,
+        ROOT,
+        tmp_path,
+        live=True,
+        command_runner=failed_runner,
+        role_session=_artifact_role_session(contract),
+    )
+
+    assert result["status"] == "local_cli_error"
+    assert result["reason"] == "hermes_ark_worker_error"
+    assert result["failure_scope"] == "hermes_ark_worker"
+    assert result["provider_model"] == "skill_auto"
+    assert result["fallback_backend"] == "claude_seedance_agent_plan_skill"
+    ledger = yaml.safe_load((tmp_path / "generation_ledger.yml").read_text())
+    assert ledger["block_reason"] == "hermes_ark_worker_error"
+    assert ledger["provider_model"] == "skill_auto"
+
+
+def test_claude_skill_is_available_as_task_scoped_fallback() -> None:
+    contract = _seedance_skill_contract()
+    contract["selected_backend"] = "claude_seedance_agent_plan_skill"
+    contract["task_backend_override"] = "claude_seedance_agent_plan_skill"
+    contract["artifact_producer_worker"] = "claude_ark"
+
+    report = preflight_media_contract(contract, ROOT, command_probe=lambda _backend: True)
+
+    assert report["status"] == "ready"
+    assert report["backend"]["worker_id"] == "claude_ark"
+    assert report["backend"]["fallback_only"] is True
+    plan = build_claude_skill_payload_plan(contract, report["backend"], out_dir=ROOT)
+    assert plan["skill_id"] == "byted-ark-seedance-skill"
+    assert plan["invocation_contract"] == "claude_seedance_artifact_fallback"
+    assert "--model" not in plan["args"]
+
+
 def test_local_grok_cli_execution_writes_text_handoff_not_media_asset(tmp_path: Path) -> None:
     def fake_runner(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         assert args[:5] == ["hermes", "--ignore-rules", "--provider", "xai-oauth", "-m"]
@@ -639,7 +831,7 @@ def test_local_grok_cli_execution_writes_text_handoff_not_media_asset(tmp_path: 
     response = tmp_path / "grok_cli_response.md"
     assert response.read_text(encoding="utf-8").strip() == "GROK_CLI_SMOKE_OK"
     ledger = yaml.safe_load((tmp_path / "generation_ledger.yml").read_text(encoding="utf-8"))
-    assert ledger["text_artifacts"] == [str(response)]
+    assert ledger["text_artifacts"] == ["grok_cli_response.md"]
     assert ledger["generated_assets"] == []
     assert ledger["artifact_generation_verified"] is False
     assert yaml.safe_load((tmp_path / "generated_assets_manifest.yml").read_text())["status"] == "blocked"
@@ -681,10 +873,10 @@ def test_local_grok_cli_execution_collects_reported_assets_under_out_dir(tmp_pat
     assert result["asset_claims_rejected"] == []
     ledger = yaml.safe_load((tmp_path / "generation_ledger.yml").read_text(encoding="utf-8"))
     assert ledger["status"] == "completed"
-    assert ledger["generated_assets"] == [str(asset.resolve())]
+    assert ledger["generated_assets"] == ["poster.png"]
     assert ledger["generated_asset_receipts"] == [
         {
-            "path": str(asset.resolve()),
+            "path": "poster.png",
             "sha256": hashlib.sha256(b"fake-png").hexdigest(),
             "size_bytes": len(b"fake-png"),
         }
@@ -1110,7 +1302,7 @@ backends:
     assert asset.read_bytes() == b"fake-png"
     ledger = yaml.safe_load((tmp_path / "generation_ledger.yml").read_text(encoding="utf-8"))
     assert ledger["live"] is True
-    assert ledger["generated_assets"] == [str(asset)]
+    assert ledger["generated_assets"] == ["generated_image_01.png"]
     role_receipt = yaml.safe_load((tmp_path / "role_session_receipt.yml").read_text(encoding="utf-8"))
     receipt = yaml.safe_load((tmp_path / "generation_receipt.yml").read_text(encoding="utf-8"))
     assert role_receipt["status"] == "complete"

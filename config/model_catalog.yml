@@ -180,6 +180,136 @@ models:
       official_hermes_integration: https://x.ai/news/grok-hermes
       local_hermes_models_verified: "2026-07-13"
 
+  seedance_2_0_ark_agent_plan:
+    provider: ark_agent_plan
+    runtime_provider: ark-agent-plan
+    cli_provider: hermes_ark
+    model_id: doubao-seedance-2.0
+    agent_plan_model_id: doubao-seedance-2.0
+    wire_model_id: doubao-seedance-2-0-260128
+    model_family: doubao-seedance-2.0
+    strengths: [text_to_video, multimodal_reference, synchronized_audio, subscription_quota]
+    weaknesses: [maximum_720p_on_current_plan_route, requires_ark_skill_resource_discovery, candidate_only]
+    suitable_agents: [artifact_producer]
+    capabilities:
+      input_modalities: [text, image, video, audio]
+      output_modalities: [video, audio]
+      resolutions: [480p, 720p]
+      duration_seconds: [4, 15]
+      ratios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", adaptive]
+    pricing_key: doubao-seedance-2.0
+    usage_policy:
+      explicit_task_override_only: true
+      never_default: true
+      final_artifact_allowed: false
+    notes: >
+      Allowed worker-reported result model for the Hermes + Ark skill route.
+      The worker skill discovers the live resource and AgentLab never forces this
+      visual model as the request model.
+    evidence:
+      local_arkcli_resources_verified: "2026-07-22"
+      current_agent_plan_video_default: true
+      local_model_metadata_verified: "2026-07-22"
+      route_authority: hermes_ark_artifact_producer
+
+  seedance_1_5_pro_ark_agent_plan:
+    provider: ark_agent_plan
+    runtime_provider: ark-agent-plan
+    cli_provider: hermes_ark
+    model_id: doubao-seedance-1-5-pro-251215
+    agent_plan_model_id: doubao-seedance-1.5-pro
+    model_family: doubao-seedance-1.5-pro
+    strengths: [text_to_video, image_to_video, synchronized_audio, 1080p, subscription_quota]
+    weaknesses: [maximum_12_second_clip, requires_ark_skill_resource_discovery, retiring, candidate_only]
+    suitable_agents: [artifact_producer]
+    capabilities:
+      input_modalities: [text, image]
+      output_modalities: [video, audio]
+      resolutions: [480p, 720p, 1080p]
+      duration_seconds: [4, 12]
+      ratios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", adaptive]
+    pricing_key: doubao-seedance-1-5-pro-251215
+    usage_policy:
+      explicit_task_override_only: true
+      never_default: true
+      final_artifact_allowed: false
+    notes: >
+      Full versioned Seedance 1.5 Pro model ID resolved from ArkCLI primary_version;
+      Agent Plan requests use the documented wire alias doubao-seedance-1.5-pro.
+      Registered only for explicit ArtifactProducer task overrides; it does not alter
+      any performance/full/low role default or media backend chain.
+    evidence:
+      local_arkcli_resources_verified: "2026-07-22"
+      local_supported_params_verified: "2026-07-22"
+      official_agent_plan_support_table_verified: "2026-07-22"
+      official_seedance_skill_version_inspected: "4.0.0"
+      official_seedance_skill_alias_anomaly: >-
+        The public Skill maps doubao-seedance-1.5-pro to
+        doubao-seedance-1-0-pro-250528. AgentLab intentionally does not copy
+        that mapping because it would silently substitute Seedance 1.0 Pro.
+      route_authority: hermes_ark_artifact_producer
+
+  seedance_1_0_pro_ark_agent_plan:
+    provider: ark_agent_plan
+    runtime_provider: ark-agent-plan
+    cli_provider: hermes_ark
+    model_id: doubao-seedance-1-0-pro-250528
+    agent_plan_model_id: doubao-seedance-1-0-pro-250528
+    model_family: doubao-seedance-1.0-pro
+    strengths: [text_to_video, image_to_video, multi_shot_narrative, 1080p]
+    weaknesses: [no_synchronized_audio, duration_limited_to_5_or_10_seconds, requires_ark_skill_resource_discovery, candidate_only]
+    suitable_agents: [artifact_producer]
+    capabilities:
+      input_modalities: [text, image]
+      output_modalities: [video]
+      resolutions: [480p, 720p, 1080p]
+      duration_seconds: [5, 10]
+      ratios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", adaptive]
+    pricing_key: doubao-seedance-1-0-pro-250528
+    usage_policy:
+      explicit_task_override_only: true
+      never_default: true
+      final_artifact_allowed: false
+    notes: >
+      Exact versioned wire model used by Volcengine's public Agent Plan Seedance
+      Skill v4.0.0 when its 1.5 display alias is selected. AgentLab exposes it
+      honestly as Seedance 1.0 Pro and only through an explicit task override.
+    evidence:
+      local_model_metadata_verified: "2026-07-22"
+      official_seedance_skill_version_inspected: "4.0.0"
+      official_skill_wire_model: doubao-seedance-1-0-pro-250528
+      route_authority: hermes_ark_artifact_producer
+
+  seedance_2_0_fast_ark_agent_plan:
+    provider: ark_agent_plan
+    runtime_provider: ark-agent-plan
+    cli_provider: hermes_ark
+    model_id: doubao-seedance-2.0-fast
+    agent_plan_model_id: doubao-seedance-2.0-fast
+    wire_model_id: doubao-seedance-2-0-fast-260128
+    model_family: doubao-seedance-2.0-fast
+    strengths: [text_to_video, multimodal_reference, synchronized_audio, faster_generation]
+    weaknesses: [maximum_720p, requires_ark_skill_resource_discovery, candidate_only]
+    suitable_agents: [artifact_producer]
+    capabilities:
+      input_modalities: [text, image, video, audio]
+      output_modalities: [video, audio]
+      resolutions: [480p, 720p]
+      duration_seconds: [4, 15]
+      ratios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", adaptive]
+    pricing_key: doubao-seedance-2.0-fast
+    usage_policy:
+      explicit_task_override_only: true
+      never_default: true
+      final_artifact_allowed: false
+    notes: >
+      Exact model exposed by the active Agent Plan profile's real-time video
+      resource list. Registered only for explicit ArtifactProducer task overrides.
+    evidence:
+      local_arkcli_resources_verified: "2026-07-22"
+      local_model_metadata_verified: "2026-07-22"
+      route_authority: hermes_ark_artifact_producer
+
   gemini_2_5_flash_high_api:
     provider: gemini_api_free_tier
     runtime_provider: gemini-api
@@ -404,6 +534,20 @@ providers:
       Used separately by Grok Researcher and Grok media-tool contracts. Runtime
       auth/cooldown evidence is dynamic; this catalog entry never claims a
       remaining percentage or reset time.
+
+  ark_agent_plan:
+    display: Volcengine Ark Agent Plan via Hermes + Ark Skills
+    currency: subscription_or_oauth_quota
+    auth: local_arkcli_sso_agent_plan_profile
+    command: hermes
+    worker: hermes_ark
+    invocation_contract: hermes_ark_artifact_producer
+    runtime_provider: ark-agent-plan
+    default_model: doubao-seedance-1-5-pro-251215
+    notes: >
+      Task-scoped Seedance media provider backed by the active local Agent Plan
+      subscription. Hermes is the primary bounded shell; Claude + the repository
+      Seedance Skill is fallback-only. Credentials remain outside AgentLab.
 
   agy_gemini_oauth:
     display: Agy / Antigravity Gemini OAuth

@@ -859,6 +859,79 @@ contracts:
       on_auth_required: local_oauth_session_unhealthy
       on_network_required: retry_with_required_region_or_vpn
 
+  hermes_ark_artifact_producer:
+    worker_id: hermes_ark
+    display_name: Hermes + Ark Skills Seedance Artifact Producer
+    command: hermes
+    invocation_style: sealed_media_request
+    workflow_shell: true
+    coalescing_allowed: false
+    primary_for: [seedance_agent_plan_task]
+    required_receipts:
+      - outbound_context_manifest_media.yml
+      - role_session_receipt.yml
+      - generation_ledger.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
+    template: >-
+      hermes --provider openai-codex -m gpt-5.6-sol -s arkcli-gen -s
+      arkcli-video-gen -t terminal,skills -z "Act only as the bounded AgentLab
+      ArtifactProducer. Use the preloaded arkcli-gen and arkcli-video-gen skills.
+      Inspect the active profile's video resources and supported parameters, generate
+      exactly one video, wait for completion, and report the actual model and local
+      artifact. Do not copy a visual model ID from AgentLab. Do not switch profiles,
+      create endpoints, rotate credentials, modify configuration, open a GUI, or edit
+      repository/production files. Save only inside request.output_dir and return
+      compact JSON. AGENTLAB_MEDIA_REQUEST={media_request_json}"
+    required_placeholders: [media_request_json]
+    safe_probe: [hermes, --help]
+    expected_parse:
+      argv_prefix: [hermes, --provider, openai-codex, -m, gpt-5.6-sol]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: claude_seedance_artifact_fallback
+      on_worker_timeout: claude_seedance_artifact_fallback
+      on_worker_error: claude_seedance_artifact_fallback
+
+  claude_seedance_artifact_fallback:
+    worker_id: claude_ark
+    display_name: Claude + Ark Seedance Skill Fallback Artifact Producer
+    command: claude
+    invocation_style: sealed_media_request
+    workflow_shell: true
+    coalescing_allowed: false
+    fallback_only: true
+    fallback_from: [hermes_ark_artifact_producer]
+    required_receipts:
+      - outbound_context_manifest_media.yml
+      - role_session_receipt.yml
+      - generation_ledger.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
+    template: >-
+      claude --no-session-persistence --permission-mode bypassPermissions
+      --output-format json --tools Skill,Bash -p "Use the repository Skill
+      byted-ark-seedance-skill for exactly one sealed AgentLab ArtifactProducer
+      request. Let the Skill wrapper select the Seedance model; do not pass --model
+      and do not call ArkCLI +gen directly. Invoke it with --wait true, set
+      ARK_SEEDANCE_SAVE_PATH to request.output_dir, do not edit source or production
+      files, and return compact JSON. AGENTLAB_MEDIA_REQUEST={media_request_json}"
+    required_placeholders: [media_request_json]
+    safe_probe: [claude, --help]
+    expected_parse:
+      argv_prefix: [claude, --no-session-persistence, --permission-mode, bypassPermissions]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_worker_timeout: stop_and_report
+      on_worker_error: stop_and_report
+
   git:
     worker_id: git
     display_name: Git VCS

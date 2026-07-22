@@ -575,6 +575,10 @@ def _doctor_issues(root: Path) -> list[dict[str, str]]:
                     else [model_id_value]
                 )
                 for index, value in enumerate(model_ids):
+                    if registry_name == "models" and str(value).strip() == "skill_auto":
+                        # Dynamic skill routes price their explicit allow-list below;
+                        # the routing sentinel is not itself a billable model.
+                        continue
                     suffix = f".{index}" if isinstance(model_id_value, list) else ""
                     model_references.append(
                         (
@@ -600,7 +604,11 @@ def _doctor_issues(root: Path) -> list[dict[str, str]]:
                     "issue": "media_backend_pricing_model_id_mismatch",
                     "value": model_id,
                 })
-            if not _numeric_paths(
+            subscription_media_pricing = (
+                pricing_entry.get("billing_mode") in {"subscription", "subscription_or_quota"}
+                and pricing_entry.get("numeric_pricing_applicable") is False
+            )
+            if not subscription_media_pricing and not _numeric_paths(
                 pricing_entry.get("media_unit_prices_usd") or {},
                 ("media_unit_prices_usd",),
             ):

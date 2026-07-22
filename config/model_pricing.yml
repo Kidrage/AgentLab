@@ -177,6 +177,62 @@ models:
     verified_at: "2026-07-13"
     notes: "Exact input-image and output-video resolution/second prices."
 
+  doubao-seedance-2.0:
+    provider: ark_agent_plan
+    provider_model_id: doubao-seedance-2.0
+    input_per_1m_usd: null
+    output_per_1m_usd: null
+    media_unit_prices_usd: {}
+    billing_mode: subscription_or_quota
+    numeric_pricing_applicable: false
+    pricing_source: active_agent_plan_subscription
+    pricing_confidence: account_observed
+    source_url: https://www.volcengine.com/docs/82379/2556054?lang=zh
+    verified_at: "2026-07-22"
+    notes: "Current default video resource of the active Agent Plan profile; no per-second USD charge is invented."
+
+  doubao-seedance-2.0-fast:
+    provider: ark_agent_plan
+    provider_model_id: doubao-seedance-2.0-fast
+    input_per_1m_usd: null
+    output_per_1m_usd: null
+    media_unit_prices_usd: {}
+    billing_mode: subscription_or_quota
+    numeric_pricing_applicable: false
+    pricing_source: active_agent_plan_subscription
+    pricing_confidence: account_observed
+    source_url: https://www.volcengine.com/docs/82379/2556054?lang=zh
+    verified_at: "2026-07-22"
+    notes: "Exposed by the current Agent Plan profile; no paid platform endpoint is used."
+
+  doubao-seedance-1-5-pro-251215:
+    provider: ark_agent_plan
+    provider_model_id: doubao-seedance-1-5-pro-251215
+    input_per_1m_usd: null
+    output_per_1m_usd: null
+    media_unit_prices_usd: {}
+    billing_mode: subscription_or_quota
+    numeric_pricing_applicable: false
+    pricing_source: active_agent_plan_subscription
+    pricing_confidence: account_observed
+    source_url: https://www.volcengine.com/docs/82379/2556054?lang=zh
+    verified_at: "2026-07-22"
+    notes: "Agent Plan subscription/quota route; do not invent per-second USD pricing for this execution."
+
+  doubao-seedance-1-0-pro-250528:
+    provider: ark_agent_plan
+    provider_model_id: doubao-seedance-1-0-pro-250528
+    input_per_1m_usd: null
+    output_per_1m_usd: null
+    media_unit_prices_usd: {}
+    billing_mode: subscription_or_quota
+    numeric_pricing_applicable: false
+    pricing_source: active_agent_plan_subscription
+    pricing_confidence: official_skill_inferred
+    source_url: https://skills.volces.com/v1/skills/volcengine/agentplan/byted-ark-seedance-skill
+    verified_at: "2026-07-22"
+    notes: "Submitted only through the /api/plan/v3 profile route; the paid platform route is not used."
+
   deepseek-r1-distill-qwen-7b:
     input_per_1m_usd: null
     output_per_1m_usd: null

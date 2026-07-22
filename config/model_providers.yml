@@ -274,6 +274,34 @@ providers:
       - "`hermes auth status xai-oauth` is an auth/cooldown signal, not a weekly remaining percentage."
       - "Never use `hermes status --all`; its output is not safe for AgentLab logs."
 
+  ark-agent-plan:
+    type: oauth_cli
+    display_name: Volcengine Ark Agent Plan via Hermes + Ark Skills
+    command: hermes
+    worker: hermes_ark
+    invocation_contract: hermes_ark_artifact_producer
+    fallback_worker: claude_ark
+    fallback_invocation_contract: claude_seedance_artifact_fallback
+    default_model: doubao-seedance-2.0
+    auth: local_arkcli_sso_agent_plan_profile
+    billing:
+      source: ark_agent_plan
+      metering: subscription_or_quota
+      plan_tier: personal_medium
+    unavailable_action: stop_and_report
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_cli
+      - oauth_session_expired
+      - subscription_expired
+      - quota_exhausted
+      - provider_error
+    notes:
+      - Hermes uses the registered Ark skills and active Agent Plan profile; visual-model selection remains inside that workflow.
+      - Claude plus the repository Seedance Skill is fallback-only after a Hermes worker failure.
+      - Seedance media generation is enabled only by an explicit task-scoped backend contract.
+      - Never place the local Ark API key or OAuth tokens in AgentLab receipts.
+
   # ── Agy / Antigravity Gemini OAuth 默认入口 ───────────────────────
   agy-gemini-oauth:
     type: oauth_cli

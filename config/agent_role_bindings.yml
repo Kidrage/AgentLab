@@ -41,7 +41,7 @@ roles:
     allowed_workers: [claude_code, codex, aider, hermes]
     required_session: true
   ArtifactProducer:
-    allowed_workers: [grok, codex, qwen]
+    allowed_workers: [grok, codex, qwen, hermes_ark, claude_ark]
     required_session: true
   NarrativePlanner:
     allowed_workers: [claude_code, agy]
@@ -78,6 +78,18 @@ workers:
     worker_capabilities: [candidate_artifact_worker, role_worker, workflow_shell]
     allowed_roles: [Researcher, ArtifactProducer]
     forbidden_roles: [Supervisor, Observer, RepoScout, InterfaceMapper, PromptEngineer, Coder, NarrativePlanner, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
+  hermes_ark:
+    frontdesk_capable: false
+    worker_capable: true
+    worker_capabilities: [candidate_artifact_worker, role_worker, workflow_shell]
+    allowed_roles: [ArtifactProducer]
+    forbidden_roles: [Supervisor, Observer, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, NarrativePlanner, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
+  claude_ark:
+    frontdesk_capable: false
+    worker_capable: true
+    worker_capabilities: [candidate_artifact_worker, role_worker, workflow_shell]
+    allowed_roles: [ArtifactProducer]
+    forbidden_roles: [Supervisor, Observer, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, NarrativePlanner, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
   openclaw:
     frontdesk_capable: true
     worker_capable: false

@@ -167,6 +167,118 @@ backends:
       poll: arkcli gen get
     fallback_rank: 40
 
+  hermes_ark_seedance_skill:
+    display_name: Hermes + Ark Seedance Skills (Explicit Task Override)
+    capabilities:
+      - video_generate
+      - text_to_video
+      - synchronized_audio
+    modalities:
+      - video
+    quality_tier: premium
+    cost_tier: subscription_or_quota
+    quota_policy: explicit_user_authorized_task_override
+    auth_state: ready
+    auth_probe: hermes --help
+    adapter_state: ready
+    adapter_kind: local_hermes_ark_skill
+    adapter_note: Hermes is the bounded worker shell. Its preloaded Ark skills discover current resources, validate supported parameters, choose the available generation model, wait for completion, and report the actual model and local artifact.
+    worker_id: hermes_ark
+    role_owner: ArtifactProducer
+    internal_worker: true
+    command: hermes
+    invocation_contract: hermes_ark_artifact_producer
+    skill_id: arkcli-video-gen
+    skill_path: ~/.hermes/skills/arkcli-video-gen
+    skill_resolution: worker_registry
+    preload_skills: [arkcli-gen, arkcli-video-gen]
+    shell_provider: openai-codex
+    shell_model: gpt-5.6-sol
+    execution_mode: local_cli
+    selection_scope: explicit_task_override_only
+    fallback_backend: claude_seedance_agent_plan_skill
+    models:
+      video: skill_auto
+    registered_generation_models:
+      video:
+        - doubao-seedance-2.0
+        - doubao-seedance-2.0-fast
+        - doubao-seedance-1-5-pro-251215
+        - doubao-seedance-1-0-pro-250528
+    provider_model_aliases:
+      video:
+        doubao-seedance-2.0: doubao-seedance-2-0-260128
+        doubao-seedance-2.0-fast: doubao-seedance-2-0-fast-260128
+        doubao-seedance-1-5-pro-251215: doubao-seedance-1.5-pro
+    supported_params_verified: "2026-07-22"
+    supported_params:
+      resolution: [480p, 720p]
+      ratio: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", adaptive]
+      duration_seconds: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+      generate_audio: true
+      seed: true
+      camera_fixed: false
+      watermark: true
+      return_last_frame: true
+      service_tier: [default]
+    required_receipts:
+      - role_session_receipt.yml
+      - generation_ledger.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
+      - outbound_context_manifest_media.yml
+    approval_required: false
+    final_artifact_allowed: false
+
+  claude_seedance_agent_plan_skill:
+    display_name: Claude + Ark Seedance Skill (Fallback Only)
+    capabilities:
+      - video_generate
+      - text_to_video
+      - synchronized_audio
+    modalities:
+      - video
+    quality_tier: premium
+    cost_tier: subscription_or_quota
+    quota_policy: explicit_user_authorized_task_override
+    auth_state: ready
+    auth_probe: claude --help
+    adapter_state: ready
+    adapter_kind: local_claude_skill
+    adapter_note: Fallback-only bounded Claude shell. The repository Seedance Skill owns its Agent Plan call and visual-model selection; this route is not selected while Hermes + Ark is healthy.
+    worker_id: claude_ark
+    role_owner: ArtifactProducer
+    internal_worker: true
+    command: claude
+    invocation_contract: claude_seedance_artifact_fallback
+    skill_id: byted-ark-seedance-skill
+    skill_path: .claude/skills/byted-ark-seedance-skill
+    execution_mode: local_cli
+    selection_scope: explicit_task_override_only
+    fallback_only: true
+    fallback_from: [hermes_ark_seedance_skill]
+    models:
+      video: skill_auto
+    registered_generation_models:
+      video:
+        - doubao-seedance-2.0
+        - doubao-seedance-2.0-fast
+        - doubao-seedance-1-5-pro-251215
+        - doubao-seedance-1-0-pro-250528
+    provider_model_aliases:
+      video:
+        doubao-seedance-2.0: doubao-seedance-2-0-260128
+        doubao-seedance-2.0-fast: doubao-seedance-2-0-fast-260128
+        doubao-seedance-1-5-pro-251215: doubao-seedance-1.5-pro
+    required_receipts:
+      - role_session_receipt.yml
+      - generation_ledger.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
+      - outbound_context_manifest_media.yml
+    approval_required: false
+    final_artifact_allowed: false
+
   agy_media:
     display_name: Agy Visual Preproduction Observer
     capabilities:

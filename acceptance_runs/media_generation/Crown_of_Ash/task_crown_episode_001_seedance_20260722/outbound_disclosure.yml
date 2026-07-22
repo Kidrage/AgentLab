@@ -1,0 +1,34 @@
+schema_version: 1
+disclosure_type: external_media_generation_payload
+status: approved_not_executed_by_this_revision
+recipient: Volcengine Ark cn-beijing
+provider_command: hermes with preloaded arkcli-gen and arkcli-video-gen skills
+model: worker_selected_and_reported
+data_sent:
+  - exact distilled generation prompt in media_generation_contract.yml
+  - generation parameters: resolution, ratio, duration, audio, seed, and service tier
+data_not_sent:
+  - raw Crown of Ash blueprint files
+  - manuscript prose
+  - local file contents other than the distilled prompt
+  - Ark API key
+  - OAuth or SSO tokens
+  - unrelated AgentLab repository content
+prompt_sha256: c34958a68a0e57bf313e0603433398c96f50ee57f946336001c85f3f6eec9943
+requested_output:
+  modality: video
+  resolution: 720p
+  ratio: "16:9"
+  duration_seconds: 10
+  synchronized_audio: true
+approval_required: true
+approval_observed: true
+approval_text: 我明确授权将这段提炼提示词发送给火山方舟并生成视频
+approved_at: "2026-07-22"
+provider_call_attempted: false
+provider_attempt_count: 0
+provider_task_created: false
+provider_result: local_route_configuration_and_tests_only
+quota_consumed_by_rejected_attempt: false
+historical_direct_cli_diagnostic: provider_diagnostic.yml
+historical_diagnostic_status: superseded_for_route_selection

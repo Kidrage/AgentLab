@@ -1,0 +1,26 @@
+schema_version: 1
+diagnostic_type: superseded_direct_arkcli_attempts
+status: superseded
+checked_at: "2026-07-22"
+historical_route: direct_arkcli
+historical_attempt_count: 7
+historical_result:
+  task_created: false
+  generated_video: false
+  quota_consumed: false
+  failure_class: direct_route_rejected_before_task_creation
+credentials_recorded: false
+request_ids_recorded: false
+replacement:
+  primary_backend: hermes_ark_seedance_skill
+  primary_worker: hermes_ark
+  invocation_contract: hermes_ark_artifact_producer
+  fallback_backend: claude_seedance_agent_plan_skill
+  fallback_worker: claude_ark
+  fallback_invocation_contract: claude_seedance_artifact_fallback
+conclusion: >-
+  The retired direct ArkCLI attempts are not current entitlement evidence. The user
+  confirmed that Hermes plus the registered Ark skills completes generation, while
+  Claude plus its Seedance Skill encountered a 502. Current routing therefore uses
+  Hermes + Ark as primary and Claude + Ark as fallback. This code revision performs
+  local validation only and does not claim a new external generation.
