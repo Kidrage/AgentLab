@@ -239,6 +239,18 @@ def validate_chapter_state_plan(
             "issues": [{"check": "plan_source", "message": str(exc)}],
         }
 
+    if data.get("schema_version") == 3:
+        from agent_runtime.narrative.longform_governance import (
+            validate_chapter_state_plan_v3_document,
+        )
+
+        return validate_chapter_state_plan_v3_document(
+            data,
+            path=_rel(path, project_root),
+            expected_project=project_root.name,
+            expected_chapters=expected_chapters,
+        )
+
     for key, expected in (
         ("schema_version", 1),
         ("project", project_root.name),
@@ -551,6 +563,40 @@ def _chapter_intent_from_state_plan(
         for item in data["chapter_state_plan"]
         if isinstance(item, dict) and item.get("chapter") == chapter
     )
+    if data.get("schema_version") == 3:
+        drive = entry["protagonist_drive"]
+        hook = entry["hook_contract"]
+        return {
+            "status": "planned",
+            "chapter": chapter,
+            "source": validation["path"],
+            "source_kind": "candidate_chapter_contract_v3",
+            "volume": entry.get("volume") or "",
+            "phase": entry.get("phase") or entry["chapter_position"],
+            "title": entry.get("title") or f"chapter_{chapter}",
+            "emotional_target": drive["current_goal"],
+            "plot_state_change": entry["turn"],
+            "character_state_change": drive["desire_delta"],
+            "relationship_or_worldline_progress": entry.get("world_state_delta"),
+            "foreshadowing_to_introduce_or_payoff": entry["foreshadow_actions"],
+            "timeline_position": entry.get("timeline_slot") or f"chapter_{chapter}",
+            "beat_plan": {
+                "required_chapter_beat": drive["self_initiated_move"],
+                "opening_state": entry.get("opening_state") or drive["current_goal"],
+                "closing_state": entry.get("closing_state") or drive["desire_delta"],
+                "pov": entry["pov"],
+                "protagonist_drive": drive,
+                "supporting_actor_states": entry["supporting_actor_states"],
+                "hook_contract": hook,
+                "constraints": [
+                    "preserve the declared self-initiated move and failure cost",
+                    "do not reduce material supporting actors to information delivery",
+                    "close on the declared causal next action or reader question",
+                ],
+            },
+            "target_character_range": data.get("target_character_range", [4500, 5500]),
+            "hard_character_range": data.get("hard_character_range", [3000, 8000]),
+        }
     must_not_repeat = entry["must_not_repeat"]
     if isinstance(must_not_repeat, str):
         must_not_repeat = [must_not_repeat]

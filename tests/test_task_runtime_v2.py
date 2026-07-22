@@ -512,6 +512,37 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
     assert selected["selected_artifact_version"] == "chapter-001-v1"
     assert runtime.verify_evidence("task-book")["ok"] is True
 
+    rejected = runtime.change_artifact_disposition(
+        "task-book",
+        version_id="chapter-001-v1",
+        disposition="rejected_pre_v3",
+        reason_code="longform_governance_v3_reaudit",
+        feedback_digest="d" * 64,
+        idempotency_key="reject-v1",
+    )
+    assert rejected["selected_artifact_version"] is None
+    assert rejected["artifacts"]["chapter-001-v1"]["disposition"] == "rejected_pre_v3"
+    assert rejected["artifacts"]["chapter-001-v1"]["selection_eligible"] is False
+
+    repeated = runtime.change_artifact_disposition(
+        "task-book",
+        version_id="chapter-001-v1",
+        disposition="rejected_pre_v3",
+        reason_code="longform_governance_v3_reaudit",
+        feedback_digest="d" * 64,
+        idempotency_key="reject-v1",
+    )
+    assert repeated == rejected
+
+    with pytest.raises(InvalidTransition, match="not selection eligible"):
+        runtime.select_artifact_version(
+            "task-book",
+            version_id="chapter-001-v1",
+            idempotency_key="reselect-rejected-v1",
+        )
+
+    assert runtime.rebuild_task("task-book") == rejected
+
 
 def test_work_item_dependencies_activate_without_creating_child_tasks(
     tmp_path: Path,

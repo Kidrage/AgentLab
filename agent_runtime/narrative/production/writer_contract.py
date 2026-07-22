@@ -61,6 +61,39 @@ def _apply_prose_length_contract(
     return result
 
 
+def _apply_prose_conventions_contract(
+    result: dict[str, Any],
+    *,
+    chapter_context: Mapping[str, Any] | None = None,
+    prose_conventions_policy: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if result["status"] != "pass":
+        return result
+    from agent_runtime.narrative.quality.prose_conventions import (
+        evaluate_prose_conventions,
+    )
+
+    report = evaluate_prose_conventions(
+        str(result.get("canonical_prose") or ""),
+        chapter_context=chapter_context,
+        policy=prose_conventions_policy,
+    )
+    result["prose_conventions"] = report
+    # Only deterministic mechanical errors belong to the Writer contract.
+    # Rhetorical fatigue remains visible for the Editor revision lane.
+    if report["mechanical_status"] == "blocked":
+        result["status"] = "blocked"
+        result["issues"] = [
+            f"prose_conventions:{issue['id']}:{issue.get('locator', 'chapter')}"
+            for issue in report["issues"]
+            if issue["severity"] == "blocked"
+        ]
+        result["prose_sha256"] = ""
+        result["canonical_prose"] = ""
+        result["agentlab_receipt"] = None
+    return result
+
+
 def _issuer_receipt(
     prose_sha256: str,
     *,
@@ -100,6 +133,8 @@ class WriterV2Contract:
         model: str = "",
         call_id: str = "",
         prose_length_contract: Mapping[str, Any] | None = None,
+        chapter_context: Mapping[str, Any] | None = None,
+        prose_conventions_policy: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Check that Writer produced exactly ``fiction_draft.md`` and nothing else.
 
@@ -140,7 +175,7 @@ class WriterV2Contract:
         if not issues and not _has_complete_provenance(provider, model, call_id):
             issues.append("missing_observed_provenance")
 
-        return _apply_prose_length_contract(
+        result = _apply_prose_length_contract(
             WriterV2Contract._result(
                 "pass" if not issues else "blocked",
                 issues,
@@ -150,6 +185,11 @@ class WriterV2Contract:
                 call_id=call_id,
             ),
             prose_length_contract,
+        )
+        return _apply_prose_conventions_contract(
+            result,
+            chapter_context=chapter_context,
+            prose_conventions_policy=prose_conventions_policy,
         )
 
     @staticmethod
@@ -161,6 +201,8 @@ class WriterV2Contract:
         model: str = "",
         call_id: str = "",
         prose_length_contract: Mapping[str, Any] | None = None,
+        chapter_context: Mapping[str, Any] | None = None,
+        prose_conventions_policy: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Validate parsed edit blocks from Writer output for v2 compliance.
 
@@ -271,7 +313,12 @@ class WriterV2Contract:
             model=model,
             call_id=call_id,
         )
-        return _apply_prose_length_contract(result, prose_length_contract)
+        result = _apply_prose_length_contract(result, prose_length_contract)
+        return _apply_prose_conventions_contract(
+            result,
+            chapter_context=chapter_context,
+            prose_conventions_policy=prose_conventions_policy,
+        )
 
     @staticmethod
     def _result(
@@ -334,6 +381,8 @@ def validate_writer_v2_output(
     model: str = "",
     call_id: str = "",
     prose_length_contract: Mapping[str, Any] | None = None,
+    chapter_context: Mapping[str, Any] | None = None,
+    prose_conventions_policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Public entry-point: validate Writer v2 materialized outputs."""
     return WriterV2Contract.validate_materialized_outputs(
@@ -342,4 +391,6 @@ def validate_writer_v2_output(
         model=model,
         call_id=call_id,
         prose_length_contract=prose_length_contract,
+        chapter_context=chapter_context,
+        prose_conventions_policy=prose_conventions_policy,
     )

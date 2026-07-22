@@ -22,23 +22,23 @@ ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
 
 
-def test_crown_live_candidate_audit_checks_candidate_integrity(
+def test_retired_legacy_default_candidate_fails_closed(
     private_crown_project_root: Path,
 ) -> None:
     report = build_crown_live_candidate_audit(private_crown_project_root)
     by_id = {item["id"]: item for item in report["checks"]}
 
-    assert report["status"] == "pass"
-    assert by_id["required_files_present"]["status"] == "pass"
+    assert report["status"] == "fail"
+    assert by_id["required_files_present"]["status"] == "fail"
     assert by_id["delivery_protocol_valid"]["status"] == "pass"
-    assert by_id["draft_substantial"]["metrics"]["lines"] >= 100
-    assert by_id["chapter_packet_reset_baseline"]["status"] == "pass"
-    assert by_id["state_transition_candidate_only"]["status"] == "pass"
+    assert by_id["draft_substantial"]["status"] == "fail"
+    assert by_id["chapter_packet_reset_baseline"]["status"] == "fail"
+    assert by_id["state_transition_candidate_only"]["status"] == "fail"
     assert by_id["production_manuscript_not_modified"]["status"] == "pass"
-    assert report["summary"]["candidate_only"] is True
+    assert report["summary"]["candidate_only"] is False
 
 
-def test_crown_live_candidate_audit_cli_writes_yaml(
+def test_crown_live_candidate_audit_cli_writes_fail_closed_yaml(
     tmp_path: Path,
     private_crown_project_root: Path,
 ) -> None:
@@ -47,10 +47,10 @@ def test_crown_live_candidate_audit_cli_writes_yaml(
 
     result = runner.invoke(app, ["crown-live-candidate-audit", "--out", str(out)])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     report = yaml.safe_load(out.read_text(encoding="utf-8"))
     assert report["report_type"] == "agentlab_crown_live_candidate_audit"
-    assert report["status"] == "pass"
+    assert report["status"] == "fail"
 
 
 @pytest.mark.parametrize(
@@ -231,6 +231,7 @@ def test_crown_live_candidate_audit_uses_v2_prose_only_contract(
     assert report["candidate_sha256"] == prose_hash
     assert "required_files_present" not in by_id
     assert by_id["v2_prose_only_artifacts"]["status"] == "pass"
+    assert by_id["prose_conventions"]["status"] == "pass"
     assert by_id["v2_session_identity_and_request_hash"]["status"] == identity_status
     assert by_id["prose_length_contract"]["status"] == "fail"
     assert by_id["prose_length_contract"]["observed"] == 5501

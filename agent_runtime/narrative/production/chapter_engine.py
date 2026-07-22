@@ -77,6 +77,13 @@ class ChapterRequest:
     # Injectable post-selection projector seam.  Tests and background nodes
     # can supply a spy or a narrow projector without process-global state.
     projector: Callable[..., StateDelta] | None = None
+    # Optional project-scoped prose policy. Global Chinese dialogue mechanics
+    # remain active when this is omitted.
+    prose_conventions_policy: dict[str, Any] | None = None
+    # Optional final-acceptance seam. Both values must be supplied together;
+    # the store itself verifies accepted seal and previous-state hashes.
+    narrative_state_store: Any | None = None
+    verified_commit: dict[str, Any] | None = None
 
 
 @dataclass
@@ -92,6 +99,7 @@ class ChapterOutcome:
     issues: list[str] = field(default_factory=list)
     writer_rerun_needed: bool = False
     selected_prose_sha256: str = ""
+    state_commit_receipt: dict[str, Any] | None = None
     # Public call-order log: proves projector is called only after selection.
     # Each entry: {call_index, kind, chapter_id, prose_selected}.
     projector_call_log: list[dict[str, Any]] = field(default_factory=list)
@@ -126,6 +134,68 @@ class ChapterEngine:
             kwargs.setdefault("projector_call_log", list(_call_log))
             kwargs.setdefault("selected_prose_sha256", selected_prose_sha256)
             return ChapterOutcome(**kwargs)
+
+        def _verified_pass_outcome(
+            *,
+            brief: CreativeBrief,
+            writer_val: dict[str, Any],
+            delta: StateDelta,
+            delta_ver: dict[str, Any],
+        ) -> ChapterOutcome:
+            store = request.narrative_state_store
+            commit = request.verified_commit
+            if store is None and commit is None:
+                return _outcome(
+                    status="pass",
+                    creative_brief=brief,
+                    writer_validation=writer_val,
+                    state_delta=delta,
+                    delta_verification=delta_ver,
+                    issues=issues,
+                    writer_rerun_needed=False,
+                )
+            if store is None or commit is None:
+                return _outcome(
+                    status="blocked",
+                    creative_brief=brief,
+                    writer_validation=writer_val,
+                    state_delta=delta,
+                    delta_verification=delta_ver,
+                    issues=["state_commit_requires_store_and_verified_commit"],
+                    writer_rerun_needed=False,
+                )
+            if commit.get("artifact_sha256") != selected_prose_sha256:
+                return _outcome(
+                    status="blocked",
+                    creative_brief=brief,
+                    writer_validation=writer_val,
+                    state_delta=delta,
+                    delta_verification=delta_ver,
+                    issues=["state_commit_selected_prose_hash_mismatch"],
+                    writer_rerun_needed=False,
+                )
+            try:
+                receipt = store.commit(commit)
+            except Exception as exc:
+                return _outcome(
+                    status="blocked",
+                    creative_brief=brief,
+                    writer_validation=writer_val,
+                    state_delta=delta,
+                    delta_verification=delta_ver,
+                    issues=[f"state_commit_failed:{type(exc).__name__}"],
+                    writer_rerun_needed=False,
+                )
+            return _outcome(
+                status="pass",
+                creative_brief=brief,
+                writer_validation=writer_val,
+                state_delta=delta,
+                delta_verification=delta_ver,
+                state_commit_receipt=receipt,
+                issues=issues,
+                writer_rerun_needed=False,
+            )
 
         # ---- 1. Creative brief --------------------------------------------
         brief: CreativeBrief | None = None
@@ -175,15 +245,24 @@ class ChapterEngine:
             prose_length_contract=build_han_character_contract(
                 brief.word_count_target
             ),
+            chapter_context={
+                "chapter": request.chapter_id,
+                "chapter_position": brief.to_dict().get("chapter_position"),
+            },
+            prose_conventions_policy=request.prose_conventions_policy,
         )
         if writer_val["status"] != "pass":
             issues.append("writer_v2_validation_failed")
+            conventions = writer_val.get("prose_conventions") or {}
             return _outcome(
                 chapter_id=request.chapter_id,
                 status="blocked",
                 creative_brief=brief,
                 writer_validation=writer_val,
                 issues=issues + writer_val.get("issues", []),
+                writer_rerun_needed=bool(
+                    conventions.get("writer_rerun_needed")
+                ),
             )
 
         # ---- 3. EXPLICIT selection gate ------------------------------------
@@ -257,15 +336,11 @@ class ChapterEngine:
                     )
 
                 # ---- 4c. Reachable pass ------------------------------------
-                return _outcome(
-                    chapter_id=request.chapter_id,
-                    status="pass",
-                    creative_brief=brief,
-                    writer_validation=writer_val,
-                    state_delta=delta,
-                    delta_verification=delta_ver,
-                    issues=issues,
-                    writer_rerun_needed=False,
+                return _verified_pass_outcome(
+                    brief=brief,
+                    writer_val=writer_val,
+                    delta=delta,
+                    delta_ver=delta_ver,
                 )
 
             # Skeleton path (projector creates empty delta; never reaches pass).
@@ -321,15 +396,11 @@ class ChapterEngine:
                 )
 
             # ---- 6. Success -------------------------------------------------
-            return _outcome(
-                chapter_id=request.chapter_id,
-                status="pass",
-                creative_brief=brief,
-                writer_validation=writer_val,
-                state_delta=delta,
-                delta_verification=delta_ver,
-                issues=issues,
-                writer_rerun_needed=False,
+            return _verified_pass_outcome(
+                brief=brief,
+                writer_val=writer_val,
+                delta=delta,
+                delta_ver=delta_ver,
             )
 
         except FileNotFoundError:

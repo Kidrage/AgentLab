@@ -88,6 +88,12 @@ WORK_ITEM_TRANSITIONS: dict[str, set[str]] = {
     "failed": set(),
     "cancelled": set(),
 }
+ARTIFACT_DISPOSITION_TRANSITIONS: dict[str, set[str]] = {
+    "eligible": {"rejected_pre_v3", "superseded", "archived"},
+    "rejected_pre_v3": {"archived"},
+    "superseded": {"archived"},
+    "archived": set(),
+}
 
 
 def _utc_now() -> str:
@@ -1160,6 +1166,10 @@ class TaskRuntime:
         def validate(projection: dict[str, Any]) -> None:
             if version_id not in projection["artifacts"]:
                 raise EntityNotFound(f"artifact version {version_id!r} does not exist")
+            if projection["artifacts"][version_id].get("selection_eligible") is not True:
+                raise InvalidTransition(
+                    f"artifact version {version_id!r} is not selection eligible"
+                )
             if not any(
                 binding["version_id"] == version_id
                 for binding in projection["evidence_bindings"].values()
@@ -1185,6 +1195,87 @@ class TaskRuntime:
             entity_id=version_id,
             idempotency_key=idempotency_key,
             payload={"version_id": version_id},
+            validate_projection=validate,
+        )
+        return self.rebuild_task(task_id)
+
+    def change_artifact_disposition(
+        self,
+        task_id: str,
+        *,
+        version_id: str,
+        disposition: str,
+        reason_code: str,
+        feedback_digest: str,
+        feedback_path: Path | None = None,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Append an auditable disposition without rewriting artifact history."""
+
+        task_id = _validated_id(task_id, field="task_id")
+        version_id = _validated_id(version_id, field="version_id")
+        disposition = _validated_id(disposition, field="disposition")
+        reason_code = _validated_id(reason_code, field="reason_code")
+        feedback_digest = str(feedback_digest or "").strip()
+        if not _SHA256.fullmatch(feedback_digest):
+            raise ValueError("feedback_digest must be lowercase 64-hex")
+        feedback_ref: str | None = None
+        if feedback_path is not None:
+            resolved_feedback = Path(feedback_path).resolve(strict=True)
+            task_root = self._task_dir(task_id).resolve(strict=False)
+            if not resolved_feedback.is_relative_to(task_root):
+                raise ValueError("feedback path must be inside the task directory")
+            if hashlib.sha256(resolved_feedback.read_bytes()).hexdigest() != feedback_digest:
+                raise ValueError("feedback path SHA256 does not match feedback_digest")
+            feedback_ref = resolved_feedback.relative_to(task_root).as_posix()
+
+        def validate(projection: dict[str, Any]) -> None:
+            artifact = projection["artifacts"].get(version_id)
+            if artifact is None:
+                raise EntityNotFound(f"artifact version {version_id!r} does not exist")
+            current_disposition = str(artifact.get("disposition") or "eligible")
+            if current_disposition != from_disposition:
+                raise InvalidTransition("artifact disposition changed concurrently")
+            if disposition not in ARTIFACT_DISPOSITION_TRANSITIONS.get(
+                current_disposition, set()
+            ):
+                raise InvalidTransition(
+                    "invalid artifact disposition transition: "
+                    f"{current_disposition!r} -> {disposition!r}"
+                )
+
+        projection = self.load_task(task_id)
+        artifact = projection["artifacts"].get(version_id)
+        if artifact is None:
+            raise EntityNotFound(f"artifact version {version_id!r} does not exist")
+        from_disposition = str(artifact.get("disposition") or "eligible")
+        if from_disposition == disposition:
+            history = artifact.get("disposition_history") or []
+            last_change = history[-1] if history else {}
+            if (
+                last_change.get("reason_code") == reason_code
+                and last_change.get("feedback_digest") == feedback_digest
+                and last_change.get("feedback_ref") == feedback_ref
+            ):
+                return projection
+            raise InvalidTransition(
+                f"artifact version {version_id!r} already has disposition "
+                f"{disposition!r} under a different audit decision"
+            )
+        self._append_event(
+            task_id=task_id,
+            event_type="ARTIFACT_VERSION_DISPOSITION_CHANGED",
+            entity_type="artifact_version",
+            entity_id=version_id,
+            idempotency_key=idempotency_key,
+            payload={
+                "version_id": version_id,
+                "from_disposition": from_disposition,
+                "disposition": disposition,
+                "reason_code": reason_code,
+                "feedback_digest": feedback_digest,
+                "feedback_ref": feedback_ref,
+            },
             validate_projection=validate,
         )
         return self.rebuild_task(task_id)
@@ -2058,6 +2149,9 @@ class TaskRuntime:
                     "media_type": event["payload"]["media_type"],
                     "size_bytes": event["payload"]["size_bytes"],
                     "sha256": event["payload"]["sha256"],
+                    "disposition": "eligible",
+                    "selection_eligible": True,
+                    "disposition_history": [],
                     "created_at": event["recorded_at"],
                 }
                 continue
@@ -2120,12 +2214,55 @@ class TaskRuntime:
                 )
                 if version_id not in artifacts:
                     raise LedgerIntegrityError("selected artifact version does not exist")
+                if artifacts[version_id].get("selection_eligible") is not True:
+                    raise LedgerIntegrityError(
+                        "selected artifact version is not selection eligible"
+                    )
                 if not any(
                     binding["version_id"] == version_id
                     for binding in evidence_bindings.values()
                 ):
                     raise LedgerIntegrityError("selected artifact version has no evidence")
                 selected_artifact_version = version_id
+                continue
+            if event["event_type"] == "ARTIFACT_VERSION_DISPOSITION_CHANGED":
+                version_id = _validated_id(
+                    event["payload"].get("version_id"), field="version_id"
+                )
+                artifact = artifacts.get(version_id)
+                if artifact is None:
+                    raise LedgerIntegrityError(
+                        "artifact disposition references missing artifact version"
+                    )
+                from_disposition = str(
+                    event["payload"].get("from_disposition") or ""
+                )
+                disposition = str(event["payload"].get("disposition") or "")
+                if (
+                    artifact.get("disposition") != from_disposition
+                    or disposition
+                    not in ARTIFACT_DISPOSITION_TRANSITIONS.get(
+                        from_disposition, set()
+                    )
+                ):
+                    raise LedgerIntegrityError(
+                        "invalid artifact disposition transition in ledger"
+                    )
+                artifact["disposition"] = disposition
+                artifact["selection_eligible"] = disposition == "eligible"
+                artifact["disposition_history"].append(
+                    {
+                        "from_disposition": from_disposition,
+                        "disposition": disposition,
+                        "reason_code": event["payload"].get("reason_code"),
+                        "feedback_digest": event["payload"].get("feedback_digest"),
+                        "feedback_ref": event["payload"].get("feedback_ref"),
+                        "event_id": event["event_id"],
+                        "recorded_at": event["recorded_at"],
+                    }
+                )
+                if selected_artifact_version == version_id:
+                    selected_artifact_version = None
                 continue
             raise LedgerIntegrityError(f"unsupported event type: {event['event_type']}")
         if task is None:
