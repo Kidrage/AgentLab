@@ -179,6 +179,31 @@ def _snapshot_writer_contract_attempt(run_dir: Path, attempt: int) -> dict[str, 
     return snapshots
 
 
+def _writer_retry_source(run_dir: Path, attempt: int) -> dict[str, str]:
+    """Extract only the rejected prose draft for a bounded full-contract redo."""
+    from agent_runtime.patch_applicator import parse_edit_blocks
+
+    capture_path = run_dir / f"writer_retry_attempt_{attempt:02d}_capture.md"
+    try:
+        blocks = parse_edit_blocks(capture_path.read_text(encoding="utf-8"))
+    except OSError:
+        return {}
+    for block in blocks:
+        raw_path = str(block.get("path") or "").strip().replace("\\", "/")
+        if Path(raw_path).name != "fiction_draft.md":
+            continue
+        draft = str(block.get("html_block_content") or "").strip()
+        lines = draft.splitlines()
+        if (
+            len(lines) >= 2
+            and lines[0].strip().startswith("```")
+            and lines[-1].strip() == "```"
+        ):
+            draft = "\n".join(lines[1:-1]).strip()
+        return {"fiction_draft": draft} if draft else {}
+    return {}
+
+
 def _write_writer_contract_retry_feedback(
     run_dir: Path,
     *,
@@ -234,6 +259,12 @@ def _write_writer_contract_retry_feedback(
             0,
             "Use the deterministic observed character count below; do not rely on a self-estimated count.",
         )
+    retry_source = _writer_retry_source(run_dir, attempt)
+    if retry_source:
+        instructions.insert(
+            0,
+            "Revise and expand the rejected fiction_draft below; preserve its valid story facts and do not replace it with a shorter draft.",
+        )
     _write_yaml(
         run_dir / "writer_contract_retry_feedback.yml",
         {
@@ -243,6 +274,7 @@ def _write_writer_contract_retry_feedback(
             "chapter": chapter,
             "issues": issues,
             "draft_character_contract": character_ranges,
+            "retry_source": retry_source,
             "instructions": instructions,
             "required_envelopes": {
                 "continuity_ledger.yml": {

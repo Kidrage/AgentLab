@@ -78,6 +78,10 @@ def test_writer_contract_retry_feedback_includes_character_ranges(
         run_dir / "writer_output_contract.yml",
         {"measurements": {"fiction_draft_characters": 2750}},
     )
+    (run_dir / "writer_retry_attempt_01_capture.md").write_text(
+        _writer_candidate_blocks("需要在重试中保留并扩写的正文。" * 20),
+        encoding="utf-8",
+    )
 
     _write_writer_contract_retry_feedback(
         run_dir,
@@ -97,6 +101,8 @@ def test_writer_contract_retry_feedback_includes_character_ranges(
     }
     assert feedback["draft_character_contract"]["observed_characters"] == 2750
     assert feedback["draft_character_contract"]["minimum_characters_to_add"] == 250
+    assert feedback["retry_source"]["fiction_draft"].startswith("# Draft")
+    assert "保留并扩写" in feedback["retry_source"]["fiction_draft"]
 
 
 def _writer_candidate_blocks(draft: str) -> str:
