@@ -2287,6 +2287,12 @@ def run_next_node(
         result = validate_artifacts(run_dir)
         (run_dir / "self_check_report.yml").write_text(
             yaml.safe_dump(result, sort_keys=False), encoding="utf-8")
+        # The first pass necessarily sees self_check_report.yml as missing on a
+        # fresh run. Re-evaluate after creating it so the persisted report does
+        # not retain a false self-reference failure.
+        result = validate_artifacts(run_dir)
+        (run_dir / "self_check_report.yml").write_text(
+            yaml.safe_dump(result, sort_keys=False), encoding="utf-8")
         _record_dry_run_node_evidence(
             agentlab_root,
             run_dir,

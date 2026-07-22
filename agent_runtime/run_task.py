@@ -215,6 +215,9 @@ register_narrative_eval_commands(app, _PROJECT_ROOT, console)
 from agent_runtime.cli.background_jobs import register_background_job_commands
 register_background_job_commands(app, _PROJECT_ROOT, console)
 
+from agent_runtime.cli.project_reset import register_project_reset_commands
+register_project_reset_commands(app, _PROJECT_ROOT, console)
+
 from agent_runtime.cli.run_retention import register_run_retention_commands
 register_run_retention_commands(app, _PROJECT_ROOT, console)
 

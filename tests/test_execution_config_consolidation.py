@@ -73,6 +73,7 @@ def test_cli_profiles_reference_worker_invocation_contracts() -> None:
         "provider",
         "model_id",
         "model_key",
+        "narrative_audit_schema",
     }
 
     for mode_name, mode in profiles["modes"].items():
@@ -223,8 +224,8 @@ def test_full_cli_performance_defaults_match_role_policy() -> None:
     assert tier["researcher"]["invocation_contract"] == "grok_research"
     assert tier["researcher"]["default"] == "grok_4_3_hermes_oauth"
 
-    assert tier["prompt_engineer"]["cli_agent"] == "hermes"
-    assert tier["prompt_engineer"]["invocation_contract"] == "hermes"
+    assert tier["prompt_engineer"]["cli_agent"] == "claude_code"
+    assert tier["prompt_engineer"]["invocation_contract"] == "claude"
     assert tier["prompt_engineer"]["default"] == "deepseek_v4_flash"
 
     assert tier["coder"]["cli_agent"] == "claude_code"
@@ -634,15 +635,45 @@ def test_codex_supervisor_uses_native_gpt_56_sol_at_xhigh_effort() -> None:
     assert "model_reasoning_effort=\"xhigh\"" in codex_template
     assert "--sandbox read-only" in codex_template
     assert "--ephemeral" in codex_template
+    assert "--skip-git-repo-check" in codex_template
     supervisor_contract = contracts["codex_supervisor"]
     assert supervisor_contract["requested_reasoning_label"] == "extra"
     assert supervisor_contract["resolved_reasoning_effort"] == "xhigh"
     assert supervisor_contract["fallback"] == {"on_binary_missing": "capacity_manager"}
+    assert "--skip-git-repo-check" in contracts["codex"]["template"]
     for tier in ("full", "performance", "low"):
         route = profiles["modes"]["full_cli"]["tiers"][tier]["supervisor"]
         assert route["cli_agent"] == "codex"
         assert route["invocation_contract"] == "codex_supervisor"
         assert route["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+
+
+def test_full_cli_codex_workers_only_use_codex_cli_models() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
+    catalog = _load_config("model_catalog.yml")["models"]
+    providers = _load_config("model_providers.yml")["providers"]
+
+    for tier_name, tier in profiles["modes"]["full_cli"]["tiers"].items():
+        for role_name, route in tier.items():
+            if not isinstance(route, dict) or route.get("cli_agent") != "codex":
+                continue
+            model = catalog[route["default"]]
+            provider = providers[model["runtime_provider"]]
+            assert provider["command"] == "codex", f"{tier_name}/{role_name}"
+
+
+def test_full_cli_deepseek_models_only_use_claude_shell() -> None:
+    profiles = _load_config("agent_model_profiles.yml")
+    catalog = _load_config("model_catalog.yml")["models"]
+
+    for tier_name, tier in profiles["modes"]["full_cli"]["tiers"].items():
+        for role_name, route in tier.items():
+            if not isinstance(route, dict):
+                continue
+            model = catalog[route["default"]]
+            if model["provider"] != "deepseek_official":
+                continue
+            assert route["cli_agent"] == "claude_code", f"{tier_name}/{role_name}"
 
 
 def test_qwen_role_contract_uses_explicit_dashscope_auth() -> None:
@@ -658,30 +689,32 @@ def test_qwen_role_contract_uses_explicit_dashscope_auth() -> None:
     }
 
 
-def test_narrative_route_does_not_override_model_matrix_contract() -> None:
+def test_narrative_reviewer_uses_authenticated_sealed_claude_contract() -> None:
     configs = _load_config("worker_invocation_contracts.yml")["contracts"]
     routing = _load_config("routing_rules.yml")["routes"][
         "narrative_heavy_audit"
     ]
-    contract = configs["qwen_narrative_audit"]
+    contract = configs["claude_narrative_audit"]
 
     assert "role_session_contracts" not in routing
-    assert contract["worker_id"] == "qwen"
-    assert contract["model_profile"] == "qwen3_6_flash_dashscope"
+    assert contract["worker_id"] == "claude_code"
     assert contract["packet_delivery"] == "stdin"
     assert contract["structured_output"] == "narrative_heavy_audit"
-    assert "--max-session-turns 6" in contract["template"]
-    exclude_value = contract["template"].split("--exclude-tools ", 1)[1].split()[0]
-    excluded_tools = set(exclude_value.split(","))
-    assert "structured_output" not in excluded_tools
-    assert {"read_file", "grep_search", "glob", "list_directory", "agent"} <= excluded_tools
-    assert "--core-tools" not in contract["template"]
-    assert "--max-tool-calls 1" in contract["template"]
-    assert "--json-schema @narrative_heavy_audit_output.schema.json" in contract[
-        "template"
-    ]
+    assert "--permission-mode bypassPermissions" in contract["template"]
+    assert '--tools ""' in contract["template"]
+    assert "--json-schema '{narrative_audit_schema}'" in contract["template"]
     assert "{task_packet_path}" not in contract["template"]
-    assert contract["fallback"] == {"on_binary_missing": "stop_and_report"}
+    assert contract["fallback"] == {
+        "on_binary_missing": "stop_and_report",
+        "on_quota_exhausted": "stop_and_report",
+    }
+
+    tiers = _load_config("agent_model_profiles.yml")["modes"]["full_cli"]["tiers"]
+    for tier_name in ("full", "performance", "low"):
+        reviewer = tiers[tier_name]["reviewer"]
+        assert reviewer["cli_agent"] == "claude_code"
+        assert reviewer["invocation_contract"] == "claude_narrative_audit"
+        assert reviewer["default"] == "deepseek_v4_pro"
 
 
 def test_gate1_narrative_editor_is_sealed_qwen_max_with_no_fallback() -> None:

@@ -329,6 +329,29 @@ def test_workflow_plan_routes_plain_article_to_article_light_path(tmp_path: Path
     assert {"article_draft.md", "article_structure_check.yml"} <= set(_memory_task_state(plan))
 
 
+def test_artifact_route_has_explicit_artifact_producer_budget(tmp_path: Path) -> None:
+    request = tmp_path / "user_request.md"
+    request.write_text(
+        "生成一份 YAML 报告和一个交付回执。",
+        encoding="utf-8",
+    )
+
+    plan = build_workflow_plan(
+        ROOT,
+        "Crown_of_Ash",
+        "task_fact_distillation",
+        user_request_path=request,
+    )
+
+    assert plan.route.route_key == "artifact_production_task"
+    producer_budgets = [
+        budget for budget in plan.token_budgets if "ArtifactProducer" in budget.phase
+    ]
+    assert len(producer_budgets) == 1
+    assert producer_budgets[0].estimated_input_tokens == 50000
+    assert producer_budgets[0].estimated_output_tokens == 16000
+
+
 def test_workflow_plan_routes_video_series_to_media_series_pack(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     request = tmp_path / "user_request.md"

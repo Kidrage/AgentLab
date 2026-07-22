@@ -591,7 +591,15 @@ def _artifact_task_required_outputs(run_dir: Path) -> list[str]:
         path = Path(str(raw))
         if path.is_absolute() or ".." in path.parts:
             continue
-        if path.parts[:2] == ("runs", run_dir.name):
+        project_run_prefix = (
+            "projects",
+            run_dir.parent.parent.name,
+            "runs",
+            run_dir.name,
+        )
+        if path.parts[:4] == project_run_prefix:
+            path = Path(*path.parts[4:])
+        elif path.parts[:2] == ("runs", run_dir.name):
             path = Path(*path.parts[2:])
         elif path.parts[:1] == ("runs",):
             continue
@@ -650,6 +658,17 @@ def validate_artifact_task_outputs(
 
     deferred = deferred_paths or set()
     issues: list[dict[str, str]] = []
+    contract_path = run_dir / "artifact_task.yml"
+    try:
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        contract = {}
+    validation = contract.get("validation") if isinstance(contract, dict) else {}
+    semantic_validator = (
+        validation.get("semantic_validator")
+        if isinstance(validation, dict)
+        else None
+    )
     for name in _artifact_task_required_outputs(run_dir):
         if name in deferred or Path(name).name in deferred:
             continue
@@ -670,9 +689,50 @@ def validate_artifact_task_outputs(
             continue
         if path.suffix.lower() in {".yml", ".yaml"}:
             try:
-                yaml.safe_load(path.read_text(encoding="utf-8"))
+                document = yaml.safe_load(path.read_text(encoding="utf-8"))
             except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
                 issues.append({"file": name, "issue": f"invalid YAML: {exc}"})
+                continue
+            if semantic_validator == "fact_distillation":
+                try:
+                    from agent_runtime.project_reset import fact_distillation_issues
+                except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+                    from project_reset import fact_distillation_issues
+                assigned_inputs = contract.get("assigned_inputs") or []
+                allowed_hashes = {
+                    str(item.get("sha256") or "")
+                    for item in assigned_inputs
+                    if isinstance(item, dict) and item.get("sha256")
+                }
+                if not isinstance(document, dict):
+                    semantic_issues = ["invalid_document"]
+                else:
+                    semantic_issues = fact_distillation_issues(
+                        document,
+                        allowed_source_hashes=allowed_hashes,
+                    )
+                    expected_sources = [
+                        {
+                            "path": str(item.get("project_path") or ""),
+                            "sha256": str(item.get("sha256") or ""),
+                        }
+                        for item in assigned_inputs
+                        if isinstance(item, dict)
+                    ]
+                    actual_sources = [
+                        {
+                            "path": str(item.get("path") or ""),
+                            "sha256": str(item.get("sha256") or ""),
+                        }
+                        for item in document.get("sources") or []
+                        if isinstance(item, dict)
+                    ]
+                    if actual_sources != expected_sources:
+                        semantic_issues.append("source_contract_mismatch")
+                issues.extend(
+                    {"file": name, "issue": issue}
+                    for issue in sorted(set(semantic_issues))
+                )
     return issues
 
 
@@ -833,13 +893,33 @@ def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = N
     if not has_command_claim:
         return None
 
-    # Check if report references an execution_log command_id
+    # Native CLI workers may preserve their report verbatim while the executor
+    # writes command provenance to a role-specific companion capture. Treat the
+    # pair as one evidence envelope, but still require an id that exists in the
+    # authoritative execution log.
+    evidence_content = content
     has_command_id = (
         "command_id" in lowered
         or "cmd_" in lowered
         or "execution_log" in lowered
         or "evidence:" in lowered
     )
+    if not has_command_id and run_dir is not None:
+        capture_name = {
+            "07_validation_report.md": "testerauditor_cli_result_capture.md",
+            "08_audit_report.md": "testerauditor_cli_result_capture.md",
+            "verification_report.md": "verifier_cli_result_capture.md",
+        }[fname]
+        capture_path = run_dir / capture_name
+        if capture_path.is_file():
+            capture = capture_path.read_text(encoding="utf-8", errors="replace")
+            capture_lowered = capture.lower()
+            if any(
+                marker in capture_lowered
+                for marker in ("command_id", "cmd_", "execution_log", "evidence:")
+            ):
+                evidence_content = f"{content}\n{capture}"
+                has_command_id = True
     if not has_command_id:
         # Report claims command execution but does not reference command_id
         return (
@@ -860,7 +940,7 @@ def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = N
     command_ids = [cmd.get("command_id", "") for cmd in commands]
     matched_cid: str | None = None
     for cid in command_ids:
-        if cid and cid in content:
+        if cid and cid in evidence_content:
             matched_cid = cid
             break
 
@@ -984,7 +1064,22 @@ def _check_search_repo_intelligence_evidence(fname: str, content: str, run_dir: 
 
     repo_ledger = _load_yaml_artifact(run_dir, "repo_index_ledger.yml")
     semantic_exists = _json_artifact_exists(run_dir, "repo_semantic_library.json", "repo_index")
-    if "indexed repo" in lowered:
+    claims_repo_indexing = bool(
+        re.search(
+            r"(?m)^\s*(?:[-*]\s*)?(?:i\s+|we\s+)?indexed\s+(?:the\s+)?(?:repo|repository)\b",
+            lowered,
+        )
+        or any(
+            phrase in lowered
+            for phrase in (
+                "repo indexing performed",
+                "repository indexing performed",
+                "ran repo-index",
+                "ran repo index",
+            )
+        )
+    )
+    if claims_repo_indexing:
         if not repo_ledger or not (repo_ledger.get("index") or {}).get("performed"):
             issues.append("Report claims repo indexing but repo_index_ledger.yml index.performed=true evidence is missing.")
     if "queried codegraph" in lowered and not (repo_ledger.get("queries") or []):

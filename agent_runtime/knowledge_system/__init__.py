@@ -22,6 +22,7 @@ from .operations import (
     build_knowledge_base,
     knowledge_status,
     validate_knowledge_stage,
+    write_project_knowledge_snapshot,
 )
 from .runtime import InsufficientEvidenceError, evaluate_outcome, prepare_task, sync_committed
 
@@ -49,4 +50,5 @@ __all__ = [
     "prepare_task",
     "sync_committed",
     "validate_knowledge_stage",
+    "write_project_knowledge_snapshot",
 ]

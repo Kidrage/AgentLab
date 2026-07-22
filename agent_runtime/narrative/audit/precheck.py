@@ -11,7 +11,7 @@ import yaml
 
 
 _TIMELINE_SLOT = re.compile(
-    r"^(?:\d{4}-\d{2}-\d{2}(?:[T ][0-9:Z+.-]+)?|[A-Za-z_]+:\d+|T\d+(?:-[A-Z0-9_]+)+)$"
+    r"^(?:\d{4}-\d{2}-\d{2}(?:[T ][0-9:Z+.-]+)?|[A-Za-z_]+:\d+|T\d+(?:-[A-Z0-9_]+)+|[A-Za-z][A-Za-z0-9_]*_t\d+(?:_[A-Za-z0-9]+)+)$"
 )
 _CJK = re.compile(r"[\u3400-\u9fff]")
 _LEGACY_TIME = re.compile(

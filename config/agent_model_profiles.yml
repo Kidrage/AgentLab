@@ -19,6 +19,7 @@ authority:
   notes:
     - This file is the single runtime source for selecting each AgentLab role backend.
     - CLI command strings are resolved from invocation_contract keys, not duplicated here.
+    - A CLI-owned provider/model may only be assigned to the worker whose command owns that provider surface; Codex worker routes must use Codex CLI model facts, never DeepSeek or Hermes provider identities.
     - Automatic fallback is executable only when a capacity_route delegates to config/model_capacity.yml.
     - Every failure outside a capacity-approved route stops and reports without switching worker, model, or provider.
     - trusted_headless_cli is an explicit safety-gated exception and must never be default.
@@ -114,9 +115,9 @@ modes:
           capacity_route: Writer
         reviewer:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_narrative_audit
+          default: deepseek_v4_pro
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy
@@ -159,8 +160,8 @@ modes:
           capacity_route: Researcher
         prompt_engineer:
           executor_type: cli_agent
-          cli_agent: hermes
-          invocation_contract: hermes
+          cli_agent: claude_code
+          invocation_contract: claude
           default: deepseek_v4_flash
         coder:
           executor_type: cli_agent
@@ -207,9 +208,9 @@ modes:
           capacity_route: Writer
         reviewer:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_narrative_audit
+          default: deepseek_v4_pro
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy
@@ -238,7 +239,7 @@ modes:
           executor_type: cli_agent
           cli_agent: codex
           invocation_contract: codex
-          default: qwen3_6_flash_dashscope
+          default: codex_gpt_5_6_sol_xhigh_cli_oauth
         interface_mapper: skip
         researcher:
           executor_type: cli_agent
@@ -296,9 +297,9 @@ modes:
           capacity_route: WriterLow
         reviewer:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_narrative_audit
+          default: deepseek_v4_pro
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy

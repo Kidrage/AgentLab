@@ -711,6 +711,25 @@ class KnowledgeStore:
         with self._shard(path) as connection:
             return int(connection.execute("SELECT COUNT(*) FROM records").fetchone()[0])
 
+    def eligible_source_hashes(self, namespace: str) -> dict[str, str]:
+        """Return active canonical/accepted source identities for one namespace."""
+        row = self._space_row(validate_namespace(namespace))
+        path = assert_path_allowed(self.spaces_root / row["db_name"], self.root)
+        with self._shard(path) as connection:
+            rows = connection.execute(
+                """
+                SELECT source_path, source_hash FROM records
+                WHERE lifecycle = ? AND authority IN (?, ?)
+                ORDER BY source_path
+                """,
+                (
+                    KnowledgeLifecycle.ACTIVE.value,
+                    AuthorityLevel.CANONICAL.value,
+                    AuthorityLevel.ACCEPTED.value,
+                ),
+            ).fetchall()
+        return {str(item["source_path"]): str(item["source_hash"]) for item in rows}
+
     def active_scope_record_count(self, namespace: str, scope: str) -> int:
         """Return active records for one build scope without changing it."""
         row = self._space_row(validate_namespace(namespace))

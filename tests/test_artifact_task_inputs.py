@@ -67,6 +67,29 @@ def test_contract_without_inputs_has_an_empty_explicit_input_set(
     assert packet["assigned_inputs"] == []
 
 
+def test_contract_records_project_relative_logical_path_for_project_inputs(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    source = root / "projects" / "Crown_of_Ash" / "production" / "bible" / "world.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("stable fact\n", encoding="utf-8")
+
+    packet = build_artifact_task_contract(
+        root,
+        "Create fact_distillation.yml from the assigned input.",
+        project="Crown_of_Ash",
+        output_path="runs/task_fact/artifacts/fact_distillation.yml",
+        assigned_input_paths=[source],
+    )
+
+    assert packet["assigned_inputs"][0]["source_path"] == (
+        "projects/Crown_of_Ash/production/bible/world.md"
+    )
+    assert packet["assigned_inputs"][0]["project_path"] == "production/bible/world.md"
+    assert packet["validation"]["semantic_validator"] == "fact_distillation"
+
+
 def test_contract_rejects_directory_input(tmp_path: Path) -> None:
     root = tmp_path / "root"
     directory = root / "inputs"
