@@ -412,6 +412,21 @@ def validate_artifact_task_inputs(
         )
         source_path = "/".join(source_parts)
         staged_path = "/".join(staged_parts)
+        project_path: str | None = None
+        if "project_path" in item:
+            project_parts = _strict_relative_parts(
+                item.get("project_path"),
+                input_index=input_index,
+                field="project_path",
+            )
+            project_path = "/".join(project_parts)
+            project = str(artifact_task.get("project") or "").strip()
+            if not project or source_path != f"projects/{project}/{project_path}":
+                raise ArtifactInputContractError(
+                    "artifact_input_project_path_mismatch",
+                    input_index=input_index,
+                    field="project_path",
+                )
         expected_staged = f"artifact_inputs/{input_index:02d}_{source_parts[-1]}"
         if len(staged_parts) != 2 or staged_path != expected_staged:
             raise ArtifactInputContractError(
@@ -514,16 +529,17 @@ def validate_artifact_task_inputs(
         seen_sources.add(source_path)
         seen_staged.add(staged_path)
         seen_files.add(file_identity)
-        validated.append(
-            {
-                "source_path": source_path,
-                "staged_path": staged_path,
-                "sha256": expected_hash,
-                "byte_count": expected_size,
-                "read_only": True,
-                "_source_path": resolved_root.joinpath(*source_parts),
-            }
-        )
+        row: dict[str, Any] = {
+            "source_path": source_path,
+            "staged_path": staged_path,
+            "sha256": expected_hash,
+            "byte_count": expected_size,
+            "read_only": True,
+            "_source_path": resolved_root.joinpath(*source_parts),
+        }
+        if project_path is not None:
+            row["project_path"] = project_path
+        validated.append(row)
     return validated
 
 
@@ -759,6 +775,8 @@ def verify_staged_artifact_task_inputs(
 def _assigned_artifact_inputs(
     root: Path,
     assigned_input_paths: Iterable[str | Path] | None,
+    *,
+    project: str | None = None,
 ) -> list[dict[str, Any]]:
     """Bind explicit root-contained files to deterministic staging paths."""
 
@@ -802,17 +820,19 @@ def _assigned_artifact_inputs(
         after = source.stat()
         if before.st_size != after.st_size or before.st_mtime_ns != after.st_mtime_ns:
             raise ValueError(f"artifact input changed while hashing: {source_path}")
-        rows.append(
-            {
-                "source_path": source_path,
-                "staged_path": (
-                    Path("artifact_inputs") / f"{index:02d}_{source.name}"
-                ).as_posix(),
-                "sha256": source_hash,
-                "byte_count": after.st_size,
-                "read_only": True,
-            }
-        )
+        row: dict[str, Any] = {
+            "source_path": source_path,
+            "staged_path": (
+                Path("artifact_inputs") / f"{index:02d}_{source.name}"
+            ).as_posix(),
+            "sha256": source_hash,
+            "byte_count": after.st_size,
+            "read_only": True,
+        }
+        project_prefix = f"projects/{project}/" if project else ""
+        if project_prefix and source_path.startswith(project_prefix):
+            row["project_path"] = source_path.removeprefix(project_prefix)
+        rows.append(row)
     return rows
 
 
@@ -927,7 +947,11 @@ def build_artifact_task_contract(
     preferred_provider: str | None = None,
     assigned_input_paths: Iterable[str | Path] | None = None,
 ) -> dict[str, Any]:
-    assigned_inputs = _assigned_artifact_inputs(root, assigned_input_paths)
+    assigned_inputs = _assigned_artifact_inputs(
+        root,
+        assigned_input_paths,
+        project=project,
+    )
     components = infer_artifact_components(task_text)
     resolved_type = artifact_type or (
         "mixed" if len(components) > 1 else (components[0] if components else "text")
@@ -955,6 +979,12 @@ def build_artifact_task_contract(
         preferred_provider=preferred_provider,
         output_format=output_format,
     )
+    validation: dict[str, Any] = {
+        "mode": "file_exists",
+        "required_paths": [path],
+    }
+    if Path(path).name == "fact_distillation.yml":
+        validation["semantic_validator"] = "fact_distillation"
     return {
         "packet_type": "agentlab_artifact_task",
         "schema_version": 1,
@@ -973,10 +1003,7 @@ def build_artifact_task_contract(
             {"kind": "user_request", "text": task_text},
         ],
         "assigned_inputs": assigned_inputs,
-        "validation": {
-            "mode": "file_exists",
-            "required_paths": [path],
-        },
+        "validation": validation,
         "routing": route,
         "fallback": {
             "allowed": True,

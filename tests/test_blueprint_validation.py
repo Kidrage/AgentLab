@@ -63,8 +63,17 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
         project / "project_brain" / "fact_distillation.yml",
         {
             "schema_version": 1,
+            "project": "Crown_of_Ash",
             "status": "approved",
+            "decision_maker": "AgentLab.Supervisor",
             "legacy_prose_retained": False,
+            "sources": [
+                {
+                    "path": "production/bible/origin.yml",
+                    "sha256": "a" * 64,
+                    "status": "verified",
+                }
+            ],
             "facts": [
                 {
                     "id": "fact.origin",
@@ -75,6 +84,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
                     "conflict_conclusion": "canonical origin retained",
                 }
             ],
+            "conflicts": [],
         },
     )
     _write_yaml(

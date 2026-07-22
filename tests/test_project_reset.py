@@ -325,8 +325,17 @@ def test_reset_preserves_hash_bound_metadata_only_fact_distillation(
         pytest.importorskip("yaml").safe_dump(
             {
                 "schema_version": 1,
+                "project": "Crown_of_Ash",
                 "status": "approved",
+                "decision_maker": "AgentLab.Supervisor",
                 "legacy_prose_retained": False,
+                "sources": [
+                    {
+                        "path": "production/bible/canon.yml",
+                        "sha256": source_hash,
+                        "status": "verified",
+                    }
+                ],
                 "facts": [
                     {
                         "id": "fact.character.kane.identity",
@@ -337,6 +346,7 @@ def test_reset_preserves_hash_bound_metadata_only_fact_distillation(
                         "conflict_conclusion": "canonical identity retained",
                     }
                 ],
+                "conflicts": [],
             },
             sort_keys=False,
         ),
@@ -395,8 +405,17 @@ def test_reset_apply_rejects_plan_with_preservation_binding_removed(
         pytest.importorskip("yaml").safe_dump(
             {
                 "schema_version": 1,
+                "project": "Crown_of_Ash",
                 "status": "approved",
+                "decision_maker": "AgentLab.Supervisor",
                 "legacy_prose_retained": False,
+                "sources": [
+                    {
+                        "path": "production/facts.yml",
+                        "sha256": source_hash,
+                        "status": "verified",
+                    }
+                ],
                 "facts": [
                     {
                         "id": "fact.stable",
@@ -407,6 +426,7 @@ def test_reset_apply_rejects_plan_with_preservation_binding_removed(
                         "conflict_conclusion": "retained",
                     }
                 ],
+                "conflicts": [],
             }
         ),
         encoding="utf-8",
@@ -490,6 +510,47 @@ def test_fact_distillation_rejects_nested_prose_and_malformed_schema() -> None:
     issues = fact_distillation_issues(malformed)
     assert "invalid_schema_version" in issues
     assert any("invalid_field_key" in issue for issue in issues)
+
+
+def test_fact_distillation_requires_exact_root_and_project_relative_sources() -> None:
+    source_hash = "a" * 64
+    document = {
+        "schema_version": 1,
+        "project": "Crown_of_Ash",
+        "status": "approved",
+        "decision_maker": "AgentLab.Supervisor",
+        "legacy_prose_retained": False,
+        "sources": [
+            {
+                "path": "projects/Crown_of_Ash/production/bible/world.md",
+                "sha256": source_hash,
+                "status": "verified",
+            }
+        ],
+        "facts": [
+            {
+                "id": "fact.stable",
+                "kind": "world_fact",
+                "value": "stable",
+                "source_hashes": [source_hash],
+                "conflict_status": "none",
+                "conflict_conclusion": "no_conflict_detected",
+            }
+        ],
+        "conflicts": [],
+    }
+
+    issues = fact_distillation_issues(document, allowed_source_hashes={source_hash})
+
+    assert "source_path_not_project_relative:projects/Crown_of_Ash/production/bible/world.md" in issues
+    document["sources"][0]["path"] = "production/bible/world.md"
+    assert fact_distillation_issues(
+        document,
+        allowed_source_hashes={source_hash},
+    ) == []
+
+    document["unexpected"] = True
+    assert "invalid_root_fields" in fact_distillation_issues(document)
 
 
 def test_project_reset_cli_plan_writes_exact_manifest(tmp_path: Path) -> None:

@@ -650,6 +650,17 @@ def validate_artifact_task_outputs(
 
     deferred = deferred_paths or set()
     issues: list[dict[str, str]] = []
+    contract_path = run_dir / "artifact_task.yml"
+    try:
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        contract = {}
+    validation = contract.get("validation") if isinstance(contract, dict) else {}
+    semantic_validator = (
+        validation.get("semantic_validator")
+        if isinstance(validation, dict)
+        else None
+    )
     for name in _artifact_task_required_outputs(run_dir):
         if name in deferred or Path(name).name in deferred:
             continue
@@ -670,9 +681,50 @@ def validate_artifact_task_outputs(
             continue
         if path.suffix.lower() in {".yml", ".yaml"}:
             try:
-                yaml.safe_load(path.read_text(encoding="utf-8"))
+                document = yaml.safe_load(path.read_text(encoding="utf-8"))
             except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
                 issues.append({"file": name, "issue": f"invalid YAML: {exc}"})
+                continue
+            if semantic_validator == "fact_distillation":
+                try:
+                    from agent_runtime.project_reset import fact_distillation_issues
+                except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+                    from project_reset import fact_distillation_issues
+                assigned_inputs = contract.get("assigned_inputs") or []
+                allowed_hashes = {
+                    str(item.get("sha256") or "")
+                    for item in assigned_inputs
+                    if isinstance(item, dict) and item.get("sha256")
+                }
+                if not isinstance(document, dict):
+                    semantic_issues = ["invalid_document"]
+                else:
+                    semantic_issues = fact_distillation_issues(
+                        document,
+                        allowed_source_hashes=allowed_hashes,
+                    )
+                    expected_sources = [
+                        {
+                            "path": str(item.get("project_path") or ""),
+                            "sha256": str(item.get("sha256") or ""),
+                        }
+                        for item in assigned_inputs
+                        if isinstance(item, dict)
+                    ]
+                    actual_sources = [
+                        {
+                            "path": str(item.get("path") or ""),
+                            "sha256": str(item.get("sha256") or ""),
+                        }
+                        for item in document.get("sources") or []
+                        if isinstance(item, dict)
+                    ]
+                    if actual_sources != expected_sources:
+                        semantic_issues.append("source_contract_mismatch")
+                issues.extend(
+                    {"file": name, "issue": issue}
+                    for issue in sorted(set(semantic_issues))
+                )
     return issues
 
 

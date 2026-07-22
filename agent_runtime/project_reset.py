@@ -165,6 +165,19 @@ _DISTILLATION_FIELDS = frozenset(
         "conflict_conclusion",
     }
 )
+_DISTILLATION_ROOT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "project",
+        "status",
+        "decision_maker",
+        "legacy_prose_retained",
+        "sources",
+        "facts",
+        "conflicts",
+    }
+)
+_DISTILLATION_SOURCE_FIELDS = frozenset({"path", "sha256", "status"})
 _PROSE_PAYLOAD_KEYS = frozenset(
     {
         "body",
@@ -224,6 +237,8 @@ def fact_distillation_issues(
 ) -> list[str]:
     """Validate the closed, metadata-only fact seed shared by reset and blueprint."""
     issues: list[str] = []
+    if set(document) != _DISTILLATION_ROOT_FIELDS:
+        issues.append("invalid_root_fields")
     schema_version = document.get("schema_version")
     if isinstance(schema_version, bool) or not (
         schema_version == 1 or schema_version == "1"
@@ -231,8 +246,48 @@ def fact_distillation_issues(
         issues.append("invalid_schema_version")
     if document.get("status") != "approved":
         issues.append("not_approved")
+    if document.get("project") != "Crown_of_Ash":
+        issues.append("invalid_project")
+    if document.get("decision_maker") != "AgentLab.Supervisor":
+        issues.append("invalid_decision_maker")
     if document.get("legacy_prose_retained") is not False:
         issues.append("legacy_prose_retained")
+    sources = document.get("sources")
+    declared_source_hashes: set[str] = set()
+    if not isinstance(sources, list) or not sources:
+        issues.append("missing_sources")
+    else:
+        seen_source_paths: set[str] = set()
+        for index, source in enumerate(sources, start=1):
+            if not isinstance(source, Mapping):
+                issues.append(f"invalid_source_record:{index}")
+                continue
+            if set(source) != _DISTILLATION_SOURCE_FIELDS:
+                issues.append(f"invalid_source_fields:{index}")
+            raw_path = str(source.get("path") or "")
+            pure = PurePosixPath(raw_path)
+            if (
+                not raw_path
+                or pure.is_absolute()
+                or any(part in {"", ".", ".."} for part in pure.parts)
+                or raw_path.startswith("projects/")
+            ):
+                issues.append(f"source_path_not_project_relative:{raw_path or index}")
+            elif raw_path in seen_source_paths:
+                issues.append(f"duplicate_source_path:{raw_path}")
+            seen_source_paths.add(raw_path)
+            source_hash = str(source.get("sha256") or "")
+            if not _HASH.fullmatch(source_hash):
+                issues.append(f"invalid_source_record_hash:{raw_path or index}")
+            else:
+                declared_source_hashes.add(source_hash)
+                if (
+                    allowed_source_hashes is not None
+                    and source_hash not in allowed_source_hashes
+                ):
+                    issues.append(f"unbound_source_record_hash:{raw_path or index}")
+            if not str(source.get("status") or "").strip():
+                issues.append(f"missing_source_status:{raw_path or index}")
     facts = document.get("facts")
     if not isinstance(facts, list) or not facts:
         return [*issues, "missing_structured_facts"]
@@ -286,6 +341,10 @@ def fact_distillation_issues(
                     and source_hash not in allowed_source_hashes
                 ):
                     issues.append(f"unbound_source_hash:{fact_id or 'missing'}:{source_hash}")
+                elif source_hash not in declared_source_hashes:
+                    issues.append(
+                        f"undeclared_source_hash:{fact_id or 'missing'}:{source_hash}"
+                    )
         if not str(fact.get("conflict_status") or "").strip():
             issues.append(f"missing_conflict_status:{fact_id or 'missing'}")
         if not str(fact.get("conflict_conclusion") or "").strip():
@@ -295,6 +354,31 @@ def fact_distillation_issues(
                 _metadata_value_issues(
                     fact.get("conflict_conclusion"),
                     f"{fact_id or 'missing'}.conflict_conclusion",
+                )
+            )
+    conflicts = document.get("conflicts")
+    if not isinstance(conflicts, list):
+        issues.append("invalid_conflicts")
+    else:
+        seen_conflict_ids: set[str] = set()
+        for index, conflict in enumerate(conflicts, start=1):
+            if not isinstance(conflict, Mapping):
+                issues.append(f"invalid_conflict_record:{index}")
+                continue
+            conflict_id = str(conflict.get("id") or "")
+            if not _SAFE_ID.fullmatch(conflict_id):
+                issues.append(f"invalid_conflict_id:{conflict_id or index}")
+            elif conflict_id in seen_conflict_ids:
+                issues.append(f"duplicate_conflict_id:{conflict_id}")
+            seen_conflict_ids.add(conflict_id)
+            if not str(conflict.get("status") or "").strip():
+                issues.append(f"missing_conflict_record_status:{conflict_id or index}")
+            if not str(conflict.get("handling") or "").strip():
+                issues.append(f"missing_conflict_handling:{conflict_id or index}")
+            issues.extend(
+                _metadata_value_issues(
+                    conflict,
+                    f"conflicts.{conflict_id or index}",
                 )
             )
     return sorted(set(issues))

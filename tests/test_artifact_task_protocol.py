@@ -1,7 +1,9 @@
 from pathlib import Path
 
 from typer.testing import CliRunner
+import yaml
 
+from agent_runtime.artifact_contract import validate_artifact_task_outputs
 from agent_runtime.protocols import (
     ARTIFACT_PRODUCER_ROLE,
     build_artifact_task_contract,
@@ -91,6 +93,65 @@ def test_yaml_artifact_can_prefer_native_codex_cli():
         "fallback": False,
         "reason": "codex_cli handles text with required capabilities",
     }
+
+
+def test_fact_distillation_output_runs_authoritative_semantic_validator(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "runs" / "task_fact"
+    artifact = run_dir / "artifacts" / "fact_distillation.yml"
+    artifact.parent.mkdir(parents=True)
+    source_hash = "a" * 64
+    contract = {
+        "project": "Crown_of_Ash",
+        "assigned_inputs": [
+            {
+                "source_path": "projects/Crown_of_Ash/production/facts.yml",
+                "project_path": "production/facts.yml",
+                "sha256": source_hash,
+            }
+        ],
+        "validation": {
+            "required_paths": ["artifacts/fact_distillation.yml"],
+            "semantic_validator": "fact_distillation",
+        },
+    }
+    candidate = {
+        "schema_version": 1,
+        "project": "Crown_of_Ash",
+        "status": "approved",
+        "decision_maker": "AgentLab.Supervisor",
+        "legacy_prose_retained": False,
+        "sources": [
+            {
+                "path": "production/facts.yml",
+                "sha256": source_hash,
+                "status": "verified",
+            }
+        ],
+        "facts": [
+            {
+                "id": "fact.stable",
+                "kind": "world_fact",
+                "value": "stable",
+                "source_hashes": [source_hash],
+                "conflict_status": "none",
+            }
+        ],
+        "conflicts": [],
+    }
+    (run_dir / "artifact_task.yml").write_text(
+        yaml.safe_dump(contract, sort_keys=False),
+        encoding="utf-8",
+    )
+    artifact.write_text(yaml.safe_dump(candidate, sort_keys=False), encoding="utf-8")
+
+    issues = validate_artifact_task_outputs(run_dir)
+
+    assert {
+        "file": "artifacts/fact_distillation.yml",
+        "issue": "missing_conflict_conclusion:fact.stable",
+    } in issues
 
 
 def test_media_artifact_routes_to_grok_producer():
