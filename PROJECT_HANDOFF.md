@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab-runtime-v2-crown-first-prose`
 - Git repository: `true`
-- Generated at: `2026-07-22T14:16:21.392934+00:00`
+- Generated at: `2026-07-22T19:11:03.305127+00:00`
 
 ## Current State
 
 - Branch: `feature/runtime-v2-crown-first-prose`
-- HEAD: `f58206a`
+- HEAD: `34c47a1`
 - Indexed paths: 2001
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -88,8 +88,8 @@
 
 ### Categories
 
-- code: 991 files, 9013495 bytes
-- literature: 414 files, 2354536 bytes
+- code: 991 files, 9015122 bytes
+- literature: 414 files, 2355872 bytes
 - other: 12 files, 74102 bytes
 - structured_data: 584 files, 3226386 bytes
 
@@ -230,6 +230,8 @@
 
 ## Change History
 
+- `34c47a1 2026-07-23 fix: activate late runtime v2 dependants`
+- `4a2a345 2026-07-22 docs: refresh runtime v2 handoff`
 - `f58206a 2026-07-22 fix: bind runtime v2 success to executed evidence`
 - `373d31a 2026-07-22 feat: seal selected sources into v2 role attempts`
 - `8cdc685 2026-07-22 feat: execute governed role attempts in runtime v2`
@@ -248,8 +250,6 @@
 - `22c8068 2026-07-22 fix(narrative): allow writer length correction to converge`
 - `f535248 2026-07-22 fix(narrative): expand rejected draft on writer retry`
 - `9c9b6c5 2026-07-22 fix(narrative): preserve valid chapters across retries`
-- `7d0b9f3 2026-07-22 docs(cli): refresh writer invocation matrix`
-- `a347097 2026-07-22 fix(narrative): execute pure writer outside plan mode`
 
 ## Current Changes
 
