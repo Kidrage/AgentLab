@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab-runtime-v2-crown-first-prose`
 - Git repository: `true`
-- Generated at: `2026-07-22T19:11:03.305127+00:00`
+- Generated at: `2026-07-22T23:22:16.117329+00:00`
 
 ## Current State
 
 - Branch: `feature/runtime-v2-crown-first-prose`
-- HEAD: `34c47a1`
-- Indexed paths: 2001
+- HEAD: `00d36de`
+- Indexed paths: 2009
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,15 +43,15 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 592 |
-| `tests` | 459 |
+| `agent_runtime` | 596 |
+| `tests` | 463 |
 | `acceptance_runs` | 349 |
 | `docs` | 340 |
 | `docs/archive` | 222 |
 | `config` | 125 |
 | `tests/fixtures` | 110 |
 | `acceptance_runs/narrative_eval` | 59 |
-| `agent_runtime/narrative` | 54 |
+| `agent_runtime/narrative` | 58 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 41 |
@@ -88,14 +88,14 @@
 
 ### Categories
 
-- code: 991 files, 9015122 bytes
-- literature: 414 files, 2355872 bytes
+- code: 999 files, 9156070 bytes
+- literature: 414 files, 2356950 bytes
 - other: 12 files, 74102 bytes
 - structured_data: 584 files, 3226386 bytes
 
 ### Common Extensions
 
-- `.py`: 978
+- `.py`: 986
 - `.yml`: 552
 - `.md`: 375
 - `.txt`: 39
@@ -174,6 +174,7 @@
 - `agent_runtime/migration_doctor.py`
 - `agent_runtime/model_capacity.py`
 - `agent_runtime/model_resolver.py`
+- `agent_runtime/narrative/crown_v3_migration.py`
 - `agent_runtime/narrative/knowledge_contract.py`
 - `agent_runtime/narrative/production/writer_contract.py`
 - `agent_runtime/observation_contract.py`
@@ -193,7 +194,6 @@
 - `agent_runtime/workers/invocation_contract.py`
 - `agent_templates/interface_mapper.md`
 - `agentlab_tui/models.py`
-- `config/agent_model_profiles.yml`
 
 ## Key Entrypoints and Guides
 
@@ -230,6 +230,11 @@
 
 ## Change History
 
+- `00d36de 2026-07-23 fix(narrative): close audited local repair loop`
+- `28733e1 2026-07-23 fix(narrative): bind v3 commits to audited receipts`
+- `e2cf123 2026-07-23 feat(narrative): add auditable longform governance v3`
+- `b0dcf99 2026-07-23 docs(handoff): record first Crown prose cycle`
+- `728eb26 2026-07-23 docs: refresh runtime v2 handoff after first brain run`
 - `34c47a1 2026-07-23 fix: activate late runtime v2 dependants`
 - `4a2a345 2026-07-22 docs: refresh runtime v2 handoff`
 - `f58206a 2026-07-22 fix: bind runtime v2 success to executed evidence`
@@ -245,11 +250,6 @@
 - `2a98f1e 2026-07-22 fix(narrative): route heavy reviewer through authenticated cli`
 - `22fe954 2026-07-22 fix(narrative): accept canonical timeline identifiers`
 - `5b8738a 2026-07-22 feat: route Seedance through Hermes Ark skills`
-- `6fa10c2 2026-07-22 fix(background-jobs): reset retries after action recovery`
-- `1796d62 2026-07-22 fix(narrative): bind writer receipts to chapter artifacts`
-- `22c8068 2026-07-22 fix(narrative): allow writer length correction to converge`
-- `f535248 2026-07-22 fix(narrative): expand rejected draft on writer retry`
-- `9c9b6c5 2026-07-22 fix(narrative): preserve valid chapters across retries`
 
 ## Current Changes
 
