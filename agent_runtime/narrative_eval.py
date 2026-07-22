@@ -187,7 +187,7 @@ def _write_writer_contract_retry_feedback(
     issues: list[str],
 ) -> None:
     """Persist exact schema corrections for the single full Writer redo."""
-    character_ranges: dict[str, list[int]] = {}
+    character_ranges: dict[str, Any] = {}
     try:
         packet = yaml.safe_load(
             (run_dir / "chapter_packet.yml").read_text(encoding="utf-8")
@@ -203,6 +203,37 @@ def _write_writer_contract_retry_feedback(
                 character_ranges[field] = value
     except (OSError, yaml.YAMLError, AttributeError):
         pass
+    if "draft_character_count_out_of_range" in issues:
+        try:
+            contract = yaml.safe_load(
+                (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
+            ) or {}
+            measurements = contract.get("measurements") or {}
+            observed = measurements.get("fiction_draft_characters")
+            hard_range = character_ranges.get("hard_character_range")
+            if isinstance(observed, int):
+                character_ranges["observed_characters"] = observed
+                if isinstance(hard_range, list) and len(hard_range) == 2:
+                    if observed < hard_range[0]:
+                        character_ranges["minimum_characters_to_add"] = (
+                            hard_range[0] - observed
+                        )
+                    elif observed > hard_range[1]:
+                        character_ranges["minimum_characters_to_remove"] = (
+                            observed - hard_range[1]
+                        )
+        except (OSError, yaml.YAMLError, AttributeError):
+            pass
+    instructions = [
+        "Emit all four complete AGENTLAB_EDIT blocks again in the required order.",
+        "Use the exact canonical fields and enum values below; do not use aliases.",
+        "Keep prose candidate-only and do not write production.",
+    ]
+    if isinstance(character_ranges.get("observed_characters"), int):
+        instructions.insert(
+            0,
+            "Use the deterministic observed character count below; do not rely on a self-estimated count.",
+        )
     _write_yaml(
         run_dir / "writer_contract_retry_feedback.yml",
         {
@@ -212,11 +243,7 @@ def _write_writer_contract_retry_feedback(
             "chapter": chapter,
             "issues": issues,
             "draft_character_contract": character_ranges,
-            "instructions": [
-                "Emit all four complete AGENTLAB_EDIT blocks again in the required order.",
-                "Use the exact canonical fields and enum values below; do not use aliases.",
-                "Keep prose candidate-only and do not write production.",
-            ],
+            "instructions": instructions,
             "required_envelopes": {
                 "continuity_ledger.yml": {
                     "schema_version": 1,

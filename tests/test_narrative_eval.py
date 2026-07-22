@@ -74,6 +74,10 @@ def test_writer_contract_retry_feedback_includes_character_ranges(
             }
         },
     )
+    _write_yaml(
+        run_dir / "writer_output_contract.yml",
+        {"measurements": {"fiction_draft_characters": 2750}},
+    )
 
     _write_writer_contract_retry_feedback(
         run_dir,
@@ -88,7 +92,11 @@ def test_writer_contract_retry_feedback_includes_character_ranges(
     assert feedback["draft_character_contract"] == {
         "target_character_range": [4500, 5500],
         "hard_character_range": [3000, 8000],
+        "observed_characters": 2750,
+        "minimum_characters_to_add": 250,
     }
+    assert feedback["draft_character_contract"]["observed_characters"] == 2750
+    assert feedback["draft_character_contract"]["minimum_characters_to_add"] == 250
 
 
 def _writer_candidate_blocks(draft: str) -> str:

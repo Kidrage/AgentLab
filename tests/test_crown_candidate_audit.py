@@ -695,9 +695,13 @@ def _write_deepseek_execution(root: Path, chapter: int, eval_id: str) -> Path:
         yaml.safe_dump(
             {
                 "task_id": task_id,
-                "included_agents": {"Writer": {"execution_owner": "claude_code"}},
+                "included_agents": {"Writer": {}},
                 "model_profiles": {
-                    "Writer": {"provider": "deepseek", "model": "deepseek-v4-pro"}
+                    "Writer": {
+                        "cli_agent": "claude_code",
+                        "provider": "deepseek",
+                        "model": "deepseek-v4-pro",
+                    }
                 },
             },
             sort_keys=False,
