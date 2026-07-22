@@ -141,6 +141,7 @@ def test_narrative_reviewer_contract_requires_exact_sealed_runtime_binding(
     assert preflight["command_binding_verified"] is True
     argv = run.call_args.args[0]
     schema = json.loads(argv[argv.index("--json-schema") + 1])
+    assert "$schema" not in schema
     assert schema["required"] == [
         "fiction_review",
         "continuity_failure_report",

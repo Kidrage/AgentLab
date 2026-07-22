@@ -1024,6 +1024,20 @@ def _narrative_heavy_audit_output_schema(
     }
 
 
+def _claude_narrative_heavy_audit_output_schema(
+    agent_name: str,
+    *,
+    blocking_rewrite_required: bool = False,
+) -> dict[str, Any]:
+    """Return the same strict contract without Claude's unsupported draft URI."""
+    schema = _narrative_heavy_audit_output_schema(
+        agent_name,
+        blocking_rewrite_required=blocking_rewrite_required,
+    )
+    schema.pop("$schema", None)
+    return schema
+
+
 def _find_narrative_heavy_audit_payload(value: Any) -> dict[str, Any] | None:
     if isinstance(value, dict):
         if isinstance(value.get("files"), list):
@@ -2059,7 +2073,7 @@ def _claude_runtime_preflight(
             rendered_schema = json.loads(argv[14])
         except (IndexError, TypeError, json.JSONDecodeError):
             rendered_schema = None
-        expected_schema = _narrative_heavy_audit_output_schema(
+        expected_schema = _claude_narrative_heavy_audit_output_schema(
             str(packet_payload.get("agent") or "")
         )
         command_binding_verified = (
@@ -3802,7 +3816,7 @@ def run_cli_agent(
     try:
         narrative_audit_schema = (
             json.dumps(
-                _narrative_heavy_audit_output_schema(
+                _claude_narrative_heavy_audit_output_schema(
                     agent_name,
                     blocking_rewrite_required=(
                         agent_name == "Verifier"
