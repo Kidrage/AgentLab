@@ -124,3 +124,72 @@ def test_task_cli_previews_and_records_strict_input_tier(tmp_path: Path) -> None
     assert created.exit_code == 0, created.output
     assert "input_classification:" in created.output
     assert "brain_decision_required: true" in created.output.lower()
+
+
+def test_trace_cli_records_immutable_memory_receipt(tmp_path: Path) -> None:
+    app = typer.Typer()
+    register_task_runtime_commands(app, tmp_path, Console(width=120))
+    runner = CliRunner()
+    profile = (
+        '{"kind":"exact_patch","scope":"single_detail","target_count":1,'
+        '"canon_impact":"candidate","risk_flags":[]}'
+    )
+    created = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "--project",
+            "Demo",
+            "--task-id",
+            "task-trace",
+            "--title",
+            "Trace one patch",
+            "--goal",
+            "Keep one detail update traceable.",
+            "--input-profile-json",
+            profile,
+            "--idempotency-key",
+            "create-trace",
+        ],
+    )
+    source = (
+        tmp_path
+        / "projects"
+        / "Demo"
+        / "runtime"
+        / "tasks"
+        / "task-trace"
+        / "records"
+        / "staging"
+        / "memory.yml"
+    )
+    source.parent.mkdir(parents=True)
+    source.write_text("status: pass\n", encoding="utf-8")
+
+    recorded = runner.invoke(
+        app,
+        [
+            "trace",
+            "record",
+            "--project",
+            "Demo",
+            "--task-id",
+            "task-trace",
+            "--record-id",
+            "memory-one",
+            "--record-type",
+            "memory_update",
+            "--producer",
+            "brain",
+            "--path",
+            str(source),
+            "--idempotency-key",
+            "memory-one",
+        ],
+    )
+
+    assert created.exit_code == 0, created.output
+    assert recorded.exit_code == 0, recorded.output
+    assert "record_type: memory_update" in recorded.output
+    assert "records/immutable/memory-one/" in recorded.output

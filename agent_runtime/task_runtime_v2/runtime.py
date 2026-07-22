@@ -342,6 +342,18 @@ class TaskRuntime:
                             artifact_failures.append(f"{version_id}: artifact file missing")
                         elif hashlib.sha256(path.read_bytes()).hexdigest() != artifact["sha256"]:
                             artifact_failures.append(f"{version_id}: artifact SHA256 mismatch")
+                    for record_id, record in projection["trace_records"].items():
+                        path = task_dir / record["path"]
+                        if path.is_symlink():
+                            artifact_failures.append(
+                                f"{record_id}: trace record path is a symlink"
+                            )
+                        elif not path.is_file():
+                            artifact_failures.append(f"{record_id}: trace record file missing")
+                        elif hashlib.sha256(path.read_bytes()).hexdigest() != record["sha256"]:
+                            artifact_failures.append(
+                                f"{record_id}: trace record SHA256 mismatch"
+                            )
                     reports[task_dir.name] = {
                         "ok": not artifact_failures,
                         "event_count": len(events),
@@ -388,6 +400,26 @@ class TaskRuntime:
                 raise InvalidTransition(
                     "task completion requires one evidenced selected artifact version"
                 )
+            classification = projection["task"].get("input_classification") or {}
+            if projection["task"].get("legacy_source") is None:
+                if not classification.get("admission_ready"):
+                    raise InvalidTransition(
+                        "task completion requires a complete input classification"
+                    )
+                available_records = {
+                    record["record_type"]
+                    for record in projection["trace_records"].values()
+                }
+                if projection["evidence_bindings"]:
+                    available_records.add("evidence_binding")
+                required_records = set(classification.get("required_records") or [])
+                required_records.discard("input_classification")
+                missing_records = sorted(required_records - available_records)
+                if missing_records:
+                    raise InvalidTransition(
+                        "task completion has missing required trace records: "
+                        + ", ".join(missing_records)
+                    )
         self._append_event(
             task_id=task_id,
             event_type="TASK_STATUS_CHANGED",
@@ -585,6 +617,51 @@ class TaskRuntime:
                 raise InvalidTransition(
                     f"work item status {work_item['status']!r} cannot schedule an Attempt"
                 )
+            classification = projection["task"].get("input_classification") or {}
+            if projection["task"].get("legacy_source") is None:
+                if not classification.get("admission_ready"):
+                    raise InvalidTransition(
+                        "execution requires a complete Brain input classification"
+                    )
+                if execution_contract.get("input_tier") != classification.get("tier"):
+                    raise InvalidTransition(
+                        "execution contract input_tier does not match Task classification"
+                    )
+                if execution_contract.get("route") != classification.get("route"):
+                    raise InvalidTransition(
+                        "execution contract route does not match Task classification"
+                    )
+                role = str(execution_contract.get("role") or "")
+                if not role:
+                    raise InvalidTransition("execution contract must declare its AgentLab role")
+                delegated = role != "Supervisor"
+                tier = str(classification.get("tier") or "")
+                if tier == "L0" and delegated:
+                    raise InvalidTransition("L0 permits Brain-direct execution only")
+                if tier in {"L1", "L2"} and delegated:
+                    delegated_workers = {
+                        (attempt["worker"], attempt["provider"])
+                        for attempt in projection["attempts"].values()
+                        if str(
+                            (attempt.get("execution_contract") or {}).get("role") or ""
+                        )
+                        != "Supervisor"
+                    }
+                    if delegated_workers and (worker, provider) not in delegated_workers:
+                        raise InvalidTransition(
+                            f"{tier} permits one delegated worker identity"
+                        )
+                if tier == "L3" and delegated:
+                    record_types = {
+                        record["record_type"]
+                        for record in projection["trace_records"].values()
+                    }
+                    if not {"brain_scope_decision", "execution_plan"}.issubset(
+                        record_types
+                    ):
+                        raise InvalidTransition(
+                            "L3 Worker execution requires Brain scope and execution plan records"
+                        )
             active = work_item.get("active_attempt_id")
             if active:
                 raise ActiveAttemptExists(
@@ -604,6 +681,62 @@ class TaskRuntime:
             payload=payload,
             validate_projection=validate,
             idempotency_ignored_payload_keys={"ordinal"},
+        )
+        return self.rebuild_task(task_id)
+
+    def record_trace(
+        self,
+        task_id: str,
+        *,
+        record_id: str,
+        record_type: str,
+        producer: str,
+        path: Path,
+        idempotency_key: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Pin one immutable execution, quality, change, or memory receipt."""
+
+        task_id = _validated_id(task_id, field="task_id")
+        record_id = _validated_id(record_id, field="record_id")
+        record_type = _validated_id(record_type, field="record_type")
+        producer = _validated_id(producer, field="producer")
+        if metadata is not None and not isinstance(metadata, dict):
+            raise ValueError("metadata must be a mapping")
+        resolved_path = Path(path).resolve(strict=True)
+        records_root = (self._task_dir(task_id) / "records").resolve(strict=False)
+        staging_root = records_root / "staging"
+        immutable_root = records_root / "immutable"
+        if not resolved_path.is_relative_to(staging_root):
+            raise ValueError("trace record source must be inside records/staging")
+        content = resolved_path.read_bytes()
+        destination = immutable_root / record_id / f"payload{resolved_path.suffix or '.bin'}"
+        payload = {
+            "record_type": record_type,
+            "producer": producer,
+            "source_path": resolved_path.relative_to(self._task_dir(task_id)).as_posix(),
+            "path": destination.relative_to(self._task_dir(task_id)).as_posix(),
+            "size_bytes": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+            "metadata": metadata or {},
+        }
+
+        def validate(projection: dict[str, Any]) -> None:
+            if record_id in projection["trace_records"]:
+                raise EntityAlreadyExists(f"trace record {record_id!r} already exists")
+            current = resolved_path.read_bytes()
+            if hashlib.sha256(current).hexdigest() != payload["sha256"]:
+                raise TaskRuntimeError("trace record source changed while recording")
+            self._materialize_immutable(destination, current, payload["sha256"])
+
+        self._append_event(
+            task_id=task_id,
+            event_type="TRACE_RECORDED",
+            entity_type="trace_record",
+            entity_id=record_id,
+            idempotency_key=idempotency_key,
+            payload=payload,
+            validate_projection=validate,
         )
         return self.rebuild_task(task_id)
 
@@ -917,6 +1050,7 @@ class TaskRuntime:
         atomic_write_yaml(projection_dir / "attempts.yml", projection["attempts"])
         atomic_write_yaml(projection_dir / "artifact_index.yml", projection["artifacts"])
         atomic_write_yaml(projection_dir / "evidence.yml", projection["evidence_bindings"])
+        atomic_write_yaml(projection_dir / "trace_records.yml", projection["trace_records"])
         counts: dict[str, int] = {}
         for work_item in projection["work_items"].values():
             status = work_item["status"]
@@ -938,9 +1072,49 @@ class TaskRuntime:
                 "user_goal": projection["task"]["user_goal"],
                 "status": projection["task"]["status"],
                 "selected_artifact_version": projection["selected_artifact_version"],
+                "input_tier": (
+                    projection["task"].get("input_classification") or {}
+                ).get("tier"),
                 "last_event_hash": projection["last_event_hash"],
             },
         )
+
+    @staticmethod
+    def _materialize_immutable(
+        destination: Path, content: bytes, expected_sha256: str
+    ) -> None:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            if destination.is_symlink():
+                raise LedgerIntegrityError("immutable destination is a symlink")
+            if hashlib.sha256(destination.read_bytes()).hexdigest() != expected_sha256:
+                raise EntityAlreadyExists(
+                    f"immutable destination already differs: {destination}"
+                )
+            return
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
+        )
+        temp = Path(temp_name)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            try:
+                os.link(temp, destination)
+            except FileExistsError:
+                if (
+                    destination.is_symlink()
+                    or hashlib.sha256(destination.read_bytes()).hexdigest()
+                    != expected_sha256
+                ):
+                    raise EntityAlreadyExists(
+                        f"immutable destination raced: {destination}"
+                    )
+        finally:
+            if temp.exists():
+                temp.unlink()
 
     @contextmanager
     def _ledger_lock(self, task_id: str) -> Iterator[None]:
@@ -1083,6 +1257,7 @@ class TaskRuntime:
         attempts: dict[str, dict[str, Any]] = {}
         artifacts: dict[str, dict[str, Any]] = {}
         evidence_bindings: dict[str, dict[str, Any]] = {}
+        trace_records: dict[str, dict[str, Any]] = {}
         selected_artifact_version: str | None = None
         for event in events:
             if event["event_type"] == "TASK_CREATED":
@@ -1095,14 +1270,14 @@ class TaskRuntime:
                     "user_goal": event["payload"]["user_goal"],
                     "goal_fingerprint": event["payload"].get("goal_fingerprint")
                     or _goal_fingerprint(event["payload"]["user_goal"]),
-                    "input_classification": event["payload"].get(
-                        "input_classification"
-                    )
-                    or TaskInputClassifier(self.agentlab_root).classify(None),
                     "status": "created",
                     "created_at": event["recorded_at"],
                     "updated_at": event["recorded_at"],
                 }
+                if event["payload"].get("input_classification") is not None:
+                    task["input_classification"] = event["payload"][
+                        "input_classification"
+                    ]
                 if event["payload"].get("legacy_source") is not None:
                     task["legacy_source"] = event["payload"]["legacy_source"]
                 if event["payload"].get("duplicate_goal_override") is not None:
@@ -1280,6 +1455,22 @@ class TaskRuntime:
                     "created_at": event["recorded_at"],
                 }
                 continue
+            if event["event_type"] == "TRACE_RECORDED":
+                record_id = _validated_id(event["entity_id"], field="record_id")
+                if record_id in trace_records:
+                    raise LedgerIntegrityError(f"duplicate trace record: {record_id}")
+                trace_records[record_id] = {
+                    "record_id": record_id,
+                    "record_type": event["payload"]["record_type"],
+                    "producer": event["payload"]["producer"],
+                    "source_path": event["payload"].get("source_path"),
+                    "path": event["payload"]["path"],
+                    "size_bytes": event["payload"]["size_bytes"],
+                    "sha256": event["payload"]["sha256"],
+                    "metadata": event["payload"].get("metadata") or {},
+                    "created_at": event["recorded_at"],
+                }
+                continue
             if event["event_type"] == "EVIDENCE_BOUND":
                 binding_id = _validated_id(event["entity_id"], field="binding_id")
                 version_id = _validated_id(
@@ -1338,6 +1529,7 @@ class TaskRuntime:
             "attempts": attempts,
             "artifacts": artifacts,
             "evidence_bindings": evidence_bindings,
+            "trace_records": trace_records,
             "selected_artifact_version": selected_artifact_version,
             "last_event_sequence": events[-1]["sequence"],
             "last_event_hash": events[-1]["event_hash"],

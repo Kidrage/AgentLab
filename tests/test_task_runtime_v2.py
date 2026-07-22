@@ -21,6 +21,42 @@ from agent_runtime.knowledge_system.sources import SourceCollector
 from agent_runtime.config_loader import load_agentlab_configs
 
 
+_GOVERNED_PROFILE = {
+    "kind": "prose_build",
+    "scope": "multi_chapter",
+    "target_count": 0,
+    "canon_impact": "canonical",
+    "risk_flags": ["longform_continuity"],
+}
+
+
+def _record_brain_plan_gates(
+    runtime: TaskRuntime, tmp_path: Path, task_id: str
+) -> None:
+    staging = (
+        tmp_path
+        / "projects"
+        / "Demo"
+        / "runtime"
+        / "tasks"
+        / task_id
+        / "records"
+        / "staging"
+    )
+    staging.mkdir(parents=True, exist_ok=True)
+    for record_type in ("brain_scope_decision", "execution_plan"):
+        source = staging / f"{record_type}.yml"
+        source.write_text(f"record_type: {record_type}\nstatus: pass\n", encoding="utf-8")
+        runtime.record_trace(
+            task_id,
+            record_id=f"record-{record_type}",
+            record_type=record_type,
+            producer="brain",
+            path=source,
+            idempotency_key=f"record-{record_type}",
+        )
+
+
 def test_create_task_appends_authoritative_event_and_rebuilds_projection(
     tmp_path: Path,
 ) -> None:
@@ -246,6 +282,7 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
         task_id="task-book",
         title="Produce one book",
         user_goal="Keep execution retries traceable without creating more tasks.",
+        input_profile=_GOVERNED_PROFILE,
         idempotency_key="request-book",
     )
     runtime.create_work_item(
@@ -256,6 +293,7 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
         title="Draft chapter 1",
         idempotency_key="work-chapter-001",
     )
+    _record_brain_plan_gates(runtime, tmp_path, "task-book")
 
     first = runtime.schedule_attempt(
         "task-book",
@@ -263,7 +301,13 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
         attempt_id="attempt-001",
         worker="hermes",
         provider="ark",
-        execution_contract={"skill": "ark-video", "model_role": "visual"},
+        execution_contract={
+            "skill": "ark-video",
+            "model_role": "visual",
+            "role": "ArtifactProducer",
+            "input_tier": "L3",
+            "route": "governed_pipeline",
+        },
         idempotency_key="attempt-001",
     )
     assert first["attempts"]["attempt-001"]["ordinal"] == 1
@@ -276,7 +320,13 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
             attempt_id="attempt-002",
             worker="claude",
             provider="ark",
-            execution_contract={"skill": "ark-video", "model_role": "visual"},
+            execution_contract={
+                "skill": "ark-video",
+                "model_role": "visual",
+                "role": "ArtifactProducer",
+                "input_tier": "L3",
+                "route": "governed_pipeline",
+            },
             idempotency_key="attempt-002-too-early",
         )
 
@@ -299,7 +349,13 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
         attempt_id="attempt-002",
         worker="claude",
         provider="ark",
-        execution_contract={"skill": "ark-video", "model_role": "visual"},
+        execution_contract={
+            "skill": "ark-video",
+            "model_role": "visual",
+            "role": "ArtifactProducer",
+            "input_tier": "L3",
+            "route": "governed_pipeline",
+        },
         idempotency_key="attempt-002",
     )
 
@@ -316,6 +372,7 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
         task_id="task-book",
         title="Produce one book",
         user_goal="Select a candidate with immutable provenance.",
+        input_profile=_GOVERNED_PROFILE,
         idempotency_key="request-book",
     )
     runtime.create_work_item(
@@ -326,13 +383,20 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
         title="Draft chapter 1",
         idempotency_key="work-chapter-001",
     )
+    _record_brain_plan_gates(runtime, tmp_path, "task-book")
     runtime.schedule_attempt(
         "task-book",
         work_item_id="chapter-001",
         attempt_id="attempt-001",
         worker="hermes",
         provider="ark",
-        execution_contract={"skill": "ark-chat", "model_role": "writer"},
+        execution_contract={
+            "skill": "ark-chat",
+            "model_role": "writer",
+            "role": "Writer",
+            "input_tier": "L3",
+            "route": "governed_pipeline",
+        },
         idempotency_key="attempt-001",
     )
     runtime.transition_attempt(

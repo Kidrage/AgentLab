@@ -58,6 +58,7 @@ knowledge:
     - runtime/tasks/*/events.jsonl
     - runtime/tasks/*/attempt_logs/**
     - runtime/tasks/*/artifacts/**
+    - runtime/tasks/*/records/**
     - runtime/tasks/*/projections/attempts.yml
   chunking: stable_source_hash
   per_task_database: false

@@ -18,6 +18,13 @@ _KNOWN_FIELDS = {
     "risk_flags",
     "requested_tier",
 }
+_REQUIRED_FIELDS = {
+    "kind",
+    "scope",
+    "target_count",
+    "canon_impact",
+    "risk_flags",
+}
 
 
 class TaskInputClassifier:
@@ -46,6 +53,7 @@ class TaskInputClassifier:
             raise ValueError("input profile must be a mapping")
         raw = dict(profile or {})
         unknown_fields = sorted(set(raw) - _KNOWN_FIELDS)
+        missing_fields = sorted(_REQUIRED_FIELDS - set(raw))
         target_count = raw.get("target_count", 0)
         if isinstance(target_count, bool) or not isinstance(target_count, int):
             raise ValueError("target_count must be a non-negative integer")
@@ -71,6 +79,11 @@ class TaskInputClassifier:
         if missing_profile:
             required_level = 3
             escalation_reasons.append("missing_input_profile")
+        if missing_fields:
+            required_level = 3
+            escalation_reasons.extend(
+                f"missing_required_fact:{field}" for field in missing_fields
+            )
         if unknown_fields:
             required_level = 3
             escalation_reasons.append("unknown_profile_fields")
@@ -119,6 +132,12 @@ class TaskInputClassifier:
 
         tier = _TIER_ORDER[required_level]
         decision = deepcopy(self._tiers[tier])
+        admission_ready = not any(
+            reason == "missing_input_profile"
+            or reason.startswith("missing_required_fact:")
+            or reason.startswith("unknown_")
+            for reason in escalation_reasons
+        )
         return {
             "schema_version": "task-input-classification/v1",
             "tier": tier,
@@ -129,6 +148,8 @@ class TaskInputClassifier:
             "full_audit_required": bool(decision["full_audit_required"]),
             "validation_gates": list(decision.get("validation_gates") or []),
             "required_records": list(decision.get("required_records") or []),
+            "admission_ready": admission_ready,
+            "enforcement": "strict",
             "normalized_profile": normalized,
             "escalation_reasons": sorted(set(escalation_reasons)),
         }
@@ -145,4 +166,3 @@ class TaskInputClassifier:
             escalation_reasons.append(unknown_reason)
             return 3
         return _TIER_ORDER.index(tier)
-

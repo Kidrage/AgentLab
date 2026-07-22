@@ -67,6 +67,7 @@ tiers:
       - worker_attempt_receipts
       - quality_receipt
       - evidence_binding
+      - change_receipt
       - memory_update
 
 classification:
@@ -104,4 +105,3 @@ classification:
     l0_max: 1
     l1_max: 3
     l2_max: 3
-

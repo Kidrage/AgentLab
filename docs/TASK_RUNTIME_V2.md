@@ -37,7 +37,7 @@ reference, and active-attempt violations fail closed.
 Everything below `projections/` is a cache rebuilt from the ledger:
 
 - `task.yml`, `jobs.yml`, `work_items.yml`, `attempts.yml`
-- `artifact_index.yml`, `evidence.yml`
+- `artifact_index.yml`, `evidence.yml`, `trace_records.yml`
 - `progress.yml`, `handoff.yml`
 
 `runtime/task_index.yml` and `runtime/knowledge/selected_artifacts.yml` are also
@@ -48,21 +48,12 @@ rebuildable project projections. Editing them never changes Task truth.
 Task intake uses declared facts from `config/task_input_tiers.yml`; it does not
 guess a cheaper route from prompt keywords. The resulting classification is
 written into the `TASK_CREATED` event and every rebuilt Task projection.
-Missing or unknown facts fail closed to L3.
-
-| Tier | Intended input | Route | Audit scope |
-| --- | --- | --- | --- |
-| L0 | One exact, non-canonical detail or text patch | Brain edits directly | schema + targeted diff |
-| L1 | A small localized creative patch | one Worker | local quality + targeted diff |
-| L2 | A localized patch affecting canon, age, relationships, magic costs, or another continuity-sensitive fact | one Worker plus targeted checks | targeted continuity + local quality |
-| L3 | Prose construction, multi-chapter/cross-artifact work, project-wide structure, full audit, or canon promotion | Brain-governed pipeline | Brain plan + full quality/continuity/evidence gates |
-
-Every tier requires an input classification, change receipt, and memory update;
-worker tiers additionally require immutable Attempt receipts. L3 also requires
-the Brain's scope decision, execution plan, quality receipt, and evidence
-binding. A caller may request a higher tier but cannot downgrade the minimum
-derived from the declared facts. In particular, prose construction always
-leaves length, batch boundaries, and quality thresholds to the Brain plan.
+Missing, partial, or unknown facts are not admitted for execution. The complete
+tier meanings, Worker limits, validation gates, and required records live only
+in that policy file. Runtime scheduling enforces the recorded tier and route;
+completion enforces its immutable trace-record set. A requested tier may raise
+the route but cannot lower the policy-derived minimum. Brain scope and quality
+authority for prose builds is declared in `config/task_runtime_v2.yml`.
 
 ## Why this avoids evidence ambiguity
 
@@ -132,6 +123,7 @@ The v2 commands are registered on `agentlab.sh`:
 ./agentlab.sh evidence bind ...
 ./agentlab.sh artifact select ...
 ./agentlab.sh evidence verify ...
+./agentlab.sh trace record ...
 
 ./agentlab.sh runtime-v2 rebuild --project Demo
 ./agentlab.sh runtime-v2 doctor --project Demo

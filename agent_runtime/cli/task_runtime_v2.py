@@ -33,6 +33,7 @@ def register_task_runtime_commands(
     attempt_app = typer.Typer(help="Immutable execution attempts.", no_args_is_help=True)
     artifact_app = typer.Typer(help="Immutable artifact versions.", no_args_is_help=True)
     evidence_app = typer.Typer(help="Artifact evidence bindings.", no_args_is_help=True)
+    trace_app = typer.Typer(help="Immutable task trace and memory records.", no_args_is_help=True)
     runtime_app = typer.Typer(help="Task Runtime v2 project operations.", no_args_is_help=True)
 
     def current_root() -> Path:
@@ -314,6 +315,29 @@ def register_task_runtime_commands(
     ) -> None:
         emit(runtime(project).verify_evidence(task_id))
 
+    @trace_app.command("record")
+    def trace_record(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        record_id: str = typer.Option(..., "--record-id"),
+        record_type: str = typer.Option(..., "--record-type"),
+        producer: str = typer.Option(..., "--producer"),
+        path: Path = typer.Option(..., "--path"),
+        metadata: str = typer.Option("{}", "--metadata-json"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+    ) -> None:
+        emit(
+            runtime(project).record_trace(
+                task_id,
+                record_id=record_id,
+                record_type=record_type,
+                producer=producer,
+                path=path,
+                metadata=json_mapping(metadata, field="metadata"),
+                idempotency_key=idempotency_key,
+            )["trace_records"][record_id]
+        )
+
     @runtime_app.command("project")
     @runtime_app.command("rebuild")
     def runtime_rebuild(project: str = typer.Option(..., "--project")) -> None:
@@ -366,4 +390,5 @@ def register_task_runtime_commands(
     app.add_typer(attempt_app, name="attempt")
     app.add_typer(artifact_app, name="artifact")
     app.add_typer(evidence_app, name="evidence")
+    app.add_typer(trace_app, name="trace")
     app.add_typer(runtime_app, name="runtime-v2")
