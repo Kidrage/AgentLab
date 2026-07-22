@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 from datetime import datetime
 from agent_runtime.approvals.decision_card import DecisionCard
+from agent_runtime.approvals.policy_engine import ApprovalDecision
 
 class ApprovalLedger:
     def __init__(self, project: str):
@@ -20,6 +21,45 @@ class ApprovalLedger:
             "reason": card.reason,
             "created_at": datetime.utcnow().isoformat()
         })
+
+    def record_policy_decision(
+        self,
+        decision: ApprovalDecision,
+        *,
+        task_id: str = "",
+        reason: str = "",
+        decision_type: str = "policy",
+    ) -> DecisionCard:
+        """Persist automatic, human-required, and forbidden policy outcomes."""
+        grant = decision.grant or {}
+        status = {
+            "auto_approved": "approved",
+            "human_required": "pending",
+            "forbidden": "rejected",
+        }[decision.mode]
+        actor = str(grant.get("actor") or "system")
+        card = DecisionCard.create(
+            decision_id=grant.get("grant_id"),
+            decision_type=decision_type,
+            status=status,
+            risk_level="critical" if decision.mode == "forbidden" else "high" if decision.requires_human else "low",
+            reason=reason or ";".join(decision.reasons),
+            requested_by=actor,
+            task_id=task_id,
+            project=self.project,
+            expires_at=grant.get("expires_at", ""),
+            authorization={"decision_mode": decision.mode, **grant},
+        )
+        self.approvals.append(card)
+        self.events.append({
+            "event_id": f"evt_{len(self.events)}",
+            "decision_id": card.decision_id,
+            "action": decision.mode,
+            "actor": actor,
+            "reason": card.reason,
+            "created_at": datetime.utcnow().isoformat(),
+        })
+        return card
 
     def list_pending(self) -> List[DecisionCard]:
         return [c for c in self.approvals if c.status == "pending"]

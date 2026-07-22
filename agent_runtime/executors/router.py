@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from agent_runtime.approvals.approval_policy import ApprovalPolicy
+from agent_runtime.approvals.policy_engine import ApprovalDecision, decide_approval
 from agent_runtime.executors.models import EXTERNAL_PROVIDER_TYPES, ExecutionRequest, ExecutorDecision, ExecutorProvider
 from agent_runtime.executors.policy import ExecutorRouterPolicy
 from agent_runtime.executors.provider_registry import filter_providers_for_request
@@ -9,7 +11,9 @@ def route_execution_request(
     request: ExecutionRequest,
     providers: list[ExecutorProvider],
     policy: ExecutorRouterPolicy,
+    approval_policy: ApprovalPolicy | None = None,
 ) -> ExecutorDecision:
+    approval_policy = approval_policy or policy.approval_policy
     if not policy.enabled:
         return ExecutorDecision(
             status="BLOCKED_BY_POLICY",
@@ -29,6 +33,26 @@ def route_execution_request(
             rejected.append({"provider_id": provider.provider_id, "reasons": blocked})
             continue
 
+        approval = _evaluate_provider_approval(request, provider, approval_policy)
+        if approval.mode == "forbidden":
+            return ExecutorDecision(
+                status="BLOCKED_BY_POLICY",
+                selected_provider_id=provider.provider_id,
+                rejected_providers=rejected,
+                reason=list(approval.reasons),
+                approval_required=False,
+                approval_mode=approval.mode,
+            )
+        if approval.requires_human:
+            return ExecutorDecision(
+                status="NEEDS_APPROVAL",
+                selected_provider_id=provider.provider_id,
+                rejected_providers=rejected,
+                reason=list(approval.reasons),
+                approval_required=True,
+                approval_mode=approval.mode,
+            )
+
         if provider.provider_type == "mock_executor":
             if policy.routing.get("allow_mock_executor", True) is True:
                 return ExecutorDecision(
@@ -37,19 +61,11 @@ def route_execution_request(
                     rejected_providers=rejected,
                     reason=["mock executor allowed by policy"],
                     approval_required=False,
+                    approval_mode=approval.mode,
+                    approval_grant=approval.grant,
                 )
             rejected.append({"provider_id": provider.provider_id, "reasons": ["mock executor disabled by policy"]})
             continue
-
-        approval_required = _requires_approval(provider, policy)
-        if approval_required:
-            return ExecutorDecision(
-                status="NEEDS_APPROVAL",
-                selected_provider_id=provider.provider_id,
-                rejected_providers=rejected,
-                reason=["external or unknown-cost provider requires approval"],
-                approval_required=True,
-            )
 
         if provider.execution_mode == "dry_run":
             return ExecutorDecision(
@@ -58,6 +74,8 @@ def route_execution_request(
                 rejected_providers=rejected,
                 reason=["provider is available for dry-run planning only"],
                 approval_required=False,
+                approval_mode=approval.mode,
+                approval_grant=approval.grant,
             )
 
         return ExecutorDecision(
@@ -66,6 +84,8 @@ def route_execution_request(
             rejected_providers=rejected,
             reason=["provider matched request and policy"],
             approval_required=False,
+            approval_mode=approval.mode,
+            approval_grant=approval.grant,
         )
 
     return ExecutorDecision(
@@ -92,17 +112,30 @@ def _policy_rejections(provider: ExecutorProvider, policy: ExecutorRouterPolicy)
     return reasons
 
 
-def _requires_approval(provider: ExecutorProvider, policy: ExecutorRouterPolicy) -> bool:
-    if provider.requires_approval:
-        return True
-    if (
-        provider.provider_type in EXTERNAL_PROVIDER_TYPES
-        and policy.routing.get("require_approval_for_external", True) is True
-    ):
-        return True
-    if (
-        provider.expected_cost_tier == "unknown"
-        and policy.budget.get("unknown_cost_requires_approval", True) is True
-    ):
-        return True
-    return False
+def _evaluate_provider_approval(
+    request: ExecutionRequest,
+    provider: ExecutorProvider,
+    approval_policy: ApprovalPolicy,
+) -> ApprovalDecision:
+    action = "private_data_egress" if request.contains_private_data else request.approval_action
+    cost_known = provider.expected_cost_tier == "free" or request.estimated_cost_usd is not None
+    estimated_cost = 0.0 if provider.expected_cost_tier == "free" else request.estimated_cost_usd
+    capabilities = list(request.required_capabilities)
+    if provider.provider_type in EXTERNAL_PROVIDER_TYPES:
+        capabilities.extend(["external_execution", "network_access"])
+    return decide_approval(
+        {
+            "action": action,
+            "task_id": request.task_id,
+            "provider_id": provider.provider_id,
+            "capabilities": capabilities,
+            "bounded_scope": request.bounded_scope,
+            "reversible": provider.execution_mode in {"mock", "dry_run", "manual_handoff_only"},
+            "cost_visibility": "known" if cost_known else "unknown_external_provider_cost",
+            "estimated_cost_usd": estimated_cost or 0.0,
+            "max_cost_usd": request.max_cost_usd,
+            "allowed_files": request.allowed_files,
+            "forbidden_files": request.forbidden_files,
+        },
+        approval_policy,
+    )

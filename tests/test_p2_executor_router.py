@@ -51,6 +51,65 @@ def test_unknown_cost_requires_approval():
     assert decision.approval_required is True
 
 
+def test_bounded_known_cost_external_executor_is_policy_auto_approved():
+    policy = load_executor_router_policy(Path("config/executor_router.yml"))
+    policy.routing["allow_mock_executor"] = False
+    policy.routing["allow_auto_execution"] = True
+    policy.provider_priority["repo_patch"] = ["api.bounded"]
+    policy.providers.append(
+        {
+            "provider_id": "api.bounded",
+            "provider_type": "api_model",
+            "display_name": "Bounded API",
+            "enabled": True,
+            "execution_mode": "approved_auto",
+            "capabilities": ["repo_patch"],
+            "suitable_task_types": ["repo_patch"],
+            "risk_level": "medium",
+            "requires_approval": True,
+            "cost_mode": "api_model",
+            "expected_cost_tier": "free",
+            "supports_auto_execution": True,
+        }
+    )
+
+    decision = route_execution_request(_request(), load_executor_providers(policy), policy)
+
+    assert decision.status == "ROUTED"
+    assert decision.approval_required is False
+    assert decision.approval_mode == "auto_approved"
+    assert decision.approval_grant["actor"] == "policy:default-auto"
+
+
+def test_known_external_estimate_below_limit_is_policy_auto_approved():
+    policy = load_executor_router_policy(Path("config/executor_router.yml"))
+    policy.routing["allow_mock_executor"] = False
+    policy.routing["allow_auto_execution"] = True
+    policy.provider_priority["repo_patch"] = ["api.deepseek"]
+    provider = next(item for item in policy.providers if item["provider_id"] == "api.deepseek")
+    provider["enabled"] = True
+    provider["execution_mode"] = "approved_auto"
+    provider["supports_auto_execution"] = True
+    request = _request()
+    request.estimated_cost_usd = 0.05
+
+    decision = route_execution_request(request, load_executor_providers(policy), policy)
+
+    assert decision.status == "ROUTED"
+    assert decision.approval_mode == "auto_approved"
+
+
+def test_public_release_executor_request_still_requires_human():
+    policy = load_executor_router_policy(Path("config/executor_router.yml"))
+    request = _request()
+    request.approval_action = "public_release"
+
+    decision = route_execution_request(request, load_executor_providers(policy), policy)
+
+    assert decision.status == "NEEDS_APPROVAL"
+    assert decision.approval_mode == "human_required"
+
+
 def test_unsafe_auto_provider_blocked_by_policy():
     policy = load_executor_router_policy(Path("tests/fixtures/p2_executor_router/unsafe_provider_policy.yml"))
     decision = route_execution_request(_request(), load_executor_providers(policy), policy)

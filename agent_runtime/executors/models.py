@@ -63,8 +63,12 @@ class ExecutionRequest:
     required_capabilities: list[str] = field(default_factory=list)
     risk_level: str = "low"
     max_cost_usd: Optional[float] = None
+    estimated_cost_usd: Optional[float] = None
     requires_review: bool = True
     evidence_required: list[str] = field(default_factory=list)
+    approval_action: str = "external_execution"
+    bounded_scope: bool = True
+    contains_private_data: bool = False
 
 
 @dataclass
@@ -89,6 +93,8 @@ class ExecutorDecision:
     rejected_providers: list[dict[str, Any]] = field(default_factory=list)
     reason: list[str] = field(default_factory=list)
     approval_required: bool = False
+    approval_mode: str = "not_required"
+    approval_grant: Optional[dict[str, Any]] = None
 
 
 @dataclass

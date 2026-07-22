@@ -13,6 +13,7 @@ def render_route_explanation(decision: RouteDecision) -> str:
         f"Activation: {decision.activation_decision}",
         f"Mode / tier: {decision.mode} / {decision.tier}",
         f"Approval required: {str(decision.approval_required).lower()}",
+        f"Approval mode: {decision.approval_mode}",
         "Selection reasons:",
     ]
     lines.extend(f"  - {reason}" for reason in decision.selection_reason)

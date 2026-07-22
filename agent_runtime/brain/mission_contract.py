@@ -121,6 +121,9 @@ def build_mission_contract(
 
     # Step 9: Build decision cards
     from agent_runtime.brain.decision_card_builder import build_decision_cards
+    from agent_runtime.approvals.approval_policy import load_approval_policy
+
+    approval_policy = load_approval_policy(root)
 
     decision_cards = build_decision_cards(
         project_type=project_type,
@@ -128,6 +131,23 @@ def build_mission_contract(
         non_goal_hits=risks["non_goal_hits"],
         capability_gaps=cap_reqs["gaps"],
         project_types=project_types,
+        approval_policy=approval_policy,
+    )
+    pending_human = sum(
+        card.get("decision_mode") == "human_required" for card in decision_cards
+    )
+    forbidden_decisions = sum(
+        card.get("decision_mode") == "forbidden" for card in decision_cards
+    )
+    auto_approved = sum(
+        card.get("decision_mode") == "auto_approved" for card in decision_cards
+    )
+    approval_mode = (
+        "forbidden"
+        if forbidden_decisions
+        else "human_required"
+        if pending_human
+        else "policy_auto"
     )
 
     # Step 10: Assemble mission contract
@@ -213,7 +233,16 @@ def build_mission_contract(
         "risk_flags": risks["risk_flags"],
         "external_executor_needed": bool(typedef.get("external_executor_recommended", False)),
         "asset_registry_recommended": bool(typedef.get("asset_registry_recommended", False)),
-        "human_approval_required": True,
+        "human_approval_required": pending_human > 0,
+        "approval_mode": approval_mode,
+        "approval_summary": {
+            "policy_id": approval_policy.policy_id,
+            "default_mode": approval_policy.default_mode,
+            "auto_approved": auto_approved,
+            "pending_human": pending_human,
+            "forbidden": forbidden_decisions,
+        },
+        "approval_decisions": decision_cards,
         "decision_cards": [card.get("decision_id", "") for card in decision_cards],
         "memory_contract": _memory_contract(domain_pack),
         "quality_gates": _quality_gates(domain_pack),
