@@ -69,7 +69,7 @@ def test_rejected_chapter_feedback_becomes_traceable_prose_free_memory() -> None
         feedback_sha256="b" * 64,
     )
 
-    assert len(records) == 6
+    assert len(records) == 7
     assert {record["memory_kind"] for record in records} == {
         "anti_pattern",
         "mechanical_policy",

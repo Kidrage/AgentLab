@@ -86,6 +86,8 @@ def test_crown_skeleton_partitions_1980_chapters_into_45_arcs_and_225_windows() 
     ]
     assert len(bundle["macro_arcs"]) == 45
     assert len(bundle["planning_windows"]) == 225
+    assert bundle["dependency_inventory"] == []
+    assert bundle["world_state_baseline"] == {}
     assert bundle["macro_arcs"][0]["chapter_range"][0] == 1
     assert bundle["macro_arcs"][-1]["chapter_range"][1] == 1980
     assert validate_longform_plan_bundle(bundle)["status"] == "pass"
@@ -127,6 +129,15 @@ def test_boundary_chapters_cannot_downgrade_their_hook_tier() -> None:
     assert "invalid:chapter_position.expected_volume_close" in issues
 
 
+def test_non_boundary_chapters_cannot_claim_open_or_close_hook_tiers() -> None:
+    contract = _chapter_contract(chapter=27, position="volume_open")
+    contract["hook_contract"]["tier"] = "volume_open"
+
+    assert "invalid:chapter_position.reserved_for_boundary" in (
+        validate_chapter_contract(contract)
+    )
+
+
 def test_optional_state_sections_require_explicit_absence_reasons() -> None:
     contract = _chapter_contract(chapter=27, position="regular")
     contract["hook_contract"].pop("irreversible_change")
@@ -163,6 +174,37 @@ def test_contract_graph_tracks_foreshadow_windows_and_world_axis_continuity() ->
 
     second["world_state_delta"]["before"] = first["world_state_delta"]["after"]
     assert validate_chapter_contract_graph([first, second]) == []
+
+
+def test_contract_graph_anchors_dependencies_and_first_world_state() -> None:
+    contract = _chapter_contract(chapter=27, position="regular")
+    contract["hook_contract"].pop("irreversible_change")
+
+    assert validate_chapter_contract_graph(
+        [contract],
+        known_dependencies={"faction_church"},
+        world_state_baseline={
+            "church_surveillance": "灰谷只接受季节性抽查"
+        },
+    ) == [
+        "chapter:27:foreshadow:fs_preprinted_name:target_not_touched"
+    ]
+
+    contract["foreshadow_actions"][0]["dependencies"] = ["unknown_faction"]
+    contract["world_state_delta"]["before"] = "没有经过审计的状态"
+    issues = validate_chapter_contract_graph(
+        [contract],
+        known_dependencies={"faction_church"},
+        world_state_baseline={
+            "church_surveillance": "灰谷只接受季节性抽查"
+        },
+    )
+
+    assert (
+        "chapter:27:foreshadow:fs_preprinted_name:unknown_dependency:unknown_faction"
+        in issues
+    )
+    assert "chapter:27:world_baseline_mismatch:church_surveillance" in issues
 
 
 def test_v3_plan_uses_existing_delivery_and_brief_compiler_seams(tmp_path: Path) -> None:

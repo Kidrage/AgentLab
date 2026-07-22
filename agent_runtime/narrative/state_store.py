@@ -295,6 +295,8 @@ class NarrativeStateStore:
         receipt: Mapping[str, Any],
         *,
         label: str,
+        expected_schema: str,
+        expected_issuer: str,
     ) -> dict[str, Any]:
         reference = str(receipt.get("receipt_path") or "").strip()
         relative = Path(reference)
@@ -320,6 +322,20 @@ class NarrativeStateStore:
             ) from exc
         if not isinstance(document, dict):
             raise NarrativeStateIntegrityError(f"{label} receipt must be a mapping")
+        if document.get("schema_version") != expected_schema:
+            raise NarrativeStateIntegrityError(f"{label} receipt schema mismatch")
+        if document.get("issuer") != expected_issuer:
+            raise NarrativeStateIntegrityError(f"{label} receipt issuer mismatch")
+        for field in ("attempt_id", "evidence_binding_id"):
+            value = document.get(field)
+            if not isinstance(value, str) or not value.strip():
+                raise NarrativeStateIntegrityError(
+                    f"{label} receipt {field} is required"
+                )
+            if receipt.get(field) != value:
+                raise NarrativeStateIntegrityError(
+                    f"{label} receipt {field} binding mismatch"
+                )
         return document
 
     def _receipt(self, events: list[dict[str, Any]], event: Mapping[str, Any]) -> dict[str, Any]:
@@ -555,10 +571,23 @@ class NarrativeStateStore:
             raise NarrativeStateConflict("delta verification projection binding mismatch")
         if any(seal.get(field) != value for field, value in binding.items()):
             raise NarrativeStateConflict("accepted seal narrative binding mismatch")
-        seal_receipt = self._verified_receipt(seal, label="accepted seal")
-        verification_receipt = self._verified_receipt(
-            delta_verification, label="delta verification"
+        seal_receipt = self._verified_receipt(
+            seal,
+            label="accepted seal",
+            expected_schema="narrative-seal-receipt/v1",
+            expected_issuer="AgentLab.Supervisor",
         )
+        verification_receipt = self._verified_receipt(
+            delta_verification,
+            label="delta verification",
+            expected_schema="delta-verification-receipt/v1",
+            expected_issuer="AgentLab.DeltaVerifier",
+        )
+        if (
+            seal_receipt["evidence_binding_id"]
+            != verification_receipt["evidence_binding_id"]
+        ):
+            raise NarrativeStateConflict("receipt evidence binding mismatch")
         if seal_receipt.get("status") != "accepted" or any(
             seal_receipt.get(field) != value for field, value in binding.items()
         ):

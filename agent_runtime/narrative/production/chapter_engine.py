@@ -41,6 +41,9 @@ from agent_runtime.narrative.production.writer_contract import (
 from agent_runtime.narrative.quality.prose_length import (
     build_han_character_contract,
 )
+from agent_runtime.narrative.quality.prose_conventions import (
+    validate_local_dialogue_repair,
+)
 from agent_runtime.narrative.state_store import narrative_payload_sha256
 
 
@@ -81,6 +84,10 @@ class ChapterRequest:
     # Optional project-scoped prose policy. Global Chinese dialogue mechanics
     # remain active when this is omitted.
     prose_conventions_policy: dict[str, Any] | None = None
+    # Optional bounded repair of a previously rejected Writer candidate.
+    # ``writer_output`` carries the repaired text; this mapping must carry the
+    # exact original prose and its prior prose-conventions report.
+    local_prose_repair: dict[str, Any] | None = None
     # Optional final-acceptance seam. Both values must be supplied together;
     # the store itself verifies accepted seal and previous-state hashes.
     narrative_state_store: Any | None = None
@@ -100,6 +107,7 @@ class ChapterOutcome:
     issues: list[str] = field(default_factory=list)
     writer_rerun_needed: bool = False
     writer_local_repair_needed: bool = False
+    local_prose_repair_validation: dict[str, Any] | None = None
     selected_prose_sha256: str = ""
     state_commit_receipt: dict[str, Any] | None = None
     # Public call-order log: proves projector is called only after selection.
@@ -126,6 +134,7 @@ class ChapterEngine:
         """Execute the v2 chapter path for *request*."""
         issues: list[str] = []
         selected_prose_sha256 = ""
+        local_repair_validation: dict[str, Any] | None = None
 
         # Per-run projector call log — no process-global state.
         _call_log: list[dict[str, Any]] = []
@@ -135,6 +144,9 @@ class ChapterEngine:
             kwargs.setdefault("chapter_id", request.chapter_id)
             kwargs.setdefault("projector_call_log", list(_call_log))
             kwargs.setdefault("selected_prose_sha256", selected_prose_sha256)
+            kwargs.setdefault(
+                "local_prose_repair_validation", local_repair_validation
+            )
             return ChapterOutcome(**kwargs)
 
         def _verified_pass_outcome(
@@ -279,6 +291,35 @@ class ChapterEngine:
                 issues=[],
             )
 
+        if request.local_prose_repair is not None:
+            repair = request.local_prose_repair
+            repaired_prose = request.writer_output.get("fiction_draft.md", "")
+            source_report = repair.get("source_report")
+            if not isinstance(source_report, dict):
+                return _outcome(
+                    status="blocked",
+                    creative_brief=brief,
+                    issues=["local_prose_repair_source_report_missing"],
+                )
+            local_repair_validation = validate_local_dialogue_repair(
+                str(repair.get("original_prose") or ""),
+                repaired_prose,
+                source_report=source_report,
+                chapter_context={
+                    "chapter": request.chapter_id,
+                    "chapter_position": brief.to_dict().get("chapter_position"),
+                },
+                policy=request.prose_conventions_policy,
+            )
+            if local_repair_validation["status"] != "pass":
+                return _outcome(
+                    status="blocked",
+                    creative_brief=brief,
+                    local_prose_repair_validation=local_repair_validation,
+                    issues=["local_prose_repair_validation_failed"],
+                    writer_rerun_needed=False,
+                )
+
         writer_val = validate_writer_v2_output(
             request.writer_output,
             provider=request.provider,
@@ -293,6 +334,15 @@ class ChapterEngine:
             },
             prose_conventions_policy=request.prose_conventions_policy,
         )
+        if local_repair_validation is not None and writer_val["status"] == "pass":
+            writer_val["agentlab_receipt"] = {
+                **local_repair_validation,
+                "upstream_writer_provenance": {
+                    "provider": request.provider,
+                    "model": request.model,
+                    "call_id": request.call_id,
+                },
+            }
         if writer_val["status"] != "pass":
             issues.append("writer_v2_validation_failed")
             conventions = writer_val.get("prose_conventions") or {}
@@ -305,6 +355,7 @@ class ChapterEngine:
                 ),
                 creative_brief=brief,
                 writer_validation=writer_val,
+                local_prose_repair_validation=local_repair_validation,
                 issues=issues + writer_val.get("issues", []),
                 writer_rerun_needed=bool(
                     conventions.get("writer_rerun_needed")
@@ -323,6 +374,7 @@ class ChapterEngine:
                 status="needs_selection",
                 creative_brief=brief,
                 writer_validation=writer_val,
+                local_prose_repair_validation=local_repair_validation,
                 issues=["prose_not_selected_state_projection_blocked"],
                 writer_rerun_needed=False,
             )

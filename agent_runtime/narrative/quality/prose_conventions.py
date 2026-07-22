@@ -8,11 +8,14 @@ rhetorical repetition is reported as an editorial revision request instead.
 from __future__ import annotations
 
 from collections.abc import Mapping
+import hashlib
+import json
 import re
 from typing import Any
 
 
 REPORT_SCHEMA = "prose-conventions-report/v1"
+LOCAL_REPAIR_RECEIPT_SCHEMA = "local-prose-repair-receipt/v1"
 
 DEFAULT_POLICY: dict[str, Any] = {
     "schema_version": "prose-conventions-policy/v1",
@@ -51,6 +54,7 @@ _RHETORICAL_FAMILIES: dict[str, re.Pattern[str]] = {
     "not_about_but_about": re.compile(r"不在于.{0,36}?而在于"),
     "rather_than": re.compile(r"与其.{0,36}?不如"),
 }
+_QUOTE_CHARACTERS = frozenset("\"'“”‘’")
 
 
 def _merged_policy(policy: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -322,6 +326,7 @@ def evaluate_prose_conventions(
         "local_repair_needed": mechanical_status == "blocked",
         "chapter_context": dict(chapter_context or {}),
         "policy_schema_version": active_policy["schema_version"],
+        "prose_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "issues": issues,
         "metrics": {
             "han_character_count": len(_HAN.findall(prose_only)),
@@ -331,4 +336,82 @@ def evaluate_prose_conventions(
     }
 
 
-__all__ = ["DEFAULT_POLICY", "REPORT_SCHEMA", "evaluate_prose_conventions"]
+def validate_local_dialogue_repair(
+    original_prose: str,
+    repaired_prose: str,
+    *,
+    source_report: Mapping[str, Any],
+    chapter_context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate a quote-only repair without spending another Writer run.
+
+    Both inputs are canonicalised to the Writer contract's one-trailing-newline
+    form.  Removing all recognised quote characters must leave byte-identical
+    text, so this lane cannot silently revise words, punctuation, or story
+    facts.  The source report and both prose versions are hash-bound.
+    """
+
+    original = (str(original_prose or "").rstrip() + "\n") if original_prose else ""
+    repaired = (str(repaired_prose or "").rstrip() + "\n") if repaired_prose else ""
+    original_sha256 = hashlib.sha256(original.encode("utf-8")).hexdigest()
+    repaired_sha256 = hashlib.sha256(repaired.encode("utf-8")).hexdigest()
+    issues: list[str] = []
+    original_report = evaluate_prose_conventions(
+        original,
+        chapter_context=chapter_context,
+        policy=policy,
+    )
+    if source_report.get("schema_version") != REPORT_SCHEMA:
+        issues.append("source_report_schema_mismatch")
+    if dict(source_report) != original_report:
+        issues.append("source_report_evidence_mismatch")
+    if original_report.get("mechanical_status") != "blocked" or not original_report.get(
+        "local_repair_needed"
+    ):
+        issues.append("source_report_does_not_authorize_local_repair")
+    if source_report.get("prose_sha256") != original_sha256:
+        issues.append("source_report_prose_hash_mismatch")
+    strip_quotes = lambda value: "".join(  # noqa: E731 - local transformation
+        char for char in value if char not in _QUOTE_CHARACTERS
+    )
+    if strip_quotes(original) != strip_quotes(repaired):
+        issues.append("repair_changed_non_quote_content")
+    if original == repaired:
+        issues.append("repair_made_no_change")
+
+    repaired_report = evaluate_prose_conventions(
+        repaired,
+        chapter_context=chapter_context,
+        policy=policy,
+    )
+    if repaired_report["mechanical_status"] != "pass":
+        issues.append("repair_did_not_resolve_dialogue_mechanics")
+    return {
+        "schema_version": LOCAL_REPAIR_RECEIPT_SCHEMA,
+        "issuer": "AgentLab.LocalProseRepair",
+        "status": "pass" if not issues else "blocked",
+        "repair_scope": "quote_characters_only",
+        "writer_rerun_triggered": False,
+        "source_prose_sha256": original_sha256,
+        "repaired_prose_sha256": repaired_sha256,
+        "source_report_sha256": hashlib.sha256(
+            json.dumps(
+                dict(source_report),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest(),
+        "repaired_report": repaired_report,
+        "issues": issues,
+    }
+
+
+__all__ = [
+    "DEFAULT_POLICY",
+    "LOCAL_REPAIR_RECEIPT_SCHEMA",
+    "REPORT_SCHEMA",
+    "evaluate_prose_conventions",
+    "validate_local_dialogue_repair",
+]

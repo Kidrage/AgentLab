@@ -9,6 +9,7 @@ import yaml
 import agent_runtime.narrative.state_store as state_store_module
 from agent_runtime.narrative.state_store import (
     NarrativeStateConflict,
+    NarrativeStateIntegrityError,
     NarrativeStateStore,
     narrative_payload_sha256,
 )
@@ -50,13 +51,27 @@ def _verified_commit(
     receipts.mkdir(exist_ok=True)
     seal_receipt = receipts / "seal.yml"
     seal_receipt.write_text(
-        yaml.safe_dump({"status": seal_status, **binding}, sort_keys=True),
+        yaml.safe_dump(
+            {
+                "schema_version": "narrative-seal-receipt/v1",
+                "issuer": "AgentLab.Supervisor",
+                "attempt_id": "supervisor-attempt-001",
+                "evidence_binding_id": "chapter-001-evidence-001",
+                "status": seal_status,
+                **binding,
+            },
+            sort_keys=True,
+        ),
         encoding="utf-8",
     )
     verification_receipt = receipts / "delta.yml"
     verification_receipt.write_text(
         yaml.safe_dump(
             {
+                "schema_version": "delta-verification-receipt/v1",
+                "issuer": "AgentLab.DeltaVerifier",
+                "attempt_id": "delta-attempt-001",
+                "evidence_binding_id": "chapter-001-evidence-001",
                 "status": "pass",
                 "source_projection_sha256": source_projection_sha256,
                 "verification_result_sha256": verification_result_sha256,
@@ -75,12 +90,16 @@ def _verified_commit(
         "state_delta_sha256": state_delta_sha256,
         "seal": {
             "status": seal_status,
+            "attempt_id": "supervisor-attempt-001",
+            "evidence_binding_id": "chapter-001-evidence-001",
             "receipt_path": seal_receipt.relative_to(root).as_posix(),
             "receipt_sha256": hashlib.sha256(seal_receipt.read_bytes()).hexdigest(),
             **binding,
         },
         "delta_verification": {
             "status": "pass",
+            "attempt_id": "delta-attempt-001",
+            "evidence_binding_id": "chapter-001-evidence-001",
             "receipt_path": verification_receipt.relative_to(root).as_posix(),
             "receipt_sha256": hashlib.sha256(
                 verification_receipt.read_bytes()
@@ -257,6 +276,36 @@ def test_commit_rejects_state_delta_not_bound_into_accepted_seal(
         store.commit(commit)
 
     assert store.read()["event_count"] == 1
+
+
+def test_commit_rejects_hash_valid_receipt_from_wrong_issuer(tmp_path: Path) -> None:
+    source = tmp_path / "canon.yml"
+    source.write_text("project: Crown_of_Ash\n", encoding="utf-8")
+    store = NarrativeStateStore(tmp_path / "brain", project="Crown_of_Ash")
+    store.bootstrap(
+        {
+            "schema_version": "narrative-bootstrap/v1",
+            "project": "Crown_of_Ash",
+            "precedence": ["canonical"],
+            "sources": [_source(source)],
+            "base_state": {},
+        }
+    )
+    commit = _verified_commit(
+        root=tmp_path,
+        previous_state_sha256=store.read()["state_sha256"],
+        state_delta={},
+    )
+    seal_path = tmp_path / commit["seal"]["receipt_path"]
+    receipt = yaml.safe_load(seal_path.read_text(encoding="utf-8"))
+    receipt["issuer"] = "Untrusted.SelfSeal"
+    seal_path.write_text(yaml.safe_dump(receipt, sort_keys=True), encoding="utf-8")
+    commit["seal"]["receipt_sha256"] = hashlib.sha256(
+        seal_path.read_bytes()
+    ).hexdigest()
+
+    with pytest.raises(NarrativeStateIntegrityError, match="issuer mismatch"):
+        store.commit(commit)
 
 
 def test_chapter_engine_binds_commit_to_current_brief_projection_and_verification(

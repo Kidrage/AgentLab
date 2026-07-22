@@ -142,6 +142,13 @@ def crown_feedback_memory_records(
         },
         {
             **common,
+            "rule_id": "crown-v3-local-quote-repair-scope",
+            "memory_kind": "mechanical_policy",
+            "summary": "局部对白修复只允许增删替换引号；去除引号后正文逐字不变，并绑定原报告与修复回执。",
+            "source_locator": f"{source}:quote_only_local_repair_boundary",
+        },
+        {
+            **common,
             "rule_id": "crown-v3-protagonist-drive",
             "memory_kind": "anti_pattern",
             "summary": "避免主角只响应外部事件；每章声明自发行动、失败代价和反事实行动。",

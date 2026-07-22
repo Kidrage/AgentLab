@@ -82,6 +82,7 @@ def _apply_prose_conventions_contract(
     # Only deterministic mechanical errors belong to the Writer contract.
     # Rhetorical fatigue remains visible for the Editor revision lane.
     if report["mechanical_status"] == "blocked":
+        result["repair_source_prose_sha256"] = report["prose_sha256"]
         result["status"] = "blocked"
         result["issues"] = [
             f"prose_conventions:{issue['id']}:{issue.get('locator', 'chapter')}"

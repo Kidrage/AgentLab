@@ -29,6 +29,7 @@ BOUNDARY_CHAPTER_POSITIONS = {
     1311: "volume_open",
     1980: "volume_close",
 }
+BOUNDARY_ONLY_POSITIONS = {"series_open", "volume_open", "volume_close"}
 FORESHADOW_ACTIONS = {"seed", "develop", "payoff", "delay", "transform"}
 PLACEHOLDERS = {
     "what_happens_next",
@@ -118,6 +119,13 @@ def validate_chapter_contract(contract: Mapping[str, Any]) -> list[str]:
     expected_position = BOUNDARY_CHAPTER_POSITIONS.get(chapter)
     if expected_position and position != expected_position:
         issues.append(f"invalid:chapter_position.expected_{expected_position}")
+    elif (
+        isinstance(chapter, int)
+        and not isinstance(chapter, bool)
+        and not expected_position
+        and position in BOUNDARY_ONLY_POSITIONS
+    ):
+        issues.append("invalid:chapter_position.reserved_for_boundary")
     for field in ("pov", "primary_function", "turn", "cost"):
         value = contract.get(field)
         if not isinstance(value, str) or not value.strip():
@@ -311,6 +319,8 @@ def build_crown_planning_skeleton() -> dict[str, Any]:
         "volumes": volumes,
         "macro_arcs": macro_arcs,
         "planning_windows": _planning_windows(macro_arcs),
+        "dependency_inventory": [],
+        "world_state_baseline": {},
         "chapter_contracts": [],
         "review_policy": {
             "deterministic_validation_every_chapter": True,
@@ -339,12 +349,24 @@ def _contiguous_ranges(
     return cursor == expected_end + 1
 
 
-def validate_chapter_contract_graph(contracts: list[Any]) -> list[str]:
+def validate_chapter_contract_graph(
+    contracts: list[Any],
+    *,
+    known_dependencies: set[str] | None = None,
+    world_state_baseline: Mapping[str, Any] | None = None,
+) -> list[str]:
     """Validate cross-chapter foreshadow and world-state continuity."""
 
     issues: list[str] = []
     world_after: dict[str, str] = {}
     foreshadow_graph: dict[str, list[tuple[int, str, list[int]]]] = {}
+    foreshadow_ids = {
+        _text(action.get("foreshadow_id"))
+        for contract in contracts
+        if isinstance(contract, Mapping)
+        for action in (contract.get("foreshadow_actions") or [])
+        if isinstance(action, Mapping) and _text(action.get("foreshadow_id"))
+    }
     for contract in contracts:
         if not isinstance(contract, Mapping):
             continue
@@ -355,7 +377,12 @@ def validate_chapter_contract_graph(contracts: list[Any]) -> list[str]:
         if isinstance(world_delta, Mapping):
             axis = _text(world_delta.get("axis"))
             before = _text(world_delta.get("before"))
-            if axis in world_after and world_after[axis] != before:
+            if axis not in world_after and world_state_baseline is not None:
+                if axis not in world_state_baseline:
+                    issues.append(f"chapter:{chapter}:world_baseline_missing:{axis}")
+                elif _text(world_state_baseline.get(axis)) != before:
+                    issues.append(f"chapter:{chapter}:world_baseline_mismatch:{axis}")
+            elif axis in world_after and world_after[axis] != before:
                 issues.append(f"chapter:{chapter}:world_chain_mismatch:{axis}")
             world_after[axis] = _text(world_delta.get("after"))
         for action in contract.get("foreshadow_actions") or []:
@@ -372,6 +399,13 @@ def validate_chapter_contract_graph(contracts: list[Any]) -> list[str]:
                 foreshadow_graph.setdefault(foreshadow_id, []).append(
                     (chapter, _text(action.get("action")), target)
                 )
+            if known_dependencies is not None:
+                for dependency in action.get("dependencies") or []:
+                    if dependency not in known_dependencies and dependency not in foreshadow_ids:
+                        issues.append(
+                            f"chapter:{chapter}:foreshadow:{foreshadow_id}:"
+                            f"unknown_dependency:{dependency}"
+                        )
     for foreshadow_id, actions in foreshadow_graph.items():
         actions.sort()
         if actions[0][1] != "seed":
@@ -492,7 +526,24 @@ def validate_longform_plan_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]:
             ]
             if chapters != list(range(1, 1981)):
                 issues.append("invalid:complete_chapter_contract_range")
-            issues.extend(validate_chapter_contract_graph(contracts))
+            dependency_inventory = bundle.get("dependency_inventory")
+            if not isinstance(dependency_inventory, list) or not all(
+                isinstance(item, str) and item.strip()
+                for item in dependency_inventory
+            ):
+                issues.append("invalid:dependency_inventory")
+                dependency_inventory = []
+            world_state_baseline = bundle.get("world_state_baseline")
+            if not isinstance(world_state_baseline, Mapping):
+                issues.append("invalid:world_state_baseline")
+                world_state_baseline = {}
+            issues.extend(
+                validate_chapter_contract_graph(
+                    contracts,
+                    known_dependencies=set(dependency_inventory),
+                    world_state_baseline=world_state_baseline,
+                )
+            )
 
     review = bundle.get("review_policy")
     if not isinstance(review, Mapping):

@@ -7,6 +7,7 @@ from agent_runtime.narrative.production.chapter_engine import ChapterEngine, Cha
 from agent_runtime.narrative.production.writer_contract import validate_writer_v2_output
 from agent_runtime.narrative.quality.prose_conventions import (
     evaluate_prose_conventions,
+    validate_local_dialogue_repair,
 )
 
 
@@ -145,3 +146,41 @@ def test_chapter_engine_requests_local_repair_without_writer_rerun(
     assert outcome.status == "needs_local_prose_repair"
     assert outcome.writer_rerun_needed is False
     assert outcome.writer_local_repair_needed is True
+
+    repaired = ChapterEngine.run(
+        ChapterRequest(
+            chapter_id=1,
+            creative_brief=outcome.creative_brief.to_dict(),
+            writer_output={
+                "fiction_draft.md": "阿德里安说：“你必须在天亮前离开。”\n"
+            },
+            provider="deepseek",
+            model="deepseek-v4-pro",
+            call_id="call-engine-dialogue",
+            local_prose_repair={
+                "original_prose": "阿德里安说：你必须在天亮前离开。\n",
+                "source_report": outcome.writer_validation["prose_conventions"],
+            },
+        )
+    )
+
+    assert repaired.status == "needs_selection"
+    assert repaired.local_prose_repair_validation["status"] == "pass"
+    assert repaired.writer_validation["agentlab_receipt"]["issuer"] == (
+        "AgentLab.LocalProseRepair"
+    )
+    assert repaired.writer_rerun_needed is False
+
+
+def test_local_dialogue_repair_rejects_any_non_quote_edit() -> None:
+    original = "阿德里安说：你必须在天亮前离开。\n"
+    source_report = evaluate_prose_conventions(original)
+
+    result = validate_local_dialogue_repair(
+        original,
+        "阿德里安说：“你必须立刻离开。”\n",
+        source_report=source_report,
+    )
+
+    assert result["status"] == "blocked"
+    assert "repair_changed_non_quote_content" in result["issues"]
