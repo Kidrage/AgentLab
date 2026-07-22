@@ -559,6 +559,50 @@ def test_work_item_dependencies_activate_without_creating_child_tasks(
     assert accepted["work_items"]["review-001"]["status"] == "ready"
 
 
+def test_work_item_created_after_dependencies_are_accepted_is_ready(
+    tmp_path: Path,
+) -> None:
+    runtime = TaskRuntime(tmp_path, project="Demo")
+    runtime.create_task(
+        task_id="task-late-dependent",
+        title="Create the reviewer after planning",
+        user_goal="Allow dynamic work-item expansion after a gate passes.",
+        idempotency_key="request-late-dependent",
+    )
+    runtime.create_work_item(
+        "task-late-dependent",
+        job_id="job-main",
+        work_item_id="brain-plan",
+        kind="planning",
+        title="Accept the Brain plan",
+        idempotency_key="work-brain-plan",
+    )
+    runtime.transition_work_item(
+        "task-late-dependent",
+        work_item_id="brain-plan",
+        status="running",
+        idempotency_key="brain-plan-running",
+    )
+    runtime.transition_work_item(
+        "task-late-dependent",
+        work_item_id="brain-plan",
+        status="accepted",
+        idempotency_key="brain-plan-accepted",
+    )
+
+    created = runtime.create_work_item(
+        "task-late-dependent",
+        job_id="job-main",
+        work_item_id="writer",
+        kind="prose",
+        title="Write the accepted scope",
+        depends_on=["brain-plan"],
+        idempotency_key="work-writer",
+    )
+
+    assert created["work_items"]["writer"]["status"] == "ready"
+
+
 def test_project_rebuild_and_doctor_trust_ledgers_not_cached_indexes(
     tmp_path: Path,
 ) -> None:

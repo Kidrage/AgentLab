@@ -1925,7 +1925,15 @@ class TaskRuntime:
                     "kind": event["payload"]["kind"],
                     "title": event["payload"]["title"],
                     "depends_on": dependencies,
-                    "status": "pending" if dependencies else "ready",
+                    "status": (
+                        "ready"
+                        if not dependencies
+                        or all(
+                            work_items[dependency]["status"] == "accepted"
+                            for dependency in dependencies
+                        )
+                        else "pending"
+                    ),
                     "active_attempt_id": None,
                     "created_at": event["recorded_at"],
                     "updated_at": event["recorded_at"],
