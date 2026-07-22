@@ -253,6 +253,7 @@ backends:
     invocation_contract: claude_seedance_artifact_fallback
     skill_id: byted-ark-seedance-skill
     skill_path: .claude/skills/byted-ark-seedance-skill
+    skill_resolution: worker_registry
     execution_mode: local_cli
     selection_scope: explicit_task_override_only
     fallback_only: true

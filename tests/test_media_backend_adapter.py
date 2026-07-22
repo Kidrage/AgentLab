@@ -803,6 +803,7 @@ def test_claude_skill_is_available_as_task_scoped_fallback() -> None:
     assert report["status"] == "ready"
     assert report["backend"]["worker_id"] == "claude_ark"
     assert report["backend"]["fallback_only"] is True
+    assert report["backend"]["skill_resolution"] == "worker_registry"
     plan = build_claude_skill_payload_plan(contract, report["backend"], out_dir=ROOT)
     assert plan["skill_id"] == "byted-ark-seedance-skill"
     assert plan["invocation_contract"] == "claude_seedance_artifact_fallback"
