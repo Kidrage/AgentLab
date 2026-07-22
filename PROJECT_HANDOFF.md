@@ -5,17 +5,17 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-de62d90289e0`
+- Repository ID: `AgentLab-runtime-v2-crown-first-prose-de62d90289e0`
 - Working root: `.`
-- Repository name: `AgentLab`
+- Repository name: `AgentLab-runtime-v2-crown-first-prose`
 - Git repository: `true`
-- Generated at: `2026-07-21T23:05:07.720242+00:00`
+- Generated at: `2026-07-22T14:16:21.392934+00:00`
 
 ## Current State
 
-- Branch: `feature/narrative-gate1-resume`
-- HEAD: `6c35230`
-- Indexed paths: 2021
+- Branch: `feature/runtime-v2-crown-first-prose`
+- HEAD: `f58206a`
+- Indexed paths: 2001
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,15 +43,15 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 579 |
-| `tests` | 446 |
-| `acceptance_runs` | 398 |
-| `docs` | 339 |
+| `agent_runtime` | 592 |
+| `tests` | 459 |
+| `acceptance_runs` | 349 |
+| `docs` | 340 |
 | `docs/archive` | 222 |
-| `config` | 123 |
-| `acceptance_runs/narrative_eval` | 116 |
+| `config` | 125 |
 | `tests/fixtures` | 110 |
-| `agent_runtime/narrative` | 50 |
+| `acceptance_runs/narrative_eval` | 59 |
+| `agent_runtime/narrative` | 54 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 41 |
@@ -65,11 +65,11 @@
 | `agent_runtime/context_governance` | 20 |
 | `acceptance_runs/narrative_repair_v2` | 18 |
 | `agent_runtime/executors` | 18 |
+| `agent_runtime/cli` | 17 |
 | `.` | 16 |
 | `acceptance_runs/m2_operator_demo` | 16 |
 | `agent_templates` | 16 |
 | `agent_runtime/capabilities` | 15 |
-| `agent_runtime/cli` | 15 |
 | `agent_runtime/ingestion` | 15 |
 | `acceptance_runs/narrative_efficiency` | 13 |
 | `agent_runtime/config_center` | 13 |
@@ -88,16 +88,16 @@
 
 ### Categories
 
-- code: 965 files, 8447334 bytes
-- literature: 412 files, 2343541 bytes
+- code: 991 files, 9013495 bytes
+- literature: 414 files, 2354536 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 632 files, 3246718 bytes
+- structured_data: 584 files, 3226386 bytes
 
 ### Common Extensions
 
-- `.py`: 952
-- `.yml`: 600
-- `.md`: 373
+- `.py`: 978
+- `.yml`: 552
+- `.md`: 375
 - `.txt`: 39
 - `.json`: 27
 - `.sh`: 8
@@ -122,6 +122,8 @@
 - `acceptance_runs/m2_worker_invocation_contracts/invalid_templates.yml`
 - `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.md`
 - `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.yml`
+- `acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml`
+- `acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/model_override_receipt.yml`
 - `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/chapter_quality_matrix.yml`
 - `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/chapter_state_plan.yml`
 - `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/character_arc_ledger.yml`
@@ -172,6 +174,7 @@
 - `agent_runtime/migration_doctor.py`
 - `agent_runtime/model_capacity.py`
 - `agent_runtime/model_resolver.py`
+- `agent_runtime/narrative/knowledge_contract.py`
 - `agent_runtime/narrative/production/writer_contract.py`
 - `agent_runtime/observation_contract.py`
 - `agent_runtime/operator_os/action_contract.py`
@@ -186,14 +189,11 @@
 - `agent_runtime/review/models.py`
 - `agent_runtime/router_update/models.py`
 - `agent_runtime/schemas.py`
+- `agent_runtime/task_runtime_v2/migration.py`
 - `agent_runtime/workers/invocation_contract.py`
 - `agent_templates/interface_mapper.md`
 - `agentlab_tui/models.py`
 - `config/agent_model_profiles.yml`
-- `config/capability_schema.yml`
-- `config/config_ui_schema.yml`
-- `config/hermes_brain_model_groups.yml`
-- `config/migration_profile.yml`
 
 ## Key Entrypoints and Guides
 
@@ -230,33 +230,30 @@
 
 ## Change History
 
-- `6c35230 2026-07-22 fix: deliver Agy planner YAML`
-- `f26d1f1 2026-07-22 checkpoint(narrative): preserve Gate 1 runtime work`
-- `c990809 2026-07-22 fix: align default routes with native Codex`
-- `b7ff2ed 2026-07-21 fix(narrative): bind revision candidate audits`
-- `53a645b 2026-07-21 fix(narrative): harden targeted revision attempts`
-- `479ebcf 2026-07-21 fix(narrative): enforce Gate 1 prose length`
-- `668d4b7 2026-07-21 fix(narrative): deliver sealed Writer packet on stdin`
-- `bf1c056 2026-07-21 fix(narrative): seal Gate 1 operator plans`
-- `a6ed77b 2026-07-21 fix(narrative): align writer operator materialization`
-- `2452bf9 2026-07-21 feat(narrative): seal live writer packet path`
-- `c8ac0a1 2026-07-21 fix(narrative): bind literary memory evidence`
-- `78b4c3f 2026-07-21 docs(knowledge): record hardened assist acceptance`
-- `889b1ed 2026-07-21 fix(knowledge): harden default assist authority`
-- `e69cb90 2026-07-21 feat(knowledge): restrict project memory to allowlist`
-- `ae41eff 2026-07-21 feat(knowledge): absorb governed RAG into AgentLab`
-- `a6058e0 2026-07-21 docs(narrative): remove local path from repair plan`
-- `1a00c9a 2026-07-21 feat(knowledge): add governed federated retrieval`
-- `6edaf89 2026-07-20 docs(narrative): checkpoint paused phase 2r work`
-- `05e9ecf 2026-07-20 feat(narrative): compile chapter literary memory`
-- `ac2a23c 2026-07-20 feat(narrative): add governed writer packet preview`
+- `f58206a 2026-07-22 fix: bind runtime v2 success to executed evidence`
+- `373d31a 2026-07-22 feat: seal selected sources into v2 role attempts`
+- `8cdc685 2026-07-22 feat: execute governed role attempts in runtime v2`
+- `7202a5b 2026-07-22 fix: enforce runtime v2 input tier gates`
+- `dd24e4e 2026-07-22 feat: classify runtime v2 inputs into strict tiers`
+- `49654dc 2026-07-22 merge: integrate Crown reset with task runtime v2`
+- `f83e7b6 2026-07-22 fix(narrative): compile sealed reviewer contract`
+- `90358ec 2026-07-22 fix: resolve Claude Ark fallback from worker registry`
+- `e6b498f 2026-07-22 fix(narrative): preserve audit route for no-rewrite boundary`
+- `53640cd 2026-07-22 feat: add governed task runtime v2`
+- `2a98f1e 2026-07-22 fix(narrative): route heavy reviewer through authenticated cli`
+- `22fe954 2026-07-22 fix(narrative): accept canonical timeline identifiers`
+- `5b8738a 2026-07-22 feat: route Seedance through Hermes Ark skills`
+- `6fa10c2 2026-07-22 fix(background-jobs): reset retries after action recovery`
+- `1796d62 2026-07-22 fix(narrative): bind writer receipts to chapter artifacts`
+- `22c8068 2026-07-22 fix(narrative): allow writer length correction to converge`
+- `f535248 2026-07-22 fix(narrative): expand rejected draft on writer retry`
+- `9c9b6c5 2026-07-22 fix(narrative): preserve valid chapters across retries`
+- `7d0b9f3 2026-07-22 docs(cli): refresh writer invocation matrix`
+- `a347097 2026-07-22 fix(narrative): execute pure writer outside plan mode`
 
 ## Current Changes
 
-- `## feature/narrative-gate1-resume`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integrated_live/`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integration_preflight/`
+- `## feature/runtime-v2-crown-first-prose`
 
 ## Related Repositories
 
@@ -644,6 +641,7 @@ without a progress row.
 
 | 2026-07-21 22:30 CST | Codex | Default model/worker execution-surface correction | superseded | Commit `c990809` correctly moved the default Supervisor to native Codex/GPT, but incorrectly generalized that correction to unrelated `full_cli` roles. The following scoped correction replaces that overbroad rule | Preserve as historical evidence only; do not treat its every-Codex-role statement as current routing authority | Use the exact role/tier matrix below; never extrapolate one role correction globally |
 | 2026-07-22 06:35 CST | Codex | Scoped default model routes and Agy performance planner | delivered | User selected Verifier option 1 and clarified exact scope: default performance RepoScout, InterfaceMapper, and TesterAuditor use Claude Code + DeepSeek V4 Pro; Verifier uses Claude Code + DeepSeek V4 Flash; Supervisor alone uses native Codex + GPT-5.6 Sol xhigh. Default performance NarrativePlanner temporarily uses Agy + Gemini 3.5 Flash High through the shared OAuth subscription quota window, while full retains Claude Code + DeepSeek V4 Pro. The Agy planner contract is fail-closed, no-fallback, sandboxed plan mode and returns validated raw `chapter_state_plan.yml` YAML without the generic Markdown wrapper. Both independent Spec and Standards rereviews pass; focused routing/protocol checks pass 88/88, Agy executor checks pass 9/9, model doctor passes 135 profiles / 0 issues, protocol doctor passes 110 checks / 0 failures, and the full repository passes 3,070 with 2 skipped. Delivery commit `6c35230` is pushed; CI run `29875729144` passed all jobs; post-commit RAG build receipt `kbuild_a9480a…ba62e` and knowledge doctor/search validation passed | Keep all other modes, tiers, Gate 1 work, and Qwen literary Editor behavior untouched; Agy shares the existing subscription pool and remaining/reset quota stays unknown until provider evidence | Treat this exact role/tier matrix and Agy planner contract as current authority; do not generalize the correction to other modes or tiers |
+| 2026-07-22 22:16 CST | Codex | Runtime v2 strict input tiers and first Crown prose bootstrap | code_complete_prose_waiting_for_export_approval | Added fail-closed L0-L3 classification, route/delegation/completion gates, immutable trace contracts, governed role execution, same-Task output chaining, actual model/provider receipt binding, and real change/memory file hashes. Final Standards and Spec reviews found no blockers; focused 33/0, protocol doctor 114/0, and clean-worktree full repository 3,177 passed / 20 skipped / 0 failed. Delivery commit `f58206a` follows merge `49654dc`; the v2 Crown Task `task-crown-runtime-v2-first-prose-20260722` is running with `brain-plan` and no Attempt yet | Branch `feature/runtime-v2-crown-first-prose`; no prose/model call, candidate selection, Production promotion, or provider fallback has occurred. The configured Brain call would export about 100–250 KB of private Crown settings/cards/overlays to Codex/OpenAI CLI, so security review requires informed user approval | After approval, execute only the recorded Supervisor Brain Attempt, let Brain set chapter range/length/quality thresholds, then run Writer→Reviewer→Supervisor under the same Task and complete only with all hashes/gates passing |
 
 ## Stop conditions and immediate next actions
 
