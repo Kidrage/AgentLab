@@ -19,6 +19,7 @@ from agent_runtime.task_runtime_v2 import (
 )
 from agent_runtime.knowledge_system.sources import SourceCollector
 from agent_runtime.config_loader import load_agentlab_configs
+from task_runtime_v2_support import execute_role_with_output
 
 
 _GOVERNED_PROFILE = {
@@ -33,6 +34,37 @@ _GOVERNED_PROFILE = {
 def _record_brain_plan_gates(
     runtime: TaskRuntime, tmp_path: Path, task_id: str
 ) -> None:
+    scope = {
+        "schema_version": "brain-scope-decision/v1",
+        "approved": True,
+        "chapter_start": 1,
+        "chapter_end": 1,
+        "target_cjk_chars": 3000,
+        "quality_thresholds": {"overall": 0.8},
+    }
+    plan = {
+        "schema_version": "task-execution-plan/v1",
+        "status": "approved",
+        "route": "governed_pipeline",
+        "work_items": ["writer", "reviewer"],
+    }
+    runtime.create_work_item(
+        task_id,
+        job_id="job-main",
+        work_item_id="brain-plan",
+        kind="planning",
+        title="Brain plan",
+        idempotency_key="work-brain-plan",
+    )
+    outcome = execute_role_with_output(
+        runtime,
+        tmp_path,
+        task_id=task_id,
+        work_item_id="brain-plan",
+        attempt_id="brain-plan-attempt",
+        role="Supervisor",
+        output={"brain_scope_decision": scope, "execution_plan": plan},
+    )
     staging = (
         tmp_path
         / "projects"
@@ -46,29 +78,15 @@ def _record_brain_plan_gates(
     staging.mkdir(parents=True, exist_ok=True)
     for record_type in ("brain_scope_decision", "execution_plan"):
         source = staging / f"{record_type}.yml"
-        payload = (
-            {
-                "schema_version": "brain-scope-decision/v1",
-                "approved": True,
-                "chapter_start": 1,
-                "chapter_end": 1,
-                "target_cjk_chars": 3000,
-                "quality_thresholds": {"overall": 0.8},
-            }
-            if record_type == "brain_scope_decision"
-            else {
-                "schema_version": "task-execution-plan/v1",
-                "status": "approved",
-                "route": "governed_pipeline",
-                "work_items": ["writer", "reviewer"],
-            }
-        )
+        payload = dict(scope if record_type == "brain_scope_decision" else plan)
+        payload["producer_attempt_id"] = "brain-plan-attempt"
+        payload["source_output_sha256"] = outcome["output_sha256"]
         source.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
         runtime.record_trace(
             task_id,
             record_id=f"record-{record_type}",
             record_type=record_type,
-            producer="brain",
+            producer="codex",
             producer_role="Supervisor",
             path=source,
             idempotency_key=f"record-{record_type}",
@@ -379,7 +397,7 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
 
     assert retried["attempts"]["attempt-002"]["ordinal"] == 2
     assert retried["work_items"]["chapter-001"]["active_attempt_id"] == "attempt-002"
-    assert len(retried["attempts"]) == 2
+    assert len(retried["attempts"]) == 3
 
 
 def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
@@ -402,33 +420,14 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
         idempotency_key="work-chapter-001",
     )
     _record_brain_plan_gates(runtime, tmp_path, "task-book")
-    runtime.schedule_attempt(
-        "task-book",
+    attempt_outcome = execute_role_with_output(
+        runtime,
+        tmp_path,
+        task_id="task-book",
         work_item_id="chapter-001",
         attempt_id="attempt-001",
-        worker="hermes",
-        provider="ark",
-        execution_contract={
-            "skill": "ark-chat",
-            "model_role": "writer",
-            "role": "Writer",
-            "input_tier": "L3",
-            "route": "governed_pipeline",
-        },
-        idempotency_key="attempt-001",
-    )
-    runtime.transition_attempt(
-        "task-book",
-        attempt_id="attempt-001",
-        status="running",
-        idempotency_key="attempt-running",
-    )
-    runtime.transition_attempt(
-        "task-book",
-        attempt_id="attempt-001",
-        status="succeeded",
-        idempotency_key="attempt-succeeded",
-        outcome={"duration_ms": 1200, "cost_usd": "0.04"},
+        role="Writer",
+        output={"candidate": "Only candidate text belongs here."},
     )
     artifact_path = (
         tmp_path
@@ -485,15 +484,13 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
         idempotency_key="evidence-v1",
     )
     assert bound["evidence_bindings"]["evidence-chapter-001-v1"]["version_id"] == "chapter-001-v1"
-    assert bound["evidence_bindings"]["evidence-chapter-001-v1"]["execution_receipt"] == {
-        "attempt_id": "attempt-001",
-        "worker": "hermes",
-        "provider": "ark",
-        "execution_contract_hash": bound["attempts"]["attempt-001"][
-            "execution_contract_hash"
-        ],
-        "outcome": {"duration_ms": 1200, "cost_usd": "0.04"},
-    }
+    execution_receipt = bound["evidence_bindings"]["evidence-chapter-001-v1"][
+        "execution_receipt"
+    ]
+    assert execution_receipt["attempt_id"] == "attempt-001"
+    assert execution_receipt["worker"] == "claude_code"
+    assert execution_receipt["provider"] == "deepseek"
+    assert execution_receipt["outcome"] == attempt_outcome
 
     artifact_path.write_text("a later mutable candidate revision\n", encoding="utf-8")
     assert runtime.verify_evidence("task-book")["ok"] is True

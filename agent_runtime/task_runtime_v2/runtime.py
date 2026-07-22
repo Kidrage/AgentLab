@@ -219,6 +219,13 @@ class TaskRuntime:
                 raise InvalidTransition(
                     "input classification must come from a Supervisor intake Attempt"
                 )
+            output = self._load_validated_attempt_output(
+                task_id=task_id, attempt=attempt
+            )
+            if output.get("input_profile") != input_profile:
+                raise InvalidTransition(
+                    "input classification does not match the Supervisor Attempt output"
+                )
 
         self._append_event(
             task_id=task_id,
@@ -406,6 +413,26 @@ class TaskRuntime:
                             artifact_failures.append(
                                 f"{record_id}: trace record SHA256 mismatch"
                             )
+                    classification = projection["task"].get(
+                        "input_classification"
+                    ) or {}
+                    if (
+                        projection["task"].get("legacy_source") is None
+                        and classification.get("enforcement") == "strict"
+                    ):
+                        for attempt_id, attempt in projection["attempts"].items():
+                            if attempt.get("status") != "succeeded":
+                                continue
+                            try:
+                                self._validate_attempt_execution_receipt(
+                                    task_id=task_dir.name,
+                                    attempt=attempt,
+                                    outcome=attempt.get("outcome") or {},
+                                )
+                            except (TaskRuntimeError, ValueError, OSError) as exc:
+                                artifact_failures.append(
+                                    f"{attempt_id}: invalid Attempt receipt: {exc}"
+                                )
                     reports[task_dir.name] = {
                         "ok": not artifact_failures,
                         "event_count": len(events),
@@ -824,6 +851,7 @@ class TaskRuntime:
                 raise EntityAlreadyExists(f"trace record {record_id!r} already exists")
             self._validate_trace_record(
                 record_type=record_type,
+                producer=producer,
                 producer_role=producer_role,
                 data=record_data,
                 contract=record_contract,
@@ -856,6 +884,48 @@ class TaskRuntime:
     ) -> dict[str, Any]:
         """Advance one Attempt without changing the Task identity."""
 
+        return self._transition_attempt(
+            task_id,
+            attempt_id=attempt_id,
+            status=status,
+            idempotency_key=idempotency_key,
+            outcome=outcome,
+            executed_success=False,
+        )
+
+    def _transition_executed_attempt(
+        self,
+        task_id: str,
+        *,
+        attempt_id: str,
+        status: str,
+        idempotency_key: str,
+        outcome: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Complete the private RoleAttemptExecutor success path."""
+
+        if str(status or "").strip().lower() != "succeeded":
+            raise ValueError("executed Attempt transition only accepts succeeded")
+        return self._transition_attempt(
+            task_id,
+            attempt_id=attempt_id,
+            status=status,
+            idempotency_key=idempotency_key,
+            outcome=outcome,
+            executed_success=True,
+        )
+
+    def _transition_attempt(
+        self,
+        task_id: str,
+        *,
+        attempt_id: str,
+        status: str,
+        idempotency_key: str,
+        outcome: dict[str, Any] | None,
+        executed_success: bool,
+    ) -> dict[str, Any]:
+
         task_id = _validated_id(task_id, field="task_id")
         attempt_id = _validated_id(attempt_id, field="attempt_id")
         status = str(status or "").strip().lower()
@@ -874,6 +944,21 @@ class TaskRuntime:
                 raise InvalidTransition(
                     f"attempt cannot transition from {current!r} to {status!r}"
                 )
+            classification = projection["task"].get("input_classification") or {}
+            if (
+                status == "succeeded"
+                and projection["task"].get("legacy_source") is None
+                and classification.get("enforcement") == "strict"
+            ):
+                if not executed_success:
+                    raise InvalidTransition(
+                        "strict Attempt success is owned by RoleAttemptExecutor"
+                    )
+                self._validate_attempt_execution_receipt(
+                    task_id=task_id,
+                    attempt=attempt,
+                    outcome=payload["outcome"],
+                )
             payload["from_status"] = current
 
         self._append_event(
@@ -887,6 +972,30 @@ class TaskRuntime:
             idempotency_ignored_payload_keys={"from_status"},
         )
         return self.rebuild_task(task_id)
+
+    def verify_attempt_execution_receipt(
+        self, task_id: str, attempt_id: str
+    ) -> dict[str, Any]:
+        """Revalidate one succeeded Attempt's pinned execution evidence."""
+
+        task_id = _validated_id(task_id, field="task_id")
+        attempt_id = _validated_id(attempt_id, field="attempt_id")
+        projection = self.load_task(task_id)
+        attempt = projection["attempts"].get(attempt_id)
+        if attempt is None or attempt.get("status") != "succeeded":
+            raise InvalidTransition("Attempt is not successful")
+        self._validate_attempt_execution_receipt(
+            task_id=task_id,
+            attempt=attempt,
+            outcome=attempt.get("outcome") or {},
+        )
+        return {
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "ok": True,
+            "receipt_sha256": (attempt.get("outcome") or {}).get("receipt_sha256"),
+            "output_sha256": (attempt.get("outcome") or {}).get("output_sha256"),
+        }
 
     def record_artifact_version(
         self,
@@ -1221,10 +1330,11 @@ class TaskRuntime:
             if temp.exists():
                 temp.unlink()
 
-    @staticmethod
     def _validate_trace_record(
+        self,
         *,
         record_type: str,
+        producer: str,
         producer_role: str,
         data: dict[str, Any],
         contract: dict[str, Any],
@@ -1292,6 +1402,290 @@ class TaskRuntime:
                     raise InvalidTransition(
                         f"{record_type} may only link delegated Attempts"
                     )
+                receipt_hashes_field = str(
+                    contract.get("attempt_receipt_hashes_field") or ""
+                )
+                if receipt_hashes_field and (
+                    (data.get(receipt_hashes_field) or {}).get(str(attempt_id))
+                    != (attempt.get("outcome") or {}).get("receipt_sha256")
+                ):
+                    raise InvalidTransition(
+                        f"{record_type} Attempt receipt hash does not match the ledger"
+                    )
+        producer_attempt_field = str(
+            contract.get("producer_attempt_id_field") or ""
+        )
+        if producer_attempt_field:
+            producer_attempt_id = str(data.get(producer_attempt_field) or "")
+            attempt = projection["attempts"].get(producer_attempt_id)
+            if attempt is None or attempt.get("status") != "succeeded":
+                raise InvalidTransition(
+                    f"{record_type} producer Attempt is not successful"
+                )
+            attempt_contract = attempt.get("execution_contract") or {}
+            if (
+                attempt_contract.get("role") != producer_role
+                or attempt.get("worker") != producer
+            ):
+                raise InvalidTransition(
+                    f"{record_type} producer Attempt identity does not match"
+                )
+            source_hash_field = str(
+                contract.get("source_output_sha256_field") or ""
+            )
+            source_hash = str(data.get(source_hash_field) or "")
+            if source_hash != (attempt.get("outcome") or {}).get("output_sha256"):
+                raise InvalidTransition(
+                    f"{record_type} source output hash does not match producer Attempt"
+                )
+            output = self._load_validated_attempt_output(
+                task_id=projection["task"]["task_id"], attempt=attempt
+            )
+            source_output_key = str(contract.get("source_output_key") or "")
+            source_record = output.get(source_output_key)
+            provenance_fields = {producer_attempt_field, source_hash_field}
+            recorded_decision = {
+                key: value for key, value in data.items() if key not in provenance_fields
+            }
+            if source_record != recorded_decision:
+                raise InvalidTransition(
+                    f"{record_type} does not match the producer Attempt output"
+                )
+        for link in contract.get("attempt_receipt_hash_links") or []:
+            attempt = projection["attempts"].get(
+                str(data.get(link.get("attempt_id_field")) or "")
+            )
+            allowed_link_roles = set(link.get("allowed_roles") or [])
+            attempt_role = str(
+                ((attempt or {}).get("execution_contract") or {}).get("role") or ""
+            )
+            if (
+                attempt is None
+                or attempt.get("status") != "succeeded"
+                or (allowed_link_roles and attempt_role not in allowed_link_roles)
+                or data.get(link.get("hash_field"))
+                != (attempt.get("outcome") or {}).get("receipt_sha256")
+            ):
+                raise InvalidTransition(
+                    f"{record_type} linked Attempt receipt hash does not match"
+                )
+        for link in contract.get("record_data_hash_links") or []:
+            matching = [
+                record
+                for record in projection["trace_records"].values()
+                if record.get("record_type") == link.get("record_type")
+            ]
+            if not matching:
+                raise InvalidTransition(
+                    f"{record_type} linked trace record does not exist"
+                )
+            linked_data = matching[-1].get("record_data") or {}
+            expected_hash = hashlib.sha256(
+                _canonical_json(linked_data.get(link.get("data_field"))).encode("utf-8")
+            ).hexdigest()
+            if data.get(link.get("hash_field")) != expected_hash:
+                raise InvalidTransition(
+                    f"{record_type} linked trace data hash does not match"
+                )
+        path_list_field = str(contract.get("path_list_field") or "")
+        path_hashes_field = str(contract.get("path_hashes_field") or "")
+        if path_list_field and path_hashes_field:
+            paths = data.get(path_list_field) or []
+            hashes = data.get(path_hashes_field) or {}
+            if set(paths) != set(hashes):
+                raise InvalidTransition(
+                    f"{record_type} path list and content hashes do not match"
+                )
+            project_root = (
+                self.agentlab_root / "projects" / self.project
+            ).resolve(strict=False)
+            for relative_path in paths:
+                if not isinstance(relative_path, str) or not relative_path.strip():
+                    raise InvalidTransition(
+                        f"{record_type} referenced path or hash is invalid"
+                    )
+                candidate = self.agentlab_root / relative_path
+                try:
+                    resolved = candidate.resolve(strict=True)
+                    actual_hash = hashlib.sha256(resolved.read_bytes()).hexdigest()
+                except (OSError, RuntimeError) as exc:
+                    raise InvalidTransition(
+                        f"{record_type} referenced path or hash is invalid"
+                    ) from exc
+                if (
+                    candidate.is_symlink()
+                    or not resolved.is_file()
+                    or not resolved.is_relative_to(project_root)
+                    or actual_hash != hashes.get(relative_path)
+                ):
+                    raise InvalidTransition(
+                        f"{record_type} referenced path or hash is invalid"
+                    )
+
+    def _validate_attempt_execution_receipt(
+        self,
+        *,
+        task_id: str,
+        attempt: dict[str, Any],
+        outcome: dict[str, Any],
+    ) -> None:
+        attempt_id = str(attempt["attempt_id"])
+        receipt_value = str(outcome.get("receipt_path") or "")
+        receipt_hash = str(outcome.get("receipt_sha256") or "")
+        if not receipt_value or not _SHA256.fullmatch(receipt_hash):
+            raise InvalidTransition(
+                "successful Attempt requires a hashed role-executor receipt"
+            )
+        task_root = self._task_dir(task_id).resolve(strict=False)
+        attempt_root = (task_root / "attempt_logs" / attempt_id).resolve(strict=False)
+        try:
+            receipt_candidate = task_root / receipt_value
+            receipt_path = receipt_candidate.resolve(strict=True)
+            receipt_bytes = receipt_path.read_bytes()
+            receipt = yaml.safe_load(receipt_bytes.decode("utf-8")) or {}
+        except (OSError, RuntimeError, UnicodeDecodeError, yaml.YAMLError) as exc:
+            raise InvalidTransition(
+                "Attempt execution receipt path or content is invalid"
+            ) from exc
+        if (
+            receipt_candidate.is_symlink()
+            or not receipt_path.is_relative_to(attempt_root)
+            or hashlib.sha256(receipt_bytes).hexdigest() != receipt_hash
+        ):
+            raise InvalidTransition("Attempt execution receipt path or hash is invalid")
+        contract = attempt.get("execution_contract") or {}
+        expected = {
+            "schema_version": "task-runtime-role-attempt-receipt/v1",
+            "project": self.project,
+            "task_id": task_id,
+            "work_item_id": attempt.get("work_item_id"),
+            "attempt_id": attempt_id,
+            "role": contract.get("role"),
+            "worker": attempt.get("worker"),
+            "provider": attempt.get("provider"),
+            "status": "pass",
+        }
+        if outcome.get("execution_origin") != "role_attempt_executor" or not isinstance(
+            receipt, dict
+        ) or any(
+            receipt.get(field) != value for field, value in expected.items()
+        ):
+            raise InvalidTransition("Attempt execution receipt identity is invalid")
+        output_candidate = task_root / str(receipt.get("output_path") or "")
+        try:
+            output_path = output_candidate.resolve(strict=True)
+            output_bytes = output_path.read_bytes()
+        except (OSError, RuntimeError) as exc:
+            raise InvalidTransition("Attempt output path or hash is invalid") from exc
+        output_hash = str(receipt.get("output_sha256") or "")
+        if (
+            output_candidate.is_symlink()
+            or not output_path.is_relative_to(attempt_root)
+            or not _SHA256.fullmatch(output_hash)
+            or hashlib.sha256(output_bytes).hexdigest() != output_hash
+            or outcome.get("output_sha256") != output_hash
+        ):
+            raise InvalidTransition("Attempt output path or hash is invalid")
+        model_execution = receipt.get("model_execution") or {}
+        if not isinstance(model_execution, dict):
+            raise InvalidTransition("Attempt model execution binding is missing")
+        expected_model_execution = {
+            "cli_agent": attempt.get("worker"),
+            "model_key": contract.get("model_key"),
+            "model_id": contract.get("model_id"),
+            "runtime_provider": contract.get("runtime_provider"),
+            "executor_provider": "agentlab-cli-executor",
+        }
+        if any(
+            model_execution.get(field) != value
+            for field, value in expected_model_execution.items()
+        ):
+            raise InvalidTransition("Attempt model execution route does not match")
+        model_receipt_candidate = task_root / str(model_execution.get("path") or "")
+        try:
+            model_receipt_path = model_receipt_candidate.resolve(strict=True)
+            model_receipt_bytes = model_receipt_path.read_bytes()
+            model_receipt = yaml.safe_load(model_receipt_bytes.decode("utf-8")) or {}
+        except (OSError, RuntimeError, UnicodeDecodeError, yaml.YAMLError) as exc:
+            raise InvalidTransition("Attempt model execution receipt is invalid") from exc
+        if (
+            model_receipt_candidate.is_symlink()
+            or not model_receipt_path.is_relative_to(attempt_root)
+            or hashlib.sha256(model_receipt_bytes).hexdigest()
+            != model_execution.get("sha256")
+            or not isinstance(model_receipt, dict)
+        ):
+            raise InvalidTransition("Attempt model execution receipt hash is invalid")
+        selected_provider = model_receipt.get(
+            "selected_provider", model_receipt.get("provider")
+        )
+        selected_model = model_receipt.get(
+            "selected_model_id", model_receipt.get("model")
+        )
+        profile_binding = model_receipt.get(
+            "profile_binding_verified", model_receipt.get("profile_state_verified")
+        )
+        if (
+            model_receipt.get("status") != "pass"
+            or model_receipt.get("worker") != attempt.get("worker")
+            or model_receipt.get("invocation_contract")
+            != contract.get("invocation_contract")
+            or model_receipt.get("role", contract.get("role"))
+            != contract.get("role")
+            or selected_provider != contract.get("runtime_provider")
+            or selected_model != contract.get("model_id")
+            or profile_binding is not True
+            or model_receipt.get("command_binding_verified") is not True
+            or model_receipt.get("fallback_detected") is True
+            or model_receipt.get("provider_process_started") is not True
+            or model_receipt.get("exit_code") != 0
+            or model_receipt.get("issues") not in (None, [])
+            or model_receipt.get("provider_model_binding_verified") is False
+        ):
+            raise InvalidTransition("Attempt model execution receipt did not pass")
+
+    def _load_validated_attempt_output(
+        self, *, task_id: str, attempt: dict[str, Any]
+    ) -> dict[str, Any]:
+        outcome = attempt.get("outcome") or {}
+        self._validate_attempt_execution_receipt(
+            task_id=task_id, attempt=attempt, outcome=outcome
+        )
+        task_root = self._task_dir(task_id).resolve(strict=False)
+        try:
+            receipt_path = (
+                task_root / str(outcome.get("receipt_path") or "")
+            ).resolve(strict=True)
+            receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8")) or {}
+            output_path = (
+                task_root / str(receipt.get("output_path") or "")
+            ).resolve(strict=True)
+            output = self._parse_attempt_output_mapping(
+                output_path.read_text(encoding="utf-8")
+            )
+        except (OSError, RuntimeError, UnicodeDecodeError, yaml.YAMLError) as exc:
+            raise InvalidTransition("Attempt output is not readable YAML") from exc
+        return output
+
+    @staticmethod
+    def _parse_attempt_output_mapping(content: str) -> dict[str, Any]:
+        candidates = [content]
+        marker = "\n## Output\n\n"
+        if marker in content:
+            candidates.append(content.split(marker, 1)[1].split("\n\n## stderr", 1)[0])
+        for candidate in candidates:
+            stripped = candidate.strip()
+            if stripped.startswith("```") and stripped.endswith("```"):
+                first_newline = stripped.find("\n")
+                if first_newline >= 0:
+                    stripped = stripped[first_newline + 1 : -3].strip()
+            try:
+                parsed = yaml.safe_load(stripped) or {}
+            except yaml.YAMLError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        raise InvalidTransition("Attempt output must contain a YAML mapping")
 
     @contextmanager
     def _ledger_lock(self, task_id: str) -> Iterator[None]:

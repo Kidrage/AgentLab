@@ -12,6 +12,7 @@ from agent_runtime.task_runtime_v2 import (
     TaskInputClassifier,
     TaskRuntime,
 )
+from task_runtime_v2_support import execute_role_with_output
 
 
 def test_exact_single_detail_patch_routes_to_brain_direct_with_trace(tmp_path: Path) -> None:
@@ -178,43 +179,34 @@ def test_provisional_task_accepts_only_supervisor_intake_then_records_brain_prof
         title="Brain input classification",
         idempotency_key="work-brain-intake",
     )
-    runtime.schedule_attempt(
-        "task-brain-intake",
+    input_profile = {
+        "kind": "creative_patch",
+        "scope": "localized",
+        "target_count": 1,
+        "canon_impact": "candidate",
+        "risk_flags": [],
+    }
+    execute_role_with_output(
+        runtime,
+        tmp_path,
+        task_id="task-brain-intake",
         work_item_id="brain-intake",
         attempt_id="attempt-brain-intake",
-        worker="codex",
-        provider="codex-cli",
-        execution_contract={
-            "role": "Supervisor",
-            "purpose": "input_classification",
-            "input_tier": "L3",
-            "route": "governed_pipeline",
-        },
-        idempotency_key="attempt-brain-intake",
+        role="Supervisor",
+        output={"input_profile": input_profile},
     )
-    runtime.transition_attempt(
-        "task-brain-intake",
-        attempt_id="attempt-brain-intake",
-        status="running",
-        idempotency_key="attempt-brain-intake-running",
-    )
-    runtime.transition_attempt(
-        "task-brain-intake",
-        attempt_id="attempt-brain-intake",
-        status="succeeded",
-        outcome={"receipt_hash": "b" * 64},
-        idempotency_key="attempt-brain-intake-succeeded",
-    )
+
+    with pytest.raises(InvalidTransition, match="does not match"):
+        runtime.classify_task_input(
+            "task-brain-intake",
+            input_profile={**input_profile, "target_count": 2},
+            producer_attempt_id="attempt-brain-intake",
+            idempotency_key="mismatched-brain-classification",
+        )
 
     classified = runtime.classify_task_input(
         "task-brain-intake",
-        input_profile={
-            "kind": "creative_patch",
-            "scope": "localized",
-            "target_count": 1,
-            "canon_impact": "candidate",
-            "risk_flags": [],
-        },
+        input_profile=input_profile,
         producer_attempt_id="attempt-brain-intake",
         idempotency_key="brain-classification-recorded",
     )
@@ -267,12 +259,29 @@ def test_l1_runtime_enforces_one_worker_and_route_contract(tmp_path: Path) -> No
         status="running",
         idempotency_key="attempt-one-running",
     )
+    with pytest.raises(InvalidTransition, match="owned by RoleAttemptExecutor"):
+        runtime.transition_attempt(
+            "task-worker-limit",
+            attempt_id="attempt-one",
+            status="succeeded",
+            outcome={},
+            idempotency_key="attempt-one-unverified-success",
+        )
     runtime.transition_attempt(
         "task-worker-limit",
         attempt_id="attempt-one",
-        status="succeeded",
-        outcome={"receipt": "receipt-one"},
-        idempotency_key="attempt-one-succeeded",
+        status="failed",
+        outcome={"reason": "unverified test attempt"},
+        idempotency_key="attempt-one-failed",
+    )
+    execute_role_with_output(
+        runtime,
+        tmp_path,
+        task_id="task-worker-limit",
+        work_item_id="patch-one",
+        attempt_id="attempt-one-executed",
+        role="Writer",
+        output={"candidate": "one local patch"},
     )
 
     with pytest.raises(InvalidTransition, match="one delegated worker"):
@@ -387,7 +396,10 @@ def test_brain_scope_record_requires_supervisor_ownership_and_scope_fields(
         )
 
     source.write_text(
-        "schema_version: brain-scope-decision/v1\napproved: true\n",
+        "schema_version: brain-scope-decision/v1\n"
+        "producer_attempt_id: missing-attempt\n"
+        f"source_output_sha256: {'a' * 64}\n"
+        "approved: true\n",
         encoding="utf-8",
     )
     with pytest.raises(InvalidTransition, match="chapter_start"):
@@ -399,6 +411,83 @@ def test_brain_scope_record_requires_supervisor_ownership_and_scope_fields(
             producer_role="Supervisor",
             path=source,
             idempotency_key="incomplete-brain-scope",
+        )
+
+
+def test_brain_scope_record_must_match_supervisor_attempt_output(tmp_path: Path) -> None:
+    runtime = TaskRuntime(tmp_path, project="Demo")
+    runtime.create_task(
+        task_id="task-brain-provenance",
+        title="Brain scope provenance",
+        user_goal="Bind scope decisions to the actual Brain output.",
+        input_profile={
+            "kind": "prose_build",
+            "scope": "multi_chapter",
+            "target_count": 0,
+            "canon_impact": "canonical",
+            "risk_flags": ["longform_continuity"],
+        },
+        idempotency_key="create-brain-provenance",
+    )
+    runtime.create_work_item(
+        "task-brain-provenance",
+        job_id="job-main",
+        work_item_id="brain-plan",
+        kind="planning",
+        title="Brain plan",
+        idempotency_key="work-brain-provenance",
+    )
+    output_scope = {
+        "schema_version": "brain-scope-decision/v1",
+        "approved": True,
+        "chapter_start": 1,
+        "chapter_end": 1,
+        "target_cjk_chars": 3000,
+        "quality_thresholds": {"overall": 0.8},
+    }
+    outcome = execute_role_with_output(
+        runtime,
+        tmp_path,
+        task_id="task-brain-provenance",
+        work_item_id="brain-plan",
+        attempt_id="brain-provenance-attempt",
+        role="Supervisor",
+        output={"brain_scope_decision": output_scope},
+    )
+    source = (
+        tmp_path
+        / "projects"
+        / "Demo"
+        / "runtime"
+        / "tasks"
+        / "task-brain-provenance"
+        / "records"
+        / "staging"
+        / "scope.yml"
+    )
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        yaml.safe_dump(
+            {
+                **output_scope,
+                "chapter_end": 2,
+                "producer_attempt_id": "brain-provenance-attempt",
+                "source_output_sha256": outcome["output_sha256"],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(InvalidTransition, match="does not match the producer"):
+        runtime.record_trace(
+            "task-brain-provenance",
+            record_id="mismatched-brain-scope",
+            record_type="brain_scope_decision",
+            producer="codex",
+            producer_role="Supervisor",
+            path=source,
+            idempotency_key="mismatched-brain-scope",
         )
 
 
@@ -440,6 +529,11 @@ def test_completion_requires_immutable_change_and_memory_records(tmp_path: Path)
         / "staging"
     )
     staging.mkdir(parents=True)
+    changed_file = tmp_path / "projects" / "Demo" / "candidate" / "detail.yml"
+    changed_file.parent.mkdir(parents=True, exist_ok=True)
+    changed_file.write_text("detail: retained\n", encoding="utf-8")
+    changed_path = changed_file.relative_to(tmp_path).as_posix()
+    changed_hash = hashlib.sha256(changed_file.read_bytes()).hexdigest()
     for record_type in ("change_receipt", "memory_update"):
         source = staging / f"{record_type}.yml"
         schema_version = (
@@ -455,8 +549,8 @@ def test_completion_requires_immutable_change_and_memory_records(tmp_path: Path)
                 {
                     "schema_version": schema_version,
                     "status": "pass",
-                    list_field: ["candidate/detail.yml"],
-                    "content_hashes": {"candidate/detail.yml": "a" * 64},
+                    list_field: [changed_path],
+                    "content_hashes": {changed_path: changed_hash},
                 },
                 sort_keys=False,
             ),

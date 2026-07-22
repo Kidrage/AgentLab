@@ -45,6 +45,7 @@ class TaskInputClassifier:
         self._tiers = tiers
         self._classification = classification
         self._trace_record_contracts = policy.get("trace_record_contracts") or {}
+        self._sealed_source_policy = policy.get("sealed_source_policy") or {}
 
     def classify(self, profile: Mapping[str, Any] | None) -> dict[str, Any]:
         """Return a serializable route decision derived only from declared facts."""
@@ -168,6 +169,14 @@ class TaskInputClassifier:
         if not isinstance(contract, dict):
             raise ValueError(f"unknown trace record type: {record_type}")
         return deepcopy(contract)
+
+    def sealed_source_policy(self) -> dict[str, Any]:
+        """Return the governed outbound-source boundary."""
+
+        policy = deepcopy(self._sealed_source_policy)
+        if not isinstance(policy, dict) or not policy:
+            raise ValueError("task input tier policy must define sealed_source_policy")
+        return policy
 
     def _minimum_level(
         self,

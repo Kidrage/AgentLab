@@ -65,6 +65,16 @@ copy under `artifacts/versions/<version_id>/`. Selection is blocked until an
 EvidenceBinding pins the input manifest hash, RAG index snapshot, source hashes,
 audit result, and the producer execution receipt.
 
+For strict-tier Tasks, `succeeded` is accepted only with the hashed output and
+receipt written by `attempt execute-role`; the project doctor revalidates both.
+Brain classification, scope, execution-plan, and quality records must match the
+referenced Supervisor Attempt output. Worker receipts bind the delegated Attempt
+receipt hashes, while change and memory records bind hashes of real files inside
+the owning project. Sealed outbound sources are limited to governed project
+production/Brain/reset inputs, explicitly labelled candidate run outputs, and
+hashed outputs/receipts from the same Runtime v2 Task. Candidate run files are
+never labelled as authoritative or silently promoted to production fact.
+
 This permits multiple revisions without growing one ambiguous “current state”
 file: the ledger retains history, while projections show the current selection.
 
@@ -133,7 +143,9 @@ The v2 commands are registered on `agentlab.sh`:
 
 Every mutating command requires an idempotency key, including Task
 pause/resume/cancel. A later pause after a resume must use a new key; retrying the
-same pause request reuses its original key.
+same pause request reuses its original key. For strict-tier Tasks, `attempt
+status --status succeeded` is intentionally rejected; only `attempt execute-role`
+may append a successful Attempt after validating the model-execution receipt.
 
 ## Legacy migration
 

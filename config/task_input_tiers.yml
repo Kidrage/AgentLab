@@ -1,5 +1,13 @@
 schema_version: task-input-tier-policy/v1
 
+sealed_source_policy:
+  max_total_bytes: 2097152
+  allowed_extensions: [.md, .txt, .json, .yml, .yaml]
+  project_roots: [production, project_brain, reset_manifests]
+  candidate_run_roots: [outputs, artifacts]
+  same_task_attempt_output: output.md
+  same_task_runtime_roots: [artifacts/versions, records/immutable]
+
 # Classification is fact-based. Natural-language keywords never lower a route.
 # Unknown or missing facts fail closed to L3 so the Brain must plan the work.
 tiers:
@@ -143,7 +151,12 @@ trace_record_contracts:
   brain_scope_decision:
     schema_version: brain-scope-decision/v1
     producer_roles: [Supervisor]
+    producer_attempt_id_field: producer_attempt_id
+    source_output_sha256_field: source_output_sha256
+    source_output_key: brain_scope_decision
     fields:
+      producer_attempt_id: {type: string}
+      source_output_sha256: {type: sha256}
       approved: {type: boolean, equals: true}
       chapter_start: {type: integer, minimum: 1}
       chapter_end: {type: integer, minimum: 1}
@@ -154,7 +167,12 @@ trace_record_contracts:
   execution_plan:
     schema_version: task-execution-plan/v1
     producer_roles: [Supervisor]
+    producer_attempt_id_field: producer_attempt_id
+    source_output_sha256_field: source_output_sha256
+    source_output_key: execution_plan
     fields:
+      producer_attempt_id: {type: string}
+      source_output_sha256: {type: sha256}
       status: {type: string, equals: approved}
       route: {type: string, equals: governed_pipeline}
       work_items: {type: list, minimum_items: 2}
@@ -162,6 +180,7 @@ trace_record_contracts:
     schema_version: worker-attempt-receipt/v1
     producer_roles: [Runtime]
     attempt_id_field: attempt_ids
+    attempt_receipt_hashes_field: receipt_hashes
     fields:
       status: {type: string, equals: pass}
       attempt_ids: {type: list, minimum_items: 1}
@@ -181,7 +200,17 @@ trace_record_contracts:
   quality_receipt:
     schema_version: brain-quality-receipt/v1
     producer_roles: [Supervisor]
+    producer_attempt_id_field: producer_attempt_id
+    source_output_sha256_field: source_output_sha256
+    source_output_key: quality_receipt
+    attempt_receipt_hash_links:
+      - {attempt_id_field: review_attempt_id, hash_field: review_receipt_hash, allowed_roles: [Reviewer, TesterAuditor, Verifier]}
+    record_data_hash_links:
+      - {record_type: brain_scope_decision, data_field: quality_thresholds, hash_field: quality_thresholds_hash}
     fields:
+      producer_attempt_id: {type: string}
+      source_output_sha256: {type: sha256}
+      review_attempt_id: {type: string}
       decision: {type: string, equals: pass}
       brain_acceptance: {type: boolean, equals: true}
       quality_thresholds_hash: {type: sha256}
@@ -189,6 +218,8 @@ trace_record_contracts:
   change_receipt:
     schema_version: change-receipt/v1
     producer_roles: [Supervisor, Runtime]
+    path_list_field: changed_paths
+    path_hashes_field: content_hashes
     fields:
       status: {type: string, equals: pass}
       changed_paths: {type: list, minimum_items: 1}
@@ -196,6 +227,8 @@ trace_record_contracts:
   memory_update:
     schema_version: memory-update-receipt/v1
     producer_roles: [Supervisor, Archivist, Runtime]
+    path_list_field: updated_paths
+    path_hashes_field: content_hashes
     fields:
       status: {type: string, equals: pass}
       updated_paths: {type: list, minimum_items: 1}
