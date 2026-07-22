@@ -110,6 +110,7 @@ def test_high_risk_capability_defaults_to_policy_auto_approval() -> None:
     assert decision.requires_approval is False
     assert decision.approval_mode == "auto_approved"
     assert decision.approval_grant["actor"] == "policy:default-auto"
+    assert decision.approval_grant["authorizes_execution"] is False
 
 
 def test_critical_capability_still_requires_human_approval() -> None:

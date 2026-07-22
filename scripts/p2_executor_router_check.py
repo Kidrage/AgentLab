@@ -42,6 +42,9 @@ def main(argv: list[str] | None = None) -> int:
         max_cost_usd=0.25,
         requires_review=True,
         evidence_required=["execution_result_envelope.yml", "result_summary.md", "changed_files.yml", "claimed_tests.yml"],
+        bounded_scope=True,
+        reversible=True,
+        output_dir=output_dir,
     )
     policy = load_executor_router_policy(Path(args.policy))
     if args.mode == "manual-handoff":
@@ -65,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
 
     final_status = decision.status
     if args.mode == "mock" and decision.status == "ROUTED" and plan.selected_provider_type == "mock_executor":
-        run_mock_executor(request, plan, output_dir)
+        run_mock_executor(request, plan, output_dir, Path(args.policy))
         target = ingest_execution_result(output_dir / "mock_result" / "execution_result_envelope.yml", output_dir)
         verdict = review_execution_result_with_3e(target.target_dir, output_dir / "review", ROOT / "config" / "review_policy.yml")
         final_status = verdict.status

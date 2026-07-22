@@ -8,6 +8,7 @@ import yaml
 
 from agent_runtime.atomic_io import atomic_write_text, atomic_write_yaml
 from agent_runtime.executors import ExecutionRequest, load_executor_providers, load_executor_router_policy, route_execution_request
+from agent_runtime.executors.authorization import assert_execution_plan_authorized
 from agent_runtime.executors.handoff_bridge import create_execution_plan
 from agent_runtime.executors.ledger import record_execution_event
 from agent_runtime.executors.models import ExecutionPlan, ExecutionResultEnvelope, ExecutorDecision, ExecutorProvider, to_plain_data as executor_plain
@@ -87,6 +88,18 @@ def run_acceptance_retry_loop(
             state.status = retry_decision.status
             state.final_verdict = retry_decision.status
             break
+        if decision.status == "BLOCKED_BY_POLICY":
+            retry_decision = RetryDecision(
+                "STOP_SAFETY_BLOCKED",
+                decision.reason,
+                "stop",
+                stop_reason="executor policy blocked route",
+            )
+            state.decisions.append(retry_decision)
+            state.status = retry_decision.status
+            state.final_verdict = retry_decision.status
+            _record(output_dir, state, attempt)
+            break
         if decision.status == "NEEDS_APPROVAL" or mode == "manual-handoff":
             attempt.status = "handoff_created"
             retry_decision = RetryDecision(
@@ -108,8 +121,27 @@ def run_acceptance_retry_loop(
             state.final_verdict = retry_decision.status
             _record(output_dir, state, attempt)
             break
+        if selected is None or selected.provider_type != "mock_executor":
+            retry_decision = RetryDecision(
+                "NEEDS_MANUAL_APPROVAL",
+                ["selected provider has no live executor adapter"],
+                "manual_approval",
+                next_provider_id=attempt.provider_id,
+                retry_handoff_path=attempt.execution_plan,
+            )
+            state.decisions.append(retry_decision)
+            state.status = retry_decision.status
+            state.final_verdict = retry_decision.status
+            _record(output_dir, state, attempt)
+            break
 
-        envelope = _write_mock_result(request, plan, attempt_dir, _mock_verdict_for(mode, attempt_index))
+        _write_mock_result(
+            request,
+            plan,
+            attempt_dir,
+            _mock_verdict_for(mode, attempt_index),
+            router_policy_path,
+        )
         attempt.result_envelope = _rel(output_dir, attempt_dir / "mock_result" / "execution_result_envelope.yml")
         attempt.status = "mock_executed"
         _record(output_dir, state, attempt)
@@ -196,6 +228,7 @@ def _route_attempt(
     attempt_dir: Path,
     mode: str,
 ) -> tuple[ExecutorDecision, list[ExecutorProvider], ExecutionPlan | None]:
+    request.output_dir = attempt_dir
     router_policy = load_executor_router_policy(router_policy_path)
     if mode == "manual-handoff":
         router_policy.routing["allow_mock_executor"] = False
@@ -224,7 +257,10 @@ def _write_mock_result(
     plan: ExecutionPlan,
     output_dir: Path,
     verdict: str,
+    router_policy_path: Path,
 ) -> ExecutionResultEnvelope:
+    router_policy = load_executor_router_policy(router_policy_path)
+    assert_execution_plan_authorized(request, plan, output_dir, router_policy)
     mock_dir = output_dir / "mock_result"
     mock_dir.mkdir(parents=True, exist_ok=True)
     if verdict == "PASS":

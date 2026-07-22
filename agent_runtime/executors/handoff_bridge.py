@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from agent_runtime.atomic_io import atomic_write_text, atomic_write_yaml
+from agent_runtime.executors.authorization import executor_estimated_cost
 from agent_runtime.executors.ledger import record_execution_event
 from agent_runtime.executors.models import ExecutionPlan, ExecutionRequest, ExecutorDecision, ExecutorProvider, to_plain_data
 from agent_runtime.executors.policy import ExecutorRouterPolicy
@@ -20,7 +21,7 @@ def create_execution_plan(
     provider_id = decision.selected_provider_id or "none"
     provider_type = provider.provider_type if provider else "unknown"
     execution_mode = provider.execution_mode if provider else policy.default_mode
-    estimated_cost = _estimate_cost(provider, policy)
+    estimated_cost = executor_estimated_cost(request, provider)
     plan = ExecutionPlan(
         task_id=request.task_id,
         selected_provider_id=provider_id,
@@ -33,6 +34,9 @@ def create_execution_plan(
         handoff_artifact=None,
         expected_result_envelope="execution_result_envelope.yml",
         review_required=request.requires_review or policy.routing.get("require_review_for_all_external_results", True) is True,
+        approval_mode=decision.approval_mode,
+        approval_grant=decision.approval_grant,
+        approval_request=(decision.approval_grant or {}).get("scope"),
     )
 
     if execution_mode == "manual_handoff_only" or decision.status == "NEEDS_APPROVAL":
@@ -144,12 +148,4 @@ def _find_provider(provider_id: str | None, providers: list[ExecutorProvider]) -
     for provider in providers:
         if provider.provider_id == provider_id:
             return provider
-    return None
-
-
-def _estimate_cost(provider: ExecutorProvider | None, policy: ExecutorRouterPolicy) -> float | None:
-    if provider is None:
-        return None
-    if provider.cost_mode == "none" or provider.expected_cost_tier == "free":
-        return 0.0
     return None

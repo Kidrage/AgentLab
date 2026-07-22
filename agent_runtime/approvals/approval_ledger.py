@@ -67,6 +67,8 @@ class ApprovalLedger:
     def _update_decision(self, decision_id: str, status: str, actor: str, reason: str):
         for c in self.approvals:
             if c.decision_id == decision_id:
+                if status == "approved" and c.authorization.get("decision_mode") == "forbidden":
+                    return False
                 c.status = status
                 c.updated_at = datetime.utcnow().isoformat()
                 self.events.append({

@@ -33,6 +33,7 @@ def test_role_preferences_and_coder_fallback() -> None:
     assert coder.approval_required is False
     assert coder.approval_mode == "auto_approved"
     assert coder.approval_grant["actor"] == "policy:default-auto"
+    assert coder.approval_grant["authorizes_execution"] is False
     assert coder.activation_decision == "activate"
     assert any(item.worker == "claude_code" for item in coder.rejected_workers)
 

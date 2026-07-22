@@ -5,16 +5,16 @@ from agent_runtime.approvals.policy_engine import decide_approval
 
 def evaluate_risk(task_packet: Dict[str, Any], policy: ApprovalPolicy) -> List[DecisionCard]:
     """Evaluate a runtime packet and return its auditable policy decision card."""
-    capabilities = list(task_packet.get("required_capabilities", []))
+    capabilities = task_packet.get("required_capabilities")
     decision = decide_approval(
         {
-            "action": task_packet.get("action", "task_execution"),
+            "action": task_packet.get("action", ""),
             "task_id": task_packet.get("task_id", ""),
             "project": task_packet.get("project", ""),
             "capabilities": capabilities,
-            "bounded_scope": task_packet.get("bounded_scope", True),
-            "reversible": task_packet.get("reversible", True),
-            "cost_visibility": task_packet.get("cost_visibility", "known"),
+            "bounded_scope": task_packet.get("bounded_scope"),
+            "reversible": task_packet.get("reversible"),
+            "cost_visibility": task_packet.get("cost_visibility", "unknown"),
             "estimated_cost_usd": task_packet.get("estimated_cost_usd", 0.0),
         },
         policy,
@@ -40,7 +40,7 @@ def evaluate_risk(task_packet: Dict[str, Any], policy: ApprovalPolicy) -> List[D
         requested_by=grant.get("actor", "system"),
         task_id=task_packet.get("task_id", ""),
         project=task_packet.get("project", ""),
-        capabilities=capabilities,
+        capabilities=list(capabilities or []),
         estimated_cost_usd=task_packet.get("estimated_cost_usd", 0.0),
         expires_at=grant.get("expires_at", ""),
         authorization={"decision_mode": decision.mode, **grant},

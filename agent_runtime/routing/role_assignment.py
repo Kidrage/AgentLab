@@ -301,6 +301,7 @@ class RoleAssignmentEngine:
                 "task_id": task_id,
                 "bounded_scope": True,
                 "scope_binding": "runtime_recheck",
+                "runtime_recheck_required": True,
                 "allowed_files": (constraints or {}).get("allowed_files", []),
             },
         )

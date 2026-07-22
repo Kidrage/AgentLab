@@ -71,6 +71,7 @@ class PermissionGate:
                     ],
                     "bounded_scope": True,
                     "scope_binding": "runtime_recheck",
+                    "runtime_recheck_required": not bool(request_context),
                     "reversible": True,
                     "estimated_cost_usd": 0.0,
                     **context,

@@ -23,7 +23,7 @@ executor_router:
     unknown_cost_requires_approval: true
 
   safety:
-    forbid_network_execution: true
+    forbid_network_execution: false
     forbid_remote_clone: true
     forbid_external_script_execution: true
     forbid_secret_exposure: true

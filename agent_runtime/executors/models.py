@@ -67,8 +67,11 @@ class ExecutionRequest:
     requires_review: bool = True
     evidence_required: list[str] = field(default_factory=list)
     approval_action: str = "external_execution"
-    bounded_scope: bool = True
+    bounded_scope: bool = False
+    reversible: Optional[bool] = None
     contains_private_data: bool = False
+    contains_secrets: bool = False
+    output_dir: Optional[Path] = None
 
 
 @dataclass
@@ -84,6 +87,9 @@ class ExecutionPlan:
     handoff_artifact: Optional[str] = None
     expected_result_envelope: str = "execution_result_envelope.yml"
     review_required: bool = True
+    approval_mode: str = "not_required"
+    approval_grant: Optional[dict[str, Any]] = None
+    approval_request: Optional[dict[str, Any]] = None
 
 
 @dataclass
