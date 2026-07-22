@@ -453,6 +453,31 @@ def test_transient_retry_wait_resumes_without_spending_failure_retry(tmp_path: P
     assert state["retry_at"] is None
 
 
+def test_successful_action_clears_its_consumed_failure_retries(tmp_path: Path) -> None:
+    _create_job(tmp_path)
+    _pass_preflight(tmp_path)
+    schedule_next_attempt(
+        tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
+    )
+    failed = _complete_active(
+        tmp_path,
+        outcome="failed_recoverable",
+        result={"status": "blocked", "reason": "transient_writer_failure"},
+    )
+    assert failed["retry_counts"]["generate_batch"] == 1
+
+    schedule_next_attempt(
+        tmp_path, project="Crown_of_Ash", job_id="crown-200-v3", now=NOW
+    )
+    recovered = _complete_active(
+        tmp_path,
+        result={"status": "pass", "completed_chapter_count": 10},
+    )
+
+    assert recovered["status"] == "deterministic_check"
+    assert recovered["retry_counts"].get("generate_batch") is None
+
+
 def test_blocking_heavy_audit_requires_rewrite_then_deterministic_reaudit(
     tmp_path: Path,
 ) -> None:

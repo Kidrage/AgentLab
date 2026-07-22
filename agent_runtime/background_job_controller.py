@@ -979,6 +979,7 @@ def consume_process_receipt(
     result = receipt.get("result") if isinstance(receipt.get("result"), dict) else {}
     if outcome == "success":
         state.setdefault("last_action_results", {})[action] = result
+        state.setdefault("retry_counts", {}).pop(action, None)
         state["retry_action"] = None
         state["last_error"] = None
         _successful_transition(state, action, result, timestamp)
