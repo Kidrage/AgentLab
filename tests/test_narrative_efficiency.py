@@ -580,6 +580,32 @@ def test_deterministic_precheck_accepts_established_timeline_identifier(
     assert result["status"] == "pass"
 
 
+def test_deterministic_precheck_accepts_canonical_worldline_timeline_id(
+    tmp_path,
+) -> None:
+    chapter = tmp_path / "chapter_020.md"
+    chapter.write_text("A valid candidate scene.\n", encoding="utf-8")
+    result = run_deterministic_precheck(
+        {
+            "manifest_version": 1,
+            "chapters": [
+                {
+                    "chapter_id": 20,
+                    "artifact_path": "chapter_020.md",
+                    "artifact_sha256": hashlib.sha256(chapter.read_bytes()).hexdigest(),
+                    "pov": "char_kain",
+                    "timeline_slot": "mainline_t0020_night",
+                }
+            ],
+        },
+        source_root=tmp_path,
+        required_chapters=[20],
+        expected_manifest_version=1,
+    )
+
+    assert result["status"] == "pass"
+
+
 def test_deterministic_precheck_accepts_legacy_chinese_timeline_description(
     tmp_path,
 ) -> None:
