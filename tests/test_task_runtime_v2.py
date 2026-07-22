@@ -46,12 +46,30 @@ def _record_brain_plan_gates(
     staging.mkdir(parents=True, exist_ok=True)
     for record_type in ("brain_scope_decision", "execution_plan"):
         source = staging / f"{record_type}.yml"
-        source.write_text(f"record_type: {record_type}\nstatus: pass\n", encoding="utf-8")
+        payload = (
+            {
+                "schema_version": "brain-scope-decision/v1",
+                "approved": True,
+                "chapter_start": 1,
+                "chapter_end": 1,
+                "target_cjk_chars": 3000,
+                "quality_thresholds": {"overall": 0.8},
+            }
+            if record_type == "brain_scope_decision"
+            else {
+                "schema_version": "task-execution-plan/v1",
+                "status": "approved",
+                "route": "governed_pipeline",
+                "work_items": ["writer", "reviewer"],
+            }
+        )
+        source.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
         runtime.record_trace(
             task_id,
             record_id=f"record-{record_type}",
             record_type=record_type,
             producer="brain",
+            producer_role="Supervisor",
             path=source,
             idempotency_key=f"record-{record_type}",
         )

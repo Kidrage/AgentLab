@@ -183,6 +183,58 @@ class TaskRuntime:
             )
         return self.rebuild_task(task_id)
 
+    def classify_task_input(
+        self,
+        task_id: str,
+        *,
+        input_profile: dict[str, Any],
+        producer_attempt_id: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Accept a complete profile returned by a successful Brain intake Attempt."""
+
+        task_id = _validated_id(task_id, field="task_id")
+        producer_attempt_id = _validated_id(
+            producer_attempt_id, field="producer_attempt_id"
+        )
+        if not isinstance(input_profile, dict):
+            raise ValueError("input_profile must be a mapping")
+        classification = TaskInputClassifier(self.agentlab_root).classify(input_profile)
+        if not classification.get("admission_ready"):
+            raise InvalidTransition("Brain input classification is still incomplete")
+
+        def validate(projection: dict[str, Any]) -> None:
+            current = projection["task"].get("input_classification") or {}
+            if current.get("admission_ready"):
+                raise InvalidTransition("Task input classification is already admitted")
+            attempt = projection["attempts"].get(producer_attempt_id)
+            if attempt is None or attempt.get("status") != "succeeded":
+                raise InvalidTransition(
+                    "input classification requires a successful producer Attempt"
+                )
+            contract = attempt.get("execution_contract") or {}
+            if contract.get("role") != "Supervisor" or contract.get(
+                "purpose"
+            ) != "input_classification":
+                raise InvalidTransition(
+                    "input classification must come from a Supervisor intake Attempt"
+                )
+
+        self._append_event(
+            task_id=task_id,
+            event_type="TASK_INPUT_CLASSIFIED",
+            entity_type="task",
+            entity_id=task_id,
+            idempotency_key=idempotency_key,
+            payload={
+                "input_profile": dict(input_profile),
+                "input_classification": classification,
+                "producer_attempt_id": producer_attempt_id,
+            },
+            validate_projection=validate,
+        )
+        return self.rebuild_task(task_id)
+
     def rebuild_task(self, task_id: str) -> dict[str, Any]:
         """Validate the ledger and deterministically replace all task projections."""
 
@@ -420,6 +472,33 @@ class TaskRuntime:
                         "task completion has missing required trace records: "
                         + ", ".join(missing_records)
                     )
+                gate_evidence = classification.get("gate_evidence") or {}
+                uncovered_gates = sorted(
+                    gate
+                    for gate in classification.get("validation_gates") or []
+                    if gate_evidence.get(gate) not in available_records
+                )
+                if uncovered_gates:
+                    raise InvalidTransition(
+                        "task completion has validation gates without evidence: "
+                        + ", ".join(uncovered_gates)
+                    )
+                successful_delegated_attempts = sum(
+                    attempt["status"] == "succeeded"
+                    and str(
+                        (attempt.get("execution_contract") or {}).get("role") or ""
+                    )
+                    != "Supervisor"
+                    for attempt in projection["attempts"].values()
+                )
+                minimum_attempts = int(
+                    classification.get("minimum_successful_delegated_attempts") or 0
+                )
+                if successful_delegated_attempts < minimum_attempts:
+                    raise InvalidTransition(
+                        "task completion requires successful delegated Attempts: "
+                        f"{successful_delegated_attempts}/{minimum_attempts}"
+                    )
         self._append_event(
             task_id=task_id,
             event_type="TASK_STATUS_CHANGED",
@@ -619,7 +698,12 @@ class TaskRuntime:
                 )
             classification = projection["task"].get("input_classification") or {}
             if projection["task"].get("legacy_source") is None:
-                if not classification.get("admission_ready"):
+                role = str(execution_contract.get("role") or "")
+                brain_intake = (
+                    role == "Supervisor"
+                    and execution_contract.get("purpose") == "input_classification"
+                )
+                if not classification.get("admission_ready") and not brain_intake:
                     raise InvalidTransition(
                         "execution requires a complete Brain input classification"
                     )
@@ -631,14 +715,13 @@ class TaskRuntime:
                     raise InvalidTransition(
                         "execution contract route does not match Task classification"
                     )
-                role = str(execution_contract.get("role") or "")
                 if not role:
                     raise InvalidTransition("execution contract must declare its AgentLab role")
                 delegated = role != "Supervisor"
-                tier = str(classification.get("tier") or "")
-                if tier == "L0" and delegated:
-                    raise InvalidTransition("L0 permits Brain-direct execution only")
-                if tier in {"L1", "L2"} and delegated:
+                delegation_mode = str(classification.get("delegation_mode") or "")
+                if delegation_mode == "brain_only" and delegated:
+                    raise InvalidTransition("this tier permits Brain-direct execution only")
+                if delegation_mode == "single_worker_identity" and delegated:
                     delegated_workers = {
                         (attempt["worker"], attempt["provider"])
                         for attempt in projection["attempts"].values()
@@ -649,18 +732,19 @@ class TaskRuntime:
                     }
                     if delegated_workers and (worker, provider) not in delegated_workers:
                         raise InvalidTransition(
-                            f"{tier} permits one delegated worker identity"
+                            "this tier permits one delegated worker identity"
                         )
-                if tier == "L3" and delegated:
+                pre_worker_records = set(
+                    classification.get("pre_worker_records") or []
+                )
+                if pre_worker_records and delegated:
                     record_types = {
                         record["record_type"]
                         for record in projection["trace_records"].values()
                     }
-                    if not {"brain_scope_decision", "execution_plan"}.issubset(
-                        record_types
-                    ):
+                    if not pre_worker_records.issubset(record_types):
                         raise InvalidTransition(
-                            "L3 Worker execution requires Brain scope and execution plan records"
+                            "Worker execution requires Brain scope and execution plan records"
                         )
             active = work_item.get("active_attempt_id")
             if active:
@@ -691,6 +775,7 @@ class TaskRuntime:
         record_id: str,
         record_type: str,
         producer: str,
+        producer_role: str,
         path: Path,
         idempotency_key: str,
         metadata: dict[str, Any] | None = None,
@@ -701,6 +786,7 @@ class TaskRuntime:
         record_id = _validated_id(record_id, field="record_id")
         record_type = _validated_id(record_type, field="record_type")
         producer = _validated_id(producer, field="producer")
+        producer_role = _validated_id(producer_role, field="producer_role")
         if metadata is not None and not isinstance(metadata, dict):
             raise ValueError("metadata must be a mapping")
         resolved_path = Path(path).resolve(strict=True)
@@ -710,20 +796,39 @@ class TaskRuntime:
         if not resolved_path.is_relative_to(staging_root):
             raise ValueError("trace record source must be inside records/staging")
         content = resolved_path.read_bytes()
+        try:
+            record_data = yaml.safe_load(content.decode("utf-8")) or {}
+        except (UnicodeDecodeError, yaml.YAMLError) as exc:
+            raise ValueError("trace record must be valid UTF-8 YAML") from exc
+        if not isinstance(record_data, dict):
+            raise ValueError("trace record payload must be a mapping")
+        record_contract = TaskInputClassifier(self.agentlab_root).trace_record_contract(
+            record_type
+        )
         destination = immutable_root / record_id / f"payload{resolved_path.suffix or '.bin'}"
         payload = {
             "record_type": record_type,
             "producer": producer,
+            "producer_role": producer_role,
             "source_path": resolved_path.relative_to(self._task_dir(task_id)).as_posix(),
             "path": destination.relative_to(self._task_dir(task_id)).as_posix(),
             "size_bytes": len(content),
             "sha256": hashlib.sha256(content).hexdigest(),
             "metadata": metadata or {},
+            "record_contract": record_contract,
+            "record_data": record_data,
         }
 
         def validate(projection: dict[str, Any]) -> None:
             if record_id in projection["trace_records"]:
                 raise EntityAlreadyExists(f"trace record {record_id!r} already exists")
+            self._validate_trace_record(
+                record_type=record_type,
+                producer_role=producer_role,
+                data=record_data,
+                contract=record_contract,
+                projection=projection,
+            )
             current = resolved_path.read_bytes()
             if hashlib.sha256(current).hexdigest() != payload["sha256"]:
                 raise TaskRuntimeError("trace record source changed while recording")
@@ -1116,6 +1221,78 @@ class TaskRuntime:
             if temp.exists():
                 temp.unlink()
 
+    @staticmethod
+    def _validate_trace_record(
+        *,
+        record_type: str,
+        producer_role: str,
+        data: dict[str, Any],
+        contract: dict[str, Any],
+        projection: dict[str, Any],
+    ) -> None:
+        if data.get("schema_version") != contract.get("schema_version"):
+            raise InvalidTransition(
+                f"{record_type} schema_version does not match its policy contract"
+            )
+        allowed_roles = set(contract.get("producer_roles") or [])
+        if producer_role not in allowed_roles:
+            raise InvalidTransition(
+                f"{record_type} cannot be produced by role {producer_role!r}"
+            )
+        type_checks = {
+            "string": lambda value: isinstance(value, str),
+            "integer": lambda value: isinstance(value, int)
+            and not isinstance(value, bool),
+            "boolean": lambda value: isinstance(value, bool),
+            "list": lambda value: isinstance(value, list),
+            "mapping": lambda value: isinstance(value, dict),
+            "sha256": lambda value: isinstance(value, str)
+            and bool(_SHA256.fullmatch(value)),
+        }
+        for field, rules in (contract.get("fields") or {}).items():
+            rules = rules or {}
+            value = data.get(field)
+            expected_type = str(rules.get("type") or "")
+            checker = type_checks.get(expected_type)
+            if checker is None or not checker(value):
+                raise InvalidTransition(
+                    f"{record_type}.{field} must satisfy type {expected_type!r}"
+                )
+            if "equals" in rules and value != rules["equals"]:
+                raise InvalidTransition(
+                    f"{record_type}.{field} does not match its required value"
+                )
+            if "minimum" in rules and value < rules["minimum"]:
+                raise InvalidTransition(
+                    f"{record_type}.{field} is below its minimum"
+                )
+            if "minimum_items" in rules and len(value) < rules["minimum_items"]:
+                raise InvalidTransition(
+                    f"{record_type}.{field} has too few items"
+                )
+        for relation in contract.get("relations") or []:
+            left = data.get(relation.get("left"))
+            right = data.get(relation.get("right"))
+            if relation.get("operator") == "gte_field" and not left >= right:
+                raise InvalidTransition(
+                    f"{record_type} field relation is not satisfied"
+                )
+        attempt_id_field = str(contract.get("attempt_id_field") or "")
+        if attempt_id_field:
+            for attempt_id in data.get(attempt_id_field) or []:
+                attempt = projection["attempts"].get(str(attempt_id))
+                if attempt is None or attempt.get("status") != "succeeded":
+                    raise InvalidTransition(
+                        f"{record_type} references a non-successful Attempt"
+                    )
+                role = str(
+                    (attempt.get("execution_contract") or {}).get("role") or ""
+                )
+                if role == "Supervisor":
+                    raise InvalidTransition(
+                        f"{record_type} may only link delegated Attempts"
+                    )
+
     @contextmanager
     def _ledger_lock(self, task_id: str) -> Iterator[None]:
         lock_root = self.tasks_root.parent / ".locks"
@@ -1309,6 +1486,33 @@ class TaskRuntime:
                 task["status"] = to_status
                 task["updated_at"] = event["recorded_at"]
                 continue
+            if event["event_type"] == "TASK_INPUT_CLASSIFIED":
+                if task is None:
+                    raise LedgerIntegrityError(
+                        "input classification precedes TASK_CREATED"
+                    )
+                attempt_id = _validated_id(
+                    event["payload"].get("producer_attempt_id"),
+                    field="producer_attempt_id",
+                )
+                attempt = attempts.get(attempt_id)
+                if attempt is None or attempt.get("status") != "succeeded":
+                    raise LedgerIntegrityError(
+                        "input classification producer is not succeeded"
+                    )
+                contract = attempt.get("execution_contract") or {}
+                if contract.get("role") != "Supervisor" or contract.get(
+                    "purpose"
+                ) != "input_classification":
+                    raise LedgerIntegrityError(
+                        "input classification producer is not a Supervisor intake"
+                    )
+                task["input_classification"] = event["payload"][
+                    "input_classification"
+                ]
+                task["input_classification_attempt_id"] = attempt_id
+                task["updated_at"] = event["recorded_at"]
+                continue
             if event["event_type"] == "WORK_ITEM_CREATED":
                 if task is None:
                     raise LedgerIntegrityError("work item precedes TASK_CREATED")
@@ -1463,11 +1667,14 @@ class TaskRuntime:
                     "record_id": record_id,
                     "record_type": event["payload"]["record_type"],
                     "producer": event["payload"]["producer"],
+                    "producer_role": event["payload"]["producer_role"],
                     "source_path": event["payload"].get("source_path"),
                     "path": event["payload"]["path"],
                     "size_bytes": event["payload"]["size_bytes"],
                     "sha256": event["payload"]["sha256"],
                     "metadata": event["payload"].get("metadata") or {},
+                    "record_contract": event["payload"].get("record_contract") or {},
+                    "record_data": event["payload"].get("record_data") or {},
                     "created_at": event["recorded_at"],
                 }
                 continue

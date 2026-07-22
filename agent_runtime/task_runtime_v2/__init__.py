@@ -14,6 +14,7 @@ from .runtime import (
 from .migration import LegacyRunMigrator, MigrationPlanChanged
 from .retention import AttemptLogRetention, RetentionPlanChanged
 from .input_tiers import TaskInputClassifier
+from .role_executor import RoleAttemptExecutor
 
 __all__ = [
     "ActiveAttemptExists",
@@ -30,4 +31,5 @@ __all__ = [
     "TaskRuntime",
     "TaskRuntimeError",
     "TaskInputClassifier",
+    "RoleAttemptExecutor",
 ]

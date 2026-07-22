@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from agent_runtime.task_runtime_v2 import (
     InvalidTransition,
@@ -159,6 +160,69 @@ def test_partial_profile_cannot_fail_open_to_direct_patch(tmp_path: Path) -> Non
     assert "missing_required_fact:risk_flags" in decision["escalation_reasons"]
 
 
+def test_provisional_task_accepts_only_supervisor_intake_then_records_brain_profile(
+    tmp_path: Path,
+) -> None:
+    runtime = TaskRuntime(tmp_path, project="Demo")
+    runtime.create_task(
+        task_id="task-brain-intake",
+        title="Brain intake",
+        user_goal="Decide whether this one local detail needs a Worker.",
+        idempotency_key="create-brain-intake",
+    )
+    runtime.create_work_item(
+        "task-brain-intake",
+        job_id="job-main",
+        work_item_id="brain-intake",
+        kind="intake",
+        title="Brain input classification",
+        idempotency_key="work-brain-intake",
+    )
+    runtime.schedule_attempt(
+        "task-brain-intake",
+        work_item_id="brain-intake",
+        attempt_id="attempt-brain-intake",
+        worker="codex",
+        provider="codex-cli",
+        execution_contract={
+            "role": "Supervisor",
+            "purpose": "input_classification",
+            "input_tier": "L3",
+            "route": "governed_pipeline",
+        },
+        idempotency_key="attempt-brain-intake",
+    )
+    runtime.transition_attempt(
+        "task-brain-intake",
+        attempt_id="attempt-brain-intake",
+        status="running",
+        idempotency_key="attempt-brain-intake-running",
+    )
+    runtime.transition_attempt(
+        "task-brain-intake",
+        attempt_id="attempt-brain-intake",
+        status="succeeded",
+        outcome={"receipt_hash": "b" * 64},
+        idempotency_key="attempt-brain-intake-succeeded",
+    )
+
+    classified = runtime.classify_task_input(
+        "task-brain-intake",
+        input_profile={
+            "kind": "creative_patch",
+            "scope": "localized",
+            "target_count": 1,
+            "canon_impact": "candidate",
+            "risk_flags": [],
+        },
+        producer_attempt_id="attempt-brain-intake",
+        idempotency_key="brain-classification-recorded",
+    )
+
+    assert classified["task"]["input_classification"]["tier"] == "L1"
+    assert classified["task"]["input_classification"]["admission_ready"] is True
+
+
 def test_l1_runtime_enforces_one_worker_and_route_contract(tmp_path: Path) -> None:
     runtime = TaskRuntime(tmp_path, project="Demo")
     runtime.create_task(
@@ -267,6 +331,77 @@ def test_l3_blocks_writer_until_brain_plan_records_exist(tmp_path: Path) -> None
         )
 
 
+def test_brain_scope_record_requires_supervisor_ownership_and_scope_fields(
+    tmp_path: Path,
+) -> None:
+    runtime = TaskRuntime(tmp_path, project="Demo")
+    runtime.create_task(
+        task_id="task-brain-owned",
+        title="Brain-owned scope",
+        user_goal="Require a genuine Brain scope decision.",
+        input_profile={
+            "kind": "prose_build",
+            "scope": "multi_chapter",
+            "target_count": 0,
+            "canon_impact": "canonical",
+            "risk_flags": ["longform_continuity"],
+        },
+        idempotency_key="create-brain-owned",
+    )
+    source = (
+        tmp_path
+        / "projects"
+        / "Demo"
+        / "runtime"
+        / "tasks"
+        / "task-brain-owned"
+        / "records"
+        / "staging"
+        / "scope.yml"
+    )
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "brain-scope-decision/v1",
+                "approved": True,
+                "chapter_start": 1,
+                "chapter_end": 1,
+                "target_cjk_chars": 3000,
+                "quality_thresholds": {"overall": 0.8},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(InvalidTransition, match="cannot be produced by role"):
+        runtime.record_trace(
+            "task-brain-owned",
+            record_id="fake-writer-scope",
+            record_type="brain_scope_decision",
+            producer="claude_code",
+            producer_role="Writer",
+            path=source,
+            idempotency_key="fake-writer-scope",
+        )
+
+    source.write_text(
+        "schema_version: brain-scope-decision/v1\napproved: true\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(InvalidTransition, match="chapter_start"):
+        runtime.record_trace(
+            "task-brain-owned",
+            record_id="incomplete-brain-scope",
+            record_type="brain_scope_decision",
+            producer="codex",
+            producer_role="Supervisor",
+            path=source,
+            idempotency_key="incomplete-brain-scope",
+        )
+
+
 def test_completion_requires_immutable_change_and_memory_records(tmp_path: Path) -> None:
     runtime = TaskRuntime(tmp_path, project="Demo")
     runtime.create_task(
@@ -307,12 +442,32 @@ def test_completion_requires_immutable_change_and_memory_records(tmp_path: Path)
     staging.mkdir(parents=True)
     for record_type in ("change_receipt", "memory_update"):
         source = staging / f"{record_type}.yml"
-        source.write_text(f"record_type: {record_type}\nstatus: pass\n", encoding="utf-8")
+        schema_version = (
+            "change-receipt/v1"
+            if record_type == "change_receipt"
+            else "memory-update-receipt/v1"
+        )
+        list_field = (
+            "changed_paths" if record_type == "change_receipt" else "updated_paths"
+        )
+        source.write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": schema_version,
+                    "status": "pass",
+                    list_field: ["candidate/detail.yml"],
+                    "content_hashes": {"candidate/detail.yml": "a" * 64},
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
         runtime.record_trace(
             "task-direct",
             record_id=f"record-{record_type}",
             record_type=record_type,
             producer="brain",
+            producer_role="Supervisor",
             path=source,
             idempotency_key=f"record-{record_type}",
         )

@@ -165,7 +165,13 @@ def test_trace_cli_records_immutable_memory_receipt(tmp_path: Path) -> None:
         / "memory.yml"
     )
     source.parent.mkdir(parents=True)
-    source.write_text("status: pass\n", encoding="utf-8")
+    source.write_text(
+        "schema_version: memory-update-receipt/v1\n"
+        "status: pass\n"
+        "updated_paths: [candidate/detail.yml]\n"
+        f"content_hashes: {{candidate/detail.yml: {'a' * 64}}}\n",
+        encoding="utf-8",
+    )
 
     recorded = runner.invoke(
         app,
@@ -182,6 +188,8 @@ def test_trace_cli_records_immutable_memory_receipt(tmp_path: Path) -> None:
             "memory_update",
             "--producer",
             "brain",
+            "--producer-role",
+            "Supervisor",
             "--path",
             str(source),
             "--idempotency-key",

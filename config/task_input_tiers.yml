@@ -7,6 +7,9 @@ tiers:
     label: exact_micro_patch
     route: brain_direct
     worker_limit: 0
+    delegation_mode: brain_only
+    minimum_successful_delegated_attempts: 0
+    pre_worker_records: []
     brain_decision_required: false
     full_audit_required: false
     validation_gates:
@@ -16,10 +19,16 @@ tiers:
       - input_classification
       - change_receipt
       - memory_update
+    gate_evidence:
+      schema_validation: change_receipt
+      targeted_diff_check: change_receipt
   L1:
     label: local_creative_patch
     route: single_worker
     worker_limit: 1
+    delegation_mode: single_worker_identity
+    minimum_successful_delegated_attempts: 1
+    pre_worker_records: []
     brain_decision_required: false
     full_audit_required: false
     validation_gates:
@@ -29,12 +38,20 @@ tiers:
     required_records:
       - input_classification
       - worker_attempt_receipt
+      - local_validation_receipt
       - change_receipt
       - memory_update
+    gate_evidence:
+      schema_validation: change_receipt
+      targeted_diff_check: change_receipt
+      local_quality_check: local_validation_receipt
   L2:
     label: guarded_local_patch
     route: single_worker_checked
     worker_limit: 1
+    delegation_mode: single_worker_identity
+    minimum_successful_delegated_attempts: 1
+    pre_worker_records: []
     brain_decision_required: false
     full_audit_required: false
     validation_gates:
@@ -48,10 +65,20 @@ tiers:
       - targeted_validation_receipt
       - change_receipt
       - memory_update
+    gate_evidence:
+      schema_validation: change_receipt
+      targeted_diff_check: change_receipt
+      targeted_continuity_check: targeted_validation_receipt
+      local_quality_check: targeted_validation_receipt
   L3:
     label: governed_pipeline
     route: governed_pipeline
     worker_limit: null
+    delegation_mode: governed_multi_worker
+    minimum_successful_delegated_attempts: 2
+    pre_worker_records:
+      - brain_scope_decision
+      - execution_plan
     brain_decision_required: true
     full_audit_required: true
     validation_gates:
@@ -64,11 +91,17 @@ tiers:
       - input_classification
       - brain_scope_decision
       - execution_plan
-      - worker_attempt_receipts
+      - worker_attempt_receipt
       - quality_receipt
       - evidence_binding
       - change_receipt
       - memory_update
+    gate_evidence:
+      brain_plan_gate: brain_scope_decision
+      input_snapshot_gate: execution_plan
+      full_quality_gate: quality_receipt
+      continuity_gate: quality_receipt
+      evidence_selection_gate: evidence_binding
 
 classification:
   kind_minimum:
@@ -105,3 +138,65 @@ classification:
     l0_max: 1
     l1_max: 3
     l2_max: 3
+
+trace_record_contracts:
+  brain_scope_decision:
+    schema_version: brain-scope-decision/v1
+    producer_roles: [Supervisor]
+    fields:
+      approved: {type: boolean, equals: true}
+      chapter_start: {type: integer, minimum: 1}
+      chapter_end: {type: integer, minimum: 1}
+      target_cjk_chars: {type: integer, minimum: 1000}
+      quality_thresholds: {type: mapping, minimum_items: 1}
+    relations:
+      - {left: chapter_end, operator: gte_field, right: chapter_start}
+  execution_plan:
+    schema_version: task-execution-plan/v1
+    producer_roles: [Supervisor]
+    fields:
+      status: {type: string, equals: approved}
+      route: {type: string, equals: governed_pipeline}
+      work_items: {type: list, minimum_items: 2}
+  worker_attempt_receipt:
+    schema_version: worker-attempt-receipt/v1
+    producer_roles: [Runtime]
+    attempt_id_field: attempt_ids
+    fields:
+      status: {type: string, equals: pass}
+      attempt_ids: {type: list, minimum_items: 1}
+      receipt_hashes: {type: mapping, minimum_items: 1}
+  local_validation_receipt:
+    schema_version: local-validation-receipt/v1
+    producer_roles: [Supervisor, TesterAuditor, Runtime]
+    fields:
+      status: {type: string, equals: pass}
+      checks: {type: list, minimum_items: 1}
+  targeted_validation_receipt:
+    schema_version: targeted-validation-receipt/v1
+    producer_roles: [Supervisor, TesterAuditor, Runtime]
+    fields:
+      status: {type: string, equals: pass}
+      checks: {type: list, minimum_items: 1}
+  quality_receipt:
+    schema_version: brain-quality-receipt/v1
+    producer_roles: [Supervisor]
+    fields:
+      decision: {type: string, equals: pass}
+      brain_acceptance: {type: boolean, equals: true}
+      quality_thresholds_hash: {type: sha256}
+      review_receipt_hash: {type: sha256}
+  change_receipt:
+    schema_version: change-receipt/v1
+    producer_roles: [Supervisor, Runtime]
+    fields:
+      status: {type: string, equals: pass}
+      changed_paths: {type: list, minimum_items: 1}
+      content_hashes: {type: mapping, minimum_items: 1}
+  memory_update:
+    schema_version: memory-update-receipt/v1
+    producer_roles: [Supervisor, Archivist, Runtime]
+    fields:
+      status: {type: string, equals: pass}
+      updated_paths: {type: list, minimum_items: 1}
+      content_hashes: {type: mapping, minimum_items: 1}

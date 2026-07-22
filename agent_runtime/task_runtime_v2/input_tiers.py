@@ -44,6 +44,7 @@ class TaskInputClassifier:
             raise ValueError("task input tier policy must define L0 through L3")
         self._tiers = tiers
         self._classification = classification
+        self._trace_record_contracts = policy.get("trace_record_contracts") or {}
 
     def classify(self, profile: Mapping[str, Any] | None) -> dict[str, Any]:
         """Return a serializable route decision derived only from declared facts."""
@@ -144,15 +145,29 @@ class TaskInputClassifier:
             "label": str(decision["label"]),
             "route": str(decision["route"]),
             "worker_limit": decision.get("worker_limit"),
+            "delegation_mode": str(decision["delegation_mode"]),
+            "minimum_successful_delegated_attempts": int(
+                decision["minimum_successful_delegated_attempts"]
+            ),
+            "pre_worker_records": list(decision.get("pre_worker_records") or []),
             "brain_decision_required": bool(decision["brain_decision_required"]),
             "full_audit_required": bool(decision["full_audit_required"]),
             "validation_gates": list(decision.get("validation_gates") or []),
             "required_records": list(decision.get("required_records") or []),
+            "gate_evidence": dict(decision.get("gate_evidence") or {}),
             "admission_ready": admission_ready,
             "enforcement": "strict",
             "normalized_profile": normalized,
             "escalation_reasons": sorted(set(escalation_reasons)),
         }
+
+    def trace_record_contract(self, record_type: str) -> dict[str, Any]:
+        """Return one governed trace-record contract from the policy authority."""
+
+        contract = self._trace_record_contracts.get(str(record_type))
+        if not isinstance(contract, dict):
+            raise ValueError(f"unknown trace record type: {record_type}")
+        return deepcopy(contract)
 
     def _minimum_level(
         self,

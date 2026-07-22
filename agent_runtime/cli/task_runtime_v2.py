@@ -14,6 +14,7 @@ from rich.console import Console
 from agent_runtime.task_runtime_v2 import (
     AttemptLogRetention,
     LegacyRunMigrator,
+    RoleAttemptExecutor,
     TaskInputClassifier,
     TaskRuntime,
 )
@@ -52,6 +53,15 @@ def register_task_runtime_commands(
             raise typer.BadParameter(f"{field} must be valid JSON: {exc.msg}") from exc
         if not isinstance(value, dict):
             raise typer.BadParameter(f"{field} must be a JSON object")
+        return value
+
+    def json_list(raw: str, *, field: str) -> list[Any]:
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise typer.BadParameter(f"{field} must be valid JSON: {exc.msg}") from exc
+        if not isinstance(value, list):
+            raise typer.BadParameter(f"{field} must be a JSON list")
         return value
 
     @task_app.command("create")
@@ -93,6 +103,27 @@ def register_task_runtime_commands(
             TaskInputClassifier(current_root()).classify(
                 json_mapping(input_profile_json, field="input_profile")
             )
+        )
+
+    @task_app.command("classify-set")
+    def task_classify_set(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        input_profile_json: str = typer.Option(..., "--input-profile-json"),
+        producer_attempt_id: str = typer.Option(..., "--producer-attempt-id"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+    ) -> None:
+        """Record the profile returned by a successful Supervisor intake Attempt."""
+
+        emit(
+            runtime(project).classify_task_input(
+                task_id,
+                input_profile=json_mapping(
+                    input_profile_json, field="input_profile"
+                ),
+                producer_attempt_id=producer_attempt_id,
+                idempotency_key=idempotency_key,
+            )["task"]
         )
 
     @task_app.command("show")
@@ -247,6 +278,33 @@ def register_task_runtime_commands(
             )["attempts"][attempt_id]
         )
 
+    @attempt_app.command("execute-role")
+    def attempt_execute_role(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        work_item_id: str = typer.Option(..., "--work-item-id"),
+        attempt_id: str = typer.Option(..., "--attempt-id"),
+        role: str = typer.Option(..., "--role"),
+        messages_path: Path = typer.Option(..., "--messages-path"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+        timeout: int | None = typer.Option(None, "--timeout", min=1),
+    ) -> None:
+        """Execute one configured role and bind its receipt to a v2 Attempt."""
+
+        raw_messages = messages_path.read_text(encoding="utf-8")
+        messages = json_list(raw_messages, field="messages")
+        emit(
+            RoleAttemptExecutor(current_root(), project=project).execute(
+                task_id=task_id,
+                work_item_id=work_item_id,
+                attempt_id=attempt_id,
+                role=role,
+                messages=messages,
+                idempotency_key=idempotency_key,
+                timeout=timeout,
+            )
+        )
+
     @artifact_app.command("record")
     def artifact_record(
         project: str = typer.Option(..., "--project"),
@@ -322,6 +380,7 @@ def register_task_runtime_commands(
         record_id: str = typer.Option(..., "--record-id"),
         record_type: str = typer.Option(..., "--record-type"),
         producer: str = typer.Option(..., "--producer"),
+        producer_role: str = typer.Option(..., "--producer-role"),
         path: Path = typer.Option(..., "--path"),
         metadata: str = typer.Option("{}", "--metadata-json"),
         idempotency_key: str = typer.Option(..., "--idempotency-key"),
@@ -332,6 +391,7 @@ def register_task_runtime_commands(
                 record_id=record_id,
                 record_type=record_type,
                 producer=producer,
+                producer_role=producer_role,
                 path=path,
                 metadata=json_mapping(metadata, field="metadata"),
                 idempotency_key=idempotency_key,
