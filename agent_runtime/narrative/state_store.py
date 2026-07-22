@@ -12,11 +12,14 @@ from datetime import datetime, timezone
 import fcntl
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 from typing import Any, Iterator, Mapping
 
-from agent_runtime.atomic_io import atomic_write_text, atomic_write_yaml
+import yaml
+
+from agent_runtime.atomic_io import atomic_write_yaml
 
 
 EVENT_SCHEMA = "narrative-state-event/v3"
@@ -48,6 +51,12 @@ def _canonical_json(value: Any) -> str:
 
 def _sha256_json(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def narrative_payload_sha256(value: Any) -> str:
+    """Return the canonical hash used to bind narrative contracts."""
+
+    return _sha256_json(value)
 
 
 def _event_hash(event: Mapping[str, Any]) -> str:
@@ -166,9 +175,14 @@ class NarrativeStateStore:
         event["event_hash"] = _event_hash(event)
         return event
 
-    def _persist_events(self, events: list[dict[str, Any]]) -> None:
-        content = "".join(_canonical_json(event) + "\n" for event in events)
-        atomic_write_text(self.events_path, content)
+    def _append_event_to_ledger(self, event: Mapping[str, Any]) -> None:
+        """Durably append one event; existing authority bytes are never rewritten."""
+
+        self.project_brain_dir.mkdir(parents=True, exist_ok=True)
+        with self.events_path.open("a", encoding="utf-8") as handle:
+            handle.write(_canonical_json(event) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
 
     def _apply_event(self, snapshot: dict[str, Any], event: Mapping[str, Any]) -> None:
         payload = event.get("payload") or {}
@@ -276,6 +290,38 @@ class NarrativeStateStore:
         atomic_write_yaml(self.snapshot_path, snapshot)
         return snapshot
 
+    def _verified_receipt(
+        self,
+        receipt: Mapping[str, Any],
+        *,
+        label: str,
+    ) -> dict[str, Any]:
+        reference = str(receipt.get("receipt_path") or "").strip()
+        relative = Path(reference)
+        if not reference or relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"{label} receipt_path must be project-relative")
+        project_root = self.project_brain_dir.parent.resolve(strict=True)
+        cursor = project_root
+        for part in relative.parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                raise NarrativeStateIntegrityError(f"{label} receipt path is unsafe")
+        path = (project_root / relative).resolve(strict=True)
+        if project_root not in path.parents or not path.is_file():
+            raise NarrativeStateIntegrityError(f"{label} receipt path is unsafe")
+        expected = str(receipt.get("receipt_sha256") or "")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            raise NarrativeStateIntegrityError(f"{label} receipt hash mismatch")
+        try:
+            document = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except (UnicodeDecodeError, yaml.YAMLError) as exc:
+            raise NarrativeStateIntegrityError(
+                f"{label} receipt is not valid UTF-8 YAML"
+            ) from exc
+        if not isinstance(document, dict):
+            raise NarrativeStateIntegrityError(f"{label} receipt must be a mapping")
+        return document
+
     def _receipt(self, events: list[dict[str, Any]], event: Mapping[str, Any]) -> dict[str, Any]:
         sequence = int(event["sequence"])
         snapshot = self._project(events[:sequence])
@@ -338,6 +384,7 @@ class NarrativeStateStore:
                     and (first.get("payload") or {}).get("manifest_sha256")
                     == manifest_sha256
                 ):
+                    self._persist_snapshot(events)
                     return self._receipt(events, first)
                 raise NarrativeStateConflict(
                     "narrative state already has a different bootstrap authority"
@@ -353,7 +400,7 @@ class NarrativeStateStore:
                 },
             )
             events.append(event)
-            self._persist_events(events)
+            self._append_event_to_ledger(event)
             self._persist_snapshot(events)
             return self._receipt(events, event)
 
@@ -366,8 +413,22 @@ class NarrativeStateStore:
             raise ValueError("editorial memory schema mismatch")
         if record.get("project") != self.project:
             raise ValueError("editorial memory project mismatch")
-        if any(key in record for key in ("prose", "excerpt", "text")):
-            raise ValueError("editorial anti-pattern memory must not embed prose")
+        allowed_fields = {
+            "schema_version",
+            "project",
+            "rule_id",
+            "memory_kind",
+            "summary",
+            "source_artifact_sha256",
+            "source_disposition",
+            "source_locator",
+        }
+        unexpected = sorted(set(record) - allowed_fields)
+        if unexpected:
+            raise ValueError(
+                "editorial memory contains unsupported fields: "
+                + ", ".join(unexpected)
+            )
         if record.get("memory_kind") not in {
             "anti_pattern",
             "mechanical_policy",
@@ -394,6 +455,7 @@ class NarrativeStateStore:
                 if event.get("event_type") != "EDITORIAL_MEMORY_RECORDED":
                     continue
                 if (event.get("payload") or {}).get("record_sha256") == record_sha256:
+                    self._persist_snapshot(events)
                     return self._receipt(events, event)
                 if (event.get("payload") or {}).get("rule_id") == record["rule_id"]:
                     raise NarrativeStateConflict(
@@ -407,7 +469,7 @@ class NarrativeStateStore:
                 payload=payload,
             )
             events.append(event)
-            self._persist_events(events)
+            self._append_event_to_ledger(event)
             self._persist_snapshot(events)
             return self._receipt(events, event)
 
@@ -453,17 +515,62 @@ class NarrativeStateStore:
             or delta_verification.get("status") != "pass"
         ):
             raise NarrativeStateConflict("verified commit requires a passing delta verification")
+        state_delta = verified_commit.get("state_delta")
+        if not isinstance(state_delta, Mapping):
+            raise ValueError("state_delta must be a mapping")
         for value in (
             verified_commit.get("artifact_sha256"),
             verified_commit.get("brief_sha256"),
+            verified_commit.get("source_projection_sha256"),
+            verified_commit.get("state_delta_sha256"),
             seal.get("receipt_sha256"),
+            seal.get("artifact_sha256"),
+            seal.get("brief_sha256"),
+            seal.get("source_projection_sha256"),
+            seal.get("verification_result_sha256"),
+            seal.get("state_delta_sha256"),
             delta_verification.get("receipt_sha256"),
+            delta_verification.get("source_projection_sha256"),
+            delta_verification.get("verification_result_sha256"),
             verified_commit.get("previous_state_sha256"),
         ):
             if not _SHA256.fullmatch(str(value or "")):
                 raise ValueError("verified commit hashes must be lowercase 64-hex")
-        if not isinstance(verified_commit.get("state_delta"), Mapping):
-            raise ValueError("state_delta must be a mapping")
+        if verified_commit.get("state_delta_sha256") != _sha256_json(state_delta):
+            raise NarrativeStateConflict("verified commit state delta hash mismatch")
+        binding = {
+            "artifact_sha256": verified_commit.get("artifact_sha256"),
+            "brief_sha256": verified_commit.get("brief_sha256"),
+            "source_projection_sha256": verified_commit.get(
+                "source_projection_sha256"
+            ),
+            "verification_result_sha256": delta_verification.get(
+                "verification_result_sha256"
+            ),
+            "state_delta_sha256": verified_commit.get("state_delta_sha256"),
+        }
+        if delta_verification.get("source_projection_sha256") != binding[
+            "source_projection_sha256"
+        ]:
+            raise NarrativeStateConflict("delta verification projection binding mismatch")
+        if any(seal.get(field) != value for field, value in binding.items()):
+            raise NarrativeStateConflict("accepted seal narrative binding mismatch")
+        seal_receipt = self._verified_receipt(seal, label="accepted seal")
+        verification_receipt = self._verified_receipt(
+            delta_verification, label="delta verification"
+        )
+        if seal_receipt.get("status") != "accepted" or any(
+            seal_receipt.get(field) != value for field, value in binding.items()
+        ):
+            raise NarrativeStateConflict("accepted seal receipt binding mismatch")
+        if (
+            verification_receipt.get("status") != "pass"
+            or verification_receipt.get("source_projection_sha256")
+            != binding["source_projection_sha256"]
+            or verification_receipt.get("verification_result_sha256")
+            != binding["verification_result_sha256"]
+        ):
+            raise NarrativeStateConflict("delta verification receipt binding mismatch")
 
         commit_sha256 = _sha256_json(verified_commit)
         with self._lock():
@@ -475,6 +582,7 @@ class NarrativeStateStore:
                     continue
                 payload = event.get("payload") or {}
                 if payload.get("commit_sha256") == commit_sha256:
+                    self._persist_snapshot(events)
                     return self._receipt(events, event)
                 if int(payload.get("chapter") or 0) == chapter:
                     raise NarrativeStateConflict(
@@ -491,7 +599,7 @@ class NarrativeStateStore:
                 payload=payload,
             )
             events.append(event)
-            self._persist_events(events)
+            self._append_event_to_ledger(event)
             self._persist_snapshot(events)
             return self._receipt(events, event)
 
@@ -503,4 +611,5 @@ __all__ = [
     "NarrativeStateError",
     "NarrativeStateIntegrityError",
     "NarrativeStateStore",
+    "narrative_payload_sha256",
 ]

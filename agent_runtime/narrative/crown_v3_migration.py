@@ -25,11 +25,16 @@ def _source(path: Path) -> dict[str, str]:
 
 def _records_by_id(document: dict[str, Any]) -> dict[str, dict[str, Any]]:
     records: dict[str, dict[str, Any]] = {}
-    for raw in document.get("records") or []:
+    raw_records = document.get("records")
+    if not isinstance(raw_records, list):
+        raise ValueError("canonical document records must be a list")
+    for raw in raw_records:
         if not isinstance(raw, dict) or not str(raw.get("id") or "").strip():
-            continue
+            raise ValueError("canonical records require a non-empty id")
         record = dict(raw)
         record_id = str(record.pop("id"))
+        if record_id in records:
+            raise ValueError(f"duplicate canonical record id: {record_id}")
         record.pop("kind", None)
         records[record_id] = record
     return records
@@ -47,11 +52,7 @@ def build_crown_bootstrap_manifest(project_root: Path) -> dict[str, Any]:
         "relationships": canonical / "relationships.yml",
         "foreshadowing": canonical / "foreshadowing.yml",
         "worldlines": canonical / "worldlines.yml",
-        "guidance": project_root
-        / "runs"
-        / "task_crown_uncanny_manifestations_worldtexture_20260722"
-        / "outputs"
-        / "writing_memory_absorption_contract_v1.yml",
+        "fact_distillation": project_root / "project_brain" / "fact_distillation.yml",
     }
     for label, path in paths.items():
         if not path.is_file():

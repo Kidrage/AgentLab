@@ -75,6 +75,32 @@ def _merged_policy(policy: Mapping[str, Any] | None) -> dict[str, Any]:
                 merged[section][key] = {**merged[section][key], **dict(value)}
             else:
                 merged[section][key] = value
+    # Project overrides may tighten these gates, never disable or weaken the
+    # global mechanical/editorial floor.
+    merged["dialogue"]["block_ascii_quotes_around_han"] = True
+    merged["dialogue"]["block_high_confidence_unquoted_direct_speech"] = True
+    for key in ("warning_cluster", "revision_cluster"):
+        configured = merged["rhetoric"].get(key) or {}
+        floor = DEFAULT_POLICY["rhetoric"][key]
+        try:
+            configured_count = int(configured.get("count", floor["count"]))
+            configured_window = int(
+                configured.get("han_window", floor["han_window"])
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"invalid prose rhetoric policy: {key}") from exc
+        merged["rhetoric"][key] = {
+            "count": max(1, min(configured_count, floor["count"])),
+            "han_window": max(configured_window, floor["han_window"]),
+        }
+    for key in ("warning_density_per_1000", "revision_density_per_1000"):
+        try:
+            merged["rhetoric"][key] = min(
+                float(merged["rhetoric"].get(key, DEFAULT_POLICY["rhetoric"][key])),
+                float(DEFAULT_POLICY["rhetoric"][key]),
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"invalid prose rhetoric policy: {key}") from exc
     return merged
 
 
@@ -290,7 +316,10 @@ def evaluate_prose_conventions(
             if rhetoric_issues
             else "pass"
         ),
-        "writer_rerun_needed": mechanical_status == "blocked",
+        # Quote repair is a bounded edit against the returned candidate.  It
+        # must not spend another full Writer generation or alter story beats.
+        "writer_rerun_needed": False,
+        "local_repair_needed": mechanical_status == "blocked",
         "chapter_context": dict(chapter_context or {}),
         "policy_schema_version": active_policy["schema_version"],
         "issues": issues,

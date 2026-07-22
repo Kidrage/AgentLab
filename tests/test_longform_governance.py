@@ -8,6 +8,7 @@ from agent_runtime.narrative.production.brief_compiler import compile_creative_b
 from agent_runtime.narrative.longform_governance import (
     build_crown_planning_skeleton,
     validate_chapter_contract,
+    validate_chapter_contract_graph,
     validate_longform_plan_bundle,
 )
 from agent_runtime.narrative_delivery import validate_chapter_state_plan
@@ -46,10 +47,12 @@ def _chapter_contract(chapter: int = 1, position: str = "series_open") -> dict:
             }
         ],
         "hook_contract": {
+            "tier": position,
             "disturbance_or_pressure": "教会巡查名单提前出现凯恩的名字",
             "personal_stakes": "他的铁匠身份和行动自由同时受到威胁",
             "next_required_action": "必须在天亮前决定逃离还是伪造检测结果",
             "reader_question": "是谁在凯恩觉醒前就把他写进了名单？",
+            "irreversible_change": "凯恩从未登记者变为教会的具名目标",
         },
         "foreshadow_actions": [
             {
@@ -103,6 +106,7 @@ def test_chapter_contract_requires_active_desire_and_autonomous_npc() -> None:
 def test_regular_hook_accepts_relationship_tension_but_not_generic_question() -> None:
     contract = _chapter_contract(chapter=27, position="regular")
     contract["hook_contract"] = {
+        "tier": "regular",
         "disturbance_or_pressure": "阿德里安拒绝解释七年前的来历",
         "personal_stakes": "凯恩必须决定是否继续信任唯一的导师",
         "next_required_action": "凯恩将独自核对被涂改的名册",
@@ -112,6 +116,53 @@ def test_regular_hook_accepts_relationship_tension_but_not_generic_question() ->
 
     contract["hook_contract"]["reader_question"] = "what_happens_next"
     assert "placeholder:hook_contract.reader_question" in validate_chapter_contract(contract)
+
+
+def test_boundary_chapters_cannot_downgrade_their_hook_tier() -> None:
+    contract = _chapter_contract(chapter=650, position="regular")
+    contract["hook_contract"]["tier"] = "regular"
+
+    issues = validate_chapter_contract(contract)
+
+    assert "invalid:chapter_position.expected_volume_close" in issues
+
+
+def test_optional_state_sections_require_explicit_absence_reasons() -> None:
+    contract = _chapter_contract(chapter=27, position="regular")
+    contract["hook_contract"].pop("irreversible_change")
+    contract["supporting_actor_states"] = []
+    contract["foreshadow_actions"] = []
+    contract["world_state_delta"] = None
+
+    issues = validate_chapter_contract(contract)
+
+    assert "missing:contract.supporting_actor_absence_reason" in issues
+    assert "missing:contract.foreshadow_absence_reason" in issues
+    assert "missing:contract.world_state_no_change_reason" in issues
+
+    contract.update(
+        supporting_actor_absence_reason="本章为凯恩独处验证，无重要配角在场或幕后行动",
+        foreshadow_absence_reason="本章只推进已登记因果，不新增或触碰伏笔",
+        world_state_no_change_reason="变化局限于凯恩的认知，公共世界状态保持不变",
+    )
+    assert validate_chapter_contract(contract) == []
+
+
+def test_contract_graph_tracks_foreshadow_windows_and_world_axis_continuity() -> None:
+    first = _chapter_contract(chapter=27, position="regular")
+    first["hook_contract"].pop("irreversible_change")
+    first["foreshadow_actions"][0]["target_window"] = [28, 30]
+    second = _chapter_contract(chapter=28, position="regular")
+    second["hook_contract"].pop("irreversible_change")
+    second["foreshadow_actions"][0]["action"] = "develop"
+    second["world_state_delta"]["before"] = "不连续的旧状态"
+
+    issues = validate_chapter_contract_graph([first, second])
+
+    assert issues == ["chapter:28:world_chain_mismatch:church_surveillance"]
+
+    second["world_state_delta"]["before"] = first["world_state_delta"]["after"]
+    assert validate_chapter_contract_graph([first, second]) == []
 
 
 def test_v3_plan_uses_existing_delivery_and_brief_compiler_seams(tmp_path: Path) -> None:

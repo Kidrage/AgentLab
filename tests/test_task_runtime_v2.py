@@ -409,6 +409,7 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
         title="Produce one book",
         user_goal="Select a candidate with immutable provenance.",
         input_profile=_GOVERNED_PROFILE,
+        legacy_source={"run_path": "projects/Demo/runs/task-book"},
         idempotency_key="request-book",
     )
     runtime.create_work_item(
@@ -511,6 +512,31 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
     )
     assert selected["selected_artifact_version"] == "chapter-001-v1"
     assert runtime.verify_evidence("task-book")["ok"] is True
+    for work_item_id, work_item in selected["work_items"].items():
+        if work_item["status"] != "accepted":
+            if work_item["status"] == "ready":
+                runtime.transition_work_item(
+                    "task-book",
+                    work_item_id=work_item_id,
+                    status="running",
+                    idempotency_key=f"{work_item_id}-running-for-completion",
+                )
+            runtime.transition_work_item(
+                "task-book",
+                work_item_id=work_item_id,
+                status="accepted",
+                idempotency_key=f"{work_item_id}-accepted-for-completion",
+            )
+    runtime.transition_task(
+        "task-book", status="ready", idempotency_key="task-ready"
+    )
+    runtime.transition_task(
+        "task-book", status="running", idempotency_key="task-running"
+    )
+    completed = runtime.transition_task(
+        "task-book", status="completed", idempotency_key="task-completed"
+    )
+    assert completed["task"]["status"] == "completed"
 
     rejected = runtime.change_artifact_disposition(
         "task-book",
@@ -521,6 +547,7 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
         idempotency_key="reject-v1",
     )
     assert rejected["selected_artifact_version"] is None
+    assert rejected["task"]["status"] == "ready"
     assert rejected["artifacts"]["chapter-001-v1"]["disposition"] == "rejected_pre_v3"
     assert rejected["artifacts"]["chapter-001-v1"]["selection_eligible"] is False
 

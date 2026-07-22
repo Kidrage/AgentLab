@@ -1243,12 +1243,27 @@ class TaskRuntime:
                     "invalid artifact disposition transition: "
                     f"{current_disposition!r} -> {disposition!r}"
                 )
+            if task_status_transition is not None:
+                if (
+                    projection["task"]["status"]
+                    != task_status_transition["from_status"]
+                    or projection["selected_artifact_version"] != version_id
+                ):
+                    raise InvalidTransition(
+                        "completed selected artifact changed before audit disposition"
+                    )
 
         projection = self.load_task(task_id)
         artifact = projection["artifacts"].get(version_id)
         if artifact is None:
             raise EntityNotFound(f"artifact version {version_id!r} does not exist")
         from_disposition = str(artifact.get("disposition") or "eligible")
+        task_status_transition = (
+            {"from_status": "completed", "status": "ready"}
+            if projection["task"]["status"] == "completed"
+            and projection["selected_artifact_version"] == version_id
+            else None
+        )
         if from_disposition == disposition:
             history = artifact.get("disposition_history") or []
             last_change = history[-1] if history else {}
@@ -1275,6 +1290,7 @@ class TaskRuntime:
                 "reason_code": reason_code,
                 "feedback_digest": feedback_digest,
                 "feedback_ref": feedback_ref,
+                "task_status_transition": task_status_transition,
             },
             validate_projection=validate,
         )
@@ -2263,6 +2279,23 @@ class TaskRuntime:
                 )
                 if selected_artifact_version == version_id:
                     selected_artifact_version = None
+                task_transition = event["payload"].get("task_status_transition")
+                if task_transition is not None:
+                    if task is None or not isinstance(task_transition, dict):
+                        raise LedgerIntegrityError(
+                            "artifact disposition has invalid task transition"
+                        )
+                    from_status = str(task_transition.get("from_status") or "")
+                    to_status = str(task_transition.get("status") or "")
+                    if (
+                        task["status"] != from_status
+                        or to_status not in TASK_TRANSITIONS.get(from_status, set())
+                    ):
+                        raise LedgerIntegrityError(
+                            "artifact disposition has invalid task lifecycle transition"
+                        )
+                    task["status"] = to_status
+                    task["updated_at"] = event["recorded_at"]
                 continue
             raise LedgerIntegrityError(f"unsupported event type: {event['event_type']}")
         if task is None:

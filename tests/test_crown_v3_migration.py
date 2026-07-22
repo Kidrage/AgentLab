@@ -49,12 +49,8 @@ def test_crown_bootstrap_manifest_is_hash_bound_and_locks_approved_scale(
     for filename in ("relationships.yml", "foreshadowing.yml", "worldlines.yml"):
         _write_yaml(canonical / filename, {"records": []})
     _write_yaml(
-        project
-        / "runs"
-        / "task_crown_uncanny_manifestations_worldtexture_20260722"
-        / "outputs"
-        / "writing_memory_absorption_contract_v1.yml",
-        {"schema_version": "writing-memory-absorption/v1"},
+        project / "project_brain" / "fact_distillation.yml",
+        {"schema_version": 1, "facts": []},
     )
 
     manifest = build_crown_bootstrap_manifest(project)

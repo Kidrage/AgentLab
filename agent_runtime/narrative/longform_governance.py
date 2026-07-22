@@ -14,7 +14,22 @@ from typing import Any
 
 CHAPTER_CONTRACT_SCHEMA = "chapter-contract/v3"
 PLAN_BUNDLE_SCHEMA = "longform-plan-bundle/v3"
-CHAPTER_POSITIONS = {"series_open", "volume_open", "major_reversal", "regular"}
+CHAPTER_POSITIONS = {
+    "series_open",
+    "volume_open",
+    "volume_close",
+    "major_reversal",
+    "regular",
+}
+BOUNDARY_CHAPTER_POSITIONS = {
+    1: "series_open",
+    650: "volume_close",
+    651: "volume_open",
+    1310: "volume_close",
+    1311: "volume_open",
+    1980: "volume_close",
+}
+FORESHADOW_ACTIONS = {"seed", "develop", "payoff", "delay", "transform"}
 PLACEHOLDERS = {
     "what_happens_next",
     "what happens next",
@@ -100,6 +115,9 @@ def validate_chapter_contract(contract: Mapping[str, Any]) -> list[str]:
     position = _text(contract.get("chapter_position"))
     if position not in CHAPTER_POSITIONS:
         issues.append("invalid:chapter_position")
+    expected_position = BOUNDARY_CHAPTER_POSITIONS.get(chapter)
+    if expected_position and position != expected_position:
+        issues.append(f"invalid:chapter_position.expected_{expected_position}")
     for field in ("pov", "primary_function", "turn", "cost"):
         value = contract.get(field)
         if not isinstance(value, str) or not value.strip():
@@ -127,8 +145,26 @@ def validate_chapter_contract(contract: Mapping[str, Any]) -> list[str]:
                 if actor_ref in seen_actors:
                     issues.append(f"duplicate:{prefix}.actor_ref")
                 seen_actors.add(actor_ref)
+        if not actors:
+            _require_text_fields(
+                contract,
+                ("supporting_actor_absence_reason",),
+                "contract",
+                issues,
+            )
 
-    _require_text_fields(contract.get("hook_contract"), _HOOK_FIELDS, "hook_contract", issues)
+    hook = contract.get("hook_contract")
+    _require_text_fields(hook, _HOOK_FIELDS, "hook_contract", issues)
+    if isinstance(hook, Mapping):
+        if _text(hook.get("tier")) != position:
+            issues.append(f"invalid:hook_contract.tier.expected_{position}")
+        if position != "regular":
+            _require_text_fields(
+                hook,
+                ("irreversible_change",),
+                "hook_contract",
+                issues,
+            )
 
     foreshadows = contract.get("foreshadow_actions")
     if not isinstance(foreshadows, list):
@@ -162,11 +198,30 @@ def validate_chapter_contract(contract: Mapping[str, Any]) -> list[str]:
                     issues.append(f"missing:{path}")
                 elif _placeholder(value):
                     issues.append(f"placeholder:{path}")
+            if isinstance(action, Mapping) and action.get("action") not in FORESHADOW_ACTIONS:
+                issues.append(f"invalid:{prefix}.action")
+            window = action.get("target_window")
+            if isinstance(window, list) and len(window) == 2 and window[1] > 1980:
+                issues.append(f"invalid:{prefix}.target_window.out_of_series")
+        if not foreshadows:
+            _require_text_fields(
+                contract,
+                ("foreshadow_absence_reason",),
+                "contract",
+                issues,
+            )
 
     world_delta = contract.get("world_state_delta")
     if "world_state_delta" not in contract:
         issues.append("missing:world_state_delta")
-    elif world_delta is not None:
+    elif world_delta is None:
+        _require_text_fields(
+            contract,
+            ("world_state_no_change_reason",),
+            "contract",
+            issues,
+        )
+    else:
         _require_text_fields(world_delta, _WORLD_FIELDS, "world_state_delta", issues)
         if isinstance(world_delta, Mapping) and _text(world_delta.get("before")) == _text(
             world_delta.get("after")
@@ -284,6 +339,61 @@ def _contiguous_ranges(
     return cursor == expected_end + 1
 
 
+def validate_chapter_contract_graph(contracts: list[Any]) -> list[str]:
+    """Validate cross-chapter foreshadow and world-state continuity."""
+
+    issues: list[str] = []
+    world_after: dict[str, str] = {}
+    foreshadow_graph: dict[str, list[tuple[int, str, list[int]]]] = {}
+    for contract in contracts:
+        if not isinstance(contract, Mapping):
+            continue
+        chapter = contract.get("chapter")
+        if not isinstance(chapter, int) or isinstance(chapter, bool):
+            continue
+        world_delta = contract.get("world_state_delta")
+        if isinstance(world_delta, Mapping):
+            axis = _text(world_delta.get("axis"))
+            before = _text(world_delta.get("before"))
+            if axis in world_after and world_after[axis] != before:
+                issues.append(f"chapter:{chapter}:world_chain_mismatch:{axis}")
+            world_after[axis] = _text(world_delta.get("after"))
+        for action in contract.get("foreshadow_actions") or []:
+            if not isinstance(action, Mapping):
+                continue
+            foreshadow_id = _text(action.get("foreshadow_id"))
+            target = action.get("target_window")
+            if (
+                foreshadow_id
+                and isinstance(target, list)
+                and len(target) == 2
+                and all(isinstance(item, int) for item in target)
+            ):
+                foreshadow_graph.setdefault(foreshadow_id, []).append(
+                    (chapter, _text(action.get("action")), target)
+                )
+    for foreshadow_id, actions in foreshadow_graph.items():
+        actions.sort()
+        if actions[0][1] != "seed":
+            issues.append(f"foreshadow:{foreshadow_id}:first_action_must_seed")
+        for index, (chapter, action, target) in enumerate(actions):
+            if action == "payoff" and not any(
+                earlier_action == "seed"
+                for _, earlier_action, _ in actions[:index]
+            ):
+                issues.append(
+                    f"chapter:{chapter}:foreshadow:{foreshadow_id}:payoff_without_seed"
+                )
+            if action == "seed" and not any(
+                target[0] <= later_chapter <= target[1]
+                for later_chapter, _, _ in actions[index + 1 :]
+            ):
+                issues.append(
+                    f"chapter:{chapter}:foreshadow:{foreshadow_id}:target_not_touched"
+                )
+    return issues
+
+
 def validate_longform_plan_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]:
     """Validate structural scale, review density, and optional full contracts."""
 
@@ -292,6 +402,7 @@ def validate_longform_plan_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]:
         return {"schema_version": 1, "status": "fail", "issues": ["bundle_root_must_be_mapping"]}
     expected_scalars = {
         "schema_version": PLAN_BUNDLE_SCHEMA,
+        "project": "Crown_of_Ash",
         "status": "candidate",
         "candidate_only": True,
         "production_modified": False,
@@ -302,6 +413,11 @@ def validate_longform_plan_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]:
     for field, expected in expected_scalars.items():
         if bundle.get(field) != expected:
             issues.append(f"invalid:{field}")
+    if bundle.get("planning_stage") not in {
+        "structure_only",
+        "chapter_contracts_complete",
+    }:
+        issues.append("invalid:planning_stage")
 
     volumes = bundle.get("volumes")
     if not isinstance(volumes, list) or len(volumes) != 3:
@@ -309,6 +425,10 @@ def validate_longform_plan_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]:
         volumes = []
     elif not _contiguous_ranges(volumes, 1, 1980):
         issues.append("invalid:volume_ranges")
+    else:
+        for volume in volumes:
+            if volume.get("supervisor_review_required") is not True:
+                issues.append(f"invalid:volume_review:{volume.get('volume_id')}")
 
     arcs = bundle.get("macro_arcs")
     if not isinstance(arcs, list) or len(arcs) != 45:
@@ -320,6 +440,15 @@ def validate_longform_plan_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]:
         counts = Counter(_text(arc.get("volume_id")) for arc in arcs)
         if counts != {"part-1": 15, "part-2": 15, "part-3": 15}:
             issues.append("invalid:macro_arcs_per_volume")
+        for arc in arcs:
+            if arc.get("semantic_review_required") is not True:
+                issues.append(f"invalid:arc_review:{arc.get('arc_id')}")
+            if set(arc.get("required_state_changes") or []) != {
+                "character_desire_delta",
+                "world_axis_delta",
+                "major_reversal",
+            }:
+                issues.append(f"invalid:arc_state_changes:{arc.get('arc_id')}")
 
     windows = bundle.get("planning_windows")
     if not isinstance(windows, list) or len(windows) != 225:
@@ -336,6 +465,10 @@ def validate_longform_plan_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]:
             if isinstance(chapter_range, list) and len(chapter_range) == 2:
                 if chapter_range[1] - chapter_range[0] + 1 > 10:
                     issues.append(f"invalid:window_too_large:{window.get('window_id')}")
+            if window.get("external_model_authorization_required") is not True:
+                issues.append(f"invalid:window_authorization:{window.get('window_id')}")
+            if window.get("prose_generation_allowed") is not False:
+                issues.append(f"invalid:window_prose_boundary:{window.get('window_id')}")
         for arc in arcs:
             start, end = arc["chapter_range"]
             if not _contiguous_ranges(by_arc.get(arc["arc_id"], []), start, end):
@@ -344,15 +477,22 @@ def validate_longform_plan_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]:
     contracts = bundle.get("chapter_contracts")
     if not isinstance(contracts, list):
         issues.append("invalid:chapter_contracts")
-    elif bundle.get("planning_stage") == "chapter_contracts_complete":
-        chapters = [item.get("chapter") for item in contracts if isinstance(item, Mapping)]
-        if chapters != list(range(1, 1981)):
-            issues.append("invalid:complete_chapter_contract_range")
+    else:
         for contract in contracts:
+            if not isinstance(contract, Mapping):
+                issues.append("invalid:chapter_contract_record")
+                continue
             issues.extend(
                 f"chapter:{contract.get('chapter')}:{issue}"
                 for issue in validate_chapter_contract(contract)
             )
+        if bundle.get("planning_stage") == "chapter_contracts_complete":
+            chapters = [
+                item.get("chapter") for item in contracts if isinstance(item, Mapping)
+            ]
+            if chapters != list(range(1, 1981)):
+                issues.append("invalid:complete_chapter_contract_range")
+            issues.extend(validate_chapter_contract_graph(contracts))
 
     review = bundle.get("review_policy")
     if not isinstance(review, Mapping):
@@ -468,6 +608,7 @@ __all__ = [
     "PLAN_BUNDLE_SCHEMA",
     "build_crown_planning_skeleton",
     "validate_chapter_contract",
+    "validate_chapter_contract_graph",
     "validate_chapter_state_plan_v3_document",
     "validate_longform_plan_bundle",
 ]

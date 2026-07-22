@@ -41,6 +41,7 @@ from agent_runtime.narrative.production.writer_contract import (
 from agent_runtime.narrative.quality.prose_length import (
     build_han_character_contract,
 )
+from agent_runtime.narrative.state_store import narrative_payload_sha256
 
 
 @dataclass
@@ -91,13 +92,14 @@ class ChapterOutcome:
     """Result of ChapterEngine.run()."""
 
     chapter_id: int
-    status: str  # "pass" | "blocked" | "needs_writer" | "needs_state_projection" | "needs_selection"
+    status: str  # pass | blocked | needs_writer | needs_local_prose_repair | needs_state_projection | needs_selection
     creative_brief: CreativeBrief | None = None
     writer_validation: dict[str, Any] | None = None
     state_delta: StateDelta | None = None
     delta_verification: dict[str, Any] | None = None
     issues: list[str] = field(default_factory=list)
     writer_rerun_needed: bool = False
+    writer_local_repair_needed: bool = False
     selected_prose_sha256: str = ""
     state_commit_receipt: dict[str, Any] | None = None
     # Public call-order log: proves projector is called only after selection.
@@ -172,6 +174,46 @@ class ChapterEngine:
                     state_delta=delta,
                     delta_verification=delta_ver,
                     issues=["state_commit_selected_prose_hash_mismatch"],
+                    writer_rerun_needed=False,
+                )
+            commit_verification = commit.get("delta_verification")
+            commit_verification = (
+                commit_verification
+                if isinstance(commit_verification, dict)
+                else {}
+            )
+            commit_seal = commit.get("seal")
+            commit_seal = commit_seal if isinstance(commit_seal, dict) else {}
+            expected_binding = {
+                "artifact_sha256": selected_prose_sha256,
+                "brief_sha256": narrative_payload_sha256(brief.to_dict()),
+                "source_projection_sha256": narrative_payload_sha256(
+                    delta.to_dict()
+                ),
+                "verification_result_sha256": narrative_payload_sha256(delta_ver),
+            }
+            binding_matches = (
+                commit.get("chapter") == request.chapter_id
+                and commit.get("brief_sha256") == expected_binding["brief_sha256"]
+                and commit.get("source_projection_sha256")
+                == expected_binding["source_projection_sha256"]
+                and commit_verification.get("source_projection_sha256")
+                == expected_binding["source_projection_sha256"]
+                and commit_verification.get("verification_result_sha256")
+                == expected_binding["verification_result_sha256"]
+                and all(
+                    commit_seal.get(field) == value
+                    for field, value in expected_binding.items()
+                )
+            )
+            if not binding_matches:
+                return _outcome(
+                    status="blocked",
+                    creative_brief=brief,
+                    writer_validation=writer_val,
+                    state_delta=delta,
+                    delta_verification=delta_ver,
+                    issues=["state_commit_current_run_binding_mismatch"],
                     writer_rerun_needed=False,
                 )
             try:
@@ -256,12 +298,19 @@ class ChapterEngine:
             conventions = writer_val.get("prose_conventions") or {}
             return _outcome(
                 chapter_id=request.chapter_id,
-                status="blocked",
+                status=(
+                    "needs_local_prose_repair"
+                    if conventions.get("local_repair_needed")
+                    else "blocked"
+                ),
                 creative_brief=brief,
                 writer_validation=writer_val,
                 issues=issues + writer_val.get("issues", []),
                 writer_rerun_needed=bool(
                     conventions.get("writer_rerun_needed")
+                ),
+                writer_local_repair_needed=bool(
+                    conventions.get("local_repair_needed")
                 ),
             )
 
