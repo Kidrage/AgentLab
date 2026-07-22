@@ -2521,7 +2521,7 @@ class TestRunCliAgentSubprocess:
         (config_dir / "worker_invocation_contracts.yml").write_text(
             """contracts:
   claude_writer:
-    template: 'claude --model "{model_id}" --effort max --max-budget-usd 1.00 --permission-mode plan --output-format json --tools "" -p "Read {task_packet_path}"'
+    template: 'claude --model "{model_id}" --effort max --max-budget-usd 1.00 --permission-mode bypassPermissions --output-format json --tools "" -p "Read {task_packet_path}"'
 """,
             encoding="utf-8",
         )

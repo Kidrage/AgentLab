@@ -192,6 +192,10 @@ def test_writer_and_supervisor_fallback_reject_missing_or_weakened_runtime_bindi
     agent_name: str,
     mutation: tuple[str, str],
 ) -> None:
+    if contract_name == "claude_writer" and mutation[0].startswith(
+        "--permission-mode"
+    ):
+        mutation = (mutation[0].replace("plan", "bypassPermissions"), mutation[1])
     runtime_root = _runtime_from_real_config(
         tmp_path,
         contract_name,
@@ -406,13 +410,21 @@ def test_ultracode_rejects_unsealed_packet_even_with_valid_opt_in(
 
 
 @pytest.mark.parametrize(
-    "contract_name,agent_name,expected_budget,requires_effort_and_empty_tools",
+    "contract_name,agent_name,expected_budget,expected_permission,requires_effort_and_empty_tools",
     [
-        pytest.param("claude_writer", "Writer", "1.00", True, id="writer"),
+        pytest.param(
+            "claude_writer",
+            "Writer",
+            "1.00",
+            "bypassPermissions",
+            True,
+            id="writer",
+        ),
         pytest.param(
             "claude_supervisor_fallback",
             "Supervisor",
             "1.00",
+            "plan",
             True,
             id="supervisor-fallback",
         ),
@@ -420,6 +432,7 @@ def test_ultracode_rejects_unsealed_packet_even_with_valid_opt_in(
             "claude_writer_ultracode",
             "Writer",
             "2.00",
+            "plan",
             False,
             id="ultracode",
         ),
@@ -430,6 +443,7 @@ def test_real_claude_contract_executes_only_with_exact_runtime_binding(
     contract_name: str,
     agent_name: str,
     expected_budget: str,
+    expected_permission: str,
     requires_effort_and_empty_tools: bool,
 ) -> None:
     runtime_root = _runtime_from_real_config(tmp_path, contract_name)
@@ -462,7 +476,7 @@ def test_real_claude_contract_executes_only_with_exact_runtime_binding(
     argv = process.call_args.args[0]
     assert argv[argv.index("--model") + 1] == "deepseek-v4-pro"
     assert argv[argv.index("--max-budget-usd") + 1] == expected_budget
-    assert argv[argv.index("--permission-mode") + 1] == "plan"
+    assert argv[argv.index("--permission-mode") + 1] == expected_permission
     assert argv[argv.index("--output-format") + 1] == "json"
     if requires_effort_and_empty_tools:
         assert argv[argv.index("--effort") + 1] == "max"

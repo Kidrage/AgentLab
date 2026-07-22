@@ -1992,7 +1992,7 @@ def _claude_runtime_preflight(
             "--max-budget-usd",
             "1.00",
             "--permission-mode",
-            "plan",
+            "bypassPermissions",
             "--output-format",
             "json",
             "--tools",

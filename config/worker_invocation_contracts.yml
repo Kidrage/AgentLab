@@ -173,7 +173,7 @@ contracts:
       - narrative_delivery_receipt.yml
     template: >-
       claude --model "{model_id}" --effort max --max-budget-usd 1.00
-      --permission-mode plan --output-format json --tools "" -p "Treat the
+      --permission-mode bypassPermissions --output-format json --tools "" -p "Treat the
       complete sealed AgentLab Writer packet on stdin as the only task context.
       Follow its messages in order and act as a pure Writer: produce high-quality
       final Chinese prose while preserving voice, POV, continuity, and length

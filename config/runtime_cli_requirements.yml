@@ -30,7 +30,7 @@ components:
     install_source: npm package @anthropic-ai/claude-code
     version_probe: claude --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker claude
-    live_smoke: claude --model deepseek-v4-pro --effort max --max-budget-usd 0.01 --permission-mode plan --output-format json --tools "" -p "Return AGENTLAB_CLAUDE_WRITER_SMOKE_OK only."
+    live_smoke: claude --model deepseek-v4-pro --effort max --max-budget-usd 0.05 --permission-mode bypassPermissions --output-format json --tools "" -p "Return AGENTLAB_CLAUDE_WRITER_SMOKE_OK only."
     notes: Pure Writer and NarrativePlanner use explicit DeepSeek models, native JSON usage, sealed packets, and hard CLI budgets. NarrativePlanner is fixed to deepseek-v4-pro for blocking rewrite planning and has no provider/model fallback. Ultracode remains a separate opt-in developmental contract, never final prose.
   codex:
     kind: agent_cli
