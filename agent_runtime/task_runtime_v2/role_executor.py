@@ -42,6 +42,7 @@ class RoleAttemptExecutor:
         attempt_id: str,
         role: str,
         messages: list[dict[str, str]],
+        source_paths: list[Path] | None = None,
         idempotency_key: str,
         timeout: int | None = None,
     ) -> dict[str, Any]:
@@ -54,6 +55,27 @@ class RoleAttemptExecutor:
             for item in messages
         ):
             raise ValueError("messages must contain role/content mappings")
+        sealed_messages = [dict(item) for item in messages]
+        resolved_sources: list[Path] = []
+        total_source_bytes = 0
+        for source_path in source_paths or []:
+            resolved = Path(source_path).resolve(strict=True)
+            if not resolved.is_relative_to(self.root) or resolved.is_symlink():
+                raise ValueError("source_paths must be regular files inside AgentLab")
+            content = resolved.read_text(encoding="utf-8")
+            total_source_bytes += len(content.encode("utf-8"))
+            if total_source_bytes > 2 * 1024 * 1024:
+                raise ValueError("sealed source_paths exceed the 2 MiB intake limit")
+            resolved_sources.append(resolved)
+            sealed_messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "AUTHORITATIVE_SOURCE "
+                        f"{resolved.relative_to(self.root).as_posix()}\n{content}"
+                    ),
+                }
+            )
         projection = self.runtime.load_task(task_id)
         work_item = projection["work_items"].get(work_item_id)
         if work_item is None:
@@ -116,7 +138,8 @@ class RoleAttemptExecutor:
                 role_name,
                 profile,
                 timeout=timeout,
-                sealed_messages=messages,
+                sealed_messages=sealed_messages,
+                outbound_source_paths=resolved_sources,
             )
         except Exception as exc:
             self.runtime.transition_attempt(
@@ -241,4 +264,3 @@ class RoleAttemptExecutor:
     @staticmethod
     def _key(base: str, suffix: str) -> str:
         return f"{str(base)[:96]}-{suffix}"
-

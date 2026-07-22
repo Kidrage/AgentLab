@@ -286,6 +286,7 @@ def register_task_runtime_commands(
         attempt_id: str = typer.Option(..., "--attempt-id"),
         role: str = typer.Option(..., "--role"),
         messages_path: Path = typer.Option(..., "--messages-path"),
+        source_paths: list[Path] = typer.Option([], "--source-path"),
         idempotency_key: str = typer.Option(..., "--idempotency-key"),
         timeout: int | None = typer.Option(None, "--timeout", min=1),
     ) -> None:
@@ -300,6 +301,7 @@ def register_task_runtime_commands(
                 attempt_id=attempt_id,
                 role=role,
                 messages=messages,
+                source_paths=source_paths,
                 idempotency_key=idempotency_key,
                 timeout=timeout,
             )

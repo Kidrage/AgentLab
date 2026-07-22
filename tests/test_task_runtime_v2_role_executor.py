@@ -72,6 +72,9 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
         idempotency_key="work-writer",
     )
     calls: list[dict] = []
+    source = tmp_path / "projects" / "Demo" / "source.yml"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("fact: grounded\n", encoding="utf-8")
 
     def fake_cli(plan, role, profile, **kwargs):
         calls.append(
@@ -102,6 +105,7 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
         attempt_id="writer-attempt-001",
         role="Writer",
         messages=[{"role": "user", "content": "Write the assigned patch."}],
+        source_paths=[source],
         idempotency_key="writer-attempt-001",
     )
 
@@ -112,6 +116,8 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
     assert calls[0]["role"] == "Writer"
     assert calls[0]["profile"]["invocation_contract"] == "claude_writer"
     assert calls[0]["kwargs"]["sealed_messages"][0]["content"].startswith("Write")
+    assert "fact: grounded" in calls[0]["kwargs"]["sealed_messages"][1]["content"]
+    assert calls[0]["kwargs"]["outbound_source_paths"] == [source]
     assert Path(result["output_path"]).read_text(encoding="utf-8") == "候选文本"
     receipt = yaml.safe_load(Path(result["receipt_path"]).read_text(encoding="utf-8"))
     assert receipt["schema_version"] == "task-runtime-role-attempt-receipt/v1"
