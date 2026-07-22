@@ -149,7 +149,7 @@ def _clear_chapter_attempt_outputs(
         path.unlink(missing_ok=True)
 
 
-WRITER_MAX_CONTRACT_REDOS = 1
+WRITER_MAX_CONTRACT_REDOS = 2
 
 
 def _writer_contract_issues(run_dir: Path) -> list[str]:

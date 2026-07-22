@@ -1027,7 +1027,7 @@ def test_live_narrative_eval_delegates_capacity_failure_without_local_retry(
     assert request["model_capacity_governance"] == "centralized"
 
 
-def test_live_narrative_eval_retries_one_full_contract_redo(
+def test_live_narrative_eval_retries_two_full_contract_redos(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -1043,7 +1043,7 @@ def test_live_narrative_eval_retries_one_full_contract_redo(
 
     def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
         calls.append(agent_name)
-        if len(calls) == 2:
+        if len(calls) > 1:
             feedback = yaml.safe_load(
                 (run_dir / "writer_contract_retry_feedback.yml").read_text(
                     encoding="utf-8"
@@ -1061,7 +1061,7 @@ def test_live_narrative_eval_retries_one_full_contract_redo(
             ] == "pass"
         return types.SimpleNamespace(
             status="completed",
-            content=incomplete if len(calls) == 1 else complete,
+            content=incomplete if len(calls) < 3 else complete,
             error=None,
             provider="agentlab-cli-executor",
             model="deepseek-v4-pro",
@@ -1077,18 +1077,19 @@ def test_live_narrative_eval_retries_one_full_contract_redo(
 
     _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
 
-    assert calls == ["Writer", "Writer"]
+    assert calls == ["Writer", "Writer", "Writer"]
     assert (run_dir / "fiction_draft.md").exists()
     retry = yaml.safe_load((run_dir / "writer_retry_ledger.yml").read_text(encoding="utf-8"))
     assert retry["status"] == "recovered"
-    assert retry["limits"]["full_contract_redos"] == 1
+    assert retry["limits"]["full_contract_redos"] == 2
     assert retry["attempts"][0]["retry_kind"] == "full_contract_redo"
     assert "missing_writer_output:narrative_delivery_receipt.yml" in retry["attempts"][0]["contract_issues"]
     assert retry["attempts"][0]["snapshots"] == {
         "writer_role_session_capture.md": "writer_retry_attempt_01_capture.md",
         "writer_output_contract.yml": "writer_retry_attempt_01_contract.yml",
     }
-    assert retry["attempts"][1]["materialized"] is True
+    assert retry["attempts"][1]["retry_kind"] == "full_contract_redo"
+    assert retry["attempts"][2]["materialized"] is True
 
 
 def test_live_narrative_eval_failed_retry_cannot_reuse_stale_candidate_outputs(
