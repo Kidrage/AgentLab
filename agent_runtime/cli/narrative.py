@@ -13,6 +13,7 @@ from agent_runtime.narrative.assembly import (
     assemble_candidate_chapters,
 )
 from agent_runtime.narrative.blueprint_validation import (
+    materialize_crown_blueprint,
     seal_crown_blueprint,
     validate_crown_blueprint,
 )
@@ -109,6 +110,22 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         """Hash and register AgentLab-authored blueprint artifacts without editing content."""
         try:
             result = seal_crown_blueprint(project_root, project=project)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @narrative_app.command("materialize-blueprint")
+    def materialize_blueprint(
+        bundle: Path = typer.Option(..., "--bundle"),
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+    ) -> None:
+        """Validate and atomically install an AgentLab-authored blueprint bundle."""
+        try:
+            result = materialize_crown_blueprint(
+                project_root,
+                bundle_path=bundle,
+                project=project,
+            )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())

@@ -885,13 +885,33 @@ def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = N
     if not has_command_claim:
         return None
 
-    # Check if report references an execution_log command_id
+    # Native CLI workers may preserve their report verbatim while the executor
+    # writes command provenance to a role-specific companion capture. Treat the
+    # pair as one evidence envelope, but still require an id that exists in the
+    # authoritative execution log.
+    evidence_content = content
     has_command_id = (
         "command_id" in lowered
         or "cmd_" in lowered
         or "execution_log" in lowered
         or "evidence:" in lowered
     )
+    if not has_command_id and run_dir is not None:
+        capture_name = {
+            "07_validation_report.md": "testerauditor_cli_result_capture.md",
+            "08_audit_report.md": "testerauditor_cli_result_capture.md",
+            "verification_report.md": "verifier_cli_result_capture.md",
+        }[fname]
+        capture_path = run_dir / capture_name
+        if capture_path.is_file():
+            capture = capture_path.read_text(encoding="utf-8", errors="replace")
+            capture_lowered = capture.lower()
+            if any(
+                marker in capture_lowered
+                for marker in ("command_id", "cmd_", "execution_log", "evidence:")
+            ):
+                evidence_content = f"{content}\n{capture}"
+                has_command_id = True
     if not has_command_id:
         # Report claims command execution but does not reference command_id
         return (
@@ -912,7 +932,7 @@ def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = N
     command_ids = [cmd.get("command_id", "") for cmd in commands]
     matched_cid: str | None = None
     for cid in command_ids:
-        if cid and cid in content:
+        if cid and cid in evidence_content:
             matched_cid = cid
             break
 

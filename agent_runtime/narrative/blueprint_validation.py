@@ -8,6 +8,7 @@ from typing import Any
 import hashlib
 import json
 import re
+import tempfile
 
 import yaml
 
@@ -40,6 +41,18 @@ BLUEPRINT_ARTIFACT_PATHS = (
 BLUEPRINT_MEMORY_PATHS = (
     "project_brain/fact_distillation.yml",
     "project_brain/project_fact_snapshot.yml",
+)
+BLUEPRINT_BUNDLE_FIELDS = frozenset(
+    {
+        "schema_version",
+        "project",
+        "status",
+        "candidate_only",
+        "series_scale_decision",
+        "chapter_length_policy",
+        "canonical_fragments",
+        "chapter_cards",
+    }
 )
 
 
@@ -75,6 +88,162 @@ def _relative_file(project_root: Path, relative: str, prefix: str) -> Path | Non
     if project_root not in path.parents or not path.is_file():
         return None
     return path
+
+
+def _candidate_blueprint_bundle_path(project_root: Path, bundle_path: Path) -> Path:
+    bundle = Path(bundle_path).resolve()
+    try:
+        relative = bundle.relative_to(project_root)
+    except ValueError as exc:
+        raise ValueError("blueprint bundle must stay inside the project") from exc
+    if (
+        len(relative.parts) < 4
+        or relative.parts[0] != "runs"
+        or relative.parts[2] != "artifacts"
+        or bundle.suffix not in {".yml", ".yaml"}
+        or not bundle.is_file()
+    ):
+        raise ValueError(
+            "blueprint bundle must be a YAML artifact under runs/<task_id>/artifacts/"
+        )
+    cursor = project_root
+    for part in relative.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ValueError("blueprint bundle path must not contain symlinks")
+    return bundle
+
+
+def _bundle_fragment_path(raw: Any) -> str:
+    relative = str(raw or "").strip()
+    pure = PurePosixPath(relative)
+    if (
+        pure.is_absolute()
+        or any(part in {"", ".", ".."} for part in pure.parts)
+        or not relative.startswith("production/canonical/")
+        or relative == "production/canonical/index.yml"
+        or pure.suffix not in {".yml", ".yaml"}
+    ):
+        raise ValueError(f"unsafe canonical fragment path: {relative or '<blank>'}")
+    return pure.as_posix()
+
+
+def _write_blueprint_bundle_tree(project_root: Path, bundle: dict[str, Any]) -> None:
+    fragments = bundle.get("canonical_fragments")
+    cards = bundle.get("chapter_cards")
+    if not isinstance(fragments, list) or not fragments:
+        raise ValueError("blueprint bundle requires canonical_fragments")
+    if not isinstance(cards, dict):
+        raise ValueError("blueprint bundle requires chapter_cards")
+    card_index = cards.get("index")
+    card_items = cards.get("cards")
+    if not isinstance(card_index, dict) or not isinstance(card_items, list):
+        raise ValueError("chapter_cards requires index and cards")
+
+    atomic_write_yaml(
+        project_root / "production" / "series_scale_decision.yml",
+        bundle.get("series_scale_decision"),
+    )
+    atomic_write_yaml(
+        project_root / "production" / "chapter_length_policy.yml",
+        bundle.get("chapter_length_policy"),
+    )
+
+    fragment_index: list[dict[str, Any]] = []
+    seen_fragment_paths: set[str] = set()
+    for item in fragments:
+        if not isinstance(item, dict) or not isinstance(item.get("document"), dict):
+            raise ValueError("canonical fragment entries require path and document")
+        relative = _bundle_fragment_path(item.get("path"))
+        if relative in seen_fragment_paths:
+            raise ValueError(f"duplicate canonical fragment path: {relative}")
+        seen_fragment_paths.add(relative)
+        path = project_root / relative
+        atomic_write_yaml(path, item["document"])
+        fragment_index.append({"path": relative, "sha256": _sha256(path)})
+    atomic_write_yaml(
+        project_root / "production" / "canonical" / "index.yml",
+        {"schema_version": 1, "fragments": fragment_index},
+    )
+
+    atomic_write_yaml(
+        project_root / "production" / "chapter_cards" / "index.yml",
+        card_index,
+    )
+    seen_chapters: set[int] = set()
+    for card in card_items:
+        if not isinstance(card, dict) or type(card.get("chapter")) is not int:
+            raise ValueError("chapter card entries require an integer chapter")
+        chapter = int(card["chapter"])
+        if chapter < 1 or chapter in seen_chapters:
+            raise ValueError(f"invalid or duplicate chapter card: {chapter}")
+        seen_chapters.add(chapter)
+        atomic_write_yaml(
+            project_root / "production" / "chapter_cards" / f"ch{chapter:03d}.yml",
+            card,
+        )
+
+
+def materialize_crown_blueprint(
+    agentlab_root: Path,
+    *,
+    bundle_path: Path,
+    project: str = "Crown_of_Ash",
+) -> dict[str, Any]:
+    """Validate then atomically install an AgentLab-authored blueprint bundle."""
+    root = Path(agentlab_root).resolve()
+    project_root = (root / "projects" / project).resolve()
+    bundle_file = _candidate_blueprint_bundle_path(project_root, bundle_path)
+    try:
+        raw = yaml.safe_load(bundle_file.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(f"cannot read blueprint bundle: {exc}") from exc
+    if not isinstance(raw, dict) or set(raw) != BLUEPRINT_BUNDLE_FIELDS:
+        raise ValueError("blueprint bundle has invalid root fields")
+    if (
+        raw.get("schema_version") != 1
+        or raw.get("project") != project
+        or raw.get("status") != "approved"
+        or raw.get("candidate_only") is not True
+        or not isinstance(raw.get("series_scale_decision"), dict)
+        or not isinstance(raw.get("chapter_length_policy"), dict)
+    ):
+        raise ValueError("blueprint bundle has invalid identity or decision payload")
+
+    production = project_root / "production"
+    if production.exists() and (not production.is_dir() or any(production.iterdir())):
+        raise ValueError("production blueprint root must be absent or empty")
+
+    with tempfile.TemporaryDirectory(prefix=".blueprint-stage-", dir=project_root) as raw_stage:
+        stage_root = Path(raw_stage) / "agentlab"
+        stage_project = stage_root / "projects" / project
+        for relative in BLUEPRINT_MEMORY_PATHS:
+            source = project_root / relative
+            if not source.is_file():
+                raise ValueError(f"blueprint memory input is missing: {relative}")
+            destination = stage_project / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source.read_bytes())
+        _write_blueprint_bundle_tree(stage_project, raw)
+        validation = validate_crown_blueprint(stage_root, project=project)
+        if validation.get("status") != "pass":
+            raise ValueError(
+                "blueprint bundle validation blocked: "
+                + ", ".join(str(item) for item in validation.get("issues") or [])
+            )
+        staged_production = stage_project / "production"
+        if production.exists():
+            production.rmdir()
+        staged_production.replace(production)
+
+    return {
+        "schema_version": 1,
+        "status": "materialized",
+        "project": project,
+        "bundle_path": bundle_file.relative_to(root).as_posix(),
+        "bundle_sha256": _sha256(bundle_file),
+        "validation": validation,
+    }
 
 
 def _record_refs(record: dict[str, Any]) -> set[str]:
@@ -280,6 +449,11 @@ def validate_crown_blueprint(
         issues,
         "fact_distillation",
     )
+    distilled_source_hashes = {
+        str(source.get("sha256") or "")
+        for source in distillation.get("sources") or []
+        if isinstance(source, dict) and source.get("sha256")
+    }
 
     for label, decision in (("series_scale", scale), ("chapter_length", length)):
         if decision.get("status") != "approved" or not str(
@@ -288,6 +462,13 @@ def validate_crown_blueprint(
             issues.append(f"{label}:not_agentlab_approved")
         if not isinstance(decision.get("evidence"), list) or not decision["evidence"]:
             issues.append(f"{label}:missing_evidence")
+        else:
+            for index, evidence in enumerate(decision["evidence"], start=1):
+                hashes = evidence.get("source_hashes") if isinstance(evidence, dict) else None
+                if not isinstance(hashes, list) or not hashes:
+                    issues.append(f"{label}:missing_evidence_hashes:{index}")
+                elif any(str(item) not in distilled_source_hashes for item in hashes):
+                    issues.append(f"{label}:unbound_evidence_hash:{index}")
     parts = scale.get("parts")
     if not isinstance(parts, list) or len(parts) != 3:
         issues.append("series_scale:requires_exactly_three_parts")
@@ -363,6 +544,11 @@ def validate_crown_blueprint(
                 continue
             records[record_id] = record
             kinds.add(str(record["kind"]))
+            source_hashes = record.get("source_hashes")
+            if not isinstance(source_hashes, list) or not source_hashes:
+                issues.append(f"canonical:missing_source_hashes:{record_id}")
+            elif any(str(item) not in distilled_source_hashes for item in source_hashes):
+                issues.append(f"canonical:unbound_source_hash:{record_id}")
     for missing_kind in sorted(REQUIRED_CANONICAL_KINDS - kinds):
         issues.append(f"canonical:missing_kind:{missing_kind}")
     for record_id, record in records.items():

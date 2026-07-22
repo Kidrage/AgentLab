@@ -4,12 +4,14 @@ from pathlib import Path
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 
 import pytest
 import yaml
 
 from agent_runtime.narrative.blueprint_validation import (
+    materialize_crown_blueprint,
     seal_crown_blueprint,
     validate_crown_blueprint,
 )
@@ -25,7 +27,13 @@ def _write_yaml(path: Path, value: object) -> None:
 
 def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
     project = root / "projects" / "Crown_of_Ash"
-    evidence = [{"source": "distilled-facts", "conclusion": "density supports decision"}]
+    evidence = [
+        {
+            "source": "distilled-facts",
+            "source_hashes": ["a" * 64],
+            "conclusion": "density supports decision",
+        }
+    ]
     _write_yaml(
         project / "production" / "series_scale_decision.yml",
         {
@@ -134,6 +142,8 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
         {"id": "foreshadowing.broken_bell", "kind": "foreshadowing", "refs": ["event.opening"]},
         {"id": "arc.part_1", "kind": "part_arc", "refs": ["foreshadowing.broken_bell"]},
     ]
+    for record in records:
+        record["source_hashes"] = ["a" * 64]
     fragment = project / "production" / "canonical" / "core.yml"
     _write_yaml(fragment, {"schema_version": 1, "records": records})
     fragment_hash = hashlib.sha256(fragment.read_bytes()).hexdigest()
@@ -224,6 +234,79 @@ def test_validates_agentlab_decisions_canon_invariants_and_twenty_chapter_cards(
     }
 
 
+def _bundle_from_valid_blueprint(root: Path, task_id: str = "task_parent") -> Path:
+    project = root / "projects" / "Crown_of_Ash"
+    canonical_index = yaml.safe_load(
+        (project / "production" / "canonical" / "index.yml").read_text()
+    )
+    fragments = [
+        {
+            "path": item["path"],
+            "document": yaml.safe_load((project / item["path"]).read_text()),
+        }
+        for item in canonical_index["fragments"]
+    ]
+    bundle = {
+        "schema_version": 1,
+        "project": "Crown_of_Ash",
+        "status": "approved",
+        "candidate_only": True,
+        "series_scale_decision": yaml.safe_load(
+            (project / "production" / "series_scale_decision.yml").read_text()
+        ),
+        "chapter_length_policy": yaml.safe_load(
+            (project / "production" / "chapter_length_policy.yml").read_text()
+        ),
+        "canonical_fragments": fragments,
+        "chapter_cards": {
+            "index": yaml.safe_load(
+                (project / "production" / "chapter_cards" / "index.yml").read_text()
+            ),
+            "cards": [
+                yaml.safe_load(
+                    (
+                        project
+                        / "production"
+                        / "chapter_cards"
+                        / f"ch{chapter:03d}.yml"
+                    ).read_text()
+                )
+                for chapter in range(1, 21)
+            ],
+        },
+    }
+    bundle_path = project / "runs" / task_id / "artifacts" / "blueprint_bundle.yml"
+    _write_yaml(bundle_path, bundle)
+    shutil.rmtree(project / "production")
+    return bundle_path
+
+
+def test_materializes_validated_bundle_from_parent_task_atomically(tmp_path: Path) -> None:
+    _valid_blueprint(tmp_path)
+    bundle = _bundle_from_valid_blueprint(tmp_path)
+
+    result = materialize_crown_blueprint(tmp_path, bundle_path=bundle)
+
+    assert result["status"] == "materialized"
+    assert result["validation"]["status"] == "pass"
+    assert validate_crown_blueprint(tmp_path)["status"] == "pass"
+
+
+def test_materializer_rejects_unsafe_fragment_without_writing_production(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    bundle = _bundle_from_valid_blueprint(tmp_path)
+    data = yaml.safe_load(bundle.read_text())
+    data["canonical_fragments"][0]["path"] = "../outside.yml"
+    _write_yaml(bundle, data)
+
+    with pytest.raises(ValueError, match="unsafe canonical fragment"):
+        materialize_crown_blueprint(tmp_path, bundle_path=bundle)
+
+    assert not (tmp_path / "projects" / "Crown_of_Ash" / "production").exists()
+
+
 def test_blocks_duplicate_ids_dangling_refs_and_underage_intimacy(tmp_path: Path) -> None:
     fragment, records = _valid_blueprint(tmp_path)
     records[1]["age"] = 17
@@ -252,6 +335,35 @@ def test_blocks_duplicate_ids_dangling_refs_and_underage_intimacy(tmp_path: Path
         "canonical:adult_boundary:relationship.kane_isabella:character.isabella"
         in result["issues"]
     )
+
+
+def test_blocks_blueprint_evidence_not_bound_to_distilled_sources(tmp_path: Path) -> None:
+    fragment, records = _valid_blueprint(tmp_path)
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    scale = yaml.safe_load(
+        (project / "production" / "series_scale_decision.yml").read_text()
+    )
+    scale["evidence"][0]["source_hashes"] = ["b" * 64]
+    _write_yaml(project / "production" / "series_scale_decision.yml", scale)
+    records[0]["source_hashes"] = ["b" * 64]
+    _write_yaml(fragment, {"schema_version": 1, "records": records})
+    _write_yaml(
+        fragment.parent / "index.yml",
+        {
+            "schema_version": 1,
+            "fragments": [
+                {
+                    "path": "production/canonical/core.yml",
+                    "sha256": hashlib.sha256(fragment.read_bytes()).hexdigest(),
+                }
+            ],
+        },
+    )
+
+    result = validate_crown_blueprint(tmp_path)
+
+    assert "series_scale:unbound_evidence_hash:1" in result["issues"]
+    assert "canonical:unbound_source_hash:character.kane" in result["issues"]
 
 
 def test_validate_blueprint_cli_is_registered() -> None:
