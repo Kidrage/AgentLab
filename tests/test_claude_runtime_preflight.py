@@ -59,6 +59,9 @@ ULTRACODE_SEALED_MESSAGES = [
 PURE_WRITER_SEALED_MESSAGES = [
     {"role": "user", "content": "Write the bounded final chapter candidate."}
 ]
+REVIEWER_SEALED_MESSAGES = [
+    {"role": "user", "content": "Audit the bounded chapter candidates."}
+]
 
 
 def _runtime_from_real_config(
@@ -110,6 +113,39 @@ def _role_profile(contract_name: str) -> dict[str, str]:
         ),
         "capacity_pool": "deepseek_metered_api",
     }
+
+
+def test_narrative_reviewer_contract_requires_exact_sealed_runtime_binding(
+    tmp_path: Path,
+) -> None:
+    runtime_root = _runtime_from_real_config(tmp_path, "claude_narrative_audit")
+    plan = _make_plan(runtime_root)
+    plan.route.route_key = "narrative_heavy_audit"
+    profile = _role_profile("claude_narrative_audit")
+
+    with patch(
+        "agent_runtime.cli_executor.shutil.which", return_value="/usr/bin/claude"
+    ), patch(
+        "agent_runtime.cli_executor.subprocess.run", return_value=_provider_result()
+    ) as run:
+        result = run_cli_agent(
+            plan,
+            "Reviewer",
+            profile,
+            sealed_messages=REVIEWER_SEALED_MESSAGES,
+        )
+
+    assert result.status == "completed"
+    preflight = result.raw_usage["claude_model_preflight"]
+    assert preflight["status"] == "pass"
+    assert preflight["command_binding_verified"] is True
+    argv = run.call_args.args[0]
+    schema = json.loads(argv[argv.index("--json-schema") + 1])
+    assert schema["required"] == [
+        "fiction_review",
+        "continuity_failure_report",
+        "narrative_quality_scorecard",
+    ]
 
 
 def _provider_result() -> SimpleNamespace:

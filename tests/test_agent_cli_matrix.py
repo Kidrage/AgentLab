@@ -61,7 +61,7 @@ def test_matrix_references_are_valid_and_full_cli_full_matches_required_defaults
         "artifact_dispatch"
     ]
     for tier in ("full", "performance", "low"):
-        assert rows[(tier, "reviewer")]["cli_agent"] == "qwen"
+        assert rows[(tier, "reviewer")]["cli_agent"] == "claude_code"
         assert rows[(tier, "visual_reviewer")]["cli_agent"] == "agy"
         assert rows[(tier, "visual_reviewer")]["role"] == "Reviewer"
         assert rows[(tier, "scribe")]["cli_agent"] == "qwen"
@@ -104,8 +104,12 @@ def test_matrix_rejects_foreign_provider_model_on_codex_worker(tmp_path: Path) -
 def test_heavy_audit_alias_roles_resolve_to_bound_cli_workers() -> None:
     for budget_mode in ("max_quality", "balanced", "frugal"):
         plan = SimpleNamespace(budget_mode=budget_mode)
-        for role in ("Reviewer", "Scribe"):
+        for role in ("Reviewer",):
             preview = resolve_agent_execution_preview(ROOT, plan, role)
             assert preview["executor_type"] == "cli_agent"
-            assert preview["cli_agent"] == "qwen"
+            assert preview["cli_agent"] == "claude_code"
             assert preview["role_binding_allowed"] is True
+        scribe = resolve_agent_execution_preview(ROOT, plan, "Scribe")
+        assert scribe["executor_type"] == "cli_agent"
+        assert scribe["cli_agent"] == "qwen"
+        assert scribe["role_binding_allowed"] is True

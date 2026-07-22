@@ -115,9 +115,9 @@ modes:
           capacity_route: Writer
         reviewer:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_narrative_audit
+          default: deepseek_v4_pro
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy
@@ -208,9 +208,9 @@ modes:
           capacity_route: Writer
         reviewer:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_narrative_audit
+          default: deepseek_v4_pro
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy
@@ -297,9 +297,9 @@ modes:
           capacity_route: WriterLow
         reviewer:
           executor_type: cli_agent
-          cli_agent: qwen
-          invocation_contract: qwen
-          default: qwen3_6_flash_dashscope
+          cli_agent: claude_code
+          invocation_contract: claude_narrative_audit
+          default: deepseek_v4_pro
         visual_reviewer:
           executor_type: cli_agent
           cli_agent: agy

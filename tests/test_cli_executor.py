@@ -893,6 +893,24 @@ class TestRenderCommand:
         assert argv[:5] == ["hermes", "--provider", "openai-codex", "-m", "gpt-5.6-sol"]
         assert any(str(tmp_path / "pkt.json") in arg for arg in argv)
 
+    def test_substitutes_narrative_audit_schema_as_one_argv_value(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _render_command
+
+        schema = json.dumps(
+            {"type": "object", "required": ["fiction_review"]},
+            separators=(",", ":"),
+        )
+        argv = _render_command(
+            "claude --json-schema '{narrative_audit_schema}' -p audit",
+            tmp_path / "pkt.json",
+            narrative_audit_schema=schema,
+            append_task_packet_path=False,
+        )
+
+        assert argv == ["claude", "--json-schema", schema, "-p", "audit"]
+
     def test_agy_catalog_resolves_cli_display_label(self):
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))

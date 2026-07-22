@@ -229,6 +229,44 @@ contracts:
       on_binary_missing: stop_and_report
       on_quota_exhausted: stop_and_report
 
+  claude_narrative_audit:
+    worker_id: claude_code
+    display_name: Claude Shell DeepSeek Sealed Narrative Reviewer
+    command: claude
+    invocation_style: sealed_packet_stdin
+    packet_delivery: stdin
+    structured_output: narrative_heavy_audit
+    workflow_shell: true
+    coalescing_allowed: false
+    required_receipts:
+      - outbound_context_manifest_reviewer.yml
+      - model_execution_chain_reviewer.yml
+      - model_execution_receipt_reviewer_<route>_<attempt>.yml
+      - narrative_heavy_audit_output_contract.yml
+    template: >-
+      claude --model "{model_id}" --effort max --max-budget-usd 3.00
+      --permission-mode bypassPermissions --output-format json --tools ""
+      --json-schema '{narrative_audit_schema}' -p "Treat the complete sealed
+      AgentLab Reviewer packet on stdin as the only task context. Audit every
+      requested chapter against its exact evidence and continuity contracts.
+      Do not browse, read workspace files, edit files, draft replacement prose,
+      plan other roles, or invoke subagents. Return exactly the structured JSON
+      required by the enforced schema. AgentLab alone serializes and validates
+      the candidate-only audit files."
+    required_placeholders: [model_id, narrative_audit_schema]
+    safe_probe: [claude, --help]
+    max_budget_usd: 3.00
+    output_parser: claude_json
+    expected_parse:
+      argv_prefix: [claude, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_quota_exhausted: stop_and_report
+
   claude_supervisor_fallback:
     worker_id: claude_code
     display_name: Claude Shell DeepSeek Supervisor Capacity Fallback

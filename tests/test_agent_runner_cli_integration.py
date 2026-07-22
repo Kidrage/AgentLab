@@ -841,7 +841,7 @@ def test_narrative_heavy_audit_cli_roles_receive_sealed_context(
     assert result.status == "completed"
     assert observed["sealed_messages"] == messages
     profile = observed["profile"]
-    assert profile["invocation_contract"] == "qwen"
+    assert profile["invocation_contract"] == "claude_narrative_audit"
     source_names = {
         Path(path).name for path in observed["outbound_source_paths"]
     }

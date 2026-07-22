@@ -98,6 +98,7 @@ _ALLOWED_CONTRACT_ENV_UNSETS = {
     *_AGY_DIRECT_API_KEY_ENV_VARS,
 }
 _CLAUDE_RUNTIME_RECEIPT_CONTRACTS = {
+    "claude_narrative_audit",
     "claude_supervisor_fallback",
     "claude_writer",
     "claude_writer_ultracode",
@@ -1252,14 +1253,16 @@ def _render_command(
     provider: str | None = None,
     model_id: str | None = None,
     model_key: str | None = None,
+    narrative_audit_schema: str | None = None,
     append_task_packet_path: bool = True,
 ) -> list[str]:
     """Expand the CLI command template and split into argv tokens.
 
     Supported placeholders: ``{task_packet_path}``, ``{workspace_path}``,
-    ``{provider}``, ``{model_id}``, and ``{model_key}``. Model placeholders are
-    substituted only when the template explicitly contains them; AgentLab does
-    not append model flags to CLIs implicitly.
+    ``{provider}``, ``{model_id}``, ``{model_key}``, and
+    ``{narrative_audit_schema}``. Model/schema placeholders are substituted only
+    when the template explicitly contains them; AgentLab does not append flags
+    to CLIs implicitly.
     """
     replacements = {
         "task_packet_path": str(task_packet_path),
@@ -1267,6 +1270,7 @@ def _render_command(
         "provider": str(provider or ""),
         "model_id": str(model_id or model_key or ""),
         "model_key": str(model_key or model_id or ""),
+        "narrative_audit_schema": str(narrative_audit_schema or ""),
     }
     rendered = cli_command_template
     for key, value in replacements.items():
@@ -1984,6 +1988,23 @@ def _claude_runtime_preflight(
     # browser access, fallback models, or filesystem mutation without the
     # sealed Writer/Supervisor packet authorizing that wider surface.
     expected_arguments = {
+        "claude_narrative_audit": [
+            "--model",
+            requested_cli_model_id,
+            "--effort",
+            "max",
+            "--max-budget-usd",
+            "3.00",
+            "--permission-mode",
+            "bypassPermissions",
+            "--output-format",
+            "json",
+            "--tools",
+            "",
+            "--json-schema",
+            argv[14] if len(argv) > 14 else "",
+            "-p",
+        ],
         "claude_writer": [
             "--model",
             requested_cli_model_id,
@@ -2033,6 +2054,21 @@ def _claude_runtime_preflight(
         and argv[1:-1] == expected_arguments
         and bool(str(argv[-1]).strip())
     )
+    if contract_name == "claude_narrative_audit":
+        try:
+            rendered_schema = json.loads(argv[14])
+        except (IndexError, TypeError, json.JSONDecodeError):
+            rendered_schema = None
+        expected_schema = _narrative_heavy_audit_output_schema(
+            str(packet_payload.get("agent") or "")
+        )
+        command_binding_verified = (
+            command_binding_verified
+            and packet_payload.get("packet_type")
+            == "agentlab_sealed_role_session"
+            and packet_payload.get("agent") == "Reviewer"
+            and rendered_schema == expected_schema
+        )
 
     forbidden_flag_names = {
         "--add-dir",
@@ -3764,6 +3800,22 @@ def run_cli_agent(
             detail="stdin packet delivery is valid only for sealed role sessions",
         )
     try:
+        narrative_audit_schema = (
+            json.dumps(
+                _narrative_heavy_audit_output_schema(
+                    agent_name,
+                    blocking_rewrite_required=(
+                        agent_name == "Verifier"
+                        and _narrative_heavy_audit_requires_rewrite(run_dir)
+                    ),
+                ),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            if resolved_invocation_contract.get("structured_output")
+            == "narrative_heavy_audit"
+            else None
+        )
         argv = _render_command(
             cli_command_template,
             packet_path,
@@ -3771,6 +3823,7 @@ def run_cli_agent(
             provider=model_values["provider"],
             model_id=model_values["model_id"],
             model_key=model_values["model_key"],
+            narrative_audit_schema=narrative_audit_schema,
             append_task_packet_path=not sealed_packet_stdin,
         )
     except ValueError as exc:
@@ -4033,6 +4086,7 @@ def run_cli_agent(
                 provider=model_values["provider"],
                 model_id=model_values["model_id"],
                 model_key=model_values["model_key"],
+                narrative_audit_schema=narrative_audit_schema,
                 append_task_packet_path=not sealed_packet_stdin,
             )
             if candidate_used:
