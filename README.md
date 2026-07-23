@@ -2,7 +2,8 @@
 
 [English](docs/README.en-US.md) | [中文](docs/README.zh-CN.md) |
 [Capability reference](docs/CURRENT_VERSION_CAPABILITIES.en-US.md) |
-[能力手册](docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md)
+[能力手册](docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md) |
+[Project Agents + Canonical Truth](docs/PROJECT_AGENTS_AND_TRUTH.md)
 
 AgentLab is a local-first governed production runtime for code, longform text,
 articles, typed artifacts, and media workflows. It owns task planning, role
@@ -73,11 +74,15 @@ projects/<Project>/runtime/tasks/<task_id>/    v2 event ledger, projections, evi
 projects/<Project>/runs/<task_id>/             legacy staged-migration compatibility
 projects/<Project>/production/                 promoted current deliverables
 projects/<Project>/archive/                    superseded formal deliverables
+projects/<Project>/project_truth.yml           enforced canonical truth pointer
+projects/<Project>/.agentlab/truth/            immutable truth history
 ```
 
 Candidate completion never implies production promotion. Longform facts remain
 structured in fact snapshots, artifact indexes, packets, ledgers, and state
 proposals. Retrieval can provide evidence but does not replace that authority.
+When `project_truth_mode: enforced`, those files become projections or evidence;
+the canonical snapshot is the sole live authority.
 
 候选完成不等于正式晋升。长篇事实继续由 fact snapshot、artifact index、packet、
 ledger 和 state proposal 维护；检索只能提供证据，不能替代事实源。

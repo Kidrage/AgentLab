@@ -17,6 +17,7 @@ from .store import (
     ProjectTruthStore,
     ProjectTruthValidationError,
 )
+from .migration import ProjectTruthMigrator
 
 __all__ = [
     "CanonicalCommitReceipt",
@@ -27,6 +28,7 @@ __all__ = [
     "ProjectTruthConflict",
     "ProjectTruthError",
     "ProjectTruthIntegrityError",
+    "ProjectTruthMigrator",
     "ProjectTruthPointer",
     "ProjectTruthStore",
     "ProjectTruthValidationError",

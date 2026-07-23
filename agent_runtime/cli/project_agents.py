@@ -19,6 +19,7 @@ from agent_runtime.project_agents import (
 from agent_runtime.project_truth import (
     ChangeSet,
     FactChange,
+    ProjectTruthMigrator,
     ProjectTruthStore,
     ResourceChange,
 )
@@ -211,6 +212,35 @@ def register_project_agent_commands(app: typer.Typer, root: Path, console: Any) 
                 sort_keys=False,
             )
         )
+
+    @app.command("plan-project-truth-migration")
+    def plan_project_truth_migration(
+        project: str = typer.Option(..., "--project"),
+        output: Path | None = typer.Option(None, "--output"),
+    ) -> None:
+        plan = ProjectTruthMigrator(_project_root(root, project)).plan(project)
+        if output is not None:
+            atomic_write_yaml(output, plan, sort_keys=False)
+        typer.echo(yaml.safe_dump(plan, sort_keys=False, allow_unicode=True))
+
+    @app.command("apply-project-truth-migration")
+    def apply_project_truth_migration(
+        project: str = typer.Option(..., "--project"),
+        manifest_path: Path = typer.Option(..., "--manifest"),
+    ) -> None:
+        if not manifest_path.is_file():
+            raise typer.BadParameter(
+                f"migration manifest does not exist: {manifest_path}"
+            )
+        manifest = yaml.safe_load(
+            manifest_path.read_text(encoding="utf-8")
+        ) or {}
+        if manifest.get("project_id") != project:
+            raise typer.BadParameter("migration manifest project mismatch")
+        result = ProjectTruthMigrator(_project_root(root, project)).apply(
+            manifest
+        )
+        typer.echo(yaml.safe_dump(result, sort_keys=False, allow_unicode=True))
 
     @app.command("create-agent-team")
     def create_agent_team(
