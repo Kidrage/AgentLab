@@ -55,6 +55,59 @@ NARRATIVE_HINTS = (
 MEDIA_HINTS = ("video", "image", "audio", "music", "media", "film")
 RESEARCH_HINTS = ("research", "study", "survey")
 SAFE_RELEASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+SHA256_ID = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _project_truth_mode(project_root: Path) -> str:
+    manifest = project_root / "project.yml"
+    if not manifest.is_file() or manifest.is_symlink():
+        return "legacy"
+    try:
+        data = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return "legacy"
+    features = data.get("features") if isinstance(data, dict) else {}
+    return str((features or {}).get("project_truth_mode") or "legacy")
+
+
+def _current_truth_sources(
+    project_root: Path,
+) -> dict[Path, tuple[AuthorityLevel, KnowledgeLifecycle, str]]:
+    pointer = project_root / "project_truth.yml"
+    if not pointer.is_file() or pointer.is_symlink():
+        return {}
+    try:
+        data = yaml.safe_load(pointer.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+    snapshot_id = str(data.get("current_snapshot_id") or "")
+    if not SHA256_ID.fullmatch(snapshot_id):
+        return {}
+    snapshot = (
+        project_root
+        / ".agentlab"
+        / "truth"
+        / "snapshots"
+        / f"{snapshot_id}.yml"
+    )
+    if (
+        _has_symlink_component(snapshot, project_root)
+        or not snapshot.is_file()
+        or snapshot.is_symlink()
+    ):
+        return {}
+    return {
+        pointer: (
+            AuthorityLevel.CANONICAL,
+            KnowledgeLifecycle.ACTIVE,
+            "project_truth_pointer",
+        ),
+        snapshot: (
+            AuthorityLevel.CANONICAL,
+            KnowledgeLifecycle.ACTIVE,
+            "canonical_snapshot",
+        ),
+    }
 
 
 class SourceCollector:
@@ -205,6 +258,15 @@ class SourceCollector:
             return []
         target_namespace = namespace or f"project.{project}"
         sources: dict[Path, tuple[AuthorityLevel, KnowledgeLifecycle, str]] = {}
+        truth_mode = _project_truth_mode(project_root)
+        if truth_mode == "enforced":
+            sources.update(_current_truth_sources(project_root))
+            return self._records_from_sources(
+                sources,
+                namespace=target_namespace,
+                project=project,
+                domain=domain,
+            )
         artifact_index = project_root / "project_artifact_index.yml"
         if artifact_index.is_file() and not artifact_index.is_symlink():
             sources[artifact_index] = (
@@ -248,12 +310,29 @@ class SourceCollector:
                 if directory.is_dir():
                     for path in self._walk(directory):
                         sources.setdefault(path, (authority, lifecycle, kind))
+        return self._records_from_sources(
+            sources,
+            namespace=target_namespace,
+            project=project,
+            domain=domain,
+        )
+
+    def _records_from_sources(
+        self,
+        sources: dict[
+            Path, tuple[AuthorityLevel, KnowledgeLifecycle, str]
+        ],
+        *,
+        namespace: str,
+        project: str,
+        domain: str,
+    ) -> list[KnowledgeRecord]:
         records = []
         for path, (authority, lifecycle, kind) in sorted(sources.items(), key=lambda item: str(item[0])):
             object_kind = domain if domain in {"longform_narrative", "research"} else kind
             record = self._record_for_file(
                 path,
-                namespace=target_namespace,
+                namespace=namespace,
                 project_id=project,
                 authority=authority,
                 lifecycle=lifecycle,

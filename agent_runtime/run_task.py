@@ -227,6 +227,9 @@ register_knowledge_commands(app, _PROJECT_ROOT, console)
 from agent_runtime.cli.task_runtime_v2 import register_task_runtime_commands
 register_task_runtime_commands(app, _PROJECT_ROOT, console)
 
+from agent_runtime.cli.project_agents import register_project_agent_commands
+register_project_agent_commands(app, _PROJECT_ROOT, console)
+
 def _run_external_skills_cli(args: list[str]) -> None:
     from external_skills_cli import main as external_skills_main
 

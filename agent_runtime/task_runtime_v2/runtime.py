@@ -556,6 +556,10 @@ class TaskRuntime:
         title: str,
         idempotency_key: str,
         depends_on: list[str] | None = None,
+        assigned_agent_id: str | None = None,
+        agent_manifest_revision: int | None = None,
+        canonical_snapshot_id: str | None = None,
+        effective_contract_hash: str | None = None,
     ) -> dict[str, Any]:
         """Create a schedulable unit inside an existing Job and Task."""
 
@@ -569,6 +573,12 @@ class TaskRuntime:
         dependencies = [
             _validated_id(item, field="depends_on") for item in (depends_on or [])
         ]
+        agent_binding = self._validate_project_agent_binding(
+            assigned_agent_id=assigned_agent_id,
+            agent_manifest_revision=agent_manifest_revision,
+            canonical_snapshot_id=canonical_snapshot_id,
+            contract_hash=effective_contract_hash,
+        )
 
         def validate(projection: dict[str, Any]) -> None:
             if projection["task"]["status"] in {"completed", "failed", "cancelled"}:
@@ -592,10 +602,86 @@ class TaskRuntime:
                 "kind": kind,
                 "title": title,
                 "depends_on": dependencies,
+                **agent_binding,
             },
             validate_projection=validate,
         )
         return self.rebuild_task(task_id)
+
+    def _validate_project_agent_binding(
+        self,
+        *,
+        assigned_agent_id: str | None,
+        agent_manifest_revision: int | None,
+        canonical_snapshot_id: str | None,
+        contract_hash: str | None,
+    ) -> dict[str, Any]:
+        project_root = self.agentlab_root / "projects" / self.project
+        manifest_path = project_root / "project.yml"
+        project_manifest: dict[str, Any] = {}
+        if manifest_path.is_file():
+            loaded = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                project_manifest = loaded
+        features = project_manifest.get("features") or {}
+        workspace = project_manifest.get("workspace") or {}
+        enabled = features.get("enable_project_agents") is True
+        supplied = (
+            assigned_agent_id,
+            agent_manifest_revision,
+            canonical_snapshot_id,
+            contract_hash,
+        )
+        if not enabled:
+            if any(value is not None for value in supplied):
+                raise ValueError(
+                    "project Agent binding supplied while project agents are disabled"
+                )
+            return {}
+        if features.get("project_truth_mode") != "enforced":
+            raise ValueError("project agents require enforced project truth")
+        if workspace.get("isolation") != "required":
+            raise ValueError("project agents require isolated project workspace")
+        if any(value is None for value in supplied):
+            raise ValueError(
+                "project Agent WorkItem requires agent, manifest, snapshot, "
+                "and contract bindings"
+            )
+
+        from agent_runtime.project_agents import (
+            AgentContract,
+            ProjectAgentRegistry,
+            effective_contract_hash as hash_contract,
+        )
+        from agent_runtime.project_truth import ProjectTruthStore
+
+        agent_id = _validated_id(str(assigned_agent_id), field="assigned_agent_id")
+        snapshot_id = str(canonical_snapshot_id)
+        if not _SHA256.fullmatch(snapshot_id):
+            raise ValueError("canonical_snapshot_id must be a SHA-256 hex digest")
+        if not isinstance(agent_manifest_revision, int) or isinstance(
+            agent_manifest_revision, bool
+        ) or agent_manifest_revision < 1:
+            raise ValueError("agent_manifest_revision must be positive")
+        if not _SHA256.fullmatch(str(contract_hash)):
+            raise ValueError("effective_contract_hash must be a SHA-256 hex digest")
+
+        truth = ProjectTruthStore(project_root)
+        current = truth.current()
+        if current.snapshot_id != snapshot_id:
+            raise ValueError("canonical snapshot binding is stale")
+        registered = ProjectAgentRegistry(truth).get(agent_id)
+        AgentContract(registered).assert_active()
+        if registered.manifest_revision != agent_manifest_revision:
+            raise ValueError("agent manifest revision binding is stale")
+        if hash_contract(registered) != contract_hash:
+            raise ValueError("effective Agent contract hash mismatch")
+        return {
+            "assigned_agent_id": agent_id,
+            "agent_manifest_revision": agent_manifest_revision,
+            "canonical_snapshot_id": snapshot_id,
+            "effective_contract_hash": contract_hash,
+        }
 
     def create_job(
         self,
@@ -2045,6 +2131,16 @@ class TaskRuntime:
                     "created_at": event["recorded_at"],
                     "updated_at": event["recorded_at"],
                 }
+                for binding_field in (
+                    "assigned_agent_id",
+                    "agent_manifest_revision",
+                    "canonical_snapshot_id",
+                    "effective_contract_hash",
+                ):
+                    if event["payload"].get(binding_field) is not None:
+                        work_items[work_item_id][binding_field] = event["payload"][
+                            binding_field
+                        ]
                 continue
             if event["event_type"] == "JOB_CREATED":
                 if task is None:

@@ -203,6 +203,16 @@ def register_task_runtime_commands(
         kind: str = typer.Option(..., "--kind"),
         title: str = typer.Option(..., "--title"),
         depends_on: list[str] = typer.Option([], "--depends-on"),
+        assigned_agent_id: str | None = typer.Option(None, "--assigned-agent-id"),
+        agent_manifest_revision: int | None = typer.Option(
+            None, "--agent-manifest-revision"
+        ),
+        canonical_snapshot_id: str | None = typer.Option(
+            None, "--canonical-snapshot-id"
+        ),
+        effective_contract_hash: str | None = typer.Option(
+            None, "--effective-contract-hash"
+        ),
         idempotency_key: str = typer.Option(..., "--idempotency-key"),
     ) -> None:
         emit(
@@ -213,6 +223,10 @@ def register_task_runtime_commands(
                 kind=kind,
                 title=title,
                 depends_on=depends_on,
+                assigned_agent_id=assigned_agent_id,
+                agent_manifest_revision=agent_manifest_revision,
+                canonical_snapshot_id=canonical_snapshot_id,
+                effective_contract_hash=effective_contract_hash,
                 idempotency_key=idempotency_key,
             )["work_items"][work_item_id]
         )

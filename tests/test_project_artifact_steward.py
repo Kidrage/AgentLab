@@ -19,6 +19,7 @@ from project_artifact_steward import (  # noqa: E402
     validate_project_artifact_governance,
 )
 from narrative.state_store import NarrativeStateStore  # noqa: E402
+from agent_runtime.project_truth import ProjectTruthStore  # noqa: E402
 
 
 def _write_yaml(path: Path, data: dict) -> None:
@@ -107,6 +108,137 @@ class ProjectArtifactStewardTests(TestCase):
                 hashlib.sha256(production.read_bytes()).hexdigest(),
             )
             self.assertFalse(validate_project_artifact_governance(root, "Novel", "task_0001"))
+
+    def test_enforced_truth_promotion_has_one_current_semantic_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            project_root = root / "projects" / "Novel"
+            _write_yaml(
+                root / "config" / "knowledge_system.yml",
+                {"indexing": {"project_allowlist": ["Novel"]}},
+            )
+            _write_yaml(
+                project_root / "project.yml",
+                {
+                    "project_id": "Novel",
+                    "features": {
+                        "project_truth_mode": "enforced",
+                        "enable_project_agents": True,
+                    },
+                    "workspace": {"isolation": "required"},
+                },
+            )
+            ProjectTruthStore(project_root).initialize("Novel")
+
+            for task_id, content in (
+                ("task_0001", "first accepted chapter\n"),
+                ("task_0002", "revised accepted chapter\n"),
+            ):
+                run_dir = self._make_run(root, task_id=task_id)
+                candidate = run_dir / "artifacts" / "chapter_01.md"
+                candidate.parent.mkdir(parents=True)
+                candidate.write_text(content, encoding="utf-8")
+                _write_yaml(
+                    run_dir / "artifact_promotion_plan.yml",
+                    {
+                        "version": 1,
+                        "project": "Novel",
+                        "task_id": task_id,
+                        "promotions": [
+                            {
+                                "artifact_id": "chapter_01",
+                                "canonical_key": "manuscript.chapter.01",
+                                "source_run_artifact": "artifacts/chapter_01.md",
+                                "production_path": (
+                                    "production/artifacts/chapter_01.md"
+                                ),
+                                "action": "replace",
+                            }
+                        ],
+                    },
+                )
+                receipt = apply_archive_protocol(root, "Novel", task_id)
+                self.assertEqual(receipt["status"], "completed")
+                self.assertIn("canonical_commit_receipt", receipt)
+
+            truth = ProjectTruthStore(project_root)
+            current = truth.current()
+            resource = current.resources["artifact.manuscript.chapter.01"]
+            self.assertEqual(
+                resource.content["content"], "revised accepted chapter\n"
+            )
+            self.assertEqual(
+                len(
+                    truth.resource_history(
+                        "artifact.manuscript.chapter.01"
+                    )
+                ),
+                2,
+            )
+            self.assertEqual(
+                list(
+                    key
+                    for key in current.resources
+                    if key == "artifact.manuscript.chapter.01"
+                ),
+                ["artifact.manuscript.chapter.01"],
+            )
+
+    def test_enforced_truth_blocks_artifact_without_semantic_key(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            project_root = root / "projects" / "Novel"
+            _write_yaml(
+                project_root / "project.yml",
+                {
+                    "project_id": "Novel",
+                    "features": {
+                        "project_truth_mode": "enforced",
+                        "enable_project_agents": True,
+                    },
+                    "workspace": {"isolation": "required"},
+                },
+            )
+            truth = ProjectTruthStore(project_root)
+            initial = truth.initialize("Novel")
+            run_dir = self._make_run(root)
+            candidate = run_dir / "artifacts" / "chapter_01.md"
+            candidate.parent.mkdir(parents=True)
+            candidate.write_text("ambiguous chapter\n", encoding="utf-8")
+            _write_yaml(
+                run_dir / "artifact_promotion_plan.yml",
+                {
+                    "version": 1,
+                    "project": "Novel",
+                    "task_id": "task_0001",
+                    "promotions": [
+                        {
+                            "artifact_id": "chapter_01_variant",
+                            "source_run_artifact": "artifacts/chapter_01.md",
+                            "production_path": (
+                                "production/artifacts/chapter_01_variant.md"
+                            ),
+                            "action": "replace",
+                        }
+                    ],
+                },
+            )
+
+            receipt = apply_archive_protocol(root, "Novel", "task_0001")
+
+            self.assertEqual(receipt["status"], "blocked")
+            self.assertIn("canonical_key", receipt["errors"][0])
+            self.assertEqual(
+                truth.current().snapshot_id, initial.current_snapshot_id
+            )
+            self.assertFalse(
+                (
+                    project_root
+                    / "production"
+                    / "artifacts"
+                    / "chapter_01_variant.md"
+                ).exists()
+            )
 
     def test_fact_authority_promotion_writes_commit_ready_index_binding(self) -> None:
         with tempfile.TemporaryDirectory() as td:

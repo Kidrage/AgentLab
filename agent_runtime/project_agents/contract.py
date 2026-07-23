@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+
 from .models import AgentManifest
 
 
@@ -16,6 +19,27 @@ def scope_matches(grant: str, requested: str) -> bool:
         prefix = grant[:-2]
         return requested == prefix or requested.startswith(f"{prefix}.")
     return grant == requested
+
+
+def effective_contract_hash(manifest: AgentManifest) -> str:
+    """Hash the fields that constrain one concrete Agent execution."""
+    document = manifest.to_dict()
+    contract = {
+        "identity": document["identity"],
+        "role": document["role"],
+        "authority": document["authority"],
+        "knowledge": document["knowledge"],
+        "runtime": document["runtime"],
+        "lifecycle": document["lifecycle"],
+        "validation": document["validation"],
+    }
+    encoded = json.dumps(
+        contract,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class AgentContract:

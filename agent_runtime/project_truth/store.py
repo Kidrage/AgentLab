@@ -160,6 +160,41 @@ class ProjectTruthStore:
                     raise ProjectTruthConflict(
                         "idempotency key already belongs to a different change set"
                     )
+                pointer = self._load_pointer()
+                if self._snapshot_in_chain(
+                    pointer.current_snapshot_id, receipt.snapshot_id
+                ):
+                    return receipt
+                if pointer.current_snapshot_id != receipt.previous_snapshot_id:
+                    raise ProjectTruthConflict(
+                        "idempotent commit receipt is not on the canonical chain"
+                    )
+                recovered = self._load_snapshot(receipt.snapshot_id)
+                if recovered.generation != receipt.generation:
+                    raise ProjectTruthIntegrityError(
+                        "idempotent commit receipt generation mismatch"
+                    )
+                self._append_event(
+                    {
+                        "schema_version": "project-truth-event/v1",
+                        "event_type": "CANONICAL_CHANGE_PREPARED",
+                        "project_id": change_set.project_id,
+                        "snapshot_id": receipt.snapshot_id,
+                        "receipt_id": receipt.receipt_id,
+                        "committed_at": receipt.committed_at,
+                    }
+                )
+                atomic_write_yaml(
+                    self.pointer_path,
+                    ProjectTruthPointer(
+                        project_id=receipt.project_id,
+                        current_snapshot_id=receipt.snapshot_id,
+                        generation=receipt.generation,
+                        updated_at=receipt.committed_at,
+                        last_receipt_id=receipt.receipt_id,
+                    ).to_dict(),
+                    sort_keys=False,
+                )
                 return receipt
 
             pointer = self._load_pointer()
@@ -245,6 +280,16 @@ class ProjectTruthStore:
                 snapshot.to_dict(),
             )
             self._write_immutable_yaml(receipt_path, receipt.to_dict())
+            self._append_event(
+                {
+                    "schema_version": "project-truth-event/v1",
+                    "event_type": "CANONICAL_CHANGE_PREPARED",
+                    "project_id": change_set.project_id,
+                    "snapshot_id": snapshot.snapshot_id,
+                    "receipt_id": receipt.receipt_id,
+                    "committed_at": committed_at,
+                }
+            )
             next_pointer = ProjectTruthPointer(
                 project_id=change_set.project_id,
                 current_snapshot_id=snapshot.snapshot_id,
@@ -254,16 +299,6 @@ class ProjectTruthStore:
             )
             atomic_write_yaml(
                 self.pointer_path, next_pointer.to_dict(), sort_keys=False
-            )
-            self._append_event(
-                {
-                    "schema_version": "project-truth-event/v1",
-                    "event_type": "CANONICAL_CHANGE_COMMITTED",
-                    "project_id": change_set.project_id,
-                    "snapshot_id": snapshot.snapshot_id,
-                    "receipt_id": receipt.receipt_id,
-                    "committed_at": committed_at,
-                }
             )
             return receipt
 
@@ -384,6 +419,15 @@ class ProjectTruthStore:
         ] != snapshot_id:
             raise ProjectTruthIntegrityError("canonical snapshot hash mismatch")
         return CanonicalSnapshot.from_dict(data)
+
+    def _snapshot_in_chain(self, head_id: str, expected_id: str) -> bool:
+        snapshot = self._load_snapshot(head_id)
+        while True:
+            if snapshot.snapshot_id == expected_id:
+                return True
+            if snapshot.parent_snapshot_id is None:
+                return False
+            snapshot = self._load_snapshot(snapshot.parent_snapshot_id)
 
     def _load_receipt(
         self,

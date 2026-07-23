@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import base64
 import fnmatch
 import re
 import shutil
@@ -79,6 +80,7 @@ VISUAL_PROMOTION_EXTENSIONS = frozenset(
         ".pdf",
     }
 )
+CANONICAL_ARTIFACT_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
 def _utc_now() -> str:
@@ -97,6 +99,119 @@ def _read_yaml(path: Path, default: Any | None = None) -> Any:
         return data if data is not None else ({} if default is None else default)
     except Exception:
         return {} if default is None else default
+
+
+def _project_truth_mode(project_root: Path) -> str:
+    manifest = _read_yaml(project_root / "project.yml", {})
+    if not isinstance(manifest, dict):
+        return "legacy"
+    return str(
+        (manifest.get("features") or {}).get("project_truth_mode") or "legacy"
+    )
+
+
+def _canonical_artifact_content(
+    source: Path,
+    *,
+    artifact_id: str,
+    production_path: str,
+) -> dict[str, Any]:
+    try:
+        content: Any = source.read_text(encoding="utf-8")
+        encoding = "utf-8"
+    except UnicodeDecodeError:
+        content = base64.b64encode(source.read_bytes()).decode("ascii")
+        encoding = "base64"
+    return {
+        "artifact_id": artifact_id,
+        "production_path": production_path,
+        "source_sha256": artifact_sha256(source),
+        "encoding": encoding,
+        "content": content,
+    }
+
+
+def _commit_canonical_promotions(
+    *,
+    agentlab_root: Path,
+    project: str,
+    task_id: str,
+    project_root: Path,
+    run_dir: Path,
+    plan: dict[str, Any],
+    intent: dict[str, Any],
+) -> dict[str, Any]:
+    try:
+        from agent_runtime.project_truth import (
+            ChangeSet,
+            ProjectTruthStore,
+            ResourceChange,
+        )
+    except ModuleNotFoundError:
+        from project_truth import ChangeSet, ProjectTruthStore, ResourceChange
+
+    changes: list[Any] = []
+    keys: set[str] = set()
+    for entry in plan.get("promotions") or []:
+        if not isinstance(entry, dict) or entry.get("evidence_only"):
+            continue
+        canonical_key = str(entry.get("canonical_key") or "")
+        if not CANONICAL_ARTIFACT_KEY.fullmatch(canonical_key):
+            raise ValueError(
+                "enforced truth promotion requires a valid canonical_key"
+            )
+        resource_key = f"artifact.{canonical_key}"
+        if resource_key in keys:
+            raise ValueError(
+                f"duplicate canonical artifact key in promotion: {canonical_key}"
+            )
+        keys.add(resource_key)
+        source, source_error = _resolve_source(
+            run_dir,
+            intent,
+            str(entry.get("source_run_artifact") or ""),
+        )
+        if source_error or source is None:
+            raise ValueError(source_error or "promotion source could not be resolved")
+        target, target_error = _resolve_production(
+            agentlab_root,
+            project_root,
+            intent,
+            entry.get("production_path") or entry.get("target_path"),
+            source,
+        )
+        if target_error or target is None:
+            raise ValueError(target_error or "production target could not be resolved")
+        artifact_id = str(
+            entry.get("artifact_id")
+            or _slug_artifact_id(_rel(target, Path(intent["production_dir"])))
+        )
+        production_rel = _rel(target, project_root)
+        changes.append(
+            ResourceChange(
+                key=resource_key,
+                content=_canonical_artifact_content(
+                    source,
+                    artifact_id=artifact_id,
+                    production_path=production_rel,
+                ),
+                media_type="application/vnd.agentlab.canonical-artifact+json",
+            )
+        )
+    if not changes:
+        raise ValueError("enforced truth promotion has no canonical artifacts")
+    truth = ProjectTruthStore(project_root)
+    current = truth.current()
+    return truth.commit(
+        ChangeSet(
+            project_id=project,
+            expected_snapshot_id=current.snapshot_id,
+            actor_id="AgentLab.Archivist",
+            idempotency_key=f"artifact-promotion:{task_id}",
+            reason=f"Promote accepted artifacts from task {task_id}.",
+            resources=tuple(changes),
+        )
+    ).to_dict()
 
 
 def _is_relative_to(path: Path, base: Path) -> bool:
@@ -598,6 +713,35 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
         or lineage.get("source_prompt_summary")
         or _prompt_summary(run_dir)
     )
+    canonical_commit_receipt = None
+    if _project_truth_mode(project_root) == "enforced":
+        try:
+            canonical_commit_receipt = _commit_canonical_promotions(
+                agentlab_root=agentlab_root,
+                project=project,
+                task_id=task_id,
+                project_root=project_root,
+                run_dir=run_dir,
+                plan=plan,
+                intent=intent,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            receipt = {
+                "version": 1,
+                "project": project,
+                "task_id": task_id,
+                "status": "blocked",
+                "created_at": _utc_now(),
+                "artifact_promotion_plan": "artifact_promotion_plan.yml",
+                "artifact_lineage": "artifact_lineage.yml",
+                "project_artifact_index": "project_artifact_index.yml",
+                "promotions_applied": [],
+                "archived_paths": [],
+                "visual_acceptance_gate": visual_acceptance_gate,
+                "errors": [f"canonical truth promotion failed: {exc}"],
+            }
+            atomic_write_yaml(run_dir / "archive_receipt.yml", receipt)
+            return receipt
     index = _load_index(project_root, project)
     errors: list[str] = []
     promotions_applied: list[dict] = []
@@ -702,6 +846,8 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
         "visual_acceptance_gate": visual_acceptance_gate,
         "errors": errors,
     }
+    if canonical_commit_receipt is not None:
+        receipt["canonical_commit_receipt"] = canonical_commit_receipt
     if receipt["status"] == "completed":
         try:
             from agent_runtime.knowledge_system import sync_committed

@@ -179,6 +179,13 @@ def init_project(repo_root: Path, project_id: str, project_type: str, title: str
             "default_task_state": "active",
             "auto_compact_on_close": True,
         },
+        "features": {
+            "project_truth_mode": "legacy",
+            "enable_project_agents": False,
+        },
+        "workspace": {
+            "isolation": "required",
+        },
     }
     manifest_path = project_root / "project.yml"
     if manifest_path.exists():
