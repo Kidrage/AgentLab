@@ -5,17 +5,17 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-policy-auto-approval-de62d90289e0`
+- Repository ID: `AgentLab-de62d90289e0`
 - Working root: `.`
-- Repository name: `AgentLab-policy-auto-approval`
+- Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-22T22:24:14.587245+00:00`
+- Generated at: `2026-07-23T08:24:38.366964+00:00`
 
 ## Current State
 
-- Branch: `feature/policy-auto-approval`
-- HEAD: `f8c169d`
-- Indexed paths: 1986
+- Branch: `codex/integrate-completed-worktrees-20260723`
+- HEAD: `2ca3d56`
+- Indexed paths: 1998
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,15 +43,15 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 586 |
-| `tests` | 450 |
+| `agent_runtime` | 592 |
+| `tests` | 456 |
 | `acceptance_runs` | 349 |
 | `docs` | 341 |
 | `docs/archive` | 222 |
 | `config` | 124 |
 | `tests/fixtures` | 110 |
 | `acceptance_runs/narrative_eval` | 59 |
-| `agent_runtime/narrative` | 50 |
+| `agent_runtime/narrative` | 54 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 41 |
@@ -65,9 +65,9 @@
 | `agent_runtime/context_governance` | 20 |
 | `agent_runtime/executors` | 19 |
 | `acceptance_runs/narrative_repair_v2` | 18 |
+| `agent_runtime/cli` | 17 |
 | `.` | 16 |
 | `acceptance_runs/m2_operator_demo` | 16 |
-| `agent_runtime/cli` | 16 |
 | `agent_templates` | 16 |
 | `agent_runtime/capabilities` | 15 |
 | `agent_runtime/ingestion` | 15 |
@@ -88,14 +88,14 @@
 
 ### Categories
 
-- code: 976 files, 8688090 bytes
-- literature: 415 files, 2355308 bytes
+- code: 988 files, 8975393 bytes
+- literature: 415 files, 2355520 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 583 files, 3215522 bytes
+- structured_data: 583 files, 3218856 bytes
 
 ### Common Extensions
 
-- `.py`: 963
+- `.py`: 975
 - `.yml`: 551
 - `.md`: 376
 - `.txt`: 39
@@ -174,6 +174,7 @@
 - `agent_runtime/migration_doctor.py`
 - `agent_runtime/model_capacity.py`
 - `agent_runtime/model_resolver.py`
+- `agent_runtime/narrative/knowledge_contract.py`
 - `agent_runtime/narrative/production/writer_contract.py`
 - `agent_runtime/observation_contract.py`
 - `agent_runtime/operator_os/action_contract.py`
@@ -193,7 +194,6 @@
 - `agent_templates/interface_mapper.md`
 - `agentlab_tui/models.py`
 - `config/agent_model_profiles.yml`
-- `config/capability_schema.yml`
 
 ## Key Entrypoints and Guides
 
@@ -230,30 +230,30 @@
 
 ## Change History
 
+- `2ca3d56 2026-07-23 merge: integrate policy-scoped automatic approvals`
+- `84915ea 2026-07-23 merge: integrate completed Crown RAG reset work`
+- `8a8ea3c 2026-07-23 docs: refresh project handoff`
 - `f8c169d 2026-07-23 fix: enforce automatic approval boundaries`
 - `8c3aff6 2026-07-23 feat: add policy-scoped automatic approvals`
+- `f83e7b6 2026-07-22 fix(narrative): compile sealed reviewer contract`
 - `90358ec 2026-07-22 fix: resolve Claude Ark fallback from worker registry`
+- `e6b498f 2026-07-22 fix(narrative): preserve audit route for no-rewrite boundary`
 - `53640cd 2026-07-22 feat: add governed task runtime v2`
+- `2a98f1e 2026-07-22 fix(narrative): route heavy reviewer through authenticated cli`
+- `22fe954 2026-07-22 fix(narrative): accept canonical timeline identifiers`
 - `5b8738a 2026-07-22 feat: route Seedance through Hermes Ark skills`
-- `c179aed 2026-07-22 docs: refresh model route handoff`
-- `6c35230 2026-07-22 fix: deliver Agy planner YAML`
-- `f26d1f1 2026-07-22 checkpoint(narrative): preserve Gate 1 runtime work`
-- `c990809 2026-07-22 fix: align default routes with native Codex`
-- `b7ff2ed 2026-07-21 fix(narrative): bind revision candidate audits`
-- `53a645b 2026-07-21 fix(narrative): harden targeted revision attempts`
-- `479ebcf 2026-07-21 fix(narrative): enforce Gate 1 prose length`
-- `668d4b7 2026-07-21 fix(narrative): deliver sealed Writer packet on stdin`
-- `bf1c056 2026-07-21 fix(narrative): seal Gate 1 operator plans`
-- `a6ed77b 2026-07-21 fix(narrative): align writer operator materialization`
-- `2452bf9 2026-07-21 feat(narrative): seal live writer packet path`
-- `c8ac0a1 2026-07-21 fix(narrative): bind literary memory evidence`
-- `78b4c3f 2026-07-21 docs(knowledge): record hardened assist acceptance`
-- `889b1ed 2026-07-21 fix(knowledge): harden default assist authority`
-- `e69cb90 2026-07-21 feat(knowledge): restrict project memory to allowlist`
+- `6fa10c2 2026-07-22 fix(background-jobs): reset retries after action recovery`
+- `1796d62 2026-07-22 fix(narrative): bind writer receipts to chapter artifacts`
+- `22c8068 2026-07-22 fix(narrative): allow writer length correction to converge`
+- `f535248 2026-07-22 fix(narrative): expand rejected draft on writer retry`
+- `9c9b6c5 2026-07-22 fix(narrative): preserve valid chapters across retries`
+- `7d0b9f3 2026-07-22 docs(cli): refresh writer invocation matrix`
+- `a347097 2026-07-22 fix(narrative): execute pure writer outside plan mode`
+- `2bb1560 2026-07-22 fix(narrative): preserve blueprint artifact lineage`
 
 ## Current Changes
 
-- `## feature/policy-auto-approval`
+- `## codex/integrate-completed-worktrees-20260723...origin/main [ahead 91]`
 
 ## Related Repositories
 
