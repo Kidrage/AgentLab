@@ -54,8 +54,15 @@ actually ran with the declared boundary and result.
 
 ## Decision Card
 
-A durable request for human approval or recovery choice. A blocked task remains
-blocked until the card is resolved through a governed control surface.
+A durable approval-policy outcome or recovery choice. It may record a scoped
+automatic grant, a pending human decision, or a forbidden action. Only pending
+human decisions block until resolved through a governed control surface.
+
+## Policy Approval Grant
+
+A time-limited authorization issued by a named approval policy for one exact
+request scope. The grant records policy and scope hashes and becomes invalid if
+the policy, requested action, files, capabilities, or expiry changes.
 
 ## Capacity Route
 

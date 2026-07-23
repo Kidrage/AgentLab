@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Any, List
 from datetime import datetime
 import hashlib
@@ -20,6 +20,7 @@ class DecisionCard:
     created_at: str
     updated_at: str
     expires_at: str
+    authorization: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def create(cls, **kwargs) -> 'DecisionCard':
@@ -41,7 +42,8 @@ class DecisionCard:
             evidence_artifacts=kwargs.get("evidence_artifacts", []),
             created_at=kwargs.get("created_at", datetime.utcnow().isoformat()),
             updated_at=kwargs.get("updated_at", datetime.utcnow().isoformat()),
-            expires_at=kwargs.get("expires_at", "")
+            expires_at=kwargs.get("expires_at", ""),
+            authorization=kwargs.get("authorization", {}),
         )
 
     def to_dict(self) -> dict:

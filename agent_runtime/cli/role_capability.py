@@ -42,6 +42,8 @@ def register_role_capability_commands(app: typer.Typer, project_root: Path, cons
             "allowed": decision.allowed,
             "reason": decision.reason,
             "requires_approval": decision.requires_approval,
+            "approval_mode": decision.approval_mode,
+            "approval_grant": decision.approval_grant,
         }, sort_keys=False))
         if out and decision.reason == "missing_backend":
             path = write_capability_gap_card(

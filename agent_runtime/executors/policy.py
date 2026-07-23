@@ -6,6 +6,8 @@ from typing import Any
 
 import yaml
 
+from agent_runtime.approvals.approval_policy import ApprovalPolicy, load_approval_policy
+
 
 DEFAULT_POLICY_PATH = Path(__file__).resolve().parents[2] / "config" / "executor_router.yml"
 
@@ -19,6 +21,7 @@ class ExecutorRouterPolicy:
     safety: dict[str, Any] = field(default_factory=dict)
     provider_priority: dict[str, list[str]] = field(default_factory=dict)
     providers: list[dict[str, Any]] = field(default_factory=list)
+    approval_policy: ApprovalPolicy = field(default_factory=ApprovalPolicy)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ExecutorRouterPolicy":
@@ -44,4 +47,7 @@ def load_executor_router_policy(path: Path | None = None) -> ExecutorRouterPolic
     if not policy_path.exists():
         return ExecutorRouterPolicy.from_dict({})
     data = yaml.safe_load(policy_path.read_text(encoding="utf-8")) or {}
-    return ExecutorRouterPolicy.from_dict(data)
+    policy = ExecutorRouterPolicy.from_dict(data)
+    candidate_root = policy_path.parent.parent
+    policy.approval_policy = load_approval_policy(candidate_root)
+    return policy

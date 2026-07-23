@@ -50,6 +50,9 @@ def main(argv: list[str] | None = None) -> int:
         max_cost_usd=0.25,
         requires_review=True,
         evidence_required=["execution_result_envelope.yml", "result_summary.md", "changed_files.yml", "claimed_tests.yml"],
+        bounded_scope=True,
+        reversible=True,
+        output_dir=output_dir,
     )
     state = run_acceptance_retry_loop(
         request=request,

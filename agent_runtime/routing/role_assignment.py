@@ -44,6 +44,9 @@ class RoleAssignmentEngine:
         self.mode_tier_policy = ModeTierWorkerPolicy(self.root / "config" / "mode_tier_worker_policy.yml")
         self.performance = PerformanceLedger(default_performance_ledger_path(self.root))
         self.assignment_policy = self._load_yaml(self.root / "config" / "role_assignment_policy.yml")
+        from agent_runtime.approvals.approval_policy import load_approval_policy
+
+        self.approval_policy = load_approval_policy(self.root)
         self.worker_cards = {
             item["worker_id"]: WorkerCard.from_dict({
                 **item,
@@ -286,11 +289,24 @@ class RoleAssignmentEngine:
 
         selected, _ = min(eligible, key=lambda item: self._score(item[0], role, item[1]))
         card = self.worker_cards[selected]
-        approval_required, approval_reasons = ApprovalGate(self.compatibility).evaluate(
+        approval_decision = ApprovalGate(
+            self.compatibility,
+            self.approval_policy,
+        ).evaluate_decision(
             card,
             role,
             approved_workers=approved,
+            request_context={
+                "project": project_id,
+                "task_id": task_id,
+                "bounded_scope": True,
+                "scope_binding": "runtime_recheck",
+                "runtime_recheck_required": True,
+                "allowed_files": (constraints or {}).get("allowed_files", []),
+            },
         )
+        approval_required = approval_decision.requires_human
+        approval_reasons = list(approval_decision.reasons)
         fallback_candidates = self.fallback_policy.fallbacks(role, selected)
         eligible_ids = {worker for worker, _ in eligible}
         fallbacks = [worker for worker in fallback_candidates if worker in eligible_ids]
@@ -318,6 +334,8 @@ class RoleAssignmentEngine:
             required_capabilities=required,
             risk_level=card.risk_level,
             approval_required=approval_required,
+            approval_mode=approval_decision.mode,
+            approval_grant=approval_decision.grant,
             approval_reasons=approval_reasons,
             activation_decision="require_approval" if approval_required else "activate",
             mode=mode,

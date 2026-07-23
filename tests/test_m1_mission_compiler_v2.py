@@ -758,10 +758,17 @@ class TestScaleEstimation:
 
 
 class TestHumanApproval:
-    def test_human_approval_always_required(self):
-        for prompt in [PROMPT_CODEBASE, PROMPT_LONGFORM, PROMPT_VIDEO, PROMPT_RESEARCH, PROMPT_EMPTY]:
+    def test_known_project_types_default_to_policy_auto_approval(self):
+        for prompt in [PROMPT_CODEBASE, PROMPT_LONGFORM, PROMPT_VIDEO, PROMPT_RESEARCH]:
             contract = build_mission_contract(prompt)
-            assert contract["human_approval_required"] is True, f"human_approval missing for prompt starting: {prompt[:30]}"
+            assert contract["human_approval_required"] is False
+            assert contract["approval_mode"] == "policy_auto"
+            assert contract["approval_summary"]["pending_human"] == 0
+
+    def test_unknown_project_still_requires_human_clarification(self):
+        contract = build_mission_contract(PROMPT_EMPTY)
+        assert contract["human_approval_required"] is True
+        assert contract["approval_mode"] == "human_required"
 
 
 # ── Schema compliance tests ────────────────────────────────────────

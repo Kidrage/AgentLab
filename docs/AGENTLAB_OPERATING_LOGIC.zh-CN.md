@@ -57,7 +57,7 @@ AgentLab 是工作流宿主。Hermes、Claude Code、Codex、Agy、Grok、Qwen �
 - `lifecycle.yml`：节点状态与依赖；
 - `progress.yml`：面向 operator 的进度与 heartbeat；
 - `task_events.jsonl`：追加式事件流；
-- `decision_cards/`：人工审批或恢复选择；
+- `decision_cards/`：策略自动授权、人工审批或恢复选择；
 - 角色报告与 receipts：真实完成证据。
 
 Web UI、后续 Codex 对话和 daemon 都从这些文件重建状态，不依赖旧会话文本。

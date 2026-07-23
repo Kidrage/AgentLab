@@ -5,17 +5,17 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-de62d90289e0`
+- Repository ID: `AgentLab-policy-auto-approval-de62d90289e0`
 - Working root: `.`
-- Repository name: `AgentLab`
+- Repository name: `AgentLab-policy-auto-approval`
 - Git repository: `true`
-- Generated at: `2026-07-21T23:05:07.720242+00:00`
+- Generated at: `2026-07-22T22:24:14.587245+00:00`
 
 ## Current State
 
-- Branch: `feature/narrative-gate1-resume`
-- HEAD: `6c35230`
-- Indexed paths: 2021
+- Branch: `feature/policy-auto-approval`
+- HEAD: `f8c169d`
+- Indexed paths: 1986
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,14 +43,14 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 579 |
-| `tests` | 446 |
-| `acceptance_runs` | 398 |
-| `docs` | 339 |
+| `agent_runtime` | 586 |
+| `tests` | 450 |
+| `acceptance_runs` | 349 |
+| `docs` | 341 |
 | `docs/archive` | 222 |
-| `config` | 123 |
-| `acceptance_runs/narrative_eval` | 116 |
+| `config` | 124 |
 | `tests/fixtures` | 110 |
+| `acceptance_runs/narrative_eval` | 59 |
 | `agent_runtime/narrative` | 50 |
 | `skills` | 47 |
 | `skills/active` | 46 |
@@ -63,13 +63,13 @@
 | `agent_runtime/workers` | 21 |
 | `acceptance_runs/mainline_r0_r5` | 20 |
 | `agent_runtime/context_governance` | 20 |
+| `agent_runtime/executors` | 19 |
 | `acceptance_runs/narrative_repair_v2` | 18 |
-| `agent_runtime/executors` | 18 |
 | `.` | 16 |
 | `acceptance_runs/m2_operator_demo` | 16 |
+| `agent_runtime/cli` | 16 |
 | `agent_templates` | 16 |
 | `agent_runtime/capabilities` | 15 |
-| `agent_runtime/cli` | 15 |
 | `agent_runtime/ingestion` | 15 |
 | `acceptance_runs/narrative_efficiency` | 13 |
 | `agent_runtime/config_center` | 13 |
@@ -88,16 +88,16 @@
 
 ### Categories
 
-- code: 965 files, 8447334 bytes
-- literature: 412 files, 2343541 bytes
+- code: 976 files, 8688090 bytes
+- literature: 415 files, 2355308 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 632 files, 3246718 bytes
+- structured_data: 583 files, 3215522 bytes
 
 ### Common Extensions
 
-- `.py`: 952
-- `.yml`: 600
-- `.md`: 373
+- `.py`: 963
+- `.yml`: 551
+- `.md`: 376
 - `.txt`: 39
 - `.json`: 27
 - `.sh`: 8
@@ -122,6 +122,8 @@
 - `acceptance_runs/m2_worker_invocation_contracts/invalid_templates.yml`
 - `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.md`
 - `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.yml`
+- `acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml`
+- `acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/model_override_receipt.yml`
 - `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/chapter_quality_matrix.yml`
 - `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/chapter_state_plan.yml`
 - `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/character_arc_ledger.yml`
@@ -186,14 +188,12 @@
 - `agent_runtime/review/models.py`
 - `agent_runtime/router_update/models.py`
 - `agent_runtime/schemas.py`
+- `agent_runtime/task_runtime_v2/migration.py`
 - `agent_runtime/workers/invocation_contract.py`
 - `agent_templates/interface_mapper.md`
 - `agentlab_tui/models.py`
 - `config/agent_model_profiles.yml`
 - `config/capability_schema.yml`
-- `config/config_ui_schema.yml`
-- `config/hermes_brain_model_groups.yml`
-- `config/migration_profile.yml`
 
 ## Key Entrypoints and Guides
 
@@ -230,6 +230,12 @@
 
 ## Change History
 
+- `f8c169d 2026-07-23 fix: enforce automatic approval boundaries`
+- `8c3aff6 2026-07-23 feat: add policy-scoped automatic approvals`
+- `90358ec 2026-07-22 fix: resolve Claude Ark fallback from worker registry`
+- `53640cd 2026-07-22 feat: add governed task runtime v2`
+- `5b8738a 2026-07-22 feat: route Seedance through Hermes Ark skills`
+- `c179aed 2026-07-22 docs: refresh model route handoff`
 - `6c35230 2026-07-22 fix: deliver Agy planner YAML`
 - `f26d1f1 2026-07-22 checkpoint(narrative): preserve Gate 1 runtime work`
 - `c990809 2026-07-22 fix: align default routes with native Codex`
@@ -244,19 +250,10 @@
 - `78b4c3f 2026-07-21 docs(knowledge): record hardened assist acceptance`
 - `889b1ed 2026-07-21 fix(knowledge): harden default assist authority`
 - `e69cb90 2026-07-21 feat(knowledge): restrict project memory to allowlist`
-- `ae41eff 2026-07-21 feat(knowledge): absorb governed RAG into AgentLab`
-- `a6058e0 2026-07-21 docs(narrative): remove local path from repair plan`
-- `1a00c9a 2026-07-21 feat(knowledge): add governed federated retrieval`
-- `6edaf89 2026-07-20 docs(narrative): checkpoint paused phase 2r work`
-- `05e9ecf 2026-07-20 feat(narrative): compile chapter literary memory`
-- `ac2a23c 2026-07-20 feat(narrative): add governed writer packet preview`
 
 ## Current Changes
 
-- `## feature/narrative-gate1-resume`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integrated_live/`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integration_preflight/`
+- `## feature/policy-auto-approval`
 
 ## Related Repositories
 
