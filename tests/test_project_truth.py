@@ -5,10 +5,12 @@ from pathlib import Path
 import pytest
 import yaml
 
+from agent_runtime.project_agents import AgentManifest
 from agent_runtime.project_truth import (
     ChangeSet,
     FactChange,
     ProjectTruthConflict,
+    ProjectTruthAuthorizationError,
     ProjectTruthIntegrityError,
     ProjectTruthStore,
     ProjectTruthValidationError,
@@ -268,3 +270,152 @@ def test_audit_detects_tampered_content_object(tmp_path: Path) -> None:
 
     with pytest.raises(ProjectTruthIntegrityError, match="hash mismatch"):
         store.audit()
+
+
+def test_canonical_boundary_blocks_agent_outside_manifest_write_scope(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    initial = store.initialize("dark_fantasy_rpg")
+    registered = store.commit(
+        ChangeSet(
+            project_id="dark_fantasy_rpg",
+            expected_snapshot_id=initial.current_snapshot_id,
+            actor_id="user",
+            idempotency_key="register-character",
+            resources=(
+                ResourceChange(
+                    key="agents.manifest.character",
+                    content=AgentManifest(
+                        id="character",
+                        name="Character Agent",
+                        version="1.0.0",
+                        role="character_architect",
+                        description="Maintain character state.",
+                        responsibilities=("Maintain characters.",),
+                        runtime_role="Researcher",
+                        read_scope=("character.*",),
+                        write_scope=("character.*",),
+                        approval_scope=(),
+                        knowledge_binding={
+                            "namespace": "agent.dark_fantasy_rpg.character",
+                            "documents": (),
+                            "artifacts": (),
+                        },
+                        model_profile="balanced",
+                        tool_permission=("knowledge.read",),
+                        budget_profile="standard",
+                        status="active",
+                        acceptance_rules=("character_consistent",),
+                    ).to_dict(),
+                ),
+            ),
+        )
+    )
+
+    with pytest.raises(
+        ProjectTruthAuthorizationError, match="outside contract"
+    ):
+        store.commit(
+            ChangeSet(
+                project_id="dark_fantasy_rpg",
+                expected_snapshot_id=registered.snapshot_id,
+                actor_id="agent.character",
+                idempotency_key="illegal-world-write",
+                facts=(
+                    FactChange(
+                        key="world.rules.magic",
+                        value="blood",
+                        owner="agent.character",
+                    ),
+                ),
+            )
+        )
+
+
+def test_reserved_agent_manifest_namespace_rejects_malformed_resource(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    initial = store.initialize("dark_fantasy_rpg")
+
+    with pytest.raises(
+        ProjectTruthValidationError, match="must use AgentManifest"
+    ):
+        store.commit(
+            ChangeSet(
+                project_id="dark_fantasy_rpg",
+                expected_snapshot_id=initial.current_snapshot_id,
+                actor_id="user",
+                idempotency_key="malformed-agent",
+                resources=(
+                    ResourceChange(
+                        key="agents.manifest.character",
+                        content={},
+                    ),
+                ),
+            )
+        )
+
+
+def test_rollback_restores_prior_truth_as_a_new_auditable_snapshot(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    initial = store.initialize("dark_fantasy_rpg")
+    first = store.commit(
+        ChangeSet(
+            project_id="dark_fantasy_rpg",
+            expected_snapshot_id=initial.current_snapshot_id,
+            actor_id="user",
+            idempotency_key="baseline",
+            facts=(
+                FactChange(
+                    key="novel.total_word_count",
+                    value=120_000,
+                    owner="project.editorial",
+                ),
+            ),
+        )
+    )
+    second = store.commit(
+        ChangeSet(
+            project_id="dark_fantasy_rpg",
+            expected_snapshot_id=first.snapshot_id,
+            actor_id="user",
+            idempotency_key="revision",
+            facts=(
+                FactChange(
+                    key="novel.total_word_count",
+                    value=150_000,
+                    owner="project.editorial",
+                ),
+                FactChange(
+                    key="novel.temporary_note",
+                    value="remove me",
+                    owner="project.editorial",
+                ),
+            ),
+        )
+    )
+
+    restored = store.rollback(
+        first.snapshot_id,
+        expected_snapshot_id=second.snapshot_id,
+        actor_id="user",
+        idempotency_key="restore-baseline",
+    )
+    retried = store.rollback(
+        first.snapshot_id,
+        expected_snapshot_id=restored.snapshot_id,
+        actor_id="user",
+        idempotency_key="restore-baseline",
+    )
+
+    current = store.current()
+    assert retried.receipt_id == restored.receipt_id
+    assert restored.snapshot_id == current.snapshot_id
+    assert current.parent_snapshot_id == second.snapshot_id
+    assert current.facts["novel.total_word_count"].value == 120_000
+    assert "novel.temporary_note" not in current.facts
+    assert current.generation == 3

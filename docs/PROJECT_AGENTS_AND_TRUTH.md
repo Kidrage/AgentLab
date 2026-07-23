@@ -35,9 +35,17 @@ workspace:
   isolation: required
 ```
 
-`project_truth_mode` supports `legacy`, `shadow`, and `enforced`. Project Agents
-may execute only when the mode is `enforced` and workspace isolation is
-required. Existing Worker pipelines remain unchanged while the feature is off.
+`project_truth_mode` supports `legacy`, `shadow`, and `enforced`. Shadow mode
+keeps legacy reads/writes and persists the migration planner's conflict report;
+it never silently activates a selected truth:
+
+```bash
+./agentlab.sh project-truth-shadow --project MyProject
+```
+
+Project Agents may execute only when the mode is `enforced` and workspace
+isolation is required. Existing Worker pipelines remain unchanged while the
+feature is off.
 
 Enable the new layer explicitly:
 
@@ -73,11 +81,23 @@ Inspect history and integrity:
 ```bash
 ./agentlab.sh project-fact-history \
   --project MyProject --key novel.total_word_count
+./agentlab.sh project-resource-history \
+  --project MyProject --key characters.current
 ./agentlab.sh project-truth-audit --project MyProject
 ```
 
 Do not create `final_v2`, `latest_new`, or parallel "current" files to express a
 revision. The semantic key is the identity; history is automatic.
+
+Rollback also creates a new audited generation; it never moves the pointer
+backward or deletes history:
+
+```bash
+./agentlab.sh rollback-project-truth \
+  --project MyProject \
+  --snapshot-id <approved-prior-snapshot> \
+  --idempotency-key rollback-after-review
+```
 
 ## Dynamic Agent lifecycle
 
@@ -102,8 +122,9 @@ Supported operations:
 ```
 
 Agents are never hard-deleted. Archived manifests remain in immutable history.
-System recommendations require approval. Trusted factory templates may activate
-without approval only when they do not expand an existing Agent's authority.
+System recommendations and factory team proposals require approval. The CLI
+team-creation command is an explicit user approval; API callers must pass their
+approval decision and Registry callers cannot assert a trusted-template bypass.
 
 Runtime v2 binds every enabled WorkItem to:
 
@@ -113,6 +134,17 @@ Runtime v2 binds every enabled WorkItem to:
 - `effective_contract_hash`.
 
 Paused, archived, missing, stale, or contract-mismatched Agents fail closed.
+Canonical truth independently enforces the active manifest's write scope, so a
+caller cannot bypass the contract by writing directly to the truth store.
+`actor_id` is audit metadata assigned by the trusted AgentLab controller; it
+must never be copied from model output or exposed as a user-selectable remote
+API field. Deployments that expose Project Truth across a process boundary must
+authenticate the principal before constructing a `ChangeSet`.
+
+Artifact promotion records
+`canonical_projection_transaction.yml` as `pending_projection` after the
+canonical commit and `projected` after the filesystem projection. Retrying the
+same task is idempotent and completes an interrupted projection.
 
 ## Memory and collaboration
 

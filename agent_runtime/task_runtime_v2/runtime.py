@@ -615,6 +615,7 @@ class TaskRuntime:
         agent_manifest_revision: int | None,
         canonical_snapshot_id: str | None,
         contract_hash: str | None,
+        execution_role: str | None = None,
     ) -> dict[str, Any]:
         project_root = self.agentlab_root / "projects" / self.project
         manifest_path = project_root / "project.yml"
@@ -676,6 +677,10 @@ class TaskRuntime:
             raise ValueError("agent manifest revision binding is stale")
         if hash_contract(registered) != contract_hash:
             raise ValueError("effective Agent contract hash mismatch")
+        if execution_role is not None and execution_role != registered.runtime_role:
+            raise ValueError(
+                "execution contract role does not match registered Agent runtime role"
+            )
         return {
             "assigned_agent_id": agent_id,
             "agent_manifest_revision": agent_manifest_revision,
@@ -797,6 +802,24 @@ class TaskRuntime:
             work_item = projection["work_items"].get(work_item_id)
             if work_item is None:
                 raise EntityNotFound(f"work item {work_item_id!r} does not exist")
+            binding_fields = (
+                "assigned_agent_id",
+                "agent_manifest_revision",
+                "canonical_snapshot_id",
+                "effective_contract_hash",
+            )
+            if any(work_item.get(field) is not None for field in binding_fields):
+                self._validate_project_agent_binding(
+                    assigned_agent_id=work_item.get("assigned_agent_id"),
+                    agent_manifest_revision=work_item.get(
+                        "agent_manifest_revision"
+                    ),
+                    canonical_snapshot_id=work_item.get(
+                        "canonical_snapshot_id"
+                    ),
+                    contract_hash=work_item.get("effective_contract_hash"),
+                    execution_role=str(execution_contract.get("role") or ""),
+                )
             if attempt_id in projection["attempts"]:
                 raise EntityAlreadyExists(f"attempt {attempt_id!r} already exists")
             if projection["task"]["status"] in {
@@ -1036,6 +1059,42 @@ class TaskRuntime:
                 raise InvalidTransition(
                     f"attempt cannot transition from {current!r} to {status!r}"
                 )
+            if status == "running":
+                work_item = projection["work_items"].get(
+                    attempt["work_item_id"]
+                )
+                if work_item is None:
+                    raise EntityNotFound(
+                        f"work item {attempt['work_item_id']!r} does not exist"
+                    )
+                binding_fields = (
+                    "assigned_agent_id",
+                    "agent_manifest_revision",
+                    "canonical_snapshot_id",
+                    "effective_contract_hash",
+                )
+                if any(
+                    work_item.get(field) is not None
+                    for field in binding_fields
+                ):
+                    self._validate_project_agent_binding(
+                        assigned_agent_id=work_item.get("assigned_agent_id"),
+                        agent_manifest_revision=work_item.get(
+                            "agent_manifest_revision"
+                        ),
+                        canonical_snapshot_id=work_item.get(
+                            "canonical_snapshot_id"
+                        ),
+                        contract_hash=work_item.get(
+                            "effective_contract_hash"
+                        ),
+                        execution_role=str(
+                            (
+                                attempt.get("execution_contract") or {}
+                            ).get("role")
+                            or ""
+                        ),
+                    )
             classification = projection["task"].get("input_classification") or {}
             if (
                 status == "succeeded"

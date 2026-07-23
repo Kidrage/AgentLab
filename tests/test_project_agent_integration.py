@@ -10,6 +10,7 @@ from agent_runtime.knowledge_system.sources import SourceCollector
 from agent_runtime.knowledge_system.storage import KnowledgeStore
 from agent_runtime.project_agents import (
     AgentManifest,
+    AgentLifecycle,
     ExpertCollaborationPlanner,
     ProjectAgentMemory,
     ProjectAgentRegistry,
@@ -81,6 +82,19 @@ def test_project_memory_binds_global_project_and_private_agent_layers(
 ) -> None:
     project_root = tmp_path / "projects" / "Demo"
     project_root.mkdir(parents=True)
+    (project_root / "project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project_id": "Demo",
+                "features": {
+                    "project_truth_mode": "enforced",
+                    "enable_project_agents": True,
+                },
+                "workspace": {"isolation": "required"},
+            }
+        ),
+        encoding="utf-8",
+    )
     truth = ProjectTruthStore(project_root)
     initial = truth.initialize("Demo")
     registry = ProjectAgentRegistry(truth)
@@ -215,6 +229,7 @@ def test_work_item_binds_registered_agent_contract_and_truth_snapshot(
         title="Update character",
         user_goal="Update Aria while preserving canon.",
         idempotency_key="task-create",
+        legacy_source={"kind": "binding-test"},
     )
 
     projection = runtime.create_work_item(
@@ -237,6 +252,49 @@ def test_work_item_binds_registered_agent_contract_and_truth_snapshot(
     assert work_item["effective_contract_hash"] == effective_contract_hash(
         manifest
     )
+
+    with pytest.raises(ValueError, match="runtime role"):
+        runtime.schedule_attempt(
+            "task-demo",
+            work_item_id="character-check",
+            attempt_id="attempt-wrong-role",
+            worker="codex",
+            provider="codex-cli",
+            execution_contract={"role": "Writer"},
+            idempotency_key="attempt-wrong-role",
+        )
+
+    runtime.schedule_attempt(
+        "task-demo",
+        work_item_id="character-check",
+        attempt_id="attempt-bound-agent",
+        worker="codex",
+        provider="codex-cli",
+        execution_contract={"role": "Researcher"},
+        idempotency_key="attempt-bound-agent",
+    )
+    AgentLifecycle(registry).pause(
+        "character",
+        expected_snapshot_id=created.snapshot_id,
+        actor_id="user",
+    )
+    with pytest.raises(ValueError, match="snapshot binding is stale"):
+        runtime.transition_attempt(
+            "task-demo",
+            attempt_id="attempt-bound-agent",
+            status="running",
+            idempotency_key="attempt-bound-agent-running",
+        )
+    with pytest.raises(ValueError, match="snapshot binding is stale"):
+        runtime.schedule_attempt(
+            "task-demo",
+            work_item_id="character-check",
+            attempt_id="attempt-stale-agent",
+            worker="codex",
+            provider="codex-cli",
+            execution_contract={"role": "Researcher"},
+            idempotency_key="attempt-stale-agent",
+        )
 
 
 def test_project_agents_require_enforced_truth_mode(tmp_path: Path) -> None:

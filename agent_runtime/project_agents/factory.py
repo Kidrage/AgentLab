@@ -60,7 +60,7 @@ class ProjectAgentFactory:
             project_id=project_id,
             manifests=manifests,
             source="factory",
-            requires_approval=False,
+            requires_approval=True,
             rationale=f"Matched trusted {domain} project organization template.",
         )
 
@@ -71,6 +71,7 @@ class ProjectAgentFactory:
         *,
         expected_snapshot_id: str,
         actor_id: str,
+        approved: bool,
     ) -> CanonicalCommitReceipt:
         proposal = self.propose(
             prompt, project_id=registry.truth.current().project_id
@@ -80,8 +81,7 @@ class ProjectAgentFactory:
             expected_snapshot_id=expected_snapshot_id,
             actor_id=actor_id,
             source=proposal.source,
-            approved=not proposal.requires_approval,
-            trusted_template=True,
+            approved=approved,
         )
 
     @staticmethod

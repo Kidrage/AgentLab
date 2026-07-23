@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path
 
 import yaml
+import pytest
 
 from agent_runtime.project_truth import (
     ProjectTruthMigrator,
@@ -71,6 +72,7 @@ def test_explicit_migration_manifest_selects_one_truth_and_activates_enforcement
                     "key": "novel.total_word_count",
                     "value": 150_000,
                     "owner": "project.editorial",
+                    "evidence_refs": ["project_brain/characters.yml"],
                 }
             ],
             "resources": [
@@ -95,3 +97,29 @@ def test_explicit_migration_manifest_selects_one_truth_and_activates_enforcement
         "project_truth_mode": "enforced",
         "enable_project_agents": False,
     }
+
+
+def test_migration_rejects_unbound_fact_evidence(tmp_path: Path) -> None:
+    project_root = tmp_path / "projects" / "Crown"
+    project_root.mkdir(parents=True)
+    (project_root / "project.yml").write_text(
+        "project_id: Crown\nfeatures:\n  project_truth_mode: legacy\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="hash-bound evidence"):
+        ProjectTruthMigrator(project_root).apply(
+            {
+                "schema_version": "project-truth-migration/v1",
+                "project_id": "Crown",
+                "idempotency_key": "unsafe",
+                "expected_source_hashes": {},
+                "facts": [
+                    {
+                        "key": "novel.total_word_count",
+                        "value": 150_000,
+                        "owner": "project.editorial",
+                    }
+                ],
+            }
+        )

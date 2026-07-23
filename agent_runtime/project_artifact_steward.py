@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import base64
 import fnmatch
+import hashlib
 import re
 import shutil
 from typing import Any
@@ -116,16 +117,17 @@ def _canonical_artifact_content(
     artifact_id: str,
     production_path: str,
 ) -> dict[str, Any]:
+    source_bytes = source.read_bytes()
     try:
-        content: Any = source.read_text(encoding="utf-8")
+        content: Any = source_bytes.decode("utf-8")
         encoding = "utf-8"
     except UnicodeDecodeError:
-        content = base64.b64encode(source.read_bytes()).decode("ascii")
+        content = base64.b64encode(source_bytes).decode("ascii")
         encoding = "base64"
     return {
         "artifact_id": artifact_id,
         "production_path": production_path,
-        "source_sha256": artifact_sha256(source),
+        "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
         "encoding": encoding,
         "content": content,
     }
@@ -187,14 +189,37 @@ def _commit_canonical_promotions(
             or _slug_artifact_id(_rel(target, Path(intent["production_dir"])))
         )
         production_rel = _rel(target, project_root)
+        canonical_content = _canonical_artifact_content(
+            source,
+            artifact_id=artifact_id,
+            production_path=production_rel,
+        )
+        if (
+            canonical_key == "narrative.fact_authority"
+            or production_rel == "production/fact_authority.yml"
+        ):
+            try:
+                try:
+                    from agent_runtime.narrative.fact_authority import (
+                        validate_fact_authority,
+                    )
+                except ModuleNotFoundError:
+                    from narrative.fact_authority import validate_fact_authority
+
+                if canonical_content["encoding"] != "utf-8":
+                    raise ValueError("fact authority must be UTF-8 YAML")
+                document = yaml.safe_load(canonical_content["content"]) or {}
+                if not isinstance(document, dict):
+                    raise ValueError("fact authority must be a mapping")
+                validate_fact_authority(document, project=project)
+            except (OSError, ValueError, yaml.YAMLError) as exc:
+                raise ValueError(
+                    f"invalid fact authority candidate: {exc}"
+                ) from exc
         changes.append(
             ResourceChange(
                 key=resource_key,
-                content=_canonical_artifact_content(
-                    source,
-                    artifact_id=artifact_id,
-                    production_path=production_rel,
-                ),
+                content=canonical_content,
                 media_type="application/vnd.agentlab.canonical-artifact+json",
             )
         )
@@ -678,6 +703,82 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
     project_root = _project_root(agentlab_root, project)
     run_dir = _run_dir(agentlab_root, project, task_id)
     run_dir.mkdir(parents=True, exist_ok=True)
+    existing_receipt_path = run_dir / "archive_receipt.yml"
+    truth_mode = _project_truth_mode(project_root)
+    if existing_receipt_path.is_file() and not existing_receipt_path.is_symlink():
+        existing_receipt = yaml.safe_load(
+            existing_receipt_path.read_text(encoding="utf-8")
+        )
+        if isinstance(existing_receipt, dict) and existing_receipt.get(
+            "status"
+        ) == "completed":
+            if (
+                existing_receipt.get("project") != project
+                or existing_receipt.get("task_id") != task_id
+            ):
+                raise RuntimeError("completed archive receipt binding mismatch")
+            if truth_mode != "enforced":
+                return existing_receipt
+            transaction_path = (
+                run_dir / "canonical_projection_transaction.yml"
+            )
+            transaction = (
+                yaml.safe_load(transaction_path.read_text(encoding="utf-8"))
+                if transaction_path.is_file()
+                and not transaction_path.is_symlink()
+                else None
+            )
+            if (
+                not isinstance(transaction, dict)
+                or transaction.get("status") != "projected"
+                or transaction.get("project") != project
+                or transaction.get("task_id") != task_id
+                or transaction.get("canonical_commit_receipt")
+                != existing_receipt.get("canonical_commit_receipt")
+            ):
+                raise RuntimeError(
+                    "completed canonical projection transaction is invalid"
+                )
+            from agent_runtime.project_truth import ProjectTruthStore
+
+            ProjectTruthStore(project_root).verify_receipt(
+                existing_receipt.get("canonical_commit_receipt") or {}
+            )
+            return existing_receipt
+    transaction_path = run_dir / "canonical_projection_transaction.yml"
+    if transaction_path.is_file() and not transaction_path.is_symlink():
+        transaction = yaml.safe_load(
+            transaction_path.read_text(encoding="utf-8")
+        )
+        if (
+            isinstance(transaction, dict)
+            and transaction.get("status") == "projected"
+            and transaction.get("project") == project
+            and transaction.get("task_id") == task_id
+            and isinstance(transaction.get("archive_receipt"), dict)
+        ):
+            recovered = dict(transaction["archive_receipt"])
+            if (
+                recovered.get("status") != "completed"
+                or recovered.get("project") != project
+                or recovered.get("task_id") != task_id
+                or recovered.get("canonical_commit_receipt")
+                != transaction.get("canonical_commit_receipt")
+            ):
+                raise RuntimeError(
+                    "projected archive receipt binding mismatch"
+                )
+            if truth_mode == "enforced":
+                from agent_runtime.project_truth import ProjectTruthStore
+
+                ProjectTruthStore(project_root).verify_receipt(
+                    transaction.get("canonical_commit_receipt") or {}
+                )
+            _sync_projection_knowledge(
+                agentlab_root, project, recovered
+            )
+            atomic_write_yaml(existing_receipt_path, recovered)
+            return recovered
     plan = ensure_artifact_promotion_plan(agentlab_root, project, task_id)
     readiness_errors = validate_content_promotion_readiness(
         agentlab_root,
@@ -724,6 +825,17 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
                 run_dir=run_dir,
                 plan=plan,
                 intent=intent,
+            )
+            atomic_write_yaml(
+                run_dir / "canonical_projection_transaction.yml",
+                {
+                    "schema_version": "canonical-projection-transaction/v1",
+                    "status": "pending_projection",
+                    "project": project,
+                    "task_id": task_id,
+                    "canonical_commit_receipt": canonical_commit_receipt,
+                    "updated_at": _utc_now(),
+                },
             )
         except (OSError, RuntimeError, ValueError) as exc:
             receipt = {
@@ -831,7 +943,6 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
             }
         )
 
-    _write_index(project_root, index)
     receipt = {
         "version": 1,
         "project": project,
@@ -848,27 +959,49 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
     }
     if canonical_commit_receipt is not None:
         receipt["canonical_commit_receipt"] = canonical_commit_receipt
-    if receipt["status"] == "completed":
-        try:
-            from agent_runtime.knowledge_system import sync_committed
-        except ModuleNotFoundError:
-            from knowledge_system import sync_committed
-
-        promoted_paths = [
-            f"projects/{project}/{item['production_path']}"
-            for item in promotions_applied
-        ]
-        promoted_paths.append(f"projects/{project}/project_artifact_index.yml")
-        receipt["knowledge_sync"] = sync_committed(
+    _write_index(project_root, index)
+    if canonical_commit_receipt is not None:
+        atomic_write_yaml(
+            transaction_path,
             {
-                "agentlab_root": Path(agentlab_root).resolve(),
+                "schema_version": "canonical-projection-transaction/v1",
+                "status": "stale_projection" if errors else "projected",
                 "project": project,
-                "status": "committed",
-                "promoted_paths": promoted_paths,
-            }
-        ).as_dict()
+                "task_id": task_id,
+                "canonical_commit_receipt": canonical_commit_receipt,
+                "promotions_applied": promotions_applied,
+                "errors": errors,
+                "archive_receipt": receipt,
+                "updated_at": _utc_now(),
+            },
+        )
+    if receipt["status"] == "completed":
+        _sync_projection_knowledge(agentlab_root, project, receipt)
     atomic_write_yaml(run_dir / "archive_receipt.yml", receipt)
     return receipt
+
+
+def _sync_projection_knowledge(
+    agentlab_root: Path, project: str, receipt: dict[str, Any]
+) -> None:
+    try:
+        from agent_runtime.knowledge_system import sync_committed
+    except ModuleNotFoundError:
+        from knowledge_system import sync_committed
+
+    promoted_paths = [
+        f"projects/{project}/{item['production_path']}"
+        for item in receipt.get("promotions_applied") or []
+    ]
+    promoted_paths.append(f"projects/{project}/project_artifact_index.yml")
+    receipt["knowledge_sync"] = sync_committed(
+        {
+            "agentlab_root": Path(agentlab_root).resolve(),
+            "project": project,
+            "status": "committed",
+            "promoted_paths": promoted_paths,
+        }
+    ).as_dict()
 
 
 def _visual_promotion_gate(run_dir: Path, plan: dict[str, Any]) -> dict[str, Any]:

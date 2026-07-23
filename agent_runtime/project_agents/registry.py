@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import re
+
+import yaml
+
 from agent_runtime.project_truth import (
     CanonicalCommitReceipt,
     ChangeSet,
@@ -43,12 +46,12 @@ class ProjectAgentRegistry:
         actor_id: str,
         source: str,
         approved: bool,
-        trusted_template: bool = False,
     ) -> CanonicalCommitReceipt:
+        self._assert_mutations_enabled()
         self._validate_manifest(manifest)
         if source not in _SOURCES:
             raise AgentRegistryConflict(f"unsupported agent source {source!r}")
-        if not approved and not (source == "factory" and trusted_template):
+        if not approved:
             raise AgentContractViolation(
                 f"{source} agent creation requires approval"
             )
@@ -78,6 +81,7 @@ class ProjectAgentRegistry:
         approved: bool,
         reason: str,
     ) -> CanonicalCommitReceipt:
+        self._assert_mutations_enabled()
         self._validate_manifest(manifest)
         current = self.get(manifest.id)
         if manifest.manifest_revision != current.manifest_revision + 1:
@@ -103,9 +107,9 @@ class ProjectAgentRegistry:
         actor_id: str,
         source: str,
         approved: bool,
-        trusted_template: bool = False,
     ) -> CanonicalCommitReceipt:
         """Register a complete team in one canonical compare-and-swap."""
+        self._assert_mutations_enabled()
         if not manifests:
             raise AgentRegistryConflict("agent team must not be empty")
         if len({item.id for item in manifests}) != len(manifests):
@@ -119,7 +123,7 @@ class ProjectAgentRegistry:
             raise AgentRegistryConflict(f"agent {manifest.id!r} already exists")
         if source not in _SOURCES:
             raise AgentRegistryConflict(f"unsupported agent source {source!r}")
-        if not approved and not (source == "factory" and trusted_template):
+        if not approved:
             raise AgentContractViolation(
                 f"{source} agent creation requires approval"
             )
@@ -172,6 +176,38 @@ class ProjectAgentRegistry:
 
     def assert_can_approve(self, agent_id: str, scope: str) -> None:
         AgentContract(self.get(agent_id)).assert_approve(scope)
+
+    def _assert_mutations_enabled(self) -> None:
+        manifest_path = self.truth.project_root / "project.yml"
+        if not manifest_path.is_file() or manifest_path.is_symlink():
+            raise AgentContractViolation(
+                "project Agent mutations require an explicit project manifest"
+            )
+        try:
+            manifest = yaml.safe_load(
+                manifest_path.read_text(encoding="utf-8")
+            )
+        except (OSError, yaml.YAMLError) as exc:
+            raise AgentContractViolation(
+                "project manifest cannot be read safely"
+            ) from exc
+        if not isinstance(manifest, dict):
+            raise AgentContractViolation("project manifest must be a mapping")
+        if manifest.get("project_id") != self.truth.current().project_id:
+            raise AgentContractViolation(
+                "project manifest identity does not match canonical truth"
+            )
+        features = manifest.get("features") or {}
+        workspace = manifest.get("workspace") or {}
+        if (
+            features.get("project_truth_mode") != "enforced"
+            or features.get("enable_project_agents") is not True
+            or workspace.get("isolation") != "required"
+        ):
+            raise AgentContractViolation(
+                "project Agent mutations require enabled agents, enforced truth, "
+                "and required workspace isolation"
+            )
 
     def _commit_manifest(
         self,

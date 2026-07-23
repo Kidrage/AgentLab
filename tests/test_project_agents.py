@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
 from agent_runtime.project_agents import (
     AgentContractViolation,
@@ -18,6 +19,19 @@ from agent_runtime.project_truth import ProjectTruthStore
 def _registry(tmp_path: Path) -> tuple[ProjectAgentRegistry, str]:
     root = tmp_path / "projects" / "rpg"
     root.mkdir(parents=True)
+    (root / "project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project_id": "rpg",
+                "features": {
+                    "project_truth_mode": "enforced",
+                    "enable_project_agents": True,
+                },
+                "workspace": {"isolation": "required"},
+            }
+        ),
+        encoding="utf-8",
+    )
     truth = ProjectTruthStore(root)
     pointer = truth.initialize("rpg")
     return ProjectAgentRegistry(truth), pointer.current_snapshot_id
@@ -163,6 +177,25 @@ def test_recommendation_requires_approval(tmp_path: Path) -> None:
         )
 
 
+def test_registry_mutation_fails_closed_when_feature_is_disabled(
+    tmp_path: Path,
+) -> None:
+    registry, snapshot_id = _registry(tmp_path)
+    manifest_path = registry.truth.project_root / "project.yml"
+    project = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    project["features"]["enable_project_agents"] = False
+    manifest_path.write_text(yaml.safe_dump(project), encoding="utf-8")
+
+    with pytest.raises(AgentContractViolation, match="require enabled agents"):
+        registry.register(
+            _character_agent(),
+            expected_snapshot_id=snapshot_id,
+            actor_id="user",
+            source="user",
+            approved=True,
+        )
+
+
 @pytest.mark.parametrize(
     ("prompt", "expected_ids"),
     (
@@ -187,7 +220,7 @@ def test_factory_generates_reusable_domain_team(
 
     assert {manifest.id for manifest in proposal.manifests} == expected_ids
     assert proposal.source == "factory"
-    assert proposal.requires_approval is False
+    assert proposal.requires_approval is True
     assert all(manifest.status == "active" for manifest in proposal.manifests)
 
 
@@ -199,6 +232,7 @@ def test_factory_can_atomically_register_its_trusted_team(tmp_path: Path) -> Non
         "Build a secure web service with tests",
         expected_snapshot_id=snapshot_id,
         actor_id="user",
+        approved=True,
     )
 
     assert {manifest.id for manifest in registry.list()} == {

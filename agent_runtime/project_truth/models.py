@@ -48,10 +48,16 @@ class ChangeSet:
     reason: str = ""
     resources: tuple[ResourceChange, ...] = ()
     facts: tuple[FactChange, ...] = ()
+    remove_resource_keys: tuple[str, ...] = ()
+    remove_fact_keys: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "resources", tuple(self.resources))
         object.__setattr__(self, "facts", tuple(self.facts))
+        object.__setattr__(
+            self, "remove_resource_keys", tuple(self.remove_resource_keys)
+        )
+        object.__setattr__(self, "remove_fact_keys", tuple(self.remove_fact_keys))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -63,6 +69,8 @@ class ChangeSet:
             "reason": self.reason,
             "resources": [item.to_dict() for item in self.resources],
             "facts": [item.to_dict() for item in self.facts],
+            "remove_resource_keys": list(self.remove_resource_keys),
+            "remove_fact_keys": list(self.remove_fact_keys),
         }
 
 

@@ -161,6 +161,28 @@ class ProjectArtifactStewardTests(TestCase):
                 self.assertEqual(receipt["status"], "completed")
                 self.assertIn("canonical_commit_receipt", receipt)
 
+            (
+                root
+                / "projects"
+                / "Novel"
+                / "runs"
+                / "task_0002"
+                / "archive_receipt.yml"
+            ).unlink()
+            retried = apply_archive_protocol(root, "Novel", "task_0002")
+            self.assertEqual(retried["status"], "completed")
+            transaction = yaml.safe_load(
+                (
+                    root
+                    / "projects"
+                    / "Novel"
+                    / "runs"
+                    / "task_0002"
+                    / "canonical_projection_transaction.yml"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(transaction["status"], "projected")
+
             truth = ProjectTruthStore(project_root)
             current = truth.current()
             resource = current.resources["artifact.manuscript.chapter.01"]
@@ -238,6 +260,61 @@ class ProjectArtifactStewardTests(TestCase):
                     / "artifacts"
                     / "chapter_01_variant.md"
                 ).exists()
+            )
+
+    def test_enforced_truth_validates_fact_authority_before_canonical_commit(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            project_root = root / "projects" / "Novel"
+            _write_yaml(
+                project_root / "project.yml",
+                {
+                    "project_id": "Novel",
+                    "features": {
+                        "project_truth_mode": "enforced",
+                        "enable_project_agents": True,
+                    },
+                    "workspace": {"isolation": "required"},
+                },
+            )
+            truth = ProjectTruthStore(project_root)
+            initial = truth.initialize("Novel")
+            run_dir = self._make_run(root)
+            workflow = yaml.safe_load(
+                (run_dir / "workflow_plan.yml").read_text(encoding="utf-8")
+            )
+            workflow["artifact_intent"]["production_dir"] = str(
+                project_root / "production"
+            )
+            _write_yaml(run_dir / "workflow_plan.yml", workflow)
+            candidate = run_dir / "artifacts" / "fact_authority.yml"
+            _write_yaml(candidate, {"invalid": True})
+            _write_yaml(
+                run_dir / "artifact_promotion_plan.yml",
+                {
+                    "version": 1,
+                    "project": "Novel",
+                    "task_id": "task_0001",
+                    "promotions": [
+                        {
+                            "artifact_id": "fact_authority",
+                            "canonical_key": "narrative.fact_authority",
+                            "source_run_artifact": "artifacts/fact_authority.yml",
+                            "production_path": "production/fact_authority.yml",
+                            "action": "replace",
+                        }
+                    ],
+                },
+            )
+
+            receipt = apply_archive_protocol(root, "Novel", "task_0001")
+
+            self.assertEqual(receipt["status"], "blocked")
+            self.assertIn("invalid fact authority", receipt["errors"][0])
+            self.assertEqual(
+                truth.current().snapshot_id, initial.current_snapshot_id
             )
 
     def test_fact_authority_promotion_writes_commit_ready_index_binding(self) -> None:

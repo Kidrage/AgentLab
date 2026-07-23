@@ -135,25 +135,28 @@ Modes:
 
 - `ProjectTruthStore.current()`
 - `ProjectTruthStore.commit(change_set)`
-- `ProjectTruthStore.history(key)`
+- `ProjectTruthStore.fact_history(key)`
+- `ProjectTruthStore.resource_history(key)`
 - `ProjectTruthStore.rollback(snapshot_id, ...)`
 - `ProjectTruthStore.audit()`
 
 Every mutation requires an idempotency key and expected snapshot ID. Stale
 writers receive a deterministic conflict instead of last-write-wins behavior.
+The controller owns principal authentication and assigns `actor_id`; model
+output is never permitted to select that audit identity.
 
 ### Project Agents
 
 - `ProjectAgentRegistry.list()` / `get()`
 - `ProjectAgentRegistry.register()`
 - `ProjectAgentRegistry.update()`
-- `ProjectAgentRegistry.transition()`
+- `AgentLifecycle.pause()` / `resume()` / `replace()` / `archive()`
 - `ProjectAgentFactory.propose()`
-- `ProjectAgentFactory.approve()`
+- `ProjectAgentFactory.create_team()`
 
-Permission expansion and custom roles require approval. Trusted templates whose
-permissions remain within the approved project envelope may activate
-automatically.
+Permission expansion and user/recommendation creation require approval.
+Factory proposals also require an explicit approval decision; Registry callers
+cannot self-declare a trusted template.
 
 ## Runtime Integration
 

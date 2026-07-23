@@ -20,8 +20,10 @@ from .models import (
     CanonicalCommitReceipt,
     CanonicalSnapshot,
     ChangeSet,
+    FactChange,
     FactRevision,
     ProjectTruthPointer,
+    ResourceChange,
     ResourceRevision,
 )
 
@@ -40,6 +42,10 @@ class ProjectTruthIntegrityError(ProjectTruthError):
 
 class ProjectTruthValidationError(ProjectTruthError):
     """A proposed change set is ambiguous or invalid."""
+
+
+class ProjectTruthAuthorizationError(ProjectTruthError):
+    """A registered project Agent attempted an out-of-contract write."""
 
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -66,6 +72,12 @@ def _canonical_json(value: Any) -> bytes:
 
 def _sha256(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value)).hexdigest()
+
+
+def _logical_change_set_sha256(change_set: ChangeSet) -> str:
+    document = change_set.to_dict()
+    document.pop("expected_snapshot_id", None)
+    return _sha256(document)
 
 
 def _with_hash_id(data: Mapping[str, Any], id_field: str) -> dict[str, Any]:
@@ -144,7 +156,7 @@ class ProjectTruthStore:
     def commit(self, change_set: ChangeSet) -> CanonicalCommitReceipt:
         """Atomically compare-and-swap one validated change set into authority."""
         self._validate_change_set(change_set)
-        change_set_sha256 = _sha256(change_set.to_dict())
+        change_set_sha256 = _logical_change_set_sha256(change_set)
         receipt_path = self._receipt_path(
             change_set.project_id, change_set.idempotency_key
         )
@@ -205,10 +217,16 @@ class ProjectTruthStore:
                     "stale canonical snapshot: refresh before committing"
                 )
             current = self._load_snapshot(pointer.current_snapshot_id)
+            self._validate_agent_manifest_transitions(change_set, current)
+            self._authorize_agent_change_set(change_set, current)
             committed_at = _now()
             resources = dict(current.resources)
             facts = dict(current.facts)
 
+            for key in change_set.remove_resource_keys:
+                resources.pop(key, None)
+            for key in change_set.remove_fact_keys:
+                facts.pop(key, None)
             for change in change_set.resources:
                 content_sha256 = self._write_content_object(change.content)
                 previous = resources.get(change.key)
@@ -332,6 +350,85 @@ class ProjectTruthStore:
                 return revisions
             snapshot = self._load_snapshot(snapshot.parent_snapshot_id)
 
+    def rollback(
+        self,
+        snapshot_id: str,
+        *,
+        expected_snapshot_id: str,
+        actor_id: str,
+        idempotency_key: str,
+        reason: str = "",
+    ) -> CanonicalCommitReceipt:
+        """Restore a prior state by appending a new snapshot; never rewind history."""
+        current = self.current()
+        effective_idempotency_key = (
+            f"rollback:{snapshot_id}:{idempotency_key}"
+        )
+        receipt_path = self._receipt_path(
+            current.project_id, effective_idempotency_key
+        )
+        if receipt_path.exists():
+            receipt = self._load_receipt(
+                receipt_path,
+                expected_project_id=current.project_id,
+                expected_idempotency_key=effective_idempotency_key,
+            )
+            if self._snapshot_in_chain(
+                current.snapshot_id, receipt.snapshot_id
+            ):
+                return receipt
+            raise ProjectTruthConflict(
+                "rollback receipt is not on the canonical chain"
+            )
+        if current.snapshot_id != expected_snapshot_id:
+            raise ProjectTruthConflict(
+                "stale canonical snapshot: refresh before rollback"
+            )
+        if not self._snapshot_in_chain(current.snapshot_id, snapshot_id):
+            raise ProjectTruthConflict("rollback target is not canonical history")
+        target = self._load_snapshot(snapshot_id)
+        resources = tuple(
+            ResourceChange(
+                key=key,
+                content=revision.content,
+                media_type=revision.media_type,
+            )
+            for key, revision in target.resources.items()
+            if current.resources.get(key) != revision
+        )
+        facts = tuple(
+            FactChange(
+                key=key,
+                value=revision.value,
+                owner=revision.owner,
+            )
+            for key, revision in target.facts.items()
+            if current.facts.get(key) != revision
+        )
+        remove_resource_keys = tuple(
+            sorted(set(current.resources) - set(target.resources))
+        )
+        remove_fact_keys = tuple(sorted(set(current.facts) - set(target.facts)))
+        if not (
+            resources or facts or remove_resource_keys or remove_fact_keys
+        ):
+            raise ProjectTruthValidationError(
+                "rollback target already matches current truth"
+            )
+        return self.commit(
+            ChangeSet(
+                project_id=current.project_id,
+                expected_snapshot_id=current.snapshot_id,
+                actor_id=actor_id,
+                idempotency_key=effective_idempotency_key,
+                reason=reason or f"Restore canonical snapshot {snapshot_id}.",
+                resources=resources,
+                facts=facts,
+                remove_resource_keys=remove_resource_keys,
+                remove_fact_keys=remove_fact_keys,
+            )
+        )
+
     def audit(self) -> dict[str, Any]:
         """Verify the current chain and every referenced content hash."""
         pointer = self._load_pointer()
@@ -361,6 +458,47 @@ class ProjectTruthStore:
             "objects_checked": len(checked_objects),
         }
 
+    def verify_receipt(
+        self, data: Mapping[str, Any]
+    ) -> CanonicalCommitReceipt:
+        """Verify a serialized receipt and its membership in canonical history."""
+        if data.get("schema_version") != "canonical-commit-receipt/v1":
+            raise ProjectTruthIntegrityError(
+                "canonical receipt schema mismatch"
+            )
+        actual_id = str(data.get("receipt_id") or "")
+        if not _SHA256.fullmatch(actual_id) or _with_hash_id(
+            data, "receipt_id"
+        )["receipt_id"] != actual_id:
+            raise ProjectTruthIntegrityError(
+                "canonical receipt hash mismatch"
+            )
+        receipt = CanonicalCommitReceipt.from_dict(data)
+        current = self.current()
+        if receipt.project_id != current.project_id:
+            raise ProjectTruthIntegrityError(
+                "canonical receipt project mismatch"
+            )
+        if not self._snapshot_in_chain(
+            current.snapshot_id, receipt.snapshot_id
+        ):
+            raise ProjectTruthIntegrityError(
+                "canonical receipt snapshot is not in current history"
+            )
+        stored_path = self._receipt_path(
+            receipt.project_id, receipt.idempotency_key
+        )
+        stored = self._load_receipt(
+            stored_path,
+            expected_project_id=receipt.project_id,
+            expected_idempotency_key=receipt.idempotency_key,
+        )
+        if stored != receipt:
+            raise ProjectTruthIntegrityError(
+                "canonical receipt does not match immutable storage"
+            )
+        return receipt
+
     def _validate_change_set(self, change_set: ChangeSet) -> None:
         if not isinstance(change_set, ChangeSet):
             raise ProjectTruthValidationError("change set must use the ChangeSet schema")
@@ -371,20 +509,157 @@ class ProjectTruthStore:
             (change_set.idempotency_key, "idempotency_key"),
         ):
             self._validate_identifier(value, label)
-        if not change_set.resources and not change_set.facts:
+        if not (
+            change_set.resources
+            or change_set.facts
+            or change_set.remove_resource_keys
+            or change_set.remove_fact_keys
+        ):
             raise ProjectTruthValidationError("change set must contain at least one change")
         resource_keys = [item.key for item in change_set.resources]
         fact_keys = [item.key for item in change_set.facts]
         self._reject_duplicates(resource_keys, "resource")
         self._reject_duplicates(fact_keys, "fact")
+        self._reject_duplicates(
+            list(change_set.remove_resource_keys), "removed resource"
+        )
+        self._reject_duplicates(list(change_set.remove_fact_keys), "removed fact")
+        if set(resource_keys) & set(change_set.remove_resource_keys):
+            raise ProjectTruthValidationError(
+                "resource cannot be changed and removed together"
+            )
+        if set(fact_keys) & set(change_set.remove_fact_keys):
+            raise ProjectTruthValidationError(
+                "fact cannot be changed and removed together"
+            )
         for item in change_set.resources:
             self._validate_identifier(item.key, "resource key")
             self._validate_identifier(item.media_type, "media_type")
             _canonical_json(item.content)
+            if item.key.startswith("agents.manifest."):
+                try:
+                    from agent_runtime.project_agents.models import AgentManifest
+                    from agent_runtime.project_agents.registry import (
+                        AgentRegistryConflict,
+                        ProjectAgentRegistry,
+                    )
+
+                    manifest = AgentManifest.from_dict(item.content)
+                    ProjectAgentRegistry._validate_manifest(manifest)
+                except (
+                    AgentRegistryConflict,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ) as exc:
+                    raise ProjectTruthValidationError(
+                        "reserved Agent manifest resource must use AgentManifest"
+                    ) from exc
+                expected_id = item.key.removeprefix("agents.manifest.")
+                if manifest.id != expected_id:
+                    raise ProjectTruthValidationError(
+                        "Agent manifest id does not match its resource key"
+                    )
         for item in change_set.facts:
             self._validate_identifier(item.key, "fact key")
             self._validate_identifier(item.owner, "fact owner")
             _canonical_json(item.value)
+        for key in change_set.remove_resource_keys:
+            self._validate_identifier(key, "removed resource key")
+        for key in change_set.remove_fact_keys:
+            self._validate_identifier(key, "removed fact key")
+
+    @staticmethod
+    def _validate_agent_manifest_transitions(
+        change_set: ChangeSet, current: CanonicalSnapshot
+    ) -> None:
+        if any(
+            key.startswith("agents.manifest.")
+            for key in change_set.remove_resource_keys
+        ):
+            raise ProjectTruthValidationError(
+                "Agent manifests must be archived, not removed"
+            )
+        for change in change_set.resources:
+            if not change.key.startswith("agents.manifest."):
+                continue
+            from agent_runtime.project_agents.models import AgentManifest
+
+            candidate = AgentManifest.from_dict(change.content)
+            previous_revision = current.resources.get(change.key)
+            if previous_revision is None:
+                if candidate.manifest_revision != 1:
+                    raise ProjectTruthValidationError(
+                        "new Agent manifest revision must be one"
+                    )
+                continue
+            previous = AgentManifest.from_dict(previous_revision.content)
+            if candidate.manifest_revision != previous.manifest_revision + 1:
+                raise ProjectTruthValidationError(
+                    "Agent manifest revision must increase by exactly one"
+                )
+
+    @staticmethod
+    def _authorize_agent_change_set(
+        change_set: ChangeSet, current: CanonicalSnapshot
+    ) -> None:
+        if not change_set.actor_id.startswith("agent."):
+            return
+        agent_id = change_set.actor_id.removeprefix("agent.")
+        manifest_revision = current.resources.get(
+            f"agents.manifest.{agent_id}"
+        )
+        if manifest_revision is None or not isinstance(
+            manifest_revision.content, dict
+        ):
+            raise ProjectTruthAuthorizationError(
+                f"agent {agent_id!r} is not registered"
+            )
+        manifest = manifest_revision.content
+        if (manifest.get("lifecycle") or {}).get("status") != "active":
+            raise ProjectTruthAuthorizationError(
+                f"agent {agent_id!r} is not active"
+            )
+        grants = tuple(
+            str(item)
+            for item in (
+                (manifest.get("authority") or {}).get("write_scope") or ()
+            )
+        )
+
+        def allowed(requested: str) -> bool:
+            return any(
+                grant == "*"
+                or grant == requested
+                or (
+                    grant.endswith(".*")
+                    and (
+                        requested == grant[:-2]
+                        or requested.startswith(f"{grant[:-2]}.")
+                    )
+                )
+                for grant in grants
+            )
+
+        requested_keys = (
+            *(item.key for item in change_set.resources),
+            *(item.key for item in change_set.facts),
+            *change_set.remove_resource_keys,
+            *change_set.remove_fact_keys,
+        )
+        protected = [
+            key for key in requested_keys if key.startswith("agents.manifest.")
+        ]
+        if protected:
+            raise ProjectTruthAuthorizationError(
+                "project Agents cannot mutate registry manifests directly"
+            )
+        forbidden = [key for key in requested_keys if not allowed(key)]
+        if forbidden:
+            raise ProjectTruthAuthorizationError(
+                f"agent {agent_id!r} write is outside contract: "
+                + ", ".join(forbidden)
+            )
 
     @staticmethod
     def _validate_identifier(value: str, label: str) -> None:

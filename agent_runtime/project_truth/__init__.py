@@ -12,6 +12,7 @@ from .models import (
 )
 from .store import (
     ProjectTruthConflict,
+    ProjectTruthAuthorizationError,
     ProjectTruthError,
     ProjectTruthIntegrityError,
     ProjectTruthStore,
@@ -26,6 +27,7 @@ __all__ = [
     "FactChange",
     "FactRevision",
     "ProjectTruthConflict",
+    "ProjectTruthAuthorizationError",
     "ProjectTruthError",
     "ProjectTruthIntegrityError",
     "ProjectTruthMigrator",

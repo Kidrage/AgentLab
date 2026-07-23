@@ -97,11 +97,34 @@ class ProjectTruthMigrator:
         project_id = str(manifest.get("project_id") or "")
         if not project_id:
             raise ValueError("migration project_id is required")
-        self._verify_sources(manifest.get("expected_source_hashes") or {})
+        source_hashes = manifest.get("expected_source_hashes") or {}
+        facts_data = manifest.get("facts") or []
+        resources_data = manifest.get("resources") or []
+        required_refs = {
+            str(reference)
+            for item in facts_data
+            for reference in (item.get("evidence_refs") or [])
+        }
+        required_refs.update(
+            str(item["source_path"]) for item in resources_data
+        )
+        if (
+            not source_hashes
+            or any(not item.get("evidence_refs") for item in facts_data)
+            or required_refs != set(source_hashes)
+        ):
+            raise ValueError(
+                "every migrated fact and resource requires complete hash-bound evidence"
+            )
+        self._verify_sources(source_hashes)
         project_manifest_path = self.project_root / "project.yml"
         project_manifest = (
             yaml.safe_load(project_manifest_path.read_text(encoding="utf-8")) or {}
         )
+        if project_manifest.get("project_id") != project_id:
+            raise ProjectTruthConflict(
+                "project manifest identity does not match migration"
+            )
         features = project_manifest.get("features") or {}
         if features.get("project_truth_mode", "legacy") == "enforced":
             raise ProjectTruthConflict("project truth is already enforced")
@@ -114,11 +137,11 @@ class ProjectTruthMigrator:
                 value=item.get("value"),
                 owner=str(item["owner"]),
             )
-            for item in (manifest.get("facts") or [])
+            for item in facts_data
         )
         resources = tuple(
             self._resource_change(item)
-            for item in (manifest.get("resources") or [])
+            for item in resources_data
         )
         if not facts and not resources:
             raise ValueError("migration manifest contains no canonical truth")
