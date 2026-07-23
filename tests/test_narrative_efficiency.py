@@ -580,6 +580,32 @@ def test_deterministic_precheck_accepts_established_timeline_identifier(
     assert result["status"] == "pass"
 
 
+def test_deterministic_precheck_accepts_canonical_worldline_timeline_id(
+    tmp_path,
+) -> None:
+    chapter = tmp_path / "chapter_020.md"
+    chapter.write_text("A valid candidate scene.\n", encoding="utf-8")
+    result = run_deterministic_precheck(
+        {
+            "manifest_version": 1,
+            "chapters": [
+                {
+                    "chapter_id": 20,
+                    "artifact_path": "chapter_020.md",
+                    "artifact_sha256": hashlib.sha256(chapter.read_bytes()).hexdigest(),
+                    "pov": "char_kain",
+                    "timeline_slot": "mainline_t0020_night",
+                }
+            ],
+        },
+        source_root=tmp_path,
+        required_chapters=[20],
+        expected_manifest_version=1,
+    )
+
+    assert result["status"] == "pass"
+
+
 def test_deterministic_precheck_accepts_legacy_chinese_timeline_description(
     tmp_path,
 ) -> None:
@@ -5485,6 +5511,172 @@ def test_registered_writer_executes_compiled_targeted_revision_once(
     assert fixture["source_candidate"] in sources
     assert fixture["revision_contract"] in sources
     assert fixture["triggering_audit"] not in sources
+
+
+def test_background_revision_executes_hash_bound_writer_and_materializes_candidate(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from agent_runtime.narrative.quality.background import run_background_revision
+
+    fixture = _live_revision_preflight_fixture(tmp_path)
+    source_plan = fixture["source_plan"]
+    source_candidate = fixture["source_candidate"]
+    contract_path = fixture["revision_contract"]
+    assert isinstance(source_plan, WorkflowPlan)
+    assert isinstance(source_candidate, Path)
+    assert isinstance(contract_path, Path)
+    source_before = hashlib.sha256(source_candidate.read_bytes()).hexdigest()
+    proposal_contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    proposal_contract.pop("source_candidate_sha256")
+    proposal_contract.pop("triggering_audit_sha256")
+    proposal_path = (
+        tmp_path
+        / "projects"
+        / source_plan.project
+        / "candidates"
+        / "background_revision_proposal.yml"
+    )
+    proposal_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "proposed",
+                "candidate_only": True,
+                "production_modified": False,
+                "rewrite_required": True,
+                "direct_draft_edits": False,
+                "proposals": [proposal_contract],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    observed: dict[str, object] = {"calls": 0}
+
+    def provider(_root, plan, _agent, _output, **_kwargs):
+        observed["calls"] = int(observed["calls"]) + 1
+        observed["task_id"] = plan.task_id
+        return LLMCallResult(
+            provider="agentlab-cli-executor",
+            model="fake-writer-model",
+            content=(
+                f"<!-- AGENTLAB_EDIT: runs/{plan.task_id}/fiction_draft.md -->\n"
+                "# 第二十五章\n\n"
+                + ("字" * 4_800)
+                + "\n<!-- END AGENTLAB_EDIT -->"
+            ),
+            raw_usage={"command_id": "cmd-background-revision"},
+        )
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "agent_runtime"))
+    import agent_runner
+
+    monkeypatch.setattr(agent_runner, "run_agent_model", provider)
+    request = {
+        "agentlab_root": str(tmp_path),
+        "project": source_plan.project,
+        "job_id": "job-background-revision",
+        "candidate_set_id": "candidate-background-revision",
+        "attempt_id": "attempt-background-0001",
+        "lease_expires_at": "2099-01-01T00:00:00+00:00",
+        "automatic_rewrite_count": 0,
+        "batch": {"start": 25, "end": 25},
+        "config": {"start_chapter": 25, "end_chapter": 25, "eval_id": "probe"},
+        "source_task_ids": {"25": source_plan.task_id},
+        "prior_results": {
+                "heavy_audit": {
+                    "task_id": "audit-background-25",
+                    "rewrite_proposal": str(proposal_path),
+                    "rewrite_proposal_sha256": hashlib.sha256(
+                        proposal_path.read_bytes()
+                    ).hexdigest(),
+                }
+        },
+    }
+    result = run_background_revision(request)
+
+    assert result["status"] == "pass", result
+    assert result["changed_chapters"] == [25]
+    assert observed["calls"] == 1
+    revision_task_id = str(observed["task_id"])
+    selected = result["selected_revisions"]["25"]
+    assert selected["task_id"] == revision_task_id
+    revised = (
+        tmp_path
+        / "projects"
+        / source_plan.project
+        / "runs"
+        / revision_task_id
+        / "fiction_draft.md"
+    )
+    assert selected["sha256"] == hashlib.sha256(revised.read_bytes()).hexdigest()
+    assert hashlib.sha256(source_candidate.read_bytes()).hexdigest() == source_before
+
+    repeated = run_background_revision(request)
+    assert repeated["status"] == "pass", repeated
+    assert repeated["selected_revisions"] == result["selected_revisions"]
+    assert observed["calls"] == 1
+
+    next_controller_attempt = {
+        **request,
+        "attempt_id": "attempt-background-0002",
+        "lease_expires_at": "2098-01-01T00:00:00+00:00",
+    }
+    resumed = run_background_revision(next_controller_attempt)
+    assert resumed["status"] == "pass", resumed
+    assert resumed["selected_revisions"] == result["selected_revisions"]
+    assert observed["calls"] == 1
+
+    state_path = (
+        tmp_path
+        / "projects"
+        / source_plan.project
+        / "background_jobs"
+        / request["job_id"]
+        / "job_state.yml"
+    )
+    state_path.write_text(
+        yaml.safe_dump({"last_action_results": {"rewrite_batch": result}}),
+        encoding="utf-8",
+    )
+    selection_request = {
+        **request,
+        "prior_results": {"rewrite_batch": result},
+    }
+    from agent_runtime.narrative.quality.selection import (
+        load_selected_revision_records,
+    )
+
+    records = load_selected_revision_records(selection_request)
+    assert records[25]["task_id"] == revision_task_id
+    from agent_runtime.narrative_heavy_audit import validate_revision_draft_binding
+
+    binding = validate_revision_draft_binding(
+        tmp_path / "projects" / source_plan.project,
+        chapter=25,
+        source_task_id=source_plan.task_id,
+        revision_task_id=revision_task_id,
+        expected_binding=records[25],
+    )
+    assert binding["status"] == "pass", binding["issues"]
+    tampered = yaml.safe_load(yaml.safe_dump(selection_request))
+    tampered["prior_results"]["rewrite_batch"]["selected_revisions"]["25"][
+        "task_id"
+    ] = "task-valid-but-stale-revision"
+    with pytest.raises(ValueError, match="revision_selection"):
+        load_selected_revision_records(tampered)
+
+    proposal_path.write_text("status: replaced\n", encoding="utf-8")
+    drifted = validate_revision_draft_binding(
+        tmp_path / "projects" / source_plan.project,
+        chapter=25,
+        source_task_id=source_plan.task_id,
+        revision_task_id=revision_task_id,
+        expected_binding=records[25],
+    )
+    assert drifted["status"] == "blocked"
+    assert "revision_source_proposal_invalid" in drifted["issues"]
 
 
 @pytest.mark.parametrize(

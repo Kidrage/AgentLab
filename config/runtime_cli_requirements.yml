@@ -44,7 +44,7 @@ components:
     live_smoke: codex exec --json --model gpt-5.6-sol -c 'model_reasoning_effort="xhigh"' "Return AGENTLAB_CODEX_SMOKE_OK only."
     capacity_source: config/model_capacity.yml
     capacity_probe: codex --version
-    notes: Native default Supervisor and optional code-analysis worker. The Supervisor alone is explicitly bound here to gpt-5.6-sol/xhigh; do not generalize that binding to every Codex role or tier.
+    notes: Native default Supervisor and optional code-analysis worker. The Supervisor alone is explicitly bound here to gpt-5.6-sol/xhigh; do not generalize that binding to every Codex role or tier. Every Codex route must still use a Codex CLI provider/model identity and never borrow a DeepSeek or Hermes identity.
   qwen:
     kind: agent_cli
     release_requirement: required

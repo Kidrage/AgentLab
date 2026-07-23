@@ -314,6 +314,53 @@ def test_prepares_fresh_provider_free_heavy_audit_bundle(tmp_path: Path) -> None
     assert not (run_dir / "fiction_draft.md").exists()
 
 
+def test_heavy_audit_uses_validated_revision_draft_override(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    eval_id = "local_v1"
+    manuscript = tmp_path / "projects" / "Crown_of_Ash" / "production" / "manuscript"
+    manuscript.mkdir(parents=True)
+    _write_candidate_run(tmp_path, 1, eval_id)
+    revision_task_id = "task-revision-ch001-attempt-01"
+    revised = (
+        tmp_path
+        / "projects"
+        / "Crown_of_Ash"
+        / "runs"
+        / revision_task_id
+        / "fiction_draft.md"
+    )
+    revised.parent.mkdir(parents=True)
+    revised.write_text("# 第一章\n\nREVISED_CANDIDATE_MARKER\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "agent_runtime.narrative_heavy_audit.validate_revision_draft_binding",
+        lambda *_args, **_kwargs: {
+            "status": "pass",
+            "issues": [],
+            "draft_path": str(revised),
+        },
+    )
+
+    report = prepare_crown_narrative_heavy_audit(
+        tmp_path,
+        eval_id=eval_id,
+        start_chapter=1,
+        end_chapter=1,
+        draft_bindings={1: {"task_id": revision_task_id}},
+    )
+
+    assert report["status"] == "ready", report["issues"]
+    source = report["sources"][0]
+    assert source["task_id"] == "task_narrative_eval_ch01_local_v1"
+    assert source["draft_task_id"] == revision_task_id
+    assert source["files"]["fiction_draft.md"]["path"].endswith(
+        f"runs/{revision_task_id}/fiction_draft.md"
+    )
+    context = Path(report["context_path"]).read_text(encoding="utf-8")
+    assert "REVISED_CANDIDATE_MARKER" in context
+
+
 def test_heavy_audit_bundle_rejects_oversized_range_without_creating_run(tmp_path: Path) -> None:
     report = prepare_crown_narrative_heavy_audit(
         tmp_path,

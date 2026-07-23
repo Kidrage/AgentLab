@@ -247,6 +247,9 @@ def test_materializer_rejects_short_governed_chapter_before_writing(tmp_path: Pa
         (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
     )
     assert "draft_character_count_out_of_range" in contract["issues"]
+    assert contract["measurements"]["fiction_draft_characters"] == len(
+        "# Chapter 1\n\nA substantive candidate draft."
+    )
 
 
 def test_materializer_rejects_substantive_paragraph_copied_from_previous_chapter(

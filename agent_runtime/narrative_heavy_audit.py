@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import hashlib
 import re
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
 
@@ -31,6 +31,7 @@ HEAVY_AUDIT_OUTPUTS_BY_AGENT: dict[str, tuple[str, ...]] = {
     "Verifier": ("revision_or_rewrite_proposal.yml",),
 }
 MAX_AUDIT_BUNDLE_CHAPTERS = 20
+_SAFE_TASK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
 def heavy_audit_primary_output(agent_name: str) -> str | None:
@@ -381,6 +382,229 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _has_symlink_component(root: Path, path: Path) -> bool:
+    try:
+        relative = path.absolute().relative_to(root.absolute())
+    except ValueError:
+        return True
+    current = root.absolute()
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
+
+
+def validate_revision_draft_binding(
+    project_root: Path,
+    *,
+    chapter: int,
+    source_task_id: str,
+    revision_task_id: str,
+    expected_binding: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Revalidate one materialized revision without mutating its source run."""
+    if not _SAFE_TASK_ID_RE.fullmatch(source_task_id) or not _SAFE_TASK_ID_RE.fullmatch(
+        revision_task_id
+    ):
+        return {
+            "status": "blocked",
+            "issues": ["revision_task_id_invalid"],
+            "draft_path": "",
+        }
+    project_root = Path(project_root).resolve()
+    root = project_root.parent.parent
+    source_run = project_root / "runs" / source_task_id
+    revision_run = project_root / "runs" / revision_task_id
+    request_path = revision_run / "narrative_v2_writer_request.yml"
+    draft = revision_run / "fiction_draft.md"
+    output_contract_path = revision_run / "writer_v2_output_contract.yml"
+    session_receipt_path = revision_run / "narrative_v2_writer_session_receipt.yml"
+    issues: list[str] = []
+    for path, label in (
+        (request_path, "request"),
+        (draft, "draft"),
+        (output_contract_path, "output_contract"),
+        (session_receipt_path, "session_receipt"),
+    ):
+        if _has_symlink_component(root, path) or not path.is_file():
+            issues.append(f"revision_{label}_missing_or_unsafe")
+    if issues:
+        return {"status": "blocked", "issues": issues, "draft_path": str(draft)}
+    try:
+        request = yaml.safe_load(request_path.read_text(encoding="utf-8")) or {}
+        output_contract = yaml.safe_load(
+            output_contract_path.read_text(encoding="utf-8")
+        ) or {}
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return {
+            "status": "blocked",
+            "issues": ["revision_binding_yaml_invalid"],
+            "draft_path": str(draft),
+        }
+    if not isinstance(request, dict):
+        request = {}
+    if not isinstance(output_contract, dict):
+        output_contract = {}
+    expected_request = {
+        "schema_version": 1,
+        "job_kind": "narrative_revision",
+        "run_mode": "targeted_rewrite",
+        "project": project_root.name,
+        "task_id": revision_task_id,
+        "chapter_id": chapter,
+        "source_run_id": source_task_id,
+        "candidate_only": True,
+        "production_modified": False,
+    }
+    if any(request.get(key) != value for key, value in expected_request.items()):
+        issues.append("revision_request_identity_mismatch")
+    try:
+        from agent_runtime.narrative.production.live_writer_preflight import (
+            load_validated_workflow_plan_data,
+        )
+
+        plan = load_validated_workflow_plan_data(
+            agentlab_root=root,
+            project=project_root.name,
+            task_id=revision_task_id,
+            plan_path=revision_run / "workflow_plan.yml",
+        )
+        if str(plan.get("sealed_user_request_content") or "").encode("utf-8") != (
+            request_path.read_bytes()
+        ):
+            issues.append("revision_request_not_activated")
+    except (OSError, RuntimeError, TypeError, ValueError):
+        issues.append("revision_plan_activation_invalid")
+
+    draft_hash = _sha256(draft)
+    if (
+        output_contract.get("status") != "pass"
+        or output_contract.get("task_id") != revision_task_id
+        or output_contract.get("candidate_only") is not True
+        or output_contract.get("production_modified") is not False
+        or output_contract.get("prose_sha256") != draft_hash
+    ):
+        issues.append("revision_output_contract_mismatch")
+
+    def verify_ref(field: str, *, expected: Path | None = None) -> Path | None:
+        value = request.get(field)
+        if not isinstance(value, Mapping):
+            issues.append(f"revision_reference_invalid:{field}")
+            return None
+        relative = str(value.get("path") or "")
+        try:
+            candidate = root / relative
+            if _has_symlink_component(root, candidate):
+                raise ValueError("symlink")
+            path = candidate.resolve(strict=True)
+            path.relative_to(root)
+        except (OSError, ValueError):
+            issues.append(f"revision_reference_invalid:{field}")
+            return None
+        if path.is_symlink() or not path.is_file() or value.get("sha256") != _sha256(path):
+            issues.append(f"revision_reference_hash_mismatch:{field}")
+        if expected is not None and path != expected.resolve():
+            issues.append(f"revision_reference_path_mismatch:{field}")
+        return path
+
+    verify_ref(
+        "source_candidate",
+        expected=source_run / "fiction_draft.md",
+    )
+    contract_path = verify_ref("revision_contract")
+    verify_ref("triggering_audit")
+    verify_ref("attempt_receipt")
+    if contract_path is not None:
+        try:
+            contract_path.relative_to((project_root / "candidates").resolve())
+        except ValueError:
+            issues.append("revision_contract_outside_candidates")
+    if expected_binding is not None:
+        expected_identity = {
+            "chapter": chapter,
+            "task_id": revision_task_id,
+            "source_task_id": source_task_id,
+            "job_id": request.get("source_job_id"),
+            "candidate_set_id": request.get("candidate_set_id"),
+            "revision_attempt_id": request.get("attempt_id"),
+        }
+        if any(
+            expected_binding.get(key) != value
+            for key, value in expected_identity.items()
+        ):
+            issues.append("revision_selection_identity_mismatch")
+        actual_bindings = {
+            "draft_path": draft.relative_to(root).as_posix(),
+            "draft_sha256": draft_hash,
+            "revision_request_path": request_path.relative_to(root).as_posix(),
+            "revision_request_sha256": _sha256(request_path),
+            "writer_output_contract_path": output_contract_path.relative_to(root).as_posix(),
+            "writer_output_contract_sha256": _sha256(output_contract_path),
+            "writer_session_receipt_path": (
+                session_receipt_path.relative_to(root).as_posix()
+            ),
+            "writer_session_receipt_sha256": _sha256(session_receipt_path),
+        }
+        if contract_path is not None:
+            actual_bindings.update(
+                {
+                    "contract_path": contract_path.relative_to(root).as_posix(),
+                    "contract_sha256": _sha256(contract_path),
+                }
+            )
+            try:
+                contract_value = yaml.safe_load(
+                    contract_path.read_text(encoding="utf-8")
+                ) or {}
+            except (OSError, UnicodeDecodeError, yaml.YAMLError):
+                contract_value = {}
+            source_proposal = (
+                contract_value.get("source_proposal")
+                if isinstance(contract_value, dict)
+                else None
+            )
+            if isinstance(source_proposal, Mapping):
+                proposal_relative = str(source_proposal.get("path") or "")
+                proposal_hash = str(source_proposal.get("sha256") or "")
+                try:
+                    proposal_candidate = root / proposal_relative
+                    if _has_symlink_component(root, proposal_candidate):
+                        raise ValueError("symlink")
+                    proposal_path = proposal_candidate.resolve(strict=True)
+                    proposal_path.relative_to(root)
+                    if _sha256(proposal_path) != proposal_hash:
+                        raise ValueError("hash")
+                except (OSError, ValueError):
+                    issues.append("revision_source_proposal_invalid")
+                else:
+                    actual_bindings.update(
+                        {
+                            "proposal_path": proposal_relative,
+                            "proposal_sha256": proposal_hash,
+                        }
+                    )
+        for prefix, path in (
+            ("triggering_audit", verify_ref("triggering_audit")),
+        ):
+            if path is not None:
+                actual_bindings[f"{prefix}_path"] = path.relative_to(root).as_posix()
+                actual_bindings[f"{prefix}_sha256"] = _sha256(path)
+        if any(
+            expected_binding.get(key) != value
+            for key, value in actual_bindings.items()
+        ):
+            issues.append("revision_selection_binding_mismatch")
+    return {
+        "status": "pass" if not issues else "blocked",
+        "issues": list(dict.fromkeys(issues)),
+        "draft_path": str(draft),
+        "draft_sha256": draft_hash,
+        "revision_task_id": revision_task_id,
+        "source_task_id": source_task_id,
+    }
+
+
 def _production_manuscript_files(project_root: Path) -> list[str]:
     manuscript_root = project_root / "production" / "manuscript"
     if not manuscript_root.exists():
@@ -400,6 +624,7 @@ def prepare_crown_narrative_heavy_audit(
     end_chapter: int,
     task_id: str | None = None,
     chapter_ids: list[int] | None = None,
+    draft_bindings: Mapping[int, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Create a fresh, provider-free audit bundle from valid candidate chapters."""
     root = Path(root).resolve()
@@ -442,6 +667,27 @@ def prepare_crown_narrative_heavy_audit(
             if delivery.get("valid") is not True or delivery.get("skipped") is True:
                 issues.append(f"invalid_candidate_chapter:{chapter}")
                 continue
+            draft_binding = (draft_bindings or {}).get(chapter)
+            draft_task_id = (
+                str(draft_binding.get("task_id") or "")
+                if isinstance(draft_binding, Mapping)
+                else source_task_id
+            )
+            draft_run = project_root / "runs" / draft_task_id
+            if draft_task_id != source_task_id:
+                binding = validate_revision_draft_binding(
+                    project_root,
+                    chapter=chapter,
+                    source_task_id=source_task_id,
+                    revision_task_id=draft_task_id,
+                    expected_binding=draft_binding,
+                )
+                if binding.get("status") != "pass":
+                    issues.extend(
+                        f"invalid_revision_candidate:{chapter}:{item}"
+                        for item in binding.get("issues") or []
+                    )
+                    continue
             files: dict[str, dict[str, Any]] = {}
             chapter_values: dict[str, str] = {}
             for name in (
@@ -450,7 +696,7 @@ def prepare_crown_narrative_heavy_audit(
                 "continuity_ledger.yml",
                 "state_transition_proposal.yml",
             ):
-                path = source_run / name
+                path = (draft_run if name == "fiction_draft.md" else source_run) / name
                 if not path.is_file():
                     issues.append(f"missing_candidate_input:{chapter}:{name}")
                     continue
@@ -467,6 +713,7 @@ def prepare_crown_narrative_heavy_audit(
                 {
                     "chapter": chapter,
                     "task_id": source_task_id,
+                    "draft_task_id": draft_task_id,
                     "files": files,
                 }
             )

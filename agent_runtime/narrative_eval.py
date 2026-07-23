@@ -149,7 +149,7 @@ def _clear_chapter_attempt_outputs(
         path.unlink(missing_ok=True)
 
 
-WRITER_MAX_CONTRACT_REDOS = 1
+WRITER_MAX_CONTRACT_REDOS = 2
 
 
 def _writer_contract_issues(run_dir: Path) -> list[str]:
@@ -179,6 +179,31 @@ def _snapshot_writer_contract_attempt(run_dir: Path, attempt: int) -> dict[str, 
     return snapshots
 
 
+def _writer_retry_source(run_dir: Path, attempt: int) -> dict[str, str]:
+    """Extract only the rejected prose draft for a bounded full-contract redo."""
+    from agent_runtime.patch_applicator import parse_edit_blocks
+
+    capture_path = run_dir / f"writer_retry_attempt_{attempt:02d}_capture.md"
+    try:
+        blocks = parse_edit_blocks(capture_path.read_text(encoding="utf-8"))
+    except OSError:
+        return {}
+    for block in blocks:
+        raw_path = str(block.get("path") or "").strip().replace("\\", "/")
+        if Path(raw_path).name != "fiction_draft.md":
+            continue
+        draft = str(block.get("html_block_content") or "").strip()
+        lines = draft.splitlines()
+        if (
+            len(lines) >= 2
+            and lines[0].strip().startswith("```")
+            and lines[-1].strip() == "```"
+        ):
+            draft = "\n".join(lines[1:-1]).strip()
+        return {"fiction_draft": draft} if draft else {}
+    return {}
+
+
 def _write_writer_contract_retry_feedback(
     run_dir: Path,
     *,
@@ -187,7 +212,7 @@ def _write_writer_contract_retry_feedback(
     issues: list[str],
 ) -> None:
     """Persist exact schema corrections for the single full Writer redo."""
-    character_ranges: dict[str, list[int]] = {}
+    character_ranges: dict[str, Any] = {}
     try:
         packet = yaml.safe_load(
             (run_dir / "chapter_packet.yml").read_text(encoding="utf-8")
@@ -203,6 +228,43 @@ def _write_writer_contract_retry_feedback(
                 character_ranges[field] = value
     except (OSError, yaml.YAMLError, AttributeError):
         pass
+    if "draft_character_count_out_of_range" in issues:
+        try:
+            contract = yaml.safe_load(
+                (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
+            ) or {}
+            measurements = contract.get("measurements") or {}
+            observed = measurements.get("fiction_draft_characters")
+            hard_range = character_ranges.get("hard_character_range")
+            if isinstance(observed, int):
+                character_ranges["observed_characters"] = observed
+                if isinstance(hard_range, list) and len(hard_range) == 2:
+                    if observed < hard_range[0]:
+                        character_ranges["minimum_characters_to_add"] = (
+                            hard_range[0] - observed
+                        )
+                    elif observed > hard_range[1]:
+                        character_ranges["minimum_characters_to_remove"] = (
+                            observed - hard_range[1]
+                        )
+        except (OSError, yaml.YAMLError, AttributeError):
+            pass
+    instructions = [
+        "Emit all four complete AGENTLAB_EDIT blocks again in the required order.",
+        "Use the exact canonical fields and enum values below; do not use aliases.",
+        "Keep prose candidate-only and do not write production.",
+    ]
+    if isinstance(character_ranges.get("observed_characters"), int):
+        instructions.insert(
+            0,
+            "Use the deterministic observed character count below; do not rely on a self-estimated count.",
+        )
+    retry_source = _writer_retry_source(run_dir, attempt)
+    if retry_source:
+        instructions.insert(
+            0,
+            "Revise and expand the rejected fiction_draft below; preserve its valid story facts and do not replace it with a shorter draft.",
+        )
     _write_yaml(
         run_dir / "writer_contract_retry_feedback.yml",
         {
@@ -212,11 +274,8 @@ def _write_writer_contract_retry_feedback(
             "chapter": chapter,
             "issues": issues,
             "draft_character_contract": character_ranges,
-            "instructions": [
-                "Emit all four complete AGENTLAB_EDIT blocks again in the required order.",
-                "Use the exact canonical fields and enum values below; do not use aliases.",
-                "Keep prose candidate-only and do not write production.",
-            ],
+            "retry_source": retry_source,
+            "instructions": instructions,
             "required_envelopes": {
                 "continuity_ledger.yml": {
                     "schema_version": 1,
@@ -445,7 +504,12 @@ def _production_chapters(project_root: Path) -> list[dict[str, Any]]:
     return sorted(chapters, key=lambda item: (item["chapter"] is None, item["chapter"] or 0, item["path"]))
 
 
-def _audit_fact_sources(project_root: Path, project: str) -> dict[str, Any]:
+def _audit_fact_sources(
+    project_root: Path,
+    project: str,
+    *,
+    require_knowledge_contract: bool = False,
+) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
     required_files = [
@@ -456,12 +520,36 @@ def _audit_fact_sources(project_root: Path, project: str) -> dict[str, Any]:
         if not path.exists():
             issues.append({"severity": "error", "check": check, "message": f"missing {_rel(path, project_root)}"})
 
-    bible_refs = _collect(project_root, ["production/bible/**/*.md"], limit=20)
-    outline_refs = _collect(project_root, ["production/outlines/**/*.md"], limit=20)
-    if not bible_refs:
-        issues.append({"severity": "error", "check": "bible_present", "message": "missing production/bible/**/*.md"})
-    if not outline_refs:
-        issues.append({"severity": "error", "check": "outline_present", "message": "missing production/outlines/**/*.md"})
+    bible_refs: list[str] = []
+    outline_refs: list[str] = []
+    blueprint_refs: list[str] = []
+    if require_knowledge_contract:
+        blueprint_required = (
+            "production/series_scale_decision.yml",
+            "production/chapter_length_policy.yml",
+            "production/canonical/index.yml",
+            "production/chapter_cards/index.yml",
+            "project_brain/blueprint_validation_receipt.yml",
+            "project_brain/knowledge_index_snapshot.yml",
+        )
+        for relative in blueprint_required:
+            if (project_root / relative).is_file():
+                blueprint_refs.append(relative)
+            else:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "check": "sealed_rag_blueprint_present",
+                        "message": f"missing {relative}",
+                    }
+                )
+    else:
+        bible_refs = _collect(project_root, ["production/bible/**/*.md"], limit=20)
+        outline_refs = _collect(project_root, ["production/outlines/**/*.md"], limit=20)
+        if not bible_refs:
+            issues.append({"severity": "error", "check": "bible_present", "message": "missing production/bible/**/*.md"})
+        if not outline_refs:
+            issues.append({"severity": "error", "check": "outline_present", "message": "missing production/outlines/**/*.md"})
 
     revision_log = project_root / "project_brain" / "revision_log.jsonl"
     if not revision_log.exists():
@@ -477,6 +565,7 @@ def _audit_fact_sources(project_root: Path, project: str) -> dict[str, Any]:
             "fact_snapshot": "project_brain/project_fact_snapshot.yml",
             "bible_refs": bible_refs,
             "outline_refs": outline_refs,
+            "blueprint_refs": blueprint_refs,
         },
         "deprecated_production_chapters": deprecated_chapters,
         "issues": issues + warnings,
@@ -1010,6 +1099,7 @@ def _write_live_chapter_outputs(
                 "harness_generated_story_state": False,
             },
         )
+        write_narrative_delivery_receipt(run_dir)
     except Exception as exc:
         _write_yaml(
             run_dir / "live_generation_error.yml",
@@ -1038,6 +1128,7 @@ def _generate_chapters(
     chapter_state_plan: str | None = None,
     writer_budget_mode: str = "balanced",
     predecessor_task_id: str | None = None,
+    require_knowledge_contract: bool = False,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     generated: list[dict[str, Any]] = []
@@ -1172,6 +1263,7 @@ def _generate_chapters(
             deprecated_sources=deprecated_sources,
             candidate_fact_ledger=candidate_fact_ledger,
             chapter_state_plan=chapter_state_plan,
+            require_knowledge_contract=require_knowledge_contract,
         )
         if mode == "mock":
             _write_mock_chapter_outputs(run_dir, project, chapter, previous_sources, baseline_mode)
@@ -1464,6 +1556,7 @@ def run_narrative_eval(
     chapter_state_plan: str | None = None,
     writer_budget_mode: str = "balanced",
     predecessor_task_id: str | None = None,
+    require_knowledge_contract: bool = False,
 ) -> dict[str, Any]:
     if mode not in VALID_MODES:
         raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
@@ -1474,7 +1567,11 @@ def run_narrative_eval(
     eval_dir = root / "acceptance_runs" / "narrative_eval" / project / suite / eval_id
     eval_dir.mkdir(parents=True, exist_ok=True)
 
-    l0 = _audit_fact_sources(project_root, project)
+    l0 = _audit_fact_sources(
+        project_root,
+        project,
+        require_knowledge_contract=require_knowledge_contract,
+    )
     l1 = _audit_history(project_root)
     deprecated_sources = [item["path"] for item in l1["deprecated_production_chapters"]]
     reset_proposal = _write_reset_proposal(eval_dir, project, deprecated_sources)
@@ -1545,6 +1642,7 @@ def run_narrative_eval(
             chapter_state_plan=chapter_state_plan,
             writer_budget_mode=writer_budget_mode,
             predecessor_task_id=predecessor_task_id,
+            require_knowledge_contract=require_knowledge_contract,
         )
 
     l3 = _build_scale_simulation(eval_dir, suite)

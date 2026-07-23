@@ -173,7 +173,7 @@ contracts:
       - narrative_delivery_receipt.yml
     template: >-
       claude --model "{model_id}" --effort max --max-budget-usd 1.00
-      --permission-mode plan --output-format json --tools "" -p "Treat the
+      --permission-mode bypassPermissions --output-format json --tools "" -p "Treat the
       complete sealed AgentLab Writer packet on stdin as the only task context.
       Follow its messages in order and act as a pure Writer: produce high-quality
       final Chinese prose while preserving voice, POV, continuity, and length
@@ -218,6 +218,44 @@ contracts:
     required_placeholders: [task_packet_path, model_id]
     safe_probe: [claude, --help]
     max_budget_usd: 2.00
+    output_parser: claude_json
+    expected_parse:
+      argv_prefix: [claude, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_quota_exhausted: stop_and_report
+
+  claude_narrative_audit:
+    worker_id: claude_code
+    display_name: Claude Shell DeepSeek Sealed Narrative Reviewer
+    command: claude
+    invocation_style: sealed_packet_stdin
+    packet_delivery: stdin
+    structured_output: narrative_heavy_audit
+    workflow_shell: true
+    coalescing_allowed: false
+    required_receipts:
+      - outbound_context_manifest_reviewer.yml
+      - model_execution_chain_reviewer.yml
+      - model_execution_receipt_reviewer_<route>_<attempt>.yml
+      - narrative_heavy_audit_output_contract.yml
+    template: >-
+      claude --model "{model_id}" --effort max --max-budget-usd 3.00
+      --permission-mode bypassPermissions --output-format json --tools ""
+      --json-schema '{narrative_audit_schema}' -p "Treat the complete sealed
+      AgentLab Reviewer packet on stdin as the only task context. Audit every
+      requested chapter against its exact evidence and continuity contracts.
+      Do not browse, read workspace files, edit files, draft replacement prose,
+      plan other roles, or invoke subagents. Return exactly the structured JSON
+      required by the enforced schema. AgentLab alone serializes and validates
+      the candidate-only audit files."
+    required_placeholders: [model_id, narrative_audit_schema]
+    safe_probe: [claude, --help]
+    max_budget_usd: 3.00
     output_parser: claude_json
     expected_parse:
       argv_prefix: [claude, --model]
@@ -348,6 +386,8 @@ contracts:
 
   codex_supervisor:
     worker_id: codex
+    required_runtime_provider: codex-cli
+    required_model_key: codex_gpt_5_6_sol_xhigh_cli_oauth
     display_name: Codex Native GPT Supervisor
     command: codex
     invocation_style: governed_supervisor_task_packet
@@ -403,7 +443,7 @@ contracts:
       - changed_files_or_findings.yml
       - validation_evidence.yml
     template: >-
-      codex exec --json --model "{model_id}" -C "{workspace_path}" "Read the task packet at
+      codex exec --json --model "{model_id}" --skip-git-repo-check -C "{workspace_path}" "Read the task packet at
       {task_packet_path}; perform only the assigned work and report actual changes."
     required_placeholders:
       - workspace_path

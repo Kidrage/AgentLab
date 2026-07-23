@@ -46,6 +46,13 @@ REWRITE_ACTION_RE = re.compile(
     re.I,
 )
 
+REWRITE_NEGATED_ACTION_RE = re.compile(
+    r"((?:不得|不可|禁止|不要|无需|无须|不(?:要|得|可|应|需)?)"
+    r"[^\n。；;]{0,6}(?:重写|改写|重做)|"
+    r"(?:do\s+not|must\s+not|without)\s+(?:directly\s+)?(?:rewrite|revise))",
+    re.I,
+)
+
 REWRITE_EVIDENCE_RE = re.compile(
     r"(heavy[\s_-]*audit|blocking|rewrite proposal|revision proposal|"
     r"审计(?:结果|报告|发现|意见)?|阻断(?:项|问题)?|连续性失败|重写建议|改写建议)",
@@ -90,7 +97,11 @@ def classify_narrative_intent(text: str, *, active_longform_project: bool = Fals
     has_chapter_word = bool(CHAPTER_WORD_RE.search(raw))
     has_chapter_range = bool(CHAPTER_RANGE_RE.search(raw))
     has_audit = bool(AUDIT_RE.search(raw))
-    has_rewrite_action = bool(REWRITE_ACTION_RE.search(raw))
+    # Audit packets state boundaries such as “不得重写正文”. Remove only the
+    # bounded negated action phrase before looking for an affirmative rewrite;
+    # a later explicit rewrite instruction in the same request still wins.
+    rewrite_action_text = REWRITE_NEGATED_ACTION_RE.sub("", raw)
+    has_rewrite_action = bool(REWRITE_ACTION_RE.search(rewrite_action_text))
     has_rewrite_evidence = bool(REWRITE_EVIDENCE_RE.search(raw))
     rewrite_is_question = bool(REWRITE_QUESTION_RE.search(raw))
     has_story_marker = bool(STORY_MARKER_RE.search(raw))

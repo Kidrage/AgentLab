@@ -20,7 +20,7 @@ contract:
     - validation_failed
 artifact_types:
   text:
-    output_formats: [markdown, txt, docx]
+    output_formats: [markdown, txt, docx, yaml]
     required_capabilities: [write_text_artifact, write_artifact_file]
   image:
     output_formats: [png, jpg, webp]
@@ -52,11 +52,27 @@ providers:
     priority: 100
     fallback: false
     handles: [text, spreadsheet, presentation]
-    output_formats: [markdown, txt, docx, xlsx, csv, pptx, pdf]
+    output_formats: [markdown, txt, docx, yaml, xlsx, csv, pptx, pdf]
     capabilities:
       - write_text_artifact
       - create_spreadsheet
       - create_presentation
+      - write_artifact_file
+      - validate_artifact_contract
+  codex_cli:
+    worker: codex
+    provider_type: cli
+    invocation_contract: codex
+    capacity_routes:
+      full: ArtifactProducerCodex
+      performance: ArtifactProducerCodex
+      low: ArtifactProducerCodex
+    priority: 90
+    fallback: false
+    handles: [text]
+    output_formats: [markdown, txt, docx, yaml]
+    capabilities:
+      - write_text_artifact
       - write_artifact_file
       - validate_artifact_contract
   grok_media:
@@ -84,7 +100,7 @@ providers:
     priority: 10
     fallback: true
     handles: [text]
-    output_formats: [markdown, txt]
+    output_formats: [markdown, txt, yaml]
     capabilities:
       - write_text_artifact
       - write_artifact_file

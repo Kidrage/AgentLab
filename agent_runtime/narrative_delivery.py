@@ -10,6 +10,8 @@ import re
 
 import yaml
 
+from agent_runtime.narrative.knowledge_contract import build_chapter_knowledge_contract
+
 
 REQUIRED_REVIEW_GATES = [
     "continuity",
@@ -767,6 +769,7 @@ def build_chapter_packet(
     deprecated_sources: list[str] | None = None,
     candidate_fact_ledger: str | None = None,
     chapter_state_plan: str | None = None,
+    require_knowledge_contract: bool = False,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     run_rel = f"runs/{task_id}"
@@ -788,6 +791,16 @@ def build_chapter_packet(
         else _build_chapter_intent(project_root, outline_refs, chapter)
     )
     candidate_story_authority_refs = _state_plan_story_authority_refs(project_root, chapter_state_plan)
+    knowledge_contract = (
+        build_chapter_knowledge_contract(
+            project_root,
+            project=project,
+            chapter=chapter,
+            previous_sources=resolved_previous_chapters[-3:],
+        )
+        if require_knowledge_contract
+        else None
+    )
     packet = {
         "schema_version": 1,
         "project": project,
@@ -807,7 +820,11 @@ def build_chapter_packet(
             "artifact_index": "project_artifact_index.yml",
             "production_root": "production/",
             "candidate_chapter_state_plan": chapter_state_plan,
+            "knowledge_index_snapshot": (
+                knowledge_contract["index_snapshot_path"] if knowledge_contract else None
+            ),
         },
+        "knowledge_contract": knowledge_contract,
         "chapter_intent": chapter_intent,
         "must_read": [
             "project_brain/project_fact_snapshot.yml",
@@ -817,6 +834,7 @@ def build_chapter_packet(
             *([chapter_state_plan] if chapter_state_plan else []),
             *candidate_story_authority_refs,
             *([candidate_fact_ledger] if candidate_fact_ledger else []),
+            *(sorted(knowledge_contract["source_hashes"]) if knowledge_contract else []),
             *resolved_previous_chapters[-3:],
         ],
         "story_authority": {
@@ -853,6 +871,7 @@ def write_chapter_packet(
     deprecated_sources: list[str] | None = None,
     candidate_fact_ledger: str | None = None,
     chapter_state_plan: str | None = None,
+    require_knowledge_contract: bool = False,
 ) -> dict[str, Any]:
     packet = build_chapter_packet(
         root,
@@ -864,6 +883,7 @@ def write_chapter_packet(
         deprecated_sources=deprecated_sources,
         candidate_fact_ledger=candidate_fact_ledger,
         chapter_state_plan=chapter_state_plan,
+        require_knowledge_contract=require_knowledge_contract,
     )
     path = _project_root(root, project) / "runs" / task_id / "chapter_packet.yml"
     _write_yaml(path, packet)
@@ -933,6 +953,11 @@ def narrative_delivery_integrity_issues(run_dir: Path) -> list[str]:
 
 def write_narrative_delivery_receipt(run_dir: Path) -> dict[str, Any]:
     result = validate_narrative_delivery(run_dir, include_receipt=False)
+    existing_receipt = _read_yaml(
+        Path(run_dir) / "narrative_delivery_receipt.yml", {}
+    ) or {}
+    if not isinstance(existing_receipt, dict):
+        existing_receipt = {}
     external_required_files = _delivery_files_for_run(Path(run_dir), include_receipt=True)
     artifact_sha256 = {
         filename: hashlib.sha256((Path(run_dir) / filename).read_bytes()).hexdigest()
@@ -940,6 +965,7 @@ def write_narrative_delivery_receipt(run_dir: Path) -> dict[str, Any]:
         if (Path(run_dir) / filename).is_file()
     }
     receipt = {
+        **existing_receipt,
         "schema_version": 1,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "pass" if result.get("valid") else "blocked",

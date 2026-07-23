@@ -839,9 +839,17 @@ def test_background_rewrite_calls_scene_closure_adapter(tmp_path, monkeypatch) -
 def test_background_revision_reads_node_local_verifier_proposal(tmp_path) -> None:
     from agent_runtime.narrative.quality.background import run_background_revision
 
-    proposal = tmp_path / "revision_or_rewrite_proposal.yml"
+    proposal = (
+        tmp_path
+        / "projects"
+        / "Crown_of_Ash"
+        / "candidates"
+        / "revision_or_rewrite_proposal.yml"
+    )
+    proposal.parent.mkdir(parents=True)
     proposal.write_text(
-        "status: proposed\nrewrite_required: true\nproposals:\n  - chapter_id: 26\n",
+        "status: proposed\nrewrite_required: true\ndirect_draft_edits: false\n"
+        "proposals:\n  - chapter_id: 26\n",
         encoding="utf-8",
     )
     result = run_background_revision(
@@ -853,13 +861,57 @@ def test_background_revision_reads_node_local_verifier_proposal(tmp_path) -> Non
             "batch": {"start": 25, "end": 30},
             "prior_results": {
                 "heavy_audit": {"task_id": "audit-1", "rewrite_proposal": None},
-                "revision_support_verifier": {"output_path": str(proposal)},
+                "revision_support_verifier": {
+                    "output_path": str(proposal),
+                    "output_sha256": hashlib.sha256(proposal.read_bytes()).hexdigest(),
+                },
             },
         }
     )
 
-    assert result["reason"] == "provider_revision_gate_not_accepted"
-    assert result["revision_contract_count"] == 1
+    assert result["status"] == "decision_required"
+    assert result["reason"] == "revision_contract_scope_invalid"
+    assert result["revision_contract_count"] == 0
+
+
+def test_background_revision_never_follows_attempt_directory_symlink(tmp_path) -> None:
+    from agent_runtime.narrative.quality.background import run_background_revision
+
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    proposal = project / "candidates" / "proposal.yml"
+    proposal.parent.mkdir(parents=True)
+    proposal.write_text(
+        "status: proposed\nrewrite_required: true\ndirect_draft_edits: false\n"
+        "proposals:\n  - chapter_id: 1\n",
+        encoding="utf-8",
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    attempts = project / "background_jobs" / "job-symlink" / "attempts"
+    attempts.parent.mkdir(parents=True)
+    attempts.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises((OSError, ValueError)):
+        run_background_revision(
+            {
+                "agentlab_root": str(tmp_path),
+                "project": "Crown_of_Ash",
+                "job_id": "job-symlink",
+                "attempt_id": "attempt-0001",
+                "batch": {"start": 1, "end": 1},
+                "config": {"start_chapter": 1, "end_chapter": 1},
+                "prior_results": {
+                    "revision_support_verifier": {
+                        "output_path": str(proposal),
+                        "output_sha256": hashlib.sha256(
+                            proposal.read_bytes()
+                        ).hexdigest(),
+                    }
+                },
+            }
+        )
+
+    assert list(outside.iterdir()) == []
 
 
 # ---------------------------------------------------------------------------

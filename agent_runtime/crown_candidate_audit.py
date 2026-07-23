@@ -621,7 +621,9 @@ def validate_writer_execution_contract(run_dir: Path, task_id: str) -> dict[str,
     )
     expected_provider = writer_model.get("provider")
     expected_model = writer_model.get("model")
-    expected_worker = writer_agent.get("execution_owner")
+    expected_worker = writer_agent.get("execution_owner") or writer_model.get(
+        "cli_agent"
+    )
     legacy_agy = (
         expected_provider == "agy-gemini-oauth"
         and expected_model == "gemini-3.5-flash-high"

@@ -111,6 +111,35 @@ class DryRunNoRealCallTests(TestCase):
 
 
 class DryRunClosureEvidenceTests(TestCase):
+    def test_self_check_revalidates_after_creating_its_own_report(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            task_id = "task_self_check_refresh"
+            run_dir = root / "projects" / "Demo" / "runs" / task_id
+            run_dir.mkdir(parents=True)
+            plan = {"route": {"agents": []}}
+            (run_dir / "workflow_plan.yml").write_text(
+                yaml.safe_dump(plan), encoding="utf-8"
+            )
+            (run_dir / "user_request.md").write_text("self check", encoding="utf-8")
+            create_lifecycle(run_dir, plan)
+            lifecycle = load_lifecycle(run_dir) or {}
+            for node_id, node in lifecycle.get("nodes", {}).items():
+                node["status"] = "waiting" if node_id == "SELF_CHECK" else "skipped"
+            save_lifecycle(run_dir, lifecycle)
+            first = {"valid": False, "pass_rate": 0.5, "issues": [{"file": "self_check_report.yml", "issue": "missing"}]}
+            second = {"valid": True, "pass_rate": 1.0, "issues": []}
+
+            with mock.patch(
+                "pipeline_runner.validate_artifacts", side_effect=[first, second]
+            ) as validate:
+                result = run_next_node(root, "Demo", task_id, fake_provider=True)
+
+            self.assertEqual(result["node"], "SELF_CHECK")
+            self.assertEqual(validate.call_count, 2)
+            report = yaml.safe_load((run_dir / "self_check_report.yml").read_text())
+            self.assertTrue(report["valid"])
+
     def test_heavy_narrative_dry_run_materializes_four_audit_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import yaml
 
@@ -74,6 +74,26 @@ def test_preflight_enforces_candidate_boundary_and_structured_plan(tmp_path: Pat
         blocked = execute_action(request)
     assert blocked["outcome"] == "failed"
     assert "production_manuscript_not_empty" in blocked["result"]["issues"]
+
+
+def test_rag_preflight_requires_current_blueprint_seal_and_knowledge_snapshot(
+    tmp_path: Path,
+) -> None:
+    _project(tmp_path)
+    request = _request(tmp_path, "preflight")
+    request["config"]["knowledge_contract_required"] = True
+    with patch(
+        "agent_runtime.narrative_delivery.validate_chapter_state_plan",
+        return_value={"status": "pass", "issues": []},
+    ), patch(
+        "agent_runtime.narrative.blueprint_validation.validate_blueprint_seal",
+        return_value={"status": "blocked", "issues": ["receipt_missing"]},
+    ):
+        result = execute_action(request)
+
+    assert result["outcome"] == "failed"
+    assert "blueprint_seal_invalid" in result["result"]["issues"]
+    assert "missing_knowledge_index_snapshot" in result["result"]["issues"]
 
 
 def test_final_acceptance_builds_candidate_package_not_production(tmp_path: Path) -> None:
@@ -165,6 +185,79 @@ def test_heavy_audit_network_failure_returns_durable_retry_wait(tmp_path: Path) 
     assert result["retry_at"] == "2026-07-18T07:01:00+00:00"
     assert result["result"]["reason"] == "network_required"
     assert result["result"]["provider_failure_reason"].startswith("CLI agent")
+
+
+def test_heavy_audit_result_persists_source_manifest_binding(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    request = _request(tmp_path, "heavy_audit", end_chapter=1)
+    request["batch"] = {"number": 1, "start": 1, "end": 1}
+    source = project / "runs" / "source-ch01" / "fiction_draft.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("# Chapter 1\n\nCandidate.\n", encoding="utf-8")
+    import hashlib
+
+    manifest_path = project / "runs" / "heavy-source-manifest.yml"
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                "sources": [
+                    {
+                        "chapter": 1,
+                        "files": {
+                            "fiction_draft.md": {
+                                "path": source.relative_to(project).as_posix(),
+                                "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                            }
+                        },
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    decision = MagicMock()
+    decision.requires_revision = False
+    decision.to_dict.return_value = {"status": "pass", "allow_seal": True}
+
+    def successful_pipeline(_root, *, project, task_id, budget_mode):
+        run_dir = tmp_path / "projects" / project / "runs" / task_id
+        run_dir.mkdir(parents=True)
+        for name in (
+            "fiction_review.yml",
+            "continuity_failure_report.yml",
+            "narrative_quality_scorecard.yml",
+        ):
+            (run_dir / name).write_text("status: pass\nfindings: []\n", encoding="utf-8")
+        return {"success": True}
+
+    with patch(
+        "agent_runtime.narrative.audit.background.prepare_and_precheck_audit",
+        return_value={
+            "prepared": {
+                "status": "ready",
+                "issues": [],
+                "manifest_path": str(manifest_path),
+            },
+            "precheck": {"status": "pass", "blocking_codes": []},
+        },
+    ), patch(
+        "agent_runtime.narrative.audit.runtime.run_single_judge_pipeline",
+        side_effect=successful_pipeline,
+    ), patch(
+        "agent_runtime.narrative.audit.background.run_tiered_followup",
+        return_value={"status": "pass"},
+    ), patch(
+        "agent_runtime.narrative.audit.gate.evaluate_narrative_seal",
+        return_value=decision,
+    ):
+        result = execute_action(request)
+
+    assert result["outcome"] == "success"
+    heavy = result["result"]
+    assert heavy["audit_source_manifest_path"] == str(manifest_path)
+    assert heavy["audit_source_manifest_sha256"] == hashlib.sha256(
+        manifest_path.read_bytes()
+    ).hexdigest()
 
 
 def test_worker_always_writes_failure_receipt_for_exception(tmp_path: Path) -> None:
