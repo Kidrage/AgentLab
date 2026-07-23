@@ -20,6 +20,11 @@ from typing import Any, Iterator, Mapping
 import yaml
 
 from agent_runtime.atomic_io import atomic_write_yaml
+from agent_runtime.narrative.fact_authority import (
+    apply_fact_authority,
+    load_fact_authority,
+    verify_registered_fact_authority,
+)
 
 
 EVENT_SCHEMA = "narrative-state-event/v3"
@@ -73,6 +78,7 @@ def _empty_snapshot(project: str) -> dict[str, Any]:
         "relationships": {},
         "foreshadowing": {},
         "world_axes": {},
+        "fact_authorities": {},
         "chapters": {},
         "style_memory": [],
         "event_count": 0,
@@ -196,6 +202,7 @@ class NarrativeStateStore:
                 "relationships",
                 "foreshadowing",
                 "world_axes",
+                "fact_authorities",
                 "chapters",
                 "style_memory",
             ):
@@ -269,6 +276,28 @@ class NarrativeStateStore:
                     "event_id": event["event_id"],
                 }
             )
+        elif event.get("event_type") == "FACT_AUTHORITY_COMMITTED":
+            authority = payload.get("authority") or {}
+            if not isinstance(authority, Mapping):
+                raise NarrativeStateIntegrityError(
+                    "fact authority event payload is not a mapping"
+                )
+            try:
+                apply_fact_authority(
+                    snapshot,
+                    authority,
+                    allow_legacy_semantic_authority=True,
+                )
+            except ValueError as exc:
+                raise NarrativeStateIntegrityError(str(exc)) from exc
+            snapshot["fact_authorities"] = {
+                authority["authority_id"]: {
+                    "revision": authority["revision"],
+                    "source_path": payload["source_path"],
+                    "source_sha256": payload["source_sha256"],
+                    "event_id": event["event_id"],
+                }
+            }
         else:
             raise NarrativeStateIntegrityError(
                 f"unsupported narrative event type: {event.get('event_type')}"
@@ -349,6 +378,8 @@ class NarrativeStateStore:
                 if event.get("event_type") == "NARRATIVE_BOOTSTRAPPED"
                 else "recorded"
                 if event.get("event_type") == "EDITORIAL_MEMORY_RECORDED"
+                else "overridden"
+                if event.get("event_type") == "FACT_AUTHORITY_COMMITTED"
                 else "committed"
             ),
             "project": self.project,
@@ -376,10 +407,21 @@ class NarrativeStateStore:
         sources = manifest.get("sources")
         if not isinstance(sources, list) or not sources:
             raise ValueError("bootstrap sources must be non-empty")
+        project_root = self.project_brain_dir.parent.resolve(strict=True)
+        normalized_sources: list[dict[str, Any]] = []
         for source in sources:
             if not isinstance(source, Mapping):
                 raise ValueError("bootstrap source must be a mapping")
-            path = Path(str(source.get("path") or "")).resolve(strict=True)
+            reference = Path(str(source.get("path") or ""))
+            path = (
+                reference.resolve(strict=True)
+                if reference.is_absolute()
+                else (project_root / reference).resolve(strict=True)
+            )
+            if project_root not in path.parents:
+                raise NarrativeStateIntegrityError(
+                    f"bootstrap source path is unsafe: {reference}"
+                )
             expected = str(source.get("sha256") or "")
             if not _SHA256.fullmatch(expected):
                 raise ValueError("bootstrap source sha256 must be lowercase 64-hex")
@@ -387,10 +429,67 @@ class NarrativeStateStore:
                 raise NarrativeStateIntegrityError(
                     f"bootstrap source hash mismatch: {path}"
                 )
+            normalized_sources.append(
+                {
+                    **deepcopy(dict(source)),
+                    "path": path.relative_to(project_root).as_posix(),
+                }
+            )
         base_state = manifest.get("base_state")
         if not isinstance(base_state, Mapping):
             raise ValueError("bootstrap base_state must be a mapping")
-        manifest_sha256 = _sha256_json(manifest)
+        fact_authorities = base_state.get("fact_authorities", {})
+        if not isinstance(fact_authorities, Mapping) or len(fact_authorities) > 1:
+            raise ValueError(
+                "bootstrap base_state must contain at most one active fact authority"
+            )
+        normalized_base_state = deepcopy(dict(base_state))
+        if fact_authorities:
+            authority_id, raw_metadata = next(iter(fact_authorities.items()))
+            if not str(authority_id).strip() or not isinstance(raw_metadata, Mapping):
+                raise ValueError("bootstrap fact authority metadata is invalid")
+            revision = raw_metadata.get("revision")
+            source_sha256 = str(raw_metadata.get("source_sha256") or "")
+            source_reference = Path(str(raw_metadata.get("source_path") or ""))
+            if (
+                isinstance(revision, bool)
+                or not isinstance(revision, int)
+                or revision < 1
+                or not _SHA256.fullmatch(source_sha256)
+            ):
+                raise ValueError("bootstrap fact authority metadata is invalid")
+            authority_source = (
+                source_reference.resolve(strict=True)
+                if source_reference.is_absolute()
+                else (project_root / source_reference).resolve(strict=True)
+            )
+            if project_root not in authority_source.parents:
+                raise NarrativeStateIntegrityError(
+                    "bootstrap fact authority source path is unsafe"
+                )
+            normalized_authority_path = authority_source.relative_to(
+                project_root
+            ).as_posix()
+            if not any(
+                source["path"] == normalized_authority_path
+                and source["sha256"] == source_sha256
+                for source in normalized_sources
+            ):
+                raise NarrativeStateIntegrityError(
+                    "bootstrap fact authority metadata is not source-bound"
+                )
+            normalized_base_state["fact_authorities"] = {
+                str(authority_id): {
+                    **deepcopy(dict(raw_metadata)),
+                    "source_path": normalized_authority_path,
+                }
+            }
+        normalized_manifest = {
+            **deepcopy(dict(manifest)),
+            "sources": normalized_sources,
+            "base_state": normalized_base_state,
+        }
+        manifest_sha256 = _sha256_json(normalized_manifest)
         with self._lock():
             events = self._load_events()
             if events:
@@ -411,8 +510,8 @@ class NarrativeStateStore:
                 payload={
                     "manifest_sha256": manifest_sha256,
                     "precedence": list(precedence),
-                    "sources": deepcopy(list(sources)),
-                    "base_state": deepcopy(dict(base_state)),
+                    "sources": normalized_sources,
+                    "base_state": normalized_base_state,
                 },
             )
             events.append(event)
@@ -489,26 +588,133 @@ class NarrativeStateStore:
             self._persist_snapshot(events)
             return self._receipt(events, event)
 
+    def commit_fact_authority(self, authority_path: Path) -> dict[str, Any]:
+        """Commit one hash-bound fact revision on a single supersession lineage."""
+
+        project_root = self.project_brain_dir.parent.resolve(strict=False)
+        source = Path(authority_path).resolve(strict=True)
+        expected_source = project_root / "production" / "fact_authority.yml"
+        if source != expected_source:
+            raise NarrativeStateIntegrityError(
+                "fact authority source must be production/fact_authority.yml"
+            )
+        cursor = project_root
+        for part in source.relative_to(project_root).parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                raise NarrativeStateIntegrityError(
+                    "fact authority source path is unsafe"
+                )
+        authority, source_sha256 = load_fact_authority(
+            source,
+            project=self.project,
+        )
+        try:
+            verify_registered_fact_authority(
+                project_root,
+                authority,
+                source_sha256,
+            )
+        except ValueError as exc:
+            raise NarrativeStateIntegrityError(str(exc)) from exc
+        with self._lock():
+            events = self._load_events()
+            if not events:
+                raise NarrativeStateConflict(
+                    "narrative state must be bootstrapped first"
+                )
+            current = self._project(events)
+            active_authorities = current.get("fact_authorities") or {}
+            if not isinstance(active_authorities, Mapping) or len(active_authorities) > 1:
+                raise NarrativeStateIntegrityError(
+                    "narrative state does not have a unique active fact authority"
+                )
+            if active_authorities:
+                active_id, active_revision = next(iter(active_authorities.items()))
+                if active_id != authority["authority_id"]:
+                    raise NarrativeStateConflict(
+                        "single active fact authority cannot change authority_id"
+                    )
+                if not isinstance(active_revision, Mapping):
+                    raise NarrativeStateIntegrityError(
+                        "active fact authority metadata is invalid"
+                    )
+            else:
+                active_revision = None
+            lineage = [
+                event
+                for event in events
+                if event.get("event_type") == "FACT_AUTHORITY_COMMITTED"
+                and (event.get("payload") or {})
+                .get("authority", {})
+                .get("authority_id")
+                == authority["authority_id"]
+            ]
+            if active_revision is not None:
+                if (
+                    active_revision.get("source_sha256") == source_sha256
+                    and active_revision.get("revision") == authority["revision"]
+                ):
+                    self._persist_snapshot(events)
+                    return self._receipt(events, lineage[-1] if lineage else events[0])
+                if authority["revision"] != int(active_revision["revision"]) + 1:
+                    raise NarrativeStateConflict(
+                        "fact authority revision must increment by one"
+                    )
+                if (
+                    authority.get("supersedes_authority_sha256")
+                    != active_revision.get("source_sha256")
+                ):
+                    raise NarrativeStateConflict(
+                        "fact authority supersedes hash does not match active revision"
+                    )
+            elif authority["revision"] != 1 or authority.get(
+                "supersedes_authority_sha256"
+            ):
+                raise NarrativeStateConflict(
+                    "first fact authority revision must be revision 1 without supersedes"
+                )
+
+            try:
+                apply_fact_authority(current, authority)
+            except ValueError as exc:
+                raise NarrativeStateConflict(str(exc)) from exc
+            event = self._new_event(
+                events,
+                event_type="FACT_AUTHORITY_COMMITTED",
+                payload={
+                    "authority": authority,
+                    "source_path": source.relative_to(project_root).as_posix(),
+                    "source_sha256": source_sha256,
+                },
+            )
+            events.append(event)
+            self._append_event_to_ledger(event)
+            self._persist_snapshot(events)
+            return self._receipt(events, event)
+
     def read(
         self, *, at_version: int | None = None, chapter: int | None = None
     ) -> dict[str, Any]:
         """Read a deterministic snapshot at an event version or chapter boundary."""
 
-        events = self._load_events()
-        if at_version is not None:
-            if isinstance(at_version, bool) or at_version < 0:
-                raise ValueError("at_version must be a non-negative integer")
-            events = events[:at_version]
-        if chapter is not None:
-            if isinstance(chapter, bool) or chapter < 0:
-                raise ValueError("chapter must be a non-negative integer")
-            events = [
-                event
-                for event in events
-                if event.get("event_type") != "VERIFIED_CHAPTER_COMMITTED"
-                or int((event.get("payload") or {}).get("chapter") or 0) <= chapter
-            ]
-        return self._project(events)
+        with self._lock():
+            events = self._load_events()
+            if at_version is not None:
+                if isinstance(at_version, bool) or at_version < 0:
+                    raise ValueError("at_version must be a non-negative integer")
+                events = events[:at_version]
+            if chapter is not None:
+                if isinstance(chapter, bool) or chapter < 0:
+                    raise ValueError("chapter must be a non-negative integer")
+                events = [
+                    event
+                    for event in events
+                    if event.get("event_type") != "VERIFIED_CHAPTER_COMMITTED"
+                    or int((event.get("payload") or {}).get("chapter") or 0)
+                    <= chapter
+                ]
+            return self._project(events)
 
     def commit(self, verified_commit: Mapping[str, Any]) -> dict[str, Any]:
         """Commit one accepted, verified chapter delta to narrative authority."""

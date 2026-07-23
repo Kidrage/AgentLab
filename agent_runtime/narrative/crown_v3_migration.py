@@ -8,6 +8,13 @@ from typing import Any
 
 import yaml
 
+from agent_runtime.narrative.fact_authority import (
+    assert_fact_authority_evidence,
+    assert_fact_authority_projection,
+    load_fact_authority,
+    verify_registered_fact_authority,
+)
+
 
 def _read_yaml(path: Path) -> dict[str, Any]:
     value = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -16,9 +23,9 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return value
 
 
-def _source(path: Path) -> dict[str, str]:
+def _source(path: Path, *, project_root: Path) -> dict[str, str]:
     return {
-        "path": str(path.resolve()),
+        "path": path.relative_to(project_root).as_posix(),
         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
     }
 
@@ -47,6 +54,7 @@ def build_crown_bootstrap_manifest(project_root: Path) -> dict[str, Any]:
     canonical = project_root / "production" / "canonical"
     paths = {
         "scale": project_root / "production" / "series_scale_decision.yml",
+        "fact_authority": project_root / "production" / "fact_authority.yml",
         "part_arcs": canonical / "part_arcs.yml",
         "characters": canonical / "characters.yml",
         "relationships": canonical / "relationships.yml",
@@ -62,6 +70,24 @@ def build_crown_bootstrap_manifest(project_root: Path) -> dict[str, Any]:
     if scale.get("planned_total_chapters") != 1980:
         raise ValueError("Crown v3 bootstrap requires the approved 1980-chapter scale")
     characters = _records_by_id(_read_yaml(paths["characters"]))
+    fact_authority, fact_authority_sha256 = load_fact_authority(
+        paths["fact_authority"],
+        project="Crown_of_Ash",
+    )
+    verify_registered_fact_authority(
+        project_root,
+        fact_authority,
+        fact_authority_sha256,
+    )
+    assert_fact_authority_evidence(
+        project_root,
+        fact_authority,
+        source_sha256=fact_authority_sha256,
+    )
+    assert_fact_authority_projection(
+        {"characters": characters},
+        fact_authority,
+    )
     lia = characters.get("char_lia") or {}
     if lia.get("age") != 18 or lia.get("age_class") != "adult":
         raise ValueError("Crown v3 bootstrap requires Lia's current adult age lock")
@@ -92,13 +118,21 @@ def build_crown_bootstrap_manifest(project_root: Path) -> dict[str, Any]:
     return {
         "schema_version": "narrative-bootstrap/v1",
         "project": "Crown_of_Ash",
+        "fact_authority": {
+            "authority_id": fact_authority["authority_id"],
+            "revision": fact_authority["revision"],
+            "source_path": paths["fact_authority"].relative_to(project_root).as_posix(),
+            "source_sha256": fact_authority_sha256,
+        },
         "precedence": [
-            "latest_explicit_user_lock",
+            "single_active_fact_authority",
             "agentlab_approved_scale_decision",
             "formal_canonical_projection",
             "legacy_material_as_provenance_only",
         ],
-        "sources": [_source(path) for path in paths.values()],
+        "sources": [
+            _source(path, project_root=project_root) for path in paths.values()
+        ],
         "base_state": {
             "series": {
                 "planned_total_chapters": 1980,
@@ -114,6 +148,15 @@ def build_crown_bootstrap_manifest(project_root: Path) -> dict[str, Any]:
             "relationships": _records_by_id(_read_yaml(paths["relationships"])),
             "foreshadowing": _records_by_id(_read_yaml(paths["foreshadowing"])),
             "world_axes": _records_by_id(_read_yaml(paths["worldlines"])),
+            "fact_authorities": {
+                fact_authority["authority_id"]: {
+                    "revision": fact_authority["revision"],
+                    "source_path": paths["fact_authority"]
+                    .relative_to(project_root)
+                    .as_posix(),
+                    "source_sha256": fact_authority_sha256,
+                }
+            },
             "chapters": {},
             "style_memory": [],
         },

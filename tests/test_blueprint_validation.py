@@ -390,6 +390,35 @@ def test_validate_blueprint_cli_is_registered() -> None:
     assert "--chapter-start" in stdout
     assert "--chapter-end" in stdout
 
+    authority_result = subprocess.run(
+        [
+            str(root / "agentlab.sh"),
+            "narrative",
+            "commit-fact-authority",
+            "--help",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"FORCE_COLOR", "CLICOLOR_FORCE"}
+            },
+            "COLUMNS": "180",
+            "NO_COLOR": "1",
+        },
+    )
+    assert authority_result.returncode == 0, authority_result.stderr
+    authority_stdout = re.sub(
+        r"\x1b\[[0-?]*[ -/]*[@-~]",
+        "",
+        authority_result.stdout,
+    )
+    assert "--project" in authority_stdout
+
 
 def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_roots(
     tmp_path: Path,
@@ -427,6 +456,84 @@ def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_r
     assert receipt["validation"]["status"] == "pass"
     assert all(item["status"] == "current" for item in artifact_index["artifacts"])
     assert validate_crown_blueprint(tmp_path)["status"] == "pass"
+
+
+def test_seal_blueprint_preserves_all_hash_valid_current_artifacts(
+    tmp_path: Path,
+) -> None:
+    fragment, _records = _valid_blueprint(tmp_path)
+    project = fragment.parents[2]
+    authority = project / "production" / "fact_authority.yml"
+    authority.write_text(
+        "schema_version: narrative-fact-authority/v1\n"
+        "project: Crown_of_Ash\n"
+        "authority_id: crown-character-age-standard\n"
+        "revision: 1\n"
+        "status: active\n"
+        "effective_at: '2026-07-23T00:00:00Z'\n"
+        "supersedes_authority_sha256: null\n"
+        "facts:\n"
+        "- fact_id: char_lia.age\n"
+        "  target: characters\n"
+        "  entity_id: char_lia\n"
+        "  field: age\n"
+        "  value: 18\n",
+        encoding="utf-8",
+    )
+    authority_sha256 = hashlib.sha256(authority.read_bytes()).hexdigest()
+    unrelated = project / "production" / "old_baseline.yml"
+    unrelated.write_text("status: current\n", encoding="utf-8")
+    _write_yaml(
+        project / "project_artifact_index.yml",
+        {
+            "schema_version": 1,
+            "project": "Crown_of_Ash",
+            "artifacts": [
+                {
+                    "artifact_id": "crown_fact_authority_01",
+                    "status": "current",
+                    "production_path": "production/fact_authority.yml",
+                    "production_sha256": authority_sha256,
+                    "evidence_only": False,
+                    "authority_id": "crown-character-age-standard",
+                    "authority_revision": 1,
+                },
+                {
+                    "artifact_id": "old_character_age_baseline",
+                    "status": "current",
+                    "production_path": "production/old_baseline.yml",
+                    "production_sha256": hashlib.sha256(
+                        unrelated.read_bytes()
+                    ).hexdigest(),
+                    "evidence_only": False,
+                }
+            ],
+            "current": {
+                "crown_fact_authority_01": "production/fact_authority.yml",
+                "old_character_age_baseline": "production/old_baseline.yml",
+            },
+        },
+    )
+
+    seal_crown_blueprint(tmp_path, project="Crown_of_Ash")
+
+    artifact_index = yaml.safe_load(
+        (project / "project_artifact_index.yml").read_text(encoding="utf-8")
+    )
+    by_id = {item["artifact_id"]: item for item in artifact_index["artifacts"]}
+    assert by_id["crown_fact_authority_01"]["production_sha256"] == authority_sha256
+    assert (
+        artifact_index["current"]["crown_fact_authority_01"]
+        == "production/fact_authority.yml"
+    )
+    assert (
+        by_id["old_character_age_baseline"]["production_sha256"]
+        == hashlib.sha256(unrelated.read_bytes()).hexdigest()
+    )
+    assert (
+        artifact_index["current"]["old_character_age_baseline"]
+        == "production/old_baseline.yml"
+    )
 
 
 def test_seal_blueprint_registers_candidate_source_lineage(tmp_path: Path) -> None:

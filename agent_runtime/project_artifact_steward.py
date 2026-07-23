@@ -428,12 +428,21 @@ def _load_index(project_root: Path, project: str) -> dict:
     elif not isinstance(artifacts, list):
         data["artifacts"] = []
     data.setdefault("version", 1)
+    data.setdefault("schema_version", 1)
     data.setdefault("project", project)
     return data
 
 
 def _write_index(project_root: Path, index: dict) -> None:
     index["updated_at"] = _utc_now()
+    index["current"] = {
+        str(record["artifact_id"]): str(record["production_path"])
+        for record in index.get("artifacts") or []
+        if isinstance(record, dict)
+        and record.get("status") == "current"
+        and record.get("artifact_id")
+        and record.get("production_path")
+    }
     atomic_write_yaml(project_root / "project_artifact_index.yml", index)
 
 
@@ -498,12 +507,18 @@ def _record_index_promotion(
     production_sha256: str,
     archive_rel: str | None,
     promoted_at: str,
+    authority_id: str | None = None,
+    authority_revision: int | None = None,
 ) -> None:
     records = index.setdefault("artifacts", [])
     previous_current = [
         record
         for record in records
-        if record.get("artifact_id") == artifact_id and record.get("status") == "current"
+        if record.get("status") == "current"
+        and (
+            record.get("artifact_id") == artifact_id
+            or record.get("production_path") == production_rel
+        )
     ]
     previous_version = previous_current[-1].get("current_version") if previous_current else None
     if previous_version is None and archive_rel:
@@ -522,23 +537,25 @@ def _record_index_promotion(
                 "archived_at": promoted_at,
             }
         )
-    records.append(
-        {
-            "artifact_id": artifact_id,
-            "status": "current",
-            "current_version": current_version,
-            "production_path": production_rel,
-            "source_task": source_task,
-            "source_prompt_summary": source_prompt_summary,
-            "source_run_artifact": source_run_artifact,
-            "production_sha256": production_sha256,
-            "supersedes": previous_version,
-            "superseded_by": None,
-            "archived_versions": archived_versions,
-            "evidence_only": False,
-            "promoted_at": promoted_at,
-        }
-    )
+    record = {
+        "artifact_id": artifact_id,
+        "status": "current",
+        "current_version": current_version,
+        "production_path": production_rel,
+        "source_task": source_task,
+        "source_prompt_summary": source_prompt_summary,
+        "source_run_artifact": source_run_artifact,
+        "production_sha256": production_sha256,
+        "supersedes": previous_version,
+        "superseded_by": None,
+        "archived_versions": archived_versions,
+        "evidence_only": False,
+        "promoted_at": promoted_at,
+    }
+    if authority_id is not None:
+        record["authority_id"] = authority_id
+        record["authority_revision"] = authority_revision
+    records.append(record)
 
 
 def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> dict:
@@ -612,6 +629,28 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
             errors.append(target_error)
             continue
         artifact_id = str(entry.get("artifact_id") or _slug_artifact_id(_rel(target, Path(intent["production_dir"]))))
+        production_rel = _rel(target, project_root)
+        authority_binding: dict[str, Any] = {}
+        if production_rel == "production/fact_authority.yml":
+            try:
+                try:
+                    from agent_runtime.narrative.fact_authority import (
+                        load_fact_authority,
+                    )
+                except ModuleNotFoundError:
+                    from narrative.fact_authority import load_fact_authority
+
+                authority, _authority_sha256 = load_fact_authority(
+                    source,
+                    project=project,
+                )
+            except (OSError, ValueError) as exc:
+                errors.append(f"invalid fact authority candidate: {exc}")
+                continue
+            authority_binding = {
+                "authority_id": authority["authority_id"],
+                "authority_revision": authority["revision"],
+            }
         current_version = f"{current_stamp}__{task_id}"
         archive_rel = None
         replaced_existing = target.exists()
@@ -624,7 +663,6 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
         source_rel = _rel(source, run_dir)
-        production_rel = _rel(target, project_root)
         _record_index_promotion(
             index,
             artifact_id=artifact_id,
@@ -636,6 +674,7 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
             production_sha256=artifact_sha256(target),
             archive_rel=archive_rel,
             promoted_at=promoted_at,
+            **authority_binding,
         )
         promotions_applied.append(
             {

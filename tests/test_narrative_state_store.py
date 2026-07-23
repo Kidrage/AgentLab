@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,35 @@ def _source(path: Path) -> dict[str, str]:
         "path": str(path.resolve()),
         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
     }
+
+
+def _register_fact_authority(project_root: Path, authority: Path) -> None:
+    document = yaml.safe_load(authority.read_text(encoding="utf-8"))
+    (project_root / "project_artifact_index.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "project": "Crown_of_Ash",
+                "artifacts": [
+                    {
+                        "artifact_id": "crown_fact_authority_01",
+                        "status": "current",
+                        "production_path": "production/fact_authority.yml",
+                        "production_sha256": hashlib.sha256(
+                            authority.read_bytes()
+                        ).hexdigest(),
+                        "authority_id": document["authority_id"],
+                        "authority_revision": document["revision"],
+                    }
+                ],
+                "current": {
+                    "crown_fact_authority_01": "production/fact_authority.yml"
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _verified_commit(
@@ -136,6 +166,8 @@ def test_bootstrap_is_hash_bound_idempotent_and_readable(tmp_path: Path) -> None
     assert snapshot["series"]["planned_total_chapters"] == 1980
     assert snapshot["characters"]["char_lia"]["age"] == 18
     assert len(snapshot["state_sha256"]) == 64
+    event = json.loads(store.events_path.read_text(encoding="utf-8"))
+    assert event["payload"]["sources"][0]["path"] == "characters.yml"
 
 
 def test_idempotent_retry_repairs_snapshot_after_projection_write_failure(
@@ -474,3 +506,230 @@ def test_legacy_fact_snapshot_without_events_cannot_be_overwritten(tmp_path: Pat
         rebuild_project_fact_snapshot(brain, project="Crown_of_Ash")
 
     assert snapshot_path.read_bytes() == before
+
+
+def test_fact_authority_is_single_lineage_and_reprojects_character_age(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "characters.yml"
+    source.write_text("alicia:\n  age: 31\n", encoding="utf-8")
+    store = NarrativeStateStore(tmp_path / "brain", project="Crown_of_Ash")
+    store.bootstrap(
+        {
+            "schema_version": "narrative-bootstrap/v1",
+            "project": "Crown_of_Ash",
+            "precedence": ["canonical"],
+            "sources": [_source(source)],
+            "base_state": {
+                "characters": {
+                    "char_alicia": {
+                        "name": "艾莉希亚·暗焰",
+                        "age": 31,
+                        "age_class": "adult",
+                    }
+                }
+            },
+        }
+    )
+    authority = tmp_path / "production" / "fact_authority.yml"
+    authority.parent.mkdir()
+    authority.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "narrative-fact-authority/v1",
+                "project": "Crown_of_Ash",
+                "authority_id": "crown-character-age-standard",
+                "revision": 1,
+                "status": "active",
+                "effective_at": "2026-07-23T00:00:00Z",
+                "supersedes_authority_sha256": None,
+                "evidence_policy": {
+                    "sole_semantic_authority": (
+                        "project_brain/narrative_state_events.jsonl"
+                    ),
+                    "projections": ["characters.yml"],
+                    "registries": [],
+                },
+                "facts": [
+                    {
+                        "fact_id": "char_alicia.age",
+                        "target": "characters",
+                        "entity_id": "char_alicia",
+                        "field": "age",
+                        "value": 24,
+                    }
+                ],
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        NarrativeStateIntegrityError,
+        match="project artifact index",
+    ):
+        store.commit_fact_authority(authority)
+    _register_fact_authority(tmp_path, authority)
+    index_path = tmp_path / "project_artifact_index.yml"
+    competing_index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    competing_index["artifacts"].append(
+        {
+            "artifact_id": "competing_fact_authority",
+            "status": "current",
+            "production_path": "production/competing_fact_authority.yml",
+            "production_sha256": "f" * 64,
+            "authority_id": "competing-character-age-standard",
+            "authority_revision": 1,
+        }
+    )
+    competing_index["current"]["competing_fact_authority"] = (
+        "production/competing_fact_authority.yml"
+    )
+    index_path.write_text(
+        yaml.safe_dump(competing_index, sort_keys=False),
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        NarrativeStateIntegrityError,
+        match="exactly one current fact authority",
+    ):
+        store.commit_fact_authority(authority)
+    _register_fact_authority(tmp_path, authority)
+
+    first = store.commit_fact_authority(authority)
+    repeated = store.commit_fact_authority(authority)
+
+    snapshot = store.read()
+    assert first == repeated
+    assert first["status"] == "overridden"
+    assert snapshot["characters"]["char_alicia"]["age"] == 24
+    assert snapshot["fact_authorities"]["crown-character-age-standard"][
+        "source_sha256"
+    ] == hashlib.sha256(authority.read_bytes()).hexdigest()
+    assert snapshot["event_count"] == 2
+
+    original_authority = authority.read_text(encoding="utf-8")
+    authority.write_text(
+        original_authority
+        .replace("revision: 1", "revision: 2")
+        .replace("value: 24", "value: 25")
+        .replace(
+            "supersedes_authority_sha256: null",
+            f"supersedes_authority_sha256: {'f' * 64}",
+        ),
+        encoding="utf-8",
+    )
+    _register_fact_authority(tmp_path, authority)
+
+    with pytest.raises(NarrativeStateConflict, match="supersedes"):
+        store.commit_fact_authority(authority)
+
+    competing = yaml.safe_load(original_authority)
+    competing["authority_id"] = "competing-character-age-standard"
+    authority.write_text(
+        yaml.safe_dump(competing, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    _register_fact_authority(tmp_path, authority)
+
+    with pytest.raises(NarrativeStateConflict, match="single active"):
+        store.commit_fact_authority(authority)
+
+
+def test_fact_authority_revision_continues_directly_from_bootstrap_metadata(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "characters.yml"
+    source.write_text("alicia:\n  age: 24\n", encoding="utf-8")
+    authority_dir = tmp_path / "production"
+    authority_dir.mkdir()
+    revision_one = authority_dir / "fact_authority_v1.yml"
+    revision_one.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "narrative-fact-authority/v1",
+                "project": "Crown_of_Ash",
+                "authority_id": "crown-character-age-standard",
+                "revision": 1,
+                "status": "active",
+                "effective_at": "2026-07-23T00:00:00Z",
+                "supersedes_authority_sha256": None,
+                "evidence_policy": {
+                    "sole_semantic_authority": (
+                        "project_brain/narrative_state_events.jsonl"
+                    ),
+                    "projections": ["characters.yml"],
+                    "registries": [],
+                },
+                "facts": [
+                    {
+                        "fact_id": "char_alicia.age",
+                        "target": "characters",
+                        "entity_id": "char_alicia",
+                        "field": "age",
+                        "value": 24,
+                    }
+                ],
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    revision_one_sha256 = hashlib.sha256(revision_one.read_bytes()).hexdigest()
+    store = NarrativeStateStore(tmp_path / "brain", project="Crown_of_Ash")
+    store.bootstrap(
+        {
+            "schema_version": "narrative-bootstrap/v1",
+            "project": "Crown_of_Ash",
+            "precedence": ["single_active_fact_authority"],
+            "sources": [_source(source), _source(revision_one)],
+            "base_state": {
+                "characters": {"char_alicia": {"age": 24}},
+                "fact_authorities": {
+                    "crown-character-age-standard": {
+                        "revision": 1,
+                        "source_path": str(revision_one.resolve()),
+                        "source_sha256": revision_one_sha256,
+                    }
+                },
+            },
+        }
+    )
+    bootstrap_event = json.loads(
+        store.events_path.read_text(encoding="utf-8").splitlines()[0]
+    )
+    assert (
+        bootstrap_event["payload"]["base_state"]["fact_authorities"][
+            "crown-character-age-standard"
+        ]["source_path"]
+        == "production/fact_authority_v1.yml"
+    )
+    revision_two = authority_dir / "fact_authority.yml"
+    revision_two.write_text(
+        revision_one.read_text(encoding="utf-8")
+        .replace("revision: 1", "revision: 2")
+        .replace("value: 24", "value: 23")
+        .replace(
+            "supersedes_authority_sha256: null",
+            f"supersedes_authority_sha256: {revision_one_sha256}",
+        ),
+        encoding="utf-8",
+    )
+    _register_fact_authority(tmp_path, revision_two)
+
+    receipt = store.commit_fact_authority(revision_two)
+
+    snapshot = store.read()
+    assert receipt["status"] == "overridden"
+    assert snapshot["event_count"] == 2
+    assert snapshot["characters"]["char_alicia"]["age"] == 23
+    assert snapshot["fact_authorities"] == {
+        "crown-character-age-standard": {
+            "revision": 2,
+            "source_path": "production/fact_authority.yml",
+            "source_sha256": hashlib.sha256(revision_two.read_bytes()).hexdigest(),
+            "event_id": receipt["event_id"],
+        }
+    }
