@@ -37,11 +37,23 @@ reference, and active-attempt violations fail closed.
 Everything below `projections/` is a cache rebuilt from the ledger:
 
 - `task.yml`, `jobs.yml`, `work_items.yml`, `attempts.yml`
-- `artifact_index.yml`, `evidence.yml`
+- `artifact_index.yml`, `evidence.yml`, `trace_records.yml`
 - `progress.yml`, `handoff.yml`
 
 `runtime/task_index.yml` and `runtime/knowledge/selected_artifacts.yml` are also
 rebuildable project projections. Editing them never changes Task truth.
+
+## Strict input tiers
+
+Task intake uses declared facts from `config/task_input_tiers.yml`; it does not
+guess a cheaper route from prompt keywords. The resulting classification is
+written into the `TASK_CREATED` event and every rebuilt Task projection.
+Missing, partial, or unknown facts are not admitted for execution. The complete
+tier meanings, Worker limits, validation gates, and required records live only
+in that policy file. Runtime scheduling enforces the recorded tier and route;
+completion enforces its immutable trace-record set. A requested tier may raise
+the route but cannot lower the policy-derived minimum. Brain scope and quality
+authority for prose builds is declared in `config/task_runtime_v2.yml`.
 
 ## Why this avoids evidence ambiguity
 
@@ -52,6 +64,16 @@ size, media type, and SHA256; recording materializes a version-specific immutabl
 copy under `artifacts/versions/<version_id>/`. Selection is blocked until an
 EvidenceBinding pins the input manifest hash, RAG index snapshot, source hashes,
 audit result, and the producer execution receipt.
+
+For strict-tier Tasks, `succeeded` is accepted only with the hashed output and
+receipt written by `attempt execute-role`; the project doctor revalidates both.
+Brain classification, scope, execution-plan, and quality records must match the
+referenced Supervisor Attempt output. Worker receipts bind the delegated Attempt
+receipt hashes, while change and memory records bind hashes of real files inside
+the owning project. Sealed outbound sources are limited to governed project
+production/Brain/reset inputs, explicitly labelled candidate run outputs, and
+hashed outputs/receipts from the same Runtime v2 Task. Candidate run files are
+never labelled as authoritative or silently promoted to production fact.
 
 This permits multiple revisions without growing one ambiguous “current state”
 file: the ledger retains history, while projections show the current selection.
@@ -91,7 +113,11 @@ The v2 commands are registered on `agentlab.sh`:
 ```bash
 ./agentlab.sh task create --project Demo --task-id task-demo \
   --title "One result" --goal "Produce and review one result" \
+  --input-profile-json '{"kind":"creative_patch","scope":"localized","target_count":1,"canon_impact":"candidate","risk_flags":[]}' \
   --idempotency-key request-001
+./agentlab.sh task classify \
+  --input-profile-json '{"kind":"prose_build","scope":"multi_chapter","target_count":0,"canon_impact":"canonical","risk_flags":["longform_continuity"]}'
+./agentlab.sh task classify-set ...
 ./agentlab.sh task show --project Demo --task-id task-demo
 ./agentlab.sh task list --project Demo
 ./agentlab.sh task pause --project Demo --task-id task-demo \
@@ -104,10 +130,12 @@ The v2 commands are registered on `agentlab.sh`:
 ./agentlab.sh work-item status ...
 ./agentlab.sh attempt schedule ...
 ./agentlab.sh attempt status ...
+./agentlab.sh attempt execute-role ...
 ./agentlab.sh artifact record ...
 ./agentlab.sh evidence bind ...
 ./agentlab.sh artifact select ...
 ./agentlab.sh evidence verify ...
+./agentlab.sh trace record ...
 
 ./agentlab.sh runtime-v2 rebuild --project Demo
 ./agentlab.sh runtime-v2 doctor --project Demo
@@ -115,7 +143,9 @@ The v2 commands are registered on `agentlab.sh`:
 
 Every mutating command requires an idempotency key, including Task
 pause/resume/cancel. A later pause after a resume must use a new key; retrying the
-same pause request reuses its original key.
+same pause request reuses its original key. For strict-tier Tasks, `attempt
+status --status succeeded` is intentionally rejected; only `attempt execute-role`
+may append a successful Attempt after validating the model-execution receipt.
 
 ## Legacy migration
 

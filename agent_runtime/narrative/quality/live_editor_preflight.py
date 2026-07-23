@@ -35,6 +35,7 @@ _AUDIT_CHECKS = {
     "output_contract_and_hash",
     "prose_length_contract",
     "draft_is_prose_only",
+    "prose_conventions",
     "production_manuscript_not_modified",
 }
 

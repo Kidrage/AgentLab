@@ -10,6 +10,8 @@ import re
 
 import yaml
 
+from agent_runtime.narrative.knowledge_contract import build_chapter_knowledge_contract
+
 
 REQUIRED_REVIEW_GATES = [
     "continuity",
@@ -236,6 +238,18 @@ def validate_chapter_state_plan(
             "chapter_count": 0,
             "issues": [{"check": "plan_source", "message": str(exc)}],
         }
+
+    if data.get("schema_version") == 3:
+        from agent_runtime.narrative.longform_governance import (
+            validate_chapter_state_plan_v3_document,
+        )
+
+        return validate_chapter_state_plan_v3_document(
+            data,
+            path=_rel(path, project_root),
+            expected_project=project_root.name,
+            expected_chapters=expected_chapters,
+        )
 
     for key, expected in (
         ("schema_version", 1),
@@ -549,6 +563,40 @@ def _chapter_intent_from_state_plan(
         for item in data["chapter_state_plan"]
         if isinstance(item, dict) and item.get("chapter") == chapter
     )
+    if data.get("schema_version") == 3:
+        drive = entry["protagonist_drive"]
+        hook = entry["hook_contract"]
+        return {
+            "status": "planned",
+            "chapter": chapter,
+            "source": validation["path"],
+            "source_kind": "candidate_chapter_contract_v3",
+            "volume": entry.get("volume") or "",
+            "phase": entry.get("phase") or entry["chapter_position"],
+            "title": entry.get("title") or f"chapter_{chapter}",
+            "emotional_target": drive["current_goal"],
+            "plot_state_change": entry["turn"],
+            "character_state_change": drive["desire_delta"],
+            "relationship_or_worldline_progress": entry.get("world_state_delta"),
+            "foreshadowing_to_introduce_or_payoff": entry["foreshadow_actions"],
+            "timeline_position": entry.get("timeline_slot") or f"chapter_{chapter}",
+            "beat_plan": {
+                "required_chapter_beat": drive["self_initiated_move"],
+                "opening_state": entry.get("opening_state") or drive["current_goal"],
+                "closing_state": entry.get("closing_state") or drive["desire_delta"],
+                "pov": entry["pov"],
+                "protagonist_drive": drive,
+                "supporting_actor_states": entry["supporting_actor_states"],
+                "hook_contract": hook,
+                "constraints": [
+                    "preserve the declared self-initiated move and failure cost",
+                    "do not reduce material supporting actors to information delivery",
+                    "close on the declared causal next action or reader question",
+                ],
+            },
+            "target_character_range": data.get("target_character_range", [4500, 5500]),
+            "hard_character_range": data.get("hard_character_range", [3000, 8000]),
+        }
     must_not_repeat = entry["must_not_repeat"]
     if isinstance(must_not_repeat, str):
         must_not_repeat = [must_not_repeat]
@@ -767,6 +815,7 @@ def build_chapter_packet(
     deprecated_sources: list[str] | None = None,
     candidate_fact_ledger: str | None = None,
     chapter_state_plan: str | None = None,
+    require_knowledge_contract: bool = False,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     run_rel = f"runs/{task_id}"
@@ -788,6 +837,16 @@ def build_chapter_packet(
         else _build_chapter_intent(project_root, outline_refs, chapter)
     )
     candidate_story_authority_refs = _state_plan_story_authority_refs(project_root, chapter_state_plan)
+    knowledge_contract = (
+        build_chapter_knowledge_contract(
+            project_root,
+            project=project,
+            chapter=chapter,
+            previous_sources=resolved_previous_chapters[-3:],
+        )
+        if require_knowledge_contract
+        else None
+    )
     packet = {
         "schema_version": 1,
         "project": project,
@@ -807,7 +866,11 @@ def build_chapter_packet(
             "artifact_index": "project_artifact_index.yml",
             "production_root": "production/",
             "candidate_chapter_state_plan": chapter_state_plan,
+            "knowledge_index_snapshot": (
+                knowledge_contract["index_snapshot_path"] if knowledge_contract else None
+            ),
         },
+        "knowledge_contract": knowledge_contract,
         "chapter_intent": chapter_intent,
         "must_read": [
             "project_brain/project_fact_snapshot.yml",
@@ -817,6 +880,7 @@ def build_chapter_packet(
             *([chapter_state_plan] if chapter_state_plan else []),
             *candidate_story_authority_refs,
             *([candidate_fact_ledger] if candidate_fact_ledger else []),
+            *(sorted(knowledge_contract["source_hashes"]) if knowledge_contract else []),
             *resolved_previous_chapters[-3:],
         ],
         "story_authority": {
@@ -853,6 +917,7 @@ def write_chapter_packet(
     deprecated_sources: list[str] | None = None,
     candidate_fact_ledger: str | None = None,
     chapter_state_plan: str | None = None,
+    require_knowledge_contract: bool = False,
 ) -> dict[str, Any]:
     packet = build_chapter_packet(
         root,
@@ -864,6 +929,7 @@ def write_chapter_packet(
         deprecated_sources=deprecated_sources,
         candidate_fact_ledger=candidate_fact_ledger,
         chapter_state_plan=chapter_state_plan,
+        require_knowledge_contract=require_knowledge_contract,
     )
     path = _project_root(root, project) / "runs" / task_id / "chapter_packet.yml"
     _write_yaml(path, packet)
@@ -933,6 +999,11 @@ def narrative_delivery_integrity_issues(run_dir: Path) -> list[str]:
 
 def write_narrative_delivery_receipt(run_dir: Path) -> dict[str, Any]:
     result = validate_narrative_delivery(run_dir, include_receipt=False)
+    existing_receipt = _read_yaml(
+        Path(run_dir) / "narrative_delivery_receipt.yml", {}
+    ) or {}
+    if not isinstance(existing_receipt, dict):
+        existing_receipt = {}
     external_required_files = _delivery_files_for_run(Path(run_dir), include_receipt=True)
     artifact_sha256 = {
         filename: hashlib.sha256((Path(run_dir) / filename).read_bytes()).hexdigest()
@@ -940,6 +1011,7 @@ def write_narrative_delivery_receipt(run_dir: Path) -> dict[str, Any]:
         if (Path(run_dir) / filename).is_file()
     }
     receipt = {
+        **existing_receipt,
         "schema_version": 1,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "pass" if result.get("valid") else "blocked",

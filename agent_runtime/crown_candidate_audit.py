@@ -292,6 +292,18 @@ def build_crown_live_candidate_audit(
     proposal = _read_yaml(run_dir / "state_transition_proposal.yml")
     receipt = _read_yaml(run_dir / "narrative_delivery_receipt.yml")
     draft = _draft_metrics(run_dir / "fiction_draft.md")
+    from agent_runtime.narrative.quality.prose_conventions import (
+        evaluate_prose_conventions,
+    )
+
+    prose_conventions = evaluate_prose_conventions(
+        (run_dir / "fiction_draft.md").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if (run_dir / "fiction_draft.md").is_file()
+        else "",
+        chapter_context={"chapter": packet.get("chapter")},
+    )
     production_files = _production_manuscript_files(project_root)
 
     checks = [
@@ -351,6 +363,13 @@ def build_crown_live_candidate_audit(
             "delivery_check": receipt.get("delivery_check"),
         },
         {
+            "id": "prose_conventions",
+            "status": "pass"
+            if prose_conventions.get("status") == "pass"
+            else "fail",
+            "result": prose_conventions,
+        },
+        {
             "id": "production_manuscript_not_modified",
             "status": "pass" if not production_files else "fail",
             "production_manuscript_files": list(production_files),
@@ -389,6 +408,9 @@ def _build_crown_v2_live_candidate_audit(
         evaluate_han_character_contract,
         normalize_han_character_contract,
     )
+    from agent_runtime.narrative.quality.prose_conventions import (
+        evaluate_prose_conventions,
+    )
 
     required = (
         "narrative_v2_writer_request.yml",
@@ -424,6 +446,10 @@ def _build_crown_v2_live_candidate_audit(
         )
     )
     length_result = evaluate_han_character_contract(prose, length_contract)
+    prose_conventions = evaluate_prose_conventions(
+        prose,
+        chapter_context={"chapter": request.get("chapter_id")},
+    )
     identity_matches = _v2_candidate_identity_matches(
         root,
         request,
@@ -512,6 +538,13 @@ def _build_crown_v2_live_candidate_audit(
         {
             "id": "draft_is_prose_only",
             "status": "pass" if draft_clean else "fail",
+        },
+        {
+            "id": "prose_conventions",
+            "status": "pass"
+            if prose_conventions.get("status") == "pass"
+            else "fail",
+            "result": prose_conventions,
         },
         {
             "id": "production_manuscript_not_modified",
@@ -621,7 +654,9 @@ def validate_writer_execution_contract(run_dir: Path, task_id: str) -> dict[str,
     )
     expected_provider = writer_model.get("provider")
     expected_model = writer_model.get("model")
-    expected_worker = writer_agent.get("execution_owner")
+    expected_worker = writer_agent.get("execution_owner") or writer_model.get(
+        "cli_agent"
+    )
     legacy_agy = (
         expected_provider == "agy-gemini-oauth"
         and expected_model == "gemini-3.5-flash-high"

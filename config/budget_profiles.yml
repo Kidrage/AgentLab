@@ -6,6 +6,12 @@ defaults:
   over_budget_policy: pause_and_request_revised_budget
   budget_mode: balanced
   project_size: L2
+  agent_fallback_budgets:
+    ArtifactProducer:
+      phase: ArtifactProducer candidate materialization
+      estimated_input_tokens: 50000
+      estimated_output_tokens: 16000
+      notes: Candidate-only artifact route fallback; runtime provider and format remain ArtifactTask-bound.
 profiles:
   brain_allocated_L1:
     mode: brain_allocated

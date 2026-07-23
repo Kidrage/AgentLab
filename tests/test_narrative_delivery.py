@@ -27,6 +27,7 @@ from agent_runtime.cli.governance import apply_migration_proposal, propose_migra
 from agent_runtime.narrative_delivery import (
     build_chapter_packet,
     is_narrative_run,
+    narrative_delivery_integrity_issues,
     run_narrative_doctor,
     narrative_planner_validation_issues,
     validate_chapter_state_plan,
@@ -442,6 +443,15 @@ def test_write_narrative_receipt_uses_preflight_then_external_validation_require
     (run_dir / "fiction_draft.md").write_text("# Draft\n\nScene text.\n", encoding="utf-8")
     _write_yaml(run_dir / "continuity_ledger.yml", {"chapter": 2})
     _write_yaml(run_dir / "state_transition_proposal.yml", {"status": "candidate"})
+    _write_yaml(
+        run_dir / "narrative_delivery_receipt.yml",
+        {
+            "schema_version": 1,
+            "status": "pass",
+            "candidate_only": True,
+            "checks": {"required_beats": "pass"},
+        },
+    )
 
     receipt = write_narrative_delivery_receipt(run_dir)
     delivery = validate_narrative_delivery(run_dir)
@@ -452,6 +462,9 @@ def test_write_narrative_receipt_uses_preflight_then_external_validation_require
     assert "narrative_delivery_receipt.yml" not in receipt["preflight_required_files"]
     assert "narrative_delivery_receipt.yml" in receipt["external_required_files"]
     assert "narrative_delivery_receipt.yml" in delivery["required_files"]
+    assert receipt["candidate_only"] is True
+    assert receipt["checks"] == {"required_beats": "pass"}
+    assert narrative_delivery_integrity_issues(run_dir) == []
 
 
 def test_blocking_fiction_review_blocks_archive_gate(tmp_path: Path) -> None:
@@ -999,6 +1012,7 @@ _V1_PLAN_ENTRY: dict = {
     "character_state_change": "凯恩从抗拒转为接受辅助",
     "relationship_or_worldline_change": "伊莎贝拉对凯恩的态度软化",
     "foreshadowing_action": "暗示烙印与灰烬王朝的联系",
+    "reader_question": "凯恩会为接受烙印付出什么代价？",
     "closing_state": "凯恩带着新的决心离开",
     "must_not_repeat": ["重复的训练失败场景", "过多技术解释"],
     "creative_freedom": ["训练的具体细节", "对话风格"],

@@ -44,7 +44,15 @@ def register_background_job_commands(
         chapter_state_plan: str = typer.Option(..., "--chapter-state-plan"),
         project: str = typer.Option("Crown_of_Ash", "--project"),
         batch_size: int = typer.Option(10, "--batch-size", min=1),
+        continuity_checkpoint_cadence: int | None = typer.Option(
+            None, "--continuity-checkpoint-cadence", min=1
+        ),
         heavy_audit_cadence: int = typer.Option(10, "--heavy-audit-cadence", min=1),
+        parent_task_id: str | None = typer.Option(None, "--parent-task-id"),
+        knowledge_contract_required: bool = typer.Option(
+            False,
+            "--knowledge-contract-required/--knowledge-contract-optional",
+        ),
         writer_budget: str = typer.Option("frugal", "--writer-budget"),
         transient_retry_seconds: int = typer.Option(
             900, "--transient-retry-seconds", min=1
@@ -73,9 +81,12 @@ def register_background_job_commands(
             start_chapter=start_chapter,
             end_chapter=end_chapter,
             batch_size=batch_size,
+            continuity_checkpoint_cadence=continuity_checkpoint_cadence,
             heavy_audit_cadence=heavy_audit_cadence,
             writer_worker=writer_worker,
             chapter_state_plan=chapter_state_plan,
+            parent_task_id=parent_task_id,
+            knowledge_contract_required=knowledge_contract_required,
             writer_budget=writer_budget,
             transient_retry_seconds=transient_retry_seconds,
             risk_signals=risk_signal_data,

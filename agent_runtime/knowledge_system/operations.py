@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from agent_runtime.atomic_io import atomic_write_json, atomic_write_text
+from agent_runtime.atomic_io import atomic_write_json, atomic_write_text, atomic_write_yaml
 
 from .config import VALID_MODES, load_knowledge_config
 from .models import KnowledgeTaskRequest, stable_digest, validate_namespace
@@ -144,6 +144,54 @@ def build_knowledge_base(
     }
     atomic_write_json(receipts_dir / "latest_build.json", receipt, ensure_ascii=False, indent=2)
     return receipt
+
+
+def write_project_knowledge_snapshot(
+    agentlab_root: Path,
+    *,
+    project: str,
+    build_receipt: Mapping[str, object],
+) -> dict:
+    """Seal the exact project-only RAG view available to narrative Writer packets."""
+    root = Path(agentlab_root).resolve()
+    if project not in tuple(str(item) for item in build_receipt.get("projects") or ()):
+        raise ValueError(f"build receipt does not include project: {project}")
+    namespace = validate_namespace(f"project.{project}")
+    config = load_knowledge_config(root)
+    store = KnowledgeStore(root, config.runtime_path, config.keyword_backend)
+    if not store.space_exists(namespace):
+        raise ValueError(f"project knowledge namespace is missing: {namespace}")
+    prefix = f"projects/{project}/"
+    formal_prefixes = tuple(f"{prefix}{item}/" for item in ("production", "project_brain"))
+    snapshot_path = f"{prefix}project_brain/knowledge_index_snapshot.yml"
+    source_hashes = {
+        path: source_hash
+        for path, source_hash in store.eligible_source_hashes(namespace).items()
+        if path.startswith(formal_prefixes) and path != snapshot_path
+    }
+    result = {
+        "schema_version": 1,
+        "status": "sealed",
+        "namespace": namespace,
+        "index_snapshot": store.index_snapshot((namespace,)),
+        "build_receipt_id": str(build_receipt.get("receipt_id") or ""),
+        "formal_fact_roots": ["production", "project_brain"],
+        "indexed_paths": sorted(source_hashes),
+        "indexed_source_hashes": dict(sorted(source_hashes.items())),
+        "forbidden_writer_roots": [
+            "acceptance_runs",
+            "agent_docs",
+            "archive",
+            "background_jobs",
+            "candidates",
+            "runs",
+        ],
+    }
+    atomic_write_yaml(
+        root / "projects" / project / "project_brain" / "knowledge_index_snapshot.yml",
+        result,
+    )
+    return result
 
 
 def knowledge_status(agentlab_root: Path) -> dict:

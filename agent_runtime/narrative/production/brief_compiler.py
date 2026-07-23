@@ -205,8 +205,15 @@ class BriefCompiler:
             pov = "third_person_limited"
 
         # --- opposing wants -------------------------------------------------
+        drive = plan.get("protagonist_drive")
+        drive = drive if isinstance(drive, dict) else {}
         wants = str(
             plan.get("opposing_wants")
+            or (
+                f"{drive.get('current_goal')} vs {drive.get('obstacle')}"
+                if drive.get("current_goal") and drive.get("obstacle")
+                else ""
+            )
             or plan.get("scene_goal")
             or ""
         ).strip()
@@ -228,7 +235,11 @@ class BriefCompiler:
         ).strip()
 
         # --- reader question ------------------------------------------------
-        reader_q = str(plan.get("reader_question") or "").strip()
+        hook = plan.get("hook_contract")
+        hook = hook if isinstance(hook, dict) else {}
+        reader_q = str(
+            plan.get("reader_question") or hook.get("reader_question") or ""
+        ).strip()
         if not reader_q:
             reader_q = "what_happens_next"
 
@@ -301,6 +312,16 @@ class BriefCompiler:
             "source_hashes": hashes,
             "v1_source": True,
         }
+        if plan.get("schema_version") == "chapter-contract/v3":
+            data["v1_source"] = False
+            data["chapter_position"] = plan.get("chapter_position")
+            data["chapter_contract"] = {
+                "protagonist_drive": drive,
+                "supporting_actor_states": plan.get("supporting_actor_states") or [],
+                "hook_contract": hook,
+                "foreshadow_actions": plan.get("foreshadow_actions") or [],
+                "world_state_delta": plan.get("world_state_delta"),
+            }
         if secondary:
             data["secondary_function"] = secondary
         if patterns:
@@ -407,6 +428,13 @@ def validate_creative_brief(data: dict[str, Any]) -> list[str]:
         val = data.get(field)
         if not isinstance(val, str) or not val.strip():
             issues.append(f"missing_or_empty:{field}")
+        elif val.strip().casefold() in {
+            "what_happens_next",
+            "what happens next",
+            "character_desire_vs_obstacle",
+            "character desire vs obstacle",
+        }:
+            issues.append(f"placeholder_not_allowed:{field}")
 
     # --- must_preserve -----------------------------------------------------
     mp = data.get("must_preserve")

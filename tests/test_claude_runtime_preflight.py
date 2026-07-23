@@ -59,6 +59,9 @@ ULTRACODE_SEALED_MESSAGES = [
 PURE_WRITER_SEALED_MESSAGES = [
     {"role": "user", "content": "Write the bounded final chapter candidate."}
 ]
+REVIEWER_SEALED_MESSAGES = [
+    {"role": "user", "content": "Audit the bounded chapter candidates."}
+]
 
 
 def _runtime_from_real_config(
@@ -110,6 +113,40 @@ def _role_profile(contract_name: str) -> dict[str, str]:
         ),
         "capacity_pool": "deepseek_metered_api",
     }
+
+
+def test_narrative_reviewer_contract_requires_exact_sealed_runtime_binding(
+    tmp_path: Path,
+) -> None:
+    runtime_root = _runtime_from_real_config(tmp_path, "claude_narrative_audit")
+    plan = _make_plan(runtime_root)
+    plan.route.route_key = "narrative_heavy_audit"
+    profile = _role_profile("claude_narrative_audit")
+
+    with patch(
+        "agent_runtime.cli_executor.shutil.which", return_value="/usr/bin/claude"
+    ), patch(
+        "agent_runtime.cli_executor.subprocess.run", return_value=_provider_result()
+    ) as run:
+        result = run_cli_agent(
+            plan,
+            "Reviewer",
+            profile,
+            sealed_messages=REVIEWER_SEALED_MESSAGES,
+        )
+
+    assert result.status == "completed"
+    preflight = result.raw_usage["claude_model_preflight"]
+    assert preflight["status"] == "pass"
+    assert preflight["command_binding_verified"] is True
+    argv = run.call_args.args[0]
+    schema = json.loads(argv[argv.index("--json-schema") + 1])
+    assert "$schema" not in schema
+    assert schema["required"] == [
+        "fiction_review",
+        "continuity_failure_report",
+        "narrative_quality_scorecard",
+    ]
 
 
 def _provider_result() -> SimpleNamespace:
@@ -192,6 +229,10 @@ def test_writer_and_supervisor_fallback_reject_missing_or_weakened_runtime_bindi
     agent_name: str,
     mutation: tuple[str, str],
 ) -> None:
+    if contract_name == "claude_writer" and mutation[0].startswith(
+        "--permission-mode"
+    ):
+        mutation = (mutation[0].replace("plan", "bypassPermissions"), mutation[1])
     runtime_root = _runtime_from_real_config(
         tmp_path,
         contract_name,
@@ -406,13 +447,21 @@ def test_ultracode_rejects_unsealed_packet_even_with_valid_opt_in(
 
 
 @pytest.mark.parametrize(
-    "contract_name,agent_name,expected_budget,requires_effort_and_empty_tools",
+    "contract_name,agent_name,expected_budget,expected_permission,requires_effort_and_empty_tools",
     [
-        pytest.param("claude_writer", "Writer", "1.00", True, id="writer"),
+        pytest.param(
+            "claude_writer",
+            "Writer",
+            "1.00",
+            "bypassPermissions",
+            True,
+            id="writer",
+        ),
         pytest.param(
             "claude_supervisor_fallback",
             "Supervisor",
             "1.00",
+            "plan",
             True,
             id="supervisor-fallback",
         ),
@@ -420,6 +469,7 @@ def test_ultracode_rejects_unsealed_packet_even_with_valid_opt_in(
             "claude_writer_ultracode",
             "Writer",
             "2.00",
+            "plan",
             False,
             id="ultracode",
         ),
@@ -430,6 +480,7 @@ def test_real_claude_contract_executes_only_with_exact_runtime_binding(
     contract_name: str,
     agent_name: str,
     expected_budget: str,
+    expected_permission: str,
     requires_effort_and_empty_tools: bool,
 ) -> None:
     runtime_root = _runtime_from_real_config(tmp_path, contract_name)
@@ -462,7 +513,7 @@ def test_real_claude_contract_executes_only_with_exact_runtime_binding(
     argv = process.call_args.args[0]
     assert argv[argv.index("--model") + 1] == "deepseek-v4-pro"
     assert argv[argv.index("--max-budget-usd") + 1] == expected_budget
-    assert argv[argv.index("--permission-mode") + 1] == "plan"
+    assert argv[argv.index("--permission-mode") + 1] == expected_permission
     assert argv[argv.index("--output-format") + 1] == "json"
     if requires_effort_and_empty_tools:
         assert argv[argv.index("--effort") + 1] == "max"

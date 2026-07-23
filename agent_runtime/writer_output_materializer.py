@@ -301,6 +301,11 @@ def materialize_writer_candidate_content(
         if not schema_issues:
             issues.extend(_governed_chapter_issues(materialized, run_dir))
     status = "pass" if not issues else "blocked"
+    measurements = (
+        {"fiction_draft_characters": len(materialized["fiction_draft.md"])}
+        if "fiction_draft.md" in materialized
+        else {}
+    )
     _write_contract(
         run_dir,
         {
@@ -313,6 +318,7 @@ def materialize_writer_candidate_content(
             "candidate_only": True,
             "harness_generated_story_state": False,
             "normalizations": normalizations,
+            "measurements": measurements,
             "issues": issues,
         },
     )

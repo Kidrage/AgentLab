@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "agent_runtime"))
 
 from agent_runtime.cli.narrative_eval import register_narrative_eval_commands  # noqa: E402
 from agent_runtime.narrative_eval import (  # noqa: E402
+    _audit_fact_sources,
     _audit_history,
     _clear_chapter_attempt_outputs,
     _write_writer_contract_retry_feedback,
@@ -73,6 +74,14 @@ def test_writer_contract_retry_feedback_includes_character_ranges(
             }
         },
     )
+    _write_yaml(
+        run_dir / "writer_output_contract.yml",
+        {"measurements": {"fiction_draft_characters": 2750}},
+    )
+    (run_dir / "writer_retry_attempt_01_capture.md").write_text(
+        _writer_candidate_blocks("需要在重试中保留并扩写的正文。" * 20),
+        encoding="utf-8",
+    )
 
     _write_writer_contract_retry_feedback(
         run_dir,
@@ -87,7 +96,13 @@ def test_writer_contract_retry_feedback_includes_character_ranges(
     assert feedback["draft_character_contract"] == {
         "target_character_range": [4500, 5500],
         "hard_character_range": [3000, 8000],
+        "observed_characters": 2750,
+        "minimum_characters_to_add": 250,
     }
+    assert feedback["draft_character_contract"]["observed_characters"] == 2750
+    assert feedback["draft_character_contract"]["minimum_characters_to_add"] == 250
+    assert feedback["retry_source"]["fiction_draft"].startswith("# Draft")
+    assert "保留并扩写" in feedback["retry_source"]["fiction_draft"]
 
 
 def _writer_candidate_blocks(draft: str) -> str:
@@ -384,6 +399,44 @@ def test_narrative_eval_blocks_generation_when_fact_snapshot_missing(tmp_path: P
     assert result["layers"]["L2_real_chapter_sample"]["status"] == "blocked"
     generated_runs = list((project_root / "runs").glob("task_narrative_eval_ch*")) if (project_root / "runs").exists() else []
     assert generated_runs == []
+
+
+def test_rag_generation_l0_uses_sealed_blueprint_instead_of_legacy_bible_dirs(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "projects" / "Crown_of_Ash"
+    _write_yaml(project / "project_artifact_index.yml", {"artifacts": []})
+    _write_yaml(project / "project_brain" / "project_fact_snapshot.yml", {"facts": []})
+    _write_yaml(
+        project / "project_brain" / "blueprint_validation_receipt.yml",
+        {"status": "pass", "project": "Crown_of_Ash"},
+    )
+    _write_yaml(
+        project / "project_brain" / "knowledge_index_snapshot.yml",
+        {
+            "namespace": "project.Crown_of_Ash",
+            "formal_fact_roots": ["production", "project_brain"],
+            "index_snapshot": "snapshot-1",
+        },
+    )
+    for relative in (
+        "production/series_scale_decision.yml",
+        "production/chapter_length_policy.yml",
+        "production/canonical/index.yml",
+        "production/chapter_cards/index.yml",
+    ):
+        _write_yaml(project / relative, {"schema_version": 1})
+
+    result = _audit_fact_sources(
+        project,
+        "Crown_of_Ash",
+        require_knowledge_contract=True,
+    )
+
+    assert result["status"] == "pass"
+    checks = {item["check"] for item in result["issues"]}
+    assert "bible_present" not in checks
+    assert "outline_present" not in checks
 
 
 def test_narrative_eval_resume_reuses_valid_chapters_and_rebuilds_continuity_chain(
@@ -974,7 +1027,7 @@ def test_live_narrative_eval_delegates_capacity_failure_without_local_retry(
     assert request["model_capacity_governance"] == "centralized"
 
 
-def test_live_narrative_eval_retries_one_full_contract_redo(
+def test_live_narrative_eval_retries_two_full_contract_redos(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -990,7 +1043,7 @@ def test_live_narrative_eval_retries_one_full_contract_redo(
 
     def fake_run_agent_model(root, plan, agent_name, output_path, apply_patches=False, **kwargs):
         calls.append(agent_name)
-        if len(calls) == 2:
+        if len(calls) > 1:
             feedback = yaml.safe_load(
                 (run_dir / "writer_contract_retry_feedback.yml").read_text(
                     encoding="utf-8"
@@ -1008,7 +1061,7 @@ def test_live_narrative_eval_retries_one_full_contract_redo(
             ] == "pass"
         return types.SimpleNamespace(
             status="completed",
-            content=incomplete if len(calls) == 1 else complete,
+            content=incomplete if len(calls) < 3 else complete,
             error=None,
             provider="agentlab-cli-executor",
             model="deepseek-v4-pro",
@@ -1024,18 +1077,27 @@ def test_live_narrative_eval_retries_one_full_contract_redo(
 
     _write_live_chapter_outputs(tmp_path, run_dir, "Crown_of_Ash", "task_live", 1, [])
 
-    assert calls == ["Writer", "Writer"]
+    assert calls == ["Writer", "Writer", "Writer"]
     assert (run_dir / "fiction_draft.md").exists()
     retry = yaml.safe_load((run_dir / "writer_retry_ledger.yml").read_text(encoding="utf-8"))
     assert retry["status"] == "recovered"
-    assert retry["limits"]["full_contract_redos"] == 1
+    assert retry["limits"]["full_contract_redos"] == 2
     assert retry["attempts"][0]["retry_kind"] == "full_contract_redo"
     assert "missing_writer_output:narrative_delivery_receipt.yml" in retry["attempts"][0]["contract_issues"]
     assert retry["attempts"][0]["snapshots"] == {
         "writer_role_session_capture.md": "writer_retry_attempt_01_capture.md",
         "writer_output_contract.yml": "writer_retry_attempt_01_contract.yml",
     }
-    assert retry["attempts"][1]["materialized"] is True
+    assert retry["attempts"][1]["retry_kind"] == "full_contract_redo"
+    assert retry["attempts"][2]["materialized"] is True
+    stamped_receipt = yaml.safe_load(
+        (run_dir / "narrative_delivery_receipt.yml").read_text(encoding="utf-8")
+    )
+    assert set(stamped_receipt["artifact_sha256"]) == {
+        "fiction_draft.md",
+        "continuity_ledger.yml",
+        "state_transition_proposal.yml",
+    }
 
 
 def test_live_narrative_eval_failed_retry_cannot_reuse_stale_candidate_outputs(

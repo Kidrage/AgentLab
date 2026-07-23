@@ -29,6 +29,17 @@ def prepare_and_precheck_audit(
         if isinstance(audit_window, dict)
         else list(range(int(batch["start"]), int(batch["end"]) + 1))
     )
+    try:
+        from agent_runtime.narrative.quality.selection import (
+            load_selected_revision_records,
+        )
+
+        draft_bindings = load_selected_revision_records(request)
+    except ValueError as exc:
+        return {
+            "prepared": {"status": "blocked", "issues": [str(exc)]},
+            "precheck": None,
+        }
     prepared = prepare_crown_narrative_heavy_audit(
         root,
         eval_id=str(request["config"]["eval_id"]),
@@ -36,6 +47,7 @@ def prepare_and_precheck_audit(
         end_chapter=int(batch["end"]),
         task_id=task_id,
         chapter_ids=chapter_ids,
+        draft_bindings=draft_bindings,
     )
     if prepared.get("status") != "ready":
         return {"prepared": prepared, "precheck": None}

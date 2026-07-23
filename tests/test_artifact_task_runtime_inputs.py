@@ -119,6 +119,29 @@ def test_runtime_validator_rechecks_exact_source_hash_and_private_path(
     assert validated[0]["_source_path"] == source
 
 
+def test_runtime_validator_preserves_and_binds_project_relative_logical_path(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "agentlab"
+    source = root / "projects" / "InputProject" / "production" / "facts.yml"
+    source.parent.mkdir(parents=True)
+    source.write_text("fact: stable\n", encoding="utf-8")
+    contract = build_artifact_task_contract(
+        root,
+        "Create fact_distillation.yml.",
+        project="InputProject",
+        assigned_input_paths=[source],
+    )
+
+    validated = validate_artifact_task_inputs(root, contract)
+    assert validated[0]["project_path"] == "production/facts.yml"
+
+    contract["assigned_inputs"][0]["project_path"] = "project_brain/other.yml"
+    with pytest.raises(ArtifactInputContractError) as raised:
+        validate_artifact_task_inputs(root, contract)
+    assert raised.value.code == "artifact_input_project_path_mismatch"
+
+
 @pytest.mark.parametrize(
     ("field", "value", "issue"),
     [

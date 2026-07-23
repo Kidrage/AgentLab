@@ -61,7 +61,7 @@ def test_matrix_references_are_valid_and_full_cli_full_matches_required_defaults
         "artifact_dispatch"
     ]
     for tier in ("full", "performance", "low"):
-        assert rows[(tier, "reviewer")]["cli_agent"] == "qwen"
+        assert rows[(tier, "reviewer")]["cli_agent"] == "claude_code"
         assert rows[(tier, "visual_reviewer")]["cli_agent"] == "agy"
         assert rows[(tier, "visual_reviewer")]["role"] == "Reviewer"
         assert rows[(tier, "scribe")]["cli_agent"] == "qwen"
@@ -103,11 +103,30 @@ def test_matrix_rejects_regression_of_scoped_default_performance_route(
         build_matrices(tmp_path)
 
 
+def test_matrix_rejects_foreign_provider_model_on_codex_worker(tmp_path: Path) -> None:
+    shutil.copytree(ROOT / "config", tmp_path / "config")
+    profiles_path = tmp_path / "config" / "agent_model_profiles.yml"
+    profiles = yaml.safe_load(profiles_path.read_text(encoding="utf-8"))
+    route = profiles["modes"]["full_cli"]["tiers"]["performance"]["supervisor"]
+    route["default"] = "deepseek_v4_pro"
+    profiles_path.write_text(
+        yaml.safe_dump(profiles, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="model provider 'deepseek_official'.*not contract command 'codex'"):
+        build_matrices(tmp_path)
+
+
 def test_heavy_audit_alias_roles_resolve_to_bound_cli_workers() -> None:
     for budget_mode in ("max_quality", "balanced", "frugal"):
         plan = SimpleNamespace(budget_mode=budget_mode)
-        for role in ("Reviewer", "Scribe"):
+        for role in ("Reviewer",):
             preview = resolve_agent_execution_preview(ROOT, plan, role)
             assert preview["executor_type"] == "cli_agent"
-            assert preview["cli_agent"] == "qwen"
+            assert preview["cli_agent"] == "claude_code"
             assert preview["role_binding_allowed"] is True
+        scribe = resolve_agent_execution_preview(ROOT, plan, "Scribe")
+        assert scribe["executor_type"] == "cli_agent"
+        assert scribe["cli_agent"] == "qwen"
+        assert scribe["role_binding_allowed"] is True

@@ -310,6 +310,40 @@ def test_artifact_producer_profile_is_selected_by_artifact_capability(tmp_path: 
     assert "no approved cli provider satisfies audio" in reason
 
 
+def test_artifact_producer_honors_prebound_native_codex_yaml_route(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import _check_cli_role_binding, _resolve_cli_profile_for_agent
+    from protocols.artifact_task import build_artifact_task_contract
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "artifact_production_task"
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    request_path = Path(plan.user_request_path)
+    request_path.parent.mkdir(parents=True, exist_ok=True)
+    request_path.write_text("Create fact_distillation.yml as YAML.", encoding="utf-8")
+    contract = build_artifact_task_contract(
+        ROOT,
+        request_path.read_text(encoding="utf-8"),
+        artifact_type="text",
+        output_path="runs/task_test_001/artifacts/fact_distillation.yml",
+        project="TestProject",
+        task_id="task_test_001",
+        preferred_provider="codex_cli",
+    )
+    _write_yaml(Path(plan.run_dir) / "artifact_task.yml", contract)
+
+    _configs, _mode, _role, profile = _resolve_cli_profile_for_agent(
+        ROOT, plan, "ArtifactProducer"
+    )
+
+    assert profile["artifact_provider"] == "codex_cli"
+    assert profile["cli_agent"] == "codex"
+    assert profile["invocation_contract"] == "codex"
+    assert profile["capacity_route"] == "ArtifactProducerCodex"
+    assert _check_cli_role_binding(ROOT, "ArtifactProducer", profile)[0] is True
+
+
 def test_artifact_producer_full_api_uses_explicit_text_api_only(
     tmp_path: Path,
     monkeypatch,
@@ -814,7 +848,7 @@ def test_narrative_heavy_audit_cli_roles_receive_sealed_context(
     assert result.status == "completed"
     assert observed["sealed_messages"] == messages
     profile = observed["profile"]
-    assert profile["invocation_contract"] == "qwen"
+    assert profile["invocation_contract"] == "claude_narrative_audit"
     source_names = {
         Path(path).name for path in observed["outbound_source_paths"]
     }
@@ -1133,6 +1167,76 @@ agents:
         "workflow_plan.yml",
         "production_packs.yml",
     }
+
+
+def test_artifact_supervisor_receives_governance_metadata_not_source_content(
+    tmp_path: Path,
+) -> None:
+    from agent_runner import compose_agent_messages, supervisor_context_source_files
+
+    project_root = tmp_path / "projects" / "TestProject"
+    run_dir = project_root / "runs" / "task_test_001"
+    (tmp_path / "config").mkdir(parents=True)
+    (tmp_path / "agent_templates").mkdir()
+    (project_root / "agent_docs").mkdir(parents=True)
+    (project_root / "project_brain").mkdir()
+    (project_root / "production" / "bible").mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (tmp_path / "config" / "agent_registry.yml").write_text(
+        "agents:\n  Supervisor:\n    template_path: agent_templates/supervisor.md\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "agent_templates" / "supervisor.md").write_text(
+        "# Supervisor\n\nApprove the bounded contract.\n", encoding="utf-8"
+    )
+    for path, marker in (
+        (run_dir / "user_request.md", "request_marker"),
+        (run_dir / "workflow_plan.yml", "workflow_marker"),
+        (run_dir / "mission_contract.yml", "mission_marker"),
+        (run_dir / "artifact_task.yml", "artifact_task_marker"),
+        (project_root / "project_artifact_index.yml", "artifact_index_marker"),
+        (
+            project_root / "project_brain" / "artifact_version_policy.yml",
+            "version_policy_marker",
+        ),
+        (
+            project_root / "project_brain" / "local_asset_cleanup_receipt.yml",
+            "cleanup_receipt_marker",
+        ),
+        (project_root / "agent_docs" / "02_TASK_LEDGER.yml", "task_ledger_marker"),
+        (
+            project_root / "production" / "bible" / "world.md",
+            "source_content_must_not_reach_supervisor",
+        ),
+    ):
+        path.write_text(f"marker: {marker}\n", encoding="utf-8")
+
+    plan = _make_plan(tmp_path)
+    plan.route.route_key = "artifact_production_task"
+    plan.route.agents = ["Supervisor", "ArtifactProducer"]
+    output_path = run_dir / "01_supervisor_plan.md"
+
+    sources = supervisor_context_source_files(tmp_path, plan, output_path)
+    messages = compose_agent_messages(tmp_path, plan, "Supervisor", output_path)
+    rendered = "\n".join(item["content"] for item in messages)
+
+    assert {path.name for path in sources} >= {
+        "artifact_task.yml",
+        "project_artifact_index.yml",
+        "artifact_version_policy.yml",
+        "local_asset_cleanup_receipt.yml",
+        "02_TASK_LEDGER.yml",
+    }
+    assert "artifact_task_marker" in rendered
+    assert "artifact_index_marker" in rendered
+    assert "version_policy_marker" in rendered
+    assert "cleanup_receipt_marker" in rendered
+    assert "task_ledger_marker" in rendered
+    assert "Artifact governance Supervisor rules" in rendered
+    assert "Do not request tools, shell commands, file reads" in rendered
+    assert "ArtifactTask routing is authoritative" in rendered
+    assert "must not block its run-local candidate" in rendered
+    assert "source_content_must_not_reach_supervisor" not in rendered
 
 
 def test_pack_synthesis_artifact_and_verifier_prompts_bind_returned_contracts(

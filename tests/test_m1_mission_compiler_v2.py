@@ -203,6 +203,18 @@ class TestDomainAwareMissionCompiler:
         )
         assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
 
+    def test_audit_with_explicit_no_rewrite_boundary_remains_heavy_audit(self):
+        contract = build_mission_contract(
+            "审计 Crown_of_Ash 第1章到第20章。只审查已有正文；不得重写正文。"
+            "发现 blocking issue 时只生成 revision_or_rewrite_proposal.yml。",
+            project_id="Crown_of_Ash",
+            task_id="task_crown_heavy_audit_no_direct_rewrite",
+        )
+
+        assert contract["narrative_job_identity"]["job_kind"] == "narrative_audit"
+        assert contract["narrative_job_identity"]["run_mode"] == "audit_only"
+        assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
+
     def test_article_about_fiction_market_is_not_longform_chapter(self):
         contract = build_mission_contract(
             "写一篇关于小说市场的分析文章。",

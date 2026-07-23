@@ -16,6 +16,7 @@ from agent_runtime.knowledge_system import (
     knowledge_status,
     prepare_task,
     validate_knowledge_stage,
+    write_project_knowledge_snapshot,
 )
 from agent_runtime.policies import resolve_agentlab_root
 
@@ -43,6 +44,11 @@ def register_knowledge_commands(app: typer.Typer, project_root: Path, console: C
             "--domain",
             help="Optional PROJECT=DOMAIN override; repeatable.",
         ),
+        seal_project_snapshot: bool = typer.Option(
+            False,
+            "--seal-project-snapshot/--no-seal-project-snapshot",
+            help="Write project-only Writer RAG snapshots after a successful build.",
+        ),
     ) -> None:
         """Build local system, project, and domain shards inside AgentLab."""
         try:
@@ -53,6 +59,20 @@ def register_knowledge_commands(app: typer.Typer, project_root: Path, console: C
                 include_all_projects=all_projects,
                 project_domains=overrides,
             )
+            if seal_project_snapshot:
+                if not result.get("projects"):
+                    raise ValueError("project snapshot sealing requires --project or --all-projects")
+                result = {
+                    **result,
+                    "project_snapshots": {
+                        selected: write_project_knowledge_snapshot(
+                            _root(project_root),
+                            project=selected,
+                            build_receipt=result,
+                        )
+                        for selected in result["projects"]
+                    },
+                }
         except ValueError as exc:
             _fail(console, exc)
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())

@@ -5,17 +5,17 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-de62d90289e0`
+- Repository ID: `AgentLab-runtime-v2-crown-first-prose-de62d90289e0`
 - Working root: `.`
-- Repository name: `AgentLab`
+- Repository name: `AgentLab-runtime-v2-crown-first-prose`
 - Git repository: `true`
-- Generated at: `2026-07-21T23:05:07.720242+00:00`
+- Generated at: `2026-07-23T08:09:47.755228+00:00`
 
 ## Current State
 
-- Branch: `feature/narrative-gate1-resume`
-- HEAD: `6c35230`
-- Indexed paths: 2021
+- Branch: `feature/runtime-v2-crown-first-prose`
+- HEAD: `eca6ce8`
+- Indexed paths: 2012
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,18 +43,18 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 579 |
-| `tests` | 446 |
-| `acceptance_runs` | 398 |
-| `docs` | 339 |
+| `agent_runtime` | 597 |
+| `tests` | 464 |
+| `acceptance_runs` | 350 |
+| `docs` | 340 |
 | `docs/archive` | 222 |
-| `config` | 123 |
-| `acceptance_runs/narrative_eval` | 116 |
+| `config` | 125 |
 | `tests/fixtures` | 110 |
-| `agent_runtime/narrative` | 50 |
+| `acceptance_runs/narrative_eval` | 59 |
+| `agent_runtime/narrative` | 59 |
 | `skills` | 47 |
 | `skills/active` | 46 |
-| `acceptance_runs/agentlab_capability_acceptance` | 41 |
+| `acceptance_runs/agentlab_capability_acceptance` | 42 |
 | `acceptance_runs/s10_generalization_eval` | 32 |
 | `docs/narrative` | 31 |
 | `scripts` | 22 |
@@ -65,11 +65,11 @@
 | `agent_runtime/context_governance` | 20 |
 | `acceptance_runs/narrative_repair_v2` | 18 |
 | `agent_runtime/executors` | 18 |
+| `agent_runtime/cli` | 17 |
 | `.` | 16 |
 | `acceptance_runs/m2_operator_demo` | 16 |
 | `agent_templates` | 16 |
 | `agent_runtime/capabilities` | 15 |
-| `agent_runtime/cli` | 15 |
 | `agent_runtime/ingestion` | 15 |
 | `acceptance_runs/narrative_efficiency` | 13 |
 | `agent_runtime/config_center` | 13 |
@@ -88,16 +88,16 @@
 
 ### Categories
 
-- code: 965 files, 8447334 bytes
-- literature: 412 files, 2343541 bytes
+- code: 1001 files, 9248164 bytes
+- literature: 414 files, 2356935 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 632 files, 3246718 bytes
+- structured_data: 585 files, 3255159 bytes
 
 ### Common Extensions
 
-- `.py`: 952
-- `.yml`: 600
-- `.md`: 373
+- `.py`: 988
+- `.yml`: 553
+- `.md`: 375
 - `.txt`: 39
 - `.json`: 27
 - `.sh`: 8
@@ -122,6 +122,8 @@
 - `acceptance_runs/m2_worker_invocation_contracts/invalid_templates.yml`
 - `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.md`
 - `acceptance_runs/m2_worker_invocation_contracts/worker_invocation_contract_report.yml`
+- `acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml`
+- `acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/model_override_receipt.yml`
 - `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/chapter_quality_matrix.yml`
 - `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/chapter_state_plan.yml`
 - `acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260712_0505_writer_contract_v1_writer/character_arc_ledger.yml`
@@ -172,6 +174,8 @@
 - `agent_runtime/migration_doctor.py`
 - `agent_runtime/model_capacity.py`
 - `agent_runtime/model_resolver.py`
+- `agent_runtime/narrative/crown_v3_migration.py`
+- `agent_runtime/narrative/knowledge_contract.py`
 - `agent_runtime/narrative/production/writer_contract.py`
 - `agent_runtime/observation_contract.py`
 - `agent_runtime/operator_os/action_contract.py`
@@ -186,14 +190,10 @@
 - `agent_runtime/review/models.py`
 - `agent_runtime/router_update/models.py`
 - `agent_runtime/schemas.py`
+- `agent_runtime/task_runtime_v2/migration.py`
 - `agent_runtime/workers/invocation_contract.py`
 - `agent_templates/interface_mapper.md`
 - `agentlab_tui/models.py`
-- `config/agent_model_profiles.yml`
-- `config/capability_schema.yml`
-- `config/config_ui_schema.yml`
-- `config/hermes_brain_model_groups.yml`
-- `config/migration_profile.yml`
 
 ## Key Entrypoints and Guides
 
@@ -230,33 +230,104 @@
 
 ## Change History
 
-- `6c35230 2026-07-22 fix: deliver Agy planner YAML`
-- `f26d1f1 2026-07-22 checkpoint(narrative): preserve Gate 1 runtime work`
-- `c990809 2026-07-22 fix: align default routes with native Codex`
-- `b7ff2ed 2026-07-21 fix(narrative): bind revision candidate audits`
-- `53a645b 2026-07-21 fix(narrative): harden targeted revision attempts`
-- `479ebcf 2026-07-21 fix(narrative): enforce Gate 1 prose length`
-- `668d4b7 2026-07-21 fix(narrative): deliver sealed Writer packet on stdin`
-- `bf1c056 2026-07-21 fix(narrative): seal Gate 1 operator plans`
-- `a6ed77b 2026-07-21 fix(narrative): align writer operator materialization`
-- `2452bf9 2026-07-21 feat(narrative): seal live writer packet path`
-- `c8ac0a1 2026-07-21 fix(narrative): bind literary memory evidence`
-- `78b4c3f 2026-07-21 docs(knowledge): record hardened assist acceptance`
-- `889b1ed 2026-07-21 fix(knowledge): harden default assist authority`
-- `e69cb90 2026-07-21 feat(knowledge): restrict project memory to allowlist`
-- `ae41eff 2026-07-21 feat(knowledge): absorb governed RAG into AgentLab`
-- `a6058e0 2026-07-21 docs(narrative): remove local path from repair plan`
-- `1a00c9a 2026-07-21 feat(knowledge): add governed federated retrieval`
-- `6edaf89 2026-07-20 docs(narrative): checkpoint paused phase 2r work`
-- `05e9ecf 2026-07-20 feat(narrative): compile chapter literary memory`
-- `ac2a23c 2026-07-20 feat(narrative): add governed writer packet preview`
+- `eca6ce8 2026-07-23 docs(handoff): refresh Crown governance state`
+- `00d36de 2026-07-23 fix(narrative): close audited local repair loop`
+- `28733e1 2026-07-23 fix(narrative): bind v3 commits to audited receipts`
+- `e2cf123 2026-07-23 feat(narrative): add auditable longform governance v3`
+- `b0dcf99 2026-07-23 docs(handoff): record first Crown prose cycle`
+- `728eb26 2026-07-23 docs: refresh runtime v2 handoff after first brain run`
+- `34c47a1 2026-07-23 fix: activate late runtime v2 dependants`
+- `4a2a345 2026-07-22 docs: refresh runtime v2 handoff`
+- `f58206a 2026-07-22 fix: bind runtime v2 success to executed evidence`
+- `373d31a 2026-07-22 feat: seal selected sources into v2 role attempts`
+- `8cdc685 2026-07-22 feat: execute governed role attempts in runtime v2`
+- `7202a5b 2026-07-22 fix: enforce runtime v2 input tier gates`
+- `dd24e4e 2026-07-22 feat: classify runtime v2 inputs into strict tiers`
+- `49654dc 2026-07-22 merge: integrate Crown reset with task runtime v2`
+- `f83e7b6 2026-07-22 fix(narrative): compile sealed reviewer contract`
+- `90358ec 2026-07-22 fix: resolve Claude Ark fallback from worker registry`
+- `e6b498f 2026-07-22 fix(narrative): preserve audit route for no-rewrite boundary`
+- `53640cd 2026-07-22 feat: add governed task runtime v2`
+- `2a98f1e 2026-07-22 fix(narrative): route heavy reviewer through authenticated cli`
+- `22fe954 2026-07-22 fix(narrative): accept canonical timeline identifiers`
 
 ## Current Changes
 
-- `## feature/narrative-gate1-resume`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integrated_live/`
-- `?? acceptance_runs/narrative_eval/Crown_of_Ash/gate1_legacy_integration_preflight/`
+- `## feature/runtime-v2-crown-first-prose`
+- ` M acceptance_runs/agentlab_capability_acceptance/current.yml`
+- ` M acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml`
+- ` M acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml`
+- ` M acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml`
+- ` M acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml`
+- ` M acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml`
+- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml`
+- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml`
+- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml`
+- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_operator_handoff.yml`
+- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml`
+- ` M agent_runtime/agent_runner.py`
+- ` M agent_runtime/audit_helpers.py`
+- ` M agent_runtime/background_job_controller.py`
+- ` M agent_runtime/background_job_worker.py`
+- ` M agent_runtime/capability_acceptance.py`
+- ` M agent_runtime/cli/background_jobs.py`
+- ` M agent_runtime/cli/narrative.py`
+- ` M agent_runtime/cli_executor.py`
+- ` M agent_runtime/external_acceptance_readiness.py`
+- ` M agent_runtime/frontdesk_live_handoff.py`
+- ` M agent_runtime/goal_completion_audit.py`
+- ` M agent_runtime/live_unblock_plan.py`
+- ` M agent_runtime/narrative/blueprint_validation.py`
+- ` M agent_runtime/narrative/crown_v3_migration.py`
+- ` M agent_runtime/narrative/knowledge_contract.py`
+- ` M agent_runtime/narrative/state_store.py`
+- ` M agent_runtime/narrative_delivery.py`
+- ` M agent_runtime/objective_requirement_audit.py`
+- ` M agent_runtime/project_artifact_steward.py`
+- ` M agent_runtime/protocols/enforcement.py`
+- ` M agent_runtime/trusted_live_runner_operator_handoff.py`
+- ` M agent_runtime/trusted_live_runner_request.py`
+- ` M agent_runtime/trusted_live_runner_status.py`
+- ` M config/agent_model_profiles.yml`
+- ` M config/agent_role_bindings.yml`
+- ` M config/cli_entrypoint_policy.yml`
+- ` M config/cli_workflow_shells.yml`
+- ` M config/frontdesk_policy.yml`
+- ` M config/model_capacity.yml`
+- ` M config/model_catalog.yml`
+- ` M config/role_assignment_policy.yml`
+- ` M config/shared_agent_directory.yml`
+- ` M config/worker_capability_defaults.yml`
+- ` M config/worker_fallback_policy.yml`
+- ` M config/worker_invocation_contracts.yml`
+- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
+- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
+- ` M tests/test_agent_cli_matrix.py`
+- ` M tests/test_agent_runner_cli_integration.py`
+- ` M tests/test_agy_cli_smoke.py`
+- ` M tests/test_background_job_controller.py`
+- ` M tests/test_background_job_worker.py`
+- ` M tests/test_blueprint_validation.py`
+- ` M tests/test_capability_acceptance.py`
+- ` M tests/test_chapter_knowledge_contract.py`
+- ` M tests/test_cli_executor.py`
+- ` M tests/test_crown_v3_migration.py`
+- ` M tests/test_execution_config_consolidation.py`
+- ` M tests/test_external_acceptance_readiness.py`
+- ` M tests/test_frontdesk_live_handoff.py`
+- ` M tests/test_m2_role_assignment_router.py`
+- ` M tests/test_model_capacity.py`
+- ` M tests/test_models_and_governance_cli.py`
+- ` M tests/test_narrative_state_store.py`
+- ` M tests/test_project_artifact_steward.py`
+- ` M tests/test_protocol_enforcement.py`
+- ` M tests/test_scoped_acceptance_audits.py`
+- ` M tests/test_task_runtime_v2_role_executor.py`
+- ` M tests/test_trusted_live_runner_control_plane.py`
+- ` M tests/test_trusted_live_runner_request.py`
+- `?? acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml`
+- `?? agent_runtime/narrative/fact_authority.py`
+- `?? tests/test_writer_context_profile.py`
 
 ## Related Repositories
 
@@ -315,6 +386,7 @@
 - `acceptance_runs/agentlab_capability_acceptance/agent_role_chain_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/agy_cli_print_smoke.yml`
 - `acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke.yml`
+- `acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml`
 - `acceptance_runs/agentlab_capability_acceptance/crown_live_candidate_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/crown_scale_governance_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/current.yml`
@@ -329,7 +401,6 @@
 - `acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml`
 - `acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml`
 - `acceptance_runs/agentlab_capability_acceptance/grok_oauth_cli_smoke.yml`
-- `acceptance_runs/agentlab_capability_acceptance/hermes_frontdesk_deepseek_v4_pro_smoke.yml`
 
 ## Validation and Risks
 
@@ -644,6 +715,8 @@ without a progress row.
 
 | 2026-07-21 22:30 CST | Codex | Default model/worker execution-surface correction | superseded | Commit `c990809` correctly moved the default Supervisor to native Codex/GPT, but incorrectly generalized that correction to unrelated `full_cli` roles. The following scoped correction replaces that overbroad rule | Preserve as historical evidence only; do not treat its every-Codex-role statement as current routing authority | Use the exact role/tier matrix below; never extrapolate one role correction globally |
 | 2026-07-22 06:35 CST | Codex | Scoped default model routes and Agy performance planner | delivered | User selected Verifier option 1 and clarified exact scope: default performance RepoScout, InterfaceMapper, and TesterAuditor use Claude Code + DeepSeek V4 Pro; Verifier uses Claude Code + DeepSeek V4 Flash; Supervisor alone uses native Codex + GPT-5.6 Sol xhigh. Default performance NarrativePlanner temporarily uses Agy + Gemini 3.5 Flash High through the shared OAuth subscription quota window, while full retains Claude Code + DeepSeek V4 Pro. The Agy planner contract is fail-closed, no-fallback, sandboxed plan mode and returns validated raw `chapter_state_plan.yml` YAML without the generic Markdown wrapper. Both independent Spec and Standards rereviews pass; focused routing/protocol checks pass 88/88, Agy executor checks pass 9/9, model doctor passes 135 profiles / 0 issues, protocol doctor passes 110 checks / 0 failures, and the full repository passes 3,070 with 2 skipped. Delivery commit `6c35230` is pushed; CI run `29875729144` passed all jobs; post-commit RAG build receipt `kbuild_a9480a…ba62e` and knowledge doctor/search validation passed | Keep all other modes, tiers, Gate 1 work, and Qwen literary Editor behavior untouched; Agy shares the existing subscription pool and remaining/reset quota stays unknown until provider evidence | Treat this exact role/tier matrix and Agy planner contract as current authority; do not generalize the correction to other modes or tiers |
+| 2026-07-22 22:16 CST | Codex | Runtime v2 strict input tiers and first Crown prose bootstrap | code_complete_prose_waiting_for_export_approval | Added fail-closed L0-L3 classification, route/delegation/completion gates, immutable trace contracts, governed role execution, same-Task output chaining, actual model/provider receipt binding, and real change/memory file hashes. Final Standards and Spec reviews found no blockers; focused 33/0, protocol doctor 114/0, and clean-worktree full repository 3,177 passed / 20 skipped / 0 failed. Delivery commit `f58206a` follows merge `49654dc`; the v2 Crown Task `task-crown-runtime-v2-first-prose-20260722` is running with `brain-plan` and no Attempt yet | Branch `feature/runtime-v2-crown-first-prose`; no prose/model call, candidate selection, Production promotion, or provider fallback has occurred. The configured Brain call would export about 100–250 KB of private Crown settings/cards/overlays to Codex/OpenAI CLI, so security review requires informed user approval | After approval, execute only the recorded Supervisor Brain Attempt, let Brain set chapter range/length/quality thresholds, then run Writer→Reviewer→Supervisor under the same Task and complete only with all hashes/gates passing |
+| 2026-07-23 04:00 CST | Codex | Runtime v2 first Brain-governed Crown prose cycle | completed_candidate_selected | Explicit authorization resumed the same Task. Brain plan 002 fixed chapter 1 at 4,800–5,600 Han; Writer 002 was rejected locally for underlength, Writer 003 produced 4,822 locally counted Han; Reviewer 001 exposed a Runtime-output-contract mismatch and Reviewer 002 then recorded 34/34 gate evidence with zero failures; Brain quality 001 returned pass/accept. All four WorkItems are accepted, six required trace record types are immutable, evidence verification and doctor pass, and selected artifact is `crown-chapter-001-runtime-v2-v1` SHA `d9ace80c…115b` | The original 149,869-byte source never went to Writer/Reviewer; no route fallback, public release, or Production promotion occurred. Task-selected writing memory is candidate-only. Desktop audit compilation: `/Users/saintpeter/Desktop/Crown_of_Ash_首轮审计合订稿.md` | Human-read the selected chapter if desired; any production promotion or chapter-2 cycle requires a new explicit decision and new governed scope |
 
 ## Stop conditions and immediate next actions
 
