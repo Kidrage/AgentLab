@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-23T08:24:38.366964+00:00`
+- Generated at: `2026-07-23T08:41:14.491663+00:00`
 
 ## Current State
 
-- Branch: `codex/integrate-completed-worktrees-20260723`
-- HEAD: `2ca3d56`
+- Branch: `codex/preserve-crown-handoff-notes-20260723`
+- HEAD: `e3f70f6`
 - Indexed paths: 1998
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -89,7 +89,7 @@
 ### Categories
 
 - code: 988 files, 8975393 bytes
-- literature: 415 files, 2355520 bytes
+- literature: 415 files, 2357479 bytes
 - other: 12 files, 74102 bytes
 - structured_data: 583 files, 3218856 bytes
 
@@ -230,6 +230,8 @@
 
 ## Change History
 
+- `e3f70f6 2026-07-23 Merge completed AgentLab worktrees into main`
+- `0489b60 2026-07-23 docs: refresh integrated AgentLab handoff`
 - `2ca3d56 2026-07-23 merge: integrate policy-scoped automatic approvals`
 - `84915ea 2026-07-23 merge: integrate completed Crown RAG reset work`
 - `8a8ea3c 2026-07-23 docs: refresh project handoff`
@@ -248,12 +250,11 @@
 - `f535248 2026-07-22 fix(narrative): expand rejected draft on writer retry`
 - `9c9b6c5 2026-07-22 fix(narrative): preserve valid chapters across retries`
 - `7d0b9f3 2026-07-22 docs(cli): refresh writer invocation matrix`
-- `a347097 2026-07-22 fix(narrative): execute pure writer outside plan mode`
-- `2bb1560 2026-07-22 fix(narrative): preserve blueprint artifact lineage`
 
 ## Current Changes
 
-- `## codex/integrate-completed-worktrees-20260723...origin/main [ahead 91]`
+- `## codex/preserve-crown-handoff-notes-20260723...origin/main`
+- ` M PROJECT_HANDOFF.md`
 
 ## Related Repositories
 
@@ -661,6 +662,10 @@ Ch25 has not passed literary review or anonymous A/B selection, and Ch26/27 have
 not started. Literary uplift and Gate 1 acceptance therefore remain unclaimed.
 User-positive calibration is still missing and ten human blind pairs at 70% new
 system preference remain required before Gate 2 scaling or Phase 5.
+- 2026-07-22: `task_crown_blueprint_rebuild_20260722` produced a contract-validated, candidate-only world/character rebuild in `projects/Crown_of_Ash/runs/.../outputs/crown_blueprint_rebuild_v1.yml`; it was mirrored to the Codex TrueNAS export. No production artifact or prose was promoted. The parent job is paused and its recorded PIDs were absent at cleanup time.
+- 2026-07-22: `task_crown_mature_sensual_beastfolk_overlay_20260722` produced a SHA-bound candidate overlay for mature non-graphic sensual motifs, three adult beastfolk characters, scene-card injection fields, and promotion audits. ArtifactTask validation returned zero issues. No production artifact, project brain, chapter card, or prose was changed; promotion still requires independent audit and explicit user acceptance.
+- 2026-07-22: `task_crown_female_age_rebalance_20260722` added a second hash-bound candidate patch that lowers the ten adult women to a 19–25 range (mean 28.1 → 22.4) and supplies role-continuity rationales. Lia remains 16 and fully non-sexualized. ArtifactTask, input-hash, age-band, and production-isolation checks all pass; formal assets remain unchanged pending user acceptance and promotion audits.
+- 2026-07-22: `task_crown_uncanny_manifestations_worldtexture_20260722` supersedes the candidate-only literal beastfolk taxonomy with three magical-realist manifestations (door-shadow, missing-moon and embodied desire), adds class/labor/street/ecology scene rules and a governed writing-guidance absorption contract. A later user clarification supersedes Lia's prior candidate age: her current effective age is 18 with a naturally short, slight and slender stable adult body; age 16 is retained only as the historical start of continuous selfhood. ArtifactTask and all three input hashes pass; production and prose remain unchanged.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule
