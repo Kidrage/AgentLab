@@ -5,17 +5,17 @@
 
 ## Repository Identity
 
-- Repository ID: `AgentLab-runtime-v2-crown-first-prose-de62d90289e0`
+- Repository ID: `AgentLab-m3-project-agents-truth-de62d90289e0`
 - Working root: `.`
-- Repository name: `AgentLab-runtime-v2-crown-first-prose`
+- Repository name: `AgentLab-m3-project-agents-truth`
 - Git repository: `true`
-- Generated at: `2026-07-23T08:09:47.755228+00:00`
+- Generated at: `2026-07-23T21:04:04.101426+00:00`
 
 ## Current State
 
-- Branch: `feature/runtime-v2-crown-first-prose`
-- HEAD: `eca6ce8`
-- Indexed paths: 2012
+- Branch: `feature/m3-project-agents-truth`
+- HEAD: `f34a632`
+- Indexed paths: 2030
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -43,10 +43,10 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 597 |
-| `tests` | 464 |
-| `acceptance_runs` | 350 |
-| `docs` | 340 |
+| `agent_runtime` | 610 |
+| `tests` | 468 |
+| `acceptance_runs` | 349 |
+| `docs` | 341 |
 | `docs/archive` | 222 |
 | `config` | 125 |
 | `tests/fixtures` | 110 |
@@ -54,7 +54,7 @@
 | `agent_runtime/narrative` | 59 |
 | `skills` | 47 |
 | `skills/active` | 46 |
-| `acceptance_runs/agentlab_capability_acceptance` | 42 |
+| `acceptance_runs/agentlab_capability_acceptance` | 41 |
 | `acceptance_runs/s10_generalization_eval` | 32 |
 | `docs/narrative` | 31 |
 | `scripts` | 22 |
@@ -64,9 +64,9 @@
 | `acceptance_runs/mainline_r0_r5` | 20 |
 | `agent_runtime/context_governance` | 20 |
 | `acceptance_runs/narrative_repair_v2` | 18 |
+| `agent_runtime/cli` | 18 |
 | `agent_runtime/executors` | 18 |
-| `agent_runtime/cli` | 17 |
-| `.` | 16 |
+| `.` | 17 |
 | `acceptance_runs/m2_operator_demo` | 16 |
 | `agent_templates` | 16 |
 | `agent_runtime/capabilities` | 15 |
@@ -88,16 +88,16 @@
 
 ### Categories
 
-- code: 1001 files, 9248164 bytes
-- literature: 414 files, 2356935 bytes
+- code: 1018 files, 9414167 bytes
+- literature: 416 files, 2375578 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 585 files, 3255159 bytes
+- structured_data: 584 files, 3226386 bytes
 
 ### Common Extensions
 
-- `.py`: 988
-- `.yml`: 553
-- `.md`: 375
+- `.py`: 1005
+- `.yml`: 552
+- `.md`: 377
 - `.txt`: 39
 - `.json`: 27
 - `.sh`: 8
@@ -184,16 +184,16 @@
 - `agent_runtime/program_manager/acceptance_contract.py`
 - `agent_runtime/program_manager/models.py`
 - `agent_runtime/program_manager/project_state_contract.py`
+- `agent_runtime/project_agents/contract.py`
+- `agent_runtime/project_agents/models.py`
 - `agent_runtime/project_ops/models.py`
+- `agent_runtime/project_truth/migration.py`
+- `agent_runtime/project_truth/models.py`
 - `agent_runtime/project_workflows/models.py`
 - `agent_runtime/retry/models.py`
 - `agent_runtime/review/models.py`
 - `agent_runtime/router_update/models.py`
 - `agent_runtime/schemas.py`
-- `agent_runtime/task_runtime_v2/migration.py`
-- `agent_runtime/workers/invocation_contract.py`
-- `agent_templates/interface_mapper.md`
-- `agentlab_tui/models.py`
 
 ## Key Entrypoints and Guides
 
@@ -230,6 +230,14 @@
 
 ## Change History
 
+- `f34a632 2026-07-24 fix: harden project agent truth boundaries`
+- `18cd082 2026-07-24 feat: add conflict-first project truth migration`
+- `d722d35 2026-07-24 feat: integrate project agents with canonical artifacts`
+- `dc05672 2026-07-24 feat: add project agent organization layer`
+- `078f3eb 2026-07-24 feat: add canonical project truth store`
+- `1aae9de 2026-07-24 docs: record M3 architecture impact`
+- `7ef00bf 2026-07-23 merge: consolidate Crown runtime v2 into main workspace`
+- `3915bca 2026-07-23 feat(narrative): enforce single fact authority lineage`
 - `eca6ce8 2026-07-23 docs(handoff): refresh Crown governance state`
 - `00d36de 2026-07-23 fix(narrative): close audited local repair loop`
 - `28733e1 2026-07-23 fix(narrative): bind v3 commits to audited receipts`
@@ -242,92 +250,10 @@
 - `373d31a 2026-07-22 feat: seal selected sources into v2 role attempts`
 - `8cdc685 2026-07-22 feat: execute governed role attempts in runtime v2`
 - `7202a5b 2026-07-22 fix: enforce runtime v2 input tier gates`
-- `dd24e4e 2026-07-22 feat: classify runtime v2 inputs into strict tiers`
-- `49654dc 2026-07-22 merge: integrate Crown reset with task runtime v2`
-- `f83e7b6 2026-07-22 fix(narrative): compile sealed reviewer contract`
-- `90358ec 2026-07-22 fix: resolve Claude Ark fallback from worker registry`
-- `e6b498f 2026-07-22 fix(narrative): preserve audit route for no-rewrite boundary`
-- `53640cd 2026-07-22 feat: add governed task runtime v2`
-- `2a98f1e 2026-07-22 fix(narrative): route heavy reviewer through authenticated cli`
-- `22fe954 2026-07-22 fix(narrative): accept canonical timeline identifiers`
 
 ## Current Changes
 
-- `## feature/runtime-v2-crown-first-prose`
-- ` M acceptance_runs/agentlab_capability_acceptance/current.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_operator_handoff.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml`
-- ` M agent_runtime/agent_runner.py`
-- ` M agent_runtime/audit_helpers.py`
-- ` M agent_runtime/background_job_controller.py`
-- ` M agent_runtime/background_job_worker.py`
-- ` M agent_runtime/capability_acceptance.py`
-- ` M agent_runtime/cli/background_jobs.py`
-- ` M agent_runtime/cli/narrative.py`
-- ` M agent_runtime/cli_executor.py`
-- ` M agent_runtime/external_acceptance_readiness.py`
-- ` M agent_runtime/frontdesk_live_handoff.py`
-- ` M agent_runtime/goal_completion_audit.py`
-- ` M agent_runtime/live_unblock_plan.py`
-- ` M agent_runtime/narrative/blueprint_validation.py`
-- ` M agent_runtime/narrative/crown_v3_migration.py`
-- ` M agent_runtime/narrative/knowledge_contract.py`
-- ` M agent_runtime/narrative/state_store.py`
-- ` M agent_runtime/narrative_delivery.py`
-- ` M agent_runtime/objective_requirement_audit.py`
-- ` M agent_runtime/project_artifact_steward.py`
-- ` M agent_runtime/protocols/enforcement.py`
-- ` M agent_runtime/trusted_live_runner_operator_handoff.py`
-- ` M agent_runtime/trusted_live_runner_request.py`
-- ` M agent_runtime/trusted_live_runner_status.py`
-- ` M config/agent_model_profiles.yml`
-- ` M config/agent_role_bindings.yml`
-- ` M config/cli_entrypoint_policy.yml`
-- ` M config/cli_workflow_shells.yml`
-- ` M config/frontdesk_policy.yml`
-- ` M config/model_capacity.yml`
-- ` M config/model_catalog.yml`
-- ` M config/role_assignment_policy.yml`
-- ` M config/shared_agent_directory.yml`
-- ` M config/worker_capability_defaults.yml`
-- ` M config/worker_fallback_policy.yml`
-- ` M config/worker_invocation_contracts.yml`
-- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
-- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
-- ` M tests/test_agent_cli_matrix.py`
-- ` M tests/test_agent_runner_cli_integration.py`
-- ` M tests/test_agy_cli_smoke.py`
-- ` M tests/test_background_job_controller.py`
-- ` M tests/test_background_job_worker.py`
-- ` M tests/test_blueprint_validation.py`
-- ` M tests/test_capability_acceptance.py`
-- ` M tests/test_chapter_knowledge_contract.py`
-- ` M tests/test_cli_executor.py`
-- ` M tests/test_crown_v3_migration.py`
-- ` M tests/test_execution_config_consolidation.py`
-- ` M tests/test_external_acceptance_readiness.py`
-- ` M tests/test_frontdesk_live_handoff.py`
-- ` M tests/test_m2_role_assignment_router.py`
-- ` M tests/test_model_capacity.py`
-- ` M tests/test_models_and_governance_cli.py`
-- ` M tests/test_narrative_state_store.py`
-- ` M tests/test_project_artifact_steward.py`
-- ` M tests/test_protocol_enforcement.py`
-- ` M tests/test_scoped_acceptance_audits.py`
-- ` M tests/test_task_runtime_v2_role_executor.py`
-- ` M tests/test_trusted_live_runner_control_plane.py`
-- ` M tests/test_trusted_live_runner_request.py`
-- `?? acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml`
-- `?? agent_runtime/narrative/fact_authority.py`
-- `?? tests/test_writer_context_profile.py`
+- `## feature/m3-project-agents-truth`
 
 ## Related Repositories
 
@@ -348,6 +274,7 @@
 
 - `.clinerules/sync-rules.md`
 - `AGENTS.md`
+- `ARCHITECTURE_IMPACT_REPORT.md`
 - `CLAUDE.md`
 - `CLI_ROADMAP.md`
 - `CONTEXT.md`
@@ -365,7 +292,6 @@
 - `acceptance_runs/e2e_minimal_task/input_task.md`
 - `acceptance_runs/e2e_minimal_task/revision_packet.md`
 - `acceptance_runs/hotfix_cli_binary_aliases/CLI_COMMAND_INVENTORY.md`
-- `acceptance_runs/hotfix_cli_binary_aliases/HOTFIX_CLI_BINARY_ALIASES_REPORT.md`
 
 ### image
 
@@ -386,7 +312,6 @@
 - `acceptance_runs/agentlab_capability_acceptance/agent_role_chain_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/agy_cli_print_smoke.yml`
 - `acceptance_runs/agentlab_capability_acceptance/agy_cli_session_smoke.yml`
-- `acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml`
 - `acceptance_runs/agentlab_capability_acceptance/crown_live_candidate_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/crown_scale_governance_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/current.yml`
@@ -401,6 +326,7 @@
 - `acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml`
 - `acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml`
 - `acceptance_runs/agentlab_capability_acceptance/grok_oauth_cli_smoke.yml`
+- `acceptance_runs/agentlab_capability_acceptance/hermes_frontdesk_deepseek_v4_pro_smoke.yml`
 
 ## Validation and Risks
 
