@@ -441,7 +441,7 @@ def _observed_error(root: Path, expected: dict[str, Any]) -> dict[str, Any] | No
                 "model": report.get("model"),
                 "error": report.get("error"),
             }
-            return _attach_agy_session_health(root, path, observed)
+            return _attach_historical_agy_session_evidence(root, path, observed)
         return {"path": str(path), "status": "present"}
     return None
 
@@ -518,7 +518,7 @@ def _current_grok_session_smoke(root: Path, ledger_path: Path | None = None) -> 
     return smoke
 
 
-def _current_agy_session_smoke(root: Path, error_path: Path | None = None) -> dict[str, Any] | None:
+def _historical_agy_session_smoke(root: Path, error_path: Path | None = None) -> dict[str, Any] | None:
     path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "agy_cli_session_smoke.yml"
     if not path.exists():
         return None
@@ -529,6 +529,31 @@ def _current_agy_session_smoke(root: Path, error_path: Path | None = None) -> di
     if error_path and error_path.exists():
         smoke["_is_newer_than_error"] = path.stat().st_mtime >= error_path.stat().st_mtime
     return smoke
+
+
+def _current_claude_writer_session_probe(root: Path) -> dict[str, Any] | None:
+    path = (
+        root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "claude_writer_session_probe.yml"
+    )
+    if not path.exists():
+        return None
+    probe = _read_yaml(path)
+    if probe.get("worker_id") != "claude_writer":
+        return None
+    error_class = str(probe.get("error_class") or "").lower()
+    passed = (
+        probe.get("installed") is True
+        and probe.get("exit_code") == 0
+        and probe.get("timeout") is not True
+        and error_class in {"", "none"}
+    )
+    probe["status"] = "pass" if passed else "blocked"
+    probe["reason"] = None if passed else (error_class or "claude_writer_probe_failed")
+    probe["_path"] = str(path)
+    return probe
 
 
 def _is_agy_localhost_bind_denied(observed_error: dict[str, Any] | None) -> bool:
@@ -543,22 +568,26 @@ def _is_agy_localhost_bind_denied(observed_error: dict[str, Any] | None) -> bool
     )
 
 
-def _attach_agy_session_health(root: Path, path: Path, observed: dict[str, Any]) -> dict[str, Any]:
+def _attach_historical_agy_session_evidence(
+    root: Path,
+    path: Path,
+    observed: dict[str, Any],
+) -> dict[str, Any]:
     if not _is_agy_localhost_bind_denied(observed):
         return observed
-    session_smoke = _current_agy_session_smoke(root, path)
+    observed["historical_writer_route"] = "agy"
+    observed["historical_writer_route_is_current"] = False
+    session_smoke = _historical_agy_session_smoke(root, path)
     if not session_smoke:
         return observed
-    observed["current_session_smoke_status"] = session_smoke.get("status")
-    observed["current_session_smoke_path"] = session_smoke.get("_path")
-    observed["current_session_smoke_created_at"] = session_smoke.get("created_at")
-    observed["current_command_available"] = session_smoke.get("command_available")
-    observed["current_command_path"] = session_smoke.get("command_path")
+    observed["historical_session_smoke_status"] = session_smoke.get("status")
+    observed["historical_session_smoke_path"] = session_smoke.get("_path")
+    observed["historical_session_smoke_created_at"] = session_smoke.get("created_at")
+    observed["historical_session_smoke_newer_than_error"] = session_smoke.get(
+        "_is_newer_than_error"
+    )
     if session_smoke.get("reason"):
-        observed["current_session_smoke_reason"] = session_smoke.get("reason")
-    if session_smoke.get("status") == "pass" and session_smoke.get("_is_newer_than_error"):
-        observed["stale_after_session_health_pass"] = True
-        observed["stale_reason"] = "current_agy_cli_session_smoke_passed_after_frontdesk_error"
+        observed["historical_session_smoke_reason"] = session_smoke.get("reason")
     return observed
 
 
@@ -743,13 +772,12 @@ def _pending_diagnostics(
     if observed_error and observed_error.get("stale_after_session_health_pass"):
         if _is_agy_localhost_bind_denied(observed_error):
             return {
-                "pending_reason": "writer_live_artifacts_not_rerun_after_agy_session_pass",
+                "pending_reason": "historical_frontdesk_sandbox_agy_localhost_bind_denied",
                 "evidence_interpretation": (
-                    "The previous Writer error came from a Codex/frontdesk sandbox localhost-bind denial, "
-                    "but the current non-private agy session smoke now passes; this old error is no longer "
-                    "current agy session-health evidence."
+                    "The previous Writer error came from the retired Agy Writer route. Its session smoke "
+                    "is historical evidence only and does not establish current Claude Writer health."
                 ),
-                "next_action": "rerun_trusted_writer_smoke_with_current_agy_session",
+                "next_action": "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke",
             }
         return {
             "pending_reason": "media_live_artifacts_not_rerun_after_grok_session_pass",
@@ -787,20 +815,21 @@ def _pending_diagnostics(
         error_text = str(observed_error.get("error") or "")
         if "listen tcp 127.0.0.1:0" in error_text and "operation not permitted" in error_text:
             return {
-                "pending_reason": "frontdesk_sandbox_agy_localhost_bind_denied",
+                "pending_reason": "historical_frontdesk_sandbox_agy_localhost_bind_denied",
                 "evidence_interpretation": (
-                    "The Writer role-session reached the agy CLI, but the Codex/frontdesk "
-                    "sandbox denied agy's local language-server bind on 127.0.0.1."
+                    "The retired Agy Writer route reached its CLI, but the Codex/frontdesk sandbox "
+                    "denied the local language-server bind. This is historical evidence and does "
+                    "not establish current Claude Writer health."
                 ),
-                "next_action": "run_same_writer_agentlab_command_from_user_terminal_or_trusted_agentlab_runtime",
+                "next_action": "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke",
             }
         return {
-            "pending_reason": "writer_role_session_agy_cli_exit",
+            "pending_reason": "historical_writer_role_session_agy_cli_exit",
             "evidence_interpretation": (
-                "The Writer role-session was created and evaluated, but the agy CLI worker exited "
-                "before returning the required narrative candidate artifacts."
+                "The retired Agy Writer route exited before returning the required narrative "
+                "candidate artifacts. This remains historical error evidence only."
             ),
-            "next_action": "run_same_writer_agentlab_command_from_user_terminal_or_fix_agy_cli_role_worker",
+            "next_action": "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke",
         }
     if observed_error and missing:
         return {
@@ -832,30 +861,34 @@ def _missing_candidate_session_health_diagnostics(
     if not missing:
         return {}
     expected_type = str(expected.get("type") or "")
-    assigned_worker = str(item.get("assigned_worker") or "")
-    command = str(item.get("command") or "")
-    if expected_type != "narrative_live_smoke" or (assigned_worker != "agy" and "--writer-worker agy" not in command):
+    if (
+        expected_type != "narrative_live_smoke"
+        or item.get("id") != "run_crown_internal_writer_eval"
+    ):
         return {}
-    session_smoke = _current_agy_session_smoke(root)
-    if not session_smoke or session_smoke.get("status") != "blocked":
-        return {}
-    if session_smoke.get("reason") != "agy_localhost_bind_denied":
+    session_probe = _current_claude_writer_session_probe(root)
+    if session_probe and session_probe.get("status") == "pass":
         return {}
     return {
-        "pending_reason": "agy_session_health_blocked_before_private_writer_smoke",
+        "pending_reason": "claude_writer_session_health_blocked_before_private_writer_smoke",
         "evidence_interpretation": (
             "The trusted runner has not returned Writer artifacts because the pre-run "
-            "non-private agy session-health gate is blocked by localhost bind denial; "
+            "non-private Claude Writer contract probe is missing or blocked; "
             "the generated runner will not send private Crown context until this passes."
         ),
-        "next_action": "rerun_agy_session_health_from_trusted_runtime_that_allows_localhost_bind_then_run_trusted_writer_smoke",
+        "next_action": "rerun_claude_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke",
         "session_health_gate": {
-            "id": "current_agy_session_health",
-            "status": session_smoke.get("status"),
-            "reason": session_smoke.get("reason"),
-            "session_smoke_path": session_smoke.get("_path"),
-            "command_available": session_smoke.get("command_available"),
-            "command_path": session_smoke.get("command_path"),
+            "id": "current_claude_writer_session_health",
+            "status": session_probe.get("status") if session_probe else "missing",
+            "reason": (
+                session_probe.get("reason")
+                if session_probe
+                else "claude_writer_session_probe_missing"
+            ),
+            "session_probe_path": session_probe.get("_path") if session_probe else None,
+            "command_available": session_probe.get("installed") if session_probe else None,
+            "exit_code": session_probe.get("exit_code") if session_probe else None,
+            "error_class": session_probe.get("error_class") if session_probe else None,
         },
     }
 
@@ -923,7 +956,10 @@ def build_trusted_live_runner_status(root: Path, request_path: Path | None = Non
             status_item["artifact_qc"] = artifact_qc
         if status_item["status"] != "pass":
             status_item.update(_pending_diagnostics(missing, observed_error, artifact_qc))
-            status_item.update(_missing_candidate_session_health_diagnostics(root, item, expected, missing))
+            if not observed_error:
+                status_item.update(
+                    _missing_candidate_session_health_diagnostics(root, item, expected, missing)
+                )
         items.append(status_item)
     missing_items = [item for item in items if item["status"] != "pass"]
     stale_items = [

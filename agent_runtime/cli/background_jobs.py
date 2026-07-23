@@ -1,0 +1,206 @@
+"""CLI surface for durable AgentLab background jobs."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from rich.console import Console
+import typer
+import yaml
+
+from agent_runtime.atomic_io import safe_read_yaml
+from agent_runtime.background_job_controller import (
+    controller_cycle,
+    create_crown_delivery_job,
+    launch_controller_service,
+    load_job_state,
+    pause_job,
+    retry_blocked_job,
+    resume_job,
+    run_controller_loop,
+)
+from agent_runtime.narrative.jobs.crown_adapter import (
+    create_crown_audit_job_from_contract,
+)
+
+
+def register_background_job_commands(
+    app: typer.Typer,
+    agentlab_root: Path,
+    console: Console,
+) -> None:
+    jobs = typer.Typer(
+        help="Durable receipt-driven background job controller.",
+        no_args_is_help=True,
+    )
+
+    @jobs.command("create-crown")
+    def create_crown(
+        job_id: str = typer.Option(..., "--job-id"),
+        eval_id: str = typer.Option(..., "--eval-id"),
+        start_chapter: int = typer.Option(..., "--start-chapter", min=1),
+        end_chapter: int = typer.Option(..., "--end-chapter", min=1),
+        writer_worker: str = typer.Option(..., "--writer-worker"),
+        chapter_state_plan: str = typer.Option(..., "--chapter-state-plan"),
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+        batch_size: int = typer.Option(10, "--batch-size", min=1),
+        continuity_checkpoint_cadence: int | None = typer.Option(
+            None, "--continuity-checkpoint-cadence", min=1
+        ),
+        heavy_audit_cadence: int = typer.Option(10, "--heavy-audit-cadence", min=1),
+        parent_task_id: str | None = typer.Option(None, "--parent-task-id"),
+        knowledge_contract_required: bool = typer.Option(
+            False,
+            "--knowledge-contract-required/--knowledge-contract-optional",
+        ),
+        writer_budget: str = typer.Option("frugal", "--writer-budget"),
+        transient_retry_seconds: int = typer.Option(
+            900, "--transient-retry-seconds", min=1
+        ),
+        risk_signals: Path | None = typer.Option(
+            None,
+            "--risk-signals",
+            help="YAML mapping from chapter number to structured risk signals.",
+        ),
+    ) -> None:
+        risk_signal_data = None
+        if risk_signals is not None:
+            raw_risks = safe_read_yaml(risk_signals)
+            if not isinstance(raw_risks, dict):
+                raise typer.BadParameter("risk signals must be a YAML mapping")
+            risk_signal_data = {
+                int(chapter): [str(signal) for signal in signals]
+                for chapter, signals in raw_risks.items()
+                if isinstance(signals, list)
+            }
+        state = create_crown_delivery_job(
+            agentlab_root,
+            project=project,
+            job_id=job_id,
+            eval_id=eval_id,
+            start_chapter=start_chapter,
+            end_chapter=end_chapter,
+            batch_size=batch_size,
+            continuity_checkpoint_cadence=continuity_checkpoint_cadence,
+            heavy_audit_cadence=heavy_audit_cadence,
+            writer_worker=writer_worker,
+            chapter_state_plan=chapter_state_plan,
+            parent_task_id=parent_task_id,
+            knowledge_contract_required=knowledge_contract_required,
+            writer_budget=writer_budget,
+            transient_retry_seconds=transient_retry_seconds,
+            risk_signals=risk_signal_data,
+        )
+        console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
+
+    @jobs.command("create-crown-audit")
+    def create_crown_audit(
+        mission_contract: Path = typer.Option(..., "--mission-contract"),
+        job_id: str = typer.Option(..., "--job-id"),
+        eval_id: str = typer.Option(..., "--eval-id"),
+        start_chapter: int = typer.Option(..., "--start-chapter", min=1),
+        end_chapter: int = typer.Option(..., "--end-chapter", min=1),
+        batch_size: int = typer.Option(10, "--batch-size", min=1),
+    ) -> None:
+        contract = safe_read_yaml(mission_contract)
+        if not isinstance(contract, dict):
+            raise typer.BadParameter("mission contract must be a YAML mapping")
+        state = create_crown_audit_job_from_contract(
+            agentlab_root,
+            mission_contract=contract,
+            job_id=job_id,
+            eval_id=eval_id,
+            start_chapter=start_chapter,
+            end_chapter=end_chapter,
+            batch_size=batch_size,
+        )
+        console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
+
+    @jobs.command("status")
+    def status(
+        job_id: str = typer.Option(..., "--job-id"),
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+    ) -> None:
+        state = load_job_state(agentlab_root, project, job_id)
+        console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
+
+    @jobs.command("tick")
+    def tick(
+        job_id: str = typer.Option(..., "--job-id"),
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+        execute: bool = typer.Option(
+            False,
+            "--execute/--no-execute",
+            help="Launch the scheduled worker. Default only advances local receipts.",
+        ),
+    ) -> None:
+        result = controller_cycle(
+            agentlab_root,
+            project=project,
+            job_id=job_id,
+            execute=execute,
+        )
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @jobs.command("pause")
+    def pause(
+        job_id: str = typer.Option(..., "--job-id"),
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+    ) -> None:
+        state = pause_job(agentlab_root, project=project, job_id=job_id)
+        console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
+
+    @jobs.command("resume")
+    def resume(
+        job_id: str = typer.Option(..., "--job-id"),
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+    ) -> None:
+        state = resume_job(agentlab_root, project=project, job_id=job_id)
+        console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
+
+    @jobs.command("retry-blocked")
+    def retry_blocked(
+        job_id: str = typer.Option(..., "--job-id"),
+        repair_reason: str = typer.Option(..., "--repair-reason"),
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+    ) -> None:
+        state = retry_blocked_job(
+            agentlab_root,
+            project=project,
+            job_id=job_id,
+            repair_reason=repair_reason,
+        )
+        console.print(yaml.safe_dump(state, sort_keys=False, allow_unicode=True).rstrip())
+
+    @jobs.command("run")
+    def run(
+        job_id: str = typer.Option(..., "--job-id"),
+        project: str = typer.Option("Crown_of_Ash", "--project"),
+        execute: bool = typer.Option(
+            False,
+            "--execute/--no-execute",
+            help="Required before any provider-backed worker can launch.",
+        ),
+        detach: bool = typer.Option(True, "--detach/--foreground"),
+        poll_seconds: float = typer.Option(5.0, "--poll-seconds", min=0.05),
+    ) -> None:
+        if not execute:
+            raise typer.BadParameter("background execution requires explicit --execute")
+        result = (
+            launch_controller_service(
+                agentlab_root,
+                project=project,
+                job_id=job_id,
+                poll_seconds=poll_seconds,
+            )
+            if detach
+            else run_controller_loop(
+                agentlab_root,
+                project=project,
+                job_id=job_id,
+                poll_seconds=poll_seconds,
+            )
+        )
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    app.add_typer(jobs, name="background-job")

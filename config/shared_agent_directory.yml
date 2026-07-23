@@ -25,10 +25,10 @@ repository_memory:
   policy: config/repository_handoff_policy.yml
   discover_command: ./agentlab.sh repository-handoff --repo "{repository_path}"
   refresh_command: ./agentlab.sh repository-handoff --repo "{repository_path}" --write
-  project_root_visible_path: PROJECT_HANDOFF.md
-  local_path: .agentlab/HandOff.md
-  compatible_project_memory_path: agent_docs/HandOff.md
-  shared_path: memory/repositories/{repository_id}/HandOff.md
+  canonical_path: PROJECT_HANDOFF.md
+  legacy_aliases_are_read_only: true
+  shared_fallback_path: memory/repositories/{repository_id}/HandOff.md
+  shared_copy_command: ./agentlab.sh repository-handoff --repo "{repository_path}" --write --shared-copy
 
 endpoints:
   local_source:
@@ -147,8 +147,8 @@ agents:
     explicit_named_delegation_mode: relay_only
     may_edit_task_files_when_relaying: false
   hermes:
-    display_name: Hermes CLI Frontdesk and Supervisor Shell
-    class: frontdesk_and_supervisor_cli
+    display_name: Hermes CLI Frontdesk and Workflow Shell
+    class: frontdesk_and_workflow_cli
     primary_roles: [user_intake, task_routing, planning, decomposition, coordination, recovery, global_memory]
     invocation:
       command: hermes
@@ -164,22 +164,44 @@ agents:
   codex:
     display_name: Codex
     class: coding_agent
-    primary_roles: [scoped_implementation, refactor, review, ci_repair]
+    primary_roles: [supervisor, scoped_implementation, refactor, review, ci_repair]
     invocation:
       command: codex
       noninteractive: >-
         codex exec --json -C "{workspace_path}" "Read the task packet at
         {task_packet_path}; perform only the assigned work and report actual changes." < /dev/null
+      supervisor: >-
+        codex exec --json --model gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'
+        --sandbox read-only --ephemeral --ignore-rules -C "{workspace_path}"
+        "Read the AgentLab Supervisor packet at {task_packet_path}; return the governed plan."
     high_risk: true
   claude_code:
     display_name: Claude Code
     class: coding_agent
-    primary_roles: [deep_analysis, architecture, multi_file_implementation, review]
+    primary_roles: [pure_writer, chinese_prose, narrative_rewrite_planning, developmental_editing, deep_analysis, architecture, multi_file_implementation, review]
     invocation:
       command: claude
       noninteractive: >-
         claude --permission-mode bypassPermissions --output-format json -p "Read the task packet at {task_packet_path};
         perform only the assigned work and report actual changes."
+      writer: >-
+        claude --model deepseek-v4-pro --effort max --max-budget-usd 1.00
+        --permission-mode bypassPermissions --output-format json --tools "" -p "Treat the
+        complete sealed Writer packet on stdin as the only task context; return
+        final Chinese prose candidate envelopes and native usage metadata."
+      writer_packet_delivery: stdin
+      narrative_planner: >-
+        claude --model deepseek-v4-pro --effort max --max-budget-usd 2.00
+        --permission-mode plan --output-format json --tools "" -p "Read only
+        the sealed NarrativePlanner packet at {task_packet_path}; return raw
+        candidate chapter_state_plan.yml YAML and no prose."
+    writer_model: deepseek_v4_pro
+    narrative_planner_model: deepseek_v4_pro
+    ultracode_policy:
+      opt_in_only: true
+      requires_packet_fields: [ultracode_opt_in, writer_mode, work_type]
+      allowed_work: [developmental_edit, structure, continuity, revision_plan]
+      forbidden_work: [final_prose_draft]
     high_risk: true
   qwen:
     display_name: Qwen Code
@@ -188,8 +210,21 @@ agents:
     invocation:
       command: qwen
       noninteractive: >-
-        qwen --bare --approval-mode default --output-format json "Read the task packet at
+        qwen --bare --auth-type openai --openai-base-url
+        "https://dashscope.aliyuncs.com/compatible-mode/v1" --model "{model_id}"
+        --approval-mode default --output-format json "Read the task packet at
         {task_packet_path}; perform only the assigned role and report actual changes."
+      narrative_audit: >-
+        qwen --bare --auth-type openai --openai-base-url
+        "https://dashscope.aliyuncs.com/compatible-mode/v1" --model "{model_id}"
+        --approval-mode default --max-session-turns 6 --max-wall-time 9m
+        --exclude-tools
+        edit,write_file,read_file,grep_search,glob,run_shell_command,todo_write,save_memory,agent,skill,exit_plan_mode,enter_plan_mode,web_fetch,list_directory,lsp,ask_user_question,cron_create,cron_list,cron_delete,loop_wakeup,task_stop,task_create,task_update,task_list,team_create,team_delete,send_message,monitor,notebook_edit,tool_search,enter_worktree,exit_worktree,workflow,artifact
+        --max-tool-calls 1 --json-schema
+        @narrative_heavy_audit_output.schema.json --output-format stream-json -p "Read
+        the complete sealed narrative-audit packet from stdin and return exactly
+        the native structured-output JSON object. Never JSON-encode an object or
+        array into a string."
     high_risk: true
   gemini:
     display_name: Gemini API CLI
@@ -208,45 +243,54 @@ agents:
     high_risk: medium
   agy:
     display_name: Antigravity / Agy OAuth
-    class: frontdesk_and_artifact_cli
-    primary_roles: [user_intake, agentlab_command_translation, status_explanation, handoff_dispatch, artifact_production, longform_writing]
+    class: frontdesk_perception_and_planning_cli
+    primary_roles: [user_intake, agentlab_command_translation, status_explanation, handoff_dispatch, multimodal_observation, independent_visual_review, performance_narrative_planning, scientific_evidence, suggestions]
     invocation:
       command: agy
       frontdesk_session: >-
         agy --sandbox --model 'Gemini 3.5 Flash (High)' -p "$(./agentlab.sh frontdesk-session --agent agy)"
-    default_model: gemini-3.5-flash-high
-    quota_model_rotation:
-      from_model: gemini_3_5_flash_high_agy_oauth
-      to_model: claude_sonnet_4_6_agy_oauth
-      cli_model_id: claude-sonnet-4-6@default
-      allowed_failure_classes: [quota_exhausted]
-      allowed_projects: [Crown_of_Ash]
-      quota_window: separate_5_hour_window
-      same_worker_required: agy
-      provider_surface_change_allowed: false
-      api_key_fallback_allowed: false
+      visual_reviewer_session: >-
+        agy --sandbox --model 'Gemini 3.5 Flash (High)' -p "Read the bounded
+        visual Reviewer packet at {task_packet_path}; inspect only staged assets
+        and return four-dimension YAML evidence."
+      narrative_planner_session: >-
+        agy --sandbox --model 'Gemini 3.5 Flash (High)' -p "Read the sealed
+        NarrativePlanner packet at {task_packet_path}; return planning and
+        revision guidance only, never final prose."
+    default_model: Gemini 3.5 Flash (High)
+    observer_models:
+      primary: Gemini 3.5 Flash (High)
+      fallback: Claude Sonnet 4.6 (Thinking)
+      capacity_source: config/model_capacity.yml
+      remaining: null
+      reset_at: null
     auth: local_oauth_session
     billing: subscription_or_oauth_quota
     region_requirement: VPN/proxy to a Gemini-supported region when local region is blocked.
     explicit_named_delegation_mode: relay_only
     may_edit_task_files_when_relaying: false
-    may_execute_agentlab_roles_directly: [ArtifactProducer]
+    may_execute_agentlab_roles_directly: [Observer, Reviewer, NarrativePlanner]
     high_risk: true
   grok:
-    display_name: Hermes Grok OAuth Media Worker
-    class: media_backend_worker
-    primary_roles: [media_candidate_generation, image_generation_handoff, video_generation_handoff]
+    display_name: Hermes Grok OAuth Research and Media Worker
+    class: research_and_media_backend_worker
+    primary_roles: [social_research, web_research, media_candidate_generation, image_generation_handoff, video_generation_handoff]
     invocation:
       command: hermes
-      role_session: >-
-        hermes --ignore-rules --provider xai-oauth -m grok-build-0.1 -z "Read the AgentLab ArtifactProducer task packet at {task_packet_path};
-        execute only media generation or media handoff work; return generated
-        artifact paths, settings-fetch/auth errors, and validation notes."
+      research_session: >-
+        hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z "Read the
+        Researcher task packet at {task_packet_path}; return sourced social/web
+        evidence and a source ledger."
+      media_session: >-
+        hermes --ignore-rules --provider xai-oauth -m grok-4.3 -z "Read the
+        ArtifactProducer task packet at {task_packet_path}; call the registered
+        image-generation tool and return real candidate asset paths and hashes."
     auth: hermes_xai_oauth_session
-    default_path: media_backend_only
+    capacity_source: config/model_capacity.yml
+    capacity_state: unknown
     may_act_as_general_frontdesk: false
-    may_execute_agentlab_roles_directly: [ArtifactProducer]
-    forbidden_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
+    may_execute_agentlab_roles_directly: [Researcher, ArtifactProducer]
+    forbidden_roles: [Supervisor, Observer, RepoScout, InterfaceMapper, PromptEngineer, Coder, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
     high_risk: medium
   bl:
     display_name: Bailian CLI

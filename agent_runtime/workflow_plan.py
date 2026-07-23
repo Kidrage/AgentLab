@@ -8,6 +8,7 @@ from pathlib import Path
 try:
     from agent_runtime.budget_planner import build_token_budgets, normalize_budget_mode, select_budget_profile_key
     from agent_runtime.config_loader import load_agentlab_configs, load_project_config
+    from agent_runtime.lifecycle_graph import AGENT_LIFECYCLE_NODES
     from agent_runtime.model_resolver import resolve_profile_config
     from agent_runtime.policies import assert_path_allowed
     from agent_runtime.production_packs import build_production_pack
@@ -17,28 +18,13 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
     from budget_planner import build_token_budgets, normalize_budget_mode, select_budget_profile_key
     from config_loader import load_agentlab_configs, load_project_config
+    from lifecycle_graph import AGENT_LIFECYCLE_NODES
     from model_resolver import resolve_profile_config
     from policies import assert_path_allowed
     from production_packs import build_production_pack
     from routing.route_catalog import RouteCatalog, route_size_suffix
     from schemas import AgentRoute, WorkflowPlan
     from task_router import recommend_route
-
-AGENT_LIFECYCLE_NODES = {
-    "Supervisor": {"SUPERVISOR_PLAN"},
-    "RepoScout": {"REPO_CONTEXT"},
-    "Researcher": {"RESEARCH_OPTIONAL"},
-    "InterfaceMapper": {"INTERFACE_OPTIONAL"},
-    "PromptEngineer": {"CODER_IMPLEMENTATION"},
-    "Coder": {"CODER_IMPLEMENTATION"},
-    "ArtifactProducer": {"ARTIFACT_PRODUCTION"},
-    "Writer": {"WRITER_DRAFT"},
-    "Reviewer": {"FICTION_REVIEW"},
-    "Scribe": {"SCRIBE_LEDGER"},
-    "TesterAuditor": {"VALIDATION", "AUDIT"},
-    "Verifier": {"VERIFY"},
-    "Archivist": {"ARCHIVE"},
-}
 
 CODE_FACTORY_PACK_ID = "code_factory"
 CODE_SHELL_MEMORY_TERMS = (
@@ -58,6 +44,21 @@ COMMON_TASK_STATE_RECORDS = [
     "brain_decisions.yml",
     "USER_DECISION_REQUIRED.md",
 ]
+WORKFLOW_PLAN_CONFIG_KEYS = (
+    "agent_registry",
+    "agent_model_profiles",
+    "budget_profiles",
+    "execution_modes",
+    "execution_policy",
+    "harness_policy",
+    "memory_policy",
+    "model_catalog",
+    "production_packs",
+    "routing_policy",
+    "routing_rules",
+    "skill_injection_policy",
+    "validation_gates",
+)
 
 
 def _resolve_configured_path(
@@ -119,27 +120,6 @@ def _project_paths(agentlab_root: Path, project_name: str, task_id: str, project
         "repo_map": docs_path / "01_REPO_MAP.md",
         "user_request": run_dir / "user_request.md",
     }
-
-
-def _profile_for_agent(agent_config: dict, route_size: str, budget_mode: str) -> str:
-    """Resolve an agent model profile from profile_mapping before fallback."""
-    mappings = agent_config.get("profile_mapping", {}) or {}
-    mode_key = normalize_budget_mode(budget_mode)
-    legacy_key = "brain_allocated" if mode_key == "balanced" else mode_key
-    mode_mapping = mappings.get(mode_key) or mappings.get(legacy_key) or mappings.get("brain_allocated") or {}
-    if isinstance(mode_mapping, dict):
-        direct = mode_mapping.get(route_size)
-        if direct:
-            return direct
-        any_profile = mode_mapping.get("any")
-        if any_profile:
-            return any_profile
-        # Frugal Coder mappings may distinguish local availability. Runtime does
-        # not yet probe local LLM here, so keep the API fallback.
-        no_local = mode_mapping.get("no_local")
-        if no_local:
-            return no_local
-    return agent_config.get("model_profile", "")
 
 
 def _budget_mode_from_request(task_text: str) -> str | None:
@@ -208,11 +188,6 @@ def _route_from_mission_contract(mission: dict, routing_config: dict | None) -> 
     )
 
 
-def _skill_injection_agents_for_route(route: AgentRoute) -> list[str] | None:
-    creative_agents = [agent for agent in ("Writer", "Reviewer", "Scribe") if agent in route.agents]
-    return creative_agents or None
-
-
 def _route_for_production_pack(route: AgentRoute, production_pack: dict | None) -> AgentRoute:
     if not isinstance(production_pack, dict):
         return route
@@ -256,98 +231,6 @@ def _route_for_production_pack(route: AgentRoute, production_pack: dict | None) 
     )
 
 
-def _light_chapter_gates() -> list[dict]:
-    return [
-        {
-            "id": "fiction_draft",
-            "owner": "Writer",
-            "required": True,
-            "description": "Draft the candidate chapter from chapter packet, fact snapshot, artifact index, and prior continuity ledger.",
-            "evidence": ["fiction_draft.md"],
-        },
-        {
-            "id": "continuity_ledger",
-            "owner": "Writer",
-            "required": True,
-            "description": "Record plot, character, relationship/worldline, foreshadowing, and timeline updates for the chapter candidate.",
-            "evidence": ["continuity_ledger.yml"],
-        },
-        {
-            "id": "state_transition_proposal",
-            "owner": "Writer",
-            "required": True,
-            "description": "Propose candidate fact events and state transitions; do not directly promote facts to production.",
-            "evidence": ["state_transition_proposal.yml"],
-        },
-        {
-            "id": "narrative_delivery_receipt",
-            "owner": "Writer",
-            "required": True,
-            "description": "Self-report local deterministic checks and candidate-only delivery status.",
-            "evidence": ["narrative_delivery_receipt.yml"],
-        },
-    ]
-
-
-def _batch_chapter_gates() -> list[dict]:
-    return [
-        {
-            "id": "chapter_batch_plan",
-            "owner": "Writer",
-            "required": True,
-            "description": "Plan the requested multi-chapter candidate batch with chapter range, continuity scope, and memory sources.",
-            "evidence": ["chapter_batch_plan.yml"],
-        },
-        {
-            "id": "chapter_batch_candidates",
-            "owner": "Writer",
-            "required": True,
-            "description": "Produce candidate chapter files under chapters/ without writing production manuscript files.",
-            "evidence": ["chapters/"],
-        },
-        {
-            "id": "batch_continuity_ledger",
-            "owner": "Writer",
-            "required": True,
-            "description": "Record plot, character, relationship/worldline, foreshadowing, and timeline updates across the batch.",
-            "evidence": ["batch_continuity_ledger.yml"],
-        },
-        {
-            "id": "state_transition_proposal",
-            "owner": "Writer",
-            "required": True,
-            "description": "Propose candidate fact events and state transitions for the whole batch; do not promote facts directly.",
-            "evidence": ["state_transition_proposal.yml"],
-        },
-        {
-            "id": "narrative_batch_delivery_receipt",
-            "owner": "Writer",
-            "required": True,
-            "description": "Self-report deterministic batch checks and candidate-only delivery status.",
-            "evidence": ["narrative_batch_delivery_receipt.yml"],
-        },
-    ]
-
-
-def _article_light_gates() -> list[dict]:
-    return [
-        {
-            "id": "article_draft",
-            "owner": "ArtifactProducer",
-            "required": True,
-            "description": "Draft the requested article or explanatory text.",
-            "evidence": ["article_draft.md"],
-        },
-        {
-            "id": "article_structure_check",
-            "owner": "ArtifactProducer",
-            "required": True,
-            "description": "Run a simple local structure check for title, sections, audience fit, and unresolved placeholders.",
-            "evidence": ["article_structure_check.yml"],
-        },
-    ]
-
-
 def _production_pack_output_gates(production_pack: dict | None) -> list[dict]:
     pack = production_pack or {}
     outputs = pack.get("required_outputs") if isinstance(pack, dict) else []
@@ -358,13 +241,40 @@ def _production_pack_output_gates(production_pack: dict | None) -> list[dict]:
         gates.append(
             {
                 "id": stem,
-                "owner": "ArtifactProducer",
+                "owner": _production_pack_output_owner(output_name, pack),
                 "required": True,
                 "description": f"Produce {output_name} as a candidate artifact for production pack {pack.get('pack_id', 'unknown')}.",
                 "evidence": [output_name],
             }
         )
     return gates
+
+
+def _production_pack_output_owner(
+    output_name: str,
+    production_pack: dict | None = None,
+) -> str:
+    """Return the role that is allowed to originate a pack output."""
+    name = Path(str(output_name)).name
+    configured = (production_pack or {}).get("output_owners") or {}
+    if isinstance(configured, dict):
+        owner = configured.get(str(output_name)) or configured.get(name)
+        if owner:
+            return str(owner)
+    if name == "visual_observation_report.yml":
+        return "Observer"
+    if name in {"visual_review_report.yml", "media_qc_report.yml"}:
+        return "Reviewer"
+    if name in {
+        "visual_verification_report.yml",
+        "visual_acceptance_candidate.yml",
+        "visual_acceptance_decision.yml",
+        "verification_report.md",
+    }:
+        return "Verifier"
+    if name in {"validation_report.md", "audit_report.md"}:
+        return "TesterAuditor"
+    return "ArtifactProducer"
 
 
 def _pack_synthesis_research_gate() -> dict:
@@ -435,39 +345,6 @@ def _non_code_shared_gates_for_route(validation_gates: list[dict], route: AgentR
     return gates
 
 
-def _narrative_heavy_audit_gates() -> list[dict]:
-    return [
-        {
-            "id": "fiction_review",
-            "owner": "Reviewer",
-            "required": True,
-            "description": "Audit existing narrative drafts and ledgers for continuity, character state, POV, timeline, and style drift.",
-            "evidence": ["fiction_review.yml"],
-        },
-        {
-            "id": "continuity_failure_report",
-            "owner": "Reviewer",
-            "required": True,
-            "description": "Report blocking and non-blocking continuity failures without directly rewriting draft prose.",
-            "evidence": ["continuity_failure_report.yml"],
-        },
-        {
-            "id": "state_transition_proposal",
-            "owner": "Scribe",
-            "required": True,
-            "description": "Propose structured fact-state changes needed after audit.",
-            "evidence": ["state_transition_proposal.yml"],
-        },
-        {
-            "id": "revision_or_rewrite_proposal",
-            "owner": "Verifier",
-            "required": True,
-            "description": "Emit a rewrite proposal only when blocking issues require it; do not directly alter the draft.",
-            "evidence": ["revision_or_rewrite_proposal.yml"],
-        },
-    ]
-
-
 def _validation_gates_for_route(
     configs: dict,
     route: AgentRoute,
@@ -479,17 +356,8 @@ def _validation_gates_for_route(
         if not route_keys or route.route_key in route_keys:
             validation_gates.append(gate)
 
-    if route.route_key == "narrative_light_chapter":
-        return _light_chapter_gates()
-
-    if route.route_key == "narrative_batch_chapters":
-        return _batch_chapter_gates()
-
-    if route.route_key == "article_light_draft":
-        return _article_light_gates()
-
-    if route.route_key == "narrative_heavy_audit":
-        return _narrative_heavy_audit_gates()
+    if isinstance(production_pack, dict) and production_pack.get("role_contracts"):
+        return _production_pack_output_gates(production_pack)
 
     if isinstance(production_pack, dict) and production_pack.get("status") == "synthesis_candidate":
         return [
@@ -553,6 +421,31 @@ def _prefixed_pack_outputs(production_pack: dict | None) -> list[str]:
     ]
 
 
+def _prefixed_contract_output(output: str) -> str:
+    value = str(output).strip()
+    if value.startswith("runs/"):
+        return value
+    return f"runs/task_xxxx/{value.lstrip('/')}"
+
+
+def _apply_configured_role_contracts(
+    included: dict[str, dict],
+    role_contracts: dict[str, dict],
+) -> None:
+    for role, contract in role_contracts.items():
+        if role not in included or not isinstance(contract, dict):
+            continue
+        if "required_inputs" in contract:
+            included[role]["required_inputs"] = [
+                str(item) for item in contract.get("required_inputs") or []
+            ]
+        if "required_outputs" in contract:
+            included[role]["required_outputs"] = [
+                _prefixed_contract_output(str(item))
+                for item in contract.get("required_outputs") or []
+            ]
+
+
 def _apply_non_code_production_contracts(
     included: dict[str, dict],
     *,
@@ -561,6 +454,10 @@ def _apply_non_code_production_contracts(
     synthesis_contract: bool = False,
 ) -> None:
     pack_outputs = _prefixed_pack_outputs(production_pack)
+    pack_outputs_by_owner: dict[str, list[str]] = {}
+    for output in pack_outputs:
+        owner = _production_pack_output_owner(output, production_pack)
+        pack_outputs_by_owner.setdefault(owner, []).append(output)
     pack_id = str((production_pack or {}).get("pack_id") or "production_pack")
 
     _apply_non_code_supervisor_contract(included)
@@ -596,17 +493,48 @@ def _apply_non_code_production_contracts(
                 "relevant domain references gathered by Researcher",
             ])
         included["ArtifactProducer"]["required_inputs"] = list(dict.fromkeys(inputs))
-        included["ArtifactProducer"]["required_outputs"] = pack_outputs or [
+        included["ArtifactProducer"]["required_outputs"] = pack_outputs_by_owner.get(
+            "ArtifactProducer"
+        ) or [
             "runs/task_xxxx/artifact_producer_report.md",
             "runs/task_xxxx/outputs/",
         ]
 
+    if media_contract and "Observer" in included:
+        included["Observer"]["required_inputs"] = [
+            "runs/task_xxxx/media_generation_contract.yml",
+            "runs/task_xxxx/artifacts/media_backend/generation_ledger.yml",
+            "runs/task_xxxx/artifacts/media_backend/generation_receipt.yml",
+            "runs/task_xxxx/artifacts/media_backend/generated_assets_manifest.yml",
+            "the exact generated asset files declared by generated_assets_manifest.yml",
+        ]
+        included["Observer"]["required_outputs"] = [
+            "runs/task_xxxx/visual_observation_report.yml"
+        ]
+
+    if media_contract and "Reviewer" in included:
+        included["Reviewer"]["required_inputs"] = [
+            "runs/task_xxxx/media_generation_contract.yml",
+            "runs/task_xxxx/artifacts/media_backend/generation_receipt.yml",
+            "runs/task_xxxx/artifacts/media_backend/generated_assets_manifest.yml",
+            "runs/task_xxxx/visual_observation_report.yml",
+        ]
+        included["Reviewer"]["required_outputs"] = [
+            "runs/task_xxxx/visual_review_report.yml",
+            "runs/task_xxxx/media_qc_report.yml",
+        ]
+
     if "TesterAuditor" in included:
+        prior_outputs = [
+            output
+            for owner in ("ArtifactProducer", "Observer", "Reviewer")
+            for output in pack_outputs_by_owner.get(owner, [])
+        ]
         included["TesterAuditor"]["required_inputs"] = [
             "runs/task_xxxx/workflow_plan.yml",
             "runs/task_xxxx/mission_contract.yml",
             "runs/task_xxxx/artifact_producer_report.md",
-            *pack_outputs,
+            *prior_outputs,
             "runs/task_xxxx/artifacts/media_backend/ when available",
         ]
         included["TesterAuditor"]["required_outputs"] = [
@@ -615,6 +543,11 @@ def _apply_non_code_production_contracts(
         ]
 
     if "Verifier" in included:
+        verifier_inputs = [
+            output
+            for owner in ("ArtifactProducer", "Observer", "Reviewer", "TesterAuditor")
+            for output in pack_outputs_by_owner.get(owner, [])
+        ]
         included["Verifier"]["required_inputs"] = [
             "runs/task_xxxx/supervisor_plan.md",
             "runs/task_xxxx/mission_contract.yml",
@@ -622,8 +555,16 @@ def _apply_non_code_production_contracts(
             "runs/task_xxxx/artifact_producer_report.md",
             "runs/task_xxxx/validation_report.md when available",
             "runs/task_xxxx/audit_report.md when available",
-            *pack_outputs,
+            *verifier_inputs,
         ]
+        if media_contract:
+            included["Verifier"]["required_inputs"].extend(
+                [
+                    "runs/task_xxxx/visual_observation_report.yml",
+                    "runs/task_xxxx/visual_review_report.yml",
+                    "runs/task_xxxx/media_qc_report.yml",
+                ]
+            )
         if synthesis_contract:
             included["Verifier"]["required_inputs"].extend(
                 [
@@ -632,7 +573,16 @@ def _apply_non_code_production_contracts(
                     "runs/task_xxxx/production_pack_output_contract.yml",
                 ]
             )
-        included["Verifier"]["required_outputs"] = ["runs/task_xxxx/verification_report.md"]
+        included["Verifier"]["required_outputs"] = (
+            [
+                "runs/task_xxxx/visual_verification_report.yml",
+                "runs/task_xxxx/visual_acceptance_candidate.yml",
+                "runs/task_xxxx/visual_acceptance_decision.yml",
+                "runs/task_xxxx/verification_report.md",
+            ]
+            if media_contract
+            else ["runs/task_xxxx/verification_report.md"]
+        )
 
     if "Archivist" in included:
         included["Archivist"]["required_inputs"] = [
@@ -681,55 +631,17 @@ def _append_unique(records: list[str], *items: str | None) -> None:
 
 
 def _non_code_route_task_state(
-    route: AgentRoute,
     production_pack: dict | None,
     included_agents: dict[str, dict],
 ) -> list[str]:
     records = list(COMMON_TASK_STATE_RECORDS)
     pack = production_pack or {}
-    pack_id = str(pack.get("pack_id") or "")
 
-    if pack_id == "narrative_longform":
-        if route.route_key == "narrative_batch_chapters":
-            _append_unique(
-                records,
-                "chapter_batch_plan.yml",
-                "chapters/",
-                "batch_continuity_ledger.yml",
-                "state_transition_proposal.yml",
-                "narrative_batch_delivery_receipt.yml",
-            )
-        elif route.route_key == "narrative_heavy_audit":
-            _append_unique(
-                records,
-                "fiction_draft.md",
-                "continuity_ledger.yml",
-                "state_transition_proposal.yml",
-                "fiction_review.yml",
-                "continuity_failure_report.yml",
-                "revision_or_rewrite_proposal.yml",
-            )
-        else:
-            _append_unique(
-                records,
-                "chapter_packet.yml",
-                "fiction_draft.md",
-                "continuity_ledger.yml",
-                "state_transition_proposal.yml",
-                "narrative_delivery_receipt.yml",
-            )
+    for record in pack.get("memory_records") or []:
+        _append_unique(records, str(record))
 
     for output in pack.get("required_outputs") or []:
         _append_unique(records, str(output))
-
-    if pack_id == "pack_synthesis_candidate":
-        _append_unique(
-            records,
-            "domain_research_brief.md",
-            "production_pack_research_contract.yml",
-            "production_pack_output_contract.yml",
-            "production_pack_verification_receipt.yml",
-        )
 
     for config in included_agents.values():
         for output in config.get("required_outputs", []) or []:
@@ -754,7 +666,7 @@ def _memory_policy_for_route(
         return policy
 
     records = policy.setdefault("records", {})
-    records["task_state"] = _non_code_route_task_state(route, production_pack, included_agents)
+    records["task_state"] = _non_code_route_task_state(production_pack, included_agents)
     policy["production_pack_memory_scope"] = {
         "pack_id": pack_id or "unknown",
         "route_key": route.route_key,
@@ -785,45 +697,10 @@ def _included_agents_for_route(
         )
         return included
 
-    if route.route_key == "narrative_light_chapter" and "Writer" in included:
+    role_contracts = (production_pack or {}).get("role_contracts") or {}
+    if isinstance(role_contracts, dict) and role_contracts:
         _apply_non_code_supervisor_contract(included)
-        included["Writer"]["required_inputs"] = [
-            "runs/task_xxxx/mission_contract.yml",
-            "runs/task_xxxx/user_request.md",
-            "runs/task_xxxx/chapter_packet.yml",
-            "project_brain/project_fact_snapshot.yml",
-            "project_artifact_index.yml",
-            "previous continuity_ledger.yml when available",
-        ]
-        included["Writer"]["required_outputs"] = [
-            "runs/task_xxxx/fiction_draft.md",
-            "runs/task_xxxx/continuity_ledger.yml",
-            "runs/task_xxxx/state_transition_proposal.yml",
-            "runs/task_xxxx/narrative_delivery_receipt.yml",
-        ]
-        return included
-
-    if route.route_key == "narrative_batch_chapters" and "Writer" in included:
-        _apply_non_code_supervisor_contract(included)
-        included["Writer"]["required_inputs"] = [
-            "runs/task_xxxx/mission_contract.yml",
-            "runs/task_xxxx/user_request.md",
-            "project_brain/project_fact_snapshot.yml",
-            "project_artifact_index.yml",
-            "previous continuity_ledger.yml when available",
-            "chapter range and batch constraints from Supervisor plan",
-        ]
-        included["Writer"]["required_outputs"] = [
-            "runs/task_xxxx/chapter_batch_plan.yml",
-            "runs/task_xxxx/chapters/",
-            "runs/task_xxxx/batch_continuity_ledger.yml",
-            "runs/task_xxxx/state_transition_proposal.yml",
-            "runs/task_xxxx/narrative_batch_delivery_receipt.yml",
-        ]
-        return included
-
-    if route.route_key == "article_light_draft" and "ArtifactProducer" in included:
-        _apply_non_code_production_contracts(included, production_pack=production_pack)
+        _apply_configured_role_contracts(included, role_contracts)
         return included
 
     if (
@@ -837,35 +714,6 @@ def _included_agents_for_route(
             production_pack=production_pack,
             media_contract=route.route_key == "media_generation_task",
         )
-        return included
-
-    if route.route_key == "narrative_heavy_audit":
-        _apply_non_code_supervisor_contract(included)
-        if "Reviewer" in included:
-            included["Reviewer"]["required_inputs"] = [
-                "runs/task_xxxx/fiction_draft.md",
-                "runs/task_xxxx/continuity_ledger.yml",
-                "runs/task_xxxx/state_transition_proposal.yml",
-                "project_brain/project_fact_snapshot.yml",
-                "project_artifact_index.yml",
-            ]
-            included["Reviewer"]["required_outputs"] = [
-                "runs/task_xxxx/fiction_review.yml",
-                "runs/task_xxxx/continuity_failure_report.yml",
-            ]
-        if "Scribe" in included:
-            included["Scribe"]["required_inputs"] = [
-                "runs/task_xxxx/fiction_review.yml",
-                "runs/task_xxxx/continuity_failure_report.yml",
-            ]
-            included["Scribe"]["required_outputs"] = ["runs/task_xxxx/state_transition_proposal.yml"]
-        if "Verifier" in included:
-            included["Verifier"]["required_inputs"] = [
-                "runs/task_xxxx/fiction_review.yml",
-                "runs/task_xxxx/continuity_failure_report.yml",
-                "runs/task_xxxx/state_transition_proposal.yml",
-            ]
-            included["Verifier"]["required_outputs"] = ["runs/task_xxxx/revision_or_rewrite_proposal.yml"]
         return included
 
     if route.route_key != "fiction_chapter_pipeline":
@@ -939,12 +787,39 @@ def build_workflow_plan(
     agentlab_root: Path,
     project_name: str,
     task_id: str,
-    execution_backend: str = "codex",
+    execution_backend: str = "agentlab_orchestrated_cli",
     user_request_path: Path | None = None,
     budget_mode: str | None = None,
 ) -> WorkflowPlan:
     """Build a complete, inspectable plan for one AgentLab task."""
-    configs = load_agentlab_configs(agentlab_root)
+    configs = load_agentlab_configs(agentlab_root, keys=WORKFLOW_PLAN_CONFIG_KEYS)
+    driver_config = configs.get("execution_modes", {}) or {}
+    active_driver_modes = driver_config.get("execution_modes", {}) or {}
+    selected_driver_mode = str(
+        execution_backend
+        or driver_config.get("default_mode")
+        or "agentlab_orchestrated_cli"
+    )
+    profile_driver_mode = (
+        str(driver_config.get("default_mode") or "agentlab_orchestrated_cli")
+        if selected_driver_mode == "langgraph"
+        else selected_driver_mode
+    )
+    selected_driver_config = active_driver_modes.get(profile_driver_mode)
+    if not isinstance(selected_driver_config, dict):
+        legacy = (driver_config.get("legacy_aliases", {}) or {}).get(
+            profile_driver_mode
+        )
+        replacement = legacy.get("replacement") if isinstance(legacy, dict) else None
+        raise ValueError(
+            f"inactive workflow driver {profile_driver_mode!r}"
+            + (f"; use {replacement!r}" if replacement else "")
+        )
+    agent_backend_mode = str(selected_driver_config.get("agent_backend_mode") or "")
+    if not agent_backend_mode:
+        raise ValueError(
+            f"workflow driver {profile_driver_mode!r} has no agent_backend_mode"
+        )
     project_config = load_project_config(agentlab_root, project_name)
     paths = _project_paths(agentlab_root, project_name, task_id, project_config)
     request_path = user_request_path or paths["user_request"]
@@ -989,12 +864,13 @@ def build_workflow_plan(
     included_agents = _included_agents_for_route(agent_registry, route, production_pack)
     model_profiles = {
         name: resolve_profile_config(
-            _profile_for_agent(config, route_size, resolved_budget_mode),
-            model_profiles=configs.get("model_profiles", {}),
             model_catalog=configs.get("model_catalog", {}),
             agent_name=name,
+            agent_model_profiles=configs.get("agent_model_profiles", {}),
+            mode=agent_backend_mode,
+            budget_mode=resolved_budget_mode,
         )
-        for name, config in included_agents.items()
+        for name in included_agents
     }
 
     validation_gates = _validation_gates_for_route(configs, route, production_pack)
@@ -1012,19 +888,12 @@ def build_workflow_plan(
         if not path.exists()
     ]
 
-    aider_plan = None  # aider backend removed; qwen API is now the Coder fallback
-
     notes = [
         "Plan only: no model calls, source edits, dependency installs, or validation commands were run.",
         "Use this plan as the visible contract before starting agent execution.",
+        f"Workflow driver {selected_driver_mode} resolves role backends through agent mode {agent_backend_mode}.",
     ]
     execution_policy = configs.get("execution_policy", {})
-    brain_policy = execution_policy.get("brain_policy", {})
-    if brain_policy.get("deepseek_required_for_all_agentlab_tasks", False):
-        notes.append(
-            "Brain policy: DeepSeek must execute planning/review brain stages for simulated, small, and large AgentLab tasks."
-        )
-        notes.append("Codex may not silently simulate the brain layer unless the user changes the policy.")
     if project_config:
         notes.append("Project config loaded.")
     else:
@@ -1044,7 +913,9 @@ def build_workflow_plan(
             task_id=task_id,
             run_dir=paths["run_dir"],
             task_text=task_text,
-            injected_agents=_skill_injection_agents_for_route(route),
+            policy=configs.get("skill_injection_policy") or None,
+            route_key=route.route_key,
+            route_agents=list(route.agents),
             record_usage=False,
         )
     except Exception as exc:
@@ -1077,7 +948,7 @@ def build_workflow_plan(
         repo_path=str(paths["repo_path"]),
         run_dir=str(paths["run_dir"]),
         user_request_path=str(request_path),
-        execution_backend=execution_backend,
+        execution_backend=selected_driver_mode,
         budget_mode=resolved_budget_mode,
         budget_profile=budget_profile,
         project_size=route_size,
@@ -1101,6 +972,5 @@ def build_workflow_plan(
         artifact_intent=artifact_intent,
         production_pack=production_pack,
         missing_inputs=sorted(set(missing_inputs)),
-        aider_plan=aider_plan,
         notes=notes,
     )

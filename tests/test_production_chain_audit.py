@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 from typer.testing import CliRunner
@@ -13,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
 
 
-def test_production_chain_audit_covers_representative_chains() -> None:
+def test_production_chain_audit_covers_representative_chains(tmp_path: Path) -> None:
     report = build_production_chain_audit(ROOT)
     by_id = {item["scenario_id"]: item for item in report["scenarios"]}
 
@@ -86,14 +87,15 @@ def test_production_chain_audit_covers_representative_chains() -> None:
         "ArtifactProducer",
         "Verifier",
     ]
-
-
-def test_production_chain_audit_cli_writes_yaml(tmp_path: Path) -> None:
     out = tmp_path / "production_chain_audit.yml"
 
-    result = runner.invoke(app, ["production-chain-audit", "--out", str(out)])
+    with patch(
+        "production_chain_audit.build_production_chain_audit",
+        return_value=report,
+    ):
+        result = runner.invoke(app, ["production-chain-audit", "--out", str(out)])
 
     assert result.exit_code == 0
-    report = yaml.safe_load(out.read_text(encoding="utf-8"))
-    assert report["report_type"] == "agentlab_production_chain_audit"
-    assert report["status"] == "pass"
+    written = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert written["report_type"] == "agentlab_production_chain_audit"
+    assert written["status"] == "pass"

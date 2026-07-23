@@ -7,6 +7,11 @@ from typing import Any
 
 import yaml
 
+try:
+    from agent_runtime.role_keys import canonical_role_name
+except ModuleNotFoundError:  # pragma: no cover - direct script path
+    from role_keys import canonical_role_name
+
 
 ROLE_RESPONSIBILITIES: dict[str, dict[str, str]] = {
     "Supervisor": {
@@ -20,6 +25,10 @@ ROLE_RESPONSIBILITIES: dict[str, dict[str, str]] = {
     "Researcher": {
         "responsibility": "Produce evidence-backed domain briefs for new domains or production-pack synthesis.",
         "boundary": "Does not become a truth source without cited evidence.",
+    },
+    "Observer": {
+        "responsibility": "Inspect only assigned text, image, video, audio, or PDF evidence and return source-bound observations and limitations.",
+        "boundary": "Read-only; does not write prose, generate artifacts, or approve its own observations.",
     },
     "InterfaceMapper": {
         "responsibility": "Map code interfaces, contracts, and cross-module boundaries.",
@@ -37,13 +46,17 @@ ROLE_RESPONSIBILITIES: dict[str, dict[str, str]] = {
         "responsibility": "Produce non-code artifacts that follow the selected production-pack contract.",
         "boundary": "Does not replace Coder for source-code implementation.",
     },
+    "NarrativePlanner": {
+        "responsibility": "Convert blocking narrative audit evidence into a deterministic candidate chapter state plan.",
+        "boundary": "Does not draft prose, establish canon, write production, or approve promotion.",
+    },
     "Writer": {
         "responsibility": "Draft candidate longform narrative chapters and light-path continuity ledgers.",
         "boundary": "Does not promote candidate text into production memory.",
     },
     "Reviewer": {
-        "responsibility": "Audit narrative continuity, character state, timeline, POV, and style drift.",
-        "boundary": "Does not rewrite prose by default; emits findings and rewrite proposals.",
+        "responsibility": "Independently review narrative or visual candidates against the route-specific quality contract.",
+        "boundary": "Does not rewrite prose, mutate media, or act as the producing worker.",
     },
     "Scribe": {
         "responsibility": "Maintain narrative ledgers and state-transition proposals.",
@@ -54,7 +67,7 @@ ROLE_RESPONSIBILITIES: dict[str, dict[str, str]] = {
         "boundary": "Does not declare pass without evidence.",
     },
     "Verifier": {
-        "responsibility": "Check output contracts and handoff completeness.",
+        "responsibility": "Independently check output contracts, evidence integrity, acceptance decisions, and handoff completeness.",
         "boundary": "Does not edit implementation artifacts.",
     },
     "Archivist": {
@@ -62,23 +75,6 @@ ROLE_RESPONSIBILITIES: dict[str, dict[str, str]] = {
         "boundary": "Does not force promotion for packs that exclude archive or lack acceptance.",
     },
 }
-
-ROLE_KEY_MAP = {
-    "supervisor": "Supervisor",
-    "reposcout": "RepoScout",
-    "researcher": "Researcher",
-    "interface_mapper": "InterfaceMapper",
-    "prompt_engineer": "PromptEngineer",
-    "coder": "Coder",
-    "artifact_producer": "ArtifactProducer",
-    "writer": "Writer",
-    "reviewer": "Reviewer",
-    "scribe": "Scribe",
-    "tester_auditor": "TesterAuditor",
-    "verifier": "Verifier",
-    "archivist": "Archivist",
-}
-
 
 def _read_yaml(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -283,7 +279,7 @@ def _profile_contract_report(root: Path) -> tuple[list[dict[str, Any]], list[str
             for role_key, role_config in sorted(tier.items()):
                 if not isinstance(role_config, dict) or role_config.get("executor_type") != "cli_agent":
                     continue
-                role = ROLE_KEY_MAP.get(str(role_key), str(role_key))
+                role = canonical_role_name(str(role_key))
                 entry_issues: list[str] = []
                 contract_name = str(role_config.get("invocation_contract") or "")
                 cli_agent = str(role_config.get("cli_agent") or "")

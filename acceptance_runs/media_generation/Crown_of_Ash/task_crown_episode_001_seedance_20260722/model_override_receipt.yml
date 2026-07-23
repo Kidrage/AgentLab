@@ -1,0 +1,13 @@
+schema_version: 1
+receipt_type: task_model_override
+task_id: task_crown_episode_001_seedance_20260722
+scope: this_contract_only
+role: ArtifactProducer
+temporary_worker: hermes_ark
+temporary_model: skill_auto
+temporary_backend: hermes_ark_seedance_skill
+global_performance_route_modified: false
+global_backend_chains_modified: false
+fallback_allowed: true
+fallback_backend: claude_seedance_agent_plan_skill
+reason: User confirmed Hermes plus the registered Ark skills is the working generation route. AgentLab delegates live model discovery to that worker and keeps Claude plus the repository Seedance Skill as fallback only.

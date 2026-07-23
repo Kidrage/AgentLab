@@ -174,7 +174,7 @@ def _acceptance_summary(
     }
 
 
-def _refresh_acceptance_reports_after_collect(root: Path) -> None:
+def _refresh_acceptance_reports(root: Path) -> dict[str, dict[str, Any]]:
     base = root / "acceptance_runs" / "agentlab_capability_acceptance"
     live_unblock_abs = base / "live_unblock_plan.yml"
     current_abs = base / "current.yml"
@@ -188,25 +188,29 @@ def _refresh_acceptance_reports_after_collect(root: Path) -> None:
     from live_unblock_plan import build_live_unblock_plan
     from objective_requirement_audit import write_objective_requirement_audit
 
-    write_report_yaml(live_unblock_abs, build_live_unblock_plan(root), root)
+    live_unblock = build_live_unblock_plan(root)
+    write_report_yaml(live_unblock_abs, live_unblock, root)
     capability = build_capability_acceptance_report(root)
     write_report_yaml(current_abs, capability, root)
-    write_objective_requirement_audit(root, objective_abs)
-    write_goal_completion_audit(root, goal_abs)
+    goal = write_goal_completion_audit(root, goal_abs)
+    objective = write_objective_requirement_audit(root, objective_abs)
     sync_snapshot_aliases(base)
-    write_acceptance_report_hygiene(root, hygiene_abs)
-    write_objective_requirement_audit(root, objective_abs)
-    write_goal_completion_audit(root, goal_abs)
-    capability = build_capability_acceptance_report(root)
-    write_report_yaml(current_abs, capability, root)
-    sync_snapshot_aliases(base)
-    write_acceptance_report_hygiene(root, hygiene_abs)
+    hygiene = write_acceptance_report_hygiene(root, hygiene_abs)
+    return {
+        "live_unblock": live_unblock,
+        "capability": capability,
+        "objective": objective,
+        "goal": goal,
+        "hygiene": hygiene,
+    }
 
 
 def build_trusted_live_runner_collect(
     root: Path,
     request_path: Path | None = None,
     item_id: str | None = None,
+    *,
+    refresh_acceptance_reports: bool = True,
 ) -> dict[str, Any]:
     """Refresh local trusted-runner acceptance reports and summarize state."""
     root = root.resolve()
@@ -225,30 +229,22 @@ def build_trusted_live_runner_collect(
     goal_abs = base / "goal_completion_audit.yml"
     hygiene_abs = base / "acceptance_report_hygiene.yml"
 
-    from capability_acceptance import build_capability_acceptance_report
-    from acceptance_report_hygiene import sync_snapshot_aliases, write_acceptance_report_hygiene
-    from goal_completion_audit import write_goal_completion_audit
-    from live_unblock_plan import build_live_unblock_plan
-    from objective_requirement_audit import write_objective_requirement_audit
     from trusted_live_runner_operator_handoff import write_trusted_live_runner_operator_handoff
     from trusted_live_runner_status import write_trusted_live_runner_status
 
     status = write_trusted_live_runner_status(root, status_abs, request_path=request_abs)
     operator = write_trusted_live_runner_operator_handoff(root, operator_abs, request_path=request_abs)
-    live_unblock = build_live_unblock_plan(root)
-    write_report_yaml(live_unblock_abs, live_unblock, root)
-    capability = build_capability_acceptance_report(root)
-    write_report_yaml(current_abs, capability, root)
-    objective = write_objective_requirement_audit(root, objective_abs)
-    goal = write_goal_completion_audit(root, goal_abs)
-    sync_snapshot_aliases(base)
-    hygiene = write_acceptance_report_hygiene(root, hygiene_abs)
-    objective = write_objective_requirement_audit(root, objective_abs)
-    goal = write_goal_completion_audit(root, goal_abs)
-    capability = build_capability_acceptance_report(root)
-    write_report_yaml(current_abs, capability, root)
-    sync_snapshot_aliases(base)
-    hygiene = write_acceptance_report_hygiene(root, hygiene_abs)
+    if refresh_acceptance_reports:
+        refreshed = _refresh_acceptance_reports(root)
+        capability = refreshed["capability"]
+        objective = refreshed["objective"]
+        goal = refreshed["goal"]
+        hygiene = refreshed["hygiene"]
+    else:
+        capability = _read_yaml(current_abs)
+        objective = _read_yaml(objective_abs)
+        goal = _read_yaml(goal_abs)
+        hygiene = _read_yaml(hygiene_abs)
 
     pending = _pending_items(status)
     stale_items = status.get("stale_items", []) if isinstance(status.get("stale_items"), list) else []
@@ -335,6 +331,7 @@ def build_trusted_live_runner_collect(
         "root": str(root),
         "status": collect_status,
         "source_request": _rel(root, request_abs),
+        "request_id": request.get("request_id"),
         "refreshed_reports": {
             "trusted_live_runner_status": _rel(root, status_abs),
             "trusted_live_runner_operator_handoff": _rel(root, operator_abs),
@@ -447,8 +444,15 @@ def write_trusted_live_runner_collect(
 ) -> dict[str, Any]:
     root = root.resolve()
     out = out if out.is_absolute() else root / out
-    report = build_trusted_live_runner_collect(root, request_path=request_path, item_id=item_id)
-    if item_id is None and out.resolve() == _canonical_collect_path(root).resolve():
+    requested_item_id = item_id
+    is_canonical = out.resolve() == _canonical_collect_path(root).resolve()
+    report = build_trusted_live_runner_collect(
+        root,
+        request_path=request_path,
+        item_id=None if is_canonical else item_id,
+        refresh_acceptance_reports=not is_canonical,
+    )
+    if is_canonical:
         summaries = (
             report.get("selected_item_summaries")
             if isinstance(report.get("selected_item_summaries"), dict)
@@ -459,15 +463,14 @@ def write_trusted_live_runner_collect(
             for selected_id in summaries
         }
     write_report_yaml(out, report, root)
-    if item_id is None and out.resolve() == _canonical_collect_path(root).resolve():
+    if is_canonical:
         _materialize_selected_collect_reports(root, out, report)
-        _refresh_acceptance_reports_after_collect(root)
-        base = root / "acceptance_runs" / "agentlab_capability_acceptance"
+        refreshed = _refresh_acceptance_reports(root)
         report["acceptance_summary"] = _acceptance_summary(
-            capability=_read_yaml(base / "current.yml"),
-            objective=_read_yaml(base / "objective_requirement_audit.yml"),
-            goal=_read_yaml(base / "goal_completion_audit.yml"),
-            hygiene=_read_yaml(base / "acceptance_report_hygiene.yml"),
+            capability=refreshed["capability"],
+            objective=refreshed["objective"],
+            goal=refreshed["goal"],
+            hygiene=refreshed["hygiene"],
         )
         report["secret_values_rendered"] = _contains_secret_text(report)
         if report["secret_values_rendered"]:
@@ -475,4 +478,6 @@ def write_trusted_live_runner_collect(
             report["next_action"] = "remove_secret_values_from_reports"
         write_report_yaml(out, report, root)
         _materialize_selected_collect_reports(root, out, report)
+        if requested_item_id:
+            return _read_yaml(_selected_collect_path(out, requested_item_id))
     return report

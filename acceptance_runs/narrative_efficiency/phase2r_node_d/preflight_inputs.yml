@@ -1,0 +1,23 @@
+schema_version: 1
+preflight_id: crown_ch025_ch027_phase2r_node_d_20260721
+project: Crown_of_Ash
+chapters: [25, 26, 27]
+task_prefix: task_narrative_v2_gate1_preflight
+candidate_only: true
+production_modified: false
+writer_input_manifest:
+  path: acceptance_runs/narrative_efficiency/phase2r_node_b/frozen_inputs.yml
+  sha256: b70a8bfdcf76bc0595a3d64af85b8d92053542005990348c35f79a0363cf85d1
+literary_memories:
+  - chapter_id: 25
+    snapshot:
+      path: projects/Crown_of_Ash/candidates/phase2r_node_c_memory_20260720/ch025/narrative_memory_snapshot.yml
+      sha256: 9779a7bea2c0c85997484b596c1114bb6e99f0b77fc34ed7042a5dca77e8aa05
+  - chapter_id: 26
+    snapshot:
+      path: projects/Crown_of_Ash/candidates/phase2r_node_c_memory_20260720/ch026/narrative_memory_snapshot.yml
+      sha256: 7e6383d8d35b4abe71b1f251995b4e48d35a07e430fbf0519cf7a0e8eb036d05
+  - chapter_id: 27
+    snapshot:
+      path: projects/Crown_of_Ash/candidates/phase2r_node_c_memory_20260720/ch027/narrative_memory_snapshot.yml
+      sha256: 159845d567228e68e42b132aabd6c0f132d8cdee83240ae36678ce4a4ef364bf

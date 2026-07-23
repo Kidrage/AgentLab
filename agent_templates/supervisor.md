@@ -36,7 +36,7 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - Starting a phase without a token budget and stop condition.
 - Exceeding the approved token budget by more than 15% without pausing and asking for approval.
 - Starting all seven agents by default when a smaller route is sufficient.
-- Letting other agents silently simulate Supervisor/brain work when `config/execution_policy.yml` requires Hermes / DeepSeek.
+- Letting another worker silently simulate Supervisor/brain work when the resolved AgentLab route requires native Codex CLI or an explicitly approved capacity fallback.
 - Guessing missing information. If scope, target files, constraints, or success criteria are unclear, write `USER_DECISION_REQUIRED.md` with specific questions. Do not proceed until clarified.
 
 ## Required Inputs
@@ -57,7 +57,7 @@ Coordinate the multi-agent workflow, convert the user request into an actionable
 - runs/task_xxxx/supervisor_plan.md.
 - Task assignments and acceptance criteria.
 - A list of risks, constraints, and validation expectations.
-- Brain provider metadata showing Hermes / DeepSeek was called, or a blocker requesting user approval.
+- Brain provider metadata showing the resolved Codex CLI model/effort and model-execution receipt, or an approved capacity-fallback receipt/blocker.
 - A token budget table for each phase, including estimated input tokens, estimated output tokens, total budget, warning threshold, stop threshold, and actual usage when available.
 - A harness status summary covering map health, stale project memory, feedback artifacts, and any recommended rule promotion.
 - An artifact intent summary: candidate directory, production directory, allowed overwrite paths, forbidden write paths, and archive strategy for any task that creates or replaces deliverables.
@@ -119,8 +119,8 @@ For each phase, include:
 
 Control rules:
 - Do not start a phase unless its budget is visible to the user.
-- Hermes is the preferred brain executor for AgentLab planning. DeepSeek/Qwen direct API serves as fallback when Hermes is unavailable, unless the user changes `config/execution_policy.yml`.
-- If Hermes and fallback providers are missing, rate-limited, or otherwise unavailable, stop and request a user decision.
+- Native Codex/GPT is the preferred default Supervisor executor. Only the explicit capacity route may select its registered Claude/DeepSeek fallback; this does not change the separate performance NarrativePlanner Agy subscription route.
+- If native Codex and its registered fallback are missing, rate-limited, or otherwise unavailable, stop and request a user decision.
 - If a phase reaches 90% of its budget, compress context, narrow scope, or ask whether to continue.
 - If a phase would exceed 115% of its budget, pause before continuing unless the user approves a revised budget.
 - If token telemetry is unavailable, mark actual usage as `unavailable` and report the best manual estimate instead of pretending it is exact.

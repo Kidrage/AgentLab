@@ -111,7 +111,7 @@ def ensure_project_memory_files(project_root: Path, project_name: str, descripti
         "05_CHANGELOG_AGENT.md": "# Agent Changelog\n\n",
         "06_RISK_REGISTER.md": "# Risk Register\n\n",
         "07_DEVELOPMENT_LOG.md": "# Development Log\n\n",
-        "08_CODEX_DIALOGUE_LOG.md": "# Codex Dialogue Log\n\n",
+        "08_WORKER_DIALOGUE_LOG.md": "# Worker Dialogue Log\n\n",
         "09_COST_LEDGER.yml": {"entries": []},
         "10_SYNC_LEDGER.yml": {"version": 1, "project": project_name, "entries": []},
     }
@@ -306,6 +306,7 @@ def handle_get_status(project: str, task_id: str):
 
     if not task_id or not run_dir.exists():
         project_config = load_yaml_safe(project_root / "project_config.yml")
+        execution_modes = load_yaml_safe(AGENTLAB_ROOT / "config" / "execution_modes.yml")
         github_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "github_policy.yml")
         harness_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "harness_policy.yml")
         github_config = project_config.get("github", {})
@@ -317,8 +318,7 @@ def handle_get_status(project: str, task_id: str):
             "taskStatus": "no_task",
             "stage": "Project overview",
             "userRequest": "",
-            "coderProvider": "codex-plus",
-            "brainProvider": "deepseek",
+            "workflowDriver": execution_modes.get("default_mode", "unresolved"),
             "projectConfig": project_config,
             "githubPolicy": github_policy,
             "harnessPolicy": harness_policy,
@@ -367,6 +367,7 @@ def handle_get_status(project: str, task_id: str):
     # Build agents from registry config
     reg = load_yaml_safe(AGENTLAB_ROOT / "config" / "agent_registry.yml")
     registry_agents = reg.get("agents", {})
+    model_profiles = plan.get("model_profiles", {}) or {}
 
     # Build agents list
     route_agents = snapshot.get("route") or plan.get("route", {}).get("agents", [])
@@ -375,6 +376,7 @@ def handle_get_status(project: str, task_id: str):
 
     for agent_name in route_agents:
         agent_cfg = registry_agents.get(agent_name, {})
+        model_profile = model_profiles.get(agent_name, {}) or {}
         agent_state = (state.get("reports") or {}).get(agent_name, None)
         status = "waiting"
         if state.get("status") == "blocked" and agent_name in blocked_agents:
@@ -409,8 +411,8 @@ def handle_get_status(project: str, task_id: str):
             "name": agent_name,
             "role": agent_cfg.get("role", ""),
             "status": status,
-            "provider": "DeepSeek" if agent_name != "Coder" else "Codex Plus",
-            "model": "deepseek-v4-pro" if agent_name != "Coder" else "Codex",
+            "provider": model_profile.get("cli_agent") or model_profile.get("provider") or "unresolved",
+            "model": model_profile.get("model") or model_profile.get("catalog_key") or "unresolved",
             "owner": agent_cfg.get("execution_owner", "管理层").replace("codex_plus", "执行层"),
             "canEdit": agent_cfg.get("can_edit_source", False),
             "budgetTokens": token_budget,
@@ -458,19 +460,16 @@ def handle_get_status(project: str, task_id: str):
             "time": datetime.now().strftime("%H:%M"),
             "level": "error",
             "agent": ba,
-            "text": f"{ba} 已阻塞：DeepSeek API 超时，等待用户决策",
+            "text": f"{ba} 已阻塞：执行后端失败，等待用户决策",
         })
 
     # Sort events by time (newest first)
     events.sort(key=lambda e: e.get("time", ""), reverse=True)
 
     # Config summary
-    exec_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "execution_policy.yml")
     project_config = load_yaml_safe(project_root / "project_config.yml")
     github_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "github_policy.yml")
     harness_policy = load_yaml_safe(AGENTLAB_ROOT / "config" / "harness_policy.yml")
-    brain_policy = exec_policy.get("brain_policy", {})
-    coder_policy = exec_policy.get("coder_policy", {})
     github_config = project_config.get("github", {})
     backup_config = github_config.get("backup", {})
 
@@ -482,10 +481,7 @@ def handle_get_status(project: str, task_id: str):
         "stage": snapshot.get("last_event") or state.get("last_event", ""),
         "snapshot": snapshot,
         "userRequest": user_request[:2000] if user_request else "",
-        "coderProvider": "codex-plus",
-        "coderQuotaRemaining": coder_policy.get("codex_quota_remaining", 0),
-        "coderQuotaWarningThreshold": 2000,
-        "brainProvider": brain_policy.get("required_provider", "deepseek"),
+        "workflowDriver": plan.get("execution_backend", "unresolved"),
         "projectConfig": project_config,
         "githubPolicy": github_policy,
         "harnessPolicy": harness_policy,
@@ -499,12 +495,6 @@ def handle_get_status(project: str, task_id: str):
             "mode": github_policy.get("defaults", {}).get("sync_mode", "local_first_manual_push"),
             "tokenConfigured": bool(os.getenv(github_policy.get("auth", {}).get("token_env", "GITHUB_TOKEN"))),
         },
-        "qwenFallback": {
-            "provider": "Qwen",
-            "enabled": bool(os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY")),
-            "model": os.getenv("QWEN_MODEL", "qwen-plus"),
-            "modelOptions": ["qwen-coder-aux", "qwen-coder-plus", "qwen-coder-turbo", "qwen-max"],
-        },
         "route": route_agents,
         "agents": agents,
         "events": events or [{"time": "--", "level": "info", "agent": "System", "text": "暂无事件"}],
@@ -515,8 +505,8 @@ def handle_get_status(project: str, task_id: str):
                 "title": d.get("decision_type", "决策").replace("_", " ").title(),
                 "question": d.get("reason", ""),
                 "recommendations": [
-                    "1. 暂停并重试（DeepSeek 恢复后）",
-                    "2. 显式更改策略，允许 Codex 手动模拟大脑阶段"
+                    "1. 按已声明的容量策略重试",
+                    "2. 暂停并检查执行后端证据"
                 ],
                 "default": "重试",
                 "status": "pending" if has_decision else "resolved",
@@ -787,7 +777,6 @@ def handle_create_task(data: dict):
     project = safe_project_name(data.get("project", "AgentLab"))
     task_id = data.get("taskId", "")
     request_text = data.get("requestText", "")
-    backend = data.get("backend", "codex")  # codex or qwen
     if not task_id:
         return {"success": False, "error": "taskId is required"}
 
@@ -931,8 +920,6 @@ def handle_run_next_agents(data: dict):
 
     results = []
     for agent_name in agents:
-        if agent_name == "Coder":
-            continue  # Skip Coder — manual Codex Plus execution
         if agent_name in completed:
             continue
 
@@ -1029,6 +1016,8 @@ def handle_create_project(data: dict):
     try:
         (project_root / "runs").mkdir(parents=True, exist_ok=True)
         (project_root / "repo").mkdir(parents=True, exist_ok=True)
+        (project_root / "production").mkdir(parents=True, exist_ok=True)
+        (project_root / "archive").mkdir(parents=True, exist_ok=True)
         ensure_project_memory_files(project_root, project, description)
         config = {
             "project": {
@@ -1039,10 +1028,12 @@ def handle_create_project(data: dict):
                 "repo": "repo",
                 "docs": "agent_docs",
                 "runs": "runs",
+                "production": "production",
+                "archive": "archive",
             },
             "global_config": {
                 "agent_registry": "../../config/agent_registry.yml",
-                "model_profiles": "../../config/model_profiles.yml",
+                "agent_model_profiles": "../../config/agent_model_profiles.yml",
                 "routing_rules": "../../config/routing_rules.yml",
                 "budget_profiles": "../../config/budget_profiles.yml",
                 "validation_gates": "../../config/validation_gates.yml",

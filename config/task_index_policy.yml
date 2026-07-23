@@ -7,6 +7,10 @@ index:
   auto_update_on_pause_resume: true
   auto_update_on_self_check: true
   auto_update_on_sync: true
+  detail_authority: runs/<task_id>/artifact_manifest.yml
+  include_missing_artifacts: false
+  max_artifacts_per_task: 12
+  max_artifact_summary_chars: 160
 
 scan:
   max_file_bytes: 65536

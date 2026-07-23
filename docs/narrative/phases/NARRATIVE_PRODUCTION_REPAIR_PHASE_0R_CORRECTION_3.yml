@@ -1,0 +1,140 @@
+schema_version: 1
+project: AgentLab
+project_type: codebase_build_project
+task_id: task_narrative_repair_v2_phase0r_correction3
+phase_id: phase_0r_correction3
+title: complete_hash_baseline_and_exact_replay
+plan_status: ready
+long_project_governance_required: true
+project_brain_dir: ../../../projects/AgentLab/narrative_repair_v2/project_brain
+goal: >-
+  Complete the rejected Phase 0R baseline with an exact 30-chapter source and
+  outbound-context-bundle hash inventory, exact Ch23 heading evidence, clean
+  calibration field names, and a formal zero-failure test receipt.
+context_summary: >-
+  Correction 2 fixed the hashes it listed and the focused tests pass, but the
+  phase remains rejected because baseline_metrics_v2.json does not freeze all
+  30 prose sources and all 30 outbound context manifests. The v1 file covers
+  only 13 prose drafts and cannot satisfy the v2 30-chapter requirement.
+allowed_files:
+  - acceptance_runs/narrative_efficiency/baseline_metrics_v2.json
+  - acceptance_runs/narrative_efficiency/frozen_samples_v2.yml
+  - acceptance_runs/narrative_quality/ch23_malformed_heading_replay.yml
+  - acceptance_runs/narrative_quality/calibration_manifest_v2.yml
+  - docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md
+  - docs/narrative/NARRATIVE_CALL_GRAPH.md
+  - docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md
+  - PROJECT_HANDOFF.md
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/test_results.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/change_scope.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/rollback.md
+forbidden_files:
+  - agent_runtime/**
+  - agent_templates/**
+  - config/**
+  - tests/**
+  - projects/Crown_of_Ash/production/**
+  - projects/NovelGen/production/**
+  - release_objects/**
+  - .env
+  - agent_runtime/.env
+  - .git/**
+must_read_artifacts:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_0R.yml
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_0R_CORRECTION_2.yml
+  - acceptance_runs/narrative_efficiency/baseline_metrics_v2.json
+  - acceptance_runs/narrative_efficiency/frozen_samples_v2.yml
+  - acceptance_runs/narrative_quality/calibration_manifest_v2.yml
+  - acceptance_runs/narrative_quality/ch23_malformed_heading_replay.yml
+state_contract:
+  attempt: correction_3
+  prior_result_status: rejected_for_correction_3
+  correction_requirements:
+    - >-
+      Add exactly 30 ordered chapter records for chapter_id 1 through 30 to
+      baseline_metrics_v2.json. Every record must contain the existing
+      fiction_draft.md source_path, its current source_sha256 and source_bytes,
+      the existing outbound_context_manifest_writer.yml bundle_path, and its
+      current bundle_sha256 and bundle_bytes.
+    - >-
+      Compute every value from the current filesystem. Do not copy a v1 hash
+      without recomputation. Do not use placeholders. The 30 source paths and
+      30 bundle paths must all exist and independently hash-match.
+    - >-
+      Update frozen_samples_v2.yml and the three diagnosis documents so they
+      truthfully reference the complete v2 30-by-2 inventory. Remove the false
+      statement that v1 baseline_metrics.json already contains all chapter
+      hashes; it contains only 13 prose drafts.
+    - >-
+      In baseline_metrics_v2.json rename calibration_v2.positive_samples to
+      diagnostic_candidates_pending_user_review. No positive_samples field may
+      remain while positive_calibration_status is missing_user_samples.
+    - >-
+      Bind the Ch23 replay to its exact first Markdown heading, including the
+      leading hash and title: '# 章二十三 · 铁线破晓'. Preserve the current artifact
+      SHA256 and malformed_chapter_heading:23 conclusion.
+    - >-
+      Run exactly: PYTHONPATH=.:agent_runtime python -m pytest -q
+      tests/test_narrative_efficiency.py tests/test_narrative_quality_gate.py
+      tests/test_narrative_job_semantics.py. Write the actual command, 58 passed,
+      zero failed, duration, worker, model, and correction task ID to the formal
+      run-local test_results.yml.
+    - >-
+      Write run-local change_scope.yml and rollback.md. Append Coder in-progress
+      and completed-or-blocked rows to PROJECT_HANDOFF.md. Do not edit or delete
+      any prior progress row.
+acceptance_criteria:
+  - chapter inventory contains exactly chapter_id 1 through 30 in order
+  - all 30 source paths exist and match their SHA256 and byte counts
+  - all 30 bundle paths exist and match their SHA256 and byte counts
+  - no positive_samples field or user-positive authority exists
+  - positive_calibration_status remains missing_user_samples
+  - Ch23 exact heading evidence equals '# 章二十三 · 铁线破晓'
+  - formal focused test receipt records 58 passed and zero failed
+  - no source, test, config, Production, or release changes
+outputs:
+  - acceptance_runs/narrative_efficiency/baseline_metrics_v2.json
+  - acceptance_runs/narrative_efficiency/frozen_samples_v2.yml
+  - acceptance_runs/narrative_quality/ch23_malformed_heading_replay.yml
+  - acceptance_runs/narrative_quality/calibration_manifest_v2.yml
+  - docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md
+  - docs/narrative/NARRATIVE_CALL_GRAPH.md
+  - docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md
+  - PROJECT_HANDOFF.md
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/test_results.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/change_scope.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/rollback.md
+roles: [Coder]
+available_workers: [claude_code]
+approved_workers: [claude_code]
+dispatch_units:
+  - phase_id: phase_0r_correction3
+    objective: Build the exact 30-by-2 hash table and finish deterministic Phase 0R evidence.
+    executor_type: claude_code_handoff
+commands_allowed:
+  - rg
+  - shasum -a 256
+  - wc -c
+  - git status --short
+  - git diff --check
+  - PYTHONPATH=.:agent_runtime python -m pytest
+commands_forbidden:
+  - git push
+  - git reset --hard
+  - git clean
+  - rm -rf
+  - provider prose generation
+evidence_required:
+  - baseline_metrics_v2.json
+  - frozen_samples_v2.yml
+  - ch23_malformed_heading_replay.yml
+  - test_results.yml
+  - change_scope.yml
+  - rollback.md
+rollback_required: true
+cost_policy: local_deterministic_only
+safety_notes:
+  - Production and release objects are read-only.
+  - Do not alter runtime code, configuration, tests, or manuscript artifacts.
+  - Do not start Phase 1R.

@@ -1,0 +1,189 @@
+schema_version: 1
+phase: default_assist_safety_hardening
+status: accepted_default_assist_safety_hardened
+recorded_at: 2026-07-21T12:46:28+08:00
+base_commit: e69cb908ce90c083863e89b8f3f0ddeb0f2845a2
+mode:
+  configured: assist
+  changed: false
+invariants:
+  cross_project_domain_retrieval: blocked
+  task_project_filter: enforced
+  superseded_source_hash: tombstoned
+  stale_space_retrieval: skipped_with_warning
+  unselected_production_authority: audit_only
+  artifact_index_selected_production: accepted
+  legacy_import_eligible_authority: rejected
+  direct_search_without_project_scope: project_neutral_only
+  forged_incremental_sync_authority: rejected
+  artifact_content_hash_mismatch: rejected
+  narrative_release_lineage_mismatch: rejected
+  undeclared_release_file: rejected
+  generic_release_object_bypass: rejected
+  production_symlink_authority_bypass: rejected
+  project_brain_cross_project_symlink: rejected
+  system_source_root_symlink: rejected
+  projects_root_symlink: rejected
+  fts_failure_fallback: active_bm25_degraded_not_stale
+  production_modified: false
+execution_evidence:
+  external_model_calls: 0
+  provider_receipts: []
+  production_write_commands: 0
+  project_artifact_index_modified: true
+  project_fact_migration:
+    purpose: Bind pre-existing current artifacts to deterministic content hashes.
+    modified_paths:
+      - projects/AgentLab/project_artifact_index.yml
+      - projects/Crown_of_Ash/project_artifact_index.yml
+      - projects/NovelGen/project_artifact_index.yml
+    fields_added: 10
+    production_content_modified: false
+    git_tracking: local_project_truth_ignored_by_repository_policy
+  production_selected_object_hashes_before:
+    AgentLab:
+      production/artifacts/web_ui/app.js: b71a0a3a6eb3a552f425f72e29cdfcf95bce53f028f2928126d8ad07fbd1a550
+      production/artifacts/web_ui/index.html: 5dd84b706c4892d77c60c0d37fed869e75e6340041c3c4af36540bad82b6fc30
+      production/artifacts/web_ui/status.sample.json: bc8be614452c592fe863658d776a6bb8db6f8aed5f58ffd4d48b1936b976da0c
+      production/artifacts/web_ui/styles.css: 5d2ec4941d094465a296cd6b83af0b059246fb9f1d15d33599e2faba1d06a3eb
+    Crown_of_Ash:
+      production/bible: 8b0a76a1c138b3df9ee04bee13bee1718e68beb276aa20835adc7c761daf126f
+      production/outlines: 83f28ba2b7a5991fa76cff24ca50cd1e7765f9724a05c20cd47e2a4e9e69a670
+      production/outlines/00_世界史诗编年史.md: b3223d9a9cbdc6cf962f7236193f3d73fc75875543299ce435d9f0602ee845e0
+    NovelGen:
+      production/manuscript: 71e625385db2d4c8b9d45c2e855f08c88dd2ce724ed04e57d668ed5899c5bc5a
+      production/bible: e954678bebb1234f292ca3a46bb9d1f60abb648c609712d71f0ab095035b0881
+      production/outlines: e11d67ca0274e1ab2dcce5d7bc93bc4f36764b902d668d2fbe1095f4680b269b
+  production_selected_object_hashes_after:
+    AgentLab:
+      production/artifacts/web_ui/app.js: b71a0a3a6eb3a552f425f72e29cdfcf95bce53f028f2928126d8ad07fbd1a550
+      production/artifacts/web_ui/index.html: 5dd84b706c4892d77c60c0d37fed869e75e6340041c3c4af36540bad82b6fc30
+      production/artifacts/web_ui/status.sample.json: bc8be614452c592fe863658d776a6bb8db6f8aed5f58ffd4d48b1936b976da0c
+      production/artifacts/web_ui/styles.css: 5d2ec4941d094465a296cd6b83af0b059246fb9f1d15d33599e2faba1d06a3eb
+    Crown_of_Ash:
+      production/bible: 8b0a76a1c138b3df9ee04bee13bee1718e68beb276aa20835adc7c761daf126f
+      production/outlines: 83f28ba2b7a5991fa76cff24ca50cd1e7765f9724a05c20cd47e2a4e9e69a670
+      production/outlines/00_世界史诗编年史.md: b3223d9a9cbdc6cf962f7236193f3d73fc75875543299ce435d9f0602ee845e0
+    NovelGen:
+      production/manuscript: 71e625385db2d4c8b9d45c2e855f08c88dd2ce724ed04e57d668ed5899c5bc5a
+      production/bible: e954678bebb1234f292ca3a46bb9d1f60abb648c609712d71f0ab095035b0881
+      production/outlines: e11d67ca0274e1ab2dcce5d7bc93bc4f36764b902d668d2fbe1095f4680b269b
+  production_hashes_match: true
+verification:
+  focused_tests:
+    command: >-
+      PYTHONPATH=agent_runtime:. python -m pytest -q
+      tests/test_knowledge_system.py tests/test_p2g_context_packers.py
+      tests/test_p2g_cli.py tests/test_narrative_delivery.py
+      tests/test_project_fact_state_machine.py
+      tests/test_project_artifact_steward.py
+    result: 116 passed
+  full_repository:
+    command: PYTHONPATH=agent_runtime:. python -m pytest -q
+    result: 2966 passed, 2 skipped, 11 warnings
+    duration_seconds: 235.12
+  ruff:
+    result: passed
+  knowledge_build:
+    projects: [AgentLab, Crown_of_Ash, NovelGen]
+    status: BUILT
+    index_snapshot: idx_d8576a6cd29f462aaa3b7c86df9a4f32f677cc8f2288e851c6246be6bf4f8f3b
+  knowledge_doctor:
+    status: PASS
+    mode: assist
+    spaces: 6
+    records: 31346
+    eligible_records: 1554
+independent_review:
+  attempt_1:
+    status: rejected_for_correction
+    standards_findings:
+      - Artifact roots could escape governed Production/release locations.
+      - An FTS failure marked a shard stale before serving a BM25 fallback from it.
+      - Direct search without a project identifier could expose multiple projects.
+      - Handoff and Production evidence were incomplete.
+    specification_findings:
+      - Incremental sync trusted caller-supplied pass authority for unselected Production.
+      - Full builds did not require current artifact content hashes.
+      - Acceptance omitted zero-provider-call and Production before/after evidence.
+  correction_1:
+    status: implemented_and_regression_verified
+    changed_modules:
+      - agent_runtime/artifact_digest.py
+      - agent_runtime/knowledge_system/migration.py
+      - agent_runtime/knowledge_system/runtime.py
+      - agent_runtime/knowledge_system/sources.py
+      - agent_runtime/knowledge_system/storage.py
+      - agent_runtime/project_artifact_steward.py
+    tests:
+      - tests/test_knowledge_system.py
+      - tests/test_project_artifact_steward.py
+    rereview_status: rejected_for_correction_2
+    rereview_findings:
+      - Narrative promotion receipts were not bound to current candidate lineage and release slot.
+      - A validated edition directory exposed undeclared extra files as accepted evidence.
+      - Local project artifact-index hash migrations were omitted from changed-source and rollback evidence.
+  correction_2:
+    status: implemented_and_full_regression_verified
+    behavior:
+      - Bind current release to candidate_set_id, candidate_set_sha256, release_slot, and receipt path.
+      - Validate declared chapter paths and hashes and index only those files plus the validated receipt.
+      - Record all ignored local project-fact migrations separately from Production content.
+    rereview_status: rejected_for_correction_3
+    rereview_findings:
+      - Generic artifact entries under release_objects could bypass narrative lineage checks.
+      - Symlinked Production paths could resolve into candidate content before policy inspection.
+      - Symlinked Project Brain directories could expose another project as canonical evidence.
+  correction_3:
+    status: implemented_and_full_regression_verified
+    behavior:
+      - Restrict generic current artifacts to hash-matching paths rooted under real Production.
+      - Admit release_objects only through the validated current_release contract.
+      - Reject symlink components in project roots, canonical source roots, and selected Production paths.
+    rereview_status: rejected_for_correction_4
+    rereview_findings:
+      - A symlinked system source root could expose candidate text as project-neutral canonical evidence.
+      - A symlinked projects root was not detected because the lexical root itself was not inspected.
+  correction_4:
+    status: implemented_and_full_regression_verified
+    behavior:
+      - Reject symlink components for named files and directory roots collected as system knowledge.
+      - Reject a symlinked lexical root and check every walked path before reading it.
+      - Refuse project discovery, domain inference, and project collection through a symlinked projects root.
+    rereview_status: passed
+  final_review:
+    standards: passed
+    specification: passed
+    remaining_judgment:
+      - >-
+        allow_cross_project remains an explicit low-level administrative option;
+        normal task preparation never enables it and always supplies project_id.
+remaining_limitations:
+  - Live Writer and Reviewer model prompts do not yet consume the prepared knowledge evidence.
+  - Semantic and graph retrieval adapters are not configured.
+  - Live literary quality and efficiency remain Gate 1 evidence questions, not knowledge-index claims.
+delivery:
+  implementation_commit: 889b1ede720df7583d0815387c5cb8b8b04e8f55
+  push:
+    performed_by: repository_commit_hook
+    remote_branch: feature/knowledge-system-rag-governance
+    remote_head_verified: true
+  ci:
+    run_id: 29802203892
+    status: success
+  post_commit_knowledge_build:
+    receipt_id: kbuild_ce311f94db31f0b23a44e881e7872b86c36092141ca8cfec5d87bfb10f058890
+    index_snapshot: idx_d1a9e22327bc3acfa484133768871920c7ac197c6aeb206fdf44995ab9a407c6
+    spaces: 6
+    records: 31382
+    eligible_records: 1552
+    doctor: PASS
+  repository_hygiene:
+    status: fail_preexisting_unknown_root
+    finding: Root agents/ collaboration namespace is outside the repository constitution.
+    changed_by_this_phase: false
+rollback:
+  instruction: >-
+    Revert the dedicated default-assist hardening commit; remove only the 10
+    production_sha256 fields listed in project_fact_migration from the three
+    ignored local artifact indexes; then rebuild knowledge indexes from source truth.

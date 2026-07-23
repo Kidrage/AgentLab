@@ -69,8 +69,8 @@ def test_external_skills_list_cli_reads_registry(tmp_path: Path) -> None:
 
 def test_import_ecc_dry_run_does_not_modify_registry(tmp_path: Path) -> None:
     _write_base_config(tmp_path)
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
+    artifacts = tmp_path / ".agentlab" / "artifacts" / "external_skills"
+    artifacts.mkdir(parents=True)
     (artifacts / "external_skill_inventory.json").write_text(json.dumps({
         "source": "ecc",
         "agents": [{"id": "ecc.code-reviewer", "name": "code-reviewer", "type": "agent", "capabilities": ["code_review"]}],
@@ -85,8 +85,8 @@ def test_import_ecc_dry_run_does_not_modify_registry(tmp_path: Path) -> None:
 
 def test_import_ecc_defaults_disabled(tmp_path: Path) -> None:
     _write_base_config(tmp_path)
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
+    artifacts = tmp_path / ".agentlab" / "artifacts" / "external_skills"
+    artifacts.mkdir(parents=True)
     (artifacts / "external_skill_inventory.json").write_text(json.dumps({
         "source": "ecc",
         "agents": [{"id": "ecc.security-reviewer", "name": "security-reviewer", "type": "agent", "capabilities": ["security_review"], "risk_level": "medium"}],

@@ -29,8 +29,8 @@ class ContractErrorClassification:
 
 @dataclass
 class ContractFallback:
-    on_binary_missing: str = "alternate_worker_or_direct_api"
-    on_invalid_invocation: str = "direct_api"
+    on_binary_missing: str = "stop_and_report"
+    on_invalid_invocation: str = "stop_and_report"
     on_auth_required: str = "blocked_user_setup"
     on_network_required: str = "offline_or_retry_later"
     on_permission_denied: str = "approval_required"
@@ -83,8 +83,8 @@ class WorkerInvocationContract:
         
         fb_data = data.get("fallback") or {}
         fallback = ContractFallback(
-            on_binary_missing=fb_data.get("on_binary_missing", "alternate_worker_or_direct_api"),
-            on_invalid_invocation=fb_data.get("on_invalid_invocation", "direct_api"),
+            on_binary_missing=fb_data.get("on_binary_missing", "stop_and_report"),
+            on_invalid_invocation=fb_data.get("on_invalid_invocation", "stop_and_report"),
             on_auth_required=fb_data.get("on_auth_required", "blocked_user_setup"),
             on_network_required=fb_data.get("on_network_required", "offline_or_retry_later"),
             on_permission_denied=fb_data.get("on_permission_denied", "approval_required")

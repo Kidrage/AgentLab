@@ -75,6 +75,6 @@ def test_project_init_cli_with_contracts():
         assert (brain_root / "phase_plan.yml").exists()
 
         # Verify other directories
-        assert (project_root / "artifacts").exists()
+        assert (project_root / "production").exists()
         assert (project_root / "evidence").exists()
         assert (project_root / "acceptance").exists()

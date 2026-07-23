@@ -1,0 +1,45 @@
+version: 2
+
+# The validated production default is non-blocking assist. Shadow and off remain
+# rollback modes; enforce requires a successful validation of the preceding stage.
+mode: assist
+
+# Retrieval may propose memory changes, but existing acceptance and promotion remain authoritative.
+auto_memory: propose_only
+
+storage:
+  runtime_path: .agentlab_runtime/knowledge
+  keyword_backend: auto
+  catalog: sqlite
+  shard_per_space: true
+  replicate_derived_databases: false
+
+indexing:
+  system_sources: true
+  project_sources: true
+  # Only production projects may own durable derived memory. Other projects can
+  # still run tasks, but cannot create project/domain shards or sync into them.
+  project_allowlist:
+    - AgentLab
+    - Crown_of_Ash
+    - NovelGen
+  # Full builds and governance commit receipts refresh indexes. Normal tasks only
+  # bootstrap missing spaces, avoiding a repository rescan on every request.
+  refresh_on_prepare: false
+  bootstrap_missing_spaces: true
+  max_file_bytes: 1000000
+  media_payload: metadata_only
+
+retrieval:
+  top_k: 8
+  required_channels:
+    - keyword
+  optional_channels:
+    - semantic
+    - graph
+  fusion: deterministic_rrf
+  eligible_authority:
+    - canonical
+    - accepted
+  eligible_lifecycle:
+    - active

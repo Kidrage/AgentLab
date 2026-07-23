@@ -1,0 +1,55 @@
+schema_version: 1
+
+archive_root: archive/run_history
+protect_marker: .agentlab_keep
+protect_statuses:
+  - new
+  - created
+  - ready
+  - running
+  - in_progress
+  - queued
+  - waiting
+  - paused
+  - blocked
+  - recoverable
+
+archive_name_patterns:
+  - "*_mock_*"
+  - "*_mock"
+  - "task_probe_*"
+  - "task_route_test_*"
+  - "task_init_shell_*"
+  - "task_live_model_probe_*"
+  - "goalcheck_*"
+
+project_overrides:
+  AgentLab:
+    archive_name_patterns:
+      - "cli_*test*"
+      - "gate_test_*"
+      - "task_*smoke*"
+      - "task_capability_boundary_*"
+      - "task_cleanup_refactor_demo"
+      - "task_debug_*"
+      - "task_eval_*"
+      - "task_live_*"
+      - "task_p2g_*"
+      - "task_pack_candidate_*"
+      - "task_package_import_probe_*"
+      - "task_prepare_frugal_*"
+      - "task_production_pack_*"
+      - "task_pytest_*"
+  Crown_of_Ash:
+    archive_name_patterns:
+      - "task_crown_agentlab_write_*"
+      - "task_0002_crown-of-ash-1-20"
+      - "task_0003_crown-of-ash"
+      - "task_0006_crown-of-ash-1-20"
+    protect_name_patterns:
+      - "task_narrative_eval_ch*_crown_complete_local_v1"
+      - "task_narrative_eval_ch*_crown_corrected_200_v3_writer"
+      - "task_narrative_heavy_audit_*crown_complete_local_v1"
+      - "task_narrative_heavy_audit_*crown_corrected*"
+      - "task_narrative_rewrite_plan_*"
+      - "task_crown_corrected_200_v3_shared"

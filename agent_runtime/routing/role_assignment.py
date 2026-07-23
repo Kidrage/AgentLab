@@ -21,7 +21,10 @@ from agent_runtime.routing.route_decision import (
 )
 from agent_runtime.protocols import check_role_binding
 from agent_runtime.workers.detector import DEFAULT_CANDIDATES
-from agent_runtime.workers.performance_ledger import PerformanceLedger
+from agent_runtime.workers.performance_ledger import (
+    PerformanceLedger,
+    default_performance_ledger_path,
+)
 from agent_runtime.workers.registry import WorkerRegistry
 from agent_runtime.workers.worker_card import WorkerCard
 
@@ -39,8 +42,11 @@ class RoleAssignmentEngine:
         self.compatibility = CompatibilityChecker(self.schema, self.roles, self.capabilities)
         self.fallback_policy = WorkerFallbackPolicy(self.root / "config" / "worker_fallback_policy.yml")
         self.mode_tier_policy = ModeTierWorkerPolicy(self.root / "config" / "mode_tier_worker_policy.yml")
-        self.performance = PerformanceLedger(self.root / "config" / "worker_performance_ledger.yml")
+        self.performance = PerformanceLedger(default_performance_ledger_path(self.root))
         self.assignment_policy = self._load_yaml(self.root / "config" / "role_assignment_policy.yml")
+        from agent_runtime.approvals.approval_policy import load_approval_policy
+
+        self.approval_policy = load_approval_policy(self.root)
         self.worker_cards = {
             item["worker_id"]: WorkerCard.from_dict({
                 **item,
@@ -84,6 +90,7 @@ class RoleAssignmentEngine:
         self,
         role: str,
         *,
+        artifact_type: str | None = None,
         project_id: str = "AgentLab",
         phase_id: str = "unknown",
         task_id: str = "ad_hoc_route",
@@ -98,6 +105,97 @@ class RoleAssignmentEngine:
         if not role_req:
             raise ValueError(f"Unknown role: {role}")
 
+        normalized_role = _normalize_role(role)
+        normalized_artifact_type = str(artifact_type or "").strip().lower()
+        artifact_expected_worker: str | None = None
+        artifact_provider_id: str | None = None
+        artifact_required_capabilities: list[str] = []
+
+        def blocked_artifact_assignment(
+            activation_decision: str,
+            reason: str,
+            required_capabilities: list[str],
+        ) -> RouteDecision:
+            return RouteDecision(
+                project_id=project_id,
+                phase_id=phase_id,
+                task_id=task_id,
+                role=role,
+                selected_worker=None,
+                selected_command=None,
+                selection_reason=[reason],
+                required_capabilities=required_capabilities,
+                activation_decision=activation_decision,
+                mode=mode,
+                tier=tier,
+                constraints=RouteConstraints(**(constraints or {})),
+            )
+
+        if normalized_role == "artifactproducer":
+            base_required = list(role_req.required_capabilities)
+            if not normalized_artifact_type:
+                return blocked_artifact_assignment(
+                    "blocked_artifact_type_required",
+                    (
+                        "ArtifactProducer is dynamically dispatched by artifact type; "
+                        "generic assignment is not executable."
+                    ),
+                    base_required,
+                )
+
+            artifact_policy = self._load_yaml(
+                self.root / "config" / "artifact_task_policy.yml"
+            )
+            artifact_types = artifact_policy.get("artifact_types") or {}
+            if normalized_artifact_type not in artifact_types:
+                return blocked_artifact_assignment(
+                    "blocked_artifact_type_invalid",
+                    f"unknown ArtifactProducer artifact type: {normalized_artifact_type}",
+                    base_required,
+                )
+
+            from agent_runtime.protocols.artifact_task import (
+                capabilities_for_artifact_type,
+                route_artifact_provider,
+            )
+
+            artifact_required_capabilities = list(
+                dict.fromkeys(
+                    [
+                        *capabilities_for_artifact_type(
+                            self.root,
+                            normalized_artifact_type,
+                        ),
+                        *(extra_required_capabilities or []),
+                    ]
+                )
+            )
+            provider_route = route_artifact_provider(
+                self.root,
+                normalized_artifact_type,
+                required_capabilities=artifact_required_capabilities,
+            )
+            selected_provider = provider_route.get("selected") or {}
+            artifact_expected_worker = str(
+                selected_provider.get("worker") or ""
+            ).strip() or None
+            artifact_provider_id = str(
+                selected_provider.get("provider_id") or ""
+            ).strip() or None
+            if provider_route.get("status") != "routed" or not artifact_expected_worker:
+                return blocked_artifact_assignment(
+                    "blocked_artifact_capability_mismatch",
+                    (
+                        "no configured provider satisfies ArtifactProducer type "
+                        f"{normalized_artifact_type} and required capabilities"
+                    ),
+                    list(
+                        dict.fromkeys(
+                            [*base_required, *artifact_required_capabilities]
+                        )
+                    ),
+                )
+
         from agent_runtime.control_panel.state import ControlState
         control_state = ControlState(self.root)
         
@@ -109,7 +207,11 @@ class RoleAssignmentEngine:
 
         required = list(dict.fromkeys([
             *role_req.required_capabilities,
-            *(extra_required_capabilities or []),
+            *(
+                artifact_required_capabilities
+                if normalized_role == "artifactproducer"
+                else (extra_required_capabilities or [])
+            ),
         ]))
         available = (
             set(available_workers)
@@ -131,10 +233,6 @@ class RoleAssignmentEngine:
             if control_state.is_disabled("workers", worker_id):
                 rejected.append(RejectedWorker(worker_id, "disabled in control panel"))
                 continue
-                
-            if worker_id == forced_worker:
-                eligible.append((worker_id, -1000))
-                continue
             card = self.worker_cards.get(worker_id)
             if not card:
                 rejected.append(RejectedWorker(worker_id, "worker is not registered"))
@@ -142,6 +240,18 @@ class RoleAssignmentEngine:
             binding_allowed, binding_reason = check_role_binding(self.root, worker_id, role)
             if not binding_allowed:
                 rejected.append(RejectedWorker(worker_id, f"protocol binding rejected: {binding_reason}"))
+                continue
+            if artifact_expected_worker and worker_id != artifact_expected_worker:
+                rejected.append(
+                    RejectedWorker(
+                        worker_id,
+                        (
+                            "ArtifactTask provider policy rejected worker: "
+                            f"{artifact_provider_id} requires {artifact_expected_worker} "
+                            f"for {normalized_artifact_type}"
+                        ),
+                    )
+                )
                 continue
             if worker_id not in available:
                 rejected.append(RejectedWorker(worker_id, "worker is unavailable"))
@@ -157,7 +267,7 @@ class RoleAssignmentEngine:
             if not permitted:
                 rejected.append(RejectedWorker(worker_id, reason))
                 continue
-            eligible.append((worker_id, index))
+            eligible.append((worker_id, -1000 if worker_id == forced_worker else index))
 
         if not eligible:
             return RouteDecision(
@@ -179,11 +289,24 @@ class RoleAssignmentEngine:
 
         selected, _ = min(eligible, key=lambda item: self._score(item[0], role, item[1]))
         card = self.worker_cards[selected]
-        approval_required, approval_reasons = ApprovalGate(self.compatibility).evaluate(
+        approval_decision = ApprovalGate(
+            self.compatibility,
+            self.approval_policy,
+        ).evaluate_decision(
             card,
             role,
             approved_workers=approved,
+            request_context={
+                "project": project_id,
+                "task_id": task_id,
+                "bounded_scope": True,
+                "scope_binding": "runtime_recheck",
+                "runtime_recheck_required": True,
+                "allowed_files": (constraints or {}).get("allowed_files", []),
+            },
         )
+        approval_required = approval_decision.requires_human
+        approval_reasons = list(approval_decision.reasons)
         fallback_candidates = self.fallback_policy.fallbacks(role, selected)
         eligible_ids = {worker for worker, _ in eligible}
         fallbacks = [worker for worker in fallback_candidates if worker in eligible_ids]
@@ -211,6 +334,8 @@ class RoleAssignmentEngine:
             required_capabilities=required,
             risk_level=card.risk_level,
             approval_required=approval_required,
+            approval_mode=approval_decision.mode,
+            approval_grant=approval_decision.grant,
             approval_reasons=approval_reasons,
             activation_decision="require_approval" if approval_required else "activate",
             mode=mode,

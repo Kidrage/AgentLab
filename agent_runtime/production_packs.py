@@ -51,13 +51,13 @@ def build_production_pack(
         and selected.get("pack_id") == "generic_artifact"
         and _should_synthesize_pack(catalog, route_key, project_type, task_domain, artifact_type)
     ):
-        return _synthesis_candidate(catalog, route_key, project_type, task_domain, artifact_type, agents)
+        return _synthesis_candidate(catalog, route_key, project_type, task_domain, artifact_type)
     if selected is None:
         if _should_synthesize_pack(catalog, route_key, project_type, task_domain, artifact_type):
-            return _synthesis_candidate(catalog, route_key, project_type, task_domain, artifact_type, agents)
+            return _synthesis_candidate(catalog, route_key, project_type, task_domain, artifact_type)
         selected = _fallback_pack(packs, route_key, agents, task_domain, artifact_type)
     if selected is None:
-        return _synthesis_candidate(catalog, route_key, project_type, task_domain, artifact_type, agents)
+        return _synthesis_candidate(catalog, route_key, project_type, task_domain, artifact_type)
 
     return _pack_summary(
         catalog,
@@ -178,6 +178,30 @@ def _pack_summary(
     agents: list[str],
     status: str,
 ) -> dict[str, Any]:
+    route_contracts = pack.get("route_contracts") or {}
+    route_contract = (
+        route_contracts.get(route_key) or {}
+        if isinstance(route_contracts, dict)
+        else {}
+    )
+    role_contracts = route_contract.get("roles") or {}
+    role_contracts = role_contracts if isinstance(role_contracts, dict) else {}
+    required_outputs = list(route_contract.get("required_outputs") or [])
+    output_owners = dict(route_contract.get("output_owners") or {})
+    if not required_outputs:
+        for role, contract in role_contracts.items():
+            if not isinstance(contract, dict):
+                continue
+            for output in contract.get("required_outputs") or []:
+                output_name = str(output)
+                if output_name not in required_outputs:
+                    required_outputs.append(output_name)
+                output_owners.setdefault(output_name, str(role))
+    if not required_outputs:
+        required_outputs = list(pack.get("required_outputs") or [])
+    for output, owner in (pack.get("output_owners") or {}).items():
+        output_owners.setdefault(str(output), str(owner))
+
     return {
         "schema_version": 1,
         "status": status,
@@ -192,7 +216,10 @@ def _pack_summary(
         "core_runtime": list(catalog.get("core_runtime") or []),
         "lifecycle_nodes": list(pack.get("lifecycle_nodes") or []),
         "domain_phases": list(pack.get("domain_phases") or []),
-        "required_outputs": list(pack.get("required_outputs") or []),
+        "required_outputs": required_outputs,
+        "output_owners": output_owners,
+        "role_contracts": role_contracts,
+        "memory_records": list(route_contract.get("memory_records") or []),
         "memory_contract": list(pack.get("memory_contract") or []),
         "quality_gates": list(pack.get("quality_gates") or []),
         "synthesis_policy": dict(catalog.get("pack_synthesis_policy") or {}),
@@ -205,10 +232,9 @@ def _synthesis_candidate(
     project_type: str,
     task_domain: str,
     artifact_type: str,
-    agents: list[str],
 ) -> dict[str, Any]:
     policy = dict(catalog.get("pack_synthesis_policy") or {})
-    synthesis_agents = _ordered_synthesis_agents(agents)
+    synthesis_agents = list(policy.get("agents") or [])
     return {
         "schema_version": 1,
         "status": "synthesis_candidate",
@@ -245,7 +271,3 @@ def _synthesis_candidate(
         "synthesis_policy": policy,
         "required_outputs": list(policy.get("required_outputs") or []),
     }
-
-
-def _ordered_synthesis_agents(existing: list[str]) -> list[str]:
-    return ["Supervisor", "Researcher", "ArtifactProducer", "Verifier"]

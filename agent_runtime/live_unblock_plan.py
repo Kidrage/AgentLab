@@ -11,14 +11,17 @@ try:
     from audit_helpers import (
         normalize_trusted_pending_live_smoke_item,
         role_session_execution_boundary,
-        selected_collect_metadata_by_item,
     )
 except ModuleNotFoundError:
     from agent_runtime.audit_helpers import (
         normalize_trusted_pending_live_smoke_item,
         role_session_execution_boundary,
-        selected_collect_metadata_by_item,
     )
+
+try:
+    from agent_runtime.run_retention import resolve_run_dir
+except ModuleNotFoundError:  # pragma: no cover - direct script path
+    from run_retention import resolve_run_dir
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -83,26 +86,31 @@ def _writer_route_ready(root: Path) -> dict[str, Any]:
     model_key = str(writer.get("default") or "")
     model = ((catalog.get("models") or {}).get(model_key) or {})
     route_ready = (
-        writer.get("cli_agent") == "agy"
-        and writer.get("invocation_contract") == "agy_writer"
-        and model_key == "gemini_3_5_flash_high_agy_oauth"
-        and model.get("provider") == "agy_gemini_oauth"
-        and _role_worker_binding_ok(root, "Writer", "agy")
+        writer.get("executor_type") == "cli_agent"
+        and writer.get("cli_agent") == "claude_code"
+        and writer.get("invocation_contract") == "claude_writer"
+        and writer.get("capacity_route") == "Writer"
+        and model_key == "deepseek_v4_pro"
+        and model.get("provider") == "deepseek_official"
+        and model.get("model_id") == "deepseek-v4-pro"
+        and _role_worker_binding_ok(root, "Writer", "claude_code")
     )
-    auth = _probe_worker_auth("agy")
+    auth = _probe_worker_auth("claude_code")
     return {
         "ready": route_ready,
         "auth_probe": auth,
-        "worker": "agy",
+        "worker": "claude_code",
+        "invocation_contract": writer.get("invocation_contract"),
+        "capacity_route": writer.get("capacity_route"),
         "model_key": model_key,
         "model_provider": model.get("provider"),
+        "model_runtime_provider": model.get("runtime_provider"),
     }
 
 
 def _current_return_status(
     trusted_items: dict[str, dict[str, Any]],
     item_id: str,
-    selected_collect: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     item = trusted_items.get(item_id, {})
     if item:
@@ -122,10 +130,13 @@ def _current_return_status(
         "returned_candidate_artifacts_accepted": accepted,
         "acceptance_blocker": blocker,
         "next_action": item.get("next_action"),
+        "selected_item_collect_status": (
+            "pass"
+            if item.get("status") == "pass" and accepted
+            else "pending_selected_item"
+        ),
+        "selected_item_accepted": item.get("status") == "pass" and accepted,
     }
-    selected = (selected_collect or {}).get(item_id, {})
-    if selected:
-        current.update(selected)
     return current
 
 
@@ -137,13 +148,23 @@ def _selected_command(package: dict[str, Any], command_group: str, fallback: str
 
 def build_live_unblock_plan(root: Path) -> dict[str, Any]:
     root = root.resolve()
-    capability_report = _read_yaml(root / "acceptance_runs" / "agentlab_capability_acceptance" / "current.yml")
-    trusted_status = _read_yaml(root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_status.yml")
-    trusted_collect = _read_yaml(root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_collect.yml")
-    trusted_request = _read_yaml(root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_request.yml")
-    trusted_operator_handoff = _read_yaml(
-        root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_operator_handoff.yml"
+    media_source_run = resolve_run_dir(
+        root,
+        "Crown_of_Ash",
+        "task_probe_crown_comic_video_poster_series_scaffold_20260707",
     )
+    media_contract_path = media_source_run / "media_generation_contract.yml"
+    try:
+        media_contract = str(media_contract_path.relative_to(root))
+    except ValueError:
+        media_contract = str(media_contract_path)
+    media_acceptance_task = "task_media_role_session_acceptance_<id>"
+    media_acceptance_out = (
+        f"projects/Crown_of_Ash/runs/{media_acceptance_task}"
+        "/artifacts/media_backend_live_internal_<id>"
+    )
+    trusted_status = _read_yaml(root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_status.yml")
+    trusted_request = _read_yaml(root / "acceptance_runs" / "agentlab_capability_acceptance" / "trusted_live_runner_request.yml")
     internal_readiness = _read_yaml(
         root / "acceptance_runs" / "agentlab_capability_acceptance" / "internal_live_readiness.yml"
     )
@@ -152,25 +173,33 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
         if isinstance(trusted_request.get("local_runner_package"), dict)
         else {}
     )
-    selected_collect = selected_collect_metadata_by_item(trusted_collect)
-    trusted_items = {
-        str(item.get("id")): item
-        for item in trusted_status.get("items", [])
-        if isinstance(item, dict) and item.get("id")
-    }
-    capabilities = {
-        item.get("id"): item
-        for item in capability_report.get("capabilities", [])
-        if isinstance(item, dict)
-    }
-    grok_preflight = _read_yaml(root / "acceptance_runs" / "agentlab_capability_acceptance" / "grok_media_preflight_current.yml")
+    trusted_status_request_current = (
+        bool(trusted_request.get("request_id"))
+        and trusted_status.get("request_id") == trusted_request.get("request_id")
+    )
+    trusted_items = (
+        {
+            str(item.get("id")): item
+            for item in trusted_status.get("items", [])
+            if isinstance(item, dict) and item.get("id")
+        }
+        if trusted_status_request_current
+        else {}
+    )
+    grok_preflight_path = (
+        root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "grok_media_preflight_current.yml"
+    )
+    grok_preflight = _read_yaml(grok_preflight_path)
     media_backend_config = _read_yaml(root / "config" / "media_generation_backends.yml")
     crown_error = _read_yaml(
-        root
-        / "projects"
-        / "Crown_of_Ash"
-        / "runs"
-        / "task_narrative_eval_ch01_live_ch01_retry_20260707_1118"
+        resolve_run_dir(
+            root,
+            "Crown_of_Ash",
+            "task_narrative_eval_ch01_live_ch01_retry_20260707_1118",
+        )
         / "live_generation_error.yml"
     )
     crown_policy = _read_yaml(
@@ -200,6 +229,21 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
     ]
     accepted_env = [str(item) for item in accepted_env if item]
     writer_route = _writer_route_ready(root)
+    writer_evidence = [
+        str(root / "config" / "agent_model_profiles.yml"),
+        str(root / "config" / "model_catalog.yml"),
+        str(root / "config" / "agent_role_bindings.yml"),
+        str(root / "config" / "worker_invocation_contracts.yml"),
+        str(root / "config" / "model_capacity.yml"),
+    ]
+    media_evidence = [
+        str(media_contract_path),
+        str(grok_preflight_path),
+        str(root / "config" / "media_generation_backends.yml"),
+        str(root / "config" / "agent_role_bindings.yml"),
+        str(root / "config" / "worker_invocation_contracts.yml"),
+        str(root / "agent_runtime" / "media_backend_adapter.py"),
+    ]
     media_backend = grok_preflight.get("backend", {}) if isinstance(grok_preflight.get("backend"), dict) else {}
     configured_media_backend = (
         ((media_backend_config.get("backends") or {}).get(str(grok_preflight.get("backend_id") or "")) or {})
@@ -229,11 +273,11 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
         {
             "id": "run_crown_internal_writer_eval",
             "capability_id": "crown_formal_live_narrative_eval",
+            "agentlab_execution_owner": "Writer",
             "status": "ready" if writer_route.get("ready") else "needs_configuration",
             "current_return": _current_return_status(
                 trusted_items,
                 "run_crown_internal_writer_eval",
-                selected_collect,
             ),
             "required_operator_action": "Submit the formal Crown single-chapter live eval as an AgentLab Writer role-session and monitor run-local artifacts.",
             "risk": "Private Crown context is used inside the configured AgentLab Writer workflow; generated prose remains candidate-only until promotion.",
@@ -244,8 +288,8 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
                 "error": crown_error.get("error"),
                 "policy_status": crown_policy.get("status"),
             },
-            "agentlab_command": "./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp <internal_live_run_id> --writer-worker agy",
-            "safe_command_after_approval": "./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp <internal_live_run_id> --writer-worker agy",
+            "agentlab_command": "./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp <internal_live_run_id> --writer-worker claude_code",
+            "safe_command_after_approval": "./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707 --mode live --chapters 1 --timestamp <internal_live_run_id> --writer-worker claude_code",
             "trusted_runner_command": _selected_command(
                 local_runner_package,
                 "selective_run_examples",
@@ -261,16 +305,16 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
                 "do not run live narrative eval without Writer role-session evidence",
                 "do not run broad 1-20 or 1500-chapter live generation before one approved single-chapter pass",
             ],
-            "evidence": capabilities.get("crown_formal_live_narrative_eval", {}).get("evidence", []),
+            "evidence": writer_evidence,
         },
         {
             "id": "run_crown_internal_media_smoke",
             "capability_id": "grok_xai_media_backend",
+            "agentlab_execution_owner": "ArtifactProducer",
             "status": "ready" if media_route_ready else "needs_configuration",
             "current_return": _current_return_status(
                 trusted_items,
                 "run_crown_internal_media_smoke",
-                selected_collect,
             ),
             "required_operator_action": "Submit the Crown media role-session acceptance smoke through the AgentLab ArtifactProducer role-session and monitor run-local candidate artifacts.",
             "accepted_env": accepted_env,
@@ -286,12 +330,12 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
                 "local_cli_available": local_cli_check.get("status"),
             },
             "agentlab_commands": [
-                "./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml",
-                "./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml --out-dir projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_<id> --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_probe_crown_comic_video_poster_series_scaffold_20260707",
+                f"./agentlab.sh media-backend-preflight --contract {media_contract} --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml",
+                f"./agentlab.sh media-backend-execute --contract {media_contract} --out-dir {media_acceptance_out} --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id {media_acceptance_task}",
             ],
             "safe_commands_after_approval": [
-                "./agentlab.sh media-backend-preflight --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml",
-                "./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml --out-dir projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/media_backend_live_internal_<id> --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_probe_crown_comic_video_poster_series_scaffold_20260707",
+                f"./agentlab.sh media-backend-preflight --contract {media_contract} --out acceptance_runs/agentlab_capability_acceptance/grok_media_preflight_current.yml",
+                f"./agentlab.sh media-backend-execute --contract {media_contract} --out-dir {media_acceptance_out} --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id {media_acceptance_task}",
             ],
             "trusted_runner_command": _selected_command(
                 local_runner_package,
@@ -308,7 +352,8 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
                 "do not run media-backend-execute --live without ArtifactProducer role-session evidence",
                 "do not promote generated media without QC or human acceptance",
             ],
-            "evidence": capabilities.get("grok_xai_media_backend", {}).get("evidence", []),
+            "evidence": media_evidence,
+            "source_contract_is_read_only_retained_evidence": "archive/run_history" in media_contract,
         },
     ]
     ready_items = [item for item in items if item["status"] == "ready"]
@@ -343,13 +388,15 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
         "terminology": _acceptance_smoke_terminology(),
         "role_session_execution_boundary": role_session_execution_boundary(
             trusted_request,
-            trusted_operator_handoff,
+            {},
         ),
         "session_health_gate": {
             "status": internal_readiness.get("status") or "missing",
             "clean": not session_health_issue_ids,
             "issue_ids": session_health_issue_ids,
-            "writer_selected_item_can_run": "current_agy_session_health" not in session_health_issue_ids,
+            "writer_selected_item_can_run": (
+                "current_claude_writer_session_health" not in session_health_issue_ids
+            ),
             "media_selected_item_can_run": "current_grok_session_health" not in session_health_issue_ids,
             "interpretation": (
                 "live_unblock_plan.status describes route/plan readiness; "
@@ -366,7 +413,7 @@ def build_live_unblock_plan(root: Path) -> dict[str, Any]:
                 if pending_returns
                 else "refresh_promotion_or_human_acceptance_gate"
             ),
-            "selected_collect_reports_available": bool(selected_collect),
+            "trusted_status_request_current": trusted_status_request_current,
         },
         "items": items,
         "notes": [

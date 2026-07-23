@@ -8,8 +8,10 @@ from typing import Any
 import yaml
 
 try:
+    from agent_runtime.live_unblock_plan import build_live_unblock_plan
     from agent_runtime.report_sanitizer import write_report_yaml
 except ModuleNotFoundError:  # pragma: no cover - direct script path
+    from live_unblock_plan import build_live_unblock_plan
     from report_sanitizer import write_report_yaml
 
 
@@ -58,13 +60,25 @@ def _session_health_check(
     blocked_message: str,
     next_action: str,
 ) -> dict[str, Any]:
-    status = str(report.get("status") or "missing")
+    probe_error_class = str(report.get("error_class") or "").lower()
+    is_worker_probe = "worker_id" in report and "installed" in report
+    probe_passed = (
+        is_worker_probe
+        and report.get("installed") is True
+        and report.get("exit_code") == 0
+        and report.get("timeout") is not True
+        and probe_error_class in {"", "none"}
+    )
+    status = str(
+        report.get("status")
+        or ("pass" if probe_passed else "blocked" if is_worker_probe else "missing")
+    )
     passed = status == "pass"
     check = {
         "id": check_id,
         "status": "pass" if passed else "blocked",
         "session_smoke_status": status,
-        "command_available": report.get("command_available"),
+        "command_available": report.get("command_available", report.get("installed")),
         "command_path": report.get("command_path"),
         "created_at": report.get("created_at"),
         "evidence_interpretation": report.get("evidence_interpretation")
@@ -72,8 +86,18 @@ def _session_health_check(
     }
     if report.get("reason"):
         check["reason"] = report.get("reason")
+    elif is_worker_probe and not passed:
+        check["reason"] = probe_error_class or "claude_writer_probe_missing_or_invalid"
+    elif not passed:
+        check["reason"] = "session_health_report_missing_or_invalid"
     if not passed:
         check["next_action"] = next_action
+    if is_worker_probe:
+        check["worker_id"] = report.get("worker_id")
+        check["installed"] = report.get("installed")
+        check["exit_code"] = report.get("exit_code")
+        check["timeout"] = report.get("timeout")
+        check["error_class"] = report.get("error_class")
     for key in (
         "cli_entrypoint_available",
         "local_cli_entrypoint_available",
@@ -119,47 +143,53 @@ def _session_health_check(
 def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
     """Legacy entrypoint that now returns the canonical internal-live readiness report."""
     root = root.resolve()
-    objective_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "objective_requirement_audit.yml"
     unblock_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "live_unblock_plan.yml"
     handoff_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "frontdesk_live_handoff.yml"
-    agy_smoke_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "agy_cli_session_smoke.yml"
+    claude_writer_probe_path = (
+        root
+        / "acceptance_runs"
+        / "agentlab_capability_acceptance"
+        / "claude_writer_session_probe.yml"
+    )
     grok_smoke_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "grok_cli_session_smoke.yml"
-    objective = _read_yaml(objective_path)
-    unblock = _read_yaml(unblock_path)
+    unblock = build_live_unblock_plan(root)
     handoff = _read_yaml(handoff_path)
-    agy_smoke = _read_yaml(agy_smoke_path)
+    claude_writer_probe = _read_yaml(claude_writer_probe_path)
     grok_smoke = _read_yaml(grok_smoke_path)
     historical_policy_rejections = _historical_policy_rejections(root)
     unblock_items = [item for item in unblock.get("items", []) if isinstance(item, dict)]
-    objective_blockers = [
-        item
-        for item in objective.get("external_blockers", [])
-        if isinstance(item, dict)
-    ]
-
     crown = _item_by_id(unblock_items, "run_crown_internal_writer_eval") or _item_by_id(unblock_items, "approve_crown_external_writer_context")
+    if crown.get("id") == "run_crown_internal_writer_eval":
+        crown = dict(crown)
+        crown["assigned_worker"] = "claude_code"
+        for key in ("agentlab_command", "safe_command_after_approval"):
+            if crown.get(key):
+                crown[key] = str(crown[key]).replace(
+                    "--writer-worker agy",
+                    "--writer-worker claude_code",
+                )
     media = _item_by_id(unblock_items, "run_crown_internal_media_smoke") or _item_by_id(unblock_items, "approve_crown_media_grok_oauth_context")
     crown_evidence = [str(path) for path in crown.get("evidence", []) if path]
     media_evidence = [str(path) for path in media.get("evidence", []) if path]
 
     checks = [
         {
-            "id": "objective_has_no_active_external_blockers",
+            "id": "internal_role_routes_own_execution",
             "status": "pass"
-            if objective
-            and not objective_blockers
-            and objective.get("status")
-            in {"partial", "complete", "blocked_external_input_required", "blocked_external_policy", "fail"}
+            if unblock.get("workflow_boundary") == "internal_agentlab_role_sessions"
+            and crown.get("agentlab_execution_owner") == "Writer"
+            and media.get("agentlab_execution_owner") == "ArtifactProducer"
             else "fail",
-            "objective_status": objective.get("status"),
-            "status_counts": objective.get("status_counts"),
-            "external_blockers": objective_blockers,
+            "workflow_boundary": unblock.get("workflow_boundary"),
         },
         {
             "id": "crown_writer_internal_route_ready",
             "status": "pass"
             if crown.get("status") == "ready"
             and "narrative-eval run" in str(crown.get("agentlab_command") or crown.get("safe_command_after_approval", ""))
+            and "--writer-worker claude_code" in str(
+                crown.get("agentlab_command") or crown.get("safe_command_after_approval", "")
+            )
             and any("do not run broad" in str(item) for item in crown.get("must_not_do", []))
             and _evidence_health(crown_evidence).get("status") == "pass"
             else "fail",
@@ -185,7 +215,6 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
             "id": "secret_values_not_rendered",
             "status": "pass"
             if not _contains_secret_text(unblock)
-            and not _contains_secret_text(objective)
             and not _contains_secret_text(handoff)
             else "fail",
         },
@@ -220,14 +249,11 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
     ]
     session_health_checks = [
         _session_health_check(
-            agy_smoke,
-            check_id="current_agy_session_health",
-            healthy_message="The current non-private agy session smoke can start the local CLI worker.",
-            blocked_message=(
-                "The current non-private agy session smoke reaches the CLI, but this runtime blocks "
-                "agy's localhost language-server bind."
-            ),
-            next_action="rerun_from_user_terminal_or_trusted_agentlab_runtime_that_allows_localhost_bind",
+            claude_writer_probe,
+            check_id="current_claude_writer_session_health",
+            healthy_message="The current non-private Claude Writer contract probe can start the Claude CLI.",
+            blocked_message="The current non-private Claude Writer contract probe is missing or did not pass.",
+            next_action="rerun_claude_writer_contract_probe_from_the_trusted_agentlab_runtime",
         ),
         _session_health_check(
             grok_smoke,
@@ -260,18 +286,16 @@ def build_external_acceptance_readiness(root: Path) -> dict[str, Any]:
         "root": str(root),
         "status": status,
         "source_reports": {
-            "objective_requirement_audit": str(objective_path),
             "live_unblock_plan": str(unblock_path),
             "frontdesk_live_handoff": str(handoff_path),
-            "agy_cli_session_smoke": str(agy_smoke_path),
+            "claude_writer_session_probe": str(claude_writer_probe_path),
             "grok_cli_session_smoke": str(grok_smoke_path),
         },
         "source_report_health": _evidence_health(
             [
-                str(objective_path),
                 str(unblock_path),
                 str(handoff_path),
-                str(agy_smoke_path),
+                str(claude_writer_probe_path),
                 str(grok_smoke_path),
             ]
         ),

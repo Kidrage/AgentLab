@@ -79,6 +79,90 @@ def test_events_endpoint_returns_task_events(tmp_path: Path, monkeypatch) -> Non
     assert payload["events"][0]["event"] == "TASK_CREATED"
 
 
+def test_status_uses_resolved_workflow_model_profiles(tmp_path: Path, monkeypatch) -> None:
+    run_dir = _setup_run(tmp_path)
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "agent_registry.yml").write_text(
+        yaml.safe_dump(
+            {
+                "agents": {
+                    "Supervisor": {"role": "route owner", "execution_owner": "agentlab"},
+                    "Coder": {"role": "implementation", "execution_owner": "worker"},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "task_snapshot.yml").write_text(
+        yaml.safe_dump({"route": ["Supervisor", "Coder"], "status": "planned"}),
+        encoding="utf-8",
+    )
+    (run_dir / "workflow_plan.yml").write_text(
+        yaml.safe_dump(
+            {
+                "execution_backend": "agentlab_orchestrated_cli",
+                "route": {"agents": ["Supervisor", "Coder"]},
+                "model_profiles": {
+                    "Supervisor": {"cli_agent": "hermes", "model": "model-supervisor"},
+                    "Coder": {"cli_agent": "claude_code", "model": "model-coder"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    _patch_root(monkeypatch, tmp_path)
+
+    payload = web_server.handle_get_status("Demo", "task_0001")
+
+    assert payload["workflowDriver"] == "agentlab_orchestrated_cli"
+    assert [(agent["provider"], agent["model"]) for agent in payload["agents"]] == [
+        ("hermes", "model-supervisor"),
+        ("claude_code", "model-coder"),
+    ]
+    assert "coderProvider" not in payload
+    assert "brainProvider" not in payload
+
+
+def test_project_overview_uses_canonical_default_workflow_driver(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "execution_modes.yml").write_text(
+        yaml.safe_dump({"default_mode": "agentlab_orchestrated_cli"}),
+        encoding="utf-8",
+    )
+    _patch_root(monkeypatch, tmp_path)
+
+    payload = web_server.handle_get_status("Demo", "")
+
+    assert payload["taskStatus"] == "no_task"
+    assert payload["workflowDriver"] == "agentlab_orchestrated_cli"
+
+
+def test_web_project_creation_uses_current_config_and_artifact_layout(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _patch_root(monkeypatch, tmp_path)
+
+    payload = web_server.handle_create_project({"projectName": "NewProject"})
+
+    assert payload["success"] is True
+    project_root = tmp_path / "projects" / "NewProject"
+    assert (project_root / "production").is_dir()
+    assert (project_root / "archive").is_dir()
+    config = yaml.safe_load(
+        (project_root / "project_config.yml").read_text(encoding="utf-8")
+    )
+    assert config["paths"]["production"] == "production"
+    assert config["paths"]["archive"] == "archive"
+    assert config["global_config"]["agent_model_profiles"].endswith(
+        "config/agent_model_profiles.yml"
+    )
+    assert "model_profiles" not in config["global_config"]
+
+
 def test_decisions_endpoint_returns_pending_cards(tmp_path: Path, monkeypatch) -> None:
     run_dir = _setup_run(tmp_path)
     create_decision_card(

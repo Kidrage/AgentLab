@@ -17,30 +17,34 @@ components:
     install_source: Hermes Agent upstream installer
     version_probe: hermes --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker hermes
-    live_smoke: hermes --provider openai-codex -m gpt-5.5 -z "Return AGENTLAB_HERMES_CODEX_SMOKE_OK only."
-    notes: Full CLI Supervisor shell; provider and model are command-bound by the invocation contract.
+    live_smoke: hermes -p agentlabsupervisor chat -Q --provider openai-codex -m gpt-5.6-sol --ignore-rules --max-turns 6 -q "Return AGENTLAB_HERMES_CODEX_SMOKE_OK only."
+    capacity_probe: hermes auth status openai-codex
+    forbidden_probe: hermes status --all
+    notes: General workflow/frontdesk shell. The retained hermes_supervisor contract is legacy diagnostic evidence and is not an allowed default Supervisor route.
   claude_code:
     kind: agent_cli
     release_requirement: required
     command: claude
     auth_mode: shell_managed_private_configuration
-    model_binding: shell_configuration
+    model_binding: command_template
     install_source: npm package @anthropic-ai/claude-code
     version_probe: claude --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker claude
-    live_smoke: claude -p "Return AGENTLAB_CLAUDE_SMOKE_OK only."
-    notes: Deep code shell; verify its private settings select the intended provider/model because the generic contract does not append model flags.
+    live_smoke: claude --model deepseek-v4-pro --effort max --max-budget-usd 0.01 --permission-mode plan --output-format json --tools "" -p "Return AGENTLAB_CLAUDE_WRITER_SMOKE_OK only."
+    notes: Claude owns the default RepoScout, InterfaceMapper, TesterAuditor, and Verifier DeepSeek routes plus Writer and the full-tier DeepSeek NarrativePlanner. The default performance NarrativePlanner is a separate Agy subscription route. Writer/planner specialized contracts retain native JSON usage, sealed packets, and hard CLI budgets; Ultracode remains opt-in and never final prose.
   codex:
     kind: agent_cli
     release_requirement: required
     command: codex
     auth_mode: local_oauth_session
-    model_binding: shell_configuration
+    model_binding: command_template
     install_source: OpenAI Codex standalone updater or npm package @openai/codex
     version_probe: codex --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker codex
-    live_smoke: codex exec --json "Return AGENTLAB_CODEX_SMOKE_OK only."
-    notes: Coding worker; its native model remains shell-managed unless a model-aware contract is selected.
+    live_smoke: codex exec --json --model gpt-5.6-sol -c 'model_reasoning_effort="xhigh"' "Return AGENTLAB_CODEX_SMOKE_OK only."
+    capacity_source: config/model_capacity.yml
+    capacity_probe: codex --version
+    notes: Native default Supervisor and optional code-analysis worker. The Supervisor alone is explicitly bound here to gpt-5.6-sol/xhigh; do not generalize that binding to every Codex role or tier. Every Codex route must still use a Codex CLI provider/model identity and never borrow a DeepSeek or Hermes identity.
   qwen:
     kind: agent_cli
     release_requirement: required
@@ -50,8 +54,8 @@ components:
     install_source: npm package @qwen-code/qwen-code
     version_probe: qwen --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker qwen
-    live_smoke: qwen --bare --approval-mode default --output-format json "Return AGENTLAB_QWEN_SMOKE_OK only."
-    notes: General analysis and audit worker; provider/model selection is owned by the shell configuration.
+    live_smoke: qwen --bare --auth-type openai --openai-base-url https://dashscope.aliyuncs.com/compatible-mode/v1 --model qwen3.6-flash --approval-mode default --output-format json "Return AGENTLAB_QWEN_SMOKE_OK only."
+    notes: General analysis/audit worker and ArtifactTask backend for text, spreadsheet, and presentation ArtifactProducer outputs. Narrative heavy audit uses a dedicated sealed stdin contract with zero tool calls; private context requires explicit approval. Cross-provider mixed work remains blocked until a composite adapter exists, and provider/model selection is owned by the governed Qwen CLI route.
   agy:
     kind: agent_cli
     release_requirement: required
@@ -62,19 +66,13 @@ components:
     version_probe: agy --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker agy
     live_smoke: ./agentlab.sh agy-cli-smoke --live
-    quota_model_rotation:
-      from_model: gemini_3_5_flash_high_agy_oauth
-      to_model: claude_sonnet_4_6_agy_oauth
-      allowed_failure_classes: [quota_exhausted]
-      allowed_projects: [Crown_of_Ash]
-      quota_window: separate_5_hour_window
-      same_worker: agy
-      provider_surface_change_allowed: false
-      api_key_fallback_allowed: false
-    notes: Default Writer and ArtifactProducer shell is Gemini 3.5 Flash High over OAuth. Only for Crown_of_Ash after a quota_exhausted result, Writer may use Claude Sonnet 4.6 in the same Agy shell and its separate five-hour window. Never use GEMINI_API_KEY; ordinary rate limits, auth, network, command, schema, or content errors do not trigger rotation.
+    capacity_source: config/model_capacity.yml
+    capacity_probe: agy models
+    quota_visibility: failure_observation_only
+    notes: Multimodal Observer, isolated visual Reviewer, and the default performance NarrativePlanner use Gemini through the shared Agy subscription pool. The full-tier NarrativePlanner remains Claude/DeepSeek V4 Pro. Agy has no quota/status command, so remaining/reset stay unknown until provider error evidence; never use GEMINI_API_KEY.
   grok:
     kind: agent_cli_backend
-    release_requirement: optional_media
+    release_requirement: required_for_social_research_optional_for_media
     command: hermes
     auth_mode: hermes_xai_oauth_session
     model_binding: command_template
@@ -82,7 +80,9 @@ components:
     version_probe: hermes --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker grok
     live_smoke: ./agentlab.sh grok-cli-smoke --live
-    notes: Media-only ArtifactProducer backend; not a general AgentLab role shell.
+    capacity_probe: hermes auth status xai-oauth
+    forbidden_probe: hermes status --all
+    notes: Separate Researcher and image/video-only ArtifactProducer contracts share one dynamically observed xAI pool. Text model output is not an image asset and Grok cannot self-approve aesthetics.
   bl:
     kind: specialist_cli
     release_requirement: optional_specialist

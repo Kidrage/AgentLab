@@ -37,12 +37,23 @@ def build_media_generation_contract(
     policy_key = _policy_key(prompt, quality_target)
     configured_chain = _policy_chain(config, policy_key)
     fallback_chain = _filter_chain(configured_chain, backends, modality)
-    selected_backend = _select_ready_backend(fallback_chain, backends)
+    selected_backend, pending_capacity_backend = _select_ready_backend(fallback_chain, backends)
 
     approval = _approval_card(selected_backend, backends) if selected_backend else None
     pending = _pending_backends(fallback_chain, backends)
-    execution_blocker = _execution_blocker(selected_backend, backends, approval)
+    execution_blocker = _execution_blocker(
+        selected_backend,
+        backends,
+        approval,
+        pending_capacity_backend=pending_capacity_backend,
+    )
     executable = selected_backend is not None and execution_blocker is None
+    if pending_capacity_backend:
+        routing_status = "pending_capacity"
+    elif selected_backend:
+        routing_status = "selected"
+    else:
+        routing_status = "blocked"
 
     artifact_root = (
         f"projects/{project_id}/runs/{task_id}/artifacts/"
@@ -66,6 +77,7 @@ def build_media_generation_contract(
         "delivery_constraints": _delivery_constraints(prompt),
         "backend_policy": policy_key,
         "selected_backend": selected_backend,
+        "routing_status": routing_status,
         "executable": executable,
         "execution_blocker": execution_blocker,
         "fallback_chain": fallback_chain,
@@ -78,7 +90,9 @@ def build_media_generation_contract(
             "generation_ledger": f"{artifact_root}generation_ledger.yml",
             "media_qc_report": f"{artifact_root}media_qc_report.yml",
             "production_artifacts": (
-                f"projects/{project_id}/artifacts/" if project_id else "projects/<Project>/artifacts/"
+                f"projects/{project_id}/production/media/"
+                if project_id
+                else "projects/<Project>/production/media/"
             ),
         },
         "acceptance_gates": [
@@ -92,7 +106,11 @@ def build_media_generation_contract(
         ],
         "harness_rules": _harness_rules(selected_backend, backends),
         "no_backend_fallback": {
-            "action": "write_tool_handoff_and_route_proposal",
+            "action": (
+                "observe_capacity_then_retry"
+                if pending_capacity_backend
+                else "write_tool_handoff_and_route_proposal"
+            ),
             "do_not_fabricate_artifact": True,
         },
         "backend_contracts": {
@@ -129,7 +147,7 @@ def _filter_chain(
     for backend_id in chain:
         backend = backends.get(backend_id, {})
         modalities = backend.get("modalities", [])
-        if "mixed" in modalities or modality in modalities:
+        if modality in modalities:
             filtered.append(backend_id)
     return filtered
 
@@ -137,10 +155,12 @@ def _filter_chain(
 def _select_ready_backend(
     chain: list[str],
     backends: dict[str, dict[str, Any]],
-) -> str | None:
+) -> tuple[str | None, str | None]:
     first_ready: str | None = None
     for backend_id in chain:
         backend = backends.get(backend_id, {})
+        if backend.get("auth_state") == "unknown" and backend.get("capacity_source"):
+            return None, backend_id
         if backend.get("auth_state") != "ready":
             continue
         if first_ready is None:
@@ -151,15 +171,26 @@ def _select_ready_backend(
             continue
         if _missing_cli_commands(backend):
             continue
-        return backend_id
-    return first_ready
+        return backend_id, None
+    return first_ready, None
 
 
 def _execution_blocker(
     selected_backend: str | None,
     backends: dict[str, dict[str, Any]],
     approval: dict[str, Any] | None,
+    *,
+    pending_capacity_backend: str | None = None,
 ) -> dict[str, Any] | None:
+    if pending_capacity_backend:
+        backend = backends.get(pending_capacity_backend, {})
+        return {
+            "status": "capacity_pending",
+            "backend": pending_capacity_backend,
+            "capacity_source": backend.get("capacity_source"),
+            "reason": "Backend authentication/capacity is unknown and must be observed before route selection.",
+            "recommended_action": "observe_capacity_then_retry",
+        }
     if not selected_backend:
         return {
             "status": "no_ready_backend",
@@ -233,7 +264,7 @@ def _cli_command_names(backend: dict[str, Any]) -> list[str]:
         return [command]
     command_contract = backend.get("command_contract") if isinstance(backend.get("command_contract"), dict) else {}
     smoke = str(command_contract.get("session_smoke") or command_contract.get("oauth_smoke") or "").strip()
-    return [smoke.split()[0]] if smoke else ["grok"]
+    return [smoke.split()[0]] if smoke else []
 
 
 def _missing_cli_commands(backend: dict[str, Any]) -> list[str]:
@@ -284,6 +315,7 @@ def _public_backend_contract(backend: dict[str, Any]) -> dict[str, Any]:
         "cost_tier",
         "quota_policy",
         "auth_state",
+        "capacity_source",
         "adapter_state",
         "adapter_kind",
         "adapter_note",

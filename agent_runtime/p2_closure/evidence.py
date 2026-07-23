@@ -119,7 +119,7 @@ def write_review_verdict(
     }
 
     if output_path is None:
-        output_path = Path.cwd() / "review_verdict.yml"
+        output_path = Path.cwd() / ".agentlab" / "p2_closure" / "review_verdict.yml"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_yaml(output_path, data)
     return output_path
@@ -177,7 +177,7 @@ def write_provider_feedback(
     }
 
     if output_path is None:
-        output_path = Path.cwd() / "provider_feedback.yml"
+        output_path = Path.cwd() / ".agentlab" / "p2_closure" / "provider_feedback.yml"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_yaml(output_path, data)
     return output_path
@@ -235,7 +235,7 @@ def write_router_feedback(
     }
 
     if output_path is None:
-        output_path = Path.cwd() / "router_feedback.yml"
+        output_path = Path.cwd() / ".agentlab" / "p2_closure" / "router_feedback.yml"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_yaml(output_path, data)
     return output_path
@@ -259,7 +259,7 @@ def write_router_dry_run(
     }
 
     if output_path is None:
-        output_path = Path.cwd() / "router_update_dry_run.yml"
+        output_path = Path.cwd() / ".agentlab" / "p2_closure" / "router_update_dry_run.yml"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_yaml(output_path, data)
     return output_path
@@ -354,7 +354,7 @@ def write_revision_packet(
     ])
 
     if output_path is None:
-        output_path = Path.cwd() / "revision_packet.md"
+        output_path = Path.cwd() / ".agentlab" / "p2_closure" / "revision_packet.md"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(output_path, "\n".join(lines))
     return output_path

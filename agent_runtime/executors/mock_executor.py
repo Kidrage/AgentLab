@@ -3,8 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from agent_runtime.atomic_io import atomic_write_text, atomic_write_yaml
+from agent_runtime.executors.authorization import assert_execution_plan_authorized
 from agent_runtime.executors.ledger import record_execution_event
 from agent_runtime.executors.models import ExecutionPlan, ExecutionRequest, ExecutionResultEnvelope, to_plain_data
+from agent_runtime.executors.policy import load_executor_router_policy
 
 
 SAFE_ATTESTATION = {
@@ -21,7 +23,17 @@ def run_mock_executor(
     request: ExecutionRequest,
     plan: ExecutionPlan,
     output_dir: Path,
+    router_policy_path: Path | None = None,
 ) -> ExecutionResultEnvelope:
+    if plan.selected_provider_type != "mock_executor" or plan.execution_mode != "mock":
+        raise PermissionError("invalid_mock_executor_plan")
+    router_policy = load_executor_router_policy(router_policy_path)
+    assert_execution_plan_authorized(
+        request,
+        plan,
+        output_dir,
+        router_policy,
+    )
     mock_dir = output_dir / "mock_result"
     mock_dir.mkdir(parents=True, exist_ok=True)
     changed_files = request.allowed_files[:1] or ["tests/fixtures/p2_executor_router/mock_only.txt"]

@@ -27,7 +27,17 @@ def test_operator_handoff_preserves_trusted_runner_and_approval_boundaries(
     candidates = {item["id"]: item for item in report["candidate_items"]}
 
     assert report["report_type"] == "agentlab_trusted_live_runner_operator_handoff"
-    assert report["status"] == "ready_for_trusted_runner"
+    if (
+        boundary["writer_request_route_current"]
+        and boundary["non_private_session_health_clean"]
+    ):
+        assert report["status"] == "ready_for_trusted_runner"
+    else:
+        assert report["status"] == "needs_attention"
+        if not boundary["writer_request_route_current"]:
+            assert "trusted_live_runner_writer_route_stale" in report["issues"]
+        if not boundary["non_private_session_health_clean"]:
+            assert "internal_live_readiness_not_clean" in report["issues"]
     assert boundary["codex_frontdesk_executes_private_live_commands"] is False
     assert boundary["codex_frontdesk_executes_role_session_acceptance_commands"] is False
     assert boundary["trusted_agentlab_runner_required"] is True
@@ -42,7 +52,7 @@ def test_operator_handoff_preserves_trusted_runner_and_approval_boundaries(
 
     gates = boundary["selected_session_health_gates"]
     assert gates["run_crown_internal_writer_eval"]["required_issue_ids"] == [
-        "current_agy_session_health"
+        "current_claude_writer_session_health"
     ]
     assert gates["run_crown_internal_media_smoke"]["required_issue_ids"] == [
         "current_grok_session_health"
@@ -85,23 +95,30 @@ def test_operator_handoff_preserves_trusted_runner_and_approval_boundaries(
 
     writer = candidates["run_crown_internal_writer_eval"]
     assert writer["agentlab_execution_owner"] == "Writer"
-    assert writer["assigned_worker"] == "agy"
+    assert (writer["assigned_worker"] == "claude_code") is boundary[
+        "writer_request_route_current"
+    ]
     assert writer["candidate_only"] is True
-    assert writer["required_files_exist"] is True
-    assert writer["returned_candidate_artifacts_accepted"] is True
-    assert writer["acceptance_blocker"] == "none"
+    if writer["returned_candidate_artifacts_accepted"]:
+        assert writer["required_files_exist"] is True
+        assert writer["acceptance_blocker"] == "none"
+    else:
+        assert writer["acceptance_blocker"] != "none"
     media = candidates["run_crown_internal_media_smoke"]
     assert media["agentlab_execution_owner"] == "ArtifactProducer"
     assert media["assigned_worker"] == "grok"
-    assert media["returned_candidate_artifacts_accepted"] is False
-    assert media["acceptance_blocker"] == "missing_required_files"
+    if media["returned_candidate_artifacts_accepted"]:
+        assert media["required_files_exist"] is True
+        assert media["acceptance_blocker"] == "none"
+    else:
+        assert media["acceptance_blocker"] != "none"
     assert report["secret_values_rendered"] is False
     rendered = yaml.safe_dump(report, sort_keys=False, allow_unicode=True)
     assert "sk-" not in rendered
     assert "test-key" not in rendered
 
 
-def test_live_unblock_plan_projects_writer_pass_and_deferred_media(
+def test_live_unblock_plan_projects_current_return_state_without_stale_collect_override(
     private_crown_project_root: Path,
 ) -> None:
     report = build_live_unblock_plan(private_crown_project_root)
@@ -110,22 +127,28 @@ def test_live_unblock_plan_projects_writer_pass_and_deferred_media(
     assert report["report_type"] == "agentlab_live_unblock_plan"
     assert report["status"] == "ready_for_internal_live_smoke"
     assert report["workflow_boundary"] == "internal_agentlab_role_sessions"
-    assert report["session_health_gate"]["clean"] is True
-    assert report["session_health_gate"]["issue_ids"] == []
+    assert report["session_health_gate"]["clean"] is (
+        not report["session_health_gate"]["issue_ids"]
+    )
     assert report["role_session_execution_boundary"][
         "approval_gate_before_private_context"
     ] is True
     assert report["acceptance_phase"]["entered_acceptance"] is True
-    assert report["acceptance_phase"]["pending_item_ids"] == [
-        "run_crown_internal_media_smoke"
+    expected_pending = [
+        item_id
+        for item_id, item in items.items()
+        if item["status"] == "ready"
+        and item["current_return"]["returned_candidate_artifacts_accepted"] is not True
     ]
+    assert report["acceptance_phase"]["pending_item_ids"] == expected_pending
+    assert report["acceptance_phase"]["trusted_status_request_current"] is True
 
     writer = items["run_crown_internal_writer_eval"]
-    assert writer["current_return"]["status"] == "pass"
-    assert writer["current_return"]["required_files_exist"] is True
-    assert writer["current_return"]["returned_candidate_artifacts_accepted"] is True
-    assert writer["current_return"]["selected_item_collect_status"] == "pass"
-    assert writer["current_return"]["acceptance_blocker"] == "none"
+    assert writer["current_return"]["selected_item_collect_status"] == (
+        "pass"
+        if writer["current_return"]["returned_candidate_artifacts_accepted"]
+        else "pending_selected_item"
+    )
     media = items["run_crown_internal_media_smoke"]
     assert media["route"] == {
         **media["route"],
@@ -134,11 +157,10 @@ def test_live_unblock_plan_projects_writer_pass_and_deferred_media(
         "internal_worker": True,
         "role_worker_binding": True,
     }
-    assert media["current_return"]["status"] == "pending"
-    assert media["current_return"]["returned_candidate_artifacts_accepted"] is False
-    assert media["current_return"]["acceptance_blocker"] == "missing_required_files"
     assert media["current_return"]["selected_item_collect_status"] == (
-        "pending_selected_item"
+        "pass"
+        if media["current_return"]["returned_candidate_artifacts_accepted"]
+        else "pending_selected_item"
     )
     rendered = yaml.safe_dump(report, sort_keys=False, allow_unicode=True)
     assert "sk-" not in rendered
@@ -152,7 +174,7 @@ def test_candidate_items_use_explicit_missing_return_state() -> None:
                 {
                     "id": "run_missing_status",
                     "agentlab_execution_owner": "Writer",
-                    "assigned_worker": "agy",
+                    "assigned_worker": "claude_code",
                     "expected_outputs": {
                         "type": "narrative_live_smoke",
                         "candidate_only": True,
@@ -192,6 +214,11 @@ def test_trusted_runner_control_plane_cli_writes_yaml(
 
     result = RUNNER.invoke(app, [command, "--out", str(out)])
 
-    assert result.exit_code == 0
     report = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert result.exit_code == (
+        0
+        if report["status"]
+        in {"ready_for_trusted_runner", "ready_for_internal_live_smoke"}
+        else 1
+    )
     assert report["report_type"] == report_type

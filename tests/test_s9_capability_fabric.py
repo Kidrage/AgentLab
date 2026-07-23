@@ -99,32 +99,53 @@ def test_disabled_capability_cannot_be_selected() -> None:
     assert decision.reason == "capability_disabled"
 
 
-def test_high_risk_capability_requires_approval() -> None:
+def test_high_risk_capability_defaults_to_policy_auto_approval() -> None:
     registry = create_builtin_registry()
     gate = PermissionGate(registry)
 
     decision = gate.evaluate("shell_command")
 
+    assert decision.allowed is True
+    assert decision.reason == "policy_auto_approved"
+    assert decision.requires_approval is False
+    assert decision.approval_mode == "auto_approved"
+    assert decision.approval_grant["actor"] == "policy:default-auto"
+    assert decision.approval_grant["authorizes_execution"] is False
+
+
+def test_critical_capability_still_requires_human_approval() -> None:
+    record = CapabilityRecord(
+        capability_id="private_path_access",
+        display_name="Private Path Access",
+        description="Read data outside the explicitly scoped workspace.",
+        modality="filesystem",
+        backend_type="builtin",
+        status=CapabilityStatus.REQUIRES_APPROVAL,
+        permissions=("read",),
+        risk_level=RiskLevel.HIGH,
+        evidence_required=("path",),
+    )
+    gate = PermissionGate(CapabilityRegistry([record]))
+
+    decision = gate.evaluate("private_path_access")
+
     assert decision.allowed is False
     assert decision.reason == "approval_required"
     assert decision.requires_approval is True
+    assert decision.approval_mode == "human_required"
 
 
-def test_config_files_parse_and_enforce_safe_defaults() -> None:
-    root = Path(__file__).resolve().parents[1]
-    registry_config = yaml.safe_load((root / "config/capability_registry.yml").read_text())
-    permission_policy = yaml.safe_load((root / "config/capability_permission_policy.yml").read_text())
-    media_policy = yaml.safe_load((root / "config/media_artifact_policy.yml").read_text())
+def test_capability_runtime_context_cannot_bypass_hard_human_action() -> None:
+    gate = PermissionGate(create_builtin_registry())
 
-    ids = {item["capability_id"] for item in registry_config["capabilities"]}
-    assert ids == REQUIRED_CAPABILITY_IDS
-    assert permission_policy["default_mode"] == "mock_first"
-    assert permission_policy["require_explicit_approval_for"] == ["external", "network", "shell", "write"]
-    assert media_policy["allow_real_model_execution_by_default"] is False
-    dumped = yaml.safe_dump({"a": registry_config, "b": permission_policy, "c": media_policy}).lower()
-    assert "token" not in dumped
-    assert "password" not in dumped
-    assert "api_key" not in dumped
+    decision = gate.evaluate(
+        "shell_command",
+        request_context={"action": "public_network_bind"},
+    )
+
+    assert decision.allowed is False
+    assert decision.requires_approval is True
+    assert decision.approval_mode == "human_required"
 
 
 def test_media_contracts_serialize_deterministically_and_validate_evidence(tmp_path: Path) -> None:

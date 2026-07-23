@@ -7,6 +7,7 @@ where they should live in the long run, without moving or deleting anything.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import os
 from pathlib import Path
 from typing import Any
 
@@ -17,37 +18,34 @@ except ImportError:  # pragma: no cover - package import path
 
 
 RUNTIME_CONFIG_NAMES = {
+    "backup_policy.local.example.yml",
     "backup_policy.local.yml",
     "local_private_topology.example.yml",
-    "worker_performance_ledger.yml",
     "test_external_agents.yml",
 }
 
 DERIVED_CONFIG_NAMES = {
     "config_ui_schema.yml",
     "shared_agent_directory.yml",
-    "worker_performance_ledger.yml",
 }
 
 FIXTURE_CONFIG_NAMES = {
     "generalization_fixtures.yml",
 }
 
-CANONICAL_SOURCE_NAMES = set(CONFIG_FILES.values()) | {
-    "agent_role_bindings.yml",
-    "agent_role_requirements.yml",
-    "artifact_task_policy.yml",
-    "capability_provider_registry.yml",
-    "capability_registry.yml",
-    "capability_routing_policy.yml",
-    "capability_schema.yml",
-    "ci_gate_policy.yml",
-    "domain_route_packs.yml",
-    "project_routing.yml",
-    "routing_rules.yml",
-    "worker_capability_defaults.yml",
-    "worker_fallback_policy.yml",
-    "worker_invocation_contracts.yml",
+CANONICAL_SOURCE_NAMES = set(CONFIG_FILES.values())
+IGNORED_SOURCE_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    "vendor",
+    "venv",
 }
 
 
@@ -63,10 +61,12 @@ def build_config_inventory(agentlab_root: Path) -> list[ConfigInventoryItem]:
     """Return a sorted inventory of top-level config YAML files."""
     config_dir = agentlab_root / "config"
     loader_by_file = {filename: key for key, filename in CONFIG_FILES.items()}
+    config_names = {path.name for path in config_dir.glob("*.yml")}
+    runtime_references = _runtime_config_references(agentlab_root, config_names)
     items: list[ConfigInventoryItem] = []
     for path in sorted(config_dir.glob("*.yml")):
         name = path.name
-        category = _classify_config(name)
+        category = _classify_config(name, runtime_references)
         items.append(
             ConfigInventoryItem(
                 path=str(path.relative_to(agentlab_root)),
@@ -102,7 +102,43 @@ def config_inventory_payload(agentlab_root: Path) -> dict[str, Any]:
     }
 
 
-def _classify_config(name: str) -> str:
+def _runtime_config_references(agentlab_root: Path, config_names: set[str]) -> set[str]:
+    references: set[str] = set()
+    remaining = set(config_names)
+    source_paths: list[Path] = []
+    for dirname in ("agent_runtime", "scripts", "web_ui"):
+        source_root = agentlab_root / dirname
+        if source_root.is_dir():
+            source_paths.extend(_iter_runtime_source_paths(source_root))
+    source_paths.extend(agentlab_root.glob("*.py"))
+    source_paths.extend(agentlab_root.glob("*.sh"))
+    for path in source_paths:
+        if not remaining:
+            break
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        found = {name for name in remaining if name in text}
+        references.update(found)
+        remaining.difference_update(found)
+    return references
+
+
+def _iter_runtime_source_paths(source_root: Path) -> list[Path]:
+    paths: list[Path] = []
+    for current_root, dirnames, filenames in os.walk(source_root):
+        dirnames[:] = sorted(name for name in dirnames if name not in IGNORED_SOURCE_DIRS)
+        current = Path(current_root)
+        paths.extend(
+            current / name
+            for name in sorted(filenames)
+            if Path(name).suffix in {".py", ".sh"}
+        )
+    return paths
+
+
+def _classify_config(name: str, runtime_references: set[str]) -> str:
     if name in FIXTURE_CONFIG_NAMES:
         return "fixture"
     if name in RUNTIME_CONFIG_NAMES:
@@ -111,12 +147,16 @@ def _classify_config(name: str) -> str:
         return "derived"
     if name in CANONICAL_SOURCE_NAMES:
         return "source"
+    if name in runtime_references:
+        return "direct_source"
     return "unclassified"
 
 
 def _cleanup_note(name: str, category: str) -> str:
     if category == "source":
         return "keep as hand-maintained source unless merged into a stronger authority"
+    if category == "direct_source":
+        return "runtime-owned source loaded directly by its component"
     if category == "derived":
         return "prefer generating from source configs"
     if category == "runtime":

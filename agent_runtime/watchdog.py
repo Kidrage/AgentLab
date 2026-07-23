@@ -232,7 +232,15 @@ def scan_project(agentlab_root: Path, project: str, *, task_id: str | None = Non
         "stale_count": len([item for item in results if item.get("is_stale")]),
         "tasks": results,
     }
-    atomic_write_json(agentlab_root / "projects" / project / "watchdog_status.json", summary)
+    atomic_write_json(
+        agentlab_root
+        / ".agentlab_runtime"
+        / "watchdog"
+        / "projects"
+        / project
+        / "status.json",
+        summary,
+    )
     return summary
 
 

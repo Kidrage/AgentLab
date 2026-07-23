@@ -32,6 +32,7 @@ try:
         selected_collect_metadata_by_item,
         session_health_summary as _session_health_summary,
         trusted_collect_strict_pass,
+        trusted_writer_request_route_current,
     )
 except ModuleNotFoundError:
     from agent_runtime.audit_helpers import (
@@ -48,6 +49,7 @@ except ModuleNotFoundError:
         selected_collect_metadata_by_item,
         session_health_summary as _session_health_summary,
         trusted_collect_strict_pass,
+        trusted_writer_request_route_current,
     )
 
 try:
@@ -234,7 +236,7 @@ def build_goal_completion_audit(root: Path) -> dict[str, Any]:
     )
     session_health_clean = readiness_status == "ready_for_internal_live_smoke" and session_health.get("issue_count") == 0
     session_issue_ids = {str(issue.get("id")) for issue in session_health.get("issues", []) if isinstance(issue, dict)}
-    agy_session_blocked = "current_agy_session_health" in session_issue_ids
+    claude_writer_session_blocked = "current_claude_writer_session_health" in session_issue_ids
     grok_session_blocked = "current_grok_session_health" in session_issue_ids
     grok_session_reason = next(
         (
@@ -249,18 +251,18 @@ def build_goal_completion_audit(root: Path) -> dict[str, Any]:
     if session_health_clean:
         if writer_acceptance_complete:
             crown_conclusion = (
-                "Local chapter governance, light-path delivery receipts, batch ledgers, scale simulation, and accepted trusted-runner Writer artifacts prove the internal agy/Gemini Writer route. "
+                "Local chapter governance, light-path delivery receipts, batch ledgers, scale simulation, and accepted trusted-runner Writer artifacts prove the internal Claude Code shell + DeepSeek V4 Pro Writer route. "
                 f"{frontdesk_boundary_sentence}"
             )
             crown_gap = None
         else:
             crown_conclusion = (
-                "Local chapter governance, light-path delivery receipts, batch ledgers, scale simulation, and the internal agy/Gemini Writer route exist. "
-                "The current non-private agy session smoke passes; old frontdesk sandbox bind errors are stale, and returned prose artifacts are pending until the trusted Writer command is rerun. "
+                "Local chapter governance, light-path delivery receipts, batch ledgers, scale simulation, and the internal Claude Code shell + DeepSeek V4 Pro Writer route exist. "
+                "The current non-private Claude Writer contract probe passes, and returned prose artifacts are pending until the trusted Writer command is rerun. "
                 f"{frontdesk_boundary_sentence}"
             )
             crown_gap = (
-                "Needs a rerun of the internal Writer role-session live smoke from the current healthy agy session before promotion beyond candidate."
+                "Needs a rerun of the internal Writer role-session live smoke from the current healthy Claude Writer route before promotion beyond candidate."
             )
         readiness_conclusion = (
             "Current route readiness is ready_for_internal_live_smoke with no session-health blockers; old frontdesk/sandbox errors are retained only as stale execution evidence. "
@@ -272,14 +274,14 @@ def build_goal_completion_audit(root: Path) -> dict[str, Any]:
             )
         )
     else:
-        agy_status_text = (
-            "current non-private agy session health is not clean"
-            if agy_session_blocked
-            else "current non-private agy session smoke is clean; the active session-health issue is not the Writer agy gate"
+        claude_writer_status_text = (
+            "current non-private Claude Writer session health is not clean"
+            if claude_writer_session_blocked
+            else "current non-private Claude Writer contract probe is clean; the active session-health issue is not the Writer gate"
         )
         crown_conclusion = (
-            "Local chapter governance, light-path delivery receipts, batch ledgers, scale simulation, and the internal agy/Gemini Writer route exist. "
-            f"{agy_status_text}, so returned prose artifacts are still pending until the trusted Writer command is rerun. "
+            "Local chapter governance, light-path delivery receipts, batch ledgers, scale simulation, and the internal Claude Code shell + DeepSeek V4 Pro Writer route exist. "
+            f"{claude_writer_status_text}, so returned prose artifacts are still pending until the trusted Writer command is rerun. "
             f"{frontdesk_boundary_sentence}"
         )
         crown_gap = (
@@ -387,50 +389,22 @@ def build_goal_completion_audit(root: Path) -> dict[str, Any]:
             "govern_cli_native_shell_runtime",
             "Govern local CLI shells as native workflow runtimes",
             "pass"
-            if _capability_status(capabilities, "cli_native_command_surface_governance") == "pass"
-            and _capability_status(capabilities, "cli_shell_coalesced_runner_implementation") == "pass"
-            and _capability_status(capabilities, "cli_shell_coalesced_runner_request") == "pass"
-            and _capability_status(capabilities, "cli_shell_coalesced_collect") == "pass"
-            and _capability_status(capabilities, "cli_shell_coalesced_session_returns") == "pass"
-            else (
-                "candidate"
-                if _capability_status(capabilities, "cli_native_command_surface_governance") == "pass"
-                and _capability_status(capabilities, "cli_shell_coalesced_runner_implementation") == "pass"
-                and _capability_status(capabilities, "cli_shell_coalesced_runner_request") == "pass"
-                and _capability_status(capabilities, "cli_shell_coalesced_collect") == "pass"
-                and _capability_status(capabilities, "cli_shell_coalesced_session_returns") == "candidate"
-                else "fail"
-            ),
+            if _capability_status(capabilities, "cli_workflow_shell_absorption") == "pass"
+            and _capability_status(capabilities, "cli_native_command_surface_governance") == "pass"
+            else "fail",
             [
                 "cli_workflow_shell_absorption",
                 "cli_native_command_surface_governance",
-                "cli_shell_coalesced_runner_implementation",
-                "cli_shell_coalesced_runner_request",
-                "cli_shell_coalesced_collect",
-                "cli_shell_coalesced_session_returns",
             ],
-            "CLI shell absorption is separated from full native command-surface governance: Hermes kanban and Claude agents/background surfaces are registered, and coalesced shell session packets now have a returned-artifact receipt gate.",
+            "CLI shells expose registered native surfaces inside bounded role sessions; dependent AgentLab roles remain separated by lifecycle receipt gates.",
             [
                 *capabilities.get("cli_workflow_shell_absorption", {}).get("evidence", []),
                 *capabilities.get("cli_native_command_surface_governance", {}).get("evidence", []),
-                *capabilities.get("cli_shell_coalesced_runner_implementation", {}).get("evidence", []),
-                *capabilities.get("cli_shell_coalesced_runner_request", {}).get("evidence", []),
-                *capabilities.get("cli_shell_coalesced_collect", {}).get("evidence", []),
-                *capabilities.get("cli_shell_coalesced_session_returns", {}).get("evidence", []),
             ],
-            None
-            if _capability_status(capabilities, "cli_shell_coalesced_session_returns") == "pass"
-            else "Needs returned shell-session receipt, one role receipt per delegated AgentLab role, and validation evidence per role.",
             details={
                 "candidate_capability_issues": candidate_issues_for(
                     capability_candidate_issues,
-                    [
-                        "cli_native_command_surface_governance",
-                        "cli_shell_coalesced_runner_implementation",
-                        "cli_shell_coalesced_runner_request",
-                        "cli_shell_coalesced_collect",
-                        "cli_shell_coalesced_session_returns",
-                    ],
+                    ["cli_workflow_shell_absorption", "cli_native_command_surface_governance"],
                 )
             },
         ),
@@ -580,11 +554,11 @@ def build_goal_completion_audit(root: Path) -> dict[str, Any]:
             if (root / "docs" / "AGENTLAB_OPERATING_LOGIC.zh-CN.md").exists()
             and _capability_status(capabilities, "internal_live_unblock_plan") == "pass"
             and _capability_status(capabilities, "trusted_live_runner_request") == "pass"
+            and trusted_writer_request_route_current(trusted_request)
             and _capability_status(capabilities, "trusted_live_runner_operator_handoff") in {"candidate", "pass"}
             and _capability_status(capabilities, "trusted_live_runner_preflight") == "pass"
             and _capability_status(capabilities, "trusted_live_runner_status") in {"candidate", "pass"}
             and _capability_status(capabilities, "trusted_live_runner_collect") in {"candidate", "pass"}
-            and report_hygiene.get("status") == "pass"
             and role_session_handoff_path.exists()
             and legacy_private_live_handoff_path.exists()
             else "fail",
@@ -612,6 +586,12 @@ def build_goal_completion_audit(root: Path) -> dict[str, Any]:
                 str(role_session_handoff_path),
                 str(legacy_private_live_handoff_path),
             ],
+            details={
+                "acceptance_report_hygiene_status": report_hygiene.get("status"),
+                "writer_request_route_current": trusted_writer_request_route_current(
+                    trusted_request
+                )
+            },
         ),
     ]
 

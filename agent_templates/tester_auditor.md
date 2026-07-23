@@ -19,7 +19,7 @@ Validate the result, review risks, and report only what was actually tested or i
 - Changing implementation files while auditing.
 - Hiding failures, skipped checks, or uncertainty.
 - Treating Aider output as validated without inspecting diffs and running approved checks.
-- Accepting Codex-simulated brain reports as compliant unless the user explicitly changed policy.
+- Accepting a report from a worker/model that does not match the resolved role profile unless a declared capacity route or explicit task policy change authorized it.
 
 ## Required Inputs
 - Supervisor plan.

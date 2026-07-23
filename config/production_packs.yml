@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 
 core_runtime:
   - task_run_state
@@ -11,6 +11,11 @@ core_runtime:
 pack_synthesis_policy:
   enabled: true
   trigger: no_configured_pack_for_non_code_domain
+  agents:
+    - Supervisor
+    - Researcher
+    - ArtifactProducer
+    - Verifier
   required_outputs:
     - production_pack_proposal.yml
     - domain_memory_contract.yml
@@ -70,6 +75,7 @@ packs:
       - narrative_light_chapter
       - narrative_batch_chapters
       - narrative_heavy_audit
+      - narrative_rewrite_plan
     project_types:
       - longform_text_project
     lifecycle_nodes:
@@ -79,6 +85,7 @@ packs:
       - CONTEXT_PACK
       - PREPARE_PLAN
       - SUPERVISOR_PLAN
+      - NARRATIVE_REWRITE_PLAN
       - WRITER_DRAFT
       - FICTION_REVIEW
       - SCRIBE_LEDGER
@@ -92,12 +99,106 @@ packs:
       - write_continuity_ledger
       - propose_state_transitions
       - staged_audit_or_promotion
+      - plan_blocking_rewrite_before_redraft
+    route_contracts:
+      narrative_rewrite_plan:
+        roles:
+          NarrativePlanner:
+            required_inputs:
+              - runs/task_xxxx/mission_contract.yml
+              - runs/task_xxxx/user_request.md
+              - runs/task_xxxx/narrative_rewrite_contract.yml
+              - heavy-audit aggregate and rewrite proposals declared by narrative_rewrite_contract.yml
+              - project_brain/project_fact_snapshot.yml
+              - project_artifact_index.yml
+            required_outputs:
+              - chapter_state_plan.yml
+        memory_records:
+          - narrative_rewrite_contract.yml
+          - chapter_state_plan.yml
+          - narrative_planner_validation.yml
+      narrative_light_chapter:
+        roles:
+          Writer:
+            required_inputs:
+              - runs/task_xxxx/mission_contract.yml
+              - runs/task_xxxx/user_request.md
+              - runs/task_xxxx/chapter_packet.yml
+              - project_brain/project_fact_snapshot.yml
+              - project_artifact_index.yml
+              - previous continuity_ledger.yml when available
+            required_outputs:
+              - fiction_draft.md
+              - continuity_ledger.yml
+              - state_transition_proposal.yml
+              - narrative_delivery_receipt.yml
+        memory_records:
+          - chapter_packet.yml
+          - fiction_draft.md
+          - continuity_ledger.yml
+          - state_transition_proposal.yml
+          - narrative_delivery_receipt.yml
+      narrative_batch_chapters:
+        roles:
+          Writer:
+            required_inputs:
+              - runs/task_xxxx/mission_contract.yml
+              - runs/task_xxxx/user_request.md
+              - project_brain/project_fact_snapshot.yml
+              - project_artifact_index.yml
+              - previous continuity_ledger.yml when available
+              - chapter range and batch constraints from Supervisor plan
+            required_outputs:
+              - chapter_batch_plan.yml
+              - chapters/
+              - batch_continuity_ledger.yml
+              - state_transition_proposal.yml
+              - narrative_batch_delivery_receipt.yml
+        memory_records:
+          - chapter_batch_plan.yml
+          - chapters/
+          - batch_continuity_ledger.yml
+          - state_transition_proposal.yml
+          - narrative_batch_delivery_receipt.yml
+      narrative_heavy_audit:
+        roles:
+          Reviewer:
+            required_inputs:
+              - runs/task_xxxx/fiction_draft.md
+              - runs/task_xxxx/continuity_ledger.yml
+              - runs/task_xxxx/state_transition_proposal.yml
+              - project_brain/project_fact_snapshot.yml
+              - project_artifact_index.yml
+            required_outputs:
+              - fiction_review.yml
+              - continuity_failure_report.yml
+          Scribe:
+            required_inputs:
+              - runs/task_xxxx/fiction_review.yml
+              - runs/task_xxxx/continuity_failure_report.yml
+            required_outputs:
+              - state_transition_proposal.yml
+          Verifier:
+            required_inputs:
+              - runs/task_xxxx/fiction_review.yml
+              - runs/task_xxxx/continuity_failure_report.yml
+              - runs/task_xxxx/state_transition_proposal.yml
+            required_outputs:
+              - revision_or_rewrite_proposal.yml
+        memory_records:
+          - fiction_draft.md
+          - continuity_ledger.yml
+          - state_transition_proposal.yml
+          - fiction_review.yml
+          - continuity_failure_report.yml
+          - revision_or_rewrite_proposal.yml
     memory_contract:
       - project_fact_snapshot
       - project_artifact_index
       - chapter_packet
       - continuity_ledger
       - state_transition_proposal
+      - chapter_state_plan
       - revision_log
     quality_gates:
       - continuity
@@ -126,6 +227,20 @@ packs:
       - draft_article
       - structure_check
       - delivery_receipt
+    route_contracts:
+      article_light_draft:
+        roles:
+          ArtifactProducer:
+            required_inputs:
+              - runs/task_xxxx/mission_contract.yml
+              - runs/task_xxxx/user_request.md
+              - runs/task_xxxx/workflow_plan.yml
+            required_outputs:
+              - article_draft.md
+              - article_structure_check.yml
+        memory_records:
+          - article_draft.md
+          - article_structure_check.yml
     required_outputs:
       - article_draft.md
       - article_structure_check.yml
@@ -137,6 +252,38 @@ packs:
     quality_gates:
       - article_draft
       - article_structure_check
+
+  - pack_id: read_only_observation
+    name: Read-only Multimodal Observation
+    description: Evidence-bound inspection of assigned long text, image, video, audio, PDF, or document inputs without production or promotion authority.
+    routes:
+      - observation_task
+    lifecycle_nodes:
+      - INIT_TASK
+      - CONTEXT_PROFILE
+      - CONTEXT_BUDGET
+      - CONTEXT_PACK
+      - PREPARE_PLAN
+      - SUPERVISOR_PLAN
+      - OBSERVATION_OPTIONAL
+      - SELF_CHECK
+      - FINALIZE
+    domain_phases:
+      - stage_assigned_inputs_read_only
+      - verify_input_hashes
+      - observe_and_extract_evidence
+      - report_limitations_and_suggestions
+    required_outputs:
+      - observation_report.yml
+    memory_contract:
+      - assigned_input_manifest
+      - source_hashes
+      - observation_report
+    quality_gates:
+      - assigned_input_boundary
+      - source_hash_integrity
+      - evidence_traceability
+      - candidate_only_no_project_write
 
   - pack_id: media_series_production
     name: Media Series Production
@@ -157,6 +304,8 @@ packs:
       - SUPERVISOR_PLAN
       - RESEARCH_OPTIONAL
       - ARTIFACT_PRODUCTION
+      - VISUAL_OBSERVATION
+      - VISUAL_REVIEW
       - VALIDATION
       - VERIFY
       - SELF_CHECK
@@ -178,8 +327,15 @@ packs:
       - asset_registry.yml
       - prompt_pack.yml
       - generation_ledger.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
       - media_continuity_ledger.yml
+      - visual_observation_report.yml
+      - visual_review_report.yml
       - media_qc_report.yml
+      - visual_verification_report.yml
+      - visual_acceptance_candidate.yml
+      - visual_acceptance_decision.yml
       - narrative_media_delivery_receipt.yml
     memory_contract:
       - source_script
@@ -190,12 +346,19 @@ packs:
       - shot_ledger
       - prompt_pack
       - generation_ledger
+      - generation_receipt
+      - generated_assets_manifest
+      - visual_observation_report
+      - visual_review_report
       - media_qc_report
+      - visual_acceptance_decision
     quality_gates:
       - character_visual_consistency
       - shot_continuity
       - asset_provenance
       - generation_ledger_written
+      - producer_receipts_bound_to_real_asset_hashes
+      - independent_observer_reviewer_verifier_acceptance
       - qa_or_human_acceptance_before_project_artifact_promotion
 
   - pack_id: media_generation
@@ -213,22 +376,38 @@ packs:
       - PREPARE_PLAN
       - SUPERVISOR_PLAN
       - ARTIFACT_PRODUCTION
+      - VISUAL_OBSERVATION
+      - VISUAL_REVIEW
       - VALIDATION
       - VERIFY
       - SELF_CHECK
       - FINALIZE
     required_outputs:
       - generation_ledger.yml
+      - generation_receipt.yml
+      - generated_assets_manifest.yml
+      - visual_observation_report.yml
+      - visual_review_report.yml
       - media_qc_report.yml
+      - visual_verification_report.yml
+      - visual_acceptance_candidate.yml
+      - visual_acceptance_decision.yml
       - media_delivery_receipt.yml
     memory_contract:
       - media_generation_contract
       - reference_asset_manifest
       - generation_ledger
+      - generation_receipt
+      - generated_assets_manifest
+      - visual_observation_report
+      - visual_review_report
       - media_qc_report
+      - visual_acceptance_decision
     quality_gates:
       - capability_auth_quota_preflight
       - generation_ledger_written
+      - producer_receipts_bound_to_real_asset_hashes
+      - independent_observer_reviewer_verifier_acceptance
       - media_qc_report_written
 
   - pack_id: generic_artifact

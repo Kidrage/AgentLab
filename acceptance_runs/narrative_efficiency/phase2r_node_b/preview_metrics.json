@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "measurement_id": "crown_ch025_ch027_phase2r_node_b_20260720_correction1",
+  "source_plan_sha256": "40c23c959859a92e7ff1f48869a5bcccd29b617655a8c94ef2ab4aa0cc0d9d32",
+  "provider_calls": 0,
+  "production_writes": 0,
+  "candidate_only": true,
+  "packet_contract": "agentlab_sealed_role_session_v2_preview",
+  "rows": [
+    {"chapter_id": 25, "payload_bytes": 62448, "payload_sha256": "a0f03b9f881b9b42cad5f1b10b7b08a619a256a107e032c9a9ff28c6d10ed8e8", "token_estimate": 15612, "loaded_file_count": 10, "loaded_context_bytes": 57317, "duplicate_context_ratio": 0.0, "context_bundle_id": "ctx-c162e2286b18fe601519f27c", "context_manifest_path": "projects/Crown_of_Ash/candidates/phase2r_node_b_preview_20260720/context_bundles/ch025/ctx-c162e2286b18fe601519f27c.yml", "context_manifest_sha256": "e742e9153435d3871a322798b565016470d7194f7ae016b5f627969ea8f5063f", "word_count_target": [4500, 5500]},
+    {"chapter_id": 26, "payload_bytes": 69474, "payload_sha256": "ace21441514c4da5e2def1a4abbaa2fbab063da83206d6dbbb593012e729a238", "token_estimate": 17369, "loaded_file_count": 10, "loaded_context_bytes": 64368, "duplicate_context_ratio": 0.0, "context_bundle_id": "ctx-0fc746faf4642dfcc34956ab", "context_manifest_path": "projects/Crown_of_Ash/candidates/phase2r_node_b_preview_20260720/context_bundles/ch026/ctx-0fc746faf4642dfcc34956ab.yml", "context_manifest_sha256": "2514abb365e4f2f0a477c00285d0179db115a553205b8e069b0283cc8d1c1ac7", "word_count_target": [4500, 5500]},
+    {"chapter_id": 27, "payload_bytes": 62220, "payload_sha256": "1564e01ec9e326ef28d9612f0654f42e83cbe3acf474773f3d3704ef1ad17448", "token_estimate": 15555, "loaded_file_count": 10, "loaded_context_bytes": 57055, "duplicate_context_ratio": 0.0, "context_bundle_id": "ctx-46ebfb198bc2645f05fefb80", "context_manifest_path": "projects/Crown_of_Ash/candidates/phase2r_node_b_preview_20260720/context_bundles/ch027/ctx-46ebfb198bc2645f05fefb80.yml", "context_manifest_sha256": "b0b3c84ad57344808ed99dc3d65281512c61d933de0fdefb79b5cce187a02aab", "word_count_target": [4500, 5500]}
+  ],
+  "derived_sources": [
+    {"chapter_id": 25, "selector": "chapter_state_plan[chapter=25]", "inherits_root_fields": ["target_character_range", "hard_character_range"], "path": "projects/Crown_of_Ash/candidates/phase2r_node_b_preview_20260720/creative_brief_source_ch025.yml", "bytes": 2996, "sha256": "5f431efe2d2c1c8f03222dddc72c04199ded0fe1f826297138e129f60aeff39e"},
+    {"chapter_id": 26, "selector": "chapter_state_plan[chapter=26]", "inherits_root_fields": ["target_character_range", "hard_character_range"], "path": "projects/Crown_of_Ash/candidates/phase2r_node_b_preview_20260720/creative_brief_source_ch026.yml", "bytes": 2753, "sha256": "706a0a1ee47128260fcc66d1339f739874295c8d34bab1f644317596b6497149"},
+    {"chapter_id": 27, "selector": "chapter_state_plan[chapter=27]", "inherits_root_fields": ["target_character_range", "hard_character_range"], "path": "projects/Crown_of_Ash/candidates/phase2r_node_b_preview_20260720/creative_brief_source_ch027.yml", "bytes": 2607, "sha256": "50d1941eb053d282a9a252900261cf38fb2b370ba3ced282fd5e132db899d7ce"}
+  ],
+  "medians": {"payload_bytes": 62448, "token_estimate": 15612, "loaded_file_count": 10, "loaded_context_bytes": 57317},
+  "legacy_medians": {"payload_bytes": 100218, "inventory_files": 19, "inventory_bytes": 112827},
+  "reductions_percent": {"payload_bytes": 37.6878, "file_count": 47.3684, "context_bytes": 49.1992},
+  "target": {"ordinary_input_context_median_reduction_percent": 25, "input_contract_evaluated": true, "input_contract_met": true, "quality_preserving_evaluated": false, "phase_acceptance_met": false},
+  "checks": {"word_count_contract_present": true, "writer_template_present": true, "provider_execution_requested": false, "production_modified": false}
+}

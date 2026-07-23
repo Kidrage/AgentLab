@@ -23,8 +23,8 @@ This document separates current scaffold behavior from production AgentOps behav
 - `skill-match` retrieves active skills for a task goal by triggers, applies_to, and summary overlap.
 - `skill-inject` writes selected/rejected active skills into `workflow_plan.yml`.
 - `prepare --write-plan` and pipeline `PREPARE_PLAN` perform active skill retrieval/injection.
-- `skill_usage.yml` records task-level selected/rejected skills.
-- `skills/active/<skill_id>/usage_ledger.yml` records each selected skill usage.
+- Run-local `skill_usage.yml` records selected/rejected skills and normalized usage entries.
+- `skills/active/<skill_id>/` is immutable after promotion; runtime evidence follows run retention and never writes back into the tracked skill package.
 - High-risk skills are rejected for injection when policy requires approval.
 
 ### External Skill Import MVP
@@ -42,7 +42,7 @@ This document separates current scaffold behavior from production AgentOps behav
   - `https://raw.githubusercontent.com/openclaw/skills/main/skills/bowen31337/create-agent-skills/SKILL.md`
   - `https://raw.githubusercontent.com/openclaw/skills/main/skills/gitgoodordietrying/skill-writer/SKILL.md`
 - Imported external skills enter the normal lifecycle: request → approve → stage → fake validate → active.
-- Active imported skills can be retrieved and injected into matching tasks, writing task usage and active skill ledgers.
+- Active imported skills can be retrieved and injected into matching tasks, writing only run-local usage evidence.
 
 ### Trace-to-Skill MVP
 

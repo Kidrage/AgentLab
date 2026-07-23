@@ -6,7 +6,7 @@ def render_execution_economy_report(
     project_id: str,
     task_id: str,
     decisions: List[Dict[str, Any]],
-    coalesced_packets: List[Dict[str, Any]],
+    role_sessions: List[Dict[str, Any]],
     total_raw_tokens: int,
     total_effective_tokens: int,
     total_raw_usd: float,
@@ -49,19 +49,17 @@ def render_execution_economy_report(
         md.append(f"| {role} | {cand} | **{decision}** | {verdict} | {eb_summary} | {eff_cost} | {reasons} |")
     
     md.append("")
-    md.append("## Role Coalescing Packets")
-    if coalesced_packets:
-        for p in coalesced_packets:
-            md.append(f"### Packet: {p.get('coalesced_packet_id')}")
-            md.append(f"- **Roles:** {', '.join(p.get('roles', []))}")
-            md.append(f"- **Selected Worker:** {p.get('selected_worker')}")
-            md.append(f"- **Risk Level:** {p.get('risk_level')}")
-            md.append("- **Reasons:**")
-            for r in p.get("reason", []):
-                md.append(f"  - {r}")
-            md.append("")
+    md.append("## Role Session Boundaries")
+    if role_sessions:
+        for session in role_sessions:
+            md.append(
+                f"- **{session.get('role')}**: {session.get('activation_decision')} "
+                f"via {session.get('selected_worker') or 'no spawned worker'}; "
+                "independent AgentLab receipt required."
+            )
     else:
-        md.append("No coalesced packets generated.")
+        md.append("No role sessions selected.")
+    md.append("- Cross-role coalescing is disabled; lifecycle ownership remains independent.")
         
     md.append("")
     md.append("## Escalation Rules & Triggers")

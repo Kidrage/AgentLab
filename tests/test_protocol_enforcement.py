@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 from typer.testing import CliRunner
 
@@ -19,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
 
 
-def test_workspace_entry_binds_agy_as_frontdesk_not_worker():
+def test_workspace_entry_binds_agy_as_frontdesk_and_bounded_worker():
     packet = build_workspace_entry(ROOT, "agy", project="AgentLab")
 
     assert packet["packet_type"] == "agentlab_workspace_entry"
@@ -27,17 +28,13 @@ def test_workspace_entry_binds_agy_as_frontdesk_not_worker():
     assert packet["allowed_profiles"]["worker_capable"] is True
     assert set(packet["allowed_profiles"]["worker_capabilities"]) == {
         "frontdesk_gateway",
-        "micro_doc_editor",
-        "candidate_artifact_worker",
         "role_worker",
         "workflow_shell",
     }
     assert packet["allowed_profiles"]["allowed_roles"] == [
-        "RepoScout",
-        "InterfaceMapper",
-        "ArtifactProducer",
-        "Archivist",
-        "Writer",
+        "Observer",
+        "Reviewer",
+        "NarrativePlanner",
     ]
     assert "rediscover_agentlab_by_full_repo_scan" in packet["forbidden_actions"]
     assert packet["known_projects"] == ["Crown_of_Ash", "NovelGen"]
@@ -96,17 +93,41 @@ def test_role_binding_rejects_agy_as_coder_and_allows_codex():
     assert "lacks role_worker" in agy_reason or "forbidden" in agy_reason
     assert codex_allowed is True
     assert codex_reason == "role binding allowed"
-    assert artifact_allowed is True
-    assert artifact_reason == "role binding allowed"
+    assert artifact_allowed is False
+    assert "forbidden" in artifact_reason
 
 
-def test_grok_is_artifact_producer_only_internal_worker():
+def test_narrative_planner_allows_only_claude_code():
+    claude_allowed, claude_reason = check_role_binding(
+        ROOT, "claude_code", "NarrativePlanner"
+    )
+    qwen_allowed, qwen_reason = check_role_binding(ROOT, "qwen", "NarrativePlanner")
+    codex_allowed, codex_reason = check_role_binding(
+        ROOT, "codex", "NarrativePlanner"
+    )
+
+    assert claude_allowed is True, claude_reason
+    assert qwen_allowed is False, qwen_reason
+    assert codex_allowed is False, codex_reason
+
+
+def test_visual_reviewer_route_uses_reviewer_role_binding():
+    allowed, reason = check_role_binding(ROOT, "agy", "visual_reviewer")
+
+    assert allowed is True
+    assert reason == "role binding allowed"
+
+
+def test_grok_is_research_and_artifact_producer_internal_worker():
     artifact_allowed, artifact_reason = check_role_binding(ROOT, "grok", "ArtifactProducer")
+    research_allowed, research_reason = check_role_binding(ROOT, "grok", "Researcher")
     coder_allowed, coder_reason = check_role_binding(ROOT, "grok", "Coder")
     writer_allowed, writer_reason = check_role_binding(ROOT, "grok", "Writer")
 
     assert artifact_allowed is True
     assert artifact_reason == "role binding allowed"
+    assert research_allowed is True
+    assert research_reason == "role binding allowed"
     assert coder_allowed is False
     assert "lacks role_worker" in coder_reason or "forbidden" in coder_reason
     assert writer_allowed is False
@@ -120,10 +141,11 @@ def test_role_session_reports_binding_verdicts():
     assert accepted["binding"]["allowed"] is False
     assert rejected["binding"]["allowed"] is False
     assert accepted["packet_type"] == "agentlab_role_session"
+    assert accepted["role_session_id"] == "task_missing:Coder:agy"
     assert "validation_results" in accepted["exit_report_must_include"]
 
 
-def test_frontdesk_write_gate_blocks_core_config_and_allows_proposals():
+def test_agy_frontdesk_write_gate_allows_only_bounded_proposals():
     blocked = evaluate_frontdesk_write_gate(ROOT, "agy", "config/agent_model_profiles.yml")
     proposal = evaluate_frontdesk_write_gate(ROOT, "agy", "projects/NovelGen/runs/task_1/change_request.yml")
     candidate = evaluate_frontdesk_write_gate(ROOT, "agy", "projects/NovelGen/runs/task_1/artifacts/chapter.md")
@@ -131,7 +153,8 @@ def test_frontdesk_write_gate_blocks_core_config_and_allows_proposals():
     assert blocked["status"] == "blocked"
     assert blocked["requires"] == "core_config_editor"
     assert proposal["status"] == "proposal_allowed"
-    assert candidate["status"] == "candidate_allowed"
+    assert candidate["status"] == "blocked"
+    assert candidate["requires"] == "candidate_artifact_worker"
 
 
 def test_role_doctor_fails_invalid_binding_and_passes_valid_binding():
@@ -148,16 +171,15 @@ def test_protocol_doctor_passes_repository_protocol_wiring():
     assert result["status"] == "pass"
     assert result["summary"]["failed"] == 0
 
+    with patch("agent_runtime.protocols.run_protocol_doctor", return_value=result):
+        cli_result = runner.invoke(app, ["protocol-doctor"])
+
+    assert cli_result.exit_code == 0
+    assert "status: pass" in cli_result.output
+
 
 def test_cli_role_session_exits_nonzero_for_invalid_frontdesk_worker():
     result = runner.invoke(app, ["role-session", "--role", "Supervisor", "--worker", "agy"])
 
     assert result.exit_code == 1
     assert "forbidden" in result.output
-
-
-def test_cli_protocol_doctor_passes():
-    result = runner.invoke(app, ["protocol-doctor"])
-
-    assert result.exit_code == 0
-    assert "status: pass" in result.output

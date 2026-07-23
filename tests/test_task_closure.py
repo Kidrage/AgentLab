@@ -79,7 +79,14 @@ class TaskIndexLedgerTests(TestCase):
             index = rebuild_index(root, "Demo")
             ledger = root / "projects" / "Demo" / "agent_docs" / "02_TASK_LEDGER.yml"
 
+            self.assertEqual(index["version"], 2)
             self.assertEqual(index["task_count"], 1)
+            self.assertEqual(index["source_root"], "projects/Demo/runs")
+            self.assertEqual(
+                index["tasks"][0]["paths"]["run_dir"],
+                "projects/Demo/runs/task_0003",
+            )
+            self.assertTrue(all(item["path"] != "fiction_draft.md" for item in index["tasks"][0]["artifacts"]))
             self.assertTrue((run_dir / "task_snapshot.yml").exists())
             self.assertTrue((run_dir / "task_card.yml").exists())
             self.assertTrue(ledger.exists())

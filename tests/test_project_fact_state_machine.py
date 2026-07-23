@@ -106,6 +106,43 @@ def test_acceptance_applies_valid_state_transition_proposal(tmp_path: Path) -> N
     assert snapshot["entities"]["character"]["hero"]["status"] == "dead"
 
 
+def test_managed_project_brain_acceptance_refreshes_knowledge_shards(tmp_path: Path) -> None:
+    config = tmp_path / "config" / "knowledge_system.yml"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        yaml.safe_dump(
+            {"indexing": {"project_allowlist": ["NovelDemo"]}},
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    brain = tmp_path / "projects" / "NovelDemo" / "project_brain"
+    brain.mkdir(parents=True)
+    build_project_brain(_mission(tmp_path / "mission.yml"), "NovelDemo", brain)
+    phase_path = _phase(brain)
+    evidence = tmp_path / "evidence"
+    _proposal(
+        evidence,
+        {
+            "event_type": "create",
+            "target_kind": "entity",
+            "target_type": "character",
+            "target_id": "rag_hero",
+            "to_status": "dead",
+            "evidence_refs": ["chapter_010.md"],
+        },
+    )
+
+    result = accept_phase(phase_path, evidence, tmp_path / "accepted")
+
+    assert result["accepted"] is True
+    assert result["knowledge_sync"]["status"] == "SYNCED"
+    assert result["knowledge_sync"]["namespaces"] == [
+        "project.NovelDemo",
+        "domain.longform_narrative",
+    ]
+
+
 def test_acceptance_blocks_invalid_state_transition(tmp_path: Path) -> None:
     build_project_brain(_mission(tmp_path / "mission.yml"), "NovelDemo", tmp_path / "brain")
     phase_path = _phase(tmp_path / "brain")

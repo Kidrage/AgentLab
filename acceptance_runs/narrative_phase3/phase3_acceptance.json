@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "phase": 3,
+  "status": "contract_state_wiring_complete_provider_revision_and_live_quality_gate_blocked",
+  "candidate_only": true,
+  "production_modified": false,
+  "commits": ["d892e62", "09bb2bb"],
+  "scorecard_dimensions": [
+    "causal_reasoning",
+    "strategic_competence",
+    "character_agency",
+    "dramatic_tension",
+    "reader_curiosity",
+    "non_formulaic_progression"
+  ],
+  "veto_dimensions": [
+    "causal_reasoning",
+    "strategic_competence",
+    "character_agency"
+  ],
+  "known_negative_samples": [26, 30],
+  "positive_calibration_status": "missing_user_samples",
+  "positive_calibration_samples": 0,
+  "human_blind_pairs_completed": 0,
+  "human_blind_pairs_required": 10,
+  "required_new_system_win_rate": 0.7,
+  "provider_backed_revisions": 0,
+  "implemented_behaviors": [
+    "per_chapter_evidence_required_six_dimension_scorecard",
+    "veto_dimensions_not_averaged",
+    "scene_level_revision_contract",
+    "background_revision_consumes_verifier_output_receipt",
+    "deterministic_check_before_independent_reaudit",
+    "anonymous_ab_selection",
+    "revision_cannot_replace_on_new_or_remaining_blocking",
+    "two_attempt_stop_to_decision_required",
+    "calibration_gate_blocks_quality_claim_without_user_samples"
+  ],
+  "verification": {
+    "consolidated_narrative_controller_cli_tests": "211 passed",
+    "frozen_negative_samples": "pass",
+    "missing_positive_and_human_gate": "blocked_as_required"
+  },
+  "provider_calls": 0,
+  "literary_uplift_claimed": false,
+  "quality_uplift_claim_allowed": false
+}

@@ -18,6 +18,9 @@ import yaml
 from agent_runtime.config_center.schema import ConfigLayer
 
 
+_YAML_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Recursively deep-merge two dicts. Override values win."""
     result: dict[str, Any] = {}
@@ -40,7 +43,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     """Load a YAML file, returning empty dict if missing or empty."""
     if not path.exists():
         return {}
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data = yaml.load(path.read_text(encoding="utf-8"), Loader=_YAML_LOADER)
     return data if isinstance(data, dict) else {}
 
 
@@ -66,7 +69,6 @@ _CONFIG_FILE_NAMESPACE: dict[str, str] = {
     # Model & provider
     "model_catalog": "model_catalog",
     "model_providers": "model_providers",
-    "model_profiles": "model_profiles",
     "agent_registry": "agent_registry",
     "agent_model_profiles": "agent_model_profiles",
     # Skills & workers

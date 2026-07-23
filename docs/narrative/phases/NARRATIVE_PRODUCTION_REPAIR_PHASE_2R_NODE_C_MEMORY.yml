@@ -1,0 +1,60 @@
+schema_version: 2
+phase_id: phase_2r_node_c_literary_memory
+priority: highest
+status: accepted_node_c
+authority: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
+objective: >-
+  Build one hash-bound, chapter-selected narrative memory snapshot per Writer
+  request without inventing story facts or loading an unbounded project history.
+interface:
+  module: agent_runtime/narrative/production/literary_memory.py
+  entrypoint: compile_literary_memory_snapshot
+required_categories:
+  - voice_examples
+  - emotional_debts
+  - life_detail_anchors
+  - recent_scene_signatures
+  - unresolved_reader_questions
+invariants:
+  - every_item_has_source_locator
+  - v1_and_v2_selection_read_v2_snapshot_write
+  - every_source_hash_and_parse_use_same_bytes
+  - every_unique_source_is_read_once
+  - every_v2_locator_is_machine_verified
+  - category_specific_relevance_reason_is_required
+  - evidence_cannot_be_reused_across_categories
+  - source_chapter_is_inside_bounded_recent_window
+  - source_chapter_matches_path_or_yaml_node_metadata
+  - source_and_output_are_bound_to_requested_project
+  - normalized_text_and_overlapping_ranges_cannot_be_reused
+  - conflicting_yaml_chapter_authorities_fail_closed_without_path_fallback
+  - a_selection_outside_source_root_is_not_read
+  - selection_item_source_and_excerpt_limits_are_enforced
+  - chapter_id_matches_request
+  - candidate_only_true
+  - production_modified_false
+  - missing_category_blocks_quality_equivalence
+  - output_is_exact_candidate_snapshot_path
+  - malformed_input_returns_blocked_without_exception
+  - no_provider_call
+  - no_production_write
+allowed_paths:
+  - agent_runtime/narrative/production/
+  - tests/test_narrative_efficiency.py
+  - docs/narrative/
+  - acceptance_runs/narrative_efficiency/
+  - PROJECT_HANDOFF.md
+local_candidate_outputs:
+  - projects/Crown_of_Ash/candidates/phase2r_node_c_memory_20260720/
+acceptance:
+  - public_compiler_red_green_replay
+  - stale_source_hash_blocks
+  - missing_category_blocks
+  - unsafe_output_and_unbounded_input_block
+  - source_bytes_loaded_once
+  - ch25_ch27_snapshots_compile_from_explicit_selections
+  - committed_selection_recipes_are_excerpt_free
+  - source_inventory_and_derivation_are_reproducible
+  - independent_review
+  - full_regression
+rollback: revert_the_independent_node_c_commit

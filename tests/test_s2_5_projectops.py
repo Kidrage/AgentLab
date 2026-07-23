@@ -19,6 +19,25 @@ def test_repo_hygiene_flags_root_handoff(tmp_path: Path) -> None:
     assert any(f.code == "forbidden_root_pattern" for f in report.findings)
 
 
+def test_repo_hygiene_allows_explicit_canonical_handoff(tmp_path: Path) -> None:
+    (tmp_path / "agent_runtime").mkdir()
+    (tmp_path / "config").mkdir()
+    (tmp_path / "PROJECT_HANDOFF.md").write_text("canonical handoff", encoding="utf-8")
+    policy = {
+        "root_policy": {
+            "allowed_root_files": ["PROJECT_HANDOFF.md"],
+            "allowed_root_dirs": ["agent_runtime", "config"],
+            "ignored_runtime_dirs": [],
+            "forbidden_root_patterns": ["*handoff*.md"],
+        }
+    }
+
+    report = scan_repository_root(tmp_path, policy)
+
+    assert report.ok
+    assert not report.findings
+
+
 def test_project_router_creates_new_project_for_creative() -> None:
     policy = {
         "routing": {

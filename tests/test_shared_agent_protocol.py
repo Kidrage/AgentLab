@@ -89,18 +89,34 @@ def test_authoritative_protocol_points_to_structured_policies() -> None:
     assert "repository-handoff --repo <path> --write" in protocol
 
 
+def test_cli_homes_are_local_only_and_excluded_from_repository_ingestion() -> None:
+    protocol = (ROOT / "_shared" / "AGENT_PROTOCOL.md").read_text(encoding="utf-8")
+    collaboration = (
+        ROOT / "docs" / "AGENTLAB_CORP_AND_COLLABORATION_PROTOCOL.md"
+    ).read_text(encoding="utf-8")
+    glossary = (ROOT / "CONTEXT.md").read_text(encoding="utf-8")
+    ingestion = _yaml("repo_ingestion_policy.yml")["repo_ingestion"]
+
+    assert "`.agents/` (locks, states)" in protocol
+    assert "不得通过 Git 或 Relay Hub 同步" in collaboration
+    assert "local-only" in glossary
+    assert ".agents/**" in ingestion["default_excludes"]
+
+
 def test_repository_handoff_is_mandatory_for_every_agent() -> None:
     policy = _yaml("repository_handoff_policy.yml")
     collaboration = _yaml("agent_collaboration.yml")["agent_collaboration"]
     directory = _yaml("shared_agent_directory.yml")
 
-    assert "PROJECT_HANDOFF.md" in policy["discovery"]["filenames"]
+    assert policy["discovery"]["canonical_filename"] == "PROJECT_HANDOFF.md"
+    assert ".agentlab/HandOff.md" in policy["discovery"]["legacy_read_only_filenames"]
     assert policy["discovery"]["always_before_repository_read"] is True
-    assert policy["placement"]["project_root_visible"] == "PROJECT_HANDOFF.md"
-    assert policy["placement"]["always_write_project_root_visible_copy"] is True
+    assert policy["placement"]["canonical"] == "PROJECT_HANDOFF.md"
+    assert policy["placement"]["default_write_mode"] == "canonical_only"
+    assert policy["placement"]["legacy_aliases_are_read_only"] is True
     assert policy["enforcement"]["all_agents_required"] is True
     assert policy["enforcement"]["missing_handoff_blocks_deep_read"] is True
-    assert policy["placement"]["always_write_shared_copy"] is True
+    assert policy["placement"]["shared_copy_mode"] == "explicit_flag_or_read_only_fallback"
     assert policy["safe_scan"]["principle"] == "complete_path_and_metadata_inventory_without_bulk_content_read"
     assert collaboration["repository_handoff"]["required_for_all_agents"] is True
     assert directory["repository_memory"]["applies_to_all_endpoints_and_agents"] is True

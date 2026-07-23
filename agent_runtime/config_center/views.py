@@ -33,7 +33,7 @@ def build_config_views(agentlab_root: Path) -> dict[str, Any]:
         "global_defaults": _build_view("global_defaults", merged, layers, trace_config_source, [
             "agent_registry",
             "model_catalog",
-            "model_profiles",
+            "agent_model_profiles",
             "routing_policy.default_mode",
             "execution_policy",
         ]),

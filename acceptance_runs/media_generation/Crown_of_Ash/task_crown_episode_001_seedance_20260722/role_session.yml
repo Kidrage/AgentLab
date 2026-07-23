@@ -1,0 +1,42 @@
+packet_type: agentlab_role_session
+schema_version: 1
+role_session_id: task_crown_episode_001_seedance_20260722:ArtifactProducer:hermes_ark
+authority: _shared/AGENT_PROTOCOL.md
+role: ArtifactProducer
+worker: hermes_ark
+binding:
+  allowed: true
+  reason: config/agent_role_bindings.yml registers the composite hermes_ark worker only for ArtifactProducer
+project: Crown_of_Ash
+task_id: task_crown_episode_001_seedance_20260722
+identity: AgentLab role ArtifactProducer
+must_read_artifacts:
+  - acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/user_request.md
+  - acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/artifact_task.yml
+  - acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml
+artifact_task:
+  status: present
+  required: true
+  path: acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/artifact_task.yml
+required_outputs:
+  - role_session_receipt.yml
+  - generation_ledger.yml
+  - generation_receipt.yml
+  - generated_assets_manifest.yml
+  - outbound_context_manifest_media.yml
+source_write_policy: candidate_only
+shell_policy: bounded_media_backend_only
+forbidden_actions:
+  - ignore_role_binding
+  - work_outside_assigned_role
+  - modify_global_performance_route
+  - claim_generated_artifact_without_file_evidence
+  - promote_candidate_without_independent_review
+exit_report_must_include:
+  - role
+  - worker
+  - validation_results
+  - artifact_paths
+  - provider_used
+  - model_used
+  - fallback_status

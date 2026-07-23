@@ -60,6 +60,19 @@ def _command_for(item: dict[str, Any]) -> str:
     return ""
 
 
+def _current_writer_item(item: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a retained legacy handoff to the current Writer worker."""
+    current = dict(item)
+    for field in ("agentlab_command", "safe_command_after_approval"):
+        command = str(current.get(field) or "")
+        if command:
+            current[field] = command.replace(
+                "--writer-worker agy",
+                "--writer-worker claude_code",
+            )
+    return current
+
+
 def _handoff_item(
     item: dict[str, Any],
     *,
@@ -97,7 +110,13 @@ def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") ->
     unblock = _read_yaml(unblock_path)
     policy = _read_yaml(policy_path)
     items = [item for item in unblock.get("items", []) if isinstance(item, dict)]
-    crown = _item_by_any_id(items, "run_crown_internal_writer_eval", "approve_crown_external_writer_context")
+    crown = _current_writer_item(
+        _item_by_any_id(
+            items,
+            "run_crown_internal_writer_eval",
+            "approve_crown_external_writer_context",
+        )
+    )
     media = _item_by_any_id(items, "run_crown_internal_media_smoke", "approve_crown_media_grok_oauth_context")
     runtime_boundary = policy.get("external_runtime_boundary") or {}
     default_frontdesk = policy.get("default_frontdesk") or {}
@@ -107,7 +126,7 @@ def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") ->
         _handoff_item(
             crown,
             role="Writer",
-            worker="agy",
+            worker="claude_code",
             observe_artifacts=[
                 "acceptance_runs/narrative_eval/Crown_of_Ash/*/longform_eval_report.yml",
                 "projects/Crown_of_Ash/runs/task_narrative_eval_*/fiction_draft.md",
@@ -120,10 +139,9 @@ def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") ->
             role="ArtifactProducer",
             worker="grok",
             observe_artifacts=[
-                "projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/*/generation_ledger.yml",
-                "projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifacts/*/media_backend_preflight.yml",
-                "projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_qc_report.yml",
-                "projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/narrative_media_delivery_receipt.yml",
+                "projects/Crown_of_Ash/runs/task_media_role_session_acceptance_*/artifacts/*/generation_ledger.yml",
+                "projects/Crown_of_Ash/runs/task_media_role_session_acceptance_*/artifacts/*/media_backend_preflight.yml",
+                "projects/Crown_of_Ash/runs/task_media_role_session_acceptance_*/artifacts/*/outbound_context_manifest_media.yml",
             ],
         ),
     ]
@@ -161,7 +179,8 @@ def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") ->
         {
             "id": "writer_command_has_role_session_worker",
             "status": "pass"
-            if "--writer-worker agy" in handoff_items[0].get("agentlab_command", "")
+            if "--writer-worker claude_code"
+            in handoff_items[0].get("agentlab_command", "")
             else "fail",
             "summary": "Crown Writer live command creates Writer role-session evidence",
         },

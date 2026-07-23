@@ -17,9 +17,10 @@ executor configuration.
 - Runtime role profiles may reference only contracts renderable from a task
   packet: `{task_packet_path}` and, when needed, `{workspace_path}`. Frontdesk
   session contracts are not valid role-runner contracts.
-- **`default`** / **`fallback`** model fields are API fallback/default metadata.
-  They are NOT automatically injected into CLI commands as `-m` or `--model`
-  flags.
+- **`default`** is the selected model catalog key for that role, mode, and tier.
+  CLI command rendering is still owned by `worker_invocation_contracts.yml`.
+- Profile-local fallback fields are forbidden. Automatic fallback is allowed
+  only through an explicit route in `model_capacity.yml`.
 - **AgentLab must not silently claim CLI usage when it fell back to API.**
   Transparent fallback recording is mandatory.
 - **Codex / Hermes / Claude Code** shell commands and their API model
@@ -39,8 +40,7 @@ schema v4 config
     → run configured worker command template
     → return provider/model source as CLI executor result
 → if CLI binary unavailable or CLI execution explicitly fails:
-    → record transparent fallback reason
-    → fall through to direct API
+    → stop and report, or use an explicitly approved same-role capacity route
 → if executor_type == "direct_api":
     → direct API resolver handles it
 → if executor_type == "special" or role config is "skip":
@@ -68,12 +68,6 @@ Results and reports must distinguish:
 - `full`, `max_quality` → `full`
 - `performance`, `balanced`, `brain_allocated` → `performance`
 - `low`, `frugal`, `low_cost` → `low`
-
-## Legacy Profiles Support
-
-Configs using the old `profiles` key (without `modes`) are still supported.
-When `modes` is present, schema v4 resolution takes priority. Legacy profiles
-are resolved via the `profile_name` kwarg using normalized name mapping.
 
 ## Safety Gate: `trusted_headless_cli`
 

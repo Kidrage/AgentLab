@@ -1,69 +1,36 @@
-# AgentLab CLI Roadmap
+# AgentLab CLI Boundary
 
-AgentLab is being developed as a personal, local-first development workflow.
-The CLI comes first; a UI can later sit on top of the same files and Python APIs.
+The CLI is a control surface over AgentLab state. It is not a second model
+router and must not encode provider-specific defaults.
 
-## Execution Split
+## Current Contract
 
-- DeepSeek API handles low-cost management and reasoning agents.
-- Codex Plus handles real code edits, file changes, and project commands.
-- If DeepSeek is unavailable, AgentLab writes a Codex fallback handoff file.
+- Task commands create, prepare, execute, pause, resume, inspect, and archive
+  run-local state.
+- `config/execution_modes.yml` selects the AgentLab workflow driver.
+- `config/agent_model_profiles.yml` selects each role's worker/model.
+- `config/worker_invocation_contracts.yml` owns command templates.
+- Model and capacity changes use the `models` proposal/apply/doctor surfaces.
+- Read-only status commands never trigger provider calls or mutate task state.
 
-## Current CLI Contract
+The Web UI, TUI, MCP server, and shell wrapper must call the same runtime APIs
+and display resolved workflow-plan data. They may not maintain browser-local or
+surface-local model assignments.
 
-- `init-task`: create a task run folder and placeholder reports.
-- `prepare`: build `workflow_plan.yml` from config, memory, and user request.
-- `status`: inspect task state, route, missing inputs, and report files.
-- `models`: inspect providers and model profiles without exposing secrets.
-- `run-agent`: dry-run or execute one agent through the configured model API.
+## Compatibility
 
-`run-agent` is dry-run by default. It calls a model only with `--execute`.
+Legacy execution-backend values remain parseable only for old workflow plans.
+New tasks use an active driver. Full-driver commands and prompts are retired;
+compatibility readers cannot start that mode or grant one shell the whole role
+chain.
 
-## Model Switching
+## Next CLI Work
 
-Provider config lives in:
+Future CLI changes should reduce surfaces by sharing typed command handlers and
+state projections. Add a command only when it exposes a durable runtime
+capability that cannot be expressed clearly through an existing command family.
+Provider-specific usage/status probes belong behind a common capacity interface,
+while their exact syntax remains in worker/provider contracts.
 
-```text
-config/model_providers.yml
-```
-
-Agent profile config lives in:
-
-```text
-config/model_profiles.yml
-```
-
-Environment values live privately in `.env`, based on:
-
-```text
-agent_runtime/.env.example
-```
-
-The initial provider path is OpenAI-compatible:
-
-- DeepSeek: `LLM_PROVIDER=deepseek`
-- OpenAI: `LLM_PROVIDER=openai`
-
-Per-run overrides are available:
-
-```bash
-./agentlab.sh run-agent Supervisor --provider deepseek --model Deepseek-V4-Pro
-./agentlab.sh run-agent Supervisor --provider openai --model <model-id>
-```
-
-Coder is configured as `codex_plus_manual`, so it is not called through DeepSeek
-API. Use Codex directly for the implementation stage, then write/update
-`implementation_report.md`.
-
-## Future UI Boundary
-
-A future UI should call the same runtime modules:
-
-- `workflow_plan.build_workflow_plan`
-- `state_store.load_state`
-- `state_store.save_state`
-- `agent_runner.compose_agent_messages`
-- `agent_runner.run_agent_model`
-
-The UI should not bypass `workflow_plan.yml`, `state.yml`, or the validation
-gates. Those files are the audit trail.
+The previous provider-specific roadmap is archived at
+`docs/archive/root_agent_guides_legacy_20260718/CLI_ROADMAP.md`.

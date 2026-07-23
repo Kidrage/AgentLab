@@ -4,11 +4,14 @@ root: .
 request_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
 script_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
 status_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_status.yml
-request_id: trusted_live_20260712_0505_writer_contract_v1
+request_id: trusted_live_20260718_pruned
 status: pass
 executes_provider_calls: false
 loads_private_project_context: false
 safe_scope: local binary/path preflight only
+required_commands:
+- claude
+- hermes
 private_context_runtime_guard:
   exact_manifest_required: true
   writer_sealed_context_required: true
@@ -28,11 +31,11 @@ checks:
   kind: file
   path: agentlab.sh
   status: pass
-- id: command:agy
+- id: command:claude
   kind: command
-  command: agy
+  command: claude
   status: pass
-  path: /usr/local/bin/agy
+  path: <local_path:claude>
 - id: command:hermes
   kind: command
   command: hermes

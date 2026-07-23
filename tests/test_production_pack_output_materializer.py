@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hashlib import sha256
 from pathlib import Path
 import sys
 
@@ -109,6 +110,72 @@ def test_materializes_complete_same_run_pack_candidate(tmp_path: Path) -> None:
     assert contract["proposal_validation"]["valid"] is True
     assert contract["materialized_outputs"] == sorted(REQUIRED_SYNTHESIS_OUTPUTS)
     assert all((run_dir / name).exists() for name in REQUIRED_SYNTHESIS_OUTPUTS)
+
+
+def test_accepts_hash_verified_native_isolated_cli_outputs(tmp_path: Path) -> None:
+    task_id = "task_pack_native_cli"
+    run_dir = tmp_path / "runs" / task_id
+    run_dir.mkdir(parents=True)
+    _write_research_contract(run_dir)
+    catalog = tmp_path / "production_packs.yml"
+    catalog.write_text("packs: []\n", encoding="utf-8")
+
+    materialized = []
+    for name, value in _candidate_values(task_id).items():
+        raw = value.encode("utf-8")
+        (run_dir / name).write_bytes(raw)
+        materialized.append(
+            {
+                "path": f"runs/{task_id}/{name}",
+                "byte_count": len(raw),
+                "sha256": sha256(raw).hexdigest(),
+            }
+        )
+    receipt_path = run_dir / "artifact_materialization_receipt.yml"
+    receipt_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "pass",
+                "role": "ArtifactProducer",
+                "task_id": task_id,
+                "required_outputs": [
+                    f"runs/{task_id}/{name}" for name in REQUIRED_SYNTHESIS_OUTPUTS
+                ],
+                "materialized": materialized,
+                "missing": [],
+                "blocked": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    result = LLMCallResult(
+        provider="agentlab-cli-executor",
+        model="qwen",
+        content="Created and validated the three declared pack candidates.",
+        status="completed",
+        raw_usage={
+            "cli_agent": "qwen",
+            "command_id": "cmd_native_pack",
+            "artifact_materialization_status": "pass",
+            "artifact_materialization_receipt": str(receipt_path),
+        },
+    )
+
+    assert materialize_production_pack_candidate_result(
+        result,
+        run_dir,
+        task_id,
+        catalog,
+        execution_mode="execute",
+    )
+    contract = yaml.safe_load(
+        (run_dir / "production_pack_output_contract.yml").read_text(encoding="utf-8")
+    )
+    assert contract["status"] == "pass"
+    assert contract["returned_artifact_source"] == "isolated_cli_declared_files"
+    assert contract["materialized_outputs"] == sorted(REQUIRED_SYNTHESIS_OUTPUTS)
 
 
 def test_missing_pack_output_is_transactionally_blocked(tmp_path: Path) -> None:

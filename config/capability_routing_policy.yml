@@ -44,9 +44,12 @@ rules:
   - id: no_undeclared_worker_local_mcp
     action: forbid
     when: provider_not_registered
-  - id: explicit_approval_for_upload_or_write
-    action: require_approval
-    when_any: [cloud_upload, external_write, shell_mutation, public_network_bind]
+  - id: policy_evaluation_for_bounded_mutation
+    action: evaluate_approval_policy
+    when_any: [cloud_upload, external_write, shell_mutation]
+  - id: human_approval_for_public_network_bind
+    action: require_human_approval
+    when: public_network_bind
 
 context_policy:
   include:

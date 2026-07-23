@@ -47,6 +47,37 @@ def test_materializes_reviewer_heavy_audit_outputs_transactionally(tmp_path: Pat
                     "failures": [],
                 },
             ),
+            _block(
+                "narrative_quality_scorecard.yml",
+                {
+                    "schema_version": 1,
+                    "status": "pass",
+                    "candidate_only": True,
+                    "production_modified": False,
+                    "candidate_sha256": "candidate-sha",
+                    "dimensions": {
+                        name: {
+                            "score": 5,
+                            "severity": "pass",
+                            "evidence": {
+                                "chapter": 1,
+                                "scene": "opening",
+                                "excerpt_or_locator": "paragraph 1",
+                            },
+                            "reason": "specific evidence",
+                            "revision_target": "none",
+                        }
+                        for name in (
+                            "causal_reasoning",
+                            "strategic_competence",
+                            "character_agency",
+                            "dramatic_tension",
+                            "reader_curiosity",
+                            "non_formulaic_progression",
+                        )
+                    },
+                },
+            ),
         ]
     )
 
@@ -58,6 +89,7 @@ def test_materializes_reviewer_heavy_audit_outputs_transactionally(tmp_path: Pat
     )
     assert (tmp_path / "fiction_review.yml").exists()
     assert (tmp_path / "continuity_failure_report.yml").exists()
+    assert (tmp_path / "narrative_quality_scorecard.yml").exists()
 
 
 def test_rejects_heavy_audit_attempt_to_replace_draft(tmp_path: Path) -> None:
@@ -96,6 +128,37 @@ def test_failed_reviewer_retry_removes_stale_materialized_outputs(tmp_path: Path
     )
     assert not (tmp_path / "fiction_review.yml").exists()
     assert not (tmp_path / "continuity_failure_report.yml").exists()
+
+
+def test_invalid_heavy_audit_yaml_reports_problem_line(tmp_path: Path) -> None:
+    content = """<!-- AGENTLAB_EDIT: state_transition_proposal.yml -->
+schema_version: 1
+status: candidate
+candidate_only: true
+production_modified: false
+requires_user_promotion: true
+events:
+  - scope: candidate_only
+    acceptance_criteria:
+      - Add indicators (e.g., phase: recovery, vital_signs: unstable).
+<!-- END AGENTLAB_EDIT -->"""
+
+    assert not materialize_narrative_heavy_audit_content(
+        content,
+        tmp_path,
+        "task_audit",
+        "Scribe",
+    )
+    contract = yaml.safe_load(
+        (tmp_path / "narrative_heavy_audit_scribe_output_contract.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    issue = contract["issues"][0]
+    assert issue.startswith(
+        "invalid_heavy_audit_yaml:state_transition_proposal.yml:line_"
+    )
+    assert "mapping_values_are_not_allowed_here" in issue
 
 
 def test_blocking_continuity_requires_rewrite_proposal(tmp_path: Path) -> None:
@@ -241,7 +304,61 @@ def test_prepares_fresh_provider_free_heavy_audit_bundle(tmp_path: Path) -> None
     assert "Chapter 1 draft" in context
     assert "Chapter 2 continuity ledger" in context
     assert report["sources"][0]["files"]["fiction_draft.md"]["sha256"]
+    assert report["context_bundle_id"].startswith("ctx-")
+    bundle_path = Path(report["context_bundle_manifest"])
+    bundle = yaml.safe_load(bundle_path.read_text(encoding="utf-8"))
+    assert bundle["chapter_window"] == [1, 2]
+    assert bundle["role_specific_files"]["Reviewer"][0]["path"].endswith(
+        "narrative_audit_context.md"
+    )
     assert not (run_dir / "fiction_draft.md").exists()
+
+
+def test_heavy_audit_uses_validated_revision_draft_override(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    eval_id = "local_v1"
+    manuscript = tmp_path / "projects" / "Crown_of_Ash" / "production" / "manuscript"
+    manuscript.mkdir(parents=True)
+    _write_candidate_run(tmp_path, 1, eval_id)
+    revision_task_id = "task-revision-ch001-attempt-01"
+    revised = (
+        tmp_path
+        / "projects"
+        / "Crown_of_Ash"
+        / "runs"
+        / revision_task_id
+        / "fiction_draft.md"
+    )
+    revised.parent.mkdir(parents=True)
+    revised.write_text("# 第一章\n\nREVISED_CANDIDATE_MARKER\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "agent_runtime.narrative_heavy_audit.validate_revision_draft_binding",
+        lambda *_args, **_kwargs: {
+            "status": "pass",
+            "issues": [],
+            "draft_path": str(revised),
+        },
+    )
+
+    report = prepare_crown_narrative_heavy_audit(
+        tmp_path,
+        eval_id=eval_id,
+        start_chapter=1,
+        end_chapter=1,
+        draft_bindings={1: {"task_id": revision_task_id}},
+    )
+
+    assert report["status"] == "ready", report["issues"]
+    source = report["sources"][0]
+    assert source["task_id"] == "task_narrative_eval_ch01_local_v1"
+    assert source["draft_task_id"] == revision_task_id
+    assert source["files"]["fiction_draft.md"]["path"].endswith(
+        f"runs/{revision_task_id}/fiction_draft.md"
+    )
+    context = Path(report["context_path"]).read_text(encoding="utf-8")
+    assert "REVISED_CANDIDATE_MARKER" in context
 
 
 def test_heavy_audit_bundle_rejects_oversized_range_without_creating_run(tmp_path: Path) -> None:

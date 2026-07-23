@@ -2,8 +2,7 @@
 
 from pathlib import Path
 import yaml
-from typing import Dict, Any, List, Optional
-import os
+from typing import Dict, Any, Optional
 
 from agent_runtime.execution_economy.activation_cost import (
     ActivationCost, FixedStartupCost, CacheProfile, VariableCost, NonTokenCosts
@@ -14,13 +13,14 @@ from agent_runtime.execution_economy.effective_cost import (
 )
 from agent_runtime.execution_economy.marginal_utility_gate import evaluate_marginal_utility
 from agent_runtime.execution_economy.role_activation_policy import RoleActivationPolicy
-from agent_runtime.execution_economy.role_coalescing import coalesce_roles
 from agent_runtime.execution_economy.context_reuse_policy import ContextReusePolicy
 from agent_runtime.execution_economy.escalation_ladder import EscalationLadder
 from agent_runtime.execution_economy.activation_decision import (
     ActivationDecision, DecisionCost, CacheVerdict, ExpectedBenefit, DecisionContextBudget
 )
 from agent_runtime.execution_economy.renderer import render_execution_economy_report
+from agent_runtime.routing.route_catalog import RouteCatalog
+from agent_runtime.task_router import recommend_route
 
 # Default worker activation costs database
 DEFAULT_WORKER_COSTS = {
@@ -222,6 +222,27 @@ def load_worker_costs(config_path: Optional[Path] = None) -> Dict[str, Any]:
             pass
     return DEFAULT_WORKER_COSTS
 
+def _activation_route(task_packet: dict[str, Any], objective: str) -> tuple[str, str, list[str]]:
+    route_value = task_packet.get("route")
+    explicit_route_key = str(
+        task_packet.get("route_key")
+        or (route_value.get("route_key") if isinstance(route_value, dict) else "")
+        or ""
+    ).strip()
+    catalog = RouteCatalog.from_config()
+    if explicit_route_key:
+        if not catalog.has_configured_route(explicit_route_key):
+            raise ValueError(f"Unknown route_key in task packet: {explicit_route_key}")
+        return (
+            explicit_route_key,
+            catalog.size_for(explicit_route_key),
+            catalog.agents_for(explicit_route_key),
+        )
+
+    route = recommend_route(objective)
+    return route.route_key, route.task_size, list(route.agents)
+
+
 def compile_activation_plan(task_packet_path: Path, agentlab_root: Path) -> Dict[str, Any]:
     """Compile the entire cache-aware execution economy activation plan."""
     packet_path = Path(task_packet_path)
@@ -235,20 +256,14 @@ def compile_activation_plan(task_packet_path: Path, agentlab_root: Path) -> Dict
         
     # Standard task packet layout can have top-level task_packet or not
     tp = packet_data.get("task_packet", packet_data)
-    project_id = tp.get("project_id", "AgentLab")
-    phase_id = tp.get("phase_id", "unknown")
-    task_id = tp.get("packet_id", f"{project_id}_{phase_id}_task")
-    objective = tp.get("objective", "")
-    
-    # Estimate task size
-    task_size = "medium"
-    if "small" in objective.lower() or len(objective) < 100:
-        task_size = "small"
-    elif len(objective) > 1000:
-        task_size = "large"
+    project_id = str(tp.get("project_id", "AgentLab"))
+    phase_id = str(tp.get("phase_id", "unknown"))
+    task_id = str(tp.get("task_id") or tp.get("packet_id") or f"{project_id}_{phase_id}_task")
+    objective = str(tp.get("objective", ""))
+    route_key, task_size, roles = _activation_route(tp, objective)
         
     # Output directories
-    out_dir = agentlab_root / "projects" / project_id / "execution_economy"
+    out_dir = agentlab_root / "projects" / project_id / "runs" / task_id / "execution_economy"
     decisions_dir = out_dir / "activation_decisions"
     decisions_dir.mkdir(parents=True, exist_ok=True)
     
@@ -257,11 +272,6 @@ def compile_activation_plan(task_packet_path: Path, agentlab_root: Path) -> Dict
     worker_costs = load_worker_costs(agentlab_root / "config" / "worker_activation_costs.yml")
     context_policy = ContextReusePolicy(agentlab_root / "config" / "context_cache_policy.yml")
     escalation_ladder = EscalationLadder(agentlab_root / "config" / "escalation_ladders.yml")
-    
-    roles = [
-        "Supervisor", "RepoScout", "InterfaceMapper", "Researcher",
-        "PromptEngineer", "Coder", "TesterAuditor", "Verifier", "Archivist"
-    ]
     
     decisions_dict = []
     total_raw_tokens = 0
@@ -313,8 +323,8 @@ def compile_activation_plan(task_packet_path: Path, agentlab_root: Path) -> Dict
             decision=decision,
             activation_temperature="warm_cached" if verdict == "justified" else "deterministic" if worker_id in ("rg", "git", "pytest", "ruff", "ast_grep") else "cold",
             satisfied_by=[f"deterministic_{role.lower()}"] if decision in ("satisfy_by_deterministic", "satisfy_by_cache") else [],
-            selected_worker=worker_id if decision in ("spawn", "coalesce") else None,
-            selected_provider="local_cli" if decision in ("spawn", "coalesce") else None,
+            selected_worker=worker_id if decision == "spawn" else None,
+            selected_provider="local_cli" if decision == "spawn" else None,
             activation_cost=DecisionCost(
                 raw_tokens=raw_tokens,
                 cacheable_tokens=act_cost.fixed_startup_cost.cacheable_prompt_tokens,
@@ -357,13 +367,29 @@ def compile_activation_plan(task_packet_path: Path, agentlab_root: Path) -> Dict
         cache_profile_reports[role] = act_cost.cache_profile.last_cache_hit_observed
         context_reuse_plans[role] = dec.context_budget.to_dict()
 
-    # Coalescing
-    coalesced = coalesce_roles([d["role"] for d in decisions_dict if d["decision"] == "spawn"], task_size)
-    coalesced_list = [p.to_dict() for p in coalesced]
-    
-    # Save Coalescing Report
-    coalesce_file = out_dir / "role_coalescing.yml"
-    coalesce_file.write_text(yaml.safe_dump({"role_coalescing": coalesced_list}, sort_keys=False), encoding="utf-8")
+    role_sessions = [
+        {
+            "role": decision["role"],
+            "activation_decision": decision["decision"],
+            "selected_worker": decision.get("selected_worker"),
+            "session_boundary": "independent_role_receipt",
+        }
+        for decision in decisions_dict
+    ]
+    session_file = out_dir / "role_session_plan.yml"
+    session_file.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "status": "independent_sessions",
+                "route_key": route_key,
+                "role_sessions": role_sessions,
+                "cross_role_coalescing": False,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
     
     # Save Context Reuse Plan
     context_file = out_dir / "context_reuse_plan.yml"
@@ -382,9 +408,11 @@ def compile_activation_plan(task_packet_path: Path, agentlab_root: Path) -> Dict
         "activation_plan": {
             "project_id": project_id,
             "task_id": task_id,
+            "route_key": route_key,
             "task_size": task_size,
             "decisions": decisions_dict,
-            "coalesced_packets": coalesced_list,
+            "role_sessions": role_sessions,
+            "cross_role_coalescing": False,
             "totals": {
                 "raw_tokens": total_raw_tokens,
                 "effective_tokens": total_effective_tokens,
@@ -399,7 +427,7 @@ def compile_activation_plan(task_packet_path: Path, agentlab_root: Path) -> Dict
     
     # Generate MD Report
     report_md = render_execution_economy_report(
-        project_id, task_id, decisions_dict, coalesced_list,
+        project_id, task_id, decisions_dict, role_sessions,
         total_raw_tokens, total_effective_tokens, total_raw_usd, total_effective_usd
     )
     report_file = out_dir / "execution_economy_report.md"

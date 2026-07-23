@@ -15,8 +15,10 @@ import yaml
 
 try:
     from agent_runtime.report_sanitizer import write_report_yaml
+    from agent_runtime.run_retention import resolve_run_dir
 except ModuleNotFoundError:  # pragma: no cover - direct script path
     from report_sanitizer import write_report_yaml
+    from run_retention import resolve_run_dir
 
 
 DEFAULT_MEDIA_SERIES_RUN = "task_probe_crown_comic_video_poster_series_scaffold_20260707"
@@ -61,7 +63,7 @@ def _yaml_file_status(path: Path) -> dict[str, Any]:
 
 
 def _media_production_files(project_root: Path) -> list[str]:
-    artifacts_root = project_root / "artifacts"
+    artifacts_root = project_root / "production" / "media"
     if not artifacts_root.exists():
         return []
     return [
@@ -107,7 +109,7 @@ def build_media_series_scaffold_audit(
     """Build an evidence-only audit for the Crown media scaffold run."""
     root = root.resolve()
     project_root = root / "projects" / PROJECT
-    run_dir = project_root / "runs" / task_id
+    run_dir = resolve_run_dir(root, PROJECT, task_id)
     workflow = _read_yaml(run_dir / "workflow_plan.yml")
     manifest = _read_yaml(run_dir / "artifact_manifest.yml")
     receipt = _read_yaml(run_dir / "narrative_media_delivery_receipt.yml")

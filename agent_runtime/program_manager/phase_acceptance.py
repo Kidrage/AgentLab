@@ -141,12 +141,32 @@ def accept_phase(phase_plan_path: Path, evidence_dir: Path, out_dir: Path) -> di
         phase_plan_path,
         out_dir,
     )
+    recorded_brain = result["acceptance_history_status"].get("project_brain_dir")
+    if result["acceptance_history_status"].get("recorded") and recorded_brain:
+        knowledge_sync = _sync_managed_project_brain(Path(recorded_brain))
+        if knowledge_sync is not None:
+            result["knowledge_sync"] = knowledge_sync
     atomic_write_yaml(out_dir / "phase_acceptance.yml", result)
 
     report_md = render_markdown_report(result)
     atomic_write_text(out_dir / "phase_acceptance.md", report_md)
 
     return result
+
+
+def _sync_managed_project_brain(project_brain_dir: Path) -> dict | None:
+    brain = Path(project_brain_dir).resolve()
+    if brain.name != "project_brain" or brain.parent.parent.name != "projects":
+        return None
+    from agent_runtime.knowledge_system import sync_committed
+
+    return sync_committed(
+        {
+            "agentlab_root": brain.parents[2],
+            "project": brain.parent.name,
+            "status": "committed",
+        }
+    ).as_dict()
 
 
 def _check_project_fact_state(phase_plan: dict, phase_plan_path: Path, evidence_dir: Path) -> dict:

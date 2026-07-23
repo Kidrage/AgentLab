@@ -1,0 +1,353 @@
+schema_version: 1
+
+authority:
+  purpose: run_local_model_and_subscription_capacity_governance
+  owns:
+    - capacity_pool_breakers
+    - provider_reset_observations
+    - canary_leases
+    - capacity_approved_route_chains
+  does_not_own:
+    - role_lifecycle
+    - model_capability_facts
+    - invocation_command_templates
+    - pricing
+
+ledger:
+  filename: model_capacity_ledger.yml
+  scope: run_local
+  atomic_yaml_required: true
+  persist_raw_probe_output: false
+  required_observation_fields:
+    - source_kind
+    - observed_at
+    - expires_at
+    - reset_at
+    - remaining
+    - confidence
+    - attempt_id
+    - failure_class
+
+failure_classes:
+  pool_scoped: [rate_limited, quota_exhausted, auth_missing]
+  route_scoped: [model_unavailable]
+  non_capacity: [unknown]
+
+canary_lease_seconds: 300
+
+probe_policy:
+  allowlist_shapes:
+    - [agy, models]
+    - [hermes, auth, status, "<provider>"]
+  forbidden_commands:
+    - [hermes, status, --all]
+  notes:
+    - Never use a broad Hermes status command for capacity discovery because it may expose secrets.
+    - Probe output is classified in memory and is never persisted verbatim.
+
+pools:
+  agy_gemini_observer:
+    shared_pool_id: agy_gemini_observer
+    provider: agy_gemini_oauth
+    billing_mode: subscription
+    probe: [agy, models]
+    declared_windows:
+      rolling:
+        period_seconds: 18000
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: user_declared
+        confidence: medium
+      weekly:
+        period_seconds: 604800
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: user_declared
+        confidence: medium
+
+  agy_claude_observer:
+    shared_pool_id: agy_claude_observer
+    provider: agy_claude_oauth
+    billing_mode: subscription
+    probe: [agy, models]
+    declared_windows:
+      rolling:
+        period_seconds: 18000
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: user_declared
+        confidence: medium
+      weekly:
+        period_seconds: 604800
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: user_declared
+        confidence: medium
+
+  openai_codex_agentic:
+    shared_pool_id: openai_codex_agentic
+    provider: hermes_codex_oauth
+    billing_mode: subscription
+    probe: [hermes, auth, status, openai-codex]
+    declared_windows:
+      rolling:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+      weekly:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+
+  codex_cli_agentic:
+    shared_pool_id: codex_cli_agentic
+    provider: codex_cli_oauth
+    billing_mode: subscription
+    probe: [codex, --version]
+    declared_windows:
+      rolling:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+      weekly:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+
+  xai_subscription_shared:
+    shared_pool_id: xai_subscription_shared
+    provider: hermes_xai_oauth
+    billing_mode: subscription
+    probe: [hermes, auth, status, xai-oauth]
+    declared_windows:
+      rolling:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+      weekly:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+
+  deepseek_metered_api:
+    shared_pool_id: deepseek_metered_api
+    provider: deepseek_official
+    billing_mode: metered_api
+    probe: null
+    declared_windows:
+      rolling:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+
+  dashscope_metered_api:
+    shared_pool_id: dashscope_metered_api
+    provider: dashscope_cn
+    billing_mode: metered_api
+    probe: null
+    declared_windows:
+      rolling:
+        period_seconds: null
+        limit: null
+        remaining: null
+        reset_at: null
+        source_kind: unknown
+        confidence: unknown
+
+routes:
+  Supervisor:
+    role: supervisor
+    worker: codex
+    invocation_contract: codex_supervisor
+    model_key: codex_gpt_5_6_sol_xhigh_cli_oauth
+    pool: codex_cli_agentic
+    approved_fallbacks: [SupervisorDeepSeek]
+    fallback_on: [rate_limited, quota_exhausted, auth_missing, model_unavailable]
+  SupervisorDeepSeek:
+    role: supervisor
+    worker: claude_code
+    invocation_contract: claude_supervisor_fallback
+    model_key: deepseek_v4_pro
+    pool: deepseek_metered_api
+    approved_fallbacks: []
+    fallback_on: []
+
+  Observer:
+    role: observer
+    worker: agy
+    invocation_contract: agy_observer
+    model_key: gemini_3_5_flash_high_agy_oauth
+    pool: agy_gemini_observer
+    input_modalities: [text, image, video, audio, pdf]
+    approved_fallbacks: [ObserverClaude]
+    fallback_on: [quota_exhausted, rate_limited, model_unavailable]
+  ObserverClaude:
+    role: observer
+    worker: agy
+    invocation_contract: agy_observer
+    model_key: claude_sonnet_4_6_agy_oauth
+    pool: agy_claude_observer
+    input_modalities: [text, image, pdf]
+    approved_fallbacks: []
+    fallback_on: []
+
+  VisualReviewer:
+    role: reviewer
+    worker: agy
+    invocation_contract: agy_visual_reviewer
+    model_key: gemini_3_5_flash_high_agy_oauth
+    pool: agy_gemini_observer
+    input_modalities: [text, image, video, audio, pdf]
+    approved_fallbacks: [VisualReviewerClaude]
+    fallback_on: [quota_exhausted, rate_limited, model_unavailable]
+  VisualReviewerClaude:
+    role: reviewer
+    worker: agy
+    invocation_contract: agy_visual_reviewer
+    model_key: claude_sonnet_4_6_agy_oauth
+    pool: agy_claude_observer
+    input_modalities: [text, image, pdf]
+    approved_fallbacks: []
+    fallback_on: []
+
+  Researcher:
+    role: researcher
+    worker: grok
+    invocation_contract: grok_research
+    model_key: grok_4_3_hermes_oauth
+    pool: xai_subscription_shared
+    approved_fallbacks: []
+    fallback_on: []
+
+  ArtifactProducer:
+    role: artifact_producer
+    worker: grok
+    invocation_contract: grok_media
+    model_key: grok_4_3_hermes_oauth
+    pool: xai_subscription_shared
+    media_backend: hermes_grok_oauth
+    input_modalities: [image, video, image_to_video]
+    approved_fallbacks: []
+    fallback_on: []
+
+  ArtifactProducerCodex:
+    role: artifact_producer
+    worker: codex
+    invocation_contract: codex
+    model_key: codex_gpt_5_6_sol_xhigh_cli_oauth
+    pool: codex_cli_agentic
+    approved_fallbacks: []
+    fallback_on: []
+
+  ArtifactProducerQwenMax:
+    role: artifact_producer
+    worker: qwen
+    invocation_contract: qwen_artifact
+    model_key: qwen3_7_max_dashscope
+    pool: dashscope_metered_api
+    approved_fallbacks: [ArtifactProducerQwen]
+    fallback_on: [model_unavailable]
+  ArtifactProducerQwen:
+    role: artifact_producer
+    worker: qwen
+    invocation_contract: qwen_artifact
+    model_key: qwen3_6_plus_dashscope
+    pool: dashscope_metered_api
+    approved_fallbacks: [ArtifactProducerQwenLow]
+    fallback_on: [model_unavailable]
+  ArtifactProducerQwenLow:
+    role: artifact_producer
+    worker: qwen
+    invocation_contract: qwen_artifact
+    model_key: qwen3_6_flash_dashscope
+    pool: dashscope_metered_api
+    approved_fallbacks: []
+    fallback_on: []
+
+  NarrativePlannerRewrite:
+    role: narrative_planner
+    worker: claude_code
+    invocation_contract: claude_narrative_planner
+    model_key: deepseek_v4_pro
+    pool: deepseek_metered_api
+    approved_fallbacks: []
+    fallback_on: []
+    activation_policy: blocking_narrative_rewrite_only
+
+  NarrativePlannerAgy:
+    role: narrative_planner
+    worker: agy
+    invocation_contract: agy_narrative_planner
+    model_key: gemini_3_5_flash_high_agy_oauth
+    pool: agy_gemini_observer
+    approved_fallbacks: []
+    fallback_on: []
+
+  NarrativeEditor:
+    role: reviewer
+    worker: qwen
+    invocation_contract: qwen_narrative_literary_ab
+    model_key: qwen3_7_max_dashscope
+    pool: dashscope_metered_api
+    approved_fallbacks: []
+    fallback_on: []
+
+  Writer:
+    role: writer
+    worker: claude_code
+    invocation_contract: claude_writer
+    model_key: deepseek_v4_pro
+    pool: deepseek_metered_api
+    approved_fallbacks: [WriterFlash]
+    fallback_on: [model_unavailable]
+    fallback_cost_policy: explicit_preapproved_lower_cost_model
+  WriterUltracode:
+    role: writer
+    worker: claude_code
+    invocation_contract: claude_writer_ultracode
+    model_key: deepseek_v4_pro
+    pool: deepseek_metered_api
+    approved_fallbacks: []
+    fallback_on: []
+    activation_policy: explicit_sealed_packet_only
+  WriterFlash:
+    role: writer
+    worker: claude_code
+    invocation_contract: claude_writer
+    model_key: deepseek_v4_flash
+    pool: deepseek_metered_api
+    approved_fallbacks: []
+    fallback_on: []
+  WriterLow:
+    role: writer
+    worker: claude_code
+    invocation_contract: claude_writer
+    model_key: deepseek_v4_flash
+    pool: deepseek_metered_api
+    approved_fallbacks: []
+    fallback_on: []

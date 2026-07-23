@@ -104,10 +104,15 @@ def default_skill_registry() -> dict[str, Any]:
         "retired_skills": [],
         "metadata": {
             "owner": "AgentLab",
-            "status": "local_lifecycle_mvp",
+            "status": "local_lifecycle_with_runtime_injection",
             "created_at": now,
             "updated_at": now,
-            "notes": "Local skill lifecycle MVP. External search and real sandbox execution are not implemented.",
+            "notes": (
+                "Skill lifecycle, active-skill matching, workflow-plan injection, "
+                "prompt injection, approval cards, and usage ledgers are implemented. "
+                "Real GitHub search, real sandbox execution, and automatic external "
+                "package parsing remain out of scope."
+            ),
         },
     }
 
@@ -578,8 +583,8 @@ def promote_skill(agentlab_root: Path, skill_id: str) -> dict[str, Any]:
     """Promote a validated skill to active (validated → active).
 
     Copies normalized skill content into skills/active/<skill_id>/,
-    creates SKILL.md, validation_report.yml, empty usage_ledger.yml,
-    updates skills/registry.yml, sets status to active.
+    creates SKILL.md and validation_report.yml, updates skills/registry.yml,
+    and sets status to active. Runtime usage remains run-local.
     """
     staging_dir = skill_staging_dir(agentlab_root) / skill_id
     if not staging_dir.exists():
@@ -651,14 +656,6 @@ def promote_skill(agentlab_root: Path, skill_id: str) -> dict[str, Any]:
         "checks_passed": True,
     }
     atomic_write_yaml(active_dir / "validation_report.yml", validation_report)
-
-    # Write empty usage_ledger.yml
-    usage_ledger = {
-        "schema_version": 1,
-        "skill_id": skill_id,
-        "entries": [],
-    }
-    atomic_write_yaml(active_dir / "usage_ledger.yml", usage_ledger)
 
     # Update registry
     registry = load_skill_registry(agentlab_root)

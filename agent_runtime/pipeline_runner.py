@@ -8,14 +8,17 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+import re
+import subprocess
+from uuid import uuid4
 import yaml
 
 from atomic_io import atomic_write_yaml
 from lifecycle_graph import (
     load_lifecycle, save_lifecycle, next_node, mark_node_started,
     mark_node_completed, mark_node_failed,
-    LIFECYCLE_NODES, OPTIONAL_NODES,
+    LIFECYCLE_NODES, LIFECYCLE_NODE_OWNER, OPTIONAL_NODES,
     create_lifecycle,
     _production_pack_nodes,
     _skip_reason_for_node,
@@ -53,32 +56,22 @@ ARTIFACT_ALIASES = {
     "09_archive_update.md": "archive_update.md",
 }
 
-NODE_TO_AGENT = {
-    "SUPERVISOR_PLAN": "Supervisor",
-    "REPO_CONTEXT": "RepoScout",
-    "RESEARCH_OPTIONAL": "Researcher",
-    "INTERFACE_OPTIONAL": "InterfaceMapper",
-    "WRITER_DRAFT": "Writer",
-    "FICTION_REVIEW": "Reviewer",
-    "SCRIBE_LEDGER": "Scribe",
-    "CODER_IMPLEMENTATION": "Coder",
-    "ARTIFACT_PRODUCTION": "ArtifactProducer",
-    "VALIDATION": "TesterAuditor",
-    "AUDIT": "TesterAuditor",
-    "VERIFY": "Verifier",
-    "ARCHIVE": "Archivist",
-}
+NODE_TO_AGENT = dict(LIFECYCLE_NODE_OWNER)
 
 NODE_TO_REPORT = {
     "SUPERVISOR_PLAN": "01_supervisor_plan.md",
     "REPO_CONTEXT": "02_reposcout_report.md",
     "RESEARCH_OPTIONAL": "03_research_notes.md",
+    "OBSERVATION_OPTIONAL": "observation_report.yml",
     "INTERFACE_OPTIONAL": "04_interface_map.md",
+    "NARRATIVE_REWRITE_PLAN": "chapter_state_plan.yml",
     "WRITER_DRAFT": "fiction_draft.md",
     "FICTION_REVIEW": "fiction_review.yml",
     "SCRIBE_LEDGER": "continuity_ledger.yml",
     "CODER_IMPLEMENTATION": "06_implementation_report.md",
     "ARTIFACT_PRODUCTION": "artifact_producer_report.md",
+    "VISUAL_OBSERVATION": "visual_observation_report.yml",
+    "VISUAL_REVIEW": "visual_review_report.yml",
     "VALIDATION": "07_validation_report.md",
     "AUDIT": "08_audit_report.md",
     "VERIFY": "verification_report.md",
@@ -91,9 +84,11 @@ NODE_TO_PROGRESS = {
     "INIT_TASK": "init", "CONTEXT_PROFILE": "context_profile",
     "CONTEXT_BUDGET": "context_budget", "CONTEXT_PACK": "context_pack", "PREPARE_PLAN": "planning",
     "SUPERVISOR_PLAN": "planning", "REPO_CONTEXT": "scouting",
-    "RESEARCH_OPTIONAL": "research", "INTERFACE_OPTIONAL": "interfacing",
+    "RESEARCH_OPTIONAL": "research", "OBSERVATION_OPTIONAL": "observing",
+    "INTERFACE_OPTIONAL": "interfacing", "NARRATIVE_REWRITE_PLAN": "rewrite_planning",
     "WRITER_DRAFT": "writing", "FICTION_REVIEW": "reviewing", "SCRIBE_LEDGER": "ledgering",
     "CODER_IMPLEMENTATION": "implementation", "ARTIFACT_PRODUCTION": "artifact_production",
+    "VISUAL_OBSERVATION": "visual_observing", "VISUAL_REVIEW": "visual_reviewing",
     "VALIDATION": "validation",
     "AUDIT": "audit", "VERIFY": "verifying", "ARCHIVE": "archiving",
     "SELF_CHECK": "checking", "SYNC_OPTIONAL": "syncing", "FINALIZE": "completing",
@@ -102,9 +97,12 @@ NODE_TO_PROGRESS = {
 NODE_TO_PCT = {
     "INIT_TASK": 5, "CONTEXT_PROFILE": 7, "CONTEXT_BUDGET": 8, "CONTEXT_PACK": 9,
     "PREPARE_PLAN": 10, "SUPERVISOR_PLAN": 20,
-    "REPO_CONTEXT": 30, "RESEARCH_OPTIONAL": 35, "INTERFACE_OPTIONAL": 40,
+    "REPO_CONTEXT": 30, "RESEARCH_OPTIONAL": 35, "OBSERVATION_OPTIONAL": 38,
+    "INTERFACE_OPTIONAL": 40, "NARRATIVE_REWRITE_PLAN": 42,
     "WRITER_DRAFT": 45, "FICTION_REVIEW": 50, "SCRIBE_LEDGER": 53,
-    "CODER_IMPLEMENTATION": 55, "ARTIFACT_PRODUCTION": 62, "VALIDATION": 70, "AUDIT": 78,
+    "CODER_IMPLEMENTATION": 55, "ARTIFACT_PRODUCTION": 62,
+    "VISUAL_OBSERVATION": 65, "VISUAL_REVIEW": 68,
+    "VALIDATION": 70, "AUDIT": 78,
     "VERIFY": 82, "ARCHIVE": 86, "SELF_CHECK": 90, "SYNC_OPTIONAL": 95, "FINALIZE": 100,
 }
 
@@ -486,9 +484,22 @@ def _write_pack_candidate_outputs(
 
     written: list[str] = []
     pack_id = str(pack.get("pack_id") or "unknown")
+    independently_owned_media_outputs = {
+        "media_qc_report.yml",
+        "visual_observation_report.yml",
+        "visual_review_report.yml",
+        "visual_verification_report.yml",
+        "visual_acceptance_candidate.yml",
+        "visual_acceptance_decision.yml",
+    }
     for output in outputs:
         rel_path = _normalize_pack_output_path(str(output))
         if rel_path is None:
+            continue
+        if (
+            pack_id in {"media_generation", "media_series_production"}
+            and rel_path.name in independently_owned_media_outputs
+        ):
             continue
         path = run_dir / rel_path
         existing_text = path.read_text(encoding="utf-8").strip() if path.exists() else ""
@@ -540,11 +551,58 @@ def _workflow_plan_for_run(run_dir: Path) -> dict:
     plan_path = run_dir / "workflow_plan.yml"
     if not plan_path.exists():
         return {}
+    if (
+        run_dir.parent.name == "runs"
+        and len(run_dir.parents) > 3
+        and run_dir.parents[2].name == "projects"
+    ):
+        from agent_runtime.narrative.production.live_writer_preflight import (
+            LiveWriterPlanActivationError,
+            load_validated_workflow_plan_data,
+        )
+
+        try:
+            return load_validated_workflow_plan_data(
+                agentlab_root=run_dir.parents[3],
+                project=run_dir.parents[1].name,
+                task_id=run_dir.name,
+                plan_path=plan_path,
+            )
+        except LiveWriterPlanActivationError:
+            raise
+        except Exception:
+            return {}
     try:
         data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _is_activated_preflight_plan(plan_data: dict) -> bool:
+    return bool(str(plan_data.get("sealed_user_request_content") or ""))
+
+
+def _execution_plan_for_run(
+    agentlab_root: Path,
+    project: str,
+    task_id: str,
+    workflow_plan_data: dict,
+    *,
+    budget_mode: str | None,
+):
+    if _is_activated_preflight_plan(workflow_plan_data):
+        from schemas import WorkflowPlan
+
+        return WorkflowPlan(**workflow_plan_data)
+    from workflow_plan import build_workflow_plan
+
+    return build_workflow_plan(
+        agentlab_root,
+        project,
+        task_id,
+        budget_mode=budget_mode,
+    )
 
 
 def _write_synthesis_domain_research_brief(
@@ -969,6 +1027,7 @@ def _media_series_candidate_fields(artifact: str) -> dict:
         }
     if artifact == "generation_ledger.yml":
         return {
+            "generated_assets": [],
             "generations": [
                 {
                     "generation_id": "dry_run_backend_preflight",
@@ -980,6 +1039,17 @@ def _media_series_candidate_fields(artifact: str) -> dict:
                 }
             ],
         }
+    if artifact == "generation_receipt.yml":
+        return {
+            "status": "not_required",
+            "producer": {"role": "ArtifactProducer", "id": "fake-provider"},
+            "backend": "not_called",
+            "model": "not_called",
+            "prompt_parameters": {"execution_mode": "mock_provider"},
+            "reference_assets": [],
+        }
+    if artifact == "generated_assets_manifest.yml":
+        return {"status": "not_required", "assets": []}
     if artifact == "media_continuity_ledger.yml":
         return {
             "continuity_checks": [
@@ -1035,6 +1105,7 @@ def _media_series_candidate_fields(artifact: str) -> dict:
 def _media_generation_candidate_fields(artifact: str) -> dict:
     if artifact == "generation_ledger.yml":
         return {
+            "generated_assets": [],
             "generations": [
                 {
                     "generation_id": "dry_run_backend_preflight",
@@ -1045,6 +1116,17 @@ def _media_generation_candidate_fields(artifact: str) -> dict:
                 }
             ],
         }
+    if artifact == "generation_receipt.yml":
+        return {
+            "status": "not_required",
+            "producer": {"role": "ArtifactProducer", "id": "fake-provider"},
+            "backend": "not_called",
+            "model": "not_called",
+            "prompt_parameters": {"execution_mode": "mock_provider"},
+            "reference_assets": [],
+        }
+    if artifact == "generated_assets_manifest.yml":
+        return {"status": "not_required", "assets": []}
     if artifact == "media_qc_report.yml":
         return {
             "checks": [
@@ -1129,15 +1211,522 @@ def _write_media_backend_dry_run_outputs(
         out_dir,
         live=False,
     )
+    for filename in (
+        "role_session_receipt.yml",
+        "generation_ledger.yml",
+        "generation_receipt.yml",
+        "generated_assets_manifest.yml",
+    ):
+        canonical = out_dir / filename
+        if canonical.exists():
+            payload = yaml.safe_load(canonical.read_text(encoding="utf-8")) or {}
+            if isinstance(payload, dict):
+                atomic_write_yaml(run_dir / filename, payload)
     written: list[str] = []
     for rel in (
         "artifacts/media_backend/media_backend_preflight.yml",
         "artifacts/media_backend/media_backend_payload_plan.yml",
+        "artifacts/media_backend/role_session_receipt.yml",
         "artifacts/media_backend/generation_ledger.yml",
+        "artifacts/media_backend/generation_receipt.yml",
+        "artifacts/media_backend/generated_assets_manifest.yml",
     ):
         if (run_dir / rel).exists():
             written.append(rel)
     return written
+
+
+def _run_media_capacity_probe(command: tuple[str, ...]) -> subprocess.CompletedProcess[str]:
+    """Run only the narrow, non-secret xAI OAuth status probe."""
+
+    allowed = ("hermes", "auth", "status", "xai-oauth")
+    if command != allowed:
+        raise ValueError("media capacity probe command is not allowlisted")
+    return subprocess.run(
+        list(command),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+
+def _execute_media_backend_role_outputs(
+    agentlab_root: Path,
+    run_dir: Path,
+    project: str,
+    task_id: str,
+    pack_id: str,
+    *,
+    capacity_probe_runner=None,
+) -> dict[str, Any]:
+    """Execute and verify the ArtifactProducer-owned media backend receipts.
+
+    This is called only from the pipeline's explicit execute mode. The adapter
+    owns the provider invocation and hashes returned local files; text-only
+    output, an undisclosed generation model, or incomplete receipts fail closed.
+    """
+
+    contract_path = run_dir / "media_generation_contract.yml"
+    if not contract_path.is_file():
+        return {
+            "status": "blocked",
+            "issues": ["missing:media_generation_contract.yml"],
+            "outputs": [],
+        }
+    try:
+        from agent_runtime.media_backend_adapter import (
+            execute_media_contract,
+            load_media_generation_contract,
+        )
+    except ImportError:  # pragma: no cover - direct runtime import path
+        from media_backend_adapter import (
+            execute_media_contract,
+            load_media_generation_contract,
+        )
+
+    contract = load_media_generation_contract(contract_path)
+    capacity_receipt_path = run_dir / "media_capacity_route_receipt.yml"
+    attempt_id = f"{task_id}:ArtifactProducer:media:{uuid4().hex}"
+    observed_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
+        "+00:00", "Z"
+    )
+    capacity_receipt: dict[str, Any] = {
+        "schema_version": "media-capacity-route-receipt/v1",
+        "status": "pending",
+        "role": "ArtifactProducer",
+        "primary_route_id": "ArtifactProducer",
+        "attempt_id": attempt_id,
+        "observed_at": observed_at,
+        "requested_modality": contract.get("modality"),
+        "contract_routing_status": contract.get("routing_status"),
+        "contract_selected_backend": contract.get("selected_backend"),
+        "contract_fallback_chain": list(contract.get("fallback_chain") or [])
+        if isinstance(contract.get("fallback_chain"), list)
+        else None,
+        "provider_invocation_started": False,
+    }
+
+    def block_capacity_route(
+        issue: str,
+        *,
+        failure_class: str,
+        decision: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        capacity_receipt.update(
+            {
+                "status": "blocked",
+                "failure_class": failure_class,
+                "provider_invocation_started": False,
+            }
+        )
+        if decision is not None:
+            capacity_receipt["capacity_decision"] = dict(decision)
+            capacity_receipt["pool_id"] = decision.get("pool_id")
+            capacity_receipt["route_id"] = decision.get("route_id")
+        atomic_write_yaml(capacity_receipt_path, capacity_receipt)
+        return {
+            "status": "blocked",
+            "issues": [issue],
+            "outputs": ["media_capacity_route_receipt.yml"],
+        }
+
+    capacity_policy_path = agentlab_root / "config" / "model_capacity.yml"
+    try:
+        capacity_policy = yaml.safe_load(
+            capacity_policy_path.read_text(encoding="utf-8")
+        ) or {}
+    except (OSError, yaml.YAMLError):
+        capacity_policy = {}
+    if not isinstance(capacity_policy, dict):
+        capacity_policy = {}
+    routes = capacity_policy.get("routes")
+    primary_route = routes.get("ArtifactProducer") if isinstance(routes, dict) else None
+    if not isinstance(primary_route, dict):
+        return block_capacity_route(
+            "media_capacity_route_missing:ArtifactProducer",
+            failure_class="capacity_policy_missing",
+        )
+
+    configured_backend = str(primary_route.get("media_backend") or "")
+    configured_pool = str(primary_route.get("pool") or "")
+    configured_worker = str(primary_route.get("worker") or "")
+    capacity_receipt.update(
+        {
+            "configured_primary_backend": configured_backend or None,
+            "configured_primary_pool": configured_pool or None,
+            "configured_primary_worker": configured_worker or None,
+        }
+    )
+    if (
+        not configured_backend
+        or configured_pool != "xai_subscription_shared"
+        or configured_worker != "grok"
+    ):
+        return block_capacity_route(
+            "media_capacity_route_invalid:ArtifactProducer",
+            failure_class="invalid_capacity_policy",
+        )
+
+    fallback_chain = contract.get("fallback_chain")
+    if not isinstance(fallback_chain, list) or configured_backend not in {
+        str(item) for item in fallback_chain
+    }:
+        return block_capacity_route(
+            f"media_backend_not_in_contract_fallback_chain:{configured_backend}",
+            failure_class="contract_route_mismatch",
+        )
+
+    contract_status = str(contract.get("routing_status") or "")
+    contract_backend = str(contract.get("selected_backend") or "")
+    if contract_backend and contract_backend != configured_backend:
+        return block_capacity_route(
+            "media_backend_capacity_route_mismatch:"
+            f"{contract_backend}:{configured_backend}",
+            failure_class="contract_route_mismatch",
+        )
+    if contract_status not in {"selected", "pending_capacity"}:
+        return block_capacity_route(
+            f"media_contract_not_executable:{contract_status or 'missing'}",
+            failure_class="contract_not_executable",
+        )
+    if contract_status == "selected" and not contract_backend:
+        return block_capacity_route(
+            "media_contract_selected_backend_missing",
+            failure_class="contract_route_mismatch",
+        )
+
+    try:
+        from agent_runtime.model_capacity import ModelCapacity
+    except ImportError:  # pragma: no cover - direct runtime import path
+        from model_capacity import ModelCapacity
+
+    ledger_name = str(
+        ((capacity_policy.get("ledger") or {}).get("filename"))
+        or "model_capacity_ledger.yml"
+    )
+    capacity_manager = ModelCapacity(capacity_policy, run_dir / ledger_name)
+
+    if contract_status == "pending_capacity":
+        blocker = contract.get("execution_blocker")
+        pending_backend = (
+            str(blocker.get("backend") or "") if isinstance(blocker, dict) else ""
+        )
+        if pending_backend != configured_backend:
+            return block_capacity_route(
+                "media_pending_backend_capacity_route_mismatch:"
+                f"{pending_backend or '<missing>'}:{configured_backend}",
+                failure_class="contract_route_mismatch",
+            )
+        try:
+            safe_command = capacity_manager.safe_probe_command(configured_pool)
+        except (ValueError, TypeError) as exc:
+            return block_capacity_route(
+                f"media_capacity_probe_policy_invalid:{type(exc).__name__}",
+                failure_class="invalid_capacity_policy",
+            )
+        if safe_command != ("hermes", "auth", "status", "xai-oauth"):
+            return block_capacity_route(
+                "media_capacity_probe_not_allowlisted",
+                failure_class="unsafe_capacity_probe",
+            )
+        try:
+            probe_result = capacity_manager.probe(
+                configured_pool,
+                runner=capacity_probe_runner or _run_media_capacity_probe,
+                attempt_id=attempt_id,
+            )
+        except Exception as exc:
+            observation = capacity_manager.record_failure(
+                "ArtifactProducer",
+                message="safe capacity probe execution failed",
+                attempt_id=attempt_id,
+            )
+            capacity_receipt["probe"] = {
+                "command": list(safe_command),
+                "status": "blocked",
+                "failure_class": observation.get("failure_class"),
+                "error_type": type(exc).__name__,
+            }
+            return block_capacity_route(
+                f"media_capacity_probe_failed:{observation.get('failure_class') or 'unknown'}",
+                failure_class=str(observation.get("failure_class") or "unknown"),
+            )
+        probe_observation = (
+            probe_result.get("observation")
+            if isinstance(probe_result.get("observation"), dict)
+            else {}
+        )
+        probe_failure = probe_observation.get("failure_class")
+        capacity_receipt["probe"] = {
+            "command": list(safe_command),
+            "status": "pass" if probe_failure is None else "blocked",
+            "failure_class": probe_failure,
+            "observation": dict(probe_observation),
+        }
+        if probe_failure is not None:
+            return block_capacity_route(
+                f"media_capacity_probe_failed:{probe_failure}",
+                failure_class=str(probe_failure),
+            )
+
+    modality = str(contract.get("modality") or "").strip().lower()
+    try:
+        capacity_decision = capacity_manager.select_route(
+            "ArtifactProducer",
+            role="ArtifactProducer",
+            attempt_id=attempt_id,
+            required_modalities=[modality] if modality else [],
+        )
+    except (ValueError, TypeError) as exc:
+        return block_capacity_route(
+            f"media_capacity_selection_failed:{type(exc).__name__}",
+            failure_class="invalid_capacity_policy",
+        )
+    if capacity_decision.get("status") != "selected":
+        return block_capacity_route(
+            "media_capacity_route_not_selected:"
+            f"{capacity_decision.get('failure_class') or capacity_decision.get('capacity_status') or 'unknown'}",
+            failure_class=str(
+                capacity_decision.get("failure_class")
+                or capacity_decision.get("capacity_status")
+                or "unknown"
+            ),
+            decision=capacity_decision,
+        )
+
+    selected_route_id = str(capacity_decision.get("route_id") or "")
+    selected_route = routes.get(selected_route_id) if isinstance(routes, dict) else None
+    selected_backend = (
+        str(selected_route.get("media_backend") or "")
+        if isinstance(selected_route, dict)
+        else ""
+    )
+    selected_worker = (
+        str(selected_route.get("worker") or "")
+        if isinstance(selected_route, dict)
+        else ""
+    )
+    if (
+        not selected_backend
+        or selected_worker != "grok"
+        or selected_backend not in {str(item) for item in fallback_chain}
+        or (contract_backend and contract_backend != selected_backend)
+    ):
+        return block_capacity_route(
+            f"media_selected_capacity_route_mismatch:{selected_route_id or '<missing>'}",
+            failure_class="contract_route_mismatch",
+            decision=capacity_decision,
+        )
+
+    effective_contract = dict(contract)
+    effective_contract.update(
+        {
+            "selected_backend": selected_backend,
+            "routing_status": "selected",
+            "executable": True,
+            "execution_blocker": None,
+        }
+    )
+    atomic_write_yaml(contract_path, effective_contract)
+    capacity_receipt.update(
+        {
+            "status": "selected",
+            "route_id": selected_route_id,
+            "pool_id": capacity_decision.get("pool_id"),
+            "media_backend": selected_backend,
+            "worker": selected_worker,
+            "model_key": selected_route.get("model_key")
+            if isinstance(selected_route, dict)
+            else None,
+            "selection_kind": capacity_decision.get("selection_kind"),
+            "capacity_status": capacity_decision.get("capacity_status"),
+            "provider_invocation_started": False,
+        }
+    )
+    atomic_write_yaml(capacity_receipt_path, capacity_receipt)
+
+    out_dir = run_dir / "artifacts" / "media_backend"
+    try:
+        from agent_runtime.protocols import build_role_session
+    except ImportError:  # pragma: no cover - direct runtime import path
+        from protocols import build_role_session
+    role_session = build_role_session(
+        agentlab_root,
+        "ArtifactProducer",
+        selected_worker,
+        project=project,
+        task_id=task_id,
+    )
+    capacity_receipt["adapter_execution_started"] = True
+    atomic_write_yaml(capacity_receipt_path, capacity_receipt)
+    try:
+        result = execute_media_contract(
+            effective_contract,
+            agentlab_root,
+            out_dir,
+            live=True,
+            role_session=role_session,
+        )
+    except Exception as exc:
+        failure_observation = capacity_manager.record_failure(
+            selected_route_id,
+            message=str(exc) or f"media backend exception {type(exc).__name__}",
+            attempt_id=attempt_id,
+        )
+        capacity_receipt.update(
+            {
+                "status": "blocked",
+                "failure_class": failure_observation.get("failure_class"),
+                "capacity_observation": failure_observation,
+                "provider_result_status": "exception",
+                "provider_error_type": type(exc).__name__,
+            }
+        )
+        atomic_write_yaml(capacity_receipt_path, capacity_receipt)
+        return {
+            "status": "blocked",
+            "issues": [f"media_backend_exception:{type(exc).__name__}"],
+            "outputs": ["media_capacity_route_receipt.yml"],
+        }
+    issues: list[str] = []
+    if result.get("status") != "completed":
+        failure_message = str(
+            result.get("reason") or result.get("status") or "media backend failed"
+        )
+        failure_observation = capacity_manager.record_failure(
+            selected_route_id,
+            message=failure_message,
+            attempt_id=attempt_id,
+        )
+        capacity_receipt.update(
+            {
+                "status": "blocked",
+                "failure_class": failure_observation.get("failure_class"),
+                "capacity_observation": failure_observation,
+                "provider_result_status": result.get("status"),
+            }
+        )
+        issues.append(
+            "media_backend_not_completed:"
+            + failure_message
+        )
+    else:
+        # A completed live adapter result necessarily crossed the provider
+        # boundary. Blocked/preflight results do not expose that fact, so keep
+        # the field false rather than overclaiming an invocation.
+        capacity_receipt["provider_invocation_started"] = True
+    if result.get("artifact_generation_verified") is not True:
+        issues.append("media_backend_returned_no_verified_asset")
+
+    required = {
+        "role_session_receipt.yml": "complete",
+        "generation_ledger.yml": "completed",
+        "generation_receipt.yml": "complete",
+        "generated_assets_manifest.yml": "complete",
+    }
+    payloads: dict[str, dict[str, Any]] = {}
+    for filename, expected_status in required.items():
+        path = out_dir / filename
+        if not path.is_file():
+            issues.append(f"missing:artifacts/media_backend/{filename}")
+            continue
+        try:
+            payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            issues.append(f"invalid_yaml:artifacts/media_backend/{filename}")
+            continue
+        if not isinstance(payload, dict):
+            issues.append(f"invalid_mapping:artifacts/media_backend/{filename}")
+            continue
+        payloads[filename] = payload
+        if str(payload.get("status") or "") != expected_status:
+            issues.append(
+                f"invalid_status:artifacts/media_backend/{filename}:"
+                f"{payload.get('status') or '<missing>'}"
+            )
+
+    receipt = payloads.get("generation_receipt.yml") or {}
+    producer = receipt.get("producer") if isinstance(receipt.get("producer"), dict) else {}
+    role_receipt = payloads.get("role_session_receipt.yml") or {}
+    if producer.get("role") != "ArtifactProducer" or not producer.get("id"):
+        issues.append("invalid:generation_receipt.producer")
+    if producer.get("id") != role_receipt.get("role_session_id"):
+        issues.append("invalid:generation_receipt.role_session_mismatch")
+    if producer.get("execution_id") != role_receipt.get("execution_id"):
+        issues.append("invalid:generation_receipt.execution_id_mismatch")
+    if str(receipt.get("backend") or "") != selected_backend:
+        issues.append("invalid:generation_receipt.backend_route_mismatch")
+    if not receipt.get("model"):
+        issues.append("invalid:generation_receipt.actual_model_missing")
+    manifest = payloads.get("generated_assets_manifest.yml") or {}
+    assets = manifest.get("assets")
+    if not isinstance(assets, list) or not assets:
+        issues.append("invalid:generated_assets_manifest.assets")
+
+    if issues:
+        capacity_receipt.setdefault("failure_class", "artifact_validation_failed")
+        capacity_receipt["status"] = "blocked"
+        capacity_receipt["validation_issues"] = list(dict.fromkeys(issues))
+        atomic_write_yaml(capacity_receipt_path, capacity_receipt)
+        return {
+            "status": "blocked",
+            "issues": list(dict.fromkeys(issues)),
+            "outputs": ["media_capacity_route_receipt.yml"],
+        }
+
+    success_observation = capacity_manager.record_success(
+        selected_route_id,
+        attempt_id=attempt_id,
+    )
+    capacity_receipt.update(
+        {
+            "status": "complete",
+            "failure_class": None,
+            "capacity_observation": success_observation,
+            "provider_result_status": result.get("status"),
+            "artifact_generation_verified": True,
+        }
+    )
+    atomic_write_yaml(capacity_receipt_path, capacity_receipt)
+
+    outputs: list[str] = ["media_capacity_route_receipt.yml"]
+    for filename, payload in payloads.items():
+        atomic_write_yaml(run_dir / filename, payload)
+        outputs.extend([f"artifacts/media_backend/{filename}", filename])
+    delivery_name = (
+        "narrative_media_delivery_receipt.yml"
+        if pack_id == "media_series_production"
+        else "media_delivery_receipt.yml"
+    )
+    atomic_write_yaml(
+        run_dir / delivery_name,
+        {
+            "schema_version": "media-delivery-receipt/v1",
+            "status": "candidate_ready_for_independent_review",
+            "producer": dict(producer),
+            "live_generation": True,
+            "candidate_only": True,
+            "production_modified": False,
+            "generated_assets": list(assets),
+            "source_receipts": [
+                "role_session_receipt.yml",
+                "generation_ledger.yml",
+                "generation_receipt.yml",
+                "generated_assets_manifest.yml",
+                "media_capacity_route_receipt.yml",
+            ],
+            "independent_acceptance_required": True,
+            "promotion_performed": False,
+        },
+    )
+    outputs.append(delivery_name)
+    return {
+        "status": "complete",
+        "issues": [],
+        "outputs": outputs,
+        "backend_status": result.get("status"),
+    }
 
 
 def _workflow_route_key(run_dir: Path) -> str:
@@ -1327,6 +1916,123 @@ def _report_bytes(path: Path) -> bytes | None:
         return None
 
 
+def _observation_report_content(
+    task_id: str,
+    raw_content: str,
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    model_execution_receipt: str | None = None,
+    model_execution_chain: str | None = None,
+) -> str:
+    """Normalize Observer output into a bounded, read-only YAML receipt."""
+    expected_keys = {
+        "status",
+        "inputs_observed",
+        "observations",
+        "scientific_evidence",
+        "inferences",
+        "limitations",
+        "uncertainties",
+        "suggestions",
+        "actionable_suggestions",
+    }
+    payloads: list[str] = []
+    output_match = re.search(
+        r"(?ms)^## Output\s*$\s*(.*?)(?=^## [^#]|\Z)",
+        raw_content,
+    )
+    if output_match:
+        payloads.append(output_match.group(1).strip())
+    payloads.extend(
+        match.strip()
+        for match in re.findall(
+            r"(?ms)```(?:yaml|yml)?\s*\n(.*?)```",
+            raw_content,
+        )
+    )
+    payloads.append(raw_content.strip())
+
+    candidate: dict[str, Any] = {}
+    parsed = False
+    seen_payloads: set[str] = set()
+    for payload in payloads:
+        if not payload or payload in seen_payloads:
+            continue
+        seen_payloads.add(payload)
+        unwrapped = re.sub(
+            r"(?ms)^```(?:yaml|yml)?\s*\n(.*?)```\s*$",
+            r"\1",
+            payload,
+        ).strip()
+        try:
+            loaded = yaml.safe_load(unwrapped)
+        except yaml.YAMLError:
+            continue
+        if isinstance(loaded, dict) and expected_keys.intersection(loaded):
+            candidate = loaded
+            parsed = True
+            break
+
+    def _items(key: str) -> list:
+        value = candidate.get(key, [])
+        return value if isinstance(value, list) else []
+
+    observations = _items("observations")
+    deterministic_fixture = provider in {None, "", "fake_provider"}
+    if not parsed and deterministic_fixture and raw_content.strip():
+        observations = [
+            {
+                "summary": raw_content.strip(),
+                "evidence_type": "observer_output",
+            }
+        ]
+    limitations = _items("limitations")
+    if not parsed and not deterministic_fixture:
+        limitations = ["observer_output_unparseable"]
+    actionable_suggestions = (
+        _items("actionable_suggestions") or _items("suggestions")
+    )
+    receipt_path = model_execution_receipt
+    candidate_status = str(candidate.get("status") or "complete").strip().lower()
+    complete = (parsed and candidate_status in {"complete", "completed", "pass"}) or (
+        deterministic_fixture and not parsed
+    )
+    report = {
+        "schema_version": 1,
+        "report_type": "observation_report",
+        "task_id": task_id,
+        "status": "complete" if complete else "blocked",
+        "read_only": True,
+        "candidate_only": True,
+        "production_modified": False,
+        "self_approved": False,
+        "model_execution_receipt": receipt_path,
+        "model_execution_chain": model_execution_chain,
+        "inputs_observed": _items("inputs_observed"),
+        "observations": observations,
+        "scientific_evidence": _items("scientific_evidence"),
+        "inferences": _items("inferences"),
+        "limitations": limitations,
+        "uncertainties": _items("uncertainties"),
+        "actionable_suggestions": actionable_suggestions,
+        "suggestions": actionable_suggestions,
+        "runtime_provenance": {
+            "provider": provider or "fake_provider",
+            "model": model or "deterministic_observer_fixture",
+            "model_execution_receipt_path": receipt_path,
+            "model_execution_chain_path": model_execution_chain,
+        },
+        "safety_receipt": {
+            "files_changed": [],
+            "commands_run": [],
+            "production_actions": [],
+            "self_approved": False,
+        },
+    }
+    return yaml.safe_dump(report, sort_keys=False, allow_unicode=True)
+
+
 def _preserve_cli_native_report(
     result: object,
     report_path: Path,
@@ -1363,22 +2069,20 @@ def run_next_node(
     """
     effective_execution_mode = execution_mode or ("mock_provider" if fake_provider else "execute")
     run_dir = agentlab_root / "projects" / project / "runs" / task_id
+    workflow_plan_data = _workflow_plan_for_run(run_dir)
     state = load_state(run_dir, project, task_id)
     progress = load_progress(run_dir)
     if progress is None or "provider_status" not in progress:
-        route_agents = []
-        plan_path = run_dir / "workflow_plan.yml"
-        if plan_path.exists():
-            plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
-            route_agents = plan_data.get("route", {}).get("agents", [])
+        route_agents = workflow_plan_data.get("route", {}).get("agents", [])
         progress = create_progress(run_dir, project, task_id, route_agents)
 
     if load_lifecycle(run_dir) is None:
-        plan_path = run_dir / "workflow_plan.yml"
-        workflow_plan = {}
-        if plan_path.exists():
-            workflow_plan = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
-        create_lifecycle(run_dir, workflow_plan)
+        lifecycle_plan = {
+            key: value
+            for key, value in workflow_plan_data.items()
+            if key != "sealed_user_request_content"
+        }
+        create_lifecycle(run_dir, lifecycle_plan)
     else:
         _ensure_lifecycle_shape(run_dir)
         _skip_stale_context_nodes(run_dir)
@@ -1481,7 +2185,8 @@ def run_next_node(
             )
             plan = build_workflow_plan(
                 agentlab_root, project, task_id,
-                execution_backend="codex", budget_mode=budget_mode,
+                execution_backend="agentlab_orchestrated_cli",
+                budget_mode=budget_mode,
             )
             plan_data = plan.model_dump(mode="json")
             plan_path.write_text(
@@ -1498,12 +2203,13 @@ def run_next_node(
             )
             route_agents = plan.route.agents
         else:
-            plan_data = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
-            if "artifact_intent" not in plan_data:
+            plan_data = workflow_plan_data
+            activated_preflight = _is_activated_preflight_plan(plan_data)
+            if not activated_preflight and "artifact_intent" not in plan_data:
                 from project_artifact_steward import ensure_workflow_artifact_intent
 
                 plan_data = ensure_workflow_artifact_intent(agentlab_root, project, task_id, plan_path)
-            if not mission_path.exists():
+            if not activated_preflight and not mission_path.exists():
                 from workflow_plan import write_mission_contract_artifacts
 
                 write_mission_contract_artifacts(
@@ -1515,31 +2221,20 @@ def run_next_node(
                 )
             route_agents = plan_data.get("route", {}).get("agents", [])
         active_nodes, pack_id = _production_pack_nodes(plan_data)
-        from skill_injector import inject_skills_into_workflow_plan
-        inject_skills_into_workflow_plan(
-            agentlab_root,
-            plan_path,
-            project=project,
-            task_id=task_id,
-            task_text=task_text,
-            record_usage=True,
-        )
+        if not _is_activated_preflight_plan(plan_data):
+            from skill_injector import inject_skills_into_workflow_plan
+
+            inject_skills_into_workflow_plan(
+                agentlab_root,
+                plan_path,
+                project=project,
+                task_id=task_id,
+                task_text=task_text,
+                record_usage=True,
+            )
         lc = load_lifecycle(run_dir)
         if lc:
-            optional_requirements = {
-                "RESEARCH_OPTIONAL": "Researcher",
-                "INTERFACE_OPTIONAL": "InterfaceMapper",
-                "WRITER_DRAFT": "Writer",
-                "FICTION_REVIEW": "Reviewer",
-                "SCRIBE_LEDGER": "Scribe",
-                "CODER_IMPLEMENTATION": "Coder",
-                "ARTIFACT_PRODUCTION": "ArtifactProducer",
-                "VALIDATION": "TesterAuditor",
-                "AUDIT": "TesterAuditor",
-                "VERIFY": "Verifier",
-                "ARCHIVE": "Archivist",
-            }
-            for node_id, agent_name in optional_requirements.items():
+            for node_id, agent_name in NODE_TO_AGENT.items():
                 node = lc.get("nodes", {}).get(node_id, {})
                 skip_reason = _skip_reason_for_node(node_id, route_agents, active_nodes, pack_id)
                 if skip_reason:
@@ -1589,6 +2284,12 @@ def run_next_node(
         return {"status": "completed", "node": nid, "message": f"{nid} done.", "artifacts": written}
 
     if nid == "SELF_CHECK":
+        result = validate_artifacts(run_dir)
+        (run_dir / "self_check_report.yml").write_text(
+            yaml.safe_dump(result, sort_keys=False), encoding="utf-8")
+        # The first pass necessarily sees self_check_report.yml as missing on a
+        # fresh run. Re-evaluate after creating it so the persisted report does
+        # not retain a false self-reference failure.
         result = validate_artifacts(run_dir)
         (run_dir / "self_check_report.yml").write_text(
             yaml.safe_dump(result, sort_keys=False), encoding="utf-8")
@@ -1705,10 +2406,12 @@ def run_next_node(
     # Agent output nodes
     agent = NODE_TO_AGENT.get(nid)
     report_file = NODE_TO_REPORT.get(nid)
-    workflow_plan_data = _workflow_plan_for_run(run_dir)
     route_data = workflow_plan_data.get("route", {})
     route_key = route_data.get("route_key") if isinstance(route_data, dict) else None
     narrative_heavy_audit = route_key == "narrative_heavy_audit"
+    media_visual_route = route_key == "media_generation_task"
+    if media_visual_route and nid == "VERIFY":
+        report_file = "visual_verification_report.yml"
 
     # ── Supervisor gate ──
     if nid == "SUPERVISOR_PLAN" and not fake_provider and (run_dir / "USER_DECISION_REQUIRED.md").exists():
@@ -1722,6 +2425,54 @@ def run_next_node(
         )
 
     if fake_provider and agent:
+        if nid in {"VISUAL_OBSERVATION", "VISUAL_REVIEW"} or (
+            media_visual_route and nid == "VERIFY"
+        ):
+            from agent_runtime.visual_acceptance_workflow import (
+                fake_visual_stage_report,
+                materialize_visual_acceptance,
+                write_media_qc_report,
+            )
+
+            report = fake_visual_stage_report(run_dir, role=agent)
+            report_path = run_dir / str(report_file)
+            atomic_write_yaml(report_path, report)
+            if nid == "VISUAL_REVIEW":
+                write_media_qc_report(run_dir, report)
+            acceptance = None
+            if nid == "VERIFY":
+                acceptance = materialize_visual_acceptance(
+                    run_dir,
+                    task_id=task_id,
+                )
+                (run_dir / "verification_report.md").write_text(
+                    "# Media Visual Verification\n\n"
+                    f"- status: {acceptance.get('status')}\n"
+                    f"- candidate_count: {acceptance.get('candidate_count')}\n"
+                    "- candidate_only: true\n"
+                    "- production_modified: false\n",
+                    encoding="utf-8",
+                )
+                if acceptance.get("status") == "blocked":
+                    return _block_on_artifact_gate(
+                        agentlab_root,
+                        run_dir,
+                        project,
+                        task_id,
+                        nid,
+                        agent,
+                        [str(issue) for issue in acceptance.get("issues", [])],
+                        report_path=run_dir / "visual_acceptance_decision.yml",
+                    )
+            _mark_node_completed(run_dir, nid, str(report_path))
+            payload = {
+                "status": "completed",
+                "node": nid,
+                "report": str(report_path),
+            }
+            if acceptance is not None:
+                payload["visual_acceptance"] = acceptance
+            return payload
         if narrative_heavy_audit and agent in {"Reviewer", "Scribe", "Verifier"}:
             from agent_runtime.narrative_heavy_audit import (
                 HEAVY_AUDIT_OUTPUTS_BY_AGENT,
@@ -1792,6 +2543,8 @@ def run_next_node(
                 "heavy_audit_outputs": list(HEAVY_AUDIT_OUTPUTS_BY_AGENT[agent]),
             }
         output = fake_output_for_agent(agent)
+        if agent == "Observer":
+            output = _observation_report_content(task_id, output)
         pack_outputs: list[str] = []
         media_backend_outputs: list[str] = []
         batch_outputs: list[str] = []
@@ -1867,9 +2620,14 @@ def run_next_node(
     elif agent and not fake_provider:
         # ─── execute mode: call real LLM API via agent_runner ───
         from agent_runner import run_agent_model, report_path_for_agent
-        from workflow_plan import build_workflow_plan
 
-        plan = build_workflow_plan(agentlab_root, project, task_id, budget_mode=budget_mode)
+        plan = _execution_plan_for_run(
+            agentlab_root,
+            project,
+            task_id,
+            workflow_plan_data,
+            budget_mode=budget_mode,
+        )
         plan_route = getattr(plan, "route", None)
         narrative_heavy_audit = (
             getattr(plan_route, "route_key", route_key) == "narrative_heavy_audit"
@@ -1881,10 +2639,131 @@ def run_next_node(
             and production_pack.get("pack_id") == "pack_synthesis_candidate"
         )
         report_path = run_dir / report_file if report_file else report_path_for_agent(plan, agent)
+        visual_stage = nid in {"VISUAL_OBSERVATION", "VISUAL_REVIEW"} or (
+            media_visual_route and nid == "VERIFY"
+        )
+        visual_acceptance = None
         if agent == "Writer":
             report_path = run_dir / "writer_role_session_capture.md"
         elif narrative_heavy_audit and agent in {"Reviewer", "Scribe", "Verifier"}:
             report_path = run_dir / f"{agent.lower()}_role_session_capture.md"
+
+        if agent == "ArtifactProducer" and media_visual_route:
+            try:
+                media_backend_execution = _execute_media_backend_role_outputs(
+                    agentlab_root,
+                    run_dir,
+                    project,
+                    task_id,
+                    pack_id=str(
+                        production_pack.get("pack_id") or "media_generation"
+                    ),
+                )
+            except Exception as exc:
+                media_backend_execution = {
+                    "status": "blocked",
+                    "issues": [
+                        f"media_backend_exception:{type(exc).__name__}:{exc}"
+                    ],
+                    "outputs": [],
+                }
+            report_path = run_dir / "artifact_producer_report.md"
+            receipt_path = run_dir / "generation_receipt.yml"
+            receipt = (
+                yaml.safe_load(receipt_path.read_text(encoding="utf-8")) or {}
+                if receipt_path.is_file()
+                else {}
+            )
+            manifest_path = run_dir / "generated_assets_manifest.yml"
+            manifest = (
+                yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+                if manifest_path.is_file()
+                else {}
+            )
+            assets = manifest.get("assets") if isinstance(manifest, dict) else []
+            report_content = (
+                "# ArtifactProducer Media Backend Report\n\n"
+                "- execution_authority: media_backend_adapter\n"
+                "- generic_cli_invocation_performed: false\n"
+                f"- status: {media_backend_execution.get('status')}\n"
+                f"- backend: {receipt.get('backend') or 'unknown'}\n"
+                f"- actual_generation_model: {receipt.get('model') or 'unknown'}\n"
+                f"- producer_execution_id: {(receipt.get('producer') or {}).get('id') if isinstance(receipt.get('producer'), dict) else 'unknown'}\n"
+                f"- verified_asset_count: {len(assets) if isinstance(assets, list) else 0}\n"
+                "- candidate_only: true\n"
+                "- production_modified: false\n"
+                "- downstream_acceptance: Observer -> Reviewer -> TesterAuditor -> Verifier\n"
+            )
+            report_path.write_text(report_content, encoding="utf-8")
+            if media_backend_execution.get("status") != "complete":
+                return _block_on_artifact_gate(
+                    agentlab_root,
+                    run_dir,
+                    project,
+                    task_id,
+                    nid,
+                    agent,
+                    [
+                        str(issue)
+                        for issue in media_backend_execution.get("issues", [])
+                    ],
+                    report_path=report_path,
+                )
+
+            from cost_tracker import append_cost_ledgers, usage_entry
+
+            append_cost_ledgers(
+                agentlab_root / "projects" / project,
+                run_dir,
+                usage_entry(
+                    project,
+                    task_id,
+                    agent,
+                    "agentlab-media-backend",
+                    str(receipt.get("model") or "unknown"),
+                    "completed",
+                    None,
+                    None,
+                    None,
+                    "Media provider usage/cost was not reported by the CLI; kept unknown.",
+                    agentlab_root=agentlab_root,
+                    usage_source="external_cli_unreported",
+                    exact_usage_available=False,
+                    raw_usage={
+                        "provider_reported_session_id": (
+                            (receipt.get("producer") or {}).get("id")
+                            if isinstance(receipt.get("producer"), dict)
+                            else None
+                        ),
+                        "provider_reported_model_id": receipt.get("model"),
+                    },
+                ),
+            )
+            gate_issues = _apply_archive_steward_if_needed(
+                agentlab_root, run_dir, project, task_id, nid
+            )
+            gate_issues.extend(
+                artifact_content_issues(report_path.name, report_content, run_dir)
+            )
+            if gate_issues:
+                return _block_on_artifact_gate(
+                    agentlab_root,
+                    run_dir,
+                    project,
+                    task_id,
+                    nid,
+                    agent,
+                    gate_issues,
+                    report_path=report_path,
+                )
+            _mark_node_completed(run_dir, nid, str(report_path))
+            return {
+                "status": "completed",
+                "node": nid,
+                "report": str(report_path),
+                "media_backend_execution": media_backend_execution,
+                "success": True,
+            }
         report_before = _report_bytes(report_path)
 
         try:
@@ -1942,7 +2821,7 @@ def run_next_node(
             )
 
         if result.status == "fallback_handoff":
-            fallback_path = run_dir / f"codex_fallback_{agent}.md"
+            fallback_path = run_dir / f"external_worker_handoff_{agent}.md"
             fallback_path.write_text(result.content or "", encoding="utf-8")
             return _block_task(
                 agentlab_root, run_dir, project, task_id, nid,
@@ -1963,22 +2842,123 @@ def run_next_node(
         )
         production_pack_output_contract = None
         heavy_audit_outputs: list[str] = []
-        if agent == "Writer":
-            try:
-                from agent_runtime.writer_output_materializer import materialize_writer_candidate_result
-            except ModuleNotFoundError:  # pragma: no cover - direct script path
-                from writer_output_materializer import materialize_writer_candidate_result
+        if visual_stage:
+            from agent_runtime.visual_acceptance_workflow import (
+                materialize_visual_acceptance,
+                normalize_visual_stage_report,
+                visual_stage_report_issues,
+                write_media_qc_report,
+            )
 
-            if not materialize_writer_candidate_result(result, run_dir, task_id):
-                contract_path = run_dir / "writer_output_contract.yml"
-                contract = (
-                    yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
-                    if contract_path.exists()
-                    else {}
+            raw_usage = result.raw_usage if isinstance(result.raw_usage, dict) else {}
+            trusted_backend = str(raw_usage.get("cli_agent") or result.provider or "unknown")
+            trusted_model = str(
+                raw_usage.get("cli_model_id")
+                or raw_usage.get("resolved_model_key")
+                or result.model
+                or "unknown"
+            )
+            execution_id = str(
+                raw_usage.get("provider_session_id")
+                or raw_usage.get("session_id")
+                or raw_usage.get("command_id")
+                or ""
+            ) or None
+            report = normalize_visual_stage_report(
+                native_report_content or result.content or "",
+                role=agent,
+                provider=trusted_backend,
+                model=trusted_model,
+                execution_id=execution_id,
+            )
+            report_content = yaml.safe_dump(
+                report,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(report_content, encoding="utf-8")
+            stage_issues = visual_stage_report_issues(report, role=agent)
+            if stage_issues:
+                return _block_on_artifact_gate(
+                    agentlab_root,
+                    run_dir,
+                    project,
+                    task_id,
+                    nid,
+                    agent,
+                    stage_issues,
+                    report_path=report_path,
                 )
-                issues = [str(issue) for issue in contract.get("issues", [])] or [
-                    "Writer did not return the four required candidate output blocks"
-                ]
+            if nid == "VISUAL_REVIEW":
+                write_media_qc_report(run_dir, report)
+            if nid == "VERIFY":
+                visual_acceptance = materialize_visual_acceptance(
+                    run_dir,
+                    task_id=task_id,
+                )
+                (run_dir / "verification_report.md").write_text(
+                    "# Media Visual Verification\n\n"
+                    f"- status: {visual_acceptance.get('status')}\n"
+                    f"- candidate_count: {visual_acceptance.get('candidate_count')}\n"
+                    f"- structured_report: {report_path.name}\n"
+                    "- candidate_only: true\n"
+                    "- production_modified: false\n",
+                    encoding="utf-8",
+                )
+                if visual_acceptance.get("status") == "blocked":
+                    return _block_on_artifact_gate(
+                        agentlab_root,
+                        run_dir,
+                        project,
+                        task_id,
+                        nid,
+                        agent,
+                        [
+                            str(issue)
+                            for issue in visual_acceptance.get("issues", [])
+                        ],
+                        report_path=run_dir / "visual_acceptance_decision.yml",
+                    )
+        elif agent == "NarrativePlanner":
+            from agent_runtime.narrative_delivery import (
+                narrative_planner_validation_issues,
+                write_narrative_planner_validation,
+            )
+
+            report_content = native_report_content or result.content or ""
+            if native_report_content is None:
+                report_path.parent.mkdir(parents=True, exist_ok=True)
+                report_path.write_text(report_content, encoding="utf-8")
+            validation = write_narrative_planner_validation(
+                Path(plan.project_root),
+                run_dir,
+                report_path,
+            )
+            planner_issues = narrative_planner_validation_issues(validation)
+            if planner_issues:
+                return _block_on_artifact_gate(
+                    agentlab_root,
+                    run_dir,
+                    project,
+                    task_id,
+                    nid,
+                    agent,
+                    planner_issues,
+                    report_path=run_dir / "narrative_planner_validation.yml",
+                )
+        elif agent == "Writer":
+            from agent_runtime.narrative.production.live_writer import (
+                materialize_registered_writer_result,
+            )
+
+            delivery = materialize_registered_writer_result(result, run_dir, task_id)
+            writer_passed = delivery.get("status") == "pass"
+            contract_path = Path(str(delivery["contract_path"]))
+            issues = [str(issue) for issue in delivery.get("issues", [])]
+            if not writer_passed:
+                if not issues:
+                    issues = ["Writer output contract did not pass"]
                 return _block_on_artifact_gate(
                     agentlab_root,
                     run_dir,
@@ -1989,8 +2969,8 @@ def run_next_node(
                     issues,
                     report_path=contract_path,
                 )
-            report_path = run_dir / "fiction_draft.md"
-            report_content = report_path.read_text(encoding="utf-8", errors="replace")
+            report_path = Path(str(delivery["output_path"]))
+            report_content = str(delivery["output_content"])
         elif narrative_heavy_audit and agent in {"Reviewer", "Scribe", "Verifier"}:
             from agent_runtime.narrative_heavy_audit import (
                 HEAVY_AUDIT_OUTPUTS_BY_AGENT,
@@ -2074,6 +3054,50 @@ def run_next_node(
                 report_path.write_text(
                     report_content.rstrip() + "\n",
                     encoding="utf-8",
+                )
+        elif agent == "Observer":
+            observer_usage = (
+                result.raw_usage if isinstance(result.raw_usage, dict) else {}
+            )
+            report_content = _observation_report_content(
+                task_id,
+                native_report_content or result.content or "",
+                provider=str(
+                    observer_usage.get("cli_runtime_provider")
+                    or observer_usage.get("cli_agent")
+                    or result.provider
+                    or ""
+                ),
+                model=str(
+                    observer_usage.get("cli_model_id") or result.model or ""
+                ),
+                model_execution_receipt=(
+                    str(observer_usage["model_execution_receipt"])
+                    if observer_usage.get("model_execution_receipt")
+                    else None
+                ),
+                model_execution_chain=(
+                    str(observer_usage["model_execution_chain"])
+                    if observer_usage.get("model_execution_chain")
+                    else None
+                ),
+            )
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(report_content, encoding="utf-8")
+            normalized_observation = yaml.safe_load(report_content) or {}
+            if normalized_observation.get("status") != "complete":
+                return _block_on_artifact_gate(
+                    agentlab_root,
+                    run_dir,
+                    project,
+                    task_id,
+                    nid,
+                    agent,
+                    [
+                        "Observer output was blocked or could not be normalized "
+                        "into structured evidence"
+                    ],
+                    report_path=report_path,
                 )
         else:
             report_content = native_report_content or result.content or ""
@@ -2198,6 +3222,8 @@ def run_next_node(
             )
         if heavy_audit_outputs:
             result_payload["heavy_audit_outputs"] = heavy_audit_outputs
+        if visual_acceptance is not None:
+            result_payload["visual_acceptance"] = visual_acceptance
         return result_payload
     else:
         output = f"# {nid} Report\n\nDry-run output.\n"
@@ -2398,10 +3424,10 @@ def run_full_pipeline(
         seen_signatures.add(sig)
 
         # Check terminal
+        lc = load_lifecycle(run_dir) or {"nodes": {}}
         if "FINALIZE=com" in sig or all(
             lc.get("nodes", {}).get(n, {}).get("status") in ("completed", "skipped")
             for n in LIFECYCLE_NODES
-            if (lc := (load_lifecycle(run_dir) or {"nodes": {}}))
         ):
             artifact_result = validate_artifacts(run_dir)
             write_artifact_manifest(run_dir, artifact_result)

@@ -70,7 +70,7 @@ def output_dir(root: Path, project: str, task_id: str | None, override: Path | N
         return override
     if task_id:
         return root / "projects" / project / "runs" / task_id / "artifacts" / "repo_index"
-    return root / "artifacts" / "repo_index"
+    return root / ".agentlab" / "artifacts" / "repo_index"
 
 
 def build_parser() -> argparse.ArgumentParser:

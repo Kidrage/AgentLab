@@ -60,6 +60,47 @@ def list_task_run_dirs(project_root: Path) -> list[Path]:
     return sorted([p for p in runs_dir.iterdir() if p.is_dir() and p.name.startswith("task_")], key=lambda p: p.name)
 
 
+def _relative_path(path: Path, root: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(root.resolve()))
+    except ValueError:
+        return str(path)
+
+
+def _index_artifacts(manifest: dict, policy: dict) -> list[dict]:
+    """Keep the searchable index compact; the per-run manifest owns full detail."""
+    index_cfg = policy.get("index", {})
+    include_missing = bool(index_cfg.get("include_missing_artifacts", False))
+    limit = max(0, int(index_cfg.get("max_artifacts_per_task", 12)))
+    summary_limit = max(0, int(index_cfg.get("max_artifact_summary_chars", 160)))
+    artifacts = [
+        artifact
+        for artifact in manifest.get("artifacts", [])
+        if isinstance(artifact, dict)
+        and (include_missing or artifact.get("status") == "present")
+    ]
+    artifacts.sort(
+        key=lambda artifact: (
+            not bool(artifact.get("important")),
+            str(artifact.get("path") or ""),
+        )
+    )
+    compact: list[dict] = []
+    for artifact in artifacts[:limit]:
+        summary = str(artifact.get("summary") or "")
+        compact.append(
+            {
+                "kind": artifact.get("kind"),
+                "agent": artifact.get("agent"),
+                "path": artifact.get("path"),
+                "title": artifact.get("title"),
+                "summary": summary[:summary_limit],
+                "important": bool(artifact.get("important")),
+            }
+        )
+    return compact
+
+
 # ─── Safe file reading ────────────────────────────────────────────────────
 
 def _read_safe_file(path: Path, max_bytes: int = 65536) -> Optional[str]:
@@ -360,7 +401,7 @@ def build_task_record(agentlab_root: Path, project: str, run_dir: Path, policy: 
         "last_checkpoint": last_checkpoint,
         "query_terms": query_terms,
         "paths": {
-            "run_dir": str(run_dir),
+            "run_dir": _relative_path(run_dir, agentlab_root),
             "user_request": "user_request.md",
             "workflow_plan": "workflow_plan.yml",
             "progress": "progress.yml",
@@ -369,7 +410,7 @@ def build_task_record(agentlab_root: Path, project: str, run_dir: Path, policy: 
             "task_card": "task_card.yml",
             "task_snapshot": "task_snapshot.yml",
         },
-        "artifacts": manifest["artifacts"],
+        "artifacts": _index_artifacts(manifest, policy),
         "artifact_summary": manifest["summary"],
         "backup_status": {
             "github_synced": github_synced,
@@ -404,10 +445,14 @@ def build_project_task_index(agentlab_root: Path, project: str, rebuild: bool = 
             continue
 
     index = {
-        "version": 1,
+        "version": 2,
         "project": project,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source_root": str(proot / "runs"),
+        "source_root": _relative_path(proot / "runs", agentlab_root),
+        "detail_authority": policy.get("index", {}).get(
+            "detail_authority",
+            "runs/<task_id>/artifact_manifest.yml",
+        ),
         "task_count": len(tasks),
         "tasks": tasks,
     }

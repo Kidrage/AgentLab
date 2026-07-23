@@ -48,7 +48,6 @@ from guard import (
 from brain_governor import (
     evaluate_harness_status,
     evaluate_token_status,
-    request_coder_quota_decision,
     request_traversal_decision,
 )
 from config_loader import load_agentlab_configs
@@ -180,17 +179,6 @@ INIT_AGENT_TEMPLATES = {
     },
 }
 
-LEGACY_INIT_AGENTS = [
-    "Supervisor",
-    "RepoScout",
-    "Researcher",
-    "InterfaceMapper",
-    "Coder",
-    "TesterAuditor",
-    "Verifier",
-    "Archivist",
-]
-
 from agent_runtime.cli.role_capability import register_role_capability_commands
 register_role_capability_commands(app, _PROJECT_ROOT, console)
 
@@ -223,6 +211,21 @@ register_narrative_commands(app, _PROJECT_ROOT, console)
 
 from agent_runtime.cli.narrative_eval import register_narrative_eval_commands
 register_narrative_eval_commands(app, _PROJECT_ROOT, console)
+
+from agent_runtime.cli.background_jobs import register_background_job_commands
+register_background_job_commands(app, _PROJECT_ROOT, console)
+
+from agent_runtime.cli.project_reset import register_project_reset_commands
+register_project_reset_commands(app, _PROJECT_ROOT, console)
+
+from agent_runtime.cli.run_retention import register_run_retention_commands
+register_run_retention_commands(app, _PROJECT_ROOT, console)
+
+from agent_runtime.cli.knowledge import register_knowledge_commands
+register_knowledge_commands(app, _PROJECT_ROOT, console)
+
+from agent_runtime.cli.task_runtime_v2 import register_task_runtime_commands
+register_task_runtime_commands(app, _PROJECT_ROOT, console)
 
 def _run_external_skills_cli(args: list[str]) -> None:
     from external_skills_cli import main as external_skills_main
@@ -774,8 +777,8 @@ def ensure_project_memory_files(project_root: Path) -> None:
         "# Development Log\n\nRecords AgentLab team activity by module.\n\n## Module: General\n\n",
     )
     write_text_if_missing(
-        docs / "08_CODEX_DIALOGUE_LOG.md",
-        "# Codex Dialogue Log\n\nRecords user-visible Codex Coder conversations and implementation actions.\n\n",
+        docs / "08_WORKER_DIALOGUE_LOG.md",
+        "# Worker Dialogue Log\n\nRecords user-visible assigned-worker conversations and implementation actions.\n\n",
     )
     if not (docs / "09_COST_LEDGER.yml").exists():
         write_yaml_if_allowed(docs / "09_COST_LEDGER.yml", {"entries": []})
@@ -790,13 +793,49 @@ def load_or_build_plan(
     budget_mode: Optional[str] = None,
 ):
     plan_path = agentlab_root / "projects" / project_name / "runs" / task_id / "workflow_plan.yml"
-    if plan_path.exists() and user_request is None and budget_mode is None:
-        from project_artifact_steward import ensure_workflow_artifact_intent
+    if plan_path.exists():
+        from agent_runtime.narrative.production.live_writer_preflight import (
+            load_validated_workflow_plan_data,
+        )
 
-        data = ensure_workflow_artifact_intent(agentlab_root, project_name, task_id, plan_path)
-        from schemas import WorkflowPlan
+        data = load_validated_workflow_plan_data(
+            agentlab_root=agentlab_root,
+            project=project_name,
+            task_id=task_id,
+            plan_path=plan_path,
+        )
+        activated = bool(str(data.get("sealed_user_request_content") or ""))
+        if activated:
+            if user_request is not None and Path(user_request).absolute() != Path(
+                str(data.get("user_request_path") or "")
+            ).absolute():
+                raise ValueError("live_writer_activated_request_override_forbidden")
+            if budget_mode is not None and budget_mode != data.get("budget_mode"):
+                raise ValueError("live_writer_activated_budget_override_mismatch")
+            if execution_backend != data.get("execution_backend"):
+                raise ValueError("live_writer_activated_backend_override_mismatch")
+        if (user_request is None and budget_mode is None) or activated:
+            if not isinstance(data.get("artifact_intent"), dict):
+                from project_artifact_steward import ensure_workflow_artifact_intent
 
-        return WorkflowPlan(**data)
+                data = ensure_workflow_artifact_intent(
+                    agentlab_root,
+                    project_name,
+                    task_id,
+                    plan_path,
+                )
+            from schemas import WorkflowPlan
+
+            return WorkflowPlan(**data)
+        if not isinstance(data.get("artifact_intent"), dict):
+            from project_artifact_steward import ensure_workflow_artifact_intent
+
+            data = ensure_workflow_artifact_intent(
+                agentlab_root,
+                project_name,
+                task_id,
+                plan_path,
+            )
     return build_workflow_plan(
         agentlab_root=agentlab_root,
         project_name=project_name,
@@ -820,7 +859,7 @@ def _init_agents_for_request(
     task_id: str,
 ) -> tuple[list[str], str | None]:
     if not _has_meaningful_init_request(user_request):
-        return (list(LEGACY_INIT_AGENTS), "legacy_blank_request")
+        return (["Supervisor"], "unclassified_blank_request")
 
     try:
         from agent_runtime.brain.mission_contract import build_mission_contract
@@ -834,12 +873,12 @@ def _init_agents_for_request(
         )
         route_decision = contract.get("route_decision") if isinstance(contract, dict) else {}
         route_decision = route_decision if isinstance(route_decision, dict) else {}
-        route_proposal = route_decision.get("route_proposal") or contract.get("route_proposal") or {}
-        route_proposal = route_proposal if isinstance(route_proposal, dict) else {}
-        agents = list(route_proposal.get("agents") or [])
-        route_key = route_proposal.get("route_key") or route_decision.get("selected_route")
-        if not agents and route_key:
-            agents = RouteCatalog.from_file(agentlab_root / "config" / "routing_rules.yml").agents_for(str(route_key))
+        route_key = route_decision.get("selected_route")
+        agents = (
+            RouteCatalog.from_file(agentlab_root / "config" / "routing_rules.yml").agents_for(str(route_key))
+            if route_key
+            else []
+        )
         if agents:
             return (agents, str(route_key or "mission_contract"))
     except Exception:
@@ -860,20 +899,14 @@ def _init_agents_for_request(
     except Exception:
         pass
 
-    return (list(LEGACY_INIT_AGENTS), "legacy_route_detection_failed")
+    return (["Supervisor"], "unclassified_route_detection_failed")
 
 
 def _init_templates_for_agents(user_request: str, agents: list[str]) -> dict[str, str]:
-    if not agents or "Coder" in agents:
-        selected_agents = list(LEGACY_INIT_AGENTS)
-        for agent in agents:
-            if agent not in selected_agents:
-                selected_agents.append(agent)
-    else:
-        selected_agents = ["Supervisor"]
-        for agent in agents:
-            if agent not in selected_agents:
-                selected_agents.append(agent)
+    selected_agents = []
+    for agent in ["Supervisor", *agents]:
+        if agent not in selected_agents:
+            selected_agents.append(agent)
 
     templates: dict[str, str] = {"user_request.md": user_request}
     for agent in selected_agents:
@@ -2473,32 +2506,28 @@ def skill_registry_validate_cmd() -> None:
 def policy_status(
     project: Optional[str] = typer.Option(None, help="Project name."),
 ) -> None:
-    """Show hard AgentLab execution policy for brain and coder stages."""
+    """Show execution gates plus the canonical Supervisor and Coder routes."""
     agentlab_root, _ = runtime_context(project)
     configs = load_agentlab_configs(agentlab_root)
     execution_policy = configs.get("execution_policy", {})
     brain_policy = execution_policy.get("brain_policy", {})
     tier_policy = execution_policy.get("execution_policy", {})
-    coder_policy = execution_policy.get("coder_policy", {})
     providers = configs.get("model_providers", {}).get("providers", {})
-    agent_registry = configs.get("agent_registry", {}).get("agents", {})
     from llm_provider import resolve_env_value
 
-    supervisor_profile_name = agent_registry.get("Supervisor", {}).get("model_profile", "")
     supervisor_profile = resolve_profile_config(
-        supervisor_profile_name,
-        model_profiles=configs.get("model_profiles", {}),
         model_catalog=configs.get("model_catalog", {}),
         agent_name="Supervisor",
+        agent_model_profiles=configs.get("agent_model_profiles", {}),
     )
-    brain_provider_name = (
-        brain_policy.get("required_provider")
-        or supervisor_profile.get("provider")
-        or "deepseek"
+    coder_profile = resolve_profile_config(
+        model_catalog=configs.get("model_catalog", {}),
+        agent_name="Coder",
+        agent_model_profiles=configs.get("agent_model_profiles", {}),
     )
-    deepseek = providers.get(brain_provider_name, {})
-    api_key_configured = bool(resolve_env_value(deepseek.get("api_key"), ""))
-    default_api_coder = tier_policy.get("default_api_coder", {})
+    brain_provider_name = str(supervisor_profile.get("provider") or "")
+    brain_provider = providers.get(brain_provider_name, {})
+    api_key_configured = bool(resolve_env_value(brain_provider.get("api_key"), ""))
     external_window = tier_policy.get("external_ide_window", {})
 
     console.print("[bold]AgentLab execution policy[/bold]")
@@ -2507,24 +2536,18 @@ def policy_status(
             "schema_version": execution_policy.get("schema_version", 1),
             "budget_mode_default": execution_policy.get("budget_mode_policy", {}).get("default_budget_mode", ""),
             "brain_required_provider": brain_provider_name,
+            "brain_model": supervisor_profile.get("model", ""),
+            "brain_cli_agent": supervisor_profile.get("cli_agent", ""),
             "brain_agent": brain_policy.get("brain_agent", "Supervisor"),
             "brain_tier": brain_policy.get("brain_tier", ""),
-            "deepseek_required_for_all_agentlab_tasks": brain_policy.get(
-                "deepseek_required_for_all_agentlab_tasks",
-                brain_provider_name == "deepseek",
-            ),
-            "codex_may_simulate_brain": brain_policy.get("codex_may_simulate_brain", False),
-            "deepseek_api_key_configured": api_key_configured,
-            "coder_default_provider": default_api_coder.get("provider", coder_policy.get("api_fallback_executor", "")),
-            "coder_default_model": default_api_coder.get("model", ""),
+            "brain_provider_api_key_configured": api_key_configured,
+            "coder_default_provider": coder_profile.get("provider", ""),
+            "coder_default_model": coder_profile.get("model", ""),
+            "coder_cli_agent": coder_profile.get("cli_agent", ""),
             "external_ide_window_enabled": external_window.get("enabled", False),
             "patch_application_policy": tier_policy.get("patch_application_policy", ""),
-            "automatic_patch_application": coder_policy.get(
-                "automatic_patch_application",
-                tier_policy.get("patch_application_policy") == "apply_directly",
-            ),
-            "codex_quota_insufficient_action": coder_policy.get("if_codex_quota_insufficient", "ask_user"),
-            "coder_quota_choices": coder_policy.get("user_choices_when_quota_insufficient", []),
+            "backend_authority": "config/agent_model_profiles.yml",
+            "fallback_authority": "config/model_capacity.yml",
         }
     )
 
@@ -2561,44 +2584,22 @@ def request_traversal(
         console.print(str(Path(plan.run_dir) / "USER_DECISION_REQUIRED.md"))
 
 
-@app.command("request-coder-quota")
-def request_coder_quota(
-    task_id: str = typer.Option("task_0001", help="Task run id."),
-    project: Optional[str] = typer.Option(None, help="Project name."),
-    reason: str = typer.Option(..., help="Why Codex quota may be insufficient."),
-    quota_status: str = typer.Option("insufficient", help="Manual quota status label."),
-    estimated_codex_tokens: int = typer.Option(0, help="Rough remaining Codex token need."),
-) -> None:
-    """Ask the user whether to pause Coder work or delegate coding to DeepSeek."""
-    ensure_safe_task_id(task_id)
-    agentlab_root, project_name = runtime_context(project)
-    plan = load_or_build_plan(agentlab_root, project_name, task_id, "codex")
-    decision = request_coder_quota_decision(
-        agentlab_root=agentlab_root,
-        plan=plan,
-        reason=reason,
-        quota_status=quota_status,
-        estimated_codex_tokens=estimated_codex_tokens,
-    )
-    console.print("[bold]Coder quota decision required[/bold]")
-    console.print(decision.model_dump())
-    console.print("[yellow]Ask the user in the main Codex conversation before continuing Coder work.[/yellow]")
-    console.print(str(Path(plan.run_dir) / "USER_DECISION_REQUIRED.md"))
-
-
 @app.command("log-event")
 def log_event(
     task_id: str = typer.Option("task_0001", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
     module: str = typer.Option("General", help="Project module name for the development log."),
-    agent: str = typer.Option("Codex", help="Agent or executor name."),
+    agent: str = typer.Option("ExternalWorker", help="Agent or executor name."),
     summary: str = typer.Option(..., help="What was handled."),
     user_message: str = typer.Option("", help="User-visible request or dialogue summary."),
-    codex_response: str = typer.Option("", help="Codex-visible response/action summary."),
+    worker_response: str = typer.Option(
+        "", "--worker-response", "--codex-response",
+        help="Worker-visible response/action summary.",
+    ),
     files_changed: str = typer.Option("", help="Comma-separated changed files."),
     commands_run: str = typer.Option("", help="Comma-separated commands actually run."),
-    provider: str = typer.Option("codex_plus_manual", help="Provider or executor."),
-    model: str = typer.Option("Codex Plus", help="Model/executor label."),
+    provider: str = typer.Option("external_worker", help="Provider or executor."),
+    model: str = typer.Option("unreported", help="Model/executor label."),
 ) -> None:
     """Append project development, dialogue, and cost log entries."""
     ensure_safe_task_id(task_id)
@@ -2614,7 +2615,7 @@ def log_event(
 
     timestamp = utc_now()
     dev_log = docs / "07_DEVELOPMENT_LOG.md"
-    dialogue_log = docs / "08_CODEX_DIALOGUE_LOG.md"
+    dialogue_log = docs / "08_WORKER_DIALOGUE_LOG.md"
 
     dev_entry = f"""
 ### {timestamp} - {task_id} - {agent}
@@ -2635,7 +2636,7 @@ Commands run: {commands_run or "none recorded"}
 {user_message or "Not recorded."}
 
 ### Codex Response / Action Summary
-{codex_response or summary}
+{worker_response or summary}
 
 """
     dev_log.write_text(dev_log.read_text(encoding="utf-8") + dev_entry, encoding="utf-8")
@@ -2661,15 +2662,33 @@ def prepare(
     task_id: str = typer.Option("task_0001", help="Task run id, such as task_0001."),
     project: Optional[str] = typer.Option(None, help="Project name. Defaults to DEFAULT_PROJECT."),
     user_request: Optional[Path] = typer.Option(None, help="Optional path to a user request file."),
-    execution_backend: str = typer.Option("codex", help="Planned Coder backend: codex or qwen."),
+    execution_backend: str = typer.Option(
+        "agentlab_orchestrated_cli",
+        help="Workflow driver mode; per-role workers remain config-driven.",
+    ),
     budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: frugal, balanced, or max-quality."),
+    observation_input: Optional[list[Path]] = typer.Option(
+        None,
+        "--observation-input",
+        help="Repeatable explicit file to seal into observation_contract.yml for the Observer.",
+    ),
     write_plan: bool = typer.Option(False, help="Write runs/task_xxxx/workflow_plan.yml if it does not exist."),
     overwrite_plan: bool = typer.Option(False, help="Allow replacing an existing workflow_plan.yml."),
 ) -> None:
     """Build and optionally save the visible workflow plan."""
     ensure_safe_task_id(task_id)
-    if execution_backend not in {"codex", "qwen"}:
-        raise typer.BadParameter("execution_backend must be codex or qwen")
+    if execution_backend not in {
+        "agentlab_orchestrated_cli",
+        "api_native",
+        "hybrid_ide",
+        "langgraph",
+    }:
+        raise typer.BadParameter(
+            "execution_backend must be agentlab_orchestrated_cli, api_native, "
+            "hybrid_ide, or langgraph"
+        )
+    if observation_input and not write_plan:
+        raise typer.BadParameter("--observation-input requires --write-plan")
 
     agentlab_root, project_name = runtime_context(project)
     plan = build_workflow_plan(
@@ -2680,6 +2699,15 @@ def prepare(
         user_request_path=user_request,
         budget_mode=budget,
     )
+    if observation_input and (
+        plan.route.route_key != "observation_task"
+        or "Observer" not in plan.route.agents
+        or (plan.production_pack or {}).get("pack_id") != "read_only_observation"
+    ):
+        raise typer.BadParameter(
+            "--observation-input requires a request routed to "
+            "observation_task/read_only_observation"
+        )
 
     request = TaskRunRequest(
         project=project_name,
@@ -2758,6 +2786,17 @@ def prepare(
                 mission_contract=plan.mission_contract,
             )
             written_context = write_context_artifacts(agentlab_root, project_name, task_id)
+            observation_contract_path = None
+            if observation_input:
+                from agent_runtime.observation_contract import (
+                    materialize_observation_contract,
+                )
+
+                observation_contract_path = materialize_observation_contract(
+                    plan,
+                    observation_input,
+                    overwrite=overwrite_plan,
+                )
             inject_skills_into_workflow_plan(
                 agentlab_root,
                 plan_path,
@@ -2795,8 +2834,17 @@ def prepare(
             console.print({name: str(path) for name, path in written_mission.items()})
             console.print("[green]Wrote context governance artifacts:[/green]")
             console.print(written_context)
+            if observation_contract_path is not None:
+                console.print(
+                    "[green]Wrote read-only observation contract:[/green] "
+                    f"{observation_contract_path}"
+                )
         else:
             console.print(f"[yellow]Plan already exists and was not overwritten:[/yellow] {plan_path}")
+            if observation_input:
+                raise typer.BadParameter(
+                    "--observation-input requires a newly written plan or --overwrite-plan"
+                )
 
 
 @app.command("status")
@@ -2987,39 +3035,20 @@ def context_build_cmd(
     """Build all standard context artifacts for a task run."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
-    from context_governance.runtime_wiring import build_context_pack_for_task
+    from context_governance import write_context_artifacts
 
-    try:
-        result = build_context_pack_for_task(
-            task_id=task_id,
-            project=project_name,
-            agentlab_root=agentlab_root,
-            request_text=request_text,
-            route_profile=route_profile,
-            budget_mode=budget_mode,
-        )
-    except Exception as exc:
-        # Minimal fallback
-        console.print(f"[red]Error building context pack: {exc}[/red]")
-        from context_governance.runtime_wiring import build_context_pack_for_task
-
-        result = build_context_pack_for_task(
-            task_id=task_id,
-            project=project_name,
-            agentlab_root=agentlab_root,
-            request_text=request_text or "",
-        )
+    written_paths = write_context_artifacts(
+        agentlab_root,
+        project_name,
+        task_id,
+        request_text=request_text,
+    )
 
     console.print("[bold green]Context artifacts built:[/bold green]")
-    for name, path in result.get("written_paths", {}).items():
+    for name, path in written_paths.items():
         console.print(f"  {name}: {path}")
-    audit = result.get("compression_audit", {})
-    if audit.get("fallback_used"):
-        console.print("[yellow]Note: fallback mode was used.[/yellow]")
-    if audit.get("warnings"):
-        console.print("[yellow]Warnings:[/yellow]")
-        for w in audit["warnings"]:
-            console.print(f"  - {w}")
+    if route_profile or budget_mode:
+        console.print("[yellow]Route/budget hints are retained for CLI compatibility; active config owns policy.[/yellow]")
 
 
 @app.command("context-status")
@@ -3071,19 +3100,18 @@ def context_smoke_cmd(
 ) -> None:
     """Smoke-test context governance: create fixtures, build artifacts, validate schema."""
     agentlab_root, project_name = runtime_context(project)
-    from context_governance.runtime_wiring import build_context_pack_for_task
+    from context_governance import write_context_artifacts
 
     smoke_task_id = "task_ctx_smoke"
     smoke_request = "This is a smoke test for context governance. Run validation and verify artifacts."
 
-    result = build_context_pack_for_task(
-        task_id=smoke_task_id,
-        project=project_name,
-        agentlab_root=agentlab_root,
+    paths = write_context_artifacts(
+        agentlab_root,
+        project_name,
+        smoke_task_id,
         request_text=smoke_request,
     )
 
-    paths = result.get("written_paths", {})
     console.print("[bold green]Smoke test passed![/bold green]")
     console.print(f"  Task ID: {smoke_task_id}")
     console.print("  Artifacts:")
@@ -3092,22 +3120,22 @@ def context_smoke_cmd(
 
     # Validate schema
     import json
-    audit_path = Path(paths.get("compression_audit", ""))
-    if audit_path.exists():
+    audit_path = Path(paths["compression_audit"]) if paths.get("compression_audit") else None
+    if audit_path is not None and audit_path.exists():
         audit = json.loads(audit_path.read_text(encoding="utf-8"))
         assert audit.get("task_id") == smoke_task_id, "audit task_id mismatch"
         assert audit.get("estimated_tokens_before", 0) > 0, "audit tokens_before empty"
         assert isinstance(audit.get("compression_ratio"), (int, float)), "compression_ratio wrong type"
         console.print("  [green]Audit schema validated.[/green]")
 
-    sources_path = Path(paths.get("context_sources", ""))
-    if sources_path.exists():
+    sources_path = Path(paths["context_sources"]) if paths.get("context_sources") else None
+    if sources_path is not None and sources_path.exists():
         sources = json.loads(sources_path.read_text(encoding="utf-8"))
         assert isinstance(sources.get("sources"), list), "sources must be a list"
         console.print("  [green]Sources schema validated.[/green]")
 
-    pack_path = Path(paths.get("context_pack", ""))
-    if pack_path.exists():
+    pack_path = Path(paths["context_pack"]) if paths.get("context_pack") else None
+    if pack_path is not None and pack_path.exists():
         pack = yaml.safe_load(pack_path.read_text(encoding="utf-8"))
         assert pack is not None, "context_pack.yml not parseable"
         console.print("  [green]Context pack schema validated.[/green]")
@@ -3146,10 +3174,9 @@ def models(
     for agent_name in registry:
         settings, _ = resolve_agent_settings(agentlab_root, agent_name)
         profile = resolve_profile_config(
-            settings.profile_name,
-            model_profiles=configs.get("model_profiles", {}),
             model_catalog=configs.get("model_catalog", {}),
             agent_name=agent_name,
+            agent_model_profiles=configs.get("agent_model_profiles", {}),
         )
         agent_table.add_row(
             agent_name,
@@ -3171,6 +3198,7 @@ def models(
 @app.command("model-doctor")
 def model_doctor(
     project: Optional[str] = typer.Option(None, help="Project name, only used to resolve root."),
+    verbose: bool = typer.Option(False, "--verbose", help="Show every resolved mode/tier role profile."),
 ) -> None:
     """Audit model/provider wiring without making network calls."""
     agentlab_root, _ = runtime_context(project)
@@ -3178,19 +3206,26 @@ def model_doctor(
     check = validate_model_configuration(configs)
 
     console.print("[bold]AgentLab model doctor[/bold]")
-    console.print({"status": check["status"], "issue_count": check["issue_count"]})
+    console.print(
+        {
+            "status": check["status"],
+            "issue_count": check["issue_count"],
+            "resolved_profile_count": len(check.get("resolved_profiles", [])),
+        }
+    )
 
-    table = Table("Agent", "Origin", "Profile", "Provider", "Model", "Source")
-    for row in check.get("resolved_profiles", []):
-        table.add_row(
-            row.get("agent", ""),
-            row.get("origin", ""),
-            row.get("profile", ""),
-            row.get("provider", ""),
-            row.get("model", ""),
-            row.get("source", ""),
-        )
-    console.print(table)
+    if verbose:
+        table = Table("Agent", "Origin", "Profile", "Provider", "Model", "Source")
+        for row in check.get("resolved_profiles", []):
+            table.add_row(
+                row.get("agent", ""),
+                row.get("origin", ""),
+                row.get("profile", ""),
+                row.get("provider", ""),
+                row.get("model", ""),
+                row.get("source", ""),
+            )
+        console.print(table)
 
     if check.get("issues"):
         issue_table = Table("Severity", "Scope", "Issue", "Provider/Profile")
@@ -3366,7 +3401,10 @@ def run_agent(
     agent_name: str = typer.Argument(..., help="Agent name, e.g. Supervisor or Coder."),
     task_id: str = typer.Option("task_0001", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
-    execution_backend: str = typer.Option("codex", help="Coder backend recorded in the workflow plan."),
+    execution_backend: str = typer.Option(
+        "agentlab_orchestrated_cli",
+        help="Workflow driver used only when the plan must be rebuilt.",
+    ),
     budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode used when rebuilding a plan: frugal, balanced, or max-quality."),
     provider: Optional[str] = typer.Option(None, help="Override provider, e.g. deepseek or openai."),
     model: Optional[str] = typer.Option(None, help="Override model id for this run."),
@@ -3375,11 +3413,61 @@ def run_agent(
     overwrite_report: bool = typer.Option(False, help="Overwrite an existing non-placeholder report."),
     force: bool = typer.Option(False, help="Allow running an agent not present in the selected route."),
     no_apply_patches: bool = typer.Option(False, help="Skip applying structured edit blocks from the LLM output."),
+    writer_ultracode: bool = typer.Option(
+        False,
+        "--writer-ultracode",
+        help="Explicitly opt this Writer run into the developmental Ultracode contract.",
+    ),
+    writer_work_type: Optional[str] = typer.Option(
+        None,
+        "--writer-work-type",
+        help="Ultracode work type: developmental_edit, structure, continuity, or revision_plan.",
+    ),
 ) -> None:
     """Dry-run or execute a single agent and write its report."""
     ensure_safe_task_id(task_id)
     agentlab_root, project_name = runtime_context(project)
     plan = load_or_build_plan(agentlab_root, project_name, task_id, execution_backend, budget_mode=budget)
+    if writer_ultracode or writer_work_type is not None:
+        if agent_name != "Writer":
+            raise typer.BadParameter(
+                "--writer-ultracode and --writer-work-type are valid only for Writer."
+            )
+        if not writer_ultracode:
+            raise typer.BadParameter(
+                "--writer-work-type requires the explicit --writer-ultracode opt-in."
+            )
+        contracts = (
+            (load_agentlab_configs(agentlab_root).get("worker_invocation_contracts") or {}).get(
+                "contracts"
+            )
+            or {}
+        )
+        ultracode_contract = contracts.get("claude_writer_ultracode") or {}
+        allowed_work = [
+            str(item) for item in ultracode_contract.get("allowed_work", [])
+        ]
+        forbidden_work = {
+            str(item) for item in ultracode_contract.get("forbidden_work", [])
+        }
+        selected_work_type = str(writer_work_type or "").strip()
+        if (
+            not selected_work_type
+            or selected_work_type not in allowed_work
+            or selected_work_type in forbidden_work
+        ):
+            raise typer.BadParameter(
+                "--writer-work-type must be one of: " + ", ".join(allowed_work)
+            )
+        writer_plan = dict(plan.included_agents.get("Writer") or {})
+        writer_plan.update(
+            {
+                "ultracode_opt_in": True,
+                "writer_mode": "developmental_ultracode",
+                "work_type": selected_work_type,
+            }
+        )
+        plan.included_agents["Writer"] = writer_plan
     if agent_name not in plan.route.agents and not force:
         raise typer.BadParameter(f"{agent_name} is not in route {plan.route.agents}. Use --force to override.")
 
@@ -3435,35 +3523,6 @@ def run_agent(
             "apply_patches": not no_apply_patches,
         }
     )
-
-    if (
-        execute
-        and agent_name == "Coder"
-        and settings.provider == "external_ide_ai"
-        and provider not in {"qwen-coder", "qwen", "qwen3", "deepseek", "deepseek-coder"}
-    ):
-        console.print()
-        console.print("[bold yellow]??? Coder ??? Codex Plus ????[/bold yellow]")
-        console.print()
-        console.print("  ?? Coder executor ?? [bold]Codex Plus[/bold]?????? Codex Plus ???Coder ??")
-        console.print("  1. ?????????:")
-        console.print(f"     supervisor_plan:   {Path(plan.run_dir) / 'supervisor_plan.md'}")
-        console.print(f"     reposcout_report:  {Path(plan.run_dir) / 'reposcout_report.md'}")
-        console.print(f"     workflow_plan:     {Path(plan.run_dir) / 'workflow_plan.yml'}")
-        console.print()
-        console.print("  [dim]To use the DashScope Qwen API fallback explicitly:[/dim]")
-        console.print(f"  [dim]./agentlab.sh run-agent Coder --project {project_name} --task-id {task_id} --execute --provider qwen-coder [/dim]")
-        console.print()
-        handoff_path = Path(plan.run_dir) / "codex_fallback_Coder.md"
-        handoff_path.write_text(
-            f"# Coder Handoff to External IDE AI\n\n"
-            f"Provider: {settings.provider}\n"
-            f"Model: {settings.model}\n\n"
-            f"CLI blocked automatic Coder execution.\n",
-            encoding="utf-8",
-        )
-        console.print(f"[dim]Handoff file: {handoff_path}[/dim]")
-        return
 
     if not execute:
         console.print("[yellow]Dry run only. No model API call was made.[/yellow]")
@@ -3564,12 +3623,12 @@ def run_agent(
         )
         return
     if result.status == "fallback_handoff":
-        fallback_path = Path(plan.run_dir) / f"codex_fallback_{agent_name}.md"
+        fallback_path = Path(plan.run_dir) / f"external_worker_handoff_{agent_name}.md"
         fallback_path.write_text(result.content, encoding="utf-8")
         run_dir_path = Path(plan.run_dir)
         state = load_state(run_dir_path, project_name, task_id)
         state.status = "blocked"
-        state.last_event = f"{agent_name} needs Codex Plus handoff."
+        state.last_event = f"{agent_name} requires an external worker handoff."
         state.reports[f"{agent_name}_fallback"] = str(fallback_path)
         save_state(run_dir_path, state)
         from progress_tracker import load_progress, save_progress
@@ -3595,7 +3654,7 @@ def run_agent(
                 result.input_tokens,
                 result.output_tokens,
                 result.total_tokens,
-                result.error or "Codex Plus handoff.",
+                result.error or "External worker handoff required.",
                 agentlab_root=Path(plan.agentlab_root),
                 usage_source=raw_usage.get("usage_source"),
                 token_estimation_method=raw_usage.get("token_estimation_method"),
@@ -3603,44 +3662,55 @@ def run_agent(
                 raw_usage=raw_usage,
             ),
         )
-        console.print("[yellow]Codex Plus handoff written[/yellow]")
+        console.print("[yellow]External worker handoff written[/yellow]")
         console.print({"output": str(fallback_path), "usage": result.model_dump(exclude={"content"})})
         return
 
     gate_issues = []
     if agent_name == "Writer":
         try:
-            from agent_runtime.writer_output_materializer import materialize_writer_candidate_result
+            from agent_runtime.narrative.production.live_writer import (
+                materialize_registered_writer_result,
+            )
         except ModuleNotFoundError:  # pragma: no cover - direct script path
-            from writer_output_materializer import materialize_writer_candidate_result
+            from narrative.production.live_writer import (
+                materialize_registered_writer_result,
+            )
 
-        materialized = materialize_writer_candidate_result(
+        delivery = materialize_registered_writer_result(
             result,
             Path(plan.run_dir),
             task_id,
             capture_name=model_output_path.name,
         )
-        if materialized:
-            output_path = Path(plan.run_dir) / "fiction_draft.md"
-            output_content = output_path.read_text(encoding="utf-8", errors="replace")
-        else:
-            contract_path = Path(plan.run_dir) / "writer_output_contract.yml"
-            contract = (
-                yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
-                if contract_path.exists()
-                else {}
-            )
-            gate_issues.extend(
-                str(issue) for issue in contract.get("issues", [])
-            )
+        output_path = Path(str(delivery["output_path"]))
+        output_content = str(delivery["output_content"])
+        if delivery.get("status") != "pass":
+            gate_issues.extend(str(issue) for issue in delivery.get("issues", []))
             if not gate_issues:
-                gate_issues.append("Writer did not return the four required candidate output blocks")
-            output_path = contract_path
-            output_content = result.content or ""
+                gate_issues.append("Writer output contract did not pass")
     else:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(result.content, encoding="utf-8")
         output_content = result.content or ""
+    if agent_name == "NarrativePlanner":
+        try:
+            from agent_runtime.narrative_delivery import (
+                narrative_planner_validation_issues,
+                write_narrative_planner_validation,
+            )
+        except ModuleNotFoundError:  # pragma: no cover - direct script path
+            from narrative_delivery import (
+                narrative_planner_validation_issues,
+                write_narrative_planner_validation,
+            )
+
+        validation = write_narrative_planner_validation(
+            Path(plan.project_root),
+            Path(plan.run_dir),
+            output_path,
+        )
+        gate_issues.extend(narrative_planner_validation_issues(validation))
     if agent_name == "Archivist":
         try:
             from project_artifact_steward import apply_archive_protocol
@@ -3741,7 +3811,10 @@ def run_agent(
 def run_pipeline(
     task_id: str = typer.Option("task_0001", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
-    execution_backend: str = typer.Option("codex", help="Pipeline backend: codex dry-run runner or langgraph."),
+    execution_backend: str = typer.Option(
+        "agentlab_orchestrated_cli",
+        help="Workflow driver; use langgraph only for the alternate graph engine.",
+    ),
     budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: frugal, balanced, or max-quality."),
     dry_run: bool = typer.Option(True, help="Default dry-run, no API calls."),
     execute: bool = typer.Option(False, "--execute", help="Call real LLM APIs (not dry-run). False by default for safety."),
@@ -3848,7 +3921,7 @@ def budget_eval_cmd(
             agentlab_root=agentlab_root,
             project_name=project_name,
             task_id=task_id,
-            execution_backend="codex",
+            execution_backend="agentlab_orchestrated_cli",
             budget_mode=mode,
         )
         total_tokens = sum(b.estimated_total_tokens for b in plan.token_budgets)
@@ -5129,152 +5202,6 @@ def frontdesk_live_handoff_cmd(
         raise typer.Exit(code=1)
 
 
-@app.command("cli-shell-coalescing-plan")
-def cli_shell_coalescing_plan_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
-    mode: str = typer.Option("full_cli", "--mode", help="Agent model profile mode to inspect."),
-    tier: str = typer.Option("performance", "--tier", help="Agent model profile tier to inspect."),
-) -> None:
-    """Plan same-backend CLI workflow-shell role-session coalescing."""
-    agentlab_root, _project_name = runtime_context(None)
-    from cli_shell_coalescing import write_cli_shell_coalescing_plan
-
-    report_out = out or (
-        agentlab_root
-        / "acceptance_runs"
-        / "agentlab_capability_acceptance"
-        / "cli_shell_coalescing_plan.yml"
-    )
-    report = write_cli_shell_coalescing_plan(agentlab_root, report_out, mode=mode, tier=tier)
-    console.print(f"wrote {report_out}")
-    console.print(dump_report_yaml(report, agentlab_root).rstrip())
-    if report.get("status") == "fail":
-        raise typer.Exit(code=1)
-
-
-@app.command("cli-shell-coalescing-status")
-def cli_shell_coalescing_status_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
-    plan: Optional[Path] = typer.Option(None, "--plan", help="Optional coalescing plan path to inspect."),
-) -> None:
-    """Validate returned artifacts from coalesced CLI workflow-shell sessions."""
-    agentlab_root, _project_name = runtime_context(None)
-    from cli_shell_coalescing_status import write_cli_shell_coalescing_status
-
-    report_out = out or (
-        agentlab_root
-        / "acceptance_runs"
-        / "agentlab_capability_acceptance"
-        / "cli_shell_coalescing_status.yml"
-    )
-    report = write_cli_shell_coalescing_status(agentlab_root, report_out, plan_path=plan)
-    console.print(f"wrote {report_out}")
-    console.print(dump_report_yaml(report, agentlab_root).rstrip())
-    if report.get("status") == "fail":
-        raise typer.Exit(code=1)
-
-
-@app.command("cli-shell-coalescing-runner-request")
-def cli_shell_coalescing_runner_request_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML request."),
-    plan: Optional[Path] = typer.Option(None, "--plan", help="Optional coalescing plan path to inspect."),
-    status: Optional[Path] = typer.Option(None, "--status", help="Optional coalescing status path to inspect."),
-) -> None:
-    """Write a trusted-runner request for coalesced CLI shell session receipts."""
-    agentlab_root, _project_name = runtime_context(None)
-    from cli_shell_coalescing_request import write_cli_shell_coalescing_runner_request
-
-    report_out = out or (
-        agentlab_root
-        / "acceptance_runs"
-        / "agentlab_capability_acceptance"
-        / "cli_shell_coalescing_runner_request.yml"
-    )
-    report = write_cli_shell_coalescing_runner_request(
-        agentlab_root,
-        report_out,
-        plan_path=plan,
-        status_path=status,
-    )
-    console.print(f"wrote {report_out}")
-    console.print(dump_report_yaml(report, agentlab_root).rstrip())
-    if report.get("status") == "needs_attention":
-        raise typer.Exit(code=1)
-
-
-@app.command("cli-shell-coalescing-runner")
-def cli_shell_coalescing_runner_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the runner YAML report."),
-    request: Optional[Path] = typer.Option(None, "--request", help="Optional coalesced runner request path."),
-    backend: str = typer.Option("all", "--backend", help="Backend to run: all, claude_code, or hermes."),
-    execute: bool = typer.Option(False, "--execute", help="Execute trusted shell sessions instead of dry-run."),
-    provision_hermes_profiles: bool = typer.Option(
-        False,
-        "--provision-hermes-profiles",
-        help="Create/update isolated Hermes role profiles before trusted execution.",
-    ),
-    provision_only: bool = typer.Option(
-        False,
-        "--provision-only",
-        help="Provision Hermes role profiles without dispatching shell role work.",
-    ),
-    timeout: int = typer.Option(600, "--timeout", min=1, help="Per-run timeout in seconds."),
-) -> None:
-    """Plan or execute coalesced CLI shell sessions behind a trusted-runner gate."""
-    agentlab_root, _project_name = runtime_context(None)
-    from cli_shell_coalescing_runner import write_cli_shell_coalescing_runner_result
-
-    report_out = out or (
-        agentlab_root
-        / "acceptance_runs"
-        / "agentlab_capability_acceptance"
-        / "cli_shell_coalescing_runner_result.yml"
-    )
-    report = write_cli_shell_coalescing_runner_result(
-        agentlab_root,
-        report_out,
-        request_path=request,
-        backend=backend,
-        execute=execute,
-        provision_profiles=provision_hermes_profiles,
-        provision_only=provision_only,
-        timeout=timeout,
-    )
-    console.print(f"wrote {report_out}")
-    console.print(dump_report_yaml(report, agentlab_root).rstrip())
-    if report.get("status") not in {"ready_for_trusted_runner", "pass"}:
-        raise typer.Exit(code=1)
-
-
-@app.command("cli-shell-coalescing-collect")
-def cli_shell_coalescing_collect_cmd(
-    out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
-    plan: Optional[Path] = typer.Option(None, "--plan", help="Optional coalescing plan path to inspect."),
-    status: Optional[Path] = typer.Option(None, "--status", help="Optional coalescing status path to refresh."),
-    request: Optional[Path] = typer.Option(None, "--request", help="Optional runner request path to refresh."),
-) -> None:
-    """Collect coalesced shell receipts and refresh local acceptance reports."""
-    agentlab_root, _project_name = runtime_context(None)
-    from cli_shell_coalescing_collect import write_cli_shell_coalescing_collect
-
-    report_out = out or (
-        agentlab_root
-        / "acceptance_runs"
-        / "agentlab_capability_acceptance"
-        / "cli_shell_coalescing_collect.yml"
-    )
-    report = write_cli_shell_coalescing_collect(
-        agentlab_root,
-        report_out,
-        plan_path=plan,
-        status_path=status,
-        request_path=request,
-    )
-    console.print(f"wrote {report_out}")
-    console.print(dump_report_yaml(report, agentlab_root).rstrip())
-    if report.get("status") not in {"pending_returned_artifacts", "pass"}:
-        raise typer.Exit(code=1)
-
 
 @app.command("trusted-live-runner-request")
 def trusted_live_runner_request_cmd(
@@ -5784,17 +5711,24 @@ def codex_start_cmd(
     task_id: str = typer.Option("task_0001", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
     request_file: Optional[Path] = typer.Option(None, help="Optional request file."),
-    mode: str = typer.Option("full-driver", help="Codex execution mode label."),
+    mode: str = typer.Option("assigned-role", help="Compatibility label for a scoped Codex assignment."),
 ) -> None:
-    """Show Codex full-driver start context without making model calls."""
+    """Show a scoped Codex worker context without making model calls."""
     agentlab_root, project_name = runtime_context(project)
-    console.print(f"[bold]Codex Full-Driver: {task_id}[/bold]")
+    if mode in {"full-driver", "codex_full_driver"}:
+        console.print(
+            "[red]codex_full_driver is retired; use AgentLab role-session dispatch.[/red]"
+        )
+        raise typer.Exit(code=2)
+    console.print(f"[bold]Codex Assigned Worker: {task_id}[/bold]")
     console.print(f"  Project: {project_name}")
     console.print(f"  Mode: {mode}")
     console.print(f"  Request file: {request_file or '(none)'}")
     console.print(f"  Run dir: {agentlab_root}/projects/{project_name}/runs/{task_id}")
     console.print()
-    console.print("[green]Task context ready. Continue with prepare, run-pipeline, check, and handoff.[/green]")
+    console.print(
+        "[green]Task context ready. Continue only with the AgentLab-assigned role packet.[/green]"
+    )
 
 
 @app.command("codex-status")
@@ -5809,7 +5743,9 @@ def codex_status_cmd(
     console.print(f"[bold]Codex Task Status: {task_id}[/bold]")
     console.print(f"  Project: {project_name}")
     console.print(f"  Status: {state.status}")
-    console.print(f"  Execution mode: {state.execution_mode or 'codex_full_driver'}")
+    console.print(
+        f"  Execution mode: {state.execution_mode or 'agentlab_orchestrated_cli'}"
+    )
     console.print(f"  Current agent: {state.current_agent}")
     console.print(f"  Completed agents: {state.completed_agents}")
     console.print(f"  Blocked: {state.blocked}")
@@ -5820,7 +5756,7 @@ def codex_handoff_cmd(
     task_id: str = typer.Option("task_0001", help="Task run id."),
     project: Optional[str] = typer.Option(None, help="Project name."),
 ) -> None:
-    """Write a machine-readable Codex handoff packet."""
+    """Write a machine-readable AgentLab handoff packet (legacy command name)."""
     agentlab_root, project_name = runtime_context(project)
     from handoff_builder import build_handoff_packet, write_handoff_packet
 
@@ -5839,7 +5775,7 @@ def codex_resume_cmd(
     project: Optional[str] = typer.Option(None, help="Project name."),
     from_file: str = typer.Option("handoff_packet.yml", "--from", help="Handoff packet filename."),
 ) -> None:
-    """Print Codex/API resume instructions from a handoff packet."""
+    """Print scoped worker/AgentLab resume instructions from a handoff packet."""
     agentlab_root, project_name = runtime_context(project)
     from api_continuation import load_handoff_packet
 

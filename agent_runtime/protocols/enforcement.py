@@ -20,11 +20,15 @@ AGENTLAB_ROLES = [
     "Supervisor",
     "RepoScout",
     "Researcher",
+    "Observer",
     "InterfaceMapper",
     "PromptEngineer",
     "Coder",
     "ArtifactProducer",
+    "NarrativePlanner",
     "Writer",
+    "Reviewer",
+    "Scribe",
     "TesterAuditor",
     "Verifier",
     "Archivist",
@@ -102,6 +106,8 @@ def _load_policy(root: Path, name: str) -> dict[str, Any]:
 
 def _normalize_role(role: str) -> str:
     text = str(role or "").replace("_", "").replace("-", "").lower()
+    if text == "visualreviewer":
+        return "Reviewer"
     for canonical in AGENTLAB_ROLES:
         if canonical.replace("_", "").replace("-", "").lower() == text:
             return canonical
@@ -444,6 +450,7 @@ def build_role_session(
     packet = {
         "packet_type": "agentlab_role_session",
         "schema_version": 1,
+        "role_session_id": f"{task_id}:{canonical_role}:{worker}",
         "authority": "_shared/AGENT_PROTOCOL.md",
         "role": canonical_role,
         "worker": worker,
@@ -633,11 +640,16 @@ def run_protocol_doctor(root: Path) -> dict[str, Any]:
 
     agy_info = ((shared_directory.get("agents") or {}).get("agy") or {})
     checks.extend([
-        _check(agy_info.get("class") in {"frontdesk_chat_assistant", "frontdesk_and_artifact_cli"}, "agy_registered_as_frontdesk", "agy is registered as a frontdesk-capable agent"),
         _check(
-            agy_info.get("may_execute_agentlab_roles_directly") in (False, ["ArtifactProducer"], ["ArtifactProducer", "Coder"]),
-            "agy_cannot_execute_general_roles_directly",
-            "agy cannot execute general AgentLab roles directly",
+            agy_info.get("class") == "frontdesk_perception_and_planning_cli",
+            "agy_registered_for_perception_and_planning",
+            "agy is registered for frontdesk, multimodal perception, and bounded planning",
+        ),
+        _check(
+            agy_info.get("may_execute_agentlab_roles_directly")
+            == ["Observer", "Reviewer", "NarrativePlanner"],
+            "agy_role_scope_is_bounded",
+            "agy direct role scope is limited to Observer, Reviewer, and NarrativePlanner",
         ),
     ])
 

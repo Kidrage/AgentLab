@@ -1,0 +1,60 @@
+schema_version: 1
+phase_id: phase_2r_node_d_live_writer_adapter
+priority: highest
+status: accepted_node_d
+authority: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
+objective: >-
+  Make the registered narrative Writer consume the accepted compiled Writer
+  packet and chapter-selected literary-memory snapshot, while preserving the
+  legacy Writer path and every non-narrative route.
+structured_activation:
+  request_filename: narrative_v2_writer_request.yml
+  required_identity:
+    job_kind: narrative_generation
+    run_mode: generate_candidate
+    candidate_only: true
+    production_modified: false
+    external_context_approval_required: true
+invariants:
+  - natural_language_does_not_activate_v2_writer
+  - request_project_task_and_chapter_match_the_runtime_plan
+  - all_project_sources_are_hash_bound_and_project_scoped
+  - accepted_sources_match_the_frozen_writer_input_manifest
+  - creative_brief_matches_deterministic_manifest_source_plan_derivation
+  - literary_memory_is_schema_v2_complete_current_and_chapter_matching
+  - literary_memory_items_revalidate_locator_relevance_source_and_window
+  - source_hashes_are_revalidated_after_packet_compile
+  - context_output_is_below_the_requested_project_candidate_root
+  - writer_receives_one_compiled_sealed_packet
+  - writer_returns_only_one_fiction_draft_edit_envelope
+  - agentlab_materializes_prose_and_owns_the_execution_receipt
+  - invalid_writer_output_writes_no_prose_or_receipt
+  - noncompleted_or_stale_session_output_writes_no_prose_or_receipt
+  - legacy_writer_and_code_task_routes_are_unchanged
+  - no_provider_call_occurs_when_preflight_is_blocked
+  - delivery_materialization_does_not_trigger_an_in_function_provider_replay
+  - candidate_only_true
+  - production_modified_false
+implementation_boundary:
+  deep_module: agent_runtime/narrative/production/live_writer.py
+  thin_adapters:
+    - agent_runtime/agent_runner.py
+    - agent_runtime/cli_executor.py
+    - agent_runtime/pipeline_runner.py
+  central_module_combined_net_line_limit: 150
+tests:
+  consolidated_files:
+    - tests/test_narrative_efficiency.py
+    - tests/test_writer_output_materializer.py
+acceptance:
+  - provider_free_compiled_session_replay_passes_for_crown_ch25_ch27
+  - live_registered_path_uses_compiled_messages_and_source_inventory
+  - literary_memory_snapshot_is_present_once_in_writer_context
+  - candidate_prose_and_agentlab_receipt_are_hash_equal
+  - focused_and_full_repository_tests_pass
+  - independent_standards_and_spec_review_pass
+safety:
+  provider_calls_before_live_gate: 0
+  production_writes: 0
+  promotion_allowed: false
+next_gate: crown_ch25_ch27_candidate_only_gate1_live_writer

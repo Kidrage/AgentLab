@@ -13,7 +13,7 @@ Safety rules:
   explicit `--approve-indexing`
 
 Evidence artifacts are written under a task run's `artifacts/repo_index/`
-directory or `artifacts/repo_index/` for standalone CLI use:
+directory or local-only `.agentlab/artifacts/repo_index/` for standalone CLI use:
 
 - `repo_index_ledger.yml`
 - `codegraph_status.json`
@@ -22,4 +22,3 @@ directory or `artifacts/repo_index/` for standalone CLI use:
 
 Unknown token visibility remains `unknown`; API cost is `null` because CodeGraph
 is treated as a local-resource provider.
-

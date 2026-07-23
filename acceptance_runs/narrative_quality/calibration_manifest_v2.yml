@@ -1,0 +1,101 @@
+schema_version: 2
+calibration_set_id: narrative_quality_v2_20260720_correction2
+status: frozen_immutable
+immutable: true
+candidate_only: true
+production_modified: false
+supersedes: calibration_manifest.yml
+supersedes_policy: never_overwrite_v1
+generated_at: '2026-07-20T00:00:00.000000+00:00'
+generated_by: Coder
+generated_by_worker: claude_code
+generated_by_model: deepseek-v4-pro
+governance_route: codebase_build_project
+positive_calibration_status: missing_user_samples
+
+diagnostic_candidates_pending_user_review:
+  - chapter_id: 1
+    authority: diagnostic_candidate_pending_user_review
+    trait_tags: [strong_opening, character_establishment, world_introduction]
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: 09f7a476d6ea2978a0501b3627b5407c21c95dc9606648ba79651ee4bfc98579
+    calibration_role: diagnostic_candidate
+    note: |
+      Identified as a high-quality chapter during Phase 0 evidence review.
+      NOT a user-approved positive sample. Will become a threshold sample only
+      after the user explicitly selects and confirms 3-5 positive chapters.
+  - chapter_id: 4
+    authority: diagnostic_candidate_pending_user_review
+    trait_tags: [pacing, dramatic_tension, character_agency]
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch04_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: 07c67176889a441518faf4b4993f6964f8c0b44e08f687416f57f2a3bba9f4ff
+    calibration_role: diagnostic_candidate
+    note: Diagnostic candidate; not user-approved.
+  - chapter_id: 9
+    authority: diagnostic_candidate_pending_user_review
+    trait_tags: [causal_reasoning, strategic_competence, world_depth]
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch09_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: 22a54cba6dcb6b23a18f82491edffa8e21a15149590ab976a55af174a5c5530f
+    calibration_role: diagnostic_candidate
+    note: Diagnostic candidate; not user-approved.
+  - chapter_id: 17
+    authority: diagnostic_candidate_pending_user_review
+    trait_tags: [character_arc, emotional_resonance, reader_curiosity]
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch17_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: af75351ad6d3459cf0d85113857329c8fce2d58c6fbb6eda37c52c1c4b9972f3
+    calibration_role: diagnostic_candidate
+    note: Diagnostic candidate; not user-approved.
+
+negative_samples:
+  - chapter_id: 26
+    authority: user_reported_negative
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch26_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: 8242a5997cd3ae275b070e9bd4e59d73d53342c639820e0363e76813113882a8
+    calibration_role: negative_threshold_sample
+
+conflict_holdout:
+  - chapter_id: 30
+    authority: user_reported_negative
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch30_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: c904b29588570b65db574eaeb4157b937ac55858470feef9ce32663b4a59a34b
+    holdout_reason: |
+      Tests thematic strength versus reading fatigue at extreme range.
+      Excluded from binary positive/negative threshold computation.
+      Serves as conflict holdout only; not used as a calibration sample.
+
+structural_fatigue_probes:
+  - chapter_id: 5
+    probe_kind: structural_fatigue
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch05_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: cb36c83beb3b0a2b9ab83f9f115fcb2054575446de23a206905852d6d5424cf4
+    purpose: Measure early-run structural repetition onset.
+  - chapter_id: 7
+    probe_kind: structural_fatigue
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch07_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: 5964e635ff78e45e587589956e46445ab6fa41adadcdc68ffeaab5317e63ca47
+    purpose: Measure mid-batch rhetorical and scene-function fatigue.
+  - chapter_id: 14
+    probe_kind: structural_fatigue
+    artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch14_crown_corrected_200_v3_writer/fiction_draft.md
+    artifact_sha256: fca81c7978a9f704cbe91173f76124c00c4924c028f69d4340dbcd7774f94a6a
+    purpose: Measure semantic and voice fatigue at deeper range.
+
+sha256_recomputability:
+  status: fully_recomputable
+  method: |
+    All artifact SHA256 values above were computed directly from the
+    corresponding fiction_draft.md files via `shasum -a 256`.
+    Verification command: shasum -a 256 <artifact_path>
+  computed_at_head: 9799ba019197b27361ff44f7c9f19654ee4f9215
+
+human_blind_review:
+  required_pairs: 10
+  required_new_system_win_rate: 0.70
+  completed_pairs: 0
+  status: not_started
+
+v1_preservation:
+  v1_manifest: acceptance_runs/narrative_quality/calibration_manifest.yml
+  v1_sha256: preserved_read_only
+  v1_status: blocked_missing_user_positive_samples
+  overwrite_policy: never

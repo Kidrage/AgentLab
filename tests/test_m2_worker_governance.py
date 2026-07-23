@@ -12,7 +12,6 @@ from agent_runtime.capabilities.compatibility import (
 )
 from agent_runtime.capabilities.role_requirements import RoleRequirementsRegistry
 from agent_runtime.execution_economy.role_activation_policy import RoleActivationPolicy
-from agent_runtime.execution_economy.role_coalescing import coalesce_roles
 from agent_runtime.routing.fallback_policy import WorkerFallbackPolicy
 from agent_runtime.routing.mode_tier_policy import ModeTierWorkerPolicy
 from agent_runtime.run_task import app
@@ -47,23 +46,6 @@ def test_role_activation_defaults_and_expected_benefit() -> None:
     assert policy.get_expected_benefit("Coder", "small")["quality_gain"] == "medium"
 
 
-def test_small_task_role_coalescing() -> None:
-    packets = coalesce_roles(
-        ["Supervisor", "PromptEngineer", "Coder", "RepoScout"],
-        task_size="small",
-    )
-
-    assert len(packets) == 2
-    by_id = {packet.coalesced_packet_id: packet for packet in packets}
-    assert set(by_id) == {"coalesced_coder_packet", "single_reposcout_packet"}
-    assert set(by_id["coalesced_coder_packet"].roles) == {
-        "Supervisor",
-        "PromptEngineer",
-        "Coder",
-    }
-    assert by_id["coalesced_coder_packet"].selected_worker == "claude_code"
-
-
 def test_coder_fallback_order() -> None:
     policy = WorkerFallbackPolicy(ROOT / "config" / "worker_fallback_policy.yml")
     assert policy.fallbacks("Coder", "claude_code")[:2] == ["codex", "aider"]
@@ -87,13 +69,13 @@ def test_worker_invocation_contracts_and_shell_capabilities() -> None:
         "codex",
         "qwen",
         "agy",
-        "agy_coder",
-        "agy_writer",
+        "agy_observer",
+        "agy_visual_reviewer",
     ):
         assert raw["contracts"][worker]["workflow_shell"] is True
     capabilities = {
         worker: set(raw["contracts"][worker]["workflow_shell_capability_families"])
-        for worker in ("hermes", "claude", "codex", "qwen", "agy_coder")
+        for worker in ("hermes", "claude", "codex", "qwen", "agy_observer")
     }
     assert {
         "tool_and_mcp_governance",
@@ -106,16 +88,20 @@ def test_worker_invocation_contracts_and_shell_capabilities() -> None:
     } <= capabilities["claude"]
     assert "permission_and_sandbox_control" in capabilities["codex"]
     assert "structured_output_and_qc" in capabilities["qwen"]
-    assert "workspace_context_control" in capabilities["agy_coder"]
-    assert raw["contracts"]["agy_writer"]["invocation_style"] == "sealed_task_packet_prompt"
+    assert "workspace_context_control" in capabilities["agy_observer"]
+    assert "agy_coder" not in raw["contracts"]
+    assert raw["contracts"]["agy_observer"]["invocation_style"] == "read_only_multimodal_task_packet"
 
-    grok = contracts["grok"]
-    assert grok.command == "hermes"
-    assert grok.invocation_style == "media_backend_task_packet"
-    assert "task_packet_path" in grok.required_placeholders
-    assert "XAI_API_KEY" not in grok.template
-    assert "Hermes xAI OAuth Grok session" in grok.template
-    assert raw["contracts"]["grok"]["workflow_shell_backend"] == "hermes"
+    grok_research = contracts["grok_research"]
+    grok_media = contracts["grok_media"]
+    assert grok_research.command == "hermes"
+    assert grok_research.invocation_style == "sourced_research_task_packet"
+    assert grok_media.invocation_style == "media_backend_task_packet"
+    for grok in (grok_research, grok_media):
+        assert "task_packet_path" in grok.required_placeholders
+        assert "XAI_API_KEY" not in grok.template
+    assert raw["contracts"]["grok_research"]["workflow_shell_backend"] == "hermes"
+    assert raw["contracts"]["grok_media"]["workflow_shell_backend"] == "hermes"
 
 
 def test_worker_registry_scan_and_cache(tmp_path) -> None:
@@ -181,7 +167,7 @@ def test_role_requirements_and_cli() -> None:
     registry = RoleRequirementsRegistry.load_from_file(
         ROOT / "config" / "agent_role_requirements.yml"
     )
-    assert len(registry.list_roles()) == 10
+    assert len(registry.list_roles()) == 14
 
     coder = registry.get_role_requirements("Coder")
     assert coder is not None
@@ -192,6 +178,15 @@ def test_role_requirements_and_cli() -> None:
     assert {"artifact_task_contract", "write_artifact_file"} <= set(
         artifact.required_capabilities
     )
+    observer = registry.get_role_requirements("Observer")
+    assert observer is not None
+    assert {"multimodal_observation", "evidence_quality_review"} <= set(
+        observer.required_capabilities
+    )
+    assert {"file_edit", "shell_execution"} <= set(observer.forbidden_capabilities)
+    assert registry.get_role_requirements("Writer") is not None
+    assert registry.get_role_requirements("Reviewer") is not None
+    assert registry.get_role_requirements("Scribe") is not None
     supervisor = registry.get_role_requirements("supervisor")
     assert supervisor == registry.get_role_requirements("Supervisor")
     assert {"planning", "task_decomposition"} <= set(supervisor.required_capabilities)

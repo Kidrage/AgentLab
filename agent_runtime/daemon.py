@@ -35,9 +35,20 @@ def load_daemon_policy(agentlab_root: Path) -> dict[str, Any]:
 
 def write_heartbeat(agentlab_root: Path) -> Path:
     """Write a daemon heartbeat file so operators can confirm liveness."""
-    path = agentlab_root / ".agentlab_daemon_heartbeat.json"
+    path = agentlab_root / ".agentlab_runtime" / "daemon" / "heartbeat.json"
     atomic_write_json(path, utc_now())
     return path
+
+
+def daemon_status_path(agentlab_root: Path, project: str) -> Path:
+    return (
+        agentlab_root
+        / ".agentlab_runtime"
+        / "daemon"
+        / "projects"
+        / project
+        / "status.json"
+    )
 
 
 def _list_runs(agentlab_root: Path, project: str) -> list[Path]:
@@ -126,7 +137,7 @@ def scan_and_act(
         "actions_taken": len(actions),
         "actions": actions,
     }
-    atomic_write_json(agentlab_root / "projects" / project / "daemon_status.json", summary)
+    atomic_write_json(daemon_status_path(agentlab_root, project), summary)
     return summary
 
 
@@ -161,7 +172,7 @@ def run_daemon_once(
 
 def daemon_status(agentlab_root: Path, project: str) -> dict[str, Any]:
     """Read the last daemon scan status."""
-    path = agentlab_root / "projects" / project / "daemon_status.json"
+    path = daemon_status_path(agentlab_root, project)
     if not path.exists():
         return {"project": project, "status": "no_scan_yet", "timestamp": None}
     data = safe_read_yaml(path, default={}) or {}

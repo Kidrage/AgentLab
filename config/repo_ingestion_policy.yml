@@ -14,6 +14,13 @@ repo_ingestion:
 
   default_excludes:
     - ".git/**"
+    - ".agents/**"
+    - ".agentlab_runtime/**"
+    - ".claude/**"
+    - ".codex/**"
+    - ".gemini/**"
+    - ".hermes/**"
+    - ".qwen/**"
     - "build/**"
     - "dist/**"
     - "DerivedData/**"

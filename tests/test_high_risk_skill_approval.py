@@ -30,7 +30,6 @@ def _setup_skill_env(tmp_path: Path, risk_level: str = "high") -> tuple[Path, Pa
     }
     (skills_active / "metadata.yml").write_text(yaml.safe_dump(metadata), encoding="utf-8")
     (skills_active / "SKILL.md").write_text("# High Risk Demo\n", encoding="utf-8")
-    (skills_active / "usage_ledger.yml").write_text("entries: []\n", encoding="utf-8")
 
     # Write skill injection policy
     config_dir = tmp_path / "config"
@@ -38,13 +37,13 @@ def _setup_skill_env(tmp_path: Path, risk_level: str = "high") -> tuple[Path, Pa
     config_dir.mkdir(exist_ok=True)
 
     policy = {
-        "schema_version": 1,
+        "schema_version": 2,
         "retrieval": {
             "max_skills_per_task": 3,
             "high_risk_requires_approval": True,
             "silent_reject_high_risk": False,
         },
-        "usage": {"write_task_usage": True},
+        "usage": {"write_run_usage": True, "scope": "run_local"},
     }
     (config_dir / "skill_injection_policy.yml").write_text(yaml.safe_dump(policy), encoding="utf-8")
 

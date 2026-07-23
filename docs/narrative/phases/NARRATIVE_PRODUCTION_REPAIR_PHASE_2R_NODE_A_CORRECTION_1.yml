@@ -1,0 +1,111 @@
+schema_version: 1
+task_id: task_narrative_repair_v2_phase2r_node_a_context_correction1
+project_id: AgentLab
+project_type: codebase_build_project
+phase_id: phase_2r_node_a_context_correction1
+priority: highest
+status: ready
+implementation_owner: Coder
+worker: claude_code
+required_model_key: deepseek_v4_pro
+supervisor: Codex
+
+objective: >-
+  Correct only the five Supervisor-reproduced ContextCompiler false-greens and
+  truthful evidence. Preserve the current partial node and do not start later
+  Phase 2R work.
+
+must_read:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_2R_NODE_A.yml
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/supervisor_review.yml
+  - agent_runtime/narrative/production/context_compiler.py
+  - agent_runtime/narrative/efficiency/context_bundle.py
+  - tests/test_narrative_efficiency.py
+
+allowed_files:
+  - agent_runtime/narrative/production/context_compiler.py
+  - agent_runtime/narrative/production/__init__.py
+  - agent_runtime/narrative/efficiency/context_bundle.py
+  - tests/test_narrative_efficiency.py
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/**
+  - docs/narrative/NARRATIVE_PHASE2R_NODE_A_ACCEPTANCE.md
+  - PROJECT_HANDOFF.md
+
+forbidden_files:
+  - agent_runtime/run_task.py
+  - agent_runtime/pipeline_runner.py
+  - agent_runtime/workflow_plan.py
+  - agent_runtime/operator_os/**
+  - agent_runtime/background_jobs/**
+  - agent_runtime/narrative_delivery.py
+  - agent_runtime/narrative_eval.py
+  - agent_runtime/writer_output_materializer.py
+  - agent_runtime/narrative/quality/**
+  - agent_runtime/narrative/candidates/**
+  - config/**
+  - projects/Crown_of_Ash/**
+  - projects/NovelGen/**
+  - release_objects/**
+  - agent_templates/**
+
+correction_requirements:
+  - >-
+    Validate creative_brief.to_dict() with validate_creative_brief before any
+    bundle write. Recompute every declared source hash and block stale or
+    mismatched files. Include canonical CreativeBrief bytes and SHA256 in the
+    content-addressed manifest identity; storing only its source files is not
+    sufficient.
+  - >-
+    Add explicit predecessor chapter identity/provenance. For chapter_id > 1,
+    require predecessor_chapter_id == chapter_id - 1 and bind the predecessor
+    prose bytes by SHA256. Never infer correctness only because a file exists.
+    Chapter 1 remains predecessor-free.
+  - >-
+    Remove cross-slice duplication before bundle construction. A file already
+    shared cannot remain private; a file requested by multiple roles becomes
+    shared once. Derive duplicate_context_ratio and saved bytes from actual
+    naive-versus-unique records. A duplicate test must fail the old 0.0 result.
+  - >-
+    Pattern signals are advisory input only. Reject any signal containing
+    authoritative status/pass/accept/seal/promotion fields instead of returning
+    those keys with advisory=true. Do not mutate caller-owned values.
+  - >-
+    Append real root PROJECT_HANDOFF progress rows and correct every evidence
+    count/line number from the filesystem. Coder remains candidate-only and
+    cannot accept the node.
+
+required_adversarial_tests:
+  - stale_or_mismatched_brief_source_hash_blocks
+  - creative_brief_bytes_and_hash_are_in_manifest_identity
+  - wrong_predecessor_chapter_id_blocks
+  - predecessor_hash_mismatch_blocks
+  - shared_role_and_cross_role_duplicates_are_loaded_once_and_metrics_are_nonzero
+  - authoritative_pattern_signal_fields_block
+  - caller_owned_pattern_data_is_not_mutated
+
+node_limits:
+  provider_prose_calls: 0
+  production_writes: 0
+  automatic_retry_count: 0
+  later_phase2_nodes: forbidden
+  checkpoint_before_executor_deadline: true
+
+required_outputs:
+  - corrected code and consolidated tests
+  - strict updated node_a evidence including supervisor_review.yml lineage
+  - root PROJECT_HANDOFF in_progress and completed_or_blocked rows
+
+commands_allowed:
+  - rg
+  - git diff --check
+  - git diff --numstat
+  - python -m compileall
+  - PYTHONPATH=.:agent_runtime python -m pytest -q tests/test_narrative_efficiency.py
+
+commands_forbidden:
+  - git push
+  - git reset --hard
+  - git clean
+  - provider prose generation
+  - production promotion

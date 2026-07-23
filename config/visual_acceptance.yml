@@ -1,0 +1,71 @@
+visual_acceptance:
+  schema_version: visual-acceptance-policy/v1
+
+  boundary:
+    require_candidate_only_input: true
+    promotion_requires_external_gate: true
+    module_may_promote: false
+
+  assets:
+    minimum_size_bytes: 1
+    require_sha256: true
+    require_size_bytes: true
+    restrict_paths_to_workspace: true
+
+  generation_receipt:
+    required_fields:
+      - producer
+      - backend
+      - model
+      - prompt_parameters
+      - reference_assets
+    require_nonempty_prompt_parameters: true
+    allow_empty_reference_assets: true
+
+  observer_evidence:
+    required_observer_fields: [role, id, backend, model]
+    require_distinct_session_id: true
+    media_requirements:
+      image:
+        required_locators: [keyframes]
+      video:
+        required_locators: [keyframes, timestamps]
+      audio:
+        required_locators: [timestamps]
+      pdf:
+        required_locators: [pages]
+
+  review:
+    required_roles: [Reviewer, Verifier]
+    required_reviewer_fields: [role, id, backend, model]
+    require_asset_binding: true
+    require_distinct_reviewer_ids: true
+    require_distinct_backend_model_pairs: true
+    forbid_producer_identity_backend_or_model: true
+    required_dimensions_by_role:
+      Reviewer:
+        - aesthetic
+        - continuity
+        - technical
+        - factual_safety
+      Verifier: []
+    required_checks_by_role:
+      Verifier:
+        - asset_integrity
+        - evidence_chain
+        - reviewer_independence
+        - promotion_boundary
+    require_dimension_evidence: true
+    require_check_evidence: true
+
+  verdicts:
+    passing: pass
+    terminal_review_status: complete
+    blocking:
+      - fail
+      - failed
+      - blocked
+      - pending
+      - unknown
+      - missing
+      - missing_auth

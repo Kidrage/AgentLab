@@ -1,0 +1,61 @@
+schema_version: 2
+phase: phase_2r
+measurement: ordinary_context_before_after
+status: blocked_pending_live_writer_adapter_and_structured_literary_memory
+quality_equivalent_comparison_available: false
+
+frozen_legacy_baseline:
+  project: Crown_of_Ash
+  chapters: [25, 26, 27]
+  source: outbound_context_manifest_writer.yml
+  rows:
+    - {chapter_id: 25, payload_bytes: 104788, inventory_files: 19, inventory_bytes: 117378}
+    - {chapter_id: 26, payload_bytes: 100218, inventory_files: 19, inventory_bytes: 112827}
+    - {chapter_id: 27, payload_bytes: 96065, inventory_files: 19, inventory_bytes: 108767}
+  payload_bytes_median: 100218
+  inventory_files_median: 19
+  inventory_bytes_median: 112827
+
+corrected_provider_free_preview:
+  source: acceptance_runs/narrative_efficiency/phase2r_node_b/preview_metrics.json
+  packet_contract: agentlab_sealed_role_session_v2_preview
+  rows:
+    - {chapter_id: 25, payload_bytes: 62448, token_estimate: 15612, loaded_files: 10, loaded_context_bytes: 57317}
+    - {chapter_id: 26, payload_bytes: 69474, token_estimate: 17369, loaded_files: 10, loaded_context_bytes: 64368}
+    - {chapter_id: 27, payload_bytes: 62220, token_estimate: 15555, loaded_files: 10, loaded_context_bytes: 57055}
+  payload_bytes_median: 62448
+  token_estimate_median: 15612
+  loaded_files_median: 10
+  loaded_context_bytes_median: 57317
+  payload_reduction_percent: 37.6878
+  file_count_reduction_percent: 47.3684
+  context_bytes_reduction_percent: 49.1992
+  comparison_scope: deterministic_input_contract_preview_only
+  literary_output_equivalence_proven: false
+
+completed_corrections:
+  - production_output_directory_blocks_before_context_manifest_write
+  - preview_uses_schema_v2_sealed_role_session_envelope
+  - writer_only_bytes_and_duplicate_ratio_are_measured
+  - source_root_character_ranges_are_inherited_into_each_brief
+  - current_writer_prose_only_template_is_included
+  - detailed_manuscript_content_is_not_committed_as_acceptance_evidence
+  - checked_in_driver_reproduces_derived_candidate_inputs_and_exact_metrics
+
+target:
+  ordinary_input_context_median_reduction_percent: 25
+  input_contract_evaluated: true
+  input_contract_met: true
+  quality_preserving_evaluated: false
+  phase_acceptance_met: false
+
+safety:
+  provider_calls: 0
+  production_writes: 0
+  candidate_only: true
+
+blocking_requirements:
+  - wire_compiled_packet_into_the_registered_writer_runtime_path
+  - build_and_select_structured_literary_memory_for_each_chapter
+  - rerun_quality_equivalent_measurement_after_both_inputs_exist
+  - prove_live_writer_output_with_gate1_and_human_blind_review

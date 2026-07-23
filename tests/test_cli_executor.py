@@ -6,6 +6,7 @@ against hermes or claude_code binaries; instead subprocess.run is patched.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -38,6 +39,392 @@ def _make_plan(tmp_path: Path, budget_mode: str = "balanced") -> "WorkflowPlan":
         user_request_path=str(tmp_path / "projects" / "TestProject" / "runs" / "task_test_001" / "user_request.md"),
         budget_mode=budget_mode,
         route=route,
+    )
+
+
+def _hermes_supervisor_fixture(
+    tmp_path: Path,
+    *,
+    reasoning_effort: str = "xhigh",
+    fallback_providers: list[dict] | None = None,
+) -> tuple[dict, Path]:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "supervisor_model": {
+                        "provider": "hermes_codex_oauth",
+                        "runtime_provider": "openai-codex",
+                        "cli_provider": "openai-codex",
+                        "model_id": "gpt-5.6-sol",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "hermes_supervisor": {
+                        "worker_id": "hermes",
+                        "workflow_shell_profile": "agentlabsupervisor",
+                        "template": (
+                            "hermes -p agentlabsupervisor chat -Q --provider {provider} "
+                            "-m {model_id} --ignore-rules --max-turns 6 "
+                            "-q \"Read {task_packet_path}\""
+                        ),
+                        "required_shell_state": {
+                            "model.provider": "openai-codex",
+                            "model.default": "gpt-5.6-sol",
+                            "agent.reasoning_effort": "xhigh",
+                            "fallback_providers": [],
+                            "fallback_model": None,
+                        },
+                        "requested_reasoning_label": "extra",
+                        "resolved_reasoning_effort": "xhigh",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    hermes_home = tmp_path / "hermes-home"
+    profile_dir = hermes_home / "profiles" / "agentlabsupervisor"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    (profile_dir / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "model": {
+                    "provider": "openai-codex",
+                    "default": "gpt-5.6-sol",
+                },
+                "agent": {"reasoning_effort": reasoning_effort},
+                "fallback_providers": (
+                    [] if fallback_providers is None else fallback_providers
+                ),
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    role_profile = {
+        "executor_type": "cli_agent",
+        "cli_agent": "hermes",
+        "invocation_contract": "hermes_supervisor",
+        "default": "supervisor_model",
+    }
+    return role_profile, hermes_home
+
+
+def test_qwen_role_contract_maps_dashscope_auth_without_cli_secret(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _contract_process_environment
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "qwen": {
+                        "environment": {
+                            "api_key_source": "DASHSCOPE_API_KEY",
+                            "api_key_target": "OPENAI_API_KEY",
+                            "base_url_target": "OPENAI_BASE_URL",
+                            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                        }
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "dashscope-test-secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "stale-openai-secret")
+
+    process_env, _ = _contract_process_environment(
+        {"cli_agent": "qwen", "invocation_contract": "qwen"},
+        tmp_path,
+    )
+
+    assert process_env["OPENAI_API_KEY"] == "dashscope-test-secret"
+    assert process_env["OPENAI_BASE_URL"] == (
+        "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )
+
+
+@pytest.mark.parametrize(
+    "trailing_override",
+    [
+        pytest.param(
+            " --provider deepseek -m deepseek-v4-pro",
+            id="provider-and-model",
+        ),
+        pytest.param(" -m gpt-5.5", id="duplicate-model"),
+        pytest.param(
+            " --fallback-model deepseek-v4-pro",
+            id="fallback-model",
+        ),
+    ],
+)
+def test_hermes_supervisor_rejects_trailing_command_overrides_before_provider(
+    tmp_path: Path,
+    trailing_override: str,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import run_cli_agent
+
+    plan = _make_plan(tmp_path)
+    Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+    role_profile, hermes_home = _hermes_supervisor_fixture(tmp_path)
+    contract_path = tmp_path / "config" / "worker_invocation_contracts.yml"
+    contracts = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contracts["contracts"]["hermes_supervisor"]["template"] += trailing_override
+    contract_path.write_text(
+        yaml.safe_dump(contracts, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with patch.dict(
+        "os.environ",
+        {"HERMES_HOME": str(hermes_home)},
+        clear=False,
+    ), patch(
+        "cli_executor.shutil.which",
+        return_value="/usr/bin/hermes",
+    ), patch("cli_executor.subprocess.run") as provider_process:
+        result = run_cli_agent(plan, "Supervisor", role_profile)
+
+    provider_process.assert_not_called()
+    assert result.status == "blocked_user_decision"
+    assert result.error == "supervisor_model_preflight_failed"
+    preflight = result.raw_usage["supervisor_model_preflight"]
+    assert preflight["command_binding_verified"] is False
+    assert "supervisor_command_binding_mismatch" in preflight["issues"]
+
+
+def test_codex_supervisor_preflight_derives_model_binding_from_config(
+    tmp_path: Path,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _hermes_supervisor_preflight
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "codex_supervisor": {
+                        "worker_id": "codex",
+                        "required_runtime_provider": "codex-cli",
+                        "required_model_key": "codex_next_supervisor",
+                        "resolved_reasoning_effort": "high",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "codex_next_supervisor": {
+                        "provider": "codex_cli_oauth",
+                        "runtime_provider": "codex-cli",
+                        "model_id": "gpt-next",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    role_profile = {
+        "invocation_contract": "codex_supervisor",
+        "default": "codex_next_supervisor",
+    }
+    argv = [
+        "codex",
+        "exec",
+        "--json",
+        "--model",
+        "gpt-next",
+        "-c",
+        'model_reasoning_effort="high"',
+        "--sandbox",
+        "read-only",
+        "--ephemeral",
+        "--ignore-rules",
+        "--skip-git-repo-check",
+        "-C",
+        "/sealed/workspace",
+        "Read /sealed/workspace/task_packet.json",
+    ]
+
+    result = _hermes_supervisor_preflight(
+        role_profile,
+        tmp_path,
+        {},
+        argv,
+        {
+            "provider": "codex-cli",
+            "model_id": "gpt-next",
+            "model_key": "codex_next_supervisor",
+        },
+    )
+
+    assert result["status"] == "pass"
+    assert result["required_shell_state"] == {
+        "model.provider": "codex-cli",
+        "model.default": "gpt-next",
+        "agent.reasoning_effort": "high",
+    }
+
+
+def _agy_observer_fixture(tmp_path: Path) -> dict:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "observer_model": {
+                        "provider": "agy_gemini_oauth",
+                        "runtime_provider": "agy-gemini-oauth",
+                        "model_id": "gemini-3.5-flash-high",
+                        "cli_model_id": "Gemini 3.5 Flash (High)",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "agy_observer": {
+                        "worker_id": "agy",
+                        "invocation_style": "read_only_multimodal_task_packet",
+                        "template": (
+                            'agy --sandbox --model "{model_id}" '
+                            '-p "Read {task_packet_path}"'
+                        ),
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "executor_type": "cli_agent",
+        "cli_agent": "agy",
+        "invocation_contract": "agy_observer",
+        "default": "observer_model",
+        "capacity_selected_route": "ObserverGemini",
+        "capacity_pool": "agy_gemini_observer",
+    }
+
+
+def _grok_research_fixture(
+    tmp_path: Path,
+    *,
+    credential_present: bool = True,
+    fallback_providers: list[dict] | None = None,
+    template: str | None = None,
+) -> tuple[dict, Path]:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "research_model": {
+                        "provider": "hermes_xai_oauth",
+                        "runtime_provider": "xai-oauth",
+                        "cli_provider": "xai-oauth",
+                        "model_id": "grok-4.3",
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "worker_invocation_contracts.yml").write_text(
+        yaml.safe_dump(
+            {
+                "contracts": {
+                    "grok_research": {
+                        "worker_id": "grok",
+                        "invocation_style": "sourced_research_task_packet",
+                        "template": template
+                        or (
+                            'hermes --ignore-rules --provider xai-oauth '
+                            '-m {model_id} -t web,x_search -z "Read the AgentLab Researcher '
+                            'task packet at {task_packet_path}; return sourced evidence."'
+                        ),
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    hermes_home = tmp_path / "hermes-home"
+    hermes_home.mkdir(parents=True, exist_ok=True)
+    (hermes_home / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "fallback_providers": (
+                    [] if fallback_providers is None else fallback_providers
+                )
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    auth_payload = {"version": 1, "providers": {}}
+    if credential_present:
+        auth_payload["providers"]["xai-oauth"] = {
+            "auth_mode": "oauth",
+            "tokens": {"id_token": "fixture-secret-must-never-be-recorded"},
+        }
+    (hermes_home / "auth.json").write_text(
+        json.dumps(auth_payload),
+        encoding="utf-8",
+    )
+    return (
+        {
+            "executor_type": "cli_agent",
+            "cli_agent": "grok",
+            "invocation_contract": "grok_research",
+            "default": "research_model",
+            "capacity_selected_route": "Researcher",
+            "capacity_pool": "xai_subscription_shared",
+            "capacity_attempt_id": "research-attempt-1",
+            "capacity_selection_kind": "primary",
+        },
+        hermes_home,
     )
 
 
@@ -189,8 +576,8 @@ def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
 class TestResolveCliProfileSchemaV4:
     """Prove resolve_cli_profile supports schema v4 modes/tiers layout."""
 
-    def test_real_default_full_cli_supervisor_resolves_to_hermes_codex(self):
-        """The real default mode/tier keeps Supervisor on Hermes Codex OAuth."""
+    def test_real_default_full_cli_supervisor_resolves_to_native_codex(self):
+        """The real default mode/tier keeps Supervisor on native Codex OAuth."""
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import resolve_cli_profile
@@ -203,15 +590,14 @@ class TestResolveCliProfileSchemaV4:
         assert result is not None
         assert result["resolved_mode"] == "full_cli"
         assert result["resolved_tier"] == "performance"
-        assert result["cli_agent"] == "hermes"
-        assert result["invocation_contract"] == "hermes"
-        assert result["default"] == "codex_gpt_5_5_high_hermes_oauth"
-        assert result["fallback_cli_agent"] == "claude_code"
-        assert result["fallback_invocation_contract"] == "claude"
-        assert result["fallback"] == "deepseek_v4_pro"
+        assert result["cli_agent"] == "codex"
+        assert result["invocation_contract"] == "codex_supervisor"
+        assert result["default"] == "codex_gpt_5_6_sol_xhigh_cli_oauth"
+        assert result["capacity_route"] == "Supervisor"
+        assert "fallback" not in result
 
-    def test_real_default_full_cli_writer_resolves_to_agy_gemini_oauth(self):
-        """The real default mode/tier keeps Writer on Agy Gemini OAuth."""
+    def test_real_default_full_cli_writer_resolves_to_claude_deepseek(self):
+        """The real default mode/tier keeps pure Writer on Claude + DeepSeek."""
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import resolve_cli_profile
@@ -224,12 +610,11 @@ class TestResolveCliProfileSchemaV4:
         assert result is not None
         assert result["resolved_mode"] == "full_cli"
         assert result["resolved_tier"] == "performance"
-        assert result["cli_agent"] == "agy"
-        assert result["invocation_contract"] == "agy_writer"
-        assert result["default"] == "gemini_3_5_flash_high_agy_oauth"
-        assert result["fallback_cli_agent"] == "claude_code"
-        assert result["fallback_invocation_contract"] == "claude"
-        assert result["fallback"] == "deepseek_v4_flash"
+        assert result["cli_agent"] == "claude_code"
+        assert result["invocation_contract"] == "claude_writer"
+        assert result["default"] == "deepseek_v4_pro"
+        assert result["capacity_route"] == "Writer"
+        assert "fallback" not in result
 
     def test_full_cli_full_supervisor_resolves_cli(self):
         """Schema v4 full_cli/full/supervisor returns CLI profile with hermes."""
@@ -501,12 +886,30 @@ class TestRenderCommand:
             'hermes --provider {provider} -m {model_id} -z "Read {task_packet_path}"',
             tmp_path / "pkt.json",
             provider="openai-codex",
-            model_id="gpt-5.5",
-            model_key="codex_gpt_5_5_high_hermes_oauth",
+            model_id="gpt-5.6-sol",
+            model_key="codex_gpt_5_6_sol_xhigh_hermes_oauth",
         )
 
-        assert argv[:5] == ["hermes", "--provider", "openai-codex", "-m", "gpt-5.5"]
+        assert argv[:5] == ["hermes", "--provider", "openai-codex", "-m", "gpt-5.6-sol"]
         assert any(str(tmp_path / "pkt.json") in arg for arg in argv)
+
+    def test_substitutes_narrative_audit_schema_as_one_argv_value(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _render_command
+
+        schema = json.dumps(
+            {"type": "object", "required": ["fiction_review"]},
+            separators=(",", ":"),
+        )
+        argv = _render_command(
+            "claude --json-schema '{narrative_audit_schema}' -p audit",
+            tmp_path / "pkt.json",
+            narrative_audit_schema=schema,
+            append_task_packet_path=False,
+        )
+
+        assert argv == ["claude", "--json-schema", schema, "-p", "audit"]
 
     def test_agy_catalog_resolves_cli_display_label(self):
         import sys
@@ -593,6 +996,391 @@ class TestRunCliAgentSubprocess:
         proc.stderr = stderr
         return proc
 
+    def test_codex_supervisor_writes_verified_model_execution_receipt(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "contracts": {
+                        "codex_supervisor": {
+                            "worker_id": "codex",
+                            "required_runtime_provider": "codex-cli",
+                            "required_model_key": "codex_gpt_5_6_sol_xhigh_cli_oauth",
+                            "template": (
+                                "codex exec --json --model {model_id} "
+                                "-c 'model_reasoning_effort=\"xhigh\"' "
+                                "--sandbox read-only --ephemeral --ignore-rules "
+                                "--skip-git-repo-check "
+                                "-C {workspace_path} 'Read {task_packet_path}'"
+                            ),
+                            "requested_reasoning_label": "extra",
+                            "resolved_reasoning_effort": "xhigh",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "models": {
+                        "codex_gpt_5_6_sol_xhigh_cli_oauth": {
+                            "provider": "codex_cli_oauth",
+                            "runtime_provider": "codex-cli",
+                            "cli_provider": "codex",
+                            "model_id": "gpt-5.6-sol",
+                            "reasoning_effort": "xhigh",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "codex",
+            "invocation_contract": "codex_supervisor",
+            "default": "codex_gpt_5_6_sol_xhigh_cli_oauth",
+            "capacity_route": "Supervisor",
+        }
+        stdout = json.dumps(
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "governed plan"},
+            }
+        )
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/codex"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(0, stdout=stdout),
+        ):
+            result = run_cli_agent(plan, "Supervisor", role_profile)
+
+        assert result.status == "completed"
+        receipt_path = Path(result.raw_usage["model_execution_receipt"])
+        receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+        assert receipt["worker"] == "codex"
+        assert receipt["invocation_contract"] == "codex_supervisor"
+        assert receipt["provider"] == "codex-cli"
+        assert receipt["model"] == "gpt-5.6-sol"
+        assert receipt["reasoning_effort"] == "xhigh"
+        assert receipt["command_binding_verified"] is True
+        assert (Path(plan.run_dir) / "model_execution_chain_supervisor.yml").is_file()
+
+    def test_codex_supervisor_model_mismatch_blocks_before_provider_process(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "contracts": {
+                        "codex_supervisor": {
+                            "worker_id": "codex",
+                            "required_runtime_provider": "codex-cli",
+                            "required_model_key": "codex_gpt_5_6_sol_xhigh_cli_oauth",
+                            "template": (
+                                "codex exec --json --model {model_id} "
+                                "-c 'model_reasoning_effort=\"xhigh\"' "
+                                "--sandbox read-only --ephemeral --ignore-rules "
+                                "--skip-git-repo-check "
+                                "-C {workspace_path} 'Read {task_packet_path}'"
+                            ),
+                            "requested_reasoning_label": "extra",
+                            "resolved_reasoning_effort": "xhigh",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "models": {
+                        "codex_gpt_5_6_sol_xhigh_cli_oauth": {
+                            "provider": "hermes_codex_oauth",
+                            "runtime_provider": "openai-codex",
+                            "model_id": "gpt-5.6-sol",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "codex",
+            "invocation_contract": "codex_supervisor",
+            "default": "codex_gpt_5_6_sol_xhigh_cli_oauth",
+        }
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/codex"
+        ), patch("cli_executor.subprocess.run") as provider_process:
+            result = run_cli_agent(plan, "Supervisor", role_profile)
+
+        provider_process.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert result.error == "supervisor_model_preflight_failed"
+        preflight = result.raw_usage["supervisor_model_preflight"]
+        assert "catalog_provider_mismatch" in preflight["issues"]
+        assert "Hermes" not in result.content
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["worker"] == "codex"
+        assert receipt["status"] == "fail"
+        assert receipt["provider_process_started"] is False
+
+    def test_runtime_model_receipts_are_role_scoped_and_do_not_overwrite(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import (
+            _write_agy_model_receipt,
+            _write_hermes_supervisor_model_receipt,
+        )
+
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        supervisor_path = _write_hermes_supervisor_model_receipt(
+            run_dir,
+            {
+                "applicable": True,
+                "status": "pass",
+                "issues": [],
+                "required_shell_state": {
+                    "model.provider": "openai-codex",
+                    "model.default": "gpt-5.6-sol",
+                },
+                "command_binding_verified": True,
+                "requested_reasoning_label": "extra",
+                "resolved_reasoning_effort": "xhigh",
+                "capacity_route": "SupervisorCodex",
+                "attempt_id": "supervisor-primary-attempt",
+                "selection_kind": "primary",
+            },
+            status="pass",
+            provider_process_started=True,
+        )
+        base_agy = {
+            "applicable": True,
+            "status": "pass",
+            "issues": [],
+            "invocation_contract": "agy_observer",
+            "requested_model_key": "gemini_3_5_flash_high_agy_oauth",
+            "requested_model_id": "gemini-3.5-flash-high",
+            "requested_cli_model_id": "Gemini 3.5 Flash (High)",
+            "provider": "agy-gemini-oauth",
+            "profile_binding_verified": True,
+            "command_binding_verified": True,
+            "capacity_route": "ObserverGemini",
+            "attempt_id": "observer-primary-attempt",
+            "selection_kind": "primary",
+        }
+        observer_path = _write_agy_model_receipt(
+            run_dir,
+            "Observer",
+            base_agy,
+            status="pass",
+            provider_process_started=True,
+            environment_unset=[],
+        )
+        reviewer_path = _write_agy_model_receipt(
+            run_dir,
+            "Reviewer",
+            {**base_agy, "invocation_contract": "agy_visual_reviewer"},
+            status="pass",
+            provider_process_started=True,
+            environment_unset=[],
+        )
+
+        paths = [Path(supervisor_path), Path(observer_path), Path(reviewer_path)]
+        assert paths[0].name.startswith(
+            "model_execution_receipt_supervisor_supervisorcodex_"
+        )
+        assert paths[1].name.startswith(
+            "model_execution_receipt_observer_observergemini_"
+        )
+        assert paths[2].name.startswith(
+            "model_execution_receipt_reviewer_observergemini_"
+        )
+        assert all(path.suffix == ".yml" for path in paths)
+        assert all(path.is_file() for path in paths)
+        assert [
+            yaml.safe_load(path.read_text(encoding="utf-8"))["role"]
+            for path in paths
+        ] == ["Supervisor", "Observer", "Reviewer"]
+        assert (run_dir / "model_execution_chain_supervisor.yml").is_file()
+        assert (run_dir / "model_execution_chain_observer.yml").is_file()
+        assert (run_dir / "model_execution_chain_reviewer.yml").is_file()
+
+    def test_primary_and_approved_fallback_attempts_are_immutable_in_role_chains(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import (
+            _write_agy_model_receipt,
+            _write_claude_model_receipt,
+            _write_hermes_supervisor_model_receipt,
+        )
+
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        supervisor_primary = {
+            "applicable": True,
+            "status": "pass",
+            "issues": [],
+            "required_shell_state": {
+                "model.provider": "openai-codex",
+                "model.default": "gpt-5.6-sol",
+            },
+            "command_binding_verified": True,
+            "requested_reasoning_label": "extra",
+            "resolved_reasoning_effort": "xhigh",
+            "capacity_route": "SupervisorCodex",
+            "capacity_pool": "openai_codex_agentic",
+            "attempt_id": "supervisor-primary",
+            "selection_kind": "primary",
+        }
+        supervisor_primary_path = _write_hermes_supervisor_model_receipt(
+            run_dir,
+            supervisor_primary,
+            status="fail",
+            provider_process_started=True,
+            extra_issues=["quota_exhausted"],
+        )
+        supervisor_fallback = {
+            "applicable": True,
+            "status": "pass",
+            "issues": [],
+            "invocation_contract": "claude_supervisor_fallback",
+            "selected_provider": "deepseek",
+            "selected_model_key": "deepseek_v4_pro",
+            "selected_model_id": "deepseek-v4-pro",
+            "requested_cli_model_id": "deepseek-v4-pro",
+            "profile_binding_verified": True,
+            "command_binding_verified": True,
+            "capacity_route": "SupervisorDeepSeek",
+            "capacity_pool": "claude_deepseek_supervisor",
+            "attempt_id": "supervisor-fallback",
+            "selection_kind": "approved_fallback",
+        }
+        supervisor_fallback_path = _write_claude_model_receipt(
+            run_dir,
+            "Supervisor",
+            supervisor_fallback,
+            status="pass",
+            provider_process_started=True,
+            usage={
+                "usage_source": "external_cli_reported",
+                "provider_reported_model_ids": ["deepseek-v4-pro"],
+                "provider_reported_session_id": "fallback-session",
+            },
+        )
+
+        agy_primary = {
+            "applicable": True,
+            "status": "pass",
+            "issues": [],
+            "invocation_contract": "agy_observer",
+            "requested_model_key": "gemini_3_5_flash_high_agy_oauth",
+            "requested_model_id": "gemini-3.5-flash-high",
+            "requested_cli_model_id": "Gemini 3.5 Flash (High)",
+            "provider": "agy-gemini-oauth",
+            "profile_binding_verified": True,
+            "command_binding_verified": True,
+            "capacity_route": "ObserverGemini",
+            "capacity_pool": "agy_gemini_observer",
+            "attempt_id": "observer-primary",
+            "selection_kind": "primary",
+        }
+        observer_primary_path = _write_agy_model_receipt(
+            run_dir,
+            "Observer",
+            agy_primary,
+            status="fail",
+            provider_process_started=True,
+            environment_unset=[],
+            extra_issues=["quota_exhausted"],
+        )
+        observer_fallback_path = _write_agy_model_receipt(
+            run_dir,
+            "Observer",
+            {
+                **agy_primary,
+                "requested_model_key": "claude_sonnet_4_6_agy_oauth",
+                "requested_model_id": "claude-sonnet-4-6",
+                "requested_cli_model_id": "Claude Sonnet 4.6 (Thinking)",
+                "provider": "agy-claude-oauth",
+                "capacity_route": "ObserverClaude",
+                "capacity_pool": "agy_claude_observer",
+                "attempt_id": "observer-fallback",
+                "selection_kind": "approved_fallback",
+            },
+            status="pass",
+            provider_process_started=True,
+            environment_unset=[],
+        )
+
+        all_paths = [
+            Path(supervisor_primary_path),
+            Path(supervisor_fallback_path),
+            Path(observer_primary_path),
+            Path(observer_fallback_path),
+        ]
+        assert len({path.name for path in all_paths}) == 4
+        assert all(path.is_file() for path in all_paths)
+        supervisor_chain = yaml.safe_load(
+            (run_dir / "model_execution_chain_supervisor.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        observer_chain = yaml.safe_load(
+            (run_dir / "model_execution_chain_observer.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert len(supervisor_chain["attempts"]) == 2
+        assert supervisor_chain["fallback_used"] is True
+        assert supervisor_chain["final"]["capacity_route"] == "SupervisorDeepSeek"
+        assert supervisor_chain["final"]["model"] == "deepseek-v4-pro"
+        assert len(observer_chain["attempts"]) == 2
+        assert observer_chain["fallback_used"] is True
+        assert observer_chain["final"]["capacity_route"] == "ObserverClaude"
+        fallback_receipt = yaml.safe_load(
+            Path(observer_fallback_path).read_text(encoding="utf-8")
+        )
+        assert fallback_receipt["fallback_detected"] is True
+        assert fallback_receipt["fallback_chain"] == ["ObserverGemini"]
+
     def test_completed_on_exit_0(self, tmp_path):
         import sys
         import yaml
@@ -633,6 +1421,665 @@ class TestRunCliAgentSubprocess:
         assert execution_log["commands"][0]["command_id"] == result.raw_usage["command_id"]
         assert execution_log["commands"][0]["exit_code"] == 0
 
+    def test_hermes_supervisor_runtime_binds_extra_to_xhigh_and_writes_receipt(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile, hermes_home = _hermes_supervisor_fixture(tmp_path)
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            observed["argv"] = argv
+            observed["env"] = kwargs["env"]
+            return self._mock_proc(0, stdout="# Governed Supervisor Plan\n")
+
+        with patch.dict("os.environ", {"HERMES_HOME": str(hermes_home)}, clear=False), \
+             patch("cli_executor.shutil.which", return_value="/usr/bin/hermes"), \
+             patch("cli_executor.subprocess.run", side_effect=fake_run):
+            result = run_cli_agent(plan, "Supervisor", role_profile)
+
+        assert result.status == "completed"
+        assert observed["argv"][:9] == [
+            "hermes",
+            "-p",
+            "agentlabsupervisor",
+            "chat",
+            "-Q",
+            "--provider",
+            "openai-codex",
+            "-m",
+            "gpt-5.6-sol",
+        ]
+        assert observed["argv"][9:13] == [
+            "--ignore-rules",
+            "--max-turns",
+            "6",
+            "-q",
+        ]
+        assert result.raw_usage["hermes_profile_preflight"]["status"] == "pass"
+        receipt_path = Path(result.raw_usage["model_execution_receipt"])
+        assert receipt_path.name.startswith(
+            "model_execution_receipt_supervisor_direct_"
+        )
+        receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+        assert receipt["status"] == "pass"
+        assert receipt["requested_reasoning_label"] == "extra"
+        assert receipt["reasoning_effort"] == "xhigh"
+        assert receipt["provider"] == "openai-codex"
+        assert receipt["model"] == "gpt-5.6-sol"
+        assert receipt["fallback_chain"] == []
+        assert receipt["profile_state_verified"] is True
+        assert receipt["command_binding_verified"] is True
+        assert receipt["provider_process_started"] is True
+        assert receipt["provider_response_metadata_observed"] is False
+
+    def test_grok_research_runs_only_from_read_only_sealed_workspace_and_writes_receipt(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        plan.route.agents = ["Supervisor", "Researcher"]
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        source = run_dir / "mission_contract.yml"
+        source.write_text("scope: public_research\n", encoding="utf-8")
+        role_profile, hermes_home = _grok_research_fixture(tmp_path)
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            workspace = Path(kwargs["cwd"])
+            packet_path = workspace / "task_packet_researcher.json"
+            observed["argv"] = list(argv)
+            observed["cwd"] = workspace
+            observed["cwd_mode"] = workspace.stat().st_mode
+            observed["packet_mode"] = packet_path.stat().st_mode
+            observed["packet"] = json.loads(packet_path.read_text(encoding="utf-8"))
+            return self._mock_proc(0, stdout="# Sourced research\n", stderr="")
+
+        with patch.dict(
+            "cli_executor.os.environ",
+            {"HERMES_HOME": str(hermes_home)},
+            clear=False,
+        ), patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/hermes"
+        ), patch(
+            "cli_executor.subprocess.run", side_effect=fake_run
+        ):
+            result = run_cli_agent(
+                plan,
+                "Researcher",
+                role_profile,
+                sealed_messages=[
+                    {"role": "user", "content": "Collect public evidence only."}
+                ],
+                outbound_source_paths=[source],
+            )
+
+        assert result.status == "completed"
+        preflight = result.raw_usage["grok_research_preflight"]
+        assert preflight["status"] == "pass"
+        assert preflight["credential_present"] is True
+        assert preflight["fallback_chain_empty"] is True
+        assert preflight["command_binding_verified"] is True
+        assert preflight["allowed_toolsets"] == ["web", "x_search"]
+        assert preflight["read_only_workspace_verified"] is True
+        assert observed["cwd"] != Path(plan.agentlab_root)
+        assert observed["cwd_mode"] & 0o222 == 0
+        assert observed["packet_mode"] & 0o222 == 0
+        packet = observed["packet"]
+        assert packet["context_policy"]["workspace_mutation_allowed"] is False
+        assert packet["context_policy"]["external_domain_research_allowed"] is True
+        assert packet["context_policy"]["read_scope"] == ["this_task_packet"]
+        assert packet["declared_sources"] == [
+            {
+                "path": "projects/TestProject/runs/task_test_001/mission_contract.yml",
+                "byte_count": source.stat().st_size,
+                "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                "delivery": "embedded_in_sealed_messages",
+                "local_file_access_allowed": False,
+            }
+        ]
+        assert not Path(observed["cwd"]).exists()
+        assert observed["argv"][:6] == [
+            "hermes",
+            "--ignore-rules",
+            "--provider",
+            "xai-oauth",
+            "-m",
+            "grok-4.3",
+        ]
+        assert observed["argv"][6:9] == ["-t", "web,x_search", "-z"]
+        receipt_path = Path(result.raw_usage["model_execution_receipt"])
+        assert receipt_path.name.startswith(
+            "model_execution_receipt_researcher_researcher_"
+        )
+        receipt_text = receipt_path.read_text(encoding="utf-8")
+        assert "fixture-secret-must-never-be-recorded" not in receipt_text
+        receipt = yaml.safe_load(receipt_text)
+        assert receipt["status"] == "pass"
+        assert receipt["provider"] == "xai-oauth"
+        assert receipt["model"] == "grok-4.3"
+        assert receipt["credential_present"] is True
+        assert receipt["allowed_toolsets"] == ["web", "x_search"]
+        assert receipt["provider_process_started"] is True
+        assert receipt["fallback_chain"] == []
+        chain = yaml.safe_load(
+            (run_dir / "model_execution_chain_researcher.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert len(chain["attempts"]) == 1
+        assert chain["final"]["receipt_path"] == str(receipt_path)
+
+    def test_grok_research_missing_oauth_credential_blocks_before_provider_process(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        source = Path(plan.user_request_path)
+        source.write_text("Research public evidence.\n", encoding="utf-8")
+        role_profile, hermes_home = _grok_research_fixture(
+            tmp_path,
+            credential_present=False,
+        )
+
+        with patch.dict(
+            "cli_executor.os.environ",
+            {"HERMES_HOME": str(hermes_home)},
+            clear=False,
+        ), patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/hermes"
+        ), patch(
+            "cli_executor.subprocess.run"
+        ) as provider_process:
+            result = run_cli_agent(
+                plan,
+                "Researcher",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "Research."}],
+                outbound_source_paths=[source],
+            )
+
+        provider_process.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert result.error == "grok_research_preflight_failed"
+        assert result.raw_usage["provider_process_started"] is False
+        assert "xai_oauth_credential_missing" in result.raw_usage[
+            "grok_research_preflight"
+        ]["issues"]
+        receipt_text = Path(
+            result.raw_usage["model_execution_receipt"]
+        ).read_text(encoding="utf-8")
+        assert "fixture-secret-must-never-be-recorded" not in receipt_text
+        receipt = yaml.safe_load(receipt_text)
+        assert receipt["status"] == "fail"
+        assert receipt["provider_process_started"] is False
+
+    def test_grok_research_unsafe_command_blocks_before_provider_process(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        source = Path(plan.user_request_path)
+        source.write_text("Research public evidence.\n", encoding="utf-8")
+        role_profile, hermes_home = _grok_research_fixture(
+            tmp_path,
+            template=(
+                'hermes --yolo --provider xai-oauth -m {model_id} '
+                '-z "Read {task_packet_path}"'
+            ),
+        )
+
+        with patch.dict(
+            "cli_executor.os.environ",
+            {"HERMES_HOME": str(hermes_home)},
+            clear=False,
+        ), patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/hermes"
+        ), patch(
+            "cli_executor.subprocess.run"
+        ) as provider_process:
+            result = run_cli_agent(
+                plan,
+                "Researcher",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "Research."}],
+                outbound_source_paths=[source],
+            )
+
+        provider_process.assert_not_called()
+        issues = result.raw_usage["grok_research_preflight"]["issues"]
+        assert "grok_research_command_binding_mismatch" in issues
+        assert "grok_research_forbidden_command_flag:--yolo" in issues
+
+    def test_grok_research_missing_binary_writes_preflight_receipt_without_process(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        source = Path(plan.user_request_path)
+        source.write_text("Research public evidence.\n", encoding="utf-8")
+        role_profile, hermes_home = _grok_research_fixture(tmp_path)
+
+        with patch.dict(
+            "cli_executor.os.environ",
+            {"HERMES_HOME": str(hermes_home)},
+            clear=False,
+        ), patch(
+            "cli_executor.shutil.which", return_value=None
+        ), patch(
+            "cli_executor.subprocess.run"
+        ) as provider_process:
+            result = run_cli_agent(
+                plan,
+                "Researcher",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "Research."}],
+                outbound_source_paths=[source],
+            )
+
+        provider_process.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert "grok_research_binary_missing" in result.raw_usage[
+            "grok_research_preflight"
+        ]["issues"]
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["status"] == "fail"
+        assert receipt["provider_process_started"] is False
+
+    def test_agy_observer_strips_direct_api_keys_and_writes_oauth_model_receipt(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile = _agy_observer_fixture(tmp_path)
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            observed["argv"] = argv
+            observed["env"] = kwargs["env"]
+            return self._mock_proc(
+                0,
+                stdout=(
+                    "status: complete\n"
+                    "observations:\n"
+                    "  - summary: visible evidence\n"
+                    "actionable_suggestions:\n"
+                    "  - verify the timestamp\n"
+                ),
+            )
+
+        direct_api_keys = {
+            "GEMINI_API_KEY": "gemini-secret",
+            "GOOGLE_API_KEY": "google-secret",
+            "GOOGLE_GENAI_API_KEY": "genai-secret",
+            "GOOGLE_GENERATIVE_AI_API_KEY": "generative-secret",
+            "GOOGLE_AI_API_KEY": "ai-secret",
+            "GOOGLE_GEMINI_API_KEY": "alternate-secret",
+            "GENAI_API_KEY": "generic-secret",
+        }
+        with patch.dict(
+            "cli_executor.os.environ",
+            {**direct_api_keys, "AGY_OAUTH_SESSION": "preserved-session"},
+            clear=False,
+        ), patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/agy"
+        ), patch(
+            "cli_executor.subprocess.run", side_effect=fake_run
+        ):
+            result = run_cli_agent(plan, "Observer", role_profile)
+
+        assert result.status == "completed"
+        assert observed["argv"][:4] == [
+            "agy",
+            "--sandbox",
+            "--model",
+            "Gemini 3.5 Flash (High)",
+        ]
+        process_env = observed["env"]
+        assert process_env["AGY_OAUTH_SESSION"] == "preserved-session"
+        assert all(name not in process_env for name in direct_api_keys)
+        assert result.raw_usage["contract_environment_unset"] == sorted(
+            direct_api_keys
+        )
+
+        receipt_path = Path(result.raw_usage["model_execution_receipt"])
+        assert receipt_path.name.startswith(
+            "model_execution_receipt_observer_observergemini_"
+        )
+        receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+        assert receipt["status"] == "pass"
+        assert receipt["role"] == "Observer"
+        assert receipt["worker"] == "agy"
+        assert receipt["invocation_contract"] == "agy_observer"
+        assert receipt["auth_mode"] == "local_agy_oauth_session"
+        assert receipt["provider"] == "agy-gemini-oauth"
+        assert receipt["requested_model_key"] == "observer_model"
+        assert receipt["requested_model_id"] == "gemini-3.5-flash-high"
+        assert receipt["requested_cli_model_id"] == "Gemini 3.5 Flash (High)"
+        assert receipt["capacity_route"] == "ObserverGemini"
+        assert receipt["capacity_pool"] == "agy_gemini_observer"
+        assert receipt["profile_binding_verified"] is True
+        assert receipt["command_binding_verified"] is True
+        assert receipt["provider_process_started"] is True
+        assert receipt["provider_response_metadata_observed"] is False
+        assert receipt["fallback_detected"] is False
+        assert receipt["fallback_chain"] == []
+
+    def test_agy_narrative_planner_governs_subscription_model_and_receipt(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+        from agent_runtime.narrative_delivery import (
+            narrative_planner_validation_issues,
+            write_narrative_planner_validation,
+        )
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile = _agy_observer_fixture(tmp_path)
+        role_profile.update(
+            {
+                "invocation_contract": "agy_narrative_planner",
+                "capacity_selected_route": "NarrativePlannerAgy",
+                "default": "gemini_3_5_flash_high_agy_oauth",
+            }
+        )
+        repo_root = Path(__file__).resolve().parents[1]
+        source_catalog = yaml.safe_load(
+            (repo_root / "config" / "model_catalog.yml").read_text(encoding="utf-8")
+        )
+        catalog_path = tmp_path / "config" / "model_catalog.yml"
+        catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+        catalog["models"]["gemini_3_5_flash_high_agy_oauth"] = source_catalog[
+            "models"
+        ]["gemini_3_5_flash_high_agy_oauth"]
+        catalog_path.write_text(
+            yaml.safe_dump(catalog, sort_keys=False),
+            encoding="utf-8",
+        )
+        contracts_path = tmp_path / "config" / "worker_invocation_contracts.yml"
+        contracts = yaml.safe_load(contracts_path.read_text(encoding="utf-8"))
+        source_contracts = yaml.safe_load(
+            (repo_root / "config" / "worker_invocation_contracts.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        contracts["contracts"]["agy_narrative_planner"] = source_contracts[
+            "contracts"
+        ]["agy_narrative_planner"]
+        contracts_path.write_text(
+            yaml.safe_dump(contracts, sort_keys=False),
+            encoding="utf-8",
+        )
+        planner_document = {
+            "schema_version": 1,
+            "project": "TestProject",
+            "status": "candidate",
+            "candidate_only": True,
+            "production_modified": False,
+            "chapter_range": [1, 1],
+            "target_character_range": [4500, 5500],
+            "hard_character_range": [3000, 8000],
+            "chapter_state_plan": [
+                {
+                    "chapter": 1,
+                    "title": "Opening",
+                    "volume": "Volume One",
+                    "phase": "Opening",
+                    "timeline_slot": "day-1",
+                    "pov": "Kane",
+                    "opening_state": "before",
+                    "scene_goal": "complete the first bargain",
+                    "irreversible_plot_change": "the bargain is sealed",
+                    "character_state_change": "Kane accepts the cost",
+                    "relationship_or_worldline_change": "the archive now knows Kane",
+                    "foreshadowing_action": "defer the hidden price",
+                    "closing_state": "after",
+                    "must_not_repeat": ["the opening bargain"],
+                }
+            ],
+            "validation_contract": {
+                "exact_chapter_count": 1,
+                "ordered_unique_chapters": True,
+                "unique_scene_goals": True,
+                "unique_irreversible_plot_changes": True,
+                "monotonic_story_state": True,
+            },
+        }
+        planner_yaml = yaml.safe_dump(
+            planner_document,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+        (Path(plan.run_dir) / "narrative_rewrite_contract.yml").write_text(
+            yaml.safe_dump({"chapter_range": [1, 1]}),
+            encoding="utf-8",
+        )
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/agy"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(0, stdout=planner_yaml),
+        ):
+            result = run_cli_agent(plan, "NarrativePlanner", role_profile)
+
+        assert result.status == "completed"
+        assert result.content == planner_yaml.strip()
+        assert not result.content.startswith("# NarrativePlanner Report")
+        output_path = Path(plan.run_dir) / "chapter_state_plan.yml"
+        output_path.write_text(result.content, encoding="utf-8")
+        validation = write_narrative_planner_validation(
+            Path(plan.project_root),
+            Path(plan.run_dir),
+            output_path,
+        )
+        assert narrative_planner_validation_issues(validation) == []
+        preflight = result.raw_usage["agy_oauth_preflight"]
+        assert preflight["governed"] is True
+        assert preflight["status"] == "pass"
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["role"] == "NarrativePlanner"
+        assert receipt["invocation_contract"] == "agy_narrative_planner"
+        assert receipt["provider"] == "agy-gemini-oauth"
+        assert receipt["capacity_route"] == "NarrativePlannerAgy"
+        assert receipt["capacity_pool"] == "agy_gemini_observer"
+        assert receipt["command_binding_verified"] is True
+
+    def test_agy_observer_command_model_mismatch_blocks_before_provider_process(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile = _agy_observer_fixture(tmp_path)
+        contract_path = tmp_path / "config" / "worker_invocation_contracts.yml"
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+        contract["contracts"]["agy_observer"]["template"] = (
+            'agy --sandbox --model "Unexpected Model" '
+            '-p "Read {task_packet_path}"'
+        )
+        contract_path.write_text(
+            yaml.safe_dump(contract, sort_keys=False),
+            encoding="utf-8",
+        )
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/agy"
+        ), patch("cli_executor.subprocess.run") as provider_process:
+            result = run_cli_agent(plan, "Observer", role_profile)
+
+        provider_process.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert result.error == "agy_oauth_model_preflight_failed"
+        assert result.raw_usage["provider_process_started"] is False
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["status"] == "fail"
+        assert receipt["command_binding_verified"] is False
+        assert "agy_command_model_binding_mismatch" in receipt["issues"]
+
+    def test_agy_observer_exec_file_not_found_writes_failure_receipt(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile = _agy_observer_fixture(tmp_path)
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/agy"
+        ), patch(
+            "cli_executor.subprocess.run", side_effect=FileNotFoundError("agy")
+        ):
+            result = run_cli_agent(plan, "Observer", role_profile)
+
+        assert result.status == "blocked_user_decision"
+        assert result.raw_usage["provider_process_started"] is False
+        assert result.raw_usage["failure_class"] == "binary_unavailable"
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["status"] == "fail"
+        assert receipt["provider_process_started"] is False
+        assert "provider_process_file_not_found" in receipt["issues"]
+
+    def test_agy_observer_timeout_writes_failure_receipt(self, tmp_path):
+        import subprocess
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile = _agy_observer_fixture(tmp_path)
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/agy"
+        ), patch(
+            "cli_executor.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(
+                cmd="agy",
+                timeout=5,
+                output="partial observation",
+            ),
+        ):
+            result = run_cli_agent(plan, "Observer", role_profile, timeout=5)
+
+        assert result.status == "blocked_user_decision"
+        assert result.raw_usage["agy_oauth_preflight"]["status"] == "pass"
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["status"] == "fail"
+        assert receipt["provider_process_started"] is True
+        assert receipt["timed_out"] is True
+        assert "provider_process_timeout" in receipt["issues"]
+
+    @pytest.mark.parametrize(
+        ("reasoning_effort", "fallback_providers", "expected_issue"),
+        [
+            ("high", None, "profile_state_mismatch:agent.reasoning_effort"),
+            (
+                "xhigh",
+                [{"provider": "deepseek", "model": "deepseek-v4"}],
+                "profile_state_mismatch:fallback_providers",
+            ),
+        ],
+    )
+    def test_hermes_supervisor_profile_mismatch_blocks_before_provider_process(
+        self,
+        tmp_path,
+        reasoning_effort,
+        fallback_providers,
+        expected_issue,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile, hermes_home = _hermes_supervisor_fixture(
+            tmp_path,
+            reasoning_effort=reasoning_effort,
+            fallback_providers=fallback_providers,
+        )
+
+        with patch.dict("os.environ", {"HERMES_HOME": str(hermes_home)}, clear=False), \
+             patch("cli_executor.shutil.which", return_value="/usr/bin/hermes"), \
+             patch("cli_executor.subprocess.run") as provider_process:
+            result = run_cli_agent(plan, "Supervisor", role_profile)
+
+        provider_process.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert result.error == "supervisor_model_preflight_failed"
+        assert result.raw_usage["provider_process_started"] is False
+        assert expected_issue in result.raw_usage["supervisor_model_preflight"]["issues"]
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(encoding="utf-8")
+        )
+        assert receipt["status"] == "fail"
+        assert receipt["provider_process_started"] is False
+        assert expected_issue in receipt["issues"]
+
     def test_writer_cli_uses_sealed_packet_and_isolated_workspace(self, tmp_path):
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
@@ -655,6 +2102,7 @@ class TestRunCliAgentSubprocess:
             observed["packet"] = json.loads(packet_path.read_text(encoding="utf-8"))
             observed["workspace"] = Path(kwargs["cwd"])
             observed["packet_path"] = packet_path
+            observed["argv"] = argv
             return self._mock_proc(0, stdout="writer output", stderr="")
 
         with patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), \
@@ -674,11 +2122,940 @@ class TestRunCliAgentSubprocess:
         assert observed["packet_path"].parent == observed["workspace"]
         assert observed["packet"]["context_policy"]["read_scope"] == ["this_task_packet"]
         assert not Path(observed["workspace"]).exists()
+        argv = observed["argv"]
+        prompt = argv[argv.index("-p") + 1]
+        assert "sealed chapter context" not in prompt
+        assert "task_packet_writer.json" in prompt
         manifest = yaml.safe_load(
             (run_dir / "outbound_context_manifest_writer.yml").read_text(encoding="utf-8")
         )
         assert manifest["status"] == "pass"
+        assert manifest["payload"]["kind"] == "sealed_cli_role_session_packet"
         assert manifest["context_boundary"]["execution_workspace_isolated"] is True
+        execution_log = yaml.safe_load(
+            (run_dir / "execution_log.yml").read_text(encoding="utf-8")
+        )
+        command = execution_log["commands"][0]
+        assert "sealed chapter context" not in command["command"]
+        assert "sealed chapter context" not in " ".join(command["argv"])
+        assert result.raw_usage["inline_sealed_prompt"] is False
+
+    def test_qwen_narrative_audit_reads_sealed_packet_from_stdin_and_extracts_result(
+        self,
+        tmp_path,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        plan.route.route_key = "narrative_heavy_audit"
+        plan.route.agents = ["Supervisor", "Reviewer", "Scribe", "Verifier"]
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        source = run_dir / "narrative_audit_context.md"
+        source.write_text("complete bounded context\n", encoding="utf-8")
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "contracts": {
+                        "qwen_narrative_audit": {
+                            "worker_id": "qwen",
+                            "model_profile": "qwen3_6_flash_dashscope",
+                            "packet_delivery": "stdin",
+                            "structured_output": "narrative_heavy_audit",
+                            "environment": {
+                                "api_key_source": "DASHSCOPE_API_KEY",
+                                "api_key_target": "OPENAI_API_KEY",
+                                "base_url_target": "OPENAI_BASE_URL",
+                                "base_url": "https://dashscope.example/v1",
+                            },
+                            "template": (
+                                "qwen --bare --auth-type openai "
+                                "--openai-base-url https://dashscope.example/v1 "
+                                "--model {model_id} --approval-mode default "
+                                "--max-session-turns 2 "
+                                "--exclude-tools "
+                                "edit,write_file,read_file,grep_search,glob,run_shell_command,"
+                                "todo_write,save_memory,agent,skill,exit_plan_mode,enter_plan_mode,"
+                                "web_fetch,list_directory,lsp,ask_user_question,cron_create,"
+                                "cron_list,cron_delete,loop_wakeup,task_stop,task_create,task_update,"
+                                "task_list,team_create,team_delete,send_message,monitor,notebook_edit,"
+                                "tool_search,enter_worktree,exit_worktree,workflow,artifact "
+                                "--max-tool-calls 1 "
+                                "--json-schema @narrative_heavy_audit_output.schema.json "
+                                "--output-format stream-json"
+                            ),
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "models": {
+                        "qwen3_6_flash_dashscope": {
+                            "provider": "dashscope_cn",
+                            "model_id": "qwen3.6-flash",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "codex",
+            "invocation_contract": "qwen_narrative_audit",
+            "default": "deepseek_v4_flash",
+        }
+        structured_result = {
+            "fiction_review": {
+                "schema_version": 1,
+                "status": "pass",
+                "candidate_only": True,
+                "production_modified": False,
+                "findings": [],
+            },
+            "continuity_failure_report": {
+                "schema_version": 1,
+                "status": "pass",
+                "candidate_only": True,
+                "production_modified": False,
+                "blocking_issue_count": 0,
+                "failures": [],
+            },
+            "narrative_quality_scorecard": {
+                "schema_version": 1,
+                "status": "pass",
+                "candidate_only": True,
+                "production_modified": False,
+                "candidate_sha256": "candidate-sha",
+                "chapters": [
+                    {
+                        "chapter_id": 1,
+                        "status": "pass",
+                        "dimensions": {
+                            name: {
+                                "score": 5,
+                                "severity": "pass",
+                                "evidence": {
+                                    "chapter": 1,
+                                    "scene": "opening",
+                                    "excerpt_or_locator": "paragraph 1",
+                                },
+                                "reason": "specific evidence",
+                                "revision_target": "none",
+                            }
+                            for name in (
+                                "causal_reasoning",
+                                "strategic_competence",
+                                "character_agency",
+                                "dramatic_tension",
+                                "reader_curiosity",
+                                "non_formulaic_progression",
+                            )
+                        },
+                    }
+                ],
+            },
+        }
+        stdout = "\n".join(
+            json.dumps(event)
+            for event in [
+                {"type": "system", "subtype": "init"},
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "result": structured_result,
+                    "usage": {
+                        "input_tokens": 1234,
+                        "output_tokens": 234,
+                        "total_tokens": 1468,
+                    },
+                },
+            ]
+        )
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            observed["argv"] = list(argv)
+            observed["kwargs"] = dict(kwargs)
+            observed["packet"] = json.loads(kwargs["input"])
+            schema_path = Path(kwargs["cwd"]) / "narrative_heavy_audit_output.schema.json"
+            observed["schema"] = json.loads(schema_path.read_text(encoding="utf-8"))
+            return self._mock_proc(0, stdout=stdout, stderr="")
+
+        with patch.dict(
+            "cli_executor.os.environ",
+            {
+                "DASHSCOPE_API_KEY": "private-test-key",
+                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
+            },
+            clear=False,
+        ), patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/qwen"
+        ), patch(
+            "cli_executor.subprocess.run", side_effect=fake_run
+        ):
+            result = run_cli_agent(
+                plan,
+                "Reviewer",
+                role_profile,
+                sealed_messages=[
+                    {"role": "system", "content": "Do not call tools."},
+                    {"role": "user", "content": "Audit all 20 chapters."},
+                ],
+                outbound_source_paths=[source],
+            )
+
+        assert result.status == "completed"
+        assert observed["packet"]["packet_type"] == "agentlab_sealed_role_session"
+        kwargs = observed["kwargs"]
+        assert "stdin" not in kwargs
+        assert kwargs["input"]
+        argv = observed["argv"]
+        assert argv[0] == "qwen"
+        assert argv[argv.index("--model") + 1] == "qwen3.6-flash"
+        assert argv[argv.index("--max-tool-calls") + 1] == "1"
+        assert "--core-tools" not in argv
+        assert argv[argv.index("--output-format") + 1] == "stream-json"
+        excluded_tools = set(argv[argv.index("--exclude-tools") + 1].split(","))
+        assert "structured_output" not in excluded_tools
+        assert {
+            "read_file",
+            "write_file",
+            "edit",
+            "grep_search",
+            "glob",
+            "run_shell_command",
+            "list_directory",
+            "todo_write",
+            "agent",
+            "tool_search",
+        } <= excluded_tools
+        assert argv[argv.index("--json-schema") + 1] == (
+            "@narrative_heavy_audit_output.schema.json"
+        )
+        assert not any(arg.endswith("task_packet_reviewer.json") for arg in argv)
+        assert "<!-- AGENTLAB_EDIT: fiction_review.yml -->" in result.content
+        assert "<!-- AGENTLAB_EDIT: continuity_failure_report.yml -->" in result.content
+        assert "<!-- AGENTLAB_EDIT: narrative_quality_scorecard.yml -->" in result.content
+        assert "candidate_only: true" in result.content
+        assert '\"type\": \"result\"' not in result.content
+        assert result.input_tokens == 1234
+        assert result.output_tokens == 234
+        assert result.raw_usage["sealed_packet_stdin"] is True
+        assert result.raw_usage["cli_agent"] == "qwen"
+        assert observed["schema"]["required"] == [
+            "fiction_review",
+            "continuity_failure_report",
+            "narrative_quality_scorecard",
+        ]
+
+    def test_qwen_literary_ab_stages_strict_schema_and_extracts_anonymous_result(
+        self,
+        tmp_path,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+        from agent_runtime.narrative.quality.live_editor import (
+            LITERARY_EDITOR_DIMENSIONS,
+        )
+
+        plan = _make_plan(tmp_path)
+        plan.route.route_key = "narrative_heavy_audit"
+        plan.route.agents = ["Reviewer"]
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        source = run_dir / "narrative_audit_context.md"
+        source.write_text("anonymous manuscripts A and B\n", encoding="utf-8")
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "contracts": {
+                        "qwen_narrative_literary_ab": {
+                            "worker_id": "qwen",
+                            "model_profile": "qwen3_7_max_dashscope",
+                            "packet_delivery": "stdin",
+                            "structured_output": "narrative_literary_ab",
+                            "environment": {
+                                "api_key_source": "DASHSCOPE_API_KEY",
+                                "api_key_target": "OPENAI_API_KEY",
+                                "base_url_target": "OPENAI_BASE_URL",
+                                "base_url": "https://dashscope.example/v1",
+                            },
+                            "template": (
+                                "qwen --bare --auth-type openai "
+                                "--openai-base-url https://dashscope.example/v1 "
+                                "--model {model_id} --approval-mode default "
+                                "--exclude-tools read_file,write_file,edit,grep_search,glob,"
+                                "run_shell_command,list_directory,agent "
+                                "--max-tool-calls 1 "
+                                "--json-schema @narrative_literary_ab_output.schema.json "
+                                "--output-format stream-json"
+                            ),
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "models": {
+                        "qwen3_7_max_dashscope": {
+                            "provider": "dashscope_cn",
+                            "model_id": "qwen3.7-max",
+                        }
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "qwen",
+            "invocation_contract": "qwen_narrative_literary_ab",
+            "default": "qwen3_7_max_dashscope",
+        }
+        dimensions = {
+            name: {
+                "score": 4,
+                "severity": "pass",
+                "evidence": {
+                    "chapter": 25,
+                    "scene": "archive bargain",
+                    "excerpt_or_locator": "middle decision exchange",
+                },
+                "reason": f"specific {name} evidence",
+                "revision_target": "retain",
+            }
+            for name in LITERARY_EDITOR_DIMENSIONS
+        }
+        structured_result = {
+            "schema_version": 1,
+            "status": "completed",
+            "pair_id": "gate1-ch25-pair",
+            "anonymous_scorecards": {
+                "A": {"status": "pass", "dimensions": dimensions},
+                "B": {"status": "pass", "dimensions": dimensions},
+            },
+            "blind_review": {
+                "preferred_version": "B",
+                "preference_strength": "strong",
+                "reason": "B has clearer causal pressure",
+                "comparative_evidence": ["A locator", "B locator"],
+            },
+        }
+        stdout = "\n".join(
+            json.dumps(event)
+            for event in [
+                {"type": "system", "subtype": "init"},
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "result": structured_result,
+                    "usage": {
+                        "input_tokens": 2000,
+                        "output_tokens": 500,
+                        "total_tokens": 2500,
+                    },
+                },
+            ]
+        )
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            observed["argv"] = list(argv)
+            schema_path = Path(kwargs["cwd"]) / "narrative_literary_ab_output.schema.json"
+            observed["schema"] = json.loads(schema_path.read_text(encoding="utf-8"))
+            return self._mock_proc(0, stdout=stdout, stderr="")
+
+        with patch.dict(
+            "cli_executor.os.environ",
+            {
+                "DASHSCOPE_API_KEY": "private-test-key",
+                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
+            },
+            clear=False,
+        ), patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/qwen"
+        ), patch(
+            "cli_executor.subprocess.run", side_effect=fake_run
+        ):
+            result = run_cli_agent(
+                plan,
+                "Reviewer",
+                role_profile,
+                sealed_messages=[
+                    {"role": "system", "content": "No tools."},
+                    {"role": "user", "content": "Judge anonymous A/B."},
+                ],
+                outbound_source_paths=[source],
+            )
+
+        assert result.status == "completed"
+        argv = observed["argv"]
+        assert argv[argv.index("--model") + 1] == "qwen3.7-max"
+        assert argv[argv.index("--json-schema") + 1] == (
+            "@narrative_literary_ab_output.schema.json"
+        )
+        assert observed["schema"]["properties"]["anonymous_scorecards"][
+            "required"
+        ] == ["A", "B"]
+        assert '"pair_id": "gate1-ch25-pair"' in result.content
+        assert '"anonymous_scorecards"' in result.content
+        assert '"type": "result"' not in result.content
+        assert result.raw_usage["structured_output"] == "narrative_literary_ab"
+        assert result.input_tokens == 2000
+        assert result.output_tokens == 500
+
+
+    def test_narrative_heavy_audit_structured_schema_requires_scribe_boundaries(
+        self,
+    ) -> None:
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import _narrative_heavy_audit_output_schema
+
+        schema = _narrative_heavy_audit_output_schema("Scribe")
+
+        assert "files" not in schema["properties"]
+        assert set(schema["required"]) >= {
+            "schema_version",
+            "status",
+            "candidate_only",
+            "production_modified",
+            "requires_user_promotion",
+            "events",
+        }
+        assert schema["properties"]["candidate_only"] == {
+            "enum": [True, "true"]
+        }
+        assert schema["properties"]["production_modified"] == {
+            "enum": [False, "false"]
+        }
+        assert schema["properties"]["events"]["items"]["properties"][
+            "scope"
+        ] == {"const": "candidate_only"}
+
+    def test_blocking_verifier_schema_requires_nonempty_direct_rewrite_proposal(
+        self,
+    ) -> None:
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import (
+            _narrative_heavy_audit_blocks_from_output,
+            _narrative_heavy_audit_output_schema,
+        )
+
+        schema = _narrative_heavy_audit_output_schema(
+            "Verifier",
+            blocking_rewrite_required=True,
+        )
+
+        assert "files" not in schema["properties"]
+        assert schema["properties"]["status"] == {"const": "proposed"}
+        assert schema["properties"]["rewrite_required"] == {
+            "enum": [True, "true"]
+        }
+        assert schema["properties"]["proposals"]["minItems"] == 1
+
+        content = {
+            "schema_version": "1",
+            "candidate_only": "true",
+            "production_modified": "false",
+            "status": "proposed",
+            "rewrite_required": "true",
+            "direct_draft_edits": "false",
+            "proposals": [{"issue_id": "C001", "action": "Rewrite chapter 58."}],
+        }
+        stdout = json.dumps(
+            {
+                "type": "result",
+                "subtype": "success",
+                "structured_result": content,
+            }
+        )
+
+        blocks = _narrative_heavy_audit_blocks_from_output(stdout, "Verifier")
+
+        assert blocks is not None
+        assert "<!-- AGENTLAB_EDIT: revision_or_rewrite_proposal.yml -->" in blocks
+        assert "schema_version: 1" in blocks
+        assert "candidate_only: true" in blocks
+        assert "production_modified: false" in blocks
+        assert "rewrite_required: true" in blocks
+        assert "direct_draft_edits: false" in blocks
+        assert "issue_id: C001" in blocks
+
+    def test_observer_stages_only_manifested_multimodal_input_read_only(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        assigned_image = run_dir / "assigned.png"
+        assigned_image.write_bytes(b"not-a-real-png-but-a-bounded-test-input")
+        unrelated_image = run_dir / "unrelated.png"
+        unrelated_image.write_bytes(b"must-not-be-staged")
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "cli_command": 'agy --sandbox -p "Read {task_packet_path}"',
+        }
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            workspace = Path(kwargs["cwd"])
+            packet = json.loads(
+                (workspace / "task_packet_observer.json").read_text(encoding="utf-8")
+            )
+            staged = workspace / packet["observer_inputs"][0]["staged_path"]
+            observed["packet"] = packet
+            observed["staged_bytes"] = staged.read_bytes()
+            observed["staged_mode"] = staged.stat().st_mode
+            observed["files"] = sorted(
+                str(path.relative_to(workspace))
+                for path in workspace.rglob("*")
+                if path.is_file()
+            )
+            return self._mock_proc(0, stdout="observation report", stderr="")
+
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), \
+             patch("cli_executor.subprocess.run", side_effect=fake_run):
+            result = run_cli_agent(
+                plan,
+                "Observer",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "inspect assigned input"}],
+                outbound_source_paths=[assigned_image],
+            )
+
+        packet = observed["packet"]
+        assert result.status == "completed"
+        assert result.raw_usage["observer_input_count"] == 1
+        assert packet["context_policy"]["read_scope"] == [
+            "this_task_packet",
+            "observer_inputs/*",
+        ]
+        assert packet["observer_inputs"][0]["source_filename"] == "assigned.png"
+        assert len(packet["observer_inputs"][0]["sha256"]) == 64
+        assert "_source_path" not in packet["observer_inputs"][0]
+        assert observed["staged_bytes"] == assigned_image.read_bytes()
+        assert observed["staged_mode"] & 0o222 == 0
+        assert all("unrelated.png" not in path for path in observed["files"])
+
+    def test_observer_blocks_if_staged_input_hash_changes_before_execution(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        assigned_image = run_dir / "assigned.png"
+        assigned_image.write_bytes(b"original-assigned-input")
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "cli_command": 'agy --sandbox -p "Read {task_packet_path}"',
+        }
+
+        def tampering_copy(_source, destination):
+            Path(destination).write_bytes(b"changed-during-copy")
+
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), \
+             patch("cli_executor.shutil.copy2", side_effect=tampering_copy), \
+             patch("cli_executor.subprocess.run") as process:
+            result = run_cli_agent(
+                plan,
+                "Observer",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "inspect assigned input"}],
+                outbound_source_paths=[assigned_image],
+            )
+
+        process.assert_not_called()
+        assert result.status == "blocked_user_decision"
+        assert result.error == "observer_input_integrity_changed"
+        assert result.raw_usage["provider_process_started"] is False
+
+    def test_claude_json_usage_and_ultracode_environment_are_provider_reported(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        plan.included_agents["Writer"] = {
+            "ultracode_opt_in": True,
+            "writer_mode": "developmental_ultracode",
+            "work_type": "revision_plan",
+        }
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            """contracts:
+  claude_writer_ultracode:
+    opt_in_only: true
+    requires_task_packet:
+      ultracode_opt_in: true
+      writer_mode: developmental_ultracode
+      work_type: one_of_allowed_work
+    allowed_work: [developmental_edit, structure, continuity, revision_plan]
+    forbidden_work: [final_prose_draft]
+    environment:
+      unset: [CLAUDE_CODE_EFFORT_LEVEL]
+    template: 'claude --model "{model_id}" --max-budget-usd 2.00 --permission-mode plan --output-format json -p "Read {task_packet_path}"'
+""",
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  deepseek_v4_pro:
+    provider: deepseek_official
+    model_id: deepseek-v4-pro
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "claude_code",
+            "invocation_contract": "claude_writer_ultracode",
+            "default": "deepseek_v4_pro",
+        }
+        provider_payload = {
+            "type": "result",
+            "result": "writer revision plan",
+            "session_id": "session-test",
+            "total_cost_usd": 0.125,
+            "usage": {
+                "input_tokens": 100,
+                "cache_creation_input_tokens": 10,
+                "cache_read_input_tokens": 7,
+                "output_tokens": 20,
+            },
+            "modelUsage": {"deepseek-v4-pro": {"outputTokens": 20}},
+        }
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            observed["env"] = kwargs["env"]
+            return self._mock_proc(0, stdout=json.dumps(provider_payload), stderr="")
+
+        with patch.dict("cli_executor.os.environ", {"CLAUDE_CODE_EFFORT_LEVEL": "max"}), \
+             patch("cli_executor.shutil.which", return_value="/usr/bin/claude"), \
+             patch("cli_executor.subprocess.run", side_effect=fake_run):
+            result = run_cli_agent(
+                plan,
+                "Writer",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "bounded context"}],
+            )
+
+        assert result.status == "completed"
+        assert "writer revision plan" in result.content
+        assert "CLAUDE_CODE_EFFORT_LEVEL" not in observed["env"]
+        assert result.input_tokens == 100
+        assert result.output_tokens == 20
+        assert result.total_tokens == 137
+        assert result.raw_usage["cache_creation_input_tokens"] == 10
+        assert result.raw_usage["cache_read_input_tokens"] == 7
+        assert result.raw_usage["estimated_cost"] == 0.125
+        assert result.raw_usage["exact_cost_available"] is True
+        assert result.raw_usage["pricing_source"] == "provider_response"
+        assert result.raw_usage["provider_reported_model_ids"] == ["deepseek-v4-pro"]
+        assert result.raw_usage["contract_environment_unset"] == [
+            "CLAUDE_CODE_EFFORT_LEVEL"
+        ]
+        receipt_path = Path(result.raw_usage["model_execution_receipt"])
+        assert receipt_path.name.startswith(
+            "model_execution_receipt_writer_direct_"
+        )
+        receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+        assert receipt["status"] == "pass"
+        assert receipt["role"] == "Writer"
+        assert receipt["worker"] == "claude_code"
+        assert receipt["selected_provider"] == "deepseek"
+        assert receipt["selected_model_key"] == "deepseek_v4_pro"
+        assert receipt["selected_model_id"] == "deepseek-v4-pro"
+        assert receipt["provider_response_metadata_observed"] is True
+        assert receipt["provider_reported_model_ids"] == ["deepseek-v4-pro"]
+        assert receipt["provider_reported_session_id"] == "session-test"
+        assert receipt["provider_model_binding_verified"] is True
+        assert receipt["provider_reported_usage"]["input_tokens"] == 100
+        assert receipt["provider_reported_usage"]["estimated_cost"] == 0.125
+        assert receipt["fallback_detected"] is False
+
+    @pytest.mark.parametrize(
+        ("reported_model", "expected_status", "binding_verified"),
+        [
+            ("deepseek-v4-pro", "completed", True),
+            ("unexpected-provider-model", "blocked_user_decision", False),
+        ],
+    )
+    def test_claude_writer_runtime_receipt_distinguishes_selected_and_observed_model(
+        self,
+        tmp_path,
+        reported_model,
+        expected_status,
+        binding_verified,
+    ):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            """contracts:
+  claude_writer:
+    template: 'claude --model "{model_id}" --effort max --max-budget-usd 1.00 --permission-mode bypassPermissions --output-format json --tools "" -p "Read {task_packet_path}"'
+""",
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  deepseek_v4_pro:
+    provider: deepseek_official
+    model_id: deepseek-v4-pro
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "claude_code",
+            "invocation_contract": "claude_writer",
+            "default": "deepseek_v4_pro",
+            "capacity_selected_route": "WriterPro",
+            "capacity_pool": "claude_deepseek_writer",
+        }
+        provider_payload = {
+            "type": "result",
+            "result": "writer candidate envelopes",
+            "session_id": "writer-session",
+            "usage": {"input_tokens": 40, "output_tokens": 10},
+            "modelUsage": {reported_model: {"outputTokens": 10}},
+        }
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/claude"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(
+                0,
+                stdout=json.dumps(provider_payload),
+                stderr="",
+            ),
+        ):
+            result = run_cli_agent(
+                plan,
+                "Writer",
+                role_profile,
+                sealed_messages=[{"role": "user", "content": "bounded draft"}],
+            )
+
+        assert result.status == expected_status
+        receipt_path = Path(result.raw_usage["model_execution_receipt"])
+        assert receipt_path.name.startswith(
+            "model_execution_receipt_writer_writerpro_"
+        )
+        receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8"))
+        assert receipt["selected_model_id"] == "deepseek-v4-pro"
+        assert receipt["provider_reported_model_ids"] == [reported_model]
+        assert receipt["provider_reported_session_id"] == "writer-session"
+        assert receipt["provider_response_metadata_observed"] is True
+        assert receipt["provider_model_binding_verified"] is binding_verified
+        assert receipt["fallback_detected"] is (not binding_verified)
+        if binding_verified:
+            assert receipt["status"] == "pass"
+            assert "writer candidate envelopes" in result.content
+        else:
+            assert receipt["status"] == "fail"
+            assert result.raw_usage["failure_class"] == "model_unavailable"
+            assert "provider_reported_model_mismatch" in receipt["issues"]
+
+    def test_real_claude_writer_contract_delivers_sealed_packet_on_stdin(
+        self,
+        tmp_path,
+    ):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        repository_root = Path(__file__).parent.parent
+        real_contracts = yaml.safe_load(
+            (repository_root / "config" / "worker_invocation_contracts.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        writer_contract = real_contracts["contracts"]["claude_writer"]
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            yaml.safe_dump(
+                {"contracts": {"claude_writer": writer_contract}},
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  deepseek_v4_pro:
+    provider: deepseek_official
+    model_id: deepseek-v4-pro
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "claude_code",
+            "invocation_contract": "claude_writer",
+            "default": "deepseek_v4_pro",
+            "capacity_selected_route": "Writer",
+            "capacity_pool": "deepseek_metered_api",
+        }
+        provider_payload = {
+            "type": "result",
+            "result": "writer candidate envelopes",
+            "session_id": "writer-stdin-session",
+            "usage": {"input_tokens": 40, "output_tokens": 10},
+            "modelUsage": {"deepseek-v4-pro": {"outputTokens": 10}},
+        }
+        observed: dict[str, object] = {}
+
+        def fake_run(argv, **kwargs):
+            observed["argv"] = list(argv)
+            observed["kwargs"] = dict(kwargs)
+            return self._mock_proc(
+                0,
+                stdout=json.dumps(provider_payload),
+                stderr="",
+            )
+
+        with patch(
+            "cli_executor.shutil.which",
+            return_value="/usr/bin/claude",
+        ), patch(
+            "cli_executor.subprocess.run",
+            side_effect=fake_run,
+        ):
+            result = run_cli_agent(
+                plan,
+                "Writer",
+                role_profile,
+                sealed_messages=[
+                    {"role": "user", "content": "bounded chapter context"}
+                ],
+            )
+
+        assert result.status == "completed"
+        kwargs = observed["kwargs"]
+        assert "stdin" not in kwargs
+        packet_text = kwargs["input"]
+        packet = json.loads(packet_text)
+        assert packet["packet_type"] == "agentlab_sealed_role_session"
+        assert packet["messages"] == [
+            {"role": "user", "content": "bounded chapter context"}
+        ]
+        argv = observed["argv"]
+        assert not any("task_packet_writer.json" in arg for arg in argv)
+        assert result.raw_usage["sealed_packet_stdin"] is True
+
+    def test_claude_supervisor_fallback_writes_approved_fallback_chain(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        run_dir = Path(plan.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "worker_invocation_contracts.yml").write_text(
+            """contracts:
+  claude_supervisor_fallback:
+    template: 'claude --model "{model_id}" --effort max --max-budget-usd 1.00 --permission-mode plan --output-format json --tools "" -p "Read {task_packet_path}"'
+""",
+            encoding="utf-8",
+        )
+        (config_dir / "model_catalog.yml").write_text(
+            """models:
+  deepseek_v4_pro:
+    provider: deepseek_official
+    model_id: deepseek-v4-pro
+""",
+            encoding="utf-8",
+        )
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "claude_code",
+            "invocation_contract": "claude_supervisor_fallback",
+            "default": "deepseek_v4_pro",
+            "capacity_selected_route": "SupervisorDeepSeek",
+            "capacity_pool": "claude_deepseek_supervisor",
+            "capacity_attempt_id": "task:Supervisor:fallback",
+            "capacity_selection_kind": "approved_fallback",
+        }
+        payload = {
+            "result": "governed fallback plan",
+            "session_id": "supervisor-fallback-session",
+            "usage": {"input_tokens": 20, "output_tokens": 5},
+            "modelUsage": {"deepseek-v4-pro": {"outputTokens": 5}},
+        }
+
+        with patch(
+            "cli_executor.shutil.which", return_value="/usr/bin/claude"
+        ), patch(
+            "cli_executor.subprocess.run",
+            return_value=self._mock_proc(0, stdout=json.dumps(payload)),
+        ):
+            result = run_cli_agent(plan, "Supervisor", role_profile)
+
+        assert result.status == "completed"
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["role"] == "Supervisor"
+        assert receipt["selection_kind"] == "approved_fallback"
+        assert receipt["fallback_detected"] is True
+        assert receipt["provider_model_binding_verified"] is True
+        chain = yaml.safe_load(
+            (run_dir / "model_execution_chain_supervisor.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert chain["fallback_used"] is True
+        assert chain["final"]["capacity_route"] == "SupervisorDeepSeek"
+        assert chain["final"]["provider"] == "deepseek"
+        assert chain["final"]["model"] == "deepseek-v4-pro"
 
     def test_production_pack_cli_blocks_before_subprocess_without_scoped_approval(
         self, tmp_path
@@ -1273,7 +3650,8 @@ class TestBinaryCandidateResolution:
         assert called_argv[0] == "agy"
         assert "--log-file" in called_argv
         log_path = Path(called_argv[called_argv.index("--log-file") + 1])
-        assert log_path.name == "agy_cli_agent.log"
+        assert log_path.name.startswith("agy_cli_agent_")
+        assert log_path.suffix == ".log"
         assert log_path.parent.name == "command_logs"
         assert result.raw_usage.get("cli_log_path") == str(log_path)
         assert "binary_candidate_used" not in result.raw_usage
@@ -1311,5 +3689,48 @@ class TestBinaryCandidateResolution:
         assert result.error == "CLI agent permission_denied (exit 1)."
         assert "listen tcp 127.0.0.1:0" not in result.error
         assert result.raw_usage["failure_class"] == "permission_denied"
-        assert "agy_cli_agent.log" in result.content
-        assert result.raw_usage.get("cli_log_path", "").endswith("agy_cli_agent.log")
+        assert "agy_cli_agent_" in result.content
+        assert Path(result.raw_usage.get("cli_log_path", "")).name.startswith(
+            "agy_cli_agent_"
+        )
+
+    def test_agy_unrecognized_model_cannot_silently_fallback(self, tmp_path):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+        from cli_executor import run_cli_agent
+
+        plan = _make_plan(tmp_path)
+        Path(plan.run_dir).mkdir(parents=True, exist_ok=True)
+        role_profile = {
+            "executor_type": "cli_agent",
+            "cli_agent": "agy",
+            "cli_command": 'agy --model "Unknown Model" -p "test"',
+            "default": "unknown_model",
+        }
+
+        def fake_run(argv, **_kwargs):
+            log_path = Path(argv[argv.index("--log-file") + 1])
+            log_path.write_text(
+                "Failed to resolve model flag Unknown Model: model is not recognized as a known model",
+                encoding="utf-8",
+            )
+            return self._mock_proc(0, stdout="AGENTLAB_AGY_CLI_SMOKE_OK", stderr="")
+
+        with patch("cli_executor.shutil.which", return_value="/usr/bin/agy"), \
+             patch("cli_executor.subprocess.run", side_effect=fake_run):
+            result = run_cli_agent(plan, "Writer", role_profile)
+
+        assert result.status == "blocked_user_decision"
+        assert result.error == "CLI agent model_unavailable (exit 0)."
+        assert result.raw_usage["failure_class"] == "model_unavailable"
+        assert result.raw_usage["model_resolution_failed"] is True
+        assert "blocked its silent default-model substitution" in result.content
+        receipt = yaml.safe_load(
+            Path(result.raw_usage["model_execution_receipt"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert receipt["status"] == "fail"
+        assert receipt["fallback_detected"] is True
+        assert receipt["provider_response_metadata_observed"] is False
+        assert "model_resolution_fallback_detected" in receipt["issues"]

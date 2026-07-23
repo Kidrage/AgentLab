@@ -42,11 +42,14 @@ The built-in registry includes:
 - agent_runtime/capabilities/gap_card.py writes capability_gap_decision_card.yml.
 - agent_runtime/capabilities/result_verifier.py validates confidence and evidence metadata.
 
-## Config
+## Runtime authority
 
-- config/capability_registry.yml lists required capability IDs and backend status.
-- config/capability_permission_policy.yml defaults to mock_first and requires explicit approval for external, network, shell, and write permissions.
-- config/media_artifact_policy.yml disables real model execution by default and requires evidence artifacts.
+- `agent_runtime/capabilities/registry.py` owns the deterministic built-in registry.
+- `agent_runtime/capabilities/permission_gate.py` enforces disabled, unavailable,
+  and approval-required capability decisions.
+- Media contract CLI commands require an explicit `--mock` flag.
+- The original unwired S9 YAML sketches are preserved under
+  `docs/archive/config_specs_legacy_20260718/` and are not runtime policy.
 
 ## CLI
 

@@ -1,0 +1,5 @@
+{
+  "evidence_kind": "canonical_artifact_pointer",
+  "canonical_path": "acceptance_runs/narrative_efficiency/baseline_metrics_v2.json",
+  "canonical_sha256": "4f4ab2d61d61ce32da66e4e7630038d8127c3a1d28012f887c662509bcd5ec54"
+}

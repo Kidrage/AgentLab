@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 3
 enabled: true
 
 retrieval:
@@ -8,6 +8,18 @@ retrieval:
   default_injected_agents:
     - Coder
     - TesterAuditor
+  route_injected_agents:
+    narrative_light_chapter:
+      - Writer
+    narrative_batch_chapters:
+      - Writer
+    narrative_heavy_audit:
+      - Reviewer
+      - Scribe
+    fiction_chapter_pipeline:
+      - Writer
+      - Reviewer
+      - Scribe
 
 matching:
   trigger_weight: 3
@@ -15,5 +27,6 @@ matching:
   summary_weight: 1
 
 usage:
-  write_task_usage: true
-  append_active_skill_ledger: true
+  write_run_usage: true
+  scope: run_local
+  retention_authority: config/run_retention_policy.yml

@@ -30,7 +30,7 @@ PROJECT_DIRS = [
     "tasks/compacted",
     "tasks/archived",
     "agents",
-    "artifacts",
+    "production",
     "acceptance",
     "cost",
     "evidence",

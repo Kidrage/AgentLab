@@ -1,0 +1,289 @@
+schema_version: 1
+plan_id: narrative_production_repair_v2_20260720
+priority: highest
+status: ready_for_agentlab_staged_execution
+authority: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
+source_diagnosis: /Users/saintpeter/Downloads/7.20修改方案.md
+target_repository: /Users/saintpeter/Desktop/AgentLab
+target_branch: feature/narrative-production-closure
+
+domain_boundary:
+  active_domain: narrative_production
+  code_task_governance: separate_unchanged_route
+  shared_governance_primitives:
+    - structured_job_identity
+    - immutable_context_hashes
+    - leases_and_fencing
+    - node_local_retry
+    - evidence_receipts
+    - explicit_approval
+    - atomic_promotion
+    - recovery_and_rollback
+  narrative_only_semantics:
+    - canon_snapshot
+    - creative_brief
+    - prose_candidate
+    - literary_scorecard
+    - continuity_projection
+    - candidate_set
+  code_only_semantics:
+    - repository_scope
+    - patch_proposal
+    - compile_and_test
+    - code_review
+  forbidden_coupling:
+    - narrative_policy_in_generic_job_engine
+    - code_task_routing_change_without_explicit_phase_scope
+    - crown_rules_in_generic_core
+
+execution_policy:
+  mode: agentlab_supervised_phase_execution
+  one_active_phase: true
+  candidate_only: true
+  production_allowed: false
+  auto_phase_close: false
+  next_phase_requires_acceptance: true
+  automatic_rewrite_limit: 2
+  central_module_net_line_limit_per_phase: 150
+  progress_authority: PROJECT_HANDOFF.md
+  implementation_owner: Coder
+  validation_owners: [TesterAuditor, Verifier]
+  control_plane_owner: AgentLab
+  human_supervisor: Codex
+  human_supervisor_actions:
+    - inspect_pre_dispatch_scope
+    - run_direct_worker_smoke_after_timeout_before_blame_assignment
+    - compare_direct_worker_and_agentlab_wrapper_timing_and_receipts
+    - inspect_returned_diff_and_evidence
+    - approve_or_reject_phase_acceptance
+    - intervene_on_blocker_or_scope_drift
+  human_supervisor_forbidden_actions:
+    - implement_phase_instead_of_registered_coder
+    - silently_relax_acceptance
+    - bypass_external_context_policy
+
+global_allowed_roots:
+  - agent_runtime/narrative/
+  - agent_templates/writer.md
+  - config/
+  - tests/
+  - docs/narrative/
+  - acceptance_runs/narrative_*/
+  - PROJECT_HANDOFF.md
+global_forbidden_roots:
+  - projects/Crown_of_Ash/production/
+  - projects/NovelGen/production/
+  - release_objects/
+  - .git/
+  - .env
+
+phases:
+  - phase_id: phase_0r
+    title: trusted_rebaseline
+    status: accepted
+    implementation_kind: diagnosis_and_frozen_replay
+    goals:
+      - freeze_current_30_chapter_hashes
+      - write_calibration_manifest_v2_without_overwriting_v1
+      - reproduce_malformed_ch23_heading
+      - refresh_efficiency_and_context_baseline
+      - prove_narrative_and_code_route_separation
+    allowed_paths:
+      - docs/narrative/
+      - acceptance_runs/narrative_efficiency/
+      - acceptance_runs/narrative_quality/
+      - tests/test_narrative_efficiency.py
+      - tests/test_narrative_quality_gate.py
+      - tests/test_narrative_job_semantics.py
+      - PROJECT_HANDOFF.md
+    forbidden_actions:
+      - production_code_refactor
+      - provider_prose_generation
+      - production_write
+      - ui_or_release_work
+    required_evidence:
+      - frozen_manifest
+      - malformed_heading_red_replay
+      - baseline_metrics
+      - focused_tests
+      - route_separation_test
+      - rollback_instructions
+
+  - phase_id: phase_1r
+    title: prose_only_writer_and_creative_brief
+    status: accepted
+    implementation_kind: code_change
+    allowed_roots:
+      - agent_runtime/narrative/production/
+      - agent_runtime/narrative_delivery.py
+      - agent_runtime/narrative_eval.py
+      - agent_runtime/writer_output_materializer.py
+      - agent_templates/writer.md
+      - config/production_packs.yml
+      - tests/
+      - docs/narrative/
+      - PROJECT_HANDOFF.md
+    acceptance:
+      - writer_prose_only
+      - static_chapter_brief_valid
+      - agentlab_owned_receipt
+      - state_projector_node_local_retry
+      - legacy_v1_read_compatibility
+
+  - phase_id: phase_2r
+    title: context_literary_memory_and_efficiency
+    status: node_a_accepted_node_b_preview_verified_node_c_correction_paused
+    implementation_kind: code_change
+    pre_dispatch_checks:
+      - direct_claude_code_deepseek_v4_pro_smoke_without_private_manuscript
+      - compare_startup_first_output_heartbeat_deadline_exit_and_receipt
+      - distinguish_worker_failure_from_agentlab_wrapper_failure
+    pre_dispatch_result:
+      status: passed_with_context_overhead_warning
+      evidence: acceptance_runs/worker_chain/coder_deepseek_preflight_20260720.yml
+      required_model_key: deepseek_v4_pro
+      require_node_sized_packets: true
+    active_node:
+      node_id: phase_2r_node_c_literary_memory
+      task_id: codex_supervised_phase2r_node_c_memory
+      authority: docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_2R_NODE_C_MEMORY.yml
+      later_nodes_blocked: true
+      acceptance: docs/narrative/NARRATIVE_PHASE2R_NODE_C_ACCEPTANCE.md
+      accepted: false
+      paused: true
+      review_state: correction_rereviews_interrupted_before_completion
+      checkpoint_commit: 05e9ecfc9498ed9fa9a81acbd0bf3f73dc8ea5fa
+    next_required_step:
+      kind: resume_node_c_independent_rereviews
+      code_changes_allowed: false
+      later_node_dispatch_allowed: false
+      measurement_readiness: acceptance_runs/narrative_repair_v2/phase_2r/measurement_readiness.yml
+    completed_nodes:
+      - node_id: phase_2r_node_a_context
+        status: accepted
+        acceptance: docs/narrative/NARRATIVE_PHASE2R_NODE_A_ACCEPTANCE.md
+      - node_id: phase_2r_node_b_writer_packet_preview_attempt1
+        status: rejected_false_green_corrected_preview_still_blocked
+        acceptance: docs/narrative/NARRATIVE_PHASE2R_NODE_B_ACCEPTANCE.md
+        payload_median_reduction_percent: 37.6878
+        phase_acceptance_met: false
+        provider_calls: 0
+        production_writes: 0
+    allowed_roots:
+      - agent_runtime/narrative/production/
+      - agent_runtime/narrative/efficiency/
+      - agent_runtime/narrative/quality/
+      - tests/
+      - docs/narrative/
+      - acceptance_runs/narrative_efficiency/
+      - PROJECT_HANDOFF.md
+    acceptance:
+      - shared_context_built_once
+      - predecessor_prose_and_relevant_memory_present
+      - pattern_signals_advisory_only
+      - no_upstream_replay_on_node_failure
+      - writer_non_prose_tokens_reduced_50_percent
+      - ordinary_context_tokens_reduced_25_percent
+
+  - phase_id: phase_3r
+    title: editorial_and_verified_revision_uplift
+    status: blocked_by_phase_2r
+    implementation_kind: code_and_live_gate
+    allowed_roots:
+      - agent_runtime/narrative/quality/
+      - agent_runtime/narrative/jobs/
+      - config/
+      - tests/
+      - docs/narrative/
+      - acceptance_runs/narrative_quality/
+      - PROJECT_HANDOFF.md
+    acceptance:
+      - reader_experience_dimensions_validated
+      - scene_revision_contract_required
+      - independent_reaudit
+      - anonymous_ab_selection
+      - two_attempt_stop
+      - no_silent_writer_downgrade
+      - ten_human_pairs_with_70_percent_preference_before_scale
+
+  - phase_id: phase_4r
+    title: exact_candidate_sets_assembly_and_promotion
+    status: blocked_by_phase_3r
+    implementation_kind: code_change
+    allowed_roots:
+      - agent_runtime/narrative/candidates/
+      - agent_runtime/delivery/
+      - agent_runtime/background_job_worker.py
+      - tests/
+      - docs/narrative/
+      - acceptance_runs/narrative_*/
+      - PROJECT_HANDOFF.md
+    acceptance:
+      - exact_expected_chapter_ids
+      - chapter_heading_and_title_validation
+      - stale_hash_blocks
+      - atomic_promotion_rollback
+      - production_unchanged_on_failure
+
+  - phase_id: phase_5
+    title: generic_background_workbench_and_release
+    status: hard_gate_blocked
+    implementation_kind: code_and_productization
+    start_conditions:
+      - phases_0r_through_4r_accepted
+      - gate_1_passed
+      - gate_2_passed
+    acceptance:
+      - generic_job_engine_has_no_narrative_or_code_semantics
+      - workbench_reads_formal_manifests_only
+      - immutable_markdown_txt_docx_epub_release
+      - completion_receipts_and_sha256_manifest
+
+live_gates:
+  gate_1a:
+    chapters: [25, 26, 27]
+    external_context_approval: already_granted_for_these_chapters_only
+    trusted_role_session_required: true
+    bypass_environment_denial: false
+  gate_1b:
+    chapters: [5, 7, 13, 14, 15, 16, 20, 25, 26, 27]
+    new_external_context_approval_required_for: [5, 7, 13, 14, 15, 16, 20]
+    human_pair_count: 10
+    minimum_new_pipeline_preferences: 7
+  gate_2:
+    batches: [[1, 10], [11, 20], [21, 30]]
+  long_range:
+    chapter_31_50_requires_separate_approval: true
+    chapter_200_soak_requires_complete_candidate_set: true
+    unattended_generation_to_fill_200_authorized: false
+
+stop_conditions:
+  - narrative_change_cannot_be_isolated_from_code_route
+  - production_content_change_required
+  - safety_test_or_schema_weakening_required
+  - central_module_limit_exceeded
+  - baseline_not_reproducible
+  - two_revision_attempts_without_uplift
+  - unapproved_external_context_or_provider_required
+  - quality_uplift_claim_without_human_gate
+
+delivery_requirements:
+  per_phase_commit: true
+  per_phase_handoff_rows: [in_progress, completed_or_blocked]
+  push_main_allowed: false
+  production_promotion_allowed: false
+  final_report_sections:
+    - Verdict
+    - Baseline
+    - Root Causes
+    - Confirmed Issues
+    - Rejected Hypotheses
+    - Changed Modules
+    - State-Machine Changes
+    - Efficiency Before/After
+    - Quality Before/After
+    - Test Results
+    - Live Trial Results
+    - Remaining Risks
+    - Rollback Instructions
+    - Next Recommended Gate

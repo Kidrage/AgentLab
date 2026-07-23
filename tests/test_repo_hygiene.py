@@ -31,11 +31,33 @@ def _tracked_files() -> list[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
+def test_repo_hygiene_policy_accepts_registered_local_cli_runtime_dirs(tmp_path: Path) -> None:
+    from agent_runtime.project_ops.repo_hygiene import scan_repository_root
+
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "repository_hygiene.yml").write_text(
+        (ROOT / "config" / "repository_hygiene.yml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    for name in (".agentlab_runtime", ".agy", ".claude", ".codex", ".hermes"):
+        (tmp_path / name).mkdir()
+    local_runtime_path = Path("/").joinpath("Users", "local", "private")
+    (tmp_path / ".claude.json").write_text(
+        f'{{"path": "{local_runtime_path}"}}',
+        encoding="utf-8",
+    )
+
+    report = scan_repository_root(tmp_path)
+
+    assert report.hard_violation_count == 0
+    assert not report.findings
+
+
 def test_tracked_text_files_do_not_have_extreme_lines() -> None:
     offenders: list[str] = []
     for relpath in _tracked_files():
         path = ROOT / relpath
-        if path.suffix not in TEXT_SUFFIXES:
+        if not path.exists() or path.suffix not in TEXT_SUFFIXES:
             continue
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if len(line) > MAX_HUMAN_LINE_LENGTH:

@@ -8,6 +8,14 @@ from typing import Any
 import yaml
 
 from atomic_io import atomic_write_yaml
+from agent_runtime.knowledge_system import (
+    InsufficientEvidenceError,
+    KnowledgeTaskRequest,
+    PreparedKnowledgeContext,
+    prepare_task,
+)
+from agent_runtime.knowledge_system.config import load_knowledge_config
+from agent_runtime.knowledge_system.sources import SourceCollector
 
 from .compression_policy import build_compression_trace
 from .context_budget import build_context_budget
@@ -25,7 +33,6 @@ from .packers import (
     ToolOutputPacker,
     WebContextPacker,
 )
-from .schemas import ContextBudget, ContextPack, ContextProfile
 
 
 PACKER_BY_SCENARIO = {
@@ -64,14 +71,109 @@ def build_context_artifacts(agentlab_root: Path, project: str, task_id: str, *, 
     budget = build_context_budget(profile, text, budget_policy)
     packer_cls = PACKER_BY_SCENARIO.get(profile.information_type, LongTextPacker)
     pack = packer_cls().pack(profile, budget, text, run_dir)
-    pack_dict = _bounded_pack(pack.as_dict(), max_chars=50000)
+    pack_dict = pack.as_dict()
+    knowledge_context = _prepare_knowledge_context(
+        agentlab_root,
+        project,
+        task_id,
+        text,
+        profile.information_type,
+        file_hints=file_hints,
+    )
+    if knowledge_context is not None and knowledge_context.mode in {"assist", "enforce"}:
+        _inject_knowledge_evidence(pack_dict, knowledge_context)
+    pack_dict = _bounded_pack(pack_dict, max_chars=50000)
     trace = build_compression_trace(profile.as_dict(), pack_dict)
-    return {
+    artifacts = {
         "context_profile": profile.as_dict(),
         "context_budget": budget.as_dict(),
         "context_pack": pack_dict,
         "compression_trace": trace,
     }
+    if knowledge_context is not None:
+        artifacts["knowledge_context"] = knowledge_context.as_dict()
+    return artifacts
+
+
+def _prepare_knowledge_context(
+    agentlab_root: Path,
+    project: str,
+    task_id: str,
+    request_text: str,
+    information_type: str,
+    *,
+    file_hints: list[str] | None,
+) -> PreparedKnowledgeContext | None:
+    config = load_knowledge_config(agentlab_root)
+    if config.mode == "off":
+        return None
+    domain = _knowledge_domain(information_type)
+    if domain == "general_production":
+        domain = SourceCollector(
+            agentlab_root,
+            max_file_bytes=config.max_file_bytes,
+        ).infer_project_domain(project)
+    prepared = prepare_task(
+        KnowledgeTaskRequest(
+            agentlab_root=agentlab_root,
+            project=project,
+            task_id=task_id,
+            request_text=request_text,
+            domain=domain,
+            file_hints=tuple(file_hints or ()),
+        )
+    )
+    if config.mode == "enforce" and prepared.status != "READY":
+        raise InsufficientEvidenceError(prepared)
+    return prepared
+
+
+def _knowledge_domain(information_type: str) -> str:
+    if information_type in {"code_repo", "repo_audit", "code_debug"}:
+        return "code_engineering"
+    if information_type == "narrative_or_novel":
+        return "longform_narrative"
+    if information_type == "web_research":
+        return "research"
+    if information_type == "image_or_screenshot":
+        return "media_production"
+    return "general_production"
+
+
+def _inject_knowledge_evidence(
+    pack: dict[str, Any], prepared: PreparedKnowledgeContext
+) -> None:
+    trace_id = prepared.evidence_bundle.trace.trace_id
+    for item in prepared.evidence_bundle.items:
+        pack.setdefault("packed_sections", []).append(
+            {
+                "section_id": f"knowledge_evidence_{item.rank}",
+                "title": f"Governed knowledge evidence {item.rank}",
+                "content": f"[{item.namespace}] {item.locator}\n{item.excerpt}",
+                "tokens_estimate": max(1, (len(item.excerpt) + 3) // 4),
+                "source_refs": [item.locator],
+            }
+        )
+        pack.setdefault("evidence_refs", []).append(
+            {
+                "path": item.source.path,
+                "kind": "knowledge_evidence",
+                "evidence_id": item.evidence_id,
+                "namespace": item.namespace,
+                "locator": item.locator,
+                "content_hash": item.source.content_hash,
+                "authority": item.authority,
+                "lifecycle": item.lifecycle,
+                "channel": item.channel,
+                "rank": item.rank,
+                "retrieval_trace_id": trace_id,
+                "index_snapshot": prepared.evidence_bundle.trace.index_snapshot,
+            }
+        )
+    if prepared.status != "READY":
+        pack.setdefault("warnings", []).append(
+            "Knowledge retrieval returned INSUFFICIENT_EVIDENCE; assist mode did not block execution."
+        )
 
 
 def _bounded_pack(pack: dict[str, Any], max_chars: int = 50000) -> dict[str, Any]:
@@ -98,7 +200,10 @@ def write_context_artifacts(agentlab_root: Path, project: str, task_id: str, *, 
         ("context_budget", "context_budget.yml"),
         ("context_pack", "context_pack.yml"),
         ("compression_trace", "compression_trace.yml"),
+        ("knowledge_context", "knowledge_context.yml"),
     ]:
+        if key not in artifacts:
+            continue
         path = run_dir / filename
         atomic_write_yaml(path, artifacts[key])
         written[key] = str(path)
@@ -112,6 +217,7 @@ def load_context_artifacts(run_dir: Path) -> dict[str, Any]:
         ("context_budget", "context_budget.yml"),
         ("context_pack", "context_pack.yml"),
         ("compression_trace", "compression_trace.yml"),
+        ("knowledge_context", "knowledge_context.yml"),
     ]:
         path = run_dir / filename
         data[key] = yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else None
@@ -134,4 +240,14 @@ def context_summary(artifacts: dict[str, Any]) -> str:
         f"- omitted_sections: {len(pack.get('omitted_sections') or [])}",
         f"- externalized_artifacts: {len(pack.get('externalized_artifacts') or [])}",
     ]
+    knowledge = artifacts.get("knowledge_context") or {}
+    if knowledge:
+        bundle = knowledge.get("evidence_bundle") or {}
+        lines.extend(
+            [
+                f"- knowledge_mode: {knowledge.get('mode')}",
+                f"- knowledge_status: {knowledge.get('status')}",
+                f"- knowledge_evidence: {len(bundle.get('items') or [])}",
+            ]
+        )
     return "\n".join(lines)

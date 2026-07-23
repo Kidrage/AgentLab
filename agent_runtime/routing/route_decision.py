@@ -43,6 +43,8 @@ class RouteDecision:
     required_capabilities: list[str] = field(default_factory=list)
     risk_level: str = "medium"
     approval_required: bool = False
+    approval_mode: str = "not_required"
+    approval_grant: dict[str, Any] | None = None
     approval_reasons: list[str] = field(default_factory=list)
     activation_decision: str = "activate"
     mode: str = "hybrid_local_company"

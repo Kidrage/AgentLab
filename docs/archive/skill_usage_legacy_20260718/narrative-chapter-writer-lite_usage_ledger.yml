@@ -1,0 +1,374 @@
+schema_version: 1
+skill_id: skill_agentlab_narrative_chapter_writer_lite
+entries:
+- timestamp: '2026-07-06T14:28:39.819001+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch01_10_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-06T14:32:56.852168+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch01_10_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T14:35:41.046744+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch01_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T14:35:44.295732+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch02_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T14:35:47.625291+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch03_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T14:35:50.868111+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch04_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T14:35:54.193649+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch05_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T14:35:57.454751+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch06_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T14:36:00.682049+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch07_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T14:36:03.968446+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch08_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T14:36:07.790305+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch09_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T14:36:11.244873+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch10_20260706
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Writer; matched applies_to:
+    Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T15:46:03.366681+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch01_20_20260706_ch01
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: narrative_light_chapter;
+    matched applies_to: Writer; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T16:42:39.034539+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch01_20_20260706_ch02
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: narrative_light_chapter;
+    matched applies_to: Writer; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T16:46:10.030043+00:00'
+  project: Crown_of_Ash
+  task_id: task_crown_agentlab_write_ch01_20_20260706_ch02
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: narrative_light_chapter;
+    matched applies_to: Writer; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T19:04:58.026479+00:00'
+  project: Crown_of_Ash
+  task_id: task_probe_crown_batch_ch01_ch20_20260707
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-06T21:41:40.976650+00:00'
+  project: AgentLab
+  task_id: task_probe_unknown_pack_synthesis_20260707
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: 小说章节'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Coder
+  - TesterAuditor
+- timestamp: '2026-07-09T06:51:51.470270+00:00'
+  project: Crown_of_Ash
+  task_id: task_0002_crown-of-ash-1-20
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: 续写'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-09T06:52:31.266138+00:00'
+  project: Crown_of_Ash
+  task_id: task_0006_crown-of-ash-1-20
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-09T14:28:18.260348+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_probe
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Writer
+- timestamp: '2026-07-14T01:56:53.410920+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch001_ch020_crown_complete_local_v1
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-14T02:15:57.492875+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch021_ch040_crown_complete_local_v1
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-14T02:15:59.532066+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch041_ch060_crown_complete_local_v1
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-14T02:16:01.566233+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch061_ch080_crown_complete_local_v1
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-14T02:16:03.628724+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch081_ch100_crown_complete_local_v1
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-14T02:16:05.697271+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch101_ch120_crown_complete_local_v1
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-14T02:16:07.786578+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch121_ch140_crown_complete_local_v1
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-14T02:16:09.863385+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch141_ch160_crown_complete_local_v1
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-14T02:16:11.979951+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch161_ch180_crown_complete_local_v1
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-14T02:16:14.062319+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch181_ch200_crown_complete_local_v1
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Reviewer
+  - Scribe
+- timestamp: '2026-07-18T06:48:37.351817+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch001_ch010_attempt-0008-heavy-audit
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Coder
+  - TesterAuditor
+- timestamp: '2026-07-18T06:53:03.176043+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch001_ch010_attempt-0009-heavy-audit
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Coder
+  - TesterAuditor
+- timestamp: '2026-07-18T06:57:32.903456+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch001_ch010_attempt-0010-heavy-audit
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Coder
+  - TesterAuditor
+- timestamp: '2026-07-18T07:08:36.324068+00:00'
+  project: Crown_of_Ash
+  task_id: task_narrative_heavy_audit_ch001_ch010_attempt-0011-heavy-audit
+  skill_id: skill_agentlab_narrative_chapter_writer_lite
+  name: narrative-chapter-writer-lite
+  reason: 'matched trigger: Crown_of_Ash; matched applies_to: Crown_of_Ash'
+  load_tokens: 1180
+  expected_saving_tokens: 6800
+  injected_into:
+  - Coder
+  - TesterAuditor

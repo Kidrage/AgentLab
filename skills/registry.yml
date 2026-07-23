@@ -75,8 +75,8 @@ skills:
 retired_skills: []
 metadata:
   owner: AgentLab
-  status: local_lifecycle_mvp
-  notes: Skill local lifecycle MVP is implemented (pending_user_approval → approved
-    → staging → validated → active → retired).  Real GitHub search, real sandbox execution,
-    automatic package parsing, and skill injection are not yet implemented.
-  updated_at: '2026-07-03T17:43:55.725090+00:00'
+  status: local_lifecycle_with_runtime_injection
+  notes: Skill lifecycle, active-skill matching, workflow-plan injection, prompt
+    injection, approval cards, and usage ledgers are implemented. Real GitHub search,
+    real sandbox execution, and automatic external package parsing remain out of scope.
+  updated_at: '2026-07-13T11:59:37+00:00'

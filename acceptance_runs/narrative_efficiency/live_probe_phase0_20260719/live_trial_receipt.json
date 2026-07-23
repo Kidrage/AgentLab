@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "trial_id": "phase0_live_20260719",
+  "requested_agent": "codex",
+  "invoked_agent": "claude_code",
+  "reporting_agent": "codex",
+  "status": "blocked_external_disclosure_approval_required",
+  "project": "Crown_of_Ash",
+  "requested_chapters": [25, 26, 27],
+  "attempted_chapters": [25],
+  "completed_chapters": [],
+  "execution_isolation": {
+    "kind": "temporary_agentlab_root",
+    "candidate_only": true,
+    "production_modified": false,
+    "measurement": "before_after_production_tree_sha256"
+  },
+  "budget": {
+    "cap_usd": 10.0,
+    "configured_chargeable_upper_bound_usd": 6.0,
+    "observed_cost_usd": 0.0,
+    "observed_input_tokens": 0,
+    "observed_output_tokens": 0
+  },
+  "attempt": {
+    "chapter": 25,
+    "result_status": "blocked_user_decision",
+    "failure_class": "network_required",
+    "model_active_seconds": null,
+    "model_active_measurement": "unavailable_from_provider",
+    "provider_process_wall_seconds": 173.956228,
+    "provider_process_measurement": "external_cli_process_wall",
+    "context_payload_bytes": 207910,
+    "context_source_bytes": 211207,
+    "context_source_count": 21,
+    "provider_process_started": true
+  },
+  "external_execution": {
+    "requested": true,
+    "approved": false,
+    "reason": "Explicit approval is required before Crown manuscript and canon context may be sent to the configured external Writer provider.",
+    "workaround_attempted": false
+  },
+  "production_guard": {
+    "before_tree_sha256": "95a3061eb41360cbd905581e2dc79792e0c2242dcbfdaa4c9a2da723ee4dda75",
+    "after_tree_sha256": "95a3061eb41360cbd905581e2dc79792e0c2242dcbfdaa4c9a2da723ee4dda75",
+    "match": true
+  },
+  "positive_calibration_status": "missing_user_samples",
+  "evidence_policy": {
+    "committed": "distilled_content_free_receipt_only",
+    "raw_runtime_ledgers": "local_only_not_committed"
+  }
+}

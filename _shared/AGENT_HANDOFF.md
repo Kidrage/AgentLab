@@ -1,7 +1,8 @@
 # Agent 协作 Handoff — 共享服务、Skills、MCP、工具链
 
 > 本文件是跨端能力快照，不是具体仓库记忆。仓库级状态遵循
-> `config/repository_handoff_policy.yml`，存放在 `.agentlab/HandOff.md` 并镜像到
+> `config/repository_handoff_policy.yml`，唯一权威存放在仓库根目录
+> `PROJECT_HANDOFF.md`；共享镜像仅按需写入
 > `memory/repositories/<repository_id>/HandOff.md`。
 
 > **位置**: `<RELAY_HOST>:<RELAY_WORKSPACE>/_shared/AGENT_HANDOFF.md`

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "scope": "narrative_phase2_phase5",
+  "branch": "feature/narrative-production-closure",
+  "implementation_head": "09bb2bb2a8f10246f4a4d07e5b32cffb4a826ac3",
+  "candidate_only": true,
+  "production_modified": false,
+  "phase_status": {
+    "phase2": "deterministic_mechanism_complete_live_efficiency_gate_blocked",
+    "phase3": "contract_state_wiring_complete_provider_revision_and_live_quality_gate_blocked",
+    "phase4": "deterministic_mechanism_complete_real_promotion_blocked",
+    "phase5": "blocked_not_started"
+  },
+  "commits": {
+    "phase2": "38be986",
+    "phase3": "d892e62",
+    "phase4": "14e620d",
+    "runtime_hardening": "09bb2bb"
+  },
+  "deterministic_verification": {
+    "consolidated_narrative_controller_cli": "211 passed",
+    "full_repository": "2814 passed, 2 skipped, 11 warnings in 223.37s",
+    "ruff": "pass",
+    "compile": "pass",
+    "git_diff_check": "pass",
+    "repository_hygiene": "pass, 0 hard violations, 0 warnings",
+    "model_doctor": "pass, 0 issues, 135 resolved profiles",
+    "github_ci": {
+      "implementation_29682754295": "success",
+      "report_29682973102": "success",
+      "handoff_29682986671": "success"
+    },
+    "independent_spec_review": "no unresolved hard findings",
+    "independent_standards_review": "no unresolved hard findings"
+  },
+  "live_evidence": {
+    "provider_calls": 0,
+    "positive_calibration_samples": 0,
+    "human_blind_pairs": 0,
+    "real_promotions": 0,
+    "gate1": "not_run",
+    "gate2": "not_run",
+    "gate3_200_chapter_soak": "not_run",
+    "completion_receipt": "absent"
+  },
+  "phase5_gate": {
+    "allowed": false,
+    "reasons": [
+      "phase0_provider_backed_gate_not_passed",
+      "phase3_positive_calibration_missing",
+      "phase3_human_blind_review_not_passed",
+      "phase3_provider_revision_uplift_unverified"
+    ]
+  },
+  "literary_uplift_claimed": false,
+  "stable_all_novel_background_tasks_claimed": false
+}

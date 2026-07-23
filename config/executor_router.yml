@@ -1,6 +1,6 @@
 executor_router:
   enabled: true
-  default_mode: dry_run
+  default_mode: policy_auto
   authority:
     purpose: task_level_external_executor_routing
     runtime_agent_backend_source: config/agent_model_profiles.yml
@@ -13,9 +13,9 @@ executor_router:
   routing:
     require_approval_for_external: true
     require_review_for_all_external_results: true
-    prefer_manual_handoff_until_approved: true
+    prefer_manual_handoff_until_approved: false
     allow_mock_executor: true
-    allow_auto_execution: false
+    allow_auto_execution: true
 
   budget:
     max_cost_usd_per_task: 0.25
@@ -23,7 +23,7 @@ executor_router:
     unknown_cost_requires_approval: true
 
   safety:
-    forbid_network_execution: true
+    forbid_network_execution: false
     forbid_remote_clone: true
     forbid_external_script_execution: true
     forbid_secret_exposure: true

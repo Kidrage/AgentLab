@@ -1,0 +1,101 @@
+phase_id: phase_0r_correction3
+verdict: PASS
+verdict_details: accept
+accepted: true
+recommended_next_action: next_phase
+rationale: All scope checks, evidence requirements, and validations passed successfully.
+missing_evidence: &id002 []
+evidence_files: &id001
+- baseline_metrics_v2.json
+- ch23_malformed_heading_replay.yml
+- change_scope.yml
+- frozen_samples_v2.yml
+- rollback.md
+- test_results.yml
+human_approval_required: false
+scope_status:
+  allowed_files:
+  - acceptance_runs/narrative_efficiency/baseline_metrics_v2.json
+  - acceptance_runs/narrative_efficiency/frozen_samples_v2.yml
+  - acceptance_runs/narrative_quality/ch23_malformed_heading_replay.yml
+  - acceptance_runs/narrative_quality/calibration_manifest_v2.yml
+  - docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md
+  - docs/narrative/NARRATIVE_CALL_GRAPH.md
+  - docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md
+  - PROJECT_HANDOFF.md
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/test_results.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/change_scope.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/rollback.md
+  forbidden_files:
+  - agent_runtime/**
+  - agent_templates/**
+  - config/**
+  - tests/**
+  - projects/Crown_of_Ash/production/**
+  - projects/NovelGen/production/**
+  - release_objects/**
+  - .env
+  - agent_runtime/.env
+  - .git/**
+  changed_files: []
+  unauthorized_edits: []
+  scope_drift: []
+  has_drift: false
+  has_violations: false
+evidence_status:
+  required_evidence:
+  - baseline_metrics_v2.json
+  - frozen_samples_v2.yml
+  - ch23_malformed_heading_replay.yml
+  - test_results.yml
+  - change_scope.yml
+  - rollback.md
+  evidence_files: *id001
+  missing_evidence: *id002
+  has_missing: false
+executor_evidence_status:
+  required: false
+  has_supporting_evidence: true
+  supporting_evidence_files: []
+state_transition_status:
+  valid: true
+  verdict: PASS
+  errors: []
+  warnings:
+  - no state transition proposal supplied
+  proposal_supplied: false
+  proposal: null
+  project_brain_dir: projects/AgentLab/narrative_repair_v2/project_brain
+test_results: null
+supervisor_validation:
+  status: passed
+  chapter_ids: exactly_1_through_30
+  source_artifacts_verified: 30
+  bundle_artifacts_verified: 30
+  path_hash_byte_mismatches: 0
+  ch23_heading_exact_match: true
+  focused_tests:
+    passed: 58
+    failed: 0
+    skipped: 0
+  strict_yaml_receipts: true
+  forbidden_scope_changes: 0
+  production_modified: false
+  note: >-
+    The generic phase-accept command currently does not ingest a standalone
+    test_results pointer, so its native test_results field is null. Supervisor
+    validation binds the strict run-local receipt and independent rerun here.
+policy:
+  external_auto_execution_allowed: false
+  phase_close_requires_evidence: true
+  human_review_blocks_acceptance: true
+acceptance_history_status:
+  recorded: true
+  project_brain_dir: projects/AgentLab/narrative_repair_v2/project_brain
+  history_path: projects/AgentLab/narrative_repair_v2/project_brain/acceptance_history.yml
+  entry_count: 2
+  next_actions_updated: true
+  next_actions:
+    next_phase_id: phase_1_repo_context
+    next_action: prepare_phase_task_packet
+    reason: first unaccepted roadmap phase

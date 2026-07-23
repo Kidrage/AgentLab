@@ -9,6 +9,7 @@ default.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import shutil
@@ -18,6 +19,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 
@@ -39,8 +41,22 @@ CommandRunner = Callable[[list[str], int], subprocess.CompletedProcess[str]]
 CommandProbe = Callable[[dict[str, Any]], bool]
 
 LOCAL_GROK_CLI_ADAPTERS = {"local_grok_cli", "grok_cli_oauth"}
-SUPPORTED_ADAPTERS = {"xai_imagine_rest", *LOCAL_GROK_CLI_ADAPTERS}
+LOCAL_ARK_CLI_ADAPTERS = {"local_ark_cli"}
+LOCAL_CLAUDE_SKILL_ADAPTERS = {"local_claude_skill"}
+LOCAL_HERMES_ARK_SKILL_ADAPTERS = {"local_hermes_ark_skill"}
+LOCAL_WORKER_SKILL_ADAPTERS = {
+    *LOCAL_CLAUDE_SKILL_ADAPTERS,
+    *LOCAL_HERMES_ARK_SKILL_ADAPTERS,
+}
+LOCAL_CLI_ADAPTERS = {
+    *LOCAL_GROK_CLI_ADAPTERS,
+    *LOCAL_ARK_CLI_ADAPTERS,
+    *LOCAL_CLAUDE_SKILL_ADAPTERS,
+    *LOCAL_HERMES_ARK_SKILL_ADAPTERS,
+}
+SUPPORTED_ADAPTERS = {"xai_imagine_rest", *LOCAL_CLI_ADAPTERS}
 GROK_ASSET_MARKER = "AGENTLAB_GENERATED_ASSET:"
+GROK_MODEL_MARKER = "AGENTLAB_GENERATION_MODEL:"
 GROK_SMOKE_FALLBACK_KEYS = ("hermes_session_smoke", "hermes_smoke_session", "oauth_smoke")
 PROMPT_FLAGS = {"-p", "--prompt", "-z", "--oneshot"}
 GROK_SETTINGS_FETCH_MARKER = "Settings fetch failed"
@@ -106,6 +122,14 @@ def preflight_media_contract(
 
     adapter_state = _adapter_state(backend)
     adapter_kind = str(backend.get("adapter_kind") or "")
+    modality = str(contract.get("modality") or "").strip()
+    configured_modalities = [
+        str(item).strip()
+        for item in (backend.get("modalities") or [])
+        if str(item).strip()
+    ]
+    modality_supported = bool(modality) and modality in configured_modalities
+    registered_models = _allowed_generation_models(backend, modality)
     api_key_env = str(backend.get("api_key_env") or "")
     accepted_env = _backend_api_key_env_names(backend)
     api_key_present = bool(_backend_api_key(backend))
@@ -114,15 +138,82 @@ def preflight_media_contract(
 
     check(adapter_state in {"configured", "ready"}, "adapter_configured", f"adapter_state is {adapter_state}")
     check(adapter_kind in SUPPORTED_ADAPTERS, "adapter_kind_supported", f"adapter_kind is {adapter_kind or '<missing>'}")
-    if adapter_kind in LOCAL_GROK_CLI_ADAPTERS:
+    check(
+        modality_supported,
+        "backend_modality_supported",
+        (
+            f"backend explicitly supports modality {modality}"
+            if modality_supported
+            else f"backend does not explicitly support modality {modality or '<missing>'}"
+        ),
+        modality=modality or None,
+        configured_modalities=configured_modalities,
+    )
+    check(
+        bool(registered_models),
+        "generation_model_registered",
+        (
+            f"registered generation model exists for {modality}"
+            if registered_models
+            else f"no registered generation model exists for {modality or '<missing>'}"
+        ),
+        registered_models=registered_models,
+    )
+    if adapter_kind in LOCAL_CLI_ADAPTERS:
+        configured_command = str(backend.get("command") or "").strip()
         check(
-            command_available,
+            bool(configured_command) and command_available,
             "local_cli_available",
-            f"Local Grok CLI command {backend.get('command') or 'grok'} is available"
-            if command_available
-            else f"Local Grok CLI command {backend.get('command') or 'grok'} is missing",
-            command=backend.get("command") or "grok",
+            f"Configured media shell command {configured_command} is available"
+            if configured_command and command_available
+            else "Media backend requires an explicit available shell command",
+            command=configured_command or None,
             auth_probe=backend.get("auth_probe"),
+        )
+        command_available = bool(configured_command) and command_available
+    skill_available = True
+    if adapter_kind in LOCAL_WORKER_SKILL_ADAPTERS:
+        skill_path = str(backend.get("skill_path") or "").strip()
+        skill_resolution = str(backend.get("skill_resolution") or "filesystem")
+        if skill_resolution == "worker_registry":
+            skill_available = bool(str(backend.get("skill_id") or "").strip())
+        else:
+            skill_root = Path(skill_path).expanduser()
+            if not skill_root.is_absolute():
+                skill_root = Path(agentlab_root) / skill_root
+            skill_manifest = skill_root / "SKILL.md"
+            skill_available = bool(skill_path) and skill_manifest.is_file()
+        check(
+            skill_available,
+            "worker_skill_available",
+            (
+                f"Worker skill {backend.get('skill_id')} is registered by the worker shell"
+                if skill_resolution == "worker_registry" and skill_available
+                else f"Worker skill is available at {skill_path}/SKILL.md"
+                if skill_available
+                else "Media backend requires its declared worker skill"
+            ),
+            skill_id=backend.get("skill_id"),
+            skill_path=skill_path or None,
+            skill_resolution=skill_resolution,
+        )
+    task_override_required = backend.get("selection_scope") == "explicit_task_override_only"
+    task_override_matches = contract.get("task_backend_override") == backend_id
+    user_authorized = contract.get("user_authorized_live_generation") is True
+    if task_override_required:
+        check(
+            task_override_matches,
+            "explicit_task_backend_override",
+            "contract explicitly selects the task-only backend"
+            if task_override_matches
+            else "task-only backend requires an exact task_backend_override",
+        )
+        check(
+            user_authorized,
+            "user_authorized_live_generation",
+            "contract records explicit user authorization for this live generation"
+            if user_authorized
+            else "task-only backend requires explicit user authorization",
         )
     if api_key_env:
         check(
@@ -143,8 +234,18 @@ def preflight_media_contract(
         return _preflight_result(contract, backend_id, backend, checks, "blocked", "adapter_unavailable")
     if adapter_kind not in SUPPORTED_ADAPTERS:
         return _preflight_result(contract, backend_id, backend, checks, "blocked", "unsupported_adapter")
-    if adapter_kind in LOCAL_GROK_CLI_ADAPTERS and not command_available:
-        return _preflight_result(contract, backend_id, backend, checks, "blocked", "missing_local_grok_cli")
+    if not modality_supported:
+        return _preflight_result(contract, backend_id, backend, checks, "blocked", "unsupported_media_modality")
+    if not registered_models:
+        return _preflight_result(contract, backend_id, backend, checks, "blocked", "generation_model_not_registered")
+    if adapter_kind in LOCAL_CLI_ADAPTERS and not command_available:
+        return _preflight_result(contract, backend_id, backend, checks, "blocked", "missing_media_shell_command")
+    if adapter_kind in LOCAL_WORKER_SKILL_ADAPTERS and not skill_available:
+        return _preflight_result(contract, backend_id, backend, checks, "blocked", "missing_worker_skill")
+    if task_override_required and not task_override_matches:
+        return _preflight_result(contract, backend_id, backend, checks, "blocked", "task_backend_override_required")
+    if task_override_required and not user_authorized:
+        return _preflight_result(contract, backend_id, backend, checks, "blocked", "user_authorization_required")
     if api_key_env and not api_key_present:
         return _preflight_result(contract, backend_id, backend, checks, "blocked", "missing_auth")
     if approval_required:
@@ -177,7 +278,11 @@ def execute_media_contract(
     preflight = preflight_media_contract(
         contract,
         agentlab_root,
-        command_probe=(lambda _backend: True) if command_runner is not None else None,
+        command_probe=(
+            (lambda backend: bool(str(backend.get("command") or "").strip()))
+            if command_runner is not None
+            else None
+        ),
     )
     runtime_backend = (
         load_media_backends(agentlab_root).get(str(preflight.get("backend_id") or ""), {})
@@ -201,7 +306,16 @@ def execute_media_contract(
         _write_generation_ledger(out_dir, contract, preflight, result)
         return result
 
-    live_guard = validate_media_live_role_session(contract, role_session)
+    expected_worker = str(
+        runtime_backend.get("worker_id")
+        or contract.get("artifact_producer_worker")
+        or "grok"
+    )
+    live_guard = validate_media_live_role_session(
+        contract,
+        role_session,
+        expected_worker=expected_worker,
+    )
     if live_guard.get("status") != "pass":
         result = {
             "status": "blocked",
@@ -214,6 +328,8 @@ def execute_media_contract(
         _write_generation_ledger(out_dir, contract, preflight, result)
         return result
 
+    execution_id = "media_exec_" + uuid.uuid4().hex
+
     if preflight.get("status") != "ready":
         result = {
             "status": "blocked",
@@ -221,6 +337,9 @@ def execute_media_contract(
             "backend": preflight.get("backend_id"),
             "reason": preflight.get("block_reason"),
             "generated_assets": [],
+            "execution_id": execution_id,
+            "producer_role_session_id": live_guard.get("role_session_id"),
+            "producer_worker": live_guard.get("worker"),
         }
         _write_generation_ledger(out_dir, contract, preflight, result)
         return result
@@ -253,6 +372,100 @@ def execute_media_contract(
                     ),
                     execution_workspace_isolated=True,
                 )
+        result["execution_id"] = execution_id
+        result["producer_role_session_id"] = live_guard.get("role_session_id")
+        result["producer_worker"] = live_guard.get("worker")
+        _write_generation_ledger(out_dir, contract, preflight, result)
+        return result
+
+    if preflight.get("adapter_kind") in LOCAL_HERMES_ARK_SKILL_ADAPTERS:
+        result = _execute_local_hermes_ark_skill(
+            contract,
+            preflight,
+            out_dir,
+            backend=runtime_backend,
+            agentlab_root=Path(agentlab_root),
+            timeout_seconds=timeout_seconds,
+            command_runner=command_runner
+            or (
+                lambda args, timeout: _run_command(
+                    args,
+                    timeout,
+                    cwd=Path(agentlab_root),
+                )
+            ),
+            execution_workspace_isolated=False,
+        )
+        result["execution_id"] = execution_id
+        result["producer_role_session_id"] = live_guard.get("role_session_id")
+        result["producer_worker"] = live_guard.get("worker")
+        _write_generation_ledger(out_dir, contract, preflight, result)
+        return result
+
+    if preflight.get("adapter_kind") in LOCAL_CLAUDE_SKILL_ADAPTERS:
+        if command_runner is not None:
+            result = _execute_local_claude_skill(
+                contract,
+                preflight,
+                out_dir,
+                backend=runtime_backend,
+                agentlab_root=Path(agentlab_root),
+                timeout_seconds=timeout_seconds,
+                command_runner=command_runner,
+                execution_workspace_isolated=False,
+            )
+        else:
+            result = _execute_local_claude_skill(
+                contract,
+                preflight,
+                out_dir,
+                backend=runtime_backend,
+                agentlab_root=Path(agentlab_root),
+                timeout_seconds=timeout_seconds,
+                command_runner=lambda args, timeout: _run_command(
+                    args,
+                    timeout,
+                    cwd=Path(agentlab_root),
+                ),
+                execution_workspace_isolated=False,
+            )
+        result["execution_id"] = execution_id
+        result["producer_role_session_id"] = live_guard.get("role_session_id")
+        result["producer_worker"] = live_guard.get("worker")
+        _write_generation_ledger(out_dir, contract, preflight, result)
+        return result
+
+    if preflight.get("adapter_kind") in LOCAL_ARK_CLI_ADAPTERS:
+        if command_runner is not None:
+            result = _execute_local_ark_cli(
+                contract,
+                preflight,
+                out_dir,
+                backend=runtime_backend,
+                agentlab_root=Path(agentlab_root),
+                timeout_seconds=timeout_seconds,
+                command_runner=command_runner,
+                execution_workspace_isolated=False,
+            )
+        else:
+            with tempfile.TemporaryDirectory(prefix="agentlab-media-role-") as workspace:
+                result = _execute_local_ark_cli(
+                    contract,
+                    preflight,
+                    out_dir,
+                    backend=runtime_backend,
+                    agentlab_root=Path(agentlab_root),
+                    timeout_seconds=timeout_seconds,
+                    command_runner=lambda args, timeout: _run_command(
+                        args,
+                        timeout,
+                        cwd=Path(workspace),
+                    ),
+                    execution_workspace_isolated=True,
+                )
+        result["execution_id"] = execution_id
+        result["producer_role_session_id"] = live_guard.get("role_session_id")
+        result["producer_worker"] = live_guard.get("worker")
         _write_generation_ledger(out_dir, contract, preflight, result)
         return result
 
@@ -263,6 +476,9 @@ def execute_media_contract(
             "backend": preflight.get("backend_id"),
             "reason": "unsupported_adapter",
             "generated_assets": [],
+            "execution_id": execution_id,
+            "producer_role_session_id": live_guard.get("role_session_id"),
+            "producer_worker": live_guard.get("worker"),
         }
         _write_generation_ledger(out_dir, contract, preflight, result)
         return result
@@ -279,6 +495,9 @@ def execute_media_contract(
         http_post=http_post or _http_post_json,
         http_get=http_get or _http_get,
     )
+    result["execution_id"] = execution_id
+    result["producer_role_session_id"] = live_guard.get("role_session_id")
+    result["producer_worker"] = live_guard.get("worker")
     _write_generation_ledger(out_dir, contract, preflight, result)
     return result
 
@@ -286,6 +505,8 @@ def execute_media_contract(
 def validate_media_live_role_session(
     contract: dict[str, Any],
     role_session: dict[str, Any] | None,
+    *,
+    expected_worker: str = "grok",
 ) -> dict[str, Any]:
     """Validate the role-session evidence required for live media execution."""
     if not role_session:
@@ -300,7 +521,9 @@ def validate_media_live_role_session(
         checks.append({"id": check_id, "status": "pass" if ok else "fail", "message": message})
 
     packet_type = role_session.get("packet_type")
+    role_session_id = str(role_session.get("role_session_id") or "").strip()
     role = role_session.get("role")
+    worker = role_session.get("worker")
     binding = role_session.get("binding") if isinstance(role_session.get("binding"), dict) else {}
     session_project = role_session.get("project")
     session_task_id = role_session.get("task_id")
@@ -308,7 +531,13 @@ def validate_media_live_role_session(
     contract_task_id = contract.get("task_id")
 
     check(packet_type == "agentlab_role_session", "packet_type", "packet is an AgentLab role-session")
+    check(bool(role_session_id), "role_session_id", "role-session has a stable identity")
     check(role == "ArtifactProducer", "role_owner", "role-session belongs to ArtifactProducer")
+    check(
+        worker == expected_worker,
+        "worker_owner",
+        f"role-session uses the registered {expected_worker} worker",
+    )
     check(binding.get("allowed") is True, "binding_allowed", "role binding is allowed")
     if contract_project and session_project:
         check(session_project == contract_project, "project_match", "role-session project matches media contract")
@@ -327,8 +556,9 @@ def validate_media_live_role_session(
         "status": "pass",
         "reason": None,
         "checks": checks,
+        "role_session_id": role_session_id,
         "role": role,
-        "worker": role_session.get("worker"),
+        "worker": worker,
         "project": session_project,
         "task_id": session_task_id,
     }
@@ -342,7 +572,235 @@ def build_payload_plan(
 ) -> dict[str, Any]:
     if backend.get("adapter_kind") in LOCAL_GROK_CLI_ADAPTERS:
         return build_grok_cli_payload_plan(contract, backend, out_dir=out_dir)
+    if backend.get("adapter_kind") in LOCAL_HERMES_ARK_SKILL_ADAPTERS:
+        return build_hermes_ark_payload_plan(contract, backend, out_dir=out_dir)
+    if backend.get("adapter_kind") in LOCAL_CLAUDE_SKILL_ADAPTERS:
+        return build_claude_skill_payload_plan(contract, backend, out_dir=out_dir)
+    if backend.get("adapter_kind") in LOCAL_ARK_CLI_ADAPTERS:
+        return build_ark_cli_payload_plan(contract, backend, out_dir=out_dir)
     return build_xai_payload_plan(contract, backend)
+
+
+def build_hermes_ark_payload_plan(
+    contract: dict[str, Any],
+    backend: dict[str, Any],
+    *,
+    out_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Build the registered Hermes shell instruction for Ark video generation."""
+
+    modality = str(contract.get("modality") or "video")
+    prompt = str(contract.get("prompt") or "").strip()
+    parameters = (
+        contract.get("generation_parameters")
+        if isinstance(contract.get("generation_parameters"), dict)
+        else {}
+    )
+    command = str(backend.get("command") or "hermes").strip()
+    provider = str(backend.get("shell_provider") or "openai-codex").strip()
+    shell_model = str(backend.get("shell_model") or "gpt-5.6-sol").strip()
+    skill_id = str(backend.get("skill_id") or "arkcli-video-gen").strip()
+    skills = [str(item).strip() for item in backend.get("preload_skills") or [] if str(item).strip()]
+    if not skills:
+        skills = ["arkcli-gen", skill_id]
+    asset_dir = (Path(out_dir) / "assets").resolve(strict=False) if out_dir else None
+    request = {
+        "prompt": prompt,
+        "generation_parameters": parameters,
+        "reference_assets": contract.get("reference_assets") or [],
+        "output_dir": str(asset_dir) if asset_dir else None,
+    }
+    worker_prompt = (
+        "Act only as the bounded AgentLab ArtifactProducer. Use the preloaded `arkcli-gen` "
+        f"and `{skill_id}` skills. Follow their required Ark workflow: inspect the active "
+        "profile's video resources, inspect supported parameters when applicable, then generate "
+        "one video and wait for completion. Do not copy a visual model ID from AgentLab; let the "
+        "Ark workflow select and report the actually available model or endpoint. Do not switch "
+        "profiles, create endpoints, rotate credentials, or modify configuration. Save the result "
+        "inside request.output_dir, do not open GUI applications, and do not edit repository or "
+        "production files. Return only compact JSON with status, task_id, model, generated_assets "
+        "and downloads.\n\n"
+        f"AGENTLAB_MEDIA_REQUEST={json.dumps(request, ensure_ascii=False, separators=(',', ':'))}"
+    )
+    args = [command, "--provider", provider, "-m", shell_model]
+    for skill in skills:
+        args.extend(["-s", skill])
+    args.extend(["-t", "terminal,skills", "-z", worker_prompt])
+    return {
+        "adapter_kind": backend.get("adapter_kind"),
+        "modality": modality,
+        "command": command,
+        "args": args,
+        "invocation_contract": backend.get("invocation_contract"),
+        "skill_id": skill_id,
+        "preload_skills": skills,
+        "model_selection": "worker_skill_auto",
+        "provider_model": "skill_auto",
+        "generation_parameters": parameters,
+        "asset_dir": str(asset_dir) if asset_dir else None,
+        "auth_mode": "hermes_shell_arkcli_profile",
+        "fallback_backend": backend.get("fallback_backend"),
+        "artifact_generation_verified": False,
+        "artifact_return_contract": {
+            "response_fields": ["generated_assets", "downloads.local_path"],
+            "asset_root": str(out_dir) if out_dir else None,
+            "requires_existing_local_files": True,
+        },
+        "note": (
+            "Hermes is the bounded workflow shell; its registered Ark skills own resource "
+            "discovery, supported-parameter validation and generation-model selection."
+        ),
+    }
+
+
+def build_claude_skill_payload_plan(
+    contract: dict[str, Any],
+    backend: dict[str, Any],
+    *,
+    out_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Build a bounded Claude invocation that delegates model routing to Seedance Skill."""
+
+    modality = str(contract.get("modality") or "video")
+    prompt = str(contract.get("prompt") or "").strip()
+    parameters = (
+        contract.get("generation_parameters")
+        if isinstance(contract.get("generation_parameters"), dict)
+        else {}
+    )
+    command = str(backend.get("command") or "claude").strip()
+    skill_id = str(backend.get("skill_id") or "byted-ark-seedance-skill").strip()
+    asset_dir = (Path(out_dir) / "assets").resolve(strict=False) if out_dir else None
+    request = {
+        "prompt": prompt,
+        "duration": parameters.get("duration"),
+        "ratio": parameters.get("ratio"),
+        "resolution": parameters.get("resolution"),
+        "generate_audio": parameters.get("generate_audio"),
+        "watermark": parameters.get("watermark"),
+        "camera_fixed": parameters.get("camera_fixed"),
+        "return_last_frame": parameters.get("return_last_frame"),
+        "service_tier": parameters.get("service_tier"),
+        "seed": parameters.get("seed"),
+        "reference_assets": contract.get("reference_assets") or [],
+        "output_dir": str(asset_dir) if asset_dir else None,
+    }
+    worker_prompt = (
+        f"Use the repository Skill `{skill_id}` to generate exactly one video for the "
+        "following sealed AgentLab ArtifactProducer request. Let the Skill wrapper select "
+        "the Seedance generation model from its capability matrix. Do not pass --model and "
+        "do not call ArkCLI +gen directly. Invoke the Skill synchronously with --wait true. "
+        "Set ARK_SEEDANCE_SAVE_PATH to request.output_dir before invoking its wrapper so every "
+        "downloaded file remains inside the governed candidate directory. Do not edit source "
+        "or production files. After the Skill returns, emit only a compact JSON object with "
+        "status, task_id, model, generated_assets (local file paths), and downloads.\n\n"
+        f"AGENTLAB_MEDIA_REQUEST={json.dumps(request, ensure_ascii=False, separators=(',', ':'))}"
+    )
+    args = [
+        command,
+        "--no-session-persistence",
+        "--permission-mode",
+        "bypassPermissions",
+        "--output-format",
+        "json",
+        "--tools",
+        "Skill,Bash",
+        "-p",
+        worker_prompt,
+    ]
+    return {
+        "adapter_kind": backend.get("adapter_kind"),
+        "modality": modality,
+        "command": command,
+        "args": args,
+        "invocation_contract": backend.get("invocation_contract"),
+        "skill_id": skill_id,
+        "skill_path": backend.get("skill_path"),
+        "model_selection": "worker_skill_auto",
+        "provider_model": "skill_auto",
+        "generation_parameters": parameters,
+        "asset_dir": str(asset_dir) if asset_dir else None,
+        "auth_mode": "claude_agent_plan_skill",
+        "artifact_generation_verified": False,
+        "artifact_return_contract": {
+            "response_fields": ["generated_assets", "downloads.local_path"],
+            "asset_root": str(out_dir) if out_dir else None,
+            "requires_existing_local_files": True,
+        },
+        "note": (
+            "Claude is a bounded ArtifactProducer shell; the repository Seedance Skill owns "
+            "generation-model selection and Agent Plan API invocation."
+        ),
+    }
+
+
+def build_ark_cli_payload_plan(
+    contract: dict[str, Any],
+    backend: dict[str, Any],
+    *,
+    out_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Build a deterministic ArkCLI Seedance command from a task contract."""
+    modality = str(contract.get("modality") or "video")
+    prompt = str(contract.get("prompt") or "")
+    models = backend.get("models") if isinstance(backend.get("models"), dict) else {}
+    model = str(contract.get("generation_model") or models.get(modality) or "").strip()
+    provider_model = _provider_model_alias(backend, modality, model)
+    parameters = (
+        contract.get("generation_parameters")
+        if isinstance(contract.get("generation_parameters"), dict)
+        else {}
+    )
+    command = str(backend.get("command") or "arkcli").strip()
+    profile = str(backend.get("profile") or "").strip()
+    asset_dir = (Path(out_dir) / "assets").resolve(strict=False) if out_dir else None
+    args = [command, "+gen"]
+    if profile:
+        args.extend(["--profile", profile])
+    args.extend(["--model", provider_model, "--modality", modality])
+    scalar_flags = (
+        ("resolution", "--resolution"),
+        ("ratio", "--ratio"),
+        ("duration", "--duration"),
+        ("seed", "--seed"),
+        ("service_tier", "--service-tier"),
+    )
+    for key, flag in scalar_flags:
+        value = parameters.get(key)
+        if value is not None and str(value).strip():
+            args.extend([flag, str(value)])
+    for key, flag in (
+        ("generate_audio", "--generate-audio"),
+        ("camera_fixed", "--camera-fixed"),
+        ("watermark", "--watermark"),
+        ("return_last_frame", "--return-last-frame"),
+    ):
+        if parameters.get(key) is True:
+            args.append(flag)
+    if asset_dir:
+        args.extend(["--save-to", str(asset_dir)])
+    args.append("--wait")
+    args.append("--open" if parameters.get("open_after_generation", True) else "--no-open")
+    args.append(prompt)
+    return {
+        "adapter_kind": backend.get("adapter_kind"),
+        "modality": modality,
+        "command": command,
+        "profile": profile or None,
+        "args": args,
+        "model": model,
+        "provider_model": provider_model,
+        "generation_parameters": parameters,
+        "asset_dir": str(asset_dir) if asset_dir else None,
+        "auth_mode": "local_arkcli_agent_plan_profile",
+        "artifact_generation_verified": False,
+        "artifact_return_contract": {
+            "response_fields": ["local_path", "local_paths"],
+            "asset_root": str(out_dir) if out_dir else None,
+            "requires_existing_local_files": True,
+        },
+        "note": "Task-scoped ArkCLI execution uses the Agent Plan wire-model alias, blocks until Seedance finishes, and verifies downloaded local assets.",
+    }
 
 
 def build_grok_cli_payload_plan(
@@ -353,7 +811,7 @@ def build_grok_cli_payload_plan(
 ) -> dict[str, Any]:
     prompt = str(contract.get("prompt") or "")
     modality = str(contract.get("modality") or "image")
-    command = str(backend.get("command") or "grok")
+    command = str(backend.get("command") or "").strip()
     command_contract = backend.get("command_contract") if isinstance(backend.get("command_contract"), dict) else {}
     command_template = str(command_contract.get("session_smoke") or command_contract.get("oauth_smoke") or "")
     asset_return_contract = {
@@ -365,6 +823,7 @@ def build_grok_cli_payload_plan(
     asset_instruction = (
         f"If media files are generated, save/export them under this directory: {out_dir}. "
         f"Return one line per generated file as '{GROK_ASSET_MARKER} <path>'. "
+        f"Return the actual image/video generation model as '{GROK_MODEL_MARKER} <model>'. "
         "Only report paths for local files that exist. "
         "If no media file is generated, return AGENTLAB_NO_MEDIA_ASSET."
         if out_dir
@@ -387,11 +846,13 @@ def build_grok_cli_payload_plan(
         "artifact_generation_verified": False,
         "artifact_return_contract": asset_return_contract,
         "auth_mode": "local_authenticated_cli_session",
-        "note": "Grok CLI uses the local authenticated session; media acceptance requires returned local asset paths under the trusted runner out_dir.",
+        "note": "The configured Hermes+xAI shell uses its authenticated session; media acceptance requires returned local asset paths under the trusted runner out_dir.",
     }
 
 
 def _render_grok_cli_args(command: str, command_template: str, prompt: str) -> list[str]:
+    if not command:
+        return []
     if command_template:
         try:
             args = shlex.split(command_template)
@@ -511,9 +972,10 @@ def _execute_local_grok_cli(
     execution_workspace_isolated: bool = False,
 ) -> dict[str, Any]:
     plan = build_grok_cli_payload_plan(contract, backend, out_dir=out_dir)
+    modality = str(contract.get("modality") or "image")
     response_path = out_dir / "grok_cli_response.md"
     templates = _grok_smoke_templates(backend)
-    command = str(plan.get("command") or "grok")
+    command = str(plan.get("command") or "").strip()
     prompt = str(plan.get("prompt") or "")
     try:
         from agent_runtime.outbound_context import write_outbound_context_manifest
@@ -651,8 +1113,17 @@ def _execute_local_grok_cli(
         collected = _collect_local_grok_assets(stdout, out_dir)
         generated_assets = collected["generated_assets"]
         if generated_assets:
+            generation_model = _parse_grok_generation_model(stdout)
+            allowed_models = _allowed_generation_models(backend, modality)
+            model_issue = (
+                "actual_generation_model_missing"
+                if not generation_model
+                else "generation_model_not_registered_for_backend"
+                if generation_model not in allowed_models
+                else None
+            )
             return {
-                "status": "completed",
+                "status": "completed" if model_issue is None else "blocked",
                 "live": True,
                 "backend": preflight.get("backend_id"),
                 "adapter_kind": preflight.get("adapter_kind"),
@@ -660,10 +1131,12 @@ def _execute_local_grok_cli(
                 "execution_scope": execution_scope,
                 "generated_assets": generated_assets,
                 "text_artifacts": [str(response_path)],
-                "artifact_generation_verified": True,
+                "artifact_generation_verified": model_issue is None,
+                "reason": model_issue,
                 "asset_claims": collected["asset_claims"],
                 "asset_claims_rejected": collected["asset_claims_rejected"],
                 "asset_return_contract": plan.get("artifact_return_contract"),
+                "generation_model": generation_model,
                 "note": (
                     "Local Grok CLI call succeeded and returned verified local media artifacts."
                     if attempt_index == 0
@@ -710,6 +1183,559 @@ def _execute_local_grok_cli(
     }
 
 
+def _execute_local_hermes_ark_skill(
+    contract: dict[str, Any],
+    preflight: dict[str, Any],
+    out_dir: Path,
+    *,
+    backend: dict[str, Any],
+    agentlab_root: Path,
+    timeout_seconds: int,
+    command_runner: CommandRunner,
+    execution_workspace_isolated: bool = False,
+) -> dict[str, Any]:
+    return _execute_local_worker_skill(
+        contract,
+        preflight,
+        out_dir,
+        backend=backend,
+        agentlab_root=agentlab_root,
+        timeout_seconds=timeout_seconds,
+        command_runner=command_runner,
+        execution_workspace_isolated=execution_workspace_isolated,
+        worker_kind="hermes_ark",
+    )
+
+
+def _execute_local_claude_skill(
+    contract: dict[str, Any],
+    preflight: dict[str, Any],
+    out_dir: Path,
+    *,
+    backend: dict[str, Any],
+    agentlab_root: Path,
+    timeout_seconds: int,
+    command_runner: CommandRunner,
+    execution_workspace_isolated: bool = False,
+) -> dict[str, Any]:
+    return _execute_local_worker_skill(
+        contract,
+        preflight,
+        out_dir,
+        backend=backend,
+        agentlab_root=agentlab_root,
+        timeout_seconds=timeout_seconds,
+        command_runner=command_runner,
+        execution_workspace_isolated=execution_workspace_isolated,
+        worker_kind="claude_skill",
+    )
+
+
+def _execute_local_worker_skill(
+    contract: dict[str, Any],
+    preflight: dict[str, Any],
+    out_dir: Path,
+    *,
+    backend: dict[str, Any],
+    agentlab_root: Path,
+    timeout_seconds: int,
+    command_runner: CommandRunner,
+    execution_workspace_isolated: bool,
+    worker_kind: str,
+) -> dict[str, Any]:
+    is_hermes = worker_kind == "hermes_ark"
+    plan = (
+        build_hermes_ark_payload_plan(contract, backend, out_dir=out_dir)
+        if is_hermes
+        else build_claude_skill_payload_plan(contract, backend, out_dir=out_dir)
+    )
+    artifact_prefix = "hermes_ark" if is_hermes else "claude_skill"
+    asset_dir = Path(str(plan.get("asset_dir") or out_dir / "assets"))
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    response_path = out_dir / f"{artifact_prefix}_response.json"
+    stderr_path = out_dir / f"{artifact_prefix}_stderr.txt"
+    prompt = str(contract.get("prompt") or "")
+    source_paths = [
+        Path(agentlab_root) / str(path)
+        for path in (contract.get("source_blueprints") or [])
+        if str(path).strip()
+    ]
+    try:
+        from agent_runtime.outbound_context import write_outbound_context_manifest
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from outbound_context import write_outbound_context_manifest
+
+    manifest_path = out_dir / "outbound_context_manifest_media.yml"
+    manifest = write_outbound_context_manifest(
+        Path(agentlab_root),
+        manifest_path,
+        item_id=str(contract.get("task_id") or out_dir.name),
+        role="ArtifactProducer",
+        provider_surface=f"{artifact_prefix}:{plan.get('skill_id')}",
+        payload_kind="seedance_video_prompt",
+        payload_text=prompt,
+        source_paths=source_paths,
+        private_context=True,
+        exact_payload=True,
+        sealed_context=True,
+        execution_workspace_isolated=execution_workspace_isolated,
+        approval_required=True,
+        approval_granted=contract.get("user_authorized_live_generation") is True,
+        source_inventory_required=bool(source_paths),
+    )
+    if not manifest.get("execution_allowed"):
+        return {
+            "status": "blocked",
+            "live": True,
+            "backend": preflight.get("backend_id"),
+            "adapter_kind": preflight.get("adapter_kind"),
+            "reason": "media_outbound_context_gate_blocked",
+            "outbound_context_status": manifest.get("status"),
+            "outbound_context_manifest": str(manifest_path),
+            "provider_model": "skill_auto",
+            "fallback_backend": plan.get("fallback_backend"),
+            "generated_assets": [],
+            "text_artifacts": [str(manifest_path)],
+            "artifact_generation_verified": False,
+        }
+
+    args = [str(item) for item in plan.get("args") or []]
+    timed_out = False
+    try:
+        completed = command_runner(args, timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        timed_out = True
+        completed = subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout=_coerce_process_text(exc.stdout),
+            stderr=_coerce_process_text(exc.stderr),
+        )
+    stdout = _coerce_process_text(completed.stdout).strip()
+    stderr = _coerce_process_text(completed.stderr).strip()
+    response_path.write_text(stdout + ("\n" if stdout else ""), encoding="utf-8")
+    text_artifacts = [str(response_path), str(manifest_path)]
+    if stderr:
+        stderr_path.write_text(stderr + "\n", encoding="utf-8")
+        text_artifacts.append(str(stderr_path))
+
+    if timed_out or completed.returncode != 0:
+        return {
+            "status": "local_cli_timeout" if timed_out else "local_cli_error",
+            "live": True,
+            "backend": preflight.get("backend_id"),
+            "adapter_kind": preflight.get("adapter_kind"),
+            "command": args[0] if args else plan.get("command"),
+            "reason": f"{artifact_prefix}_worker_timeout" if timed_out else f"{artifact_prefix}_worker_error",
+            "failure_scope": f"{artifact_prefix}_worker",
+            "returncode": completed.returncode,
+            "timeout_seconds": timeout_seconds if timed_out else None,
+            "stdout_excerpt": stdout[:500],
+            "stderr_excerpt": stderr[:500],
+            "provider_model": "skill_auto",
+            "fallback_backend": plan.get("fallback_backend"),
+            "generated_assets": [],
+            "text_artifacts": text_artifacts,
+            "artifact_generation_verified": False,
+        }
+
+    response = _parse_ark_cli_response(stdout) if is_hermes else _parse_claude_skill_response(stdout)
+    if response is None:
+        return {
+            "status": "local_cli_error",
+            "live": True,
+            "backend": preflight.get("backend_id"),
+            "adapter_kind": preflight.get("adapter_kind"),
+            "command": args[0] if args else plan.get("command"),
+            "reason": f"{artifact_prefix}_response_not_json",
+            "failure_scope": f"{artifact_prefix}_response",
+            "returncode": completed.returncode,
+            "stdout_excerpt": stdout[:500],
+            "stderr_excerpt": stderr[:500],
+            "provider_model": "skill_auto",
+            "fallback_backend": plan.get("fallback_backend"),
+            "generated_assets": [],
+            "text_artifacts": text_artifacts,
+            "artifact_generation_verified": False,
+        }
+
+    raw_paths = response.get("generated_assets") or response.get("local_paths") or []
+    if isinstance(raw_paths, str):
+        raw_paths = [raw_paths]
+    downloads = response.get("downloads") if isinstance(response.get("downloads"), list) else []
+    for item in downloads:
+        if isinstance(item, dict) and item.get("local_path"):
+            raw_paths.append(item["local_path"])
+    if response.get("local_path"):
+        raw_paths.append(response["local_path"])
+    collected = _collect_ark_cli_assets({"local_paths": raw_paths}, out_dir)
+    generated_assets = collected["generated_assets"]
+    provider_status = str(response.get("status") or "").lower()
+    reported_model = str(response.get("model") or "").strip()
+    modality = str(contract.get("modality") or "video")
+    generation_model = _canonical_generation_model(backend, modality, reported_model)
+    allowed_models = _allowed_generation_models(backend, modality)
+    model_issue = (
+        "actual_generation_model_missing"
+        if not generation_model
+        else "generation_model_not_registered_for_backend"
+        if generation_model not in allowed_models
+        else None
+    )
+    status_issue = (
+        None
+        if provider_status in {"success", "succeeded", "completed", "done"}
+        else f"{artifact_prefix}_generation_not_completed"
+    )
+    asset_issue = None if generated_assets else "verified_media_asset_missing"
+    reason = model_issue or status_issue or asset_issue
+    task_id = response.get("task_id") or response.get("id")
+    return {
+        "status": "completed" if reason is None else "blocked",
+        "live": True,
+        "backend": preflight.get("backend_id"),
+        "adapter_kind": preflight.get("adapter_kind"),
+        "command": args[0] if args else plan.get("command"),
+        "execution_scope": f"{artifact_prefix}_worker",
+        "reason": reason,
+        "provider_status": provider_status or None,
+        "provider_task_id": str(task_id) if task_id else None,
+        "provider_model": "skill_auto",
+        "fallback_backend": plan.get("fallback_backend"),
+        "provider_reported_model": reported_model or None,
+        "generation_model": generation_model or None,
+        "generation_model_source": "provider_response_normalized_alias",
+        "generated_assets": generated_assets,
+        "asset_claims": collected["asset_claims"],
+        "asset_claims_rejected": collected["asset_claims_rejected"],
+        "text_artifacts": text_artifacts,
+        "artifact_generation_verified": reason is None,
+        "asset_return_contract": plan.get("artifact_return_contract"),
+        "note": (
+            "Hermes invoked the governed Ark skills and returned a verified local asset."
+            if is_hermes and reason is None
+            else "Hermes returned without a fully verifiable completed Seedance artifact."
+            if is_hermes
+            else "Claude invoked the governed Seedance Skill and returned a verified local asset."
+            if reason is None
+            else "Claude returned without a fully verifiable completed Seedance artifact."
+        ),
+    }
+
+
+def _parse_claude_skill_response(stdout: str) -> dict[str, Any] | None:
+    outer = _parse_ark_cli_response(stdout)
+    if not isinstance(outer, dict):
+        return None
+    result = outer.get("result")
+    if isinstance(result, dict):
+        return result
+    if isinstance(result, str):
+        parsed = _parse_ark_cli_response(result)
+        if isinstance(parsed, dict):
+            return parsed
+    if any(key in outer for key in ("generated_assets", "downloads", "local_path")):
+        return outer
+    return None
+
+
+def _execute_local_ark_cli(
+    contract: dict[str, Any],
+    preflight: dict[str, Any],
+    out_dir: Path,
+    *,
+    backend: dict[str, Any],
+    agentlab_root: Path,
+    timeout_seconds: int,
+    command_runner: CommandRunner,
+    execution_workspace_isolated: bool = False,
+) -> dict[str, Any]:
+    plan = build_ark_cli_payload_plan(contract, backend, out_dir=out_dir)
+    asset_dir = Path(str(plan.get("asset_dir") or out_dir / "assets"))
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    response_path = out_dir / "arkcli_response.json"
+    stderr_path = out_dir / "arkcli_stderr.txt"
+    prompt = str(contract.get("prompt") or "")
+    command = str(plan.get("command") or "arkcli")
+    source_paths = [
+        Path(agentlab_root) / str(path)
+        for path in (contract.get("source_blueprints") or [])
+        if str(path).strip()
+    ]
+    try:
+        from agent_runtime.outbound_context import write_outbound_context_manifest
+    except ModuleNotFoundError:  # pragma: no cover - direct script path
+        from outbound_context import write_outbound_context_manifest
+
+    manifest_path = out_dir / "outbound_context_manifest_media.yml"
+    manifest = write_outbound_context_manifest(
+        Path(agentlab_root),
+        manifest_path,
+        item_id=str(contract.get("task_id") or out_dir.name),
+        role="ArtifactProducer",
+        provider_surface=f"local_cli:{command}",
+        payload_kind="seedance_video_prompt",
+        payload_text=prompt,
+        source_paths=source_paths,
+        private_context=True,
+        exact_payload=True,
+        sealed_context=True,
+        execution_workspace_isolated=execution_workspace_isolated,
+        approval_required=True,
+        approval_granted=contract.get("user_authorized_live_generation") is True,
+        source_inventory_required=bool(source_paths),
+    )
+    if not manifest.get("execution_allowed"):
+        return {
+            "status": "blocked",
+            "live": True,
+            "backend": preflight.get("backend_id"),
+            "adapter_kind": preflight.get("adapter_kind"),
+            "reason": "media_outbound_context_gate_blocked",
+            "outbound_context_status": manifest.get("status"),
+            "outbound_context_manifest": str(manifest_path),
+            "generated_assets": [],
+            "text_artifacts": [str(manifest_path)],
+            "artifact_generation_verified": False,
+        }
+
+    args = [str(item) for item in plan.get("args") or []]
+    timed_out = False
+    try:
+        completed = command_runner(args, timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        timed_out = True
+        completed = subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout=_coerce_process_text(exc.stdout),
+            stderr=_coerce_process_text(exc.stderr),
+        )
+    stdout = _coerce_process_text(completed.stdout).strip()
+    stderr = _coerce_process_text(completed.stderr).strip()
+    response_path.write_text(stdout + ("\n" if stdout else ""), encoding="utf-8")
+    text_artifacts = [str(response_path), str(manifest_path)]
+    if stderr:
+        stderr_path.write_text(stderr + "\n", encoding="utf-8")
+        text_artifacts.append(str(stderr_path))
+
+    if timed_out or completed.returncode != 0:
+        failure = _classify_ark_cli_failure(stdout, stderr, timed_out=timed_out)
+        return {
+            "status": "local_cli_timeout" if timed_out else "local_cli_error",
+            "live": True,
+            "backend": preflight.get("backend_id"),
+            "adapter_kind": preflight.get("adapter_kind"),
+            "command": args[0] if args else command,
+            "reason": failure["reason"],
+            "failure_scope": failure["failure_scope"],
+            "returncode": completed.returncode,
+            "timeout_seconds": timeout_seconds if timed_out else None,
+            "stdout_excerpt": stdout[:500],
+            "stderr_excerpt": stderr[:500],
+            "generation_model": plan.get("model"),
+            "generation_model_source": "configured_provider_request_normalized_alias"
+            if plan.get("provider_model") != plan.get("model")
+            else "configured_provider_request",
+            "provider_model": plan.get("provider_model"),
+            "generated_assets": [],
+            "text_artifacts": text_artifacts,
+            "artifact_generation_verified": False,
+        }
+
+    response = _parse_ark_cli_response(stdout)
+    if response is None:
+        return {
+            "status": "local_cli_error",
+            "live": True,
+            "backend": preflight.get("backend_id"),
+            "adapter_kind": preflight.get("adapter_kind"),
+            "command": args[0] if args else command,
+            "reason": "arkcli_response_not_json",
+            "failure_scope": "local_arkcli_response",
+            "returncode": completed.returncode,
+            "stdout_excerpt": stdout[:500],
+            "stderr_excerpt": stderr[:500],
+            "generated_assets": [],
+            "text_artifacts": text_artifacts,
+            "artifact_generation_verified": False,
+        }
+
+    collected = _collect_ark_cli_assets(response, out_dir)
+    generated_assets = collected["generated_assets"]
+    provider_status = str(response.get("status") or "").lower()
+    modality = str(contract.get("modality") or "video")
+    requested_model = str(plan.get("model") or "")
+    provider_model = str(plan.get("provider_model") or requested_model)
+    reported_model = str(response.get("model") or provider_model).strip()
+    generation_model = _canonical_generation_model(
+        backend,
+        modality,
+        reported_model,
+    )
+    allowed_models = _allowed_generation_models(backend, modality)
+    model_issue = (
+        "actual_generation_model_missing"
+        if not generation_model
+        else "generation_model_not_registered_for_backend"
+        if generation_model not in allowed_models
+        else None
+    )
+    status_issue = None if provider_status in {"succeeded", "completed", "done"} else "arkcli_generation_not_succeeded"
+    asset_issue = None if generated_assets else "verified_media_asset_missing"
+    reason = model_issue or status_issue or asset_issue
+    task_id = response.get("task_id") or response.get("id")
+    return {
+        "status": "completed" if reason is None else "blocked",
+        "live": True,
+        "backend": preflight.get("backend_id"),
+        "adapter_kind": preflight.get("adapter_kind"),
+        "command": args[0] if args else command,
+        "execution_scope": "internal_local_cli_worker",
+        "reason": reason,
+        "provider_status": provider_status or None,
+        "provider_task_id": str(task_id) if task_id else None,
+        "provider_model": provider_model,
+        "provider_reported_model": reported_model or None,
+        "generation_model": generation_model or None,
+        "generation_model_source": (
+            "provider_response_normalized_alias"
+            if response.get("model") and reported_model != generation_model
+            else "provider_response"
+            if response.get("model")
+            else "configured_provider_request_normalized_alias"
+            if provider_model != generation_model
+            else "configured_provider_request"
+        ),
+        "generated_assets": generated_assets,
+        "asset_claims": collected["asset_claims"],
+        "asset_claims_rejected": collected["asset_claims_rejected"],
+        "text_artifacts": text_artifacts,
+        "artifact_generation_verified": reason is None,
+        "asset_return_contract": plan.get("artifact_return_contract"),
+        "note": "ArkCLI Agent Plan call completed and returned a verified local Seedance asset."
+        if reason is None
+        else "ArkCLI returned without a fully verifiable completed media artifact.",
+    }
+
+
+def _parse_ark_cli_response(stdout: str) -> dict[str, Any] | None:
+    stripped = stdout.strip()
+    if not stripped:
+        return None
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        parsed = None
+    if isinstance(parsed, dict):
+        return parsed
+    decoder = json.JSONDecoder()
+    candidates: list[dict[str, Any]] = []
+    for index, character in enumerate(stripped):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(stripped[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            candidates.append(value)
+    return candidates[-1] if candidates else None
+
+
+def _classify_ark_cli_failure(
+    stdout: str,
+    stderr: str,
+    *,
+    timed_out: bool,
+) -> dict[str, str]:
+    if timed_out:
+        return {
+            "reason": "arkcli_timeout",
+            "failure_scope": "local_arkcli_execution",
+        }
+    combined = f"{stdout}\n{stderr}".lower()
+    if "does not support the agent plan feature" in combined:
+        return {
+            "reason": "arkcli_agent_plan_model_unsupported",
+            "failure_scope": "agent_plan_model_entitlement",
+        }
+    return {
+        "reason": "arkcli_nonzero_exit",
+        "failure_scope": "local_arkcli_execution",
+    }
+
+
+def _provider_model_alias(
+    backend: dict[str, Any],
+    modality: str,
+    generation_model: str,
+) -> str:
+    aliases = (
+        backend.get("provider_model_aliases")
+        if isinstance(backend.get("provider_model_aliases"), dict)
+        else {}
+    )
+    modality_aliases = aliases.get(modality)
+    if not isinstance(modality_aliases, dict):
+        return generation_model
+    return str(modality_aliases.get(generation_model) or generation_model).strip()
+
+
+def _canonical_generation_model(
+    backend: dict[str, Any],
+    modality: str,
+    provider_model: str,
+) -> str:
+    aliases = (
+        backend.get("provider_model_aliases")
+        if isinstance(backend.get("provider_model_aliases"), dict)
+        else {}
+    )
+    modality_aliases = aliases.get(modality)
+    if not isinstance(modality_aliases, dict):
+        return provider_model
+    for canonical_model, alias in modality_aliases.items():
+        if str(alias).strip() == provider_model:
+            return str(canonical_model).strip()
+    return provider_model
+
+
+def _collect_ark_cli_assets(response: dict[str, Any], out_dir: Path) -> dict[str, Any]:
+    raw_paths = response.get("local_paths") or []
+    if isinstance(raw_paths, str):
+        raw_paths = [raw_paths]
+    local_path = response.get("local_path")
+    if local_path and local_path not in raw_paths:
+        raw_paths = [*raw_paths, local_path]
+    out_root = out_dir.resolve()
+    assets: list[str] = []
+    rejected: list[dict[str, str]] = []
+    for raw in raw_paths:
+        claim = str(raw)
+        candidate = Path(claim)
+        if not candidate.is_absolute():
+            candidate = out_dir / candidate
+        resolved = candidate.resolve(strict=False)
+        try:
+            resolved.relative_to(out_root)
+        except ValueError:
+            rejected.append({"path": claim, "reason": "outside_out_dir"})
+            continue
+        if not resolved.is_file():
+            rejected.append({"path": claim, "reason": "missing_or_not_file"})
+            continue
+        if resolved.stat().st_size <= 0:
+            rejected.append({"path": claim, "reason": "empty_file"})
+            continue
+        assets.append(str(resolved))
+    return {
+        "asset_claims": [str(item) for item in raw_paths],
+        "generated_assets": list(dict.fromkeys(assets)),
+        "asset_claims_rejected": rejected,
+    }
+
+
 def _parse_grok_asset_claims(stdout: str) -> list[str]:
     claims: list[str] = []
     for line in stdout.splitlines():
@@ -722,6 +1748,34 @@ def _parse_grok_asset_claims(stdout: str) -> list[str]:
         if raw:
             claims.append(raw)
     return claims
+
+
+def _parse_grok_generation_model(stdout: str) -> str | None:
+    for line in stdout.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- "):
+            stripped = stripped[2:].strip()
+        if stripped.startswith(GROK_MODEL_MARKER):
+            model = stripped[len(GROK_MODEL_MARKER) :].strip().strip("`'\"")
+            return model or None
+    return None
+
+
+def _allowed_generation_models(backend: dict[str, Any], modality: str) -> list[str]:
+    registered = (
+        backend.get("registered_generation_models")
+        if isinstance(backend.get("registered_generation_models"), dict)
+        else {}
+    )
+    raw = registered.get(modality) or []
+    if isinstance(raw, str):
+        raw = [raw]
+    allowed = [str(item) for item in raw if str(item).strip()]
+    models = backend.get("models") if isinstance(backend.get("models"), dict) else {}
+    configured = str(models.get(modality) or "").strip()
+    if configured and configured not in allowed:
+        allowed.append(configured)
+    return allowed
 
 
 def _collect_local_grok_assets(stdout: str, out_dir: Path) -> dict[str, Any]:
@@ -929,11 +1983,25 @@ def _public_backend(backend: dict[str, Any]) -> dict[str, Any]:
         "base_url",
         "command",
         "command_contract",
+        "invocation_contract",
+        "profile",
         "endpoints",
         "execution_kernel",
         "execution_mode",
+        "selection_scope",
+        "worker_id",
+        "skill_id",
+        "skill_path",
+        "skill_resolution",
+        "preload_skills",
+        "shell_provider",
+        "shell_model",
+        "fallback_backend",
         "fallback_only",
+        "role_owner",
         "orchestration_scope",
+        "registered_generation_models",
+        "provider_model_aliases",
         "models",
         "approval_required",
         "final_artifact_allowed",
@@ -1011,6 +2079,11 @@ def _write_generation_ledger(
     preflight: dict[str, Any],
     result: dict[str, Any],
 ) -> None:
+    generated_asset_receipts = _generated_asset_receipts(
+        out_dir,
+        result.get("generated_assets") or [],
+    )
+    result["generated_asset_receipts"] = generated_asset_receipts
     ledger = {
         "schema_version": 1,
         "contract_type": "generation_ledger",
@@ -1020,8 +2093,12 @@ def _write_generation_ledger(
         "prompt_recorded": bool(contract.get("prompt")),
         "live": result.get("live", False),
         "status": result.get("status"),
-        "generated_assets": result.get("generated_assets", []),
-        "text_artifacts": result.get("text_artifacts", []),
+        "generated_assets": [receipt["path"] for receipt in generated_asset_receipts],
+        "generated_asset_receipts": generated_asset_receipts,
+        "text_artifacts": _portable_output_paths(
+            out_dir,
+            result.get("text_artifacts") or [],
+        ),
         "artifact_generation_verified": result.get("artifact_generation_verified"),
         "block_reason": result.get("reason") or preflight.get("block_reason"),
     }
@@ -1037,10 +2114,243 @@ def _write_generation_ledger(
         "asset_claims",
         "asset_claims_rejected",
         "asset_return_contract",
+        "execution_id",
+        "producer_role_session_id",
+        "producer_worker",
+        "provider_status",
+        "provider_task_id",
+        "provider_model",
+        "provider_reported_model",
+        "generation_model",
+        "generation_model_source",
+        "fallback_backend",
     ]:
         if result.get(key) is not None:
             ledger[key] = result.get(key)
     atomic_write_yaml(out_dir / "generation_ledger.yml", ledger)
+    _write_generated_assets_manifest(
+        out_dir,
+        contract,
+        result,
+        generated_asset_receipts,
+    )
+    _write_generation_receipt(
+        out_dir,
+        contract,
+        preflight,
+        result,
+        generated_asset_receipts,
+    )
+    _write_role_session_receipt(out_dir, contract, result)
+
+
+def _write_generated_assets_manifest(
+    out_dir: Path,
+    contract: dict[str, Any],
+    result: dict[str, Any],
+    receipts: list[dict[str, Any]],
+) -> None:
+    media_type = _acceptance_media_type(str(contract.get("modality") or ""))
+    assets = [
+        {
+            "candidate_id": f"asset-{str(receipt.get('sha256') or '')[:12]}",
+            "path": receipt.get("path"),
+            "media_type": media_type,
+            "sha256": receipt.get("sha256"),
+            "size_bytes": receipt.get("size_bytes"),
+        }
+        for receipt in receipts
+    ]
+    atomic_write_yaml(
+        out_dir / "generated_assets_manifest.yml",
+        {
+            "schema_version": "generated-assets-manifest/v1",
+            "status": (
+                "complete"
+                if assets
+                else "not_required"
+                if result.get("live") is False
+                and result.get("status") in {"dry_run", "not_required"}
+                else "blocked"
+            ),
+            "candidate_only": True,
+            "production_modified": False,
+            "assets": assets,
+            "source_ledger": "generation_ledger.yml",
+            "artifact_generation_verified": result.get("artifact_generation_verified"),
+        },
+    )
+
+
+def _write_generation_receipt(
+    out_dir: Path,
+    contract: dict[str, Any],
+    preflight: dict[str, Any],
+    result: dict[str, Any],
+    receipts: list[dict[str, Any]],
+) -> None:
+    backend = preflight.get("backend") if isinstance(preflight.get("backend"), dict) else {}
+    models = backend.get("models") if isinstance(backend.get("models"), dict) else {}
+    modality = str(contract.get("modality") or "")
+    model = result.get("generation_model") or models.get(modality)
+    allowed_models = _allowed_generation_models(backend, modality)
+    model_registered = bool(model) and model in allowed_models
+    producer_id = result.get("producer_role_session_id") if result.get("live") and receipts else None
+    issues: list[str] = []
+    if receipts and not model:
+        issues.append("actual_generation_model_missing")
+    elif receipts and not model_registered:
+        issues.append("generation_model_not_registered_for_backend")
+    if receipts and not producer_id:
+        issues.append("artifact_producer_role_session_identity_missing")
+    if result.get("live") and not receipts:
+        issues.append("verified_media_asset_missing")
+    status = (
+        "complete"
+        if receipts and model and model_registered and producer_id
+        else "not_required"
+        if not receipts
+        and result.get("live") is False
+        and result.get("status") in {"dry_run", "not_required"}
+        else "blocked"
+    )
+    prompt = str(contract.get("prompt") or "")
+    atomic_write_yaml(
+        out_dir / "generation_receipt.yml",
+        {
+            "schema_version": "generation-receipt/v1",
+            "status": status,
+            "producer": {
+                "role": "ArtifactProducer",
+                "id": producer_id,
+                "execution_id": result.get("execution_id"),
+                "worker": result.get("producer_worker"),
+            },
+            "backend": preflight.get("backend_id"),
+            "model": model,
+            "provider_model": result.get("provider_model"),
+            "provider_reported_model": result.get("provider_reported_model"),
+            "model_source": result.get("generation_model_source")
+            or (
+                "worker_report_marker"
+                if result.get("generation_model")
+                else "configured_provider_request"
+                if model
+                else "unknown"
+            ),
+            "model_registered_for_backend": model_registered if receipts else None,
+            "prompt_parameters": {
+                "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                "delivery_constraints": contract.get("delivery_constraints") or {},
+                "generation_parameters": contract.get("generation_parameters") or {},
+            },
+            "reference_assets": contract.get("reference_assets") or [],
+            "generated_asset_receipts": receipts,
+            "candidate_only": True,
+            "production_modified": False,
+            "issues": issues,
+        },
+    )
+
+
+def _write_role_session_receipt(
+    out_dir: Path,
+    contract: dict[str, Any],
+    result: dict[str, Any],
+) -> None:
+    live = result.get("live") is True
+    role_session_id = result.get("producer_role_session_id")
+    guard = result.get("role_session_guard") if isinstance(result.get("role_session_guard"), dict) else {}
+    if not live:
+        status = "not_required"
+        issues: list[str] = []
+    elif role_session_id:
+        status = "complete"
+        issues = []
+    else:
+        status = "blocked"
+        issues = [str(guard.get("reason") or "role_session_identity_missing")]
+    atomic_write_yaml(
+        out_dir / "role_session_receipt.yml",
+        {
+            "schema_version": "role-session-receipt/v1",
+            "status": status,
+            "role": "ArtifactProducer",
+            "role_session_id": role_session_id,
+            "worker": result.get("producer_worker"),
+            "project": contract.get("project_id"),
+            "task_id": contract.get("task_id"),
+            "execution_id": result.get("execution_id"),
+            "live": live,
+            "issues": issues,
+        },
+    )
+
+
+def _acceptance_media_type(modality: str) -> str:
+    lowered = modality.lower()
+    if "video" in lowered:
+        return "video"
+    if "audio" in lowered:
+        return "audio"
+    if lowered == "pdf":
+        return "pdf"
+    return "image"
+
+
+def _generated_asset_receipts(
+    out_dir: Path,
+    generated_assets: list[Any],
+) -> list[dict[str, Any]]:
+    """Hash only real files inside the trusted media output directory."""
+
+    out_root = out_dir.resolve()
+    receipts: list[dict[str, Any]] = []
+    seen: set[Path] = set()
+    for raw_path in generated_assets:
+        candidate = Path(str(raw_path))
+        if not candidate.is_absolute():
+            candidate = out_root / candidate
+        resolved = candidate.resolve(strict=False)
+        if resolved in seen:
+            continue
+        try:
+            resolved.relative_to(out_root)
+        except ValueError:
+            continue
+        if not resolved.is_file() or resolved.stat().st_size <= 0:
+            continue
+        digest = hashlib.sha256()
+        with resolved.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        seen.add(resolved)
+        receipts.append(
+            {
+                "path": resolved.relative_to(out_root).as_posix(),
+                "sha256": digest.hexdigest(),
+                "size_bytes": resolved.stat().st_size,
+            }
+        )
+    return receipts
+
+
+def _portable_output_paths(out_dir: Path, paths: list[Any]) -> list[str]:
+    """Return stable output-relative paths and omit paths outside the receipt root."""
+
+    out_root = out_dir.resolve(strict=False)
+    portable: list[str] = []
+    for raw_path in paths:
+        candidate = Path(str(raw_path))
+        if not candidate.is_absolute():
+            candidate = out_root / candidate
+        try:
+            relative = candidate.resolve(strict=False).relative_to(out_root).as_posix()
+        except ValueError:
+            continue
+        if relative not in portable:
+            portable.append(relative)
+    return portable
 
 
 def _http_post_json(url: str, headers: dict[str, str], payload: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:

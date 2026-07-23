@@ -111,44 +111,91 @@ def materialize_production_pack_candidate_result(
     materialized: dict[str, str] = {}
     parsed_yaml: dict[str, dict[str, Any]] = {}
     issues: list[str] = []
+    raw_usage = getattr(result, "raw_usage", None) or {}
+    native_materialized = (
+        raw_usage.get("artifact_materialization_status") == "pass"
+        and bool(raw_usage.get("artifact_materialization_receipt"))
+    )
     if getattr(result, "status", None) != "completed":
         issues.append("production_pack_role_result_not_completed")
     if not content.strip():
         issues.append("production_pack_role_result_empty")
 
-    for block in parse_edit_blocks(content):
-        raw_path = str(block.get("path") or "")
-        name, target_issue = _target_issue(raw_path, task_id, required)
-        if target_issue:
-            issues.append(target_issue)
-            continue
-        assert name is not None
-        if name in materialized:
-            issues.append(f"duplicate_production_pack_output:{name}")
-            continue
-        if "html_block_content" not in block:
-            issues.append(f"production_pack_output_requires_full_file_block:{name}")
-            continue
-        value = _strip_optional_code_fence(str(block.get("html_block_content") or ""))
-        if not value:
-            issues.append(f"empty_production_pack_output:{name}")
-            continue
+    if native_materialized:
+        receipt_path = Path(str(raw_usage["artifact_materialization_receipt"]))
         try:
-            parsed = yaml.safe_load(value)
-        except yaml.YAMLError as exc:
-            issues.append(f"invalid_production_pack_yaml:{name}:{type(exc).__name__}")
-            continue
-        if not isinstance(parsed, dict):
-            issues.append(f"production_pack_output_must_be_yaml_mapping:{name}")
-            continue
-        if (
-            execution_mode == "execute"
-            and parsed.get("generated_by") == "fake_provider"
-        ):
-            issues.append(f"fake_provider_production_pack_output:{name}")
-            continue
-        materialized[name] = value
-        parsed_yaml[name] = parsed
+            receipt = yaml.safe_load(receipt_path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            receipt = {}
+        receipt_records = {
+            Path(str(item.get("path") or "")).name: item
+            for item in receipt.get("materialized", [])
+            if isinstance(item, dict)
+        } if isinstance(receipt, dict) else {}
+        for name in required_outputs:
+            path = run_dir / name
+            record = receipt_records.get(name)
+            if not path.is_file() or not isinstance(record, dict):
+                issues.append(f"missing_production_pack_output:{name}")
+                continue
+            raw_bytes = path.read_bytes()
+            digest = sha256(raw_bytes).hexdigest()
+            if (
+                record.get("sha256") != digest
+                or int(record.get("byte_count") or -1) != len(raw_bytes)
+            ):
+                issues.append(f"production_pack_output_receipt_mismatch:{name}")
+                continue
+            try:
+                value = raw_bytes.decode("utf-8")
+                parsed = yaml.safe_load(value)
+            except (UnicodeDecodeError, yaml.YAMLError) as exc:
+                issues.append(
+                    f"invalid_production_pack_yaml:{name}:{type(exc).__name__}"
+                )
+                continue
+            if not isinstance(parsed, dict):
+                issues.append(f"production_pack_output_must_be_yaml_mapping:{name}")
+                continue
+            if execution_mode == "execute" and parsed.get("generated_by") == "fake_provider":
+                issues.append(f"fake_provider_production_pack_output:{name}")
+                continue
+            materialized[name] = value
+            parsed_yaml[name] = parsed
+    else:
+        for block in parse_edit_blocks(content):
+            raw_path = str(block.get("path") or "")
+            name, target_issue = _target_issue(raw_path, task_id, required)
+            if target_issue:
+                issues.append(target_issue)
+                continue
+            assert name is not None
+            if name in materialized:
+                issues.append(f"duplicate_production_pack_output:{name}")
+                continue
+            if "html_block_content" not in block:
+                issues.append(f"production_pack_output_requires_full_file_block:{name}")
+                continue
+            value = _strip_optional_code_fence(str(block.get("html_block_content") or ""))
+            if not value:
+                issues.append(f"empty_production_pack_output:{name}")
+                continue
+            try:
+                parsed = yaml.safe_load(value)
+            except yaml.YAMLError as exc:
+                issues.append(f"invalid_production_pack_yaml:{name}:{type(exc).__name__}")
+                continue
+            if not isinstance(parsed, dict):
+                issues.append(f"production_pack_output_must_be_yaml_mapping:{name}")
+                continue
+            if (
+                execution_mode == "execute"
+                and parsed.get("generated_by") == "fake_provider"
+            ):
+                issues.append(f"fake_provider_production_pack_output:{name}")
+                continue
+            materialized[name] = value
+            parsed_yaml[name] = parsed
 
     for name in required_outputs:
         if name not in materialized:
@@ -183,10 +230,18 @@ def materialize_production_pack_candidate_result(
         "capture_path": capture_name,
         "required_outputs": list(required_outputs),
         "materialized_outputs": [] if issues else sorted(materialized),
-        "returned_artifact_source": "provider_role_session_edit_blocks",
+        "returned_artifact_source": (
+            "isolated_cli_declared_files"
+            if native_materialized
+            else "provider_role_session_edit_blocks"
+        ),
         "provider_returned_outputs": not issues,
         "harness_generated_pack_content": False,
-        "transactional_before_validation": True,
+        # Candidate files are never promoted here, but native CLI files already
+        # exist in the current run and edit-block files are written before the
+        # semantic pack validator runs. Do not overstate that ordering as a
+        # transactional commit.
+        "transactional_before_validation": False,
         "candidate_only": True,
         "production_modified": False,
         "promotion_attempted": False,
@@ -203,8 +258,9 @@ def materialize_production_pack_candidate_result(
         )
         return False
 
-    for name, value in materialized.items():
-        atomic_write_text(run_dir / name, value.rstrip() + "\n")
+    if not native_materialized:
+        for name, value in materialized.items():
+            atomic_write_text(run_dir / name, value.rstrip() + "\n")
 
     validation = validate_pack_candidate(
         run_dir / "production_pack_proposal.yml",

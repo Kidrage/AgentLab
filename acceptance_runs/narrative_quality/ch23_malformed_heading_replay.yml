@@ -1,0 +1,50 @@
+schema_version: 1
+replay_id: ch23_malformed_heading_phase0r_20260720
+replay_kind: red_replay
+status: confirmed_defect_preserved
+generated_at: '2026-07-20T00:00:00.000000+00:00'
+generated_by: Coder
+generated_by_worker: claude_code
+generated_by_model: deepseek-v4-pro
+governance_route: codebase_build_project
+
+defect:
+  defect_id: malformed_chapter_heading_23
+  chapter_id: 23
+  severity: assembly_blocking
+  confirmed_by: source_diagnosis
+  diagnosis_source: user_supplied_7_20_modification_plan
+  plan_authority: docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
+
+description: |
+  Chapter 23 prose exists and is a valid prose artifact. Its exact first Markdown
+  heading is "# 章二十三 · 铁线破晓" — the assembly pipeline fails to parse the
+  Chinese ordinal "章二十三" (which lacks an Arabic numeral) and produces
+  `malformed_chapter_heading:23`. This is not a missing manuscript chapter.
+
+  This is a confirmed assembly regression, not a prose-quality or content defect.
+  The prose artifact itself is intact at SHA256
+  18b1b2b81dc1fcb94848c2b9dc8e3839f0bacd79819283ae037061818aaa3df8.
+
+evidence:
+  prose_exists: true
+  artifact_path: projects/Crown_of_Ash/runs/task_narrative_eval_ch23_crown_corrected_200_v3_writer/fiction_draft.md
+  artifact_sha256: 18b1b2b81dc1fcb94848c2b9dc8e3839f0bacd79819283ae037061818aaa3df8
+  heading_format: malformed
+  heading_value: '# 章二十三 · 铁线破晓'
+  expected_format: standard_chapter_heading_with_arabic_numeral
+  assembly_result: malformed_chapter_heading
+  assembly_error_code: 23
+
+root_cause_classification: assembly_regression
+not_a_prose_defect: true
+fix_deferred_to: phase_1r_or_later
+
+replay_instructions: |
+  To reproduce: assemble Ch23 with the standard chapter heading parser.
+  The parser will encounter "章二十三" and fail to match the expected
+  heading pattern, producing `malformed_chapter_heading:23`.
+  Do not fix in Phase 0R; preserve as a red replay for later phases.
+
+rollback: |
+  No rollback needed. This is a preserved defect replay, not a code change.

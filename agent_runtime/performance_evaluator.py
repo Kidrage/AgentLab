@@ -48,7 +48,12 @@ def run_performance_evaluation(agentlab_root: Path, project: str, task_id: str) 
     )
     (run_dir / "user_request.md").write_text(request, encoding="utf-8")
 
-    plan = build_workflow_plan(agentlab_root, project, task_id, execution_backend="codex")
+    plan = build_workflow_plan(
+        agentlab_root,
+        project,
+        task_id,
+        execution_backend="agentlab_orchestrated_cli",
+    )
     (run_dir / "workflow_plan.yml").write_text(
         yaml.safe_dump(plan.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
         encoding="utf-8",
@@ -122,7 +127,12 @@ def evaluate_routing(agentlab_root: Path) -> dict[str, Any]:
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "user_request.md").write_text(case["text"], encoding="utf-8")
         try:
-            plan = build_workflow_plan(agentlab_root, "AgentLab", temp_task, execution_backend="codex")
+            plan = build_workflow_plan(
+                agentlab_root,
+                "AgentLab",
+                temp_task,
+                execution_backend="agentlab_orchestrated_cli",
+            )
         finally:
             shutil.rmtree(run_dir, ignore_errors=True)
         actual = plan.route.route_key
@@ -405,7 +415,7 @@ def render_interface_map(metrics: dict[str, Any]) -> str:
         "# Interface Map\n\n"
         "## Checked Contracts\n\n"
         "- routing_rules.yml routes reference registered agents\n"
-        "- agent_registry.yml model_profile values reference model_profiles.yml profiles\n"
+        "- agent_model_profiles.yml role keys reference registered AgentLab roles\n"
         "- schemas.AgentName accepts route agents\n\n"
         f"## Issues\n\n```yaml\n{issue_text}\n```\n"
     )

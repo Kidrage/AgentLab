@@ -7,7 +7,7 @@ cost_policy:
   phase_hard_limit_usd: 2.00
   task_soft_limit_usd: 0.50
   task_hard_limit_usd: 1.00
-  require_approval_above_usd: 0.50
+  require_approval_above_usd: 0.10
   cheap_model_first: true
   escalate_model_on_failure: true
   max_retries_before_escalation: 1

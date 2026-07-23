@@ -274,7 +274,7 @@ def write_migration_bootstrap(
     agentlab_root = Path(agentlab_root).resolve()
     profile = _load_yaml(agentlab_root / "config" / "migration_profile.yml")
     env_path = agentlab_root / "agent_runtime" / ".env.example"
-    checklist_path = agentlab_root / "MIGRATION_CHECKLIST.md"
+    checklist_path = agentlab_root / "docs" / "MIGRATION_CHECKLIST.md"
     created: list[str] = []
     skipped: list[str] = []
 

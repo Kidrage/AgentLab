@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shlex
 import shutil
 from typing import Any
 
@@ -67,6 +68,20 @@ def _policy_check(id_: str, observed: Any) -> dict[str, Any]:
     }
 
 
+def _required_commands(package: dict[str, Any]) -> list[str]:
+    commands: list[str] = []
+    for raw in package.get("preflight_commands", []):
+        if not isinstance(raw, str):
+            continue
+        try:
+            argv = shlex.split(raw)
+        except ValueError:
+            continue
+        if len(argv) == 3 and argv[:2] == ["command", "-v"]:
+            commands.append(argv[2])
+    return list(dict.fromkeys(commands or ["claude", "hermes"]))
+
+
 def build_trusted_live_runner_preflight(root: Path, request_path: Path | None = None) -> dict[str, Any]:
     """Inspect local runner prerequisites without reading private project context."""
     root = root.resolve()
@@ -91,8 +106,7 @@ def build_trusted_live_runner_preflight(root: Path, request_path: Path | None = 
         _file_check("request_yaml", request_path),
         _file_check("runner_script", script_path, executable=True),
         _file_check("agentlab_entrypoint", root / "agentlab.sh", executable=True),
-        _command_check("agy"),
-        _command_check("hermes"),
+        *[_command_check(command) for command in _required_commands(package)],
         _policy_check(
             "exact_outbound_context_manifest_required",
             package.get("exact_outbound_context_manifest_required"),
@@ -123,6 +137,7 @@ def build_trusted_live_runner_preflight(root: Path, request_path: Path | None = 
         "executes_provider_calls": False,
         "loads_private_project_context": False,
         "safe_scope": "local binary/path preflight only",
+        "required_commands": _required_commands(package),
         "private_context_runtime_guard": {
             "exact_manifest_required": package.get("exact_outbound_context_manifest_required") is True,
             "writer_sealed_context_required": package.get("writer_sealed_context_required") is True,

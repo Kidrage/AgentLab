@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "gate": 1,
+  "trial_id": "gate1_legacy_integrated_ch25_ch27_20260719",
+  "created_at": "2026-07-19T19:46:33+08:00",
+  "status": "blocked_external_execution_policy",
+  "project": "Crown_of_Ash",
+  "branch": "feature/narrative-production-closure",
+  "source_git_head": "1664e0a2e803ff0a5aff07c271631017c41f28b3",
+  "requested_chapters": [25, 26, 27],
+  "attempted_chapters": [],
+  "completed_chapters": [],
+  "candidate_only": true,
+  "production_modified": false,
+  "execution_isolation": "temporary_agentlab_root",
+  "budget": {
+    "cap_usd": 10.0,
+    "writer_attempt_cap_usd": 1.0,
+    "max_contract_attempts_per_chapter": 2,
+    "observed_cost_usd": 0.0
+  },
+  "authorization": {
+    "user_external_context_approval": true,
+    "environment_external_execution_allowed": false,
+    "workaround_attempted": false
+  },
+  "legacy_integration": {
+    "status": "candidate_ready_revision_2",
+    "worldbuilding_exact_hash_match": true,
+    "plot_blueprint_exact_hash_match": true,
+    "female_character_legacy_previously_in_writer_context": false,
+    "candidate_overlay_sha256": "a465141fe0169a764e5363b56f495aa5dc19861bd399d43e0e0b4c0c21533076",
+    "chapter_state_plan_sha256": "40c23c959859a92e7ff1f48869a5bcccd29b617655a8c94ef2ab4aa0cc0d9d32",
+    "adult_dark_intimacy_contract": "user_directed_agency_preserving",
+    "previous_outbound_manifest_stale": true,
+    "writer_manifest_included_overlay": false,
+    "historical_v1_writer_manifest_included_overlay": true,
+    "production_modified": false
+  },
+  "preflight": {
+    "model_doctor": "pass_135_profiles_0_issues",
+    "claude_auth": "logged_in_oauth",
+    "writer_role_binding": "pass",
+    "ch24_delivery": "pass",
+    "ch24_artifact_integrity": "pass_four_hash_bound_artifacts",
+    "ch24_writer_provenance": "pass_deepseek_v4_pro_no_fallback",
+    "l0_fact_source_health": "pass",
+    "l3_governance_simulation": "pass",
+    "adult_dark_intimacy_v2_state_plan": "pass_manifest_v2_final2_20260719"
+  },
+  "historical_v1_live_metrics": {
+    "manifest_version": 1,
+    "writer_process_started": true,
+    "external_provider_result_received": false,
+    "provider_call_count": "unavailable_network_required",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_tokens": 0,
+    "candidate_produced_count": 0,
+    "audit_eligible_candidate_count": 0,
+    "final_usable_candidate_count": 0,
+    "wall_time_comparison": "unavailable",
+    "literary_uplift": "unavailable"
+  },
+  "current_v2_live_metrics": {
+    "manifest_version": 2,
+    "status": "not_attempted",
+    "candidate_produced_count": 0,
+    "audit_eligible_candidate_count": 0,
+    "literary_uplift": "unavailable"
+  },
+  "production_guard": {
+    "before_tree_sha256": "4da6e59984a9d6b87ee500625f14e77aeb675b69185d4239a0d38c21dd6d7a86",
+    "after_tree_sha256": "4da6e59984a9d6b87ee500625f14e77aeb675b69185d4239a0d38c21dd6d7a86",
+    "isolated_after_tree_sha256": "not_used_in_legacy_integration_retry",
+    "match": true
+  },
+  "quality_calibration": {
+    "positive_calibration_status": "missing_user_samples",
+    "human_blind_pairs_completed": 0,
+    "human_blind_pairs_required": 10,
+    "uplift_claimed": false
+  },
+  "gate2_allowed": false,
+  "phase5_allowed": false,
+  "raw_evidence_policy": "local_only_content_free_distillation_committed"
+}

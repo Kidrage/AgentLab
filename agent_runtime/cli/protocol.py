@@ -20,14 +20,27 @@ def register_protocol_commands(app: typer.Typer, project_root: Path, console: Co
             "--shared-memory-root",
             help="Shared repository-memory root; defaults to AgentLab memory/repositories.",
         ),
-        write: bool = typer.Option(False, "--write", help="Create or refresh root, local, compatible, and shared HandOff copies."),
+        write: bool = typer.Option(
+            False,
+            "--write",
+            help="Create or refresh canonical PROJECT_HANDOFF.md.",
+        ),
+        shared_copy: bool = typer.Option(
+            False,
+            "--shared-copy",
+            help="Also refresh the shared-memory fallback copy.",
+        ),
     ) -> None:
         """Discover or safely refresh repository memory without bulk content reads."""
         from repository_handoff import discover_handoff, scan_repository, update_handoffs
 
         memory_root = (shared_memory_root or (project_root / "memory" / "repositories")).expanduser().resolve()
         if write:
-            result = update_handoffs(repo, memory_root)
+            result = update_handoffs(
+                repo,
+                memory_root,
+                write_shared_copy=shared_copy,
+            )
             result["status"] = "updated"
         else:
             existing = discover_handoff(repo, memory_root)
@@ -152,6 +165,11 @@ def register_protocol_commands(app: typer.Typer, project_root: Path, console: Co
         task_text: str = typer.Option(..., "--task-text", help="User-facing artifact request text."),
         artifact_type: str | None = typer.Option(None, "--artifact-type", help="Override inferred artifact type."),
         output_path: str | None = typer.Option(None, "--output-path", help="Expected artifact output path."),
+        input_path: list[Path] | None = typer.Option(
+            None,
+            "--input",
+            help="Repeatable explicit root-contained file assigned read-only to ArtifactProducer.",
+        ),
         preferred_provider: str | None = typer.Option(
             None,
             "--provider",
@@ -172,6 +190,7 @@ def register_protocol_commands(app: typer.Typer, project_root: Path, console: Co
             project=project,
             task_id=task_id,
             preferred_provider=preferred_provider,
+            assigned_input_paths=input_path,
         )
         if write:
             out = project_root / "projects" / project / "runs" / task_id / "artifact_task.yml"

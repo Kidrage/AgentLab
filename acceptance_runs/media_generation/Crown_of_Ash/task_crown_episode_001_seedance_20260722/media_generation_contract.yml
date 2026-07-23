@@ -1,0 +1,64 @@
+schema_version: 1
+contract_type: media_generation_contract
+project_id: Crown_of_Ash
+task_id: task_crown_episode_001_seedance_20260722
+episode_id: episode_001
+shot_id: episode_001_opening_001
+title: 第一集《灰谷镇的灰》— 开场镜头 001
+modality: video
+routing_status: selected
+executable: true
+selected_backend: hermes_ark_seedance_skill
+task_backend_override: hermes_ark_seedance_skill
+user_authorized_live_generation: true
+artifact_producer_worker: hermes_ark
+generation_model_selection: worker_skill_auto
+registered_fallback_backend: claude_seedance_agent_plan_skill
+global_default_override: false
+temporary_override_scope: this_contract_only
+source_blueprints:
+  - projects/Crown_of_Ash/production/outlines/01_完整故事蓝图.md
+  - projects/Crown_of_Ash/production/outlines/卷纲_第一卷.md
+  - projects/Crown_of_Ash/production/bible/角色圣经.md
+  - projects/Crown_of_Ash/production/bible/世界观圣经.md
+prompt: >-
+  A coherent 10-second cinematic opening shot for a premium dark-fantasy animated
+  series, 16:9. Grey Valley lies beneath a permanently pale ash-grey sky at dusk;
+  countless fine ash particles drift like silent snow and catch a faint ember glow.
+  Begin with a slow descending wide shot over cramped slate roofs and townspeople
+  sweeping ash from their doorsteps. Flow into a warm, smoky blacksmith forge where
+  Kane, a lean young adult apprentice with soot-dark hair, worn leather apron and a
+  guarded but humane expression, strikes glowing iron on an anvil. Each hammer blow
+  sends restrained orange sparks through the cold grey air. Distant iron church bells
+  sound; white-robed church enforcers cross the far square. Beyond them, a solemn
+  gold-white ceremonial flame rises and briefly hides the silhouette of Kane's mentor,
+  non-graphic, no visible injury. End on Kane lowering his hammer and clenching his
+  left fist as a tiny ember-like ash brand glows beneath his sleeve for the first time.
+  Color story: oppressive charcoal grey, muted brown and cold blue, with controlled
+  forge orange and sacred gold-white highlights. Realistic cloth, smoke and ash
+  physics; stable character identity; deliberate camera movement; cinematic depth of
+  field; detailed production lighting. Synchronized sound: dry wind, soft ash hiss,
+  three measured hammer strikes, distant iron bells, low restrained strings, no
+  dialogue. No gore, no visible wounds, no horror close-up, no subtitles, no on-screen
+  text, no logos, no watermark.
+generation_parameters:
+  resolution: 720p
+  ratio: "16:9"
+  duration: 10
+  generate_audio: true
+  watermark: false
+  camera_fixed: false
+  return_last_frame: false
+  service_tier: default
+  seed: 173241
+  open_after_generation: false
+delivery_constraints:
+  aspect_ratio: "16:9"
+  duration_seconds: 10
+  candidate_only: true
+  production_modified: false
+reference_assets: []
+acceptance:
+  independent_review_required: true
+  producer_self_acceptance_forbidden: true
+  promotion_allowed: false

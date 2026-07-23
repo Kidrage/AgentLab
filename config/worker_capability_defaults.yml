@@ -18,6 +18,12 @@ workers:
       - secret_scan
       - artifact_archive
       - git_commit
+      - external_research
+      - web_search
+      - long_context
+      - write_text_artifact
+      - evidence_quality_review
+      - state_ledger
 
   codex:
     supported_capabilities:
@@ -32,6 +38,15 @@ workers:
       - diff_review
       - lint_check
       - secret_scan
+      - long_context
+      - artifact_task_contract
+      - write_artifact_file
+      - validate_artifact_contract
+      - write_text_artifact
+      - create_spreadsheet
+      - create_presentation
+      - evidence_quality_review
+      - state_ledger
 
   aider:
     supported_capabilities:
@@ -51,12 +66,31 @@ workers:
       - diff_review
       - artifact_archive
       - git_commit
+      - external_research
+      - web_search
+      - rag_query
+      - long_context
+      - evidence_quality_review
 
   qwen:
     supported_capabilities:
       - planning
       - task_decomposition
       - budget_reasoning
+      - external_research
+      - web_search
+      - context_assembly
+      - prompt_handoff
+      - long_context
+      - artifact_task_contract
+      - write_artifact_file
+      - validate_artifact_contract
+      - write_text_artifact
+      - create_spreadsheet
+      - create_presentation
+      - produce_mixed_artifacts
+      - evidence_quality_review
+      - state_ledger
 
   gemini:
     supported_capabilities:
@@ -103,17 +137,21 @@ workers:
 
   agy:
     supported_capabilities:
-      - planning
-      - task_decomposition
-      - context_assembly
-      - prompt_handoff
-      - file_edit
-      - patch_generation
-      - shell_execution
-      - test_execution
-      - diff_review
-      - lint_check
-      - read_only_repo_search
+      - multimodal_observation
+      - evidence_quality_review
+      - long_context
+
+  grok:
+    supported_capabilities:
+      - external_research
+      - web_search
+      - rag_query
+      - long_context
+      - artifact_task_contract
+      - write_artifact_file
+      - validate_artifact_contract
+      - generate_image
+      - generate_video
 
   eslint:
     supported_capabilities:

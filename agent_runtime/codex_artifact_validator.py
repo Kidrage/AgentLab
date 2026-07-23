@@ -1,4 +1,4 @@
-"""Codex Full-Driver Mode: Local Artifact Validator (Phase B).
+"""Legacy closure-artifact validator retained for old task runs.
 
 Responsibilities:
 1. Check required files exist.
@@ -90,7 +90,7 @@ def validate_artifacts(
     project_root: Path,
     task_id: str,
 ) -> dict:
-    """Run all artifact validation checks for a Codex Full-Driver task.
+    """Run the legacy numbered-report validation checks for a task.
 
     Args:
         project_root: Path to the project directory (projects/<ProjectName>/).

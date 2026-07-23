@@ -60,6 +60,18 @@ DEFAULT_CANDIDATES = [
         "avoid_for": ["simple_file_edits"],
     },
     {
+        "worker_id": "grok",
+        "display_name": "Grok via Hermes xAI OAuth",
+        "command": "hermes",
+        "category": WorkerCategory.MULTIMODAL_CLOUD_TOOL,
+        "cost_tier": "high",
+        "risk_level": "high",
+        "default_enabled": False,
+        "approval_required": True,
+        "best_for": ["sourced_research", "image_generation", "video_generation"],
+        "avoid_for": ["code_edits", "artifact_review", "audio_generation"],
+    },
+    {
         "worker_id": "qwen",
         "display_name": "Qwen CLI",
         "command": "qwen",

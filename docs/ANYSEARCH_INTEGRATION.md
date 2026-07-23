@@ -16,7 +16,7 @@ the CLI writes planned/skipped evidence instead of calling the network. API keys
 are never written to artifacts or logs.
 
 Evidence artifacts are written under a task run's `artifacts/search/` directory
-or `artifacts/search/` for standalone CLI use:
+or local-only `.agentlab/artifacts/search/` for standalone CLI use:
 
 - `search_ledger.yml`
 - `search_results.json`
@@ -25,4 +25,3 @@ or `artifacts/search/` for standalone CLI use:
 
 Unknown external provider cost is represented as `estimated_cost_usd: null` and
 `token_visibility: unknown`, never as zero.
-

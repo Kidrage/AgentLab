@@ -7,16 +7,25 @@ execute agents or modify source files.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 try:
     from agent_runtime.schemas import AgentRoute
-    from agent_runtime.protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
+    from agent_runtime.protocols.artifact_task import (
+        ARTIFACT_PRODUCER_ROLE,
+        infer_artifact_components,
+        infer_artifact_type,
+    )
     from agent_runtime.routing.route_catalog import RouteCatalog
     from agent_runtime.narrative_intent import classify_narrative_intent
 except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
     from schemas import AgentRoute
-    from protocols.artifact_task import ARTIFACT_PRODUCER_ROLE, infer_artifact_type
+    from protocols.artifact_task import (
+        ARTIFACT_PRODUCER_ROLE,
+        infer_artifact_components,
+        infer_artifact_type,
+    )
     from routing.route_catalog import RouteCatalog
     from narrative_intent import classify_narrative_intent
 
@@ -188,6 +197,145 @@ NON_CODE_PRODUCTION_SYSTEM_HINTS: tuple[str, ...] = (
 )
 
 
+OBSERVATION_ACTION_HINTS: tuple[str, ...] = (
+    "summarize",
+    "summary",
+    "transcript",
+    "transcription",
+    "extract",
+    "ocr",
+    "read",
+    "inspect",
+    "observe",
+    "analyze",
+    "understand",
+    "describe",
+    "transcribe",
+    "总结",
+    "概括",
+    "提取",
+    "识别",
+    "读取",
+    "检查",
+    "观察",
+    "分析",
+    "理解",
+    "描述",
+    "转录",
+)
+
+
+OBSERVATION_SOURCE_HINTS: tuple[str, ...] = (
+    "long text",
+    "this text",
+    "the following text",
+    "attached text",
+    "provided text",
+    "attached image",
+    "this image",
+    "image attachment",
+    "attached picture",
+    "this picture",
+    "attached photo",
+    "this photo",
+    "attached screenshot",
+    "this screenshot",
+    "screenshot.",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gif",
+    "attached video",
+    "this video",
+    "provided video",
+    ".mp4",
+    ".mov",
+    ".mkv",
+    ".webm",
+    "attached audio",
+    "this audio",
+    "provided audio",
+    "audio recording",
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".aac",
+    ".flac",
+    "attached pdf",
+    "this pdf",
+    ".pdf",
+    "attached document",
+    "this document",
+    "provided document",
+    ".docx",
+    "这段长文本",
+    "这篇长文",
+    "以下长文",
+    "以下文本",
+    "附件文本",
+    "这张图片",
+    "这张图",
+    "附件图片",
+    "附件图像",
+    "这张照片",
+    "这张截图",
+    "这段视频",
+    "这个视频",
+    "附件视频",
+    "视频文件",
+    "这段音频",
+    "这个音频",
+    "附件音频",
+    "音频文件",
+    "附件 pdf",
+    "附件pdf",
+    "这个 pdf",
+    "这个pdf",
+    "这份 pdf",
+    "这份pdf",
+    "这份文档",
+    "这个文档",
+    "附件文档",
+)
+
+
+MEDIA_PRODUCTION_ACTION_HINTS: tuple[str, ...] = (
+    "generate",
+    "create",
+    "make",
+    "produce",
+    "render",
+    "生成",
+    "创建",
+    "制作",
+    "渲染",
+)
+
+
+MEDIA_TARGET_HINTS: tuple[str, ...] = (
+    "image",
+    "picture",
+    "photo",
+    "poster",
+    "illustration",
+    "video",
+    "movie",
+    "audio",
+    "voiceover",
+    "media",
+    "图片",
+    "图像",
+    "海报",
+    "插画",
+    "视频",
+    "影片",
+    "音频",
+    "配音",
+    "媒体",
+)
+
+
 def _detect_implementation_intent(text: str) -> bool:
     """Return True if *text* contains strong implementation signals.
 
@@ -241,6 +389,48 @@ def _detect_code_implementation_context(text: str) -> bool:
 def _detect_non_code_production_system_intent(text: str) -> bool:
     lowered = text.lower()
     return any(hint.lower() in lowered for hint in NON_CODE_PRODUCTION_SYSTEM_HINTS)
+
+
+def _detect_observation_intent(text: str) -> bool:
+    """Return whether text asks to inspect an explicit input artifact."""
+    lowered = text.lower()
+    has_action = any(hint.lower() in lowered for hint in OBSERVATION_ACTION_HINTS)
+    has_source = any(hint.lower() in lowered for hint in OBSERVATION_SOURCE_HINTS)
+    # Production verbs can describe a read-only derived report (for example,
+    # "make a transcript of attached audio").  Treat a request as media
+    # production only when the verb directly governs a media target.  This
+    # preserves genuine generation requests such as "create a video" and
+    # "render this image" without letting the source noun override an explicit
+    # summary/OCR/transcription request.
+    production_actions = "|".join(
+        re.escape(hint)
+        for hint in MEDIA_PRODUCTION_ACTION_HINTS
+        if hint.isascii()
+    )
+    media_targets = "|".join(
+        re.escape(hint)
+        for hint in MEDIA_TARGET_HINTS
+        if hint.isascii()
+    )
+    creates_media = bool(
+        re.search(
+            rf"\b(?:{production_actions})\b\s+(?:(?:an?|the|this|that|new)\s+)?(?:{media_targets})\b",
+            lowered,
+        )
+    )
+    if not creates_media:
+        chinese_actions = tuple(
+            hint for hint in MEDIA_PRODUCTION_ACTION_HINTS if not hint.isascii()
+        )
+        chinese_targets = tuple(
+            hint for hint in MEDIA_TARGET_HINTS if not hint.isascii()
+        )
+        creates_media = any(action in lowered for action in chinese_actions) and any(
+            target in lowered for target in chinese_targets
+        )
+    if creates_media:
+        return False
+    return has_action and has_source
 
 
 RESEARCH_HINTS = (
@@ -366,7 +556,12 @@ def recommend_route(
     # so Chinese characters match correctly).
     wants_implementation = _detect_implementation_intent(task_text)
     wants_artifact, artifact_type = _detect_artifact_production_intent(task_text)
+    artifact_components = infer_artifact_components(task_text) if wants_artifact else []
+    media_only_artifact = bool(artifact_components) and set(
+        artifact_components
+    ).issubset({"image", "video"})
     wants_non_code_production_system = _detect_non_code_production_system_intent(task_text)
+    wants_observation = _detect_observation_intent(task_text)
     narrative_intent = classify_narrative_intent(task_text)
     is_creative_writing = narrative_intent.is_narrative
 
@@ -421,6 +616,14 @@ def recommend_route(
             insert_at = agents.index("Coder") + 1 if "Coder" in agents else len(agents)
             agents.insert(insert_at, ARTIFACT_PRODUCER_ROLE)
 
+    elif wants_observation:
+        route_key = "observation_task"
+        task_size = route_catalog.size_for(route_key)
+        agents = route_catalog.agents_for(route_key)
+    elif wants_artifact and media_only_artifact:
+        route_key = "media_generation_task"
+        task_size = route_catalog.size_for(route_key)
+        agents = route_catalog.agents_for(route_key)
     elif wants_artifact or wants_non_code_production_system:
         route_key = "article_light_draft" if _detect_article_light_intent(task_text, artifact_type) else "artifact_production_task"
         task_size = "medium" if artifact_type == "mixed" or looks_medium or wants_non_code_production_system else "small"
@@ -489,6 +692,11 @@ def recommend_route(
             "Implementation intent detected; route includes an implementation "
             "executor for code changes."
         )
+    elif wants_observation:
+        rationale.append(
+            "Explicit source-observation intent detected; Observer inspects the "
+            "assigned input without producing or modifying it."
+        )
     elif wants_artifact or wants_non_code_production_system:
         artifact_label = artifact_type or "production_system"
         rationale.append(
@@ -525,6 +733,7 @@ def recommend_route(
         "Supervisor",
         "RepoScout",
         "Researcher",
+        "Observer",
         "InterfaceMapper",
         "Coder",
         ARTIFACT_PRODUCER_ROLE,

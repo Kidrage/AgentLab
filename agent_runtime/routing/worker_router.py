@@ -8,11 +8,38 @@ from typing import Any
 import yaml
 
 from agent_runtime.routing.role_assignment import RoleAssignmentEngine
+from agent_runtime.routing.route_catalog import RouteCatalog
+from agent_runtime.task_router import recommend_route
 
 
 def _safe_segment(value: str, fallback: str) -> str:
     cleaned = "".join(ch for ch in str(value) if ch.isalnum() or ch in "_-.").strip(".")
     return cleaned or fallback
+
+
+def _packet_roles(packet: dict[str, Any]) -> tuple[list[str], str, str]:
+    explicit_roles = packet.get("roles") or packet.get("role")
+    if explicit_roles:
+        roles = [explicit_roles] if isinstance(explicit_roles, str) else list(explicit_roles)
+        return [str(role) for role in roles], "explicit_roles", "task_packet"
+
+    route_value = packet.get("route")
+    route_key = str(
+        packet.get("route_key")
+        or (route_value.get("route_key") if isinstance(route_value, dict) else "")
+        or ""
+    ).strip()
+    catalog = RouteCatalog.from_config()
+    if route_key:
+        if not catalog.has_configured_route(route_key):
+            raise ValueError(f"Unknown route_key in task packet: {route_key}")
+        return catalog.agents_for(route_key), route_key, "route_catalog"
+
+    objective = str(packet.get("objective") or packet.get("request") or "").strip()
+    if not objective:
+        raise ValueError("Task packet must declare roles, route_key, or objective")
+    route = recommend_route(objective)
+    return list(route.agents), route.route_key, "route_classifier"
 
 
 def route_task_packet(task_packet_path: Path, agentlab_root: Path) -> dict[str, Any]:
@@ -24,9 +51,7 @@ def route_task_packet(task_packet_path: Path, agentlab_root: Path) -> dict[str, 
     project_id = _safe_segment(packet.get("project_id", "AgentLab"), "AgentLab")
     phase_id = _safe_segment(packet.get("phase_id", "unknown"), "unknown")
     task_id = _safe_segment(packet.get("task_id") or packet.get("packet_id") or "ad_hoc_route", "ad_hoc_route")
-    roles = packet.get("roles") or [packet.get("role") or "Coder"]
-    if isinstance(roles, str):
-        roles = [roles]
+    roles, route_key, role_source = _packet_roles(packet)
     constraints = {
         "allowed_files": list(packet.get("allowed_files", []) or []),
         "forbidden_files": list(packet.get("forbidden_files", []) or []),
@@ -38,12 +63,23 @@ def route_task_packet(task_packet_path: Path, agentlab_root: Path) -> dict[str, 
     available = packet.get("available_workers")
     approved = packet.get("approved_workers") or []
     extra_caps = packet.get("required_capabilities") or []
+    artifact_type = packet.get("artifact_type")
+    artifact_task = packet.get("artifact_task")
+    if not artifact_type and isinstance(artifact_task, dict):
+        artifact_type = artifact_task.get("artifact_type")
     engine = RoleAssignmentEngine(Path(agentlab_root))
     out_dir = Path(agentlab_root) / "projects" / project_id / "runs" / task_id / "routing"
     decisions = []
     for role in roles:
         decision = engine.assign(
             role,
+            artifact_type=(
+                str(artifact_type)
+                if str(role).lower().replace("_", "").replace("-", "")
+                == "artifactproducer"
+                and artifact_type
+                else None
+            ),
             project_id=project_id,
             phase_id=phase_id,
             task_id=task_id,
@@ -67,6 +103,8 @@ def route_task_packet(task_packet_path: Path, agentlab_root: Path) -> dict[str, 
             "task_id": task_id,
             "mode": mode,
             "tier": tier,
+            "route_key": route_key,
+            "role_source": role_source,
             "decisions": decisions,
         }
     }

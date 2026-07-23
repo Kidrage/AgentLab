@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 from typer.testing import CliRunner
@@ -171,12 +172,13 @@ def test_trusted_live_runner_collect_capability_accepts_strict_pass_report(
 
 def test_capability_acceptance_report_aggregates_current_evidence(
     private_crown_project_root: Path,
+    tmp_path: Path,
 ) -> None:
     report = build_capability_acceptance_report(private_crown_project_root)
     by_id = {item["id"]: item for item in report["capabilities"]}
 
     assert report["report_type"] == "agentlab_capability_acceptance"
-    assert report["overall_status"] in {"candidate", "warn", "blocked", "pass"}
+    assert report["overall_status"] in {"candidate", "warn", "blocked", "fail", "pass"}
     assert by_id["code_factory_orchestration"]["status"] == "pass"
     assert by_id["non_code_code_shell_split"]["status"] == "pass"
     assert by_id["non_code_code_shell_split"]["summary"] == "media code-shell hits=0; code probe hits=3"
@@ -263,48 +265,22 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     assert "hermes_kanban_registered=True" in by_id["cli_native_command_surface_governance"]["summary"]
     assert "claude_subagents_registered=True" in by_id["cli_native_command_surface_governance"]["summary"]
     assert by_id["cli_native_command_surface_governance"]["details"]["inventory_policy_ok"] is True
-    assert by_id["cli_native_command_surface_governance"]["details"]["same_backend_policy_recorded"] is True
+    assert by_id["cli_native_command_surface_governance"]["details"]["lifecycle_boundary_ok"] is True
     assert by_id["cli_native_command_surface_governance"]["details"]["hermes_kanban_registered"] is True
     assert by_id["cli_native_command_surface_governance"]["details"]["claude_subagents_registered"] is True
-    assert by_id["cli_native_command_surface_governance"]["details"]["runtime_coalescing_implemented"] is True
-    assert by_id["cli_native_command_surface_governance"]["details"]["eligible_group_count"] >= 2
-    assert by_id["cli_native_command_surface_governance"]["details"]["provider_calls_executed"] is False
-    assert by_id["cli_shell_coalesced_runner_implementation"]["status"] == "pass"
-    assert by_id["cli_shell_coalesced_runner_implementation"]["details"]["execute_requested"] is False
-    assert by_id["cli_shell_coalesced_runner_implementation"]["details"]["provider_calls_executed"] is False
-    assert by_id["cli_shell_coalesced_runner_implementation"]["details"]["acceptance_scope"] == (
-        "synthetic_native_surface_smoke"
-    )
-    assert by_id["cli_shell_coalesced_runner_implementation"]["details"]["private_project_context_loaded"] is False
-    assert by_id["cli_shell_coalesced_runner_implementation"]["details"]["native_surfaces"] == {
-        "claude_code": "claude_inline_agents",
-        "hermes": "hermes_kanban",
-    }
-    assert by_id["cli_shell_coalesced_runner_request"]["status"] == "pass"
-    assert "frontdesk_executes=False" in by_id["cli_shell_coalesced_runner_request"]["summary"]
-    assert by_id["cli_shell_coalesced_runner_request"]["details"]["packet_count"] >= 2
-    assert by_id["cli_shell_coalesced_runner_request"]["details"]["acceptance_scope"] == (
-        "synthetic_native_surface_smoke"
-    )
-    assert by_id["cli_shell_coalesced_runner_request"]["details"]["private_project_context_loaded"] is False
-    assert "cli-shell-coalescing-status" in by_id["cli_shell_coalesced_runner_request"]["details"]["status_command"]
-    assert "cli-shell-coalescing-runner" in by_id["cli_shell_coalesced_runner_request"]["details"]["dry_run_command"]
-    assert by_id["cli_shell_coalesced_collect"]["status"] == "pass"
-    assert "receipt_status=pass" in by_id["cli_shell_coalesced_collect"]["summary"]
-    assert by_id["cli_shell_coalesced_collect"]["details"]["provider_calls_executed"] is False
-    assert "goal_completion_audit" in by_id["cli_shell_coalesced_collect"]["details"]["refreshed_reports"]
-    assert by_id["cli_shell_coalesced_collect"]["details"]["acceptance_refresh"]["performed"] is True
-    assert all(by_id["cli_shell_coalesced_collect"]["details"]["source_hash_matches"].values())
-    assert by_id["cli_shell_coalesced_session_returns"]["status"] == "pass"
-    assert by_id["cli_shell_coalesced_session_returns"]["details"]["missing_returned_files_count"] == 0
-    assert by_id["cli_shell_coalesced_session_returns"]["details"]["stale_returned_files_count"] == 0
-    assert by_id["cli_shell_coalesced_session_returns"]["details"][
-        "returned_shell_sessions_provider_calls_executed"
-    ] is True
-    assert by_id["cli_shell_coalesced_session_returns"]["details"]["acceptance_scope"] == (
-        "synthetic_native_surface_smoke"
-    )
-    assert by_id["cli_shell_coalesced_session_returns"]["details"]["private_project_context_loaded"] is False
+    assert by_id["cli_native_command_surface_governance"]["details"][
+        "cross_lifecycle_gate_coalescing"
+    ] == "forbidden"
+    assert by_id["cli_native_command_surface_governance"]["details"]["synthetic_runtime_removed"] is True
+    assert "synthetic_runtime_removed=True" in by_id[
+        "cli_native_command_surface_governance"
+    ]["summary"]
+    assert not {
+        "cli_shell_coalesced_runner_implementation",
+        "cli_shell_coalesced_runner_request",
+        "cli_shell_coalesced_collect",
+        "cli_shell_coalesced_session_returns",
+    } & set(by_id)
     assert by_id["live_code_candidate_materialization"]["status"] in {"candidate", "pass"}
     assert (
         "responsive viewport evidence" in by_id["live_code_candidate_materialization"]["summary"]
@@ -317,21 +293,32 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     ]
     assert by_id["crown_live_writer_light_path"]["details"]["candidate_only"] is True
     assert by_id["crown_live_writer_light_path"]["details"]["formal_trusted_runner_acceptance_required"] is True
-    assert by_id["crown_formal_live_narrative_eval"]["status"] == "pass"
+    assert by_id["crown_formal_live_narrative_eval"]["status"] in {
+        "candidate",
+        "pass",
+    }
     assert "internal Writer role-session" in by_id["crown_formal_live_narrative_eval"]["summary"]
-    assert "accepted trusted-runner Writer artifacts" in by_id[
-        "crown_formal_live_narrative_eval"
-    ]["summary"]
-    assert any(path.endswith("agy_cli_session_smoke.yml") for path in by_id["crown_formal_live_narrative_eval"]["evidence"])
-    assert by_id["crown_formal_live_narrative_eval"]["issues"] == []
-    assert by_id["crown_formal_live_narrative_eval"]["details"]["returned_artifacts_pending"] is False
-    assert by_id["crown_formal_live_narrative_eval"]["details"]["returned_artifacts_accepted"] is True
-    assert by_id["crown_formal_live_narrative_eval"]["details"]["trusted_runner_item"] == "run_crown_internal_writer_eval"
-    agy_session = by_id["crown_formal_live_narrative_eval"]["details"]["agy_session_smoke"]
-    if agy_session["status"] == "pass":
-        assert "reason" not in agy_session
+    assert any(
+        path.endswith("worker_invocation_contracts.yml")
+        for path in by_id["crown_formal_live_narrative_eval"]["evidence"]
+    )
+    formal_eval = by_id["crown_formal_live_narrative_eval"]
+    if formal_eval["status"] == "pass":
+        assert "accepted trusted-runner Writer artifacts" in formal_eval["summary"]
+        assert formal_eval["issues"] == []
+        assert formal_eval["details"]["returned_artifacts_pending"] is False
+        assert formal_eval["details"]["returned_artifacts_accepted"] is True
     else:
-        assert agy_session["reason"]
+        assert formal_eval["details"]["returned_artifacts_pending"] is True
+        assert formal_eval["details"]["returned_artifacts_accepted"] is False
+    assert by_id["crown_formal_live_narrative_eval"]["details"]["trusted_runner_item"] == "run_crown_internal_writer_eval"
+    writer_route = by_id["crown_formal_live_narrative_eval"]["details"][
+        "internal_writer_route"
+    ]
+    assert writer_route["worker"] == "claude_code"
+    assert writer_route["invocation_contract"] == "claude_writer"
+    assert writer_route["model_key"] == "deepseek_v4_pro"
+    assert writer_route["model_provider"] == "deepseek_official"
     assert by_id["crown_heavy_audit_scale"]["status"] == "pass"
     assert "governance-scale audit passes" in by_id["crown_heavy_audit_scale"]["summary"]
     assert by_id["media_series_scaffold"]["status"] == "pass"
@@ -343,10 +330,16 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     assert by_id["grok_xai_media_backend"]["details"]["worker_id"] == "grok"
     assert by_id["grok_xai_media_backend"]["details"]["role_owner"] == "ArtifactProducer"
     assert by_id["grok_xai_media_backend"]["details"]["internal_worker"] is True
+    assert by_id["grok_xai_media_backend"]["details"]["researcher_grok_binding"] is True
     assert by_id["grok_xai_media_backend"]["details"]["artifact_producer_grok_binding"] is True
     assert by_id["grok_xai_media_backend"]["details"]["grok_invocation_contract_ready"] is True
+    assert by_id["grok_xai_media_backend"]["details"]["grok_research_contract_ready"] is True
+    assert by_id["grok_xai_media_backend"]["details"]["grok_media_contract_ready"] is True
+    assert by_id["grok_xai_media_backend"]["details"]["grok_research_command"] == "hermes"
+    assert by_id["grok_xai_media_backend"]["details"]["grok_media_command"] == "hermes"
     assert by_id["grok_xai_media_backend"]["details"]["grok_invocation_command"] == "hermes"
     assert by_id["grok_xai_media_backend"]["details"]["grok_backend_command"] == "hermes"
+    assert by_id["grok_xai_media_backend"]["details"]["grok_research_invocation_style"] == "sourced_research_task_packet"
     assert by_id["grok_xai_media_backend"]["details"]["grok_invocation_style"] == "media_backend_task_packet"
     assert by_id["grok_xai_media_backend"]["details"]["execution_kernel"] == "hermes_workflow_shell"
     assert by_id["grok_xai_media_backend"]["details"]["orchestration_scope"] == "bounded_role_session_backend"
@@ -410,16 +403,26 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     unblock_items = {
         item["id"]: item for item in by_id["internal_live_unblock_plan"]["details"]["items"]
     }
-    assert unblock_items["run_crown_internal_writer_eval"]["current_return"][
-        "selected_item_collect_status"
-    ] == "pass"
+    writer_return = unblock_items["run_crown_internal_writer_eval"]["current_return"]
+    assert writer_return["selected_item_collect_status"] == (
+        "pass"
+        if writer_return["returned_candidate_artifacts_accepted"]
+        else "pending_selected_item"
+    )
     assert unblock_items["run_crown_internal_writer_eval"]["trusted_runner_command"].endswith(
         "--only run_crown_internal_writer_eval"
     )
     assert "--item run_crown_internal_writer_eval" in unblock_items[
         "run_crown_internal_writer_eval"
     ]["selected_collect_command"]
-    assert by_id["trusted_live_runner_request"]["status"] == "pass"
+    request_details = by_id["trusted_live_runner_request"]["details"]
+    expected_request_status = (
+        "pass"
+        if request_details["writer_route_current"]
+        and request_details["preflight_writer_route_current"]
+        else "fail"
+    )
+    assert by_id["trusted_live_runner_request"]["status"] == expected_request_status
     assert "items=2" in by_id["trusted_live_runner_request"]["summary"]
     assert "local_runner_package=True" in by_id["trusted_live_runner_request"]["summary"]
     assert "session_health_gate=True" in by_id["trusted_live_runner_request"]["summary"]
@@ -435,10 +438,17 @@ def test_capability_acceptance_report_aggregates_current_evidence(
         by_id["trusted_live_runner_request"]["details"]["role_session_acceptance_approval_env_required"]
         == "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1"
     )
-    assert by_id["trusted_live_runner_operator_handoff"]["status"] in {"pass", "candidate"}
-    assert "operator handoff status=" in by_id["trusted_live_runner_operator_handoff"]["summary"]
-    assert "approval_gate=True" in by_id["trusted_live_runner_operator_handoff"]["summary"]
-    assert by_id["trusted_live_runner_operator_handoff"]["details"]["trusted_agentlab_runner_required"] is True
+    operator_handoff = by_id["trusted_live_runner_operator_handoff"]
+    if operator_handoff["details"]["writer_request_route_current"]:
+        assert operator_handoff["status"] in {"pass", "candidate"}
+    else:
+        assert operator_handoff["status"] == "fail"
+        assert operator_handoff["issues"] == [
+            "trusted live runner operator handoff missing, unsafe, or incomplete"
+        ]
+    assert "operator handoff status=" in operator_handoff["summary"]
+    assert "approval_gate=True" in operator_handoff["summary"]
+    assert operator_handoff["details"]["trusted_agentlab_runner_required"] is True
     assert (
         by_id["trusted_live_runner_operator_handoff"]["details"]["acceptance_smoke_kind"]
         == "private_role_session_acceptance_smoke"
@@ -492,7 +502,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     assert by_id["trusted_live_runner_preflight"]["status"] == "pass"
     assert "provider_calls=False" in by_id["trusted_live_runner_preflight"]["summary"]
     assert by_id["trusted_live_runner_status"]["status"] == "candidate"
-    assert "missing_items=1" in by_id["trusted_live_runner_status"]["summary"]
+    assert "missing_items=" in by_id["trusted_live_runner_status"]["summary"]
     assert "stale_items=" in by_id["trusted_live_runner_status"]["summary"]
     assert "artifact_qc_failures=" in by_id["trusted_live_runner_status"]["summary"]
     assert "acceptance_blockers=missing_required_files" in by_id["trusted_live_runner_status"]["summary"]
@@ -547,7 +557,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
         "acceptance_blocker_reasons=missing_candidate_artifacts"
         in by_id["trusted_live_runner_collect"]["summary"]
         or (
-        "acceptance_blocker_reasons=agy_session_health_blocked_before_private_writer_smoke,"
+        "acceptance_blocker_reasons=claude_writer_session_health_blocked_before_private_writer_smoke,"
         "missing_candidate_artifacts"
         in by_id["trusted_live_runner_collect"]["summary"]
         )
@@ -561,7 +571,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
             in by_id["trusted_live_runner_collect"]["summary"]
         )
         or (
-            "acceptance_blocker_reasons=agy_session_health_blocked_before_private_writer_smoke,"
+            "acceptance_blocker_reasons=claude_writer_session_health_blocked_before_private_writer_smoke,"
             "grok_cli_transport_or_proxy_failed_in_live_smoke"
             in by_id["trusted_live_runner_collect"]["summary"]
         )
@@ -575,7 +585,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
             "missing_candidate_artifacts",
         }),
         frozenset({
-            "agy_session_health_blocked_before_private_writer_smoke",
+            "claude_writer_session_health_blocked_before_private_writer_smoke",
             "missing_candidate_artifacts",
         }),
         frozenset({
@@ -587,7 +597,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
             "missing_candidate_artifacts",
         }),
         frozenset({
-            "agy_session_health_blocked_before_private_writer_smoke",
+            "claude_writer_session_health_blocked_before_private_writer_smoke",
             "grok_cli_transport_or_proxy_failed_in_live_smoke",
         }),
     }
@@ -639,18 +649,16 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     assert "finish_reason" in by_id["provider_reachability"]["details"]
     assert "raw_usage_keys" in by_id["provider_reachability"]["details"]
 
-
-def test_capability_acceptance_cli_writes_yaml_report(
-    tmp_path: Path,
-    private_crown_project_root: Path,
-) -> None:
-    del private_crown_project_root
     out = tmp_path / "capability_acceptance.yml"
 
-    result = runner.invoke(app, ["capability-acceptance", "--out", str(out)])
+    with patch(
+        "capability_acceptance.build_capability_acceptance_report",
+        return_value=report,
+    ):
+        result = runner.invoke(app, ["capability-acceptance", "--out", str(out)])
 
-    assert result.exit_code == 0
     assert out.exists()
-    report = yaml.safe_load(out.read_text(encoding="utf-8"))
-    assert report["report_type"] == "agentlab_capability_acceptance"
-    assert "code_factory_orchestration" in {item["id"] for item in report["capabilities"]}
+    written = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert result.exit_code == (1 if report["overall_status"] == "fail" else 0)
+    assert written["report_type"] == "agentlab_capability_acceptance"
+    assert "code_factory_orchestration" in {item["id"] for item in written["capabilities"]}

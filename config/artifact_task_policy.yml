@@ -20,7 +20,7 @@ contract:
     - validation_failed
 artifact_types:
   text:
-    output_formats: [markdown, txt, docx]
+    output_formats: [markdown, txt, docx, yaml]
     required_capabilities: [write_text_artifact, write_artifact_file]
   image:
     output_formats: [png, jpg, webp]
@@ -41,52 +41,69 @@ artifact_types:
     output_formats: [directory]
     required_capabilities: [produce_mixed_artifacts, write_artifact_file, validate_artifact_contract]
 providers:
-  codex_high_cli:
-    worker: codex
+  qwen_cli:
+    worker: qwen
     provider_type: cli
+    invocation_contract: qwen_artifact
+    capacity_routes:
+      full: ArtifactProducerQwenMax
+      performance: ArtifactProducerQwen
+      low: ArtifactProducerQwenLow
     priority: 100
     fallback: false
-    handles: [text, image, video, audio, spreadsheet, presentation, mixed]
+    handles: [text, spreadsheet, presentation]
+    output_formats: [markdown, txt, docx, yaml, xlsx, csv, pptx, pdf]
     capabilities:
       - write_text_artifact
-      - generate_image
-      - generate_video
-      - generate_audio
       - create_spreadsheet
       - create_presentation
-      - produce_mixed_artifacts
       - write_artifact_file
       - validate_artifact_contract
-  agy_cli:
-    worker: agy
+  codex_cli:
+    worker: codex
     provider_type: cli
-    priority: 85
+    invocation_contract: codex
+    capacity_routes:
+      full: ArtifactProducerCodex
+      performance: ArtifactProducerCodex
+      low: ArtifactProducerCodex
+    priority: 90
     fallback: false
-    handles: [text, image, spreadsheet, presentation, mixed]
+    handles: [text]
+    output_formats: [markdown, txt, docx, yaml]
     capabilities:
       - write_text_artifact
+      - write_artifact_file
+      - validate_artifact_contract
+  grok_media:
+    worker: grok
+    provider_type: cli
+    invocation_contract: grok_media
+    capacity_routes:
+      full: ArtifactProducer
+      performance: ArtifactProducer
+      low: ArtifactProducer
+    priority: 110
+    fallback: false
+    handles: [image, video]
+    output_formats: [png, jpg, webp, mp4, mov]
+    capabilities:
       - generate_image
-      - create_spreadsheet
-      - create_presentation
-      - produce_mixed_artifacts
+      - generate_video
       - write_artifact_file
       - validate_artifact_contract
   qwen_37max_api:
     worker: qwen
     provider_type: api
+    runtime_activation: explicit_full_api_only
+    allowed_runtime_providers: [qwen3, qwen, qwen-flash]
     priority: 10
     fallback: true
-    handles: [text, image, video, audio, spreadsheet, presentation, mixed]
+    handles: [text]
+    output_formats: [markdown, txt, yaml]
     capabilities:
       - write_text_artifact
-      - generate_image
-      - generate_video
-      - generate_audio
-      - create_spreadsheet
-      - create_presentation
-      - produce_mixed_artifacts
       - write_artifact_file
-      - validate_artifact_contract
 failure_contract:
   capability_mismatch:
     required_fields: [missing_capability, recommended_provider, recommended_role]

@@ -4,8 +4,10 @@ version: 2
 # 分层架构 (Model Tier Architecture) v3.0:
 #
 #   Agent backend 选择由 config/agent_model_profiles.yml 负责。
-#   full_cli 默认大脑层 Supervisor — Hermes Codex OAuth / gpt-5.5-high
-#   full_cli 默认写作与非代码产出 — Agy Gemini OAuth / gemini-3.5-flash-high
+#   full_cli 默认大脑层 Supervisor — Codex CLI OAuth / gpt-5.6-sol xhigh
+#   full_cli Observer — Agy Gemini/Claude OAuth 独立容量池
+#   full_cli Writer — Claude shell / DeepSeek V4
+#   full_cli Researcher/ArtifactProducer — Hermes Grok OAuth（独立合同）
 #   Gemini API key 路径 — gemini-2.5-flash-high，仅显式 fallback，不默认启用
 #   direct API 模式 — 使用本文件 provider defaults 与 model_catalog facts
 #
@@ -26,6 +28,29 @@ defaults:
 
 providers:
 
+  codex-cli:
+    type: oauth_cli
+    display_name: Codex CLI OAuth
+    command: codex
+    default_model: gpt-5.6-sol
+    reasoning_effort: xhigh
+    auth: local_codex_oauth_session
+    billing:
+      source: codex_cli_oauth
+      metering: subscription_or_oauth_quota
+      shared_pool_id: codex_cli_agentic
+    capacity_source: config/model_capacity.yml
+    unavailable_action: capacity_manager
+    requires_user_approval_before_fallback: false
+    blocked_on:
+      - missing_cli
+      - oauth_session_expired
+      - provider_error
+    notes:
+      - Native Codex CLI worker and OAuth session.
+      - Verified local defaults are gpt-5.6-sol with xhigh reasoning.
+      - Do not confuse this provider with Hermes' internal openai-codex provider.
+
   # ── T1 大脑层 Provider ──────────────────────────────────────────────
   deepseek:
     type: openai_compatible
@@ -33,6 +58,7 @@ providers:
     api_key: env:DEEPSEEK_API_KEY
     base_url: env:DEEPSEEK_BASE_URL:https://api.deepseek.com
     default_model: deepseek-v4-pro
+    pricing_key: deepseek-v4-pro
     fallback_provider: qwen3
     unavailable_action: ask_user
     requires_user_approval_before_fallback: true
@@ -53,6 +79,7 @@ providers:
     api_key: env:DASHSCOPE_API_KEY
     base_url: env:DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1
     default_model: qwen3.7-max
+    pricing_key: qwen3.7-max
     fallback_provider: deepseek
     unavailable_action: ask_user
     requires_user_approval_before_fallback: true
@@ -65,7 +92,7 @@ providers:
       - 大脑层备选 (替换 deepseek-v4-pro) + 感知层主力 (RepoScout, InterfaceMapper)。
       - 强推理能力，适合代码结构理解和架构分析。中文+代码理解表现优异。
       - API: DashScope OpenAI-compatible endpoint (兼容模式)。
-      - 定价 (2026-05): $1.25/M输入, $3.75/M输出。
+      - 数值定价唯一来源: config/model_pricing.yml#qwen3.7-max。
       - 大脑层 L2 标准项目若 deepseek-v4-pro 太贵可降级至此。
       - Alias: 原 qwen-max → qwen3.7-max。
 
@@ -76,6 +103,7 @@ providers:
     api_key: env:DASHSCOPE_API_KEY
     base_url: env:DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1
     default_model: qwen3.6-plus
+    pricing_key: qwen3.6-plus
     fallback_provider: qwen3
     unavailable_action: ask_user
     requires_user_approval_before_fallback: true
@@ -85,7 +113,7 @@ providers:
       - rate_limited
       - provider_error
     notes:
-      - 均衡推理能力，性价比之王 ($0.325/M输入, $1.95/M输出)。
+      - 均衡推理能力；数值定价唯一来源: config/model_pricing.yml#qwen3.6-plus。
       - 用于 L2/L3: RepoScout、InterfaceMapper、Researcher、审核层、归档层。
       - 性价比优先 — 常规工作不需要 max 级别的强推理。
       - API: DashScope OpenAI-compatible endpoint (兼容模式)。
@@ -98,6 +126,7 @@ providers:
     api_key: env:DASHSCOPE_API_KEY
     base_url: env:DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1
     default_model: qwen3-coder-next
+    pricing_key: qwen3-coder-next
     fallback_provider: qwen3
     unavailable_action: ask_user
     requires_user_approval_before_fallback: true
@@ -107,7 +136,7 @@ providers:
       - rate_limited
       - provider_error
     notes:
-      - Coder 的 API 主力：代码生成专用模型，价格最低 ($0.11/M输入, $0.80/M输出)。
+      - Coder 的 API 主力；数值定价唯一来源: config/model_pricing.yml#qwen3-coder-next。
       - 优于通用模型做编码工作。所有预算模式下的默认 API Coder。
       - 需要用户显式批准 (execution_policy.yml: qwen_coding_requires_explicit_user_approval)。
       - Alias: 原 qwen-coder-plus → qwen3-coder-next。
@@ -119,6 +148,7 @@ providers:
     api_key: env:DEEPSEEK_API_KEY
     base_url: env:DEEPSEEK_BASE_URL:https://api.deepseek.com
     default_model: deepseek-v4-pro
+    pricing_key: deepseek-v4-pro
     fallback_provider: qwen-coder
     unavailable_action: ask_user
     requires_user_approval_before_fallback: true
@@ -130,7 +160,6 @@ providers:
     notes:
       - 全量运算 (max_quality) 模式下的 Coder 备选，仅用于安全关键/架构重构。
       - 与 deepseek provider 共享同一 API key，但角色不同。
-      - ⚠️ 成本极高 ($1.74/M输入, $3.48/M输出)，仅在 max_quality 模式启用。
 
   # ── 本地 LLM Provider ───────────────────────────────────────────
   qwen-local:
@@ -140,8 +169,8 @@ providers:
     base_url: env:AGENTLAB_LOCAL_BASE_URL:http://localhost:11434/v1
     default_model: env:AGENTLAB_LOCAL_CODER_MODEL:qwen3.6-35b-a3b
     fallback_provider: qwen-coder
-    unavailable_action: fallback_silent
-    requires_user_approval_before_fallback: false
+    unavailable_action: ask_user
+    requires_user_approval_before_fallback: true
     blocked_on:
       - local_llm_not_reachable
     notes:
@@ -157,6 +186,7 @@ providers:
     api_key: env:DASHSCOPE_API_KEY
     base_url: env:DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1
     default_model: qwen3.6-flash
+    pricing_key: qwen3.6-flash
     fallback_provider: qwen
     unavailable_action: ask_user
     requires_user_approval_before_fallback: true
@@ -164,7 +194,7 @@ providers:
       - missing_api_key
       - quota_exceeded
     notes:
-      - 极致低成本闪速模型 ($0.1875/M输入, $1.125/M输出)。
+      - 极致低成本闪速模型；数值定价唯一来源: config/model_pricing.yml#qwen3.6-flash。
       - Frugal 模式下主力: 感知层、审核层、归档层。
       - 不适合复杂推理，仅用于: 搜索汇总、简单验证、压缩记录、轻量代码扫描。
       - Alias: 原 qwen-turbo → qwen3.6-flash。
@@ -200,14 +230,16 @@ providers:
     display_name: Hermes Codex OAuth
     command: hermes
     base_url: https://chatgpt.com/backend-api/codex
-    default_model: gpt-5.5
-    reasoning_effort: high
+    default_model: gpt-5.6-sol
+    reasoning_effort: xhigh
     auth: local_hermes_oauth_session
     billing:
       source: codex_oauth
       metering: subscription_or_oauth_quota
-    unavailable_action: ask_user
-    requires_user_approval_before_fallback: true
+      shared_pool_id: openai_codex_agentic
+    capacity_source: config/model_capacity.yml
+    unavailable_action: capacity_manager
+    requires_user_approval_before_fallback: false
     blocked_on:
       - missing_cli
       - oauth_session_expired
@@ -215,8 +247,60 @@ providers:
     notes:
       - Runtime provider key matches Hermes' registered openai-codex OAuth provider.
       - This is not the Codex CLI worker.
-      - Invoke through Hermes as: hermes --provider openai-codex -m gpt-5.5.
-      - The high setting is agent.reasoning_effort, not part of the model slug.
+      - Invoke through Hermes as: hermes --provider openai-codex -m gpt-5.6-sol.
+      - xhigh is the strongest setting exposed by installed Hermes v0.17.0.
+      - Never use `hermes status --all` as a probe; use `hermes auth status openai-codex`.
+
+  xai-oauth:
+    type: oauth_cli
+    display_name: Hermes xAI OAuth
+    command: hermes
+    default_model: grok-4.3
+    auth: local_hermes_oauth_session
+    billing:
+      source: xai_oauth
+      metering: subscription_or_oauth_quota
+      shared_pool_id: xai_subscription_shared
+    capacity_source: config/model_capacity.yml
+    unavailable_action: capacity_manager
+    requires_user_approval_before_fallback: false
+    blocked_on:
+      - missing_cli
+      - oauth_session_expired
+      - subscription_exhausted
+      - provider_error
+    notes:
+      - Grok Researcher and Grok media generation share this observed capacity pool.
+      - "`hermes auth status xai-oauth` is an auth/cooldown signal, not a weekly remaining percentage."
+      - "Never use `hermes status --all`; its output is not safe for AgentLab logs."
+
+  ark-agent-plan:
+    type: oauth_cli
+    display_name: Volcengine Ark Agent Plan via Hermes + Ark Skills
+    command: hermes
+    worker: hermes_ark
+    invocation_contract: hermes_ark_artifact_producer
+    fallback_worker: claude_ark
+    fallback_invocation_contract: claude_seedance_artifact_fallback
+    default_model: doubao-seedance-2.0
+    auth: local_arkcli_sso_agent_plan_profile
+    billing:
+      source: ark_agent_plan
+      metering: subscription_or_quota
+      plan_tier: personal_medium
+    unavailable_action: stop_and_report
+    requires_user_approval_before_fallback: true
+    blocked_on:
+      - missing_cli
+      - oauth_session_expired
+      - subscription_expired
+      - quota_exhausted
+      - provider_error
+    notes:
+      - Hermes uses the registered Ark skills and active Agent Plan profile; visual-model selection remains inside that workflow.
+      - Claude plus the repository Seedance Skill is fallback-only after a Hermes worker failure.
+      - Seedance media generation is enabled only by an explicit task-scoped backend contract.
+      - Never place the local Ark API key or OAuth tokens in AgentLab receipts.
 
   # ── Agy / Antigravity Gemini OAuth 默认入口 ───────────────────────
   agy-gemini-oauth:
@@ -228,50 +312,56 @@ providers:
     billing:
       source: agy_oauth
       metering: subscription_or_oauth_quota
+      shared_pool_id: agy_gemini_observer
+    capacity_source: config/model_capacity.yml
     network:
       requires_supported_region: true
       recommended_regions:
         - US
       vpn_or_proxy_required_when_region_blocked: true
-    unavailable_action: ask_user
-    requires_user_approval_before_fallback: true
+    unavailable_action: capacity_manager
+    requires_user_approval_before_fallback: false
     blocked_on:
       - missing_cli
       - oauth_session_expired
       - region_blocked
       - provider_error
     notes:
-      - AgentLab 默认 Gemini 路径。Agy 接 Gemini 模型，走本地 OAuth 认证。
+      - AgentLab 默认 Observer 路径。Agy 接 Gemini 模型，走本地 OAuth 认证。
       - 不读取 GEMINI_API_KEY，不按本地 Gemini API key 计费。
       - 默认模型为 gemini-3.5-flash-high。
+      - Agy 不提供 quota/status 命令；remaining/reset 不得推测。
 
-  # ── Agy / Antigravity Claude OAuth 配额轮换入口 ─────────────────
+  # ── Agy / Antigravity Claude OAuth Observer 备用容量池 ─────────
   agy-claude-oauth:
     type: oauth_cli
     display_name: Agy Claude OAuth
     command: agy
-    default_model: claude-sonnet-4-6@default
+    default_model: Claude Sonnet 4.6 (Thinking)
     auth: local_oauth_session
     billing:
       source: agy_oauth
       metering: separate_subscription_quota_window
+      shared_pool_id: agy_claude_observer
+    capacity_source: config/model_capacity.yml
     network:
       requires_supported_region: true
       recommended_regions:
         - US
       vpn_or_proxy_required_when_region_blocked: true
-    never_default: true
-    unavailable_action: stop_and_report
-    requires_user_approval_before_fallback: true
+    never_primary: true
+    unavailable_action: capacity_manager
+    requires_user_approval_before_fallback: false
     blocked_on:
       - missing_cli
       - oauth_session_expired
       - region_blocked
       - provider_error
     notes:
-      - 仅在 Crown_of_Ash 的 Agy Gemini 返回 quota_exhausted 时使用。
-      - 与 Gemini 额度窗口独立；provider surface 仍为同一个 Agy CLI worker。
-      - 不读取 API key；普通 rate limit、认证、网络、命令或输出契约错误不得触发轮换。
+      - 仅在 Agy Gemini Observer 返回 quota_exhausted、rate_limited 或 model_unavailable 时作为预批准独立容量池使用。
+      - 与 Gemini 容量池独立；provider surface 仍为同一个 Agy CLI worker。
+      - 用户说明两池各有五小时与周窗口，但 Agy 无状态 API，reset/remaining 未观测时保持 null。
+      - 认证、网络、命令或输出契约错误不得触发切换；受治理的 rate_limited 属于容量故障。
 
   # ── Gemini API 免费额度备用入口 ──────────────────────────────────
   gemini-api:
@@ -304,16 +394,6 @@ providers:
     notes:
       - 保留作为通用扩展通道。当前默认不启用。
       - API key 仅在 agent_runtime/.env 中。
-
-  # ── 手动执行层 ──────────────────────────────────────────────────────
-  codex_plus_manual:
-    type: manual_codex
-    display_name: Codex Plus (Manual IDE)
-    default_model: Codex Plus
-    notes:
-      - Codex Plus 订阅用户的手动 IDE 执行。
-      - AgentLab 生成 handoff prompt，Codex Plus 在 IDE 中执行 Coder 阶段。
-      - AgentLab 不通过 API 调用 Codex Plus。
 
   external_ide_ai:
     type: external_ide_ai

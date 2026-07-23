@@ -165,7 +165,9 @@ agent_order:
   - Supervisor
   - RepoScout
   - Researcher
+  - Observer
   - InterfaceMapper
+  - PromptEngineer
   - Coder
   - ArtifactProducer
   - Writer
@@ -181,15 +183,33 @@ agent_order:
 
 routes:
 
+  # ── 显式多模态输入观察 ──────────────────────────────
+  observation_task:
+    size: L2
+    description: 显式长文本、附件图片、视频、音频、PDF或文档的只读观察、总结、OCR、转录与提取
+    analysis_only: true
+    agents:
+      - Supervisor
+      - Observer
+
+  # ── 本地确定性工作区扫描 ──────────────────────────────
+  workspace_analysis_task:
+    size: L2
+    description: 本地工作区目录与 Git 元数据扫描，不调用模型、不虚构生产角色
+    analysis_only: true
+    agents:
+      - Supervisor
+      - RepoScout
+
   # ── L3 评估/审计项目 — 分析路线，不做源码实现 ─────────────────────
   evaluation_task:
     size: L3
     description: 系统评估/性能评估/架构审计/对比分析
     analysis_only: true
     agents:
-      - Supervisor       # brain_coordinator → deepseek-v4-pro
-      - RepoScout        # perception_reposcout_l3 → qwen3.7-max
-      - Researcher       # perception_research_l3 → qwen3.6-plus
+      - Supervisor
+      - RepoScout
+      - Researcher
       - InterfaceMapper  # perception_interface_l3 → qwen3.7-max
       - TesterAuditor    # audit_tester_l3 → qwen3.6-plus
       - Verifier         # audit_verifier_l3 → qwen3.6-plus
@@ -200,9 +220,9 @@ routes:
     size: L1
     description: 脚本修改/Bug修复/单文件调整
     agents:
-      - Supervisor    # brain_coordinator_l1 → qwen3.6-plus
-      - Coder          # execution_coder_api → qwen3-coder-next
-      # TesterAuditor 可选，由 Supervisor 决定
+      - Supervisor
+      - Coder
+      - TesterAuditor
 
   artifact_production_task:
     size: L2
@@ -220,9 +240,10 @@ routes:
     agents:
       - Supervisor
       - ArtifactProducer
+      - Observer
+      - Reviewer
       - TesterAuditor
       - Verifier
-      - Archivist
 
   narrative_light_chapter:
     size: L1
@@ -255,8 +276,18 @@ routes:
       - Scribe
       - Verifier
 
+  narrative_rewrite_plan:
+    size: L3
+    description: 阻断级小说审计后的逐章重写规划，只生成候选 chapter_state_plan，不生成正文
+    analysis_only: true
+    agents:
+      - Supervisor
+      - NarrativePlanner
+
   fiction_chapter_pipeline:
     size: L2
+    status: legacy_compatibility
+    default_selectable: false
     description: 兼容旧小说章节全流程路线；新任务默认使用 narrative_light_chapter 或 narrative_heavy_audit
     agents:
       - Supervisor
@@ -271,11 +302,11 @@ routes:
     size: L2
     description: 功能模块开发/跨文件实现
     agents:
-      - Supervisor     # brain_coordinator → deepseek-v4-pro
-      - RepoScout      # perception_reposcout → qwen3.6-plus
-      - Coder          # execution_coder_api → qwen3-coder-next
-      - TesterAuditor  # audit_tester → qwen3.6-flash
-      - Verifier       # audit_verifier → qwen3.6-flash
+      - Supervisor
+      - RepoScout
+      - Coder
+      - TesterAuditor
+      - Verifier
       - Archivist      # archive_archivist → qwen3.6-flash
 
   # ── L2 标准项目 — 接口敏感 ────────────────────────────────────────
@@ -309,13 +340,13 @@ routes:
     size: L3
     description: 架构重构/多模块系统/安全关键 → 全流程所有Agent
     agents:
-      - Supervisor       # brain_coordinator → deepseek-v4-pro
-      - RepoScout        # perception_reposcout_l3 → qwen3.7-max
-      - Researcher       # perception_research_l3 → qwen3.6-plus
-      - InterfaceMapper  # perception_interface_l3 → qwen3.7-max
-      - Coder            # execution_coder_api → qwen3-coder-next
-      - TesterAuditor    # audit_tester_l3 → qwen3.6-plus
-      - Verifier         # audit_verifier_l3 → qwen3.6-plus
+      - Supervisor
+      - RepoScout
+      - Researcher
+      - InterfaceMapper
+      - Coder
+      - TesterAuditor
+      - Verifier
       - Archivist        # archive_archivist_l3 → qwen3.6-plus
 
 # ══════════════════════════════════════════════════════════════════════

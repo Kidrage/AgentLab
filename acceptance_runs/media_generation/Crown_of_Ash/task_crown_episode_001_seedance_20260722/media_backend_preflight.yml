@@ -1,0 +1,60 @@
+schema_version: 1
+status: ready
+executable: true
+backend_id: hermes_ark_seedance_skill
+adapter_state: ready
+adapter_kind: local_hermes_ark_skill
+api_key_configured: false
+modality: video
+backend:
+  display_name: Hermes + Ark Seedance Skills (Explicit Task Override)
+  adapter_kind: local_hermes_ark_skill
+  adapter_state: ready
+  auth_probe: hermes --help
+  command: hermes
+  invocation_contract: hermes_ark_artifact_producer
+  execution_mode: local_cli
+  selection_scope: explicit_task_override_only
+  worker_id: hermes_ark
+  skill_id: arkcli-video-gen
+  skill_path: ~/.hermes/skills/arkcli-video-gen
+  preload_skills: [arkcli-gen, arkcli-video-gen]
+  shell_provider: openai-codex
+  shell_model: gpt-5.6-sol
+  fallback_backend: claude_seedance_agent_plan_skill
+  registered_generation_models:
+    video:
+      - doubao-seedance-2.0
+      - doubao-seedance-2.0-fast
+      - doubao-seedance-1-5-pro-251215
+      - doubao-seedance-1-0-pro-250528
+  models:
+    video: skill_auto
+  approval_required: false
+  final_artifact_allowed: false
+checks:
+  - id: selected_backend_present
+    status: pass
+  - id: backend_config_present
+    status: pass
+  - id: adapter_configured
+    status: pass
+  - id: adapter_kind_supported
+    status: pass
+  - id: backend_modality_supported
+    status: pass
+  - id: generation_model_registered
+    status: pass
+  - id: local_cli_available
+    status: pass
+    command: hermes
+  - id: worker_skill_available
+    status: pass
+    skill_id: arkcli-video-gen
+  - id: explicit_task_backend_override
+    status: pass
+  - id: user_authorized_live_generation
+    status: pass
+  - id: approval_not_required
+    status: pass
+note: Local preflight and unit tests only; no new external generation was invoked by this revision.

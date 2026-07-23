@@ -1,0 +1,45 @@
+packet_type: agentlab_artifact_task
+schema_version: 1
+role: ArtifactProducer
+project: Crown_of_Ash
+task_id: task_crown_episode_001_seedance_20260722
+intent: create
+artifact_type: video
+artifact_components: [video, synchronized_audio]
+required_capabilities: [text_to_video, synchronized_audio, write_artifact_file]
+output:
+  path: acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/artifacts/media_backend/assets/
+  format: mp4
+requirements:
+  - kind: user_request
+    text: Generate the first 10-second opening shot for episode 1 from the canonical Crown of Ash blueprint through the registered Hermes + Ark skill route; the worker must report the actual visual model used.
+  - kind: governance
+    text: Keep the result candidate-only; do not modify production media or the global performance ArtifactProducer route.
+assigned_inputs:
+  - projects/Crown_of_Ash/production/outlines/01_完整故事蓝图.md
+  - projects/Crown_of_Ash/production/outlines/卷纲_第一卷.md
+  - projects/Crown_of_Ash/production/bible/角色圣经.md
+  - projects/Crown_of_Ash/production/bible/世界观圣经.md
+validation:
+  mode: generated_asset_receipts
+  required_receipts:
+    - role_session_receipt.yml
+    - generation_ledger.yml
+    - generation_receipt.yml
+    - generated_assets_manifest.yml
+    - outbound_context_manifest_media.yml
+routing:
+  provider_type: local_cli
+  selected:
+    provider_id: hermes_ark_seedance_skill
+    worker: hermes_ark
+    model: skill_auto
+    fallback: false
+  status: explicit_task_override
+fallback:
+  allowed: true
+  backend: claude_seedance_agent_plan_skill
+  worker: claude_ark
+  activation: hermes_worker_failure_only
+candidate_only: true
+production_modified: false

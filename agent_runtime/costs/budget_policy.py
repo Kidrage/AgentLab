@@ -1,7 +1,6 @@
 import yaml
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Dict, Any
 
 @dataclass
 class BudgetPolicy:
@@ -16,7 +15,7 @@ class BudgetPolicy:
     phase_hard_limit_usd: float = 2.00
     task_soft_limit_usd: float = 0.50
     task_hard_limit_usd: float = 1.00
-    require_approval_above_usd: float = 0.50
+    require_approval_above_usd: float = 0.10
     cheap_model_first: bool = True
     escalate_model_on_failure: bool = True
     max_retries_before_escalation: int = 1

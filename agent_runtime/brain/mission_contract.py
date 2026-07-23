@@ -52,6 +52,9 @@ def build_mission_contract(
         prompt,
         active_longform_project=_is_active_longform_content_project(project_id, root),
     )
+    from agent_runtime.narrative.jobs.identity import compile_narrative_job_identity
+
+    narrative_job_identity = compile_narrative_job_identity(narrative_intent)
     domain_keywords = load_domain_keywords(root / "config" / "mission_compiler_v2.yml")
     domain = _validated_legacy_domain(llm_draft) or classify_domain(prompt, domain_keywords)
     explicit_pack_synthesis = _explicit_pack_synthesis_request(prompt)
@@ -118,6 +121,9 @@ def build_mission_contract(
 
     # Step 9: Build decision cards
     from agent_runtime.brain.decision_card_builder import build_decision_cards
+    from agent_runtime.approvals.approval_policy import load_approval_policy
+
+    approval_policy = load_approval_policy(root)
 
     decision_cards = build_decision_cards(
         project_type=project_type,
@@ -125,6 +131,23 @@ def build_mission_contract(
         non_goal_hits=risks["non_goal_hits"],
         capability_gaps=cap_reqs["gaps"],
         project_types=project_types,
+        approval_policy=approval_policy,
+    )
+    pending_human = sum(
+        card.get("decision_mode") == "human_required" for card in decision_cards
+    )
+    forbidden_decisions = sum(
+        card.get("decision_mode") == "forbidden" for card in decision_cards
+    )
+    auto_approved = sum(
+        card.get("decision_mode") == "auto_approved" for card in decision_cards
+    )
+    approval_mode = (
+        "forbidden"
+        if forbidden_decisions
+        else "human_required"
+        if pending_human
+        else "policy_auto"
     )
 
     # Step 10: Assemble mission contract
@@ -148,6 +171,35 @@ def build_mission_contract(
         task_id=task_id,
         root=root,
     )
+    try:
+        from agent_runtime.protocols.artifact_task import infer_artifact_components
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from protocols.artifact_task import infer_artifact_components
+    artifact_components = infer_artifact_components(prompt)
+    if (
+        len(artifact_components) > 1
+        and not set(artifact_components).issubset({"image", "video"})
+    ):
+        route_decision = {
+            "action": "select_existing_route",
+            "selected_route": "artifact_production_task",
+            "reason": "mixed_artifact_requires_composite_adapter_fail_closed",
+            "artifact_components": artifact_components,
+            "execution_policy": "block_until_one_provider_or_composite_adapter_satisfies_all_components",
+        }
+        media_generation_contract = None
+    elif len(artifact_components) > 1:
+        # A prompt that asks for both an image and a video is one composite
+        # media request. Never collapse it to whichever keyword happened to
+        # win domain classification; the media router must select a true mixed
+        # backend or fail closed before generation.
+        media_generation_contract = _media_generation_contract(
+            prompt=prompt,
+            mission_domain="multimodal_asset_generation",
+            project_id=project_id,
+            task_id=task_id,
+            root=root,
+        )
 
     contract: dict[str, Any] = {
         "schema_version": 2,
@@ -165,6 +217,7 @@ def build_mission_contract(
         "task_type": domain,
         "task_domain": mission_domain,
         "artifact_type": artifact_type,
+        "artifact_components": artifact_components,
         "project_type": project_type,
         "is_long_project": is_long,
         "estimated_scale": scale,
@@ -180,16 +233,26 @@ def build_mission_contract(
         "risk_flags": risks["risk_flags"],
         "external_executor_needed": bool(typedef.get("external_executor_recommended", False)),
         "asset_registry_recommended": bool(typedef.get("asset_registry_recommended", False)),
-        "human_approval_required": True,
+        "human_approval_required": pending_human > 0,
+        "approval_mode": approval_mode,
+        "approval_summary": {
+            "policy_id": approval_policy.policy_id,
+            "default_mode": approval_policy.default_mode,
+            "auto_approved": auto_approved,
+            "pending_human": pending_human,
+            "forbidden": forbidden_decisions,
+        },
+        "approval_decisions": decision_cards,
         "decision_cards": [card.get("decision_id", "") for card in decision_cards],
         "memory_contract": _memory_contract(domain_pack),
         "quality_gates": _quality_gates(domain_pack),
         "route_decision": route_decision,
-        "route_proposal": route_decision.get("route_proposal", {}),
         "compiler_source": "llm_assisted" if llm_draft else "rule_based",
     }
     if media_generation_contract:
         contract["media_generation_contract"] = media_generation_contract
+    if narrative_job_identity:
+        contract["narrative_job_identity"] = narrative_job_identity.to_dict()
     return contract
 
 
@@ -359,9 +422,8 @@ def _try_compile_llm_mission_draft(
             configs = load_agentlab_configs(root)
             settings = resolve_llm_settings(
                 agent_name="Supervisor",
-                agent_registry=configs.get("agent_registry", {}).get("agents", {}),
                 model_providers=configs.get("model_providers", {}),
-                model_profiles=configs.get("model_profiles", {}),
+                agent_model_profiles=configs.get("agent_model_profiles", {}),
                 model_catalog=configs.get("model_catalog", {}),
             )
             if not settings.api_key_configured:
@@ -382,7 +444,6 @@ def _mission_draft_messages(prompt: str) -> list[dict[str, str]]:
         "artifact_type": "longform_text|code_patch|cited_report|video_plan|media_generation_contract|audio_experiment_report|business_document|operational_runbook|unknown",
         "quality_gates": ["string"],
         "memory_contract": ["string"],
-        "route_proposal": {"route_key": "string", "agents": ["string"]},
     }
     return [
         {
@@ -390,7 +451,7 @@ def _mission_draft_messages(prompt: str) -> list[dict[str, str]]:
             "content": (
                 "You are Hermes mission intake. Return only compact JSON. "
                 "Classify the user's requested work into the provided schema. "
-                "Do not invent executable route keys beyond a route_proposal."
+                "Route selection and agent assignment are handled by local configuration."
             ),
         },
         {
@@ -425,11 +486,6 @@ def _validate_llm_mission_draft(data: dict[str, Any]) -> dict[str, Any] | None:
     for key in ("quality_gates", "memory_contract"):
         if isinstance(data.get(key), list) and all(isinstance(item, str) for item in data[key]):
             draft[key] = data[key]
-    route = data.get("route_proposal")
-    if isinstance(route, dict):
-        agents = route.get("agents", [])
-        if isinstance(route.get("route_key"), str) and isinstance(agents, list) and all(isinstance(a, str) for a in agents):
-            draft["route_proposal"] = {"route_key": route["route_key"], "agents": agents}
     return draft
 
 
@@ -521,35 +577,19 @@ def _quality_gates(domain_pack: dict[str, Any]) -> list[str]:
     return [str(item) for item in values] if isinstance(values, list) else []
 
 
-def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any], root: Path) -> tuple[str, str, dict[str, Any]]:
+def _creative_route_key_for_prompt(prompt: str, domain_pack: dict[str, Any]) -> tuple[str, str]:
     from agent_runtime.narrative_intent import classify_narrative_intent
 
     intent = classify_narrative_intent(prompt, active_longform_project=True)
+    if intent.kind == "rewrite":
+        return str(domain_pack.get("rewrite_route") or "narrative_rewrite_plan"), intent.reason
     if intent.kind == "audit":
-        return (
-            str(domain_pack.get("audit_route") or "narrative_heavy_audit"),
-            intent.reason,
-            domain_pack.get("audit_route_proposal") or {
-                "route_key": "narrative_heavy_audit",
-                "agents": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
-            },
-        )
+        return str(domain_pack.get("audit_route") or "narrative_heavy_audit"), intent.reason
     if intent.kind == "chapter_batch":
-        return (
-            str(domain_pack.get("batch_route") or "narrative_batch_chapters"),
-            intent.reason,
-            domain_pack.get("batch_route_proposal") or {
-                "route_key": "narrative_batch_chapters",
-                "agents": ["Supervisor", "Writer"],
-            },
-        )
+        return str(domain_pack.get("batch_route") or "narrative_batch_chapters"), intent.reason
     return (
         str(domain_pack.get("recommended_route") or "narrative_light_chapter"),
         intent.reason if intent.kind == "chapter" else "creative_writing_light_chapter_default",
-        domain_pack.get("route_proposal") or {
-            "route_key": "narrative_light_chapter",
-            "agents": ["Supervisor", "Writer"],
-        },
     )
 
 
@@ -559,6 +599,33 @@ def _build_route_decision(
     domain_pack: dict[str, Any],
     root: Path,
 ) -> dict[str, Any]:
+    # Explicit inspection of an assigned source is a read-only perception task,
+    # even when the source suffix would otherwise resemble an audio, video, or
+    # image production domain. Reuse the task router so implementation and
+    # generation intent still keep their higher-priority routes.
+    try:
+        from agent_runtime.config_loader import load_yaml
+        from agent_runtime.task_router import recommend_route
+
+        routing_config = load_yaml(root / "config" / "routing_rules.yml")
+        observation_route = recommend_route(
+            prompt,
+            routing_config if isinstance(routing_config, dict) else None,
+        )
+        if (
+            observation_route.route_key == "observation_task"
+            and _route_exists(root, "observation_task")
+        ):
+            return {
+                "action": "select_existing_route",
+                "selected_route": "observation_task",
+                "reason": "explicit_assigned_source_observation",
+            }
+    except Exception:
+        # Mission compilation remains available with its domain-pack fallback
+        # if the lightweight task router/config cannot be loaded.
+        pass
+
     route_key = str(domain_pack.get("recommended_route") or "")
     if mission_domain != "creative_writing":
         decision = {
@@ -567,17 +634,16 @@ def _build_route_decision(
             "reason": "domain_pack_recommendation" if route_key else "no_domain_route_available",
         }
         if route_key == "media_generation_task":
-            decision["route_proposal"] = domain_pack.get("route_proposal", {})
             decision["reason"] = "media_generation_requires_backend_contract_and_harness"
         return decision
 
-    selected_route, reason, proposal = _creative_route_key_for_prompt(prompt, domain_pack, root)
+    selected_route, reason = _creative_route_key_for_prompt(prompt, domain_pack)
+    proposal = {"route_key": selected_route}
     if selected_route and _route_exists(root, selected_route):
         return {
             "action": "select_existing_route",
             "selected_route": selected_route,
             "forbidden_routes": domain_pack.get("forbidden_fallback_routes", []),
-            "route_proposal": proposal,
             "reason": reason,
         }
     return {

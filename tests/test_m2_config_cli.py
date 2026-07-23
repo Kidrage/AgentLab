@@ -10,8 +10,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON = sys.executable
 RUN_TASK = str(ROOT / "agent_runtime" / "run_task.py")
@@ -30,42 +28,30 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
 # ── config-list ──────────────────────────────────────────────────────────
 
 
-def test_config_list_exits_zero() -> None:
-    result = _run("config-list")
+def test_config_list_contract() -> None:
+    result = _run("config-list", "--limit", "100")
     assert result.returncode == 0, f"stderr: {result.stderr}"
-
-
-def test_config_list_contains_expected_columns() -> None:
-    result = _run("config-list")
     output = result.stdout
     assert "Key" in output
     assert "Value" in output
     assert "Source Layer" in output
     assert "Overridden" in output
-
-
-def test_config_list_shows_keys_with_source_layer() -> None:
-    result = _run("config-list")
-    assert "global_defaults" in result.stdout
+    assert "global_defaults" in output
 
 
 def test_config_list_with_project_flag() -> None:
-    result = _run("config-list", "--project", "AgentLab")
+    result = _run("config-list", "--project", "AgentLab", "--limit", "100")
     assert result.returncode == 0
 
 
 # ── config-get ───────────────────────────────────────────────────────────
 
 
-def test_config_get_existing_key() -> None:
+def test_config_get_contract() -> None:
     result = _run("config-get", "--key", "routing_policy.default_budget")
     assert result.returncode == 0, f"stderr: {result.stderr}"
     assert "routing_policy.default_budget" in result.stdout
     assert "balanced" in result.stdout
-
-
-def test_config_get_shows_layer_metadata() -> None:
-    result = _run("config-get", "--key", "routing_policy.default_budget")
     assert "Layer:" in result.stdout
     assert "Overridden:" in result.stdout
     assert "Is Secret:" in result.stdout
@@ -84,14 +70,10 @@ def test_config_get_with_project_flag() -> None:
 # ── config-diff ──────────────────────────────────────────────────────────
 
 
-def test_config_diff_exits_zero_for_valid_project() -> None:
+def test_config_diff_contract() -> None:
     # AgentLab is a real project with project_config.yml
     result = _run("config-diff", "--project", "AgentLab")
     assert result.returncode == 0, f"stderr: {result.stderr}"
-
-
-def test_config_diff_shows_comparison_labels() -> None:
-    result = _run("config-diff", "--project", "AgentLab")
     output = result.stdout
     assert "Config Diff" in output
     assert "base" in output.lower()
@@ -123,7 +105,7 @@ def test_config_validate_with_project() -> None:
 # ── config-profiles ──────────────────────────────────────────────────────
 
 
-def test_config_profiles_lists_all_four() -> None:
+def test_config_profiles_contract() -> None:
     result = _run("config-profiles")
     assert result.returncode == 0
     output = result.stdout
@@ -131,12 +113,8 @@ def test_config_profiles_lists_all_four() -> None:
     assert "prod" in output
     assert "frugal" in output
     assert "max_quality" in output
-
-
-def test_config_profiles_shows_descriptions() -> None:
-    result = _run("config-profiles")
-    assert "Development profile" in result.stdout
-    assert "Production profile" in result.stdout
+    assert "Development profile" in output
+    assert "Production profile" in output
 
 
 # ── Help text ────────────────────────────────────────────────────────────

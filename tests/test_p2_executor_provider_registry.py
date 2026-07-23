@@ -14,7 +14,8 @@ POLICY = Path("config/executor_router.yml")
 def test_load_executor_router_policy():
     policy = load_executor_router_policy(POLICY)
     assert policy.enabled is True
-    assert policy.default_mode == "dry_run"
+    assert policy.default_mode == "policy_auto"
+    assert policy.approval_policy.default_mode == "auto"
     assert policy.providers
 
 

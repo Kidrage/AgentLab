@@ -1,10 +1,9 @@
-"""Codex Full-Driver Mode: API Continuation Module (Phase D).
+"""Compatibility helpers for continuing AgentLab from a handoff packet.
 
 Responsibilities:
 1. Read handoff_packet.yml.
-2. Reconstruct context package.
-3. Run next API agent.
-4. Append reports without destroying Codex artifacts.
+2. Reconstruct a bounded context package.
+3. Describe the next AgentLab role assignment.
 
 CLI:
     ./agentlab.sh continue-with-api --project <ProjectName> --task-id <task_id> --from handoff_packet.yml
@@ -49,8 +48,8 @@ def reconstruct_context_package(
 ) -> dict:
     """Rebuild a context package from all available artifacts.
 
-    The context package includes all prior role reports so API agents can
-    continue without needing to read the original Codex conversation.
+    The context package includes declared prior role reports so the next
+    assigned worker can continue without relying on chat history.
 
     Args:
         project_root: Path to the project directory.
@@ -110,10 +109,10 @@ def continue_with_api(
     provider: str = "deepseek",
     dry_run: bool = True,
 ) -> dict:
-    """Continue a Codex Full-Driver task using API agents.
+    """Prepare continuation of an AgentLab task from durable handoff state.
 
-    This is the main entry point for resuming a task with AgentLab API agents
-    after Codex stopped or completed its part.
+    This compatibility entry point reconstructs context and returns an AgentLab
+    execution plan. It does not transfer route authority to the prior worker.
 
     Args:
         project_root: Path to the project directory.

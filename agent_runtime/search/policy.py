@@ -60,4 +60,4 @@ def search_artifact_dir(
         return output_dir
     if task_id:
         return root / "projects" / project / "runs" / task_id / "artifacts" / "search"
-    return root / "artifacts" / "search"
+    return root / ".agentlab" / "artifacts" / "search"

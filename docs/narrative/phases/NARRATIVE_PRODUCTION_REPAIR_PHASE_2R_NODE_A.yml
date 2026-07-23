@@ -1,0 +1,118 @@
+schema_version: 1
+task_id: task_narrative_repair_v2_phase2r_node_a_context
+project_id: AgentLab
+project_type: codebase_build_project
+phase_id: phase_2r_node_a_context
+priority: highest
+status: ready
+implementation_owner: Coder
+worker: claude_code
+required_model_key: deepseek_v4_pro
+supervisor: Codex
+
+objective: >-
+  Add the narrow production ContextCompiler seam that assembles one immutable,
+  hash-bound shared narrative context and role-specific slices without loading
+  irrelevant chapters. Preserve the accepted Phase 1R Writer contract.
+
+must_read:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/NARRATIVE_PRODUCTION_REPAIR_PLAN_V2.md
+  - docs/narrative/NARRATIVE_PRODUCTION_REPAIR_EXECUTION.yml
+  - acceptance_runs/worker_chain/coder_deepseek_preflight_20260720.yml
+  - agent_runtime/narrative/efficiency/context_bundle.py
+  - agent_runtime/narrative/production/brief_compiler.py
+  - agent_runtime/narrative/production/chapter_engine.py
+  - tests/test_narrative_efficiency.py
+
+allowed_files:
+  - agent_runtime/narrative/production/context_compiler.py
+  - agent_runtime/narrative/production/__init__.py
+  - agent_runtime/narrative/efficiency/context_bundle.py
+  - tests/test_narrative_efficiency.py
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/**
+  - docs/narrative/NARRATIVE_PHASE2R_NODE_A_ACCEPTANCE.md
+  - PROJECT_HANDOFF.md
+
+forbidden_files:
+  - agent_runtime/run_task.py
+  - agent_runtime/pipeline_runner.py
+  - agent_runtime/workflow_plan.py
+  - agent_runtime/operator_os/**
+  - agent_runtime/background_jobs/**
+  - agent_runtime/narrative_delivery.py
+  - agent_runtime/narrative_eval.py
+  - agent_runtime/writer_output_materializer.py
+  - agent_runtime/narrative/quality/**
+  - agent_runtime/narrative/candidates/**
+  - config/**
+  - projects/Crown_of_Ash/**
+  - projects/NovelGen/**
+  - release_objects/**
+  - agent_templates/**
+
+required_public_behavior:
+  - current_creative_brief_is_required
+  - canon_snapshot_is_required_and_hash_bound
+  - immediate_predecessor_prose_is_required_when_chapter_id_is_greater_than_one
+  - necessary_hard_state_is_required
+  - optional_voice_memory_life_debt_pattern_and_reader_question_inputs_are_selected_by_explicit_relevance_only
+  - unrelated_chapter_prose_is_not_loaded
+  - shared_context_manifest_is_built_once_and_reused_by_hash
+  - each_role_gets_the_same_shared_bundle_id_plus_only_its_private_slice
+  - every_loaded_file_records_relative_path_bytes_and_sha256
+  - duplicate_context_ratio_and_loaded_file_counts_are_reportable
+  - advisory_pattern_signals_cannot_set_literary_pass_or_promotion
+
+required_tests:
+  - use_existing_tests_test_narrative_efficiency_py_only
+  - failing_missing_required_input_cases
+  - predecessor_boundary_for_chapter_one
+  - unrelated_chapter_exclusion
+  - shared_builder_spy_exactly_once
+  - role_private_slice_isolation
+  - deterministic_bundle_reuse
+  - metric_receipt_values_derive_from_loaded_records
+
+node_limits:
+  provider_calls: 0
+  production_writes: 0
+  central_module_net_additions: 0
+  automatic_retry_count: 0
+  do_not_implement_later_phase_nodes: true
+  checkpoint_before_executor_deadline: true
+
+acceptance_policy:
+  coder_self_acceptance: false
+  candidate_only: true
+  phase_2r_not_complete_after_this_node: true
+  do_not_claim_25_percent_context_reduction_without_frozen_before_after_measurement: true
+  do_not_claim_literary_uplift: true
+  strict_yaml_receipts_required: true
+
+required_outputs:
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/test_results.yml
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/change_scope.yml
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/metrics.yml
+  - acceptance_runs/narrative_repair_v2/phase_2r/node_a/rollback.md
+  - docs/narrative/NARRATIVE_PHASE2R_NODE_A_ACCEPTANCE.md
+  - PROJECT_HANDOFF.md
+
+commands_allowed:
+  - rg
+  - git diff --check
+  - git diff --numstat
+  - python -m compileall
+  - PYTHONPATH=.:agent_runtime python -m pytest -q tests/test_narrative_efficiency.py
+
+commands_forbidden:
+  - git push
+  - git reset --hard
+  - git clean
+  - provider prose generation
+  - production promotion
+
+progress_contract:
+  - append_in_progress_handoff_row_before_code_edits
+  - append_completed_or_blocked_handoff_row_after_validation
+  - report_actual_cli_model_key_task_packet_bytes_input_cache_output_tokens_and_duration

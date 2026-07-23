@@ -1,0 +1,70 @@
+schema_version: 2
+enabled: true
+
+identity:
+  rule: one_business_goal_one_task
+  task_contains:
+    - jobs
+    - work_items
+    - attempts
+    - artifact_versions
+    - evidence_bindings
+  mapping:
+    alternative_execution_strategy: job
+    chapter_or_review_unit: work_item
+    retry_or_fallback_call: attempt
+    immutable_output_revision: artifact_version
+  duplicate_goal_policy: block
+  duplicate_goal_override_requires:
+    - independent_acceptance_boundary
+    - independent_boundary_reason
+
+authority:
+  event_ledger: projects/<project>/runtime/tasks/<task_id>/events.jsonl
+  schema: task-runtime-event/v2
+  mode: append_only_hash_chain
+  projections_are_disposable: true
+  projection_root: projects/<project>/runtime/tasks/<task_id>/projections
+  idempotency_required: true
+  active_attempts_per_work_item: 1
+
+compatibility:
+  phase: staged_cutover
+  read_mode:
+    - task_runtime_v2
+    - legacy_runs_read_only
+  v2_command_write_mode: task_runtime_v2_only
+  legacy_entrypoints: maintenance_only_until_migrated
+  post_cutover_write_mode: task_runtime_v2_only
+  migration:
+    requires_preview_hash: true
+    modifies_legacy_sources: false
+    command: runtime-v2 migrate-legacy
+
+knowledge:
+  scope: project
+  indexed_runtime_surface:
+    - runtime/knowledge/selected_artifacts.yml
+  excluded_runtime_surfaces:
+    - runtime/tasks/*/events.jsonl
+    - runtime/tasks/*/attempt_logs/**
+    - runtime/tasks/*/artifacts/**
+    - runtime/tasks/*/projections/attempts.yml
+  chunking: stable_source_hash
+  per_task_database: false
+
+retention:
+  event_ledgers: permanent
+  evidence_bindings: permanent
+  artifact_hashes: permanent
+  execution_receipts: permanent
+  raw_attempt_logs:
+    compress_after_days: 7
+    delete_after_days: null
+    apply_requires_preview_hash: true
+
+worker_routing:
+  visual_generation:
+    primary_contract: hermes_ark_artifact_producer
+    fallback_contract: claude_seedance_artifact_fallback
+    fallback_is_explicit_and_receipted: true

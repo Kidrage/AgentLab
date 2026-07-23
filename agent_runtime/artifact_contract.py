@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import re
+import zipfile
 
 import yaml
 
@@ -90,9 +91,11 @@ REQUIRED_ARTIFACTS_BY_ROUTE = {
     "supervisor": ["01_supervisor_plan.md"],
     "reposcout": ["02_reposcout_report.md"],
     "researcher": ["03_research_notes.md"],
+    "observer": ["observation_report.yml"],
     "interface_mapper": ["04_interface_map.md"],
     "coder": ["06_implementation_report.md"],
     "artifact_producer": ["artifact_producer_report.md"],
+    "narrative_planner": ["chapter_state_plan.yml"],
     "tester_auditor": ["07_validation_report.md", "08_audit_report.md"],
     "verifier": ["verification_report.md"],
     "archivist": [
@@ -115,12 +118,16 @@ COMMON_ARTIFACTS = [
 NODE_ARTIFACTS = {
     "REPO_CONTEXT": ["02_reposcout_report.md"],
     "RESEARCH_OPTIONAL": ["03_research_notes.md"],
+    "OBSERVATION_OPTIONAL": ["observation_report.yml"],
     "INTERFACE_OPTIONAL": ["04_interface_map.md"],
+    "NARRATIVE_REWRITE_PLAN": ["chapter_state_plan.yml"],
     "WRITER_DRAFT": ["fiction_draft.md"],
     "FICTION_REVIEW": ["fiction_review.yml"],
     "SCRIBE_LEDGER": ["continuity_ledger.yml"],
     "CODER_IMPLEMENTATION": ["06_implementation_report.md"],
     "ARTIFACT_PRODUCTION": ["artifact_producer_report.md"],
+    "VISUAL_OBSERVATION": ["visual_observation_report.yml"],
+    "VISUAL_REVIEW": ["visual_review_report.yml", "media_qc_report.yml"],
     "VALIDATION": ["07_validation_report.md"],
     "AUDIT": ["08_audit_report.md"],
     "VERIFY": ["verification_report.md"],
@@ -178,7 +185,6 @@ def validate_artifacts(run_dir: Path) -> dict:
         "lifecycle.yml",
         "self_check_report.yml",
         "task_card.yml",
-        "artifact_manifest.yml",
     ]
     all_artifact_names = list(dict.fromkeys(all_artifact_names))
 
@@ -191,6 +197,21 @@ def validate_artifacts(run_dir: Path) -> dict:
                 artifacts_passed += 1
                 continue
             issues.append({"file": fname, "issue": "missing"})
+            continue
+
+        if path.is_dir():
+            if any(child.is_file() for child in path.rglob("*")):
+                artifacts_passed += 1
+            else:
+                issues.append({"file": fname, "issue": "empty directory"})
+            continue
+
+        binary_issue = _binary_artifact_format_issue(path)
+        if binary_issue:
+            issues.append({"file": fname, "issue": binary_issue})
+            continue
+        if path.suffix.lower() in {".xlsx", ".docx", ".pptx", ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov"}:
+            artifacts_passed += 1
             continue
 
         # Read and check content
@@ -454,6 +475,13 @@ def _production_pack_placeholder_issue(
     if not isinstance(data, dict):
         return None
 
+    if (
+        fname == "visual_acceptance_candidate.yml"
+        and data.get("status") == "not_required"
+        and data.get("candidates") == []
+    ):
+        return None
+
     if _has_meaningful_pack_payload(data):
         return None
     return "production-pack candidate artifact has no meaningful payload beyond metadata"
@@ -489,6 +517,7 @@ def required_artifacts_for_route(route: list[str]) -> list[str]:
         "Supervisor": "supervisor",
         "RepoScout": "reposcout",
         "Researcher": "researcher",
+        "Observer": "observer",
         "InterfaceMapper": "interface_mapper",
         "Coder": "coder",
         "ArtifactProducer": "artifact_producer",
@@ -538,8 +567,173 @@ def _required_artifacts_for_run(run_dir: Path, route: list[str], workflow_plan: 
         required = [name for name in required if name != "verification_report.md"]
     required.extend(_route_required_outputs(workflow_plan))
     required.extend(_production_pack_required_outputs(workflow_plan, run_dir))
+    required.extend(_artifact_task_required_outputs(run_dir))
     skipped_files = _skipped_lifecycle_artifacts(run_dir)
     return [name for name in required if name not in skipped_files]
+
+
+def _artifact_task_required_outputs(run_dir: Path) -> list[str]:
+    contract_path = run_dir / "artifact_task.yml"
+    try:
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return []
+    validation = contract.get("validation") if isinstance(contract, dict) else {}
+    raw_paths = (
+        validation.get("required_paths")
+        if isinstance(validation, dict)
+        else []
+    )
+    if not isinstance(raw_paths, list):
+        return []
+    names: list[str] = []
+    for raw in raw_paths:
+        path = Path(str(raw))
+        if path.is_absolute() or ".." in path.parts:
+            continue
+        project_run_prefix = (
+            "projects",
+            run_dir.parent.parent.name,
+            "runs",
+            run_dir.name,
+        )
+        if path.parts[:4] == project_run_prefix:
+            path = Path(*path.parts[4:])
+        elif path.parts[:2] == ("runs", run_dir.name):
+            path = Path(*path.parts[2:])
+        elif path.parts[:1] == ("runs",):
+            continue
+        normalized = _normalize_run_artifact_name(path.as_posix())
+        if normalized:
+            names.append(normalized)
+    return list(dict.fromkeys(names))
+
+
+def _binary_artifact_format_issue(path: Path) -> str | None:
+    suffix = path.suffix.lower()
+    if suffix not in {
+        ".xlsx", ".docx", ".pptx", ".pdf", ".png", ".jpg", ".jpeg",
+        ".webp", ".mp4", ".mov",
+    }:
+        return None
+    if path.stat().st_size <= 0:
+        return "empty binary artifact"
+    if suffix in {".xlsx", ".docx", ".pptx"}:
+        if not zipfile.is_zipfile(path):
+            return "invalid Office package"
+        required_entry = {
+            ".xlsx": "xl/workbook.xml",
+            ".docx": "word/document.xml",
+            ".pptx": "ppt/presentation.xml",
+        }[suffix]
+        try:
+            with zipfile.ZipFile(path) as package:
+                names = set(package.namelist())
+        except (OSError, zipfile.BadZipFile):
+            return "invalid Office package"
+        if "[Content_Types].xml" not in names or required_entry not in names:
+            return f"invalid Office package: missing {required_entry}"
+        return None
+    with path.open("rb") as stream:
+        header = stream.read(12)
+    if suffix == ".pdf" and header[:5] != b"%PDF-":
+        return "invalid PDF signature"
+    if suffix == ".png" and header[:8] != b"\x89PNG\r\n\x1a\n":
+        return "invalid PNG signature"
+    if suffix in {".jpg", ".jpeg"} and header[:3] != b"\xff\xd8\xff":
+        return "invalid JPEG signature"
+    if suffix == ".webp" and (header[:4] != b"RIFF" or header[8:12] != b"WEBP"):
+        return "invalid WebP signature"
+    if suffix in {".mp4", ".mov"} and header[4:8] != b"ftyp":
+        return "invalid ISO media signature"
+    return None
+
+
+def validate_artifact_task_outputs(
+    run_dir: Path,
+    *,
+    deferred_paths: set[str] | None = None,
+) -> list[dict[str, str]]:
+    """Validate exact ArtifactTask outputs before a role result can complete."""
+
+    deferred = deferred_paths or set()
+    issues: list[dict[str, str]] = []
+    contract_path = run_dir / "artifact_task.yml"
+    try:
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        contract = {}
+    validation = contract.get("validation") if isinstance(contract, dict) else {}
+    semantic_validator = (
+        validation.get("semantic_validator")
+        if isinstance(validation, dict)
+        else None
+    )
+    for name in _artifact_task_required_outputs(run_dir):
+        if name in deferred or Path(name).name in deferred:
+            continue
+        path = run_dir / name
+        if not path.exists():
+            issues.append({"file": name, "issue": "missing"})
+            continue
+        if path.is_dir():
+            if not any(child.is_file() for child in path.rglob("*")):
+                issues.append({"file": name, "issue": "empty directory"})
+            continue
+        binary_issue = _binary_artifact_format_issue(path)
+        if binary_issue:
+            issues.append({"file": name, "issue": binary_issue})
+            continue
+        if path.stat().st_size <= 0:
+            issues.append({"file": name, "issue": "empty"})
+            continue
+        if path.suffix.lower() in {".yml", ".yaml"}:
+            try:
+                document = yaml.safe_load(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+                issues.append({"file": name, "issue": f"invalid YAML: {exc}"})
+                continue
+            if semantic_validator == "fact_distillation":
+                try:
+                    from agent_runtime.project_reset import fact_distillation_issues
+                except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+                    from project_reset import fact_distillation_issues
+                assigned_inputs = contract.get("assigned_inputs") or []
+                allowed_hashes = {
+                    str(item.get("sha256") or "")
+                    for item in assigned_inputs
+                    if isinstance(item, dict) and item.get("sha256")
+                }
+                if not isinstance(document, dict):
+                    semantic_issues = ["invalid_document"]
+                else:
+                    semantic_issues = fact_distillation_issues(
+                        document,
+                        allowed_source_hashes=allowed_hashes,
+                    )
+                    expected_sources = [
+                        {
+                            "path": str(item.get("project_path") or ""),
+                            "sha256": str(item.get("sha256") or ""),
+                        }
+                        for item in assigned_inputs
+                        if isinstance(item, dict)
+                    ]
+                    actual_sources = [
+                        {
+                            "path": str(item.get("path") or ""),
+                            "sha256": str(item.get("sha256") or ""),
+                        }
+                        for item in document.get("sources") or []
+                        if isinstance(item, dict)
+                    ]
+                    if actual_sources != expected_sources:
+                        semantic_issues.append("source_contract_mismatch")
+                issues.extend(
+                    {"file": name, "issue": issue}
+                    for issue in sorted(set(semantic_issues))
+                )
+    return issues
 
 
 def _route_required_outputs(workflow_plan: dict) -> list[str]:
@@ -560,6 +754,8 @@ def _route_required_outputs(workflow_plan: dict) -> list[str]:
             "state_transition_proposal.yml",
             "revision_or_rewrite_proposal.yml",
         ]
+    if route_key == "narrative_rewrite_plan":
+        return ["chapter_state_plan.yml"]
     return []
 
 
@@ -609,13 +805,11 @@ def _artifact_node_skipped(run_dir: Path, fname: str) -> bool:
 
 
 def _lifecycle_node_status(run_dir: Path, node_id: str) -> str | None:
-    lc_path = run_dir / "lifecycle.yml"
-    if not lc_path.exists():
-        return None
     try:
-        lifecycle = yaml.safe_load(lc_path.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return None
+        from lifecycle_graph import load_lifecycle
+    except ModuleNotFoundError:  # pragma: no cover - package import path
+        from agent_runtime.lifecycle_graph import load_lifecycle
+    lifecycle = load_lifecycle(run_dir) or {}
     if not isinstance(lifecycle, dict):
         return None
     node = (lifecycle.get("nodes") or {}).get(node_id) or {}
@@ -699,13 +893,33 @@ def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = N
     if not has_command_claim:
         return None
 
-    # Check if report references an execution_log command_id
+    # Native CLI workers may preserve their report verbatim while the executor
+    # writes command provenance to a role-specific companion capture. Treat the
+    # pair as one evidence envelope, but still require an id that exists in the
+    # authoritative execution log.
+    evidence_content = content
     has_command_id = (
         "command_id" in lowered
         or "cmd_" in lowered
         or "execution_log" in lowered
         or "evidence:" in lowered
     )
+    if not has_command_id and run_dir is not None:
+        capture_name = {
+            "07_validation_report.md": "testerauditor_cli_result_capture.md",
+            "08_audit_report.md": "testerauditor_cli_result_capture.md",
+            "verification_report.md": "verifier_cli_result_capture.md",
+        }[fname]
+        capture_path = run_dir / capture_name
+        if capture_path.is_file():
+            capture = capture_path.read_text(encoding="utf-8", errors="replace")
+            capture_lowered = capture.lower()
+            if any(
+                marker in capture_lowered
+                for marker in ("command_id", "cmd_", "execution_log", "evidence:")
+            ):
+                evidence_content = f"{content}\n{capture}"
+                has_command_id = True
     if not has_command_id:
         # Report claims command execution but does not reference command_id
         return (
@@ -726,7 +940,7 @@ def _check_execution_evidence(fname: str, content: str, run_dir: Path | None = N
     command_ids = [cmd.get("command_id", "") for cmd in commands]
     matched_cid: str | None = None
     for cid in command_ids:
-        if cid and cid in content:
+        if cid and cid in evidence_content:
             matched_cid = cid
             break
 
@@ -850,7 +1064,22 @@ def _check_search_repo_intelligence_evidence(fname: str, content: str, run_dir: 
 
     repo_ledger = _load_yaml_artifact(run_dir, "repo_index_ledger.yml")
     semantic_exists = _json_artifact_exists(run_dir, "repo_semantic_library.json", "repo_index")
-    if "indexed repo" in lowered:
+    claims_repo_indexing = bool(
+        re.search(
+            r"(?m)^\s*(?:[-*]\s*)?(?:i\s+|we\s+)?indexed\s+(?:the\s+)?(?:repo|repository)\b",
+            lowered,
+        )
+        or any(
+            phrase in lowered
+            for phrase in (
+                "repo indexing performed",
+                "repository indexing performed",
+                "ran repo-index",
+                "ran repo index",
+            )
+        )
+    )
+    if claims_repo_indexing:
         if not repo_ledger or not (repo_ledger.get("index") or {}).get("performed"):
             issues.append("Report claims repo indexing but repo_index_ledger.yml index.performed=true evidence is missing.")
     if "queried codegraph" in lowered and not (repo_ledger.get("queries") or []):

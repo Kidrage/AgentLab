@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 from agent_runtime.brain.mission_contract import build_mission_contract
+from agent_runtime.brain.domain_classifier import classify_domain
 
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -74,6 +75,16 @@ PROMPT_LOCAL_AUTO = (
 )
 
 PROMPT_EMPTY = ""
+
+
+def test_ascii_domain_keywords_match_tokens_not_substrings() -> None:
+    keywords = {
+        "local_ops": {"keywords": ["script"]},
+        "document_processing": {"keywords": ["article"]},
+    }
+
+    assert classify_domain("Write a product description article", keywords) == "document_processing"
+    assert classify_domain("Run this script locally", keywords) == "local_ops"
 
 PROMPT_CROWN_OF_ASH = (
     "Write chapter 7 of Crown of Ash. Keep the protagonist in close third POV, "
@@ -174,6 +185,36 @@ class TestDomainAwareMissionCompiler:
         assert contract["task_domain"] == "creative_writing"
         assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
 
+    def test_blocking_crown_rewrite_selects_narrative_planner_route(self):
+        contract = build_mission_contract(
+            "根据 heavy audit 的 blocking findings 重写 Crown_of_Ash 第1章到第200章规划。",
+            project_id="Crown_of_Ash",
+            task_id="task_crown_rewrite_plan_ch001_ch200",
+        )
+        decision = contract["route_decision"]
+        assert decision["selected_route"] == "narrative_rewrite_plan"
+        assert "route_proposal" not in decision
+
+    def test_rewrite_question_remains_audit_instead_of_starting_rewrite(self):
+        contract = build_mission_contract(
+            "检查 Crown_of_Ash 前10章是否需要重写。",
+            project_id="Crown_of_Ash",
+            task_id="task_crown_check_rewrite_need",
+        )
+        assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
+
+    def test_audit_with_explicit_no_rewrite_boundary_remains_heavy_audit(self):
+        contract = build_mission_contract(
+            "审计 Crown_of_Ash 第1章到第20章。只审查已有正文；不得重写正文。"
+            "发现 blocking issue 时只生成 revision_or_rewrite_proposal.yml。",
+            project_id="Crown_of_Ash",
+            task_id="task_crown_heavy_audit_no_direct_rewrite",
+        )
+
+        assert contract["narrative_job_identity"]["job_kind"] == "narrative_audit"
+        assert contract["narrative_job_identity"]["run_mode"] == "audit_only"
+        assert contract["route_decision"]["selected_route"] == "narrative_heavy_audit"
+
     def test_article_about_fiction_market_is_not_longform_chapter(self):
         contract = build_mission_contract(
             "写一篇关于小说市场的分析文章。",
@@ -205,6 +246,7 @@ class TestDomainAwareMissionCompiler:
         contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
         assert "continuity_ledger" in contract["memory_contract"]
         assert "character_state" in contract["memory_contract"]
+        assert "chapter_state_plan" in contract["memory_contract"]
 
     def test_creative_writing_route_forbids_generic_fallbacks(self):
         contract = build_mission_contract(PROMPT_CROWN_OF_ASH)
@@ -229,7 +271,7 @@ class TestDomainAwareMissionCompiler:
         decision = contract["route_decision"]
         assert decision["action"] == "refuse_current_route"
         assert decision["route_proposal"]["route_key"] == "narrative_light_chapter"
-        assert decision["route_proposal"]["agents"] == ["Supervisor", "Writer"]
+        assert "agents" not in decision["route_proposal"]
 
     def test_invalid_llm_assisted_compiler_output_falls_back_to_rules(self):
         def bad_generate(_messages):
@@ -452,6 +494,13 @@ class TestAcceptanceGates:
 
 
 class TestMediaGenerationRouting:
+    @staticmethod
+    def _media_config() -> dict:
+        repo_root = Path(__file__).resolve().parents[1]
+        return yaml.safe_load(
+            (repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8")
+        )
+
     def _contract_with_media_config(self, prompt: str, media_config: dict) -> dict:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:
@@ -473,7 +522,28 @@ class TestMediaGenerationRouting:
             )
             return build_mission_contract(prompt, agentlab_root=root)
 
+    def test_unknown_capacity_backed_auth_is_pending_without_fallback_preselection(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        media_config = yaml.safe_load(
+            (repo_root / "config" / "media_generation_backends.yml").read_text(encoding="utf-8")
+        )
+        assert media_config["backends"]["hermes_grok_oauth"]["auth_state"] == "unknown"
+        assert media_config["backends"]["hermes_grok_oauth"]["capacity_source"]
+
+        contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
+        media = contract["media_generation_contract"]
+
+        assert media["selected_backend"] is None
+        assert media["executable"] is False
+        assert media["routing_status"] == "pending_capacity"
+        assert media["execution_blocker"]["status"] == "capacity_pending"
+        assert media["execution_blocker"]["backend"] == "hermes_grok_oauth"
+        assert media["execution_blocker"]["recommended_action"] == "observe_capacity_then_retry"
+        assert media["approval_card"] is None
+
     def test_generate_image_selects_hermes_grok_when_local_cli_adapter_is_ready(self):
+        media_config = self._media_config()
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "ready"
         with (
             patch(
                 "agent_runtime.brain.media_generation_router.shutil.which",
@@ -481,7 +551,7 @@ class TestMediaGenerationRouting:
             ),
             patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False),
         ):
-            contract = build_mission_contract(PROMPT_IMAGE, project_id="AgentLab", task_id="task_media")
+            contract = self._contract_with_media_config(PROMPT_IMAGE, media_config)
         media = contract["media_generation_contract"]
         assert contract["task_domain"] == "image_generation"
         assert contract["artifact_type"] == "media_generation_contract"
@@ -493,6 +563,8 @@ class TestMediaGenerationRouting:
         assert media["backend_contracts"]["hermes_grok_oauth"]["adapter_kind"] == "local_grok_cli"
 
     def test_simple_image_selects_local_grok_cli_by_default(self):
+        media_config = self._media_config()
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "ready"
         with (
             patch(
                 "agent_runtime.brain.media_generation_router.shutil.which",
@@ -500,7 +572,7 @@ class TestMediaGenerationRouting:
             ),
             patch.dict(os.environ, {"XAI_API_KEY": ""}, clear=False),
         ):
-            contract = build_mission_contract(PROMPT_SIMPLE_IMAGE)
+            contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
         media = contract["media_generation_contract"]
         assert media["backend_policy"] == "fast_simple"
         assert media["selected_backend"] == "hermes_grok_oauth"
@@ -535,11 +607,13 @@ class TestMediaGenerationRouting:
         assert media["backend_contracts"]["grok_direct"]["approval_required"] is True
 
     def test_missing_local_grok_cli_does_not_auto_fall_through_to_direct_api_when_key_is_present(self):
+        media_config = self._media_config()
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "ready"
         with (
             patch("agent_runtime.brain.media_generation_router.shutil.which", return_value=None),
             patch.dict(os.environ, {"XAI_API_KEY": "test-key", "GROK_API_KEY": ""}, clear=False),
         ):
-            contract = build_mission_contract(PROMPT_SIMPLE_IMAGE)
+            contract = self._contract_with_media_config(PROMPT_SIMPLE_IMAGE, media_config)
         media = contract["media_generation_contract"]
         assert media["selected_backend"] == "bailian_cli"
         assert media["executable"] is False
@@ -557,19 +631,24 @@ class TestMediaGenerationRouting:
         assert media["executable"] is False
         assert media["execution_blocker"]["status"] == "approval_required"
 
-    def test_draft_batch_selects_agy_harness_and_marks_draft_only(self):
+    def test_draft_batch_does_not_preselect_an_unobserved_renderer(self):
         contract = build_mission_contract(PROMPT_BATCH_DRAFT)
         media = contract["media_generation_contract"]
         assert media["backend_policy"] == "draft_batch"
-        assert media["selected_backend"] == "agy_media"
-        assert any("draft candidates only" in rule for rule in media["harness_rules"])
+        assert media["selected_backend"] is None
+        assert media["routing_status"] == "pending_capacity"
+        assert media["execution_blocker"]["backend"] == "hermes_grok_oauth"
 
     def test_ark_pending_is_not_executable_backend(self):
+        media_config = self._media_config()
+        media_config["backends"]["hermes_grok_oauth"]["auth_state"] = "ready"
         with patch(
             "agent_runtime.brain.media_generation_router.shutil.which",
             side_effect=local_hermes_command,
         ):
-            contract = build_mission_contract("Generate a commercial final image for client delivery.")
+            contract = self._contract_with_media_config(
+                "Generate a commercial final image for client delivery.", media_config
+            )
         media = contract["media_generation_contract"]
         assert media["selected_backend"] == "hermes_grok_oauth"
         assert media["executable"] is True
@@ -679,10 +758,17 @@ class TestScaleEstimation:
 
 
 class TestHumanApproval:
-    def test_human_approval_always_required(self):
-        for prompt in [PROMPT_CODEBASE, PROMPT_LONGFORM, PROMPT_VIDEO, PROMPT_RESEARCH, PROMPT_EMPTY]:
+    def test_known_project_types_default_to_policy_auto_approval(self):
+        for prompt in [PROMPT_CODEBASE, PROMPT_LONGFORM, PROMPT_VIDEO, PROMPT_RESEARCH]:
             contract = build_mission_contract(prompt)
-            assert contract["human_approval_required"] is True, f"human_approval missing for prompt starting: {prompt[:30]}"
+            assert contract["human_approval_required"] is False
+            assert contract["approval_mode"] == "policy_auto"
+            assert contract["approval_summary"]["pending_human"] == 0
+
+    def test_unknown_project_still_requires_human_clarification(self):
+        contract = build_mission_contract(PROMPT_EMPTY)
+        assert contract["human_approval_required"] is True
+        assert contract["approval_mode"] == "human_required"
 
 
 # ── Schema compliance tests ────────────────────────────────────────
@@ -789,7 +875,8 @@ class TestRenderer:
             assert (out_dir / "media_generation_contract.yml").exists()
             assert "media_generation_contract" in written
             media = yaml.safe_load((out_dir / "media_generation_contract.yml").read_text(encoding="utf-8"))
-            assert media["selected_backend"] == "hermes_grok_oauth"
+            assert media["selected_backend"] is None
+            assert media["routing_status"] == "pending_capacity"
 
 
 # ── External executor recommendation tests ─────────────────────────

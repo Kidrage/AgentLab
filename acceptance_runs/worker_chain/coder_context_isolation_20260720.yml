@@ -1,0 +1,70 @@
+schema_version: 1
+diagnostic_id: coder_context_isolation_20260720
+domain: generic_code_task_infrastructure
+status: pass_with_remaining_task_sizing_risk
+production_modified: false
+private_manuscript_sent: false
+
+feedback_loop:
+  command: >-
+    python -m pytest -q
+    tests/test_execution_config_consolidation.py::test_generic_claude_coder_contract_isolates_project_customizations
+  before: 1_failed_in_1.82s
+  after: 1_passed
+  red_capability: missing_safe_mode_flag
+
+root_cause:
+  confirmed: generic_claude_contract_loaded_project_customizations_and_persisted_sessions
+  code_path: config/worker_invocation_contracts.yml#contracts.claude
+  fix:
+    - add_claude_safe_mode
+    - disable_session_persistence
+  governance_boundary: generic_code_task_only
+
+marker_smoke_comparison:
+  before:
+    evidence: acceptance_runs/worker_chain/coder_deepseek_preflight_20260720.yml
+    task: agentlab_wrapper_marker_only
+    duration_seconds: 36.92524
+    input_tokens: 34661
+    cache_read_input_tokens: 169472
+    output_tokens: 2358
+    reported_total_tokens: 206491
+    cost_usd: 0.316991
+  after:
+    run_id: task_9920_coder-safe-mode-smoke
+    task_packet_bytes: 14567
+    result_marker: AGENTLAB_CODER_SAFE_MODE_OK
+    duration_seconds: 17.481125
+    input_tokens: 29677
+    cache_read_input_tokens: 54528
+    output_tokens: 816
+    reported_total_tokens: 85021
+    cost_usd: 0.229314
+    model_turns: 4
+  deltas:
+    duration_percent: -52.66
+    cache_read_input_tokens_percent: -67.83
+    reported_total_tokens_percent: -58.83
+    cost_percent: -27.66
+
+telemetry_interpretation:
+  source: provider_response
+  cache_read_input_tokens_are_cumulative_across_model_turns: true
+  reported_total_tokens_are_not_single_context_window_size: true
+
+verification:
+  focused:
+    command: >-
+      python -m pytest -q tests/test_execution_config_consolidation.py
+      tests/test_m2_worker_governance.py tests/test_m2_worker_invocation_probe.py
+      tests/test_cli_executor.py -q
+    result: 31_passed
+  live_provider_calls: 1
+  source_files_modified_by_smoke: false
+
+remaining_risks:
+  - safe_mode_disables_claude_project_customizations_including_hooks
+  - generic_contract_still_uses_bypass_permissions_as_it_did_before_this_change
+  - node_a_cost_was_dominated_by_large_change_scope_and_tool_turns_not_startup_only
+  - task_scope_and_budget_caps_require_separate_code_governance_work

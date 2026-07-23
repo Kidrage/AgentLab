@@ -1,11 +1,11 @@
-schema_version: 1
+schema_version: 2
 authority: _shared/AGENT_PROTOCOL.md
 enabled: true
 
 discovery:
   always_before_repository_read: true
-  filenames:
-    - PROJECT_HANDOFF.md
+  canonical_filename: PROJECT_HANDOFF.md
+  legacy_read_only_filenames:
     - .agentlab/HandOff.md
     - agent_docs/HandOff.md
     - HandOff.md
@@ -14,15 +14,18 @@ discovery:
   missing_action: create_or_request_immediately
 
 placement:
-  project_root_visible: PROJECT_HANDOFF.md
-  repository_local: .agentlab/HandOff.md
-  compatible_project_memory: agent_docs/HandOff.md
+  canonical: PROJECT_HANDOFF.md
+  default_write_mode: canonical_only
+  legacy_aliases_are_read_only: true
+  deprecated_write_targets:
+    - .agentlab/HandOff.md
+    - agent_docs/HandOff.md
+    - HandOff.md
+    - HANDOFF.md
   shared_memory: memory/repositories/{repository_id}/HandOff.md
-  always_write_shared_copy: true
-  always_write_project_root_visible_copy: true
-  always_write_compatible_project_memory_copy: true
+  shared_copy_mode: explicit_flag_or_read_only_fallback
+  shared_copy_flag: --shared-copy
   read_only_repository_fallback: shared_memory
-  root_level_handoff_forbidden_when_hygiene_policy_forbids_it: false
 
 safe_scan:
   principle: complete_path_and_metadata_inventory_without_bulk_content_read

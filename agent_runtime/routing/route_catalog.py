@@ -1,9 +1,4 @@
-"""Route catalog helpers.
-
-The catalog is the read-only authority for active route templates. Deprecated
-compatibility routes may still be loaded from config, but they are deliberately
-not part of the default fallback catalog.
-"""
+"""Read route templates from the canonical routing configuration."""
 
 from __future__ import annotations
 
@@ -12,50 +7,9 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from atomic_io import safe_read_yaml
+    from config_loader import load_yaml
 except ImportError:  # pragma: no cover - package import path
-    from agent_runtime.atomic_io import safe_read_yaml
-
-
-DEFAULT_ROUTE_AGENTS: dict[str, list[str]] = {
-    "small_task": ["Supervisor", "Coder"],
-    "medium_task": ["Supervisor", "RepoScout", "Coder", "TesterAuditor", "Verifier", "Archivist"],
-    "interface_sensitive_task": [
-        "Supervisor",
-        "RepoScout",
-        "InterfaceMapper",
-        "Coder",
-        "TesterAuditor",
-        "Verifier",
-        "Archivist",
-    ],
-    "research_sensitive_task": ["Supervisor", "Researcher", "Coder", "TesterAuditor", "Verifier", "Archivist"],
-    "artifact_production_task": ["Supervisor", "ArtifactProducer", "TesterAuditor", "Verifier", "Archivist"],
-    "media_generation_task": ["Supervisor", "ArtifactProducer", "TesterAuditor", "Verifier", "Archivist"],
-    "narrative_light_chapter": ["Supervisor", "Writer"],
-    "narrative_batch_chapters": ["Supervisor", "Writer"],
-    "article_light_draft": ["Supervisor", "ArtifactProducer"],
-    "narrative_heavy_audit": ["Supervisor", "Reviewer", "Scribe", "Verifier"],
-    "evaluation_task": [
-        "Supervisor",
-        "RepoScout",
-        "Researcher",
-        "InterfaceMapper",
-        "TesterAuditor",
-        "Verifier",
-        "Archivist",
-    ],
-    "large_or_risky_task": [
-        "Supervisor",
-        "RepoScout",
-        "Researcher",
-        "InterfaceMapper",
-        "Coder",
-        "TesterAuditor",
-        "Verifier",
-        "Archivist",
-    ],
-}
+    from agent_runtime.config_loader import load_yaml
 
 
 ROUTE_SIZE_MAP: dict[str, str] = {
@@ -75,57 +29,47 @@ def route_size_suffix(task_size: str) -> str:
     return {"small": "L1", "medium": "L2", "large": "L3"}.get(str(task_size), "L2")
 
 
-DEFAULT_ROUTE_SIZE: dict[str, str] = {
-    "small_task": "small",
-    "medium_task": "medium",
-    "interface_sensitive_task": "medium",
-    "research_sensitive_task": "medium",
-    "artifact_production_task": "medium",
-    "media_generation_task": "medium",
-    "narrative_light_chapter": "small",
-    "narrative_batch_chapters": "medium",
-    "article_light_draft": "small",
-    "narrative_heavy_audit": "large",
-    "evaluation_task": "large",
-    "large_or_risky_task": "large",
-}
+CANONICAL_ROUTING_CONFIG_PATH = (
+    Path(__file__).resolve().parents[2] / "config" / "routing_rules.yml"
+)
 
 
 @dataclass(frozen=True)
 class RouteCatalog:
-    """Route templates merged from defaults and optional routing config."""
+    """Route templates loaded from one routing-config authority."""
 
     routes: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_config(cls, routing_config: dict[str, Any] | None = None) -> "RouteCatalog":
-        routes = (routing_config or {}).get("routes", {})
+        config = (
+            load_yaml(CANONICAL_ROUTING_CONFIG_PATH)
+            if routing_config is None or "routes" not in routing_config
+            else routing_config
+        )
+        routes = config.get("routes", {})
         return cls(routes=routes if isinstance(routes, dict) else {})
 
     @classmethod
     def from_file(cls, path: Path) -> "RouteCatalog":
         if not path.exists():
             return cls()
-        data = safe_read_yaml(path, default={})
-        return cls.from_config(data if isinstance(data, dict) else {})
+        data = load_yaml(path)
+        routes = data.get("routes", {})
+        return cls(routes=routes if isinstance(routes, dict) else {})
 
     def agents_for(self, route_key: str) -> list[str]:
         route_entry = self.routes.get(route_key)
         configured_agents = route_entry.get("agents") if isinstance(route_entry, dict) else route_entry
-        agents = list(configured_agents or DEFAULT_ROUTE_AGENTS.get(route_key, []))
-        if "Coder" in agents and "TesterAuditor" not in agents:
-            insert_at = agents.index("Coder") + 1
-            agents.insert(insert_at, "TesterAuditor")
-        return agents
+        return list(configured_agents or [])
 
     def size_for(self, route_key: str) -> str:
         route_entry = self.routes.get(route_key)
         configured_size = route_entry.get("size") if isinstance(route_entry, dict) else None
-        fallback = DEFAULT_ROUTE_SIZE.get(route_key, "medium")
-        return ROUTE_SIZE_MAP.get(str(configured_size), fallback)
+        return ROUTE_SIZE_MAP.get(str(configured_size), "medium")
 
     def has_route(self, route_key: str) -> bool:
-        return route_key in self.routes or route_key in DEFAULT_ROUTE_AGENTS
+        return route_key in self.routes
 
     def has_configured_route(self, route_key: str) -> bool:
         return route_key in self.routes

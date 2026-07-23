@@ -1,0 +1,111 @@
+{
+  "activation_receipt": {
+    "path": "projects/Crown_of_Ash/runs/_narrative_v2_preflight_batches/b7587019872c14b60354be2ec91bb3e51e0fbd99342e17e1c0c8d7ff3b668a5e.yml",
+    "sha256": "562095451c83d8b675ef6761a0201b0127ae7ebecfb95c387a7b26fedac0d7a9"
+  },
+  "candidate_only": true,
+  "chapters": [
+    25,
+    26,
+    27
+  ],
+  "checks": {
+    "all_sessions_compiled": true,
+    "byte_stable_across_two_compiles": true,
+    "literary_memory_present_once": true,
+    "production_modified": false,
+    "provider_execution_requested": false
+  },
+  "legacy_medians": {
+    "inventory_bytes": 112827,
+    "inventory_files": 19,
+    "payload_bytes": 100218
+  },
+  "medians": {
+    "loaded_context_bytes": 62312,
+    "packet_bytes": 68051
+  },
+  "production_digest_after": "8ef9cf76a84154fbbaf809451066b87f1267a67e5a7a9c92641dc4bc2daf7556",
+  "production_digest_before": "8ef9cf76a84154fbbaf809451066b87f1267a67e5a7a9c92641dc4bc2daf7556",
+  "production_modified": false,
+  "project": "Crown_of_Ash",
+  "provider_calls": 0,
+  "quality_boundary": {
+    "gate_1_accepted": false,
+    "literary_output_equivalence_proven": false,
+    "phase_2r_accepted": false,
+    "positive_calibration_status": "missing_user_samples",
+    "quality_equivalent_input_contract_complete": true
+  },
+  "reductions_percent": {
+    "context_bytes": 44.77,
+    "packet_bytes": 32.1
+  },
+  "rows": [
+    {
+      "byte_stable_across_two_compiles": true,
+      "chapter_id": 25,
+      "context_bundle_id": "ctx-ad8191d5746b5d864f27e17a",
+      "context_manifest_sha256": "b403486da818908d431a5d1feb820f045c89d2245fff19edb720a94fa8e6ce09",
+      "duplicate_context_ratio": 0.0,
+      "literary_memory_occurrences": 1,
+      "literary_memory_sha256": "9779a7bea2c0c85997484b596c1114bb6e99f0b77fc34ed7042a5dca77e8aa05",
+      "loaded_context_bytes": 62312,
+      "loaded_file_count": 11,
+      "packet_bytes": 68051,
+      "packet_sha256": "905ff431149cd1e3c701ace727d712e00734bcc67c8ced8e539a7b7072881bd1",
+      "provider_calls": 0,
+      "repeat_packet_sha256": "905ff431149cd1e3c701ace727d712e00734bcc67c8ced8e539a7b7072881bd1",
+      "request_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch025/narrative_v2_writer_request.yml",
+      "request_sha256": "e7e2059128defa48c7c837d5fd659bc0611b5e8fe8ee9704d8bc27b5418c4646",
+      "task_id": "task_narrative_v2_gate1_preflight_ch025",
+      "token_estimate": 17013,
+      "workflow_plan_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch025/workflow_plan.yml",
+      "workflow_plan_sha256": "f626bf9bb5ce25387889c9fbbcc5706548cb3f0741acdea4385bc2a6bb1704ac"
+    },
+    {
+      "byte_stable_across_two_compiles": true,
+      "chapter_id": 26,
+      "context_bundle_id": "ctx-adfc5d29b4a86566123c0337",
+      "context_manifest_sha256": "62f5929c84126df9ed75f07486d0dbd2668f85357aa4bfb32b3d0042acf83f03",
+      "duplicate_context_ratio": 0.0,
+      "literary_memory_occurrences": 1,
+      "literary_memory_sha256": "7e6383d8d35b4abe71b1f251995b4e48d35a07e430fbf0519cf7a0e8eb036d05",
+      "loaded_context_bytes": 69447,
+      "loaded_file_count": 11,
+      "packet_bytes": 75162,
+      "packet_sha256": "14d5b33b0507e318d7cbd35f030b4fb6dec82333758d90a0ed88fc16c2531e73",
+      "provider_calls": 0,
+      "repeat_packet_sha256": "14d5b33b0507e318d7cbd35f030b4fb6dec82333758d90a0ed88fc16c2531e73",
+      "request_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch026/narrative_v2_writer_request.yml",
+      "request_sha256": "5eb0d4ad2b8bb777ba758fb471fc2e9eef85862d610457b948b96fe206672dec",
+      "task_id": "task_narrative_v2_gate1_preflight_ch026",
+      "token_estimate": 18791,
+      "workflow_plan_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch026/workflow_plan.yml",
+      "workflow_plan_sha256": "99936f3d635ca127e100bdf0f61fc5ae7969bab18d33f0b55d543c3db76092f9"
+    },
+    {
+      "byte_stable_across_two_compiles": true,
+      "chapter_id": 27,
+      "context_bundle_id": "ctx-d3a97a982294e37bc37357ba",
+      "context_manifest_sha256": "12c699c9ee8068995f87e5872161ab58c645163c9aaee3770ff06b42e916925e",
+      "duplicate_context_ratio": 0.0,
+      "literary_memory_occurrences": 1,
+      "literary_memory_sha256": "159845d567228e68e42b132aabd6c0f132d8cdee83240ae36678ce4a4ef364bf",
+      "loaded_context_bytes": 62033,
+      "loaded_file_count": 11,
+      "packet_bytes": 67808,
+      "packet_sha256": "76aa3a727e5cfae9d8676c9c880f082a1299bc2489e6e0a27b7ad4bbb40f37bf",
+      "provider_calls": 0,
+      "repeat_packet_sha256": "76aa3a727e5cfae9d8676c9c880f082a1299bc2489e6e0a27b7ad4bbb40f37bf",
+      "request_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch027/narrative_v2_writer_request.yml",
+      "request_sha256": "9d971611a19c212876c9ebfe65d9ed5a4ab45e54a7d8c74ae38dd0fafe293180",
+      "task_id": "task_narrative_v2_gate1_preflight_ch027",
+      "token_estimate": 16952,
+      "workflow_plan_path": "projects/Crown_of_Ash/runs/task_narrative_v2_gate1_preflight_ch027/workflow_plan.yml",
+      "workflow_plan_sha256": "c7550f47156f7f76fd1d9530d728f7a11fe7766b38f63dcfcc2859dd7fb1cd24"
+    }
+  ],
+  "schema_version": 1,
+  "status": "pass"
+}

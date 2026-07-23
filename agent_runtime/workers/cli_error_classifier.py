@@ -31,7 +31,20 @@ DEFAULT_RULES = [
     },
     {
         "error_class": CliErrorClass.NETWORK_REQUIRED,
-        "patterns": ["network", "DNS", "proxy", "connection failed", "timeout", "timed out", "timed_out", "Could not resolve"]
+        "patterns": [
+            "network",
+            "DNS",
+            "proxy",
+            "connection failed",
+            "connection error",
+            "unable to connect",
+            "failedtoopensocket",
+            "failed to open socket",
+            "timeout",
+            "timed out",
+            "timed_out",
+            "Could not resolve",
+        ]
     },
     {
         "error_class": CliErrorClass.PERMISSION_DENIED,
@@ -45,7 +58,17 @@ DEFAULT_RULES = [
     },
     {
         "error_class": CliErrorClass.QUOTA_EXHAUSTED,
-        "patterns": ["individual quota reached", "quota exhausted", "quota reached", "quota exceeded"]
+        "patterns": ["individual quota reached. please upgrade your subscription"]
+    },
+    {
+        "error_class": CliErrorClass.MODEL_UNAVAILABLE,
+        "patterns": [
+            "model not found",
+            "unknown model",
+            "unsupported model",
+            "model unavailable",
+            "model is not available",
+        ],
     },
     {
         "error_class": CliErrorClass.RATE_LIMITED,

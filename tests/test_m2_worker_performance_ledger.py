@@ -4,6 +4,13 @@ from pathlib import Path
 import pytest
 
 from agent_runtime.workers.performance_ledger import PerformanceLedger
+from agent_runtime.workers.performance_ledger import default_performance_ledger_path
+
+
+def test_default_ledger_path_is_runtime_state(tmp_path: Path) -> None:
+    assert default_performance_ledger_path(tmp_path) == (
+        tmp_path / ".agentlab" / "runtime" / "worker_performance_ledger.yml"
+    )
 
 
 def test_performance_ledger_lifecycle(tmp_path: Path) -> None:

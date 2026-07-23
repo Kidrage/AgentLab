@@ -95,7 +95,7 @@ def _collect_leaf_keys(data: dict[str, Any], prefix: str = "") -> set[str]:
         full = f"{prefix}.{k}" if prefix else k
         if isinstance(v, dict) and v:
             keys.update(_collect_leaf_keys(v, full))
-        else:
+        elif v is not None:
             keys.add(full)
     return keys
 
@@ -142,18 +142,9 @@ def resolve_all_keys(
         all_keys: set[str] = set()
         for _, data in ordered:
             all_keys.update(_collect_leaf_keys(data))
-        sorted_keys = sorted(all_keys)
-        total = len(sorted_keys)
-        if limit is not None and limit > 0:
-            target_keys = sorted_keys[:limit]
-            truncated = len(target_keys) < total
-        else:
-            target_keys = sorted_keys
-            truncated = False
+        target_keys = sorted(all_keys)
     else:
         target_keys = list(keys)
-        total = len(target_keys)
-        truncated = False
 
     result: dict[str, ConfigValue] = {}
     for key in target_keys:
@@ -177,5 +168,16 @@ def resolve_all_keys(
                 overridden_from=overridden,
                 is_secret=_is_secret_from_schema(key, schema_keys),
             )
+
+    if keys is None:
+        total = len(result)
+        if limit is not None and limit > 0:
+            truncated = len(result) > limit
+            result = dict(list(result.items())[:limit])
+        else:
+            truncated = False
+    else:
+        total = len(target_keys)
+        truncated = False
 
     return result, truncated, total

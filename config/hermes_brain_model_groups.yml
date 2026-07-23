@@ -1,17 +1,20 @@
 schema_version: 1
 policy_id: hermes_brain_model_groups
 summary: >
-  Hermes is the brain/supervisor layer. It owns model routing, durable plan
-  handoffs, feedback interpretation, budget-aware escalation, and fallback
-  selection before execution-layer agents receive task packets.
+  AgentLab's default brain/supervisor layer runs through the native Codex CLI.
+  It owns durable plan handoffs, feedback interpretation, and budget-aware
+  escalation before execution-layer agents receive task packets. Hermes remains
+  a non-default workflow/frontdesk shell. Executable fallback selection belongs
+  only to config/model_capacity.yml.
 
 default_recommendation:
-  model_mix: deepseek_plus_qwen_multimodal
+  model_mix: codex_gpt56_sol_supervisor_with_specialists
   rationale:
-    - DeepSeek handles low-cost search, deep reasoning, and small code patches.
-    - Qwen provides broad fallback coverage and multimodal variants for visual tasks.
-    - Codex GPT-5.5 High is reserved for high-difficulty full-stack work with quota planning.
-    - Grok/xAI owns image/audio/video generation or transformation routes when configured.
+    - Native Codex CLI with GPT-5.6 Sol xhigh is the default registered Supervisor route.
+    - Claude shell with DeepSeek owns bounded Chinese Writer work.
+    - Default performance NarrativePlanner uses Agy Gemini subscription capacity; full tier retains Claude/DeepSeek V4 Pro.
+    - Agy observes multimodal evidence; it does not write final prose or claim image generation.
+    - Grok/xAI owns sourced social/web research and registered image/video tool orchestration.
 
 providers:
   deepseek:
@@ -23,100 +26,106 @@ providers:
       - critique_and_review
     default_models:
       - deepseek_v4_pro
-      - deepseek_flash
+      - deepseek_v4_flash
     multimodal: false
   qwen:
-    role: fallback_and_multimodal_coverage
+    role: current_qwen_text_reasoning
     strengths:
-      - codex_fallback
       - text_reasoning
-      - vision_understanding
+      - chinese_repo_understanding
       - broad_model_selection
     default_models:
-      - qwen3.7_max_text
-      - qwen3.7_plus_multimodal
-    multimodal: mixed
+      - qwen3_7_max_dashscope
+      - qwen3_6_plus_dashscope
+    multimodal: false
   codex:
-    role: premium_full_stack_solver
+    role: primary_supervisor_brain
     strengths:
       - large_codebase_changes
       - hard_debugging
       - architecture_refactor
       - tool_heavy_execution
     default_models:
-      - gpt5.5_high
+      - codex_gpt_5_6_sol_xhigh_cli_oauth
     quota_policy:
-      refresh_window_hours: 5
-      use_only_for:
-        - super_hard_full_stack_task
-        - failed_low_cost_recovery
-        - architecture_or_data_loss_risk
+      source: config/model_capacity.yml
+      refresh_window_hours: null
+      remaining: null
+      reset_at: null
+      rule: never_guess_subscription_capacity
   grok_xai:
-    role: multimodal_generation_processing
+    role: social_web_research_and_registered_media_tool_orchestration
     strengths:
-      - image_generation
-      - image_editing
-      - audio_generation
-      - video_generation_or_processing
-    multimodal: true
+      - social_search
+      - web_search
+      - registered_image_tool_orchestration
+      - registered_video_tool_orchestration
+    default_models:
+      - grok_4_3_hermes_oauth
+    multimodal: tool_orchestration_only
+    direct_media_generation: false
+    audio_generation: false
 
 brain_layouts:
   recommended:
-    name: deepseek_plus_qwen_multimodal
+    name: codex_gpt56_sol_supervisor_with_specialists
     brain_chain:
-      planner: deepseek_v4_pro
-      reviewer: deepseek_v4_pro
-      coder_fallback: qwen3.7_max_text
-      multimodal_support: qwen3.7_plus_multimodal
+      supervisor: codex_gpt_5_6_sol_xhigh_cli_oauth
+      writer: deepseek_v4_pro
+      multimodal_observer: gemini_3_5_flash_high_agy_oauth
+      observer_fallback: claude_sonnet_4_6_agy_oauth
+      social_web_research: grok_4_3_hermes_oauth
+      artifact_producer: grok_4_3_hermes_oauth
+      performance_narrative_planner: gemini_3_5_flash_high_agy_oauth
+      full_narrative_planner: deepseek_v4_pro
+      independent_verifier: deepseek_v4_flash
     execution_rule: >
-      Hermes keeps plan ownership and routes only verified task packets to
-      execution agents. Qwen multimodal handles visual understanding when the
-      task needs it.
+      Native Codex CLI with GPT-5.6 Sol keeps Supervisor plan ownership and routes
+      only verified task packets to the separate Writer, Observer, Researcher,
+      ArtifactProducer, and independent Verifier roles. Producers cannot
+      self-approve, and capacity changes must follow config/model_capacity.yml.
   single_multimodal_brain:
-    name: local_multimodal_brain_with_qwen_fallback
+    name: agy_multimodal_observer_with_qwen_text_support
     examples:
-      - agy_cli_gemini_3.5_flash
-      - agy_cli_gemini_3.1_pro
-      - qwen3.7_plus_api
+      - gemini_3_5_flash_high_agy_oauth
+      - claude_sonnet_4_6_agy_oauth
+      - qwen3_6_plus_dashscope
     collaboration_mode: >
-      The single multimodal model may own plan draft and review, but it must
-      still emit the standard Hermes handoff contract and preserve revision logs.
-      Qwen Max/Plus API acts as text or multimodal fallback.
+      Agy models stay inside Observer, VisualReviewer, or performance
+      NarrativePlanner role sessions and emit evidence or planning reports.
+      Qwen Plus may support explicitly assigned text roles;
+      this layout does not imply an automatic worker or provider fallback.
   pure_api_lowest_tier:
     name: deepseek_qwen_text_only
     examples:
       - deepseek_v4_pro
-      - deepseek_flash
-      - qwen3.7_max_api
+      - deepseek_v4_flash
+      - qwen3_7_max_dashscope
     multimodal_gap_policy: >
       These brain models do not process media directly. When multimodal evidence
       is required, Hermes must request execution-layer multimodal tools or
       workers to produce observations, captions, transcripts, embeddings, or QA
       reports, then reason over those returned artifacts.
   premium_codex_brain:
-    name: codex_gpt55_full_stack
+    name: codex_gpt56_sol_supervisor
     brain_chain:
-      planner: codex-gpt5.5-high
-      reviewer: codex-gpt5.5-high
-      coder_fallback: qwen3.7_max_text
-      multimodal_support: qwen3.7_plus_multimodal
+      planner: codex_gpt_5_6_sol_xhigh_cli_oauth
+      reviewer: qwen3_6_flash_dashscope
+      writer: deepseek_v4_pro
+      multimodal_observer: gemini_3_5_flash_high_agy_oauth
+      social_web_research: grok_4_3_hermes_oauth
     execution_rule: >
-      Codex GPT 5.5 High acts as the Hermes brain for premium full-stack
-      work: large codebase changes, hard debugging, architecture refactors,
-      and tool-heavy execution. Use only when the deepseek_plus_qwen_multimodal
-      layout is insufficient for planning complexity. Must emit the standard
-      Hermes handoff contract (plan_status, missing_facts, must_read_artifacts,
+      Codex GPT-5.6 Sol xhigh acts through the native Codex Supervisor shell. It
+      must emit the standard AgentLab handoff contract (plan_status,
+      missing_facts, must_read_artifacts,
       dispatch_units, self_check, revision_log). Coder execution must be
-      dispatched through role-session to claude_code, codex, or aider. Agy is
-      limited to frontdesk/micro-doc/candidate artifact work by default. The
-      multimodal gap is handled through execution-layer tools
-      (qwen3.7_plus_multimodal).
+      dispatched through role-session. Writer, Observer, Researcher, and
+      ArtifactProducer remain separate producers and cannot self-approve.
     quota_policy:
-      refresh_window_hours: 5
-      use_only_for:
-        - super_hard_full_stack_task
-        - failed_low_cost_recovery
-        - architecture_or_data_loss_risk
+      source: config/model_capacity.yml
+      refresh_window_hours: null
+      remaining: null
+      reset_at: null
 
 handoff_requirements:
   - plan_status
@@ -127,7 +136,7 @@ handoff_requirements:
   - revision_log
 
 feedback_interpretation:
-  hermes_must_extract:
+  supervisor_must_extract:
     - blocked_reason
     - artifact_paths
     - test_or_review_evidence

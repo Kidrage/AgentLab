@@ -17,6 +17,7 @@ from typing import Any
 
 import yaml
 
+from artifact_digest import artifact_sha256
 from atomic_io import atomic_write_yaml
 
 
@@ -46,6 +47,8 @@ EVIDENCE_FILENAMES = {
     "archive_receipt.yml",
     "artifact_lineage.yml",
     "artifact_promotion_plan.yml",
+    "visual_acceptance_candidate.yml",
+    "visual_acceptance_decision.yml",
 }
 
 EVIDENCE_NAME_PATTERNS = (
@@ -55,6 +58,26 @@ EVIDENCE_NAME_PATTERNS = (
     "validation",
     "before_diff",
     "after_diff",
+)
+
+VISUAL_PROMOTION_EXTENSIONS = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".gif",
+        ".svg",
+        ".mp4",
+        ".mov",
+        ".webm",
+        ".mkv",
+        ".mp3",
+        ".wav",
+        ".m4a",
+        ".flac",
+        ".pdf",
+    }
 )
 
 
@@ -216,16 +239,20 @@ def build_artifact_intent(
     root = _project_root(agentlab_root, project)
     run_dir = _run_dir(agentlab_root, project, task_id)
     artifact_cfg = (project_config or {}).get("artifact_steward", {})
-    paths_cfg = (project_config or {}).get("paths", {})
-    production_dir = Path(_production_dir_for_pack(root, artifact_cfg, paths_cfg, production_pack))
+    production_dir = Path(_production_dir_for_pack(root, artifact_cfg, production_pack))
     if not production_dir.is_absolute():
         production_dir = root / production_dir
+    production_root = (root / "production").resolve(strict=False)
+    if not _is_relative_to(production_dir.resolve(strict=False), production_root):
+        raise ValueError(
+            f"production_dir must be under {production_root}: {production_dir}"
+        )
     candidate_dir = Path(artifact_cfg.get("candidate_dir") or run_dir / "artifacts")
     if not candidate_dir.is_absolute():
         candidate_dir = run_dir / candidate_dir
-    archive_dir = Path(artifact_cfg.get("archive_dir") or production_dir / "_archive")
+    archive_dir = Path(artifact_cfg.get("archive_dir") or root / "archive")
     if not archive_dir.is_absolute():
-        archive_dir = production_dir / archive_dir
+        archive_dir = root / archive_dir
     return {
         "version": 1,
         "project": project,
@@ -237,7 +264,7 @@ def build_artifact_intent(
         "declared_production_paths": list(artifact_cfg.get("declared_production_paths") or []),
         "allowed_overwrite_paths": list(artifact_cfg.get("allowed_overwrite_paths") or []),
         "forbidden_write_roots": [
-            str(root / "artifacts" / "_archive"),
+            str(root / "archive"),
             str(root / "agent_docs"),
         ],
         "archive_strategy": artifact_cfg.get("archive_strategy") or "copy_existing_before_replace",
@@ -245,7 +272,7 @@ def build_artifact_intent(
         "rules": [
             "runs/<task_id>/ contains process evidence and reports",
             "runs/<task_id>/artifacts/ contains candidate deliverables only",
-            "projects/<Project>/artifacts/ contains current production deliverables only",
+            "projects/<Project>/production/ contains current production deliverables only",
             "existing production files must be archived before replacement",
         ],
     }
@@ -254,7 +281,6 @@ def build_artifact_intent(
 def _production_dir_for_pack(
     project_root: Path,
     artifact_cfg: dict,
-    paths_cfg: dict,
     production_pack: dict | None,
 ) -> Path | str:
     pack_id = str((production_pack or {}).get("pack_id") or "")
@@ -265,25 +291,21 @@ def _production_dir_for_pack(
     if pack_id in media_packs:
         return (
             artifact_cfg.get("media_production_dir")
-            or paths_cfg.get("media_artifacts")
-            or project_root / "artifacts" / "media"
+            or project_root / "production" / "media"
         )
     if pack_id in artifact_packs:
         return (
             artifact_cfg.get("artifact_production_dir")
-            or paths_cfg.get("artifacts")
-            or project_root / "artifacts"
+            or project_root / "production" / "artifacts"
         )
     if pack_id in narrative_packs:
         return (
             artifact_cfg.get("production_dir")
-            or paths_cfg.get("manuscript")
             or project_root / "production" / "manuscript"
         )
     return (
         artifact_cfg.get("production_dir")
-        or paths_cfg.get("artifacts")
-        or project_root / "artifacts"
+        or project_root / "production" / "artifacts"
     )
 
 
@@ -449,6 +471,8 @@ def _resolve_production(
             target = candidate
         elif candidate.parts and candidate.parts[0] == "projects":
             target = agentlab_root / candidate
+        elif candidate.parts and candidate.parts[0] == "production":
+            target = project_root / candidate
         elif candidate.parts and candidate.parts[0] == "artifacts":
             target = project_root / candidate
         else:
@@ -471,6 +495,7 @@ def _record_index_promotion(
     source_task: str,
     source_prompt_summary: str,
     source_run_artifact: str,
+    production_sha256: str,
     archive_rel: str | None,
     promoted_at: str,
 ) -> None:
@@ -506,6 +531,7 @@ def _record_index_promotion(
             "source_task": source_task,
             "source_prompt_summary": source_prompt_summary,
             "source_run_artifact": source_run_artifact,
+            "production_sha256": production_sha256,
             "supersedes": previous_version,
             "superseded_by": None,
             "archived_versions": archived_versions,
@@ -520,6 +546,7 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
     project_root = _project_root(agentlab_root, project)
     run_dir = _run_dir(agentlab_root, project, task_id)
     run_dir.mkdir(parents=True, exist_ok=True)
+    plan = ensure_artifact_promotion_plan(agentlab_root, project, task_id)
     readiness_errors = validate_content_promotion_readiness(
         agentlab_root,
         project,
@@ -527,6 +554,8 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
         run_dir,
         require_archive_receipt=False,
     )
+    visual_acceptance_gate = _visual_promotion_gate(run_dir, plan)
+    readiness_errors.extend(visual_acceptance_gate["issues"])
     if readiness_errors:
         receipt = {
             "version": 1,
@@ -539,12 +568,12 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
             "project_artifact_index": "project_artifact_index.yml",
             "promotions_applied": [],
             "archived_paths": [],
+            "visual_acceptance_gate": visual_acceptance_gate,
             "errors": readiness_errors,
         }
         atomic_write_yaml(run_dir / "archive_receipt.yml", receipt)
         return receipt
     lineage = ensure_artifact_lineage(agentlab_root, project, task_id)
-    plan = ensure_artifact_promotion_plan(agentlab_root, project, task_id)
     intent = _artifact_intent(agentlab_root, project, task_id, run_dir)
     archive_dir = Path(plan.get("archive_dir") or intent["archive_dir"])
     source_prompt_summary = (
@@ -604,6 +633,7 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
             source_task=task_id,
             source_prompt_summary=source_prompt_summary,
             source_run_artifact=source_rel,
+            production_sha256=artifact_sha256(target),
             archive_rel=archive_rel,
             promoted_at=promoted_at,
         )
@@ -630,10 +660,118 @@ def apply_archive_protocol(agentlab_root: Path, project: str, task_id: str) -> d
         "project_artifact_index": "project_artifact_index.yml",
         "promotions_applied": promotions_applied,
         "archived_paths": archived_paths,
+        "visual_acceptance_gate": visual_acceptance_gate,
         "errors": errors,
     }
+    if receipt["status"] == "completed":
+        try:
+            from agent_runtime.knowledge_system import sync_committed
+        except ModuleNotFoundError:
+            from knowledge_system import sync_committed
+
+        promoted_paths = [
+            f"projects/{project}/{item['production_path']}"
+            for item in promotions_applied
+        ]
+        promoted_paths.append(f"projects/{project}/project_artifact_index.yml")
+        receipt["knowledge_sync"] = sync_committed(
+            {
+                "agentlab_root": Path(agentlab_root).resolve(),
+                "project": project,
+                "status": "committed",
+                "promoted_paths": promoted_paths,
+            }
+        ).as_dict()
     atomic_write_yaml(run_dir / "archive_receipt.yml", receipt)
     return receipt
+
+
+def _visual_promotion_gate(run_dir: Path, plan: dict[str, Any]) -> dict[str, Any]:
+    """Recompute visual/media acceptance against the exact files being promoted."""
+
+    sources = sorted(
+        {
+            str(entry.get("source_run_artifact") or "")
+            for entry in plan.get("promotions") or []
+            if isinstance(entry, dict)
+            and not entry.get("evidence_only")
+            and Path(str(entry.get("source_run_artifact") or "")).suffix.lower()
+            in VISUAL_PROMOTION_EXTENSIONS
+        }
+    )
+    gate: dict[str, Any] = {
+        "required": bool(sources),
+        "status": "not_required" if not sources else "blocked",
+        "manifest": "visual_acceptance_candidate.yml" if sources else None,
+        "verified_sources": [],
+        "issues": [],
+    }
+    if not sources:
+        return gate
+
+    manifest_path = run_dir / "visual_acceptance_candidate.yml"
+    manifest = _read_yaml(manifest_path, {})
+    if not manifest_path.exists() or not isinstance(manifest, dict):
+        gate["issues"].append(
+            "visual promotion missing visual_acceptance_candidate.yml"
+        )
+        return gate
+
+    raw_candidates = manifest.get("candidates")
+    candidates = (
+        [item for item in raw_candidates if isinstance(item, dict)]
+        if isinstance(raw_candidates, list)
+        else [manifest]
+    )
+    try:
+        from visual_acceptance import evaluate_visual_candidate
+    except ModuleNotFoundError:  # pragma: no cover - package import path
+        from agent_runtime.visual_acceptance import evaluate_visual_candidate
+
+    evaluated: list[tuple[Path, dict[str, Any]]] = []
+    for candidate in candidates:
+        asset = candidate.get("asset") or {}
+        raw_path = str(asset.get("path") or "") if isinstance(asset, dict) else ""
+        asset_path = Path(raw_path)
+        if not asset_path.is_absolute():
+            asset_path = run_dir / asset_path
+        evaluated.append(
+            (
+                asset_path.resolve(strict=False),
+                evaluate_visual_candidate(candidate, workspace=run_dir),
+            )
+        )
+
+    for source in sources:
+        source_path = (run_dir / source).resolve(strict=False)
+        matches = [decision for asset_path, decision in evaluated if asset_path == source_path]
+        if len(matches) != 1:
+            gate["issues"].append(
+                f"visual promotion {source} requires exactly one matching acceptance candidate"
+            )
+            continue
+        decision = matches[0]
+        if decision.get("status") != "accepted_candidate" or not (
+            decision.get("promotion") or {}
+        ).get("eligible"):
+            reasons = decision.get("blocking_reasons") or []
+            if reasons:
+                for reason in reasons:
+                    if isinstance(reason, dict):
+                        gate["issues"].append(
+                            f"visual promotion {source} blocked: "
+                            f"{reason.get('code') or 'unknown'} at {reason.get('path') or '<unknown>'}"
+                        )
+            else:
+                gate["issues"].append(
+                    f"visual promotion {source} blocked by visual acceptance"
+                )
+            continue
+        gate["verified_sources"].append(source)
+
+    if not gate["issues"] and gate["verified_sources"] == sources:
+        gate["status"] = "pass"
+    return gate
 
 
 def validate_content_promotion_readiness(
@@ -751,7 +889,11 @@ def _path_matches_declared(path_text: str, declared: list[str], project: str) ->
 
 def _looks_like_production_path(path_text: str, intent: dict, project: str) -> bool:
     path_text = path_text.replace("\\", "/")
-    if path_text.startswith(f"projects/{project}/artifacts/") or path_text.startswith("artifacts/"):
+    if path_text.startswith(
+        (f"projects/{project}/production/", "production/")
+    ) or path_text.startswith(
+        (f"projects/{project}/artifacts/", "artifacts/")
+    ):
         return True
     candidate = Path(path_text)
     return candidate.is_absolute() and _is_relative_to(candidate, Path(intent["production_dir"]))
@@ -809,6 +951,15 @@ def validate_project_artifact_governance(
         if record.get("status") == "current":
             artifact_id = str(record.get("artifact_id") or "")
             current_by_id.setdefault(artifact_id, []).append(record)
+            production_path = str(record.get("production_path") or "")
+            if (
+                not record.get("evidence_only")
+                and not production_path.startswith(("production/", "project_brain/"))
+            ):
+                issues.append(
+                    "current artifact must point under production/ or project_brain/: "
+                    f"{artifact_id}: {production_path or '<missing>'}"
+                )
             if not record.get("source_task") and not record.get("evidence_only"):
                 issues.append(f"current artifact missing source_task in project_artifact_index.yml: {artifact_id}")
             if not record.get("source_run_artifact") and not record.get("evidence_only"):

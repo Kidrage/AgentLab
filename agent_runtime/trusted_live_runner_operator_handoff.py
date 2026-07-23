@@ -115,8 +115,9 @@ def _candidate_items(request: dict[str, Any], status: dict[str, Any]) -> list[di
     for item in request.get("items", []) if isinstance(request.get("items"), list) else []:
         if not isinstance(item, dict):
             continue
+        item_id = str(item.get("id") or "")
         expected = item.get("expected_outputs") if isinstance(item.get("expected_outputs"), dict) else {}
-        current = status_by_id.get(str(item.get("id")), {})
+        current = status_by_id.get(item_id, {})
         if current:
             normalized_current = normalize_trusted_pending_live_smoke_item(current)
             current_status = normalized_current.get("status", "unknown")
@@ -134,7 +135,7 @@ def _candidate_items(request: dict[str, Any], status: dict[str, Any]) -> list[di
             acceptance_blocker = "trusted_status_item_missing"
         items.append(
             {
-                "id": item.get("id"),
+                "id": item_id,
                 "agentlab_execution_owner": item.get("agentlab_execution_owner"),
                 "assigned_worker": item.get("assigned_worker"),
                 "expected_type": expected.get("type"),
@@ -176,6 +177,10 @@ def build_trusted_live_runner_operator_handoff(
     )
     status = _read_yaml(status_abs)
     preflight = _read_yaml(preflight_abs)
+    request_id = request.get("request_id")
+    status_request_current = bool(request_id) and status.get("request_id") == request_id
+    preflight_request_current = bool(request_id) and preflight.get("request_id") == request_id
+    current_status = status if status_request_current else {"status": "stale_request", "items": []}
     readiness = _read_yaml(readiness_abs)
     rejection = _read_yaml(rejection_abs)
 
@@ -217,7 +222,7 @@ def build_trusted_live_runner_operator_handoff(
         if isinstance(issue, dict) and issue.get("id")
     }
     selected_session_requirements = {
-        "run_crown_internal_writer_eval": ["current_agy_session_health"],
+        "run_crown_internal_writer_eval": ["current_claude_writer_session_health"],
         "run_crown_internal_media_smoke": ["current_grok_session_health"],
     }
 
@@ -289,7 +294,7 @@ def build_trusted_live_runner_operator_handoff(
             "writer_only",
             (
                 f"./agentlab.sh trusted-live-runner-collect --request {request_rel} "
-                f"--out {_rel(root, collect_abs.with_name('trusted_live_runner_collect_writer.yml'))} "
+                f"--out {_rel(root, collect_abs)} "
                 "--item run_crown_internal_writer_eval"
             ),
         ),
@@ -297,20 +302,41 @@ def build_trusted_live_runner_operator_handoff(
             "media_only",
             (
                 f"./agentlab.sh trusted-live-runner-collect --request {request_rel} "
-                f"--out {_rel(root, collect_abs.with_name('trusted_live_runner_collect_media.yml'))} "
+                f"--out {_rel(root, collect_abs)} "
                 "--item run_crown_internal_media_smoke"
             ),
         ),
     }
+    candidate_items = _candidate_items(request, current_status)
+    writer_request_item = next(
+        (
+            item
+            for item in request.get("items", [])
+            if isinstance(item, dict) and item.get("id") == "run_crown_internal_writer_eval"
+        ),
+        {},
+    )
+    writer_request_route_current = (
+        writer_request_item.get("assigned_worker") == "claude_code"
+        and "--writer-worker claude_code"
+        in str(writer_request_item.get("command") or "")
+        and "--writer-worker agy" not in str(writer_request_item.get("command") or "")
+    )
     issues: list[str] = []
     if request.get("status") != "ready_for_trusted_runner":
         issues.append("trusted_live_runner_request_not_ready")
     if preflight.get("status") != "pass":
         issues.append("trusted_live_runner_preflight_not_pass")
+    if not preflight_request_current:
+        issues.append("trusted_live_runner_preflight_request_stale")
+    if not status_request_current:
+        issues.append("trusted_live_runner_status_request_stale")
     if not readiness_clean:
         issues.append("internal_live_readiness_not_clean")
     if not script_abs.exists():
         issues.append("trusted_live_runner_script_missing")
+    if not writer_request_route_current:
+        issues.append("trusted_live_runner_writer_route_stale")
 
     report = {
         "schema_version": 1,
@@ -368,6 +394,9 @@ def build_trusted_live_runner_operator_handoff(
                 local_runner_package.get("selective_run_requires_selected_item_pass") is True
             ),
             "selected_session_health_gates": selected_session_gates,
+            "writer_request_route_current": writer_request_route_current,
+            "trusted_status_request_current": status_request_current,
+            "trusted_preflight_request_current": preflight_request_current,
         },
         "selected_item_readiness": {
             "summary": (
@@ -399,7 +428,7 @@ def build_trusted_live_runner_operator_handoff(
                 "runtime_outbound_context_manifest_required": True,
                 "blocked_until_session_health_clean": not readiness_clean,
                 "required_session_health_issue_ids": [
-                    "current_agy_session_health",
+                    "current_claude_writer_session_health",
                     "current_grok_session_health",
                 ],
                 "blocking_session_health_issue_ids": sorted(session_health_issue_ids),
@@ -479,7 +508,7 @@ def build_trusted_live_runner_operator_handoff(
                 ],
             },
         ],
-        "candidate_items": _candidate_items(request, status),
+        "candidate_items": candidate_items,
         "session_health": {
             "status": readiness.get("status", "missing"),
             "clean": readiness_clean,
@@ -492,12 +521,13 @@ def build_trusted_live_runner_operator_handoff(
             ),
         },
         "current_return_status": {
-            "status": status.get("status", "missing"),
-            "missing_item_count": len(status.get("missing_items", []) if isinstance(status.get("missing_items"), list) else []),
-            "stale_item_count": len(status.get("stale_items", []) if isinstance(status.get("stale_items"), list) else []),
+            "status": current_status.get("status", "missing"),
+            "request_current": status_request_current,
+            "missing_item_count": len(current_status.get("missing_items", []) if isinstance(current_status.get("missing_items"), list) else []),
+            "stale_item_count": len(current_status.get("stale_items", []) if isinstance(current_status.get("stale_items"), list) else []),
             "artifact_qc_failure_count": len(
-                status.get("artifact_qc_failures", [])
-                if isinstance(status.get("artifact_qc_failures"), list)
+                current_status.get("artifact_qc_failures", [])
+                if isinstance(current_status.get("artifact_qc_failures"), list)
                 else []
             ),
             "full_run_requires_trusted_status_pass": full_run_requires_trusted_status_pass,

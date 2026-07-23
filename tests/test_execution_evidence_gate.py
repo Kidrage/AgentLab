@@ -69,6 +69,47 @@ class ExecutionEvidenceGateTests(TestCase):
         issue = _check_execution_evidence("verification_report.md", content, self.run_dir)
         self.assertIsNone(issue)
 
+    def test_native_report_accepts_matching_cli_companion_evidence(self) -> None:
+        append_command_record(self.run_dir, {
+            "command_id": "cmd_0007",
+            "command": "codex exec --json",
+            "exit_code": 0,
+            "stdout": "completed",
+        })
+        (self.run_dir / "verifier_cli_result_capture.md").write_text(
+            "Evidence: execution_log.yml\ncommand_id: cmd_0007\n",
+            encoding="utf-8",
+        )
+
+        issue = _check_execution_evidence(
+            "verification_report.md",
+            "# Verification\n\nValidation passed.\n",
+            self.run_dir,
+        )
+
+        self.assertIsNone(issue)
+
+    def test_native_report_rejects_unknown_cli_companion_command(self) -> None:
+        append_command_record(self.run_dir, {
+            "command_id": "cmd_0007",
+            "command": "codex exec --json",
+            "exit_code": 0,
+            "stdout": "completed",
+        })
+        (self.run_dir / "testerauditor_cli_result_capture.md").write_text(
+            "Evidence: execution_log.yml\ncommand_id: cmd_9999\n",
+            encoding="utf-8",
+        )
+
+        issue = _check_execution_evidence(
+            "07_validation_report.md",
+            "# Validation\n\nTests passed.\n",
+            self.run_dir,
+        )
+
+        self.assertIsNotNone(issue)
+        self.assertIn("no matching command_id", issue)
+
     def test_report_with_matching_command_id_in_log_passes(self) -> None:
         """Report has 'cmd_' reference that matches an actual command in the log."""
         append_command_record(self.run_dir, {

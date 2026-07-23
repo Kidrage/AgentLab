@@ -8,9 +8,11 @@ AgentName = Literal[
     "Supervisor",
     "RepoScout",
     "Researcher",
+    "Observer",
     "InterfaceMapper",
     "Coder",
     "ArtifactProducer",
+    "NarrativePlanner",
     "Writer",
     "Reviewer",
     "Scribe",
@@ -21,7 +23,17 @@ AgentName = Literal[
 ]
 
 
-ExecutionBackend = Literal["codex", "qwen", "langgraph", "codex_full_driver"]
+# The field name is retained for workflow-plan compatibility. Current values
+# describe the AgentLab driver; per-role workers come from agent_model_profiles.
+ExecutionBackend = Literal[
+    "agentlab_orchestrated_cli",
+    "api_native",
+    "hybrid_ide",
+    "langgraph",
+    "codex",
+    "qwen",
+    "codex_full_driver",
+]
 
 
 class TaskRunRequest(BaseModel):
@@ -29,7 +41,7 @@ class TaskRunRequest(BaseModel):
     task_id: str
     user_request_path: Optional[str] = None
     run_dir: Optional[str] = None
-    execution_backend: ExecutionBackend = "codex"
+    execution_backend: ExecutionBackend = "agentlab_orchestrated_cli"
     recommended_route: list[AgentName] = Field(default_factory=list)
 
 
@@ -66,17 +78,6 @@ class AgentRoute(BaseModel):
     route_key: str = "small_task"
 
 
-class AiderInvocationPlan(BaseModel):
-    enabled: bool = False
-    repo_path: str
-    command: list[str] = Field(default_factory=list)
-    read_only_context: list[str] = Field(default_factory=list)
-    editable_files: list[str] = Field(default_factory=list)
-    message_file: Optional[str] = None
-    missing_inputs: list[str] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
-
-
 class WorkflowPlan(BaseModel):
     project: str
     task_id: str
@@ -85,7 +86,8 @@ class WorkflowPlan(BaseModel):
     repo_path: str
     run_dir: str
     user_request_path: str
-    execution_backend: ExecutionBackend = "codex"
+    sealed_user_request_content: str = Field(default="", exclude=True)
+    execution_backend: ExecutionBackend = "agentlab_orchestrated_cli"
     budget_mode: str = "balanced"
     budget_profile: str = ""
     project_size: str = "L2"
@@ -105,7 +107,6 @@ class WorkflowPlan(BaseModel):
     artifact_intent: dict = Field(default_factory=dict)
     production_pack: dict = Field(default_factory=dict)
     missing_inputs: list[str] = Field(default_factory=list)
-    aider_plan: Optional[AiderInvocationPlan] = None
     notes: list[str] = Field(default_factory=list)
 
 

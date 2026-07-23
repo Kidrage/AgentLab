@@ -1,9 +1,10 @@
 schema_version: 3
-last_verified: "2026-06-01"
+last_verified: "2026-07-13"
 valid_until_days: 14
 
 # ─── AgentLab Model Catalog v3.1 ─────────────────────────────────────
-# 事实源：模型能力、定价、provider 信息集中管理。
+# 事实源：模型能力与 provider 身份集中管理；所有数值定价只由
+# config/model_pricing.yml 管理，本文件仅保存 pricing_key 或计费模式。
 # 每 14 天由 runtime 或人工刷新。不在白皮书或注释中硬编码价格。
 # 当前登记 Provider 包括 deepseek_official、dashscope_cn、hermes_codex_oauth、
 # agy_gemini_oauth、agy_claude_oauth、gemini_api_free_tier 等；实际默认选择由
@@ -19,12 +20,8 @@ models:
     max_output: 384000
     strengths: [cheap, fast, long_context, routing, summarization, tool_calls]
     weaknesses: [less_deep_than_pro]
-    suitable_agents: [frugal_supervisor, frugal_auditor, light_verifier, prompt_generator]
-    pricing:
-      currency: USD
-      input_cache_hit_per_m: 0.0028
-      input_cache_miss_per_m: 0.14
-      output_per_m: 0.28
+    suitable_agents: [writer, frugal_supervisor, frugal_auditor, light_verifier, prompt_generator]
+    pricing_key: deepseek-v4-flash
     notes: >
       Thinking/non-thinking 均支持。低风险任务高性价比首选。
       AgentLab Frugal 模式 Supervisor / TesterAuditor / 轻量 Verifier 推荐。
@@ -36,23 +33,21 @@ models:
     max_output: 384000
     strengths: [planning, reasoning, risk_analysis, long_context, coding_agent]
     weaknesses: [slower_than_flash]
-    suitable_agents: [supervisor, auditor, verifier, maxq_coder]
-    pricing:
-      currency: USD
-      input_cache_hit_per_m: 0.003625
-      input_cache_miss_per_m: 0.435
-      output_per_m: 0.87
+    suitable_agents: [writer, supervisor, auditor, verifier, maxq_coder]
+    pricing_key: deepseek-v4-pro
     notes: >
       AgentLab L2/L3 Balanced 大脑层默认。MaxQ 模式规划+审查主力。
       BenchLM: Agentic 74, Coding 75.9 — 在 coding/agentic 维度优于 Qwen3.7-Max。
 
-  codex_gpt_5_5_high_hermes_oauth:
+  codex_gpt_5_6_sol_xhigh_hermes_oauth:
     provider: hermes_codex_oauth
     runtime_provider: openai-codex
     cli_provider: openai-codex
-    model_id: gpt-5.5
-    reasoning_effort: high
-    context_window: 1000000
+    model_id: gpt-5.6-sol
+    reasoning_effort: xhigh
+    reasoning_effort_label: extra
+    context_window: 272000
+    capacity_pool: openai_codex_agentic
     strengths: [oauth_cli, high_reasoning, supervision, planning, code_review, agentic_control]
     weaknesses: [requires_hermes_oauth_session, subscription_or_oauth_quota, not_direct_api]
     suitable_agents: [supervisor, max_quality_supervisor, brain_layer]
@@ -60,10 +55,42 @@ models:
       currency: subscription_or_oauth_quota
       billing_source: codex_oauth
     notes: >
-      Codex GPT 5.5 High through the local Hermes OAuth provider. This is a
+      GPT-5.6 Sol through the local Hermes OAuth provider. This is a
       Hermes runtime provider registration, not the Codex CLI worker. AgentLab
-      should invoke it through Hermes with --provider openai-codex -m gpt-5.5;
-      high is the reasoning effort, not part of the model slug.
+      invokes it through Hermes with --provider openai-codex -m gpt-5.6-sol.
+      The installed Hermes v0.17.0 exposes xhigh as its strongest supported
+      reasoning value; AgentLab maps the user's "extra" label to xhigh and must
+      not claim ultra until a future Hermes capability probe proves it.
+    evidence:
+      official_model: https://developers.openai.com/api/docs/models/gpt-5.6-sol
+      local_model_cache_verified: "2026-07-13"
+      local_hermes_reasoning_verified: xhigh
+
+  codex_gpt_5_6_sol_xhigh_cli_oauth:
+    provider: codex_cli_oauth
+    runtime_provider: codex-cli
+    cli_provider: codex
+    model_id: gpt-5.6-sol
+    reasoning_effort: xhigh
+    reasoning_effort_label: extra
+    context_window: 272000
+    capacity_pool: codex_cli_agentic
+    strengths: [oauth_cli, high_reasoning, supervision, planning, code_navigation, code_review, agentic_control]
+    weaknesses: [requires_codex_oauth_session, subscription_or_oauth_quota]
+    suitable_agents: [supervisor, reposcout, interface_mapper, tester_auditor, verifier]
+    pricing:
+      currency: subscription_or_oauth_quota
+      billing_source: codex_cli_oauth
+    notes: >
+      GPT-5.6 Sol through the native Codex CLI and its local OAuth session.
+      This model key must only be assigned to the Codex worker; it is distinct
+      from the Hermes openai-codex provider surface. The verified local Codex
+      configuration uses gpt-5.6-sol with xhigh reasoning.
+    evidence:
+      official_model: https://developers.openai.com/api/docs/models/gpt-5.6-sol
+      local_codex_cli_verified: "2026-07-21"
+      local_codex_version: "0.144.6"
+      local_reasoning_verified: xhigh
 
   gemini_3_5_flash_high_agy_oauth:
     provider: agy_gemini_oauth
@@ -71,45 +98,217 @@ models:
     model_id: gemini-3.5-flash-high
     cli_model_id: Gemini 3.5 Flash (High)
     context_window: 1000000
-    strengths: [oauth_cli, fast, high_throughput, writing, artifact_generation, subscription_quota]
-    weaknesses: [requires_regional_network_access, cli_session_required]
-    suitable_agents: [writer, artifact_producer, frontdesk_gateway]
+    capacity_pool: agy_gemini_observer
+    strengths: [oauth_cli, fast, high_throughput, long_context, multimodal_understanding, scientific_analysis, subscription_quota]
+    weaknesses: [requires_regional_network_access, cli_session_required, text_output_only, no_image_generation]
+    suitable_agents: [observer, visual_reviewer, narrative_planner, frontdesk_gateway]
+    capabilities:
+      input_modalities: [text, image, video, audio, pdf]
+      output_modalities: [text]
+      image_generation: false
+      evidence_observation: true
     pricing:
       currency: subscription_or_oauth_quota
       billing_source: agy_oauth
     notes: >
-      Agy/Antigravity 默认模型。Agy 接的是 Gemini 模型，走本地 OAuth
+      Agy/Antigravity Observer 和默认 performance NarrativePlanner 模型。Agy 接的是 Gemini 模型，走本地 OAuth
       会话和地区网络条件，不使用 GEMINI_API_KEY，也不按本地 Gemini API
-      key 计费。默认要求 VPN/代理连到可用地区（如美国）。
+      key 计费。NarrativePlanner 与 Observer 共享同一订阅额度池和未知重置窗口；
+      remaining/reset 没有运行时证据时必须保持 null。它理解多模态材料但只输出文本，
+      不能被登记为真实图片生成器或最终 prose Writer。
+    evidence:
+      official_model: https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash
+      local_cli_models_verified: "2026-07-13"
 
   claude_sonnet_4_6_agy_oauth:
     provider: agy_claude_oauth
     runtime_provider: agy-claude-oauth
     model_id: claude-sonnet-4-6
-    cli_model_id: claude-sonnet-4-6@default
+    cli_model_id: Claude Sonnet 4.6 (Thinking)
     context_window: 1000000
-    strengths: [oauth_cli, writing, reasoning, independent_subscription_quota]
-    weaknesses: [requires_regional_network_access, cli_session_required, not_default]
-    suitable_agents: [writer]
+    capacity_pool: agy_claude_observer
+    strengths: [oauth_cli, multimodal_understanding, reasoning, independent_subscription_quota]
+    weaknesses: [requires_regional_network_access, cli_session_required, not_primary]
+    suitable_agents: [observer, visual_reviewer]
+    capabilities:
+      input_modalities: [text, image, pdf]
+      output_modalities: [text]
+      evidence_observation: true
     pricing:
       currency: subscription_or_oauth_quota
       billing_source: agy_oauth
     usage_policy:
-      never_default: true
-      quota_rotation_only: true
+      never_primary: true
+      perception_fallback_only: true
       rotates_from: gemini_3_5_flash_high_agy_oauth
-      allowed_failure_classes: [quota_exhausted]
-      allowed_projects: [Crown_of_Ash]
-      quota_window: separate_5_hour_window
+      allowed_failure_classes: [quota_exhausted, rate_limited, model_unavailable]
+      capacity_source: config/model_capacity.yml
       same_cli_worker: agy
       provider_surface_change_allowed: false
       api_key_fallback_allowed: false
     notes: >
-      Agy Writer 的配额轮换模型，不是默认模型。只有 Crown_of_Ash 的
-      默认 Gemini 3.5 Flash High 返回 quota_exhausted 时，才允许在同一个
-      Agy OAuth 壳内切换到 claude-sonnet-4-6@default。用户于 2026-07-13
-      确认该模型使用独立的五小时额度窗口。普通 rate limit、认证、网络、命令、schema 或
-      内容契约错误不得触发此切换；不读取任何 API key。
+      Agy 多模态感知角色的第二个独立容量池。只有默认 Gemini Observer
+      或 visual Reviewer 返回 quota_exhausted、rate_limited 或
+      model_unavailable 且容量策略预批准时，才允许
+      在同一个 Agy shell 中切换。`agy models` 1.1.1 已验证 CLI 标签；Agy 没有额度查询命令，
+      因此 remaining/reset 未知时必须保持 null，不能猜测五小时重置点。
+
+  grok_4_3_hermes_oauth:
+    provider: hermes_xai_oauth
+    runtime_provider: xai-oauth
+    cli_provider: xai-oauth
+    model_id: grok-4.3
+    capacity_pool: xai_subscription_shared
+    strengths: [social_research, web_research, x_search, media_tool_orchestration, current_events]
+    weaknesses: [requires_hermes_xai_oauth, subscription_quota_unknown, not_aesthetic_judge, text_output]
+    suitable_agents: [researcher, artifact_producer]
+    capabilities:
+      input_modalities: [text, image]
+      output_modalities: [text]
+      web_search: true
+      social_search: true
+      direct_image_generation: false
+      may_call_registered_image_tool: true
+    pricing:
+      currency: subscription_or_oauth_quota
+      billing_source: xai_oauth
+    notes: >
+      Grok 4.3 is the Hermes+xAI research brain and media-tool orchestrator.
+      Text output is not a generated image. ArtifactProducer completion requires
+      a real Grok Imagine tool artifact path and a separate aesthetic review.
+    evidence:
+      official_hermes_integration: https://x.ai/news/grok-hermes
+      local_hermes_models_verified: "2026-07-13"
+
+  seedance_2_0_ark_agent_plan:
+    provider: ark_agent_plan
+    runtime_provider: ark-agent-plan
+    cli_provider: hermes_ark
+    model_id: doubao-seedance-2.0
+    agent_plan_model_id: doubao-seedance-2.0
+    wire_model_id: doubao-seedance-2-0-260128
+    model_family: doubao-seedance-2.0
+    strengths: [text_to_video, multimodal_reference, synchronized_audio, subscription_quota]
+    weaknesses: [maximum_720p_on_current_plan_route, requires_ark_skill_resource_discovery, candidate_only]
+    suitable_agents: [artifact_producer]
+    capabilities:
+      input_modalities: [text, image, video, audio]
+      output_modalities: [video, audio]
+      resolutions: [480p, 720p]
+      duration_seconds: [4, 15]
+      ratios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", adaptive]
+    pricing_key: doubao-seedance-2.0
+    usage_policy:
+      explicit_task_override_only: true
+      never_default: true
+      final_artifact_allowed: false
+    notes: >
+      Allowed worker-reported result model for the Hermes + Ark skill route.
+      The worker skill discovers the live resource and AgentLab never forces this
+      visual model as the request model.
+    evidence:
+      local_arkcli_resources_verified: "2026-07-22"
+      current_agent_plan_video_default: true
+      local_model_metadata_verified: "2026-07-22"
+      route_authority: hermes_ark_artifact_producer
+
+  seedance_1_5_pro_ark_agent_plan:
+    provider: ark_agent_plan
+    runtime_provider: ark-agent-plan
+    cli_provider: hermes_ark
+    model_id: doubao-seedance-1-5-pro-251215
+    agent_plan_model_id: doubao-seedance-1.5-pro
+    model_family: doubao-seedance-1.5-pro
+    strengths: [text_to_video, image_to_video, synchronized_audio, 1080p, subscription_quota]
+    weaknesses: [maximum_12_second_clip, requires_ark_skill_resource_discovery, retiring, candidate_only]
+    suitable_agents: [artifact_producer]
+    capabilities:
+      input_modalities: [text, image]
+      output_modalities: [video, audio]
+      resolutions: [480p, 720p, 1080p]
+      duration_seconds: [4, 12]
+      ratios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", adaptive]
+    pricing_key: doubao-seedance-1-5-pro-251215
+    usage_policy:
+      explicit_task_override_only: true
+      never_default: true
+      final_artifact_allowed: false
+    notes: >
+      Full versioned Seedance 1.5 Pro model ID resolved from ArkCLI primary_version;
+      Agent Plan requests use the documented wire alias doubao-seedance-1.5-pro.
+      Registered only for explicit ArtifactProducer task overrides; it does not alter
+      any performance/full/low role default or media backend chain.
+    evidence:
+      local_arkcli_resources_verified: "2026-07-22"
+      local_supported_params_verified: "2026-07-22"
+      official_agent_plan_support_table_verified: "2026-07-22"
+      official_seedance_skill_version_inspected: "4.0.0"
+      official_seedance_skill_alias_anomaly: >-
+        The public Skill maps doubao-seedance-1.5-pro to
+        doubao-seedance-1-0-pro-250528. AgentLab intentionally does not copy
+        that mapping because it would silently substitute Seedance 1.0 Pro.
+      route_authority: hermes_ark_artifact_producer
+
+  seedance_1_0_pro_ark_agent_plan:
+    provider: ark_agent_plan
+    runtime_provider: ark-agent-plan
+    cli_provider: hermes_ark
+    model_id: doubao-seedance-1-0-pro-250528
+    agent_plan_model_id: doubao-seedance-1-0-pro-250528
+    model_family: doubao-seedance-1.0-pro
+    strengths: [text_to_video, image_to_video, multi_shot_narrative, 1080p]
+    weaknesses: [no_synchronized_audio, duration_limited_to_5_or_10_seconds, requires_ark_skill_resource_discovery, candidate_only]
+    suitable_agents: [artifact_producer]
+    capabilities:
+      input_modalities: [text, image]
+      output_modalities: [video]
+      resolutions: [480p, 720p, 1080p]
+      duration_seconds: [5, 10]
+      ratios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", adaptive]
+    pricing_key: doubao-seedance-1-0-pro-250528
+    usage_policy:
+      explicit_task_override_only: true
+      never_default: true
+      final_artifact_allowed: false
+    notes: >
+      Exact versioned wire model used by Volcengine's public Agent Plan Seedance
+      Skill v4.0.0 when its 1.5 display alias is selected. AgentLab exposes it
+      honestly as Seedance 1.0 Pro and only through an explicit task override.
+    evidence:
+      local_model_metadata_verified: "2026-07-22"
+      official_seedance_skill_version_inspected: "4.0.0"
+      official_skill_wire_model: doubao-seedance-1-0-pro-250528
+      route_authority: hermes_ark_artifact_producer
+
+  seedance_2_0_fast_ark_agent_plan:
+    provider: ark_agent_plan
+    runtime_provider: ark-agent-plan
+    cli_provider: hermes_ark
+    model_id: doubao-seedance-2.0-fast
+    agent_plan_model_id: doubao-seedance-2.0-fast
+    wire_model_id: doubao-seedance-2-0-fast-260128
+    model_family: doubao-seedance-2.0-fast
+    strengths: [text_to_video, multimodal_reference, synchronized_audio, faster_generation]
+    weaknesses: [maximum_720p, requires_ark_skill_resource_discovery, candidate_only]
+    suitable_agents: [artifact_producer]
+    capabilities:
+      input_modalities: [text, image, video, audio]
+      output_modalities: [video, audio]
+      resolutions: [480p, 720p]
+      duration_seconds: [4, 15]
+      ratios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", adaptive]
+    pricing_key: doubao-seedance-2.0-fast
+    usage_policy:
+      explicit_task_override_only: true
+      never_default: true
+      final_artifact_allowed: false
+    notes: >
+      Exact model exposed by the active Agent Plan profile's real-time video
+      resource list. Registered only for explicit ArtifactProducer task overrides.
+    evidence:
+      local_arkcli_resources_verified: "2026-07-22"
+      local_model_metadata_verified: "2026-07-22"
+      route_authority: hermes_ark_artifact_producer
 
   gemini_2_5_flash_high_api:
     provider: gemini_api_free_tier
@@ -136,10 +335,7 @@ models:
     strengths: [repo_understanding, coding_agents, chinese, long_context]
     weaknesses: [expensive, verbose_output]
     suitable_agents: [reposcout_large, interface_mapper_large, perception_maxq]
-    pricing:
-      currency: CNY
-      input_per_m: 2.0
-      output_per_m: 6.0
+    pricing_key: qwen3.7-max
     notes: >
       DashScope 版 qwen3.7-max。适合 L3 感知层、中文仓库理解、复杂接口分析。
       平替原 OpenRouter qwen3_7_max_openrouter。
@@ -151,10 +347,7 @@ models:
     strengths: [balanced, repo_understanding, chinese, interface_analysis]
     weaknesses: [not_top_tier_reasoning]
     suitable_agents: [reposcout, interface_mapper, researcher, auditor_balanced]
-    pricing:
-      currency: CNY
-      input_per_m: 0.8
-      output_per_m: 2.0
+    pricing_key: qwen3.6-plus
     notes: >
       DashScope 版 qwen3.6-plus。Balanced 感知层主力。
       平替原 OpenRouter qwen3_6_plus_openrouter。
@@ -166,10 +359,7 @@ models:
     strengths: [fast, cheap, batch, summary, light_audit]
     weaknesses: [weak_reasoning, no_deep_planning]
     suitable_agents: [frugal_reposcout, frugal_interface, researcher_light, archivist_light]
-    pricing:
-      currency: CNY
-      input_per_m: 0.6
-      output_per_m: 1.2
+    pricing_key: qwen3.6-flash
     notes: >
       DashScope 版 qwen3.6-flash。Frugal 模式轻量感知/审核。
       平替原 OpenRouter qwen3_6_flash_openrouter。
@@ -181,10 +371,7 @@ models:
     strengths: [coding_agent, cheap_coder, code_generation]
     weaknesses: [shorter_context, no_planning, no_multimodal]
     suitable_agents: [coder, frugal_coder]
-    pricing:
-      currency: CNY
-      input_per_m: 0.5
-      output_per_m: 2.0
+    pricing_key: qwen3-coder-next
     notes: >
       DashScope 版 qwen3-coder-next，默认 API Coder。
       平替原 OpenRouter qwen3_coder_next_openrouter。
@@ -196,10 +383,7 @@ models:
     strengths: [coding_agent, code_generation, code_review, larger_context]
     weaknesses: [higher_cost_than_next]
     suitable_agents: [coder_maxq, code_review]
-    pricing:
-      currency: CNY
-      input_per_m: null
-      output_per_m: null
+    pricing_key: qwen3-coder-plus
     notes: >
       DashScope/OpenAI-compatible 千问 Coder Plus。作为 MaxQ API Coder，
       替代不可用或不稳定的 OpenRouter Qwen Coder 路由。
@@ -279,6 +463,19 @@ models:
 # ── Provider 配置 ──────────────────────────────────────────────────────
 
 providers:
+  codex_cli_oauth:
+    display: Codex CLI OAuth
+    currency: subscription_or_oauth_quota
+    auth: local_codex_oauth_session
+    command: codex
+    runtime_provider: codex-cli
+    default_model: gpt-5.6-sol
+    reasoning_effort: xhigh
+    notes: >
+      Native Codex CLI provider for AgentLab role workers. Do not assign this
+      provider to Hermes or represent Hermes' internal openai-codex provider as
+      the Codex worker.
+
   deepseek_official:
     display: DeepSeek 官方 API
     currency: USD
@@ -318,12 +515,39 @@ providers:
     command: hermes
     base_url: https://chatgpt.com/backend-api/codex
     runtime_provider: openai-codex
-    default_model: gpt-5.5
-    reasoning_effort: high
+    default_model: gpt-5.6-sol
+    reasoning_effort: xhigh
     notes: >
-      Hermes 内部的 Codex OAuth provider。用于 Supervisor 等脑力层通过
-      hermes --provider openai-codex -m gpt-5.5 调用，并配置 high reasoning effort；
+      Hermes 内部的 Codex OAuth provider。仅保留给非默认/兼容 Supervisor 路径通过
+      hermes --provider openai-codex -m gpt-5.6-sol 调用，并要求 xhigh reasoning effort；
       不等同于 Codex CLI worker。
+
+  hermes_xai_oauth:
+    display: Hermes xAI OAuth
+    currency: subscription_or_oauth_quota
+    auth: local_hermes_oauth_session
+    command: hermes
+    runtime_provider: xai-oauth
+    default_model: grok-4.3
+    capacity_source: config/model_capacity.yml
+    notes: >
+      Used separately by Grok Researcher and Grok media-tool contracts. Runtime
+      auth/cooldown evidence is dynamic; this catalog entry never claims a
+      remaining percentage or reset time.
+
+  ark_agent_plan:
+    display: Volcengine Ark Agent Plan via Hermes + Ark Skills
+    currency: subscription_or_oauth_quota
+    auth: local_arkcli_sso_agent_plan_profile
+    command: hermes
+    worker: hermes_ark
+    invocation_contract: hermes_ark_artifact_producer
+    runtime_provider: ark-agent-plan
+    default_model: doubao-seedance-1-5-pro-251215
+    notes: >
+      Task-scoped Seedance media provider backed by the active local Agent Plan
+      subscription. Hermes is the primary bounded shell; Claude + the repository
+      Seedance Skill is fallback-only. Credentials remain outside AgentLab.
 
   agy_gemini_oauth:
     display: Agy / Antigravity Gemini OAuth
@@ -343,11 +567,11 @@ providers:
     auth: local_oauth_session
     command: agy
     region_requirement: vpn_or_proxy_to_supported_region
-    default_model: claude-sonnet-4-6@default
-    never_default: true
+    default_model: Claude Sonnet 4.6 (Thinking)
+    never_primary: true
     notes: >
-      仅供 Agy Writer 在 Gemini OAuth 配额耗尽时轮换独立额度窗口。
-      provider surface 仍为 cli_agent:agy；不允许 API key fallback。
+      Agy Observer 的独立备用容量池；provider surface 仍为
+      cli_agent:agy，不允许 API key fallback，未知剩余额度保持 null。
 
   gemini_api_free_tier:
     display: Gemini API Free Tier

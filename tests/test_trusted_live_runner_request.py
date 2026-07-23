@@ -23,8 +23,8 @@ def test_trusted_live_runner_request_materializes_internal_smoke_commands_withou
 
     assert report["report_type"] == "agentlab_trusted_live_runner_request"
     assert report["status"] == "ready_for_trusted_runner"
-    warning_ids = {item["id"] for item in report["session_health_warnings"]}
-    assert warning_ids <= {"current_agy_session_health", "current_grok_session_health"}
+    assert report["session_health_evaluated_at_runtime"] is True
+    assert "session_health_warnings" not in report
     assert report["runner_boundary"]["frontdesk_agent_executes_commands"] is False
     assert report["runner_boundary"]["requires_trusted_runtime"] is True
     pre_run = report["recommended_pre_run_session_health_checks"]
@@ -34,12 +34,17 @@ def test_trusted_live_runner_request_materializes_internal_smoke_commands_withou
     assert report["terminology"]["canonical_kind"] == "private_role_session_acceptance_smoke"
     assert report["terminology"]["not_a_default_production_workflow"] is True
     assert report["runner_boundary"]["role_session_acceptance_commands_allowed_only_by_runner"] is True
-    assert any("agy-cli-smoke --live" in command for command in pre_run["commands"])
+    assert any(
+        "worker-invocation-probe --worker claude_writer" in command
+        for command in pre_run["commands"]
+    )
     assert any("grok-cli-smoke --live" in command for command in pre_run["commands"])
     assert any("internal-live-readiness" in command for command in pre_run["commands"])
     assert any("internal_live_readiness.yml" in command for command in pre_run["commands"])
     assert by_id["run_crown_internal_writer_eval"]["agentlab_execution_owner"] == "Writer"
-    assert "--writer-worker agy" in by_id["run_crown_internal_writer_eval"]["command"]
+    assert by_id["run_crown_internal_writer_eval"]["assigned_worker"] == "claude_code"
+    assert "--writer-worker claude_code" in by_id["run_crown_internal_writer_eval"]["command"]
+    assert "--writer-worker agy" not in by_id["run_crown_internal_writer_eval"]["command"]
     assert "trusted_live_test_writer" in by_id["run_crown_internal_writer_eval"]["command"]
     assert by_id["run_crown_internal_writer_eval"]["expected_outputs"]["type"] == "narrative_live_smoke"
     assert "fiction_draft.md" in "\n".join(by_id["run_crown_internal_writer_eval"]["expected_outputs"]["required_files"])
@@ -129,24 +134,32 @@ def test_trusted_live_runner_request_cli_writes_yaml_and_script(tmp_path: Path) 
     assert report["local_runner_package"]["post_run_selected_collect_commands"]["writer_only"].endswith(
         "--item run_crown_internal_writer_eval"
     )
+    assert "trusted_live_runner_collect_writer.yml" not in report["local_runner_package"][
+        "post_run_selected_collect_commands"
+    ]["writer_only"]
     assert report["local_runner_package"]["post_run_selected_collect_commands"]["media_only"].endswith(
         "--item run_crown_internal_media_smoke"
     )
+    assert "trusted_live_runner_collect_media.yml" not in report["local_runner_package"][
+        "post_run_selected_collect_commands"
+    ]["media_only"]
     assert report["local_runner_package"]["preflight_only_command"].endswith(" --preflight-only")
     assert report["local_runner_package"]["session_health_only_command"].endswith(" --session-health-only")
     assert "trusted-live-runner-preflight" in report["local_runner_package"]["preflight_report_command"]
     assert any(
-        "agy-cli-smoke --live" in command
+        "worker-invocation-probe --worker claude_writer" in command
         for command in report["local_runner_package"]["recommended_pre_run_session_health_commands"]
     )
     assert any(
         "grok-cli-smoke --live" in command
         for command in report["local_runner_package"]["recommended_pre_run_session_health_commands"]
     )
-    assert "command -v agy" in report["local_runner_package"]["preflight_commands"]
+    assert "command -v claude" in report["local_runner_package"]["preflight_commands"]
+    assert "command -v agy" not in report["local_runner_package"]["preflight_commands"]
     assert "command -v hermes" in report["local_runner_package"]["preflight_commands"]
     text = script.read_text(encoding="utf-8")
-    assert "require_command agy" in text
+    assert "require_command claude" in text
+    assert "require_command agy" not in text
     assert "require_command hermes" in text
     assert "trusted-live-runner-preflight --request" in text
     assert "trusted-live-runner-collect --request" in text
@@ -159,7 +172,7 @@ def test_trusted_live_runner_request_cli_writes_yaml_and_script(tmp_path: Path) 
     assert "guard_clean_session_health" in text
     assert "selected_session_health_issue_count" in text
     assert "should_run_session_health_command" in text
-    assert "current_agy_session_health" in text
+    assert "current_claude_writer_session_health" in text
     assert "current_grok_session_health" in text
     assert "skipped_for_selected_item=$RUN_ONLY" in text
     assert "TRUSTED_LIVE_RUNNER=\"${AGENTLAB_TRUSTED_LIVE_RUNNER:-}\"" in text
@@ -188,7 +201,8 @@ def test_trusted_live_runner_request_cli_writes_yaml_and_script(tmp_path: Path) 
     assert "session_health_issue_report_unreadable" in text
     assert "reason={reason} next_action={next_action}" in text
     assert "session_health_issues" in text
-    assert "agy-cli-smoke --live" in text
+    assert "worker-invocation-probe --worker claude_writer" in text
+    assert "claude_writer_session_probe.yml" in text
     assert "grok-cli-smoke --live" in text
     assert "internal-live-readiness" in text
     assert "internal_live_readiness.yml" in text
@@ -220,12 +234,12 @@ def test_trusted_live_runner_script_refuses_without_required_env_gates(tmp_path:
                         "id": "run_crown_internal_writer_eval",
                         "status": "ready",
                         "agentlab_execution_owner": "Writer",
-                        "assigned_worker": "agy",
+                        "assigned_worker": "claude_code",
                         "role_session_required": True,
                         "agentlab_command": (
                             "./agentlab.sh narrative-eval run --project Crown_of_Ash "
                             "--suite suite --mode live --chapters 1 --timestamp <internal_live_run_id> "
-                            "--writer-worker agy"
+                            "--writer-worker claude_code"
                         ),
                     },
                     {
@@ -332,6 +346,11 @@ def test_trusted_live_runner_preflight_checks_local_package_without_provider_cal
                 "local_runner_package": {
                     "entrypoint": str(script),
                     "status_path": str(tmp_path / "trusted_live_runner_status.yml"),
+                    "preflight_commands": [
+                        "test -x ./agentlab.sh",
+                        "command -v claude",
+                        "command -v hermes",
+                    ],
                     "exact_outbound_context_manifest_required": True,
                     "writer_sealed_context_required": True,
                     "media_prompt_digest_required": True,
@@ -344,7 +363,7 @@ def test_trusted_live_runner_preflight_checks_local_package_without_provider_cal
     )
     monkeypatch.setattr(
         "agent_runtime.trusted_live_runner_preflight.shutil.which",
-        lambda command: f"/fake/bin/{command}" if command in {"agy", "hermes"} else None,
+        lambda command: f"/fake/bin/{command}" if command in {"claude", "hermes"} else None,
     )
 
     report = build_trusted_live_runner_preflight(tmp_path, request_path=request_path)
@@ -356,7 +375,7 @@ def test_trusted_live_runner_preflight_checks_local_package_without_provider_cal
         "request_yaml",
         "runner_script",
         "agentlab_entrypoint",
-        "command:agy",
+        "command:claude",
         "command:hermes",
         "exact_outbound_context_manifest_required",
         "writer_sealed_context_required",
@@ -401,19 +420,19 @@ def test_trusted_live_runner_status_reports_pending_until_outputs_return(
     )
 
 
-def test_trusted_live_runner_status_reports_agy_session_gate_for_missing_writer_artifacts(
+def test_trusted_live_runner_status_reports_claude_session_gate_for_missing_writer_artifacts(
     tmp_path: Path,
 ) -> None:
     smoke_dir = tmp_path / "acceptance_runs" / "agentlab_capability_acceptance"
     smoke_dir.mkdir(parents=True)
-    (smoke_dir / "agy_cli_session_smoke.yml").write_text(
+    (smoke_dir / "claude_writer_session_probe.yml").write_text(
         yaml.safe_dump(
             {
-                "status": "blocked",
-                "worker": "agy",
-                "reason": "agy_localhost_bind_denied",
-                "command_available": True,
-                "command_path": "/fake/bin/agy",
+                "worker_id": "claude_writer",
+                "installed": True,
+                "exit_code": 1,
+                "timeout": False,
+                "error_class": "auth_required",
             },
             sort_keys=False,
         ),
@@ -427,8 +446,8 @@ def test_trusted_live_runner_status_reports_agy_session_gate_for_missing_writer_
                 "items": [
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "assigned_worker": "agy",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "assigned_worker": "claude_code",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {
                             "type": "narrative_live_smoke",
                             "run_dir": "projects/Crown_of_Ash/runs/writer_out",
@@ -454,8 +473,8 @@ def test_trusted_live_runner_status_reports_agy_session_gate_for_missing_writer_
 
     assert writer["status"] == "pending"
     assert writer["acceptance_blocker"] == "missing_required_files"
-    assert writer["pending_reason"] == "agy_session_health_blocked_before_private_writer_smoke"
-    assert writer["session_health_gate"]["reason"] == "agy_localhost_bind_denied"
+    assert writer["pending_reason"] == "claude_writer_session_health_blocked_before_private_writer_smoke"
+    assert writer["session_health_gate"]["reason"] == "auth_required"
     assert writer["session_health_gate"]["command_available"] is True
 
 
@@ -519,8 +538,10 @@ def test_trusted_live_runner_status_reports_observed_error(tmp_path: Path) -> No
     assert writer["observed_error"]["provider"] == "agentlab-cli-executor"
     assert writer["observed_error"]["model"] == "agy"
     assert writer["observed_error"]["error"] == "CLI agent exited 1."
-    assert writer["pending_reason"] == "writer_role_session_agy_cli_exit"
-    assert writer["next_action"] == "run_same_writer_agentlab_command_from_user_terminal_or_fix_agy_cli_role_worker"
+    assert writer["pending_reason"] == "historical_writer_role_session_agy_cli_exit"
+    assert writer["next_action"] == (
+        "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke"
+    )
 
 
 def test_trusted_live_runner_status_passes_only_after_returned_artifact_qc(tmp_path: Path) -> None:
@@ -649,7 +670,7 @@ def test_trusted_live_runner_status_passes_only_after_returned_artifact_qc(tmp_p
                 "items": [
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {
                             "type": "narrative_live_smoke",
                             "run_dir": "projects/Crown_of_Ash/runs/task_narrative_eval_ch01_ok",
@@ -790,7 +811,7 @@ def test_trusted_live_runner_status_rejects_media_text_handoff_as_generated_asse
                     },
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {"type": "narrative_live_smoke", "required_files": []},
                     },
                 ],
@@ -863,7 +884,7 @@ def test_trusted_live_runner_status_rejects_media_assets_outside_out_dir(tmp_pat
                     },
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {"type": "narrative_live_smoke", "required_files": []},
                     },
                 ],
@@ -928,7 +949,7 @@ def test_trusted_live_runner_status_rejects_empty_media_asset_file(tmp_path: Pat
                     },
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {"type": "narrative_live_smoke", "required_files": []},
                     },
                 ],
@@ -989,7 +1010,7 @@ def test_trusted_live_runner_status_rejects_blank_media_asset_path(tmp_path: Pat
                     },
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {"type": "narrative_live_smoke", "required_files": []},
                     },
                 ],
@@ -1042,7 +1063,7 @@ def test_trusted_live_runner_status_rejects_thin_returned_narrative_artifacts(tm
                 "items": [
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {
                             "type": "narrative_live_smoke",
                             "run_dir": "projects/Crown_of_Ash/runs/task_narrative_eval_ch01_bad",
@@ -1171,7 +1192,7 @@ def test_trusted_live_runner_status_rejects_longform_eval_for_different_run_dir(
                 "items": [
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {
                             "type": "narrative_live_smoke",
                             "run_dir": "projects/Crown_of_Ash/runs/task_narrative_eval_ch01_current",
@@ -1266,12 +1287,14 @@ def test_trusted_live_runner_status_classifies_agy_localhost_bind_denied(tmp_pat
     report = build_trusted_live_runner_status(tmp_path, request_path=request_path)
     writer = {item["id"]: item for item in report["items"]}["run_crown_internal_writer_eval"]
 
-    assert writer["pending_reason"] == "frontdesk_sandbox_agy_localhost_bind_denied"
-    assert writer["next_action"] == "run_same_writer_agentlab_command_from_user_terminal_or_trusted_agentlab_runtime"
+    assert writer["pending_reason"] == "historical_frontdesk_sandbox_agy_localhost_bind_denied"
+    assert writer["next_action"] == (
+        "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke"
+    )
     assert "local language-server bind" in writer["evidence_interpretation"]
 
 
-def test_trusted_live_runner_status_marks_old_agy_bind_error_stale_after_session_pass(tmp_path: Path) -> None:
+def test_trusted_live_runner_status_keeps_old_agy_smoke_as_historical_evidence(tmp_path: Path) -> None:
     run_dir = tmp_path / "projects" / "Crown_of_Ash" / "runs" / "task_narrative_eval_ch01_test"
     run_dir.mkdir(parents=True)
     error_path = run_dir / "live_generation_error.yml"
@@ -1340,14 +1363,15 @@ def test_trusted_live_runner_status_marks_old_agy_bind_error_stale_after_session
     report = build_trusted_live_runner_status(tmp_path, request_path=request_path)
     writer = {item["id"]: item for item in report["items"]}["run_crown_internal_writer_eval"]
 
-    assert writer["pending_reason"] == "writer_live_artifacts_not_rerun_after_agy_session_pass"
-    assert writer["next_action"] == "rerun_trusted_writer_smoke_with_current_agy_session"
-    assert writer["observed_error"]["stale_after_session_health_pass"] is True
-    assert writer["observed_error"]["stale_reason"] == "current_agy_cli_session_smoke_passed_after_frontdesk_error"
-    assert writer["observed_error"]["current_session_smoke_status"] == "pass"
-    assert report["stale_items"][0]["id"] == "run_crown_internal_writer_eval"
-    assert "executed_max_turns" not in report["stale_items"][0]
-    assert "current_max_turns" not in report["stale_items"][0]
+    assert writer["pending_reason"] == "historical_frontdesk_sandbox_agy_localhost_bind_denied"
+    assert writer["next_action"] == (
+        "regenerate_trusted_writer_request_for_claude_writer_then_rerun_trusted_writer_smoke"
+    )
+    assert writer["observed_error"]["historical_writer_route"] == "agy"
+    assert writer["observed_error"]["historical_writer_route_is_current"] is False
+    assert writer["observed_error"]["historical_session_smoke_status"] == "pass"
+    assert "stale_after_session_health_pass" not in writer["observed_error"]
+    assert report["stale_items"] == []
 
 
 def test_trusted_live_runner_status_treats_media_timeout_ledger_as_pending(tmp_path: Path) -> None:
@@ -1414,7 +1438,7 @@ def test_trusted_live_runner_status_treats_media_timeout_ledger_as_pending(tmp_p
                 "items": [
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {
                             "type": "narrative_live_smoke",
                             "run_dir": "projects/Crown_of_Ash/runs/writer_out",
@@ -1563,7 +1587,7 @@ def test_trusted_live_runner_status_classifies_current_grok_settings_fetch_failu
                     },
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {
                             "type": "narrative_live_smoke",
                             "run_dir": "projects/Crown_of_Ash/runs/writer_out",
@@ -1802,7 +1826,7 @@ def test_trusted_live_runner_status_marks_old_grok_settings_failure_stale_after_
                     },
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {
                             "type": "narrative_live_smoke",
                             "run_dir": "projects/Crown_of_Ash/runs/writer_out",
@@ -1934,7 +1958,7 @@ def test_trusted_live_runner_status_marks_old_grok_transport_failure_stale_after
                     },
                     {
                         "id": "run_crown_internal_writer_eval",
-                        "command": "./agentlab.sh narrative-eval run --writer-worker agy",
+                        "command": "./agentlab.sh narrative-eval run --writer-worker claude_code",
                         "expected_outputs": {
                             "type": "narrative_live_smoke",
                             "run_dir": "projects/Crown_of_Ash/runs/writer_out",

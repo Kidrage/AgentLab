@@ -63,13 +63,6 @@
         <label>用户请求</label>
         <textarea id="newTaskRequest" rows="4" placeholder="描述你的任务…"></textarea>
       </div>
-      <div class="form-group">
-        <label>执行后端</label>
-        <select id="newTaskBackend">
-          <option value="codex">Codex Plus</option>
-          <option value="qwen">Qwen API</option>
-        </select>
-      </div>
       <div class="modal-actions">
         <button type="submit" class="btn btn-primary">创建任务</button>
         <button type="button" class="btn btn-ghost" onclick="document.getElementById('newTaskModal').hidden=true">取消</button>
@@ -126,7 +119,6 @@
         <span class="theme-icon-dark">🌙</span>
       </button>
       <!-- 设置 -->
-      <button class="icon-btn" title="模型与执行设置" onclick="AgentLab.toggleSettings()" id="settingsBtn">⚙</button>
       <!-- 状态 -->
       <div class="status-indicator" id="connectionStatus" title="连接状态">
         <span class="dot"></span>
@@ -134,66 +126,6 @@
       </div>
     </div>
   </header>
-
-  <!-- ====== 侧拉设置面板 ====== -->
-  <div class="settings-backdrop" id="settingsBackdrop" hidden onclick="AgentLab.toggleSettings()"></div>
-  <aside class="settings-panel" id="settingsPanel" hidden>
-    <div class="settings-header">
-      <h3>模型与执行配置</h3>
-      <button class="btn btn-ghost btn-sm" onclick="AgentLab.toggleSettings()">✕</button>
-    </div>
-    <div class="settings-body">
-      <!-- 项目 & 任务 -->
-      <div class="settings-section">
-        <h4>📁 工作区边界</h4>
-        <p class="settings-hint">项目和任务切换已固定在顶栏；此处只保留模型、密钥与执行策略设置，避免导航和配置混在一起。</p>
-      </div>
-
-      <!-- 大脑层 -->
-      <div class="settings-section">
-        <h4>🧠 大脑层 (规划/审查)</h4>
-        <p class="settings-hint">Supervisor 使用 v4-pro，其余 Agent 使用 v4-flash 节约成本</p>
-        <div class="select-group">
-          <label>Provider & 模型</label>
-          <select id="brainModelSelector" onchange="AgentLab.switchBrainModel(this.value)">
-            <option value="default">默认 (DeepSeek pro+flash)</option>
-            <option value="deepseek-v4-pro">全 DeepSeek V4 Pro</option>
-            <option value="qwen">全 Qwen</option>
-          </select>
-        </div>
-        <details class="settings-api-key">
-          <summary>🔑 API Key</summary>
-          <div class="select-group">
-            <label>DeepSeek API Key</label>
-            <input type="password" id="brainApiKey" placeholder="sk-..." onchange="AgentLab.setBrainApiKey(this.value)">
-          </div>
-        </details>
-      </div>
-
-      <!-- 执行层 -->
-      <div class="settings-section">
-        <h4>⚡ 执行层 (Coder)</h4>
-        <p class="settings-hint">实际编辑文件的模型，支持 Codex Plus / Qwen / DeepSeek</p>
-        <div class="select-group">
-          <label>Provider & 模型</label>
-          <select id="execModelSelector" onchange="AgentLab.switchExecModel(this.value)">
-            <option value="codex-plus">Codex Plus (IDE 内置)</option>
-            <option value="qwen-plus">Qwen Plus (API)</option>
-            <option value="qwen-max">Qwen Max (API)</option>
-            <option value="deepseek-v4-pro">DeepSeek V4 Pro (API)</option>
-          </select>
-        </div>
-        <details class="settings-api-key">
-          <summary>🔑 API Key</summary>
-          <div class="select-group" id="execApiKeyGroup" style="display:none">
-            <label id="execApiKeyLabel">API Key</label>
-            <input type="password" id="execApiKey" placeholder="sk-..." onchange="AgentLab.setExecApiKey(this.value)">
-          </div>
-          <p id="execApiKeyNote" class="settings-hint">Codex Plus 使用 IDE 内置 AI，无需 API Key</p>
-        </details>
-      </div>
-    </div>
-  </aside>
 
   <!-- ====== 通知面板 ====== -->
   <div class="notif-panel" id="notifPanel" hidden>

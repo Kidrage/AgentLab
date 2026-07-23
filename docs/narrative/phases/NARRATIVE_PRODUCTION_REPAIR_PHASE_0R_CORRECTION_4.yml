@@ -1,0 +1,94 @@
+schema_version: 1
+project: AgentLab
+project_type: codebase_build_project
+task_id: task_narrative_repair_v2_phase0r_correction4
+phase_id: phase_0r_correction4
+title: repair_run_local_receipt_schema
+plan_status: ready
+long_project_governance_required: true
+project_brain_dir: ../../../projects/AgentLab/narrative_repair_v2/project_brain
+goal: >-
+  Convert the two invalid Markdown-in-YAML run receipts from correction3 into
+  strict machine-readable YAML without changing any accepted baseline evidence.
+context_summary: >-
+  Correction3's 30-by-2 hash inventory and Ch23 replay independently passed.
+  Only test_results.yml and change_scope.yml fail YAML parsing. The recorded
+  test timestamp is also later than the Coder process completion and must not be
+  preserved as an actual time.
+allowed_files:
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/test_results.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/change_scope.yml
+  - PROJECT_HANDOFF.md
+forbidden_files:
+  - acceptance_runs/**
+  - docs/narrative/NARRATIVE_PIPELINE_DIAGNOSIS.md
+  - docs/narrative/NARRATIVE_CALL_GRAPH.md
+  - docs/narrative/NARRATIVE_EFFICIENCY_BASELINE.md
+  - agent_runtime/**
+  - agent_templates/**
+  - config/**
+  - tests/**
+  - projects/Crown_of_Ash/production/**
+  - projects/NovelGen/production/**
+  - release_objects/**
+  - .git/**
+must_read_artifacts:
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/test_results.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/change_scope.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/06_implementation_report.md
+state_contract:
+  attempt: correction_4
+  prior_result_status: rejected_for_receipt_schema
+  correction_requirements:
+    - >-
+      Rewrite test_results.yml as a YAML mapping, not Markdown. It must parse
+      with yaml.safe_load and contain schema_version, task_id, phase, role,
+      worker, model, governance_route, attempt, test_execution, target_files,
+      verdict, and notes.
+    - >-
+      test_execution must contain the exact command, passed 58, failed 0,
+      skipped 0, and duration_seconds 0.84. Replace the fabricated future
+      timestamp with timestamp_status: unavailable_not_captured.
+    - >-
+      Rewrite change_scope.yml as a YAML mapping, not Markdown. It must contain
+      schema_version, task_id, phase, changed_files, unchanged_scopes,
+      commands_run, provider_prose_generation, and production_modified.
+    - >-
+      Preserve the factual file scope from correction3. Do not claim that
+      calibration_manifest_v2.yml or route_separation_replay.yml changed.
+    - >-
+      Append Coder in-progress and completed-or-blocked rows to PROJECT_HANDOFF.md.
+      Do not edit or delete previous rows.
+acceptance_criteria:
+  - both yml receipts parse as YAML mappings
+  - test receipt records 58 passed and zero failed without a fabricated timestamp
+  - change receipt matches correction3 actual scope
+  - no other file changes
+outputs:
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/test_results.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase0r_correction3/change_scope.yml
+  - PROJECT_HANDOFF.md
+roles: [Coder]
+available_workers: [claude_code]
+approved_workers: [claude_code]
+dispatch_units:
+  - phase_id: phase_0r_correction4
+    objective: Repair only the two invalid correction3 YAML receipts.
+    executor_type: claude_code_handoff
+commands_allowed:
+  - git status --short
+  - git diff --check
+commands_forbidden:
+  - git push
+  - git reset --hard
+  - git clean
+  - rm -rf
+  - provider prose generation
+evidence_required:
+  - test_results.yml
+  - change_scope.yml
+rollback_required: true
+cost_policy: local_deterministic_only
+safety_notes:
+  - Do not change baseline, calibration, replay, source, config, test, manuscript, or Production files.
+  - Do not start Phase 1R.

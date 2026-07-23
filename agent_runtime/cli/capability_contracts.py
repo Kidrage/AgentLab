@@ -115,6 +115,12 @@ def register_capability_contract_commands(app: typer.Typer, console: Console) ->
             "--run-id",
             help="Task/run id for generated role-session; defaults to contract task_id.",
         ),
+        timeout_seconds: int = typer.Option(
+            900,
+            "--timeout-seconds",
+            min=1,
+            help="Provider execution timeout; video generation may take several minutes.",
+        ),
     ) -> None:
         """Execute or dry-run a media backend contract. Real provider calls require --live."""
         from agent_runtime.media_backend_adapter import execute_media_contract, load_media_generation_contract
@@ -139,6 +145,7 @@ def register_capability_contract_commands(app: typer.Typer, console: Console) ->
             root,
             out_dir,
             live=live,
+            timeout_seconds=timeout_seconds,
             role_session=role_session_packet if isinstance(role_session_packet, dict) else {},
         )
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True))

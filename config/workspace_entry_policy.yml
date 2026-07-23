@@ -8,7 +8,6 @@ required_entry_command: ./agentlab.sh workspace-entry --agent "{agent_id}"
 max_packet_chars: 12000
 state_sources:
   - PROJECT_HANDOFF.md
-  - .agentlab/HandOff.md
   - projects/<Project>/runs/<task_id>/state.yml
   - projects/<Project>/runs/<task_id>/task_card.yml
   - projects/<Project>/runs/<task_id>/lifecycle.yml

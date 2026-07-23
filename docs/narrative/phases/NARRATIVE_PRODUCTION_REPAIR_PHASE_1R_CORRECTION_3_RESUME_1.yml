@@ -1,0 +1,151 @@
+schema_version: 1
+project: AgentLab
+project_type: codebase_build_project
+task_id: task_narrative_repair_v2_phase1r_correction3_resume1
+phase_id: phase_1r_correction3_resume1
+title: resume_timed_out_phase1r_correction3_at_remaining_public_contract_gaps
+plan_status: ready
+long_project_governance_required: true
+project_brain_dir: ../../../projects/AgentLab/narrative_repair_v2/project_brain
+goal: >-
+  Resume the timed-out Coder node without redoing its accepted partial work and
+  close the five remaining Supervisor-reproduced public-contract failures.
+context_summary: >-
+  The prior Coder process timed out at 600 seconds after leaving a partial patch
+  and prematurely appending a completed row. The exact target check and receipt
+  filename are now correct and 130 focused tests pass. Independent replay still
+  proves non-canonical absolute source keys pass, validate_materialized_outputs
+  passes without provenance, whitespace provenance passes, ChapterRequest has
+  no provenance fields, and receipt-write failure leaves prose behind.
+allowed_files:
+  - agent_runtime/narrative/production/brief_compiler.py
+  - agent_runtime/narrative/production/writer_contract.py
+  - agent_runtime/narrative/production/chapter_engine.py
+  - agent_runtime/narrative/production/state_projector.py
+  - agent_runtime/writer_output_materializer.py
+  - tests/test_narrative_delivery.py
+  - tests/test_narrative_efficiency.py
+  - tests/test_narrative_quality_gate.py
+  - tests/test_writer_output_materializer.py
+  - docs/narrative/NARRATIVE_PHASE1R_ACCEPTANCE.md
+  - acceptance_runs/narrative_repair_v2/phase_1r/**
+  - PROJECT_HANDOFF.md
+forbidden_files:
+  - agent_runtime/run_task.py
+  - agent_runtime/pipeline_runner.py
+  - agent_runtime/workflow_plan.py
+  - agent_runtime/narrative_delivery.py
+  - agent_runtime/narrative_eval.py
+  - agent_runtime/operator_os/**
+  - agent_runtime/background_jobs/**
+  - config/**
+  - projects/Crown_of_Ash/**
+  - projects/NovelGen/**
+  - release_objects/**
+  - agent_templates/**
+  - .git/**
+must_read_artifacts:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_1R_CORRECTION_3.yml
+  - projects/AgentLab/runs/task_narrative_repair_v2_phase1r_correction3/blocked_Coder.md
+state_contract:
+  attempt: correction_3_resume_1
+  retry_scope: timed_out_coder_node_only
+  preserve_partial_work:
+    - exact runs/<task_id>/fiction_draft.md equality
+    - blocked validation has no receipt
+    - writer_execution_receipt.yml filename
+    - current 130 passing focused tests
+  supervisor_replay_facts:
+    noncanonical_dot_segment_source_key_issues: []
+    root_directory_source_key_issues: []
+    double_slash_source_key_issues: []
+    validate_materialized_outputs_missing_provenance_status: pass
+    whitespace_provenance_status: pass
+    chapter_request_provenance_fields_present: false
+    receipt_write_exception_escaped: true
+    prose_left_after_receipt_write_failure: true
+  correction_requirements:
+    - >-
+      Validate each source_hashes key with pathlib semantics, not startswith.
+      It must be a non-empty canonical absolute path string with no dot segments
+      or redundant separators and must identify a file, not a directory. Add
+      parameterized tests for empty, whitespace, relative, /, //path, dot
+      segments, and a valid resolved temporary file. Keep 64-hex validation.
+    - >-
+      Centralize stripped provenance validation so both
+      validate_materialized_outputs and validate_edit_blocks block when any of
+      provider, model, or call_id is empty or whitespace. Success-only receipt
+      creation must be impossible with incomplete provenance.
+    - >-
+      Add observed writer provider/model/call_id fields to ChapterRequest and
+      pass them into validate_writer_v2_output. Update all engine tests with real
+      values. Prove missing or whitespace engine provenance blocks while a
+      populated delta plus complete provenance remains a reachable pass.
+    - >-
+      Replace the mutable global projector call log with an injectable projector
+      callable or explicit projector-result consumer spy at the ChapterEngine
+      seam. Tests must observe 0 calls before selection and exactly 1 after.
+      Avoid process-global state that can race between background jobs.
+    - >-
+      Use one canonical prose string returned by validation for writing and
+      hashing; do not re-extract a second representation from blocks. Wrap prose
+      and receipt persistence so any exception removes both
+      fiction_draft.md and writer_execution_receipt.yml and returns a blocked
+      result with no receipt. Add injected prose-write and receipt-write failure
+      tests. The diagnostic capture may remain.
+    - >-
+      Run all four focused files and update strict evidence with actual numbers.
+      Correct the premature correction3 completed handoff statement by appending
+      truthful resume progress and final status; never delete lineage. Keep
+      accepted: false. Do not start Phase 2R or touch Production.
+acceptance_criteria:
+  - canonical_existing_file_source_keys_only
+  - stripped_provenance_required_in_both_validation_entrypoints
+  - chapter_engine_provenance_is_explicit_and_success_reachable
+  - projector_seam_is_injectable_and_not_global
+  - prose_and_receipt_persistence_is_failure_atomic
+  - canonical_prose_is_not_reparsed
+  - all_four_focused_test_files_pass_with_zero_failures
+  - candidate_remains_pending_supervisor_review
+  - no_forbidden_or_production_changes
+outputs:
+  - completed Phase 1R implementation and consolidated tests
+  - docs/narrative/NARRATIVE_PHASE1R_ACCEPTANCE.md
+  - acceptance_runs/narrative_repair_v2/phase_1r/phase1r_acceptance.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/test_results.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/change_scope.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/rollback.md
+  - PROJECT_HANDOFF.md
+roles: [Coder]
+available_workers: [claude_code]
+approved_workers: [claude_code]
+dispatch_units:
+  - phase_id: phase_1r_correction3_resume1
+    objective: Resume only the timed-out node and close its five remaining public gaps.
+    executor_type: claude_code_handoff
+commands_allowed:
+  - rg
+  - git diff --check
+  - git diff --numstat
+  - PYTHONPATH=.:agent_runtime python -m pytest
+  - python -m compileall
+commands_forbidden:
+  - git push
+  - git reset --hard
+  - git clean
+  - rm -rf
+  - provider prose generation
+  - production promotion
+evidence_required:
+  - phase1r_acceptance.yml
+  - test_results.yml
+  - change_scope.yml
+  - rollback.md
+rollback_required: true
+cost_policy: implementation_model_allowed_no_prose_provider
+safety_notes:
+  - Preserve the timed-out partial patch and all prior lineage.
+  - Do not change Phase 0R evidence or accepted commit 1dd5008.
+  - Do not start Phase 2R or any live gate.
+  - Coder cannot accept the phase.

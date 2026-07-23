@@ -19,7 +19,7 @@ agents:
     command: agy
     project_dir: .agy
     entrypoint_file: AGENTLAB_ENTRYPOINT.md
-    default_profile: frontdesk_or_artifact_worker
+    default_profile: frontdesk_or_read_only_observer_reviewer
     wrapper_kind: both
     auto_read_confidence: unknown
     invocation:

@@ -1,0 +1,81 @@
+schema_version: 1
+phase_id: phase_1r
+title: prose_only_writer_and_creative_brief
+status: accepted_by_supervisor
+verdict: ACCEPTED_STRUCTURAL_CONTRACTS_ONLY
+accepted: true
+accepted_at: "2026-07-20 19:58 CST"
+accepted_by: codex_supervisor
+recommended_next_action: run_worker_chain_preflight_then_dispatch_phase2r
+rationale: >-
+  Independent adversarial review now proves the prose-only Writer contract,
+  canonical live-file source hashes, exact run target, observed provenance,
+  success-only receipt, canonical byte/hash binding, post-selection projector,
+  node-local failure handling, and legacy-v1 read compatibility. AgentLab's
+  correction3 and resume workers both timed out after 600 seconds and left
+  partial patches, so Codex completed only the frozen failing seams and reran
+  the consolidated tests. This accepts structural Phase 1R behavior only. It
+  does not claim live provider success, literary uplift, positive calibration,
+  Gate 1 completion, or permission to modify Production.
+
+acceptance_evidence:
+  focused_tests: {passed: 155, failed: 0, skipped: 0, duration_seconds: 0.95}
+  narrative_domain_tests: {passed: 202, failed: 0, skipped: 0, duration_seconds: 9.25}
+  compileall: pass
+  git_diff_check: pass
+  forbidden_scope_diff: empty
+  production_modified: false
+  provider_calls: 0
+  central_module_net_additions:
+    agent_runtime/narrative_delivery.py: 40
+    agent_runtime/narrative_eval.py: 23
+    agent_runtime/writer_output_materializer.py: 138
+  central_limit_status: pass_all_at_or_below_150
+  preliminary_full_repository:
+    passed: 2884
+    failed: 2
+    skipped: 2
+    notes:
+      - writer_template_regression_was_fixed_and_direct_replay_passed
+      - remaining_failure_is_preexisting_phase0_absolute_path_in_acceptance_evidence
+  post_hygiene_full_repository:
+    passed: 2886
+    failed: 0
+    skipped: 2
+    warnings: 11
+    duration_seconds: 346.80
+
+criteria:
+  prose_only_writer_v2: pass
+  exact_runs_task_id_fiction_draft_target: pass
+  canonical_existing_regular_file_source_hashes: pass
+  source_hash_matches_live_raw_bytes: pass
+  observed_nonblank_provider_model_call_id: pass
+  blocked_attempt_has_no_receipt_or_stale_output: pass
+  canonical_prose_bytes_equal_persisted_bytes_and_receipt_hash: pass
+  writer_execution_receipt_success_only: pass
+  projector_runs_after_selection: pass
+  projector_and_verifier_failure_is_node_local: pass
+  legacy_v1_read_compatibility: pass
+  candidate_only: pass
+  production_unchanged: pass
+  literary_uplift_proven: not_claimed
+
+evidence_files:
+  - test_results.yml
+  - change_scope.yml
+  - rollback.md
+  - ../../../../docs/narrative/NARRATIVE_PHASE1R_ACCEPTANCE.md
+
+known_limitations:
+  - agentlab_coder_timed_out_twice_and_required_supervisor_intervention
+  - no_live_writer_provider_call_was_made
+  - positive_calibration_status_is_missing_user_samples
+  - gate1_human_blind_review_has_not_run
+  - direct_claude_code_deepseek_v4_pro_worker_smoke_required_before_phase2_dispatch
+
+policy:
+  candidate_only: true
+  production_modified: false
+  push_main_allowed: false
+  next_phase_requires_fresh_dispatch: true

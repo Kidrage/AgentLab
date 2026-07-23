@@ -47,6 +47,20 @@ roles:
       - external_network
       - cloud_upload
 
+  observer:
+    required_capabilities:
+      - multimodal_observation
+      - evidence_quality_review
+    preferred_capabilities:
+      - long_context
+    forbidden_capabilities:
+      - file_edit
+      - patch_generation
+      - shell_execution
+      - cloud_upload
+      - write_artifact_file
+    default_risk_ceiling: low
+
   prompt_engineer:
     required_capabilities:
       - context_assembly
@@ -84,6 +98,35 @@ roles:
       - unapproved_source_edit
       - silent_provider_fallback
     default_risk_ceiling: high
+
+  writer:
+    required_capabilities:
+      - write_text_artifact
+    preferred_capabilities:
+      - long_context
+    forbidden_capabilities:
+      - unapproved_source_edit
+      - silent_provider_fallback
+    default_risk_ceiling: medium
+
+  reviewer:
+    required_capabilities:
+      - evidence_quality_review
+    preferred_capabilities:
+      - multimodal_observation
+      - long_context
+    forbidden_capabilities:
+      - unapproved_source_edit
+    default_risk_ceiling: medium
+
+  scribe:
+    required_capabilities:
+      - state_ledger
+    preferred_capabilities:
+      - long_context
+    forbidden_capabilities:
+      - unapproved_source_edit
+    default_risk_ceiling: medium
 
   tester_auditor:
     required_capabilities:

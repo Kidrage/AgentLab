@@ -1,0 +1,44 @@
+schema_version: 2
+chapter_id: 25
+candidate_only: true
+production_modified: false
+categories:
+  voice_examples:
+    - source: &ch24
+        path: projects/Crown_of_Ash/runs/task_narrative_eval_ch24_crown_corrected_200_v3_writer/fiction_draft.md
+        sha256: df4a30855118c33c41c11989ad4651ab5fa899ccfabc4a9568e23cc85bc21b8e
+      locator: {kind: line_range, start: 55, end: 55}
+      relevance:
+        reason_code: same_pov_or_character_voice
+        source_chapter_id: 24
+        applies_to: [Elysia]
+  emotional_debts:
+    - source: &state_plan
+        path: projects/Crown_of_Ash/candidates/gate1_legacy_integrated_ch25_ch27_20260719/chapter_state_plan_ch025_ch027.yml
+        sha256: 40c23c959859a92e7ff1f48869a5bcccd29b617655a8c94ef2ab4aa0cc0d9d32
+      locator: {kind: yaml_path, value: "chapter_state_plan[0].relationship_or_worldline_change"}
+      relevance:
+        reason_code: unresolved_relationship_or_obligation
+        source_chapter_id: 25
+        applies_to: [Kane, Isabella]
+  life_detail_anchors:
+    - source: *ch24
+      locator: {kind: line_range, start: 23, end: 23}
+      relevance:
+        reason_code: concrete_carried_life_detail
+        source_chapter_id: 24
+        applies_to: [Elysia]
+  recent_scene_signatures:
+    - source: *ch24
+      locator: {kind: line_range, start: 53, end: 53}
+      relevance:
+        reason_code: recent_scene_pattern
+        source_chapter_id: 24
+        applies_to: [Elysia, Cohen]
+  unresolved_reader_questions:
+    - source: *state_plan
+      locator: {kind: yaml_path, value: "chapter_state_plan[0].unresolved_hooks[0]"}
+      relevance:
+        reason_code: open_reader_question
+        source_chapter_id: 25
+        applies_to: [Kane, Roderick]

@@ -2,24 +2,25 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 import os
 import re
 import shutil
 import subprocess
-import time
 
 import yaml
 
-from agent_runtime.config_loader import load_agentlab_configs
 from agent_runtime.narrative_delivery import (
     REQUIRED_REVIEW_GATES,
+    narrative_delivery_integrity_issues,
+    validate_chapter_state_plan,
     validate_narrative_delivery,
     write_chapter_packet,
     write_narrative_delivery_receipt,
 )
+from agent_runtime.crown_candidate_audit import validate_writer_execution_contract
 from agent_runtime.policies import ensure_safe_task_id
 from agent_runtime.report_sanitizer import write_report_yaml
 from agent_runtime.writer_output_materializer import (
@@ -43,11 +44,20 @@ CHAPTER_ATTEMPT_OUTPUTS = (
     "live_generation_request.yml",
     "live_writer_cli_fallback.yml",
     "revision_or_rewrite_proposal.yml",
+    "writer_contract_retry_feedback.yml",
     "writer_retry_ledger.yml",
     "writer_transport_retry.yml",
     "writer_cli_fallback_capture.md",
     "writer_output_contract.yml",
     "writer_role_session_capture.md",
+    "model_execution_chain_writer.yml",
+    "outbound_context_manifest_writer.yml",
+)
+CHAPTER_REGENERATION_INPUTS = (
+    "chapter_packet.yml",
+    "candidate_fact_ledger.yml",
+    "workflow_plan.yml",
+    "live_writer_role_session_guard.yml",
 )
 
 
@@ -67,7 +77,12 @@ def _write_yaml(path: Path, data: dict[str, Any]) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
-def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
+def _clear_chapter_attempt_outputs(
+    run_dir: Path,
+    *,
+    replacement_reason: str | None = None,
+    clear_generation_inputs: bool = False,
+) -> None:
     """Remove stale candidate-derived files before a non-resumed attempt."""
     contract_path = run_dir / "writer_output_contract.yml"
     error_path = run_dir / "live_generation_error.yml"
@@ -83,7 +98,15 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
         if isinstance(data, dict):
             target.update(data)
 
-    if contract.get("status") == "blocked" or error.get("status") == "blocked":
+    should_archive = (
+        contract.get("status") == "blocked"
+        or error.get("status") == "blocked"
+        or bool(replacement_reason)
+    )
+    if should_archive and any(
+        (run_dir / name).is_file()
+        for name in (*CHAPTER_ATTEMPT_OUTPUTS, *CHAPTER_REGENERATION_INPUTS)
+    ):
         archive_root = run_dir / "rejected_attempts"
         index = 1
         while (archive_root / f"resume_{index:03d}").exists():
@@ -93,7 +116,9 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
         archived: list[str] = []
         candidates = [
             *(run_dir / filename for filename in CHAPTER_ATTEMPT_OUTPUTS),
+            *(run_dir / filename for filename in CHAPTER_REGENERATION_INPUTS),
             *sorted(run_dir.glob("writer_retry_attempt_*")),
+            *sorted(run_dir.glob("model_execution_receipt_writer_*.yml")),
         ]
         for path in candidates:
             if not path.is_file() or path.name in archived:
@@ -107,7 +132,7 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
                 "status": "rejected",
                 "candidate_only": True,
                 "production_modified": False,
-                "reason": "blocked_chapter_attempt_replaced_on_resume",
+                "reason": replacement_reason or "blocked_chapter_attempt_replaced_on_resume",
                 "contract_issues": contract.get("issues") or [],
                 "live_generation_error": error.get("error") or error.get("message"),
                 "archived_files": archived,
@@ -115,114 +140,16 @@ def _clear_chapter_attempt_outputs(run_dir: Path) -> None:
         )
     for filename in CHAPTER_ATTEMPT_OUTPUTS:
         (run_dir / filename).unlink(missing_ok=True)
+    if clear_generation_inputs:
+        for filename in CHAPTER_REGENERATION_INPUTS:
+            (run_dir / filename).unlink(missing_ok=True)
     for path in run_dir.glob("writer_retry_attempt_*"):
+        path.unlink(missing_ok=True)
+    for path in run_dir.glob("model_execution_receipt_writer_*.yml"):
         path.unlink(missing_ok=True)
 
 
-AGY_WRITER_RETRY_DELAYS_SECONDS = (5, 15)
-WRITER_MAX_CONTRACT_REDOS = 1
-QUOTA_RESET_PATTERN = re.compile(
-    r"Resets in\s*(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?",
-    re.IGNORECASE,
-)
-
-
-def _agy_writer_retry_reason(result: Any, run_dir: Path) -> tuple[str | None, Path | None]:
-    if (
-        getattr(result, "status", None) == "completed"
-        or getattr(result, "provider", None) != "agentlab-cli-executor"
-        or getattr(result, "model", None) != "agy"
-    ):
-        return None, None
-
-    raw_usage = getattr(result, "raw_usage", None)
-    raw_usage = raw_usage if isinstance(raw_usage, dict) else {}
-    failure_class = str(raw_usage.get("failure_class") or "")
-    if failure_class in {"rate_limited", "quota_exhausted"}:
-        return None, None
-    raw_log_path = str(raw_usage.get("cli_log_path") or "")
-    log_path = Path(raw_log_path) if raw_log_path else None
-    log_text = ""
-    if log_path is not None:
-        try:
-            log_path.resolve().relative_to(run_dir.resolve())
-            log_text = log_path.read_text(encoding="utf-8", errors="replace").lower()
-        except (OSError, ValueError):
-            log_path = None
-
-    if "keyringauth: timed out" in log_text:
-        return "agy_keyring_timeout", log_path
-    if "userinfo" in log_text and "eof" in log_text:
-        return "agy_userinfo_eof", log_path
-    if "loadcodeassist" in log_text and "eof" in log_text:
-        return "agy_model_catalog_eof", log_path
-    if "neither planmodel nor requestedmodel specified" in log_text:
-        return "agy_model_resolution_transient", log_path
-    if failure_class == "network_required":
-        return "agy_network_required", log_path
-    return None, log_path
-
-
-def _agy_quota_rotation_policy(
-    root: Path,
-    project: str,
-) -> dict[str, Any] | None:
-    configs = load_agentlab_configs(Path(root))
-    contracts = (configs.get("worker_invocation_contracts") or {}).get("contracts") or {}
-    configured = (contracts.get("agy_writer") or {}).get(
-        "quota_model_rotation"
-    )
-    if not isinstance(configured, dict):
-        raise ValueError("agy_writer quota_model_rotation contract is missing")
-    candidate = dict(configured)
-    allowed_projects = candidate.get("allowed_projects")
-    if not isinstance(allowed_projects, list) or not allowed_projects:
-        raise ValueError("agy_writer quota_model_rotation.allowed_projects is invalid")
-    if project not in {str(item) for item in allowed_projects}:
-        return None
-    if (
-        not str(candidate.get("from_model") or "")
-        or not str(candidate.get("to_model") or "")
-        or candidate.get("same_worker_required") != "agy"
-        or candidate.get("provider_surface_change_allowed") is not False
-        or candidate.get("api_key_fallback_allowed") is not False
-        or int(candidate.get("max_rotations_per_role_session") or 0) != 1
-    ):
-        raise ValueError("agy_writer quota_model_rotation contract is unsafe")
-    allowed = candidate.get("allowed_failure_classes")
-    if not isinstance(allowed, list) or {str(item) for item in allowed} != {
-        "quota_exhausted"
-    }:
-        raise ValueError("agy_writer rotation must be restricted to quota_exhausted")
-    models = (configs.get("model_catalog") or {}).get("models") or {}
-    if candidate["from_model"] not in models or candidate["to_model"] not in models:
-        raise ValueError("agy_writer rotation references an unregistered model")
-    candidate["allowed_failure_classes"] = ["quota_exhausted"]
-    return candidate
-
-
-def _agy_quota_rotation_reason(
-    result: Any,
-    allowed_failure_classes: set[str],
-) -> str | None:
-    if (
-        getattr(result, "status", None) == "completed"
-        or getattr(result, "provider", None) != "agentlab-cli-executor"
-        or getattr(result, "model", None) != "agy"
-    ):
-        return None
-    raw_usage = getattr(result, "raw_usage", None)
-    raw_usage = raw_usage if isinstance(raw_usage, dict) else {}
-    failure_class = str(raw_usage.get("failure_class") or "")
-    return failure_class if failure_class in allowed_failure_classes else None
-
-
-def _snapshot_writer_retry_log(log_path: Path | None, run_dir: Path, attempt: int) -> str | None:
-    if log_path is None or not log_path.is_file():
-        return None
-    target = run_dir / f"writer_retry_attempt_{attempt:02d}_agy.log"
-    target.write_bytes(log_path.read_bytes())
-    return target.name
+WRITER_MAX_CONTRACT_REDOS = 2
 
 
 def _writer_contract_issues(run_dir: Path) -> list[str]:
@@ -252,6 +179,151 @@ def _snapshot_writer_contract_attempt(run_dir: Path, attempt: int) -> dict[str, 
     return snapshots
 
 
+def _writer_retry_source(run_dir: Path, attempt: int) -> dict[str, str]:
+    """Extract only the rejected prose draft for a bounded full-contract redo."""
+    from agent_runtime.patch_applicator import parse_edit_blocks
+
+    capture_path = run_dir / f"writer_retry_attempt_{attempt:02d}_capture.md"
+    try:
+        blocks = parse_edit_blocks(capture_path.read_text(encoding="utf-8"))
+    except OSError:
+        return {}
+    for block in blocks:
+        raw_path = str(block.get("path") or "").strip().replace("\\", "/")
+        if Path(raw_path).name != "fiction_draft.md":
+            continue
+        draft = str(block.get("html_block_content") or "").strip()
+        lines = draft.splitlines()
+        if (
+            len(lines) >= 2
+            and lines[0].strip().startswith("```")
+            and lines[-1].strip() == "```"
+        ):
+            draft = "\n".join(lines[1:-1]).strip()
+        return {"fiction_draft": draft} if draft else {}
+    return {}
+
+
+def _write_writer_contract_retry_feedback(
+    run_dir: Path,
+    *,
+    attempt: int,
+    chapter: int,
+    issues: list[str],
+) -> None:
+    """Persist exact schema corrections for the single full Writer redo."""
+    character_ranges: dict[str, Any] = {}
+    try:
+        packet = yaml.safe_load(
+            (run_dir / "chapter_packet.yml").read_text(encoding="utf-8")
+        ) or {}
+        intent = packet.get("chapter_intent") or {}
+        for field in ("target_character_range", "hard_character_range"):
+            value = intent.get(field)
+            if (
+                isinstance(value, list)
+                and len(value) == 2
+                and all(isinstance(item, int) for item in value)
+            ):
+                character_ranges[field] = value
+    except (OSError, yaml.YAMLError, AttributeError):
+        pass
+    if "draft_character_count_out_of_range" in issues:
+        try:
+            contract = yaml.safe_load(
+                (run_dir / "writer_output_contract.yml").read_text(encoding="utf-8")
+            ) or {}
+            measurements = contract.get("measurements") or {}
+            observed = measurements.get("fiction_draft_characters")
+            hard_range = character_ranges.get("hard_character_range")
+            if isinstance(observed, int):
+                character_ranges["observed_characters"] = observed
+                if isinstance(hard_range, list) and len(hard_range) == 2:
+                    if observed < hard_range[0]:
+                        character_ranges["minimum_characters_to_add"] = (
+                            hard_range[0] - observed
+                        )
+                    elif observed > hard_range[1]:
+                        character_ranges["minimum_characters_to_remove"] = (
+                            observed - hard_range[1]
+                        )
+        except (OSError, yaml.YAMLError, AttributeError):
+            pass
+    instructions = [
+        "Emit all four complete AGENTLAB_EDIT blocks again in the required order.",
+        "Use the exact canonical fields and enum values below; do not use aliases.",
+        "Keep prose candidate-only and do not write production.",
+    ]
+    if isinstance(character_ranges.get("observed_characters"), int):
+        instructions.insert(
+            0,
+            "Use the deterministic observed character count below; do not rely on a self-estimated count.",
+        )
+    retry_source = _writer_retry_source(run_dir, attempt)
+    if retry_source:
+        instructions.insert(
+            0,
+            "Revise and expand the rejected fiction_draft below; preserve its valid story facts and do not replace it with a shorter draft.",
+        )
+    _write_yaml(
+        run_dir / "writer_contract_retry_feedback.yml",
+        {
+            "schema_version": 1,
+            "status": "correction_required",
+            "source_attempt": attempt,
+            "chapter": chapter,
+            "issues": issues,
+            "draft_character_contract": character_ranges,
+            "retry_source": retry_source,
+            "instructions": instructions,
+            "required_envelopes": {
+                "continuity_ledger.yml": {
+                    "schema_version": 1,
+                    "chapter": chapter,
+                    "baseline_mode": "reset" if chapter == 1 else "continuation",
+                    "timeline": {
+                        "monotonic": True,
+                    },
+                    "plot_state_changes": "list",
+                    "character_changes": "list",
+                    "relationship_or_worldline_changes": "list",
+                    "foreshadowing": "list",
+                },
+                "state_transition_proposal.yml": {
+                    "schema_version": 1,
+                    "status": "candidate",
+                    "chapter": chapter,
+                    "requires_user_promotion": True,
+                    "events": [
+                        {
+                            "event_type": "chapter_state_change",
+                            "scope": "candidate_only",
+                            "summary": "concrete chapter fact",
+                        }
+                    ],
+                },
+                "narrative_delivery_receipt.yml": {
+                    "schema_version": 1,
+                    "status": "pass",
+                    "candidate_only": True,
+                    "checks": {
+                        "chapter_and_title": "pass",
+                        "required_beats": "pass",
+                        "continuity_outputs": "pass",
+                        "production_untouched": "pass",
+                        "deprecated_sources_excluded": "pass",
+                    },
+                },
+            },
+            "forbidden_aliases": {
+                "state_transition_proposal.status": ["proposal_not_promoted"],
+                "narrative_delivery_receipt.status": ["candidate_delivered"],
+                "narrative_delivery_receipt.checks": ["quality_gate_checks"],
+            },
+        },
+    )
+
+
 def _collect(project_root: Path, patterns: list[str], *, limit: int = 200) -> list[str]:
     found: list[str] = []
     for pattern in patterns:
@@ -270,6 +342,25 @@ def _timestamp() -> str:
 def _safe_eval_task_id(chapter: int, eval_id: str) -> str:
     cleaned_eval_id = re.sub(r"[^A-Za-z0-9_-]+", "_", str(eval_id)).strip("_-") or "eval"
     return ensure_safe_task_id(f"task_narrative_eval_ch{chapter:02d}_{cleaned_eval_id}"[:85])
+
+
+def _predecessor_identity_issues(run_dir: Path, task_id: str, expected_chapter: int) -> list[str]:
+    packet_path = run_dir / "chapter_packet.yml"
+    if not packet_path.is_file():
+        return ["predecessor_chapter_packet_missing"]
+    try:
+        packet = yaml.safe_load(packet_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return ["predecessor_chapter_packet_invalid"]
+    issues: list[str] = []
+    if not isinstance(packet, dict):
+        return ["predecessor_chapter_packet_invalid"]
+    if packet.get("task_id") != task_id:
+        issues.append("predecessor_task_id_mismatch")
+    if packet.get("chapter") != expected_chapter:
+        issues.append("predecessor_chapter_mismatch")
+    issues.extend(narrative_delivery_integrity_issues(run_dir))
+    return issues
 
 
 def _candidate_chapter_sources(task_id: str) -> list[str]:
@@ -301,6 +392,24 @@ def _candidate_events_from_run(run_dir: Path, chapter: int, task_id: str) -> lis
     ]
 
 
+def _candidate_history_through_run(
+    run_dir: Path,
+    chapter: int,
+    task_id: str,
+) -> list[dict[str, Any]]:
+    """Rebuild cumulative candidate facts from a chapter's rolling ledger and proposal."""
+    ledger_path = run_dir / "candidate_fact_ledger.yml"
+    prior_events: list[dict[str, Any]] = []
+    if ledger_path.is_file():
+        try:
+            ledger = yaml.safe_load(ledger_path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            ledger = {}
+        events = ledger.get("events") if isinstance(ledger, dict) else []
+        prior_events = [event for event in events or [] if isinstance(event, dict)]
+    return [*prior_events, *_candidate_events_from_run(run_dir, chapter, task_id)]
+
+
 def _write_candidate_fact_ledger(
     run_dir: Path,
     events: list[dict[str, Any]],
@@ -322,11 +431,27 @@ def _write_candidate_fact_ledger(
     return f"runs/{run_dir.name}/candidate_fact_ledger.yml"
 
 
-def _write_light_chapter_workflow_plan(root: Path, project: str, task_id: str, run_dir: Path) -> None:
+def _write_light_chapter_workflow_plan(
+    root: Path,
+    project: str,
+    task_id: str,
+    run_dir: Path,
+    *,
+    writer_budget_mode: str = "balanced",
+) -> Any | None:
+    try:
+        from agent_runtime.routing.route_catalog import RouteCatalog
+    except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
+        from routing.route_catalog import RouteCatalog
+
+    narrative_route_key = "narrative_light_chapter"
+    narrative_agents = RouteCatalog.from_file(
+        root / "config" / "routing_rules.yml"
+    ).agents_for(narrative_route_key)
     fallback = {
         "route": {
-            "route_key": "narrative_light_chapter",
-            "agents": ["Supervisor", "Writer"],
+            "route_key": narrative_route_key,
+            "agents": narrative_agents,
         },
         "production_pack": {
             "pack_id": "narrative_longform",
@@ -342,18 +467,20 @@ def _write_light_chapter_workflow_plan(root: Path, project: str, task_id: str, r
             project,
             task_id,
             user_request_path=run_dir / "user_request.md",
-            budget_mode="balanced",
+            budget_mode=writer_budget_mode,
         )
         data = plan.model_dump(mode="json") if hasattr(plan, "model_dump") else fallback
         route = data.setdefault("route", {})
         if route.get("route_key") == "fiction_chapter_pipeline":
-            route["route_key"] = "narrative_light_chapter"
-        route.setdefault("route_key", "narrative_light_chapter")
-        route.setdefault("agents", ["Supervisor", "Writer"])
+            route["route_key"] = narrative_route_key
+        route.setdefault("route_key", narrative_route_key)
+        route.setdefault("agents", narrative_agents)
         data.setdefault("production_pack", fallback["production_pack"])
     except Exception:
+        plan = None
         data = fallback
     _write_yaml(run_dir / "workflow_plan.yml", data)
+    return plan
 
 
 def _chapter_number(path: Path) -> int | None:
@@ -377,7 +504,12 @@ def _production_chapters(project_root: Path) -> list[dict[str, Any]]:
     return sorted(chapters, key=lambda item: (item["chapter"] is None, item["chapter"] or 0, item["path"]))
 
 
-def _audit_fact_sources(project_root: Path, project: str) -> dict[str, Any]:
+def _audit_fact_sources(
+    project_root: Path,
+    project: str,
+    *,
+    require_knowledge_contract: bool = False,
+) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
     required_files = [
@@ -388,12 +520,36 @@ def _audit_fact_sources(project_root: Path, project: str) -> dict[str, Any]:
         if not path.exists():
             issues.append({"severity": "error", "check": check, "message": f"missing {_rel(path, project_root)}"})
 
-    bible_refs = _collect(project_root, ["production/bible/**/*.md"], limit=20)
-    outline_refs = _collect(project_root, ["production/outlines/**/*.md"], limit=20)
-    if not bible_refs:
-        issues.append({"severity": "error", "check": "bible_present", "message": "missing production/bible/**/*.md"})
-    if not outline_refs:
-        issues.append({"severity": "error", "check": "outline_present", "message": "missing production/outlines/**/*.md"})
+    bible_refs: list[str] = []
+    outline_refs: list[str] = []
+    blueprint_refs: list[str] = []
+    if require_knowledge_contract:
+        blueprint_required = (
+            "production/series_scale_decision.yml",
+            "production/chapter_length_policy.yml",
+            "production/canonical/index.yml",
+            "production/chapter_cards/index.yml",
+            "project_brain/blueprint_validation_receipt.yml",
+            "project_brain/knowledge_index_snapshot.yml",
+        )
+        for relative in blueprint_required:
+            if (project_root / relative).is_file():
+                blueprint_refs.append(relative)
+            else:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "check": "sealed_rag_blueprint_present",
+                        "message": f"missing {relative}",
+                    }
+                )
+    else:
+        bible_refs = _collect(project_root, ["production/bible/**/*.md"], limit=20)
+        outline_refs = _collect(project_root, ["production/outlines/**/*.md"], limit=20)
+        if not bible_refs:
+            issues.append({"severity": "error", "check": "bible_present", "message": "missing production/bible/**/*.md"})
+        if not outline_refs:
+            issues.append({"severity": "error", "check": "outline_present", "message": "missing production/outlines/**/*.md"})
 
     revision_log = project_root / "project_brain" / "revision_log.jsonl"
     if not revision_log.exists():
@@ -409,6 +565,7 @@ def _audit_fact_sources(project_root: Path, project: str) -> dict[str, Any]:
             "fact_snapshot": "project_brain/project_fact_snapshot.yml",
             "bible_refs": bible_refs,
             "outline_refs": outline_refs,
+            "blueprint_refs": blueprint_refs,
         },
         "deprecated_production_chapters": deprecated_chapters,
         "issues": issues + warnings,
@@ -428,6 +585,8 @@ def _audit_history(project_root: Path) -> dict[str, Any]:
     runs_dir = project_root / "runs"
     if runs_dir.exists():
         for run_dir in sorted(path for path in runs_dir.iterdir() if path.is_dir())[-100:]:
+            if (run_dir / "narrative_audit_manifest.yml").is_file():
+                continue
             prompt = run_dir / "user_request.md"
             prompt_text = prompt.read_text(encoding="utf-8", errors="replace") if prompt.exists() else ""
             if re.search(r"(fiction|chapter|novel|rewrite|revise|小说|章节|重写|修改)", prompt_text, re.I):
@@ -582,50 +741,21 @@ def _write_mock_chapter_outputs(
     )
 
 
-def _quota_retry_metadata(run_dir: Path, result: Any) -> dict[str, Any]:
+def _capacity_failure_metadata(result: Any) -> dict[str, Any]:
+    """Copy normalized capacity facts without parsing provider logs locally."""
     raw_usage = getattr(result, "raw_usage", None)
     raw_usage = raw_usage if isinstance(raw_usage, dict) else {}
-    failure_class = str(raw_usage.get("failure_class") or "")
-    if failure_class not in {"rate_limited", "quota_exhausted"}:
-        return {"failure_class": failure_class} if failure_class else {}
-
-    log_paths: list[Path] = []
-    command_id = str(raw_usage.get("command_id") or "")
-    if re.fullmatch(r"cmd_\d+", command_id):
-        log_paths.append(run_dir / "command_logs" / f"{command_id}.stderr.txt")
-    raw_log_path = str(raw_usage.get("cli_log_path") or "")
-    if raw_log_path:
-        candidate = Path(raw_log_path)
-        try:
-            candidate.resolve().relative_to(run_dir.resolve())
-            log_paths.append(candidate)
-        except (OSError, ValueError):
-            pass
-
-    reset_seconds: list[int] = []
-    for path in log_paths:
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8", errors="replace")
-        for match in QUOTA_RESET_PATTERN.finditer(text):
-            hours, minutes, seconds = (int(value or 0) for value in match.groups())
-            total = hours * 3600 + minutes * 60 + seconds
-            if total > 0:
-                reset_seconds.append(total)
-
-    metadata: dict[str, Any] = {
-        "failure_class": failure_class,
-        "retry_policy": "same_provider_after_reset",
-        "same_provider_required": True,
-        "fallback_allowed": False,
+    return {
+        key: raw_usage[key]
+        for key in (
+            "failure_class",
+            "capacity_route",
+            "capacity_pool",
+            "capacity_status",
+            "capacity_reset_at",
+        )
+        if raw_usage.get(key) is not None
     }
-    if reset_seconds:
-        retry_after = max(reset_seconds)
-        metadata["retry_after_seconds"] = retry_after
-        metadata["retry_not_before"] = (
-            datetime.now(timezone.utc) + timedelta(seconds=retry_after)
-        ).isoformat()
-    return metadata
 
 
 def _write_live_generation_error(run_dir: Path, *, agent: str, result: Any) -> None:
@@ -638,7 +768,7 @@ def _write_live_generation_error(run_dir: Path, *, agent: str, result: Any) -> N
         "model": getattr(result, "model", None),
         "error": getattr(result, "error", None) or "agent did not produce the required output",
     }
-    data.update(_quota_retry_metadata(run_dir, result))
+    data.update(_capacity_failure_metadata(result))
     _write_yaml(run_dir / "live_generation_error.yml", data)
 
 
@@ -825,34 +955,13 @@ def _write_live_chapter_outputs(
     previous: list[str],
     *,
     allow_writer_cli_fallback: bool = False,
-    allow_agy_quota_model_rotation: bool = False,
+    writer_budget_mode: str = "balanced",
+    workflow_plan: Any | None = None,
+    clear_attempt_outputs: bool = True,
 ) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
-    _clear_chapter_attempt_outputs(run_dir)
-    try:
-        rotation_policy = (
-            _agy_quota_rotation_policy(root, project)
-            if allow_agy_quota_model_rotation
-            else None
-        )
-    except (OSError, ValueError, yaml.YAMLError) as exc:
-        _write_yaml(
-            run_dir / "live_generation_error.yml",
-            {
-                "schema_version": 1,
-                "status": "blocked",
-                "error": "invalid_agy_quota_model_rotation_policy",
-                "error_type": type(exc).__name__,
-                "message": str(exc),
-            },
-        )
-        return
-    rotation_enabled = rotation_policy is not None
-    rotation_from_model = str((rotation_policy or {}).get("from_model") or "")
-    rotation_to_model = str((rotation_policy or {}).get("to_model") or "")
-    rotation_failure_classes = set(
-        (rotation_policy or {}).get("allowed_failure_classes") or []
-    )
+    if clear_attempt_outputs:
+        _clear_chapter_attempt_outputs(run_dir)
     _write_yaml(
         run_dir / "live_generation_request.yml",
         {
@@ -866,21 +975,7 @@ def _write_live_chapter_outputs(
             "writer_role_session_required": True,
             "writer_cli_fallback_allowed": allow_writer_cli_fallback,
             "provider_surface_fallback_allowed": False,
-            "agy_quota_model_rotation_allowed": rotation_enabled,
-            **(
-                {
-                    "agy_quota_model_rotation": {
-                        "from_model": rotation_from_model,
-                        "to_model": rotation_to_model,
-                        "allowed_failure_classes": sorted(rotation_failure_classes),
-                        "same_worker": "agy",
-                        "provider_surface_changed": False,
-                        "api_key_fallback_allowed": False,
-                    }
-                }
-                if rotation_enabled
-                else {}
-            ),
+            "model_capacity_governance": "centralized",
             "required_outputs": [
                 "fiction_draft.md",
                 "continuity_ledger.yml",
@@ -896,21 +991,18 @@ def _write_live_chapter_outputs(
         from agent_runner import run_agent_model
         from workflow_plan import build_workflow_plan
 
-        plan = build_workflow_plan(root, project, task_id, user_request_path=run_dir / "user_request.md", budget_mode="balanced")
+        plan = workflow_plan or build_workflow_plan(
+            root,
+            project,
+            task_id,
+            user_request_path=run_dir / "user_request.md",
+            budget_mode=writer_budget_mode,
+        )
         writer_result = None
         writer_materialized = False
         retry_attempts: list[dict[str, Any]] = []
-        transport_retries = 0
         contract_redos = 0
-        model_rotated = False
-        active_model_override: str | None = None
-        rotation: dict[str, Any] | None = None
-        max_attempts = (
-            1
-            + len(AGY_WRITER_RETRY_DELAYS_SECONDS)
-            + WRITER_MAX_CONTRACT_REDOS
-            + int(rotation_enabled)
-        )
+        max_attempts = 1 + WRITER_MAX_CONTRACT_REDOS
         for attempt in range(1, max_attempts + 1):
             if attempt > 1:
                 (run_dir / "writer_role_session_capture.md").unlink(missing_ok=True)
@@ -920,7 +1012,6 @@ def _write_live_chapter_outputs(
                 plan,
                 "Writer",
                 run_dir / "writer_role_session_capture.md",
-                cli_model_override=active_model_override,
                 apply_patches=False,
                 allow_cli_api_fallback=False,
             )
@@ -929,62 +1020,22 @@ def _write_live_chapter_outputs(
                 run_dir,
                 task_id,
             )
-            retry_reason, log_path = _agy_writer_retry_reason(writer_result, run_dir)
             raw_usage = getattr(writer_result, "raw_usage", None)
             raw_usage = raw_usage if isinstance(raw_usage, dict) else {}
             record = {
                 "attempt": attempt,
                 "result_status": getattr(writer_result, "status", None),
+                "provider": getattr(writer_result, "provider", None),
+                "model": getattr(writer_result, "model", None),
                 "failure_class": raw_usage.get("failure_class"),
-                "retry_reason": retry_reason,
                 "command_id": raw_usage.get("command_id"),
                 "materialized": writer_materialized,
-                "requested_model": active_model_override or rotation_from_model or None,
                 "resolved_model_key": raw_usage.get("resolved_model_key"),
                 "resolved_cli_model_id": raw_usage.get("cli_model_id"),
             }
             if writer_materialized or attempt == max_attempts:
                 retry_attempts.append(record)
                 break
-            rotation_reason = _agy_quota_rotation_reason(
-                writer_result,
-                rotation_failure_classes,
-            )
-            if (
-                rotation_enabled
-                and not model_rotated
-                and rotation_reason is not None
-            ):
-                record["retry_kind"] = "quota_model_rotation"
-                record["rotation_target"] = rotation_to_model
-                rotation = {
-                    "from_model": rotation_from_model,
-                    "to_model": rotation_to_model,
-                    "reason": rotation_reason,
-                    "quota_window": rotation_policy["quota_window"],
-                    "same_worker": "agy",
-                    "provider_surface_changed": False,
-                }
-                model_rotated = True
-                active_model_override = rotation_to_model
-                retry_attempts.append(record)
-                continue
-            if (
-                retry_reason is not None
-                and transport_retries < len(AGY_WRITER_RETRY_DELAYS_SECONDS)
-            ):
-                record["retry_kind"] = "transport"
-                record["log_snapshot"] = _snapshot_writer_retry_log(
-                    log_path,
-                    run_dir,
-                    attempt,
-                )
-                delay = AGY_WRITER_RETRY_DELAYS_SECONDS[transport_retries]
-                record["delay_seconds"] = delay
-                transport_retries += 1
-                retry_attempts.append(record)
-                time.sleep(delay)
-                continue
 
             contract_issues = _writer_contract_issues(run_dir)
             if (
@@ -997,6 +1048,12 @@ def _write_live_chapter_outputs(
                 record["snapshots"] = _snapshot_writer_contract_attempt(
                     run_dir,
                     attempt,
+                )
+                _write_writer_contract_retry_feedback(
+                    run_dir,
+                    attempt=attempt,
+                    chapter=chapter,
+                    issues=contract_issues,
                 )
                 contract_redos += 1
                 retry_attempts.append(record)
@@ -1011,15 +1068,10 @@ def _write_live_chapter_outputs(
                 {
                     "schema_version": 1,
                     "status": "recovered" if writer_materialized else "blocked",
-                    "provider_surface": "cli_agent:agy",
-                    "provider_changed": False,
-                    "fallback_used": False,
-                    "model_rotated": model_rotated,
-                    **({"rotation": rotation} if rotation else {}),
+                    "role": "Writer",
+                    "model_capacity_governance": "centralized",
                     "limits": {
-                        "transport_retries": len(AGY_WRITER_RETRY_DELAYS_SECONDS),
                         "full_contract_redos": WRITER_MAX_CONTRACT_REDOS,
-                        "quota_model_rotations": int(rotation_enabled),
                         "total_attempts": max_attempts,
                     },
                     "attempts": retry_attempts,
@@ -1047,6 +1099,7 @@ def _write_live_chapter_outputs(
                 "harness_generated_story_state": False,
             },
         )
+        write_narrative_delivery_receipt(run_dir)
     except Exception as exc:
         _write_yaml(
             run_dir / "live_generation_error.yml",
@@ -1072,20 +1125,80 @@ def _generate_chapters(
     resume_valid: bool = False,
     stop_on_block: bool = False,
     allow_writer_cli_fallback: bool = False,
+    chapter_state_plan: str | None = None,
+    writer_budget_mode: str = "balanced",
+    predecessor_task_id: str | None = None,
+    require_knowledge_contract: bool = False,
 ) -> dict[str, Any]:
     project_root = _project_root(root, project)
     generated: list[dict[str, Any]] = []
     previous_sources: list[str] = []
     candidate_fact_events: list[dict[str, Any]] = []
+    resume_chain_intact = True
+    if chapters and chapters[0] > 1:
+        previous_chapter = chapters[0] - 1
+        previous_task_id = (
+            ensure_safe_task_id(predecessor_task_id)
+            if predecessor_task_id
+            else _safe_eval_task_id(previous_chapter, eval_id)
+        )
+        previous_run_dir = project_root / "runs" / previous_task_id
+        previous_delivery = validate_narrative_delivery(previous_run_dir)
+        predecessor_identity_issues = _predecessor_identity_issues(
+            previous_run_dir,
+            previous_task_id,
+            previous_chapter,
+        )
+        previous_execution = (
+            validate_writer_execution_contract(previous_run_dir, previous_task_id)
+            if mode == "live"
+            else {"status": "pass"}
+        )
+        if (
+            not previous_delivery.get("valid")
+            or previous_execution.get("status") != "pass"
+            or predecessor_identity_issues
+        ):
+            return {
+                "status": "blocked",
+                "reason": "previous candidate chapter is unavailable or has invalid Writer provenance",
+                "chapters": [],
+                "selected_chapter_count": len(chapters),
+                "completed_chapter_count": 0,
+                "resume_valid": resume_valid,
+                "stop_on_block": stop_on_block,
+                "allow_writer_cli_fallback": allow_writer_cli_fallback,
+                "chapter_state_plan": chapter_state_plan,
+                "writer_budget_mode": writer_budget_mode,
+                "predecessor_task_id": previous_task_id,
+                "previous_chapter": previous_chapter,
+                "previous_delivery": previous_delivery,
+                "previous_writer_execution": previous_execution,
+                "predecessor_identity_issues": predecessor_identity_issues,
+                "model_capacity_governance": "centralized",
+            }
+        previous_sources = _candidate_chapter_sources(previous_task_id)
+        candidate_fact_events = _candidate_history_through_run(
+            previous_run_dir,
+            previous_chapter,
+            previous_task_id,
+        )
     for chapter in chapters:
         task_id = _safe_eval_task_id(chapter, eval_id)
         run_dir = project_root / "runs" / task_id
         run_dir.mkdir(parents=True, exist_ok=True)
         existing_delivery = validate_narrative_delivery(run_dir)
+        existing_execution = (
+            validate_writer_execution_contract(run_dir, task_id)
+            if mode == "live"
+            else {"status": "pass"}
+        )
         if (
             resume_valid
+            and resume_chain_intact
             and existing_delivery.get("valid")
             and not existing_delivery.get("skipped")
+            and existing_execution.get("status") == "pass"
         ):
             generated.append({
                 "chapter": chapter,
@@ -1100,7 +1213,24 @@ def _generate_chapters(
             candidate_fact_events.extend(_candidate_events_from_run(run_dir, chapter, task_id))
             _write_generation_checkpoint(eval_dir, suite, chapters, generated)
             continue
-        _clear_chapter_attempt_outputs(run_dir)
+        replacement_reason = None
+        if resume_valid and any(
+            (run_dir / name).is_file()
+            for name in (*CHAPTER_ATTEMPT_OUTPUTS, *CHAPTER_REGENERATION_INPUTS)
+        ):
+            if not existing_delivery.get("valid"):
+                replacement_reason = "invalid_candidate_delivery_replaced_on_resume"
+            elif existing_execution.get("status") != "pass":
+                replacement_reason = "invalid_writer_execution_contract_replaced_on_resume"
+            else:
+                replacement_reason = "upstream_candidate_regenerated_on_resume"
+        if resume_valid:
+            resume_chain_intact = False
+        _clear_chapter_attempt_outputs(
+            run_dir,
+            replacement_reason=replacement_reason,
+            clear_generation_inputs=True,
+        )
         baseline_mode = "reset" if chapter == 1 else "continuation"
         baseline_instruction = (
             "Start from the reset fact snapshot and do not read any deprecated manuscript."
@@ -1115,7 +1245,13 @@ def _generate_chapters(
             ),
             encoding="utf-8",
         )
-        _write_light_chapter_workflow_plan(root, project, task_id, run_dir)
+        workflow_plan = _write_light_chapter_workflow_plan(
+            root,
+            project,
+            task_id,
+            run_dir,
+            writer_budget_mode=writer_budget_mode,
+        )
         candidate_fact_ledger = _write_candidate_fact_ledger(run_dir, candidate_fact_events)
         write_chapter_packet(
             root,
@@ -1126,6 +1262,8 @@ def _generate_chapters(
             previous_chapters=previous_sources,
             deprecated_sources=deprecated_sources,
             candidate_fact_ledger=candidate_fact_ledger,
+            chapter_state_plan=chapter_state_plan,
+            require_knowledge_contract=require_knowledge_contract,
         )
         if mode == "mock":
             _write_mock_chapter_outputs(run_dir, project, chapter, previous_sources, baseline_mode)
@@ -1156,7 +1294,9 @@ def _generate_chapters(
                     chapter,
                     previous_sources,
                     allow_writer_cli_fallback=allow_writer_cli_fallback,
-                    allow_agy_quota_model_rotation=True,
+                    writer_budget_mode=writer_budget_mode,
+                    workflow_plan=workflow_plan,
+                    clear_attempt_outputs=False,
                 )
             else:
                 _write_live_guard_error(run_dir, agent="Writer", guard=guard)
@@ -1193,7 +1333,10 @@ def _generate_chapters(
         "resume_valid": resume_valid,
         "stop_on_block": stop_on_block,
         "allow_writer_cli_fallback": allow_writer_cli_fallback,
-        "agy_quota_model_rotation": "governed_by_config",
+        "chapter_state_plan": chapter_state_plan,
+        "writer_budget_mode": writer_budget_mode,
+        "predecessor_task_id": predecessor_task_id,
+        "model_capacity_governance": "centralized",
     }
 
 
@@ -1235,15 +1378,14 @@ def _write_generation_checkpoint(
         {},
     )
     blocking_error = blocking_record.get("live_generation_error") or {}
-    retry = {
+    capacity = {
         key: blocking_error[key]
         for key in (
             "failure_class",
-            "retry_policy",
-            "same_provider_required",
-            "fallback_allowed",
-            "retry_after_seconds",
-            "retry_not_before",
+            "capacity_route",
+            "capacity_pool",
+            "capacity_status",
+            "capacity_reset_at",
         )
         if key in blocking_error
     }
@@ -1260,7 +1402,7 @@ def _write_generation_checkpoint(
             "blocking_chapter": blocking_chapter,
             "next_chapter": next_chapter,
             "resume_chapter": blocking_chapter or next_chapter,
-            "retry": retry or None,
+            "capacity": capacity or None,
             "status": (
                 "blocked" if blocking_chapter is not None
                 else "complete" if len(completed) == len(selected_chapters)
@@ -1411,6 +1553,10 @@ def run_narrative_eval(
     resume_valid: bool = False,
     stop_on_block: bool = False,
     allow_writer_cli_fallback: bool = False,
+    chapter_state_plan: str | None = None,
+    writer_budget_mode: str = "balanced",
+    predecessor_task_id: str | None = None,
+    require_knowledge_contract: bool = False,
 ) -> dict[str, Any]:
     if mode not in VALID_MODES:
         raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
@@ -1421,13 +1567,62 @@ def run_narrative_eval(
     eval_dir = root / "acceptance_runs" / "narrative_eval" / project / suite / eval_id
     eval_dir.mkdir(parents=True, exist_ok=True)
 
-    l0 = _audit_fact_sources(project_root, project)
+    l0 = _audit_fact_sources(
+        project_root,
+        project,
+        require_knowledge_contract=require_knowledge_contract,
+    )
     l1 = _audit_history(project_root)
     deprecated_sources = [item["path"] for item in l1["deprecated_production_chapters"]]
     reset_proposal = _write_reset_proposal(eval_dir, project, deprecated_sources)
 
+    if chapter_state_plan:
+        chapter_state_plan_validation = validate_chapter_state_plan(
+            project_root,
+            chapter_state_plan,
+            expected_chapters=selected_chapters,
+        )
+    elif len(selected_chapters) > 5 and mode != "audit-only":
+        chapter_state_plan_validation = {
+            "schema_version": 1,
+            "status": "fail",
+            "path": None,
+            "chapter_count": 0,
+            "selected_chapter_count": len(selected_chapters),
+            "issues": [
+                {
+                    "check": "long_batch_requires_chapter_state_plan",
+                    "message": (
+                        "generation requests over five chapters must bind a validated "
+                        "run-local chapter state plan"
+                    ),
+                }
+            ],
+        }
+    else:
+        chapter_state_plan_validation = {
+            "schema_version": 1,
+            "status": "skipped",
+            "path": None,
+            "chapter_count": 0,
+            "selected_chapter_count": len(selected_chapters),
+            "issues": [],
+        }
+    write_report_yaml(
+        eval_dir / "chapter_state_plan_validation.yml",
+        chapter_state_plan_validation,
+        root,
+    )
+
     if l0["status"] != "pass":
         l2 = {"status": "blocked", "reason": "L0 fact source health failed", "chapters": []}
+    elif chapter_state_plan_validation["status"] == "fail":
+        l2 = {
+            "status": "blocked",
+            "reason": "chapter state plan validation failed",
+            "chapters": [],
+            "chapter_state_plan_validation": chapter_state_plan_validation,
+        }
     elif mode == "audit-only":
         l2 = {"status": "skipped", "reason": "audit-only mode", "chapters": []}
     else:
@@ -1444,6 +1639,10 @@ def run_narrative_eval(
             resume_valid=resume_valid,
             stop_on_block=stop_on_block,
             allow_writer_cli_fallback=allow_writer_cli_fallback,
+            chapter_state_plan=chapter_state_plan,
+            writer_budget_mode=writer_budget_mode,
+            predecessor_task_id=predecessor_task_id,
+            require_knowledge_contract=require_knowledge_contract,
         )
 
     l3 = _build_scale_simulation(eval_dir, suite)
@@ -1462,7 +1661,11 @@ def run_narrative_eval(
         "resume_valid": resume_valid,
         "stop_on_block": stop_on_block,
         "allow_writer_cli_fallback": allow_writer_cli_fallback,
-        "agy_quota_model_rotation": "governed_by_config",
+        "chapter_state_plan": chapter_state_plan,
+        "writer_budget_mode": writer_budget_mode,
+        "predecessor_task_id": predecessor_task_id,
+        "chapter_state_plan_validation": chapter_state_plan_validation,
+        "model_capacity_governance": "centralized",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": overall_status,
         "acceptance_run_dir": _rel(eval_dir, root),
@@ -1484,8 +1687,32 @@ def run_narrative_eval(
             "continuity_failure_report": "continuity_failure_report.yml",
             "series_scale_simulation": "series_scale_simulation.yml",
             "manuscript_reset_proposal": "manuscript_reset_proposal.yml",
+            "chapter_state_plan_validation": "chapter_state_plan_validation.yml",
         },
         "reset_proposal": reset_proposal,
     }
     write_report_yaml(eval_dir / "longform_eval_report.yml", report, root)
     return report
+
+
+# ---------------------------------------------------------------------------
+# v2 thin adapter — independent state delta verification
+# ---------------------------------------------------------------------------
+
+
+def verify_narrative_state_delta_v2(
+    prose_path: str,
+    delta: dict[str, Any],
+) -> dict[str, Any]:
+    """Thin v2 adapter: verify a state delta against its source prose.
+
+    Delegates to ``agent_runtime.narrative.production.delta_verifier``.
+    The verifier checks that every evidence location resolves to real text,
+    the prose hash matches, and facts/observations are structurally valid.
+    Retrying this does NOT trigger a Writer re-run.
+    """
+    from agent_runtime.narrative.production.delta_verifier import (
+        verify_state_delta,
+    )
+
+    return verify_state_delta(prose_path, delta)

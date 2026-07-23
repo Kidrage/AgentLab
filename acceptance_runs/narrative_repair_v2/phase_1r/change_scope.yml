@@ -1,0 +1,56 @@
+schema_version: 1
+phase_id: phase_1r
+base_commit: 1dd5008
+branch: feature/narrative-production-closure
+status: accepted_scope
+
+changed_runtime:
+  - agent_runtime/narrative/production/__init__.py
+  - agent_runtime/narrative/production/brief_compiler.py
+  - agent_runtime/narrative/production/chapter_engine.py
+  - agent_runtime/narrative/production/delta_verifier.py
+  - agent_runtime/narrative/production/manifest.py
+  - agent_runtime/narrative/production/state_projector.py
+  - agent_runtime/narrative/production/writer_contract.py
+  - agent_runtime/narrative_delivery.py
+  - agent_runtime/narrative_eval.py
+  - agent_runtime/writer_output_materializer.py
+  - agent_templates/writer.md
+
+changed_tests:
+  - tests/test_narrative_delivery.py
+  - tests/test_narrative_quality_gate.py
+  - tests/test_writer_output_materializer.py
+
+changed_governance_and_evidence:
+  - PROJECT_HANDOFF.md
+  - docs/narrative/NARRATIVE_PHASE1R_ACCEPTANCE.md
+  - docs/narrative/NARRATIVE_PRODUCTION_REPAIR_EXECUTION.yml
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_1R.yml
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_1R_CORRECTION_1.yml
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_1R_CORRECTION_2.yml
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_1R_CORRECTION_3.yml
+  - docs/narrative/phases/NARRATIVE_PRODUCTION_REPAIR_PHASE_1R_CORRECTION_3_RESUME_1.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/phase1r_acceptance.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/test_results.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/change_scope.yml
+  - acceptance_runs/narrative_repair_v2/phase_1r/rollback.md
+
+unchanged_sensitive_roots:
+  - agent_runtime/background_jobs/engine
+  - config
+  - projects/Crown_of_Ash/production
+  - projects/NovelGen/production
+  - release_objects
+
+central_module_net_additions:
+  agent_runtime/narrative_delivery.py: 40
+  agent_runtime/narrative_eval.py: 23
+  agent_runtime/writer_output_materializer.py: 138
+central_module_limit: 150
+central_module_limit_status: pass
+unauthorized_edits: []
+scope_drift: []
+production_modified: false
+provider_calls: 0
+candidate_only: true

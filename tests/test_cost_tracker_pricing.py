@@ -470,6 +470,45 @@ class P15ComboKeyTests(TestCase):
         self.assertTrue(entry["exact_cost_available"])
         self.assertEqual(entry["pricing_source"], "config/model_pricing.yml")
 
+    def test_usage_entry_preserves_capacity_and_provider_receipt_identity(self) -> None:
+        entry = usage_entry(
+            "Demo",
+            "task_capacity_001",
+            "Writer",
+            "agentlab-cli-executor",
+            "claude_code",
+            "completed",
+            raw_usage={
+                "input_tokens": 10,
+                "output_tokens": 20,
+                "total_tokens": 30,
+                "estimated_cost": 0.004,
+                "cost_currency": "USD",
+                "exact_cost_available": True,
+                "pricing_source": "provider_response",
+                "usage_source": "external_cli_reported",
+                "billing_mode": "provider_reported",
+                "capacity_primary_route": "Writer",
+                "capacity_route_id": "WriterFlash",
+                "capacity_pool_id": "deepseek_metered_api",
+                "capacity_status": "available",
+                "capacity_attempt_id": "attempt-2",
+                "capacity_remaining": None,
+                "capacity_reset_at": None,
+                "provider_reported_model_id": "deepseek-v4-flash",
+                "provider_reported_session_id": "session-123",
+            },
+        )
+
+        self.assertEqual(entry["estimated_cost"], 0.004)
+        self.assertTrue(entry["exact_cost_available"])
+        self.assertEqual(entry["capacity_route_id"], "WriterFlash")
+        self.assertEqual(entry["capacity_pool_id"], "deepseek_metered_api")
+        self.assertIsNone(entry["capacity_remaining"])
+        self.assertIsNone(entry["capacity_reset_at"])
+        self.assertEqual(entry["provider_reported_model_id"], "deepseek-v4-flash")
+        self.assertEqual(entry["provider_reported_session_id"], "session-123")
+
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,15 @@
 root_policy:
   allowed_root_files:
     - .gitignore
+    - AGENTS.md
+    - CLAUDE.md
+    - CLI_ROADMAP.md
+    - CONTEXT.md
+    - DRIVER_PROTOCOL.md
+    - OPERATING_MODEL.md
+    - PROJECT_HANDOFF.md
     - README.md
+    - USAGE_PLAN.md
     - agentlab.sh
     - agentlab_app.py
     - pyproject.toml
@@ -17,9 +25,18 @@ root_policy:
     - .git
     - .github
     - .agentlab
+    - .agentlab_runtime
     - .agents
+    - .agy
+    - .claude
     - .clinerules
+    - .codex
+    - .gemini
+    - .hermes
+    - .openclaw
     - .pytest_cache
+    - .qwen
+    - .ruff_cache
     - .venv
     - __pycache__
     - _shared
@@ -41,9 +58,22 @@ root_policy:
     - web_ui
   ignored_runtime_dirs:
     - .agentlab
+    - .agentlab_runtime
+    - .agents
+    - .agy
+    - .claude
+    - .codex
+    - .gemini
+    - .hermes
+    - .openclaw
+    - .qwen
+    - .ruff_cache
     - .venv
     - __pycache__
     - .pytest_cache
+  ignored_root_files:
+    - .DS_Store
+    - .claude.json
   forbidden_root_patterns:
     - "*.tmp"
     - "*handoff*.md"
