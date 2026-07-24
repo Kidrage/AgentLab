@@ -1538,6 +1538,24 @@ def _contract_process_environment(
         process_env.pop(normalized, None)
         if was_present:
             applied.append(normalized)
+
+    if str(role_profile.get("cli_agent") or "").strip() == "agy":
+        governed_contracts = {
+            "agy_observer",
+            "agy_visual_reviewer",
+            "agy_narrative_planner",
+        }
+        contract_name = str(role_profile.get("invocation_contract") or "").strip()
+        if contract_name in governed_contracts:
+            has_proxy = any(
+                str(process_env.get(name) or "").strip() for name in _AGY_PROXY_ENV_VARS
+            )
+            if not has_proxy:
+                default_proxy = os.getenv(
+                    "AGENTLAB_DEFAULT_PROXY", "http://127.0.0.1:7890"
+                )
+                for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+                    process_env[name] = default_proxy
     return process_env, sorted(set(applied))
 
 
@@ -1592,9 +1610,23 @@ def _agy_oauth_preflight(
     proxy_environment_names = sorted(
         name for name in _AGY_PROXY_ENV_VARS if str(process_env.get(name) or "").strip()
     )
+    proxy_url = next(
+        (
+            str(process_env.get(name) or "").strip()
+            for name in _AGY_PROXY_ENV_VARS
+            if str(process_env.get(name) or "").strip()
+        ),
+        "",
+    )
     proxy_binding_verified = bool(proxy_environment_names)
     if governed and not proxy_binding_verified:
         issues.append("agy_oauth_proxy_environment_missing")
+    default_proxy = os.getenv("AGENTLAB_DEFAULT_PROXY", "http://127.0.0.1:7890")
+    proxy_source = (
+        "inherited_from_environment"
+        if proxy_url and proxy_url != default_proxy
+        else "default_fallback"
+    )
 
     return {
         "applicable": True,
@@ -1606,6 +1638,8 @@ def _agy_oauth_preflight(
         "requested_model_id": requested_model_id or None,
         "requested_cli_model_id": requested_cli_model_id or None,
         "provider": provider or None,
+        "proxy_url": proxy_url,
+        "proxy_source": proxy_source,
         "profile_binding_verified": profile_binding_verified,
         "command_binding_verified": command_binding_verified,
         "proxy_binding_verified": proxy_binding_verified,
@@ -1736,6 +1770,8 @@ def _write_agy_model_receipt(
         "requested_cli_model_id": preflight.get("requested_cli_model_id"),
         "capacity_route": preflight.get("capacity_route"),
         "capacity_pool": preflight.get("capacity_pool"),
+        "proxy_url": preflight.get("proxy_url"),
+        "proxy_source": preflight.get("proxy_source"),
         "profile_binding_verified": preflight.get("profile_binding_verified") is True,
         "command_binding_verified": preflight.get("command_binding_verified") is True,
         "proxy_binding_verified": preflight.get("proxy_binding_verified") is True,

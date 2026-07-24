@@ -206,7 +206,7 @@ routes:
     pool: agy_gemini_observer
     input_modalities: [text, image, video, audio, pdf]
     approved_fallbacks: [ObserverClaude]
-    fallback_on: [quota_exhausted, rate_limited, model_unavailable]
+    fallback_on: [quota_exhausted, rate_limited, model_unavailable, network_required]
   ObserverClaude:
     role: observer
     worker: agy
@@ -225,7 +225,7 @@ routes:
     pool: agy_gemini_observer
     input_modalities: [text, image, video, audio, pdf]
     approved_fallbacks: [VisualReviewerClaude]
-    fallback_on: [quota_exhausted, rate_limited, model_unavailable]
+    fallback_on: [quota_exhausted, rate_limited, model_unavailable, network_required]
   VisualReviewerClaude:
     role: reviewer
     worker: agy

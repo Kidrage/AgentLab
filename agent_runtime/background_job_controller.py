@@ -73,7 +73,12 @@ def _validate_id(value: str, label: str) -> str:
 
 
 def _runtime_subprocess_env(root: Path) -> dict[str, str]:
-    """Preserve both package and legacy direct-module imports in detached workers."""
+    """Preserve both package and legacy direct-module imports in detached workers.
+
+    All proxy environment variables (HTTPS_PROXY/HTTP_PROXY/ALL_PROXY and their
+    lowercase variants) are inherited from the parent process so agy OAuth flows
+    continue to route through the configured local proxy in background workers.
+    """
     resolved_root = Path(root).resolve()
     entries = [str(resolved_root), str(resolved_root / "agent_runtime")]
     existing = os.environ.get("PYTHONPATH")
