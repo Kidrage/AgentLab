@@ -64,6 +64,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     contracts = invocation_contracts.get("contracts") or {}
     grok_research_contract = contracts.get("grok_research") or {}
     grok_media_contract = contracts.get("grok_media") or {}
+    grok_native_contract = contracts.get("grok_native_medium") or {}
     shell_registry = workflow_shells.get("shells") if isinstance(workflow_shells.get("shells"), dict) else {}
     mode_policy = (
         workflow_shells.get("mode_policy")
@@ -289,19 +290,28 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             and grok_worker.get("frontdesk_capable") is False
             and "candidate_artifact_worker" in (grok_worker.get("worker_capabilities") or [])
             and set(grok_worker.get("allowed_roles") or []) == {
+                "Supervisor",
+                "RepoScout",
                 "Researcher",
+                "InterfaceMapper",
+                "PromptEngineer",
+                "Coder",
                 "ArtifactProducer",
+                "TesterAuditor",
+                "Verifier",
+                "Archivist",
             }
-            and "Coder" in (grok_worker.get("forbidden_roles") or [])
             and "Writer" in (grok_worker.get("forbidden_roles") or [])
             else "fail",
             "evidence": ["config/agent_role_bindings.yml", "config/worker_invocation_contracts.yml"],
-            "summary": "Grok is a bounded internal Researcher and ArtifactProducer worker, never a Writer, Coder, or FrontDesk",
+            "summary": "Grok is the bounded alter-tier role worker for non-Agy roles, never a Writer or FrontDesk",
         },
         {
             "id": "grok_current_contracts_use_hermes_surface",
             "status": "pass"
-            if grok_research_contract.get("worker_id") == "grok"
+            if grok_native_contract.get("worker_id") == "grok"
+            and grok_native_contract.get("command") == "grok"
+            and grok_research_contract.get("worker_id") == "grok"
             and grok_research_contract.get("command") == "hermes"
             and grok_research_contract.get("invocation_style")
             == "sourced_research_task_packet"
@@ -311,7 +321,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             == "media_backend_task_packet"
             else "fail",
             "evidence": ["config/worker_invocation_contracts.yml"],
-            "summary": "grok_research and grok_media are separate role contracts on the configured Hermes xAI OAuth executable",
+            "summary": "alter uses native Grok contracts while legacy research/media contracts remain explicitly on Hermes xAI OAuth",
         },
         {
             "id": "artifact_producer_profiles_bind_current_codex_default",

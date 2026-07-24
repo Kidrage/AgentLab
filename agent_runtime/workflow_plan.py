@@ -124,7 +124,9 @@ def _project_paths(agentlab_root: Path, project_name: str, task_id: str, project
 
 def _budget_mode_from_request(task_text: str) -> str | None:
     match = re.search(r"(?im)^\s*budget_mode\s*:\s*([\w\-]+)\s*$", task_text or "")
-    return match.group(1) if match else None
+    if match:
+        return match.group(1)
+    return "alter" if re.search(r"(?im)^\s*alter\s*$", task_text or "") else None
 
 
 def _resolve_budget_mode(configs: dict, task_text: str, explicit_budget_mode: str | None = None) -> str:
@@ -852,7 +854,11 @@ def build_workflow_plan(
     budget_source = _budget_mode_source(task_text, budget_mode)
     resolved_budget_mode = _resolve_budget_mode(configs, task_text, budget_mode)
     risk_level = _classify_risk(task_text, configs.get("routing_policy", {}))
-    if budget_source == "default" and risk_level == "R3" and resolved_budget_mode != "max_quality":
+    if (
+        budget_source == "default"
+        and risk_level == "R3"
+        and resolved_budget_mode not in {"max_quality", "alter"}
+    ):
         resolved_budget_mode = "max_quality"
     elif budget_source == "default" and risk_level == "R2" and resolved_budget_mode == "frugal":
         resolved_budget_mode = "balanced"

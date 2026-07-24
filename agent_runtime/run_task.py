@@ -2677,7 +2677,7 @@ def prepare(
         "agentlab_orchestrated_cli",
         help="Workflow driver mode; per-role workers remain config-driven.",
     ),
-    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: frugal, balanced, or max-quality."),
+    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: alter, frugal, balanced, or max-quality."),
     observation_input: Optional[list[Path]] = typer.Option(
         None,
         "--observation-input",
@@ -3416,7 +3416,7 @@ def run_agent(
         "agentlab_orchestrated_cli",
         help="Workflow driver used only when the plan must be rebuilt.",
     ),
-    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode used when rebuilding a plan: frugal, balanced, or max-quality."),
+    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode used when rebuilding a plan: alter, frugal, balanced, or max-quality."),
     provider: Optional[str] = typer.Option(None, help="Override provider, e.g. deepseek or openai."),
     model: Optional[str] = typer.Option(None, help="Override model id for this run."),
     output: Optional[Path] = typer.Option(None, help="Optional report output path, relative to run dir unless absolute."),
@@ -3826,7 +3826,7 @@ def run_pipeline(
         "agentlab_orchestrated_cli",
         help="Workflow driver; use langgraph only for the alternate graph engine.",
     ),
-    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: frugal, balanced, or max-quality."),
+    budget: Optional[str] = typer.Option(None, "--budget", help="Budget mode: alter, frugal, balanced, or max-quality."),
     dry_run: bool = typer.Option(True, help="Default dry-run, no API calls."),
     execute: bool = typer.Option(False, "--execute", help="Call real LLM APIs (not dry-run). False by default for safety."),
 ) -> None:
@@ -3920,7 +3920,7 @@ def run_pipeline(
 def budget_eval_cmd(
     task_id: str = typer.Option("task_0001", help="Task run id used as the source request."),
     project: Optional[str] = typer.Option(None, help="Project name."),
-    modes: str = typer.Option("frugal,balanced,max-quality", help="Comma-separated budget modes."),
+    modes: str = typer.Option("alter,frugal,balanced,max-quality", help="Comma-separated budget modes."),
 ) -> None:
     """Compare route, model, and token budget across budget modes without API calls."""
     ensure_safe_task_id(task_id)
@@ -7078,11 +7078,20 @@ def recovery_feedback_cmd(
     console.print(f"  [green]MD:[/green]   {md_path}")
 
 
+def _configured_tiers_for_update(
+    tiers_config: dict[str, object],
+    requested_tier: str | None,
+) -> list[str]:
+    if requested_tier:
+        return [requested_tier.lower()]
+    return list(tiers_config)
+
+
 @app.command("configure-agent")
 def configure_agent_cmd(
     agent: str = typer.Option(..., "--agent", help="Canonical agent name (e.g. Supervisor, Coder, RepoScout, etc.)."),
     mode: Optional[str] = typer.Option(None, "--mode", help="Mode to update: full_cli, qwen_token_plan_cli, full_api, or hybrid_ide. If omitted, applies to all modes."),
-    tier: Optional[str] = typer.Option(None, "--tier", help="Tier to update: full, performance, or low. If omitted, applies to all tiers."),
+    tier: Optional[str] = typer.Option(None, "--tier", help="Tier to update: alter, full, performance, or low. If omitted, applies to all tiers."),
     executor_type: Optional[str] = typer.Option(None, "--executor-type", help="Executor type: cli_agent, direct_api, or special."),
     cli_agent: Optional[str] = typer.Option(None, "--cli-agent", help="CLI agent binary name (e.g. hermes, claude_code)."),
     invocation_contract: Optional[str] = typer.Option(None, "--invocation-contract", help="Worker invocation contract key from config/worker_invocation_contracts.yml."),
@@ -7122,14 +7131,13 @@ def configure_agent_cmd(
     role_key = _role_key_map.get(role_key, role_key)
 
     modes_to_update = [mode.lower()] if mode else ["full_cli", "qwen_token_plan_cli", "full_api", "hybrid_ide"]
-    tiers_to_update = [tier.lower()] if tier else ["full", "performance", "low"]
-
     modes_data = data.setdefault("modes", {})
 
     updated_count = 0
     for m in modes_to_update:
         mode_cfg = modes_data.setdefault(m, {})
         tiers_cfg = mode_cfg.setdefault("tiers", {})
+        tiers_to_update = _configured_tiers_for_update(tiers_cfg, tier)
         for t in tiers_to_update:
             tier_cfg = tiers_cfg.setdefault(t, {})
             if skip:

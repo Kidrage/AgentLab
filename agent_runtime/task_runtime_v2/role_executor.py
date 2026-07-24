@@ -355,6 +355,7 @@ class RoleAttemptExecutor:
         profile["_resolved_model_id"] = model_id
         profile["_resolved_tier"] = tier
         profile["_resolved_budget_mode"] = {
+            "alter": "alter",
             "full": "max_quality",
             "performance": "balanced",
             "low": "frugal",

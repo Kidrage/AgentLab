@@ -2430,11 +2430,20 @@ def _artifact_task_profile_for_plan(
             "mode_blocker": f"unsupported_artifact_execution_mode:{execution_mode}",
         }
     else:
+        requested_artifact_tier = {
+            "quality": "full",
+            "balanced": "performance",
+            "frugal": "low",
+            "max_quality": "full",
+        }.get(str(budget_mode).lower(), str(budget_mode).lower())
         route = route_artifact_provider(
             agentlab_root,
             artifact_type,
             required_capabilities=required,
-            preferred_provider=bound_provider or None,
+            preferred_provider=(
+                bound_provider
+                or ("grok_native" if requested_artifact_tier == "alter" else None)
+            ),
             provider_type=provider_type,
             output_format=output_format,
         )
@@ -2509,6 +2518,7 @@ def _artifact_task_profile_for_plan(
         return profile
 
     tier = {
+        "altered": "alter",
         "quality": "full",
         "balanced": "performance",
         "frugal": "low",

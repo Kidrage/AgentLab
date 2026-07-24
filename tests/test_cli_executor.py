@@ -683,8 +683,8 @@ def _sample_modes_v4(executor_type: str = "cli_agent") -> dict:
 class TestResolveCliProfileSchemaV4:
     """Prove resolve_cli_profile supports schema v4 modes/tiers layout."""
 
-    def test_real_default_full_cli_supervisor_resolves_to_claude_deepseek(self):
-        """The real default mode/tier keeps Supervisor on Claude/DeepSeek."""
+    def test_real_default_full_cli_supervisor_resolves_to_native_grok(self):
+        """The real default mode/tier keeps Supervisor on native Grok."""
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
         from cli_executor import resolve_cli_profile
@@ -696,11 +696,11 @@ class TestResolveCliProfileSchemaV4:
 
         assert result is not None
         assert result["resolved_mode"] == "full_cli"
-        assert result["resolved_tier"] == "performance"
-        assert result["cli_agent"] == "claude_code"
-        assert result["invocation_contract"] == "claude_supervisor_fallback"
-        assert result["default"] == "deepseek_v4_pro"
-        assert result["capacity_route"] == "SupervisorDeepSeek"
+        assert result["resolved_tier"] == "alter"
+        assert result["cli_agent"] == "grok"
+        assert result["invocation_contract"] == "grok_native_high"
+        assert result["default"] == "grok_4_5_high_cli_oauth"
+        assert result["capacity_route"] == "AlterSupervisor"
         assert "fallback" not in result
 
     def test_real_default_full_cli_writer_resolves_to_agy_gemini(self):
@@ -716,11 +716,11 @@ class TestResolveCliProfileSchemaV4:
 
         assert result is not None
         assert result["resolved_mode"] == "full_cli"
-        assert result["resolved_tier"] == "performance"
+        assert result["resolved_tier"] == "alter"
         assert result["cli_agent"] == "agy"
         assert result["invocation_contract"] == "agy_writer"
         assert result["default"] == "gemini_3_6_flash_high_agy_oauth"
-        assert result["capacity_route"] == "WriterAgy"
+        assert result["capacity_route"] == "AlterWriter"
         assert "fallback" not in result
 
     def test_full_cli_full_supervisor_resolves_cli(self):

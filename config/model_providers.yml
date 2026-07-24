@@ -251,6 +251,28 @@ providers:
       - xhigh is the strongest setting exposed by installed Hermes v0.17.0.
       - Never use `hermes status --all` as a probe; use `hermes auth status openai-codex`.
 
+  grok-cli-oauth:
+    type: oauth_cli
+    display_name: Native Grok CLI OAuth
+    command: grok
+    default_model: grok-4.5
+    auth: local_grok_oauth_session
+    billing:
+      source: grok_oauth
+      metering: subscription_or_oauth_quota
+      shared_pool_id: grok_cli_subscription
+    capacity_source: config/model_capacity.yml
+    unavailable_action: capacity_manager
+    requires_user_approval_before_fallback: false
+    blocked_on:
+      - missing_cli
+      - oauth_session_expired
+      - subscription_exhausted
+      - provider_error
+    notes:
+      - The alter tier invokes the installed native Grok CLI, not Hermes.
+      - "`grok models` confirms login and model availability but does not report a remaining percentage or reset time."
+
   xai-oauth:
     type: oauth_cli
     display_name: Hermes xAI OAuth

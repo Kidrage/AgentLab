@@ -23,6 +23,8 @@ from agent_runtime.role_keys import (
 
 
 MODE_TO_TIER = {
+    "alter": "alter",
+    "altered": "alter",
     "quality": "full",
     "balanced": "performance",
     "frugal": "low",
@@ -206,7 +208,9 @@ def _governed_proposal_binding(
 def _tier(mode: str) -> str:
     normalized = str(mode or "balanced").lower()
     if normalized not in MODE_TO_TIER:
-        raise typer.BadParameter("mode must be quality, balanced, frugal, full, performance, or low")
+        raise typer.BadParameter(
+            "mode must be alter, quality, balanced, frugal, full, performance, or low"
+        )
     return MODE_TO_TIER[normalized]
 
 
@@ -236,7 +240,7 @@ def _cost_source(model_entry: dict[str, Any], provider_entry: dict[str, Any]) ->
         return "unknown"
     if billing == "token_plan":
         return "subscription/token plan"
-    if billing in {"codex_oauth", "codex_cli_oauth"}:
+    if billing in {"codex_oauth", "codex_cli_oauth", "grok_oauth"}:
         return "oauth/subscription quota"
     if billing == "agy_oauth":
         return "oauth/subscription quota"
@@ -751,7 +755,7 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
     @models_app.command("show")
     def show_models(
         role: str | None = typer.Option(None, "--role", help="Limit output to one role, e.g. Writer."),
-        mode: str = typer.Option("balanced", "--mode", help="quality, balanced, or frugal."),
+        mode: str = typer.Option("alter", "--mode", help="alter, quality, balanced, or frugal."),
     ) -> None:
         """Show role model routing with cost source and risks."""
         rows = _role_rows(project_root, mode=mode, role=role)
@@ -761,7 +765,7 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
 
     @models_app.command("plan")
     def plan_models(
-        mode: str = typer.Option(..., "--mode", help="quality, balanced, or frugal."),
+        mode: str = typer.Option(..., "--mode", help="alter, quality, balanced, or frugal."),
     ) -> None:
         """Preview the model plan for a quality/cost mode."""
         rows = _role_rows(project_root, mode=mode, role=None)
@@ -773,11 +777,11 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
         role: str = typer.Option(..., "--role", help="Role to change, e.g. Writer."),
         cli: str = typer.Option(..., "--cli", help="CLI/API worker id, e.g. agy."),
         model: str = typer.Option(..., "--model", help="Model catalog key, e.g. deepseek_v4_flash."),
-        mode: str = typer.Option("balanced", "--mode", help="quality, balanced, or frugal."),
+        mode: str = typer.Option("alter", "--mode", help="alter, quality, balanced, or frugal."),
         all_tiers: bool = typer.Option(
             False,
             "--all-tiers",
-            help="Apply the governed route proposal to full, performance, and low.",
+            help="Apply the governed route proposal to alter, full, performance, and low.",
         ),
     ) -> None:
         """Create a model-routing proposal without changing config."""
@@ -786,7 +790,7 @@ def register_model_commands(app: typer.Typer, project_root: Path, console: Conso
             console.print(f"[red]Unknown model catalog key: {model}[/red]")
             raise typer.Exit(code=1)
         role_key = _role_key(role)
-        tiers = ["full", "performance", "low"] if all_tiers else [_tier(mode)]
+        tiers = ["alter", "full", "performance", "low"] if all_tiers else [_tier(mode)]
         bindings: dict[str, dict[str, str]] = {}
         for tier in tiers:
             binding, issue = _governed_proposal_binding(

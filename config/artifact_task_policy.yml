@@ -41,6 +41,24 @@ artifact_types:
     output_formats: [directory]
     required_capabilities: [produce_mixed_artifacts, write_artifact_file, validate_artifact_contract]
 providers:
+  grok_native:
+    worker: grok
+    provider_type: cli
+    invocation_contract: grok_native_artifact_low
+    capacity_routes:
+      alter: AlterArtifactProducer
+    priority: 80
+    fallback: false
+    handles: [text, spreadsheet, presentation, image, video]
+    output_formats: [markdown, txt, docx, yaml, xlsx, csv, pptx, pdf, png, jpg, webp, mp4, mov]
+    capabilities:
+      - write_text_artifact
+      - create_spreadsheet
+      - create_presentation
+      - generate_image
+      - generate_video
+      - write_artifact_file
+      - validate_artifact_contract
   qwen_cli:
     worker: qwen
     provider_type: cli

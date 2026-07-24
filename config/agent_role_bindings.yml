@@ -20,25 +20,25 @@ capability_profiles:
   core_config_editor: reserved for confirmed AgentLab config commands; no worker owns it by default
 roles:
   Supervisor:
-    allowed_workers: [codex, hermes, qwen, claude_code]
+    allowed_workers: [grok, codex, hermes, qwen, claude_code]
     required_session: true
   Observer:
     allowed_workers: [agy]
     required_session: true
   RepoScout:
-    allowed_workers: [rg, claude_code, codex]
+    allowed_workers: [grok, rg, claude_code, codex]
     required_session: true
   Researcher:
     allowed_workers: [grok, bl, claude_code, qwen, hermes]
     required_session: true
   InterfaceMapper:
-    allowed_workers: [ast_grep, claude_code, codex]
+    allowed_workers: [grok, ast_grep, claude_code, codex]
     required_session: true
   PromptEngineer:
-    allowed_workers: [hermes, claude_code, qwen]
+    allowed_workers: [grok, hermes, claude_code, qwen]
     required_session: true
   Coder:
-    allowed_workers: [claude_code, codex, aider, hermes]
+    allowed_workers: [grok, claude_code, codex, aider, hermes]
     required_session: true
   ArtifactProducer:
     allowed_workers: [grok, codex, qwen, hermes_ark, claude_ark]
@@ -56,13 +56,13 @@ roles:
     allowed_workers: [agy, qwen, claude_code, codex]
     required_session: true
   TesterAuditor:
-    allowed_workers: [pytest, claude_code, codex, hermes]
+    allowed_workers: [grok, pytest, claude_code, codex, hermes]
     required_session: true
   Verifier:
-    allowed_workers: [ruff, mypy, eslint, claude_code, codex, hermes]
+    allowed_workers: [grok, ruff, mypy, eslint, claude_code, codex, hermes]
     required_session: true
   Archivist:
-    allowed_workers: [git, claude_code, hermes]
+    allowed_workers: [grok, git, claude_code, hermes]
     required_session: true
 workers:
   agy:
@@ -76,8 +76,8 @@ workers:
     frontdesk_capable: false
     worker_capable: true
     worker_capabilities: [candidate_artifact_worker, role_worker, workflow_shell]
-    allowed_roles: [Researcher, ArtifactProducer]
-    forbidden_roles: [Supervisor, Observer, RepoScout, InterfaceMapper, PromptEngineer, Coder, NarrativePlanner, Writer, Reviewer, Scribe, TesterAuditor, Verifier, Archivist]
+    allowed_roles: [Supervisor, RepoScout, Researcher, InterfaceMapper, PromptEngineer, Coder, ArtifactProducer, TesterAuditor, Verifier, Archivist]
+    forbidden_roles: [Observer, NarrativePlanner, Writer, Reviewer, Scribe]
   hermes_ark:
     frontdesk_capable: false
     worker_capable: true

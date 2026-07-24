@@ -4,8 +4,8 @@
 
 `config/agent_model_profiles.yml` schema v4 uses `modes` → `tiers` → `role`
 layout. Each mode (e.g. `full_cli`, `qwen_token_plan_cli`, `full_api`,
-`hybrid_ide`) defines three
-tiers (`full`, `performance`, `low`), and each tier maps agent roles to their
+`hybrid_ide`) may define four
+tiers (`alter`, `full`, `performance`, `low`), and each tier maps agent roles to their
 executor configuration.
 
 ## Key Concepts
@@ -65,6 +65,7 @@ Results and reports must distinguish:
 
 ## Budget Mode → Tier Mapping
 
+- `alter`, `altered` → `alter` (default subscription-first tier)
 - `full`, `max_quality` → `full`
 - `performance`, `balanced`, `brain_allocated` → `performance`
 - `low`, `frugal`, `low_cost` → `low`

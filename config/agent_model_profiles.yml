@@ -24,8 +24,11 @@ authority:
     - Every failure outside a capacity-approved route stops and reports without switching worker, model, or provider.
     - trusted_headless_cli is an explicit safety-gated exception and must never be default.
 tier_policy:
-  default_tier: performance
+  default_tier: alter
   tiers:
+    alter:
+      budget_aliases: [alter, altered]
+      intent: subscription_first_native_grok_and_agy_with_deepseek_fallback
     full:
       budget_aliases: [max_quality, full, high_reasoning]
       intent: highest_quality_local_or_api_execution
@@ -218,6 +221,114 @@ modes:
           cli_agent: agy
           invocation_contract: agy_scribe
           default: gemini_3_6_flash_high_agy_oauth
+      alter:
+        supervisor:
+          executor_type: cli_agent
+          cli_agent: grok
+          invocation_contract: grok_native_high
+          default: grok_4_5_high_cli_oauth
+          reasoning_effort: high
+          capacity_route: AlterSupervisor
+        observer:
+          executor_type: cli_agent
+          cli_agent: agy
+          invocation_contract: agy_observer
+          default: gemini_3_6_flash_high_agy_oauth
+          capacity_route: AlterObserver
+        reposcout:
+          executor_type: cli_agent
+          cli_agent: grok
+          invocation_contract: grok_native_medium
+          default: grok_4_5_medium_cli_oauth
+          reasoning_effort: medium
+          capacity_route: AlterRepoScout
+        interface_mapper:
+          executor_type: cli_agent
+          cli_agent: grok
+          invocation_contract: grok_native_medium
+          default: grok_4_5_medium_cli_oauth
+          reasoning_effort: medium
+          capacity_route: AlterInterfaceMapper
+        researcher:
+          executor_type: cli_agent
+          cli_agent: grok
+          invocation_contract: grok_native_research_medium
+          default: grok_4_5_medium_cli_oauth
+          reasoning_effort: medium
+          capacity_route: AlterResearcher
+        prompt_engineer:
+          executor_type: cli_agent
+          cli_agent: grok
+          invocation_contract: grok_native_low
+          default: grok_4_5_low_cli_oauth
+          reasoning_effort: low
+          capacity_route: AlterPromptEngineer
+        coder:
+          executor_type: cli_agent
+          cli_agent: grok
+          invocation_contract: grok_native_medium
+          default: grok_4_5_medium_cli_oauth
+          reasoning_effort: medium
+          external_ide_allowed: true
+          capacity_route: AlterCoder
+        artifact_producer:
+          executor_type: cli_agent
+          cli_agent: grok
+          invocation_contract: grok_native_artifact_low
+          default: grok_4_5_low_cli_oauth
+          reasoning_effort: low
+          capacity_route: AlterArtifactProducer
+        narrative_planner:
+          executor_type: cli_agent
+          cli_agent: agy
+          invocation_contract: agy_narrative_planner
+          default: gemini_3_6_flash_high_agy_oauth
+          capacity_route: AlterNarrativePlanner
+        tester_auditor:
+          executor_type: cli_agent
+          cli_agent: grok
+          invocation_contract: grok_native_medium
+          default: grok_4_5_medium_cli_oauth
+          reasoning_effort: medium
+          capacity_route: AlterTesterAuditor
+        verifier:
+          executor_type: cli_agent
+          cli_agent: grok
+          invocation_contract: grok_native_low
+          default: grok_4_5_low_cli_oauth
+          reasoning_effort: low
+          capacity_route: AlterVerifier
+        archivist:
+          executor_type: cli_agent
+          cli_agent: grok
+          invocation_contract: grok_native_low
+          default: grok_4_5_low_cli_oauth
+          reasoning_effort: low
+          capacity_route: AlterArchivist
+        writer:
+          executor_type: cli_agent
+          cli_agent: agy
+          invocation_contract: agy_writer
+          default: gemini_3_6_flash_high_agy_oauth
+          capacity_route: AlterWriter
+        reviewer:
+          executor_type: cli_agent
+          cli_agent: agy
+          invocation_contract: agy_reviewer
+          default: gemini_3_6_flash_high_agy_oauth
+          capacity_route: AlterReviewer
+        visual_reviewer:
+          executor_type: cli_agent
+          cli_agent: agy
+          invocation_contract: agy_visual_reviewer
+          default: gemini_3_6_flash_high_agy_oauth
+          capacity_route: AlterVisualReviewer
+        scribe:
+          executor_type: cli_agent
+          cli_agent: agy
+          invocation_contract: agy_scribe
+          default: gemini_3_6_flash_high_agy_oauth
+          capacity_route: AlterScribe
       low:
         supervisor:
           executor_type: cli_agent

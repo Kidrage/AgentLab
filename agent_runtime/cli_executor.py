@@ -176,8 +176,10 @@ class StagedInputPostflightError(ValueError):
 
 
 def budget_mode_to_tier(budget_mode: str) -> str:
-    """Map the budget mode to one of the three tiers: full, performance, low."""
+    """Map a public budget mode to its canonical backend tier."""
     mode_lower = str(budget_mode or "").lower().replace("-", "_")
+    if mode_lower in {"alter", "altered"}:
+        return "alter"
     if mode_lower in {"frugal", "low", "low_cost"}:
         return "low"
     if mode_lower in {"balanced", "performance", "brain_allocated"}:
@@ -229,7 +231,16 @@ def resolve_cli_profile(
         resolved_mode = str(resolved_mode or "full_cli").strip().lower()
 
         # Resolve tier
-        resolved_tier = budget_mode_to_tier(budget_mode or os.getenv("AGENTLAB_BUDGET_MODE", "performance"))
+        configured_default_tier = str(
+            (agent_model_profiles.get("tier_policy", {}) or {}).get(
+                "default_tier", "performance"
+            )
+        )
+        resolved_tier = budget_mode_to_tier(
+            budget_mode
+            or os.getenv("AGENTLAB_BUDGET_MODE")
+            or configured_default_tier
+        )
 
         # Traverse: modes → mode_cfg → tiers → tier_cfg → role_cfg
         mode_cfg = modes.get(resolved_mode, {}) or {}
@@ -1567,6 +1578,8 @@ def _contract_process_environment(
             "agy_visual_reviewer",
             "agy_narrative_planner",
             "agy_writer",
+            "agy_reviewer",
+            "agy_scribe",
         }
         contract_name = str(role_profile.get("invocation_contract") or "").strip()
         if contract_name in governed_contracts:
@@ -1598,6 +1611,8 @@ def _agy_oauth_preflight(
         "agy_visual_reviewer",
         "agy_narrative_planner",
         "agy_writer",
+        "agy_reviewer",
+        "agy_scribe",
     }
     requested_model_key = str(model_values.get("model_key") or "")
     requested_cli_model_id = str(model_values.get("model_id") or "")

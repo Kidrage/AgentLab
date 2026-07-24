@@ -386,7 +386,7 @@ class ModelCapacity:
         if not isinstance(raw_command, list) or not all(isinstance(part, str) for part in raw_command):
             raise UnsafeCapacityProbeError(f"capacity pool {pool_id!r} has no safe probe")
         command = tuple(raw_command)
-        if command == ("agy", "models"):
+        if command in {("agy", "models"), ("grok", "models")}:
             return command
         if command in {
             ("codex", "--version"),
@@ -400,7 +400,7 @@ class ModelCapacity:
         ):
             return command
         raise UnsafeCapacityProbeError(
-            "forbidden capacity probe; only 'agy models', 'codex login status', "
+            "forbidden capacity probe; only 'agy models', 'grok models', 'codex login status', "
             "'codex --version', and "
             "'hermes auth status <provider>' are allowed (never 'hermes status --all')"
         )

@@ -70,6 +70,8 @@ def _artifact_dispatch_summary(
         required = set((artifact_config or {}).get("required_capabilities") or [])
         eligible: list[tuple[int, str, dict[str, Any]]] = []
         for provider_id, provider_config in providers.items():
+            if capacity_tier == "alter" and provider_id != "grok_native":
+                continue
             handles = set((provider_config or {}).get("handles") or [])
             capabilities = set(
                 (provider_config or {}).get("capabilities") or []
@@ -255,6 +257,7 @@ def build_matrices(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str
                         provider_config.get("invocation_contract") or ""
                     )
                     capacity_tier = {
+                        "altered": "alter",
                         "max_quality": "full",
                         "max-quality": "full",
                     }.get(str(tier), str(tier))

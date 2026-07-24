@@ -4,7 +4,7 @@ defaults:
   stop_ratio: 1.15
   actual_usage_policy: provider_telemetry_if_available_else_manual_estimate
   over_budget_policy: pause_and_request_revised_budget
-  budget_mode: balanced
+  budget_mode: alter
   project_size: L2
   agent_fallback_budgets:
     ArtifactProducer:

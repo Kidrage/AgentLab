@@ -107,7 +107,7 @@ def test_config_output_does_not_leak_env_values() -> None:
     output = result.stdout + result.stderr
     # For non-secret keys, the actual value should be visible
     assert result.returncode == 0
-    assert "balanced" in output
+    assert "alter" in output
     assert "***REDACTED***" not in output
 
 

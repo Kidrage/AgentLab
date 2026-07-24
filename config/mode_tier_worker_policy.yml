@@ -41,6 +41,9 @@ modes:
     role_preferences:
       Supervisor: [codex, hermes, qwen, gemini]
 tiers:
+  alter:
+    cost_ceiling: high
+    preferred_workers: [grok, agy, claude_code]
   low:
     cost_ceiling: low
     preferred_workers: [gemini, agy, rg, ast_grep, pytest, ruff, eslint, mypy, git]

@@ -880,6 +880,191 @@ contracts:
       on_binary_missing: stop_and_report
       on_quota_exhausted: capacity_manager
 
+  agy_reviewer:
+    worker_id: agy
+    display_name: Agy Gemini Text Reviewer
+    command: agy
+    invocation_style: bounded_text_review_task_packet
+    workflow_shell: true
+    coalescing_allowed: false
+    workflow_shell_registry: config/cli_workflow_shells.yml
+    required_receipts:
+      - role_session_receipt.yml
+      - model_execution_chain_reviewer.yml
+      - model_execution_receipt_reviewer_<route>_<attempt>.yml
+    template: >-
+      agy --sandbox --model "{model_id}" -p "Read the bounded AgentLab Reviewer
+      task packet at {task_packet_path}; perform independent text, logic,
+      continuity, and acceptance review only. Return a concise evidence-led
+      report with blocking findings separated from recommendations. Do not edit
+      producer artifacts, browse, or promote candidates. Use exactly the
+      selected Agy OAuth model and do not use GEMINI_API_KEY."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [agy, --help]
+    expected_parse:
+      argv_prefix: [agy, --sandbox, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: stop_and_report
+      on_quota_exhausted: capacity_manager
+
+  grok_native_high:
+    worker_id: grok
+    display_name: Native Grok OAuth High-Reasoning Worker
+    command: grok
+    invocation_style: bounded_role_task_packet
+    workflow_shell: false
+    coalescing_allowed: false
+    required_receipts:
+      - role_session_receipt.yml
+      - artifact_manifest_or_findings.yml
+    template: >-
+      grok --model {model_id} --reasoning-effort high --permission-mode plan
+      --disable-web-search --no-subagents --no-memory --output-format plain
+      --verbatim --single "Read the bounded AgentLab role task packet at
+      {task_packet_path}; execute only the assigned role contract. Return a
+      concise report with findings, proposed actions, verification, and
+      blockers. Do not expand scope, spawn agents, or modify project files
+      directly; AgentLab owns materialization and promotion."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [grok, models]
+    expected_parse:
+      argv_prefix: [grok, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: capacity_manager
+      on_auth_required: capacity_manager
+
+  grok_native_medium:
+    worker_id: grok
+    display_name: Native Grok OAuth Medium-Reasoning Worker
+    command: grok
+    invocation_style: bounded_role_task_packet
+    workflow_shell: false
+    coalescing_allowed: false
+    required_receipts:
+      - role_session_receipt.yml
+      - artifact_manifest_or_findings.yml
+    template: >-
+      grok --model {model_id} --reasoning-effort medium --permission-mode plan
+      --disable-web-search --no-subagents --no-memory --output-format plain
+      --verbatim --single "Read the bounded AgentLab role task packet at
+      {task_packet_path}; execute only the assigned role contract. Return a
+      concise report with findings, proposed actions, verification, and
+      blockers. Do not expand scope, spawn agents, or modify project files
+      directly; AgentLab owns materialization and promotion."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [grok, models]
+    expected_parse:
+      argv_prefix: [grok, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: capacity_manager
+      on_auth_required: capacity_manager
+
+  grok_native_research_medium:
+    worker_id: grok
+    display_name: Native Grok OAuth Research Worker
+    command: grok
+    invocation_style: sourced_research_task_packet
+    workflow_shell: false
+    coalescing_allowed: false
+    required_receipts:
+      - outbound_context_manifest_researcher.yml
+      - 03_research_notes.md
+      - model_execution_chain_researcher.yml
+      - model_execution_receipt_researcher_<route>_<attempt>.yml
+    template: >-
+      grok --model {model_id} --reasoning-effort medium --permission-mode plan
+      --no-subagents --no-memory --output-format plain --verbatim --single
+      "Read the bounded AgentLab Researcher task packet at {task_packet_path};
+      collect only requested web or external evidence. Preserve source URLs and
+      retrieval timestamps, distinguish facts from inference, and return an
+      explicit Sources section. Do not edit code, write longform prose,
+      generate media, or expand the research scope."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [grok, models]
+    expected_parse:
+      argv_prefix: [grok, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: capacity_manager
+      on_auth_required: capacity_manager
+
+  grok_native_low:
+    worker_id: grok
+    display_name: Native Grok OAuth Low-Reasoning Worker
+    command: grok
+    invocation_style: bounded_role_task_packet
+    workflow_shell: false
+    coalescing_allowed: false
+    required_receipts:
+      - role_session_receipt.yml
+      - artifact_manifest_or_findings.yml
+    template: >-
+      grok --model {model_id} --reasoning-effort low --permission-mode plan
+      --disable-web-search --no-subagents --no-memory --output-format plain
+      --verbatim --single "Read the bounded AgentLab role task packet at
+      {task_packet_path}; execute only the assigned supporting role contract.
+      Return the requested artifact content or findings plus verification and
+      blockers. Do not expand scope, spawn agents, or modify project files
+      directly; AgentLab owns materialization and promotion."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [grok, models]
+    expected_parse:
+      argv_prefix: [grok, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: capacity_manager
+      on_auth_required: capacity_manager
+
+  grok_native_artifact_low:
+    worker_id: grok
+    display_name: Native Grok OAuth Artifact Worker
+    command: grok
+    invocation_style: artifact_task_packet
+    workflow_shell: false
+    coalescing_allowed: false
+    required_receipts:
+      - role_session_receipt.yml
+      - artifact_manifest_or_findings.yml
+      - generated_assets_manifest.yml
+    template: >-
+      grok --model {model_id} --reasoning-effort low --permission-mode
+      acceptEdits --disable-web-search --no-subagents --no-memory
+      --output-format plain --verbatim --single "Read the bounded AgentLab
+      ArtifactProducer task packet at {task_packet_path}; materialize only the
+      declared candidate artifact paths inside the assigned workspace. Use
+      available document or media-generation skills only when required by the
+      packet. Return exact paths, hashes, parameters, and validation findings.
+      Never promote a candidate or edit canonical project truth."
+    required_placeholders: [task_packet_path, model_id]
+    safe_probe: [grok, models]
+    expected_parse:
+      argv_prefix: [grok, --model]
+    validation:
+      shlex_parse_required: true
+      allow_shell: false
+      allow_unquoted_placeholders: true
+    fallback:
+      on_binary_missing: capacity_manager
+      on_auth_required: capacity_manager
+
   grok_research:
     worker_id: grok
     display_name: Hermes Grok OAuth Research Worker

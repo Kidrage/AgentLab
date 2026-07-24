@@ -9,13 +9,13 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-24T19:23:57.816011+00:00`
+- Generated at: `2026-07-24T20:52:33.305164+00:00`
 
 ## Current State
 
 - Branch: `agentlab/unified-stable`
-- HEAD: `e033341`
-- Indexed paths: 2017
+- HEAD: `55b7daa`
+- Indexed paths: 2018
 - Inventory truncated: `false`
 - Inaccessible paths: 0
 - Scan mode: complete path/metadata inventory; no bulk content read; no symlink traversal.
@@ -44,7 +44,7 @@
 | Route | Files |
 |---|---:|
 | `agent_runtime` | 617 |
-| `tests` | 472 |
+| `tests` | 473 |
 | `docs` | 346 |
 | `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
@@ -88,14 +88,14 @@
 
 ### Categories
 
-- code: 1031 files, 10050406 bytes
-- literature: 423 files, 2421893 bytes
+- code: 1032 files, 10057667 bytes
+- literature: 423 files, 2421682 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 551 files, 3255436 bytes
+- structured_data: 551 files, 3284527 bytes
 
 ### Common Extensions
 
-- `.py`: 1017
+- `.py`: 1018
 - `.yml`: 517
 - `.md`: 383
 - `.txt`: 40
@@ -230,6 +230,7 @@
 
 ## Change History
 
+- `55b7daa 2026-07-25 docs: bind convergence evidence to delivery commit`
 - `e033341 2026-07-25 feat: converge model governance and canonical project knowledge`
 - `b615e45 2026-07-25 feat: harden project agents and canonical narrative truth`
 - `79390b3 2026-07-24 feat: converge project governance and runtime evidence`
@@ -249,12 +250,53 @@
 - `1a0d7f0 2026-07-24 fix: close M3 project agent execution gates`
 - `69e5131 2026-07-24 docs: record M3 cross-domain validation`
 - `70af9c6 2026-07-24 fix: preserve agent lifecycle monotonicity on truth rollback`
-- `4eb6682 2026-07-24 feat: add prompt-driven narrative specialists`
 
 ## Current Changes
 
-- `## agentlab/unified-stable...origin/main [ahead 4]`
+- `## agentlab/unified-stable...origin/main [ahead 5]`
+- ` M PROJECT_HANDOFF.md`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
+- ` M agent_runtime/agent_runner.py`
+- ` M agent_runtime/budget_planner.py`
+- ` M agent_runtime/cli/models.py`
+- ` M agent_runtime/cli/routing.py`
+- ` M agent_runtime/cli_executor.py`
+- ` M agent_runtime/frontdesk_boundary_audit.py`
+- ` M agent_runtime/model_capacity.py`
+- ` M agent_runtime/model_resolver.py`
+- ` M agent_runtime/run_task.py`
+- ` M agent_runtime/task_runtime_v2/role_executor.py`
+- ` M agent_runtime/workers/detector.py`
+- ` M agent_runtime/workflow_plan.py`
+- ` M config/README.md`
+- ` M config/agent_model_profiles.yml`
+- ` M config/agent_role_bindings.yml`
+- ` M config/artifact_task_policy.yml`
+- ` M config/budget_profiles.yml`
+- ` M config/config_center.yml`
+- ` M config/execution_policy.yml`
+- ` M config/mode_tier_worker_policy.yml`
+- ` M config/model_capacity.yml`
+- ` M config/model_catalog.yml`
+- ` M config/model_providers.yml`
+- ` M config/role_assignment_policy.yml`
+- ` M config/routing_policy.yml`
+- ` M config/runtime_cli_requirements.yml`
+- ` M config/shared_agent_directory.yml`
+- ` M config/worker_invocation_contracts.yml`
+- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
+- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
+- ` M docs/CLI_AGENT_ROUTING_SCHEMA_V4.md`
+- ` M docs/MODEL_CAPACITY_AND_UPDATE_GOVERNANCE.zh-CN.md`
+- ` M scripts/generate_agent_cli_matrix.py`
+- ` M tests/test_cli_executor.py`
+- ` M tests/test_execution_config_consolidation.py`
+- ` M tests/test_m2_config_center_loader.py`
+- ` M tests/test_m2_config_cli.py`
+- ` M tests/test_m2_runtime_hygiene_closure.py`
+- ` M tests/test_models_and_governance_cli.py`
+- ` M tests/test_protocol_enforcement.py`
+- `?? tests/test_alter_model_profile.py`
 - `?? tmp_debug/`
 
 ## Related Repositories

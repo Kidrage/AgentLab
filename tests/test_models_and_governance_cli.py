@@ -72,11 +72,12 @@ def test_models_show_lists_observer_supervisor_and_grok_research_routes():
     assert "agy" in observer.output
     assert "gemini_3_6_flash_high_agy_oauth" in observer.output
     assert supervisor.exit_code == 0
-    assert "deepseek_v4_pro" in supervisor.output
-    assert "claude_code" in supervisor.output
+    assert "grok_4_5_high_cli_oauth" in supervisor.output
+    assert "grok" in supervisor.output
+    assert "SupervisorDeepSeek" in supervisor.output
     assert researcher.exit_code == 0
     assert "grok" in researcher.output
-    assert "grok_4_5_hermes_oauth" in researcher.output
+    assert "grok_4_5_medium_cli_oauth" in researcher.output
 
 
 def test_models_capacity_keeps_unobserved_remaining_and_reset_null():
@@ -127,8 +128,9 @@ def test_models_capacity_probe_all_runs_only_declared_safe_probes(
     assert result.exit_code == 0
     payload = yaml.safe_load(result.output)
     assert payload["probe_scope"] == "all_declared_safe_probes"
-    assert len(payload["probe_results"]) == 5
+    assert len(payload["probe_results"]) == 6
     assert ("agy", "models") in calls
+    assert ("grok", "models") in calls
     assert ("codex", "login", "status") in calls
     assert ("hermes", "auth", "status", "xai-oauth") in calls
     assert not any(call[:3] == ("hermes", "status", "--all") for call in calls)
@@ -161,7 +163,7 @@ def test_model_proposal_round_trip_on_temp_root(tmp_path):
     profiles = yaml.safe_load(
         (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
     )
-    writer = profiles["modes"][profiles["default_mode"]]["tiers"]["performance"]["writer"]
+    writer = profiles["modes"][profiles["default_mode"]]["tiers"]["alter"]["writer"]
     assert writer["invocation_contract"] == "claude_writer"
     assert writer["capacity_route"] == "WriterFlash"
 
@@ -194,7 +196,7 @@ def test_model_proposal_can_update_all_output_tiers_atomically(tmp_path):
     proposal = yaml.safe_load(
         (_proposal_dir(root) / f"{proposal_id}.yml").read_text(encoding="utf-8")
     )
-    assert proposal["tiers"] == ["full", "performance", "low"]
+    assert proposal["tiers"] == ["alter", "full", "performance", "low"]
 
     applied = runner.invoke(local_app, ["models", "apply", "--proposal", proposal_id])
 
@@ -203,8 +205,9 @@ def test_model_proposal_can_update_all_output_tiers_atomically(tmp_path):
         (root / "config" / "agent_model_profiles.yml").read_text(encoding="utf-8")
     )
     tiers = profiles["modes"][profiles["default_mode"]]["tiers"]
-    for tier in ("full", "performance", "low"):
+    for tier in ("alter", "full", "performance", "low"):
         assert tiers[tier]["writer"]["default"] == "deepseek_v4_flash"
+    assert tiers["alter"]["writer"]["capacity_route"] == "WriterFlash"
     assert tiers["full"]["writer"]["capacity_route"] == "WriterFlash"
     assert tiers["performance"]["writer"]["capacity_route"] == "WriterFlash"
     assert tiers["low"]["writer"]["capacity_route"] == "WriterLow"

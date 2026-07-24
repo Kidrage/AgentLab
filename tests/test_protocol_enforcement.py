@@ -138,7 +138,7 @@ def test_visual_reviewer_route_uses_reviewer_role_binding():
     assert reason == "role binding allowed"
 
 
-def test_grok_is_research_and_artifact_producer_internal_worker():
+def test_grok_is_alter_role_worker_but_not_writer():
     artifact_allowed, artifact_reason = check_role_binding(ROOT, "grok", "ArtifactProducer")
     research_allowed, research_reason = check_role_binding(ROOT, "grok", "Researcher")
     coder_allowed, coder_reason = check_role_binding(ROOT, "grok", "Coder")
@@ -148,8 +148,8 @@ def test_grok_is_research_and_artifact_producer_internal_worker():
     assert artifact_reason == "role binding allowed"
     assert research_allowed is True
     assert research_reason == "role binding allowed"
-    assert coder_allowed is False
-    assert "lacks role_worker" in coder_reason or "forbidden" in coder_reason
+    assert coder_allowed is True
+    assert coder_reason == "role binding allowed"
     assert writer_allowed is False
     assert "forbidden" in writer_reason
 

@@ -10,9 +10,10 @@ quota breaker。
 | --- | --- | --- | --- |
 | Agy | `agy models` | CLI 可达、模型目录可读取 | remaining、5h/weekly reset |
 | Codex CLI | `codex login status` | OAuth 登录状态 | remaining、5h/weekly reset |
-| Grok / Hermes xAI | `hermes auth status xai-oauth` | xAI OAuth 登录状态 | remaining、reset |
+| 原生 Grok CLI | `grok models` | Grok OAuth 登录、可用模型 | remaining、reset |
+| Hermes xAI 兼容链 | `hermes auth status xai-oauth` | xAI OAuth 登录状态 | remaining、reset |
 
-Agy 没有额度查询命令。禁止假设或伪造 `agy /usage`。三类探针的
+Agy 没有额度查询命令。禁止假设或伪造 `agy /usage`。以上探针的
 `reports_remaining` 和 `reports_reset_at` 均为 `false`；没有 provider 运行证据时，
 这两个值必须保持 `null`。
 
@@ -81,7 +82,7 @@ catalog 注册完成后，再通过受契约和 capacity route 约束的路由�
   --mode performance
 ```
 
-同步 `full / performance / low` 三档：
+同步 `alter / full / performance / low` 四档：
 
 ```bash
 ./agentlab.sh models propose \

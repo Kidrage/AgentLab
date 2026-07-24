@@ -1,5 +1,5 @@
 schema_version: 3
-last_verified: "2026-07-13"
+last_verified: "2026-07-25"
 valid_until_days: 14
 
 # ─── AgentLab Model Catalog v3.1 ─────────────────────────────────────
@@ -170,6 +170,57 @@ models:
       billing_source: xai_oauth
     notes: >
       Grok 4.5 through Hermes xAI OAuth provider.
+
+  grok_4_5_high_cli_oauth:
+    provider: grok_cli_oauth
+    runtime_provider: grok-cli-oauth
+    cli_provider: grok
+    model_id: grok-4.5
+    reasoning_effort: high
+    capacity_pool: grok_cli_subscription
+    strengths: [oauth_cli, planning, reasoning, supervision, long_context, coding_agent]
+    weaknesses: [subscription_quota_unknown, settings_fetch_requires_network]
+    suitable_agents: [supervisor]
+    pricing:
+      currency: subscription_or_oauth_quota
+      billing_source: grok_oauth
+    notes: >
+      Grok 4.5 through the native Grok CLI OAuth session with high reasoning.
+      This is the alter-tier Supervisor model and is distinct from Hermes xAI.
+
+  grok_4_5_medium_cli_oauth:
+    provider: grok_cli_oauth
+    runtime_provider: grok-cli-oauth
+    cli_provider: grok
+    model_id: grok-4.5
+    reasoning_effort: medium
+    capacity_pool: grok_cli_subscription
+    strengths: [oauth_cli, reasoning, long_context, coding_agent, research]
+    weaknesses: [subscription_quota_unknown, settings_fetch_requires_network]
+    suitable_agents: [reposcout, interface_mapper, researcher, coder, tester_auditor]
+    pricing:
+      currency: subscription_or_oauth_quota
+      billing_source: grok_oauth
+    notes: >
+      Grok 4.5 through the native Grok CLI OAuth session with medium reasoning
+      for alter-tier production and audit roles.
+
+  grok_4_5_low_cli_oauth:
+    provider: grok_cli_oauth
+    runtime_provider: grok-cli-oauth
+    cli_provider: grok
+    model_id: grok-4.5
+    reasoning_effort: low
+    capacity_pool: grok_cli_subscription
+    strengths: [oauth_cli, fast, long_context, structured_text]
+    weaknesses: [subscription_quota_unknown, settings_fetch_requires_network, lower_reasoning_depth]
+    suitable_agents: [prompt_engineer, artifact_producer, verifier, archivist]
+    pricing:
+      currency: subscription_or_oauth_quota
+      billing_source: grok_oauth
+    notes: >
+      Grok 4.5 through the native Grok CLI OAuth session with low reasoning for
+      alter-tier supporting roles.
 
   gemini_3_5_flash_high_agy_oauth:
     provider: agy_gemini_oauth
@@ -544,6 +595,18 @@ models:
 # ── Provider 配置 ──────────────────────────────────────────────────────
 
 providers:
+  grok_cli_oauth:
+    display: Native Grok CLI OAuth
+    currency: subscription_or_oauth_quota
+    auth: local_grok_oauth_session
+    command: grok
+    runtime_provider: grok-cli-oauth
+    default_model: grok-4.5
+    capacity_source: config/model_capacity.yml
+    notes: >
+      Native Grok CLI provider used by the alter tier. Capacity values remain
+      unknown until the CLI supplies runtime failure evidence.
+
   codex_cli_oauth:
     display: Codex CLI OAuth
     currency: subscription_or_oauth_quota

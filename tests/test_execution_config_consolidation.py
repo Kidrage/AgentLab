@@ -17,14 +17,25 @@ def _load_config(name: str) -> dict:
     return yaml.safe_load((ROOT / "config" / name).read_text(encoding="utf-8")) or {}
 
 
-def test_agent_backend_modes_have_three_canonical_tiers() -> None:
+def test_agent_backend_modes_include_the_default_alter_tier() -> None:
     profiles = _load_config("agent_model_profiles.yml")
 
     assert profiles["default_mode"] == "full_cli"
-    assert set(profiles["tier_policy"]["tiers"]) == {"full", "performance", "low"}
+    assert set(profiles["tier_policy"]["tiers"]) == {
+        "alter",
+        "full",
+        "performance",
+        "low",
+    }
 
     modes = profiles["modes"]
-    for mode_name in ("full_cli", "qwen_token_plan_cli", "full_api", "hybrid_ide"):
+    assert set(modes["full_cli"]["tiers"]) == {
+        "alter",
+        "full",
+        "performance",
+        "low",
+    }
+    for mode_name in ("qwen_token_plan_cli", "full_api", "hybrid_ide"):
         assert mode_name in modes
         assert set(modes[mode_name]["tiers"]) == {"full", "performance", "low"}
 
@@ -355,7 +366,8 @@ def test_full_cli_tiers_share_the_upgraded_role_matrix() -> None:
         "scribe": ("agy", "agy_scribe", "gemini_3_6_flash_high_agy_oauth"),
     }
 
-    for tier_name, tier in tiers.items():
+    for tier_name in ("full", "performance", "low"):
+        tier = tiers[tier_name]
         for role, (worker, contract, model_key) in expected.items():
             route = tier[role]
             assert route["cli_agent"] == worker, f"{tier_name}/{role}"

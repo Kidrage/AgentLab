@@ -1,19 +1,19 @@
 schema_version: 1
 roles:
   Supervisor:
-    candidates: [hermes, qwen, claude_code]
+    candidates: [grok, hermes, qwen, claude_code]
   RepoScout:
-    candidates: [rg, claude_code]
+    candidates: [grok, rg, claude_code]
   InterfaceMapper:
-    candidates: [ast_grep, claude_code, codex]
+    candidates: [grok, ast_grep, claude_code, codex]
   Researcher:
     candidates: [grok, bl, claude_code, qwen, hermes]
   Observer:
     candidates: [agy]
   PromptEngineer:
-    candidates: [hermes, claude_code, qwen]
+    candidates: [grok, hermes, claude_code, qwen]
   Coder:
-    candidates: [claude_code, codex, aider, hermes]
+    candidates: [grok, claude_code, codex, aider, hermes]
   ArtifactProducer:
     candidates: [grok, codex, qwen]
   NarrativePlanner:
@@ -25,8 +25,8 @@ roles:
   Scribe:
     candidates: [qwen, claude_code, codex]
   TesterAuditor:
-    candidates: [pytest, claude_code, codex, hermes]
+    candidates: [grok, pytest, claude_code, codex, hermes]
   Verifier:
-    candidates: [ruff, mypy, eslint, claude_code, codex, hermes]
+    candidates: [grok, ruff, mypy, eslint, claude_code, codex, hermes]
   Archivist:
-    candidates: [git, claude_code, hermes]
+    candidates: [grok, git, claude_code, hermes]

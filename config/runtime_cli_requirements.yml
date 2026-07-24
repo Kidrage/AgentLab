@@ -72,17 +72,18 @@ components:
     notes: Multimodal Observer, isolated visual Reviewer, NarrativePlanner, Writer, and Scribe use Gemini 3.6 through the shared Agy subscription pool in all three current full_cli tiers. Agy has no quota/status command; agy models is catalog-only, and remaining/reset stay unknown until provider error evidence. Never invent /usage or use GEMINI_API_KEY.
   grok:
     kind: agent_cli_backend
-    release_requirement: required_for_social_research_optional_for_media
-    command: hermes
-    auth_mode: hermes_xai_oauth_session
+    release_requirement: required_for_alter_default
+    command: grok
+    legacy_command: hermes
+    auth_mode: local_grok_oauth_session
     model_binding: command_template
-    install_source: Hermes Agent xAI OAuth provider
-    version_probe: hermes --version
+    install_source: native Grok CLI
+    version_probe: grok --version
     safe_probe: ./agentlab.sh worker-invocation-probe --worker grok
-    live_smoke: ./agentlab.sh grok-cli-smoke --live
-    capacity_probe: hermes auth status xai-oauth
+    live_smoke: grok models
+    capacity_probe: grok models
     forbidden_probe: hermes status --all
-    notes: Separate Researcher and image/video-only ArtifactProducer contracts share one dynamically observed xAI pool. Text model output is not an image asset and Grok cannot self-approve aesthetics.
+    notes: Native Grok 4.5 is the alter-tier brain and production shell. Legacy performance Researcher/media contracts remain on Hermes xAI until separately migrated. Neither probe reports remaining quota or reset time.
   bl:
     kind: specialist_cli
     release_requirement: optional_specialist
