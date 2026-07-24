@@ -17,9 +17,18 @@ from agent_runtime.narrative.blueprint_validation import (
     seal_crown_blueprint,
     validate_crown_blueprint,
 )
+from agent_runtime.narrative.blueprint_lifecycle import (
+    publish_blueprint_change,
+    seal_project_blueprint,
+    validate_project_blueprint,
+)
 from agent_runtime.narrative.state_store import (
     NarrativeStateError,
     NarrativeStateStore,
+)
+from agent_runtime.narrative.task_packet import (
+    append_narrative_instruction,
+    compile_narrative_task_packet,
 )
 from agent_runtime.narrative_delivery import (
     run_narrative_doctor,
@@ -31,6 +40,20 @@ from agent_runtime.narrative_delivery import (
 
 def register_narrative_commands(app: typer.Typer, project_root: Path, console: Console) -> None:
     narrative_app = typer.Typer(help="Longform narrative delivery commands.", no_args_is_help=True)
+
+    def blueprint_schema(project: str) -> str:
+        authority = (
+            project_root
+            / "projects"
+            / project
+            / "production"
+            / "blueprint_authority.yml"
+        )
+        try:
+            value = yaml.safe_load(authority.read_text(encoding="utf-8")) or {}
+        except (OSError, UnicodeError, yaml.YAMLError):
+            return ""
+        return str(value.get("schema_version") or "") if isinstance(value, dict) else ""
 
     @narrative_app.command("doctor")
     def doctor(
@@ -96,13 +119,19 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         chapter_start: int = typer.Option(1, "--chapter-start", min=1),
         chapter_end: int = typer.Option(20, "--chapter-end", min=1),
     ) -> None:
-        """Validate AgentLab-authored scale decisions, canon shards, and chapter cards."""
-        result = validate_crown_blueprint(
-            project_root,
-            project=project,
-            chapter_start=chapter_start,
-            chapter_end=chapter_end,
-        )
+        """Validate the selected Crown or project-specific narrative blueprint."""
+        if blueprint_schema(project) == "narrative-blueprint-authority/v1":
+            result = validate_project_blueprint(
+                project_root,
+                project=project,
+            )
+        else:
+            result = validate_crown_blueprint(
+                project_root,
+                project=project,
+                chapter_start=chapter_start,
+                chapter_end=chapter_end,
+            )
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
         if result["status"] != "pass":
             raise typer.Exit(code=1)
@@ -124,18 +153,120 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             ),
         ),
     ) -> None:
-        """Hash and register AgentLab-authored blueprint artifacts without editing content."""
+        """Validate and seal the selected Crown or project-specific blueprint."""
         try:
-            result = seal_crown_blueprint(
-                project_root,
-                project=project,
-                source_task=source_task,
-                source_run_artifact=source_run_artifact,
-                allow_registered_blueprint_drift=allow_registered_blueprint_drift,
-            )
+            if blueprint_schema(project) == "narrative-blueprint-authority/v1":
+                if not source_task:
+                    raise ValueError(
+                        "generic project-specific sealing requires --source-task"
+                    )
+                if source_run_artifact or allow_registered_blueprint_drift:
+                    raise ValueError(
+                        "generic sealing does not accept Crown recovery options"
+                    )
+                result = seal_project_blueprint(
+                    project_root,
+                    project=project,
+                    source_task=source_task,
+                )
+            else:
+                result = seal_crown_blueprint(
+                    project_root,
+                    project=project,
+                    source_task=source_task,
+                    source_run_artifact=source_run_artifact,
+                    allow_registered_blueprint_drift=allow_registered_blueprint_drift,
+                )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @narrative_app.command("publish-blueprint-change")
+    def publish_blueprint_change_command(
+        project: str = typer.Option(..., "--project"),
+        manifest: Path = typer.Option(
+            ...,
+            "--manifest",
+            help="Runtime v2 artifacts/blueprint_change_set.yml.",
+        ),
+        acceptance_receipt: Path = typer.Option(
+            ...,
+            "--acceptance-receipt",
+            help="Hash-bound user and expert acceptance receipt.",
+        ),
+    ) -> None:
+        """CAS-publish one validated blueprint change and archive the previous truth."""
+        try:
+            result = publish_blueprint_change(
+                project_root,
+                project=project,
+                manifest_path=manifest,
+                acceptance_receipt_path=acceptance_receipt,
+            )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    def load_request(path: Path) -> dict:
+        try:
+            value = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise typer.BadParameter(f"cannot read narrative request: {exc}") from exc
+        if not isinstance(value, dict):
+            raise typer.BadParameter("narrative request must be a mapping")
+        return value
+
+    @narrative_app.command("compile-task-packet")
+    def compile_task_packet_command(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        request: Path = typer.Option(
+            ...,
+            "--request",
+            help="Structured narrative request YAML.",
+        ),
+    ) -> None:
+        """Create one append-only Runtime v2 narrative Task and expert DAG."""
+        try:
+            result = compile_narrative_task_packet(
+                project_root,
+                project=project,
+                task_id=task_id,
+                request=load_request(request),
+            )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
+
+    @narrative_app.command("append-task-instruction")
+    def append_task_instruction_command(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        instruction_id: str = typer.Option(..., "--instruction-id"),
+        request: Path = typer.Option(
+            ...,
+            "--request",
+            help="Structured narrative request YAML.",
+        ),
+    ) -> None:
+        """Append a prompt event without overwriting prior narrative instructions."""
+        try:
+            result = append_narrative_instruction(
+                project_root,
+                project=project,
+                task_id=task_id,
+                instruction_id=instruction_id,
+                request=load_request(request),
+            )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(
+            yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip()
+        )
 
     @narrative_app.command("materialize-blueprint")
     def materialize_blueprint(

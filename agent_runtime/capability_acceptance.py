@@ -1241,23 +1241,11 @@ def _live_code_candidate(root: Path) -> dict[str, Any]:
         root, "AgentLab", "task_live_code_ui_app_json_binding_20260707"
     )
     if not run_dir.is_dir() and historical_run_dir is None:
-        production_root = root / "projects" / "AgentLab" / "production" / "artifacts" / "web_ui"
-        evidence = [
-            str(path)
-            for path in (
-                production_root / "index.html",
-                production_root / "styles.css",
-                production_root / "app.js",
-                production_root / "status.sample.json",
-                root / "projects" / "AgentLab" / "project_artifact_index.yml",
-            )
-            if path.is_file()
-        ]
         return {
             "id": "live_code_candidate_materialization",
             "title": "Live code candidate materialization",
             "status": "retired",
-            "evidence": evidence,
+            "evidence": [],
             "summary": (
                 "legacy run-local UI candidate probe retired; retained production "
                 "artifacts are not reused as fresh candidate evidence"

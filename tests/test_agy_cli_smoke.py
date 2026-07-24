@@ -55,6 +55,59 @@ def test_agy_cli_smoke_live_pass_with_fake_runner(tmp_path: Path) -> None:
     assert "reason" not in report
 
 
+def test_agy_cli_smoke_injects_default_proxy_when_environment_is_empty(
+    tmp_path: Path,
+) -> None:
+    with patch.dict(
+        "agent_runtime.agy_cli_smoke.os.environ",
+        {"PATH": "/usr/bin"},
+        clear=True,
+    ):
+        report = build_agy_cli_smoke_report(
+            ROOT,
+            live=False,
+            command_runner=lambda *_: None,
+            smoke_dir=tmp_path / "smoke",
+        )
+
+    assert report["status"] == "configured"
+    assert report["proxy_binding_verified"] is True
+    assert report["proxy_source"] == "default_fallback"
+    assert report["proxy_url"] == "http://127.0.0.1:7890"
+    assert set(report["proxy_environment_names"]) == {
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "http_proxy",
+        "https_proxy",
+    }
+
+
+def test_agy_cli_smoke_redacts_proxy_credentials(tmp_path: Path) -> None:
+    with patch.dict(
+        "agent_runtime.agy_cli_smoke.os.environ",
+        {
+            "PATH": "/usr/bin",
+            "HTTP_PROXY": (
+                "http://demo-user:demo-password@proxy.example:8080/"
+                "private?token=secret"
+            ),
+        },
+        clear=True,
+    ):
+        report = build_agy_cli_smoke_report(
+            ROOT,
+            live=False,
+            command_runner=lambda *_: None,
+            smoke_dir=tmp_path / "smoke",
+        )
+
+    rendered = yaml.safe_dump(report, sort_keys=False)
+    assert report["proxy_url"] == "http://proxy.example:8080"
+    assert "demo-user" not in rendered
+    assert "demo-password" not in rendered
+    assert "token=secret" not in rendered
+
+
 def test_agy_cli_smoke_real_subprocess_does_not_inherit_direct_api_keys(
     tmp_path: Path,
 ) -> None:

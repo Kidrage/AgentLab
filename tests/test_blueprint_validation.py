@@ -929,6 +929,46 @@ def test_validate_blueprint_cli_is_registered() -> None:
     assert reseal_result.returncode == 0, reseal_result.stderr
     reseal_stdout = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", reseal_result.stdout)
     assert "--allow-registered-blueprint-drift" in reseal_stdout
+    for command, expected_options in (
+        (
+            "publish-blueprint-change",
+            ("--manifest", "--acceptance-receipt"),
+        ),
+        ("compile-task-packet", ("--task-id", "--request")),
+        (
+            "append-task-instruction",
+            ("--instruction-id", "--request"),
+        ),
+    ):
+        command_result = subprocess.run(
+            [
+                str(root / "agentlab.sh"),
+                "narrative",
+                command,
+                "--help",
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **{
+                    key: value
+                    for key, value in os.environ.items()
+                    if key not in {"FORCE_COLOR", "CLICOLOR_FORCE"}
+                },
+                "COLUMNS": "180",
+                "NO_COLOR": "1",
+            },
+        )
+        assert command_result.returncode == 0, command_result.stderr
+        command_stdout = re.sub(
+            r"\x1b\[[0-?]*[ -/]*[@-~]",
+            "",
+            command_result.stdout,
+        )
+        for option in expected_options:
+            assert option in command_stdout
 
 
 def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_roots(

@@ -1387,6 +1387,21 @@ def test_project_specific_blueprint_indexes_hash_verified_registered_sources(
     }
     assert unchanged_paths == built_paths
 
+    _write_current_artifacts(
+        root,
+        "Novel",
+        "production/blueprint_authority.yml",
+        "project_brain/project_fact_snapshot.yml",
+    )
+    bound_paths = {
+        item.source.path
+        for item in SourceCollector(root).collect_project(
+            "Novel",
+            domain="longform_narrative",
+        )
+    }
+    assert "projects/Novel/project_brain/project_fact_snapshot.yml" in bound_paths
+
     (bible / "current.md").write_text("TAMPERED\n", encoding="utf-8")
     rebuilt_paths = {
         item.source.path

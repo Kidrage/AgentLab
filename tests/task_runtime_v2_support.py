@@ -25,6 +25,22 @@ _ROLES = {
         "provider": "deepseek",
         "model_id": "deepseek-test-writer",
     },
+    "Reviewer": {
+        "profile_key": "reviewer",
+        "worker": "codex",
+        "invocation_contract": "codex_reviewer",
+        "model_key": "reviewer-model",
+        "provider": "codex-cli",
+        "model_id": "gpt-test-reviewer",
+    },
+    "Verifier": {
+        "profile_key": "verifier",
+        "worker": "codex",
+        "invocation_contract": "codex_verifier",
+        "model_key": "verifier-model",
+        "provider": "codex-cli",
+        "model_id": "gpt-test-verifier",
+    },
 }
 
 
@@ -37,6 +53,7 @@ def execute_role_with_output(
     attempt_id: str,
     role: str,
     output: dict,
+    project: str = "Demo",
 ) -> dict:
     role_config = _ROLES[role]
     _write_role_config(tmp_path)
@@ -91,7 +108,7 @@ def execute_role_with_output(
         )
 
     result = RoleAttemptExecutor(
-        tmp_path, project="Demo", cli_runner=fake_cli
+        tmp_path, project=project, cli_runner=fake_cli
     ).execute(
         task_id=task_id,
         work_item_id=work_item_id,

@@ -422,6 +422,36 @@ def test_agy_oauth_preflight_reports_proxy_url_and_source(
     assert preflight["proxy_source"] == "inherited_from_environment"
 
 
+def test_agy_oauth_preflight_redacts_proxy_credentials_and_query() -> None:
+    from cli_executor import _agy_oauth_preflight
+
+    role_profile = {
+        "cli_agent": "agy",
+        "invocation_contract": "agy_observer",
+        "default": "agy-gemini-3-pro",
+    }
+    argv = ["agy", "--model", "gemini-3-pro", "--sandbox"]
+    model_values = {
+        "model_key": "agy-gemini-3-pro",
+        "model_id": "gemini-3-pro",
+        "catalog_model_id": "gemini-3-pro",
+        "provider": "agy-gemini-oauth",
+    }
+    process_env = {
+        "HTTPS_PROXY": (
+            "http://demo-user:demo-password@proxy.example:8080/private?token=secret"
+        )
+    }
+
+    preflight = _agy_oauth_preflight(role_profile, argv, model_values, process_env)
+
+    assert preflight["proxy_url"] == "http://proxy.example:8080"
+    rendered = yaml.safe_dump(preflight, sort_keys=False)
+    assert "demo-user" not in rendered
+    assert "demo-password" not in rendered
+    assert "token=secret" not in rendered
+
+
 def _grok_research_fixture(
     tmp_path: Path,
     *,

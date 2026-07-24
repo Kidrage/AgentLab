@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -265,28 +266,59 @@ class LegacyRunMigrator:
                         f"legacy provenance snapshot hash mismatch: {snapshot_path}"
                     )
                 continue
-            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-            flags |= getattr(os, "O_NOFOLLOW", 0)
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=f".{snapshot_path.name}.",
+                suffix=".tmp",
+                dir=snapshot_path.parent,
+            )
+            temporary_path = Path(temporary_name)
             try:
-                descriptor = os.open(snapshot_path, flags, 0o600)
-            except OSError as exc:
-                raise MigrationPlanChanged(
-                    f"legacy provenance target cannot be created safely: {snapshot_path}"
-                ) from exc
-            try:
+                if (
+                    temporary_path.is_symlink()
+                    or _has_symlink_component(temporary_path, self.root)
+                ):
+                    raise MigrationPlanChanged(
+                        f"legacy provenance temporary target is unsafe: {temporary_path}"
+                    )
                 source_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
                 source_descriptor = os.open(source_path, source_flags)
                 with os.fdopen(source_descriptor, "rb") as source_handle, os.fdopen(
                     descriptor, "wb"
-                ) as snapshot_handle:
+                ) as temporary_handle:
                     descriptor = -1
-                    shutil.copyfileobj(source_handle, snapshot_handle)
-            except BaseException:
+                    shutil.copyfileobj(source_handle, temporary_handle)
+                    temporary_handle.flush()
+                    os.fsync(temporary_handle.fileno())
+                if _sha256(temporary_path) != expected_sha256:
+                    raise MigrationPlanChanged(
+                        f"legacy provenance snapshot copy failed: {snapshot_path}"
+                    )
+                try:
+                    os.link(
+                        temporary_path,
+                        snapshot_path,
+                        follow_symlinks=False,
+                    )
+                except FileExistsError:
+                    if (
+                        _has_symlink_component(snapshot_path, self.root)
+                        or not snapshot_path.is_file()
+                        or snapshot_path.is_symlink()
+                        or _sha256(snapshot_path) != expected_sha256
+                    ):
+                        raise MigrationPlanChanged(
+                            f"legacy provenance target changed during publication: "
+                            f"{snapshot_path}"
+                        )
+            except OSError as exc:
+                raise MigrationPlanChanged(
+                    f"legacy provenance target cannot be created safely: {snapshot_path}"
+                ) from exc
+            finally:
                 if descriptor >= 0:
                     os.close(descriptor)
-                if snapshot_path.is_file() and not snapshot_path.is_symlink():
-                    snapshot_path.unlink()
-                raise
+                if temporary_path.is_file() and not temporary_path.is_symlink():
+                    temporary_path.unlink()
             if _sha256(snapshot_path) != expected_sha256:
                 raise MigrationPlanChanged(
                     f"legacy provenance snapshot copy failed: {snapshot_path}"

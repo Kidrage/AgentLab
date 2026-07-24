@@ -148,6 +148,18 @@ classification:
     l2_max: 3
 
 trace_record_contracts:
+  narrative_task_packet:
+    schema_version: narrative-task-packet/v1
+    producer_roles: [Runtime]
+    fields:
+      status: {type: string, equals: compiled}
+      runtime_standard: {type: string, equals: task-runtime-v2}
+      project: {type: string}
+      task_id: {type: string}
+      change_kind: {type: string}
+      request: {type: mapping, minimum_items: 1}
+      truth_bindings: {type: mapping, minimum_items: 1}
+      required_roles: {type: list, minimum_items: 1}
   brain_scope_decision:
     schema_version: brain-scope-decision/v1
     producer_roles: [Supervisor]

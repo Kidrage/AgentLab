@@ -55,20 +55,15 @@ goal_items:
   capability_ids:
   - code_factory_orchestration
   - live_code_candidate_materialization
-  conclusion: Code routes still use the code factory chain, and a live code/UI candidate
-    has local smoke evidence.
-  evidence:
-  - projects/AgentLab/production/artifacts/web_ui/index.html
-  - projects/AgentLab/production/artifacts/web_ui/styles.css
-  - projects/AgentLab/production/artifacts/web_ui/app.js
-  - projects/AgentLab/production/artifacts/web_ui/status.sample.json
-  - projects/AgentLab/project_artifact_index.yml
+  conclusion: Code routes still use the code factory chain; the legacy live UI probe
+    is retired and supplies no current candidate evidence.
+  evidence: []
   evidence_health:
     status: pass
-    checked: 5
+    checked: 0
     missing: []
-  remaining_gap: The live UI app remains candidate-only until explicit promotion and
-    live backing API write workflows.
+  remaining_gap: Run a new Runtime v2 code/UI task and collect current immutable acceptance
+    evidence.
 - id: split_non_code_from_code_shell
   title: Route non-code work through production packs instead of code-task shell
   status: fail

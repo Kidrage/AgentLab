@@ -1,15 +1,15 @@
 schema_version: 1
 report_type: agentlab_capability_current_evidence_chain
 chain_id: agentlab_capability_current
-generated_at: '2026-07-24T14:25:26Z'
+generated_at: '2026-07-24T17:16:09Z'
 repository:
   root: .
-  head: 90916a0
+  head: 79390b3
   worktree_dirty: true
 source_report:
   path: acceptance_runs/agentlab_capability_acceptance/current.yml
   report_type: agentlab_capability_acceptance
-  sha256: 3ef958b12f0c6a8000ad56e3ff34f4ac094b6b5c3550a864c83b28d86ee5b6ca
+  sha256: db140c5d64bb5ed7dfccdd7be0a490114645c9d25f503d7d2b803846b2cefdb4
   overall_status: fail
 current_evidence:
 - path: acceptance_runs/agentlab_capability_acceptance/agent_role_chain_audit.yml
@@ -221,31 +221,6 @@ current_evidence:
   - crown_formal_live_narrative_eval
   - grok_xai_media_backend
   sha256: 16f9b42a8e9d6b5f837296f1132af34dae2d76e608f3586a4e4a2e86e323e83b
-- path: projects/AgentLab/production/artifacts/web_ui/app.js
-  class: active
-  capability_ids:
-  - live_code_candidate_materialization
-  sha256: b71a0a3a6eb3a552f425f72e29cdfcf95bce53f028f2928126d8ad07fbd1a550
-- path: projects/AgentLab/production/artifacts/web_ui/index.html
-  class: active
-  capability_ids:
-  - live_code_candidate_materialization
-  sha256: 5dd84b706c4892d77c60c0d37fed869e75e6340041c3c4af36540bad82b6fc30
-- path: projects/AgentLab/production/artifacts/web_ui/status.sample.json
-  class: active
-  capability_ids:
-  - live_code_candidate_materialization
-  sha256: bc8be614452c592fe863658d776a6bb8db6f8aed5f58ffd4d48b1936b976da0c
-- path: projects/AgentLab/production/artifacts/web_ui/styles.css
-  class: active
-  capability_ids:
-  - live_code_candidate_materialization
-  sha256: 5d2ec4941d094465a296cd6b83af0b059246fb9f1d15d33599e2faba1d06a3eb
-- path: projects/AgentLab/project_artifact_index.yml
-  class: active
-  capability_ids:
-  - live_code_candidate_materialization
-  sha256: 6d57469a75b92e9f137efebb99f47fa1ff36c71b676f5ad1785072aa73e55c38
 - path: tests/test_core_package_imports.py
   class: active
   capability_ids:
@@ -256,10 +231,10 @@ current_evidence:
   capability_ids:
   - core_package_import_stability
   sha256: 012937419473a7c9f7d315f6204e5ece4b1ee2d35abc4faa70eefb044da64d06
-current_evidence_count: 47
+current_evidence_count: 42
 historical_references: []
 historical_reference_count: 0
-aggregate_digest: 1cb1e50037c3b4442681207a897afe779fd644dd6380be91af39a97c905415be
+aggregate_digest: 369ab20ee3257a914dc8720ebb14960e19291c992241a1688a8ef3e061074215
 status: pass
 issues: []
 notes:

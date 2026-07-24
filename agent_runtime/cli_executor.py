@@ -46,6 +46,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
 try:
@@ -59,6 +60,27 @@ except ModuleNotFoundError:  # pragma: no cover - direct runtime import path
 _CLI_CONTRACT_ALIASES = {
     "claude_code": "claude",
 }
+
+
+def _safe_proxy_endpoint(value: str) -> str:
+    """Render only proxy scheme/host/port, never credentials or query data."""
+
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+        if not parsed.scheme or not hostname:
+            return "[REDACTED_PROXY_ENDPOINT]"
+        rendered_host = f"[{hostname}]" if ":" in hostname else hostname
+        netloc = (
+            f"{rendered_host}:{parsed.port}"
+            if parsed.port is not None
+            else rendered_host
+        )
+        return urlunsplit((parsed.scheme, netloc, "", "", ""))
+    except ValueError:
+        return "[REDACTED_PROXY_ENDPOINT]"
+
+
 _PLACEHOLDER_RE = re.compile(r"\{([a-zA-Z0-9_]+)\}")
 _APPROX_CHARS_PER_TOKEN = 4
 _OBSERVER_STAGED_SUFFIXES = {
@@ -1544,6 +1566,7 @@ def _contract_process_environment(
             "agy_observer",
             "agy_visual_reviewer",
             "agy_narrative_planner",
+            "agy_writer",
         }
         contract_name = str(role_profile.get("invocation_contract") or "").strip()
         if contract_name in governed_contracts:
@@ -1610,7 +1633,7 @@ def _agy_oauth_preflight(
     proxy_environment_names = sorted(
         name for name in _AGY_PROXY_ENV_VARS if str(process_env.get(name) or "").strip()
     )
-    proxy_url = next(
+    raw_proxy_url = next(
         (
             str(process_env.get(name) or "").strip()
             for name in _AGY_PROXY_ENV_VARS
@@ -1618,13 +1641,14 @@ def _agy_oauth_preflight(
         ),
         "",
     )
+    proxy_url = _safe_proxy_endpoint(raw_proxy_url) if raw_proxy_url else ""
     proxy_binding_verified = bool(proxy_environment_names)
     if governed and not proxy_binding_verified:
         issues.append("agy_oauth_proxy_environment_missing")
     default_proxy = os.getenv("AGENTLAB_DEFAULT_PROXY", "http://127.0.0.1:7890")
     proxy_source = (
         "inherited_from_environment"
-        if proxy_url and proxy_url != default_proxy
+        if raw_proxy_url and raw_proxy_url != default_proxy
         else "default_fallback"
     )
 

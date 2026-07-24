@@ -702,6 +702,40 @@ def test_project_rebuild_and_doctor_trust_ledgers_not_cached_indexes(
     assert "projects/Demo/runtime/knowledge/selected_artifacts.yml" in collected_paths
     assert "projects/Demo/runtime/tasks/task-one/events.jsonl" not in collected_paths
 
+    selected_manifest = (
+        tmp_path
+        / "projects"
+        / "Demo"
+        / "runtime"
+        / "knowledge"
+        / "selected_artifacts.yml"
+    )
+    selected_manifest.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "task-runtime-selected-artifacts/v2",
+                "project": "Demo",
+                "selected_artifacts": [
+                    {
+                        "task_id": "forged",
+                        "artifact_id": "forged",
+                        "text": "FORGED-RUNTIME-PROJECTION",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    forged_paths = {
+        record.source.path
+        for record in SourceCollector(tmp_path).collect_project(
+            "Demo", domain="code_engineering"
+        )
+    }
+    assert "projects/Demo/runtime/knowledge/selected_artifacts.yml" not in forged_paths
+    runtime.rebuild_project()
+
     ledger_path = task_dir / "events.jsonl"
     event = json.loads(ledger_path.read_text(encoding="utf-8"))
     event["payload"]["title"] = "tampered"

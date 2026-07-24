@@ -9,13 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-24T11:51:17.861590+00:00`
+- Generated at: `2026-07-24T17:16:28.283722+00:00`
 
 ## Current State
 
 - Branch: `agentlab/unified-stable`
-- Authoritative commit: resolve `git rev-parse HEAD` on `agentlab/unified-stable`
-- Review baseline: `90916a0`
+- HEAD: `79390b3`
 - Indexed paths: 2016
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -44,14 +43,14 @@
 
 | Route | Files |
 |---|---:|
-| `agent_runtime` | 615 |
-| `tests` | 471 |
-| `docs` | 344 |
-| `acceptance_runs` | 316 |
+| `agent_runtime` | 617 |
+| `tests` | 472 |
+| `docs` | 345 |
+| `acceptance_runs` | 312 |
 | `docs/archive` | 222 |
 | `config` | 125 |
 | `tests/fixtures` | 110 |
-| `agent_runtime/narrative` | 59 |
+| `agent_runtime/narrative` | 61 |
 | `skills` | 47 |
 | `skills/active` | 46 |
 | `acceptance_runs/agentlab_capability_acceptance` | 44 |
@@ -89,18 +88,18 @@
 
 ### Categories
 
-- code: 1028 files, 9810947 bytes
-- literature: 422 files, 2390905 bytes
+- code: 1031 files, 10014410 bytes
+- literature: 422 files, 2408841 bytes
 - other: 12 files, 74102 bytes
-- structured_data: 554 files, 3279319 bytes
+- structured_data: 551 files, 3249843 bytes
 
 ### Common Extensions
 
-- `.py`: 1014
+- `.py`: 1017
 - `.yml`: 517
 - `.md`: 382
 - `.txt`: 40
-- `.json`: 32
+- `.json`: 29
 - `.sh`: 9
 - `[no extension]`: 5
 - `.js`: 5
@@ -231,6 +230,7 @@
 
 ## Change History
 
+- `79390b3 2026-07-24 feat: converge project governance and runtime evidence`
 - `90916a0 2026-07-24 fix(task-runtime): make task list v2-only by default`
 - `5c1f9e7 2026-07-24 test(cli): cover agy proxy inheritance defaults and preflight reporting`
 - `f45bef0 2026-07-24 chore: log proxy inheritance status for runtime worker env`
@@ -250,28 +250,41 @@
 - `4eb6682 2026-07-24 feat: add prompt-driven narrative specialists`
 - `c88ecd4 2026-07-24 merge: integrate M3 project agents with latest main`
 - `c2cddbf 2026-07-24 docs: refresh M3 repository handoff`
-- `f34a632 2026-07-24 fix: harden project agent truth boundaries`
 
 ## Current Changes
 
-- `## agentlab/unified-stable...origin/main [ahead 1]`
-- ` M PROJECT_HANDOFF.md`
+- `## agentlab/unified-stable...origin/main [ahead 2]`
+- ` M acceptance_runs/PROJECT_TASK_STANDARD_AUDIT.md`
 - ` M acceptance_runs/agentlab_capability_acceptance/current.yml`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
 - ` M acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml`
 - ` M acceptance_runs/agentlab_capability_acceptance/objective_requirement_audit.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml`
-- ` M acceptance_runs/m2_runtime_hygiene/M2_RUNTIME_HYGIENE_REPORT.md`
-- ` M acceptance_runs/m2_runtime_hygiene/M2_RUNTIME_HYGIENE_REPORT.yml`
-- ` M config/knowledge_system.yml`
-- `?? acceptance_runs/PROJECT_TASK_STANDARD_AUDIT.md`
-- `?? acceptance_runs/PROJECT_TASK_STANDARD_AUDIT_CURRENT.json`
-- `?? acceptance_runs/PROJECT_TASK_STANDARD_AUDIT_DETAIL.json`
-- `?? acceptance_runs/PROJECT_TASK_STANDARD_AUDIT_SCRIPT.json`
-- `?? acceptance_runs/PROJECT_TASK_STANDARD_AUDIT_SCRIPT.md`
+- ` M agent_runtime/agy_cli_smoke.py`
+- ` M agent_runtime/capability_acceptance.py`
+- ` M agent_runtime/cli/narrative.py`
+- ` M agent_runtime/cli_executor.py`
+- ` M agent_runtime/goal_completion_audit.py`
+- ` M agent_runtime/knowledge_system/sources.py`
+- ` M agent_runtime/objective_requirement_audit.py`
+- ` M agent_runtime/project_agents/factory.py`
+- ` M agent_runtime/task_runtime_v2/migration.py`
+- ` M agent_runtime/task_runtime_v2/runtime.py`
+- ` M config/task_input_tiers.yml`
+- ` M docs/NARRATIVE_PROJECT_OPERATING_STANDARD.zh-CN.md`
+- ` M tests/task_runtime_v2_support.py`
+- ` M tests/test_agy_cli_smoke.py`
+- ` M tests/test_blueprint_validation.py`
+- ` M tests/test_capability_acceptance.py`
+- ` M tests/test_capability_evidence_chain.py`
+- ` M tests/test_cli_executor.py`
+- ` M tests/test_knowledge_system.py`
+- ` M tests/test_project_agents.py`
+- ` M tests/test_scoped_acceptance_audits.py`
+- ` M tests/test_task_runtime_v2.py`
+- ` M tests/test_task_runtime_v2_migration.py`
+- `?? agent_runtime/narrative/blueprint_lifecycle.py`
+- `?? agent_runtime/narrative/task_packet.py`
+- `?? tests/test_narrative_blueprint_lifecycle.py`
 - `?? tmp_debug/`
 
 ## Related Repositories
@@ -305,12 +318,12 @@
 - `_shared/AGENT_HANDOFF.md`
 - `_shared/AGENT_PROTOCOL.md`
 - `acceptance_runs/PROJECT_TASK_STANDARD_AUDIT.md`
-- `acceptance_runs/PROJECT_TASK_STANDARD_AUDIT_SCRIPT.md`
 - `acceptance_runs/agentlab_capability_acceptance/private_live_smoke_approval_handoff.md`
 - `acceptance_runs/agentlab_capability_acceptance/role_session_acceptance_handoff.md`
 - `acceptance_runs/ccs_migration_safety/CCS_MIGRATION_SAFETY_REPORT.md`
 - `acceptance_runs/e2e_minimal_task/final_delivery_report.md`
 - `acceptance_runs/e2e_minimal_task/input_task.md`
+- `acceptance_runs/e2e_minimal_task/revision_packet.md`
 
 ### image
 
@@ -327,9 +340,6 @@
 ### structured_data
 
 - `.github/workflows/ci.yml`
-- `acceptance_runs/PROJECT_TASK_STANDARD_AUDIT_CURRENT.json`
-- `acceptance_runs/PROJECT_TASK_STANDARD_AUDIT_DETAIL.json`
-- `acceptance_runs/PROJECT_TASK_STANDARD_AUDIT_SCRIPT.json`
 - `acceptance_runs/agentlab_capability_acceptance/acceptance_report_hygiene.yml`
 - `acceptance_runs/agentlab_capability_acceptance/agent_role_chain_audit.yml`
 - `acceptance_runs/agentlab_capability_acceptance/agy_cli_print_smoke.yml`
@@ -346,6 +356,9 @@
 - `acceptance_runs/agentlab_capability_acceptance/frontdesk_live_handoff.yml`
 - `acceptance_runs/agentlab_capability_acceptance/frontdesk_runtime_private_context_rejection_trusted_runner_20260708.yml`
 - `acceptance_runs/agentlab_capability_acceptance/frontdesk_runtime_private_context_rejection_writer_20260707_02.yml`
+- `acceptance_runs/agentlab_capability_acceptance/goal_acceptance_scope.yml`
+- `acceptance_runs/agentlab_capability_acceptance/goal_completion_audit.yml`
+- `acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml`
 
 ## Validation and Risks
 
@@ -681,6 +694,24 @@ not started. Literary uplift and Gate 1 acceptance therefore remain unclaimed.
 User-positive calibration is still missing and ten human blind pairs at 70% new
 system preference remain required before Gate 2 scaling or Phase 5.
 - 2026-07-22: Archived every active legacy task outside `Crown_of_Ash` to `/Users/saintpeter/AgentLab_Archive/task_cleanup_20260722_non_crown/`: 48 run directories plus five derived task indexes/ledgers. Active non-Crown task lists now return empty; Crown task storage and prior user changes were preserved. The approved Crown macro plan targets 1,980 chapters across three parts, while executable chapter cards currently cover only chapters 1-20.
+- 2026-07-25 CST: Unified-stable convergence is locally complete. AgentLab now has
+  generic project-specific narrative blueprint sealing/publication, immutable
+  Runtime v2 task packets and append-only pre-execution instructions, Project
+  Agent manifest binding, transaction/RAG rollback hardening, and credential-safe
+  Agy proxy receipts. `NovelGen` is honestly sealed as a legacy/static-team
+  project pending explicit Project Truth conflict resolution; its authority,
+  fact snapshot, artifact index and RAG snapshot are hash-consistent. AgentLab,
+  Crown and NovelGen knowledge rebuild receipt is
+  `kbuild_0d9eb6aca7790ed51d9ace0c8c00bba9ba5cf33bd08031fad34c295f06f50728`;
+  doctor PASS with 38,794 records / 1,721 eligible. Runtime doctors pass
+  (AgentLab 0 tasks, Crown 1/60 events, NovelGen 2 tasks), both blueprint
+  validators pass, focused suite 230 passed, and authoritative full suite is
+  3,431 passed / 2 skipped / 11 warnings. Independent Spec and Standards reviews
+  report no P0/P1/P2 in scope. Remaining intentional product gaps are the
+  chapter-specific Runtime v2 candidate-to-production bridge and the cross-
+  character/chapter/foreshadowing impact graph. Do not claim Crown production
+  prose, enable NovelGen Registry automatically, touch the user-owned
+  `tmp_debug/`, push `main`, or sync this delivery to TrueNAS.
 <!-- AGENT_NOTES_END -->
 
 ## Mandatory Update Rule

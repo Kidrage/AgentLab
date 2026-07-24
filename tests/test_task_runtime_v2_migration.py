@@ -171,3 +171,41 @@ def test_runtime_doctor_rejects_internal_provenance_directory_alias(
     assert doctor["tasks"]["task-old"]["failures"] == [
         "legacy state provenance path contains a symlink component"
     ]
+
+
+def test_legacy_migration_partial_copy_never_publishes_final_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir = tmp_path / "projects" / "Demo" / "runs" / "task-old"
+    run_dir.mkdir(parents=True)
+    (run_dir / "state.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project": "Demo",
+                "task_id": "task-old",
+                "status": "completed",
+            }
+        ),
+        encoding="utf-8",
+    )
+    migrator = LegacyRunMigrator(tmp_path, project="Demo")
+    plan = migrator.plan()
+    snapshot = migrator.provenance_root / "task-old" / "state.yml"
+    original_copy = shutil.copyfileobj
+
+    def fail_after_partial_copy(source, destination) -> None:
+        destination.write(source.read(4))
+        raise OSError("simulated interrupted copy")
+
+    monkeypatch.setattr(shutil, "copyfileobj", fail_after_partial_copy)
+    with pytest.raises(MigrationPlanChanged, match="cannot be created safely"):
+        migrator.apply(expected_plan_hash=plan["plan_hash"])
+
+    assert not snapshot.exists()
+    assert list(snapshot.parent.glob(".*.tmp")) == []
+
+    monkeypatch.setattr(shutil, "copyfileobj", original_copy)
+    applied = migrator.apply(expected_plan_hash=plan["plan_hash"])
+    assert applied["imported"] == ["task-old"]
+    assert snapshot.is_file()

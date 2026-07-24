@@ -315,12 +315,7 @@ capabilities:
 - id: live_code_candidate_materialization
   title: Live code candidate materialization
   status: retired
-  evidence:
-  - projects/AgentLab/production/artifacts/web_ui/index.html
-  - projects/AgentLab/production/artifacts/web_ui/styles.css
-  - projects/AgentLab/production/artifacts/web_ui/app.js
-  - projects/AgentLab/production/artifacts/web_ui/status.sample.json
-  - projects/AgentLab/project_artifact_index.yml
+  evidence: []
   summary: legacy run-local UI candidate probe retired; retained production artifacts
     are not reused as fresh candidate evidence
   issues: []

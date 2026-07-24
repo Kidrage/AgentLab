@@ -122,6 +122,15 @@ def test_current_scoped_acceptance_audits_are_complete(
     assert report["role_session_execution_boundary"][
         "approval_gate_before_private_context"
     ] is True
+    retired_code_item_id = (
+        "preserve_code_factory"
+        if report_type == "agentlab_goal_completion_audit"
+        else "test_long_running_code_project_with_agentlab_ui_app"
+    )
+    retired_code_item = items[retired_code_item_id]
+    assert retired_code_item["status"] == "fail"
+    assert "retired" in retired_code_item["conclusion"]
+    assert retired_code_item["evidence_health"]["checked"] == 0
 
     crown = items[crown_id]
     writer_acceptance = crown["details"]["writer_selected_acceptance"]

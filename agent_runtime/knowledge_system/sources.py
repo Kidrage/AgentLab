@@ -333,6 +333,11 @@ class SourceCollector:
             not _has_symlink_component(runtime_selected, project_root)
             and runtime_selected.is_file()
             and not runtime_selected.is_symlink()
+            and _runtime_selected_manifest_is_ledger_bound(
+                self.root,
+                project,
+                runtime_selected,
+            )
         ):
             sources[runtime_selected] = (
                 AuthorityLevel.CANONICAL,
@@ -602,13 +607,19 @@ def _current_artifact_roots(project_root: Path, artifact_index: Path) -> tuple[P
         relative = Path(raw_path)
         if not raw_path or relative.is_absolute() or ".." in relative.parts:
             continue
-        if not relative.parts or relative.parts[0] != "production":
+        if not relative.parts:
+            continue
+        if relative.parts[0] == "production":
+            allowed_root = project_root / "production"
+        elif relative.as_posix() == "project_brain/project_fact_snapshot.yml":
+            allowed_root = project_root / "project_brain"
+        else:
             continue
         raw_selected = project_root / relative
         if _has_symlink_component(raw_selected, project_root):
             continue
         try:
-            selected = assert_path_allowed(raw_selected, project_root / "production")
+            selected = assert_path_allowed(raw_selected, allowed_root)
         except ValueError:
             continue
         if selected.is_symlink() or not (selected.is_file() or selected.is_dir()):
@@ -784,6 +795,29 @@ def _blueprint_authority_schema(authority_path: Path, project_root: Path) -> str
     if not isinstance(authority, dict) or authority.get("project") != project_root.name:
         return ""
     return str(authority.get("schema_version") or "")
+
+
+def _runtime_selected_manifest_is_ledger_bound(
+    agentlab_root: Path,
+    project: str,
+    manifest_path: Path,
+) -> bool:
+    """Accept a Runtime projection only when it exactly matches valid ledgers."""
+
+    try:
+        from agent_runtime.task_runtime_v2.runtime import (
+            TaskRuntime,
+            TaskRuntimeError,
+        )
+
+        observed = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+        expected = TaskRuntime(
+            agentlab_root,
+            project=project,
+        ).expected_selected_artifact_manifest()
+    except (OSError, UnicodeError, yaml.YAMLError, TaskRuntimeError, ValueError):
+        return False
+    return isinstance(observed, dict) and observed == expected
 
 
 def _has_symlink_component(path: Path, root: Path) -> bool:

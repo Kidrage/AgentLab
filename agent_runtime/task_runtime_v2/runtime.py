@@ -267,6 +267,73 @@ class TaskRuntime:
         )
         return self.rebuild_task(task_id)
 
+    def append_instruction(
+        self,
+        task_id: str,
+        *,
+        instruction_id: str,
+        requested_delta: str,
+        target_scope: Any,
+        preserve_invariants: list[str],
+        allowed_retcons: list[str],
+        acceptance_rules: list[str],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Append one immutable user instruction without rewriting earlier prompts."""
+
+        task_id = _validated_id(task_id, field="task_id")
+        instruction_id = _validated_id(
+            instruction_id,
+            field="instruction_id",
+        )
+        requested_delta = str(requested_delta or "").strip()
+        if not requested_delta:
+            raise ValueError("requested_delta is required")
+        if not isinstance(target_scope, (str, list, dict)) or not target_scope:
+            raise ValueError("target_scope must be a non-empty string, list, or mapping")
+        for values, label in (
+            (preserve_invariants, "preserve_invariants"),
+            (allowed_retcons, "allowed_retcons"),
+            (acceptance_rules, "acceptance_rules"),
+        ):
+            if not isinstance(values, list) or any(
+                not isinstance(item, str) or not item.strip() for item in values
+            ):
+                raise ValueError(f"{label} must be a list of non-empty strings")
+        if not acceptance_rules:
+            raise ValueError("acceptance_rules must not be empty")
+
+        def validate(projection: dict[str, Any]) -> None:
+            if projection["task"]["status"] in {"completed", "failed", "cancelled"}:
+                raise InvalidTransition(
+                    "reopen the Task before appending a new instruction"
+                )
+            if any(
+                item["instruction_id"] == instruction_id
+                for item in projection["task"].get("instructions") or []
+            ):
+                raise EntityAlreadyExists(
+                    f"instruction {instruction_id!r} already exists"
+                )
+
+        self._append_event(
+            task_id=task_id,
+            event_type="USER_INSTRUCTION_APPENDED",
+            entity_type="instruction",
+            entity_id=instruction_id,
+            idempotency_key=idempotency_key,
+            payload={
+                "instruction_id": instruction_id,
+                "requested_delta": requested_delta,
+                "target_scope": target_scope,
+                "preserve_invariants": list(preserve_invariants),
+                "allowed_retcons": list(allowed_retcons),
+                "acceptance_rules": list(acceptance_rules),
+            },
+            validate_projection=validate,
+        )
+        return self.rebuild_task(task_id)
+
     def rebuild_task(self, task_id: str) -> dict[str, Any]:
         """Validate the ledger and deterministically replace all task projections."""
 
@@ -283,7 +350,6 @@ class TaskRuntime:
         """Rebuild every Task projection and the project index from authoritative ledgers."""
 
         tasks: list[dict[str, Any]] = []
-        selected_records: list[dict[str, Any]] = []
         if self.tasks_root.exists():
             for task_dir in sorted(path for path in self.tasks_root.iterdir() if path.is_dir()):
                 projection = self.rebuild_task(task_dir.name)
@@ -302,43 +368,6 @@ class TaskRuntime:
                         "last_event_hash": projection["last_event_hash"],
                     }
                 )
-                selected_version = projection["selected_artifact_version"]
-                if selected_version:
-                    artifact = projection["artifacts"][selected_version]
-                    attempt = projection["attempts"][artifact["producer_attempt_id"]]
-                    selected_records.append(
-                        {
-                            "task_id": task_dir.name,
-                            "artifact_id": artifact["artifact_id"],
-                            "version_id": selected_version,
-                            "sha256": artifact["sha256"],
-                            "media_type": artifact["media_type"],
-                            "producer": {
-                                "attempt_id": attempt["attempt_id"],
-                                "worker": attempt["worker"],
-                                "provider": attempt["provider"],
-                                "execution_contract_hash": attempt[
-                                    "execution_contract_hash"
-                                ],
-                            },
-                            "evidence": [
-                                {
-                                    "binding_id": binding["binding_id"],
-                                    "input_manifest_hash": binding[
-                                        "input_manifest_hash"
-                                    ],
-                                    "index_snapshot_id": binding[
-                                        "index_snapshot_id"
-                                    ],
-                                    "source_hashes": binding["source_hashes"],
-                                    "audit": binding["audit"],
-                                    "execution_receipt": binding["execution_receipt"],
-                                }
-                                for binding in projection["evidence_bindings"].values()
-                                if binding["version_id"] == selected_version
-                            ],
-                        }
-                    )
         index = {
             "schema_version": PROJECT_INDEX_SCHEMA,
             "project": self.project,
@@ -352,13 +381,66 @@ class TaskRuntime:
         knowledge_root.mkdir(parents=True, exist_ok=True)
         atomic_write_yaml(
             knowledge_root / "selected_artifacts.yml",
-            {
-                "schema_version": "task-runtime-selected-artifacts/v2",
-                "project": self.project,
-                "selected_artifacts": selected_records,
-            },
+            self.expected_selected_artifact_manifest(),
         )
         return index
+
+    def expected_selected_artifact_manifest(self) -> dict[str, Any]:
+        """Project the RAG-eligible Runtime surface from ledgers without writes."""
+
+        selected_records: list[dict[str, Any]] = []
+        if self.tasks_root.exists():
+            for task_dir in sorted(
+                path
+                for path in self.tasks_root.iterdir()
+                if path.is_dir() and not path.is_symlink()
+            ):
+                with self._ledger_lock(task_dir.name):
+                    events = self._load_events(task_dir.name)
+                    projection = self._project(events, task_id=task_dir.name)
+                selected_version = projection["selected_artifact_version"]
+                if not selected_version:
+                    continue
+                artifact = projection["artifacts"][selected_version]
+                attempt = projection["attempts"][artifact["producer_attempt_id"]]
+                selected_records.append(
+                    {
+                        "task_id": task_dir.name,
+                        "artifact_id": artifact["artifact_id"],
+                        "version_id": selected_version,
+                        "sha256": artifact["sha256"],
+                        "media_type": artifact["media_type"],
+                        "producer": {
+                            "attempt_id": attempt["attempt_id"],
+                            "worker": attempt["worker"],
+                            "provider": attempt["provider"],
+                            "execution_contract_hash": attempt[
+                                "execution_contract_hash"
+                            ],
+                        },
+                        "evidence": [
+                            {
+                                "binding_id": binding["binding_id"],
+                                "input_manifest_hash": binding[
+                                    "input_manifest_hash"
+                                ],
+                                "index_snapshot_id": binding[
+                                    "index_snapshot_id"
+                                ],
+                                "source_hashes": binding["source_hashes"],
+                                "audit": binding["audit"],
+                                "execution_receipt": binding["execution_receipt"],
+                            }
+                            for binding in projection["evidence_bindings"].values()
+                            if binding["version_id"] == selected_version
+                        ],
+                    }
+                )
+        return {
+            "schema_version": "task-runtime-selected-artifacts/v2",
+            "project": self.project,
+            "selected_artifacts": selected_records,
+        }
 
     def list_tasks(self, *, include_legacy: bool = False) -> list[dict[str, Any]]:
         """Dual-read task catalog; v2 wins and all writes still target v2 only."""
@@ -2271,6 +2353,41 @@ class TaskRuntime:
                     "created_at": event["recorded_at"],
                     "updated_at": event["recorded_at"],
                 }
+                continue
+            if event["event_type"] == "USER_INSTRUCTION_APPENDED":
+                if task is None:
+                    raise LedgerIntegrityError(
+                        "user instruction precedes TASK_CREATED"
+                    )
+                instruction_id = _validated_id(
+                    event["entity_id"],
+                    field="instruction_id",
+                )
+                if any(
+                    item["instruction_id"] == instruction_id
+                    for item in task.get("instructions") or []
+                ):
+                    raise LedgerIntegrityError(
+                        f"duplicate user instruction: {instruction_id}"
+                    )
+                task.setdefault("instructions", []).append(
+                    {
+                        "instruction_id": instruction_id,
+                        "requested_delta": event["payload"]["requested_delta"],
+                        "target_scope": event["payload"]["target_scope"],
+                        "preserve_invariants": list(
+                            event["payload"].get("preserve_invariants") or []
+                        ),
+                        "allowed_retcons": list(
+                            event["payload"].get("allowed_retcons") or []
+                        ),
+                        "acceptance_rules": list(
+                            event["payload"].get("acceptance_rules") or []
+                        ),
+                        "recorded_at": event["recorded_at"],
+                    }
+                )
+                task["updated_at"] = event["recorded_at"]
                 continue
             if event["event_type"] == "TASK_STATUS_CHANGED":
                 if task is None:

@@ -199,20 +199,15 @@ requirements:
   source_requirement: Test long-running code-project ability with AgentLab designing
     its own web UI/app as a real requirement.
   status: fail
-  conclusion: A live run-local AgentLab Web UI candidate exists with DOM/fetch, operator
-    interaction, run-local API write, headless browser, screenshot, and responsive
-    viewport evidence.
-  evidence:
-  - projects/AgentLab/production/artifacts/web_ui/index.html
-  - projects/AgentLab/production/artifacts/web_ui/styles.css
-  - projects/AgentLab/production/artifacts/web_ui/app.js
-  - projects/AgentLab/production/artifacts/web_ui/status.sample.json
-  - projects/AgentLab/project_artifact_index.yml
+  conclusion: The legacy AgentLab Web UI probe is retired and supplies no current
+    live candidate evidence.
+  evidence: []
   evidence_health:
     status: pass
-    checked: 5
+    checked: 0
     missing: []
-  remaining_gap: Needs explicit promotion before production acceptance.
+  remaining_gap: Run a new Runtime v2 code/UI task and collect current immutable acceptance
+    evidence.
 - id: test_crown_longform_1500_chapter_governance_and_live_generation
   source_requirement: Test longform fiction ability for Crown of Ash at roughly 1500-chapter/trilogy
     scale, including generation as a real requirement.

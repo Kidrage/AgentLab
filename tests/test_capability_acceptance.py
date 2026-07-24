@@ -282,6 +282,7 @@ def test_capability_acceptance_report_aggregates_current_evidence(
         "cli_shell_coalesced_session_returns",
     } & set(by_id)
     assert by_id["live_code_candidate_materialization"]["status"] == "retired"
+    assert by_id["live_code_candidate_materialization"]["evidence"] == []
     assert "legacy run-local UI candidate probe retired" in by_id[
         "live_code_candidate_materialization"
     ]["summary"]

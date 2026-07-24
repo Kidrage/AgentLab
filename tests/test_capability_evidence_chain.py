@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import re
 
 import yaml
 from typer.testing import CliRunner
@@ -613,8 +614,9 @@ def test_capability_acceptance_arbitrary_out_cli_does_not_write_chain(
 def test_capability_current_evidence_chain_cli_help_registered() -> None:
     result = runner.invoke(app, ["capability-current-evidence-chain", "--help"])
     assert result.exit_code == 0, result.output
-    assert "--write" in result.output
-    assert "--verify" in result.output
+    help_text = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "--write" in help_text
+    assert "--verify" in help_text
 
 
 def test_aggregate_digest_is_order_independent() -> None:
