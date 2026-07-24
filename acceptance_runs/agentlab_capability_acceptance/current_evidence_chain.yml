@@ -1,15 +1,15 @@
 schema_version: 1
 report_type: agentlab_capability_current_evidence_chain
 chain_id: agentlab_capability_current
-generated_at: '2026-07-24T20:52:02Z'
+generated_at: '2026-07-24T21:31:11Z'
 repository:
   root: .
-  head: 55b7daa
+  head: 9643f91
   worktree_dirty: true
 source_report:
   path: acceptance_runs/agentlab_capability_acceptance/current.yml
   report_type: agentlab_capability_acceptance
-  sha256: e28f18fe1e353693de31bf67f2469babd5765e74c5c1aa451140bf00a6d421d1
+  sha256: 5de649dbaf39d34a16ee560b04af7553a1d08bd3b11d5f56ee8e1a9403a77bf2
   overall_status: fail
 current_evidence:
 - path: acceptance_runs/agentlab_capability_acceptance/agent_role_chain_audit.yml
@@ -36,12 +36,12 @@ current_evidence:
   class: active
   capability_ids:
   - frontdesk_role_worker_boundary
-  sha256: 906be08e3af7f1d16bb65cf2c92998fd0b9b1a816f41a3375e8489551cce0f8e
+  sha256: fbd6acf2a398e4e15803ee9608a5280d0ae06418973ada96de2c5794481cc6e0
 - path: acceptance_runs/agentlab_capability_acceptance/frontdesk_live_handoff.yml
   class: active
   capability_ids:
   - frontdesk_role_worker_boundary
-  sha256: 42b94d3a99c3ceebc4d251a9ee376efec3b08ffd46ce2f418b083fa05f4f1cba
+  sha256: ce509f165656570532aa22682d03d370d80a87a2c6f4bf295737662ffa6db4c0
 - path: acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml
   class: active
   capability_ids:
@@ -234,7 +234,7 @@ current_evidence:
 current_evidence_count: 42
 historical_references: []
 historical_reference_count: 0
-aggregate_digest: 839e4bc224cd7d4f704503368c9f0d1c01e7a2b4bc7466e1ee44201f425e4c17
+aggregate_digest: 697db6478ef631d4703edb3e75e0faf3500b9ba35ec46cf4e5ea2faa90383021
 status: pass
 issues: []
 notes:

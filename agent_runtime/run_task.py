@@ -4913,7 +4913,7 @@ def artifact_check_cmd(
 
 @app.command("frontdesk-boundary-audit")
 def frontdesk_boundary_audit_cmd(
-    agent: str = typer.Option("hermes", "--agent", help="Frontdesk agent id to audit."),
+    agent: str = typer.Option("openclaw", "--agent", help="Frontdesk agent id to audit."),
     out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
 ) -> None:
     """Audit that frontdesk operation stays separate from role-worker execution."""
@@ -5174,7 +5174,7 @@ def internal_live_readiness_cmd(
 @app.command("frontdesk-live-handoff")
 def frontdesk_live_handoff_cmd(
     out: Optional[Path] = typer.Option(None, "--out", help="Optional path to write the YAML report."),
-    agent: str = typer.Option("hermes", "--agent", help="Frontdesk agent id."),
+    agent: str = typer.Option("openclaw", "--agent", help="Frontdesk agent id."),
 ) -> None:
     """Write a frontdesk-safe handoff for live AgentLab acceptance work."""
     agentlab_root, _project_name = runtime_context(None)

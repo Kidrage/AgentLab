@@ -3,7 +3,8 @@
 [English](docs/README.en-US.md) | [中文](docs/README.zh-CN.md) |
 [Capability reference](docs/CURRENT_VERSION_CAPABILITIES.en-US.md) |
 [能力手册](docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md) |
-[Project Agents + Canonical Truth](docs/PROJECT_AGENTS_AND_TRUTH.md)
+[Project Agents + Canonical Truth](docs/PROJECT_AGENTS_AND_TRUTH.md) |
+[69 ↔ 250 工作区同步](docs/CLOUD_250_WORKSPACE_SYNC.zh-CN.md)
 
 AgentLab is a local-first governed production runtime for code, longform text,
 articles, typed artifacts, and media workflows. It owns task planning, role

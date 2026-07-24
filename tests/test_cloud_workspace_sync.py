@@ -1,0 +1,198 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import sys
+
+import pytest
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "agent_runtime"))
+
+import cloud_workspace_sync as cws
+from cloud_workspace_sync import (
+    SyncError,
+    build_plan,
+    build_rsync_command,
+    classify_project_sync,
+    knowledge_marker,
+    launch_agent_payload,
+    load_profile,
+    tree_hash,
+)
+
+
+def _write_config(root: Path) -> None:
+    path = root / "config" / "cloud_workspace_sync.yml"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "profiles": {
+                    "cloud_250": {
+                        "endpoint_alias": "250",
+                        "remote_root": "/home/admin/AgentLab",
+                        "branch": "agentlab/unified-stable",
+                        "interval_seconds": 300,
+                        "project_paths": ["projects/AgentLab", "projects/Crown_of_Ash"],
+                        "rag_path": ".agentlab_runtime/knowledge",
+                        "receipt_path": ".agentlab/sync/cloud_250",
+                        "local_untracked_allowlist": ["tmp_debug/"],
+                        "initial_rag_seed": True,
+                        "rebuild_rag_after_project_change": True,
+                    }
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_tree_hash_is_deterministic_and_tracks_relative_symlinks(tmp_path: Path) -> None:
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "a.txt").write_text("one", encoding="utf-8")
+    (tree / "link").symlink_to(Path("a.txt"))
+    first = tree_hash(tree)
+    assert first == tree_hash(tree)
+    (tree / "a.txt").write_text("two", encoding="utf-8")
+    assert tree_hash(tree) != first
+
+
+def test_knowledge_marker_uses_small_latest_build_receipt(tmp_path: Path) -> None:
+    latest = tmp_path / ".agentlab_runtime/knowledge/receipts/latest_build.json"
+    latest.parent.mkdir(parents=True)
+    latest.write_text(json.dumps({"receipt_id": "kbuild_a"}), encoding="utf-8")
+    assert knowledge_marker(tmp_path, Path(".agentlab_runtime/knowledge")) == tree_hash(latest)
+
+
+@pytest.mark.parametrize(
+    ("baseline", "local", "remote", "expected"),
+    [
+        (None, {"p": "a"}, {"p": None}, "initial_push"),
+        ({"p": "a"}, {"p": "b"}, {"p": "a"}, "push"),
+        ({"p": "a"}, {"p": "a"}, {"p": "b"}, "pull"),
+        ({"p": "a"}, {"p": "b"}, {"p": "c"}, "conflict"),
+        ({"p": "a"}, {"p": "b"}, {"p": "b"}, "synced"),
+    ],
+)
+def test_classify_project_sync(
+    baseline: dict[str, str | None] | None,
+    local: dict[str, str | None],
+    remote: dict[str, str | None],
+    expected: str,
+) -> None:
+    assert classify_project_sync(baseline, local, remote) == expected
+
+
+def test_explicit_push_refuses_to_overwrite_remote_only_change(tmp_path: Path) -> None:
+    _write_config(tmp_path)
+    profile = load_profile(tmp_path)
+    receipt = {"state": {"projects": {"projects/AgentLab": "a", "projects/Crown_of_Ash": "a"}}}
+    local = {
+        "code_commit": "c1",
+        "projects": {"projects/AgentLab": "a", "projects/Crown_of_Ash": "a"},
+        "knowledge_marker": "k1",
+    }
+    remote = {
+        "code_commit": "c1",
+        "projects": {"projects/AgentLab": "b", "projects/Crown_of_Ash": "a"},
+        "knowledge_marker": "k2",
+    }
+    with pytest.raises(SyncError, match="newer pull side"):
+        build_plan(tmp_path, profile, local, remote, receipt, "push")
+
+
+def test_rsync_command_is_argv_and_dry_run_is_explicit() -> None:
+    command = build_rsync_command("/source", "250:/destination", dry_run=True)
+    assert command == [
+        "rsync",
+        "-a",
+        "--delete",
+        "--dry-run",
+        "/source/",
+        "250:/destination/",
+    ]
+
+
+def test_profile_and_launch_agent_preserve_frontdesk_and_five_minute_lag(
+    tmp_path: Path,
+) -> None:
+    _write_config(tmp_path)
+    (tmp_path / "scripts").mkdir()
+    profile = load_profile(tmp_path)
+    payload = launch_agent_payload(tmp_path, profile)
+    assert payload["StartInterval"] == 300
+    assert payload["ProgramArguments"][-2:] == ["auto", "--execute"]
+
+
+def test_repository_profile_declares_openclaw_frontdesk_only() -> None:
+    payload = yaml.safe_load(
+        (ROOT / "config/cloud_workspace_sync.yml").read_text(encoding="utf-8")
+    )
+    openclaw = payload["profiles"]["cloud_250"]["openclaw"]
+    assert openclaw["role"] == "frontdesk_only"
+    assert openclaw["worker_capable"] is False
+
+
+def test_code_only_deploy_rebuilds_remote_agentlab_knowledge(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_config(tmp_path)
+    profile = load_profile(tmp_path)
+    projects = {"projects/AgentLab": "a", "projects/Crown_of_Ash": "b"}
+    plan = {
+        "code_action": "deploy_remote_from_github",
+        "project_action": "synced",
+        "local": {
+            "code_commit": "c2",
+            "projects": projects,
+            "knowledge_marker": "k1",
+        },
+        "remote": {
+            "code_commit": "c1",
+            "projects": projects,
+            "knowledge_marker": "k0",
+        },
+    }
+    calls: list[list[str]] = []
+    monkeypatch.setattr(cws, "_validate_local_git_clean", lambda *_: None)
+    monkeypatch.setattr(
+        cws,
+        "deploy_remote_code",
+        lambda *_args, **_kwargs: {"head": "c2"},
+    )
+    monkeypatch.setattr(
+        cws,
+        "run_remote_agentlab",
+        lambda _profile, args, **_kwargs: calls.append(list(args)) or {},
+    )
+    monkeypatch.setattr(
+        cws,
+        "local_state",
+        lambda *_args, **_kwargs: {
+            "code_commit": "c2",
+            "projects": projects,
+            "knowledge_marker": "k2",
+        },
+    )
+    monkeypatch.setattr(
+        cws,
+        "remote_state",
+        lambda *_args, **_kwargs: {
+            "code_commit": "c2",
+            "projects": projects,
+            "knowledge_marker": "k2",
+        },
+    )
+    monkeypatch.setattr(cws, "write_receipt", lambda *_args, **_kwargs: None)
+
+    cws.execute_plan(tmp_path, profile, plan, seed_rag=False)
+
+    assert calls == [
+        ["knowledge", "build", "--all-projects", "--seal-project-snapshot"]
+    ]

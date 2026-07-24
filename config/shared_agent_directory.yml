@@ -48,10 +48,21 @@ endpoints:
   cloud_runtime:
     display_name: Cloud Runtime
     role: deployment_and_continuous_execution
+    ssh_alias: "250"
     workspace: /home/admin/AgentLab
+    status: ready
+    resolved_workspace: /home/admin/AgentLab
     writable_scopes: [runtime_state, task_runs, deployment_artifacts]
     source_changes_require_upstream_handoff: true
     peer_awareness_required: true
+    installed_agents:
+      codex: "0.145.0"
+      agy: "1.1.4"
+      grok: "0.2.111"
+      openclaw: "2026.7.1"
+      claude_code: "2.1.219"
+    frontdesk_default: openclaw
+    openclaw_worker_capable: false
   localization_69:
     display_name: Localization Endpoint 69
     role: localization_target

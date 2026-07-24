@@ -36,7 +36,7 @@ def _role(root: Path, role_id: str) -> dict[str, Any]:
     return ((bindings.get("roles") or {}).get(role_id) or {}) if bindings else {}
 
 
-def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") -> dict[str, Any]:
+def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "openclaw") -> dict[str, Any]:
     """Build a deterministic audit of the frontdesk/role-worker boundary."""
     root = root.resolve()
     frontdesk_policy = _read_yaml(root / "config" / "frontdesk_policy.yml")
@@ -48,7 +48,6 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     invocation_contracts = _read_yaml(
         root / "config" / "worker_invocation_contracts.yml"
     )
-    model_catalog = _read_yaml(root / "config" / "model_catalog.yml")
     capability_cli = _read_text(root / "agent_runtime" / "cli" / "capability_contracts.py")
     narrative_cli = _read_text(root / "agent_runtime" / "cli" / "narrative_eval.py")
     narrative_runtime = _read_text(root / "agent_runtime" / "narrative_eval.py")
@@ -112,7 +111,6 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     execution_paths = frontdesk_policy.get("execution_paths") or {}
     direct_closed_loop = execution_paths.get("direct_closed_loop") or {}
     routed_task_intake = execution_paths.get("routed_task_intake") or {}
-    catalog_models = model_catalog.get("models") or {}
     codex_artifact_profiles = [
         str(tier)
         for tier, tier_config in full_cli.items()
@@ -144,29 +142,29 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             "summary": f"{frontdesk_agent} has a frontdesk session entrypoint",
         },
         {
-            "id": "hermes_deepseek_v4_pro_is_default_frontdesk",
+            "id": "openclaw_is_default_frontdesk",
             "status": "pass"
-            if frontdesk_agent == "hermes"
-            and default_frontdesk.get("agent_id") == "hermes"
-            and default_frontdesk.get("provider") == "deepseek"
-            and default_frontdesk.get("model_key") == "deepseek_v4_pro"
-            and default_frontdesk.get("model_id") == "deepseek-v4-pro"
-            and "deepseek_v4_pro" in catalog_models
+            if frontdesk_agent == "openclaw"
+            and default_frontdesk.get("agent_id") == "openclaw"
+            and default_frontdesk.get("invocation_contract") == "openclaw"
+            and "openclaw" in (frontdesk_policy.get("frontdesk_agents") or {})
             else "fail",
-            "evidence": ["config/frontdesk_policy.yml", "config/model_catalog.yml"],
-            "summary": "Hermes CLI with DeepSeek V4 Pro is the canonical AgentLab frontdesk",
+            "evidence": ["config/frontdesk_policy.yml"],
+            "summary": "OpenClaw is the canonical AgentLab frontdesk",
         },
         {
             "id": "frontdesk_profile_is_separate_from_role_sessions",
             "status": "pass"
             if worker.get("frontdesk_capable") is True
             and "frontdesk_gateway" in (worker.get("worker_capabilities") or [])
-            and "role_worker" in (worker.get("worker_capabilities") or [])
+            and worker.get("worker_capable") is False
+            and "role_worker" not in (worker.get("worker_capabilities") or [])
+            and not (worker.get("allowed_roles") or [])
             and (role_bindings.get("enforcement") or {}).get("forbid_frontdesk_profile_as_worker") is True
             and ((role_bindings.get("roles") or {}).get("Supervisor") or {}).get("required_session") is True
             else "fail",
             "evidence": ["config/agent_role_bindings.yml"],
-            "summary": "Hermes may be FrontDesk or a role worker, but never both in the same session",
+            "summary": "OpenClaw is Frontdesk-only and cannot enter a role-worker session",
         },
         {
             "id": "codex_is_external_worker_not_frontdesk",
@@ -185,7 +183,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
             and {"run-pipeline", "role-session", "narrative-eval"}.issubset(
                 set(direct_closed_loop.get("entrypoints") or [])
             )
-            and routed_task_intake.get("frontdesk_agent") == "hermes"
+            and routed_task_intake.get("frontdesk_agent") == "openclaw"
             else "fail",
             "evidence": ["config/frontdesk_policy.yml"],
             "summary": "AgentLab can validate a declared pipeline directly without creating a FrontDesk session",
@@ -360,7 +358,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
     warn_count = sum(1 for check in checks if check["status"] == "warn")
     status = "fail" if fail_count else ("warn" if warn_count else "pass")
     conclusion = (
-        "Hermes CLI with DeepSeek V4 Pro is the canonical FrontDesk for routed intake, while declared pipelines "
+        "OpenClaw is the canonical FrontDesk for routed intake, while declared pipelines "
         "may run directly without FrontDesk. Role execution still requires role-session evidence. Registered CLI "
         "workflow-shell capabilities are absorbed as bounded role-session execution shells, while AgentLab "
         "keeps ownership of project memory, validation, receipts, and promotion."
@@ -373,7 +371,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
         "status": status,
         "conclusion": conclusion,
         "intended_chain": [
-            f"{frontdesk_agent} / DeepSeek V4 Pro: optional frontdesk-session for task intake and routing",
+            f"{frontdesk_agent}: optional frontdesk-session for task intake and routing",
             "Direct closed loop: AgentLab pipeline or role-session without FrontDesk",
             "Supervisor: route and mission contract",
             "Researcher: Grok sourced research through grok_research role-session",
@@ -412,7 +410,7 @@ def build_frontdesk_boundary_audit(root: Path, frontdesk_agent: str = "hermes") 
 def write_frontdesk_boundary_audit(
     root: Path,
     out: Path,
-    frontdesk_agent: str = "hermes",
+    frontdesk_agent: str = "openclaw",
 ) -> dict[str, Any]:
     report = build_frontdesk_boundary_audit(root, frontdesk_agent=frontdesk_agent)
     write_report_yaml(out, report, root)

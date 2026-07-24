@@ -102,7 +102,7 @@ def _handoff_item(
     }
 
 
-def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") -> dict[str, Any]:
+def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "openclaw") -> dict[str, Any]:
     """Build a frontdesk-safe handoff from the current live unblock plan."""
     root = root.resolve()
     unblock_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "live_unblock_plan.yml"
@@ -155,13 +155,13 @@ def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") ->
             "summary": "frontdesk policy forbids implementing task content itself",
         },
         {
-            "id": "canonical_frontdesk_is_hermes_deepseek_v4_pro",
+            "id": "canonical_frontdesk_is_openclaw",
             "status": "pass"
-            if frontdesk_agent == "hermes"
-            and default_frontdesk.get("agent_id") == "hermes"
-            and default_frontdesk.get("model_key") == "deepseek_v4_pro"
+            if frontdesk_agent == "openclaw"
+            and default_frontdesk.get("agent_id") == "openclaw"
+            and default_frontdesk.get("invocation_contract") == "openclaw"
             else "fail",
-            "summary": "routed task intake uses Hermes CLI with DeepSeek V4 Pro",
+            "summary": "routed task intake uses OpenClaw only as the Frontdesk gateway",
         },
         {
             "id": "direct_closed_loop_can_skip_frontdesk",
@@ -218,7 +218,7 @@ def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") ->
         "issues": issues,
         "notes": [
             "This handoff does not call external providers.",
-            "Commands execute as AgentLab role-session work; Hermes FrontDesk may submit and observe but is optional for direct closed-loop validation.",
+            "Commands execute as AgentLab role-session work; OpenClaw Frontdesk may submit and observe but is optional for direct closed-loop validation.",
         ],
     }
 
@@ -226,7 +226,7 @@ def build_frontdesk_live_handoff(root: Path, frontdesk_agent: str = "hermes") ->
 def write_frontdesk_live_handoff(
     root: Path,
     out: Path,
-    frontdesk_agent: str = "hermes",
+    frontdesk_agent: str = "openclaw",
 ) -> dict[str, Any]:
     report = build_frontdesk_live_handoff(root, frontdesk_agent=frontdesk_agent)
     write_report_yaml(out, report, root)

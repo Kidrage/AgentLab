@@ -7,15 +7,12 @@ summary: >
   not execution workers.
 frontdesk_class: frontdesk_chat_assistant
 default_frontdesk:
-  agent_id: hermes
-  invocation_contract: hermes
-  provider: deepseek
-  model_key: deepseek_v4_pro
-  model_id: deepseek-v4-pro
+  agent_id: openclaw
+  invocation_contract: openclaw
 execution_paths:
   routed_task_intake:
     frontdesk_required: true
-    frontdesk_agent: hermes
+    frontdesk_agent: openclaw
   direct_closed_loop:
     frontdesk_required: false
     entrypoints: [run-pipeline, role-session, narrative-eval]

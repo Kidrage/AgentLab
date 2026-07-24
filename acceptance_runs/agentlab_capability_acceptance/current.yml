@@ -203,10 +203,10 @@ capabilities:
   evidence:
   - acceptance_runs/agentlab_capability_acceptance/frontdesk_boundary_audit.yml
   - acceptance_runs/agentlab_capability_acceptance/frontdesk_live_handoff.yml
-  summary: frontdesk boundary audit status=pass; checks=17; live_handoff=ready_for_agentlab_submission;
-    hermes_frontdesk=True; direct_closed_loop=True; codex_external_worker=True
+  summary: frontdesk boundary audit status=pass; checks=18; live_handoff=ready_for_agentlab_submission;
+    openclaw_frontdesk=True; direct_closed_loop=True; codex_external_worker=True
   details:
-    hermes_frontdesk_check: pass
+    openclaw_frontdesk_check: pass
     direct_closed_loop_check: pass
     codex_external_worker_check: pass
     workflow_shell_registry_check: pass

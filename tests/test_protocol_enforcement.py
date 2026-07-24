@@ -85,21 +85,20 @@ def test_frontdesk_doctor_accepts_agy_frontdesk_contract():
     assert any(c["id"] == "frontdesk_not_task_packet_worker" for c in result["checks"])
 
 
-def test_hermes_is_default_frontdesk_and_codex_is_external_worker():
-    context = build_frontdesk_context(ROOT, "hermes", project="AgentLab")
+def test_openclaw_is_default_frontdesk_and_codex_is_external_worker():
+    context = build_frontdesk_context(ROOT, "openclaw", project="AgentLab")
+    openclaw_doctor = run_frontdesk_doctor(ROOT, "openclaw")
     hermes_doctor = run_frontdesk_doctor(ROOT, "hermes")
     codex_doctor = run_frontdesk_doctor(ROOT, "codex")
 
     assert context["frontdesk_capable"] is True
     assert context["is_default_frontdesk"] is True
     assert context["default_frontdesk"] == {
-        "agent_id": "hermes",
-        "invocation_contract": "hermes",
-        "provider": "deepseek",
-        "model_key": "deepseek_v4_pro",
-        "model_id": "deepseek-v4-pro",
+        "agent_id": "openclaw",
+        "invocation_contract": "openclaw",
     }
     assert context["execution_paths"]["direct_closed_loop"]["frontdesk_required"] is False
+    assert openclaw_doctor["status"] == "pass"
     assert hermes_doctor["status"] == "pass"
     assert codex_doctor["status"] == "fail"
 

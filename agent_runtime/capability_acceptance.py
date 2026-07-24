@@ -872,7 +872,7 @@ def _frontdesk_boundary(root: Path) -> dict[str, Any]:
     status = report.get("status")
     handoff_status = handoff.get("status")
     handoff_valid = handoff_status == "ready_for_agentlab_submission"
-    hermes_frontdesk_check = check_by_id.get("hermes_deepseek_v4_pro_is_default_frontdesk", {})
+    openclaw_frontdesk_check = check_by_id.get("openclaw_is_default_frontdesk", {})
     direct_closed_loop_check = check_by_id.get("direct_closed_loop_does_not_require_frontdesk", {})
     codex_worker_check = check_by_id.get("codex_is_external_worker_not_frontdesk", {})
     workflow_shell_check = check_by_id.get("cli_workflow_shell_registry_covers_hermes_and_claude", {})
@@ -885,12 +885,12 @@ def _frontdesk_boundary(root: Path) -> dict[str, Any]:
         "summary": (
             f"frontdesk boundary audit status={status}; checks={len(checks)}; "
             f"live_handoff={handoff_status}; "
-            f"hermes_frontdesk={hermes_frontdesk_check.get('status') == 'pass'}; "
+            f"openclaw_frontdesk={openclaw_frontdesk_check.get('status') == 'pass'}; "
             f"direct_closed_loop={direct_closed_loop_check.get('status') == 'pass'}; "
             f"codex_external_worker={codex_worker_check.get('status') == 'pass'}"
         ),
         "details": {
-            "hermes_frontdesk_check": hermes_frontdesk_check.get("status"),
+            "openclaw_frontdesk_check": openclaw_frontdesk_check.get("status"),
             "direct_closed_loop_check": direct_closed_loop_check.get("status"),
             "codex_external_worker_check": codex_worker_check.get("status"),
             "workflow_shell_registry_check": workflow_shell_check.get("status"),

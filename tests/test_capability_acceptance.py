@@ -235,10 +235,10 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     assert by_id["frontdesk_role_worker_boundary"]["status"] == "pass"
     assert "frontdesk boundary audit" in by_id["frontdesk_role_worker_boundary"]["summary"]
     assert "live_handoff=ready_for_agentlab_submission" in by_id["frontdesk_role_worker_boundary"]["summary"]
-    assert "hermes_frontdesk=True" in by_id["frontdesk_role_worker_boundary"]["summary"]
+    assert "openclaw_frontdesk=True" in by_id["frontdesk_role_worker_boundary"]["summary"]
     assert "direct_closed_loop=True" in by_id["frontdesk_role_worker_boundary"]["summary"]
     assert "codex_external_worker=True" in by_id["frontdesk_role_worker_boundary"]["summary"]
-    assert by_id["frontdesk_role_worker_boundary"]["details"]["hermes_frontdesk_check"] == "pass"
+    assert by_id["frontdesk_role_worker_boundary"]["details"]["openclaw_frontdesk_check"] == "pass"
     assert by_id["frontdesk_role_worker_boundary"]["details"]["direct_closed_loop_check"] == "pass"
     assert by_id["frontdesk_role_worker_boundary"]["details"]["codex_external_worker_check"] == "pass"
     assert by_id["frontdesk_role_worker_boundary"]["details"]["workflow_shell_registry_check"] == "pass"
