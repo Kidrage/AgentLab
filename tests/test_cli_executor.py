@@ -345,6 +345,83 @@ def _agy_observer_fixture(tmp_path: Path) -> dict:
     }
 
 
+def test_contract_env_injects_default_proxy_for_agy_governed_contract_when_missing(
+    tmp_path: Path,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _contract_process_environment
+
+    role_profile = _agy_observer_fixture(tmp_path)
+    with patch.dict(
+        "cli_executor.os.environ",
+        {
+            "AGENTLAB_DEFAULT_PROXY": "http://127.0.0.1:7890",
+            "AGY_OAUTH_SESSION": "s",
+        },
+        clear=True,
+    ):
+        process_env, _ = _contract_process_environment(
+            role_profile,
+            tmp_path,
+        )
+
+    assert process_env["HTTPS_PROXY"] == "http://127.0.0.1:7890"
+    assert process_env["https_proxy"] == "http://127.0.0.1:7890"
+    assert process_env["HTTP_PROXY"] == "http://127.0.0.1:7890"
+    assert process_env["http_proxy"] == "http://127.0.0.1:7890"
+
+
+def test_contract_env_preserves_explicit_proxy_for_agy_governed_contract(
+    tmp_path: Path,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _contract_process_environment
+
+    role_profile = _agy_observer_fixture(tmp_path)
+    with patch.dict(
+        "cli_executor.os.environ",
+        {"HTTPS_PROXY": "http://localhost:49468", "AGY_OAUTH_SESSION": "s"},
+        clear=True,
+    ):
+        process_env, _ = _contract_process_environment(
+            role_profile,
+            tmp_path,
+        )
+
+    assert process_env["HTTPS_PROXY"] == "http://localhost:49468"
+    assert process_env.get("HTTP_PROXY") is None
+
+
+def test_agy_oauth_preflight_reports_proxy_url_and_source(
+    tmp_path: Path,
+) -> None:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
+    from cli_executor import _agy_oauth_preflight
+
+    role_profile = _agy_observer_fixture(tmp_path)
+    model_values = {
+        "provider": "agy-gemini-oauth",
+        "model_key": "observer_model",
+        "model_id": "gemini-3.5-flash-high",
+        "catalog_model_id": "gemini-3.5-flash-high",
+    }
+    argv = ["agy", "--sandbox", "--model", "gemini-3.5-flash-high"]
+    process_env = {
+        "HTTPS_PROXY": "http://localhost:49468",
+        "AGY_OAUTH_SESSION": "s",
+    }
+    preflight = _agy_oauth_preflight(role_profile, argv, model_values, process_env)
+
+    assert preflight["proxy_url"] == "http://localhost:49468"
+    assert preflight["proxy_source"] == "inherited_from_environment"
+
+
 def _grok_research_fixture(
     tmp_path: Path,
     *,
