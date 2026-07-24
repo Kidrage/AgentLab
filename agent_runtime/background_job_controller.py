@@ -1023,10 +1023,20 @@ def consume_process_receipt(
             state["last_error"] = "retry receipt did not include retry_at"
         else:
             _parse_timestamp(str(retry_at))
-            state["status"] = "retry_wait"
-            state["retry_at"] = str(retry_at)
+            counts = state.setdefault("retry_counts", {})
+            counts[action] = int(counts.get(action, 0)) + 1
             state["retry_action"] = action
-            state["last_error"] = result.get("reason") or "transient_failure"
+            if counts[action] > int(state["config"]["max_retries_per_action"]):
+                state["status"] = "blocked"
+                state["retry_at"] = None
+                state["last_error"] = (
+                    "transient retry limit exhausted: "
+                    + (result.get("reason") or "transient_failure")
+                )
+            else:
+                state["status"] = "retry_wait"
+                state["retry_at"] = str(retry_at)
+                state["last_error"] = result.get("reason") or "transient_failure"
     else:
         counts = state.setdefault("retry_counts", {})
         counts[action] = int(counts.get(action, 0)) + 1

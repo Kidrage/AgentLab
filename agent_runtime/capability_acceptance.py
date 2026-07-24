@@ -31,6 +31,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct script path
 
 STATUS_RANK = {
     "pass": 0,
+    "retired": 0,
     "candidate": 1,
     "warn": 2,
     "blocked": 3,
@@ -282,12 +283,18 @@ def _artifact_probe(root: Path, probe: ArtifactProbe) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "id": probe.capability_id,
             "title": probe.title,
-            "status": "candidate" if historical_valid else "fail",
+            "status": (
+                "candidate"
+                if historical_valid
+                else "retired"
+                if historical_dir is None
+                else "fail"
+            ),
             "evidence": [],
             "summary": (
                 "active run directory missing; historical archived evidence retained for audit only"
                 if historical_dir is not None
-                else "run directory missing"
+                else "legacy run-based acceptance probe retired; fresh Runtime v2 evidence required"
             ),
             "issues": (
                 [
@@ -295,7 +302,7 @@ def _artifact_probe(root: Path, probe: ArtifactProbe) -> dict[str, Any]:
                     "only historical archived evidence available",
                 ]
                 if historical_dir is not None
-                else ["run directory missing"]
+                else []
             ),
         }
         if historical_evidence:
@@ -320,11 +327,25 @@ def _artifact_probe(root: Path, probe: ArtifactProbe) -> dict[str, Any]:
 
 
 def _media_series_scaffold(root: Path) -> dict[str, Any]:
-    run_dir = _historical_run_dir(
+    # Archived media runs remain auditable history, never current capability
+    # evidence. A fresh task must supply the active scaffold.
+    run_dir = _run_dir(
         root, "Crown_of_Ash", "task_probe_crown_comic_video_poster_series_scaffold_20260707"
-    ) or _run_dir(root, "Crown_of_Ash", "task_probe_crown_comic_video_poster_series_scaffold_20260707")
+    )
     audit_path = root / "acceptance_runs" / "agentlab_capability_acceptance" / "media_series_scaffold_audit.yml"
     audit = _read_yaml(audit_path)
+    if not run_dir.exists():
+        return {
+            "id": "media_series_scaffold",
+            "title": "Media series production scaffold",
+            "status": "retired",
+            "evidence": [str(audit_path)] if audit_path.exists() else [],
+            "summary": (
+                "legacy media-series scaffold retired; new media production requires "
+                "a fresh ArtifactProducer task and candidate evidence"
+            ),
+            "issues": [],
+        }
     manifest_path = run_dir / "artifact_manifest.yml"
     manifest = _read_yaml(manifest_path)
     required = [
@@ -406,6 +427,18 @@ def _workflow_has_no_code_shell(root: Path) -> dict[str, Any]:
     code_dir = _historical_run_dir(root, "AgentLab", "task_init_shell_code_probe_20260707")
     if not code_dir and code_plan.parent.is_dir():
         code_dir = code_plan.parent
+    if media_dir is None and code_dir is None:
+        return {
+            "id": "non_code_code_shell_split",
+            "title": "Non-code tasks do not inherit code shell",
+            "status": "retired",
+            "evidence": [],
+            "summary": (
+                "legacy paired run probe retired; current shell boundaries are "
+                "covered by configured workflow-shell and role-chain audits"
+            ),
+            "issues": [],
+        }
     media = _read_yaml(media_plan if media_dir and (media_dir / "workflow_plan.yml").exists() else Path("/dev/null"))
     code = _read_yaml(code_plan if code_dir and (code_dir / "workflow_plan.yml").exists() else Path("/dev/null"))
     forbidden = ["implementation_report", "interface_map", "05_coder_prompt", "01_REPO_MAP"]
@@ -1207,6 +1240,30 @@ def _live_code_candidate(root: Path) -> dict[str, Any]:
     historical_run_dir = _historical_run_dir(
         root, "AgentLab", "task_live_code_ui_app_json_binding_20260707"
     )
+    if not run_dir.is_dir() and historical_run_dir is None:
+        production_root = root / "projects" / "AgentLab" / "production" / "artifacts" / "web_ui"
+        evidence = [
+            str(path)
+            for path in (
+                production_root / "index.html",
+                production_root / "styles.css",
+                production_root / "app.js",
+                production_root / "status.sample.json",
+                root / "projects" / "AgentLab" / "project_artifact_index.yml",
+            )
+            if path.is_file()
+        ]
+        return {
+            "id": "live_code_candidate_materialization",
+            "title": "Live code candidate materialization",
+            "status": "retired",
+            "evidence": evidence,
+            "summary": (
+                "legacy run-local UI candidate probe retired; retained production "
+                "artifacts are not reused as fresh candidate evidence"
+            ),
+            "issues": [],
+        }
     if historical_run_dir is not None and not run_dir.is_dir():
         run_dir = historical_run_dir
     evidence_source = (
@@ -2575,6 +2632,18 @@ def _provider_reachability_candidate(root: Path) -> dict[str, Any]:
 
 def _budget_prepare(root: Path) -> dict[str, Any]:
     plan_path = _run_dir(root, "AgentLab", "task_prepare_frugal_real_smoke_20260707") / "workflow_plan.yml"
+    if not plan_path.is_file():
+        return {
+            "id": "budget_aware_prepare",
+            "title": "Budget-aware prepare behavior",
+            "status": "retired",
+            "evidence": [],
+            "summary": (
+                "legacy frugal prepare run retired; fresh Runtime v2 budget "
+                "acceptance evidence is required"
+            ),
+            "issues": [],
+        }
     plan = _read_yaml(plan_path)
     budget = plan.get("budget_mode")
     profile = plan.get("budget_profile")

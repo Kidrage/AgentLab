@@ -149,8 +149,10 @@ may append a successful Attempt after validating the model-execution receipt.
 
 ## Legacy migration
 
-During the staged cutover, `task list` reads both v2 ledgers and legacy
-`projects/<Project>/runs/*/state.yml`; v2 wins if an ID exists in both places.
+During the staged cutover, `task list` returns only v2 ledgers by default.
+`projects/<Project>/runs/*/state.yml` can be inspected only with the explicit
+`--include-legacy` compatibility option; a v2 entry wins if an ID exists in
+both places.
 The new `task`/`job`/`work-item`/`attempt` commands write only to v2. Existing
 legacy pipeline entrypoints remain maintenance-only until their projects are
 migrated; they are not a second authority for a v2 Task.

@@ -3,74 +3,43 @@ report_type: agentlab_capability_acceptance
 root: .
 overall_status: fail
 status_counts:
-  pass: 16
-  fail: 3
-  candidate: 9
+  retired: 7
+  pass: 10
+  candidate: 10
+  fail: 1
 capabilities:
 - id: code_factory_orchestration
   title: Code factory orchestration
-  status: pass
-  evidence:
-  - projects/AgentLab/runs/task_init_shell_code_probe_20260707/workflow_plan.yml
-  - projects/AgentLab/runs/task_init_shell_code_probe_20260707/lifecycle.yml
-  - projects/AgentLab/runs/task_init_shell_code_probe_20260707/artifact_manifest.yml
-  summary: artifact pass rate 1.0 (21/21)
+  status: retired
+  evidence: []
+  summary: legacy run-based acceptance probe retired; fresh Runtime v2 evidence required
   issues: []
 - id: non_code_media_route_contract
   title: Non-code media route contract
-  status: fail
-  evidence:
-  - projects/Crown_of_Ash/runs/task_init_shell_media_probe_20260707/workflow_plan.yml
-  - projects/Crown_of_Ash/runs/task_init_shell_media_probe_20260707/lifecycle.yml
-  - projects/Crown_of_Ash/runs/task_init_shell_media_probe_20260707/artifact_manifest.yml
-  summary: artifact pass rate 1.0 (30/30)
-  issues:
-  - '{''file'': ''project_artifact_governance'', ''issue'': ''current artifact missing
-    source_task in project_artifact_index.yml: crown_blueprint_01''}'
-  - '{''file'': ''project_artifact_governance'', ''issue'': ''current artifact missing
-    source_run_artifact in project_artifact_index.yml: crown_blueprint_01''}'
-  - '{''file'': ''project_artifact_governance'', ''issue'': ''current artifact missing
-    source_task in project_artifact_index.yml: crown_fact_authority_01''}'
-  - '{''file'': ''project_artifact_governance'', ''issue'': ''current artifact missing
-    source_run_artifact in project_artifact_index.yml: crown_fact_authority_01''}'
+  status: retired
+  evidence: []
+  summary: legacy run-based acceptance probe retired; fresh Runtime v2 evidence required
+  issues: []
 - id: crown_chapter_batch_governance
   title: Crown chapter batch governance
-  status: candidate
+  status: retired
   evidence: []
-  summary: active run directory missing; historical archived evidence retained for
-    audit only
-  issues:
-  - active run directory missing
-  - only historical archived evidence available
-  historical_evidence:
-  - projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_batch_ch01_ch20_20260707/workflow_plan.yml
-  - projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_batch_ch01_ch20_20260707/lifecycle.yml
-  - projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_batch_ch01_ch20_20260707/artifact_manifest.yml
+  summary: legacy run-based acceptance probe retired; fresh Runtime v2 evidence required
+  issues: []
 - id: non_code_code_shell_split
   title: Non-code tasks do not inherit code shell
-  status: pass
-  evidence:
-  - projects/Crown_of_Ash/runs/task_init_shell_media_probe_20260707/workflow_plan.yml
-  - projects/AgentLab/runs/task_init_shell_code_probe_20260707/workflow_plan.yml
-  summary: media code-shell hits=0; code probe hits=3
+  status: retired
+  evidence: []
+  summary: legacy paired run probe retired; current shell boundaries are covered by
+    configured workflow-shell and role-chain audits
   issues: []
 - id: media_series_scaffold
   title: Media series production scaffold
-  status: pass
+  status: retired
   evidence:
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/workflow_plan.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/artifact_manifest.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/prompt_pack.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/asset_registry.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/shot_list.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/generation_ledger.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_continuity_ledger.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_qc_report.yml
-  - projects/Crown_of_Ash/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/narrative_media_delivery_receipt.yml
   - acceptance_runs/agentlab_capability_acceptance/media_series_scaffold_audit.yml
-  summary: media-series scaffold satisfies active route, production pack, candidate
-    artifact, and safe backend-blocking audit
+  summary: legacy media-series scaffold retired; new media production requires a fresh
+    ArtifactProducer task and candidate evidence
   issues: []
 - id: production_pack_synthesis
   title: Production-pack synthesis and promotion gate
@@ -345,44 +314,20 @@ capabilities:
       passes
 - id: live_code_candidate_materialization
   title: Live code candidate materialization
-  status: pass
+  status: retired
   evidence:
   - projects/AgentLab/production/artifacts/web_ui/index.html
   - projects/AgentLab/production/artifacts/web_ui/styles.css
   - projects/AgentLab/production/artifacts/web_ui/app.js
   - projects/AgentLab/production/artifacts/web_ui/status.sample.json
   - projects/AgentLab/project_artifact_index.yml
-  summary: web UI artifacts promoted to production with DOM/fetch, headless-browser,
-    operator interaction, run-local API write, screenshot pixel, responsive viewport,
-    and archive-governance evidence
+  summary: legacy run-local UI candidate probe retired; retained production artifacts
+    are not reused as fresh candidate evidence
   issues: []
-  historical_evidence:
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifacts/web_ui/index.html
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifacts/web_ui/styles.css
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifacts/web_ui/app.js
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifacts/web_ui/status.sample.json
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_candidate_smoke_report.json
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_browser_smoke_report.json
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_interaction_smoke_report.json
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_api_smoke_report.json
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_action_ledger.json
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_visual_smoke_report.json
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_visual_smoke.png
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_responsive_smoke_report.json
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_responsive_desktop.png
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/ui_responsive_mobile.png
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/artifact_promotion_plan.yml
-  - projects/AgentLab/archive/run_history/pruning-stale-status-20260718/runs/task_live_code_ui_app_json_binding_20260707/archive_receipt.yml
-  details:
-    historical_evidence_excluded_from_current: true
 - id: crown_live_writer_light_path
   title: Crown live Writer light path
   status: candidate
   evidence:
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/fiction_draft.md
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/continuity_ledger.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/state_transition_proposal.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/narrative_delivery_receipt.yml
   - acceptance_runs/agentlab_capability_acceptance/crown_live_candidate_audit.yml
   summary: one live chapter candidate satisfies delivery contract and local candidate
     audit
@@ -398,9 +343,6 @@ capabilities:
   title: Crown formal live narrative-eval harness
   status: candidate
   evidence:
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/live_generation_error.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/provider_incidents.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_retry_20260707_1118/USER_DECISION_REQUIRED.md
   - config/agent_model_profiles.yml
   - config/agent_role_bindings.yml
   - config/model_catalog.yml
@@ -443,9 +385,9 @@ capabilities:
     trusted_runner_item_acceptance_blocker: missing_required_files
     historical_provider_block:
       blocked: false
-      provider: deepseek
-      model: deepseek-v4-flash
-      error: Connection error.
+      provider: unknown
+      model: unknown
+      error: unknown
     writer_route_health:
       status: pass
       auth_probe: 'yes'
@@ -456,8 +398,6 @@ capabilities:
   title: Crown heavy audit and 1500-chapter scale governance
   status: pass
   evidence:
-  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_v3_agy_style_parity/crown-v3-agy-parity-ch001-20260723-r8/longform_eval_report.yml
-  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_v3_agy_style_parity/crown-v3-agy-parity-ch001-20260723-r8/continuity_failure_report.yml
   - acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/manifest_v2_final2_20260719/series_scale_simulation.yml
   - acceptance_runs/agentlab_capability_acceptance/crown_scale_governance_audit.yml
   summary: 1500-chapter governance-scale audit passes; scope is governance ledgers,
@@ -546,17 +486,18 @@ capabilities:
   status: pass
   evidence:
   - acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml
-  summary: live unblock plan status=ready_for_internal_live_smoke; session_gate=fail;
+  summary: live unblock plan status=ready_for_internal_live_smoke; session_gate=route_ready_session_blocked;
     items=2; acceptance_phase=in_acceptance_pending_returned_artifacts; final_acceptance_passed=False
   issues: []
   details:
     workflow_boundary: internal_agentlab_role_sessions
     session_health_gate:
-      status: fail
+      status: route_ready_session_blocked
       clean: false
       issue_ids:
+      - current_agy_writer_session_health
       - current_grok_session_health
-      writer_selected_item_can_run: true
+      writer_selected_item_can_run: false
       media_selected_item_can_run: false
       interpretation: live_unblock_plan.status describes route/plan readiness; session_health_gate
         controls which selected private role-session item may run now.
@@ -616,19 +557,19 @@ capabilities:
   evidence:
   - acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
   - acceptance_runs/agentlab_capability_acceptance/external_acceptance_readiness.yml
-  summary: internal live readiness status=fail; ready_items=2; session_health_issues=1;
-    policy_rejections=0
+  summary: internal live readiness status=route_ready_session_blocked; ready_items=2;
+    session_health_issues=2; policy_rejections=0
   issues:
-  - 'current session health blocked: current_grok_session_health'
+  - 'current session health blocked: current_agy_writer_session_health, current_grok_session_health'
 - id: trusted_live_runner_request
   title: Trusted live runner request
   status: fail
   evidence:
   - acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml
   - acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
-  summary: trusted runner request status=ready_for_trusted_runner; items=2; script_exists=True;
-    local_runner_package=True; session_health_gate=True; approval_gate=True; outbound_context_gate=True;
-    full_run_requires_trusted_status_pass=True; post_run_collect=True
+  summary: trusted runner request status=fail; items=2; script_exists=True; local_runner_package=True;
+    session_health_gate=True; approval_gate=True; outbound_context_gate=True; full_run_requires_trusted_status_pass=True;
+    post_run_collect=True
   details:
     full_run_requires_trusted_status_pass: true
     full_run_executes_session_health_checks: true
@@ -641,24 +582,25 @@ capabilities:
     role_session_acceptance_approval_env_required: AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
     refreshes_status_after_run: true
     refreshes_acceptance_after_run: true
-    writer_route_current: false
-    writer_assigned_worker: claude_code
-    preflight_writer_route_current: false
+    writer_route_current: true
+    writer_assigned_worker: agy
+    preflight_writer_route_current: true
   issues:
   - trusted live runner request missing, unsafe, or incomplete
 - id: trusted_live_runner_operator_handoff
   title: Trusted live runner operator handoff
-  status: fail
+  status: candidate
   evidence:
   - acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_operator_handoff.yml
-  summary: operator handoff status=needs_attention; steps=9; candidate_items=2; session_health_issues=1;
-    selected_ready=run_crown_internal_writer_eval; selected_blocked=run_crown_internal_media_smoke;
+  summary: operator handoff status=needs_attention; steps=9; candidate_items=2; session_health_issues=2;
+    selected_ready=none; selected_blocked=run_crown_internal_writer_eval,run_crown_internal_media_smoke;
     approval_gate=True; frontdesk_private_exec=False
   issues:
-  - trusted live runner operator handoff missing, unsafe, or incomplete
+  - non-private session health is not clean; role-session acceptance smoke remains
+    gated
   details:
     acceptance_smoke_kind: private_role_session_acceptance_smoke
-    writer_request_route_current: false
+    writer_request_route_current: true
     trusted_agentlab_runner_required: true
     user_terminal_fallback_allowed: true
     trusted_runner_or_user_terminal_required: true
@@ -666,24 +608,26 @@ capabilities:
     role_session_acceptance_approval_env_required: AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
     non_private_session_health_clean: false
     session_health_status: route_ready_session_blocked
-    session_health_issue_count: 1
+    session_health_issue_count: 2
     session_health_issue_reasons:
+    - session_health_report_missing_or_invalid
     - grok_cli_auth_session_unhealthy
     session_health_next_action: rerun_session_health_from_trusted_runtime_before_role_session_acceptance_smoke
     selected_item_readiness:
       summary: top-level handoff status covers the full writer+media acceptance set;
         selected items may still be runnable when their own session gate is clean
-      ready_item_ids:
-      - run_crown_internal_writer_eval
+      ready_item_ids: []
       blocked_item_ids:
+      - run_crown_internal_writer_eval
       - run_crown_internal_media_smoke
       items:
         run_crown_internal_writer_eval:
-          can_run_now: true
-          blocked_by_session_health: false
+          can_run_now: false
+          blocked_by_session_health: true
           required_session_health_issue_ids:
           - current_agy_writer_session_health
-          blocking_session_health_issue_ids: []
+          blocking_session_health_issue_ids:
+          - current_agy_writer_session_health
         run_crown_internal_media_smoke:
           can_run_now: false
           blocked_by_session_health: true
@@ -702,12 +646,13 @@ capabilities:
       selective_run_requires_selected_item_pass: true
 - id: trusted_live_runner_preflight
   title: Trusted live runner local preflight
-  status: pass
+  status: candidate
   evidence:
   - acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_preflight.yml
   summary: trusted runner preflight status=pass; checks_passed=9; provider_calls=False;
-    request_current=True; writer_command_current=True
-  issues: []
+    request_current=False; writer_command_current=True
+  issues:
+  - trusted live runner preflight belongs to an older request
 - id: trusted_live_runner_status
   title: Trusted live runner returned artifacts
   status: candidate
@@ -757,19 +702,20 @@ capabilities:
     acceptance_summary:
       capability_overall_status: fail
       capability_status_counts:
-        pass: 16
-        fail: 3
-        candidate: 9
+        retired: 7
+        pass: 10
+        candidate: 10
+        fail: 1
       objective_status: fail
       objective_status_counts:
-        pass: 8
+        fail: 5
+        pass: 4
         candidate: 2
-        fail: 1
       goal_status: fail
       goal_status_counts:
-        pass: 5
+        fail: 3
+        pass: 3
         candidate: 2
-        fail: 1
       acceptance_report_hygiene_status: pass
       acceptance_report_hygiene_canonical_text_artifact_count: 2
       acceptance_report_hygiene_canonical_text_issue_count: 0
@@ -792,13 +738,13 @@ capabilities:
       pending_reason: agy_writer_session_health_blocked_before_private_writer_smoke
       next_action: rerun_agy_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
       missing:
-      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
-      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
-      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/state_transition_proposal.yml
-      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/narrative_delivery_receipt.yml
-      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/outbound_context_manifest_writer.yml
-      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/writer_output_contract.yml
-      - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/fiction_draft.md
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/continuity_ledger.yml
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/state_transition_proposal.yml
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/narrative_delivery_receipt.yml
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/outbound_context_manifest_writer.yml
+      - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/writer_output_contract.yml
+      - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260724_131908_writer/longform_eval_report.yml
       required_files_exist: false
       returned_candidate_artifacts_accepted: false
       acceptance_blocker: missing_required_files
@@ -807,9 +753,9 @@ capabilities:
       pending_reason: missing_candidate_artifacts
       next_action: run_trusted_live_command_and_collect_required_artifacts
       missing:
-      - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/media_backend_preflight.yml
-      - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/generation_ledger.yml
-      - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/outbound_context_manifest_media.yml
+      - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/media_backend_preflight.yml
+      - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/generation_ledger.yml
+      - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/outbound_context_manifest_media.yml
       required_files_exist: false
       returned_candidate_artifacts_accepted: false
       acceptance_blocker: missing_required_files
@@ -833,13 +779,13 @@ capabilities:
         selected_item_pending_reason: agy_writer_session_health_blocked_before_private_writer_smoke
         selected_item_next_action: rerun_agy_writer_contract_probe_from_trusted_runtime_then_run_trusted_writer_smoke
         selected_item_missing:
-        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
-        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
-        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/state_transition_proposal.yml
-        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/narrative_delivery_receipt.yml
-        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/outbound_context_manifest_writer.yml
-        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/writer_output_contract.yml
-        - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
+        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/fiction_draft.md
+        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/continuity_ledger.yml
+        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/state_transition_proposal.yml
+        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/narrative_delivery_receipt.yml
+        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/outbound_context_manifest_writer.yml
+        - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/writer_output_contract.yml
+        - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260724_131908_writer/longform_eval_report.yml
         selected_item_session_health_gate:
           id: current_agy_writer_session_health
           status: missing
@@ -856,9 +802,9 @@ capabilities:
         selected_item_pending_reason: missing_candidate_artifacts
         selected_item_next_action: run_trusted_live_command_and_collect_required_artifacts
         selected_item_missing:
-        - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/media_backend_preflight.yml
-        - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/generation_ledger.yml
-        - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/outbound_context_manifest_media.yml
+        - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/media_backend_preflight.yml
+        - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/generation_ledger.yml
+        - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/outbound_context_manifest_media.yml
     selected_item_report_paths:
       run_crown_internal_writer_eval: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_writer.yml
       run_crown_internal_media_smoke: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect_media.yml
@@ -868,10 +814,10 @@ capabilities:
   status: candidate
   evidence:
   - acceptance_runs/agentlab_capability_acceptance/provider_smoke_current.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/cost_ledger.yml
   summary: current provider smoke passed for deepseek; prior usage ledgers present
   issues:
   - projects/AgentLab/runs/task_live_code_ui_app_json_binding_20260707/cost_ledger.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_live_ch01_20260707_cli_fallback/cost_ledger.yml
   details:
     result_status: completed
     content_present: true
@@ -893,10 +839,10 @@ capabilities:
     - usage_source
 - id: budget_aware_prepare
   title: Budget-aware prepare behavior
-  status: pass
-  evidence:
-  - projects/AgentLab/runs/task_prepare_frugal_real_smoke_20260707/workflow_plan.yml
-  summary: budget_mode=frugal; budget_profile=frugal_L2
+  status: retired
+  evidence: []
+  summary: legacy frugal prepare run retired; fresh Runtime v2 budget acceptance evidence
+    is required
   issues: []
 notes:
 - This report reads existing evidence only; it does not call live providers.

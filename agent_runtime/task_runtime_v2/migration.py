@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +14,7 @@ import yaml
 from .runtime import LedgerIntegrityError, TaskRuntime, TaskRuntimeError
 
 
-PLAN_SCHEMA = "task-runtime-legacy-migration-plan/v2"
+PLAN_SCHEMA = "task-runtime-legacy-migration-plan/v3"
 
 
 class MigrationPlanChanged(TaskRuntimeError):
@@ -27,6 +29,25 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _has_symlink_component(path: Path, root: Path) -> bool:
+    """Return true when a lexical path escapes *root* or crosses a symlink."""
+
+    lexical_root = Path(os.path.abspath(root))
+    candidate = Path(os.path.abspath(path))
+    try:
+        relative = candidate.relative_to(lexical_root)
+    except ValueError:
+        return True
+    current = lexical_root
+    if current.is_symlink():
+        return True
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            return True
+    return False
+
+
 class LegacyRunMigrator:
     """Import legacy task identities once while leaving their files untouched."""
 
@@ -35,6 +56,14 @@ class LegacyRunMigrator:
         self.runtime = TaskRuntime(self.root, project=project)
         self.project = self.runtime.project
         self.runs_root = self.root / "projects" / self.project / "runs"
+        self.provenance_root = (
+            self.root
+            / "projects"
+            / self.project
+            / "runtime"
+            / "provenance"
+            / "legacy"
+        )
 
     def plan(self) -> dict[str, Any]:
         """Return a deterministic preview; this method performs no writes."""
@@ -85,6 +114,28 @@ class LegacyRunMigrator:
                         else None
                     ),
                     "request_sha256": _sha256(request_path) if request_path.is_file() else None,
+                    "snapshot_state_path": (
+                        Path("projects")
+                        / self.project
+                        / "runtime"
+                        / "provenance"
+                        / "legacy"
+                        / task_id
+                        / "state.yml"
+                    ).as_posix(),
+                    "snapshot_request_path": (
+                        (
+                            Path("projects")
+                            / self.project
+                            / "runtime"
+                            / "provenance"
+                            / "legacy"
+                            / task_id
+                            / "user_request.md"
+                        ).as_posix()
+                        if request_path.is_file()
+                        else None
+                    ),
                     "target": (
                         Path("projects")
                         / self.project
@@ -119,10 +170,11 @@ class LegacyRunMigrator:
         for source in plan["sources"]:
             task_id = source["task_id"]
             task_dir = self.runtime.tasks_root / task_id
+            self._materialize_provenance_snapshot(source)
             legacy_source = {
-                "state_path": source["state_path"],
+                "state_path": source["snapshot_state_path"],
                 "state_sha256": source["state_sha256"],
-                "request_path": source["request_path"],
+                "request_path": source["snapshot_request_path"],
                 "request_sha256": source["request_sha256"],
                 "legacy_status": source["legacy_status"],
             }
@@ -155,6 +207,90 @@ class LegacyRunMigrator:
             "already_imported": already_imported,
             "legacy_sources_modified": False,
         }
+
+    def _materialize_provenance_snapshot(self, source: dict[str, Any]) -> None:
+        """Copy immutable migration inputs into Runtime v2-owned provenance."""
+
+        bindings = (
+            (
+                source["state_path"],
+                source["snapshot_state_path"],
+                source["state_sha256"],
+            ),
+            (
+                source.get("request_path"),
+                source.get("snapshot_request_path"),
+                source.get("request_sha256"),
+            ),
+        )
+        for source_value, snapshot_value, expected_sha256 in bindings:
+            if not source_value or not snapshot_value:
+                continue
+            source_path = self.root / str(source_value)
+            snapshot_path = self.root / str(snapshot_value)
+            if _has_symlink_component(source_path, self.root):
+                raise MigrationPlanChanged(
+                    f"legacy migration source has a symlink component: {source_path}"
+                )
+            if not source_path.is_file() or source_path.is_symlink():
+                raise MigrationPlanChanged(
+                    f"legacy migration source is missing or unsafe: {source_path}"
+                )
+            if _sha256(source_path) != expected_sha256:
+                raise MigrationPlanChanged(
+                    f"legacy migration source hash changed: {source_path}"
+                )
+            try:
+                snapshot_path.relative_to(self.provenance_root)
+            except ValueError as exc:
+                raise MigrationPlanChanged(
+                    f"legacy provenance target is outside provenance root: {snapshot_path}"
+                ) from exc
+            if _has_symlink_component(snapshot_path, self.root):
+                raise MigrationPlanChanged(
+                    f"legacy provenance target has a symlink component: {snapshot_path}"
+                )
+            snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+            if _has_symlink_component(snapshot_path, self.root):
+                raise MigrationPlanChanged(
+                    f"legacy provenance target has a symlink component: {snapshot_path}"
+                )
+            if snapshot_path.exists():
+                if not snapshot_path.is_file() or snapshot_path.is_symlink():
+                    raise MigrationPlanChanged(
+                        f"legacy provenance target is unsafe: {snapshot_path}"
+                    )
+                if _sha256(snapshot_path) != expected_sha256:
+                    raise MigrationPlanChanged(
+                        f"legacy provenance snapshot hash mismatch: {snapshot_path}"
+                    )
+                continue
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            try:
+                descriptor = os.open(snapshot_path, flags, 0o600)
+            except OSError as exc:
+                raise MigrationPlanChanged(
+                    f"legacy provenance target cannot be created safely: {snapshot_path}"
+                ) from exc
+            try:
+                source_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                source_descriptor = os.open(source_path, source_flags)
+                with os.fdopen(source_descriptor, "rb") as source_handle, os.fdopen(
+                    descriptor, "wb"
+                ) as snapshot_handle:
+                    descriptor = -1
+                    shutil.copyfileobj(source_handle, snapshot_handle)
+            except BaseException:
+                if descriptor >= 0:
+                    os.close(descriptor)
+                if snapshot_path.is_file() and not snapshot_path.is_symlink():
+                    snapshot_path.unlink()
+                raise
+            if _sha256(snapshot_path) != expected_sha256:
+                raise MigrationPlanChanged(
+                    f"legacy provenance snapshot copy failed: {snapshot_path}"
+                )
 
     def _restore_terminal_status(self, task_id: str, legacy_status: str) -> None:
         mapping = {

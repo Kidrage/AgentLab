@@ -208,10 +208,15 @@ def test_scoped_audits_reopen_when_selected_writer_acceptance_is_pending(
     report = builder(private_crown_project_root)
     items = {item["id"]: item for item in report[items_key]}
 
+    has_independent_failure = any(
+        item.get("status") == "fail"
+        for item_id, item in items.items()
+        if item_id != crown_id
+    )
     assert report["status"] == (
-        "partial"
-        if _persisted_writer_request_is_current(private_crown_project_root)
-        else "fail"
+        "fail"
+        if has_independent_failure or not _persisted_writer_request_is_current(private_crown_project_root)
+        else "partial"
     )
     assert items[crown_id]["status"] in {"candidate", "warn"}
     assert {item["id"] for item in report["pending_internal_live_smokes"]} == {

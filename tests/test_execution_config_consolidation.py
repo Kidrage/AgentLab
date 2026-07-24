@@ -496,6 +496,7 @@ def test_agy_observer_models_use_independent_honest_capacity_pools() -> None:
         "quota_exhausted",
         "rate_limited",
         "model_unavailable",
+        "network_required",
     ]
     assert model["capacity_pool"] == "agy_claude_observer"
     assert catalog["models"]["gemini_3_5_flash_high_agy_oauth"]["capacity_pool"] == "agy_gemini_observer"
@@ -522,6 +523,18 @@ def test_agy_observer_models_use_independent_honest_capacity_pools() -> None:
         "allowed_failure_classes"
     ]
     assert contracts["agy_observer"]["worker_id"] == "agy"
+
+
+def test_content_projects_use_runtime_v2_as_the_only_task_write_root() -> None:
+    governance = _load_config("content_project_governance.yml")
+
+    assert governance["canonical_layout"]["runtime"] == [
+        "runtime/tasks/",
+        "runtime/provenance/legacy/",
+    ]
+    assert governance["candidate_roots"] == ["candidates", "runtime/tasks"]
+    assert governance["legacy_candidate_roots"] == ["runs"]
+    assert "runs" not in governance["candidate_roots"]
 
 
 def test_seedance_agent_plan_is_registered_as_task_only_artifact_backend() -> None:

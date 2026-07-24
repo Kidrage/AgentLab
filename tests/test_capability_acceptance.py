@@ -179,9 +179,9 @@ def test_capability_acceptance_report_aggregates_current_evidence(
 
     assert report["report_type"] == "agentlab_capability_acceptance"
     assert report["overall_status"] in {"candidate", "warn", "blocked", "fail", "pass"}
-    assert by_id["code_factory_orchestration"]["status"] == "pass"
-    assert by_id["non_code_code_shell_split"]["status"] == "pass"
-    assert by_id["non_code_code_shell_split"]["summary"] == "media code-shell hits=0; code probe hits=3"
+    assert by_id["code_factory_orchestration"]["status"] == "retired"
+    assert by_id["non_code_code_shell_split"]["status"] == "retired"
+    assert "legacy paired run probe retired" in by_id["non_code_code_shell_split"]["summary"]
     assert by_id["production_pack_synthesis"]["status"] == "pass"
     assert by_id["production_pack_synthesis_smoke"]["status"] == "pass"
     role_session = by_id["production_pack_synthesis_role_session"]
@@ -281,11 +281,10 @@ def test_capability_acceptance_report_aggregates_current_evidence(
         "cli_shell_coalesced_collect",
         "cli_shell_coalesced_session_returns",
     } & set(by_id)
-    assert by_id["live_code_candidate_materialization"]["status"] in {"candidate", "pass"}
-    assert (
-        "responsive viewport evidence" in by_id["live_code_candidate_materialization"]["summary"]
-        or "promoted to production" in by_id["live_code_candidate_materialization"]["summary"]
-    )
+    assert by_id["live_code_candidate_materialization"]["status"] == "retired"
+    assert "legacy run-local UI candidate probe retired" in by_id[
+        "live_code_candidate_materialization"
+    ]["summary"]
     assert by_id["crown_live_writer_light_path"]["status"] == "candidate"
     assert "local candidate audit" in by_id["crown_live_writer_light_path"]["summary"]
     assert by_id["crown_live_writer_light_path"]["issues"] == [
@@ -321,8 +320,8 @@ def test_capability_acceptance_report_aggregates_current_evidence(
     assert writer_route["model_provider"] == "agy_gemini_oauth"
     assert by_id["crown_heavy_audit_scale"]["status"] == "pass"
     assert "governance-scale audit passes" in by_id["crown_heavy_audit_scale"]["summary"]
-    assert by_id["media_series_scaffold"]["status"] == "pass"
-    assert "safe backend" in by_id["media_series_scaffold"]["summary"]
+    assert by_id["media_series_scaffold"]["status"] == "retired"
+    assert "fresh ArtifactProducer task" in by_id["media_series_scaffold"]["summary"]
     assert by_id["grok_xai_media_backend"]["status"] == "candidate"
     assert "ArtifactProducer/grok" in by_id["grok_xai_media_backend"]["summary"]
     assert "historical non-private authenticated smoke pass" not in by_id["grok_xai_media_backend"]["summary"]
@@ -420,6 +419,8 @@ def test_capability_acceptance_report_aggregates_current_evidence(
         "pass"
         if request_details["writer_route_current"]
         and request_details["preflight_writer_route_current"]
+        and "status=ready_for_trusted_runner"
+        in by_id["trusted_live_runner_request"]["summary"]
         else "fail"
     )
     assert by_id["trusted_live_runner_request"]["status"] == expected_request_status
@@ -499,8 +500,10 @@ def test_capability_acceptance_report_aggregates_current_evidence(
         assert selected_readiness["blocked_item_ids"] == []
         assert selected_readiness["items"]["run_crown_internal_writer_eval"]["can_run_now"] is True
         assert selected_readiness["items"]["run_crown_internal_media_smoke"]["can_run_now"] is True
-    assert by_id["trusted_live_runner_preflight"]["status"] == "pass"
+    assert by_id["trusted_live_runner_preflight"]["status"] in {"pass", "candidate"}
     assert "provider_calls=False" in by_id["trusted_live_runner_preflight"]["summary"]
+    if by_id["trusted_live_runner_preflight"]["status"] == "candidate":
+        assert "request_current=False" in by_id["trusted_live_runner_preflight"]["summary"]
     assert by_id["trusted_live_runner_status"]["status"] == "candidate"
     assert "missing_items=" in by_id["trusted_live_runner_status"]["summary"]
     assert "stale_items=" in by_id["trusted_live_runner_status"]["summary"]

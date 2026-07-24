@@ -12,6 +12,8 @@ import yaml
 
 from agent_runtime.artifact_digest import artifact_sha256
 from agent_runtime.narrative.blueprint_validation import (
+    CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT,
+    REQUIRED_CHARACTER_CONTENT_EVIDENCE_PATHS,
     materialize_crown_blueprint,
     seal_crown_blueprint,
     validate_crown_blueprint,
@@ -198,14 +200,7 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
     fragment = project / "production" / "canonical" / "core.yml"
     _write_yaml(fragment, {"schema_version": 1, "records": records})
     fragment_hash = hashlib.sha256(fragment.read_bytes()).hexdigest()
-    disposition_source_paths = (
-        "runs/task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/mature_sensual_beastfolk_overlay_v1.yml",
-        "runs/task_crown_female_age_rebalance_20260722/outputs/female_age_rebalance_patch_v1.yml",
-        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/uncanny_manifestations_worldtexture_patch_v1.yml",
-        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/writing_memory_absorption_contract_v1.yml",
-        "runs/task_crown_character_policy_user_override_20260724/outputs/user_policy_override_v1.yml",
-        "production/outlines/03_感情戏执行准则.md",
-    )
+    disposition_source_paths = tuple(sorted(REQUIRED_CHARACTER_CONTENT_EVIDENCE_PATHS))
     for relative in disposition_source_paths:
         source = project / relative
         source.parent.mkdir(parents=True, exist_ok=True)
@@ -284,7 +279,8 @@ def _valid_blueprint(root: Path) -> tuple[Path, list[dict]]:
                         "active_build_id": "full_figured_mature",
                         "retired_build_ids": ["pathologically_slender"],
                         "authority_source_path": (
-                            "runs/task_crown_character_policy_user_override_20260724/"
+                            f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+                            "task_crown_character_policy_user_override_20260724/"
                             "outputs/user_policy_override_v1.yml"
                         ),
                     },
@@ -571,6 +567,21 @@ def test_materializes_validated_bundle_from_parent_task_atomically(tmp_path: Pat
     assert validate_crown_blueprint(tmp_path)["status"] == "pass"
 
 
+def test_materializer_is_initialization_only_for_existing_production(
+    tmp_path: Path,
+) -> None:
+    _valid_blueprint(tmp_path)
+    bundle = _bundle_from_valid_blueprint(tmp_path)
+    production = tmp_path / "projects" / "Crown_of_Ash" / "production"
+    (production / "existing_blueprint.yml").write_text(
+        "status: current\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="production blueprint root must be absent"):
+        materialize_crown_blueprint(tmp_path, bundle_path=bundle)
+
+
 def test_materializer_rejects_unsafe_fragment_without_writing_production(
     tmp_path: Path,
 ) -> None:
@@ -631,6 +642,7 @@ def test_character_content_policy_blocks_deleted_disposition_source(
         tmp_path
         / "projects"
         / "Crown_of_Ash"
+        / CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT
         / "runs"
         / "task_crown_mature_sensual_beastfolk_overlay_20260722"
         / "outputs"
@@ -643,7 +655,8 @@ def test_character_content_policy_blocks_deleted_disposition_source(
     assert result["status"] == "blocked"
     assert (
         "character_content_policy:invalid_evidence_disposition:"
-        "runs/task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/"
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/"
         "mature_sensual_beastfolk_overlay_v1.yml"
     ) in result["issues"]
 
@@ -891,6 +904,31 @@ def test_validate_blueprint_cli_is_registered() -> None:
         authority_result.stdout,
     )
     assert "--project" in authority_stdout
+
+    reseal_result = subprocess.run(
+        [
+            str(root / "agentlab.sh"),
+            "narrative",
+            "seal-blueprint",
+            "--help",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"FORCE_COLOR", "CLICOLOR_FORCE"}
+            },
+            "COLUMNS": "180",
+            "NO_COLOR": "1",
+        },
+    )
+    assert reseal_result.returncode == 0, reseal_result.stderr
+    reseal_stdout = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", reseal_result.stdout)
+    assert "--allow-registered-blueprint-drift" in reseal_stdout
 
 
 def test_seal_blueprint_hashes_agentlab_fragments_and_registers_only_blueprint_roots(

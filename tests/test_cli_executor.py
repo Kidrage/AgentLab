@@ -2223,7 +2223,7 @@ class TestRunCliAgentSubprocess:
     ):
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
-        from cli_executor import run_cli_agent
+        from cli_executor import _task_packet_payload, run_cli_agent
 
         plan = _make_plan(tmp_path)
         plan.route.route_key = "narrative_heavy_audit"
@@ -2292,6 +2292,20 @@ class TestRunCliAgentSubprocess:
             "invocation_contract": "qwen_narrative_audit",
             "default": "deepseek_v4_flash",
         }
+        approved_payload_sha256 = hashlib.sha256(
+            json.dumps(
+                _task_packet_payload(
+                    "Reviewer",
+                    plan,
+                    sealed_messages=[
+                        {"role": "system", "content": "Do not call tools."},
+                        {"role": "user", "content": "Audit all 20 chapters."},
+                    ],
+                ),
+                indent=2,
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
         structured_result = {
             "fiction_review": {
                 "schema_version": 1,
@@ -2374,6 +2388,7 @@ class TestRunCliAgentSubprocess:
             {
                 "DASHSCOPE_API_KEY": "private-test-key",
                 "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
+                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_PAYLOAD_SHA256": approved_payload_sha256,
             },
             clear=False,
         ), patch(
@@ -2443,7 +2458,7 @@ class TestRunCliAgentSubprocess:
         import sys
 
         sys.path.insert(0, str(Path(__file__).parent.parent / "agent_runtime"))
-        from cli_executor import run_cli_agent
+        from cli_executor import _task_packet_payload, run_cli_agent
         from agent_runtime.narrative.quality.live_editor import (
             LITERARY_EDITOR_DIMENSIONS,
         )
@@ -2509,6 +2524,20 @@ class TestRunCliAgentSubprocess:
             "invocation_contract": "qwen_narrative_literary_ab",
             "default": "qwen3_7_max_dashscope",
         }
+        approved_payload_sha256 = hashlib.sha256(
+            json.dumps(
+                _task_packet_payload(
+                    "Reviewer",
+                    plan,
+                    sealed_messages=[
+                        {"role": "system", "content": "No tools."},
+                        {"role": "user", "content": "Judge anonymous A/B."},
+                    ],
+                ),
+                indent=2,
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
         dimensions = {
             name: {
                 "score": 4,
@@ -2567,6 +2596,7 @@ class TestRunCliAgentSubprocess:
             {
                 "DASHSCOPE_API_KEY": "private-test-key",
                 "AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED": "1",
+                "AGENTLAB_ROLE_SESSION_ACCEPTANCE_PAYLOAD_SHA256": approved_payload_sha256,
             },
             clear=False,
         ), patch(

@@ -1,8 +1,8 @@
 schema_version: 1
 report_type: agentlab_trusted_live_runner_request
-request_id: trusted_live_20260718_pruned
+request_id: trusted_live_20260724_131908
 root: .
-status: ready_for_trusted_runner
+status: fail
 source_reports:
   frontdesk_live_handoff: acceptance_runs/agentlab_capability_acceptance/frontdesk_live_handoff.yml
   internal_live_readiness: acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
@@ -30,10 +30,10 @@ recommended_pre_run_session_health_checks:
   required_for_clean_live_run: true
   loads_private_project_context: false
   executes_private_live_generation: false
-  purpose: Confirm the trusted terminal/session can run the Claude Writer contract
-    and Grok non-private prompt contract before sending Crown private project context.
+  purpose: Confirm the trusted terminal/session can run the AGY Writer contract and
+    Grok non-private prompt contract before sending Crown private project context.
   commands:
-  - ./agentlab.sh worker-invocation-probe --worker claude_writer > acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml
+  - ./agentlab.sh worker-invocation-probe --worker agy > acceptance_runs/agentlab_capability_acceptance/agy_writer_session_probe.yml
   - ./agentlab.sh grok-cli-smoke --live --out acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml
   - ./agentlab.sh internal-live-readiness --out acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
   pass_condition: the internal live readiness report has no session_health_issues
@@ -42,22 +42,22 @@ items:
 - id: run_crown_internal_writer_eval
   status: ready
   agentlab_execution_owner: Writer
-  assigned_worker: claude_code
+  assigned_worker: agy
   role_session_required: true
   command: ./agentlab.sh narrative-eval run --project Crown_of_Ash --suite crown_live_single_chapter_probe_20260707
-    --mode live --chapters 1 --timestamp trusted_live_20260718_pruned_writer --writer-worker
-    claude_code
+    --mode live --chapters 1 --timestamp trusted_live_20260724_131908_writer --writer-worker
+    agy
   expected_outputs:
     type: narrative_live_smoke
-    run_dir: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer
+    run_dir: projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer
     required_files:
-    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
-    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
-    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/state_transition_proposal.yml
-    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/narrative_delivery_receipt.yml
-    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/outbound_context_manifest_writer.yml
-    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/writer_output_contract.yml
-    - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
+    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/fiction_draft.md
+    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/continuity_ledger.yml
+    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/state_transition_proposal.yml
+    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/narrative_delivery_receipt.yml
+    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/outbound_context_manifest_writer.yml
+    - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/writer_output_contract.yml
+    - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260724_131908_writer/longform_eval_report.yml
     candidate_only: true
   observe_artifacts:
   - acceptance_runs/narrative_eval/Crown_of_Ash/*/longform_eval_report.yml
@@ -69,16 +69,16 @@ items:
   agentlab_execution_owner: ArtifactProducer
   assigned_worker: grok
   role_session_required: true
-  command: ./agentlab.sh media-backend-execute --contract projects/Crown_of_Ash/archive/run_history/pruning-20260718/runs/task_probe_crown_comic_video_poster_series_scaffold_20260707/media_generation_contract.yml
-    --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media
-    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_trusted_live_20260718_pruned_media
+  command: ./agentlab.sh media-backend-execute --contract acceptance_runs/media_generation/Crown_of_Ash/task_crown_episode_001_seedance_20260722/media_generation_contract.yml
+    --out-dir projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media
+    --live --role ArtifactProducer --worker grok --project Crown_of_Ash --run-id task_media_role_session_acceptance_trusted_live_20260724_131908_media
   expected_outputs:
     type: media_live_smoke
-    out_dir: projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media
+    out_dir: projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media
     required_files:
-    - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/media_backend_preflight.yml
-    - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/generation_ledger.yml
-    - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/outbound_context_manifest_media.yml
+    - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/media_backend_preflight.yml
+    - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/generation_ledger.yml
+    - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/outbound_context_manifest_media.yml
     candidate_only: true
     final_artifact_allowed: false
   observe_artifacts:
@@ -88,7 +88,8 @@ items:
 script_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
 secret_values_rendered: false
 session_health_evaluated_at_runtime: true
-issues: []
+issues:
+- internal_live_smoke_readiness_not_ready
 notes:
 - This request does not execute private role-session acceptance commands.
 - Generated outputs remain run-local candidates until QC and promotion gates pass.
@@ -102,7 +103,7 @@ local_runner_package:
   collect_report_path: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_collect.yml
   preflight_commands:
   - test -x ./agentlab.sh
-  - command -v claude
+  - command -v agy
   - command -v hermes
   preflight_only_command: acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.sh
     --preflight-only
@@ -126,7 +127,7 @@ local_runner_package:
   selective_run_executes_session_health_checks: true
   selective_run_requires_selected_item_pass: true
   recommended_pre_run_session_health_commands:
-  - ./agentlab.sh worker-invocation-probe --worker claude_writer > acceptance_runs/agentlab_capability_acceptance/claude_writer_session_probe.yml
+  - ./agentlab.sh worker-invocation-probe --worker agy > acceptance_runs/agentlab_capability_acceptance/agy_writer_session_probe.yml
   - ./agentlab.sh grok-cli-smoke --live --out acceptance_runs/agentlab_capability_acceptance/grok_cli_session_smoke.yml
   - ./agentlab.sh internal-live-readiness --out acceptance_runs/agentlab_capability_acceptance/internal_live_readiness.yml
   post_run_status_command: ./agentlab.sh trusted-live-runner-status --request acceptance_runs/agentlab_capability_acceptance/trusted_live_runner_request.yml

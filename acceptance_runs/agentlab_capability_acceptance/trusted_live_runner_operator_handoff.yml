@@ -45,9 +45,10 @@ execution_boundary:
     run_crown_internal_writer_eval:
       required_issue_ids:
       - current_agy_writer_session_health
-      blocking_issue_ids: []
-      clean: true
-      blocked_until_relevant_session_health_clean: false
+      blocking_issue_ids:
+      - current_agy_writer_session_health
+      clean: false
+      blocked_until_relevant_session_health_clean: true
     run_crown_internal_media_smoke:
       required_issue_ids:
       - current_grok_session_health
@@ -55,23 +56,24 @@ execution_boundary:
       - current_grok_session_health
       clean: false
       blocked_until_relevant_session_health_clean: true
-  writer_request_route_current: false
+  writer_request_route_current: true
   trusted_status_request_current: true
-  trusted_preflight_request_current: true
+  trusted_preflight_request_current: false
 selected_item_readiness:
   summary: top-level handoff status covers the full writer+media acceptance set; selected
     items may still be runnable when their own session gate is clean
-  ready_item_ids:
-  - run_crown_internal_writer_eval
+  ready_item_ids: []
   blocked_item_ids:
+  - run_crown_internal_writer_eval
   - run_crown_internal_media_smoke
   items:
     run_crown_internal_writer_eval:
-      can_run_now: true
-      blocked_by_session_health: false
+      can_run_now: false
+      blocked_by_session_health: true
       required_session_health_issue_ids:
       - current_agy_writer_session_health
-      blocking_session_health_issue_ids: []
+      blocking_session_health_issue_ids:
+      - current_agy_writer_session_health
     run_crown_internal_media_smoke:
       can_run_now: false
       blocked_by_session_health: true
@@ -101,6 +103,7 @@ operator_steps:
   - current_agy_writer_session_health
   - current_grok_session_health
   blocking_session_health_issue_ids:
+  - current_agy_writer_session_health
   - current_grok_session_health
   runs_all_items: true
 - step: writer_role_session_acceptance_smoke
@@ -112,11 +115,12 @@ operator_steps:
   approval_env_required: AGENTLAB_ROLE_SESSION_ACCEPTANCE_APPROVED=1
   runtime_outbound_context_manifest_required: true
   sealed_writer_context_required: true
-  blocked_until_session_health_clean: false
-  blocked_until_relevant_session_health_clean: false
+  blocked_until_session_health_clean: true
+  blocked_until_relevant_session_health_clean: true
   relevant_session_health_issue_ids:
   - current_agy_writer_session_health
-  blocking_session_health_issue_ids: []
+  blocking_session_health_issue_ids:
+  - current_agy_writer_session_health
   runs_only: run_crown_internal_writer_eval
   recommended_before_media_for_incremental_acceptance: true
   selective_run_supported: true
@@ -171,28 +175,28 @@ operator_steps:
 candidate_items:
 - id: run_crown_internal_writer_eval
   agentlab_execution_owner: Writer
-  assigned_worker: claude_code
+  assigned_worker: agy
   expected_type: narrative_live_smoke
   candidate_only: true
   required_files:
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/state_transition_proposal.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/narrative_delivery_receipt.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/outbound_context_manifest_writer.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/writer_output_contract.yml
-  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/fiction_draft.md
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/continuity_ledger.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/state_transition_proposal.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/narrative_delivery_receipt.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/outbound_context_manifest_writer.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/writer_output_contract.yml
+  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260724_131908_writer/longform_eval_report.yml
   trusted_status_item_present: true
   current_status: pending
   current_pending_reason: agy_writer_session_health_blocked_before_private_writer_smoke
   missing:
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/fiction_draft.md
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/continuity_ledger.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/state_transition_proposal.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/narrative_delivery_receipt.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/outbound_context_manifest_writer.yml
-  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260718_pruned_writer/writer_output_contract.yml
-  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260718_pruned_writer/longform_eval_report.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/fiction_draft.md
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/continuity_ledger.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/state_transition_proposal.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/narrative_delivery_receipt.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/outbound_context_manifest_writer.yml
+  - projects/Crown_of_Ash/runs/task_narrative_eval_ch01_trusted_live_20260724_131908_writer/writer_output_contract.yml
+  - acceptance_runs/narrative_eval/Crown_of_Ash/crown_live_single_chapter_probe_20260707/trusted_live_20260724_131908_writer/longform_eval_report.yml
   required_files_exist: false
   returned_candidate_artifacts_accepted: false
   acceptance_blocker: missing_required_files
@@ -202,24 +206,31 @@ candidate_items:
   expected_type: media_live_smoke
   candidate_only: true
   required_files:
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/media_backend_preflight.yml
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/generation_ledger.yml
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/outbound_context_manifest_media.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/outbound_context_manifest_media.yml
   trusted_status_item_present: true
   current_status: pending
   current_pending_reason: missing_candidate_artifacts
   missing:
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/media_backend_preflight.yml
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/generation_ledger.yml
-  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260718_pruned_media/artifacts/media_backend_live_internal_trusted_live_20260718_pruned_media/outbound_context_manifest_media.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/media_backend_preflight.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/generation_ledger.yml
+  - projects/Crown_of_Ash/runs/task_media_role_session_acceptance_trusted_live_20260724_131908_media/artifacts/media_backend_live_internal_trusted_live_20260724_131908_media/outbound_context_manifest_media.yml
   required_files_exist: false
   returned_candidate_artifacts_accepted: false
   acceptance_blocker: missing_required_files
 session_health:
-  status: fail
+  status: route_ready_session_blocked
   clean: false
-  issue_count: 1
+  issue_count: 2
   issues:
+  - id: current_agy_writer_session_health
+    status: blocked
+    session_smoke_status: missing
+    evidence_interpretation: The current non-private AGY Writer contract probe is
+      missing or did not pass.
+    reason: session_health_report_missing_or_invalid
+    next_action: rerun_agy_writer_contract_probe_from_the_trusted_agentlab_runtime
   - id: current_grok_session_health
     status: blocked
     session_smoke_status: blocked
@@ -264,8 +275,9 @@ acceptance_rule: AgentLab accepts returned role-session acceptance smoke evidenc
   candidates until explicit promotion.
 secret_values_rendered: false
 issues:
+- trusted_live_runner_request_not_ready
+- trusted_live_runner_preflight_request_stale
 - internal_live_readiness_not_clean
-- trusted_live_runner_writer_route_stale
 notes:
 - This handoff does not execute private role-session acceptance commands.
 - It is safe for Codex/frontdesk to generate and inspect this report.

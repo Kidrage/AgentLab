@@ -143,7 +143,7 @@ models:
       never_primary: true
       perception_fallback_only: true
       rotates_from: gemini_3_5_flash_high_agy_oauth
-      allowed_failure_classes: [quota_exhausted, rate_limited, model_unavailable]
+      allowed_failure_classes: [quota_exhausted, rate_limited, model_unavailable, network_required]
       capacity_source: config/model_capacity.yml
       same_cli_worker: agy
       provider_surface_change_allowed: false

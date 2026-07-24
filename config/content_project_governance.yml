@@ -21,9 +21,11 @@ canonical_layout:
     - bible/
     - outlines/
     - media/
+  runtime:
+    - runtime/tasks/
+    - runtime/provenance/legacy/
   candidates: candidates/<task_id>/
   archive: archive/<artifact_id>/<version>/
-  runs: runs/<task_id>/
 frontdesk_allowed_state_sources:
   - PROJECT_HANDOFF.md
   - project_artifact_index.yml
@@ -33,6 +35,8 @@ formal_fact_roots:
   - project_brain
 candidate_roots:
   - candidates
+  - runtime/tasks
+legacy_candidate_roots:
   - runs
 archive_roots:
   - archive

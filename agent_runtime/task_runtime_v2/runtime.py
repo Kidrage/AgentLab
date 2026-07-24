@@ -113,6 +113,25 @@ def _goal_fingerprint(user_goal: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def _has_symlink_component(path: Path, root: Path) -> bool:
+    """Return true when a lexical path escapes *root* or crosses a symlink."""
+
+    lexical_root = Path(os.path.abspath(root))
+    candidate = Path(os.path.abspath(path))
+    try:
+        relative = candidate.relative_to(lexical_root)
+    except ValueError:
+        return True
+    current = lexical_root
+    if current.is_symlink():
+        return True
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            return True
+    return False
+
+
 def _validated_id(value: str, *, field: str) -> str:
     normalized = str(value or "").strip()
     if not _SAFE_ID.fullmatch(normalized):
@@ -419,6 +438,56 @@ class TaskRuntime:
                             artifact_failures.append(
                                 f"{record_id}: trace record SHA256 mismatch"
                             )
+                    legacy_source = projection["task"].get("legacy_source")
+                    if isinstance(legacy_source, dict):
+                        expected_root = (
+                            self.agentlab_root
+                            / "projects"
+                            / self.project
+                            / "runtime"
+                            / "provenance"
+                            / "legacy"
+                        )
+                        for label, path_key, hash_key in (
+                            ("state", "state_path", "state_sha256"),
+                            ("request", "request_path", "request_sha256"),
+                        ):
+                            path_value = str(legacy_source.get(path_key) or "").strip()
+                            expected_sha256 = str(
+                                legacy_source.get(hash_key) or ""
+                            ).strip()
+                            if not path_value and not expected_sha256:
+                                continue
+                            relative = Path(path_value)
+                            if (
+                                relative.is_absolute()
+                                or ".." in relative.parts
+                                or not relative.parts
+                            ):
+                                artifact_failures.append(
+                                    f"legacy {label} provenance outside runtime provenance root"
+                                )
+                                continue
+                            path = self.agentlab_root / relative
+                            try:
+                                path.relative_to(expected_root)
+                            except ValueError:
+                                artifact_failures.append(
+                                    f"legacy {label} provenance outside runtime provenance root"
+                                )
+                                continue
+                            if _has_symlink_component(path, self.agentlab_root):
+                                artifact_failures.append(
+                                    f"legacy {label} provenance path contains a symlink component"
+                                )
+                            elif not path.is_file():
+                                artifact_failures.append(
+                                    f"legacy {label} provenance file missing"
+                                )
+                            elif hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256:
+                                artifact_failures.append(
+                                    f"legacy {label} provenance SHA256 mismatch"
+                                )
                     classification = projection["task"].get(
                         "input_classification"
                     ) or {}

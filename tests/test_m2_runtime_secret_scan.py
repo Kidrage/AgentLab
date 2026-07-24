@@ -1,6 +1,5 @@
 """Tests for secret scanner in agent_runtime.runtime_hygiene.secret_scan."""
 
-from pathlib import Path
 from agent_runtime.runtime_hygiene.secret_scan import scan_secrets
 
 def test_scan_secrets_detects_keys(tmp_path):
@@ -33,8 +32,25 @@ def test_scan_secrets_detects_keys(tmp_path):
 
     # Verify snippets are redacted
     for finding in findings:
+        assert finding["snippet_redacted"] == "[FULLY_REDACTED]"
         assert "sk-abcdef" not in finding["snippet_redacted"]
         assert "supersecretpassword" not in finding["snippet_redacted"]
+
+
+def test_scan_secrets_never_retains_suffix_after_partial_pattern_match(tmp_path):
+    suffix = "suffix-that-must-never-appear"
+    (tmp_path / ".env").write_text(
+        f"QWEN_TOKEN_PLAN_API_KEY=abcdefgh/{suffix}\n",
+        encoding="utf-8",
+    )
+
+    findings = scan_secrets(tmp_path).to_dict()["findings"]
+
+    assert findings
+    assert {finding["snippet_redacted"] for finding in findings} == {
+        "[FULLY_REDACTED]"
+    }
+    assert all(suffix not in str(finding) for finding in findings)
 
 def test_scan_secrets_ignores_placeholders(tmp_path):
     src_dir = tmp_path / "src"

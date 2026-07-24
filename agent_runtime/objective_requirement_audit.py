@@ -644,8 +644,8 @@ def build_objective_requirement_audit(root: Path) -> dict[str, Any]:
             ),
             [
                 *_capability_evidence(capabilities, "live_code_candidate_materialization", "code_factory_orchestration"),
-                str(ui_api_report_path),
-                str(ui_action_ledger_path),
+                *([str(ui_api_report_path)] if ui_api_report_path.is_file() else []),
+                *([str(ui_action_ledger_path)] if ui_action_ledger_path.is_file() else []),
             ],
             None
             if _capability_status(capabilities, "live_code_candidate_materialization") == "pass"

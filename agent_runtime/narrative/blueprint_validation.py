@@ -57,13 +57,27 @@ BLUEPRINT_MEMORY_PATHS = (
     "project_brain/fact_distillation.yml",
     "project_brain/project_fact_snapshot.yml",
 )
+CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT = (
+    "deliveries/crown_blueprint_authority_20260724_user_policy_override_final/"
+    "projects/Crown_of_Ash"
+)
 REQUIRED_CHARACTER_CONTENT_EVIDENCE_PATHS = frozenset(
     {
-        "runs/task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/mature_sensual_beastfolk_overlay_v1.yml",
-        "runs/task_crown_female_age_rebalance_20260722/outputs/female_age_rebalance_patch_v1.yml",
-        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/uncanny_manifestations_worldtexture_patch_v1.yml",
-        "runs/task_crown_uncanny_manifestations_worldtexture_20260722/outputs/writing_memory_absorption_contract_v1.yml",
-        "runs/task_crown_character_policy_user_override_20260724/outputs/user_policy_override_v1.yml",
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_mature_sensual_beastfolk_overlay_20260722/outputs/"
+        "mature_sensual_beastfolk_overlay_v1.yml",
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_female_age_rebalance_20260722/outputs/"
+        "female_age_rebalance_patch_v1.yml",
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_uncanny_manifestations_worldtexture_20260722/outputs/"
+        "uncanny_manifestations_worldtexture_patch_v1.yml",
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_uncanny_manifestations_worldtexture_20260722/outputs/"
+        "writing_memory_absorption_contract_v1.yml",
+        f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+        "task_crown_character_policy_user_override_20260724/outputs/"
+        "user_policy_override_v1.yml",
         "production/outlines/03_感情戏执行准则.md",
     }
 )
@@ -1121,7 +1135,8 @@ def validate_crown_blueprint(
         != ["pathologically_slender"]
         or isabella_visual_contract.get("authority_source_path")
         != (
-            "runs/task_crown_character_policy_user_override_20260724/"
+            f"{CROWN_BLUEPRINT_DELIVERY_EVIDENCE_ROOT}/runs/"
+            "task_crown_character_policy_user_override_20260724/"
             "outputs/user_policy_override_v1.yml"
         )
         or isabella_identity.get("height_cm") != 165

@@ -115,6 +115,14 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
             None,
             "--source-run-artifact",
         ),
+        allow_registered_blueprint_drift: bool = typer.Option(
+            False,
+            "--allow-registered-blueprint-drift",
+            help=(
+                "Administrative recovery only: reseal an externally audited, "
+                "authorized drift. This is not a blueprint update interface."
+            ),
+        ),
     ) -> None:
         """Hash and register AgentLab-authored blueprint artifacts without editing content."""
         try:
@@ -123,6 +131,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 project=project,
                 source_task=source_task,
                 source_run_artifact=source_run_artifact,
+                allow_registered_blueprint_drift=allow_registered_blueprint_drift,
             )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
@@ -133,7 +142,7 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
         bundle: Path = typer.Option(..., "--bundle"),
         project: str = typer.Option("Crown_of_Ash", "--project"),
     ) -> None:
-        """Validate and atomically install an AgentLab-authored blueprint bundle."""
+        """Initialize an empty production root from a validated blueprint bundle."""
         try:
             result = materialize_crown_blueprint(
                 project_root,

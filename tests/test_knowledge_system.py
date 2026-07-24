@@ -1304,6 +1304,101 @@ def test_sole_blueprint_entrypoint_expands_only_hash_verified_components(
     assert rebuilt_paths == set()
 
 
+def test_project_specific_blueprint_indexes_hash_verified_registered_sources(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    _write_config(root, refresh_on_prepare=False, bootstrap_missing_spaces=True)
+    project = root / "projects" / "Novel"
+    bible = project / "production" / "bible"
+    outlines = project / "production" / "outlines"
+    manuscript = project / "production" / "manuscript"
+    for directory, marker in (
+        (bible, "VERIFIED-BIBLE"),
+        (outlines, "VERIFIED-OUTLINE"),
+        (manuscript, "VERIFIED-MANUSCRIPT"),
+    ):
+        directory.mkdir(parents=True)
+        (directory / "current.md").write_text(marker + "\n", encoding="utf-8")
+    authority = project / "production" / "blueprint_authority.yml"
+    authority.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "narrative-blueprint-authority/v1",
+                "project": "Novel",
+                "status": "registered_pending_generic_validation",
+                "authority_kind": "project_specific",
+                "source_artifacts": {
+                    f"source_{name}": {
+                        "artifact_id": name,
+                        "version": "v1",
+                        "path": f"production/{name}/",
+                        "sha256": artifact_sha256(project / "production" / name),
+                    }
+                    for name in ("bible", "outlines", "manuscript")
+                },
+                "story_contract": {
+                    "target_total_chapters": 100,
+                    "accepted_chapters": 10,
+                    "next_production_chapter": 11,
+                },
+                "authority_rules": {
+                    "direct_production_edit_forbidden": True,
+                    "one_current_version_per_artifact_id": True,
+                },
+                "production_gate": {"runtime_standard": "task-runtime-v2"},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    _write_current_artifacts(root, "Novel", "production/blueprint_authority.yml")
+    unbound_fact_snapshot = project / "project_brain" / "project_fact_snapshot.yml"
+    unbound_fact_snapshot.parent.mkdir()
+    unbound_fact_snapshot.write_text(
+        "fact: UNBOUND-GENERIC-MEMORY\n",
+        encoding="utf-8",
+    )
+
+    built_paths = {
+        item.source.path
+        for item in SourceCollector(root).collect_project(
+            "Novel",
+            domain="longform_narrative",
+        )
+    }
+
+    assert "projects/Novel/production/blueprint_authority.yml" in built_paths
+    assert "projects/Novel/production/bible/current.md" in built_paths
+    assert "projects/Novel/production/outlines/current.md" in built_paths
+    assert "projects/Novel/production/manuscript/current.md" in built_paths
+    assert "projects/Novel/project_brain/project_fact_snapshot.yml" not in built_paths
+
+    unbound_fact_snapshot.write_text(
+        "fact: CHANGED-UNBOUND-GENERIC-MEMORY\n",
+        encoding="utf-8",
+    )
+    unchanged_paths = {
+        item.source.path
+        for item in SourceCollector(root).collect_project(
+            "Novel",
+            domain="longform_narrative",
+        )
+    }
+    assert unchanged_paths == built_paths
+
+    (bible / "current.md").write_text("TAMPERED\n", encoding="utf-8")
+    rebuilt_paths = {
+        item.source.path
+        for item in SourceCollector(root).collect_project(
+            "Novel",
+            domain="longform_narrative",
+        )
+    }
+
+    assert rebuilt_paths == set()
+
+
 def test_sync_failure_marks_index_stale_without_touching_committed_truth(tmp_path: Path) -> None:
     root = tmp_path
     _write_config(root)

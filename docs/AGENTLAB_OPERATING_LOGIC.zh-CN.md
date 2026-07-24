@@ -50,32 +50,33 @@ AgentLab 是工作流宿主。Hermes、Claude Code、Codex、Agy、Grok、Qwen �
 
 ## 状态与离线反馈
 
-每个任务的可恢复状态都在 `projects/<Project>/runs/<task_id>/`：
+每个新任务的唯一可恢复状态都在
+`projects/<Project>/runtime/tasks/<task_id>/events.jsonl`。该追加账本把 Task、
+Job、WorkItem、Attempt、ArtifactVersion 与 EvidenceBinding 绑定到同一接受边界；
+每条事件有顺序号、前序哈希和幂等键。`projections/`、
+`runtime/task_index.yml` 和 `runtime/knowledge/selected_artifacts.yml` 都只是从账本
+重建的投影，手工编辑不改变任务真相。
 
-- `workflow_plan.yml`：解析后的完整计划；
-- `state.yml`：当前状态、当前角色和已完成角色；
-- `lifecycle.yml`：节点状态与依赖；
-- `progress.yml`：面向 operator 的进度与 heartbeat；
-- `task_events.jsonl`：追加式事件流；
-- `decision_cards/`：策略自动授权、人工审批或恢复选择；
-- 角色报告与 receipts：真实完成证据。
-
-Web UI、后续 Codex 对话和 daemon 都从这些文件重建状态，不依赖旧会话文本。
-watchdog 只识别 stale/blocked 等反馈并生成事件或 decision card，不代替路由器执行
-工作。daemon 状态写入 `.agentlab_runtime/daemon/`，不会成为项目事实源。
+旧 `runs/<task_id>/` 只允许兼容读取或作为候选/证据载体，不能为新的 Task 写入。
+`task list` 默认只显示 v2；需要审计旧记录时必须显式使用 `--include-legacy`。Web UI、
+后续 Codex 对话和 daemon 从 v2 账本重建状态，不依赖旧会话文本。watchdog 只识别
+stale/blocked 等反馈并生成事件或 decision card，不代替路由器执行工作。daemon 状态
+写入 `.agentlab_runtime/daemon/`，不会成为项目事实源。
 
 ## 产物边界
 
 ```text
-runs/<task_id>/                 过程、状态和证据
-runs/<task_id>/artifacts/       本任务候选产物
+runtime/tasks/<task_id>/        过程、状态和不可变证据账本
+runtime/tasks/<task_id>/candidates/  本任务候选产物
 production/                    已晋升正式产物
 archive/                       被替换正式产物
 ```
 
 候选完成不等于 production。晋升必须检查 lineage、声明路径、审查/审批证据、旧版
 归档回执，并更新项目 artifact index。新小说设定还必须进入 state transition
-proposal，不能只藏在正文。
+proposal，不能只藏在正文。为了保证“唯一真实版本”，一个语义 artifact id 在
+`project_artifact_index.yml` 只能有一个 `current` 记录；历史材料只能在 `archive/`
+或 sealed `deliveries/` 中作为溯源，不可被 Writer 当作当前事实。
 
 ## 成本与 fallback
 

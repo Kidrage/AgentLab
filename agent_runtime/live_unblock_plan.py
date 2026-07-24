@@ -148,12 +148,17 @@ def _selected_command(package: dict[str, Any], command_group: str, fallback: str
 
 def build_live_unblock_plan(root: Path) -> dict[str, Any]:
     root = root.resolve()
-    media_source_run = resolve_run_dir(
-        root,
-        "Crown_of_Ash",
-        "task_probe_crown_comic_video_poster_series_scaffold_20260707",
+    # The prior media probe lived in a retired legacy run directory.  The
+    # retained acceptance contract is the stable, read-only source for any new
+    # role-session smoke; it must not revive a deleted project runtime.
+    media_contract_path = (
+        root
+        / "acceptance_runs"
+        / "media_generation"
+        / "Crown_of_Ash"
+        / "task_crown_episode_001_seedance_20260722"
+        / "media_generation_contract.yml"
     )
-    media_contract_path = media_source_run / "media_generation_contract.yml"
     try:
         media_contract = str(media_contract_path.relative_to(root))
     except ValueError:
