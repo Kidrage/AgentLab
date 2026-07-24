@@ -88,7 +88,10 @@ class RoleAttemptExecutor:
             raise EntityNotFound(f"work item {work_item_id!r} does not exist")
         classification = projection["task"].get("input_classification") or {}
         role_name = canonical_role_name(role)
-        profile, provider = self._resolve_profile(role_name)
+        profile, provider, agent_model_profile = self._resolve_bound_profile(
+            role_name,
+            work_item,
+        )
         execution_contract = {
             "role": role_name,
             "input_tier": classification.get("tier"),
@@ -97,6 +100,8 @@ class RoleAttemptExecutor:
             "model_key": profile.get("default"),
             "model_id": profile.get("_resolved_model_id"),
             "runtime_provider": provider,
+            "agent_model_profile": agent_model_profile,
+            "model_tier": profile.get("_resolved_tier"),
         }
         if not classification.get("admission_ready"):
             if role_name != "Supervisor":
@@ -140,6 +145,7 @@ class RoleAttemptExecutor:
             role=role_name,
             run_dir=attempt_root,
             user_goal=str(projection["task"]["user_goal"]),
+            budget_mode=str(profile["_resolved_budget_mode"]),
         )
         try:
             result = self._cli_runner(
@@ -252,7 +258,44 @@ class RoleAttemptExecutor:
             "receipt_path": str(receipt_path),
         }
 
-    def _resolve_profile(self, role: str) -> tuple[dict[str, Any], str]:
+    def _resolve_bound_profile(
+        self,
+        role: str,
+        work_item: dict[str, Any],
+    ) -> tuple[dict[str, Any], str, str | None]:
+        agent_id = work_item.get("assigned_agent_id")
+        if agent_id is None:
+            profile, provider = self._resolve_profile(role)
+            return profile, provider, None
+
+        binding = {
+            "assigned_agent_id": agent_id,
+            "agent_manifest_revision": work_item.get("agent_manifest_revision"),
+            "canonical_snapshot_id": work_item.get("canonical_snapshot_id"),
+            "contract_hash": work_item.get("effective_contract_hash"),
+        }
+        self.runtime._validate_project_agent_binding(
+            **binding,
+            execution_role=role,
+        )
+
+        from agent_runtime.project_agents import ProjectAgentRegistry
+        from agent_runtime.project_truth import ProjectTruthStore
+
+        truth = ProjectTruthStore(self.root / "projects" / self.project)
+        manifest = ProjectAgentRegistry(truth).get(str(agent_id))
+        profile, provider = self._resolve_profile(
+            role,
+            model_profile=manifest.model_profile,
+        )
+        return profile, provider, manifest.model_profile
+
+    def _resolve_profile(
+        self,
+        role: str,
+        *,
+        model_profile: str | None = None,
+    ) -> tuple[dict[str, Any], str]:
         from agent_runtime.cli_executor import _model_invocation_values
 
         profiles = yaml.safe_load(
@@ -260,15 +303,40 @@ class RoleAttemptExecutor:
                 encoding="utf-8"
             )
         )
+        tier_policy = profiles.get("tier_policy") or {}
+        tier_definitions = tier_policy.get("tiers") or {}
+        requested = str(model_profile or "").strip().lower()
+        if requested == "high_reasoning":
+            requested = "full"
+        tier = str(tier_policy.get("default_tier") or "performance")
+        if requested:
+            matched = next(
+                (
+                    name
+                    for name, definition in tier_definitions.items()
+                    if requested == str(name).lower()
+                    or requested
+                    in {
+                        str(alias).lower()
+                        for alias in (definition or {}).get("budget_aliases", ())
+                    }
+                ),
+                None,
+            )
+            if matched is None:
+                raise InvalidTransition(
+                    f"unknown Agent model profile {model_profile!r}"
+                )
+            tier = str(matched)
         profile = (
             profiles.get("modes", {})
             .get("full_cli", {})
             .get("tiers", {})
-            .get("performance", {})
+            .get(tier, {})
             .get(normalize_role_key(role))
         )
         if not isinstance(profile, dict) or profile.get("executor_type") != "cli_agent":
-            raise InvalidTransition(f"no performance CLI profile for role {role!r}")
+            raise InvalidTransition(f"no {tier} CLI profile for role {role!r}")
         profile = dict(profile)
         model_values = _model_invocation_values(profile, self.root)
         provider = str(model_values.get("provider") or "")
@@ -278,10 +346,22 @@ class RoleAttemptExecutor:
         if not model_id:
             raise InvalidTransition(f"model ID missing for role {role!r}")
         profile["_resolved_model_id"] = model_id
+        profile["_resolved_tier"] = tier
+        profile["_resolved_budget_mode"] = {
+            "full": "max_quality",
+            "performance": "balanced",
+            "low": "frugal",
+        }.get(tier, "balanced")
         return profile, provider
 
     def _build_plan(
-        self, *, task_id: str, role: str, run_dir: Path, user_goal: str
+        self,
+        *,
+        task_id: str,
+        role: str,
+        run_dir: Path,
+        user_goal: str,
+        budget_mode: str,
     ) -> WorkflowPlan:
         project_root = self.root / "projects" / self.project
         route = AgentRoute(task_size="small", agents=[role])
@@ -293,7 +373,7 @@ class RoleAttemptExecutor:
             repo_path=str(project_root),
             run_dir=str(run_dir),
             user_request_path=str(run_dir / "sealed_user_request.md"),
-            budget_mode="balanced",
+            budget_mode=budget_mode,
             route=route,
             notes=[user_goal],
         )

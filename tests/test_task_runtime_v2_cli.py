@@ -4,10 +4,14 @@ import hashlib
 from pathlib import Path
 
 import typer
+import yaml
 from rich.console import Console
 from typer.testing import CliRunner
 
 from agent_runtime.cli.task_runtime_v2 import register_task_runtime_commands
+from agent_runtime.project_agents import ProjectAgentFactory, ProjectAgentRegistry
+from agent_runtime.project_ops.project_router import init_project
+from agent_runtime.project_truth import ProjectTruthStore
 
 
 def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
@@ -84,6 +88,74 @@ def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
     assert "status: paused" in paused_again.output
     assert doctor.exit_code == 0, doctor.output
     assert "ok: true" in doctor.output.lower()
+
+
+def test_work_item_cli_materializes_project_agent_collaboration(
+    tmp_path: Path,
+) -> None:
+    init_project(tmp_path, "Demo", "narrative_project", "Demo")
+    project_root = tmp_path / "projects" / "Demo"
+    project = yaml.safe_load(
+        (project_root / "project.yml").read_text(encoding="utf-8")
+    )
+    project["features"] = {
+        "project_truth_mode": "enforced",
+        "enable_project_agents": True,
+    }
+    (project_root / "project.yml").write_text(
+        yaml.safe_dump(project, sort_keys=False),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project_root)
+    initial = truth.initialize("Demo")
+    ProjectAgentFactory().create_team(
+        ProjectAgentRegistry(truth),
+        "成人黑暗幻想小说，需要谜团悬念控制与成熟感官美学",
+        expected_snapshot_id=initial.current_snapshot_id,
+        actor_id="user",
+        approved=True,
+    )
+    app = typer.Typer()
+    register_task_runtime_commands(app, tmp_path, Console(width=120))
+    runner = CliRunner()
+    created = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "--project",
+            "Demo",
+            "--task-id",
+            "pilot",
+            "--title",
+            "Pilot",
+            "--goal",
+            "Create one governed narrative pilot.",
+            "--idempotency-key",
+            "create-pilot",
+        ],
+    )
+    materialized = runner.invoke(
+        app,
+        [
+            "work-item",
+            "materialize-collaboration",
+            "--project",
+            "Demo",
+            "--task-id",
+            "pilot",
+            "--domain",
+            "narrative",
+            "--idempotency-prefix",
+            "pilot-dag",
+        ],
+    )
+
+    assert created.exit_code == 0, created.output
+    assert materialized.exit_code == 0, materialized.output
+    assert "mystery-check" in materialized.output
+    assert "style-check" in materialized.output
+    assert "canonical_snapshot_id" in materialized.output
 
 
 def test_task_cli_previews_and_records_strict_input_tier(tmp_path: Path) -> None:

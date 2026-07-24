@@ -6,6 +6,13 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from agent_runtime.project_agents import (
+    AgentLifecycle,
+    AgentManifest,
+    ProjectAgentRegistry,
+    effective_contract_hash,
+)
+from agent_runtime.project_truth import ProjectTruthStore
 from agent_runtime.task_runtime_v2 import InvalidTransition, RoleAttemptExecutor, TaskRuntime
 
 
@@ -272,3 +279,159 @@ def test_role_executor_resolves_the_cli_runtime_provider_from_catalog() -> None:
 
     assert provider == "deepseek"
     assert profile["_resolved_model_id"] == "deepseek-v4-pro"
+
+
+def test_bound_agent_model_profile_selects_runtime_tier_and_replacement(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "config"
+    config.mkdir()
+    (config / "agent_model_profiles.yml").write_text(
+        yaml.safe_dump(
+            {
+                "tier_policy": {
+                    "default_tier": "performance",
+                    "tiers": {
+                        "full": {"budget_aliases": ["max_quality", "full"]},
+                        "performance": {
+                            "budget_aliases": ["balanced", "performance"]
+                        },
+                    },
+                },
+                "modes": {
+                    "full_cli": {
+                        "tiers": {
+                            "full": {
+                                "writer": {
+                                    "executor_type": "cli_agent",
+                                    "cli_agent": "claude_code",
+                                    "invocation_contract": "writer-full",
+                                    "default": "writer-full-model",
+                                }
+                            },
+                            "performance": {
+                                "writer": {
+                                    "executor_type": "cli_agent",
+                                    "cli_agent": "claude_code",
+                                    "invocation_contract": "writer-balanced",
+                                    "default": "writer-balanced-model",
+                                }
+                            },
+                        }
+                    }
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config / "model_catalog.yml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "writer-full-model": {
+                        "runtime_provider": "deepseek",
+                        "model_id": "deepseek-v4-pro",
+                    },
+                    "writer-balanced-model": {
+                        "runtime_provider": "deepseek",
+                        "model_id": "deepseek-v4-flash",
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    project_root = tmp_path / "projects" / "Demo"
+    project_root.mkdir(parents=True)
+    (project_root / "project.yml").write_text(
+        yaml.safe_dump(
+            {
+                "project_id": "Demo",
+                "features": {
+                    "project_truth_mode": "enforced",
+                    "enable_project_agents": True,
+                },
+                "workspace": {"isolation": "required"},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project_root)
+    initial = truth.initialize("Demo")
+    registry = ProjectAgentRegistry(truth)
+    manifest = AgentManifest(
+        id="writer",
+        name="Writer Agent",
+        version="1.0.0",
+        role="writer",
+        description="Write governed project artifacts.",
+        responsibilities=("Write the assigned artifact.",),
+        runtime_role="Writer",
+        read_scope=("narrative.*",),
+        write_scope=("manuscript.*",),
+        approval_scope=(),
+        knowledge_binding={"namespace": "agent.Demo.writer"},
+        model_profile="high_reasoning",
+        tool_permission=("knowledge.read",),
+        budget_profile="standard",
+        status="active",
+        acceptance_rules=("artifact_is_complete",),
+    )
+    registry.register(
+        manifest,
+        expected_snapshot_id=initial.current_snapshot_id,
+        actor_id="user",
+        source="user",
+        approved=True,
+    )
+    current = truth.current()
+    bound_work_item = {
+        "assigned_agent_id": "writer",
+        "agent_manifest_revision": 1,
+        "canonical_snapshot_id": current.snapshot_id,
+        "effective_contract_hash": effective_contract_hash(registry.get("writer")),
+    }
+    executor = RoleAttemptExecutor(tmp_path, project="Demo", cli_runner=lambda: None)
+
+    profile, provider, model_profile = executor._resolve_bound_profile(
+        "Writer",
+        bound_work_item,
+    )
+
+    assert provider == "deepseek"
+    assert model_profile == "high_reasoning"
+    assert profile["_resolved_tier"] == "full"
+    assert profile["_resolved_budget_mode"] == "max_quality"
+    assert profile["_resolved_model_id"] == "deepseek-v4-pro"
+    with pytest.raises(InvalidTransition, match="unknown Agent model profile"):
+        executor._resolve_profile("Writer", model_profile="unregistered-tier")
+
+    replaced = AgentLifecycle(registry).replace(
+        "writer",
+        model_profile="balanced",
+        expected_snapshot_id=current.snapshot_id,
+        actor_id="user",
+    )
+    updated = registry.get("writer")
+    replacement_binding = {
+        "assigned_agent_id": "writer",
+        "agent_manifest_revision": updated.manifest_revision,
+        "canonical_snapshot_id": replaced.snapshot_id,
+        "effective_contract_hash": effective_contract_hash(updated),
+    }
+
+    profile, provider, model_profile = executor._resolve_bound_profile(
+        "Writer",
+        replacement_binding,
+    )
+
+    assert provider == "deepseek"
+    assert model_profile == "balanced"
+    assert profile["_resolved_tier"] == "performance"
+    assert profile["_resolved_budget_mode"] == "balanced"
+    assert profile["_resolved_model_id"] == "deepseek-v4-flash"
+    with pytest.raises(ValueError, match="canonical snapshot binding is stale"):
+        executor._resolve_bound_profile("Writer", bound_work_item)

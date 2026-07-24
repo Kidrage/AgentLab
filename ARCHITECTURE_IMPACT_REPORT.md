@@ -29,7 +29,7 @@ and pipelines remain on the legacy path until explicitly enabled.
 | Concern | Current authority | M3 treatment |
 |---|---|---|
 | Stable role contracts | `config/agent_registry.yml` | Unchanged; project agents bind through `runtime_role` |
-| Model and worker selection | model profiles, worker contracts, capacity config | Unchanged; manifests store references only |
+| Model and worker selection | model profiles, worker contracts, capacity config | Existing authority remains; a manifest's `model_profile` selects a configured tier |
 | Workflow and lifecycle | fixed pipeline and Background Job Controller | Unchanged when project agents are disabled |
 | Runtime evidence | Task Runtime v2 events, ArtifactVersion, EvidenceBinding | Reused by canonical commit receipts |
 | Project deliverables | `production/` plus `project_artifact_index.yml` | Becomes a projection of Project Truth |
@@ -87,8 +87,12 @@ manifests.
 8. Project agents can propose changes but cannot directly write canonical
    projections.
 9. Every dynamic project agent is registered; no implicit project agents exist.
-10. AgentLab source writes and project-production writes use separate
-    workspaces and leases.
+10. AgentLab source writes and project-production writes use logically
+    isolated, symlink-safe workspaces and separate leases.
+
+M3 enforces the logical workspace boundary needed by Project Agents. Moving all
+runtime project roots physically outside the AgentLab source checkout is the
+accepted M3.1 follow-up and is not claimed as complete here.
 
 ## Storage and Compatibility
 
@@ -170,7 +174,17 @@ Project-enabled WorkItems add:
 The assigned project agent resolves to an existing `runtime_role`. The existing
 RoleAttemptExecutor remains responsible for worker execution. Expert
 consultations are ordinary WorkItems and produce snapshot-bound advisory
-artifacts.
+artifacts. `ExpertCollaborationScheduler` materializes the registered,
+topologically validated expert DAG as Runtime v2 WorkItems. At execution time
+the RoleAttemptExecutor revalidates the current snapshot, manifest revision,
+active status, runtime role, and effective contract hash. The Agent manifest's
+`model_profile` then selects the configured full, performance, or low model
+tier; an unknown profile fails closed.
+
+Runtime v2 is therefore an explicit prerequisite of the executable Project
+Agent path in this integration. It remains independently disabled for legacy
+projects, so the existing Worker Pipeline and Background Job Controller keep
+their prior behavior.
 
 ## Migration
 
@@ -193,6 +207,9 @@ simulations remain history or evidence only.
 - Before pointer switch: discard staged immutable objects.
 - After pointer switch: create a new generation pointing to the selected prior
   revisions; never rewrite history.
+- General content rollback excludes `agents.manifest.*`. Agent lifecycle,
+  authority, runtime role, and model profile change only through Registry and
+  Lifecycle operations, so rollback cannot resurrect or broaden an Agent.
 - Projection failure: mark the projection stale and block consumers while the
   canonical pointer remains recoverable.
 - Agent rollout failure: disable `enable_project_agents`; existing pipelines
@@ -208,5 +225,5 @@ Each implementation slice is committed separately. Before the next slice:
 4. GitHub CI is green.
 
 The final gate includes conflict injection, crash recovery, knowledge leakage,
-permission, lifecycle, workspace-isolation, backward-compatibility, and Crown
-migration tests.
+permission, lifecycle, logical workspace-isolation, backward-compatibility, and
+migration-planner tests. Crown itself is not migrated automatically.

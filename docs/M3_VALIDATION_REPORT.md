@@ -13,11 +13,12 @@ The validation used two new projects and did not migrate or mutate Crown of Ash.
 - Integration branch: `codex/m3-main-validation`
 - Integration commit: `c88ecd4`
 - Narrative specialist commit: `4eb6682`
-- Recovery fix commit: `70af9c6`
+- Recovery hardening and executable collaboration: pending final commit
 - Pull request: `#12`
 - Focused pre-merge compatibility suite: `131 passed`
 - Initial merged full suite: `3310 passed, 20 skipped`
-- Post-validation full suite: `3314 passed, 20 skipped`
+- Post-validation full suite before final hardening: `3314 passed, 20 skipped`
+- Final full suite: `3318 passed, 20 skipped`
 - Integration push and pull-request CI through recovery commit: passed
 
 The focused suite covered Project Agents, Canonical Project Truth, Runtime v2,
@@ -46,8 +47,9 @@ Validated behavior:
 - Coder pause and resume created manifest revisions 2 and 3.
 - Rollback created a new canonical snapshot without rewinding history.
 - Repeating the same rollback returned the same receipt.
-- Rollback restored old content while advancing Coder manifest revision from
-  3 to 4, preserving lifecycle monotonicity.
+- Rollback restored old content while preserving the current Coder lifecycle
+  and authority manifest. General rollback cannot reactivate or broaden an
+  Agent.
 - The final truth audit passed.
 
 Current snapshot at validation time:
@@ -77,6 +79,13 @@ narrative request explicitly asks for mystery/suspense or style/adult sensory
 aesthetics. The collaboration DAG places both specialists before Writer.
 Checker remains after Writer, and Reviewer remains responsible for overall
 quality after Checker.
+
+The approved collaboration DAG is executable infrastructure, not only a plan:
+the scheduler materializes every expert step as a dependency-linked Runtime v2
+WorkItem bound to the current snapshot, manifest revision, and effective
+contract hash. Factory roles map Writer, Coder, Verifier, and Reviewer duties
+to their actual Runtime roles. Agent `model_profile` replacement changes the
+subsequent configured model tier.
 
 Validated behavior:
 
@@ -133,3 +142,13 @@ Its `CANONICAL_BINDING.yml` binds:
   excluded from the source commit.
 - Full source/runtime physical separation remains the M3.1 follow-up; this
   report does not claim that repository-wide path decoupling is complete.
+- M3's `workspace.isolation: required` gate provides the current logical,
+  symlink-safe boundary and governed-write enforcement.
+
+## Integration scope
+
+The Project Agent execution path intentionally builds on Runtime v2 WorkItems,
+snapshot bindings, and execution receipts already present in the integration
+branch. Runtime v2 is a prerequisite for this path, not a replacement for the
+legacy Worker Pipeline. With Project Agents disabled, legacy dispatch remains
+unchanged.

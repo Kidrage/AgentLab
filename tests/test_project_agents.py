@@ -259,4 +259,21 @@ def test_factory_adds_prompt_requested_narrative_specialists() -> None:
     assert {"mystery_keeper", "style_guardian"} <= set(by_id)
     assert by_id["mystery_keeper"].write_scope == ("mystery.*",)
     assert by_id["style_guardian"].write_scope == ("style.*",)
+    assert by_id["writer"].runtime_role == "Writer"
+    assert by_id["checker"].runtime_role == "Verifier"
+    assert by_id["reviewer"].runtime_role == "Reviewer"
     assert "prompt-requested specialists" in proposal.rationale
+
+
+def test_factory_maps_software_producers_to_executable_runtime_roles() -> None:
+    proposal = ProjectAgentFactory().propose(
+        "Build a secure web service with tests",
+        project_id="software",
+    )
+    by_id = {manifest.id: manifest for manifest in proposal.manifests}
+
+    assert by_id["architecture"].runtime_role == "Researcher"
+    assert by_id["coder"].runtime_role == "Coder"
+    assert by_id["test"].runtime_role == "Verifier"
+    assert by_id["security"].runtime_role == "Reviewer"
+    assert by_id["reviewer"].runtime_role == "Reviewer"

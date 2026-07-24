@@ -12,6 +12,8 @@ from agent_runtime.project_agents import (
     AgentManifest,
     AgentLifecycle,
     ExpertCollaborationPlanner,
+    ExpertCollaborationScheduler,
+    ProjectAgentFactory,
     ProjectAgentMemory,
     ProjectAgentRegistry,
     effective_contract_hash,
@@ -170,6 +172,82 @@ def test_narrative_collaboration_includes_registered_specialists_before_writer()
         "style-check",
     )
     assert by_id["reviewer"].depends_on == ("checker",)
+
+
+def test_collaboration_scheduler_materializes_snapshot_bound_runtime_work_items(
+    tmp_path: Path,
+) -> None:
+    init_project(tmp_path, "Demo", "narrative_project", "Demo")
+    project_root = tmp_path / "projects" / "Demo"
+    project = yaml.safe_load(
+        (project_root / "project.yml").read_text(encoding="utf-8")
+    )
+    project["features"] = {
+        "project_truth_mode": "enforced",
+        "enable_project_agents": True,
+    }
+    (project_root / "project.yml").write_text(
+        yaml.safe_dump(project, sort_keys=False),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project_root)
+    initial = truth.initialize("Demo")
+    registry = ProjectAgentRegistry(truth)
+    created = ProjectAgentFactory().create_team(
+        registry,
+        "成人黑暗幻想小说，需要谜团悬念控制与成熟感官美学",
+        expected_snapshot_id=initial.current_snapshot_id,
+        actor_id="user",
+        approved=True,
+    )
+    runtime = TaskRuntime(tmp_path, project="Demo")
+    runtime.create_task(
+        task_id="pilot",
+        title="Three chapter pilot",
+        user_goal="Produce a governed narrative pilot.",
+        idempotency_key="create-pilot",
+    )
+
+    projection = ExpertCollaborationScheduler().materialize(
+        runtime,
+        registry,
+        task_id="pilot",
+        domain="narrative",
+        idempotency_prefix="pilot-collaboration",
+    )
+    retried = ExpertCollaborationScheduler().materialize(
+        runtime,
+        registry,
+        task_id="pilot",
+        domain="narrative",
+        idempotency_prefix="pilot-collaboration",
+    )
+
+    writer = projection["work_items"]["writer"]
+    assert writer["depends_on"] == [
+        "world-check",
+        "character-check",
+        "timeline-check",
+        "foreshadow-check",
+        "mystery-check",
+        "style-check",
+    ]
+    assert projection["work_items"]["mystery-check"]["assigned_agent_id"] == (
+        "mystery_keeper"
+    )
+    assert projection["work_items"]["style-check"]["assigned_agent_id"] == (
+        "style_guardian"
+    )
+    assert {
+        item["canonical_snapshot_id"]
+        for item in projection["work_items"].values()
+    } == {created.snapshot_id}
+    assert all(
+        item["agent_manifest_revision"] == 1
+        and item["effective_contract_hash"]
+        for item in projection["work_items"].values()
+    )
+    assert retried == projection
 
 
 def test_enforced_truth_indexes_only_current_snapshot_as_project_authority(

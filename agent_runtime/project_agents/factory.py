@@ -75,6 +75,17 @@ _NARRATIVE_SPECIALISTS = (
     ),
 )
 
+_RUNTIME_ROLE_BY_PROJECT_ROLE = {
+    "artifact_producer": "ArtifactProducer",
+    "coder": "Coder",
+    "consistency_checker": "Verifier",
+    "listener_qa": "Reviewer",
+    "quality_reviewer": "Reviewer",
+    "security_reviewer": "Reviewer",
+    "test_engineer": "Verifier",
+    "writer": "Writer",
+}
+
 
 class ProjectAgentFactory:
     """Select a trusted generic team template without invoking a model."""
@@ -178,7 +189,10 @@ class ProjectAgentFactory:
             role=role,
             description=f"Project-scoped {role.replace('_', ' ')}.",
             responsibilities=(f"Own {role.replace('_', ' ')} decisions.",),
-            runtime_role="Reviewer" if reviewer else "Researcher",
+            runtime_role=_RUNTIME_ROLE_BY_PROJECT_ROLE.get(
+                role,
+                "Researcher",
+            ),
             read_scope=("*",),
             write_scope=write_scope,
             approval_scope=() if reviewer else write_scope,

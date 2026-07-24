@@ -231,6 +231,44 @@ def register_task_runtime_commands(
             )["work_items"][work_item_id]
         )
 
+    @work_app.command("materialize-collaboration")
+    def work_materialize_collaboration(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        domain: str = typer.Option(..., "--domain"),
+        job_id: str = typer.Option("job-main", "--job-id"),
+        idempotency_prefix: str = typer.Option(
+            ...,
+            "--idempotency-prefix",
+        ),
+    ) -> None:
+        """Compile the registered Project Agent DAG into Runtime v2 WorkItems."""
+
+        from agent_runtime.project_agents import (
+            ExpertCollaborationScheduler,
+            ProjectAgentRegistry,
+        )
+        from agent_runtime.project_truth import ProjectTruthStore
+
+        task_runtime = runtime(project)
+        project_root = current_root() / "projects" / task_runtime.project
+        registry = ProjectAgentRegistry(ProjectTruthStore(project_root))
+        projection = ExpertCollaborationScheduler().materialize(
+            task_runtime,
+            registry,
+            task_id=task_id,
+            domain=domain,
+            job_id=job_id,
+            idempotency_prefix=idempotency_prefix,
+        )
+        emit(
+            {
+                "project": project,
+                "task_id": task_id,
+                "work_items": projection["work_items"],
+            }
+        )
+
     @work_app.command("status")
     def work_status(
         project: str = typer.Option(..., "--project"),

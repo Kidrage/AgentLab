@@ -20,6 +20,7 @@ from .registry import (
     AgentRegistryError,
     ProjectAgentRegistry,
 )
+from .scheduling import ExpertCollaborationScheduler
 
 __all__ = [
     "AgentContract",
@@ -32,6 +33,7 @@ __all__ = [
     "CollaborationNode",
     "CollaborationPlan",
     "ExpertCollaborationPlanner",
+    "ExpertCollaborationScheduler",
     "ProjectAgentFactory",
     "ProjectAgentMemory",
     "ProjectAgentRegistry",

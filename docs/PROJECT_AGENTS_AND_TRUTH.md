@@ -90,7 +90,10 @@ Do not create `final_v2`, `latest_new`, or parallel "current" files to express a
 revision. The semantic key is the identity; history is automatic.
 
 Rollback also creates a new audited generation; it never moves the pointer
-backward or deletes history:
+backward or deletes history. General truth rollback deliberately preserves all
+current `agents.manifest.*` resources. Agent status, authority, runtime role,
+and model profile may change only through Registry/Lifecycle operations, so
+content recovery cannot reactivate or broaden an old Agent:
 
 ```bash
 ./agentlab.sh rollback-project-truth \
@@ -134,6 +137,9 @@ Runtime v2 binds every enabled WorkItem to:
 - `effective_contract_hash`.
 
 Paused, archived, missing, stale, or contract-mismatched Agents fail closed.
+The bound manifest's `model_profile` selects the configured full, performance,
+or low Runtime model tier. Replacing an Agent therefore changes subsequent
+snapshot-bound execution, while an unknown profile fails closed.
 Canonical truth independently enforces the active manifest's write scope, so a
 caller cannot bypass the contract by writing directly to the truth store.
 `actor_id` is audit metadata assigned by the trusted AgentLab controller; it
@@ -160,6 +166,24 @@ Reusable collaboration DAGs are available for narrative, software, audio, and
 generic production. Domain experts prevent local errors before production;
 Reviewer remains responsible for overall quality instead of impersonating every
 expert role.
+
+Materialize an approved DAG as ordinary, dependency-linked Runtime v2 WorkItems:
+
+```bash
+./agentlab.sh work-item materialize-collaboration \
+  --project MyProject \
+  --task-id task-001 \
+  --domain narrative \
+  --idempotency-prefix task-001-experts
+```
+
+Each generated WorkItem is bound to the current canonical snapshot, Agent
+manifest revision, and effective contract hash. The command validates the full
+DAG before writing any WorkItem.
+
+`workspace.isolation: required` currently means a logical, symlink-safe project
+boundary with governed writes and leases. Moving runtime project roots
+physically outside the AgentLab source checkout is tracked separately for M3.1.
 
 ## Legacy migration
 

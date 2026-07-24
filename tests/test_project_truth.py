@@ -421,7 +421,7 @@ def test_rollback_restores_prior_truth_as_a_new_auditable_snapshot(
     assert current.generation == 3
 
 
-def test_rollback_restores_agent_state_with_monotonic_manifest_revision(
+def test_rollback_preserves_current_agent_lifecycle_and_authority(
     tmp_path: Path,
 ) -> None:
     store = _store(tmp_path)
@@ -469,34 +469,30 @@ def test_rollback_restores_agent_state_with_monotonic_manifest_revision(
             ),
         )
     )
-    paused = manifest.evolve(status="paused")
-    paused_receipt = store.commit(
+    archived = manifest.evolve(
+        status="archived",
+        write_scope=("character.private.*",),
+    )
+    archived_receipt = store.commit(
         ChangeSet(
             project_id="dark_fantasy_rpg",
             expected_snapshot_id=registered.snapshot_id,
             actor_id="user",
-            idempotency_key="pause-character-for-rollback",
+            idempotency_key="archive-character-for-rollback",
             resources=(
                 ResourceChange(
                     key="agents.manifest.character",
-                    content=paused.to_dict(),
+                    content=archived.to_dict(),
                 ),
             ),
         )
     )
-    resumed = paused.evolve(status="active")
     changed = store.commit(
         ChangeSet(
             project_id="dark_fantasy_rpg",
-            expected_snapshot_id=paused_receipt.snapshot_id,
+            expected_snapshot_id=archived_receipt.snapshot_id,
             actor_id="user",
-            idempotency_key="resume-and-change-character",
-            resources=(
-                ResourceChange(
-                    key="agents.manifest.character",
-                    content=resumed.to_dict(),
-                ),
-            ),
+            idempotency_key="change-character-after-archive",
             facts=(
                 FactChange(
                     key="character.aria.state",
@@ -521,17 +517,18 @@ def test_rollback_restores_agent_state_with_monotonic_manifest_revision(
     )
 
     current = store.current()
-    restored_manifest = AgentManifest.from_dict(
+    preserved_manifest = AgentManifest.from_dict(
         current.resources["agents.manifest.character"].content
     )
     assert retried == restored
-    assert restored_manifest.status == "active"
-    assert restored_manifest.manifest_revision == 4
+    assert preserved_manifest.status == "archived"
+    assert preserved_manifest.write_scope == ("character.private.*",)
+    assert preserved_manifest.manifest_revision == 2
     assert current.facts["character.aria.state"].value == "baseline"
     assert store.audit()["status"] == "pass"
 
 
-def test_rollback_before_agent_creation_archives_instead_of_removing_manifest(
+def test_rollback_before_agent_creation_preserves_current_manifest(
     tmp_path: Path,
 ) -> None:
     store = _store(tmp_path)
@@ -573,15 +570,19 @@ def test_rollback_before_agent_creation_archives_instead_of_removing_manifest(
         )
     )
 
-    store.rollback(
-        initial.current_snapshot_id,
-        expected_snapshot_id=registered.snapshot_id,
-        actor_id="user",
-        idempotency_key="rollback-before-agent-creation",
-    )
+    with pytest.raises(
+        ProjectTruthValidationError,
+        match="already matches current truth",
+    ):
+        store.rollback(
+            initial.current_snapshot_id,
+            expected_snapshot_id=registered.snapshot_id,
+            actor_id="user",
+            idempotency_key="rollback-before-agent-creation",
+        )
 
-    archived = AgentManifest.from_dict(
+    preserved = AgentManifest.from_dict(
         store.current().resources["agents.manifest.character"].content
     )
-    assert archived.status == "archived"
-    assert archived.manifest_revision == 2
+    assert preserved.status == "active"
+    assert preserved.manifest_revision == 1

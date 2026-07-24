@@ -389,29 +389,14 @@ class ProjectTruthStore:
         target = self._load_snapshot(snapshot_id)
         resources: list[ResourceChange] = []
         for key, revision in target.resources.items():
+            if key.startswith("agents.manifest."):
+                continue
             if current.resources.get(key) == revision:
                 continue
-            content = revision.content
-            if (
-                key.startswith("agents.manifest.")
-                and key in current.resources
-            ):
-                from dataclasses import replace
-
-                from agent_runtime.project_agents.models import AgentManifest
-
-                target_manifest = AgentManifest.from_dict(content)
-                current_manifest = AgentManifest.from_dict(
-                    current.resources[key].content
-                )
-                content = replace(
-                    target_manifest,
-                    manifest_revision=current_manifest.manifest_revision + 1,
-                ).to_dict()
             resources.append(
                 ResourceChange(
                     key=key,
-                    content=content,
+                    content=revision.content,
                     media_type=revision.media_type,
                 )
             )
@@ -427,21 +412,6 @@ class ProjectTruthStore:
         remove_resource_keys: list[str] = []
         for key in sorted(set(current.resources) - set(target.resources)):
             if key.startswith("agents.manifest."):
-                from agent_runtime.project_agents.models import AgentManifest
-
-                current_manifest = AgentManifest.from_dict(
-                    current.resources[key].content
-                )
-                if current_manifest.status != "archived":
-                    resources.append(
-                        ResourceChange(
-                            key=key,
-                            content=current_manifest.evolve(
-                                status="archived"
-                            ).to_dict(),
-                            media_type=current.resources[key].media_type,
-                        )
-                    )
                 continue
             remove_resource_keys.append(key)
         remove_fact_keys = tuple(sorted(set(current.facts) - set(target.facts)))
