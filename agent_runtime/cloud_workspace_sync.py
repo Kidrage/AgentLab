@@ -1132,11 +1132,24 @@ def activate_launch_agent(
         runner=runner,
         timeout=30,
     )
-    _run_checked(
+    kickstart = runner(
         ["launchctl", "kickstart", "-k", f"{domain}/{label}"],
-        runner=runner,
-        timeout=30,
+        text=True,
+        capture_output=True,
+        check=False,
     )
+    if kickstart.returncode != 0:
+        loaded = runner(
+            ["launchctl", "print", f"{domain}/{label}"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if loaded.returncode != 0 or "state = running" not in loaded.stdout:
+            raise SyncError(
+                kickstart.stderr.strip()
+                or f"failed to start launch agent: {label}"
+            )
 
 
 def _root_from_script() -> Path:

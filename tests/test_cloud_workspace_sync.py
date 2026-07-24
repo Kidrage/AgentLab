@@ -234,6 +234,28 @@ def test_activate_launch_agent_bootstraps_and_kickstarts(tmp_path: Path) -> None
     assert calls[2][:3] == ["launchctl", "kickstart", "-k"]
 
 
+def test_activate_launch_agent_accepts_runatload_when_kickstart_is_denied(
+    tmp_path: Path,
+) -> None:
+    responses = [
+        (1, "", ""),
+        (0, "", ""),
+        (1, "", "Operation not permitted"),
+        (0, "state = running", ""),
+    ]
+
+    def runner(_command: list[str], **_kwargs: object) -> object:
+        returncode, stdout, stderr = responses.pop(0)
+        return type(
+            "Result",
+            (),
+            {"returncode": returncode, "stdout": stdout, "stderr": stderr},
+        )()
+
+    cws.activate_launch_agent(tmp_path / "sync.plist", runner=runner)
+    assert responses == []
+
+
 def test_code_only_deploy_rebuilds_remote_agentlab_knowledge(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
