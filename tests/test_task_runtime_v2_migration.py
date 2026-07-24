@@ -38,7 +38,7 @@ def test_legacy_migration_is_hash_gated_idempotent_and_non_destructive(
     assert plan["source_count"] == 1
     assert plan["sources"][0]["state_sha256"] == original_hash
     assert not (tmp_path / "projects" / "Demo" / "runtime" / "tasks").exists()
-    assert migrator.runtime.list_tasks() == [
+    assert migrator.runtime.list_tasks(include_legacy=True) == [
         {
             "task_id": "task-old",
             "status": "completed",
@@ -55,7 +55,7 @@ def test_legacy_migration_is_hash_gated_idempotent_and_non_destructive(
     projection = migrator.runtime.load_task("task-old")
     assert projection["task"]["status"] == "completed"
     assert projection["task"]["legacy_source"]["state_sha256"] == original_hash
-    listed = migrator.runtime.list_tasks()
+    listed = migrator.runtime.list_tasks(include_legacy=True)
     assert len(listed) == 1
     assert listed[0]["storage"] == "v2"
     assert state_path.is_file()

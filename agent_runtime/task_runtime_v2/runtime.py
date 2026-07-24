@@ -341,7 +341,7 @@ class TaskRuntime:
         )
         return index
 
-    def list_tasks(self, *, include_legacy: bool = True) -> list[dict[str, Any]]:
+    def list_tasks(self, *, include_legacy: bool = False) -> list[dict[str, Any]]:
         """Dual-read task catalog; v2 wins and all writes still target v2 only."""
 
         entries: dict[str, dict[str, Any]] = {}

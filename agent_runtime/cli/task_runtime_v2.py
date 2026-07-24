@@ -134,8 +134,13 @@ def register_task_runtime_commands(
         emit(runtime(project).load_task(task_id))
 
     @task_app.command("list")
-    def task_list(project: str = typer.Option(..., "--project")) -> None:
-        emit({"project": project, "tasks": runtime(project).list_tasks()})
+    def task_list(
+        project: str = typer.Option(..., "--project"),
+        include_legacy: bool = typer.Option(
+            False, "--include-legacy", help="Include legacy runs/task_id entries"
+        ),
+    ) -> None:
+        emit({"project": project, "tasks": runtime(project).list_tasks(include_legacy=include_legacy)})
 
     def task_transition(
         project: str, task_id: str, status: str, idempotency_key: str
