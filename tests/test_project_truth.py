@@ -419,3 +419,169 @@ def test_rollback_restores_prior_truth_as_a_new_auditable_snapshot(
     assert current.facts["novel.total_word_count"].value == 120_000
     assert "novel.temporary_note" not in current.facts
     assert current.generation == 3
+
+
+def test_rollback_restores_agent_state_with_monotonic_manifest_revision(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    initial = store.initialize("dark_fantasy_rpg")
+    manifest = AgentManifest(
+        id="character",
+        name="Character Agent",
+        version="1.0.0",
+        role="character_architect",
+        description="Maintain character state.",
+        responsibilities=("Maintain characters.",),
+        runtime_role="Researcher",
+        read_scope=("character.*",),
+        write_scope=("character.*",),
+        approval_scope=(),
+        knowledge_binding={
+            "namespace": "agent.dark_fantasy_rpg.character",
+            "documents": (),
+            "artifacts": (),
+        },
+        model_profile="balanced",
+        tool_permission=("knowledge.read",),
+        budget_profile="standard",
+        status="active",
+        acceptance_rules=("character_consistent",),
+    )
+    registered = store.commit(
+        ChangeSet(
+            project_id="dark_fantasy_rpg",
+            expected_snapshot_id=initial.current_snapshot_id,
+            actor_id="user",
+            idempotency_key="register-character-for-rollback",
+            resources=(
+                ResourceChange(
+                    key="agents.manifest.character",
+                    content=manifest.to_dict(),
+                ),
+            ),
+            facts=(
+                FactChange(
+                    key="character.aria.state",
+                    value="baseline",
+                    owner="agent.character",
+                ),
+            ),
+        )
+    )
+    paused = manifest.evolve(status="paused")
+    paused_receipt = store.commit(
+        ChangeSet(
+            project_id="dark_fantasy_rpg",
+            expected_snapshot_id=registered.snapshot_id,
+            actor_id="user",
+            idempotency_key="pause-character-for-rollback",
+            resources=(
+                ResourceChange(
+                    key="agents.manifest.character",
+                    content=paused.to_dict(),
+                ),
+            ),
+        )
+    )
+    resumed = paused.evolve(status="active")
+    changed = store.commit(
+        ChangeSet(
+            project_id="dark_fantasy_rpg",
+            expected_snapshot_id=paused_receipt.snapshot_id,
+            actor_id="user",
+            idempotency_key="resume-and-change-character",
+            resources=(
+                ResourceChange(
+                    key="agents.manifest.character",
+                    content=resumed.to_dict(),
+                ),
+            ),
+            facts=(
+                FactChange(
+                    key="character.aria.state",
+                    value="changed",
+                    owner="agent.character",
+                ),
+            ),
+        )
+    )
+
+    restored = store.rollback(
+        registered.snapshot_id,
+        expected_snapshot_id=changed.snapshot_id,
+        actor_id="user",
+        idempotency_key="restore-agent-baseline",
+    )
+    retried = store.rollback(
+        registered.snapshot_id,
+        expected_snapshot_id=restored.snapshot_id,
+        actor_id="user",
+        idempotency_key="restore-agent-baseline",
+    )
+
+    current = store.current()
+    restored_manifest = AgentManifest.from_dict(
+        current.resources["agents.manifest.character"].content
+    )
+    assert retried == restored
+    assert restored_manifest.status == "active"
+    assert restored_manifest.manifest_revision == 4
+    assert current.facts["character.aria.state"].value == "baseline"
+    assert store.audit()["status"] == "pass"
+
+
+def test_rollback_before_agent_creation_archives_instead_of_removing_manifest(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    initial = store.initialize("dark_fantasy_rpg")
+    manifest = AgentManifest(
+        id="character",
+        name="Character Agent",
+        version="1.0.0",
+        role="character_architect",
+        description="Maintain character state.",
+        responsibilities=("Maintain characters.",),
+        runtime_role="Researcher",
+        read_scope=("character.*",),
+        write_scope=("character.*",),
+        approval_scope=(),
+        knowledge_binding={
+            "namespace": "agent.dark_fantasy_rpg.character",
+            "documents": (),
+            "artifacts": (),
+        },
+        model_profile="balanced",
+        tool_permission=("knowledge.read",),
+        budget_profile="standard",
+        status="active",
+        acceptance_rules=("character_consistent",),
+    )
+    registered = store.commit(
+        ChangeSet(
+            project_id="dark_fantasy_rpg",
+            expected_snapshot_id=initial.current_snapshot_id,
+            actor_id="user",
+            idempotency_key="register-character-before-rollback",
+            resources=(
+                ResourceChange(
+                    key="agents.manifest.character",
+                    content=manifest.to_dict(),
+                ),
+            ),
+        )
+    )
+
+    store.rollback(
+        initial.current_snapshot_id,
+        expected_snapshot_id=registered.snapshot_id,
+        actor_id="user",
+        idempotency_key="rollback-before-agent-creation",
+    )
+
+    archived = AgentManifest.from_dict(
+        store.current().resources["agents.manifest.character"].content
+    )
+    assert archived.status == "archived"
+    assert archived.manifest_revision == 2

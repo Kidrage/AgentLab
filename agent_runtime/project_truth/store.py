@@ -387,15 +387,34 @@ class ProjectTruthStore:
         if not self._snapshot_in_chain(current.snapshot_id, snapshot_id):
             raise ProjectTruthConflict("rollback target is not canonical history")
         target = self._load_snapshot(snapshot_id)
-        resources = tuple(
-            ResourceChange(
-                key=key,
-                content=revision.content,
-                media_type=revision.media_type,
+        resources: list[ResourceChange] = []
+        for key, revision in target.resources.items():
+            if current.resources.get(key) == revision:
+                continue
+            content = revision.content
+            if (
+                key.startswith("agents.manifest.")
+                and key in current.resources
+            ):
+                from dataclasses import replace
+
+                from agent_runtime.project_agents.models import AgentManifest
+
+                target_manifest = AgentManifest.from_dict(content)
+                current_manifest = AgentManifest.from_dict(
+                    current.resources[key].content
+                )
+                content = replace(
+                    target_manifest,
+                    manifest_revision=current_manifest.manifest_revision + 1,
+                ).to_dict()
+            resources.append(
+                ResourceChange(
+                    key=key,
+                    content=content,
+                    media_type=revision.media_type,
+                )
             )
-            for key, revision in target.resources.items()
-            if current.resources.get(key) != revision
-        )
         facts = tuple(
             FactChange(
                 key=key,
@@ -405,9 +424,26 @@ class ProjectTruthStore:
             for key, revision in target.facts.items()
             if current.facts.get(key) != revision
         )
-        remove_resource_keys = tuple(
-            sorted(set(current.resources) - set(target.resources))
-        )
+        remove_resource_keys: list[str] = []
+        for key in sorted(set(current.resources) - set(target.resources)):
+            if key.startswith("agents.manifest."):
+                from agent_runtime.project_agents.models import AgentManifest
+
+                current_manifest = AgentManifest.from_dict(
+                    current.resources[key].content
+                )
+                if current_manifest.status != "archived":
+                    resources.append(
+                        ResourceChange(
+                            key=key,
+                            content=current_manifest.evolve(
+                                status="archived"
+                            ).to_dict(),
+                            media_type=current.resources[key].media_type,
+                        )
+                    )
+                continue
+            remove_resource_keys.append(key)
         remove_fact_keys = tuple(sorted(set(current.facts) - set(target.facts)))
         if not (
             resources or facts or remove_resource_keys or remove_fact_keys
@@ -422,9 +458,9 @@ class ProjectTruthStore:
                 actor_id=actor_id,
                 idempotency_key=effective_idempotency_key,
                 reason=reason or f"Restore canonical snapshot {snapshot_id}.",
-                resources=resources,
+                resources=tuple(resources),
                 facts=facts,
-                remove_resource_keys=remove_resource_keys,
+                remove_resource_keys=tuple(remove_resource_keys),
                 remove_fact_keys=remove_fact_keys,
             )
         )
