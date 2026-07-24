@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 import fcntl
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -53,6 +54,7 @@ ACTION_RUNNING_STATE = {
     "final_acceptance": "final_acceptance",
 }
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+_LOGGER = logging.getLogger(__name__)
 
 
 def _now(value: str | None = None) -> str:
@@ -86,6 +88,20 @@ def _runtime_subprocess_env(root: Path) -> dict[str, str]:
         entries.extend(existing.split(os.pathsep))
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(entry for entry in entries if entry))
+    proxy_bindings = sorted(
+        name
+        for name in ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "HTTP_PROXY", "http_proxy")
+        if str(env.get(name) or "").strip()
+    )
+    if proxy_bindings:
+        _LOGGER.debug(
+            "runtime_subprocess_env inherited proxy bindings: %s",
+            ", ".join(proxy_bindings),
+        )
+    else:
+        _LOGGER.debug(
+            "runtime_subprocess_env has no explicit proxy env binding; default child behavior applies"
+        )
     return env
 
 
