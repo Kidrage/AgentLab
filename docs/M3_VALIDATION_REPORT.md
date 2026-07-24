@@ -15,6 +15,7 @@ The validation used two new projects and did not migrate or mutate Crown of Ash.
 - Narrative specialist commit: `4eb6682`
 - Recovery hardening and executable collaboration: `1a0d7f0`
 - Atomic collaboration and final merge-gate fixes: `8253c20`
+- Immutable Attempt replay identity fix: `7b18382`
 - Pull request: `#12`
 - Focused pre-merge compatibility suite: `131 passed`
 - Initial merged full suite: `3310 passed, 20 skipped`
