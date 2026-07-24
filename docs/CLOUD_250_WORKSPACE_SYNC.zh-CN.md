@@ -5,6 +5,7 @@
 - GitHub `agentlab/unified-stable` 管理源码、配置、协议、测试和文档。
 - `projects/AgentLab` 与 `projects/Crown_of_Ash` 使用带哈希回执的单写者同步。
 - RAG 是派生数据：首次迁移复制现有索引，之后在项目同步完成后由目标端重建。
+  自动重建不重写项目内的封存快照，避免把派生回执误判为项目内容冲突。
 - CLI/OAuth 主目录、`.env`、`.agents/workspaces`、缓存和任务临时状态永不传输。
 - OpenClaw 仅是 Frontdesk；不允许承担 AgentLab Worker 角色。
 

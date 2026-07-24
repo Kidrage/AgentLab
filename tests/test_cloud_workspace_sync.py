@@ -323,6 +323,4 @@ def test_code_only_deploy_rebuilds_remote_agentlab_knowledge(
 
     cws.execute_plan(tmp_path, profile, plan, seed_rag=False)
 
-    assert calls == [
-        ["knowledge", "build", "--all-projects", "--seal-project-snapshot"]
-    ]
+    assert calls == [["knowledge", "build", "--all-projects"]]

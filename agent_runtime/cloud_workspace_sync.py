@@ -1028,7 +1028,7 @@ def execute_plan(
                 elif profile.rebuild_rag:
                     run_remote_agentlab(
                         profile,
-                        ["knowledge", "build", "--all-projects", "--seal-project-snapshot"],
+                        ["knowledge", "build", "--all-projects"],
                         runner=runner,
                     )
             elif action == "pull":
@@ -1042,7 +1042,7 @@ def execute_plan(
                 if profile.rebuild_rag:
                     run_local_agentlab(
                         root,
-                        ["knowledge", "build", "--all-projects", "--seal-project-snapshot"],
+                        ["knowledge", "build", "--all-projects"],
                         runner=runner,
                     )
             elif action != "synced":
@@ -1055,7 +1055,7 @@ def execute_plan(
             ):
                 run_remote_agentlab(
                     profile,
-                    ["knowledge", "build", "--all-projects", "--seal-project-snapshot"],
+                    ["knowledge", "build", "--all-projects"],
                     runner=runner,
                 )
             final_local = local_state(root, profile)
