@@ -122,6 +122,8 @@ def test_rsync_command_is_argv_and_dry_run_is_explicit() -> None:
     assert command == [
         "rsync",
         "-a",
+        "-e",
+        "ssh -o BatchMode=yes -o ConnectTimeout=15 -o ConnectionAttempts=1",
         "--delete",
         "--dry-run",
         "--exclude",

@@ -35,6 +35,15 @@ class SyncError(RuntimeError):
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 REMOTE_RE = re.compile(r"^[A-Za-z0-9_.@-]+$")
 BRANCH_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
+SSH_OPTIONS = (
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=15",
+    "-o",
+    "ConnectionAttempts=1",
+)
+RSYNC_SSH = "ssh -o BatchMode=yes -o ConnectTimeout=15 -o ConnectionAttempts=1"
 
 
 @dataclass(frozen=True)
@@ -327,7 +336,7 @@ def _remote_python(
 ) -> dict[str, Any]:
     prefix = "import json\nPAYLOAD = json.loads(" + repr(json.dumps(payload)) + ")\n"
     result = runner(
-        ["ssh", profile.remote, "python3", "-"],
+        ["ssh", *SSH_OPTIONS, profile.remote, "python3", "-"],
         input=prefix + body,
         text=True,
         capture_output=True,
@@ -606,7 +615,7 @@ def build_rsync_command(
     dry_run: bool = False,
     excludes: Sequence[str] = (),
 ) -> list[str]:
-    command = ["rsync", "-a"]
+    command = ["rsync", "-a", "-e", RSYNC_SSH]
     if delete:
         command.append("--delete")
     if dry_run:
