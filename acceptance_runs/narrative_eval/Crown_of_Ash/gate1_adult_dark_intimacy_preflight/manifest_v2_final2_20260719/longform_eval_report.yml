@@ -1,13 +1,26 @@
 schema_version: 1
-suite: crown_scale_probe_20260707
+suite: gate1_adult_dark_intimacy_preflight
 project: Crown_of_Ash
 mode: audit-only
-created_at: '2026-07-06T20:51:03.669820+00:00'
+resume_valid: false
+stop_on_block: false
+allow_writer_cli_fallback: false
+chapter_state_plan: candidates/gate1_legacy_integrated_ch25_ch27_20260719/chapter_state_plan_ch025_ch027.yml
+writer_budget_mode: balanced
+chapter_state_plan_validation:
+  schema_version: 1
+  status: pass
+  path: candidates/gate1_legacy_integrated_ch25_ch27_20260719/chapter_state_plan_ch025_ch027.yml
+  chapter_count: 3
+  selected_chapter_count: 3
+  issues: []
+model_capacity_governance: centralized
+created_at: '2026-07-19T12:44:05.819498+00:00'
 status: warn
-acceptance_run_dir: acceptance_runs/narrative_eval/Crown_of_Ash/crown_scale_probe_20260707/crown_scale_1500_20260707
+acceptance_run_dir: acceptance_runs/narrative_eval/Crown_of_Ash/gate1_adult_dark_intimacy_preflight/manifest_v2_final2_20260719
 production_modified: false
 baseline:
-  start_from_chapter: 1
+  start_from_chapter: 25
   old_chapters_deprecated: true
   old_chapters_used_as_continuity_source: false
 layers:
@@ -47,107 +60,18 @@ layers:
     - archive/legacy_roots/20260630/设定_rebuild
     - archive/reset_20260706_preserved/runs/task_crown_rebuild_blueprint
     - archive/reset_20260706_preserved/runs/task_crown_rebuild_ch01
+    - runs/task_crown_corrected_200_v3_shared/audits/ch001_ch020_candidate_fact_ledger_rebuild.yml
+    - runs/task_crown_corrected_200_v3_shared/audits/ch001_ch030_candidate_fact_ledger_rebuild.yml
+    - runs/task_crown_corrected_200_v3_shared/rebuild_candidate_fact_ledgers.py
     incomplete_historical_narrative_runs:
-    - task_id: task_crown_agentlab_write_ch01_10_20260706
+    - task_id: task_narrative_rewrite_plan_ch001_ch200_crown_complete_local_v2
       missing:
+      - chapter_packet.yml
       - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
       - state_transition_proposal.yml
       - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch01_10_20260706
-    - task_id: task_crown_agentlab_write_ch01_20260706
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch01_20260706
-    - task_id: task_crown_agentlab_write_ch01_20_20260706_ch01
-      missing:
-      - fiction_review.yml
-      path: runs/task_crown_agentlab_write_ch01_20_20260706_ch01
-    - task_id: task_crown_agentlab_write_ch01_20_20260706_ch02
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch01_20_20260706_ch02
-    - task_id: task_crown_agentlab_write_ch02_20260706
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch02_20260706
-    - task_id: task_crown_agentlab_write_ch03_20260706
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch03_20260706
-    - task_id: task_crown_agentlab_write_ch04_20260706
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch04_20260706
-    - task_id: task_crown_agentlab_write_ch05_20260706
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch05_20260706
-    - task_id: task_crown_agentlab_write_ch06_20260706
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch06_20260706
-    - task_id: task_crown_agentlab_write_ch07_20260706
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch07_20260706
-    - task_id: task_crown_agentlab_write_ch08_20260706
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch08_20260706
-    - task_id: task_crown_agentlab_write_ch09_20260706
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch09_20260706
-    - task_id: task_crown_agentlab_write_ch10_20260706
-      missing:
-      - fiction_draft.md
-      - fiction_review.yml
-      - continuity_ledger.yml
-      - state_transition_proposal.yml
-      - narrative_delivery_receipt.yml
-      path: runs/task_crown_agentlab_write_ch10_20260706
+      path: runs/task_narrative_rewrite_plan_ch001_ch200_crown_complete_local_v2
+    blocked_live_generation_runs: []
     policy: Historical manuscript and rebuild runs are audit evidence only during
       reset evaluation.
   L2_real_chapter_sample:
@@ -155,7 +79,7 @@ layers:
     reason: audit-only mode
     chapters: []
   L3_series_scale_simulation:
-    suite: crown_scale_probe_20260707
+    suite: gate1_adult_dark_intimacy_preflight
     chapter_count: 1500
     target_total_chapters: 1500
     status: pass
@@ -206,6 +130,7 @@ reports:
   continuity_failure_report: continuity_failure_report.yml
   series_scale_simulation: series_scale_simulation.yml
   manuscript_reset_proposal: manuscript_reset_proposal.yml
+  chapter_state_plan_validation: chapter_state_plan_validation.yml
 reset_proposal:
   schema_version: 1
   project: Crown_of_Ash

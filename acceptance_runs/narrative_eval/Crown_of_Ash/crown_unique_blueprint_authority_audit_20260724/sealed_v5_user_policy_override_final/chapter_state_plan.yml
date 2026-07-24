@@ -1,5 +1,5 @@
-chapter_count: 1500
-target_total_chapters: 1500
+chapter_count: 1980
+target_total_chapters: 1980
 simulation_scope: governance_ledger_only
 timeline_monotonic: true
 state_delta_every_chapter: true
@@ -7,13 +7,13 @@ sample_checkpoints:
 - chapter: 1
   plot: new baseline opens
   worldline: local threat appears
-- chapter: 500
+- chapter: 650
   plot: regional war cost peaks
   worldline: alliances fracture
-- chapter: 1000
+- chapter: 1310
   plot: hidden cause is exposed
   worldline: empire legitimacy collapses
-- chapter: 1500
+- chapter: 1980
   plot: primary arc resolves
   worldline: new order remains unstable
 governance_cadence:

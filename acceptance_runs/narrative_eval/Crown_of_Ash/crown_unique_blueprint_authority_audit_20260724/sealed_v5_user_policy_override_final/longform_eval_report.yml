@@ -1,0 +1,132 @@
+schema_version: 1
+suite: crown_unique_blueprint_authority_audit_20260724
+project: Crown_of_Ash
+mode: audit-only
+resume_valid: false
+stop_on_block: false
+allow_writer_cli_fallback: false
+writer_budget_mode: balanced
+writer_batch_authorization_required: false
+chapter_state_plan_validation:
+  schema_version: 1
+  status: skipped
+  chapter_count: 0
+  selected_chapter_count: 25
+  issues: []
+model_capacity_governance: centralized
+created_at: '2026-07-23T19:34:21.409716+00:00'
+status: warn
+acceptance_run_dir: acceptance_runs/narrative_eval/Crown_of_Ash/crown_unique_blueprint_authority_audit_20260724/sealed_v5_user_policy_override_final
+production_modified: false
+baseline:
+  start_from_chapter: 1
+  old_chapters_deprecated: true
+  old_chapters_used_as_continuity_source: false
+layers:
+  L0_fact_source_health:
+    status: pass
+    project: Crown_of_Ash
+    live_generation_blocked: false
+    required_sources:
+      artifact_index: project_artifact_index.yml
+      fact_snapshot: project_brain/project_fact_snapshot.yml
+      bible_refs: []
+      outline_refs: []
+      blueprint_refs:
+      - production/blueprint_authority.yml
+      - project_brain/blueprint_validation_receipt.yml
+      - project_brain/knowledge_index_snapshot.yml
+    deprecated_production_chapters: []
+    issues: []
+  L1_historical_audit:
+    status: warn
+    deprecated_production_chapters: []
+    legacy_rebuild_paths:
+    - archive/legacy_roots/20260630/archive_v1/reports/completion_report_rebuild.md
+    - archive/legacy_roots/20260630/蓝图_rebuild
+    - archive/legacy_roots/20260630/设定_rebuild
+    - archive/reset_20260706_preserved/runs/task_crown_rebuild_blueprint
+    - archive/reset_20260706_preserved/runs/task_crown_rebuild_ch01
+    - runs/task_crown_blueprint_rebuild_20260722
+    - runs/task_crown_blueprint_rebuild_20260722/outputs/crown_blueprint_rebuild_v1.yml
+    - runs/task_crown_corrected_200_v3_shared/audits/ch001_ch020_candidate_fact_ledger_rebuild.yml
+    - runs/task_crown_corrected_200_v3_shared/audits/ch001_ch030_candidate_fact_ledger_rebuild.yml
+    - runs/task_crown_corrected_200_v3_shared/rebuild_candidate_fact_ledgers.py
+    incomplete_historical_narrative_runs:
+    - task_id: task_narrative_rewrite_plan_ch001_ch200_crown_complete_local_v2
+      missing:
+      - chapter_packet.yml
+      - fiction_draft.md
+      - state_transition_proposal.yml
+      - narrative_delivery_receipt.yml
+      path: runs/task_narrative_rewrite_plan_ch001_ch200_crown_complete_local_v2
+    blocked_live_generation_runs: []
+    policy: Historical manuscript and rebuild runs are audit evidence only during
+      reset evaluation.
+  L2_real_chapter_sample:
+    status: skipped
+    reason: audit-only mode
+    chapters: []
+  L3_series_scale_simulation:
+    suite: crown_unique_blueprint_authority_audit_20260724
+    chapter_count: 1980
+    target_total_chapters: 1980
+    status: pass
+    simulation_scope: governance_ledger_only
+    text_generation:
+      draft_chapters_generated: 0
+      draft_text_generated: false
+      reason: L3 validates longform governance capacity; it does not generate manuscript
+        prose.
+    timeline_monotonic: true
+    foreshadowing_statuses_valid: true
+    character_arcs_have_phase_changes: true
+    worldline_has_phase_progression: true
+    governance_cadence:
+      chapter_ledger: every chapter
+      continuity_batch_audit: every 3 chapters
+      character_foreshadowing_timeline_audit: every 10 chapters
+      volume_heavy_audit: each part boundary
+      promotion_gate: before production promotion
+    memory_contract:
+      required_inputs:
+      - project_fact_snapshot.yml
+      - project_artifact_index.yml
+      - chapter_packet.yml
+      - previous continuity_ledger.yml
+      candidate_outputs:
+      - fiction_draft.md
+      - continuity_ledger.yml
+      - state_transition_proposal.yml
+      - narrative_delivery_receipt.yml
+      promotion_requires:
+      - accepted state_transition_proposal.yml
+      - updated fact events or fact snapshot proposal
+      - narrative-eval or narrative_heavy_audit pass
+    promotion_gates:
+    - accepted state_transition_proposal.yml
+    - updated fact events or fact snapshot proposal
+    - narrative-eval or narrative_heavy_audit pass
+    ledgers:
+      series_arc: series_arc_ledger.yml
+      chapter_state_plan: chapter_state_plan.yml
+      foreshadowing: foreshadowing_ledger.yml
+      character_arc: character_arc_ledger.yml
+      timeline_worldline: timeline_worldline_ledger.yml
+reports:
+  longform_eval_report: longform_eval_report.yml
+  chapter_quality_matrix: chapter_quality_matrix.yml
+  continuity_failure_report: continuity_failure_report.yml
+  series_scale_simulation: series_scale_simulation.yml
+  manuscript_reset_proposal: manuscript_reset_proposal.yml
+  chapter_state_plan_validation: chapter_state_plan_validation.yml
+reset_proposal:
+  schema_version: 1
+  project: Crown_of_Ash
+  status: pending_user_confirmation
+  action: start_new_manuscript_baseline
+  production_modified: false
+  deprecated_sources: []
+  replacement_source: acceptance candidate chapters generated by narrative-eval
+  promotion_policy: User confirmation is required before any candidate is copied into
+    production/manuscript.

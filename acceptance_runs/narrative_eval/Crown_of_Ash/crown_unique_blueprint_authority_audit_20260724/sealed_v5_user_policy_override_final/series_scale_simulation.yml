@@ -1,6 +1,6 @@
-suite: crown_live_single_chapter_probe_20260707
-chapter_count: 1500
-target_total_chapters: 1500
+suite: crown_unique_blueprint_authority_audit_20260724
+chapter_count: 1980
+target_total_chapters: 1980
 status: pass
 simulation_scope: governance_ledger_only
 text_generation:

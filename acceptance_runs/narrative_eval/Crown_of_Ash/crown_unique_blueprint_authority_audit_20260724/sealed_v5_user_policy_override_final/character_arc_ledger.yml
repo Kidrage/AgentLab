@@ -3,14 +3,14 @@ major_arcs:
 - character: protagonist
   phase_changes:
   - 1
-  - 180
-  - 620
-  - 1180
-  - 1500
+  - 237
+  - 650
+  - 1584
+  - 1980
 - character: exile_scribe
   phase_changes:
   - 1
-  - 220
-  - 700
-  - 1100
-  - 1450
+  - 297
+  - 930
+  - 1465
+  - 1920

@@ -1,7 +1,7 @@
 timeline_monotonic: true
 worldline_phase_changes:
 - 1
-- 500
-- 1000
-- 1500
+- 650
+- 1310
+- 1980
 static_worldline_detected: false

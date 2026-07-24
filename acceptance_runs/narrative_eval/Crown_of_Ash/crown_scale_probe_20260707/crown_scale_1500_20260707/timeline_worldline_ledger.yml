@@ -1,7 +1,0 @@
-timeline_monotonic: true
-worldline_phase_changes:
-- 1
-- 500
-- 1000
-- 1500
-static_worldline_detected: false
