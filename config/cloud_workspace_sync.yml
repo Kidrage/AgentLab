@@ -24,9 +24,13 @@ profiles:
       invocation: openclaw agent --message "$(./agentlab.sh frontdesk-session --agent openclaw)"
     never_sync:
       - .env
-      - .agents/workspaces
       - .git
       - .venv
       - __pycache__
       - .pytest_cache
-      - CLI OAuth homes
+      - .agents/workspaces
+      - .claude
+      - .codex
+      - .grok
+      - .openclaw
+      - .config/agy

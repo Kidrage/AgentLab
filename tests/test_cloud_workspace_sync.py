@@ -40,6 +40,7 @@ def _write_config(root: Path) -> None:
                         "rag_path": ".agentlab_runtime/knowledge",
                         "receipt_path": ".agentlab/sync/cloud_250",
                         "local_untracked_allowlist": ["tmp_debug/"],
+                        "never_sync": [".env", ".git", ".claude"],
                         "initial_rag_seed": True,
                         "rebuild_rag_after_project_change": True,
                     }
@@ -107,12 +108,21 @@ def test_explicit_push_refuses_to_overwrite_remote_only_change(tmp_path: Path) -
 
 
 def test_rsync_command_is_argv_and_dry_run_is_explicit() -> None:
-    command = build_rsync_command("/source", "250:/destination", dry_run=True)
+    command = build_rsync_command(
+        "/source",
+        "250:/destination",
+        dry_run=True,
+        excludes=(".env", ".git"),
+    )
     assert command == [
         "rsync",
         "-a",
         "--delete",
         "--dry-run",
+        "--exclude",
+        ".env",
+        "--exclude",
+        ".git",
         "/source/",
         "250:/destination/",
     ]
@@ -136,6 +146,55 @@ def test_repository_profile_declares_openclaw_frontdesk_only() -> None:
     openclaw = payload["profiles"]["cloud_250"]["openclaw"]
     assert openclaw["role"] == "frontdesk_only"
     assert openclaw["worker_capable"] is False
+    assert {".env", ".git", ".claude", ".codex", ".grok", ".openclaw"}.issubset(
+        set(payload["profiles"]["cloud_250"]["never_sync"])
+    )
+
+
+def test_execution_lock_blocks_a_second_synchronizer(tmp_path: Path) -> None:
+    _write_config(tmp_path)
+    profile = load_profile(tmp_path)
+    with cws.execution_lock(tmp_path, profile):
+        with pytest.raises(SyncError, match="already running"):
+            with cws.execution_lock(tmp_path, profile):
+                pass
+
+
+def test_remote_deploy_never_stashes_a_dirty_workspace() -> None:
+    assert "git\", \"stash" not in cws._REMOTE_DEPLOY_CODE_BODY
+    assert "remote changes block deployment" in cws._REMOTE_DEPLOY_CODE_BODY
+
+
+def test_plan_cas_rejects_local_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path)
+    profile = load_profile(tmp_path)
+    plan = {
+        "local": {
+            "code_commit": "old",
+            "projects": {"projects/AgentLab": "a"},
+            "knowledge_marker": "k",
+        },
+        "remote": {
+            "code_commit": "remote",
+            "git_status": [],
+            "projects": {"projects/AgentLab": "a"},
+            "knowledge_marker": "k",
+        },
+    }
+    monkeypatch.setattr(
+        cws,
+        "local_state",
+        lambda *_args, **_kwargs: {
+            "code_commit": "new",
+            "projects": {"projects/AgentLab": "a"},
+            "knowledge_marker": "k",
+        },
+    )
+    monkeypatch.setattr(cws, "remote_state", lambda *_args, **_kwargs: plan["remote"])
+    with pytest.raises(SyncError, match="local workspace changed"):
+        cws._assert_plan_current(tmp_path, profile, plan)
 
 
 def test_code_only_deploy_rebuilds_remote_agentlab_knowledge(
@@ -161,6 +220,7 @@ def test_code_only_deploy_rebuilds_remote_agentlab_knowledge(
     }
     calls: list[list[str]] = []
     monkeypatch.setattr(cws, "_validate_local_git_clean", lambda *_: None)
+    monkeypatch.setattr(cws, "_assert_plan_current", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         cws,
         "deploy_remote_code",

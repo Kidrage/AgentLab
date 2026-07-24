@@ -9,6 +9,8 @@ seeded once and then rebuilt from the synchronized source/project truth.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -46,6 +48,7 @@ class SyncProfile:
     rag_path: Path
     receipt_path: Path
     allowed_untracked: tuple[str, ...]
+    never_sync: tuple[str, ...]
     seed_rag: bool
     rebuild_rag: bool
 
@@ -147,6 +150,7 @@ def load_profile(root: Path, profile_name: str = "cloud_250") -> SyncProfile:
         rag_path=Path(str(raw.get("rag_path") or ".agentlab_runtime/knowledge")),
         receipt_path=Path(str(raw.get("receipt_path") or ".agentlab/sync/cloud_250")),
         allowed_untracked=tuple(str(item) for item in raw.get("local_untracked_allowlist") or []),
+        never_sync=tuple(str(item) for item in raw.get("never_sync") or []),
         seed_rag=bool(raw.get("initial_rag_seed", True)),
         rebuild_rag=bool(raw.get("rebuild_rag_after_project_change", True)),
     )
@@ -390,6 +394,40 @@ def _validate_local_git_clean(root: Path, profile: SyncProfile) -> None:
         raise SyncError(f"local tracked/unapproved changes block sync: {disallowed}")
 
 
+@contextlib.contextmanager
+def execution_lock(root: Path, profile: SyncProfile) -> Iterable[None]:
+    """Serialize manual and scheduled synchronization on the local authority."""
+
+    path = root / profile.receipt_path / "execution.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+", encoding="utf-8") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise SyncError("another workspace synchronization is already running") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _assert_plan_current(
+    root: Path,
+    profile: SyncProfile,
+    plan: Mapping[str, Any],
+    *,
+    runner: Runner = subprocess.run,
+) -> None:
+    current_local = local_state(root, profile)
+    current_remote = remote_state(profile, runner=runner)
+    local_keys = ("code_commit", "projects", "knowledge_marker")
+    remote_keys = ("code_commit", "git_status", "projects", "knowledge_marker")
+    if any(current_local.get(key) != plan["local"].get(key) for key in local_keys):
+        raise SyncError("local workspace changed after synchronization planning")
+    if any(current_remote.get(key) != plan["remote"].get(key) for key in remote_keys):
+        raise SyncError("remote workspace changed after synchronization planning")
+
+
 _REMOTE_DEPLOY_CODE_BODY = r"""
 import json
 import pathlib
@@ -405,23 +443,8 @@ status = subprocess.run(
     capture_output=True,
     check=True,
 ).stdout.splitlines()
-allowed = {" M PROJECT_HANDOFF.md", "M  PROJECT_HANDOFF.md"}
-unexpected = [line for line in status if line not in allowed]
-if unexpected:
-    raise SystemExit("remote tracked changes block deployment: " + repr(unexpected))
 if status:
-    backup = root / ".agentlab" / "sync" / "cloud_250" / "pre_migration"
-    backup.mkdir(parents=True, exist_ok=True)
-    source = root / "PROJECT_HANDOFF.md"
-    if source.exists():
-        shutil.copy2(source, backup / "PROJECT_HANDOFF.pre_migration.md")
-    subprocess.run(
-        ["git", "stash", "push", "-m", "cloud-250-pre-migration-handoff", "--", "PROJECT_HANDOFF.md"],
-        cwd=root,
-        check=True,
-        text=True,
-        capture_output=True,
-    )
+    raise SystemExit("remote changes block deployment: " + repr(status))
 subprocess.run(["git", "fetch", "origin", branch], cwd=root, check=True)
 exists = subprocess.run(
     ["git", "show-ref", "--verify", "--quiet", "refs/heads/" + branch],
@@ -458,12 +481,15 @@ def build_rsync_command(
     *,
     delete: bool = True,
     dry_run: bool = False,
+    excludes: Sequence[str] = (),
 ) -> list[str]:
     command = ["rsync", "-a"]
     if delete:
         command.append("--delete")
     if dry_run:
         command.append("--dry-run")
+    for pattern in excludes:
+        command.extend(["--exclude", pattern])
     command.extend([source.rstrip("/") + "/", destination.rstrip("/") + "/"])
     return command
 
@@ -616,7 +642,11 @@ def _sync_projects_push(
             raise SyncError(f"missing local project: {relative}")
         destination = f"{profile.remote}:{stage / relative}"
         _run_checked(
-            build_rsync_command(str(root / relative), destination),
+            build_rsync_command(
+                str(root / relative),
+                destination,
+                excludes=profile.never_sync,
+            ),
             runner=runner,
         )
         items.append({"relative": relative.as_posix(), "sha256": expected})
@@ -654,6 +684,7 @@ def _sync_projects_pull(
             build_rsync_command(
                 f"{profile.remote}:{profile.remote_root / relative}",
                 str(stage / relative),
+                excludes=profile.never_sync,
             ),
             runner=runner,
         )
@@ -758,8 +789,13 @@ receipts = base / "receipts"
 receipts.mkdir(parents=True, exist_ok=True)
 encoded = json.dumps(PAYLOAD["receipt"], ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 receipt_path = receipts / (PAYLOAD["receipt"]["sync_id"] + ".json")
-receipt_path.write_text(encoded, encoding="utf-8")
-temporary = base / ".current.json.tmp"
+if receipt_path.exists():
+    if receipt_path.read_text(encoding="utf-8") != encoded:
+        raise RuntimeError("immutable receipt collision: " + str(receipt_path))
+else:
+    with receipt_path.open("x", encoding="utf-8") as handle:
+        handle.write(encoded)
+temporary = base / (".current." + PAYLOAD["receipt"]["sync_id"] + ".tmp")
 temporary.write_text(encoded, encoding="utf-8")
 temporary.replace(base / "current.json")
 print(json.dumps({"status": "written", "path": str(receipt_path)}))
@@ -777,8 +813,14 @@ def write_receipt(
     receipts = base / "receipts"
     receipts.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    (receipts / f"{receipt['sync_id']}.json").write_text(encoded, encoding="utf-8")
-    temporary = base / ".current.json.tmp"
+    receipt_path = receipts / f"{receipt['sync_id']}.json"
+    if receipt_path.exists():
+        if receipt_path.read_text(encoding="utf-8") != encoded:
+            raise SyncError(f"immutable receipt collision: {receipt_path}")
+    else:
+        with receipt_path.open("x", encoding="utf-8") as handle:
+            handle.write(encoded)
+    temporary = base / f".current.{receipt['sync_id']}.tmp"
     temporary.write_text(encoded, encoding="utf-8")
     temporary.replace(base / "current.json")
     _remote_python(
@@ -801,89 +843,91 @@ def execute_plan(
     seed_rag: bool,
     runner: Runner = subprocess.run,
 ) -> dict[str, Any]:
-    _validate_local_git_clean(root, profile)
-    sync_id = "sync_" + _sha256_bytes(
-        json.dumps(
-            {
-                "generated_at": _utc_now(),
-                "local": plan["local"],
-                "remote": plan["remote"],
-                "project_action": plan["project_action"],
-            },
-            sort_keys=True,
-        ).encode()
-    )
-    code_deployed = plan["code_action"] != "synced"
-    if code_deployed:
-        deployed = deploy_remote_code(profile, runner=runner)
-        if deployed.get("head") != plan["local"]["code_commit"]:
-            raise SyncError("remote GitHub deployment did not reach the local commit")
-    action = str(plan["project_action"])
-    if action in {"push", "initial_push"}:
-        _sync_projects_push(
-            root,
-            profile,
-            plan["local"]["projects"],
-            sync_id,
-            runner=runner,
+    with execution_lock(root, profile):
+        _validate_local_git_clean(root, profile)
+        _assert_plan_current(root, profile, plan, runner=runner)
+        sync_id = "sync_" + _sha256_bytes(
+            json.dumps(
+                {
+                    "generated_at": _utc_now(),
+                    "local": plan["local"],
+                    "remote": plan["remote"],
+                    "project_action": plan["project_action"],
+                },
+                sort_keys=True,
+            ).encode()
         )
-        if seed_rag:
-            _seed_rag(root, profile, sync_id, runner=runner)
-            run_remote_agentlab(profile, ["knowledge", "doctor"], runner=runner)
-        elif profile.rebuild_rag:
+        code_deployed = plan["code_action"] != "synced"
+        if code_deployed:
+            deployed = deploy_remote_code(profile, runner=runner)
+            if deployed.get("head") != plan["local"]["code_commit"]:
+                raise SyncError("remote GitHub deployment did not reach the local commit")
+        action = str(plan["project_action"])
+        if action in {"push", "initial_push"}:
+            _sync_projects_push(
+                root,
+                profile,
+                plan["local"]["projects"],
+                sync_id,
+                runner=runner,
+            )
+            if seed_rag:
+                _seed_rag(root, profile, sync_id, runner=runner)
+                run_remote_agentlab(profile, ["knowledge", "doctor"], runner=runner)
+            elif profile.rebuild_rag:
+                run_remote_agentlab(
+                    profile,
+                    ["knowledge", "build", "--all-projects", "--seal-project-snapshot"],
+                    runner=runner,
+                )
+        elif action == "pull":
+            _sync_projects_pull(
+                root,
+                profile,
+                plan["remote"]["projects"],
+                sync_id,
+                runner=runner,
+            )
+            if profile.rebuild_rag:
+                run_local_agentlab(
+                    root,
+                    ["knowledge", "build", "--all-projects", "--seal-project-snapshot"],
+                    runner=runner,
+                )
+        elif action != "synced":
+            raise SyncError(f"project synchronization is blocked: {action}")
+        if (
+            code_deployed
+            and not seed_rag
+            and action not in {"push", "initial_push"}
+            and profile.rebuild_rag
+        ):
             run_remote_agentlab(
                 profile,
                 ["knowledge", "build", "--all-projects", "--seal-project-snapshot"],
                 runner=runner,
             )
-    elif action == "pull":
-        _sync_projects_pull(
-            root,
-            profile,
-            plan["remote"]["projects"],
-            sync_id,
-            runner=runner,
-        )
-        if profile.rebuild_rag:
-            run_local_agentlab(
-                root,
-                ["knowledge", "build", "--all-projects", "--seal-project-snapshot"],
-                runner=runner,
-            )
-    elif action != "synced":
-        raise SyncError(f"project synchronization is blocked: {action}")
-    if (
-        code_deployed
-        and not seed_rag
-        and action not in {"push", "initial_push"}
-        and profile.rebuild_rag
-    ):
-        run_remote_agentlab(
-            profile,
-            ["knowledge", "build", "--all-projects", "--seal-project-snapshot"],
-            runner=runner,
-        )
-    final_local = local_state(root, profile)
-    final_remote = remote_state(profile, runner=runner)
-    if final_local["code_commit"] != final_remote["code_commit"]:
-        raise SyncError("code commits differ after synchronization")
-    if final_local["projects"] != final_remote["projects"]:
-        raise SyncError("project hashes differ after synchronization")
-    receipt = {
-        "schema_version": 1,
-        "sync_id": sync_id,
-        "profile": profile.name,
-        "completed_at": _utc_now(),
-        "direction": action,
-        "state": {
-            "code_commit": final_local["code_commit"],
-            "projects": final_local["projects"],
-            "local_knowledge_marker": final_local["knowledge_marker"],
-            "remote_knowledge_marker": final_remote["knowledge_marker"],
-        },
-    }
-    write_receipt(root, profile, receipt, runner=runner)
-    return receipt
+        final_local = local_state(root, profile)
+        final_remote = remote_state(profile, runner=runner)
+        if final_local["code_commit"] != final_remote["code_commit"]:
+            raise SyncError("code commits differ after synchronization")
+        if final_local["projects"] != final_remote["projects"]:
+            raise SyncError("project hashes differ after synchronization")
+        receipt = {
+            "schema_version": 1,
+            "sync_id": sync_id,
+            "profile": profile.name,
+            "completed_at": _utc_now(),
+            "direction": action,
+            "state": {
+                "code_commit": final_local["code_commit"],
+                "projects": final_local["projects"],
+                "local_knowledge_marker": final_local["knowledge_marker"],
+                "remote_knowledge_marker": final_remote["knowledge_marker"],
+            },
+        }
+        write_receipt(root, profile, receipt, runner=runner)
+        return receipt
 
 
 def launch_agent_payload(root: Path, profile: SyncProfile) -> dict[str, Any]:
