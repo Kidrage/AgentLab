@@ -14,6 +14,10 @@ import yaml
 
 from agent_runtime.artifact_digest import artifact_sha256
 from agent_runtime.atomic_io import atomic_write_yaml
+from agent_runtime.narrative.fact_authority import (
+    load_fact_authority,
+    verify_registered_fact_authority,
+)
 from agent_runtime.project_reset import fact_distillation_issues
 
 
@@ -294,6 +298,82 @@ def seal_crown_blueprint(
     """Hash AgentLab-authored blueprint files without changing their decisions."""
     root = Path(agentlab_root).resolve()
     project_root = (root / "projects" / project).resolve()
+    artifact_index_path = project_root / "project_artifact_index.yml"
+    try:
+        existing_artifact_index = (
+            yaml.safe_load(artifact_index_path.read_text(encoding="utf-8")) or {}
+            if artifact_index_path.is_file()
+            else {}
+        )
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise ValueError(f"cannot read current project artifact index: {exc}") from exc
+    if not isinstance(existing_artifact_index, dict):
+        raise ValueError("current project artifact index must be a mapping")
+    if artifact_index_path.is_file() and (
+        existing_artifact_index.get("schema_version") != 1
+        or existing_artifact_index.get("project") != project
+    ):
+        raise ValueError("current project artifact index schema or project mismatch")
+    existing_artifacts = existing_artifact_index.get("artifacts", [])
+    if not isinstance(existing_artifacts, list):
+        raise ValueError("current project artifact index artifacts must be a list")
+    existing_current = existing_artifact_index.get("current", {})
+    if not isinstance(existing_current, dict):
+        raise ValueError("current project artifact index current must be a mapping")
+    current_records: dict[str, dict[str, Any]] = {}
+    historical_records: list[dict[str, Any]] = []
+    for raw in existing_artifacts:
+        if not isinstance(raw, dict):
+            raise ValueError("current project artifact index entry must be a mapping")
+        if raw.get("status") != "current":
+            historical_records.append(dict(raw))
+            continue
+        artifact_id = str(raw.get("artifact_id") or "").strip()
+        relative = PurePosixPath(str(raw.get("production_path") or ""))
+        expected_sha256 = str(raw.get("production_sha256") or "")
+        if (
+            not artifact_id
+            or artifact_id in current_records
+            or relative.is_absolute()
+            or not relative.parts
+            or relative.parts[0] not in {"production", "project_brain"}
+            or any(part in {"", ".", ".."} for part in relative.parts)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
+        ):
+            raise ValueError("current project artifact index has an invalid current entry")
+        target = (project_root / Path(*relative.parts)).resolve()
+        if project_root not in target.parents or not (
+            target.is_file() or target.is_dir()
+        ):
+            raise ValueError(f"current project artifact is missing: {relative}")
+        if artifact_sha256(target) != expected_sha256:
+            raise ValueError(f"current project artifact hash mismatch: {relative}")
+        current_records[artifact_id] = dict(raw)
+    expected_current = {
+        artifact_id: record["production_path"]
+        for artifact_id, record in current_records.items()
+    }
+    if existing_current != expected_current:
+        raise ValueError("current project artifact index current mapping mismatch")
+    authority_path = project_root / "production" / "fact_authority.yml"
+    selected_authority: dict[str, Any] | None = None
+    if authority_path.is_file():
+        try:
+            authority, authority_sha256 = load_fact_authority(
+                authority_path,
+                project=project,
+            )
+            selected_authority = verify_registered_fact_authority(
+                project_root,
+                authority,
+                authority_sha256,
+            )
+        except ValueError as exc:
+            raise ValueError(
+                f"cannot preserve active fact authority: {exc}"
+            ) from exc
+    elif "production/fact_authority.yml" in existing_current.values():
+        raise ValueError("selected fact authority file is missing")
     if bool(source_task) != bool(source_run_artifact):
         raise ValueError(
             "source_task and source_run_artifact must be provided together"
@@ -369,7 +449,17 @@ def seal_crown_blueprint(
     )
     atomic_write_yaml(validation_receipt_path, validation_receipt)
 
-    artifacts: list[dict[str, Any]] = []
+    artifacts: list[dict[str, Any]] = list(historical_records)
+    blueprint_ids = {
+        f"crown_blueprint_{number:02d}"
+        for number in range(1, len(BLUEPRINT_ARTIFACT_PATHS) + 1)
+    }
+    preserved_current = [
+        record
+        for artifact_id, record in current_records.items()
+        if artifact_id not in blueprint_ids
+        and record.get("production_path") != "production/fact_authority.yml"
+    ]
     for number, relative in enumerate(BLUEPRINT_ARTIFACT_PATHS, start=1):
         artifacts.append(
             {
@@ -381,14 +471,22 @@ def seal_crown_blueprint(
                 **lineage,
             }
         )
+    artifacts.extend(preserved_current)
+    if selected_authority is not None:
+        artifacts.append(selected_authority)
     artifact_index = {
         "schema_version": 1,
         "project": project,
-        "candidate_prose_promoted": False,
+        "candidate_prose_promoted": bool(
+            existing_artifact_index.get("candidate_prose_promoted", False)
+        ),
         "artifacts": artifacts,
-        "current": {item["artifact_id"]: item["production_path"] for item in artifacts},
+        "current": {
+            item["artifact_id"]: item["production_path"]
+            for item in artifacts
+            if item.get("status") == "current"
+        },
     }
-    artifact_index_path = project_root / "project_artifact_index.yml"
     atomic_write_yaml(artifact_index_path, artifact_index)
     return {
         "schema_version": 1,

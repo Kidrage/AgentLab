@@ -12,6 +12,10 @@ EVENTS_FILE = "project_fact_events.jsonl"
 SNAPSHOT_FILE = "project_fact_snapshot.yml"
 
 
+class ProjectFactBootstrapRequired(RuntimeError):
+    """A legacy/custom snapshot must be bootstrapped before event replay."""
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -30,6 +34,7 @@ def empty_project_fact_snapshot(project: str | None = None) -> dict[str, Any]:
 
 
 def initialize_project_fact_state(project_brain_dir: Path, project: str | None = None) -> dict[str, Any]:
+    _assert_rebuild_safe(project_brain_dir)
     project_brain_dir.mkdir(parents=True, exist_ok=True)
     events_path = project_brain_dir / EVENTS_FILE
     if not events_path.exists():
@@ -71,6 +76,7 @@ def append_project_fact_events(project_brain_dir: Path, events: list[dict[str, A
 
 
 def rebuild_project_fact_snapshot(project_brain_dir: Path, project: str | None = None) -> dict[str, Any]:
+    _assert_rebuild_safe(project_brain_dir)
     snapshot = empty_project_fact_snapshot(project)
     for event in read_project_fact_events(project_brain_dir):
         _apply_event(snapshot, event)
@@ -103,6 +109,7 @@ def apply_state_transition_proposal(
     proposal: dict[str, Any],
     acceptance_result: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    _assert_rebuild_safe(project_brain_dir)
     body = proposal.get("state_transition_proposal") or proposal
     existing_project = load_project_fact_snapshot(project_brain_dir).get("project")
     raw_events = body.get("events") or []
@@ -115,6 +122,34 @@ def apply_state_transition_proposal(
     event_ids = append_project_fact_events(project_brain_dir, events)
     snapshot = rebuild_project_fact_snapshot(project_brain_dir, project=body.get("project") or existing_project)
     return {"applied": True, "event_ids": event_ids, "snapshot": snapshot}
+
+
+def _assert_rebuild_safe(project_brain_dir: Path) -> None:
+    """Fail closed before generic replay can erase a custom fact snapshot.
+
+    Crown's reset-era snapshot uses a top-level ``facts`` list rather than the
+    generic entities/artifacts projection.  Until an explicit bootstrap event
+    log exists, treating an absent/empty log as authority would replace that
+    snapshot with an empty generic document.
+    """
+
+    snapshot_path = Path(project_brain_dir) / SNAPSHOT_FILE
+    if not snapshot_path.exists():
+        return
+    import yaml
+
+    data = yaml.safe_load(snapshot_path.read_text(encoding="utf-8")) or {}
+    is_custom_snapshot = isinstance(data, dict) and isinstance(data.get("facts"), list)
+    if not is_custom_snapshot:
+        return
+    events_path = Path(project_brain_dir) / EVENTS_FILE
+    has_events = events_path.exists() and any(
+        line.strip() for line in events_path.read_text(encoding="utf-8").splitlines()
+    )
+    if not has_events:
+        raise ProjectFactBootstrapRequired(
+            "custom project fact snapshot requires an explicit bootstrap event log"
+        )
 
 
 def _apply_event(snapshot: dict[str, Any], event: dict[str, Any]) -> None:

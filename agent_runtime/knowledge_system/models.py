@@ -11,7 +11,11 @@ import re
 from typing import Any, Mapping
 
 
-NAMESPACE_RE = re.compile(r"^(system|domain|project)\.[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+NAMESPACE_RE = re.compile(
+    r"^(system|domain|project)\.[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    r"|^agent\.[A-Za-z0-9][A-Za-z0-9_.-]{0,63}"
+    r"\.[A-Za-z0-9][A-Za-z0-9_-]{1,63}$"
+)
 
 
 class AuthorityLevel(str, Enum):

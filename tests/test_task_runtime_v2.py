@@ -19,6 +19,78 @@ from agent_runtime.task_runtime_v2 import (
 )
 from agent_runtime.knowledge_system.sources import SourceCollector
 from agent_runtime.config_loader import load_agentlab_configs
+from task_runtime_v2_support import execute_role_with_output
+
+
+_GOVERNED_PROFILE = {
+    "kind": "prose_build",
+    "scope": "multi_chapter",
+    "target_count": 0,
+    "canon_impact": "canonical",
+    "risk_flags": ["longform_continuity"],
+}
+
+
+def _record_brain_plan_gates(
+    runtime: TaskRuntime, tmp_path: Path, task_id: str
+) -> None:
+    scope = {
+        "schema_version": "brain-scope-decision/v1",
+        "approved": True,
+        "chapter_start": 1,
+        "chapter_end": 1,
+        "target_cjk_chars": 3000,
+        "quality_thresholds": {"overall": 0.8},
+    }
+    plan = {
+        "schema_version": "task-execution-plan/v1",
+        "status": "approved",
+        "route": "governed_pipeline",
+        "work_items": ["writer", "reviewer"],
+    }
+    runtime.create_work_item(
+        task_id,
+        job_id="job-main",
+        work_item_id="brain-plan",
+        kind="planning",
+        title="Brain plan",
+        idempotency_key="work-brain-plan",
+    )
+    outcome = execute_role_with_output(
+        runtime,
+        tmp_path,
+        task_id=task_id,
+        work_item_id="brain-plan",
+        attempt_id="brain-plan-attempt",
+        role="Supervisor",
+        output={"brain_scope_decision": scope, "execution_plan": plan},
+    )
+    staging = (
+        tmp_path
+        / "projects"
+        / "Demo"
+        / "runtime"
+        / "tasks"
+        / task_id
+        / "records"
+        / "staging"
+    )
+    staging.mkdir(parents=True, exist_ok=True)
+    for record_type in ("brain_scope_decision", "execution_plan"):
+        source = staging / f"{record_type}.yml"
+        payload = dict(scope if record_type == "brain_scope_decision" else plan)
+        payload["producer_attempt_id"] = "brain-plan-attempt"
+        payload["source_output_sha256"] = outcome["output_sha256"]
+        source.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+        runtime.record_trace(
+            task_id,
+            record_id=f"record-{record_type}",
+            record_type=record_type,
+            producer="codex",
+            producer_role="Supervisor",
+            path=source,
+            idempotency_key=f"record-{record_type}",
+        )
 
 
 def test_create_task_appends_authoritative_event_and_rebuilds_projection(
@@ -39,6 +111,7 @@ def test_create_task_appends_authoritative_event_and_rebuilds_projection(
         "title": "Deliver one governed result",
         "user_goal": "Produce and review one result without splitting the goal.",
         "goal_fingerprint": created["task"]["goal_fingerprint"],
+        "input_classification": created["task"]["input_classification"],
         "status": "created",
         "created_at": created["task"]["created_at"],
         "updated_at": created["task"]["updated_at"],
@@ -245,6 +318,7 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
         task_id="task-book",
         title="Produce one book",
         user_goal="Keep execution retries traceable without creating more tasks.",
+        input_profile=_GOVERNED_PROFILE,
         idempotency_key="request-book",
     )
     runtime.create_work_item(
@@ -255,6 +329,7 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
         title="Draft chapter 1",
         idempotency_key="work-chapter-001",
     )
+    _record_brain_plan_gates(runtime, tmp_path, "task-book")
 
     first = runtime.schedule_attempt(
         "task-book",
@@ -262,7 +337,13 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
         attempt_id="attempt-001",
         worker="hermes",
         provider="ark",
-        execution_contract={"skill": "ark-video", "model_role": "visual"},
+        execution_contract={
+            "skill": "ark-video",
+            "model_role": "visual",
+            "role": "ArtifactProducer",
+            "input_tier": "L3",
+            "route": "governed_pipeline",
+        },
         idempotency_key="attempt-001",
     )
     assert first["attempts"]["attempt-001"]["ordinal"] == 1
@@ -275,7 +356,13 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
             attempt_id="attempt-002",
             worker="claude",
             provider="ark",
-            execution_contract={"skill": "ark-video", "model_role": "visual"},
+            execution_contract={
+                "skill": "ark-video",
+                "model_role": "visual",
+                "role": "ArtifactProducer",
+                "input_tier": "L3",
+                "route": "governed_pipeline",
+            },
             idempotency_key="attempt-002-too-early",
         )
 
@@ -298,13 +385,19 @@ def test_retries_are_unique_attempts_with_one_active_lease_per_work_item(
         attempt_id="attempt-002",
         worker="claude",
         provider="ark",
-        execution_contract={"skill": "ark-video", "model_role": "visual"},
+        execution_contract={
+            "skill": "ark-video",
+            "model_role": "visual",
+            "role": "ArtifactProducer",
+            "input_tier": "L3",
+            "route": "governed_pipeline",
+        },
         idempotency_key="attempt-002",
     )
 
     assert retried["attempts"]["attempt-002"]["ordinal"] == 2
     assert retried["work_items"]["chapter-001"]["active_attempt_id"] == "attempt-002"
-    assert len(retried["attempts"]) == 2
+    assert len(retried["attempts"]) == 3
 
 
 def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
@@ -315,6 +408,8 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
         task_id="task-book",
         title="Produce one book",
         user_goal="Select a candidate with immutable provenance.",
+        input_profile=_GOVERNED_PROFILE,
+        legacy_source={"run_path": "projects/Demo/runs/task-book"},
         idempotency_key="request-book",
     )
     runtime.create_work_item(
@@ -325,27 +420,15 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
         title="Draft chapter 1",
         idempotency_key="work-chapter-001",
     )
-    runtime.schedule_attempt(
-        "task-book",
+    _record_brain_plan_gates(runtime, tmp_path, "task-book")
+    attempt_outcome = execute_role_with_output(
+        runtime,
+        tmp_path,
+        task_id="task-book",
         work_item_id="chapter-001",
         attempt_id="attempt-001",
-        worker="hermes",
-        provider="ark",
-        execution_contract={"skill": "ark-chat", "model_role": "writer"},
-        idempotency_key="attempt-001",
-    )
-    runtime.transition_attempt(
-        "task-book",
-        attempt_id="attempt-001",
-        status="running",
-        idempotency_key="attempt-running",
-    )
-    runtime.transition_attempt(
-        "task-book",
-        attempt_id="attempt-001",
-        status="succeeded",
-        idempotency_key="attempt-succeeded",
-        outcome={"duration_ms": 1200, "cost_usd": "0.04"},
+        role="Writer",
+        output={"candidate": "Only candidate text belongs here."},
     )
     artifact_path = (
         tmp_path
@@ -402,15 +485,13 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
         idempotency_key="evidence-v1",
     )
     assert bound["evidence_bindings"]["evidence-chapter-001-v1"]["version_id"] == "chapter-001-v1"
-    assert bound["evidence_bindings"]["evidence-chapter-001-v1"]["execution_receipt"] == {
-        "attempt_id": "attempt-001",
-        "worker": "hermes",
-        "provider": "ark",
-        "execution_contract_hash": bound["attempts"]["attempt-001"][
-            "execution_contract_hash"
-        ],
-        "outcome": {"duration_ms": 1200, "cost_usd": "0.04"},
-    }
+    execution_receipt = bound["evidence_bindings"]["evidence-chapter-001-v1"][
+        "execution_receipt"
+    ]
+    assert execution_receipt["attempt_id"] == "attempt-001"
+    assert execution_receipt["worker"] == "claude_code"
+    assert execution_receipt["provider"] == "deepseek"
+    assert execution_receipt["outcome"] == attempt_outcome
 
     artifact_path.write_text("a later mutable candidate revision\n", encoding="utf-8")
     assert runtime.verify_evidence("task-book")["ok"] is True
@@ -431,6 +512,63 @@ def test_artifact_selection_requires_a_successful_attempt_and_bound_evidence(
     )
     assert selected["selected_artifact_version"] == "chapter-001-v1"
     assert runtime.verify_evidence("task-book")["ok"] is True
+    for work_item_id, work_item in selected["work_items"].items():
+        if work_item["status"] != "accepted":
+            if work_item["status"] == "ready":
+                runtime.transition_work_item(
+                    "task-book",
+                    work_item_id=work_item_id,
+                    status="running",
+                    idempotency_key=f"{work_item_id}-running-for-completion",
+                )
+            runtime.transition_work_item(
+                "task-book",
+                work_item_id=work_item_id,
+                status="accepted",
+                idempotency_key=f"{work_item_id}-accepted-for-completion",
+            )
+    runtime.transition_task(
+        "task-book", status="ready", idempotency_key="task-ready"
+    )
+    runtime.transition_task(
+        "task-book", status="running", idempotency_key="task-running"
+    )
+    completed = runtime.transition_task(
+        "task-book", status="completed", idempotency_key="task-completed"
+    )
+    assert completed["task"]["status"] == "completed"
+
+    rejected = runtime.change_artifact_disposition(
+        "task-book",
+        version_id="chapter-001-v1",
+        disposition="rejected_pre_v3",
+        reason_code="longform_governance_v3_reaudit",
+        feedback_digest="d" * 64,
+        idempotency_key="reject-v1",
+    )
+    assert rejected["selected_artifact_version"] is None
+    assert rejected["task"]["status"] == "ready"
+    assert rejected["artifacts"]["chapter-001-v1"]["disposition"] == "rejected_pre_v3"
+    assert rejected["artifacts"]["chapter-001-v1"]["selection_eligible"] is False
+
+    repeated = runtime.change_artifact_disposition(
+        "task-book",
+        version_id="chapter-001-v1",
+        disposition="rejected_pre_v3",
+        reason_code="longform_governance_v3_reaudit",
+        feedback_digest="d" * 64,
+        idempotency_key="reject-v1",
+    )
+    assert repeated == rejected
+
+    with pytest.raises(InvalidTransition, match="not selection eligible"):
+        runtime.select_artifact_version(
+            "task-book",
+            version_id="chapter-001-v1",
+            idempotency_key="reselect-rejected-v1",
+        )
+
+    assert runtime.rebuild_task("task-book") == rejected
 
 
 def test_work_item_dependencies_activate_without_creating_child_tasks(
@@ -477,6 +615,50 @@ def test_work_item_dependencies_activate_without_creating_child_tasks(
 
     assert running["work_items"]["review-001"]["status"] == "pending"
     assert accepted["work_items"]["review-001"]["status"] == "ready"
+
+
+def test_work_item_created_after_dependencies_are_accepted_is_ready(
+    tmp_path: Path,
+) -> None:
+    runtime = TaskRuntime(tmp_path, project="Demo")
+    runtime.create_task(
+        task_id="task-late-dependent",
+        title="Create the reviewer after planning",
+        user_goal="Allow dynamic work-item expansion after a gate passes.",
+        idempotency_key="request-late-dependent",
+    )
+    runtime.create_work_item(
+        "task-late-dependent",
+        job_id="job-main",
+        work_item_id="brain-plan",
+        kind="planning",
+        title="Accept the Brain plan",
+        idempotency_key="work-brain-plan",
+    )
+    runtime.transition_work_item(
+        "task-late-dependent",
+        work_item_id="brain-plan",
+        status="running",
+        idempotency_key="brain-plan-running",
+    )
+    runtime.transition_work_item(
+        "task-late-dependent",
+        work_item_id="brain-plan",
+        status="accepted",
+        idempotency_key="brain-plan-accepted",
+    )
+
+    created = runtime.create_work_item(
+        "task-late-dependent",
+        job_id="job-main",
+        work_item_id="writer",
+        kind="prose",
+        title="Write the accepted scope",
+        depends_on=["brain-plan"],
+        idempotency_key="work-writer",
+    )
+
+    assert created["work_items"]["writer"]["status"] == "ready"
 
 
 def test_project_rebuild_and_doctor_trust_ledgers_not_cached_indexes(

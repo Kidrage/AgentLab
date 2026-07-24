@@ -3602,6 +3602,7 @@ def _literary_ab_preflight_fixture(tmp_path) -> dict[str, object]:
                 "output_contract_and_hash",
                 "prose_length_contract",
                 "draft_is_prose_only",
+                "prose_conventions",
                 "production_manuscript_not_modified",
             )
         ],

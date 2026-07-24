@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import typer
+import yaml
 from rich.console import Console
 from typer.testing import CliRunner
 
 from agent_runtime.cli.task_runtime_v2 import register_task_runtime_commands
+from agent_runtime.project_agents import ProjectAgentFactory, ProjectAgentRegistry
+from agent_runtime.project_ops.project_router import init_project
+from agent_runtime.project_truth import ProjectTruthStore
 
 
 def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
@@ -83,3 +88,194 @@ def test_task_runtime_cli_exposes_one_task_lifecycle_and_project_doctor(
     assert "status: paused" in paused_again.output
     assert doctor.exit_code == 0, doctor.output
     assert "ok: true" in doctor.output.lower()
+
+
+def test_work_item_cli_materializes_project_agent_collaboration(
+    tmp_path: Path,
+) -> None:
+    init_project(tmp_path, "Demo", "narrative_project", "Demo")
+    project_root = tmp_path / "projects" / "Demo"
+    project = yaml.safe_load(
+        (project_root / "project.yml").read_text(encoding="utf-8")
+    )
+    project["features"] = {
+        "project_truth_mode": "enforced",
+        "enable_project_agents": True,
+    }
+    (project_root / "project.yml").write_text(
+        yaml.safe_dump(project, sort_keys=False),
+        encoding="utf-8",
+    )
+    truth = ProjectTruthStore(project_root)
+    initial = truth.initialize("Demo")
+    ProjectAgentFactory().create_team(
+        ProjectAgentRegistry(truth),
+        "成人黑暗幻想小说，需要谜团悬念控制与成熟感官美学",
+        expected_snapshot_id=initial.current_snapshot_id,
+        actor_id="user",
+        approved=True,
+    )
+    app = typer.Typer()
+    register_task_runtime_commands(app, tmp_path, Console(width=120))
+    runner = CliRunner()
+    created = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "--project",
+            "Demo",
+            "--task-id",
+            "pilot",
+            "--title",
+            "Pilot",
+            "--goal",
+            "Create one governed narrative pilot.",
+            "--idempotency-key",
+            "create-pilot",
+        ],
+    )
+    materialized = runner.invoke(
+        app,
+        [
+            "work-item",
+            "materialize-collaboration",
+            "--project",
+            "Demo",
+            "--task-id",
+            "pilot",
+            "--domain",
+            "narrative",
+            "--idempotency-prefix",
+            "pilot-dag",
+        ],
+    )
+
+    assert created.exit_code == 0, created.output
+    assert materialized.exit_code == 0, materialized.output
+    assert "mystery-check" in materialized.output
+    assert "style-check" in materialized.output
+    assert "canonical_snapshot_id" in materialized.output
+
+
+def test_task_cli_previews_and_records_strict_input_tier(tmp_path: Path) -> None:
+    app = typer.Typer()
+    register_task_runtime_commands(app, tmp_path, Console(width=120))
+    runner = CliRunner()
+    profile = (
+        '{"kind":"prose_build","scope":"multi_chapter","target_count":0,'
+        '"canon_impact":"canonical","risk_flags":["longform_continuity"]}'
+    )
+
+    preview = runner.invoke(
+        app,
+        ["task", "classify", "--input-profile-json", profile],
+    )
+    created = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "--project",
+            "Demo",
+            "--task-id",
+            "task-prose",
+            "--title",
+            "First governed prose build",
+            "--goal",
+            "Let the Brain choose and govern the first prose build.",
+            "--input-profile-json",
+            profile,
+            "--idempotency-key",
+            "request-prose",
+        ],
+    )
+
+    assert preview.exit_code == 0, preview.output
+    assert "tier: L3" in preview.output
+    assert "route: governed_pipeline" in preview.output
+    assert created.exit_code == 0, created.output
+    assert "input_classification:" in created.output
+    assert "brain_decision_required: true" in created.output.lower()
+
+
+def test_trace_cli_records_immutable_memory_receipt(tmp_path: Path) -> None:
+    app = typer.Typer()
+    register_task_runtime_commands(app, tmp_path, Console(width=120))
+    runner = CliRunner()
+    profile = (
+        '{"kind":"exact_patch","scope":"single_detail","target_count":1,'
+        '"canon_impact":"candidate","risk_flags":[]}'
+    )
+    created = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "--project",
+            "Demo",
+            "--task-id",
+            "task-trace",
+            "--title",
+            "Trace one patch",
+            "--goal",
+            "Keep one detail update traceable.",
+            "--input-profile-json",
+            profile,
+            "--idempotency-key",
+            "create-trace",
+        ],
+    )
+    source = (
+        tmp_path
+        / "projects"
+        / "Demo"
+        / "runtime"
+        / "tasks"
+        / "task-trace"
+        / "records"
+        / "staging"
+        / "memory.yml"
+    )
+    source.parent.mkdir(parents=True)
+    memory_file = tmp_path / "projects" / "Demo" / "candidate" / "detail.yml"
+    memory_file.parent.mkdir(parents=True, exist_ok=True)
+    memory_file.write_text("detail: retained\n", encoding="utf-8")
+    memory_path = memory_file.relative_to(tmp_path).as_posix()
+    memory_hash = hashlib.sha256(memory_file.read_bytes()).hexdigest()
+    source.write_text(
+        "schema_version: memory-update-receipt/v1\n"
+        "status: pass\n"
+        f"updated_paths: [{memory_path}]\n"
+        f"content_hashes: {{{memory_path}: {memory_hash}}}\n",
+        encoding="utf-8",
+    )
+
+    recorded = runner.invoke(
+        app,
+        [
+            "trace",
+            "record",
+            "--project",
+            "Demo",
+            "--task-id",
+            "task-trace",
+            "--record-id",
+            "memory-one",
+            "--record-type",
+            "memory_update",
+            "--producer",
+            "brain",
+            "--producer-role",
+            "Supervisor",
+            "--path",
+            str(source),
+            "--idempotency-key",
+            "memory-one",
+        ],
+    )
+
+    assert created.exit_code == 0, created.output
+    assert recorded.exit_code == 0, recorded.output
+    assert "record_type: memory_update" in recorded.output
+    assert "records/immutable/memory-one/" in recorded.output
