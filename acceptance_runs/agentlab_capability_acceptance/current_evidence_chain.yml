@@ -1,10 +1,10 @@
 schema_version: 1
 report_type: agentlab_capability_current_evidence_chain
 chain_id: agentlab_capability_current
-generated_at: '2026-07-24T21:31:11Z'
+generated_at: '2026-07-24T21:50:49Z'
 repository:
   root: .
-  head: 9643f91
+  head: 3de363b
   worktree_dirty: true
 source_report:
   path: acceptance_runs/agentlab_capability_acceptance/current.yml
