@@ -17,6 +17,10 @@ from agent_runtime.narrative.blueprint_validation import (
     seal_crown_blueprint,
     validate_crown_blueprint,
 )
+from agent_runtime.narrative.state_store import (
+    NarrativeStateError,
+    NarrativeStateStore,
+)
 from agent_runtime.narrative_delivery import (
     run_narrative_doctor,
     validate_narrative_delivery,
@@ -137,6 +141,24 @@ def register_narrative_commands(app: typer.Typer, project_root: Path, console: C
                 project=project,
             )
         except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
+
+    @narrative_app.command("commit-fact-authority")
+    def commit_fact_authority(
+        project: str = typer.Option(..., "--project", help="Project name under projects/."),
+    ) -> None:
+        """Commit the one artifact-index-selected fact authority revision."""
+        project_dir = project_root / "projects" / project
+        store = NarrativeStateStore(
+            project_dir / "project_brain",
+            project=project,
+        )
+        try:
+            result = store.commit_fact_authority(
+                project_dir / "production" / "fact_authority.yml"
+            )
+        except (OSError, ValueError, NarrativeStateError) as exc:
             raise typer.BadParameter(str(exc)) from exc
         console.print(yaml.safe_dump(result, sort_keys=False, allow_unicode=True).rstrip())
 

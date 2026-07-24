@@ -11,7 +11,13 @@ import typer
 import yaml
 from rich.console import Console
 
-from agent_runtime.task_runtime_v2 import AttemptLogRetention, LegacyRunMigrator, TaskRuntime
+from agent_runtime.task_runtime_v2 import (
+    AttemptLogRetention,
+    LegacyRunMigrator,
+    RoleAttemptExecutor,
+    TaskInputClassifier,
+    TaskRuntime,
+)
 
 
 RootProvider = Path | Callable[[], Path]
@@ -28,6 +34,7 @@ def register_task_runtime_commands(
     attempt_app = typer.Typer(help="Immutable execution attempts.", no_args_is_help=True)
     artifact_app = typer.Typer(help="Immutable artifact versions.", no_args_is_help=True)
     evidence_app = typer.Typer(help="Artifact evidence bindings.", no_args_is_help=True)
+    trace_app = typer.Typer(help="Immutable task trace and memory records.", no_args_is_help=True)
     runtime_app = typer.Typer(help="Task Runtime v2 project operations.", no_args_is_help=True)
 
     def current_root() -> Path:
@@ -48,12 +55,22 @@ def register_task_runtime_commands(
             raise typer.BadParameter(f"{field} must be a JSON object")
         return value
 
+    def json_list(raw: str, *, field: str) -> list[Any]:
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise typer.BadParameter(f"{field} must be valid JSON: {exc.msg}") from exc
+        if not isinstance(value, list):
+            raise typer.BadParameter(f"{field} must be a JSON list")
+        return value
+
     @task_app.command("create")
     def task_create(
         project: str = typer.Option(..., "--project"),
         task_id: str = typer.Option(..., "--task-id"),
         title: str = typer.Option(..., "--title"),
         goal: str = typer.Option(..., "--goal"),
+        input_profile_json: str | None = typer.Option(None, "--input-profile-json"),
         idempotency_key: str = typer.Option(..., "--idempotency-key"),
         allow_duplicate_goal: bool = typer.Option(False, "--allow-duplicate-goal"),
         independent_boundary_reason: str | None = typer.Option(
@@ -65,9 +82,47 @@ def register_task_runtime_commands(
                 task_id=task_id,
                 title=title,
                 user_goal=goal,
+                input_profile=(
+                    json_mapping(input_profile_json, field="input_profile")
+                    if input_profile_json is not None
+                    else None
+                ),
                 idempotency_key=idempotency_key,
                 allow_duplicate_goal=allow_duplicate_goal,
                 independent_boundary_reason=independent_boundary_reason,
+            )["task"]
+        )
+
+    @task_app.command("classify")
+    def task_classify(
+        input_profile_json: str = typer.Option(..., "--input-profile-json"),
+    ) -> None:
+        """Preview the fail-closed execution tier without creating a Task."""
+
+        emit(
+            TaskInputClassifier(current_root()).classify(
+                json_mapping(input_profile_json, field="input_profile")
+            )
+        )
+
+    @task_app.command("classify-set")
+    def task_classify_set(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        input_profile_json: str = typer.Option(..., "--input-profile-json"),
+        producer_attempt_id: str = typer.Option(..., "--producer-attempt-id"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+    ) -> None:
+        """Record the profile returned by a successful Supervisor intake Attempt."""
+
+        emit(
+            runtime(project).classify_task_input(
+                task_id,
+                input_profile=json_mapping(
+                    input_profile_json, field="input_profile"
+                ),
+                producer_attempt_id=producer_attempt_id,
+                idempotency_key=idempotency_key,
             )["task"]
         )
 
@@ -148,6 +203,16 @@ def register_task_runtime_commands(
         kind: str = typer.Option(..., "--kind"),
         title: str = typer.Option(..., "--title"),
         depends_on: list[str] = typer.Option([], "--depends-on"),
+        assigned_agent_id: str | None = typer.Option(None, "--assigned-agent-id"),
+        agent_manifest_revision: int | None = typer.Option(
+            None, "--agent-manifest-revision"
+        ),
+        canonical_snapshot_id: str | None = typer.Option(
+            None, "--canonical-snapshot-id"
+        ),
+        effective_contract_hash: str | None = typer.Option(
+            None, "--effective-contract-hash"
+        ),
         idempotency_key: str = typer.Option(..., "--idempotency-key"),
     ) -> None:
         emit(
@@ -158,6 +223,10 @@ def register_task_runtime_commands(
                 kind=kind,
                 title=title,
                 depends_on=depends_on,
+                assigned_agent_id=assigned_agent_id,
+                agent_manifest_revision=agent_manifest_revision,
+                canonical_snapshot_id=canonical_snapshot_id,
+                effective_contract_hash=effective_contract_hash,
                 idempotency_key=idempotency_key,
             )["work_items"][work_item_id]
         )
@@ -221,6 +290,35 @@ def register_task_runtime_commands(
                 outcome=json_mapping(outcome, field="outcome"),
                 idempotency_key=idempotency_key,
             )["attempts"][attempt_id]
+        )
+
+    @attempt_app.command("execute-role")
+    def attempt_execute_role(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        work_item_id: str = typer.Option(..., "--work-item-id"),
+        attempt_id: str = typer.Option(..., "--attempt-id"),
+        role: str = typer.Option(..., "--role"),
+        messages_path: Path = typer.Option(..., "--messages-path"),
+        source_paths: list[Path] = typer.Option([], "--source-path"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+        timeout: int | None = typer.Option(None, "--timeout", min=1),
+    ) -> None:
+        """Execute one configured role and bind its receipt to a v2 Attempt."""
+
+        raw_messages = messages_path.read_text(encoding="utf-8")
+        messages = json_list(raw_messages, field="messages")
+        emit(
+            RoleAttemptExecutor(current_root(), project=project).execute(
+                task_id=task_id,
+                work_item_id=work_item_id,
+                attempt_id=attempt_id,
+                role=role,
+                messages=messages,
+                source_paths=source_paths,
+                idempotency_key=idempotency_key,
+                timeout=timeout,
+            )
         )
 
     @artifact_app.command("record")
@@ -291,6 +389,31 @@ def register_task_runtime_commands(
     ) -> None:
         emit(runtime(project).verify_evidence(task_id))
 
+    @trace_app.command("record")
+    def trace_record(
+        project: str = typer.Option(..., "--project"),
+        task_id: str = typer.Option(..., "--task-id"),
+        record_id: str = typer.Option(..., "--record-id"),
+        record_type: str = typer.Option(..., "--record-type"),
+        producer: str = typer.Option(..., "--producer"),
+        producer_role: str = typer.Option(..., "--producer-role"),
+        path: Path = typer.Option(..., "--path"),
+        metadata: str = typer.Option("{}", "--metadata-json"),
+        idempotency_key: str = typer.Option(..., "--idempotency-key"),
+    ) -> None:
+        emit(
+            runtime(project).record_trace(
+                task_id,
+                record_id=record_id,
+                record_type=record_type,
+                producer=producer,
+                producer_role=producer_role,
+                path=path,
+                metadata=json_mapping(metadata, field="metadata"),
+                idempotency_key=idempotency_key,
+            )["trace_records"][record_id]
+        )
+
     @runtime_app.command("project")
     @runtime_app.command("rebuild")
     def runtime_rebuild(project: str = typer.Option(..., "--project")) -> None:
@@ -343,4 +466,5 @@ def register_task_runtime_commands(
     app.add_typer(attempt_app, name="attempt")
     app.add_typer(artifact_app, name="artifact")
     app.add_typer(evidence_app, name="evidence")
+    app.add_typer(trace_app, name="trace")
     app.add_typer(runtime_app, name="runtime-v2")
