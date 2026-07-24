@@ -9,12 +9,12 @@
 - Working root: `.`
 - Repository name: `AgentLab`
 - Git repository: `true`
-- Generated at: `2026-07-24T19:20:38.648407+00:00`
+- Generated at: `2026-07-24T19:23:57.816011+00:00`
 
 ## Current State
 
 - Branch: `agentlab/unified-stable`
-- HEAD: `b615e45`
+- HEAD: `e033341`
 - Indexed paths: 2017
 - Inventory truncated: `false`
 - Inaccessible paths: 0
@@ -230,6 +230,7 @@
 
 ## Change History
 
+- `e033341 2026-07-25 feat: converge model governance and canonical project knowledge`
 - `b615e45 2026-07-25 feat: harden project agents and canonical narrative truth`
 - `79390b3 2026-07-24 feat: converge project governance and runtime evidence`
 - `90916a0 2026-07-24 fix(task-runtime): make task list v2-only by default`
@@ -249,79 +250,11 @@
 - `69e5131 2026-07-24 docs: record M3 cross-domain validation`
 - `70af9c6 2026-07-24 fix: preserve agent lifecycle monotonicity on truth rollback`
 - `4eb6682 2026-07-24 feat: add prompt-driven narrative specialists`
-- `c88ecd4 2026-07-24 merge: integrate M3 project agents with latest main`
 
 ## Current Changes
 
-- `## agentlab/unified-stable...origin/main [ahead 3]`
-- ` M AGENTS.md`
-- ` M PROJECT_HANDOFF.md`
-- ` M README.md`
-- ` M acceptance_runs/PROJECT_TASK_STANDARD_AUDIT.md`
-- ` M acceptance_runs/agentlab_capability_acceptance/current.yml`
+- `## agentlab/unified-stable...origin/main [ahead 4]`
 - ` M acceptance_runs/agentlab_capability_acceptance/current_evidence_chain.yml`
-- ` M acceptance_runs/agentlab_capability_acceptance/live_unblock_plan.yml`
-- ` M agent_runtime/capability_acceptance.py`
-- ` M agent_runtime/cli/models.py`
-- ` M agent_runtime/cli/task_runtime_v2.py`
-- ` M agent_runtime/frontdesk_boundary_audit.py`
-- ` M agent_runtime/knowledge_system/operations.py`
-- ` M agent_runtime/live_unblock_plan.py`
-- ` M agent_runtime/model_capacity.py`
-- ` M agent_runtime/narrative/blueprint_validation.py`
-- ` M agent_runtime/narrative/task_packet.py`
-- ` M agent_runtime/project_truth/store.py`
-- ` M agent_runtime/run_task.py`
-- ` M config/agent_model_profiles.yml`
-- ` M config/agent_role_bindings.yml`
-- ` M config/cli_entrypoint_policy.yml`
-- ` M config/cli_workflow_shells.yml`
-- ` M config/content_project_governance.yml`
-- ` M config/frontdesk_policy.yml`
-- ` M config/hermes_brain_model_groups.yml`
-- ` M config/knowledge_system.yml`
-- ` M config/media_generation_backends.yml`
-- ` M config/model_capacity.yml`
-- ` M config/model_catalog.yml`
-- ` M config/model_providers.yml`
-- ` M config/runtime_cli_requirements.yml`
-- ` M config/shared_agent_directory.yml`
-- ` M config/worker_invocation_contracts.yml`
-- ` M docs/AGENTLAB_CLI_REQUIREMENTS.csv`
-- ` M docs/AGENTLAB_FULL_CLI_MATRIX.csv`
-- ` M docs/AGENTLAB_KNOWLEDGE_SYSTEM_RAG_GOVERNANCE_UPGRADE_PLAN.md`
-- ` M docs/CURRENT_VERSION_CAPABILITIES.zh-CN.md`
-- ` M docs/NARRATIVE_PROJECT_OPERATING_STANDARD.zh-CN.md`
-- ` M docs/PROJECT_AGENTS_AND_TRUTH.md`
-- ` D docs/TASK_RUNTIME_V2.md`
-- ` M scripts/generate_agent_cli_matrix.py`
-- ` M tests/test_agent_cli_matrix.py`
-- ` M tests/test_agent_role_chain_audit.py`
-- ` M tests/test_agent_runner_cli_integration.py`
-- ` M tests/test_agy_cli_smoke.py`
-- ` M tests/test_blueprint_validation.py`
-- ` M tests/test_capability_acceptance.py`
-- ` M tests/test_cli_executor.py`
-- ` M tests/test_execution_config_consolidation.py`
-- ` M tests/test_frontdesk_boundary_audit.py`
-- ` M tests/test_grok_cli_smoke.py`
-- ` M tests/test_m1_generalization_demo.py`
-- ` M tests/test_m1_project_snapshot.py`
-- ` M tests/test_m2_activation_plan_cli.py`
-- ` M tests/test_m2_observability.py`
-- ` M tests/test_media_backend_adapter.py`
-- ` M tests/test_model_capacity.py`
-- ` M tests/test_models_and_governance_cli.py`
-- ` M tests/test_narrative_blueprint_lifecycle.py`
-- ` M tests/test_production_pack_role_session_request.py`
-- ` M tests/test_project_agents.py`
-- ` M tests/test_project_knowledge_snapshot.py`
-- ` M tests/test_project_truth_migration.py`
-- ` M tests/test_protocol_enforcement.py`
-- ` M tests/test_task_runtime_v2_cli.py`
-- ` M tests/test_task_runtime_v2_role_executor.py`
-- `?? docs/MODEL_CAPACITY_AND_UPDATE_GOVERNANCE.zh-CN.md`
-- `?? docs/TASK_RUNTIME.md`
 - `?? tmp_debug/`
 
 ## Related Repositories
