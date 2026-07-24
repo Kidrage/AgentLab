@@ -219,6 +219,32 @@ def test_role_executor_dispatches_recorded_route_and_pins_attempt_receipt(
         idempotency_key="writer-attempt-001",
     )
     assert idempotent["receipt_path"] == result["receipt_path"]
+    runtime.create_work_item(
+        "task-role",
+        job_id="job-main",
+        work_item_id="writer-other",
+        kind="patch",
+        title="Other writer patch",
+        idempotency_key="work-writer-other",
+    )
+    with pytest.raises(InvalidTransition, match="execution identity"):
+        idempotent_executor.execute(
+            task_id="task-role",
+            work_item_id="writer-other",
+            attempt_id="writer-attempt-001",
+            role="Writer",
+            messages=[{"role": "user", "content": "Do not alias another item."}],
+            idempotency_key="writer-attempt-001",
+        )
+    with pytest.raises(InvalidTransition, match="execution identity"):
+        idempotent_executor.execute(
+            task_id="task-role",
+            work_item_id="writer",
+            attempt_id="writer-attempt-001",
+            role="Reviewer",
+            messages=[{"role": "user", "content": "Do not alias another role."}],
+            idempotency_key="writer-attempt-001",
+        )
 
     def mismatched_cli(*args, **kwargs):
         bad_result = fake_cli(*args, **kwargs)
