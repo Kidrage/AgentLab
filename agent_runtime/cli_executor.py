@@ -1763,7 +1763,7 @@ def _write_agy_model_receipt(
         "role": agent_name,
         "worker": "agy",
         "invocation_contract": preflight.get("invocation_contract"),
-        "auth_mode": "local_agy_oauth_session_via_proxy",
+        "auth_mode": "local_agy_oauth_session",
         "provider": preflight.get("provider"),
         "requested_model_key": preflight.get("requested_model_key"),
         "requested_model_id": preflight.get("requested_model_id"),
